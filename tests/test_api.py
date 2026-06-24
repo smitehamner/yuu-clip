@@ -138,24 +138,69 @@ class TestProfiles:
 
 
 # ---------------------------------------------------------------------------
+# Clips — sort and has_export
+# ---------------------------------------------------------------------------
+
+class TestClipsExtended:
+    def _vid_id(self, client) -> int:
+        return client.get("/api/videos").json()[0]["id"]
+
+    def test_list_clips_sort_timeline(self, client):
+        vid_id = self._vid_id(client)
+        r = client.get(f"/api/videos/{vid_id}/clips?sort=timeline")
+        assert r.status_code == 200
+        clips = r.json()
+        start_ms_list = [c["start_ms"] for c in clips]
+        assert start_ms_list == sorted(start_ms_list)
+
+    def test_list_clips_sort_score_is_default(self, client):
+        vid_id = self._vid_id(client)
+        clips = client.get(f"/api/videos/{vid_id}/clips").json()
+        scores = [c["score_overall"] for c in clips]
+        assert scores == sorted(scores, reverse=True)
+
+    def test_list_clips_has_export_field(self, client):
+        vid_id = self._vid_id(client)
+        clips = client.get(f"/api/videos/{vid_id}/clips").json()
+        for c in clips:
+            assert "has_export" in c
+            assert c["has_export"] is False  # no export files in temp dir
+
+    def test_has_export_true_when_file_exists(self, client, project_dir):
+        vid_id = self._vid_id(client)
+        clips = client.get(f"/api/videos/{vid_id}/clips").json()
+        c = clips[0]
+        export_dir = project_dir / ".rp-clipper" / "exports"
+        start_hms_dashes = c["start_hms"].replace(":", "-")
+        export_file = export_dir / f"session_clip{c['id']}_{start_hms_dashes}.mkv"
+        export_file.write_bytes(b"fake video content")
+        # Re-fetch — file now exists on disk
+        clips2 = client.get(f"/api/videos/{vid_id}/clips").json()
+        match = next(x for x in clips2 if x["id"] == c["id"])
+        assert match["has_export"] is True
+
+    def test_clip_detail_has_has_export(self, client):
+        vid_id = self._vid_id(client)
+        clip_id = client.get(f"/api/videos/{vid_id}/clips").json()[0]["id"]
+        r = client.get(f"/api/clips/{clip_id}")
+        assert r.status_code == 200
+        assert "has_export" in r.json()
+
+
+# ---------------------------------------------------------------------------
 # Estimate
 # ---------------------------------------------------------------------------
 
 class TestEstimate:
+    _BASE = dict(duration_s=3600, model="medium", audio_tracks=2, has_gpu=True, scene_mode="fast")
+
     def test_estimate_returns_steps(self, client):
-        r = client.post("/api/estimate", json={
-            "duration_s": 3600,
-            "model": "medium",
-            "audio_tracks": 2,
-            "has_gpu": True,
-            "scene_mode": "fast",
-        })
+        r = client.post("/api/estimate", json=self._BASE)
         assert r.status_code == 200
         d = r.json()
         assert "steps" in d
         assert "total_hms" in d
         assert len(d["steps"]) == 5
-        # All steps should have name, seconds, hms, note
         for step in d["steps"]:
             assert "name" in step
             assert "seconds" in step
@@ -166,6 +211,88 @@ class TestEstimate:
         gpu = client.post("/api/estimate", json={**payload, "has_gpu": True}).json()
         cpu = client.post("/api/estimate", json={**payload, "has_gpu": False}).json()
         assert gpu["total_seconds"] < cpu["total_seconds"]
+
+    def test_estimate_returns_pct_of_video(self, client):
+        d = client.post("/api/estimate", json=self._BASE).json()
+        assert "pct_of_video" in d
+        assert isinstance(d["pct_of_video"], (int, float))
+        assert 0 < d["pct_of_video"] < 200
+
+    def test_estimate_pct_matches_total(self, client):
+        d = client.post("/api/estimate", json=self._BASE).json()
+        expected = round(d["total_seconds"] / self._BASE["duration_s"] * 100, 1)
+        assert abs(d["pct_of_video"] - expected) < 0.5
+
+    def test_estimate_energy_none_cheapest(self, client):
+        none_s = client.post("/api/estimate", json={**self._BASE, "energy_mode": "none"}).json()["total_seconds"]
+        fast_s = client.post("/api/estimate", json={**self._BASE, "energy_mode": "fast"}).json()["total_seconds"]
+        full_s = client.post("/api/estimate", json={**self._BASE, "energy_mode": "full"}).json()["total_seconds"]
+        assert none_s < fast_s < full_s
+
+    def test_estimate_energy_step_name_reflects_mode(self, client):
+        for mode in ("none", "fast", "full"):
+            d = client.post("/api/estimate", json={**self._BASE, "energy_mode": mode}).json()
+            energy_step = next(s for s in d["steps"] if "energy" in s["name"].lower())
+            assert mode in energy_step["name"]
+
+
+# ---------------------------------------------------------------------------
+# Ingest start
+# ---------------------------------------------------------------------------
+
+class TestIngestStart:
+    @pytest.fixture()
+    def video_path(self, project_dir):
+        p = project_dir / "session.mkv"
+        p.write_bytes(b"fake")
+        return p
+
+    def test_missing_file_returns_400(self, client):
+        r = client.post("/api/ingest/start", json={"path": "/nonexistent/video.mkv", "model": "medium"})
+        assert r.status_code == 400
+
+    def test_invalid_model_returns_400(self, client, video_path):
+        r = client.post("/api/ingest/start", json={"path": str(video_path), "model": "gpt-vision"})
+        assert r.status_code == 400
+
+    def test_valid_request_with_energy_mode(self, client, video_path):
+        r = client.post("/api/ingest/start", json={
+            "path": str(video_path),
+            "model": "medium",
+            "energy_mode": "none",
+        })
+        assert r.status_code == 200
+        assert r.json()["status"] == "started"
+
+    def test_all_energy_modes_accepted(self, client, video_path):
+        for mode in ("none", "fast", "full"):
+            r = client.post("/api/ingest/start", json={
+                "path": str(video_path),
+                "model": "medium",
+                "energy_mode": mode,
+            })
+            assert r.status_code == 200, f"energy_mode={mode!r} was rejected"
+
+
+# ---------------------------------------------------------------------------
+# Logs
+# ---------------------------------------------------------------------------
+
+class TestLogs:
+    def test_log_export_filename_contains_date(self, client):
+        from datetime import datetime
+        r = client.get("/api/logs/export")
+        assert r.status_code == 200
+        today = datetime.now().strftime("%Y-%m-%d")
+        disposition = r.headers.get("content-disposition", "")
+        assert today in disposition
+        assert "rp-clipper-" in disposition
+        assert ".log" in disposition
+
+    def test_log_export_returns_text(self, client):
+        r = client.get("/api/logs/export")
+        assert r.status_code == 200
+        assert "text" in r.headers.get("content-type", "")
 
 
 # ---------------------------------------------------------------------------

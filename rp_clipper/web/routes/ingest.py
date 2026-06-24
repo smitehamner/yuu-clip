@@ -46,6 +46,15 @@ _SCENE_MODE_LABELS = {
     "full":       "full frame scan (slow)",
 }
 
+# Audio energy: (wall-clock fraction of source duration, display label).
+# With the numpy vectorised implementation the bottleneck is disk I/O, so
+# fast and full are close; the real difference is transient resolution.
+_ENERGY_MODE: dict[str, tuple[float, str]] = {
+    "none": (0.0,   "skipped"),
+    "fast": (0.002, "4 kHz numpy"),
+    "full": (0.005, "16 kHz numpy"),
+}
+
 
 # ── request models ────────────────────────────────────────────────────────────
 
@@ -59,6 +68,7 @@ class EstimateRequest(BaseModel):
     audio_tracks: int = 2
     has_gpu: bool = True
     scene_mode: str = "fast"
+    energy_mode: str = "fast"
 
 
 class IngestRequest(BaseModel):
@@ -66,6 +76,7 @@ class IngestRequest(BaseModel):
     model: str = "large-v3"
     profile: Optional[str] = None
     no_score: bool = False
+    energy_mode: str = "fast"
 
 
 # ── router factory ────────────────────────────────────────────────────────────
@@ -135,6 +146,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             cmd += ["--profile", req.profile]
         if req.no_score:
             cmd += ["--no-score"]
+        cmd += ["--energy-mode", req.energy_mode]
         ctx.ingest_cmd = cmd
         return {"status": "started"}
 
@@ -196,6 +208,7 @@ def _compute_time_estimate(req: EstimateRequest) -> dict:
         _SCENE_FAST_FLOOR_S if req.scene_mode == "fast" else 0.0,
         d * _SCENE_COST_FRACTION.get(req.scene_mode, 0.005),
     )
+    energy_cost, energy_label = _ENERGY_MODE.get(req.energy_mode, (0.002, ""))
 
     steps = [
         {
@@ -209,9 +222,9 @@ def _compute_time_estimate(req: EstimateRequest) -> dict:
             "note":    f"{transcribe_tracks} track(s) on {'GPU' if req.has_gpu else 'CPU'}",
         },
         {
-            "name":    "Audio energy",
-            "seconds": d * transcribe_tracks * 0.3,
-            "note":    "fast pass",
+            "name":    f"Audio energy ({req.energy_mode})",
+            "seconds": d * n_tracks * energy_cost,
+            "note":    energy_label,
         },
         {
             "name":    f"Scene detection ({req.scene_mode})",
@@ -227,7 +240,13 @@ def _compute_time_estimate(req: EstimateRequest) -> dict:
     total = sum(s["seconds"] for s in steps)
     for step in steps:
         step["hms"] = _format_duration(step["seconds"])
-    return {"steps": steps, "total_hms": _format_duration(total), "total_seconds": total}
+    pct_of_video = round(total / d * 100, 1) if d > 0 else 0
+    return {
+        "steps": steps,
+        "total_hms": _format_duration(total),
+        "total_seconds": total,
+        "pct_of_video": pct_of_video,
+    }
 
 
 def _format_duration(seconds: float) -> str:

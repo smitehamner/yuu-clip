@@ -148,6 +148,7 @@ def ingest(
     no_score: bool = typer.Option(False, "--no-score", help="Skip scoring step"),
     force: bool = typer.Option(False, "--force", help="Re-process even if already ingested"),
     language: Optional[str] = typer.Option(None, "--language", "-l", help="Force Whisper language (e.g. en)"),
+    energy_mode: str = typer.Option("fast", "--energy-mode", help="Audio energy analysis: none|fast|full"),
 ):
     """Full pipeline: probe, label tracks, extract audio, transcribe, generate candidates, score."""
     from rp_clipper.config import project_audio_dir
@@ -175,6 +176,7 @@ def ingest(
             no_score=no_score,
             force=force,
             language=language,
+            energy_mode=energy_mode,
         )
 
     session.commit()
@@ -191,6 +193,7 @@ def ingest(
 def _ingest_one(
     video_path, session, config, audio_dir,
     profile, no_transcribe, no_segment, no_score, force, language,
+    energy_mode: str = "fast",
 ) -> None:
     """Orchestrate all pipeline stages for a single video file."""
     from rp_clipper.db.models import Video
@@ -220,7 +223,7 @@ def _ingest_one(
     candidates = _generate_candidates(video, transcripts, config, session, no_segment, no_transcribe, force)
 
     if not no_score and candidates:
-        _run_scoring(video, track_objs, config, session)
+        _run_scoring(video, track_objs, config, session, energy_mode=energy_mode)
 
     video.processed_at = datetime.utcnow()
     session.flush()
@@ -416,17 +419,17 @@ def _generate_candidates(video, transcripts, config, session, no_segment, no_tra
 # Scoring helper — shared by ingest and the standalone score command
 # ---------------------------------------------------------------------------
 
-def _run_scoring(video, track_objs, config, session) -> None:
+def _run_scoring(video, track_objs, config, session, energy_mode: str = "fast") -> None:
     """Run Phase 2 scoring (energy, scenes, LLM) for all candidates belonging to *video*."""
     from rp_clipper.scoring.energy import AudioEnergyScorer, compute_energy
     from rp_clipper.scoring.engine import ScoringEngine
     from rp_clipper.scoring.llm import LLMScorer
     from rp_clipper.scoring.scenes import SceneCutScorer, compute_scenes
 
-    if config.scorer_energy_enabled:
-        console.print("  [bold]Computing audio energy...[/bold]")
+    if config.scorer_energy_enabled and energy_mode != "none":
+        console.print(f"  [bold]Computing audio energy ({energy_mode})...[/bold]")
         total_seconds = sum(
-            compute_energy(track, session)
+            compute_energy(track, session, energy_mode=energy_mode)
             for track in track_objs
             if track.do_score and track.extracted_path
         )
@@ -703,7 +706,7 @@ def demo(
         raise typer.Exit(1)
 
     proj_dir, session, _ = _load_project(project)
-    export_dir = proj_dir / "exports"
+    export_dir = proj_dir / ".rp-clipper" / "exports"
 
     # Merge --video-id alias into --video list
     effective_video_ids = list(video_ids)
@@ -881,16 +884,21 @@ def serve(
     host:    str            = typer.Option("127.0.0.1", "--host"),
     port:    int            = typer.Option(8080,        "--port"),
     open_browser: bool      = typer.Option(True,        "--open/--no-open"),
+    reload:  bool           = typer.Option(False,       "--reload/--no-reload",
+                                           help="Auto-restart when source files change (development)"),
 ) -> None:
     """Start the web UI server."""
+    import os
     import threading
     import webbrowser
 
     import uvicorn
-    from rp_clipper.web.app import create_app
 
     proj_dir = _project_dir(project)
-    web_app  = create_app(proj_dir)
+    console.print(f"  Project:  [dim]{proj_dir}[/dim]")
+    console.print(f"  Serving at [cyan]http://{host}:{port}[/cyan]  (Ctrl+C to stop)")
+    if reload:
+        console.print("  [yellow]Reload mode on — server restarts when source files change[/yellow]")
 
     if open_browser:
         def _open_after_delay() -> None:
@@ -899,8 +907,16 @@ def serve(
             webbrowser.open(f"http://{host}:{port}")
         threading.Thread(target=_open_after_delay, daemon=True).start()
 
-    console.print(f"  Serving at [cyan]http://{host}:{port}[/cyan]  (Ctrl+C to stop)")
-    uvicorn.run(web_app, host=host, port=port, log_level="warning")
+    if reload:
+        os.environ["RP_CLIPPER_PROJECT"] = str(proj_dir)
+        uvicorn.run(
+            "rp_clipper.web.app:_reload_factory",
+            host=host, port=port, log_level="info",
+            reload=True, factory=True,
+        )
+    else:
+        from rp_clipper.web.app import create_app
+        uvicorn.run(create_app(proj_dir), host=host, port=port, log_level="warning")
 
 
 # ---------------------------------------------------------------------------

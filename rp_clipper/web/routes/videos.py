@@ -33,17 +33,28 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         return [_video_dict(v, db) for v in videos]
 
     @router.get("/api/videos/{video_id}/clips")
-    def list_clips(video_id: int, status: Optional[str] = Query(None)):
+    def list_clips(
+        video_id: int,
+        status: Optional[str] = Query(None),
+        sort: str = Query("score", description="score | timeline"),
+    ):
         db = ctx.get_db()
+        video = db.get(Video, video_id)
+        if not video:
+            raise HTTPException(404, "Video not found")
         q = db.query(ClipCandidate).filter_by(video_id=video_id)
         if status:
             q = q.filter_by(status=status)
-        return [_clip_dict(c) for c in q.order_by(ClipCandidate.score_overall.desc()).all()]
+        order = ClipCandidate.start_ms.asc() if sort == "timeline" else ClipCandidate.score_overall.desc()
+        clips = q.order_by(order).all()
+        return [_clip_dict(c, export_dir=ctx.export_dir, video=video) for c in clips]
 
     @router.get("/api/clips/{clip_id}")
     def get_clip(clip_id: int):
         db = ctx.get_db()
-        return _clip_dict(_require_clip(db, clip_id), full=True)
+        clip = _require_clip(db, clip_id)
+        video = db.get(Video, clip.video_id)
+        return _clip_dict(clip, full=True, export_dir=ctx.export_dir, video=video)
 
     @router.post("/api/clips/{clip_id}/status")
     def set_clip_status(clip_id: int, body: StatusUpdate):
@@ -95,7 +106,12 @@ def _video_dict(video: Video, db) -> dict:
     }
 
 
-def _clip_dict(clip: ClipCandidate, full: bool = False) -> dict:
+def _clip_dict(
+    clip: ClipCandidate,
+    full: bool = False,
+    export_dir=None,
+    video: Video = None,
+) -> dict:
     d = {
         "id": clip.id,
         "video_id": clip.video_id,
@@ -110,6 +126,11 @@ def _clip_dict(clip: ClipCandidate, full: bool = False) -> dict:
         "description": clip.description or "",
         "status": clip.status,
         "tags": clip.tags,
+        "has_export": (
+            export_dir is not None
+            and video is not None
+            and (export_dir / _export_filename(clip, video)).exists()
+        ),
     }
     if full:
         d["transcript_excerpt"] = clip.transcript_excerpt or ""

@@ -91,6 +91,36 @@ class TestIngestModal:
         selected = page.locator("#ingest-scene-mode").input_value()
         assert selected == "fast"
 
+    def test_start_ingest_button_disabled_on_open(self, page: Page):
+        page.goto(LIVE_URL)
+        page.click("#btn-ingest")
+        expect(page.locator("#btn-start-ingest")).to_be_disabled()
+
+    def test_energy_mode_dropdown_visible_in_advanced(self, page: Page):
+        page.goto(LIVE_URL)
+        page.click("#btn-ingest")
+        page.locator("details.advanced summary").click()
+        page.wait_for_selector("#ingest-energy-mode", timeout=2000)
+        expect(page.locator("#ingest-energy-mode")).to_be_visible()
+
+    def test_energy_mode_default_is_fast(self, page: Page):
+        page.goto(LIVE_URL)
+        page.click("#btn-ingest")
+        page.locator("details.advanced summary").click()
+        page.wait_for_selector("#ingest-energy-mode", timeout=2000)
+        assert page.locator("#ingest-energy-mode").input_value() == "fast"
+
+    def test_energy_mode_has_none_and_full_options(self, page: Page):
+        page.goto(LIVE_URL)
+        page.click("#btn-ingest")
+        page.locator("details.advanced summary").click()
+        page.wait_for_selector("#ingest-energy-mode", timeout=2000)
+        options = page.locator("#ingest-energy-mode option")
+        values = [options.nth(i).get_attribute("value") for i in range(options.count())]
+        assert "none" in values
+        assert "fast" in values
+        assert "full" in values
+
     def test_model_options_ordered_slow_to_fast(self, page: Page):
         page.goto(LIVE_URL)
         page.click("#btn-ingest")
@@ -207,6 +237,39 @@ class TestClipReview:
         page.locator("#video-list li").first.click()
         page.wait_for_selector("#clip-list li", timeout=5000)
         expect(page.locator(".clip-miniscores").first).to_be_visible()
+
+
+# ---------------------------------------------------------------------------
+# Clip sort
+# ---------------------------------------------------------------------------
+
+@skip_no_server
+class TestClipSort:
+    def test_sort_dropdown_visible(self, page: Page):
+        page.goto(LIVE_URL)
+        expect(page.locator("#clips-sort")).to_be_visible()
+
+    def test_sort_default_is_score(self, page: Page):
+        page.goto(LIVE_URL)
+        assert page.locator("#clips-sort").input_value() == "score"
+
+    def test_sort_has_timeline_option(self, page: Page):
+        page.goto(LIVE_URL)
+        options = page.locator("#clips-sort option")
+        values = [options.nth(i).get_attribute("value") for i in range(options.count())]
+        assert "score" in values
+        assert "timeline" in values
+
+    def test_switching_sort_does_not_crash(self, page: Page):
+        page.goto(LIVE_URL)
+        page.wait_for_selector("#video-list li", timeout=5000)
+        page.locator("#video-list li").first.click()
+        page.wait_for_selector("#clip-list li", timeout=5000)
+        page.locator("#clips-sort").select_option("timeline")
+        # List should still be present after sort change
+        expect(page.locator("#clip-list li").first).to_be_visible()
+        page.locator("#clips-sort").select_option("score")
+        expect(page.locator("#clip-list li").first).to_be_visible()
 
 
 # ---------------------------------------------------------------------------

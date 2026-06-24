@@ -6,6 +6,7 @@ logic lives in rp_clipper/web/routes/*; this file is purely wiring.
 """
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -20,6 +21,12 @@ _HERE = Path(__file__).parent
 _log  = get_logger(__name__)
 
 _ROUTE_MODULES = (videos, ingest, profiles, demo, logs)
+
+
+def _reload_factory() -> FastAPI:
+    """App factory for uvicorn --reload mode. Reads project dir from env."""
+    proj_dir = Path(os.environ.get("RP_CLIPPER_PROJECT", ".")).resolve()
+    return create_app(proj_dir)
 
 
 def create_app(project_dir: Path) -> FastAPI:

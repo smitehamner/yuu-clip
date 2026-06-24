@@ -68,7 +68,15 @@
 
   /* ── sidebar ── */
   .sidebar { width: 240px; flex-shrink: 0; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
+  .sidebar-group { display: flex; flex-direction: column; overflow: hidden; }
+  .sidebar-group.videos-group { max-height: 35%; flex-shrink: 0; }
+  .sidebar-group.clips-group  { flex: 1; min-height: 0; }
+  .sidebar-group .sidebar-list { flex: 1; overflow-y: auto; }
   .sidebar-section { padding: 10px 12px 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); }
+  .clips-section-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px 4px; }
+  .clips-section-header > span { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); }
+  .clips-sort-select { font-size: 10px; padding: 1px 5px; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; color: var(--muted); cursor: pointer; }
+  .export-tick { font-size: 10px; color: var(--green); flex-shrink: 0; margin-left: 1px; }
   .sidebar-list { list-style: none; overflow-y: auto; }
   .sidebar-list li { padding: 8px 14px; cursor: pointer; border-left: 3px solid transparent; transition: background .1s; }
   .sidebar-list li:hover { background: var(--border); }
@@ -200,11 +208,21 @@
 <div class="layout">
   <!-- Sidebar -->
   <div class="sidebar">
-    <div class="sidebar-section">Videos</div>
-    <ul class="sidebar-list" id="video-list"></ul>
+    <div class="sidebar-group videos-group">
+      <div class="sidebar-section">Videos</div>
+      <ul class="sidebar-list" id="video-list"></ul>
+    </div>
     <div class="sidebar-divider"></div>
-    <div class="sidebar-section">Clips</div>
-    <ul class="sidebar-list" id="clip-list"></ul>
+    <div class="sidebar-group clips-group">
+      <div class="clips-section-header">
+        <span>Clips</span>
+        <select id="clips-sort" class="clips-sort-select" onchange="onClipsSortChange()">
+          <option value="score">Score</option>
+          <option value="timeline">Timeline</option>
+        </select>
+      </div>
+      <ul class="sidebar-list" id="clip-list"></ul>
+    </div>
   </div>
 
   <!-- Main panel -->
@@ -263,11 +281,19 @@
           <option value="full">Full — every frame, most accurate (slow)</option>
         </select>
       </div>
+      <div class="field">
+        <label>Audio energy</label>
+        <select id="ingest-energy-mode" onchange="runEstimate()">
+          <option value="none">None — skip (fastest)</option>
+          <option value="fast" selected>Fast — 4 kHz numpy (recommended)</option>
+          <option value="full">Full — 16 kHz numpy (most accurate)</option>
+        </select>
+      </div>
     </details>
     <div id="estimate-area"></div>
     <div class="modal-actions">
       <button class="btn" onclick="closeIngestModal()">Cancel</button>
-      <button class="btn primary" id="btn-start-ingest" onclick="startIngest()">Start Ingest</button>
+      <button class="btn primary" id="btn-start-ingest" onclick="startIngest()" disabled title="Select a valid video file first">Start Ingest</button>
     </div>
   </div>
 </div>
@@ -372,6 +398,7 @@
 let activeVideoId = null;
 let activeClipId  = null;
 let _videos       = [];
+let _clips        = [];
 
 // ── boot ──────────────────────────────────────────────────────────────────────
 loadVideos();
@@ -428,13 +455,29 @@ function _updateDemoButton(approvedCount) {
     : `Build a highlight reel from ${approvedCount} approved clip(s)`;
 }
 
+function _updateStartIngestButton() {
+  const btn = document.getElementById('btn-start-ingest');
+  if (!btn) return;
+  btn.disabled = !_probedInfo;
+  btn.title = _probedInfo ? '' : 'Select a valid video file first';
+}
+
+function _clipsSortParam() {
+  return document.getElementById('clips-sort').value;
+}
+
 async function selectVideo(id) {
   activeVideoId = id;
   activeClipId  = null;
-  const res   = await fetch(`/api/videos/${id}/clips`);
-  const clips = await res.json();
-  renderClipList(clips);
+  _clips = await fetch(`/api/videos/${id}/clips?sort=${_clipsSortParam()}`).then(r => r.json());
+  renderClipList(_clips);
   clearDetail();
+}
+
+async function onClipsSortChange() {
+  if (!activeVideoId) return;
+  _clips = await fetch(`/api/videos/${activeVideoId}/clips?sort=${_clipsSortParam()}`).then(r => r.json());
+  renderClipList(_clips);
 }
 
 // ── clips ─────────────────────────────────────────────────────────────────────
@@ -450,11 +493,12 @@ function renderClipList(clips) {
     li.className = c.id === activeClipId ? 'active' : '';
     li.innerHTML = `
       <div class="clip-item">
-        <span class="score-badge">${c.score_overall.toFixed(2)}</span>
+        <span class="score-badge" title="Overall score">${c.score_overall.toFixed(2)}</span>
         <span class="clip-label" title="${c.description || ''}">
           <span style="color:var(--muted);font-size:11px">#${c.id}</span>
           ${c.start_hms} &middot; ${c.duration_hms}
         </span>
+        ${c.has_export ? '<span class="export-tick" title="Exported">&#10003;</span>' : ''}
         <span class="status-dot dot-${c.status}" title="${c.status}"></span>
       </div>
       ${c.description ? `<div style="font-size:11px;color:var(--muted);margin-top:3px;padding-left:44px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c.description}</div>` : ''}
@@ -554,16 +598,14 @@ async function setStatus(id, status) {
     body:    JSON.stringify({status}),
   });
   activeClipId = id;
-  // Refresh both the list (preserves active highlight) and the detail panel
-  const [clips, clipDetail, mediaInfo] = await Promise.all([
-    fetch(`/api/videos/${activeVideoId}/clips`).then(r => r.json()),
+  const [clipsData, clipDetail] = await Promise.all([
+    fetch(`/api/videos/${activeVideoId}/clips?sort=${_clipsSortParam()}`).then(r => r.json()),
     fetch(`/api/clips/${id}`).then(r => r.json()),
-    fetch(`/api/clips/${id}/media_url`).then(r => r.json()),
   ]);
-  renderClipList(clips);
+  _clips = clipsData;
+  renderClipList(_clips);
   renderDetail(clipDetail);
-  renderPlayer(mediaInfo.url);
-  loadVideos(); // update approved counts in sidebar + demo button
+  loadVideos();
 }
 
 function exportClip(id) {
@@ -587,7 +629,10 @@ function scoreAll() {
     '/api/score',
     () => {
       loadVideos();
-      if (activeVideoId) fetch(`/api/videos/${activeVideoId}/clips`).then(r => r.json()).then(renderClipList);
+      if (activeVideoId) fetch(`/api/videos/${activeVideoId}/clips?sort=${_clipsSortParam()}`).then(r => r.json()).then(data => {
+        _clips = data;
+        renderClipList(_clips);
+      });
       showToast('Scoring complete');
     },
     SCORE_STEPS,
@@ -601,8 +646,10 @@ let _probedInfo  = null;
 
 async function openIngestModal() {
   document.getElementById('ingest-modal').classList.add('visible');
+  document.getElementById('ingest-path').value = '';
   document.getElementById('estimate-area').innerHTML = '';
   _probedInfo = null;
+  _updateStartIngestButton();
   await _loadProfileDropdown();
 }
 
@@ -624,7 +671,12 @@ function closeIngestModal() {
 function scheduleProbe() {
   clearTimeout(_probeTimer);
   const path = document.getElementById('ingest-path').value.trim();
-  if (!path) { document.getElementById('estimate-area').innerHTML = ''; return; }
+  if (!path) {
+    document.getElementById('estimate-area').innerHTML = '';
+    _probedInfo = null;
+    _updateStartIngestButton();
+    return;
+  }
   document.getElementById('estimate-area').innerHTML = '<div class="probing-spinner">Probing file...</div>';
   _probeTimer = setTimeout(() => runProbe(path), 700);
 }
@@ -636,15 +688,19 @@ async function runProbe(path) {
       body:   JSON.stringify({path}),
     });
     if (!res.ok) {
-      const err = await res.json();
-      const msg = typeof err.detail === 'string' ? err.detail : JSON.stringify(err.detail);
+      const err = await res.json().catch(() => ({}));
+      _probedInfo = null;
+      _updateStartIngestButton();
       document.getElementById('estimate-area').innerHTML =
-        `<div style="color:var(--red);font-size:12px">${escHtml(msg)}</div>`;
+        `<div style="color:var(--red);font-size:12px">${escHtml(formatApiError(err))}</div>`;
       return;
     }
     _probedInfo = await res.json();
+    _updateStartIngestButton();
     runEstimate();
   } catch (err) {
+    _probedInfo = null;
+    _updateStartIngestButton();
     document.getElementById('estimate-area').innerHTML =
       `<div style="color:var(--red);font-size:12px">Could not probe file: ${escHtml(String(err.message || err))}</div>`;
   }
@@ -661,6 +717,7 @@ async function runEstimate() {
         audio_tracks: _probedInfo.audio_tracks,
         has_gpu:      true,
         scene_mode:   document.getElementById('ingest-scene-mode').value,
+        energy_mode:  document.getElementById('ingest-energy-mode').value,
       }),
     });
     if (!res.ok) return;
@@ -706,6 +763,7 @@ function renderEstimate(info, data) {
         <span style="display:flex;align-items:center;gap:8px">
           ${totalBadge}
           <span class="${tClass(data.total_seconds)}">${data.total_hms}</span>
+          ${data.pct_of_video !== undefined ? `<span style="color:var(--muted);font-size:11px;font-weight:400">(${data.pct_of_video}% of video)</span>` : ''}
         </span>
       </div>
     </div>`;
@@ -722,11 +780,19 @@ async function startIngest() {
   btn.disabled = true;
   btn.textContent = 'Starting…';
 
-  await fetch('/api/ingest/start', {
+  const startRes = await fetch('/api/ingest/start', {
     method:  'POST',
     headers: {'Content-Type': 'application/json'},
-    body:    JSON.stringify({path, model, profile}),
+    body:    JSON.stringify({path, model, profile, energy_mode: document.getElementById('ingest-energy-mode').value}),
   });
+
+  if (!startRes.ok) {
+    const err = await startRes.json().catch(() => ({}));
+    showToast(formatApiError(err) || 'Failed to start ingest', 'error');
+    btn.disabled = false;
+    btn.textContent = 'Start Ingest';
+    return;
+  }
 
   closeIngestModal();
   btn.disabled = false;
@@ -788,7 +854,6 @@ function endJobUI() {
   setTimeout(() => {
     document.getElementById('job-status').classList.remove('visible');
     document.getElementById('header-spacer').style.display = '';
-    // btn-demo re-enabled by loadVideos() which checks approved count
     document.querySelectorAll('#btn-ingest,#btn-score').forEach(b => b.disabled = false);
   }, 2000);
 }
@@ -810,8 +875,10 @@ function streamSSE(url, onDone, stepDefs, jobLabel) {
   };
   es.onerror = () => {
     es.close();
-    appendLog('[connection closed]');
+    appendLog('[connection error — job failed to start or server disconnected]');
+    showToast('Job failed — see log for details', 'error');
     if (stepDefs) endJobUI();
+    loadVideos();
   };
 }
 
@@ -851,6 +918,13 @@ function showToast(message, type = 'success', durationMs = 4000) {
 // ── utils ──────────────────────────────────────────────────────────────────────
 function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function formatApiError(err) {
+  if (!err) return 'Unknown error';
+  if (typeof err.detail === 'string') return err.detail;
+  if (Array.isArray(err.detail)) return err.detail.map(e => e.msg || JSON.stringify(e)).join('; ');
+  return err.message || JSON.stringify(err);
 }
 
 function stripRichMarkup(text) {
