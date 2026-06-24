@@ -264,6 +264,14 @@ def save_profile(name: str, assignments: list[dict]) -> None:
     p.write_text(json.dumps(profiles, indent=2), encoding="utf-8")
 
 
+def delete_profile(name: str) -> None:
+    profiles = load_profiles()
+    profiles.pop(name, None)
+    p = _profiles_path()
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps(profiles, indent=2), encoding="utf-8")
+
+
 # ---------------------------------------------------------------------------
 # Project directory helpers
 # ---------------------------------------------------------------------------

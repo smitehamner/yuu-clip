@@ -1,0 +1,232 @@
+"""
+Ingest-pipeline routes.
+
+Covers the full ingest workflow from file selection through to clip export:
+  - Native OS file picker
+  - Video probe (duration, streams, fps)
+  - Processing-time estimates
+  - Ingest job start + SSE progress stream
+  - Re-score all
+  - Single-clip export
+  - Single-clip retranscription
+
+Long-running operations follow a start→events pattern: the POST endpoint
+queues a CLI command on the shared ProjectContext, and the paired GET endpoint
+streams that command's stdout as SSE.
+"""
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+from typing import Optional
+
+from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel
+
+from rp_clipper.web.deps import ProjectContext
+from rp_clipper.web.sse import subprocess_sse
+
+# ── Whisper real-time speed ratios ──────────────────────────────────────────
+# Seconds of video processed per second of wall-clock time.
+# Calibrated against observed runs (2h10m video, RTX-class GPU).
+_WHISPER_GPU_SPEED: dict[str, float] = {
+    "large-v3": 6, "large-v2": 6, "large": 6,
+    "medium": 18, "small": 30, "base": 50, "tiny": 80,
+}
+_WHISPER_CPU_SPEED = 0.4  # large-v3 on CPU; other models scale similarly
+
+# Scene-detection wall-clock cost as a fraction of source video duration
+_SCENE_COST_FRACTION = {"transcript": 0.0, "fast": 0.005, "full": 0.6}
+_SCENE_FAST_FLOOR_S  = 10.0  # ffprobe cold-start minimum for "fast" mode
+
+_SCENE_MODE_LABELS = {
+    "transcript": "silence gaps only",
+    "fast":       "keyframes + transcript gaps",
+    "full":       "full frame scan (slow)",
+}
+
+
+# ── request models ────────────────────────────────────────────────────────────
+
+class ProbeRequest(BaseModel):
+    path: str
+
+
+class EstimateRequest(BaseModel):
+    duration_s: float
+    model: str = "large-v3"
+    audio_tracks: int = 2
+    has_gpu: bool = True
+    scene_mode: str = "fast"
+
+
+class IngestRequest(BaseModel):
+    path: str
+    model: str = "large-v3"
+    profile: Optional[str] = None
+    no_score: bool = False
+
+
+# ── router factory ────────────────────────────────────────────────────────────
+
+def make_router(ctx: ProjectContext) -> APIRouter:
+    router = APIRouter()
+
+    @router.get("/api/pick-file")
+    def pick_file():
+        """Open the OS-native file dialog on the server machine and return the chosen path."""
+        import tkinter as tk
+        from tkinter import filedialog
+        root = tk.Tk()
+        root.withdraw()
+        root.wm_attributes("-topmost", True)
+        path = filedialog.askopenfilename(
+            title="Select Video File",
+            filetypes=[
+                ("Video files", "*.mkv *.mp4 *.mov *.avi *.webm *.flv *.ts"),
+                ("All files", "*.*"),
+            ],
+        )
+        root.destroy()
+        return {"path": str(Path(path)) if path else None}
+
+    @router.post("/api/probe")
+    def probe_video_file(req: ProbeRequest):
+        """Probe a video file and return its duration, resolution, and stream counts."""
+        from rp_clipper.ingest.probe import probe_video
+        p = Path(req.path)
+        if not p.exists():
+            raise HTTPException(400, f"File not found: {req.path}")
+        try:
+            info = probe_video(p)
+        except Exception as e:
+            raise HTTPException(400, str(e))
+        return {
+            "filename":     p.name,
+            "duration_s":   (info.duration_ms or 0) / 1000,
+            "duration_hms": info.duration_hms,
+            "width":        info.width,
+            "height":       info.height,
+            "fps":          info.fps,
+            "audio_tracks": len(info.audio_streams),
+        }
+
+    @router.post("/api/estimate")
+    def estimate_processing_time(req: EstimateRequest):
+        """Return per-step wall-clock time estimates for ingesting a video of the given length."""
+        return _compute_time_estimate(req)
+
+    @router.post("/api/ingest/start")
+    async def start_ingest(req: IngestRequest):
+        """Validate the video path, build the ingest CLI command, and queue it for the SSE stream."""
+        if not Path(req.path).exists():
+            raise HTTPException(400, f"File not found: {req.path}")
+        cmd = [
+            sys.executable, "-m", "rp_clipper.cli", "ingest",
+            str(req.path), "--model", req.model,
+            "--project", str(ctx.project_dir),
+        ]
+        if req.profile:
+            cmd += ["--profile", req.profile]
+        if req.no_score:
+            cmd += ["--no-score"]
+        ctx.ingest_cmd = cmd
+        return {"status": "started"}
+
+    @router.get("/api/ingest/events")
+    async def ingest_events():
+        """Stream the queued ingest subprocess output as SSE. Call /api/ingest/start first."""
+        if not ctx.ingest_cmd:
+            raise HTTPException(400, "No ingest command queued. Call /api/ingest/start first.")
+        return await subprocess_sse(ctx.ingest_cmd, ctx.project_dir)
+
+    @router.post("/api/score")
+    async def score_all():
+        """Re-score all videos and stream progress as SSE."""
+        cmd = [
+            sys.executable, "-m", "rp_clipper.cli", "score", "--all",
+            "--project", str(ctx.project_dir),
+        ]
+        return await subprocess_sse(cmd, ctx.project_dir)
+
+    @router.get("/api/clips/{clip_id}/export")
+    async def export_clip(clip_id: int):
+        """Export a clip to a video file and stream ffmpeg progress as SSE."""
+        cmd = [
+            sys.executable, "-m", "rp_clipper.cli", "export", str(clip_id),
+            "--subtitles", "--project", str(ctx.project_dir),
+        ]
+        return await subprocess_sse(cmd, ctx.project_dir)
+
+    @router.get("/api/clips/{clip_id}/retranscribe")
+    async def retranscribe_clip(clip_id: int, model: str = Query("large-v3")):
+        """Re-transcribe a clip's time window with the given Whisper model, then re-score."""
+        cmd = [
+            sys.executable, "-m", "rp_clipper.cli", "retranscribe", str(clip_id),
+            "--model", model, "--project", str(ctx.project_dir),
+        ]
+        return await subprocess_sse(cmd, ctx.project_dir)
+
+    return router
+
+
+# ── time estimate calculation ─────────────────────────────────────────────────
+
+def _compute_time_estimate(req: EstimateRequest) -> dict:
+    d = req.duration_s
+    n_tracks = max(1, req.audio_tracks)
+    # Heuristic: roughly half of tracks are specialized (player voice, etc.) and
+    # therefore eligible for transcription in a typical OBS multi-track setup.
+    transcribe_tracks = max(1, n_tracks // 2)
+
+    whisper_speed = _WHISPER_GPU_SPEED.get(req.model.split(":")[0], 6)
+    if not req.has_gpu:
+        whisper_speed = _WHISPER_CPU_SPEED
+
+    scene_seconds = max(
+        _SCENE_FAST_FLOOR_S if req.scene_mode == "fast" else 0.0,
+        d * _SCENE_COST_FRACTION.get(req.scene_mode, 0.005),
+    )
+
+    steps = [
+        {
+            "name":    "Extract audio",
+            "seconds": d * n_tracks * 0.05,
+            "note":    f"{n_tracks} track(s)",
+        },
+        {
+            "name":    f"Transcribe ({req.model})",
+            "seconds": d * transcribe_tracks / whisper_speed,
+            "note":    f"{transcribe_tracks} track(s) on {'GPU' if req.has_gpu else 'CPU'}",
+        },
+        {
+            "name":    "Audio energy",
+            "seconds": d * transcribe_tracks * 0.3,
+            "note":    "fast pass",
+        },
+        {
+            "name":    f"Scene detection ({req.scene_mode})",
+            "seconds": scene_seconds,
+            "note":    _SCENE_MODE_LABELS.get(req.scene_mode, ""),
+        },
+        {
+            "name":    "LLM scoring",
+            "seconds": (d / 180) * 4,
+            "note":    f"~{int(d / 180)} clips estimated",
+        },
+    ]
+    total = sum(s["seconds"] for s in steps)
+    for step in steps:
+        step["hms"] = _format_duration(step["seconds"])
+    return {"steps": steps, "total_hms": _format_duration(total), "total_seconds": total}
+
+
+def _format_duration(seconds: float) -> str:
+    """Format a duration in seconds as a compact human-readable string (e.g. '1h 23m')."""
+    s = int(seconds)
+    if s < 60:
+        return f"{s}s"
+    if s < 3600:
+        return f"{s // 60}m {s % 60:02d}s"
+    h, rem = divmod(s, 3600)
+    return f"{h}h {rem // 60:02d}m"

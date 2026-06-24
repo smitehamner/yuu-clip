@@ -165,6 +165,8 @@
   <div class="header-spacer" id="header-spacer"></div>
   <button class="btn primary" id="btn-ingest" onclick="openIngestModal()">+ Ingest</button>
   <button class="btn" id="btn-score" onclick="scoreAll()">Score All</button>
+  <button class="btn" id="btn-demo" onclick="openDemoModal()">Build Reel</button>
+  <a class="btn" id="btn-logs" href="/api/logs/export" download="rp-clipper.log" title="Download debug log — attach this file when reporting a bug">Export Log</a>
 </header>
 
 <div class="layout">
@@ -226,8 +228,11 @@
       </select>
     </div>
     <div class="field">
-      <label>Profile (optional)</label>
-      <input type="text" id="ingest-profile" placeholder="prankcall_6track">
+      <label>Track profile</label>
+      <div style="display:flex;gap:6px">
+        <select id="ingest-profile" style="flex:1"></select>
+        <button class="btn" onclick="openProfileManager()" title="Manage profiles">&#9881;</button>
+      </div>
     </div>
     <div id="estimate-area"></div>
     <div class="modal-actions">
@@ -238,10 +243,107 @@
 </div>
 
 
+<!-- Profile Manager Modal -->
+<div class="modal-bg" id="profile-modal">
+  <div class="modal" style="width:560px;max-height:80vh;overflow-y:auto">
+    <h3>Track Profiles</h3>
+    <div id="profile-list"></div>
+    <div style="margin-top:14px;display:flex;gap:8px">
+      <button class="btn primary" onclick="openNewProfile()">+ New Profile</button>
+      <button class="btn" style="margin-left:auto" onclick="closeProfileManager()">Close</button>
+    </div>
+    <!-- Editor sub-panel -->
+    <div id="profile-editor" style="display:none;border-top:1px solid var(--border);margin-top:14px;padding-top:14px">
+      <div class="field">
+        <label>Profile name</label>
+        <input type="text" id="pe-name" placeholder="my_obs_setup">
+      </div>
+      <div class="field">
+        <label>Number of tracks</label>
+        <input type="number" id="pe-numtracks" min="1" max="8" value="2" oninput="renderTrackRows()">
+      </div>
+      <div id="pe-tracks"></div>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button class="btn primary" onclick="saveProfile()">Save</button>
+        <button class="btn" onclick="cancelProfileEdit()">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Demo Reel Modal -->
+<div class="modal-bg" id="demo-modal">
+  <div class="modal">
+    <h3>Build Highlight Reel</h3>
+    <div class="field">
+      <label>Clips to include</label>
+      <select id="demo-video-id">
+        <option value="">All approved clips</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Transition</label>
+      <select id="demo-transition">
+        <option value="fade" selected>Fade</option>
+        <option value="dissolve">Dissolve</option>
+        <option value="wipeleft">Wipe left</option>
+        <option value="wiperight">Wipe right</option>
+        <option value="slideleft">Slide left</option>
+        <option value="slideright">Slide right</option>
+        <option value="none">None (hard cut)</option>
+      </select>
+    </div>
+    <div style="display:flex;gap:12px">
+      <div class="field" style="flex:1">
+        <label>Transition duration (s)</label>
+        <input type="number" id="demo-trans-dur" value="0.5" min="0.1" max="2.0" step="0.1">
+      </div>
+      <div class="field" style="flex:1">
+        <label>Title card duration (s)</label>
+        <input type="number" id="demo-title-dur" value="3.0" min="1.0" max="10.0" step="0.5">
+      </div>
+    </div>
+    <div class="field">
+      <label>Output filename</label>
+      <input type="text" id="demo-output-name" value="highlights.mkv">
+    </div>
+    <div id="demo-status" style="font-size:12px;color:var(--muted)"></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeDemoModal()">Cancel</button>
+      <button class="btn primary" onclick="startDemo()">Build Reel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Retranscribe Modal -->
+<div class="modal-bg" id="retranscribe-modal">
+  <div class="modal" style="width:360px">
+    <h3>Retranscribe Clip</h3>
+    <div class="field">
+      <label>Whisper model</label>
+      <select id="retranscribe-model">
+        <option value="tiny">tiny</option>
+        <option value="base">base</option>
+        <option value="small">small</option>
+        <option value="medium">medium</option>
+        <option value="large-v3" selected>large-v3 (best quality)</option>
+      </select>
+    </div>
+    <div style="font-size:12px;color:var(--muted)">
+      Transcribes only this clip's time window with the selected model, then re-scores.
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeRetranscribeModal()">Cancel</button>
+      <button class="btn primary" onclick="startRetranscribe()">Retranscribe</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ── state ────────────────────────────────────────────────────────────────────
 let activeVideoId = null;
 let activeClipId  = null;
+let _videos = [];
 
 // ── boot ─────────────────────────────────────────────────────────────────────
 loadVideos();
@@ -250,6 +352,7 @@ loadVideos();
 async function loadVideos() {
   const res = await fetch('/api/videos');
   const videos = await res.json();
+  _videos = videos;
   const list = document.getElementById('video-list');
   list.innerHTML = '';
   if (!videos.length) {
@@ -311,7 +414,10 @@ function renderClipList(clips) {
 async function selectClip(id) {
   activeClipId = id;
   document.querySelectorAll('#clip-list li').forEach(li => li.classList.remove('active'));
-  event.currentTarget.classList.add('active');
+  // event may be undefined when called programmatically
+  if (typeof event !== 'undefined' && event && event.currentTarget) {
+    event.currentTarget.classList.add('active');
+  }
 
   const [clipRes, mediaRes] = await Promise.all([
     fetch(`/api/clips/${id}`),
@@ -360,6 +466,7 @@ function renderDetail(clip) {
       <button class="btn approve ${clip.status==='approved'?'active':''}" onclick="setStatus(${clip.id},'approved')">Approve</button>
       <button class="btn reject  ${clip.status==='rejected'?'active':''}" onclick="setStatus(${clip.id},'rejected')">Reject</button>
       <button class="btn         ${clip.status==='pending' ?'active':''}" onclick="setStatus(${clip.id},'pending')">Reset</button>
+      <button class="btn" onclick="openRetranscribeModal(${clip.id})">Retranscribe</button>
       <button class="btn" style="margin-left:auto" onclick="exportClip(${clip.id})">Export</button>
     </div>
 
@@ -430,10 +537,26 @@ function scoreAll() {
 let _probeTimer = null;
 let _probedInfo  = null;
 
-function openIngestModal() {
+async function openIngestModal() {
   document.getElementById('ingest-modal').classList.add('visible');
   document.getElementById('estimate-area').innerHTML = '';
   _probedInfo = null;
+  await _loadProfileDropdown();
+}
+
+async function _loadProfileDropdown() {
+  const sel = document.getElementById('ingest-profile');
+  try {
+    const res = await fetch('/api/profiles');
+    const profiles = await res.json();
+    sel.innerHTML = '';
+    for (const p of profiles) {
+      const opt = document.createElement('option');
+      opt.value = p.name;
+      opt.textContent = p.display_name;
+      sel.appendChild(opt);
+    }
+  } catch { /* ignore — dropdown stays empty */ }
 }
 function closeIngestModal() {
   document.getElementById('ingest-modal').classList.remove('visible');
@@ -539,14 +662,16 @@ function renderEstimate(info, data) {
 async function startIngest() {
   const path    = document.getElementById('ingest-path').value.trim();
   const model   = document.getElementById('ingest-model').value;
-  const profile = document.getElementById('ingest-profile').value.trim();
+  const profileVal = document.getElementById('ingest-profile').value;
+  // __default__ maps to null (auto-labeling), '' means interactive (null too)
+  const profile = (!profileVal || profileVal === '__default__') ? null : profileVal;
   if (!path) return;
   closeIngestModal();
   openLog();
   await fetch('/api/ingest/start', {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({path, model, profile: profile || null}),
+    body: JSON.stringify({path, model, profile}),
   });
   streamSSE('/api/ingest/events', () => loadVideos(), INGEST_STEPS, 'Ingesting');
 }
@@ -665,6 +790,212 @@ async function pickFile() {
     btn.textContent = orig;
     btn.disabled = false;
   }
+}
+
+// ── profile manager ───────────────────────────────────────────────────────────
+const TRACK_LABELS = ["player_voice", "ingame_voicechat", "game_sounds", "combined", "unlabeled"];
+let _allProfiles = [];
+
+async function openProfileManager() {
+  document.getElementById('profile-modal').classList.add('visible');
+  document.getElementById('profile-editor').style.display = 'none';
+  await _refreshProfileList();
+}
+
+function closeProfileManager() {
+  document.getElementById('profile-modal').classList.remove('visible');
+  _loadProfileDropdown();
+}
+
+async function _refreshProfileList() {
+  const res = await fetch('/api/profiles');
+  _allProfiles = await res.json();
+  renderProfileList(_allProfiles);
+}
+
+function renderProfileList(profiles) {
+  const el = document.getElementById('profile-list');
+  if (!profiles.length) {
+    el.innerHTML = '<div style="color:var(--muted);font-size:13px">No profiles saved.</div>';
+    return;
+  }
+  el.innerHTML = profiles.map(p => `
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border)">
+      <span style="flex:1;font-size:13px">${p.builtin ? '&#128274; ' : ''}${escHtml(p.display_name)}</span>
+      <span style="color:var(--muted);font-size:12px">${p.num_tracks} track${p.num_tracks !== 1 ? 's' : ''}</span>
+      ${!p.builtin ? `
+        <button class="btn" style="padding:4px 10px;font-size:12px" onclick="editProfile(${JSON.stringify(p.name)})">Edit</button>
+        <button class="btn" style="padding:4px 10px;font-size:12px;color:var(--red)" onclick="deleteProfile(${JSON.stringify(p.name)})">Delete</button>
+      ` : ''}
+    </div>
+  `).join('');
+}
+
+function openNewProfile() {
+  document.getElementById('profile-editor').style.display = '';
+  document.getElementById('pe-name').value = '';
+  document.getElementById('pe-numtracks').value = 2;
+  renderTrackRows();
+}
+
+function editProfile(name) {
+  const p = _allProfiles.find(x => x.name === name);
+  if (!p) return;
+  document.getElementById('profile-editor').style.display = '';
+  document.getElementById('pe-name').value = p.name;
+  document.getElementById('pe-numtracks').value = p.num_tracks;
+  renderTrackRows(p.assignments);
+}
+
+function renderTrackRows(existingAssignments) {
+  const n = parseInt(document.getElementById('pe-numtracks').value) || 1;
+  const container = document.getElementById('pe-tracks');
+  const rows = [];
+  for (let i = 0; i < n; i++) {
+    const a = existingAssignments && existingAssignments[i] ? existingAssignments[i] : null;
+    const label = a ? a.label : (i === 0 ? 'combined' : 'unlabeled');
+    const doTx  = a ? (a.do_transcribe !== false) : (label !== 'game_sounds');
+    const doSc  = a ? (a.do_score !== false) : (label !== 'game_sounds');
+    const labelOpts = TRACK_LABELS.map(l =>
+      `<option value="${l}"${l === label ? ' selected' : ''}>${l}</option>`
+    ).join('');
+    rows.push(`
+      <div style="display:flex;align-items:center;gap:8px;padding:5px 0;font-size:13px">
+        <span style="color:var(--muted);width:60px;flex-shrink:0">Track ${i}</span>
+        <select id="pe-label-${i}" onchange="onLabelChange(${i})" style="flex:1;padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:12px">${labelOpts}</select>
+        <label style="display:flex;align-items:center;gap:4px;font-size:12px;white-space:nowrap">
+          <input type="checkbox" id="pe-tx-${i}" ${doTx ? 'checked' : ''}> Transcribe
+        </label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:12px;white-space:nowrap">
+          <input type="checkbox" id="pe-sc-${i}" ${doSc ? 'checked' : ''}> Score
+        </label>
+      </div>
+    `);
+  }
+  container.innerHTML = rows.join('');
+}
+
+function onLabelChange(i) {
+  const label = document.getElementById(`pe-label-${i}`).value;
+  const isGameSound = label === 'game_sounds';
+  document.getElementById(`pe-tx-${i}`).checked = !isGameSound;
+  document.getElementById(`pe-sc-${i}`).checked = !isGameSound;
+}
+
+async function saveProfile() {
+  const name = document.getElementById('pe-name').value.trim();
+  if (!name) { alert('Profile name is required.'); return; }
+  if (name.startsWith('__')) { alert('Profile name cannot start with __.'); return; }
+  const n = parseInt(document.getElementById('pe-numtracks').value) || 1;
+  const assignments = [];
+  for (let i = 0; i < n; i++) {
+    assignments.push({
+      stream_position: i,
+      label: document.getElementById(`pe-label-${i}`).value,
+      do_transcribe: document.getElementById(`pe-tx-${i}`).checked,
+      do_score: document.getElementById(`pe-sc-${i}`).checked,
+    });
+  }
+  const res = await fetch('/api/profiles', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({name, assignments}),
+  });
+  if (!res.ok) { const e = await res.json(); alert(e.detail || 'Save failed'); return; }
+  document.getElementById('profile-editor').style.display = 'none';
+  await _refreshProfileList();
+}
+
+async function deleteProfile(name) {
+  if (!confirm(`Delete profile "${name}"?`)) return;
+  await fetch(`/api/profiles/${encodeURIComponent(name)}`, {method: 'DELETE'});
+  await _refreshProfileList();
+}
+
+function cancelProfileEdit() {
+  document.getElementById('profile-editor').style.display = 'none';
+}
+
+// ── demo reel ─────────────────────────────────────────────────────────────────
+async function openDemoModal() {
+  document.getElementById('demo-modal').classList.add('visible');
+  document.getElementById('demo-status').textContent = '';
+  // Populate video dropdown
+  const sel = document.getElementById('demo-video-id');
+  sel.innerHTML = '<option value="">All approved clips</option>';
+  for (const v of _videos) {
+    const opt = document.createElement('option');
+    opt.value = v.id;
+    opt.textContent = `${v.filename} (${v.approved} approved)`;
+    sel.appendChild(opt);
+  }
+}
+
+function closeDemoModal() {
+  document.getElementById('demo-modal').classList.remove('visible');
+}
+
+async function startDemo() {
+  const videoIdVal  = document.getElementById('demo-video-id').value;
+  const transition  = document.getElementById('demo-transition').value;
+  const transDur    = parseFloat(document.getElementById('demo-trans-dur').value);
+  const titleDur    = parseFloat(document.getElementById('demo-title-dur').value);
+  const outputName  = document.getElementById('demo-output-name').value.trim() || 'highlights.mkv';
+
+  const body = {
+    transition,
+    trans_dur: transDur,
+    title_dur: titleDur,
+    output_name: outputName,
+  };
+  if (videoIdVal) body.video_id = parseInt(videoIdVal);
+
+  const statusEl = document.getElementById('demo-status');
+  statusEl.textContent = 'Starting...';
+
+  const res = await fetch('/api/demo/start', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const e = await res.json();
+    statusEl.style.color = 'var(--red)';
+    statusEl.textContent = e.detail || 'Failed to start demo build.';
+    return;
+  }
+  const data = await res.json();
+  statusEl.textContent = `Building reel from ${data.clip_count} clip(s)...`;
+  closeDemoModal();
+  openLog();
+  streamSSE('/api/demo/events', () => {
+    loadVideos();
+  }, [{label:'Building', patterns:['Building demo', 'Generating', 'OK']}], 'Reel');
+}
+
+// ── retranscribe ──────────────────────────────────────────────────────────────
+let _retranscribeClipId = null;
+
+function openRetranscribeModal(clipId) {
+  _retranscribeClipId = clipId;
+  document.getElementById('retranscribe-modal').classList.add('visible');
+}
+
+function closeRetranscribeModal() {
+  document.getElementById('retranscribe-modal').classList.remove('visible');
+}
+
+function startRetranscribe() {
+  if (!_retranscribeClipId) return;
+  const model = document.getElementById('retranscribe-model').value;
+  closeRetranscribeModal();
+  openLog();
+  streamSSE(
+    `/api/clips/${_retranscribeClipId}/retranscribe?model=${encodeURIComponent(model)}`,
+    () => { selectClip(_retranscribeClipId); },
+    [{label:'Transcribe', patterns:['Retranscribing','OK']}, {label:'Score', patterns:['Re-scoring']}],
+    'Retranscribing'
+  );
 }
 </script>
 </body>
