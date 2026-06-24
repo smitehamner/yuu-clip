@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>rp-clipper</title>
+<style>
+  :root {
+    --bg:       #0f0f11;
+    --surface:  #1a1a1f;
+    --border:   #2a2a33;
+    --text:     #e8e8f0;
+    --muted:    #6b6b80;
+    --accent:   #7c6af7;
+    --accent2:  #4fc3f7;
+    --green:    #4caf7d;
+    --red:      #e05c5c;
+    --yellow:   #f0c060;
+    --funny:    #f7a85a;
+    --dramatic: #b06af7;
+    --action:   #4fc3f7;
+    --overall:  #7c6af7;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: system-ui, sans-serif; font-size: 14px; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+  /* ── header ── */
+  header { display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: var(--surface); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  header h1 { font-size: 16px; font-weight: 700; letter-spacing: .5px; color: var(--accent); }
+
+  /* job status pill */
+  .job-status { display: none; align-items: center; gap: 8px; background: #1e1e2a; border: 1px solid var(--border); border-radius: 20px; padding: 4px 12px 4px 8px; font-size: 12px; color: var(--text); margin-right: auto; }
+  .job-status.visible { display: flex; }
+  .spinner { width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; flex-shrink: 0; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .job-steps { display: flex; gap: 6px; align-items: center; }
+  .step { font-size: 11px; padding: 2px 7px; border-radius: 10px; background: var(--border); color: var(--muted); transition: background .2s, color .2s; }
+  .step.active { background: var(--accent); color: #fff; }
+  .step.done   { background: var(--green);  color: #fff; }
+  /* spacer when no job running */
+  .header-spacer { margin-right: auto; }
+  .btn { padding: 6px 14px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer; font-size: 13px; transition: background .15s; white-space: nowrap; }
+  .btn:hover { background: var(--border); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.primary:hover { opacity: .85; }
+
+  /* ── main layout ── */
+  .layout { display: flex; flex: 1; overflow: hidden; }
+
+  /* ── sidebar ── */
+  .sidebar { width: 240px; flex-shrink: 0; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
+  .sidebar-section { padding: 10px 12px 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); }
+  .sidebar-list { list-style: none; overflow-y: auto; }
+  .sidebar-list li { padding: 8px 14px; cursor: pointer; border-left: 3px solid transparent; transition: background .1s; }
+  .sidebar-list li:hover { background: var(--border); }
+  .sidebar-list li.active { border-left-color: var(--accent); background: #1f1f2a; }
+  .video-item .name { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .video-item .meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .clip-item { display: flex; align-items: center; gap: 8px; }
+  .clip-item .score-badge { font-size: 11px; font-weight: 700; color: var(--overall); width: 36px; flex-shrink: 0; }
+  .clip-item .clip-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+  .clip-item .status-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .dot-approved { background: var(--green); }
+  .dot-rejected { background: var(--red); }
+  .dot-pending  { background: var(--muted); }
+  .sidebar-divider { height: 1px; background: var(--border); margin: 4px 0; }
+  .clip-miniscores { display: flex; gap: 4px; padding: 3px 0 0 44px; }
+  .mini-bar-wrap { flex: 1; display: flex; align-items: center; gap: 3px; }
+  .mini-bar-label { font-size: 9px; color: var(--muted); width: 10px; flex-shrink: 0; }
+  .mini-bar-bg { flex: 1; height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; }
+  .mini-bar { height: 100%; border-radius: 2px; }
+
+  /* ── main panel ── */
+  .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+  /* ── player area ── */
+  .player-area { background: #000; position: relative; flex-shrink: 0; }
+  .player-area video { display: block; width: 100%; max-height: 42vh; object-fit: contain; }
+  .no-export-msg { padding: 48px; text-align: center; color: var(--muted); }
+  .no-export-msg .btn { margin-top: 12px; }
+
+  /* ── detail panel ── */
+  .detail { flex: 1; overflow-y: auto; padding: 16px 20px; display: flex; flex-direction: column; gap: 14px; }
+  .detail-empty { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--muted); }
+
+  .clip-header { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .clip-header h2 { font-size: 17px; font-weight: 600; }
+  .clip-header .time { color: var(--muted); font-size: 13px; }
+  .description { font-style: italic; color: var(--accent2); font-size: 14px; line-height: 1.5; }
+
+  /* score bars */
+  .scores { display: grid; grid-template-columns: 90px 1fr 38px; gap: 5px 10px; align-items: center; }
+  .score-label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+  .score-bar-wrap { background: var(--border); border-radius: 3px; height: 8px; overflow: hidden; }
+  .score-bar { height: 100%; border-radius: 3px; transition: width .4s; }
+  .bar-overall  { background: var(--overall); }
+  .bar-funny    { background: var(--funny); }
+  .bar-dramatic { background: var(--dramatic); }
+  .bar-action   { background: var(--action); }
+  .score-val { font-size: 12px; font-weight: 600; text-align: right; }
+
+  /* actions */
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .btn.approve { background: var(--green); border-color: var(--green); color: #fff; }
+  .btn.approve:hover { opacity: .85; }
+  .btn.reject  { background: var(--red);   border-color: var(--red);   color: #fff; }
+  .btn.reject:hover  { opacity: .85; }
+  .btn.active  { outline: 2px solid #fff; outline-offset: 1px; }
+
+  /* tags */
+  .tags { display: flex; flex-wrap: wrap; gap: 5px; }
+  .tag { padding: 2px 8px; border-radius: 10px; background: var(--border); font-size: 11px; color: var(--muted); }
+
+  /* transcript */
+  .section-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); }
+  .transcript { font-size: 13px; line-height: 1.7; color: #c0c0d0; white-space: pre-wrap; max-height: 160px; overflow-y: auto; background: var(--surface); padding: 10px 12px; border-radius: 6px; border: 1px solid var(--border); }
+
+  /* ── progress log ── */
+  .log-panel { position: fixed; bottom: 0; left: 0; right: 0; background: var(--surface); border-top: 1px solid var(--border); padding: 8px 14px; max-height: 180px; overflow-y: auto; font-family: monospace; font-size: 12px; color: var(--text); display: none; z-index: 100; }
+  .log-panel.visible { display: block; }
+  .log-line { white-space: pre; padding: 1px 0; }
+  .log-line.ok { color: var(--green); }
+  .log-line.err { color: var(--red); }
+  .log-close { position: sticky; top: 0; float: right; cursor: pointer; color: var(--muted); font-size: 16px; background: var(--surface); padding: 0 4px; }
+
+  /* ── ingest modal ── */
+  .modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.7); z-index: 200; align-items: center; justify-content: center; }
+  .modal-bg.visible { display: flex; }
+  .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 24px; width: 500px; display: flex; flex-direction: column; gap: 14px; }
+  .modal h3 { font-size: 16px; font-weight: 600; }
+  .field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  .field input, .field select { width: 100%; padding: 8px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 13px; }
+  .path-row { display: flex; gap: 6px; }
+  .path-row input { flex: 1; }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+
+  /* time estimate table */
+  .estimate-box { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; font-size: 12px; }
+  .estimate-box .probe-info { color: var(--muted); margin-bottom: 8px; }
+  .estimate-row { display: flex; align-items: center; gap: 6px; padding: 3px 0; border-radius: 4px; }
+  .estimate-row.warn { background: rgba(240,96,60,.08); margin: 0 -4px; padding: 3px 4px; }
+  .estimate-step { flex: 1; color: var(--text); }
+  .estimate-note { color: var(--muted); font-size: 11px; }
+  .estimate-time { font-weight: 700; min-width: 48px; text-align: right; }
+  .warn-icon { font-size: 13px; flex-shrink: 0; }
+  .t-fast   { color: var(--green); }
+  .t-medium { color: var(--yellow); }
+  .t-warn   { color: #f0603c; }
+  .estimate-total { border-top: 1px solid var(--border); margin-top: 6px; padding-top: 6px; display: flex; justify-content: space-between; align-items: center; font-weight: 600; }
+  .total-warn-badge { font-size: 11px; background: rgba(240,96,60,.15); border: 1px solid #f0603c; color: #f0603c; border-radius: 4px; padding: 2px 8px; font-weight: 500; }
+  .estimate-threshold { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; color: var(--muted); font-size: 11px; }
+  .estimate-threshold input { width: 48px; padding: 2px 6px; background: var(--surface); border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-size: 11px; text-align: center; }
+  .probing-spinner { color: var(--muted); font-size: 12px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>rp-clipper</h1>
+  <div class="job-status" id="job-status">
+    <div class="spinner"></div>
+    <div class="job-steps" id="job-steps"></div>
+  </div>
+  <div class="header-spacer" id="header-spacer"></div>
+  <button class="btn primary" id="btn-ingest" onclick="openIngestModal()">+ Ingest</button>
+  <button class="btn" id="btn-score" onclick="scoreAll()">Score All</button>
+</header>
+
+<div class="layout">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-section">Videos</div>
+    <ul class="sidebar-list" id="video-list"></ul>
+    <div class="sidebar-divider"></div>
+    <div class="sidebar-section">Clips</div>
+    <ul class="sidebar-list" id="clip-list"></ul>
+  </div>
+
+  <!-- Main panel -->
+  <div class="main">
+    <div class="player-area" id="player-area">
+      <div class="no-export-msg" id="no-clip-selected">
+        <div style="color:var(--muted)">Select a clip to review</div>
+      </div>
+    </div>
+    <div class="detail" id="detail">
+      <div class="detail-empty" id="detail-empty">Select a clip from the sidebar</div>
+    </div>
+  </div>
+</div>
+
+<!-- Progress log -->
+<div class="log-panel" id="log-panel">
+  <span class="log-close" onclick="closeLog()">x</span>
+  <div id="log-lines"></div>
+</div>
+
+<!-- Ingest modal -->
+<div class="modal-bg" id="ingest-modal">
+  <div class="modal">
+    <h3>Ingest Video</h3>
+    <div class="field">
+      <label>Video file path</label>
+      <div class="path-row">
+        <input type="text" id="ingest-path" placeholder="D:\recordings\session.mkv" oninput="scheduleProbe()">
+        <button class="btn" onclick="pickFile()" title="Browse">&#128193;</button>
+      </div>
+    </div>
+    <div class="field">
+      <label>Whisper model</label>
+      <select id="ingest-model" onchange="runEstimate()">
+        <option value="tiny">tiny — fastest, lowest quality</option>
+        <option value="base">base — very fast, lower quality</option>
+        <option value="small">small — fast (~500 MB VRAM)</option>
+        <option value="medium" selected>medium — good balance (~1.5 GB VRAM)</option>
+        <option value="large-v3">large-v3 — best quality (~3 GB VRAM)</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Scene detection</label>
+      <select id="ingest-scene-mode" onchange="runEstimate()">
+        <option value="transcript">Transcript only — silence gaps, instant</option>
+        <option value="fast" selected>Fast — keyframes + transcript gaps (recommended)</option>
+        <option value="full">Full — every frame, most accurate (slow)</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Profile (optional)</label>
+      <input type="text" id="ingest-profile" placeholder="prankcall_6track">
+    </div>
+    <div id="estimate-area"></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeIngestModal()">Cancel</button>
+      <button class="btn primary" onclick="startIngest()">Start Ingest</button>
+    </div>
+  </div>
+</div>
+
+
+<script>
+// ── state ────────────────────────────────────────────────────────────────────
+let activeVideoId = null;
+let activeClipId  = null;
+
+// ── boot ─────────────────────────────────────────────────────────────────────
+loadVideos();
+
+// ── videos ───────────────────────────────────────────────────────────────────
+async function loadVideos() {
+  const res = await fetch('/api/videos');
+  const videos = await res.json();
+  const list = document.getElementById('video-list');
+  list.innerHTML = '';
+  if (!videos.length) {
+    list.innerHTML = '<li style="padding:10px 14px;color:var(--muted)">No videos yet</li>';
+    return;
+  }
+  for (const v of videos) {
+    const li = document.createElement('li');
+    li.className = 'video-item' + (v.id === activeVideoId ? ' active' : '');
+    li.innerHTML = `
+      <div class="name" title="${v.filename}">${v.filename}</div>
+      <div class="meta">${v.duration_hms} &middot; ${v.clip_count} clips (${v.approved} approved) &middot; ${v.status}</div>`;
+    li.onclick = () => selectVideo(v.id);
+    list.appendChild(li);
+  }
+}
+
+async function selectVideo(id) {
+  activeVideoId = id;
+  activeClipId  = null;
+  // highlight sidebar
+  document.querySelectorAll('#video-list li').forEach(li => li.classList.remove('active'));
+  event.currentTarget.classList.add('active');
+
+  const res = await fetch(`/api/videos/${id}/clips`);
+  const clips = await res.json();
+  renderClipList(clips);
+  clearDetail();
+}
+
+// ── clips ─────────────────────────────────────────────────────────────────────
+function renderClipList(clips) {
+  const list = document.getElementById('clip-list');
+  list.innerHTML = '';
+  if (!clips.length) {
+    list.innerHTML = '<li style="padding:10px 14px;color:var(--muted)">No clips</li>';
+    return;
+  }
+  for (const c of clips) {
+    const li = document.createElement('li');
+    li.className = c.id === activeClipId ? 'active' : '';
+    li.innerHTML = `
+      <div class="clip-item">
+        <span class="score-badge">${c.score_overall.toFixed(2)}</span>
+        <span class="clip-label" title="${c.description || ''}"><span style="color:var(--muted);font-size:11px">#${c.id}</span> ${c.start_hms} &middot; ${c.duration_hms}</span>
+        <span class="status-dot dot-${c.status}"></span>
+      </div>
+      ${c.description ? `<div style="font-size:11px;color:var(--muted);margin-top:3px;padding-left:44px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c.description}</div>` : ''}
+      <div class="clip-miniscores">
+        ${miniBar('F', c.score_funny, 'var(--funny)')}
+        ${miniBar('D', c.score_dramatic, 'var(--dramatic)')}
+        ${miniBar('A', c.score_action, 'var(--action)')}
+      </div>`;
+    li.onclick = () => selectClip(c.id);
+    list.appendChild(li);
+  }
+}
+
+async function selectClip(id) {
+  activeClipId = id;
+  document.querySelectorAll('#clip-list li').forEach(li => li.classList.remove('active'));
+  event.currentTarget.classList.add('active');
+
+  const [clipRes, mediaRes] = await Promise.all([
+    fetch(`/api/clips/${id}`),
+    fetch(`/api/clips/${id}/media_url`),
+  ]);
+  const clip  = await clipRes.json();
+  const media = await mediaRes.json();
+
+  renderPlayer(media.url);
+  renderDetail(clip);
+}
+
+// ── player ────────────────────────────────────────────────────────────────────
+function renderPlayer(url) {
+  const area = document.getElementById('player-area');
+  if (url) {
+    area.innerHTML = `<video controls autoplay src="${url}"></video>`;
+  } else {
+    area.innerHTML = `
+      <div class="no-export-msg">
+        <div>Clip not exported yet</div>
+        <button class="btn primary" onclick="exportClip(${activeClipId})">Export Clip</button>
+      </div>`;
+  }
+}
+
+// ── detail ────────────────────────────────────────────────────────────────────
+function renderDetail(clip) {
+  const el = document.getElementById('detail');
+  el.innerHTML = `
+    <div class="clip-header">
+      <h2>Clip ${clip.id}</h2>
+      <span class="time">${clip.start_hms} &middot; ${clip.duration_hms}</span>
+    </div>
+
+    ${clip.description ? `<div class="description">"${clip.description}"</div>` : ''}
+
+    <div class="scores">
+      ${scoreRow('Overall',  clip.score_overall,  'overall')}
+      ${scoreRow('Funny',    clip.score_funny,    'funny')}
+      ${scoreRow('Dramatic', clip.score_dramatic, 'dramatic')}
+      ${scoreRow('Action',   clip.score_action,   'action')}
+    </div>
+
+    <div class="actions">
+      <button class="btn approve ${clip.status==='approved'?'active':''}" onclick="setStatus(${clip.id},'approved')">Approve</button>
+      <button class="btn reject  ${clip.status==='rejected'?'active':''}" onclick="setStatus(${clip.id},'rejected')">Reject</button>
+      <button class="btn         ${clip.status==='pending' ?'active':''}" onclick="setStatus(${clip.id},'pending')">Reset</button>
+      <button class="btn" style="margin-left:auto" onclick="exportClip(${clip.id})">Export</button>
+    </div>
+
+    ${clip.tags.length ? `<div class="tags">${clip.tags.map(t=>`<span class="tag">${t}</span>`).join('')}</div>` : ''}
+
+    ${clip.transcript_excerpt ? `
+      <div>
+        <div class="section-title" style="margin-bottom:6px">Transcript</div>
+        <div class="transcript">${escHtml(clip.transcript_excerpt)}</div>
+      </div>` : ''}
+  `;
+}
+
+function scoreRow(label, val, cls) {
+  return `
+    <span class="score-label">${label}</span>
+    <div class="score-bar-wrap"><div class="score-bar bar-${cls}" style="width:${(val*100).toFixed(1)}%"></div></div>
+    <span class="score-val" style="color:var(--${cls})">${val.toFixed(2)}</span>`;
+}
+
+function clearDetail() {
+  document.getElementById('player-area').innerHTML = '<div class="no-export-msg" id="no-clip-selected"><div style="color:var(--muted)">Select a clip to review</div></div>';
+  document.getElementById('detail').innerHTML = '<div class="detail-empty">Select a clip from the sidebar</div>';
+}
+
+// ── clip actions ──────────────────────────────────────────────────────────────
+async function setStatus(id, status) {
+  await fetch(`/api/clips/${id}/status`, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({status}),
+  });
+  // re-select to refresh detail + badge
+  selectClip(id);
+  // refresh clip list
+  if (activeVideoId) {
+    const res = await fetch(`/api/videos/${activeVideoId}/clips`);
+    renderClipList(await res.json());
+    // re-select active item
+    document.querySelectorAll('#clip-list li').forEach((li, i) => {
+      if (li.querySelector('.clip-item')) {
+        const badge = li.querySelector('.score-badge');
+        // find by clip id embedded in onclick
+        const btn = li.getAttribute('onclick');
+      }
+    });
+  }
+}
+
+function exportClip(id) {
+  openLog();
+  streamSSE(`/api/clips/${id}/export`, () => {
+    fetch(`/api/clips/${id}/media_url`).then(r=>r.json()).then(m => renderPlayer(m.url));
+    loadVideos();
+  }, [{label:'Export', patterns:['Exporting','OK Saved']}], 'Exporting');
+}
+
+// ── scoring ───────────────────────────────────────────────────────────────────
+function scoreAll() {
+  openLog();
+  streamSSE('/api/score', () => {
+    loadVideos();
+    if (activeVideoId) fetch(`/api/videos/${activeVideoId}/clips`).then(r=>r.json()).then(renderClipList);
+  }, SCORE_STEPS, 'Scoring');
+}
+
+// ── ingest ────────────────────────────────────────────────────────────────────
+let _probeTimer = null;
+let _probedInfo  = null;
+
+function openIngestModal() {
+  document.getElementById('ingest-modal').classList.add('visible');
+  document.getElementById('estimate-area').innerHTML = '';
+  _probedInfo = null;
+}
+function closeIngestModal() {
+  document.getElementById('ingest-modal').classList.remove('visible');
+  clearTimeout(_probeTimer);
+}
+
+function scheduleProbe() {
+  clearTimeout(_probeTimer);
+  const path = document.getElementById('ingest-path').value.trim();
+  if (!path) { document.getElementById('estimate-area').innerHTML = ''; return; }
+  document.getElementById('estimate-area').innerHTML = '<div class="probing-spinner">Probing file...</div>';
+  _probeTimer = setTimeout(() => runProbe(path), 700);
+}
+
+async function runProbe(path) {
+  try {
+    const res = await fetch('/api/probe', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({path}),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      const msg = typeof err.detail === 'string' ? err.detail : JSON.stringify(err.detail);
+      document.getElementById('estimate-area').innerHTML =
+        `<div style="color:var(--red);font-size:12px">${msg}</div>`;
+      return;
+    }
+    _probedInfo = await res.json();
+    runEstimate();
+  } catch(err) {
+    document.getElementById('estimate-area').innerHTML =
+      `<div style="color:var(--red);font-size:12px">Could not probe file: ${err.message || err}</div>`;
+  }
+}
+
+async function runEstimate() {
+  if (!_probedInfo) return;
+  const model      = document.getElementById('ingest-model').value;
+  const scene_mode = document.getElementById('ingest-scene-mode').value;
+  try {
+    const res = await fetch('/api/estimate', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        duration_s: _probedInfo.duration_s,
+        model,
+        audio_tracks: _probedInfo.audio_tracks,
+        has_gpu: true,
+        scene_mode,
+      }),
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    renderEstimate(_probedInfo, data);
+  } catch { /* ignore */ }
+}
+
+let _warnThresholdMin = 30;
+
+function renderEstimate(info, data) {
+  const warnS = _warnThresholdMin * 60;
+
+  function rowClass(s) {
+    if (s >= warnS)   return 't-warn';
+    if (s >= warnS/3) return 't-medium';
+    return 't-fast';
+  }
+
+  const rows = data.steps.map(s => {
+    const isWarn = s.seconds >= warnS;
+    return `
+    <div class="estimate-row${isWarn ? ' warn' : ''}">
+      <span class="warn-icon">${isWarn ? '&#9888;' : ''}</span>
+      <span class="estimate-step">${s.name}</span>
+      <span class="estimate-note">${s.note}</span>
+      <span class="estimate-time ${rowClass(s.seconds)}">${s.hms}</span>
+    </div>`;
+  }).join('');
+
+  const totalWarn = data.total_seconds >= warnS;
+  const totalBadge = totalWarn
+    ? `<span class="total-warn-badge">&#9888; Long job</span>` : '';
+
+  document.getElementById('estimate-area').innerHTML = `
+    <div class="estimate-box">
+      <div class="probe-info">${info.filename} &middot; ${info.duration_hms} &middot; ${info.width}x${info.height} @ ${info.fps.toFixed(0)}fps &middot; ${info.audio_tracks} audio tracks</div>
+      <div class="estimate-threshold">
+        Warn steps longer than
+        <input type="number" min="1" max="480" value="${_warnThresholdMin}" id="warn-threshold-input"
+               onchange="_warnThresholdMin=+this.value; runEstimate()">
+        min
+      </div>
+      ${rows}
+      <div class="estimate-total">
+        <span>Total estimated</span>
+        <span style="display:flex;align-items:center;gap:8px">
+          ${totalBadge}
+          <span class="${rowClass(data.total_seconds)}">${data.total_hms}</span>
+        </span>
+      </div>
+    </div>`;
+}
+
+async function startIngest() {
+  const path    = document.getElementById('ingest-path').value.trim();
+  const model   = document.getElementById('ingest-model').value;
+  const profile = document.getElementById('ingest-profile').value.trim();
+  if (!path) return;
+  closeIngestModal();
+  openLog();
+  await fetch('/api/ingest/start', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({path, model, profile: profile || null}),
+  });
+  streamSSE('/api/ingest/events', () => loadVideos(), INGEST_STEPS, 'Ingesting');
+}
+
+// ── progress indicator ────────────────────────────────────────────────────────
+const INGEST_STEPS = [
+  { label: 'Extract',    patterns: ['Extracting audio'] },
+  { label: 'Transcribe', patterns: ['Transcribing'] },
+  { label: 'Candidates', patterns: ['Generating clip'] },
+  { label: 'Energy',     patterns: ['Computing audio energy'] },
+  { label: 'Scenes',     patterns: ['Detecting scene'] },
+  { label: 'Scoring',    patterns: ['Scoring candidates'] },
+];
+const SCORE_STEPS = [
+  { label: 'Energy',  patterns: ['Computing audio energy'] },
+  { label: 'Scenes',  patterns: ['Detecting scene'] },
+  { label: 'Scoring', patterns: ['Scoring candidates'] },
+];
+
+let _jobStepDefs = [];
+
+function startJobUI(stepDefs, jobLabel) {
+  _jobStepDefs = stepDefs;
+  const stepsEl = document.getElementById('job-steps');
+  stepsEl.innerHTML = `<span style="color:var(--muted);margin-right:4px">${jobLabel}</span>` +
+    stepDefs.map((s,i) => `<span class="step" id="step-${i}">${s.label}</span>`).join('');
+  document.getElementById('job-status').classList.add('visible');
+  document.getElementById('header-spacer').style.display = 'none';
+  document.querySelectorAll('#btn-ingest,#btn-score').forEach(b => b.disabled = true);
+}
+
+function updateJobUI(line) {
+  _jobStepDefs.forEach((s, i) => {
+    if (s.patterns.some(p => line.includes(p))) {
+      // mark all previous as done, this one as active
+      for (let j = 0; j < i; j++) {
+        const el = document.getElementById(`step-${j}`);
+        if (el) { el.className = 'step done'; }
+      }
+      const el = document.getElementById(`step-${i}`);
+      if (el) el.className = 'step active';
+    }
+  });
+}
+
+function endJobUI() {
+  // mark all done
+  _jobStepDefs.forEach((_, i) => {
+    const el = document.getElementById(`step-${i}`);
+    if (el) el.className = 'step done';
+  });
+  setTimeout(() => {
+    document.getElementById('job-status').classList.remove('visible');
+    document.getElementById('header-spacer').style.display = '';
+    document.querySelectorAll('#btn-ingest,#btn-score').forEach(b => b.disabled = false);
+  }, 2000);
+}
+
+// ── SSE helper ────────────────────────────────────────────────────────────────
+function streamSSE(url, onDone, stepDefs, jobLabel) {
+  if (stepDefs) startJobUI(stepDefs, jobLabel);
+  const es = new EventSource(url);
+  es.onmessage = e => {
+    const text = JSON.parse(e.data);
+    if (text === '__DONE__') {
+      es.close();
+      if (stepDefs) endJobUI();
+      if (onDone) onDone();
+      return;
+    }
+    appendLog(text);
+    if (stepDefs) updateJobUI(text);
+  };
+  es.onerror = () => { es.close(); appendLog('[connection closed]'); if (stepDefs) endJobUI(); };
+}
+
+// ── log panel ─────────────────────────────────────────────────────────────────
+function openLog()  { document.getElementById('log-panel').classList.add('visible'); }
+function closeLog() { document.getElementById('log-panel').classList.remove('visible'); }
+
+function appendLog(text) {
+  const el = document.getElementById('log-lines');
+  const div = document.createElement('div');
+  div.className = 'log-line' + (text.includes('OK') ? ' ok' : text.includes('FAIL')||text.includes('Error') ? ' err' : '');
+  div.textContent = text;
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+}
+
+// ── utils ─────────────────────────────────────────────────────────────────────
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function miniBar(label, val, color) {
+  return `<div class="mini-bar-wrap">
+    <span class="mini-bar-label">${label}</span>
+    <div class="mini-bar-bg"><div class="mini-bar" style="width:${(val*100).toFixed(1)}%;background:${color}"></div></div>
+  </div>`;
+}
+
+// ── native file picker ────────────────────────────────────────────────────────
+async function pickFile() {
+  const btn = document.querySelector('.path-row .btn');
+  const orig = btn.textContent;
+  btn.textContent = '...';
+  btn.disabled = true;
+  try {
+    const res = await fetch('/api/pick-file');
+    const data = await res.json();
+    if (data.path) {
+      document.getElementById('ingest-path').value = data.path;
+      scheduleProbe();
+    }
+  } finally {
+    btn.textContent = orig;
+    btn.disabled = false;
+  }
+}
+</script>
+</body>
+</html>

@@ -1,179 +1,150 @@
 # rp-clipper
 
-Phase 1 of an RP gaming session clip extraction pipeline.
+An RP gaming session clip extraction pipeline. Ingests OBS recordings, transcribes all audio tracks with Whisper, scores clip candidates with a local LLM, and surfaces the best moments through a web review UI.
 
-**What it does right now:**
-- Probes video files and detects multiple audio tracks
-- Lets you label each track (your mic, in-game voice chat, game sounds, etc.)
-- Saves and reapplies track-label profiles for future recordings
-- Extracts each audio track to a clean 16 kHz mono WAV
-- Transcribes with [faster-whisper](https://github.com/SYSTRAN/faster-whisper) (fully local, no API)
-- Groups transcript segments into clip candidates using natural silence gaps
-- Exports any candidate to a video clip via FFmpeg
+Everything runs locally — no cloud APIs, no internet required after first model download.
+
+---
+
+## What it does
+
+- Probes video files and detects multiple OBS audio tracks
+- Labels tracks interactively (mic, voice chat, game sounds, combined) with saved profiles
+- Extracts audio tracks to 16 kHz mono WAV
+- Transcribes with [faster-whisper](https://github.com/SYSTRAN/faster-whisper) (GPU accelerated via CTranslate2)
+- Detects when specialized tracks duplicate a combined track and falls back automatically
+- Groups transcript segments into clip candidates using silence gaps
+- Scores clips via audio energy, scene-cut density, and a local LLM (Ollama)
+- Generates a one-sentence description of each clip
+- Web UI to review clips, approve/reject, and export
+- Exports clips via FFmpeg with optional SRT subtitle sidecars
+- `rp-clip demo` command to compile approved clips into a highlight reel with transitions
 
 ---
 
 ## Requirements
 
 ### FFmpeg
-
-FFmpeg must be installed and on your PATH.
-
-**Windows:**
+Must be on PATH.
 ```
-winget install Gyan.FFmpeg
-# or: choco install ffmpeg
-# or: scoop install ffmpeg
-```
-Restart your terminal after installing so PATH is updated.
-
-**Linux (Ubuntu/Debian):**
-```
-sudo apt install ffmpeg
-```
-
-**macOS:**
-```
-brew install ffmpeg
+winget install Gyan.FFmpeg        # Windows
+brew install ffmpeg               # macOS
+sudo apt install ffmpeg           # Ubuntu/Debian
 ```
 
 ### Python 3.11+
+```
+winget install Python.Python.3.12   # Windows
+```
 
-**Windows:** Download from [python.org](https://www.python.org/downloads/) or `winget install Python.Python.3.12`.
-Make sure "Add to PATH" is checked during install.
-
-**Linux:** `sudo apt install python3.11 python3.11-venv` (or your distro equivalent)
+### Ollama (optional — for LLM scoring)
+Download from [ollama.ai](https://ollama.ai). After installing, pull the model:
+```
+ollama pull llama3.1:8b
+```
+Ollama must be running (`ollama serve`) when you ingest or score.
 
 ---
 
 ## Install
 
 ```bash
-# Clone the repo
 git clone https://github.com/you/rp-clipper
 cd rp-clipper
-
-# Create a virtual environment (recommended)
-# Windows:
 python -m venv .venv
-.venv\Scripts\activate
 
+# Windows:
+.venv\Scripts\activate
 # Linux / macOS:
-python3 -m venv .venv
 source .venv/bin/activate
 
-# Install
 pip install -e .
 ```
 
-### GPU acceleration (optional)
+---
 
-If you have an NVIDIA GPU with CUDA toolkit installed:
+## Quick start
+
+### Start the web UI (recommended)
+```bash
+cd my-recordings-folder
+rp-clip serve
+```
+Opens `http://127.0.0.1:8080` in your browser. Use the **+ Ingest** button to add a video.
+
+### CLI usage
 
 ```bash
-pip install torch --index-url https://download.pytorch.org/whl/cu121
-```
+# Ingest a video (auto-labels tracks via a saved profile)
+rp-clip ingest session.mkv --profile my_obs_setup
 
-Then use `--device cuda` when ingesting.  On CPU, the `base` model
-transcribes roughly 10–15× real-time; `large-v3` is much slower but
-more accurate.
+# Re-score all clips (useful after changing Ollama model or weights)
+rp-clip score --all
+
+# Export a clip by ID
+rp-clip export 42 --subtitles
+
+# Compile approved clips into a demo reel
+rp-clip demo --output highlights.mkv --transition fade
+
+# Start the web UI for a specific project folder
+rp-clip serve --project /path/to/recordings
+```
 
 ---
 
-## Usage
+## GPU acceleration
 
-### Probe a video (see its tracks without ingesting)
+faster-whisper uses CTranslate2, which detects CUDA automatically. No PyTorch needed.
+
+For best results, install CUDA drivers for your GPU. The tool will automatically use `float16` compute on CUDA and fall back to CPU `int8` otherwise.
+
 ```bash
-rp-clip probe session1.mp4
+# Check which device is being used — shown in ingest output
+rp-clip ingest session.mkv
 ```
 
-### Ingest a single video
-```bash
-cd my-recordings-folder
-rp-clip ingest session1.mp4
-```
+---
 
-You'll be prompted to label each audio track interactively.
-Profiles can be saved so future recordings with the same setup
-are labeled automatically.
+## Whisper models
 
-### Ingest a whole folder
-```bash
-rp-clip ingest .
-```
+| Model    | VRAM   | Speed (GPU) | Notes                        |
+|----------|--------|-------------|------------------------------|
+| tiny     | ~0.5 GB | Very fast  | Rough — good for scouting    |
+| base     | ~1 GB   | Fast       | Decent quality               |
+| small    | ~2 GB   | Fast       | Good balance                 |
+| medium   | ~5 GB   | Moderate   | Default — great for noisy audio |
+| large-v3 | ~10 GB  | Moderate   | Best quality                 |
 
-### Use a saved profile (skip interactive labeling)
-```bash
-rp-clip ingest session2.mp4 --profile obs_mic_desktop
-```
-
-### Use a larger / faster Whisper model
-```bash
-rp-clip ingest session1.mp4 --model small
-rp-clip ingest session1.mp4 --model large-v3 --device cuda
-```
-
-### Check project status
-```bash
-rp-clip status
-```
-
-### List clip candidates
-```bash
-rp-clip clips                          # all
-rp-clip clips session1                 # filter by filename
-rp-clip clips --status pending         # filter by status
-```
-
-### Export a clip
-```bash
-rp-clip export 42                      # lossless stream-copy (fast)
-rp-clip export 42 --reencode           # re-encode for frame-accurate cut
-rp-clip export 42 --output clip.mp4    # custom output path
-```
+Models are downloaded from HuggingFace on first use and cached locally (`~/.cache/huggingface`).
 
 ---
 
 ## Project layout
 
-When you run `rp-clip ingest` in a directory, it creates:
-
 ```
-your-folder/
+recordings-folder/
 └── .rp-clipper/
-    ├── project.db       ← SQLite database (all metadata, transcripts, candidates)
-    ├── config.json      ← project config (overrides global config)
-    └── audio/
-        ├── session1_stream0.wav
-        └── session1_stream1.wav
+    ├── project.db        ← SQLite (all metadata, transcripts, candidates, scores)
+    ├── config.toml       ← project config (overrides global defaults)
+    ├── audio/
+    │   ├── session_stream0.wav
+    │   └── session_stream1.wav
     └── exports/
-        └── session1_clip42_0-23.mp4
+        └── session_clip42_0-23-15.mkv
 ```
 
-Global config and profiles are stored at:
+Global config and profiles:
 - **Windows:** `%APPDATA%\rp-clipper\`
 - **Linux:**   `~/.config/rp-clipper/`
 - **macOS:**   `~/Library/Application Support/rp-clipper/`
 
 ---
 
-## Whisper models
+## Offline use
 
-| Model    | Size   | Speed (CPU) | Notes                        |
-|----------|--------|-------------|------------------------------|
-| tiny     | ~75 MB | Very fast   | Rough — good for scouting    |
-| base     | 150 MB | Fast        | Default — good balance       |
-| small    | 500 MB | Moderate    | Noticeably better accuracy   |
-| medium   | 1.5 GB | Slow        | Great for noisy audio        |
-| large-v3 | 3 GB   | Very slow   | Best quality (use with GPU)  |
-
-Models are downloaded from HuggingFace on first use and cached locally.
+After the initial model downloads (Whisper via HuggingFace, LLM via `ollama pull`), the entire pipeline runs with no internet connection.
 
 ---
 
-## What's coming (see BACKLOG.md)
-
-- Phase 2: LLM scoring (Ollama, fully local), scene detection, audio energy
-- Phase 3: Web review UI, auto mode, manual timeline scrubber
-- Phase 4: Story editor, subtitle burn-in, export presets
-- Speaker diarization + character name labeling (pyannote.audio)
+See [ROADMAP.md](ROADMAP.md) for what's in progress and what's planned.

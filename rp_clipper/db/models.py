@@ -7,6 +7,8 @@ Schema overview:
   Transcript     - one Whisper run per audio track
   TranscriptSeg  - individual Whisper segments (word-level timestamps)
   ClipCandidate  - proposed clip with timestamps, score fields, and status
+  AudioEnergy    - per-second RMS energy curve per audio track (Phase 2)
+  SceneBoundary  - detected scene cuts per video (Phase 2)
 """
 from __future__ import annotations
 
@@ -20,6 +22,7 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
@@ -57,7 +60,31 @@ def make_engine(db_path: Path):
         dbapi_connection.execute("PRAGMA foreign_keys=ON")
 
     Base.metadata.create_all(engine)
+    _migrate(engine)
     return engine
+
+
+def _migrate(engine) -> None:
+    """Apply lightweight forward-only column migrations for schema additions."""
+    with engine.connect() as conn:
+        raw = conn.connection
+        cur = raw.cursor()
+        # Phase 2: add do_score to audio_tracks if missing
+        cur.execute("PRAGMA table_info(audio_tracks)")
+        existing = {row[1] for row in cur.fetchall()}
+        if "do_score" not in existing:
+            cur.execute(
+                "ALTER TABLE audio_tracks ADD COLUMN do_score BOOLEAN NOT NULL DEFAULT 1"
+            )
+            raw.commit()
+
+        cur.execute("PRAGMA table_info(clip_candidates)")
+        existing = {row[1] for row in cur.fetchall()}
+        if "description" not in existing:
+            cur.execute("ALTER TABLE clip_candidates ADD COLUMN description TEXT")
+            raw.commit()
+
+        cur.close()
 
 
 def make_session(db_path: Path) -> Session:
@@ -124,6 +151,8 @@ class AudioTrack(Base):
 
     # Whether to run Whisper on this track (False for game_sounds by default)
     do_transcribe: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Whether to include this track in audio energy scoring (False for game_sounds)
+    do_score: Mapped[bool] = mapped_column(Boolean, default=True)
 
     # Raw stream metadata from ffprobe
     codec: Mapped[Optional[str]] = mapped_column(String)
@@ -209,6 +238,8 @@ class ClipCandidate(Base):
     tags_json: Mapped[Optional[str]] = mapped_column(Text)
 
     transcript_excerpt: Mapped[Optional[str]] = mapped_column(Text)
+    # One-sentence LLM-generated summary of what happens in the clip
+    description: Mapped[Optional[str]] = mapped_column(Text)
 
     # pending → approved / rejected / trimmed
     status: Mapped[str] = mapped_column(String, default="pending")
@@ -250,3 +281,42 @@ class ClipCandidate(Base):
         h, rem = divmod(s, 3600)
         m, sec = divmod(rem, 60)
         return f"{h}:{m:02d}:{sec:02d}" if h else f"{m}:{sec:02d}"
+
+
+# ---------------------------------------------------------------------------
+# Phase 2: Audio energy
+# ---------------------------------------------------------------------------
+
+class AudioEnergy(Base):
+    """Per-second RMS energy for one audio track.  Populated by AudioEnergyScorer."""
+    __tablename__ = "audio_energy"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    audio_track_id: Mapped[int] = mapped_column(Integer, ForeignKey("audio_tracks.id"))
+    second_offset: Mapped[int] = mapped_column(Integer, nullable=False)
+    rms_db: Mapped[float] = mapped_column(Float, nullable=False)
+
+    audio_track: Mapped["AudioTrack"] = relationship()
+
+    __table_args__ = (
+        Index("ix_audio_energy_track_second", "audio_track_id", "second_offset"),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Phase 2: Scene boundaries
+# ---------------------------------------------------------------------------
+
+class SceneBoundary(Base):
+    """A detected scene cut in a video.  Populated by SceneCutScorer."""
+    __tablename__ = "scene_boundaries"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    video_id: Mapped[int] = mapped_column(Integer, ForeignKey("videos.id"))
+    timecode_ms: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    video: Mapped["Video"] = relationship()
+
+    __table_args__ = (
+        Index("ix_scene_boundaries_video_time", "video_id", "timecode_ms"),
+    )

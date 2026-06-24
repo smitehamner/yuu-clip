@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
+from typing import Optional
 
 from rp_clipper.config import find_ffmpeg
 
@@ -83,6 +84,7 @@ def export_clip(
     end_ms: int,
     output_path: Path,
     reencode: bool = False,
+    subtitle_path: Optional[Path] = None,
 ) -> Path:
     """
     Cut a clip from *video_path* between *start_ms* and *end_ms*.
@@ -94,16 +96,19 @@ def export_clip(
     With reencode=True: frame-accurate cut using libx264 + aac.
     Slower but exact.  Use if the keyframe offset is noticeable.
 
+    With subtitle_path: burn subtitles from the given SRT file into the video.
+    Forces re-encoding regardless of the reencode flag.
+
     The output container format is inferred from output_path's suffix.
     Use .mp4 for broadest compatibility on both Windows and Linux.
     """
     ffmpeg, _ = find_ffmpeg()
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    start_s   = start_ms / 1000.0
+    start_s    = start_ms / 1000.0
     duration_s = (end_ms - start_ms) / 1000.0
 
-    if reencode:
+    if subtitle_path is not None or reencode:
         # Frame-accurate: seek after -i (slow but exact)
         cmd = [
             ffmpeg, "-y",
@@ -112,8 +117,13 @@ def export_clip(
             "-t",  str(duration_s),
             "-c:v", "libx264", "-crf", "18", "-preset", "fast",
             "-c:a", "aac",     "-b:a", "192k",
-            _ffmpeg_path(output_path),
         ]
+        if subtitle_path is not None:
+            # FFmpeg filtergraph uses ':' as option separator; Windows drive-letter
+            # colons (C:/) must be escaped as C\:/ within the filter string.
+            escaped = subtitle_path.as_posix().replace(":", "\\:")
+            cmd += ["-vf", f"subtitles={escaped}"]
+        cmd.append(_ffmpeg_path(output_path))
     else:
         # Fast stream copy: seek before -i (keyframe-aligned)
         cmd = [

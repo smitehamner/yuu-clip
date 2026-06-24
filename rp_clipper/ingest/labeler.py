@@ -14,6 +14,7 @@ from rich.prompt import Confirm, IntPrompt, Prompt
 from rich.table import Table
 
 from rp_clipper.config import (
+    DEFAULT_SKIP_SCORE,
     DEFAULT_SKIP_TRANSCRIBE,
     LABEL_DESCRIPTIONS,
     LABEL_WEIGHTS,
@@ -42,6 +43,7 @@ def label_tracks(
             "label": str,            # one of TRACK_LABELS
             "weight": float,
             "do_transcribe": bool,
+            "do_score": bool,        # include in audio energy scoring
         }
 
     If *profile_name* is given and exists, it is applied without prompting.
@@ -61,6 +63,7 @@ def label_tracks(
             "label": "combined",
             "weight": LABEL_WEIGHTS["combined"],
             "do_transcribe": True,
+            "do_score": True,
         }]
 
     # --- apply saved profile if requested ---
@@ -125,8 +128,7 @@ def _label_interactive(video_info: VideoInfo) -> list[dict]:
         choice = max(1, min(choice, len(TRACK_LABELS)))
         label = TRACK_LABELS[choice - 1]
 
-        # Default transcription behaviour per label
-        default_transcribe = label not in DEFAULT_SKIP_TRANSCRIBE
+        # Transcription
         if label in DEFAULT_SKIP_TRANSCRIBE:
             do_transcribe = Confirm.ask(
                 f"    Transcribe this track? (default: no for {label})",
@@ -135,11 +137,24 @@ def _label_interactive(video_info: VideoInfo) -> list[dict]:
         else:
             do_transcribe = True
 
+        # Scoring (energy analysis)
+        if label in DEFAULT_SKIP_SCORE:
+            do_score = Confirm.ask(
+                f"    Include in energy scoring? (default: no for {label})",
+                default=False,
+            )
+        else:
+            do_score = Confirm.ask(
+                "    Include in energy scoring?",
+                default=True,
+            )
+
         assignments.append({
             "stream_index": s.stream_index,
             "label": label,
             "weight": LABEL_WEIGHTS[label],
             "do_transcribe": do_transcribe,
+            "do_score": do_score,
         })
 
     _print_assignment_summary(assignments)
@@ -154,11 +169,12 @@ def _label_interactive(video_info: VideoInfo) -> list[dict]:
                     "stream_position": idx,
                     "label": a["label"],
                     "do_transcribe": a["do_transcribe"],
+                    "do_score": a["do_score"],
                 }
                 for idx, a in enumerate(assignments)
             ]
             save_profile(name, positional)
-            console.print(f"  [green]✓ Profile '{name}' saved.[/green]")
+            console.print(f"  [green]Profile '{name}' saved.[/green]")
 
     return assignments
 
@@ -187,9 +203,10 @@ def _apply_profile(name: str, streams) -> Optional[list[dict]]:
             "label": label,
             "weight": LABEL_WEIGHTS.get(label, 1.0),
             "do_transcribe": pos_assign.get("do_transcribe", True),
+            "do_score": pos_assign.get("do_score", label not in DEFAULT_SKIP_SCORE),
         })
 
-    console.print(f"  [green]✓ Applied profile '{name}'[/green]")
+    console.print(f"  [green]Applied profile '{name}'[/green]")
     _print_assignment_summary(assignments)
     return assignments
 
@@ -235,10 +252,11 @@ def _print_label_menu() -> None:
 def _print_assignment_summary(assignments: list[dict]) -> None:
     console.print()
     for a in assignments:
-        transcribe_str = "[green]transcribe ✓[/green]" if a["do_transcribe"] else "[dim]skip transcription[/dim]"
+        transcribe_str = "[green]transcribe[/green]" if a["do_transcribe"] else "[dim]skip transcription[/dim]"
+        score_str      = "[green]score[/green]"      if a.get("do_score", True) else "[dim]skip scoring[/dim]"
         console.print(
-            f"  stream {a['stream_index']}  →  [bold]{a['label']}[/bold]"
-            f"  (weight {a['weight']})  {transcribe_str}"
+            f"  stream {a['stream_index']}  ->  [bold]{a['label']}[/bold]"
+            f"  (weight {a['weight']})  {transcribe_str}  {score_str}"
         )
 
 

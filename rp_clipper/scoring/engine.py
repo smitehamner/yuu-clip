@@ -1,0 +1,82 @@
+"""
+ScoringEngine: orchestrates all scorers and writes results back to ClipCandidate rows.
+"""
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+from rp_clipper.scoring.protocol import ScoreResult, Scorer
+
+if TYPE_CHECKING:
+    from sqlalchemy.orm import Session
+    from rp_clipper.config import Config
+    from rp_clipper.db.models import ClipCandidate, Video
+
+
+class ScoringEngine:
+    def __init__(self, config: "Config", scorers: list[Scorer]) -> None:
+        self._config  = config
+        self._scorers = [s for s in scorers if s.is_available()]
+
+    # Tags emitted by scorers — stripped before each re-score so stale
+    # results from a previous partial run don't accumulate.
+    _SCORER_TAGS: frozenset[str] = frozenset({
+        "energy_scored", "scenes_scored",
+        "llm_scored", "llm_error", "llm_skipped", "llm_no_transcript",
+    })
+
+    # ------------------------------------------------------------------
+    def score_clip(self, clip: "ClipCandidate", session: "Session") -> None:
+        """Run all available scorers and update clip.score_* fields in place."""
+        if not self._scorers:
+            return
+
+        # Clear stale scorer tags so re-scoring starts clean
+        clip.tags = [t for t in clip.tags if t not in self._SCORER_TAGS]
+
+        funny_num = dramatic_num = action_num = weight_sum = 0.0
+
+        for scorer in self._scorers:
+            result: ScoreResult = scorer.score(clip, session)
+            w = scorer.weight
+            funny_num    += result.score_funny    * w
+            dramatic_num += result.score_dramatic * w
+            action_num   += result.score_action   * w
+            weight_sum   += w
+
+            if result.description:
+                clip.description = result.description
+
+            for tag in result.tags:
+                existing = clip.tags
+                if tag not in existing:
+                    clip.tags = existing + [tag]
+
+        if weight_sum == 0:
+            return
+
+        clip.score_funny    = funny_num    / weight_sum
+        clip.score_dramatic = dramatic_num / weight_sum
+        clip.score_action   = action_num   / weight_sum
+
+        cfg = self._config
+        dim_total = cfg.score_funny_weight + cfg.score_dramatic_weight + cfg.score_action_weight
+        if dim_total > 0:
+            clip.score_overall = (
+                cfg.score_funny_weight    * clip.score_funny    +
+                cfg.score_dramatic_weight * clip.score_dramatic +
+                cfg.score_action_weight   * clip.score_action
+            ) / dim_total
+
+    # ------------------------------------------------------------------
+    def score_video(self, video: "Video", session: "Session") -> int:
+        """Score all ClipCandidates for *video*.  Returns count scored."""
+        from rp_clipper.db.models import ClipCandidate
+        candidates = (
+            session.query(ClipCandidate)
+            .filter_by(video_id=video.id)
+            .all()
+        )
+        for clip in candidates:
+            self.score_clip(clip, session)
+        return len(candidates)

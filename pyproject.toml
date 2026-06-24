@@ -11,7 +11,11 @@ dependencies = [
     "faster-whisper>=1.0.3",
     "typer[all]>=0.12.0",
     "sqlalchemy>=2.0.0",
-    "platformdirs>=4.0.0",   # cross-platform config/data dirs (AppData on Windows)
+    "platformdirs>=4.0.0",           # cross-platform config/data dirs (AppData on Windows)
+    "scenedetect[opencv-headless]>=0.6.4",  # Phase 2: scene cut detection
+    "ollama>=0.3.0",                 # Phase 2: local LLM scoring via Ollama
+    "fastapi>=0.110.0",              # Phase 3: web UI backend
+    "uvicorn[standard]>=0.27.0",     # Phase 3: ASGI server
 ]
 
 [project.scripts]

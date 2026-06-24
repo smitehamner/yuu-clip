@@ -127,6 +127,9 @@ def validate_whisper_language(lang: Optional[str]) -> Optional[str]:
 # Labels for which we skip transcription by default (user can override)
 DEFAULT_SKIP_TRANSCRIBE = {"game_sounds"}
 
+# Labels excluded from audio energy scoring by default (user can override during labeling)
+DEFAULT_SKIP_SCORE: frozenset[str] = frozenset({"game_sounds"})
+
 
 # ---------------------------------------------------------------------------
 # Config dataclass
@@ -167,6 +170,39 @@ class Config:
     min_clip_ms: int = 15_000           # shortest candidate kept (15 s)
     max_clip_ms: int = 300_000          # longest candidate kept (5 min)
     hard_split_ms: int = 180_000        # force-split continuous speech (3 min)
+
+    # ---------------------------------------------------------------------------
+    # Phase 2 — scoring
+    # ---------------------------------------------------------------------------
+
+    # Ollama connection
+    ollama_host: str = "http://localhost:11434"
+    ollama_model: str = "llama3.1:8b"
+    ollama_timeout_s: float = 120.0
+    ollama_enabled: bool = True
+
+    # Enable individual scorers independently
+    scorer_energy_enabled: bool = True
+    scorer_scenes_enabled: bool = True
+    scorer_llm_enabled: bool = True
+
+    # Scene detection mode: "transcript" | "fast" | "full"
+    # transcript = silence gaps only (instant, no extra deps)
+    # fast       = keyframes + transcript gaps (seconds, recommended default)
+    # full       = ContentDetector on every frame (most accurate, slow on long VODs)
+    scene_detection_mode: str = "fast"
+    # Minimum silence gap in seconds to register as a transcript-mode scene boundary
+    scene_transcript_gap_s: float = 3.0
+
+    # How much each scorer contributes to the dimension scores (weighted mean)
+    scorer_energy_weight: float = 1.0
+    scorer_scene_weight: float = 0.5
+    scorer_llm_weight: float = 2.0
+
+    # How dimension scores combine into score_overall (weighted sum, then normalised)
+    score_funny_weight: float = 1.0
+    score_dramatic_weight: float = 1.0
+    score_action_weight: float = 1.0
 
     @classmethod
     def load(cls, project_dir: Path) -> "Config":

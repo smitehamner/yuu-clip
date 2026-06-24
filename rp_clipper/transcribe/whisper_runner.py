@@ -50,23 +50,28 @@ def _get_model(config: Config):
     device = config.whisper_device
     if device == "auto":
         try:
-            import torch
-            device = "cuda" if torch.cuda.is_available() else "cpu"
-        except ImportError:
+            import ctranslate2
+            device = "cuda" if ctranslate2.get_cuda_device_count() > 0 else "cpu"
+        except Exception:
             device = "cpu"
 
-    key = (config.whisper_model, device, config.whisper_compute_type, config.whisper_model_revision)
+    # int8 is CPU-optimal; upgrade to float16 on CUDA for better quality
+    compute_type = config.whisper_compute_type
+    if device == "cuda" and compute_type == "int8":
+        compute_type = "float16"
+
+    key = (config.whisper_model, device, compute_type, config.whisper_model_revision)
     if key not in _model_cache:
         rev_note = f"  revision={config.whisper_model_revision}" if config.whisper_model_revision else "  revision=latest (not pinned)"
         console.print(
             f"  [dim]Loading Whisper model '[bold]{config.whisper_model}[/bold]' "
-            f"on {device} ({config.whisper_compute_type}){rev_note} — "
+            f"on {device} ({compute_type}){rev_note} — "
             f"first run downloads the model…[/dim]"
         )
         _model_cache[key] = WhisperModel(
             config.whisper_model,
             device=device,
-            compute_type=config.whisper_compute_type,
+            compute_type=compute_type,
             # revision pins the HuggingFace git commit SHA; None = "main" (latest)
             revision=config.whisper_model_revision,
         )
