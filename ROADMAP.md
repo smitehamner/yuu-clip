@@ -152,50 +152,51 @@ Each item is tagged with the violated law and a proposed fix.
 
 ### Critical (blocks basic usability)
 
-| # | Law | Current violation | Proposed fix |
-|---|-----|------------------|--------------|
-| 1 | **Doherty Threshold** (< 400ms feels instant) | No feedback when clicking Export Log, Build Reel start, or Score All — button appears unresponsive for ~1s before SSE begins | Disable button + show inline spinner immediately on click; re-enable when done |
-| 2 | **Postel's Law** (be liberal in what you accept) | Video path input is a plain text field — any typo gives a cryptic server-side 400 error | OS file picker (already built) should be the *primary* path; text field stays as an override only; validate path client-side and show a helpful inline error |
-| 3 | **Mental Model** (design matches user expectations) | Progress log panel uses Rich ANSI escape codes (`[bold]`, `[green]`) — these show as literal brackets in the browser log | Strip ANSI/Rich markup server-side before sending SSE lines, or interpret them as CSS classes |
+| # | Law | Status | Current violation | Fix applied |
+|---|-----|--------|------------------|-------------|
+| 1 | **Doherty Threshold** | ✅ Done | No feedback when clicking Build Reel start or Score All — button appears unresponsive for ~1s before SSE begins | `startJobUI()` disables ingest/score/demo buttons synchronously; `showToast()` announces completion; Ingest start button disabled + relabelled "Starting…" until SSE opens |
+| 2 | **Postel's Law** | Open | Video path input typo gives cryptic 400 error | OS file picker is the primary entry (prominent Browse button); probe response shows inline red error text next to the field |
+| 3 | **Mental Model** | ✅ Done | Progress log panel shows Rich markup `[bold]`, `[green]` as literal brackets | `stripRichMarkup()` in `appendLog()` strips ANSI escape codes and Rich `[tag]`/`[/tag]` patterns before display |
 
 ### High (meaningfully degrades experience)
 
-| # | Law | Current violation | Proposed fix |
-|---|-----|------------------|--------------|
-| 4 | **Goal-Gradient Effect** (proximity to goal increases motivation) | Ingest has no per-step completion percentage — only a text log | Show step completion bars on the progress pill (already partially built with step chips) |
-| 5 | **Fitts's Law** (bigger + closer = faster) | Approve and Reject buttons are the same size as all other buttons | Make Approve/Reject larger (primary action size) with clear visual weight hierarchy |
-| 6 | **Peak-End Rule** (judgements based on peak and final moments) | After ingest completes, the log panel closes and nothing celebrates success | Show a brief "✓ Done — N clips found" success banner in the header, auto-dismiss after 4s |
-| 7 | **Hick's Law** (more choices = slower decisions) | Ingest modal shows all options at once: path, model, scene mode, profile, estimates | Collapse advanced options (model, scene mode) behind a disclosure arrow; defaults cover 90% of use cases |
-| 8 | **Zeigarnik Effect** (open loops are remembered) | Rejected clips disappear from the default view — there's no "undo" or review queue | Add a "Rejected" filter tab to the sidebar; offer a one-click Undo for the last status change |
-| 9 | **Jakob's Law** (users expect familiar patterns) | Clip player has no timeline scrubber or timestamp display | Add a standard HTML5 `<video>` controls bar; it's already a native `<video>` element |
+| # | Law | Status | Current violation | Fix / plan |
+|---|-----|--------|------------------|------------|
+| 4 | **Goal-Gradient Effect** | Open | Ingest has no per-step completion percentage | Step chips in header pill already change active → done; percentage within a step remains future work |
+| 5 | **Fitts's Law** | ✅ Done | Approve and Reject buttons same size as all others | `.btn.approve` / `.btn.reject` now `padding: 9px 22px; font-size: 14px; font-weight: 600` |
+| 6 | **Peak-End Rule** | ✅ Done | After ingest completes, nothing celebrates success | `showToast()` appears after ingest, score, export, retranscribe, and demo complete; auto-dismisses after 4 s |
+| 7 | **Hick's Law** | ✅ Done | Ingest modal shows all options at once | Whisper model + scene detection collapsed into `<details class="advanced">` disclosure; collapsed by default |
+| 8 | **Zeigarnik Effect** | Open | Rejected clips disappear from default view — no undo | Add a "Rejected" filter tab; one-click Undo for last status change |
+| 9 | **Jakob's Law** | ✅ Done | Clip player had no timeline scrubber | `<video controls autoplay>` already provides full native browser controls |
 
 ### Moderate (friction for regular use)
 
-| # | Law | Current violation | Proposed fix |
-|---|-----|------------------|--------------|
-| 10 | **Serial Position Effect** (first and last items are best remembered) | Clip list is sorted by score descending — the top clip is always the same | After review, re-sort to float un-reviewed (pending) clips to the top |
-| 11 | **Miller's Law** (7 ± 2 items in working memory) | Long clip lists with no pagination or grouping — all clips shown at once | Group clips by session date or add virtual scrolling; show count badge on section headers |
-| 12 | **Law of Proximity** (near elements are grouped) | Score bars (F/D/A) in the sidebar have no visual boundary separating them from the clip label | Add a subtle separator or tighten the vertical rhythm so score bars read as belonging to their clip |
-| 13 | **Aesthetic-Usability Effect** (pretty = feels more usable) | Export Log button looks identical to functional action buttons — users may not understand what it does | Style it as a secondary/ghost button with a document icon; move it to a help/support section |
-| 14 | **Chunking** (break information into digestible groups) | Detail panel shows score bars, description, actions, and transcript in a flat list | Add section dividers or card groupings: Summary → Actions → Transcript |
-| 15 | **Von Restorff Effect** (distinctive items are remembered) | High-scoring clips look the same as low-scoring ones in the sidebar | Optionally highlight clips above a score threshold with a subtle coloured left border |
+| # | Law | Status | Current violation | Fix / plan |
+|---|-----|--------|------------------|------------|
+| 10 | **Serial Position Effect** | Open | Clip list sorted score-descending; pending clips not surfaced | Re-sort to float pending clips to the top after reviewing |
+| 11 | **Miller's Law** | Open | All clips shown at once with no grouping | Group by session or add virtual scrolling; count badge on section headers |
+| 12 | **Law of Proximity** | Open | F/D/A bars have no visual boundary from clip label | Tighten vertical rhythm; subtle separator above mini bars |
+| 13 | **Aesthetic-Usability Effect** | ✅ Done | Export Log button looked like an action button | Restyled as `.btn.ghost` with muted colour and `↓ Log` label |
+| 14 | **Chunking** | Open | Detail panel is a flat list | Add card groupings: Summary → Actions → Transcript |
+| 15 | **Von Restorff Effect** | Open | High-scoring clips look identical to low-scoring ones | Coloured left border for clips above a score threshold |
 
 ### Low (minor polish)
 
-| # | Law | Current violation | Proposed fix |
-|---|-----|------------------|--------------|
-| 16 | **Cognitive Load** | Score abbreviations F/D/A are not explained anywhere | Add a legend tooltip on hover, or expand to Funny/Dramatic/Action on wider screens |
-| 17 | **Law of Prägnanz** (simplest form is preferred) | Status dots (●) use three colours but no labels | Show status text next to the dot on hover, or in the detail panel header |
-| 18 | **Selective Attention** | The "Build Reel" button in the header requires approved clips — clicking it when none exist gives a confusing 400 error | Disable "Build Reel" when there are no approved clips; show a tooltip explaining why |
-| 19 | **Paradox of the Active User** (users skip docs) | First-run experience: blank page until you click Ingest | Show an empty-state illustration with a prominent "Get started — click + Ingest" prompt when no videos exist |
+| # | Law | Status | Current violation | Fix / plan |
+|---|-----|--------|------------------|------------|
+| 16 | **Cognitive Load** | ✅ Done | Score abbreviations F/D/A unexplained | `miniBar()` now passes `title="Funny: 82%"` etc. — full name + percent visible on hover |
+| 17 | **Law of Prägnanz** | Open | Status dots use three colours but no labels | Show status text in detail panel header |
+| 18 | **Selective Attention** | ✅ Done | "Build Reel" clickable when no approved clips → confusing 400 | `_updateDemoButton()` disables `#btn-demo` with tooltip when `approvedCount === 0`; `openDemoModal()` also guards and shows an info toast |
+| 19 | **Paradox of the Active User** | ✅ Done | First-run: blank main panel until Ingest | `_showEmptyState()` renders a welcome card with "Ingest your first video" CTA when `_videos` is empty |
 
 ### UX items already addressed
 - Model dropdown ordered fastest→slowest (Hick's Law)
 - Whisper default set to `medium` (good balance; users rarely need to change it)
-- OS file picker for video path (Postel's Law, reduces typo errors)
+- OS file picker as primary video path entry (Postel's Law)
 - Sub-score bars in sidebar (progressive disclosure of signal breakdown)
 - Clip ID prefix in sidebar (disambiguation for multi-clip sessions)
 - SSE progress log (Doherty Threshold, Zeigarnik Effect)
+- `<video controls autoplay>` player (Jakob's Law)
 
 ---
 

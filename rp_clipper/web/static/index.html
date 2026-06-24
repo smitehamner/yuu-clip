@@ -37,12 +37,31 @@
   .step { font-size: 11px; padding: 2px 7px; border-radius: 10px; background: var(--border); color: var(--muted); transition: background .2s, color .2s; }
   .step.active { background: var(--accent); color: #fff; }
   .step.done   { background: var(--green);  color: #fff; }
-  /* spacer when no job running */
   .header-spacer { margin-right: auto; }
-  .btn { padding: 6px 14px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer; font-size: 13px; transition: background .15s; white-space: nowrap; }
-  .btn:hover { background: var(--border); }
+
+  /* ── buttons ── */
+  .btn { padding: 6px 14px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer; font-size: 13px; transition: background .15s, opacity .15s; white-space: nowrap; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+  .btn:hover:not(:disabled) { background: var(--border); }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
   .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-  .btn.primary:hover { opacity: .85; }
+  .btn.primary:hover:not(:disabled) { opacity: .85; background: var(--accent); }
+  /* Ghost: de-emphasised, for utility actions like log export */
+  .btn.ghost { background: transparent; border-color: transparent; color: var(--muted); font-size: 12px; padding: 6px 10px; }
+  .btn.ghost:hover:not(:disabled) { background: var(--border); color: var(--text); }
+  /* Primary review actions — larger targets (Fitts's Law) */
+  .btn.approve { background: var(--green); border-color: var(--green); color: #fff; padding: 9px 22px; font-size: 14px; font-weight: 600; }
+  .btn.approve:hover:not(:disabled) { opacity: .85; }
+  .btn.reject  { background: var(--red);   border-color: var(--red);   color: #fff; padding: 9px 22px; font-size: 14px; font-weight: 600; }
+  .btn.reject:hover:not(:disabled)  { opacity: .85; }
+  .btn.active  { outline: 2px solid #fff; outline-offset: 1px; }
+
+  /* ── toast notifications ── */
+  .toast-container { position: fixed; top: 52px; right: 16px; z-index: 400; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
+  .toast { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px 16px; font-size: 13px; box-shadow: 0 4px 20px rgba(0,0,0,.5); animation: toastIn .2s ease; pointer-events: all; max-width: 320px; line-height: 1.4; }
+  .toast.success { border-left: 3px solid var(--green); }
+  .toast.error   { border-left: 3px solid var(--red); }
+  .toast.info    { border-left: 3px solid var(--accent); }
+  @keyframes toastIn { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: none; } }
 
   /* ── main layout ── */
   .layout { display: flex; flex: 1; overflow: hidden; }
@@ -83,6 +102,11 @@
   .detail { flex: 1; overflow-y: auto; padding: 16px 20px; display: flex; flex-direction: column; gap: 14px; }
   .detail-empty { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--muted); }
 
+  /* ── empty state (first-run / no videos) ── */
+  .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; gap: 14px; color: var(--muted); text-align: center; padding: 40px; }
+  .empty-state h2 { font-size: 20px; font-weight: 600; color: var(--text); }
+  .empty-state p  { font-size: 14px; line-height: 1.65; max-width: 340px; }
+
   .clip-header { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
   .clip-header h2 { font-size: 17px; font-weight: 600; }
   .clip-header .time { color: var(--muted); font-size: 13px; }
@@ -100,12 +124,7 @@
   .score-val { font-size: 12px; font-weight: 600; text-align: right; }
 
   /* actions */
-  .actions { display: flex; gap: 8px; flex-wrap: wrap; }
-  .btn.approve { background: var(--green); border-color: var(--green); color: #fff; }
-  .btn.approve:hover { opacity: .85; }
-  .btn.reject  { background: var(--red);   border-color: var(--red);   color: #fff; }
-  .btn.reject:hover  { opacity: .85; }
-  .btn.active  { outline: 2px solid #fff; outline-offset: 1px; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 
   /* tags */
   .tags { display: flex; flex-wrap: wrap; gap: 5px; }
@@ -119,11 +138,12 @@
   .log-panel { position: fixed; bottom: 0; left: 0; right: 0; background: var(--surface); border-top: 1px solid var(--border); padding: 8px 14px; max-height: 180px; overflow-y: auto; font-family: monospace; font-size: 12px; color: var(--text); display: none; z-index: 100; }
   .log-panel.visible { display: block; }
   .log-line { white-space: pre; padding: 1px 0; }
-  .log-line.ok { color: var(--green); }
+  .log-line.ok  { color: var(--green); }
   .log-line.err { color: var(--red); }
+  .log-line.warn { color: var(--yellow); }
   .log-close { position: sticky; top: 0; float: right; cursor: pointer; color: var(--muted); font-size: 16px; background: var(--surface); padding: 0 4px; }
 
-  /* ── ingest modal ── */
+  /* ── modals ── */
   .modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.7); z-index: 200; align-items: center; justify-content: center; }
   .modal-bg.visible { display: flex; }
   .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 24px; width: 500px; display: flex; flex-direction: column; gap: 14px; }
@@ -134,6 +154,13 @@
   .path-row input { flex: 1; }
   .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
 
+  /* advanced options disclosure in ingest modal */
+  details.advanced { border: 1px solid var(--border); border-radius: 6px; }
+  details.advanced > summary { padding: 8px 12px; cursor: pointer; font-size: 12px; color: var(--muted); user-select: none; list-style: none; display: flex; align-items: center; gap: 6px; }
+  details.advanced > summary::before { content: '▶'; font-size: 9px; transition: transform .15s; }
+  details.advanced[open] > summary::before { transform: rotate(90deg); }
+  details.advanced .field { padding: 10px 12px 4px; }
+  details.advanced .field:last-child { padding-bottom: 12px; }
 
   /* time estimate table */
   .estimate-box { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; font-size: 12px; }
@@ -166,7 +193,8 @@
   <button class="btn primary" id="btn-ingest" onclick="openIngestModal()">+ Ingest</button>
   <button class="btn" id="btn-score" onclick="scoreAll()">Score All</button>
   <button class="btn" id="btn-demo" onclick="openDemoModal()">Build Reel</button>
-  <a class="btn" id="btn-logs" href="/api/logs/export" download="rp-clipper.log" title="Download debug log — attach this file when reporting a bug">Export Log</a>
+  <a class="btn ghost" id="btn-logs" href="/api/logs/export" download="rp-clipper.log"
+     title="Download debug log — attach when reporting a bug">&#8595; Log</a>
 </header>
 
 <div class="layout">
@@ -181,22 +209,21 @@
 
   <!-- Main panel -->
   <div class="main">
-    <div class="player-area" id="player-area">
-      <div class="no-export-msg" id="no-clip-selected">
-        <div style="color:var(--muted)">Select a clip to review</div>
-      </div>
-    </div>
+    <div class="player-area" id="player-area"></div>
     <div class="detail" id="detail">
-      <div class="detail-empty" id="detail-empty">Select a clip from the sidebar</div>
+      <div class="detail-empty">Select a clip from the sidebar</div>
     </div>
   </div>
 </div>
 
 <!-- Progress log -->
 <div class="log-panel" id="log-panel">
-  <span class="log-close" onclick="closeLog()">x</span>
+  <span class="log-close" onclick="closeLog()">&#x2715;</span>
   <div id="log-lines"></div>
 </div>
+
+<!-- Toast container -->
+<div class="toast-container" id="toast-container"></div>
 
 <!-- Ingest modal -->
 <div class="modal-bg" id="ingest-modal">
@@ -206,26 +233,8 @@
       <label>Video file path</label>
       <div class="path-row">
         <input type="text" id="ingest-path" placeholder="D:\recordings\session.mkv" oninput="scheduleProbe()">
-        <button class="btn" onclick="pickFile()" title="Browse">&#128193;</button>
+        <button class="btn" onclick="pickFile()" title="Browse for file">&#128193;</button>
       </div>
-    </div>
-    <div class="field">
-      <label>Whisper model</label>
-      <select id="ingest-model" onchange="runEstimate()">
-        <option value="tiny">tiny — fastest, lowest quality</option>
-        <option value="base">base — very fast, lower quality</option>
-        <option value="small">small — fast (~500 MB VRAM)</option>
-        <option value="medium" selected>medium — good balance (~1.5 GB VRAM)</option>
-        <option value="large-v3">large-v3 — best quality (~3 GB VRAM)</option>
-      </select>
-    </div>
-    <div class="field">
-      <label>Scene detection</label>
-      <select id="ingest-scene-mode" onchange="runEstimate()">
-        <option value="transcript">Transcript only — silence gaps, instant</option>
-        <option value="fast" selected>Fast — keyframes + transcript gaps (recommended)</option>
-        <option value="full">Full — every frame, most accurate (slow)</option>
-      </select>
     </div>
     <div class="field">
       <label>Track profile</label>
@@ -234,14 +243,34 @@
         <button class="btn" onclick="openProfileManager()" title="Manage profiles">&#9881;</button>
       </div>
     </div>
+    <details class="advanced">
+      <summary>Advanced options</summary>
+      <div class="field">
+        <label>Whisper model</label>
+        <select id="ingest-model" onchange="runEstimate()">
+          <option value="tiny">tiny — fastest, lowest quality</option>
+          <option value="base">base — very fast, lower quality</option>
+          <option value="small">small — fast (~500 MB VRAM)</option>
+          <option value="medium" selected>medium — good balance (~1.5 GB VRAM)</option>
+          <option value="large-v3">large-v3 — best quality (~3 GB VRAM)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Scene detection</label>
+        <select id="ingest-scene-mode" onchange="runEstimate()">
+          <option value="transcript">Transcript only — silence gaps, instant</option>
+          <option value="fast" selected>Fast — keyframes + transcript gaps (recommended)</option>
+          <option value="full">Full — every frame, most accurate (slow)</option>
+        </select>
+      </div>
+    </details>
     <div id="estimate-area"></div>
     <div class="modal-actions">
       <button class="btn" onclick="closeIngestModal()">Cancel</button>
-      <button class="btn primary" onclick="startIngest()">Start Ingest</button>
+      <button class="btn primary" id="btn-start-ingest" onclick="startIngest()">Start Ingest</button>
     </div>
   </div>
 </div>
-
 
 <!-- Profile Manager Modal -->
 <div class="modal-bg" id="profile-modal">
@@ -252,7 +281,6 @@
       <button class="btn primary" onclick="openNewProfile()">+ New Profile</button>
       <button class="btn" style="margin-left:auto" onclick="closeProfileManager()">Close</button>
     </div>
-    <!-- Editor sub-panel -->
     <div id="profile-editor" style="display:none;border-top:1px solid var(--border);margin-top:14px;padding-top:14px">
       <div class="field">
         <label>Profile name</label>
@@ -340,44 +368,70 @@
 </div>
 
 <script>
-// ── state ────────────────────────────────────────────────────────────────────
+// ── state ─────────────────────────────────────────────────────────────────────
 let activeVideoId = null;
 let activeClipId  = null;
-let _videos = [];
+let _videos       = [];
 
-// ── boot ─────────────────────────────────────────────────────────────────────
+// ── boot ──────────────────────────────────────────────────────────────────────
 loadVideos();
 
-// ── videos ───────────────────────────────────────────────────────────────────
+// ── videos ────────────────────────────────────────────────────────────────────
 async function loadVideos() {
-  const res = await fetch('/api/videos');
+  const res    = await fetch('/api/videos');
   const videos = await res.json();
   _videos = videos;
+
   const list = document.getElementById('video-list');
   list.innerHTML = '';
+
   if (!videos.length) {
     list.innerHTML = '<li style="padding:10px 14px;color:var(--muted)">No videos yet</li>';
+    _showEmptyState();
+    _updateDemoButton(0);
     return;
   }
+
   for (const v of videos) {
     const li = document.createElement('li');
     li.className = 'video-item' + (v.id === activeVideoId ? ' active' : '');
     li.innerHTML = `
       <div class="name" title="${v.filename}">${v.filename}</div>
       <div class="meta">${v.duration_hms} &middot; ${v.clip_count} clips (${v.approved} approved) &middot; ${v.status}</div>`;
-    li.onclick = () => selectVideo(v.id);
+    li.onclick = () => {
+      document.querySelectorAll('#video-list li').forEach(l => l.classList.remove('active'));
+      li.classList.add('active');
+      selectVideo(v.id);
+    };
     list.appendChild(li);
   }
+
+  const totalApproved = videos.reduce((n, v) => n + v.approved, 0);
+  _updateDemoButton(totalApproved);
+}
+
+function _showEmptyState() {
+  document.getElementById('player-area').innerHTML = '';
+  document.getElementById('detail').innerHTML = `
+    <div class="empty-state">
+      <h2>Welcome to rp-clipper</h2>
+      <p>Ingest a video recording to start reviewing and exporting your best gaming moments.</p>
+      <button class="btn primary" onclick="openIngestModal()">+ Ingest your first video</button>
+    </div>`;
+}
+
+function _updateDemoButton(approvedCount) {
+  const btn = document.getElementById('btn-demo');
+  btn.disabled = approvedCount === 0;
+  btn.title = approvedCount === 0
+    ? 'Approve some clips first to build a reel'
+    : `Build a highlight reel from ${approvedCount} approved clip(s)`;
 }
 
 async function selectVideo(id) {
   activeVideoId = id;
   activeClipId  = null;
-  // highlight sidebar
-  document.querySelectorAll('#video-list li').forEach(li => li.classList.remove('active'));
-  event.currentTarget.classList.add('active');
-
-  const res = await fetch(`/api/videos/${id}/clips`);
+  const res   = await fetch(`/api/videos/${id}/clips`);
   const clips = await res.json();
   renderClipList(clips);
   clearDetail();
@@ -397,40 +451,40 @@ function renderClipList(clips) {
     li.innerHTML = `
       <div class="clip-item">
         <span class="score-badge">${c.score_overall.toFixed(2)}</span>
-        <span class="clip-label" title="${c.description || ''}"><span style="color:var(--muted);font-size:11px">#${c.id}</span> ${c.start_hms} &middot; ${c.duration_hms}</span>
-        <span class="status-dot dot-${c.status}"></span>
+        <span class="clip-label" title="${c.description || ''}">
+          <span style="color:var(--muted);font-size:11px">#${c.id}</span>
+          ${c.start_hms} &middot; ${c.duration_hms}
+        </span>
+        <span class="status-dot dot-${c.status}" title="${c.status}"></span>
       </div>
       ${c.description ? `<div style="font-size:11px;color:var(--muted);margin-top:3px;padding-left:44px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c.description}</div>` : ''}
       <div class="clip-miniscores">
-        ${miniBar('F', c.score_funny, 'var(--funny)')}
-        ${miniBar('D', c.score_dramatic, 'var(--dramatic)')}
-        ${miniBar('A', c.score_action, 'var(--action)')}
+        ${miniBar('F', 'Funny',    c.score_funny,    'var(--funny)')}
+        ${miniBar('D', 'Dramatic', c.score_dramatic, 'var(--dramatic)')}
+        ${miniBar('A', 'Action',   c.score_action,   'var(--action)')}
       </div>`;
-    li.onclick = () => selectClip(c.id);
+    li.onclick = () => {
+      document.querySelectorAll('#clip-list li').forEach(l => l.classList.remove('active'));
+      li.classList.add('active');
+      selectClip(c.id);
+    };
     list.appendChild(li);
   }
 }
 
 async function selectClip(id) {
   activeClipId = id;
-  document.querySelectorAll('#clip-list li').forEach(li => li.classList.remove('active'));
-  // event may be undefined when called programmatically
-  if (typeof event !== 'undefined' && event && event.currentTarget) {
-    event.currentTarget.classList.add('active');
-  }
-
   const [clipRes, mediaRes] = await Promise.all([
     fetch(`/api/clips/${id}`),
     fetch(`/api/clips/${id}/media_url`),
   ]);
   const clip  = await clipRes.json();
   const media = await mediaRes.json();
-
   renderPlayer(media.url);
   renderDetail(clip);
 }
 
-// ── player ────────────────────────────────────────────────────────────────────
+// ── player ─────────────────────────────────────────────────────────────────────
 function renderPlayer(url) {
   const area = document.getElementById('player-area');
   if (url) {
@@ -444,10 +498,9 @@ function renderPlayer(url) {
   }
 }
 
-// ── detail ────────────────────────────────────────────────────────────────────
+// ── detail ─────────────────────────────────────────────────────────────────────
 function renderDetail(clip) {
-  const el = document.getElementById('detail');
-  el.innerHTML = `
+  document.getElementById('detail').innerHTML = `
     <div class="clip-header">
       <h2>Clip ${clip.id}</h2>
       <span class="time">${clip.start_hms} &middot; ${clip.duration_hms}</span>
@@ -488,52 +541,61 @@ function scoreRow(label, val, cls) {
 }
 
 function clearDetail() {
-  document.getElementById('player-area').innerHTML = '<div class="no-export-msg" id="no-clip-selected"><div style="color:var(--muted)">Select a clip to review</div></div>';
+  document.getElementById('player-area').innerHTML = `
+    <div class="no-export-msg"><div style="color:var(--muted)">Select a clip to review</div></div>`;
   document.getElementById('detail').innerHTML = '<div class="detail-empty">Select a clip from the sidebar</div>';
 }
 
-// ── clip actions ──────────────────────────────────────────────────────────────
+// ── clip actions ───────────────────────────────────────────────────────────────
 async function setStatus(id, status) {
   await fetch(`/api/clips/${id}/status`, {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({status}),
+    method:  'POST',
+    headers: {'Content-Type': 'application/json'},
+    body:    JSON.stringify({status}),
   });
-  // re-select to refresh detail + badge
-  selectClip(id);
-  // refresh clip list
-  if (activeVideoId) {
-    const res = await fetch(`/api/videos/${activeVideoId}/clips`);
-    renderClipList(await res.json());
-    // re-select active item
-    document.querySelectorAll('#clip-list li').forEach((li, i) => {
-      if (li.querySelector('.clip-item')) {
-        const badge = li.querySelector('.score-badge');
-        // find by clip id embedded in onclick
-        const btn = li.getAttribute('onclick');
-      }
-    });
-  }
+  activeClipId = id;
+  // Refresh both the list (preserves active highlight) and the detail panel
+  const [clips, clipDetail, mediaInfo] = await Promise.all([
+    fetch(`/api/videos/${activeVideoId}/clips`).then(r => r.json()),
+    fetch(`/api/clips/${id}`).then(r => r.json()),
+    fetch(`/api/clips/${id}/media_url`).then(r => r.json()),
+  ]);
+  renderClipList(clips);
+  renderDetail(clipDetail);
+  renderPlayer(mediaInfo.url);
+  loadVideos(); // update approved counts in sidebar + demo button
 }
 
 function exportClip(id) {
   openLog();
-  streamSSE(`/api/clips/${id}/export`, () => {
-    fetch(`/api/clips/${id}/media_url`).then(r=>r.json()).then(m => renderPlayer(m.url));
-    loadVideos();
-  }, [{label:'Export', patterns:['Exporting','OK Saved']}], 'Exporting');
+  streamSSE(
+    `/api/clips/${id}/export`,
+    () => {
+      fetch(`/api/clips/${id}/media_url`).then(r => r.json()).then(m => renderPlayer(m.url));
+      loadVideos();
+      showToast('Clip exported successfully');
+    },
+    [{label: 'Export', patterns: ['Exporting', 'OK Saved']}],
+    'Exporting',
+  );
 }
 
-// ── scoring ───────────────────────────────────────────────────────────────────
+// ── scoring ────────────────────────────────────────────────────────────────────
 function scoreAll() {
   openLog();
-  streamSSE('/api/score', () => {
-    loadVideos();
-    if (activeVideoId) fetch(`/api/videos/${activeVideoId}/clips`).then(r=>r.json()).then(renderClipList);
-  }, SCORE_STEPS, 'Scoring');
+  streamSSE(
+    '/api/score',
+    () => {
+      loadVideos();
+      if (activeVideoId) fetch(`/api/videos/${activeVideoId}/clips`).then(r => r.json()).then(renderClipList);
+      showToast('Scoring complete');
+    },
+    SCORE_STEPS,
+    'Scoring',
+  );
 }
 
-// ── ingest ────────────────────────────────────────────────────────────────────
+// ── ingest ─────────────────────────────────────────────────────────────────────
 let _probeTimer = null;
 let _probedInfo  = null;
 
@@ -547,17 +609,13 @@ async function openIngestModal() {
 async function _loadProfileDropdown() {
   const sel = document.getElementById('ingest-profile');
   try {
-    const res = await fetch('/api/profiles');
-    const profiles = await res.json();
-    sel.innerHTML = '';
-    for (const p of profiles) {
-      const opt = document.createElement('option');
-      opt.value = p.name;
-      opt.textContent = p.display_name;
-      sel.appendChild(opt);
-    }
-  } catch { /* ignore — dropdown stays empty */ }
+    const profiles = await fetch('/api/profiles').then(r => r.json());
+    sel.innerHTML = profiles.map(p =>
+      `<option value="${p.name}">${escHtml(p.display_name)}</option>`
+    ).join('');
+  } catch { /* leave dropdown empty; ingest still works with auto-labeling */ }
 }
+
 function closeIngestModal() {
   document.getElementById('ingest-modal').classList.remove('visible');
   clearTimeout(_probeTimer);
@@ -574,142 +632,147 @@ function scheduleProbe() {
 async function runProbe(path) {
   try {
     const res = await fetch('/api/probe', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({path}),
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body:   JSON.stringify({path}),
     });
     if (!res.ok) {
       const err = await res.json();
       const msg = typeof err.detail === 'string' ? err.detail : JSON.stringify(err.detail);
       document.getElementById('estimate-area').innerHTML =
-        `<div style="color:var(--red);font-size:12px">${msg}</div>`;
+        `<div style="color:var(--red);font-size:12px">${escHtml(msg)}</div>`;
       return;
     }
     _probedInfo = await res.json();
     runEstimate();
-  } catch(err) {
+  } catch (err) {
     document.getElementById('estimate-area').innerHTML =
-      `<div style="color:var(--red);font-size:12px">Could not probe file: ${err.message || err}</div>`;
+      `<div style="color:var(--red);font-size:12px">Could not probe file: ${escHtml(String(err.message || err))}</div>`;
   }
 }
 
 async function runEstimate() {
   if (!_probedInfo) return;
-  const model      = document.getElementById('ingest-model').value;
-  const scene_mode = document.getElementById('ingest-scene-mode').value;
   try {
     const res = await fetch('/api/estimate', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({
-        duration_s: _probedInfo.duration_s,
-        model,
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body:   JSON.stringify({
+        duration_s:   _probedInfo.duration_s,
+        model:        document.getElementById('ingest-model').value,
         audio_tracks: _probedInfo.audio_tracks,
-        has_gpu: true,
-        scene_mode,
+        has_gpu:      true,
+        scene_mode:   document.getElementById('ingest-scene-mode').value,
       }),
     });
     if (!res.ok) return;
-    const data = await res.json();
-    renderEstimate(_probedInfo, data);
-  } catch { /* ignore */ }
+    renderEstimate(_probedInfo, await res.json());
+  } catch { /* ignore; estimate is non-critical */ }
 }
 
 let _warnThresholdMin = 30;
 
 function renderEstimate(info, data) {
   const warnS = _warnThresholdMin * 60;
-
-  function rowClass(s) {
-    if (s >= warnS)   return 't-warn';
-    if (s >= warnS/3) return 't-medium';
-    return 't-fast';
-  }
+  const tClass = s => s >= warnS ? 't-warn' : s >= warnS / 3 ? 't-medium' : 't-fast';
 
   const rows = data.steps.map(s => {
     const isWarn = s.seconds >= warnS;
     return `
-    <div class="estimate-row${isWarn ? ' warn' : ''}">
-      <span class="warn-icon">${isWarn ? '&#9888;' : ''}</span>
-      <span class="estimate-step">${s.name}</span>
-      <span class="estimate-note">${s.note}</span>
-      <span class="estimate-time ${rowClass(s.seconds)}">${s.hms}</span>
-    </div>`;
+      <div class="estimate-row${isWarn ? ' warn' : ''}">
+        <span class="warn-icon">${isWarn ? '&#9888;' : ''}</span>
+        <span class="estimate-step">${s.name}</span>
+        <span class="estimate-note">${s.note}</span>
+        <span class="estimate-time ${tClass(s.seconds)}">${s.hms}</span>
+      </div>`;
   }).join('');
 
-  const totalWarn = data.total_seconds >= warnS;
-  const totalBadge = totalWarn
-    ? `<span class="total-warn-badge">&#9888; Long job</span>` : '';
+  const totalWarn  = data.total_seconds >= warnS;
+  const totalBadge = totalWarn ? `<span class="total-warn-badge">&#9888; Long job</span>` : '';
 
   document.getElementById('estimate-area').innerHTML = `
     <div class="estimate-box">
-      <div class="probe-info">${info.filename} &middot; ${info.duration_hms} &middot; ${info.width}x${info.height} @ ${info.fps.toFixed(0)}fps &middot; ${info.audio_tracks} audio tracks</div>
+      <div class="probe-info">
+        ${escHtml(info.filename)} &middot; ${info.duration_hms} &middot;
+        ${info.width}&#x2715;${info.height} @ ${info.fps.toFixed(0)}fps &middot;
+        ${info.audio_tracks} audio track(s)
+      </div>
       <div class="estimate-threshold">
         Warn steps longer than
         <input type="number" min="1" max="480" value="${_warnThresholdMin}" id="warn-threshold-input"
-               onchange="_warnThresholdMin=+this.value; runEstimate()">
-        min
+               onchange="_warnThresholdMin=+this.value; runEstimate()"> min
       </div>
       ${rows}
       <div class="estimate-total">
         <span>Total estimated</span>
         <span style="display:flex;align-items:center;gap:8px">
           ${totalBadge}
-          <span class="${rowClass(data.total_seconds)}">${data.total_hms}</span>
+          <span class="${tClass(data.total_seconds)}">${data.total_hms}</span>
         </span>
       </div>
     </div>`;
 }
 
 async function startIngest() {
-  const path    = document.getElementById('ingest-path').value.trim();
-  const model   = document.getElementById('ingest-model').value;
+  const path       = document.getElementById('ingest-path').value.trim();
+  const model      = document.getElementById('ingest-model').value;
   const profileVal = document.getElementById('ingest-profile').value;
-  // __default__ maps to null (auto-labeling), '' means interactive (null too)
-  const profile = (!profileVal || profileVal === '__default__') ? null : profileVal;
+  const profile    = (!profileVal || profileVal === '__default__') ? null : profileVal;
   if (!path) return;
-  closeIngestModal();
-  openLog();
+
+  const btn = document.getElementById('btn-start-ingest');
+  btn.disabled = true;
+  btn.textContent = 'Starting…';
+
   await fetch('/api/ingest/start', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({path, model, profile}),
+    method:  'POST',
+    headers: {'Content-Type': 'application/json'},
+    body:    JSON.stringify({path, model, profile}),
   });
-  streamSSE('/api/ingest/events', () => loadVideos(), INGEST_STEPS, 'Ingesting');
+
+  closeIngestModal();
+  btn.disabled = false;
+  btn.textContent = 'Start Ingest';
+  openLog();
+  streamSSE(
+    '/api/ingest/events',
+    () => { loadVideos(); showToast('Ingest complete — clips are ready to review'); },
+    INGEST_STEPS,
+    'Ingesting',
+  );
 }
 
-// ── progress indicator ────────────────────────────────────────────────────────
+// ── progress indicator ─────────────────────────────────────────────────────────
 const INGEST_STEPS = [
-  { label: 'Extract',    patterns: ['Extracting audio'] },
-  { label: 'Transcribe', patterns: ['Transcribing'] },
-  { label: 'Candidates', patterns: ['Generating clip'] },
-  { label: 'Energy',     patterns: ['Computing audio energy'] },
-  { label: 'Scenes',     patterns: ['Detecting scene'] },
-  { label: 'Scoring',    patterns: ['Scoring candidates'] },
+  {label: 'Extract',    patterns: ['Extracting audio']},
+  {label: 'Transcribe', patterns: ['Transcribing']},
+  {label: 'Candidates', patterns: ['Generating clip']},
+  {label: 'Energy',     patterns: ['Computing audio energy']},
+  {label: 'Scenes',     patterns: ['Detecting scene']},
+  {label: 'Scoring',    patterns: ['Scoring candidates']},
 ];
 const SCORE_STEPS = [
-  { label: 'Energy',  patterns: ['Computing audio energy'] },
-  { label: 'Scenes',  patterns: ['Detecting scene'] },
-  { label: 'Scoring', patterns: ['Scoring candidates'] },
+  {label: 'Energy',  patterns: ['Computing audio energy']},
+  {label: 'Scenes',  patterns: ['Detecting scene']},
+  {label: 'Scoring', patterns: ['Scoring candidates']},
 ];
 
 let _jobStepDefs = [];
 
 function startJobUI(stepDefs, jobLabel) {
   _jobStepDefs = stepDefs;
-  const stepsEl = document.getElementById('job-steps');
-  stepsEl.innerHTML = `<span style="color:var(--muted);margin-right:4px">${jobLabel}</span>` +
-    stepDefs.map((s,i) => `<span class="step" id="step-${i}">${s.label}</span>`).join('');
+  document.getElementById('job-steps').innerHTML =
+    `<span style="color:var(--muted);margin-right:4px">${jobLabel}</span>` +
+    stepDefs.map((s, i) => `<span class="step" id="step-${i}">${s.label}</span>`).join('');
   document.getElementById('job-status').classList.add('visible');
   document.getElementById('header-spacer').style.display = 'none';
-  document.querySelectorAll('#btn-ingest,#btn-score').forEach(b => b.disabled = true);
+  document.querySelectorAll('#btn-ingest,#btn-score,#btn-demo').forEach(b => b.disabled = true);
 }
 
 function updateJobUI(line) {
   _jobStepDefs.forEach((s, i) => {
     if (s.patterns.some(p => line.includes(p))) {
-      // mark all previous as done, this one as active
       for (let j = 0; j < i; j++) {
         const el = document.getElementById(`step-${j}`);
-        if (el) { el.className = 'step done'; }
+        if (el) el.className = 'step done';
       }
       const el = document.getElementById(`step-${i}`);
       if (el) el.className = 'step active';
@@ -718,7 +781,6 @@ function updateJobUI(line) {
 }
 
 function endJobUI() {
-  // mark all done
   _jobStepDefs.forEach((_, i) => {
     const el = document.getElementById(`step-${i}`);
     if (el) el.className = 'step done';
@@ -726,11 +788,12 @@ function endJobUI() {
   setTimeout(() => {
     document.getElementById('job-status').classList.remove('visible');
     document.getElementById('header-spacer').style.display = '';
+    // btn-demo re-enabled by loadVideos() which checks approved count
     document.querySelectorAll('#btn-ingest,#btn-score').forEach(b => b.disabled = false);
   }, 2000);
 }
 
-// ── SSE helper ────────────────────────────────────────────────────────────────
+// ── SSE helper ─────────────────────────────────────────────────────────────────
 function streamSSE(url, onDone, stepDefs, jobLabel) {
   if (stepDefs) startJobUI(stepDefs, jobLabel);
   const es = new EventSource(url);
@@ -745,43 +808,72 @@ function streamSSE(url, onDone, stepDefs, jobLabel) {
     appendLog(text);
     if (stepDefs) updateJobUI(text);
   };
-  es.onerror = () => { es.close(); appendLog('[connection closed]'); if (stepDefs) endJobUI(); };
+  es.onerror = () => {
+    es.close();
+    appendLog('[connection closed]');
+    if (stepDefs) endJobUI();
+  };
 }
 
-// ── log panel ─────────────────────────────────────────────────────────────────
+// ── log panel ──────────────────────────────────────────────────────────────────
 function openLog()  { document.getElementById('log-panel').classList.add('visible'); }
 function closeLog() { document.getElementById('log-panel').classList.remove('visible'); }
 
-function appendLog(text) {
-  const el = document.getElementById('log-lines');
+function appendLog(raw) {
+  const text = stripRichMarkup(raw);
+  if (!text.trim()) return;
   const div = document.createElement('div');
-  div.className = 'log-line' + (text.includes('OK') ? ' ok' : text.includes('FAIL')||text.includes('Error') ? ' err' : '');
+  // Detect line intent from the raw text (before markup was stripped)
+  const isOk   = raw.includes(' OK') || raw.includes('[green]') || raw.includes('Done');
+  const isErr   = raw.includes('FAIL') || raw.includes('Error') || raw.includes('[red]') || raw.includes('error');
+  const isWarn  = raw.includes('[yellow]') || raw.includes('WARNING') || raw.includes('overlap');
+  div.className = 'log-line' + (isOk ? ' ok' : isErr ? ' err' : isWarn ? ' warn' : '');
   div.textContent = text;
-  el.appendChild(div);
-  el.scrollTop = el.scrollHeight;
+  const lines = document.getElementById('log-lines');
+  lines.appendChild(div);
+  lines.scrollTop = lines.scrollHeight;
 }
 
-// ── utils ─────────────────────────────────────────────────────────────────────
+// ── toast notifications ────────────────────────────────────────────────────────
+function showToast(message, type = 'success', durationMs = 4000) {
+  const container = document.getElementById('toast-container');
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  toast.textContent = message;
+  container.appendChild(toast);
+  setTimeout(() => {
+    toast.style.transition = 'opacity .3s';
+    toast.style.opacity = '0';
+    setTimeout(() => toast.remove(), 300);
+  }, durationMs);
+}
+
+// ── utils ──────────────────────────────────────────────────────────────────────
 function escHtml(s) {
-  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
-function miniBar(label, val, color) {
-  return `<div class="mini-bar-wrap">
-    <span class="mini-bar-label">${label}</span>
+function stripRichMarkup(text) {
+  return text
+    .replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '')  // ANSI escape codes (\e[1m, \e[0m, etc.)
+    .replace(/\[\/?\w+\]/g, '');              // Rich markup tags: [bold], [/bold], [red], [dim], etc.
+}
+
+function miniBar(abbr, fullName, val, color) {
+  return `<div class="mini-bar-wrap" title="${fullName}: ${(val * 100).toFixed(0)}%">
+    <span class="mini-bar-label">${abbr}</span>
     <div class="mini-bar-bg"><div class="mini-bar" style="width:${(val*100).toFixed(1)}%;background:${color}"></div></div>
   </div>`;
 }
 
-// ── native file picker ────────────────────────────────────────────────────────
+// ── native file picker ─────────────────────────────────────────────────────────
 async function pickFile() {
   const btn = document.querySelector('.path-row .btn');
   const orig = btn.textContent;
-  btn.textContent = '...';
+  btn.textContent = '…';
   btn.disabled = true;
   try {
-    const res = await fetch('/api/pick-file');
-    const data = await res.json();
+    const data = await fetch('/api/pick-file').then(r => r.json());
     if (data.path) {
       document.getElementById('ingest-path').value = data.path;
       scheduleProbe();
@@ -792,8 +884,8 @@ async function pickFile() {
   }
 }
 
-// ── profile manager ───────────────────────────────────────────────────────────
-const TRACK_LABELS = ["player_voice", "ingame_voicechat", "game_sounds", "combined", "unlabeled"];
+// ── profile manager ────────────────────────────────────────────────────────────
+const TRACK_LABELS = ['player_voice', 'ingame_voicechat', 'game_sounds', 'combined', 'unlabeled'];
 let _allProfiles = [];
 
 async function openProfileManager() {
@@ -808,27 +900,23 @@ function closeProfileManager() {
 }
 
 async function _refreshProfileList() {
-  const res = await fetch('/api/profiles');
-  _allProfiles = await res.json();
-  renderProfileList(_allProfiles);
-}
-
-function renderProfileList(profiles) {
+  _allProfiles = await fetch('/api/profiles').then(r => r.json());
   const el = document.getElementById('profile-list');
-  if (!profiles.length) {
+  if (!_allProfiles.length) {
     el.innerHTML = '<div style="color:var(--muted);font-size:13px">No profiles saved.</div>';
     return;
   }
-  el.innerHTML = profiles.map(p => `
+  el.innerHTML = _allProfiles.map(p => `
     <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border)">
       <span style="flex:1;font-size:13px">${p.builtin ? '&#128274; ' : ''}${escHtml(p.display_name)}</span>
       <span style="color:var(--muted);font-size:12px">${p.num_tracks} track${p.num_tracks !== 1 ? 's' : ''}</span>
       ${!p.builtin ? `
-        <button class="btn" style="padding:4px 10px;font-size:12px" onclick="editProfile(${JSON.stringify(p.name)})">Edit</button>
-        <button class="btn" style="padding:4px 10px;font-size:12px;color:var(--red)" onclick="deleteProfile(${JSON.stringify(p.name)})">Delete</button>
+        <button class="btn" style="padding:4px 10px;font-size:12px" data-delete-profile="${escHtml(p.name)}"
+                onclick="editProfile(${JSON.stringify(p.name)})">Edit</button>
+        <button class="btn" style="padding:4px 10px;font-size:12px;color:var(--red)"
+                onclick="deleteProfile(${JSON.stringify(p.name)})">Delete</button>
       ` : ''}
-    </div>
-  `).join('');
+    </div>`).join('');
 }
 
 function openNewProfile() {
@@ -842,88 +930,93 @@ function editProfile(name) {
   const p = _allProfiles.find(x => x.name === name);
   if (!p) return;
   document.getElementById('profile-editor').style.display = '';
-  document.getElementById('pe-name').value = p.name;
+  document.getElementById('pe-name').value     = p.name;
   document.getElementById('pe-numtracks').value = p.num_tracks;
   renderTrackRows(p.assignments);
 }
 
 function renderTrackRows(existingAssignments) {
-  const n = parseInt(document.getElementById('pe-numtracks').value) || 1;
-  const container = document.getElementById('pe-tracks');
+  const n   = parseInt(document.getElementById('pe-numtracks').value) || 1;
   const rows = [];
   for (let i = 0; i < n; i++) {
-    const a = existingAssignments && existingAssignments[i] ? existingAssignments[i] : null;
+    const a     = existingAssignments?.[i] ?? null;
     const label = a ? a.label : (i === 0 ? 'combined' : 'unlabeled');
     const doTx  = a ? (a.do_transcribe !== false) : (label !== 'game_sounds');
-    const doSc  = a ? (a.do_score !== false) : (label !== 'game_sounds');
-    const labelOpts = TRACK_LABELS.map(l =>
+    const doSc  = a ? (a.do_score !== false)      : (label !== 'game_sounds');
+    const opts  = TRACK_LABELS.map(l =>
       `<option value="${l}"${l === label ? ' selected' : ''}>${l}</option>`
     ).join('');
     rows.push(`
       <div style="display:flex;align-items:center;gap:8px;padding:5px 0;font-size:13px">
         <span style="color:var(--muted);width:60px;flex-shrink:0">Track ${i}</span>
-        <select id="pe-label-${i}" onchange="onLabelChange(${i})" style="flex:1;padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:12px">${labelOpts}</select>
+        <select id="pe-label-${i}" onchange="onLabelChange(${i})"
+                style="flex:1;padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:12px">${opts}</select>
         <label style="display:flex;align-items:center;gap:4px;font-size:12px;white-space:nowrap">
           <input type="checkbox" id="pe-tx-${i}" ${doTx ? 'checked' : ''}> Transcribe
         </label>
         <label style="display:flex;align-items:center;gap:4px;font-size:12px;white-space:nowrap">
           <input type="checkbox" id="pe-sc-${i}" ${doSc ? 'checked' : ''}> Score
         </label>
-      </div>
-    `);
+      </div>`);
   }
-  container.innerHTML = rows.join('');
+  document.getElementById('pe-tracks').innerHTML = rows.join('');
 }
 
 function onLabelChange(i) {
-  const label = document.getElementById(`pe-label-${i}`).value;
-  const isGameSound = label === 'game_sounds';
+  const isGameSound = document.getElementById(`pe-label-${i}`).value === 'game_sounds';
   document.getElementById(`pe-tx-${i}`).checked = !isGameSound;
   document.getElementById(`pe-sc-${i}`).checked = !isGameSound;
 }
 
 async function saveProfile() {
   const name = document.getElementById('pe-name').value.trim();
-  if (!name) { alert('Profile name is required.'); return; }
-  if (name.startsWith('__')) { alert('Profile name cannot start with __.'); return; }
+  if (!name)                { showToast('Profile name is required', 'error'); return; }
+  if (name.startsWith('__')) { showToast('Profile name cannot start with __', 'error'); return; }
   const n = parseInt(document.getElementById('pe-numtracks').value) || 1;
-  const assignments = [];
-  for (let i = 0; i < n; i++) {
-    assignments.push({
-      stream_position: i,
-      label: document.getElementById(`pe-label-${i}`).value,
-      do_transcribe: document.getElementById(`pe-tx-${i}`).checked,
-      do_score: document.getElementById(`pe-sc-${i}`).checked,
-    });
-  }
+  const assignments = Array.from({length: n}, (_, i) => ({
+    stream_position: i,
+    label:           document.getElementById(`pe-label-${i}`).value,
+    do_transcribe:   document.getElementById(`pe-tx-${i}`).checked,
+    do_score:        document.getElementById(`pe-sc-${i}`).checked,
+  }));
   const res = await fetch('/api/profiles', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({name, assignments}),
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body:   JSON.stringify({name, assignments}),
   });
-  if (!res.ok) { const e = await res.json(); alert(e.detail || 'Save failed'); return; }
+  if (!res.ok) {
+    const e = await res.json();
+    showToast(e.detail || 'Save failed', 'error');
+    return;
+  }
   document.getElementById('profile-editor').style.display = 'none';
   await _refreshProfileList();
+  showToast(`Profile "${name}" saved`);
 }
 
 async function deleteProfile(name) {
   if (!confirm(`Delete profile "${name}"?`)) return;
   await fetch(`/api/profiles/${encodeURIComponent(name)}`, {method: 'DELETE'});
   await _refreshProfileList();
+  showToast(`Profile "${name}" deleted`);
 }
 
 function cancelProfileEdit() {
   document.getElementById('profile-editor').style.display = 'none';
 }
 
-// ── demo reel ─────────────────────────────────────────────────────────────────
+// ── demo reel ──────────────────────────────────────────────────────────────────
 async function openDemoModal() {
+  const totalApproved = _videos.reduce((n, v) => n + v.approved, 0);
+  if (totalApproved === 0) {
+    showToast('No approved clips yet — approve some clips first to build a reel', 'info');
+    return;
+  }
   document.getElementById('demo-modal').classList.add('visible');
   document.getElementById('demo-status').textContent = '';
-  // Populate video dropdown
   const sel = document.getElementById('demo-video-id');
   sel.innerHTML = '<option value="">All approved clips</option>';
   for (const v of _videos) {
+    if (!v.approved) continue;
     const opt = document.createElement('option');
     opt.value = v.id;
     opt.textContent = `${v.filename} (${v.approved} approved)`;
@@ -936,27 +1029,22 @@ function closeDemoModal() {
 }
 
 async function startDemo() {
-  const videoIdVal  = document.getElementById('demo-video-id').value;
-  const transition  = document.getElementById('demo-transition').value;
-  const transDur    = parseFloat(document.getElementById('demo-trans-dur').value);
-  const titleDur    = parseFloat(document.getElementById('demo-title-dur').value);
-  const outputName  = document.getElementById('demo-output-name').value.trim() || 'highlights.mkv';
-
+  const videoIdVal = document.getElementById('demo-video-id').value;
   const body = {
-    transition,
-    trans_dur: transDur,
-    title_dur: titleDur,
-    output_name: outputName,
+    transition:  document.getElementById('demo-transition').value,
+    trans_dur:   parseFloat(document.getElementById('demo-trans-dur').value),
+    title_dur:   parseFloat(document.getElementById('demo-title-dur').value),
+    output_name: document.getElementById('demo-output-name').value.trim() || 'highlights.mkv',
   };
   if (videoIdVal) body.video_id = parseInt(videoIdVal);
 
   const statusEl = document.getElementById('demo-status');
-  statusEl.textContent = 'Starting...';
+  statusEl.style.color = 'var(--muted)';
+  statusEl.textContent = 'Starting…';
 
   const res = await fetch('/api/demo/start', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify(body),
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body:   JSON.stringify(body),
   });
   if (!res.ok) {
     const e = await res.json();
@@ -965,15 +1053,18 @@ async function startDemo() {
     return;
   }
   const data = await res.json();
-  statusEl.textContent = `Building reel from ${data.clip_count} clip(s)...`;
+  statusEl.textContent = `Building reel from ${data.clip_count} clip(s)…`;
   closeDemoModal();
   openLog();
-  streamSSE('/api/demo/events', () => {
-    loadVideos();
-  }, [{label:'Building', patterns:['Building demo', 'Generating', 'OK']}], 'Reel');
+  streamSSE(
+    '/api/demo/events',
+    () => { loadVideos(); showToast('Demo reel complete!'); },
+    [{label: 'Building', patterns: ['Building demo', 'Generating', 'OK']}],
+    'Reel',
+  );
 }
 
-// ── retranscribe ──────────────────────────────────────────────────────────────
+// ── retranscribe ───────────────────────────────────────────────────────────────
 let _retranscribeClipId = null;
 
 function openRetranscribeModal(clipId) {
@@ -992,9 +1083,9 @@ function startRetranscribe() {
   openLog();
   streamSSE(
     `/api/clips/${_retranscribeClipId}/retranscribe?model=${encodeURIComponent(model)}`,
-    () => { selectClip(_retranscribeClipId); },
-    [{label:'Transcribe', patterns:['Retranscribing','OK']}, {label:'Score', patterns:['Re-scoring']}],
-    'Retranscribing'
+    () => { selectClip(_retranscribeClipId); showToast('Retranscription complete'); },
+    [{label: 'Transcribe', patterns: ['Retranscribing', 'OK']}, {label: 'Score', patterns: ['Re-scoring']}],
+    'Retranscribing',
   );
 }
 </script>
