@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=40"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rp-clipper"
+version = "0.1.0"
+description = "RP gaming session clip extraction pipeline"
+requires-python = ">=3.11"
+dependencies = [
+    "faster-whisper>=1.0.3",
+    "typer[all]>=0.12.0",
+    "sqlalchemy>=2.0.0",
+    "platformdirs>=4.0.0",   # cross-platform config/data dirs (AppData on Windows)
+]
+
+[project.scripts]
+rp-clip = "rp_clipper.cli:app"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["rp_clipper*"]

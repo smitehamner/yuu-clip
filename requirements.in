@@ -1,0 +1,16 @@
+# rp-clipper direct dependencies
+# --------------------------------
+# This file is the INPUT to pip-tools (pip-compile).
+# Do NOT install from this file directly.
+# Instead run scripts/pin-deps.sh (Linux/macOS) or scripts/pin-deps.ps1 (Windows)
+# to generate requirements.lock, then install with:
+#
+#   pip install --require-hashes -r requirements.lock
+#
+# To upgrade a single package:
+#   pip-compile --generate-hashes --upgrade-package faster-whisper requirements.in
+
+faster-whisper
+typer[all]
+sqlalchemy
+platformdirs

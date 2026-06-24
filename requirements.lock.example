@@ -1,0 +1,46 @@
+# ============================================================
+# THIS IS AN EXAMPLE ONLY — NOT REAL HASHES
+# ============================================================
+# Run scripts/pin-deps.sh (Linux/macOS) or scripts/pin-deps.ps1 (Windows)
+# to generate the real requirements.lock for your platform and Python version.
+#
+# Hashes are platform-specific for wheels (.whl) but not for sdists (.tar.gz).
+# You must regenerate on each target platform if binary wheels differ.
+# The safest approach: generate on each platform you deploy to and commit all.
+#
+# To install from the real lockfile:
+#   pip install --require-hashes -r requirements.lock
+#
+# pip will refuse to install ANY package not listed here with a matching hash.
+# This means no silent upgrades, no dependency confusion attacks, no supply
+# chain surprises — if the file on PyPI doesn't match the stored hash, pip
+# aborts with an error.
+#
+# ============================================================
+# EXAMPLE FORMAT (pip-compile --generate-hashes output):
+# ============================================================
+
+annotated-types==0.7.0 \
+    --hash=sha256:AAAA...64hexchars...0000 \
+    --hash=sha256:BBBB...64hexchars...1111
+    # via pydantic
+
+faster-whisper==1.1.0 \
+    --hash=sha256:CCCC...64hexchars...2222
+    # via rp-clipper (direct)
+
+platformdirs==4.3.6 \
+    --hash=sha256:DDDD...64hexchars...3333 \
+    --hash=sha256:EEEE...64hexchars...4444
+    # via rp-clipper (direct)
+
+sqlalchemy==2.0.36 \
+    --hash=sha256:FFFF...64hexchars...5555 \
+    --hash=sha256:GGGG...64hexchars...6666
+    # via rp-clipper (direct)
+
+typer==0.12.5 \
+    --hash=sha256:HHHH...64hexchars...7777
+    # via rp-clipper (direct)
+
+# ... all transitive deps follow with the same format ...
