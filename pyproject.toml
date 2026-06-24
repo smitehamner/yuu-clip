@@ -8,14 +8,37 @@ version = "0.1.0"
 description = "RP gaming session clip extraction pipeline"
 requires-python = ">=3.11"
 dependencies = [
-    "faster-whisper>=1.0.3",
-    "typer[all]>=0.12.0",
-    "sqlalchemy>=2.0.0",
-    "platformdirs>=4.0.0",           # cross-platform config/data dirs (AppData on Windows)
-    "scenedetect[opencv-headless]>=0.6.4",  # Phase 2: scene cut detection
-    "ollama>=0.3.0",                 # Phase 2: local LLM scoring via Ollama
-    "fastapi>=0.110.0",              # Phase 3: web UI backend
-    "uvicorn[standard]>=0.27.0",     # Phase 3: ASGI server
+    # Transcription — GPU-accelerated Whisper via CTranslate2.
+    # av (PyAV) is a required dep of faster-whisper and is also used
+    # directly in energy.py / overlap.py for audio frame decoding.
+    "faster-whisper>=1.2,<2.0",
+
+    # CLI framework; [all] pulls in rich (pretty output) and shellingham.
+    "typer[all]>=0.12,<1.0",
+
+    # ORM — SQLite database for clips, transcripts, scores.
+    "sqlalchemy>=2.0,<3.0",
+
+    # Cross-platform config/data dirs (AppData on Windows, ~/.config on Linux).
+    "platformdirs>=4.0,<6.0",
+
+    # Phase 2: scene cut detection. [opencv-headless] avoids pulling in
+    # a GUI-linked OpenCV build, which is unnecessary on a headless server.
+    "scenedetect[opencv-headless]>=0.6,<1.0",
+
+    # Phase 2: local LLM scoring via Ollama HTTP client.
+    "ollama>=0.3,<1.0",
+
+    # Phase 3: web UI backend and ASGI server.
+    "fastapi>=0.110,<1.0",
+    "uvicorn[standard]>=0.27,<1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0,<10.0",
+    "pytest-asyncio>=0.23,<3.0",
+    "playwright>=1.40,<2.0",
 ]
 
 [project.scripts]

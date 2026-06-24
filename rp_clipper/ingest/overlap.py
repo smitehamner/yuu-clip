@@ -31,7 +31,7 @@ _COMBINED    = frozenset({"combined"})
 
 def _rms_curve(wav_path: str, max_seconds: int = SAMPLE_SECONDS) -> list[float]:
     """Per-second linear RMS energy for the first *max_seconds* of a WAV file."""
-    import av  # already a project dep via PyAV
+    import av  # transitive dep via faster-whisper; also used in scoring/energy.py
 
     values: list[float] = []
     buf: list[float] = []

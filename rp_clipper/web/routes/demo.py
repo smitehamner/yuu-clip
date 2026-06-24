@@ -26,6 +26,16 @@ class DemoRequest(BaseModel):
     output_name: str   = "highlights.mkv"
 
 
+def _safe_filename(name: str, default: str = "highlights.mkv") -> str:
+    """Return *name* with any directory components stripped.
+
+    Prevents path traversal: 'output_name: ../../etc/evil' becomes 'evil'.
+    A bare default is returned if the result would be empty after stripping.
+    """
+    safe = Path(name).name  # strips all parent components on all platforms
+    return safe if safe else default
+
+
 def make_router(ctx: ProjectContext) -> APIRouter:
     router = APIRouter()
 
@@ -47,15 +57,15 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         if not clips:
             raise HTTPException(400, "No approved clips found to compile into a demo reel")
 
-        output_dir = ctx.project_dir / "exports"
-        output_dir.mkdir(parents=True, exist_ok=True)
+        ctx.export_dir.mkdir(parents=True, exist_ok=True)
+        output_path = ctx.export_dir / _safe_filename(req.output_name)
         cmd = [
             sys.executable, "-m", "rp_clipper.cli", "demo",
             "--project",    str(ctx.project_dir),
             "--transition", req.transition,
             "--trans-dur",  str(req.trans_dur),
             "--title-dur",  str(req.title_dur),
-            "--output",     str(output_dir / req.output_name),
+            "--output",     str(output_path),
             "--status",     "approved",
         ]
         if req.video_id:
