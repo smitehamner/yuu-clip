@@ -23,19 +23,9 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
+from rp_clipper.config import validate_whisper_model
 from rp_clipper.web.deps import ProjectContext
 from rp_clipper.web.sse import subprocess_sse
-
-# ── Whisper model allowlist ───────────────────────────────────────────────────
-# Only the models actually bundled / downloadable by faster-whisper are valid.
-# Validated at the API boundary so the CLI never receives an unknown value.
-_VALID_WHISPER_MODELS = frozenset({
-    "tiny", "tiny.en",
-    "base", "base.en",
-    "small", "small.en",
-    "medium", "medium.en",
-    "large", "large-v1", "large-v2", "large-v3",
-})
 
 # ── Whisper real-time speed ratios ──────────────────────────────────────────
 # Seconds of video processed per second of wall-clock time.
@@ -132,8 +122,10 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         """Validate the video path, build the ingest CLI command, and queue it for the SSE stream."""
         if not Path(req.path).exists():
             raise HTTPException(400, f"File not found: {req.path}")
-        if req.model not in _VALID_WHISPER_MODELS:
-            raise HTTPException(400, f"Unknown Whisper model '{req.model}'. Valid options: {sorted(_VALID_WHISPER_MODELS)}")
+        try:
+            validate_whisper_model(req.model)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
         cmd = [
             sys.executable, "-m", "rp_clipper.cli", "ingest",
             str(req.path), "--model", req.model,
@@ -174,8 +166,10 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     @router.get("/api/clips/{clip_id}/retranscribe")
     async def retranscribe_clip(clip_id: int, model: str = Query("large-v3")):
         """Re-transcribe a clip's time window with the given Whisper model, then re-score."""
-        if model not in _VALID_WHISPER_MODELS:
-            raise HTTPException(400, f"Unknown Whisper model '{model}'.")
+        try:
+            validate_whisper_model(model)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
         cmd = [
             sys.executable, "-m", "rp_clipper.cli", "retranscribe", str(clip_id),
             "--model", model, "--project", str(ctx.project_dir),
