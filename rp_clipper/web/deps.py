@@ -38,6 +38,8 @@ class ProjectContext:
         self.demo_cmd:         list[str] | None = None
         self.ingest_proc:      object | None    = None  # asyncio.subprocess.Process
         self.ingest_cancelled: bool             = False
+        # Count of in-process SSE jobs currently streaming (rescore, timeline, summarize).
+        self.active_jobs:      int              = 0
 
     def get_db(self) -> Session:
         """Open a new SQLAlchemy session against this project's database."""

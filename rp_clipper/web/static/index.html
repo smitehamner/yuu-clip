@@ -210,6 +210,7 @@
   .estimate-threshold { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; color: var(--muted); font-size: 11px; }
   .estimate-threshold input { width: 48px; padding: 2px 6px; background: var(--surface); border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-size: 11px; text-align: center; }
   .probing-spinner { color: var(--muted); font-size: 12px; }
+  kbd { background: var(--surface); border: 1px solid var(--border); border-radius: 3px; padding: 1px 5px; font-size: 11px; font-family: monospace; color: var(--text); }
 </style>
 </head>
 <body>
@@ -229,6 +230,7 @@
   <button class="btn" id="btn-demo" onclick="openDemoModal()">Build Reel</button>
   <a class="btn ghost" id="btn-logs" href="/api/logs/export" download="rp-clipper.log"
      title="Download debug log — attach when reporting a bug">&#8595; Log</a>
+  <button class="btn ghost" onclick="openAboutModal()" title="About &amp; licencing">?</button>
 </header>
 
 <div class="layout">
@@ -273,6 +275,48 @@
 
 <!-- Toast container -->
 <div class="toast-container" id="toast-container"></div>
+
+<!-- About modal -->
+<div class="modal-bg" id="about-modal">
+  <div class="modal" style="max-width:480px">
+    <h3>About rp-clipper</h3>
+    <p style="color:var(--muted);font-size:13px;margin:0 0 12px">
+      Built by <strong>smitehamner</strong>. Provided as-is with absolutely no warranty.<br>
+      Licencing: <em>unlicensed — all rights reserved</em> until a licence is chosen.
+    </p>
+    <div class="section-title" style="margin-bottom:6px">Key dependencies</div>
+    <table style="width:100%;font-size:12px;border-collapse:collapse;color:var(--muted)">
+      <thead><tr style="color:var(--text)"><th style="text-align:left;padding:3px 0">Package</th><th style="text-align:left;padding:3px 0">Purpose</th><th style="text-align:left;padding:3px 0">Licence</th></tr></thead>
+      <tbody>
+        <tr><td>faster-whisper</td><td>GPU-accelerated transcription</td><td>MIT</td></tr>
+        <tr><td>FFmpeg</td><td>Audio/video extraction &amp; export</td><td>LGPL/GPL</td></tr>
+        <tr><td>Ollama</td><td>Local LLM scoring</td><td>MIT</td></tr>
+        <tr><td>FastAPI</td><td>Web server API</td><td>MIT</td></tr>
+        <tr><td>SQLAlchemy</td><td>Database ORM</td><td>MIT</td></tr>
+        <tr><td>PyAV (av)</td><td>Audio frame decoding</td><td>BSD-3</td></tr>
+        <tr><td>PySceneDetect</td><td>Scene cut detection</td><td>BSD-3</td></tr>
+        <tr><td>Typer</td><td>CLI framework</td><td>MIT</td></tr>
+        <tr><td>uvicorn</td><td>ASGI server</td><td>BSD-3</td></tr>
+        <tr><td>platformdirs</td><td>Cross-platform config paths</td><td>MIT</td></tr>
+      </tbody>
+    </table>
+    <div class="section-title" style="margin:14px 0 6px">Keyboard shortcuts</div>
+    <table style="width:100%;font-size:12px;border-collapse:collapse;color:var(--muted)">
+      <tbody>
+        <tr><td style="padding:2px 0"><kbd>A</kbd></td><td>Approve clip</td></tr>
+        <tr><td><kbd>R</kbd></td><td>Reject clip</td></tr>
+        <tr><td><kbd>Space</kbd></td><td>Play / Pause video</td></tr>
+        <tr><td><kbd>E</kbd></td><td>Export clip</td></tr>
+        <tr><td><kbd>← ↑</kbd></td><td>Previous clip</td></tr>
+        <tr><td><kbd>→ ↓</kbd></td><td>Next clip</td></tr>
+        <tr><td><kbd>?</kbd></td><td>Open this panel</td></tr>
+      </tbody>
+    </table>
+    <div class="modal-actions" style="margin-top:16px">
+      <button class="btn" onclick="closeAboutModal()">Close</button>
+    </div>
+  </div>
+</div>
 
 <!-- Ingest modal -->
 <div class="modal-bg" id="ingest-modal">
@@ -699,7 +743,9 @@ function generateTimeline(id) {
   btn.disabled = true;
   btn.textContent = 'Generating…';
 
+  if (_activeES) { _activeES.close(); _activeES = null; }
   const es = new EventSource(`/api/videos/${id}/timeline`);
+  _activeES = es;
   let entries = [];
   let firstEntry = true;
 
@@ -707,6 +753,7 @@ function generateTimeline(id) {
     const data = JSON.parse(e.data);
     if (data === '__DONE__') {
       es.close();
+      if (_activeES === es) _activeES = null;
       btn.disabled = false;
       btn.textContent = 'Regenerate Timeline';
       const video = _videos.find(v => v.id === id);
@@ -729,6 +776,7 @@ function generateTimeline(id) {
 
   es.onerror = () => {
     es.close();
+    if (_activeES === es) _activeES = null;
     btn.disabled = false;
     btn.textContent = 'Regenerate Timeline';
     showToast('Timeline generation failed — see log', 'error');
@@ -778,7 +826,7 @@ function renderClipList(clips) {
     li.innerHTML = `
       <div class="clip-item">
         <span class="score-badge" title="Overall score">${_scoreIcon(c.score_overall)}${c.score_overall.toFixed(2)}</span>
-        <span class="clip-label" title="${c.description || ''}">
+        <span class="clip-label" title="${escHtml(c.description || '')}">
           <span style="color:var(--muted);font-size:11px">#${c.id}</span>
           ${c.start_hms} &middot; ${c.duration_hms}
         </span>
@@ -858,12 +906,13 @@ function renderDetail(clip) {
       <button class="btn reject  ${clip.status==='rejected'?'active':''}" onclick="setStatus(${clip.id},'rejected')">Reject</button>
       <button class="btn         ${clip.status==='pending' ?'active':''}" onclick="setStatus(${clip.id},'pending')">Reset</button>
       <button class="btn" onclick="openRetranscribeModal(${clip.id})">Retranscribe</button>
+      <button class="btn" id="btn-rescore-clip" onclick="rescoreClip(${clip.id})">Re-score</button>
       <div style="flex:1"></div>
       <button class="btn" onclick="exportClip(${clip.id})">Export</button>
       <button class="btn" style="color:var(--red)" onclick="deleteClip(${clip.id})">Delete</button>
     </div>
 
-    ${clip.tags.length ? `<div class="tags">${clip.tags.map(t=>`<span class="tag">${t}</span>`).join('')}</div>` : ''}
+    ${clip.tags.length ? `<div class="tags">${clip.tags.map(t=>`<span class="tag">${escHtml(t)}</span>`).join('')}</div>` : ''}
 
     ${clip.transcript_excerpt ? `
       <div>
@@ -1471,7 +1520,12 @@ async function saveProfile() {
 
 async function deleteProfile(name) {
   if (!confirm(`Delete profile "${name}"?`)) return;
-  await fetch(`/api/profiles/${encodeURIComponent(name)}`, {method: 'DELETE'});
+  const res = await fetch(`/api/profiles/${encodeURIComponent(name)}`, {method: 'DELETE'});
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({}));
+    showToast(formatApiError(e) || 'Delete failed', 'error');
+    return;
+  }
   await _refreshProfileList();
   showToast(`Profile "${name}" deleted`);
 }
@@ -1633,7 +1687,12 @@ async function deleteContext() {
   const ctx  = _contexts.find(c => c.slug === _editingContextSlug);
   const name = ctx ? ctx.display_name : _editingContextSlug;
   if (!confirm(`Delete context "${name}"?\n\nVideos already assigned to it will keep the slug in their list — you can re-create the context to restore it.`)) return;
-  await fetch(`/api/contexts/${encodeURIComponent(_editingContextSlug)}`, {method: 'DELETE'});
+  const res = await fetch(`/api/contexts/${encodeURIComponent(_editingContextSlug)}`, {method: 'DELETE'});
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({}));
+    showToast(formatApiError(e) || 'Delete failed', 'error');
+    return;
+  }
   document.getElementById('context-editor').style.display = 'none';
   await _refreshContextList();
   showToast(`Context "${name}" deleted`);
@@ -1679,11 +1738,14 @@ function rescoreClips(videoId, btn) {
   btn.disabled = true;
   btn.textContent = 'Re-scoring…';
   openLog();
+  if (_activeES) { _activeES.close(); _activeES = null; }
   const es = new EventSource(`/api/videos/${videoId}/rescore-clips`);
+  _activeES = es;
   es.onmessage = e => {
     const data = JSON.parse(e.data);
     if (data === '__DONE__') {
       es.close();
+      if (_activeES === es) _activeES = null;
       btn.disabled = false;
       btn.textContent = orig;
       showToast('Re-scoring complete');
@@ -1702,6 +1764,7 @@ function rescoreClips(videoId, btn) {
   };
   es.onerror = () => {
     es.close();
+    if (_activeES === es) _activeES = null;
     btn.disabled = false;
     btn.textContent = orig;
     showToast('Re-scoring failed — see log', 'error');
@@ -1732,6 +1795,84 @@ function startRetranscribe() {
     'Retranscribing',
   );
 }
+
+// ── re-score individual clip ────────────────────────────────────────────────
+function rescoreClip(clipId) {
+  const btn = document.getElementById('btn-rescore-clip');
+  if (btn) { btn.disabled = true; btn.textContent = 'Scoring…'; }
+  if (_activeES) { _activeES.close(); _activeES = null; }
+  openLog();
+  const es = new EventSource(`/api/clips/${clipId}/rescore`);
+  _activeES = es;
+  es.onmessage = e => {
+    const msg = JSON.parse(e.data);
+    if (msg === '__DONE__') {
+      if (_activeES === es) _activeES = null;
+      es.close();
+      selectClip(clipId);
+      showToast('Clip re-scored');
+    } else {
+      appendLog(msg);
+    }
+  };
+  es.onerror = () => {
+    if (_activeES === es) _activeES = null;
+    es.close();
+    if (btn) { btn.disabled = false; btn.textContent = 'Re-score'; }
+  };
+}
+
+// ── about modal ────────────────────────────────────────────────────────────
+function openAboutModal()  { document.getElementById('about-modal').classList.add('visible'); }
+function closeAboutModal() { document.getElementById('about-modal').classList.remove('visible'); }
+
+// ── keyboard shortcuts ──────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
+
+  if (e.key === '?' || e.key === '/') {
+    e.preventDefault();
+    openAboutModal();
+    return;
+  }
+  if (e.key === 'Escape') {
+    closeAboutModal();
+    return;
+  }
+
+  if (!activeClipId) return;
+
+  const idx = _clips.findIndex(c => c.id === activeClipId);
+
+  switch (e.key) {
+    case 'a': case 'A':
+      e.preventDefault();
+      setStatus(activeClipId, 'approved');
+      break;
+    case 'r': case 'R':
+      e.preventDefault();
+      setStatus(activeClipId, 'rejected');
+      break;
+    case ' ':
+      e.preventDefault();
+      { const v = document.querySelector('#player-area video'); if (v) { v.paused ? v.play() : v.pause(); } }
+      break;
+    case 'e': case 'E':
+      e.preventDefault();
+      exportClip(activeClipId);
+      break;
+    case 'ArrowLeft':
+    case 'ArrowUp':
+      e.preventDefault();
+      if (idx > 0) selectClip(_clips[idx - 1].id);
+      break;
+    case 'ArrowRight':
+    case 'ArrowDown':
+      e.preventDefault();
+      if (idx !== -1 && idx < _clips.length - 1) selectClip(_clips[idx + 1].id);
+      break;
+  }
+});
 </script>
 </body>
 </html>

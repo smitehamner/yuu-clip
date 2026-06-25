@@ -7,6 +7,8 @@ DELETE /api/contexts/{slug}     — delete a context
 """
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
@@ -42,7 +44,6 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         if not slug.replace("-", "").replace("_", "").isalnum():
             raise HTTPException(400, "slug may only contain letters, digits, hyphens, and underscores")
         contexts = load_contexts(ctx.project_dir)
-        from datetime import datetime
         existing = contexts.get(slug, {})
         contexts[slug] = {
             "display_name":    body.display_name or slug,
@@ -50,8 +51,8 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             "your_characters": body.your_characters,
             "other_characters": body.other_characters,
             "notes":           body.notes,
-            "created_at":      existing.get("created_at", datetime.utcnow().isoformat()),
-            "updated_at":      datetime.utcnow().isoformat(),
+            "created_at":      existing.get("created_at", datetime.now(timezone.utc).isoformat()),
+            "updated_at":      datetime.now(timezone.utc).isoformat(),
         }
         save_contexts(ctx.project_dir, contexts)
         return {"slug": slug, **_strip(contexts[slug])}

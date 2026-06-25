@@ -10,13 +10,14 @@ from __future__ import annotations
 import asyncio
 import json as json_lib
 import re
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import PlainTextResponse, StreamingResponse
 from pydantic import BaseModel
-from sqlalchemy import func
+from sqlalchemy import case, func
 
 from rp_clipper.contexts import format_context_block, load_contexts
 from rp_clipper.db.models import AudioEnergy, AudioTrack, ClipCandidate, SceneBoundary, Video
@@ -41,7 +42,8 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         db = ctx.get_db()
         try:
             videos = db.query(Video).order_by(Video.created_at.desc()).all()
-            return [_video_dict(v, db) for v in videos]
+            stats = _bulk_clip_stats(db, [v.id for v in videos])
+            return [_video_dict(v, stats.get(v.id, _EMPTY_STATS)) for v in videos]
         finally:
             db.close()
 
@@ -52,11 +54,9 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             video = db.get(Video, video_id)
             if not video:
                 raise HTTPException(404, "Video not found")
-            result = _video_dict(video, db)
-            if video.timeline_json:
-                result["timeline"] = json_lib.loads(video.timeline_json)
-            else:
-                result["timeline"] = None
+            stats = _bulk_clip_stats(db, [video_id])
+            result = _video_dict(video, stats.get(video_id, _EMPTY_STATS))
+            result["timeline"] = json_lib.loads(video.timeline_json) if video.timeline_json else None
             return result
         finally:
             db.close()
@@ -98,38 +98,45 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         config = ctx.config
 
         async def event_stream():
-            from datetime import datetime
             from rp_clipper.scoring.engine import ScoringEngine
             from rp_clipper.scoring.llm import LLMScorer
 
-            total = len(clip_ids)
-            engine = ScoringEngine(config, [LLMScorer(config, context_text=context_text)])
-
-            for i, clip_id in enumerate(clip_ids, 1):
-                score_db = ctx.get_db()
-                try:
-                    clip = score_db.get(ClipCandidate, clip_id)
-                    if clip:
-                        await asyncio.to_thread(engine.score_clip, clip, score_db)
-                        score_db.commit()
-                except Exception as exc:
-                    score_db.rollback()
-                    yield f"data: {json_lib.dumps(f'[Error scoring clip {clip_id}: {exc}]')}\n\n"
-                finally:
-                    score_db.close()
-                yield f"data: {json_lib.dumps(f'Scored {i}/{total} clips')}\n\n"
-
-            prov_db = ctx.get_db()
+            ctx.active_jobs += 1
             try:
-                v = prov_db.get(Video, video_id)
-                if v:
-                    v.clips_scored_at = datetime.utcnow()
-                    v.clips_scored_context_json = json_lib.dumps(context_names)
-                    prov_db.commit()
-            finally:
-                prov_db.close()
+                total = len(clip_ids)
+                engine = ScoringEngine(config, [LLMScorer(config, context_text=context_text)])
 
-            yield f"data: {json_lib.dumps('__DONE__')}\n\n"
+                for i, clip_id in enumerate(clip_ids, 1):
+                    score_db = ctx.get_db()
+                    error = None
+                    try:
+                        clip = score_db.get(ClipCandidate, clip_id)
+                        if clip:
+                            await asyncio.to_thread(engine.score_clip, clip, score_db)
+                            score_db.commit()
+                    except Exception as exc:
+                        score_db.rollback()
+                        error = str(exc)
+                    finally:
+                        score_db.close()
+                    if error:
+                        yield f"data: {json_lib.dumps(f'[Error scoring clip {clip_id}: {error}]')}\n\n"
+                    else:
+                        yield f"data: {json_lib.dumps(f'Scored {i}/{total} clips')}\n\n"
+
+                prov_db = ctx.get_db()
+                try:
+                    v = prov_db.get(Video, video_id)
+                    if v:
+                        v.clips_scored_at = datetime.now(timezone.utc)
+                        v.clips_scored_context_json = json_lib.dumps(context_names)
+                        prov_db.commit()
+                finally:
+                    prov_db.close()
+
+                yield f"data: {json_lib.dumps('__DONE__')}\n\n"
+            finally:
+                ctx.active_jobs -= 1
 
         return StreamingResponse(
             event_stream(),
@@ -175,45 +182,48 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         context_text = format_context_block(load_contexts(ctx.project_dir), context_names)
 
         async def event_stream():
-            from datetime import datetime
             from rp_clipper.scoring.llm import generate_timeline_chunk
-            chunk_ms = 15 * 60 * 1000
-            entries = []
-
-            for chunk_start in range(0, total_ms + 1, chunk_ms):
-                chunk_end = min(chunk_start + chunk_ms, total_ms + 1)
-                chunk_segs = [(t, ms) for ms, end_ms, t in seg_data if ms >= chunk_start and ms < chunk_end]
-                if not chunk_segs:
-                    continue
-
-                chunk_text = " ".join(t.strip() for t, _ in chunk_segs)
-                window_clips = [desc for s, e, desc in clip_data if s >= chunk_start and s < chunk_end]
-                start_hms = _ms_to_hms(chunk_start)
-                end_hms = _ms_to_hms(min(chunk_end, total_ms))
-
-                try:
-                    entry_text = await asyncio.to_thread(
-                        generate_timeline_chunk, chunk_text, start_hms, end_hms, window_clips, config, context_text
-                    )
-                except Exception as exc:
-                    entry_text = f"[Error generating entry: {exc}]"
-
-                entry = {"start_hms": start_hms, "end_hms": end_hms, "text": entry_text}
-                entries.append(entry)
-                yield f"data: {json_lib.dumps(entry)}\n\n"
-
-            save_db = ctx.get_db()
+            ctx.active_jobs += 1
             try:
-                v = save_db.get(Video, video_id)
-                if v:
-                    v.timeline_json = json_lib.dumps(entries)
-                    v.timeline_generated_at = datetime.utcnow()
-                    v.timeline_context_json = json_lib.dumps(context_names)
-                    save_db.commit()
-            finally:
-                save_db.close()
+                chunk_ms = 15 * 60 * 1000
+                entries = []
 
-            yield f"data: {json_lib.dumps('__DONE__')}\n\n"
+                for chunk_start in range(0, total_ms + 1, chunk_ms):
+                    chunk_end = min(chunk_start + chunk_ms, total_ms + 1)
+                    chunk_segs = [(t, ms) for ms, end_ms, t in seg_data if ms >= chunk_start and ms < chunk_end]
+                    if not chunk_segs:
+                        continue
+
+                    chunk_text = " ".join(t.strip() for t, _ in chunk_segs)
+                    window_clips = [desc for s, e, desc in clip_data if s >= chunk_start and s < chunk_end]
+                    start_hms = _ms_to_hms(chunk_start)
+                    end_hms = _ms_to_hms(min(chunk_end, total_ms))
+
+                    try:
+                        entry_text = await asyncio.to_thread(
+                            generate_timeline_chunk, chunk_text, start_hms, end_hms, window_clips, config, context_text
+                        )
+                    except Exception as exc:
+                        entry_text = f"[Error generating entry: {exc}]"
+
+                    entry = {"start_hms": start_hms, "end_hms": end_hms, "text": entry_text}
+                    entries.append(entry)
+                    yield f"data: {json_lib.dumps(entry)}\n\n"
+
+                save_db = ctx.get_db()
+                try:
+                    v = save_db.get(Video, video_id)
+                    if v:
+                        v.timeline_json = json_lib.dumps(entries)
+                        v.timeline_generated_at = datetime.now(timezone.utc)
+                        v.timeline_context_json = json_lib.dumps(context_names)
+                        save_db.commit()
+                finally:
+                    save_db.close()
+
+                yield f"data: {json_lib.dumps('__DONE__')}\n\n"
+            finally:
+                ctx.active_jobs -= 1
 
         return StreamingResponse(
             event_stream(),
@@ -224,7 +234,6 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     @router.post("/api/videos/{video_id}/summarize")
     def summarize_video(video_id: int):
         """Generate a title and summary for a video's transcript via Ollama."""
-        from datetime import datetime
         from rp_clipper.scoring.llm import summarize_transcript
         db = ctx.get_db()
         try:
@@ -252,7 +261,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
 
             video.title = title
             video.summary = summary
-            video.summarized_at = datetime.utcnow()
+            video.summarized_at = datetime.now(timezone.utc)
             video.summary_context_json = json_lib.dumps(context_names)
             db.commit()
             return {"title": title, "summary": summary}
@@ -371,6 +380,52 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         finally:
             db.close()
 
+    @router.get("/api/clips/{clip_id}/rescore")
+    async def rescore_clip(clip_id: int):
+        db = ctx.get_db()
+        try:
+            clip = _require_clip(db, clip_id)
+            video = db.get(Video, clip.video_id)
+            if not video:
+                raise HTTPException(404, "Video not found")
+            context_names = json_lib.loads(video.context_names_json) if video.context_names_json else []
+        finally:
+            db.close()
+
+        contexts = load_contexts(ctx.project_dir)
+        context_text = format_context_block(contexts, context_names)
+        config = ctx.config
+
+        async def event_stream():
+            from rp_clipper.scoring.engine import ScoringEngine
+            from rp_clipper.scoring.llm import LLMScorer
+
+            ctx.active_jobs += 1
+            try:
+                engine = ScoringEngine(config, [LLMScorer(config, context_text=context_text)])
+                score_db = ctx.get_db()
+                error = None
+                try:
+                    clip = score_db.get(ClipCandidate, clip_id)
+                    if clip:
+                        await asyncio.to_thread(engine.score_clip, clip, score_db)
+                        score_db.commit()
+                except Exception as exc:
+                    score_db.rollback()
+                    error = str(exc)
+                finally:
+                    score_db.close()
+
+                if error:
+                    yield f"data: {json_lib.dumps(f'[Error: {error}]')}\n\n"
+                else:
+                    yield f"data: {json_lib.dumps('Scored clip')}\n\n"
+                yield f"data: {json_lib.dumps('__DONE__')}\n\n"
+            finally:
+                ctx.active_jobs -= 1
+
+        return StreamingResponse(event_stream(), media_type="text/event-stream")
+
     @router.get("/api/clips/{clip_id}/captions.vtt")
     def clip_captions_vtt(clip_id: int):
         """Convert the exported SRT sidecar to WebVTT and return it for browser <track> use."""
@@ -381,7 +436,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             srt = _srt_path(clip, video, ctx.export_dir)
             if srt is None:
                 raise HTTPException(404, "No SRT file found for this clip")
-            return PlainTextResponse(_srt_to_vtt(srt.read_text(encoding="utf-8")), media_type="text/vtt")
+            return PlainTextResponse(_srt_to_vtt(srt.read_text(encoding="utf-8", errors="replace")), media_type="text/vtt")
         finally:
             db.close()
 
@@ -423,21 +478,44 @@ def _srt_to_vtt(srt: str) -> str:
     return f"WEBVTT\n\n{vtt}"
 
 
-def _video_dict(video: Video, db) -> dict:
-    total_clip_ms = (
-        db.query(func.sum(ClipCandidate.end_ms - ClipCandidate.start_ms))
-        .filter(ClipCandidate.video_id == video.id)
-        .scalar() or 0
+_EMPTY_STATS = {"clip_count": 0, "approved": 0, "total_clip_ms": 0}
+
+
+def _bulk_clip_stats(db, video_ids: list[int]) -> dict[int, dict]:
+    """Return clip aggregate stats for each video_id in a single query."""
+    if not video_ids:
+        return {}
+    rows = (
+        db.query(
+            ClipCandidate.video_id,
+            func.count().label("clip_count"),
+            func.sum(case((ClipCandidate.status == "approved", 1), else_=0)).label("approved"),
+            func.sum(ClipCandidate.end_ms - ClipCandidate.start_ms).label("total_clip_ms"),
+        )
+        .filter(ClipCandidate.video_id.in_(video_ids))
+        .group_by(ClipCandidate.video_id)
+        .all()
     )
+    return {
+        row.video_id: {
+            "clip_count":    row.clip_count,
+            "approved":      row.approved,
+            "total_clip_ms": row.total_clip_ms or 0,
+        }
+        for row in rows
+    }
+
+
+def _video_dict(video: Video, stats: dict) -> dict:
     return {
         "id": video.id,
         "filename": video.filename,
         "status": video.status,
         "duration_hms": video.duration_hms,
         "duration_ms": video.duration_ms or 0,
-        "clip_count": db.query(ClipCandidate).filter_by(video_id=video.id).count(),
-        "approved": db.query(ClipCandidate).filter_by(video_id=video.id, status="approved").count(),
-        "total_clip_ms": total_clip_ms,
+        "clip_count": stats["clip_count"],
+        "approved": stats["approved"],
+        "total_clip_ms": stats["total_clip_ms"],
         "title": video.title or "",
         "summary": video.summary or "",
         "has_timeline": bool(video.timeline_json),

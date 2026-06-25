@@ -162,6 +162,17 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             raise HTTPException(400, "No ingest command queued. Call /api/ingest/start first.")
         return await subprocess_sse(ctx.ingest_cmd, ctx.project_dir, ctx)
 
+    @router.get("/api/status")
+    def server_status():
+        """Return whether any processing is currently active (ingest, scoring, timeline, etc.)."""
+        proc = ctx.ingest_proc
+        ingest_running = proc is not None and proc.returncode is None
+        return {
+            "any_running": ingest_running or ctx.active_jobs > 0,
+            "ingest_running": ingest_running,
+            "active_jobs": ctx.active_jobs,
+        }
+
     @router.get("/api/ingest/status")
     def ingest_status():
         """Return whether an ingest subprocess is currently running."""
@@ -186,7 +197,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             sys.executable, "-m", "rp_clipper.cli", "score", "--all",
             "--project", str(ctx.project_dir),
         ]
-        return await subprocess_sse(cmd, ctx.project_dir)
+        return await subprocess_sse(cmd, ctx.project_dir, ctx)
 
     @router.get("/api/clips/{clip_id}/export")
     async def export_clip(clip_id: int):

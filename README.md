@@ -70,7 +70,7 @@ pip install -e .
 cd my-recordings-folder
 rp-clip serve
 ```
-Opens `http://127.0.0.1:8080` in your browser. Use the **+ Ingest** button to add a video.
+Then navigate to `http://127.0.0.1:8080`. Use the **+ Ingest** button to add a video.
 
 ### CLI usage
 
@@ -147,4 +147,4 @@ After the initial model downloads (Whisper via HuggingFace, LLM via `ollama pull
 
 ---
 
-See [ROADMAP.md](ROADMAP.md) for what's in progress and what's planned.
+See [docs/ROADMAP.md](docs/ROADMAP.md) for what's in progress and what's planned.

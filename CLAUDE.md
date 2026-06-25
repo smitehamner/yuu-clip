@@ -29,14 +29,17 @@ Do all three steps before reporting a backend fix as complete:
 
 ### Before restarting the server
 
-**Always check for an active ingest first:**
+**Always check for active processing first:**
 
 ```powershell
-(Invoke-RestMethod http://127.0.0.1:8080/api/ingest/status).running
+Invoke-RestMethod http://127.0.0.1:8080/api/status
 ```
 
-If `True`, **stop and ask the user** whether to wait or forcibly cancel before
-proceeding. Restarting mid-ingest silently kills the subprocess and loses all progress.
+This returns `{"any_running": bool, "ingest_running": bool, "active_jobs": int}`.
+If `any_running` is `True`, **stop and ask the user** whether to wait or cancel before
+proceeding. Restarting mid-ingest silently kills the subprocess and loses all progress;
+interrupting other SSE jobs (rescore, timeline, summarize) is less catastrophic but
+should still be confirmed.
 
 HTML/JS edits to `rp_clipper/web/static/index.html` do **not** need a server restart.
 

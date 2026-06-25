@@ -13,7 +13,7 @@ Schema overview:
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional
 
@@ -136,7 +136,7 @@ class Video(Base):
 
     # pending → probed → labeled → extracting → transcribing → segmented → done
     status: Mapped[str] = mapped_column(String, default="pending")
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
     processed_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
 
     title: Mapped[Optional[str]] = mapped_column(Text)
@@ -221,7 +221,7 @@ class Transcript(Base):
 
     model_name: Mapped[str] = mapped_column(String)
     language: Mapped[Optional[str]] = mapped_column(String)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     audio_track: Mapped["AudioTrack"] = relationship(back_populates="transcripts")
     segments: Mapped[List["TranscriptSegment"]] = relationship(
@@ -284,7 +284,7 @@ class ClipCandidate(Base):
 
     # pending → approved / rejected / trimmed
     status: Mapped[str] = mapped_column(String, default="pending")
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     video: Mapped["Video"] = relationship(back_populates="clip_candidates")
 

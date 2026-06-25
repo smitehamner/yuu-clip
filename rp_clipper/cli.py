@@ -207,7 +207,7 @@ def _ingest_one(
 ) -> None:
     """Orchestrate all pipeline stages for a single video file."""
     from rp_clipper.db.models import Video
-    from datetime import datetime
+    from datetime import datetime, timezone
 
     abs_path = str(video_path.resolve())
     existing = session.query(Video).filter_by(path=abs_path).first()
@@ -245,7 +245,7 @@ def _ingest_one(
     if not no_score and candidates:
         _run_scoring(video, track_objs, config, session, energy_mode=energy_mode, context_text=context_text)
 
-    video.processed_at = datetime.utcnow()
+    video.processed_at = datetime.now(timezone.utc)
     session.commit()
 
 
@@ -485,8 +485,8 @@ def _run_scoring(video, track_objs, config, session, energy_mode: str = "fast", 
     )
     console.print(f"  [green]  OK[/green] {n} candidates scored")
     import json as _json
-    from datetime import datetime as _dt
-    video.clips_scored_at = _dt.utcnow()
+    from datetime import datetime, timezone
+    video.clips_scored_at = datetime.now(timezone.utc)
     video.clips_scored_context_json = video.context_names_json or "[]"
     session.flush()
 

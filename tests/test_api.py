@@ -423,3 +423,221 @@ class TestGracefulShutdown:
             app.state.ctx.ingest_proc = mock_proc
 
         mock_proc.terminate.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Single video detail
+# ---------------------------------------------------------------------------
+
+class TestVideoDetail:
+    def test_get_video_returns_detail(self, client):
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        r = client.get(f"/api/videos/{vid_id}")
+        assert r.status_code == 200
+        d = r.json()
+        assert d["id"] == vid_id
+        assert d["filename"] == "session.mkv"
+        assert "timeline" in d
+
+    def test_get_video_404(self, client):
+        r = client.get("/api/videos/99999")
+        assert r.status_code == 404
+
+    def test_patch_video_contexts(self, client):
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        r = client.patch(f"/api/videos/{vid_id}/contexts", json={"context_names": ["ctx-a", "ctx-b"]})
+        assert r.status_code == 200
+        assert r.json()["context_names"] == ["ctx-a", "ctx-b"]
+        # Persisted
+        d = client.get(f"/api/videos/{vid_id}").json()
+        assert d["context_names"] == ["ctx-a", "ctx-b"]
+
+    def test_patch_video_contexts_404(self, client):
+        r = client.patch("/api/videos/99999/contexts", json={"context_names": []})
+        assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Delete video and clips
+# ---------------------------------------------------------------------------
+
+class TestDelete:
+    def _vid_id(self, client) -> int:
+        return client.get("/api/videos").json()[0]["id"]
+
+    def test_delete_clip_removes_record(self, client):
+        vid_id = self._vid_id(client)
+        clips = client.get(f"/api/videos/{vid_id}/clips").json()
+        clip_id = clips[0]["id"]
+        r = client.delete(f"/api/clips/{clip_id}")
+        assert r.status_code == 200
+        assert r.json()["deleted"] == clip_id
+        # Gone from list
+        remaining = client.get(f"/api/videos/{vid_id}/clips").json()
+        assert not any(c["id"] == clip_id for c in remaining)
+
+    def test_delete_clip_404(self, client):
+        r = client.delete("/api/clips/99999")
+        assert r.status_code == 404
+
+    def test_delete_video_removes_video_and_clips(self, client):
+        vid_id = self._vid_id(client)
+        r = client.delete(f"/api/videos/{vid_id}")
+        assert r.status_code == 200
+        assert r.json()["deleted"] == vid_id
+        # Video gone
+        videos = client.get("/api/videos").json()
+        assert not any(v["id"] == vid_id for v in videos)
+
+    def test_delete_video_404(self, client):
+        r = client.delete("/api/videos/99999")
+        assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Context CRUD
+# ---------------------------------------------------------------------------
+
+class TestContexts:
+    def test_list_contexts_empty(self, client):
+        r = client.get("/api/contexts")
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_create_and_list_context(self, client):
+        body = {
+            "slug": "test-ctx",
+            "display_name": "Test Context",
+            "setting": "A fantasy world",
+            "your_characters": "Hero",
+            "other_characters": "Villain",
+            "notes": "Fun campaign",
+        }
+        r = client.post("/api/contexts", json=body)
+        assert r.status_code == 200
+        d = r.json()
+        assert d["slug"] == "test-ctx"
+        assert d["display_name"] == "Test Context"
+        assert d["setting"] == "A fantasy world"
+
+        contexts = client.get("/api/contexts").json()
+        assert any(c["slug"] == "test-ctx" for c in contexts)
+
+    def test_upsert_updates_existing(self, client):
+        body = {"slug": "upd-ctx", "display_name": "Old Name", "setting": "old"}
+        client.post("/api/contexts", json=body)
+        r = client.post("/api/contexts", json={**body, "display_name": "New Name", "setting": "new"})
+        assert r.status_code == 200
+        assert r.json()["display_name"] == "New Name"
+
+    def test_delete_context(self, client):
+        client.post("/api/contexts", json={"slug": "del-ctx", "display_name": "To Delete"})
+        r = client.delete("/api/contexts/del-ctx")
+        assert r.status_code == 200
+        contexts = client.get("/api/contexts").json()
+        assert not any(c["slug"] == "del-ctx" for c in contexts)
+
+    def test_delete_context_404(self, client):
+        r = client.delete("/api/contexts/nonexistent")
+        assert r.status_code == 404
+
+    def test_create_context_invalid_slug(self, client):
+        r = client.post("/api/contexts", json={"slug": "bad slug!", "display_name": "X"})
+        assert r.status_code == 400
+
+    def test_create_context_empty_slug(self, client):
+        r = client.post("/api/contexts", json={"slug": "", "display_name": "X"})
+        assert r.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# Captions VTT endpoint
+# ---------------------------------------------------------------------------
+
+class TestCaptionsVTT:
+    def _first_clip(self, client):
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        return client.get(f"/api/videos/{vid_id}/clips").json()[0]
+
+    def test_captions_vtt_404_without_srt(self, client):
+        clip = self._first_clip(client)
+        r = client.get(f"/api/clips/{clip['id']}/captions.vtt")
+        assert r.status_code == 404
+
+    def test_captions_vtt_returns_vtt_format(self, client, project_dir):
+        clip = self._first_clip(client)
+        export_dir = project_dir / ".rp-clipper" / "exports"
+        start_hms_dashes = clip["start_hms"].replace(":", "-")
+        srt_file = export_dir / f"session_clip{clip['id']}_{start_hms_dashes}.srt"
+        srt_file.write_text(
+            "1\n00:00:01,000 --> 00:00:03,500\nHello world\n\n",
+            encoding="utf-8",
+        )
+        r = client.get(f"/api/clips/{clip['id']}/captions.vtt")
+        assert r.status_code == 200
+        assert "text/vtt" in r.headers["content-type"]
+        assert r.text.startswith("WEBVTT")
+        assert "00:00:01.000 --> 00:00:03.500" in r.text
+
+
+# ---------------------------------------------------------------------------
+# Ingest cancel — no-op when nothing running
+# ---------------------------------------------------------------------------
+
+class TestIngestCancel:
+    def test_cancel_when_nothing_running_returns_ok(self, client):
+        r = client.post("/api/ingest/cancel")
+        assert r.status_code == 200
+        assert r.json()["status"] == "cancelled"
+
+    def test_ingest_status_false_when_idle(self, client):
+        r = client.get("/api/ingest/status")
+        assert r.status_code == 200
+        assert r.json()["running"] is False
+
+
+# ---------------------------------------------------------------------------
+# Summarize — 400 when no transcript
+# ---------------------------------------------------------------------------
+
+class TestSummarize:
+    def test_summarize_returns_400_without_transcript(self, client):
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        r = client.post(f"/api/videos/{vid_id}/summarize")
+        assert r.status_code == 400
+
+    def test_summarize_404_for_missing_video(self, client):
+        r = client.post("/api/videos/99999/summarize")
+        assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Delete video — export file cleanup
+# ---------------------------------------------------------------------------
+
+class TestDeleteExportCleanup:
+    def test_delete_clip_removes_export_file(self, client, project_dir):
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        clips = client.get(f"/api/videos/{vid_id}/clips").json()
+        c = clips[0]
+        export_dir = project_dir / ".rp-clipper" / "exports"
+        start_hms_dashes = c["start_hms"].replace(":", "-")
+        export_file = export_dir / f"session_clip{c['id']}_{start_hms_dashes}.mkv"
+        export_file.write_bytes(b"fake video")
+        assert export_file.exists()
+        client.delete(f"/api/clips/{c['id']}")
+        assert not export_file.exists()
+
+    def test_delete_video_removes_export_files(self, client, project_dir):
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        clips = client.get(f"/api/videos/{vid_id}/clips").json()
+        export_dir = project_dir / ".rp-clipper" / "exports"
+        files = []
+        for c in clips:
+            start_hms_dashes = c["start_hms"].replace(":", "-")
+            f = export_dir / f"session_clip{c['id']}_{start_hms_dashes}.mkv"
+            f.write_bytes(b"fake video")
+            files.append(f)
+        client.delete(f"/api/videos/{vid_id}")
+        for f in files:
+            assert not f.exists(), f"{f.name} should have been deleted"
