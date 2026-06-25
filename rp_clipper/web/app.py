@@ -45,6 +45,7 @@ def create_app(project_dir: Path) -> FastAPI:
 
     ctx = ProjectContext(project_dir)
     ctx.export_dir.mkdir(parents=True, exist_ok=True)
+    ctx.reels_dir.mkdir(parents=True, exist_ok=True)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -75,6 +76,11 @@ def create_app(project_dir: Path) -> FastAPI:
         "/media/exports",
         StaticFiles(directory=str(ctx.export_dir), html=False),
         name="exports",
+    )
+    app.mount(
+        "/media/reels",
+        StaticFiles(directory=str(ctx.reels_dir), html=False),
+        name="reels",
     )
 
     for module in _ROUTE_MODULES:

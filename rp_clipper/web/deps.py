@@ -23,6 +23,7 @@ class ProjectContext:
         self.data_dir    = project_dir / ".rp-clipper"
         self.db_path     = self.data_dir / "project.db"
         self.export_dir  = self.data_dir / "exports"
+        self.reels_dir   = self.data_dir / "reels"
         self.audio_dir   = self.data_dir / "audio"
 
         self.config = Config.load(project_dir)

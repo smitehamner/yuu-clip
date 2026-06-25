@@ -750,6 +750,7 @@ def demo(
 
     proj_dir, session, _ = _load_project(project)
     export_dir = proj_dir / ".rp-clipper" / "exports"
+    reels_dir  = proj_dir / ".rp-clipper" / "reels"
 
     # Merge --video-id alias into --video list
     effective_video_ids = list(video_ids)
@@ -766,7 +767,7 @@ def demo(
 
     if not output:
         ts     = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output = export_dir / f"demo_{ts}.mkv"
+        output = reels_dir / f"demo_{ts}.mkv"
     output.parent.mkdir(parents=True, exist_ok=True)
 
     console.print(f"\n[bold]Building demo reel[/bold] — {len(all_clips)} clip(s), transition=[cyan]{transition}[/cyan]")

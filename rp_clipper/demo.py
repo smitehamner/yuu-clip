@@ -122,6 +122,25 @@ def _make_title_card(
 # Duration probe
 # ---------------------------------------------------------------------------
 
+def _probe_fps(path: Path) -> float:
+    """Return video frame rate as a float via ffprobe."""
+    result = subprocess.run(
+        [
+            "ffprobe", "-v", "error",
+            "-select_streams", "v:0",
+            "-show_entries", "stream=r_frame_rate",
+            "-of", "default=noprint_wrappers=1:nokey=1",
+            str(path),
+        ],
+        capture_output=True, text=True, check=True,
+    )
+    out = result.stdout.strip()
+    if "/" in out:
+        num, den = out.split("/")
+        return float(num) / float(den)
+    return float(out)
+
+
 def _probe_duration(path: Path) -> float:
     """Return duration in seconds via ffprobe."""
     result = subprocess.run(
@@ -254,41 +273,78 @@ def compile_demo(
     if transition not in TRANSITIONS:
         raise ValueError(f"transition must be one of {TRANSITIONS}")
 
+    n = len(clips)
+
+    # Pass 1: resolve clip files, probe fps + durations.
+    clip_files: list[Path] = []
+    clip_durations: list[float] = []
+    clip_fps: Optional[float] = None
+    for clip in clips:
+        video = video_map[clip.video_id]
+        stem = Path(video.filename).stem
+        start_hms = clip.start_hms.replace(":", "-")
+        clip_file = export_dir / f"{stem}_clip{clip.id}_{start_hms}.mkv"
+        if not clip_file.exists():
+            raise FileNotFoundError(
+                f"Export not found for clip {clip.id}: {clip_file}\n"
+                f"Run 'rp-clip export {clip.id}' first."
+            )
+        if clip_fps is None:
+            try:
+                clip_fps = _probe_fps(clip_file)
+            except Exception:
+                clip_fps = 30.0
+        clip_files.append(clip_file)
+        clip_durations.append(_probe_duration(clip_file))
+
+    total_footage = sum(clip_durations)
+    if transition == "none":
+        print(
+            f"Compiling {n} clip(s) — {total_footage:.0f}s footage"
+            " — stream copy (fast)",
+            flush=True,
+        )
+    else:
+        total_encode = total_footage + n * title_dur
+        eta = total_encode / 3.0
+        print(
+            f"Compiling {n} clip(s) — {total_footage:.0f}s footage"
+            f" — estimated encode ~{eta:.0f}s",
+            flush=True,
+        )
+
+    # Pass 2: generate title cards and assemble segment list.
     with tempfile.TemporaryDirectory() as tmp:
         tmp_dir = Path(tmp)
         segments: list[Path] = []
         durations: list[float] = []
 
-        for idx, clip in enumerate(clips):
+        for idx, (clip, clip_file, clip_dur) in enumerate(
+            zip(clips, clip_files, clip_durations)
+        ):
             video = video_map[clip.video_id]
             stem = Path(video.filename).stem
-            # Match exported filename pattern: {stem}_clip{id}_{start}.mkv
-            start_hms = clip.start_hms.replace(":", "-")
-            clip_file = export_dir / f"{stem}_clip{clip.id}_{start_hms}.mkv"
-            if not clip_file.exists():
-                raise FileNotFoundError(
-                    f"Export not found for clip {clip.id}: {clip_file}\n"
-                    f"Run 'rp-clip export {clip.id}' first."
-                )
-
-            # --- title card before this clip ---
-            session_date = stem[:10]  # "2026-01-16" from filename
+            session_date = stem[:10]
             title_lines: list[tuple[str, int]] = [
-                (f"Clip {idx + 1} of {len(clips)}", _DEFAULT_FONT_SIZE_H1),
+                (f"Clip {idx + 1} of {n}", _DEFAULT_FONT_SIZE_H1),
                 (session_date, _DEFAULT_FONT_SIZE_H2),
             ]
             if clip.description:
                 title_lines.append((clip.description, _DEFAULT_FONT_SIZE_BODY))
 
+            print(f"Generating title card {idx + 1}/{n}…", flush=True)
             card_path = tmp_dir / f"title_{idx:03d}.mkv"
-            _make_title_card(title_lines, card_path, duration=title_dur)
+            _make_title_card(title_lines, card_path, duration=title_dur,
+                             fps=clip_fps or 30.0)
             segments.append(card_path)
             durations.append(title_dur)
 
             segments.append(clip_file)
-            durations.append(_probe_duration(clip_file))
+            durations.append(clip_dur)
 
+        print(f"Encoding final reel ({total_footage:.0f}s footage)…", flush=True)
         if transition == "none":
             _compile_concat(segments, output)
         else:
             _compile_xfade(segments, durations, output, transition, trans_dur)
+        print("Encode complete.", flush=True)

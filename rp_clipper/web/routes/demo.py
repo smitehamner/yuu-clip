@@ -7,7 +7,6 @@ Validation at the start step prevents starting a long render only to fail early.
 """
 from __future__ import annotations
 
-import re
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -26,7 +25,7 @@ class DemoRequest(BaseModel):
     transition:  str   = "fade"
     trans_dur:   float = 0.5
     title_dur:   float = 3.0
-    output_name: str   = "highlights.mkv"
+    output_name: str   = ""
 
 
 def _safe_filename(name: str, default: str = "highlights.mkv") -> str:
@@ -63,8 +62,14 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         finally:
             db.close()
 
-        ctx.export_dir.mkdir(parents=True, exist_ok=True)
-        output_path = ctx.export_dir / _safe_filename(req.output_name)
+        if req.output_name:
+            output_name = _safe_filename(req.output_name)
+        else:
+            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+            output_name = f"highlights_{ts}.mkv"
+
+        ctx.reels_dir.mkdir(parents=True, exist_ok=True)
+        output_path = ctx.reels_dir / output_name
         cmd = [
             sys.executable, "-m", "rp_clipper.cli", "demo",
             "--project",    str(ctx.project_dir),
@@ -78,7 +83,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             cmd += ["--video-id", str(req.video_id)]
 
         ctx.demo_cmd = cmd
-        return {"status": "started", "clip_count": len(clips)}
+        return {"status": "started", "clip_count": len(clips), "output_name": output_name}
 
     @router.get("/api/demo/events")
     async def demo_events():
@@ -87,26 +92,19 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             raise HTTPException(400, "No demo queued. Call /api/demo/start first.")
         return await subprocess_sse(ctx.demo_cmd, ctx.project_dir)
 
-    _clip_export_pat = re.compile(r"_clip\d+_")
-
     @router.get("/api/demo/list")
     def list_reels():
-        """Return demo reel files from the export directory, newest first.
-
-        Excludes individual clip exports (which contain '_clip<id>_' in the name).
-        """
-        if not ctx.export_dir.exists():
+        """Return demo reel files from the reels directory, newest first."""
+        if not ctx.reels_dir.exists():
             return []
         reels = []
-        for f in ctx.export_dir.iterdir():
+        for f in ctx.reels_dir.iterdir():
             if f.suffix != ".mkv":
-                continue
-            if _clip_export_pat.search(f.name):
                 continue
             st = f.stat()
             reels.append({
                 "filename": f.name,
-                "url": f"/media/exports/{f.name}",
+                "url": f"/media/reels/{f.name}",
                 "size_mb": round(st.st_size / 1_048_576, 1),
                 "date": datetime.fromtimestamp(st.st_mtime).strftime("%Y-%m-%d %H:%M"),
                 "mtime": st.st_mtime,
