@@ -3,7 +3,7 @@
 ## CLI commands
 
 ### `rp-clip probe <video>`
-Inspects a video without ingesting it. Prints duration, resolution, FPS, and a table of all audio streams with codec, sample rate, channel count, and stream title. Useful for checking track layout before choosing a labeling profile.
+Inspects a video without analyzing it. Prints duration, resolution, FPS, and a table of all audio streams with codec, sample rate, channel count, and stream title. Useful for checking track layout before choosing a track layout.
 
 ### `rp-clip ingest <path> [options]`
 Full end-to-end pipeline from raw video to scored clip candidates.
@@ -14,23 +14,23 @@ Full end-to-end pipeline from raw video to scored clip candidates.
 |------|---------|-------|
 | `--model` | `base` | Whisper model: tiny (~40 MB VRAM), base (~75 MB), small (~240 MB), medium (~1.5 GB), large-v3 (~10 GB) |
 | `--device` | `auto` | cuda or cpu; auto detects GPU — falls back to CPU if VRAM is insufficient for the chosen model |
-| `--profile NAME` | — | Saved track-labeling profile to apply |
+| `--profile NAME` | — | Saved track layout to apply |
 | `--language CODE` | — | Force Whisper language (e.g. `en`) |
 | `--energy-mode` | `fast` | `none` / `fast` (4 kHz) / `full` (16 kHz) |
-| `--context SLUG` | — | RP context to attach; repeatable |
+| `--context SLUG` | — | World context ID to attach; repeatable |
 | `--no-transcribe` | — | Skip Whisper step |
-| `--no-segment` | — | Skip candidate generation |
+| `--no-segment` | — | Skip clip generation |
 | `--no-score` | — | Skip Phase 2 scoring |
-| `--force` | — | Reprocess even if already ingested |
+| `--force` | — | Reprocess even if already analyzed |
 | `--no-interact` | — | Never prompt (always set by web UI) |
 
 **Pipeline stages (in order)**
-1. **Probe** — FFprobe extracts video metadata
+1. **Inspect** — FFprobe extracts video metadata
 2. **Label tracks** — Assign each audio stream a role: combined, player_voice, ingame_voicechat, game_sounds, or unlabeled
 3. **Extract audio** — FFmpeg → 16-bit mono WAV at 16 kHz per track
 4. **Overlap detection** — RMS correlation; suppress specialized tracks that duplicate the combined track
 5. **Transcribe** — Whisper on each eligible track; suppress near-duplicate transcripts
-6. **Generate candidates** — Sliding-window segmentation aligned to transcript word boundaries (30–120 s windows, 15 s stride)
+6. **Generate clips** — Sliding-window segmentation aligned to transcript word boundaries (30–120 s windows, 15 s stride)
 7. **Score** — Audio energy, scene detection, LLM scoring (see Scoring section)
 
 **End-to-end timing — default settings (energy: fast, scene: fast, 2 audio tracks)**
@@ -48,22 +48,22 @@ Transcription dominates for large-v3; audio extraction dominates for fast models
 > **CPU note:** On CPU, `large-v3` is roughly 150× slower than an RTX GPU for transcription. Smaller models (`base`, `small`) are significantly faster on CPU but the in-app estimate uses a single conservative ratio for all models — expect the real time to be faster than shown for small/base on CPU. `medium` or larger on CPU is not practical for sessions over 30 minutes.
 
 ### `rp-clip score [<video_id>|--all] [options]`
-Re-runs Phase 2 scoring on an already-ingested video. Useful after changing RP contexts or Ollama model. Options: `--no-energy`, `--no-scenes`, `--no-llm`.
+Re-runs Phase 2 scoring on an already-analyzed recording. Useful after changing world contexts or Ollama model. Options: `--no-energy`, `--no-scenes`, `--no-llm`.
 
 ### `rp-clip status`
-Table of all ingested videos: filename, duration, track count, candidate count, ingest status (pending → probed → labeled → extracting → transcribed → done).
+Table of all analyzed recordings: filename, duration, track count, clip count, analysis status (pending → probed → labeled → extracting → transcribed → done).
 
 ### `rp-clip clips [VIDEO_NAME] [--status FILTER] [--limit N]`
-Browse clip candidates in the terminal. Filter by partial video name or status (pending, approved, rejected). Shows ID, start time, duration, status, tags, and transcript excerpt.
+Browse clips in the terminal. Filter by partial video name or status (pending, approved, rejected). Shows ID, start time, duration, status, tags, and transcript excerpt.
 
 ### `rp-clip export <clip_id> [options]`
 Extract a single clip to MKV.
 
 | Flag | Notes |
 |------|-------|
-| `--reencode` | Frame-accurate cut via libx264 (slower; default is stream-copy) |
-| `--subtitles` / `--no-subtitles` | Write SRT sidecar files (default: on) |
-| `--burn-subs` | Burn subtitles into video (forces re-encode) |
+| `--reencode` | Frame-accurate cut via libx264 (slower; default is quick export) |
+| `--subtitles` / `--no-subtitles` | Write SRT caption sidecar files (default: on) |
+| `--burn-subs` | Bake captions into video (forces re-encode) |
 | `--output PATH` | Output path; default: `.rp-clipper/exports/` |
 
 Output filename format: `{stem}_clip{id}_{start_hms}.mkv`
@@ -104,7 +104,7 @@ Starts the web server and opens the browser. Options: `--host`, `--port` (defaul
 
 - **Select a video** — click in the sidebar to load its detail view
 - **Delete a video** — X button removes the database record; the source file is untouched
-- **Video detail view** shows: title, duration, clip/approval counts, total clipped time, and assigned RP contexts
+- **Video detail view** shows: title, duration, clip/approval counts, total clipped time, and assigned world contexts
 
 ### Contexts on a video
 
@@ -125,7 +125,7 @@ Each clip detail view shows:
 - **One-liner description** and **long description** (paragraph)
 - **Tags**: auto-generated labels such as `llm_scored`, `energy_scored`, `long_silence_after`
 - **Transcript excerpt** in a monospace box
-- **Status buttons**: Approve / Reject / Reset (pending)
+- **Status buttons**: Approve / Reject / Reset (unreviewed)
 
 Actions available per clip:
 
@@ -140,40 +140,40 @@ Actions available per clip:
 
 Embedded HTML5 player appears once a clip has been exported. Plays the exported MKV, shows WebVTT subtitles if an SRT sidecar exists, and auto-plays on clip selection. Before export, an "Export Clip" button is shown instead.
 
-### Ingest modal
+### Analyze modal
 
 1. Type or browse for a video file path (native file picker via tkinter)
-2. Probes the file immediately after selection; shows stream table and time estimates
-3. Select a track labeling profile (optional)
-4. Check RP contexts to assign (optional)
+2. Inspects the file immediately after selection; shows stream table and time estimates
+3. Select a track layout (optional)
+4. Check world contexts to assign (optional)
 5. Expand **Advanced Options** to change Whisper model, scene mode, or energy mode
-6. **Start** button launches the ingest subprocess; progress appears in the header step pills
+6. **Start** button launches the analysis subprocess; progress appears in the header step pills
 
 Time estimate panel breaks down expected wall-clock cost per step and warns if any step exceeds 30 minutes.
 
 ### Job progress indicator
 
-Step pills in the header: Extract → Transcribe → Candidates → Energy → Scenes → Scoring. Each pill is gray (pending) → blue (active) → green (done). A cancel button is visible during ingest; it terminates the subprocess and marks the job cancelled.
+Step pills in the header: Extract → Transcribe → Generate Clips → Energy → Scenes → Score. Each pill is gray (pending) → blue (active) → green (done). A cancel button is visible during analysis; it terminates the subprocess and marks the job cancelled.
 
-### Track profile manager
+### Track layout manager
 
-Accessible via the Manage Profiles button in the ingest modal.
+Accessible via the Manage Layouts button in the analyze modal.
 
-- Lists built-in and custom profiles with track count
-- **Profile editor**: name, number of tracks (1–8), and per-track settings (label, transcribe flag, relevance weight)
-- Saved profiles are available in the ingest modal dropdown
+- Lists built-in and custom track layouts with track count
+- **Layout editor**: name, number of tracks (1–8), and per-track settings (label, transcribe flag, relevance weight)
+- Saved track layouts are available in the analyze modal dropdown
 
-### Demo reel builder
+### Highlight reel builder
 
 Accessible from the header. Choose a video filter (all approved clips or a specific video), transition type and duration, title card duration, and output filename. Shows a preview list of clips to be compiled before building.
 
-### RP contexts manager
+### World contexts manager
 
 Accessible from the header. Create and edit named context bundles:
 
 | Field | Purpose |
 |-------|---------|
-| Slug | Short ID used in CLI (`--context una-server`) |
+| Context ID | Short ID used in CLI (`--context una-server`) |
 | Display name | Human-readable label shown in the UI |
 | Setting | RP world description injected into LLM prompts |
 | Your characters | Character(s) you play |
@@ -241,7 +241,7 @@ Sends each candidate's transcript excerpt to a locally running Ollama instance. 
 | `score_dramatic` | 0–1; confrontations, revelations, emotional beats |
 | `score_action` | 0–1; combat, chaos, high-stakes tension |
 
-RP context text is injected into the system prompt so the LLM understands character relationships and setting. If Ollama is unreachable the ingest continues with zero scores and a warning in the log.
+World context text is injected into the system prompt so the LLM understands character relationships and setting. If Ollama is unreachable the ingest continues with zero scores and a warning in the log.
 
 LLM scoring speed depends entirely on your Ollama setup and model. Rough estimates at ~4 s/clip:
 
@@ -263,12 +263,12 @@ Weighted average of the three dimension scores. Default weight: equal. Configura
 
 ### Single clip
 
-- **Stream copy (default)**: keyframe-aligned; typically completes in 1–5 seconds regardless of clip length
-- **Re-encode** (`--reencode` or checkbox in UI): frame-accurate using libx264 + AAC; expect ~10–30 s per minute of clip on CPU, or ~3–8 s per minute on a GPU-accelerated ffmpeg build
-- **Subtitles**: SRT sidecar files written by default (one per transcript track); optionally burned into video
+- **Quick export (default)**: keyframe-aligned; typically completes in 1–5 seconds regardless of clip length
+- **Precise export** (`--reencode` or checkbox in UI): frame-accurate using libx264 + AAC; expect ~10–30 s per minute of clip on CPU, or ~3–8 s per minute on a GPU-accelerated ffmpeg build
+- **Captions**: SRT caption sidecar files written by default (one per transcript track); optionally baked into video
 - **Output**: MKV in `.rp-clipper/exports/`
 
-### Demo reel
+### Highlight reel
 
 - Filters clips by video, status, minimum score, and top-N per video
 - Generates ffmpeg title cards with clip descriptions between each clip
@@ -291,9 +291,9 @@ All state is stored in `.rp-clipper/` next to your video files (or in the direct
   audio/             # extracted WAV files (temporary; reused across runs)
 ```
 
-### Track labeling profiles
+### Track layouts
 
-Saved per-project. Each profile stores: number of tracks, and per-track label, transcribe flag, and relevance weight. Created and edited in the web UI profile manager or by hand in the database.
+Saved per-project. Each track layout stores: number of tracks, and per-track label, transcribe flag, and relevance weight. Created and edited in the web UI track layout manager or by hand in the database.
 
 ### Scoring weights
 

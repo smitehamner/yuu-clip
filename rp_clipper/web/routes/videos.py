@@ -198,7 +198,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             all_segs.sort(key=lambda s: s.start_ms)
 
             if not all_segs:
-                raise HTTPException(400, "No transcript available — run ingest first")
+                raise HTTPException(400, "No transcript available — analyze the recording first")
 
             # Extract raw data before closing the session
             context_names = _json_list(video.context_names_json)
@@ -288,7 +288,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             full_text = " ".join(s.text.strip() for s in all_segs)
 
             if not full_text:
-                raise HTTPException(400, "No transcript available — run ingest first")
+                raise HTTPException(400, "No transcript available — analyze the recording first")
 
             title_current = (
                 video.title_user if video.title_user is not None else (video.title or "")

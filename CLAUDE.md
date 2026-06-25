@@ -82,6 +82,33 @@ goal is to get the web UI stable enough for regular use. Approach:
 2. If it fails, check `.rp-clipper\rp-clipper.log`
 3. Fix the bug, restart the server, reproduce to confirm
 
+## Terminology
+
+The authoritative term list is in `docs/GLOSSARY.md`. Read it before introducing any
+new concept, and follow these rules:
+
+- **User-facing text** (UI labels, button text, toast messages, error messages, CLI
+  help text, docs) must use the glossary term — not the code name.
+- **Code names** (Python identifiers, JS variable names, API route paths, DB column
+  names) may differ from the user-facing term. The glossary records both under
+  "Code:" and "Also called in codebase:".
+- **When you add a new concept**: define it in the glossary first, then use that
+  term everywhere from the start. Don't name it one thing in code and something
+  else in the UI without documenting the split.
+- **When a concept is renamed**: update `docs/GLOSSARY.md`, then update all
+  user-facing strings. Code identifiers can be left for a separate refactor pass —
+  but the glossary entry must note the divergence under "Also called in codebase:".
+
+Key terms to get right (common sources of drift):
+- "Analyze" / "Analysis" — not "Ingest" in user-facing text (code: `ingest`)
+- "Inspect" — not "Probe" in user-facing text (code: `probe()`)
+- "Track layout" — not "Profile" in user-facing text (code: `profile`)
+- "World context" — not "RP context" in user-facing text (code: `rp_context`)
+- "LLM scoring" — not "AI scoring"
+- "Clip" — not "clip candidate" in user-facing text (code: `ClipCandidate`)
+- "Unreviewed" — not "Pending" in user-facing text (code: `status = 'pending'`)
+- "Highlight reel" — not "demo reel" in user-facing text (code: `demo_reel`)
+
 ## Code standards
 
 ### General
@@ -128,8 +155,8 @@ use track 0 as combined and mark the rest unlabeled without prompting.
 ### Subprocess cancellation
 `POST /api/ingest/cancel` sets `ctx.ingest_cancelled = True` and calls
 `proc.terminate()`. The SSE generator checks the flag after the process exits and
-yields a `[Ingest cancelled]` message before the `__DONE__` sentinel.
+yields a `[Analysis cancelled]` message before the `__DONE__` sentinel.
 
 ### HTML safety
-`escHtml` in `index.html` escapes `& < > "`. Always run profile names and filenames
-through it before embedding in HTML attributes.
+`escHtml` in `index.html` escapes `& < > "`. Always run track layout names, context
+names, and filenames through it before embedding in HTML attributes.

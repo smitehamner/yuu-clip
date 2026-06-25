@@ -8,7 +8,9 @@ includes all server events and the captured stdout of every subprocess
 """
 from __future__ import annotations
 
-from fastapi import APIRouter
+from pathlib import Path
+
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse, PlainTextResponse
 
 from rp_clipper.log import log_path_for, recent_log_lines
@@ -31,5 +33,13 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         return PlainTextResponse(
             content, headers={"Content-Disposition": f"attachment; filename={filename}"}
         )
+
+    @router.get("/api/glossary")
+    def get_glossary():
+        """Return the terminology glossary as plain text markdown."""
+        glossary = Path(__file__).parent.parent.parent.parent / "docs" / "GLOSSARY.md"
+        if not glossary.exists():
+            raise HTTPException(404, "Glossary not found")
+        return PlainTextResponse(glossary.read_text(encoding="utf-8"))
 
     return router

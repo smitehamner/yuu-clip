@@ -14,13 +14,13 @@
 ## Phase 1 — Core pipeline (Done)
 
 - ffprobe video probing (duration, streams, fps, codec info)
-- Interactive track labeling + saved profiles (`profiles.json`)
+- Interactive track labeling + saved track layouts (`profiles.json`)
 - Audio extraction per track to 16 kHz mono WAV via FFmpeg
 - Whisper transcription via faster-whisper (CTranslate2 backend)
 - CUDA auto-detection using `ctranslate2.get_cuda_device_count()` (no PyTorch dep)
-- Sliding window candidate generation from silence gaps
-- SRT subtitle sidecars (per-track + merged)
-- `--burn-subs` for hardcoded subtitles
+- Sliding window clip generation from silence gaps
+- SRT caption sidecars (per-track + merged)
+- `--burn-subs` for baked-in captions
 - CLI: `rp-clip ingest / export / clips / status / probe`
 
 ---
@@ -39,7 +39,7 @@
 - Track overlap detection: RMS Pearson correlation + post-transcription word overlap
   - Falls back to combined track when specialized tracks duplicate it
 - `clip_candidates.description` column with DB migration
-- `rp-clip score` standalone re-scoring command
+- `rp-clip score` standalone re-scoring command; useful after changing world contexts
 - `rp-clip demo` highlight reel compiler (FFmpeg xfade transitions + title cards)
 
 ---
@@ -55,16 +55,16 @@
 - Approve / Reject / Reset workflow with status dot
 - Export clip via SSE progress stream
 - ~~Score All button with SSE progress~~ — removed from UI; CLI-only via `rp-clip score`
-- Ingest modal: native OS file picker, probe + time estimates, warning threshold
+- Analyze modal: native OS file picker, inspect + time estimates, warning threshold
 - Step-by-step progress indicator in header during jobs
-- Profile manager modal: create/edit/delete profiles
-- Demo reel builder modal with transition and duration controls
+- Track layout manager modal: create/edit/delete track layouts
+- Highlight reel builder modal with transition and duration controls
 - Retranscribe individual clips with a different Whisper model
 - Export Log button: one-click debug log download
 - Video summary — `POST /api/videos/{id}/summarize`; `Video.title` + `Video.summary` columns; user-editable inline
 - Two-level clip descriptions — `description` (1-sentence) + `description_long` (paragraph); both LLM-generated; user-editable inline
 - Session timeline — `GET /api/videos/{id}/timeline`; `timeline_json` column; visual timeline in video detail panel
-- RP Contexts — context assignment per-video; `context_names_json` column; context manager modal
+- World Contexts — context assignment per-video; `context_names_json` column; world context manager modal
 - Re-score individual clip — "Re-score" button in clip detail; SSE; backend `GET /api/clips/{id}/rescore`
 - Keyboard shortcuts — A/R/Space/E/←→; `?` key opens About panel
 - About / Credits modal — licencing notice, dependency table, keyboard shortcut cheatsheet
@@ -72,7 +72,7 @@
 - App footer bar — VS Code-style thin bar at bottom; version string bottom-left from `/api/status`
 - Sidebar score icons — emoji + number line replacing sub-score bars: `⭐ 0.74  😂 0.8  🎭 0.4  ⚔️ 0.6`; 4px colored left border per card (gradient on selected sort score; muted on rejected)
 - Sort by sub-score — dropdown extended: `⭐ Overall ↓ · 😂 Funny ↓ · 🎭 Dramatic ↓ · ⚔️ Action ↓ · Timeline`; `localStorage` persistence; border color tracks selection
-- Filter tabs — `All · Pending · Approved · Rejected` above clip list; resets to All on video switch
+- Filter tabs — `All · Unreviewed · Approved · Rejected` above clip list; resets to All on video switch
 - Rejected clip undo — toast + `Ctrl+Z` reverts last status change within 5 s
 - Rename "Slug" → "ID" in Context Manager
 
@@ -91,7 +91,7 @@
     original `start_time` / `end_time` are immutable
 
 - [x] **Header hamburger menu** *(absorbs "Controls UI polish")*
-  - Trim header to: `+ Ingest` · `Build Reel` · `≡` (hamburger trigger)
+  - Trim header to: `+ Analyze` · `Build Reel` · `≡` (hamburger trigger)
   - **Score All button removed from UI** — CLI-only via `rp-clip score`; add interactive
     confirmation + GPU time warning to the CLI command
   - Hamburger dropdown (icon + text per item):
@@ -101,9 +101,9 @@
 
 - [x] **Confirmation dialogs on destructive actions**
   - All five existing `confirm()` calls converted to modals: delete video, delete clip,
-    cancel ingest, delete profile, delete context
+    cancel analysis, delete track layout, delete context
   - New confirmation modals for: re-score clips per video (expensive), reset approvals per video
-  - Reset approvals: new button in video detail header; modal shows "will reset N clips to Pending"
+  - Reset approvals: new button in video detail header; modal shows "will reset N clips to unreviewed"
   - `confirm()` / `alert()` banned going forward — always use the app modal pattern
 
 - [ ] **Timeline interval picker**
@@ -247,11 +247,11 @@
   range, status, tag, or hot-word. Advanced users can use regex. Match-mode reuses the same
   exact / case-insensitive / LLM-semantic options as hot-words.
 
-- [ ] **Ingest time estimate fix** — probe preview counts all audio tracks instead of only the ones
-  the selected profile will actually transcribe; resolve the profile's track selection before
+- [ ] **Analysis time estimate fix** — inspection preview counts all audio tracks instead of only the ones
+  the selected track layout will actually transcribe; resolve the track layout selection before
   computing the estimate
 
-- [ ] **Per-step ingest progress percentage** — step chips in the header already advance through
+- [ ] **Per-step analysis progress percentage** — step chips in the header already advance through
   stages; add a completion % within each step *(UX debt: Goal-Gradient Effect)*
 
 - [ ] **Detail panel chunking** — group the clip detail panel into cards: Summary → Actions →
@@ -418,7 +418,7 @@ unlock downstream.
 
 ## Known issues (code quality)
 
-- **Ingest time estimate counts all tracks** — tracked as a medium-term near-term item above
+- **Analysis time estimate counts all tracks** — tracked as a medium-term near-term item above
 - **`_ingest_one` has many parameters** — consider a dataclass if it grows further
 - **`ingest/labeler.py:_label_interactive`** — ~100 lines mixing UI and logic; candidate for split
 - **JS in `index.html` (~1737 lines)** — no-build-step SPA; consider ES modules if it grows further

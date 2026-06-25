@@ -8,7 +8,7 @@ without reading the file on every request.
 Usage:
     configure_logging(project_dir)   # call once at server startup
     log = get_logger(__name__)
-    log.info("Starting ingest for %s", filename)
+    log.info("Starting analysis for %s", filename)
 """
 from __future__ import annotations
 

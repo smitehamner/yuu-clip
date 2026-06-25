@@ -280,14 +280,15 @@
             style="padding:2px 10px;font-size:12px;display:none">Cancel</button>
   </div>
   <div class="header-spacer" id="header-spacer"></div>
-  <button class="btn primary" id="btn-ingest" onclick="openIngestModal()">+ Ingest</button>
+  <button class="btn primary" id="btn-ingest" onclick="openIngestModal()">+ Analyze</button>
   <button class="btn" id="btn-demo" onclick="openDemoModal()">Build Reel</button>
   <div class="hamburger-wrap" id="hamburger-wrap">
     <button class="btn ghost" id="btn-hamburger" onclick="toggleHamburger()" title="More options" style="font-size:17px;padding:5px 11px;line-height:1">&#9776;</button>
     <div class="hamburger-menu" id="hamburger-menu">
       <button class="hamburger-item" onclick="openReelsModal();closeHamburger()">&#127916; View Reels</button>
       <div class="hamburger-divider"></div>
-      <button class="hamburger-item" onclick="openContextManager();closeHamburger()">&#127917; Contexts</button>
+      <button class="hamburger-item" onclick="openContextManager();closeHamburger()">&#127917; World Contexts</button>
+      <button class="hamburger-item" onclick="openGlossaryModal();closeHamburger()">&#128218; Terminology</button>
       <button class="hamburger-item" onclick="openControlsModal();closeHamburger()">&#9000; Controls</button>
       <button class="hamburger-item" onclick="openAboutModal();closeHamburger()">&#9432; About</button>
       <div class="hamburger-divider"></div>
@@ -318,7 +319,7 @@
       </div>
       <div class="clip-filter-tabs">
         <button class="clip-tab active" data-filter="all" onclick="setClipFilter('all')">All</button>
-        <button class="clip-tab" data-filter="pending" onclick="setClipFilter('pending')">Pending</button>
+        <button class="clip-tab" data-filter="pending" onclick="setClipFilter('pending')">Unreviewed</button>
         <button class="clip-tab" data-filter="approved" onclick="setClipFilter('approved')">Approved</button>
         <button class="clip-tab" data-filter="rejected" onclick="setClipFilter('rejected')">Rejected</button>
       </div>
@@ -378,18 +379,6 @@
         <tr><td>platformdirs</td><td>Cross-platform config paths</td><td>MIT</td></tr>
       </tbody>
     </table>
-    <div class="section-title" style="margin:14px 0 6px">Keyboard shortcuts</div>
-    <table style="width:100%;font-size:12px;border-collapse:collapse;color:var(--muted)">
-      <tbody>
-        <tr><td style="padding:2px 0"><kbd>A</kbd></td><td>Approve clip</td></tr>
-        <tr><td><kbd>R</kbd></td><td>Reject clip</td></tr>
-        <tr><td><kbd>Space</kbd></td><td>Play / Pause video</td></tr>
-        <tr><td><kbd>E</kbd></td><td>Export clip</td></tr>
-        <tr><td><kbd>← ↑</kbd></td><td>Previous clip</td></tr>
-        <tr><td><kbd>→ ↓</kbd></td><td>Next clip</td></tr>
-        <tr><td><kbd>?</kbd></td><td>Open this panel</td></tr>
-      </tbody>
-    </table>
     <div class="modal-actions" style="margin-top:16px">
       <button class="btn" onclick="closeAboutModal()">Close</button>
     </div>
@@ -399,7 +388,7 @@
 <!-- Ingest modal -->
 <div class="modal-bg" id="ingest-modal">
   <div class="modal">
-    <h3>Ingest Video</h3>
+    <h3>Analyze Recording</h3>
     <div class="field">
       <label>Video file path</label>
       <div class="path-row">
@@ -408,14 +397,14 @@
       </div>
     </div>
     <div class="field">
-      <label>Track profile</label>
+      <label>Track layout</label>
       <div style="display:flex;gap:6px">
         <select id="ingest-profile" style="flex:1" onchange="runEstimate()"></select>
         <button class="btn" onclick="openProfileManager()" title="Manage profiles">&#9881;</button>
       </div>
     </div>
     <div class="field" id="ingest-context-field" style="display:none">
-      <label>RP Contexts <span style="color:var(--muted);font-weight:400">(optional)</span></label>
+      <label>World Contexts <span style="color:var(--muted);font-weight:400">(optional)</span></label>
       <div id="ingest-context-list"
            style="display:flex;flex-direction:column;gap:5px;padding:6px 8px;background:var(--bg);border:1px solid var(--border);border-radius:6px;max-height:100px;overflow-y:auto"></div>
     </div>
@@ -452,7 +441,7 @@
     <div id="estimate-area"></div>
     <div class="modal-actions">
       <button class="btn" onclick="closeIngestModal()">Cancel</button>
-      <button class="btn primary" id="btn-start-ingest" onclick="startIngest()" disabled title="Select a valid video file first">Start Ingest</button>
+      <button class="btn primary" id="btn-start-ingest" onclick="startIngest()" disabled title="Select a valid recording file first">Start Analysis</button>
     </div>
   </div>
 </div>
@@ -460,15 +449,15 @@
 <!-- Profile Manager Modal -->
 <div class="modal-bg" id="profile-modal">
   <div class="modal" style="width:560px;max-height:80vh;overflow-y:auto">
-    <h3>Track Profiles</h3>
+    <h3>Track Layouts</h3>
     <div id="profile-list"></div>
     <div style="margin-top:14px;display:flex;gap:8px">
-      <button class="btn primary" onclick="openNewProfile()">+ New Profile</button>
+      <button class="btn primary" onclick="openNewProfile()">+ New Track Layout</button>
       <button class="btn" style="margin-left:auto" onclick="closeProfileManager()">Close</button>
     </div>
     <div id="profile-editor" style="display:none;border-top:1px solid var(--border);margin-top:14px;padding-top:14px">
       <div class="field">
-        <label>Profile name</label>
+        <label>Layout name</label>
         <input type="text" id="pe-name" placeholder="my_obs_setup">
       </div>
       <div class="field">
@@ -532,7 +521,7 @@
 <div class="modal-bg" id="reels-modal">
   <div class="modal reels-modal">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
-      <h3>Demo Reels</h3>
+      <h3>Highlight Reels</h3>
       <button class="btn ghost" style="padding:4px 8px" onclick="closeReelsModal()">&#x2715;</button>
     </div>
     <div class="reels-layout" id="reels-layout">
@@ -571,8 +560,8 @@
 <!-- Context Manager Modal -->
 <div class="modal-bg" id="context-modal">
   <div class="modal" style="width:680px;max-height:85vh">
-    <h3>RP Contexts</h3>
-    <p style="font-size:12px;color:var(--muted);margin-top:-6px">Named knowledge injected into LLM prompts — characters, setting, and RP world context.</p>
+    <h3>World Contexts</h3>
+    <p style="font-size:12px;color:var(--muted);margin-top:-6px">Named knowledge injected into LLM prompts — characters, setting, and world lore.</p>
     <div style="display:flex;gap:16px;min-height:300px">
       <div style="width:180px;flex-shrink:0;display:flex;flex-direction:column;gap:6px">
         <div id="context-list-items" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:4px"></div>
@@ -649,6 +638,19 @@
     <div class="modal-actions">
       <button class="btn" onclick="_confirmCancel()">Cancel</button>
       <button class="btn" id="confirm-ok-btn" onclick="_confirmOk()">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- Glossary Modal -->
+<div class="modal-bg" id="glossary-modal">
+  <div class="modal" style="width:740px;max-height:88vh;display:flex;flex-direction:column">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <h3 style="margin:0">Terminology Glossary</h3>
+      <button class="btn ghost" style="padding:4px 8px" onclick="closeGlossaryModal()">&#x2715;</button>
+    </div>
+    <div id="glossary-content" style="flex:1;overflow-y:auto;font-size:13px;line-height:1.7;padding-right:4px">
+      <div style="color:var(--muted)">Loading&#x2026;</div>
     </div>
   </div>
 </div>
@@ -951,8 +953,8 @@ function _showEmptyState() {
   document.getElementById('detail').innerHTML = `
     <div class="empty-state">
       <h2>Welcome to rp-clipper</h2>
-      <p>Ingest a video recording to start reviewing and exporting your best gaming moments.</p>
-      <button class="btn primary" onclick="openIngestModal()">+ Ingest your first video</button>
+      <p>Analyze a recording to start reviewing and exporting your best gaming moments.</p>
+      <button class="btn primary" onclick="openIngestModal()">+ Analyze your first recording</button>
     </div>`;
 }
 
@@ -960,7 +962,7 @@ function _updateDemoButton(approvedCount) {
   const btn = document.getElementById('btn-demo');
   btn.disabled = approvedCount === 0;
   btn.title = approvedCount === 0
-    ? 'Approve some clips first to build a reel'
+    ? 'Approve some clips first to build a highlight reel'
     : `Build a highlight reel from ${approvedCount} approved clip(s)`;
 }
 
@@ -1528,7 +1530,7 @@ async function setStatus(id, status) {
 
   if (fromStatus && fromStatus !== status) {
     if (_lastStatusChange?.timer) clearTimeout(_lastStatusChange.timer);
-    const label = {approved:'Approved', rejected:'Rejected', pending:'Reset to pending'}[status] || status;
+    const label = {approved:'Approved', rejected:'Rejected', pending:'Reset to unreviewed'}[status] || status;
     _lastStatusChange = {clipId: id, fromStatus};
     _lastStatusChange.timer = setTimeout(() => { _lastStatusChange = null; }, 5000);
     showUndoToast(`Clip ${label}`, undoLastStatus);
@@ -1705,7 +1707,7 @@ function scheduleProbe() {
     _updateStartIngestButton();
     return;
   }
-  document.getElementById('estimate-area').innerHTML = '<div class="probing-spinner">Probing file...</div>';
+  document.getElementById('estimate-area').innerHTML = '<div class="probing-spinner">Inspecting file...</div>';
   _probeTimer = setTimeout(() => runProbe(path), 700);
 }
 
@@ -1730,7 +1732,7 @@ async function runProbe(path) {
     _probedInfo = null;
     _updateStartIngestButton();
     document.getElementById('estimate-area').innerHTML =
-      `<div style="color:var(--red);font-size:12px">Could not probe file: ${escHtml(String(err.message || err))}</div>`;
+      `<div style="color:var(--red);font-size:12px">Could not inspect file: ${escHtml(String(err.message || err))}</div>`;
   }
 }
 
@@ -1826,35 +1828,35 @@ async function startIngest() {
 
   if (!startRes.ok) {
     const err = await startRes.json().catch(() => ({}));
-    showToast(formatApiError(err) || 'Failed to start ingest', 'error');
+    showToast(formatApiError(err) || 'Failed to start analysis', 'error');
     btn.disabled = false;
-    btn.textContent = 'Start Ingest';
+    btn.textContent = 'Start Analysis';
     return;
   }
 
   const filename = path.split(/[\\/]/).pop();
   closeIngestModal();
   btn.disabled = false;
-  btn.textContent = 'Start Ingest';
+  btn.textContent = 'Start Analysis';
   openLog();
-  appendLog(`Ingesting: ${filename}`);
+  appendLog(`Analyzing: ${filename}`);
   streamSSE(
     '/api/ingest/events',
-    () => { loadVideos(); showToast('Ingest complete — clips are ready to review'); },
+    () => { loadVideos(); showToast('Analysis complete — clips are ready to review'); },
     INGEST_STEPS,
-    `Ingesting ${filename}`,
+    `Analyzing ${filename}`,
     true,
   );
 }
 
 // ── progress indicator ─────────────────────────────────────────────────────────
 const INGEST_STEPS = [
-  {label: 'Extract',    patterns: ['Extracting audio']},
-  {label: 'Transcribe', patterns: ['Transcribing']},
-  {label: 'Candidates', patterns: ['Generating clip']},
-  {label: 'Energy',     patterns: ['Computing audio energy']},
-  {label: 'Scenes',     patterns: ['Detecting scene']},
-  {label: 'Scoring',    patterns: ['Scoring candidates']},
+  {label: 'Extract',        patterns: ['Extracting audio']},
+  {label: 'Transcribe',     patterns: ['Transcribing']},
+  {label: 'Generate Clips', patterns: ['Generating clip']},
+  {label: 'Energy',         patterns: ['Computing audio energy']},
+  {label: 'Scenes',         patterns: ['Detecting scene']},
+  {label: 'Score',          patterns: ['Scoring candidates']},
 ];
 const SCORE_STEPS = [
   {label: 'Energy',  patterns: ['Computing audio energy']},
@@ -1931,9 +1933,9 @@ function streamSSE(url, onDone, stepDefs, jobLabel, cancellable = false) {
 
 function cancelJob() {
   showConfirm(
-    'Cancel ingest?',
-    `All progress for this video will be lost and you will need to ingest it again.`,
-    'Cancel Ingest',
+    'Cancel analysis?',
+    `All progress for this recording will be lost and you will need to analyze it again.`,
+    'Cancel Analysis',
     _doCancelJob,
     true,
   );
@@ -1942,7 +1944,7 @@ function cancelJob() {
 async function _doCancelJob() {
   if (_activeES) { _activeES.close(); _activeES = null; }
   try { await fetch('/api/ingest/cancel', {method: 'POST'}); } catch {}
-  appendLog('[Ingest cancelled]');
+  appendLog('[Analysis cancelled]');
   endJobUI();
   loadVideos();
 }
@@ -2264,7 +2266,7 @@ async function startDemo() {
   openLog();
   streamSSE(
     '/api/demo/events',
-    () => { loadVideos(); showToast('Demo reel complete!'); openReelsModal(); },
+    () => { loadVideos(); showToast('Highlight reel complete!'); openReelsModal(); },
     [{label: 'Building', patterns: ['Building demo', 'Generating', 'OK']}],
     'Reel',
   );
@@ -2277,7 +2279,7 @@ async function openReelsModal() {
   layout.innerHTML = '<div class="reels-empty">Loading&#x2026;</div>';
   const reels = await fetch('/api/demo/list').then(r => r.json()).catch(() => []);
   if (!reels.length) {
-    layout.innerHTML = '<div class="reels-empty">No demo reels yet — build one with "Build Reel".</div>';
+    layout.innerHTML = '<div class="reels-empty">No highlight reels yet — build one with "Build Reel".</div>';
     return;
   }
   layout.innerHTML = `
@@ -2610,6 +2612,84 @@ function rescoreClip(clipId) {
 function openAboutModal()  { document.getElementById('about-modal').classList.add('visible'); }
 function closeAboutModal() { document.getElementById('about-modal').classList.remove('visible'); }
 
+// ── glossary modal ──────────────────────────────────────────────────────────
+async function openGlossaryModal() {
+  document.getElementById('glossary-modal').classList.add('visible');
+  const el = document.getElementById('glossary-content');
+  if (el.dataset.loaded) return;
+  try {
+    const md = await fetch('/api/glossary').then(r => r.text());
+    el.innerHTML = _renderGlossaryMd(md);
+    el.dataset.loaded = '1';
+  } catch (e) {
+    el.innerHTML = '<div style="color:var(--red)">Failed to load glossary.</div>';
+  }
+}
+function closeGlossaryModal() {
+  document.getElementById('glossary-modal').classList.remove('visible');
+}
+
+function _renderGlossaryMd(md) {
+  const lines = md.split('\n');
+  let html = '';
+  let inList = false;
+  let inTable = false;
+  let tableHead = false;
+
+  const inline = s => s
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*([^*]+)\*/g, '<em>$1</em>');
+
+  const closeList  = () => { if (inList)  { html += '</ul>';   inList  = false; } };
+  const closeTable = () => { if (inTable) { html += '</tbody></table>'; inTable = false; tableHead = false; } };
+
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
+    const line = raw.trimEnd();
+
+    if (line.startsWith('## ')) {
+      closeList(); closeTable();
+      html += `<h2 style="margin:20px 0 4px;font-size:15px;border-bottom:1px solid var(--border);padding-bottom:4px">${inline(line.slice(3))}</h2>`;
+    } else if (line.startsWith('### ')) {
+      closeList(); closeTable();
+      html += `<h3 style="margin:14px 0 2px;font-size:13px;color:var(--accent)">${inline(line.slice(4))}</h3>`;
+    } else if (line.startsWith('---')) {
+      closeList(); closeTable();
+      html += '<hr style="border:none;border-top:1px solid var(--border);margin:14px 0">';
+    } else if (/^\|/.test(line)) {
+      closeList();
+      const cells = line.split('|').slice(1, -1).map(c => c.trim());
+      if (/^[-\s|:]+$/.test(line)) {
+        // separator row — marks end of header
+        tableHead = false;
+      } else if (!inTable) {
+        inTable = true; tableHead = true;
+        html += '<table style="width:100%;border-collapse:collapse;font-size:12px;margin:6px 0"><thead><tr>';
+        cells.forEach(c => { html += `<th style="text-align:left;padding:4px 8px 4px 0;border-bottom:1px solid var(--border);color:var(--text)">${inline(c)}</th>`; });
+        html += '</tr></thead><tbody>';
+      } else {
+        html += '<tr>';
+        cells.forEach(c => { html += `<td style="padding:3px 8px 3px 0;border-bottom:1px solid var(--border);color:var(--muted);vertical-align:top">${inline(c)}</td>`; });
+        html += '</tr>';
+      }
+    } else if (/^- /.test(line)) {
+      closeTable();
+      if (!inList) { html += '<ul style="margin:4px 0 4px 16px;padding:0">'; inList = true; }
+      html += `<li style="margin:1px 0">${inline(line.slice(2))}</li>`;
+    } else if (line === '') {
+      closeList(); closeTable();
+      html += '<div style="margin:4px 0"></div>';
+    } else {
+      closeList(); closeTable();
+      html += `<p style="margin:3px 0">${inline(line)}</p>`;
+    }
+  }
+  closeList(); closeTable();
+  return html;
+}
+
 // ── keyboard shortcuts ──────────────────────────────────────────────────────
 document.addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
@@ -2622,6 +2702,7 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
     closeAboutModal();
     closeControlsModal();
+    closeGlossaryModal();
     _confirmCancel();
     closeFieldEditModal();
     _diffDiscard();

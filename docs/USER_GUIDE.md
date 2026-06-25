@@ -12,7 +12,7 @@ rp-clipper watches your recordings for you. It listens to what was said, figures
 
 1. **You point it at a recording.** OBS output, shadowplay, whatever — as long as it's a video file.
 2. **It listens.** It runs your audio through a local speech-to-text model (Whisper, runs on your PC, nothing is uploaded anywhere) to get a full transcript of everything said during the session.
-3. **It scores.** It chops the session into candidate clip windows and rates each one for how funny, dramatic, or action-packed it was — using a local AI model (Ollama, also runs on your PC) that reads the transcript and scores what happened.
+3. **It scores.** It chops the session into clip windows and rates each one for how funny, dramatic, or action-packed it was — using a local LLM (Ollama, also runs on your PC) that reads the transcript and scores what happened.
 4. **You review.** Open the web UI in your browser, flip through the clips, watch the ones that look good, approve or skip, then export.
 5. **You've got clips.** Ready-to-share video files, no re-encoding required unless you want frame-perfect cuts.
 
@@ -26,7 +26,7 @@ Everything runs locally. No cloud, no subscription, no footage leaving your mach
 
 On the left you get two panels stacked on top of each other.
 
-The **top panel** is your list of ingested sessions. Each one shows how long it is, how many clip candidates were found, how many you've approved so far, and a processing status. Click one to load it.
+The **top panel** is your list of analyzed recordings. Each one shows how long it is, how many clips were found, how many you've approved so far, and a processing status. Click one to load it.
 
 The **bottom panel** shows all the clips from the session you've selected, sorted either by score (best first) or by when they happen in the session (timeline order). Each entry shows the score, how long the clip is, whether you've approved or skipped it, and a short preview of what was said.
 
@@ -42,7 +42,7 @@ Click a clip and the main panel shows you everything about it:
 
 ### The video player
 
-Once you export a clip, a player appears right there in the panel. It plays the actual exported video with subtitles — useful for double-checking before you share it. Before you export, there's just an Export button in its place.
+Once you export a clip, a player appears right there in the panel. It plays the actual exported video with captions — useful for double-checking before you share it. Before you export, there's just an Export button in its place.
 
 ---
 
@@ -80,18 +80,18 @@ The scoring isn't perfect. It reads transcripts, not video — so a moment where
 
 ---
 
-## RP contexts — making the scores actually make sense
+## World contexts — making the scores actually make sense
 
-If you play on a roleplay server, the AI has no idea who your character is, what server you're on, or what the ongoing story is. Without context, it's scoring a transcript of strangers talking — it might miss that "Jameson getting arrested" is significant because Jameson has been evading the police for six sessions.
+If you play on a roleplay server, the LLM has no idea who your character is, what server you're on, or what the ongoing story is. Without context, it's scoring a transcript of strangers talking — it might miss that "Jameson getting arrested" is significant because Jameson has been evading the police for six sessions.
 
-**RP Contexts** let you give the AI that background. You create a named context (e.g. "Public Server") and fill in:
+**World contexts** let you give the LLM that background. You create a named context (e.g. "Public Server") and fill in:
 
 - What the server/setting is ("FiveM RP server, semi-serious crime and civilian life")
 - Who your character is ("Marcus Webb, mid-level fixer, known for deflecting with humor")
 - Who else shows up regularly ("Detective Reyes — runs the anti-corruption unit, has history with Marcus")
 - Any other notes the AI should know
 
-Once you've set one up you can assign it to any session at ingest time or afterward. The AI then uses all of that when scoring, so it knows what's a throwaway line and what's actually a significant story beat.
+Once you've set one up you can assign it to any session at analysis time or afterward. The AI then uses all of that when scoring, so it knows what's a throwaway line and what's actually a significant story beat.
 
 You can have multiple contexts for different servers or campaigns and mix them on a single session if you were doing crossover stuff.
 
@@ -113,13 +113,13 @@ The wide range within the GPU column is the Whisper model choice — `base` is f
 
 ### What's actually taking the time?
 
-Almost all of it is transcription (Whisper listening to your audio). Everything else — audio energy analysis, finding scene cuts, AI scoring — adds maybe 2–5 minutes on top regardless of session length. The scoring step is fast because it's just reading text, not processing video.
+Almost all of it is transcription (Whisper listening to your audio). Everything else — audio energy analysis, finding scene cuts, LLM scoring — adds maybe 2–5 minutes on top regardless of session length. The scoring step is fast because it's just reading text, not processing video.
 
 ---
 
 ## Choosing a Whisper model
 
-The model selector appears in the ingest options. In order from fastest to slowest (and least to most accurate):
+The model selector appears in the analysis options. In order from fastest to slowest (and least to most accurate):
 
 **`tiny`** — Very fast, noticeably rough. Fine for a quick first pass if you just want timestamps.
 
@@ -135,12 +135,12 @@ The model selector appears in the ingest options. In order from fastest to slowe
 
 ## Exporting clips
 
-Hit the Export button on any clip (or press `E`). By default it does a **stream copy** — it pulls the clip out of the original file without re-encoding it, which means it finishes in 1–5 seconds and the video quality is identical to the source.
+Hit the Export button on any clip (or press `E`). By default it does a **quick export** — it pulls the clip out of the original file without re-encoding it, which means it finishes in 1–5 seconds and the video quality is identical to the source.
 
 You can optionally:
-- **Include subtitles** — a separate SRT file is written alongside the clip, which most video players and editors pick up automatically
-- **Burn subtitles in** — bakes the text into the video itself, useful if you're sharing somewhere that doesn't support sidecar files (requires re-encoding, takes longer)
-- **Re-encode** — forces a frame-accurate cut instead of snapping to the nearest keyframe; only matters if the beginning/end of your clip feels like it starts or ends a fraction of a second off
+- **Include captions** — a separate SRT file is written alongside the clip, which most video players and editors pick up automatically
+- **Bake captions in** — bakes the text into the video itself, useful if you're sharing somewhere that doesn't support sidecar files (requires re-encoding, takes longer)
+- **Precise export** — forces a frame-accurate cut instead of snapping to the nearest keyframe; only matters if the beginning/end of your clip feels like it starts or ends a fraction of a second off
 
 Exports go to a folder called `exports` inside your project directory.
 
@@ -148,7 +148,7 @@ Exports go to a folder called `exports` inside your project directory.
 
 ## Building a highlight reel
 
-Once you've approved a set of clips, the **Demo Reel** button in the header compiles them into a single video with title cards and transitions between clips. You pick:
+Once you've approved a set of clips, the **Build Reel** button in the header compiles them into a single video with title cards and transitions between clips. You pick:
 
 - Which sessions to pull from (or just "all approved clips")
 - Transition style (fade, dissolve, wipe, slide, or hard cut)
@@ -164,6 +164,6 @@ The reel uses the clip descriptions as title card text, so the output is already
 
 **It doesn't edit video.** It finds and exports clips; it doesn't add effects, color grade, or do anything fancy with the video itself. Take the exports into your editor of choice if you want that.
 
-**It doesn't upload anything.** Everything stays on your machine. The flip side is that you need Ollama installed and running locally for the AI scoring to work — it's a one-time setup, but it's a setup.
+**It doesn't upload anything.** Everything stays on your machine. The flip side is that you need Ollama installed and running locally for the LLM scoring to work — it's a one-time setup, but it's a setup.
 
 **The scores are a starting point, not a verdict.** A 0.3-scoring clip might be the funniest moment of the session but happen to be mostly non-verbal. Always sort by score to find the obvious candidates fast, then flip through the lower-scoring ones in timeline order before you close out.

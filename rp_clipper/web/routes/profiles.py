@@ -1,8 +1,8 @@
 """
-Track-label profile CRUD routes.
+Track layout CRUD routes.
 
-Profiles define how each audio track is labelled and whether it participates in
-transcription and scoring. The built-in ``__default__`` profile (combined track
+Track layouts define how each audio track is labelled and whether it participates
+in transcription and scoring. The built-in ``__default__`` layout (combined track
 only) is synthesised at request time and cannot be modified or deleted.
 """
 from __future__ import annotations
@@ -40,7 +40,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     def save_profile(body: ProfileSave):
         from rp_clipper.config import save_profile as _save
         if not body.name or body.name.startswith("__"):
-            raise HTTPException(400, "Invalid profile name — names beginning with __ are reserved")
+            raise HTTPException(400, "Invalid track layout name — names beginning with __ are reserved")
         _save(body.name, body.assignments)
         return {"name": body.name}
 
@@ -48,7 +48,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     def delete_profile(name: str):
         from rp_clipper.config import delete_profile as _delete
         if name.startswith("__"):
-            raise HTTPException(400, "Built-in profiles cannot be deleted")
+            raise HTTPException(400, "Built-in track layouts cannot be deleted")
         _delete(name)
         return {"deleted": name}
 

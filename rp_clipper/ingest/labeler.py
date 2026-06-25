@@ -2,8 +2,8 @@
 Interactive track labeling.
 
 Presents the user with a Rich table of detected audio streams and
-lets them assign a label to each one.  Profiles can be saved and
-re-applied to future videos that share the same track layout.
+lets them assign a role to each one.  Track layouts can be saved and
+re-applied to future recordings that share the same track arrangement.
 """
 from __future__ import annotations
 
@@ -73,7 +73,7 @@ def label_tracks(
         if result:
             return result
         console.print(
-            f"  [yellow]Profile '{profile_name}' not found or track count mismatch "
+            f"  [yellow]Track layout '{profile_name}' not found or track count mismatch "
             f"— falling back to interactive labeling.[/yellow]"
         )
 
@@ -91,7 +91,7 @@ def _label_non_interactive(streams, profile_name: Optional[str]) -> list[dict]:
         if result:
             return result
         console.print(
-            f"  [yellow]Profile '{profile_name}' not found or track count mismatch "
+            f"  [yellow]Track layout '{profile_name}' not found or track count mismatch "
             f"({len(streams)} tracks) — using track 1 as combined.[/yellow]"
         )
 
@@ -128,14 +128,14 @@ def _label_interactive(video_info: VideoInfo) -> list[dict]:
 
     if profiles:
         profile_keys = list(profiles.keys())
-        console.print("\n  [bold]Saved profiles:[/bold]")
+        console.print("\n  [bold]Saved track layouts:[/bold]")
         for i, name in enumerate(profile_keys, 1):
             p = profiles[name]
             console.print(f"    [{i}] {name}  ({p['num_tracks']} tracks)")
         console.print(f"    [0] Label manually")
 
         choice = IntPrompt.ask(
-            "  Use a saved profile?",
+            "  Use a saved track layout?",
             default=0,
         )
         if 1 <= choice <= len(profile_keys):
@@ -189,8 +189,8 @@ def _label_interactive(video_info: VideoInfo) -> list[dict]:
 
     _print_assignment_summary(assignments)
 
-    if Confirm.ask("\n  Save these assignments as a profile for future videos?", default=False):
-        name = Prompt.ask("  Profile name").strip()
+    if Confirm.ask("\n  Save these assignments as a track layout for future recordings?", default=False):
+        name = Prompt.ask("  Track layout name").strip()
         if name:
             positional = [
                 {
@@ -202,7 +202,7 @@ def _label_interactive(video_info: VideoInfo) -> list[dict]:
                 for idx, a in enumerate(assignments)
             ]
             save_profile(name, positional)
-            console.print(f"  [green]Profile '{name}' saved.[/green]")
+            console.print(f"  [green]Track layout '{name}' saved.[/green]")
 
     return assignments
 
@@ -230,7 +230,7 @@ def _apply_profile(name: str, streams) -> Optional[list[dict]]:
             "do_score": pos_assign.get("do_score", label not in DEFAULT_SKIP_SCORE),
         })
 
-    console.print(f"  [green]Applied profile '{name}'[/green]")
+    console.print(f"  [green]Applied track layout '{name}'[/green]")
     _print_assignment_summary(assignments)
     return assignments
 

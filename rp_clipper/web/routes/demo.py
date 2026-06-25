@@ -61,7 +61,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                 q = q.filter_by(video_id=req.video_id)
             clips = q.order_by(ClipCandidate.score_overall.desc()).all()
             if not clips:
-                raise HTTPException(400, "No approved clips found to compile into a demo reel")
+                raise HTTPException(400, "No approved clips found to compile into a highlight reel")
         finally:
             db.close()
 
