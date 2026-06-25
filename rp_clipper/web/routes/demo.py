@@ -7,7 +7,9 @@ Validation at the start step prevents starting a long render only to fail early.
 """
 from __future__ import annotations
 
+import re
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -84,5 +86,34 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         if not ctx.demo_cmd:
             raise HTTPException(400, "No demo queued. Call /api/demo/start first.")
         return await subprocess_sse(ctx.demo_cmd, ctx.project_dir)
+
+    _clip_export_pat = re.compile(r"_clip\d+_")
+
+    @router.get("/api/demo/list")
+    def list_reels():
+        """Return demo reel files from the export directory, newest first.
+
+        Excludes individual clip exports (which contain '_clip<id>_' in the name).
+        """
+        if not ctx.export_dir.exists():
+            return []
+        reels = []
+        for f in ctx.export_dir.iterdir():
+            if f.suffix != ".mkv":
+                continue
+            if _clip_export_pat.search(f.name):
+                continue
+            st = f.stat()
+            reels.append({
+                "filename": f.name,
+                "url": f"/media/exports/{f.name}",
+                "size_mb": round(st.st_size / 1_048_576, 1),
+                "date": datetime.fromtimestamp(st.st_mtime).strftime("%Y-%m-%d %H:%M"),
+                "mtime": st.st_mtime,
+            })
+        reels.sort(key=lambda r: r["mtime"], reverse=True)
+        for r in reels:
+            del r["mtime"]
+        return reels
 
     return router

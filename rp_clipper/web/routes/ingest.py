@@ -165,12 +165,14 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     @router.get("/api/status")
     def server_status():
         """Return whether any processing is currently active (ingest, scoring, timeline, etc.)."""
+        from rp_clipper.web.app import _SERVER_START
         proc = ctx.ingest_proc
         ingest_running = proc is not None and proc.returncode is None
         return {
             "any_running": ingest_running or ctx.active_jobs > 0,
             "ingest_running": ingest_running,
             "active_jobs": ctx.active_jobs,
+            "version": f"Development · started {_SERVER_START}",
         }
 
     @router.get("/api/ingest/status")

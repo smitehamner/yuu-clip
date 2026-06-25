@@ -54,7 +54,7 @@
 - Clip detail: video player, score bars, description, transcript excerpt
 - Approve / Reject / Reset workflow with status dot
 - Export clip via SSE progress stream
-- Score All button with SSE progress
+- ~~Score All button with SSE progress~~ — removed from UI; CLI-only via `rp-clip score`
 - Ingest modal: native OS file picker, probe + time estimates, warning threshold
 - Step-by-step progress indicator in header during jobs
 - Profile manager modal: create/edit/delete profiles
@@ -68,51 +68,161 @@
 - Re-score individual clip — "Re-score" button in clip detail; SSE; backend `GET /api/clips/{id}/rescore`
 - Keyboard shortcuts — A/R/Space/E/←→; `?` key opens About panel
 - About / Credits modal — licencing notice, dependency table, keyboard shortcut cheatsheet
-- `GET /api/status` — reports `any_running`, `ingest_running`, `active_jobs` (covers all SSE jobs, not just ingest)
+- `GET /api/status` — reports `any_running`, `ingest_running`, `active_jobs`, `version` (covers all SSE jobs, not just ingest)
+- App footer bar — VS Code-style thin bar at bottom; version string bottom-left from `/api/status`
+- Sidebar score icons — emoji + number line replacing sub-score bars: `⭐ 0.74  😂 0.8  🎭 0.4  ⚔️ 0.6`; 4px colored left border per card (gradient on selected sort score; muted on rejected)
+- Sort by sub-score — dropdown extended: `⭐ Overall ↓ · 😂 Funny ↓ · 🎭 Dramatic ↓ · ⚔️ Action ↓ · Timeline`; `localStorage` persistence; border color tracks selection
+- Filter tabs — `All · Pending · Approved · Rejected` above clip list; resets to All on video switch
+- Rejected clip undo — toast + `Ctrl+Z` reverts last status change within 5 s
+- Rename "Slug" → "ID" in Context Manager
 
 ### Near-term
 
-- [ ] **Editable LLM fields + regenerate-with-compare** *(next up — confirmed priority #1)*
-  - All LLM-generated text fields (video title, video summary, clip description short/long) are
-    inline-editable; user clicks to edit, saves explicitly
-  - DB stores `*_original` (first LLM output, never overwritten) and `*_user` (current value;
-    starts null, falls back to original for display)
-  - "Regenerate" re-runs the LLM and shows a side-by-side diff — current on left, new suggestion
-    on right; user picks one or keeps editing; nothing overwrites until confirmed
-  - Clip start/end time is also editable as a numeric field (or drag handles once Clip trim lands)
+- [ ] **Editable LLM fields + regenerate-with-compare** *(priority #1)*
+  - `*_original` + `*_user` column split on all four fields: `title`, `summary`, `description`,
+    `description_long`. Display: `*_user ?? *_original`
+  - `*_original` updated only when user explicitly accepts a regeneration into it
+  - Per-field `...` kebab menu → diff modal: current value left, new LLM output right; user can
+    edit the right panel before committing
+  - Modal actions: **Accept New** (sets `*_original` = new, clears `*_user`), **Accept as Edit**
+    (preserves `*_original`, sets `*_user` = new), **Discard** (no changes)
+  - Clip start/end time editable via combo input: offset (±s from detected timestamp), absolute
+    seconds, or MM:SS.s — all stored as `start_offset` / `end_offset` floats on `ClipCandidate`;
+    original `start_time` / `end_time` are immutable
 
-- [ ] **Controls UI polish** — split the current "?" About button into two separate header buttons:
-  a "Controls" button (keyboard shortcut cheatsheet only) and an "About" button (licencing +
-  credits). "Controls" label is clearer than "?".
+- [ ] **Header hamburger menu** *(absorbs "Controls UI polish")*
+  - Trim header to: `+ Ingest` · `Build Reel` · `≡` (hamburger trigger)
+  - **Score All button removed from UI** — CLI-only via `rp-clip score`; add interactive
+    confirmation + GPU time warning to the CLI command
+  - Hamburger dropdown (icon + text per item):
+    `🎭 Contexts` · `⌨ Controls` · `ℹ About` · `⬇ Download Log` · `⚙ Settings`
+  - Controls modal: keyboard shortcut cheatsheet (replaces "?" button)
+  - About modal: licensing + credits (unchanged content, new entry point)
 
-- [ ] **Auto-approve + batch export** — "Export All Above Score" button; configurable score
-  threshold; runs export queue in background with SSE progress panel
+- [ ] **Confirmation dialogs on destructive actions**
+  - All five existing `confirm()` calls converted to modals: delete video, delete clip,
+    cancel ingest, delete profile, delete context
+  - New confirmation modals for: re-score clips per video (expensive), reset approvals per video
+  - Reset approvals: new button in video detail header; modal shows "will reset N clips to Pending"
+  - `confirm()` / `alert()` banned going forward — always use the app modal pattern
 
-- [ ] **Hot-word / phrase config** — new `[hotwords]` config section; editable list in the
-  Settings page; clips containing a match get a score boost and a tag; sidebar filter by phrase.
-  Each entry specifies its own match mode: exact, case-insensitive, or LLM-semantic (ask Ollama
-  whether the clip relates to the phrase)
+- [ ] **Timeline interval picker**
+  - "Generate Timeline" opens a mini pre-generation settings modal:
+    - Interval: number input + unit selector (seconds / minutes)
+    - Video length hint shown: "Video is 45 m — intervals longer than this produce one bucket"
+    - Planned future slots: scene boundaries as markers toggle, energy overlay toggle
+  - Min 10 s, default 15 min (900 s); no hard max cap (hint only)
+  - Persisted in `config.json`: `ui_timeline_interval_seconds` + `ui_timeline_interval_unit`
+  - YAML migration deferred to Settings page phase
 
-- [ ] **Related clips** — "Find Similar" button in clip detail; sends `description_long` to Ollama
-  with all other clip descriptions and returns a ranked list. Store top-N results on
-  `ClipCandidate` with a `related_clips_json` column and a `related_clips_at` timestamp, so the
-  user can see at a glance whether results are stale. User controls N and can trigger a re-search.
+- [ ] **Active-generation indicator**
+  - Extend `/api/status` with `generating: [{"kind": "summary"|"description"|..., "video_id": N}
+    | {"kind": "...", "clip_id": N}]`; server tracks active jobs in `ProjectContext`
+  - Frontend polls on page load; matches entries to fields and lights up spinners
+  - First generation (empty field): "Generating…" text + spinner in the empty slot
+  - Regeneration (field has content): existing content stays visible, spinner badge overlaid
+  - SSE start/end events set/clear the per-field loading state
 
-- [ ] **Clip deduplication** — merge overlapping candidates (from different tracks or overlapping
-  windows) into one; keep highest-scoring source transcript
+- [ ] **Export settings** *(ships before batch export)*
+  - Single "Export" button opens a pre-export settings modal:
+    - Retranscribe: checkbox + model picker (reuses existing retranscribe options)
+    - Rescore after retranscribe: checkbox
+    - Output format: container picker (MKV default, MP4, etc.)
+    - Burn subtitles: checkbox
+  - Same modal reused by batch export
 
-- [ ] **Rejected clip undo / filter tab** — one-click undo for last status change; "Rejected" filter
-  tab in sidebar so rejected clips don't vanish permanently *(UX debt: Zeigarnik Effect)*
+- [ ] **Batch export** *(requires export settings)*
+  - "Export Clips" button in video detail panel → threshold modal:
+    - Score threshold: slider + number input
+    - Distribution preview: "14 clips above 0.6, 3 already exported → 11 will export"
+    - "Re-export already exported clips" checkbox
+  - Launches export settings modal before queuing
+  - Single SSE progress stream in header: "Exporting 3 of 11…"
+  - Collapsible per-clip status panel below the header; click the stream line to expand
+
+- [ ] **Auto-approve (simple)**
+  - "Approve all above score" button in video detail panel
+  - Threshold input + confirmation modal showing clip count
+  - Filter + bulk-select in sidebar deferred to the search + filter feature
+
+- [ ] **Settings page** *(promoted from medium-term)*
+  - Accessible via `⚙ Settings` in hamburger menu — replaces the main content area (not a modal)
+  - Auto-save on change; inline consequence notes where needed:
+    "Takes effect on next rescore" / "Takes effect on next ingest"
+  - Sections: `UI` · `Scoring` · `Whisper` · `Ollama` · `Export` · `Hot-words`
+  - Covers: timeline interval, score weights, scene mode, Whisper defaults,
+    Ollama model/host/timeout, export format default, hot-words list, related clips top-N
+  - Config format stays JSON for now; YAML with nested sections deferred
+
+- [ ] **Hot-word / phrase config** *(requires Settings page)*
+  - Each entry: phrase, match mode (exact / case-insensitive / LLM-semantic), score boost (float),
+    boost target (overall or a specific sub-score)
+  - LLM-semantic is opt-in per entry with a visible GPU time warning
+  - Exact + case-insensitive matching runs at ingest and rescore time
+  - LLM-semantic runs via explicit per-video "Scan" button
+  - Tags on sidebar card: pills if ≤3 matches, count pill `🔥 4` if more; full list in detail panel
+  - Lives in Settings page under the `Hot-words` section
+
+- [ ] **Related clips**
+  - "Find Similar" button in clip detail opens a scope-selection modal:
+    current video pre-checked; other processed videos listed as individual checkboxes (no select-all)
+  - Fires Ollama call with `description_long` + selected clips' descriptions
+  - Results stored on `ClipCandidate`: `related_clips_json` + `related_clips_at` timestamp
+  - "Related Clips" section in detail panel: ranked clickable links; stale indicator if older
+    than last rescore
+  - Top-N configured in Settings
+
+- ~~**Clip deduplication**~~ — **On hold**: design unclear; revisit after transcript editing is stable
 
 ### Medium-term
+
+- [ ] **Image-based clip analysis** — optional, clip-only feature: sample frames at a configurable
+  interval and send them to a vision model to enrich clip descriptions and scoring. Requires a
+  separately downloadable vision model (permissive licence required — clips may be monetized by
+  users). Configurable: on/off toggle, frames-per-clip frequency. Design questions: separate
+  LLM call after scoring, or integrated into the scoring pipeline? Store results on
+  `ClipCandidate` with a timestamp so stale results are detectable.
+
+- [ ] **Model selection and capability gating** — research and recommend text LLM models that are
+  better-tuned for clip description/scoring and carry permissive licences suitable for monetized
+  content. Similarly for the vision model (see image-based analysis above). Disabled UI options
+  (e.g. "Generate descriptions", "Image analysis") should detect whether the required model is
+  installed and show a prompt to the install/setup function if not.
+
+- [ ] **Demo reel: random transition + advanced editor** — add "random" as a transition option in
+  the demo reel builder. Separately, add an advanced clip list editor: reorder approved clips via
+  drag-and-drop, add clips from rejected or unrated pool, remove individual clips before compiling.
+
+- [ ] **Demo reel: timestamp-based default output filename** — default output name should include a
+  timestamp (e.g. `highlights_20260625_143022.mkv`) to avoid silently overwriting previous reels.
+
+- [ ] **Export: match source format by default** — when exporting a clip, default the container and
+  codec to match the source video instead of always writing MKV. User overrides are a future option.
+
+- [ ] **Quick Export vs Full Export** — "Quick Export" re-encodes just the clip segment with no
+  title card or transcript overlay; expected to be fast enough to use as an in-app preview.
+  "Full Export" is the existing behavior. No disk-filling auto-preview cache — the user must
+  explicitly trigger an export. Option to save to a custom path (user's choice about removable
+  drives and access implications).
+
+- [ ] **SRT import / external subtitle support** — detect embedded subtitle tracks and `.srt`
+  sidecars adjacent to the source file; offer them as alternatives to running Whisper.
+  Also allow the user to point to an external `.srt` file. Eliminates Whisper CPU time for
+  users who already have subtitles from another source.
+
+- [ ] **Batch processing status panel** — once batch export or auto-approve lands, add a collapsible
+  status summary bar at the top of the clips view showing active/queued/completed job counts.
+  Clicking the bar expands per-job detail. Long-term: move the raw log view behind a "Developer"
+  toggle so end users see only UI-friendly status.
+
+- [ ] **Laugh / non-speech sound detection** — detect laughter and notable non-speech audio events
+  (sound effects, reactions) as a separate scoring signal from the Funny sub-score, not a modifier
+  to it. Surfaced as its own attribute so users can filter/sort by it independently.
 
 - [ ] **Transcript editing** — inline editable text area for `TranscriptSegment.text`; lets the user
   fix character names, misspellings, and game-specific jargon before re-scoring. Deferred from
   near-term because it needs per-speaker segment grouping first (see Speaker diarization below) —
   without that, the transcript is one undifferentiated wall of text and editing is awkward.
-
-- [ ] **Settings page** — friendly form UI (not a raw text editor) for config values: Ollama model,
-  score weights, Whisper defaults, scene mode, hot-words; writes back to `config.toml`
 
 - [ ] **Clip trim (in/out adjust)** — drag handles on the player timeline to set new start/end before
   exporting; stores trim offsets on `ClipCandidate`
@@ -147,11 +257,18 @@
 - [ ] **Detail panel chunking** — group the clip detail panel into cards: Summary → Actions →
   Transcript, rather than a flat list *(UX debt: Chunking)*
 
-- [ ] **Clip score visual distinction** — coloured left border on sidebar items for clips above a
-  configurable score threshold *(UX debt: Von Restorff Effect)*
+---
 
-- [ ] **Status label in detail panel** — show "Approved / Rejected / Pending" as text alongside the
-  status dot *(UX debt: Law of Prägnanz)*
+## Phase 3.5 — Performance and storage guidance (Pending)
+
+> Informational/documentation work needed before distribution.
+
+- [ ] **Performance and storage notes** — document expected install size, per-session disk
+  usage (audio extracts, Whisper models, exports), and how quickly disk fills with typical use.
+  Include recommended specs (RAM, GPU, storage type). Note the SSD vs. external HDD tradeoff:
+  large source files on an external drive is common, but the working project directory
+  (DB, extracts, exports) benefits from local SSD. The project folder location picker in the
+  first-run wizard should surface this recommendation.
 
 ---
 
@@ -192,6 +309,9 @@ Python backend would run as a bundled subprocess.
 
 - First-run wizard: detect FFmpeg, check GPU / CUDA, check Ollama, pick project folder; option in
   main UI to re-run the wizard
+- Wizard assists with selecting and downloading Whisper models, text LLM models, and (optionally)
+  vision models — with licence and hardware guidance for each
+- Disabled UI options must clearly indicate which prerequisite is missing and link to the wizard
 - One-click installer / bundled release
 
 ---
@@ -200,6 +320,8 @@ Python backend would run as a bundled subprocess.
 
 Items that are wanted long-term but not yet assigned to a phase. Roughly ordered by how much they
 unlock downstream.
+
+- [ ] **Linux compatibility testing** — verify the full pipeline (ingest, transcription, scoring, web UI, export) works on a Linux host; identify any Windows-only assumptions in path handling, file pickers, or process management. Target before any public release or packaging.
 
 - [ ] **Speaker diarization** — identify who is speaking and when; assign speaker labels to
   transcript segments. Unlocks: transcript editing (speaker-grouped), per-speaker subtitle styles,
@@ -264,6 +386,13 @@ unlock downstream.
   walkthrough, keyboard shortcuts, export options. Low priority until the UI is more stable.
 
 ---
+
+## Known issues (fixed)
+
+- **`_probe_duration` returns `'N/A'`** — `ffprobe stream=duration` returns the literal string
+  `N/A` for some containers (e.g. MKV exports); the fallback to `format=duration` was skipped
+  because the empty-string check didn't catch `'N/A'`. Fixed in `demo.py` — both the stream and
+  format probes now treat `N/A` as missing, with a clear error if both fail.
 
 ## Known issues (code quality)
 

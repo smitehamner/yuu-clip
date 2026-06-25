@@ -48,15 +48,19 @@ def _find_font() -> Optional[str]:
 # Title card generation
 # ---------------------------------------------------------------------------
 
-def _esc(text: str) -> str:
-    """Escape text for ffmpeg drawtext value."""
+def _esc(path: str) -> str:
+    """Escape a path for use as a single-quoted ffmpeg filter option value.
+
+    Colons must be escaped as \\: so ffmpeg does not treat them as option
+    separators (relevant for Windows drive-letter paths like C:/...).
+    """
     return (
-        text.replace("\\", "\\\\")
-            .replace("'",  "\\'")
+        path.replace("\\", "\\\\")
+            .replace("'",  "'\\''")
             .replace(":",  "\\:")
             .replace("%",  "%%")
-            .replace("\n", " ")
     )
+
 
 
 def _make_title_card(
@@ -68,42 +72,50 @@ def _make_title_card(
     fps: float = 30.0,
     sample_rate: int = 48000,
 ) -> None:
-    """Render a black title card with centred white text lines to *output_path*."""
+    """Render a black title card with centred white text lines to *output_path*.
+
+    Text lines are written to temp files and referenced via drawtext's
+    textfile= option so that apostrophes, colons, and other special characters
+    in descriptions never need escaping in the filter string.
+    """
     font_path = _find_font()
-    # fontfile needs colon-escaped path in the FFmpeg filter string
     font_spec = f":fontfile='{_esc(font_path)}'" if font_path else ""
 
     line_gap = 16
     total_h = sum(fs + line_gap for _, fs in lines) - line_gap
     y_start = (height - total_h) // 2
 
-    drawtext_filters = []
-    y = y_start
-    for text, fs in lines:
-        drawtext_filters.append(
-            f"drawtext=text='{_esc(text)}'"
-            f":fontcolor=white:fontsize={fs}"
-            f":x=(w-text_w)/2:y={y}"
-            f"{font_spec}"
-        )
-        y += fs + line_gap
+    with tempfile.TemporaryDirectory() as work:
+        work_dir = Path(work)
+        drawtext_filters = []
+        y = y_start
+        for i, (text, fs) in enumerate(lines):
+            txt_file = work_dir / f"line{i}.txt"
+            txt_file.write_text(text, encoding="utf-8")
+            txt_path = _esc(str(txt_file).replace("\\", "/"))
+            drawtext_filters.append(
+                f"drawtext=textfile='{txt_path}'"
+                f":fontcolor=white:fontsize={fs}"
+                f":x=(w-text_w)/2:y={y}"
+                f"{font_spec}"
+            )
+            y += fs + line_gap
 
-    vf = ",".join(drawtext_filters)
-
-    cmd = [
-        "ffmpeg", "-y", "-loglevel", "error",
-        "-f", "lavfi", "-i",
-        f"color=black:size={width}x{height}:rate={fps}:duration={duration}",
-        "-f", "lavfi", "-i",
-        f"anullsrc=channel_layout=stereo:sample_rate={sample_rate}",
-        "-vf", vf,
-        "-t", str(duration),
-        "-c:v", "libx264", "-preset", "fast", "-crf", "18",
-        "-c:a", "aac", "-b:a", "128k",
-        "-pix_fmt", "yuv420p",
-        str(output_path),
-    ]
-    subprocess.run(cmd, check=True)
+        vf = ",".join(drawtext_filters)
+        cmd = [
+            "ffmpeg", "-y", "-loglevel", "error",
+            "-f", "lavfi", "-i",
+            f"color=black:size={width}x{height}:rate={fps}:duration={duration}",
+            "-f", "lavfi", "-i",
+            f"anullsrc=channel_layout=stereo:sample_rate={sample_rate}",
+            "-vf", vf,
+            "-t", str(duration),
+            "-c:v", "libx264", "-preset", "fast", "-crf", "18",
+            "-c:a", "aac", "-b:a", "128k",
+            "-pix_fmt", "yuv420p",
+            str(output_path),
+        ]
+        subprocess.run(cmd, check=True)
 
 
 # ---------------------------------------------------------------------------
@@ -123,14 +135,15 @@ def _probe_duration(path: Path) -> float:
         capture_output=True, text=True, check=True,
     )
     out = result.stdout.strip()
-    if not out:
-        # Fallback: try container duration
+    if not out or out == "N/A":
         result2 = subprocess.run(
             ["ffprobe", "-v", "error", "-show_entries", "format=duration",
              "-of", "default=noprint_wrappers=1:nokey=1", str(path)],
             capture_output=True, text=True, check=True,
         )
         out = result2.stdout.strip()
+    if not out or out == "N/A":
+        raise ValueError(f"ffprobe could not determine duration for {path}")
     return float(out)
 
 

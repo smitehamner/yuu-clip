@@ -9,10 +9,11 @@ from __future__ import annotations
 import asyncio
 import os
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import FastAPI
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from rp_clipper.log import configure_logging, get_logger
@@ -21,6 +22,8 @@ from rp_clipper.web.routes import contexts, demo, ingest, logs, profiles, videos
 
 _HERE = Path(__file__).parent
 _log  = get_logger(__name__)
+
+_SERVER_START = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
 _ROUTE_MODULES = (videos, ingest, profiles, demo, logs, contexts)
 
@@ -63,6 +66,10 @@ def create_app(project_dir: Path) -> FastAPI:
     @app.get("/", response_class=HTMLResponse)
     async def index():
         return FileResponse(_HERE / "static" / "index.html")
+
+    @app.get("/api/version")
+    async def version():
+        return JSONResponse({"version": f"Development – {_SERVER_START}"})
 
     app.mount(
         "/media/exports",

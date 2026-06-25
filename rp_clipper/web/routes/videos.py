@@ -272,7 +272,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     def list_clips(
         video_id: int,
         status: Optional[str] = Query(None),
-        sort: str = Query("score", description="score | timeline"),
+        sort: str = Query("score", description="score | funny | dramatic | action | timeline"),
     ):
         db = ctx.get_db()
         try:
@@ -282,7 +282,18 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             q = db.query(ClipCandidate).filter_by(video_id=video_id)
             if status:
                 q = q.filter_by(status=status)
-            order = ClipCandidate.start_ms.asc() if sort == "timeline" else ClipCandidate.score_overall.desc()
+            _sort_col = {
+                "funny":    ClipCandidate.score_funny,
+                "dramatic": ClipCandidate.score_dramatic,
+                "action":   ClipCandidate.score_action,
+                "timeline": None,
+            }
+            if sort == "timeline":
+                order = ClipCandidate.start_ms.asc()
+            elif sort in _sort_col:
+                order = _sort_col[sort].desc()
+            else:
+                order = ClipCandidate.score_overall.desc()
             clips = q.order_by(order).all()
             return [_clip_dict(c, export_dir=ctx.export_dir, video=video) for c in clips]
         finally:
