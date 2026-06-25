@@ -84,14 +84,14 @@
   .video-item .name { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .video-item .meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
   .clip-item { display: flex; align-items: center; gap: 8px; }
-  .clip-item .score-badge { font-size: 11px; font-weight: 700; color: var(--overall); width: 36px; flex-shrink: 0; }
+  .clip-item .score-badge { font-size: 11px; font-weight: 700; color: var(--overall); width: 52px; flex-shrink: 0; display: flex; align-items: center; gap: 3px; }
   .clip-item .clip-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
   .clip-item .status-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
   .dot-approved { background: var(--green); }
   .dot-rejected { background: var(--red); }
   .dot-pending  { background: var(--muted); }
   .sidebar-divider { height: 1px; background: var(--border); margin: 4px 0; }
-  .clip-miniscores { display: flex; gap: 4px; padding: 3px 0 0 44px; }
+  .clip-miniscores { display: flex; gap: 4px; padding: 3px 0 0 60px; }
   .mini-bar-wrap { flex: 1; display: flex; align-items: center; gap: 3px; }
   .mini-bar-label { font-size: 9px; color: var(--muted); width: 10px; flex-shrink: 0; }
   .mini-bar-bg { flex: 1; height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; }
@@ -119,6 +119,14 @@
   .clip-header h2 { font-size: 17px; font-weight: 600; }
   .clip-header .time { color: var(--muted); font-size: 13px; }
   .description { font-style: italic; color: var(--accent2); font-size: 14px; line-height: 1.5; }
+  .description-long { font-size: 13px; line-height: 1.75; color: #c8c8e0; background: var(--surface); padding: 10px 12px; border-radius: 6px; border: 1px solid var(--border); }
+  .video-title { font-size: 12px; color: var(--accent2); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* session timeline */
+  .timeline { display: flex; flex-direction: column; gap: 10px; }
+  .timeline-entry { display: flex; gap: 14px; padding: 8px 0; border-top: 1px solid var(--border); }
+  .timeline-entry:first-child { border-top: none; padding-top: 0; }
+  .timeline-stamp { font-size: 11px; font-weight: 600; color: var(--accent2); white-space: nowrap; min-width: 72px; padding-top: 2px; }
+  .timeline-text { font-size: 13px; line-height: 1.7; color: #c0c0d0; }
 
   /* score bars */
   .scores { display: grid; grid-template-columns: 90px 1fr 38px; gap: 5px 10px; align-items: center; }
@@ -140,21 +148,35 @@
 
   /* transcript */
   .section-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); }
-  .transcript { font-size: 13px; line-height: 1.7; color: #c0c0d0; white-space: pre-wrap; max-height: 160px; overflow-y: auto; background: var(--surface); padding: 10px 12px; border-radius: 6px; border: 1px solid var(--border); }
+  .transcript { font-size: 13px; line-height: 1.7; color: #c0c0d0; white-space: pre-wrap; background: var(--surface); padding: 10px 12px; border-radius: 6px; border: 1px solid var(--border); }
+
+  /* ── context chips ── */
+  .context-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-height: 26px; }
+  .context-chip { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 12px; background: rgba(124,106,247,.12); border: 1px solid rgba(124,106,247,.4); color: var(--accent); font-size: 12px; }
+  .chip-x { cursor: pointer; color: var(--muted); line-height: 1; }
+  .chip-x:hover { color: var(--red); }
+  .provenance-note { font-size: 11px; color: var(--muted); margin-top: 4px; line-height: 1.6; }
+  .provenance-stale { color: var(--yellow); }
+  .ctx-textarea { width: 100%; padding: 7px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 12px; resize: vertical; font-family: inherit; line-height: 1.5; }
 
   /* ── progress log ── */
-  .log-panel { position: fixed; bottom: 0; left: 0; right: 0; background: var(--surface); border-top: 1px solid var(--border); padding: 8px 14px; max-height: 180px; overflow-y: auto; font-family: monospace; font-size: 12px; color: var(--text); display: none; z-index: 100; }
+  .log-panel { flex-shrink: 0; background: var(--surface); border-top: 1px solid var(--border); font-family: monospace; font-size: 12px; color: var(--text); display: none; }
   .log-panel.visible { display: block; }
+  .log-header { display: flex; align-items: center; justify-content: space-between; padding: 5px 14px; cursor: pointer; border-bottom: 1px solid var(--border); user-select: none; }
+  .log-header:hover { background: var(--border); }
+  .log-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); }
+  .log-toggle { color: var(--muted); font-size: 11px; }
+  .log-body { padding: 8px 14px; max-height: 160px; overflow-y: auto; }
+  .log-panel.minimized .log-body { display: none; }
   .log-line { white-space: pre; padding: 1px 0; }
   .log-line.ok  { color: var(--green); }
   .log-line.err { color: var(--red); }
   .log-line.warn { color: var(--yellow); }
-  .log-close { position: sticky; top: 0; float: right; cursor: pointer; color: var(--muted); font-size: 16px; background: var(--surface); padding: 0 4px; }
 
   /* ── modals ── */
   .modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.7); z-index: 200; align-items: center; justify-content: center; }
   .modal-bg.visible { display: flex; }
-  .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 24px; width: 500px; display: flex; flex-direction: column; gap: 14px; }
+  .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 24px; width: 500px; max-height: 90vh; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
   .modal h3 { font-size: 16px; font-weight: 600; }
   .field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
   .field input, .field select { width: 100%; padding: 8px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 13px; }
@@ -183,6 +205,7 @@
   .t-medium { color: var(--yellow); }
   .t-warn   { color: #f0603c; }
   .estimate-total { border-top: 1px solid var(--border); margin-top: 6px; padding-top: 6px; display: flex; justify-content: space-between; align-items: center; font-weight: 600; }
+  .estimate-pct   { text-align: right; font-size: 12px; color: var(--muted); margin-top: 3px; }
   .total-warn-badge { font-size: 11px; background: rgba(240,96,60,.15); border: 1px solid #f0603c; color: #f0603c; border-radius: 4px; padding: 2px 8px; font-weight: 500; }
   .estimate-threshold { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; color: var(--muted); font-size: 11px; }
   .estimate-threshold input { width: 48px; padding: 2px 6px; background: var(--surface); border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-size: 11px; text-align: center; }
@@ -196,8 +219,11 @@
   <div class="job-status" id="job-status">
     <div class="spinner"></div>
     <div class="job-steps" id="job-steps"></div>
+    <button class="btn" id="btn-cancel-job" onclick="cancelJob()"
+            style="padding:2px 10px;font-size:12px;display:none">Cancel</button>
   </div>
   <div class="header-spacer" id="header-spacer"></div>
+  <button class="btn" id="btn-contexts" onclick="openContextManager()">Contexts</button>
   <button class="btn primary" id="btn-ingest" onclick="openIngestModal()">+ Ingest</button>
   <button class="btn" id="btn-score" onclick="scoreAll()">Score All</button>
   <button class="btn" id="btn-demo" onclick="openDemoModal()">Build Reel</button>
@@ -236,8 +262,13 @@
 
 <!-- Progress log -->
 <div class="log-panel" id="log-panel">
-  <span class="log-close" onclick="closeLog()">&#x2715;</span>
-  <div id="log-lines"></div>
+  <div class="log-header" onclick="toggleLog()">
+    <span class="log-title">Log</span>
+    <span class="log-toggle" id="log-toggle">&#9660;</span>
+  </div>
+  <div class="log-body" id="log-body">
+    <div id="log-lines"></div>
+  </div>
 </div>
 
 <!-- Toast container -->
@@ -257,10 +288,16 @@
     <div class="field">
       <label>Track profile</label>
       <div style="display:flex;gap:6px">
-        <select id="ingest-profile" style="flex:1"></select>
+        <select id="ingest-profile" style="flex:1" onchange="runEstimate()"></select>
         <button class="btn" onclick="openProfileManager()" title="Manage profiles">&#9881;</button>
       </div>
     </div>
+    <div class="field" id="ingest-context-field" style="display:none">
+      <label>RP Contexts <span style="color:var(--muted);font-weight:400">(optional)</span></label>
+      <div id="ingest-context-list"
+           style="display:flex;flex-direction:column;gap:5px;padding:6px 8px;background:var(--bg);border:1px solid var(--border);border-radius:6px;max-height:100px;overflow-y:auto"></div>
+    </div>
+
     <details class="advanced">
       <summary>Advanced options</summary>
       <div class="field">
@@ -393,15 +430,70 @@
   </div>
 </div>
 
+<!-- Context Manager Modal -->
+<div class="modal-bg" id="context-modal">
+  <div class="modal" style="width:680px;max-height:85vh">
+    <h3>RP Contexts</h3>
+    <p style="font-size:12px;color:var(--muted);margin-top:-6px">Named knowledge injected into LLM prompts — characters, setting, and RP world context.</p>
+    <div style="display:flex;gap:16px;min-height:300px">
+      <div style="width:180px;flex-shrink:0;display:flex;flex-direction:column;gap:6px">
+        <div id="context-list-items" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:4px"></div>
+        <button class="btn primary" style="font-size:12px;padding:6px 10px" onclick="openNewContext()">+ New Context</button>
+      </div>
+      <div id="context-editor" style="flex:1;display:none;flex-direction:column;gap:10px;overflow-y:auto">
+        <div class="field">
+          <label>Slug <span style="color:var(--muted);font-weight:400">(letters, digits, hyphens only — used as an ID)</span></label>
+          <input type="text" id="ce-slug" placeholder="una-server">
+        </div>
+        <div class="field">
+          <label>Display name</label>
+          <input type="text" id="ce-display-name" placeholder="Up-N-Atom (UnA)">
+        </div>
+        <div class="field">
+          <label>Setting</label>
+          <textarea class="ctx-textarea" id="ce-setting" rows="2" placeholder="FiveM RP server. You work at Up-N-Atom (UnA) convenience store."></textarea>
+        </div>
+        <div class="field">
+          <label>Your characters</label>
+          <textarea class="ctx-textarea" id="ce-your-chars" rows="2" placeholder="You play Yuu, a cashier at UnA."></textarea>
+        </div>
+        <div class="field">
+          <label>Frequent other characters <span style="color:var(--muted);font-weight:400">(not exhaustive)</span></label>
+          <textarea class="ctx-textarea" id="ce-other-chars" rows="2" placeholder="Peggy is the manager. Regulars include…"></textarea>
+        </div>
+        <div class="field">
+          <label>Notes</label>
+          <textarea class="ctx-textarea" id="ce-notes" rows="2" placeholder="Anything else the LLM should know about this RP context…"></textarea>
+        </div>
+        <div style="display:flex;gap:8px;padding-top:4px">
+          <button class="btn primary" onclick="saveContext()">Save</button>
+          <button class="btn" id="btn-delete-context" style="color:var(--red)" onclick="deleteContext()">Delete</button>
+          <button class="btn" style="margin-left:auto" onclick="cancelContextEdit()">Cancel</button>
+        </div>
+      </div>
+    </div>
+    <div style="margin-top:12px;display:flex;justify-content:flex-end">
+      <button class="btn" onclick="closeContextManager()">Close</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ── state ─────────────────────────────────────────────────────────────────────
-let activeVideoId = null;
-let activeClipId  = null;
-let _videos       = [];
-let _clips        = [];
+let activeVideoId   = null;
+let activeClipId    = null;
+let _videos         = [];
+let _clips          = [];
+let _ingestProfiles = [];
+let _contexts       = [];
+let _editingContextSlug = null;
 
 // ── boot ──────────────────────────────────────────────────────────────────────
+_loadContexts();
 loadVideos();
+// Log panel starts visible and minimized so it's always accessible
+document.getElementById('log-panel').classList.add('visible', 'minimized');
+document.getElementById('log-toggle').textContent = '▲';
 
 // ── videos ────────────────────────────────────────────────────────────────────
 async function loadVideos() {
@@ -422,16 +514,34 @@ async function loadVideos() {
   for (const v of videos) {
     const li = document.createElement('li');
     li.className = 'video-item' + (v.id === activeVideoId ? ' active' : '');
+    li.dataset.videoId = v.id;
+    const clipsPct = v.duration_ms > 0
+      ? ` (${Math.round(v.total_clip_ms / v.duration_ms * 100)}%)`
+      : '';
     li.innerHTML = `
-      <div class="name" title="${v.filename}">${v.filename}</div>
-      <div class="meta">${v.duration_hms} &middot; ${v.clip_count} clips (${v.approved} approved) &middot; ${v.status}</div>`;
-    li.onclick = () => {
-      document.querySelectorAll('#video-list li').forEach(l => l.classList.remove('active'));
-      li.classList.add('active');
-      selectVideo(v.id);
-    };
+      <div style="display:flex;align-items:flex-start;gap:4px">
+        <div style="flex:1;overflow:hidden">
+          <div class="name" title="${escHtml(v.filename)}">${escHtml(v.filename)}</div>
+          ${v.title ? `<div class="video-title" title="${escHtml(v.title)}">${escHtml(v.title)}</div>` : ''}
+          <div class="meta">${v.duration_hms} &middot; ${v.clip_count} clips &middot; ${_msToHms(v.total_clip_ms)} clipped${clipsPct}</div>
+          <div class="meta">${v.approved} approved &middot; ${v.status}</div>
+        </div>
+        <button class="btn ghost" style="padding:2px 5px;font-size:11px;flex-shrink:0;margin-top:2px"
+                title="Remove from rp-clipper (source file is NOT deleted)"
+                data-delete-video="${v.id}">✕</button>
+      </div>`;
     list.appendChild(li);
   }
+
+  list.onclick = e => {
+    const del = e.target.closest('[data-delete-video]');
+    if (del) { e.stopPropagation(); deleteVideo(parseInt(del.dataset.deleteVideo)); return; }
+    const li = e.target.closest('li[data-video-id]');
+    if (!li) return;
+    document.querySelectorAll('#video-list li').forEach(l => l.classList.remove('active'));
+    li.classList.add('active');
+    selectVideo(parseInt(li.dataset.videoId));
+  };
 
   const totalApproved = videos.reduce((n, v) => n + v.approved, 0);
   _updateDemoButton(totalApproved);
@@ -471,7 +581,181 @@ async function selectVideo(id) {
   activeClipId  = null;
   _clips = await fetch(`/api/videos/${id}/clips?sort=${_clipsSortParam()}`).then(r => r.json());
   renderClipList(_clips);
-  clearDetail();
+  const video = _videos.find(v => v.id === id);
+  if (video) renderVideoDetail(video, null);
+  else clearDetail();
+}
+
+function renderVideoDetail(video, savedTimeline) {
+  document.getElementById('player-area').innerHTML = '';
+  document.getElementById('detail').innerHTML = `
+    <div class="clip-header">
+      <h2>${escHtml(video.title || video.filename)}</h2>
+    </div>
+    <div style="color:var(--muted);font-size:13px">${video.duration_hms} &middot; ${video.clip_count} clips &middot; ${_msToHms(video.total_clip_ms)} clipped</div>
+
+    ${_renderContextSection(video)}
+
+    ${video.summary ? `
+      <div>
+        <div class="section-title" style="margin-bottom:6px">Session Summary</div>
+        <div class="description-long">${escHtml(video.summary)}</div>
+      </div>` : ''}
+
+    <div class="actions">
+      <button class="btn" onclick="summarizeVideo(${video.id}, this)">${video.summary ? 'Regenerate Summary' : 'Generate Summary'}</button>
+      <button class="btn" id="btn-generate-timeline" onclick="generateTimeline(${video.id})">${video.has_timeline ? 'Regenerate Timeline' : 'Generate Timeline'}</button>
+    </div>
+
+    <div id="timeline-section">
+      ${savedTimeline ? _renderTimelineHTML(savedTimeline) : ''}
+    </div>`;
+
+  if (!savedTimeline && video.has_timeline) {
+    fetch(`/api/videos/${video.id}`)
+      .then(r => r.json())
+      .then(v => {
+        if (v.timeline && v.timeline.length) {
+          document.getElementById('timeline-section').innerHTML = _renderTimelineHTML(v.timeline);
+        }
+      })
+      .catch(() => {});
+  }
+}
+
+function _renderContextSection(video) {
+  const assigned = video.context_names || [];
+  const chips = assigned.map(slug => {
+    const ctx = _contexts.find(c => c.slug === slug);
+    const name = ctx ? ctx.display_name : slug;
+    return `<span class="context-chip">${escHtml(name)}<span class="chip-x" data-rmctx="${escHtml(slug)}" title="Remove">×</span></span>`;
+  });
+
+  const available = _contexts.filter(c => !assigned.includes(c.slug));
+  const addSelect = available.length
+    ? `<select style="font-size:11px;padding:3px 7px;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--muted);cursor:pointer"
+              onchange="addVideoContext(${video.id}, this.value); this.value=''">
+        <option value="">+ Add</option>
+        ${available.map(c => `<option value="${escHtml(c.slug)}">${escHtml(c.display_name || c.slug)}</option>`).join('')}
+       </select>` : '';
+
+  const provLines = [];
+  if (video.clips_scored_at) {
+    const scoredCtx = video.clips_scored_context || [];
+    const stale = JSON.stringify([...assigned].sort()) !== JSON.stringify([...scoredCtx].sort());
+    const when = _fmtDate(video.clips_scored_at);
+    const ctxNames = scoredCtx.map(s => { const c = _contexts.find(x => x.slug === s); return c ? c.display_name : s; });
+    const ctxStr = ctxNames.length ? ' · ' + ctxNames.join(', ') : ' · no context';
+    provLines.push(`<span class="${stale ? 'provenance-stale' : ''}">Clips scored ${when}${ctxStr}${stale ? ' — contexts changed since last score' : ''}</span>`);
+  }
+
+  const noContextsDefined = _contexts.length === 0;
+  const emptyMsg = noContextsDefined
+    ? `<span style="color:var(--muted);font-size:12px">No contexts defined — <button class="btn ghost" style="padding:0;display:inline;font-size:12px" onclick="openContextManager()">create one</button></span>`
+    : (!assigned.length ? `<span style="color:var(--muted);font-size:12px">None assigned</span>` : '');
+
+  const rescoreBtn = (assigned.length && video.clips_scored_at)
+    ? `<button class="btn" style="font-size:12px;padding:4px 12px" onclick="rescoreClips(${video.id}, this)">Re-score clips with context</button>`
+    : assigned.length
+    ? `<button class="btn" style="font-size:12px;padding:4px 12px" onclick="rescoreClips(${video.id}, this)">Score clips with context</button>`
+    : '';
+
+  return `
+    <div>
+      <div class="section-title" style="margin-bottom:6px">RP Contexts</div>
+      <div class="context-chips">
+        ${chips.join('')}${emptyMsg}${addSelect ? '&nbsp;' + addSelect : ''}
+      </div>
+      ${provLines.length ? `<div class="provenance-note">${provLines.join('<br>')}</div>` : ''}
+      ${rescoreBtn ? `<div style="margin-top:6px">${rescoreBtn}</div>` : ''}
+    </div>`;
+}
+
+function _fmtDate(iso) {
+  if (!iso) return 'never';
+  const d = new Date(iso.endsWith('Z') ? iso : iso + 'Z');
+  return d.toLocaleDateString(undefined, {month:'short', day:'numeric'}) + ' at ' +
+    d.toLocaleTimeString(undefined, {hour:'numeric', minute:'2-digit'});
+}
+
+function _renderTimelineHTML(entries) {
+  if (!entries || !entries.length) return '';
+  const rows = entries.map(e =>
+    `<div class="timeline-entry">
+      <div class="timeline-stamp">${escHtml(e.start_hms)}</div>
+      <div class="timeline-text">${escHtml(e.text)}</div>
+    </div>`
+  ).join('');
+  return `<div>
+    <div class="section-title" style="margin-bottom:8px">Session Timeline</div>
+    <div class="timeline">${rows}</div>
+  </div>`;
+}
+
+function generateTimeline(id) {
+  const section = document.getElementById('timeline-section');
+  section.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:4px 0">Generating timeline — entries will appear as each 15-minute window completes…</div>';
+  const btn = document.getElementById('btn-generate-timeline');
+  btn.disabled = true;
+  btn.textContent = 'Generating…';
+
+  const es = new EventSource(`/api/videos/${id}/timeline`);
+  let entries = [];
+  let firstEntry = true;
+
+  es.onmessage = e => {
+    const data = JSON.parse(e.data);
+    if (data === '__DONE__') {
+      es.close();
+      btn.disabled = false;
+      btn.textContent = 'Regenerate Timeline';
+      const video = _videos.find(v => v.id === id);
+      if (video) video.has_timeline = true;
+      showToast('Timeline generated');
+      return;
+    }
+    if (firstEntry) {
+      section.innerHTML = `<div class="section-title" style="margin-bottom:8px">Session Timeline</div><div class="timeline" id="timeline-list"></div>`;
+      firstEntry = false;
+    }
+    entries.push(data);
+    const row = document.createElement('div');
+    row.className = 'timeline-entry';
+    row.innerHTML = `
+      <div class="timeline-stamp">${escHtml(data.start_hms)}</div>
+      <div class="timeline-text">${escHtml(data.text)}</div>`;
+    document.getElementById('timeline-list').appendChild(row);
+  };
+
+  es.onerror = () => {
+    es.close();
+    btn.disabled = false;
+    btn.textContent = 'Regenerate Timeline';
+    showToast('Timeline generation failed — see log', 'error');
+  };
+}
+
+async function summarizeVideo(id, btn) {
+  const orig = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Generating…';
+  try {
+    const res = await fetch(`/api/videos/${id}/summarize`, {method: 'POST'});
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(formatApiError(err));
+    }
+    const data = await res.json();
+    await loadVideos();
+    const video = _videos.find(v => v.id === id);
+    if (video) renderVideoDetail({...video, title: data.title, summary: data.summary});
+    else renderVideoDetail({id, title: data.title, summary: data.summary});
+    showToast('Summary generated');
+  } catch (err) {
+    showToast(`Summary failed: ${err.message}`, 'error');
+    btn.disabled = false;
+    btn.textContent = orig;
+  }
 }
 
 async function onClipsSortChange() {
@@ -493,7 +777,7 @@ function renderClipList(clips) {
     li.className = c.id === activeClipId ? 'active' : '';
     li.innerHTML = `
       <div class="clip-item">
-        <span class="score-badge" title="Overall score">${c.score_overall.toFixed(2)}</span>
+        <span class="score-badge" title="Overall score">${_scoreIcon(c.score_overall)}${c.score_overall.toFixed(2)}</span>
         <span class="clip-label" title="${c.description || ''}">
           <span style="color:var(--muted);font-size:11px">#${c.id}</span>
           ${c.start_hms} &middot; ${c.duration_hms}
@@ -501,7 +785,7 @@ function renderClipList(clips) {
         ${c.has_export ? '<span class="export-tick" title="Exported">&#10003;</span>' : ''}
         <span class="status-dot dot-${c.status}" title="${c.status}"></span>
       </div>
-      ${c.description ? `<div style="font-size:11px;color:var(--muted);margin-top:3px;padding-left:44px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c.description}</div>` : ''}
+      ${c.description ? `<div style="font-size:11px;color:var(--muted);margin-top:3px;padding-left:60px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c.description}</div>` : ''}
       <div class="clip-miniscores">
         ${miniBar('F', 'Funny',    c.score_funny,    'var(--funny)')}
         ${miniBar('D', 'Dramatic', c.score_dramatic, 'var(--dramatic)')}
@@ -524,15 +808,19 @@ async function selectClip(id) {
   ]);
   const clip  = await clipRes.json();
   const media = await mediaRes.json();
-  renderPlayer(media.url);
+  const captionsUrl = media.has_captions ? `/api/clips/${id}/captions.vtt` : null;
+  renderPlayer(media.url, captionsUrl);
   renderDetail(clip);
 }
 
 // ── player ─────────────────────────────────────────────────────────────────────
-function renderPlayer(url) {
+function renderPlayer(url, captionsUrl) {
   const area = document.getElementById('player-area');
   if (url) {
-    area.innerHTML = `<video controls autoplay src="${url}"></video>`;
+    const track = captionsUrl
+      ? `<track kind="captions" src="${captionsUrl}" label="Transcript" default>`
+      : '';
+    area.innerHTML = `<video controls autoplay src="${url}">${track}</video>`;
   } else {
     area.innerHTML = `
       <div class="no-export-msg">
@@ -552,6 +840,12 @@ function renderDetail(clip) {
 
     ${clip.description ? `<div class="description">"${clip.description}"</div>` : ''}
 
+    ${clip.description_long ? `
+      <div>
+        <div class="section-title" style="margin-bottom:6px">Description</div>
+        <div class="description-long">${escHtml(clip.description_long)}</div>
+      </div>` : ''}
+
     <div class="scores">
       ${scoreRow('Overall',  clip.score_overall,  'overall')}
       ${scoreRow('Funny',    clip.score_funny,    'funny')}
@@ -564,7 +858,9 @@ function renderDetail(clip) {
       <button class="btn reject  ${clip.status==='rejected'?'active':''}" onclick="setStatus(${clip.id},'rejected')">Reject</button>
       <button class="btn         ${clip.status==='pending' ?'active':''}" onclick="setStatus(${clip.id},'pending')">Reset</button>
       <button class="btn" onclick="openRetranscribeModal(${clip.id})">Retranscribe</button>
-      <button class="btn" style="margin-left:auto" onclick="exportClip(${clip.id})">Export</button>
+      <div style="flex:1"></div>
+      <button class="btn" onclick="exportClip(${clip.id})">Export</button>
+      <button class="btn" style="color:var(--red)" onclick="deleteClip(${clip.id})">Delete</button>
     </div>
 
     ${clip.tags.length ? `<div class="tags">${clip.tags.map(t=>`<span class="tag">${t}</span>`).join('')}</div>` : ''}
@@ -622,6 +918,44 @@ function exportClip(id) {
   );
 }
 
+// ── delete ─────────────────────────────────────────────────────────────────────
+async function deleteVideo(id) {
+  const video = _videos.find(v => v.id === id);
+  const name  = video ? video.filename : `video ${id}`;
+  if (!confirm(
+    `Remove "${name}" from rp-clipper?\n\n` +
+    `This deletes all clips, transcripts, and extracted audio from the database.\n` +
+    `Your source recording file is NOT touched.`
+  )) return;
+  await fetch(`/api/videos/${id}`, {method: 'DELETE'});
+  if (activeVideoId === id) {
+    activeVideoId = null;
+    activeClipId  = null;
+    document.getElementById('clip-list').innerHTML = '';
+    clearDetail();
+  }
+  await loadVideos();
+  showToast(`"${name}" removed from rp-clipper`);
+}
+
+async function deleteClip(id) {
+  if (!confirm(
+    `Delete this clip?\n\n` +
+    `The clip record will be removed from the database.\n` +
+    `Its exported video file (if any) will also be deleted from the exports folder.`
+  )) return;
+  const videoId = activeVideoId;
+  await fetch(`/api/clips/${id}`, {method: 'DELETE'});
+  activeClipId = null;
+  clearDetail();
+  if (videoId) {
+    _clips = await fetch(`/api/videos/${videoId}/clips?sort=${_clipsSortParam()}`).then(r => r.json());
+    renderClipList(_clips);
+  }
+  await loadVideos();
+  showToast('Clip deleted');
+}
+
 // ── scoring ────────────────────────────────────────────────────────────────────
 function scoreAll() {
   openLog();
@@ -651,16 +985,30 @@ async function openIngestModal() {
   _probedInfo = null;
   _updateStartIngestButton();
   await _loadProfileDropdown();
+  await _loadIngestContextPicker();
+}
+
+async function _loadIngestContextPicker() {
+  _contexts = await fetch('/api/contexts').then(r => r.json()).catch(() => []);
+  const field = document.getElementById('ingest-context-field');
+  const list  = document.getElementById('ingest-context-list');
+  if (!_contexts.length) { field.style.display = 'none'; return; }
+  field.style.display = '';
+  list.innerHTML = _contexts.map(c => `
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+      <input type="checkbox" class="ingest-ctx-check" value="${escHtml(c.slug)}">
+      ${escHtml(c.display_name || c.slug)}
+    </label>`).join('');
 }
 
 async function _loadProfileDropdown() {
   const sel = document.getElementById('ingest-profile');
   try {
-    const profiles = await fetch('/api/profiles').then(r => r.json());
-    sel.innerHTML = profiles.map(p =>
+    _ingestProfiles = await fetch('/api/profiles').then(r => r.json());
+    sel.innerHTML = _ingestProfiles.map(p =>
       `<option value="${p.name}">${escHtml(p.display_name)}</option>`
     ).join('');
-  } catch { /* leave dropdown empty; ingest still works with auto-labeling */ }
+  } catch { _ingestProfiles = []; }
 }
 
 function closeIngestModal() {
@@ -708,16 +1056,22 @@ async function runProbe(path) {
 
 async function runEstimate() {
   if (!_probedInfo) return;
+  const profileName = document.getElementById('ingest-profile').value;
+  const profile     = _ingestProfiles.find(p => p.name === profileName);
+  const transcribeTracks = profile
+    ? profile.assignments.filter(a => a.do_transcribe).length
+    : undefined;
   try {
     const res = await fetch('/api/estimate', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body:   JSON.stringify({
-        duration_s:   _probedInfo.duration_s,
-        model:        document.getElementById('ingest-model').value,
-        audio_tracks: _probedInfo.audio_tracks,
-        has_gpu:      true,
-        scene_mode:   document.getElementById('ingest-scene-mode').value,
-        energy_mode:  document.getElementById('ingest-energy-mode').value,
+        duration_s:        _probedInfo.duration_s,
+        model:             document.getElementById('ingest-model').value,
+        audio_tracks:      _probedInfo.audio_tracks,
+        transcribe_tracks: transcribeTracks,
+        has_gpu:           true,
+        scene_mode:        document.getElementById('ingest-scene-mode').value,
+        energy_mode:       document.getElementById('ingest-energy-mode').value,
       }),
     });
     if (!res.ok) return;
@@ -744,6 +1098,9 @@ function renderEstimate(info, data) {
 
   const totalWarn  = data.total_seconds >= warnS;
   const totalBadge = totalWarn ? `<span class="total-warn-badge">&#9888; Long job</span>` : '';
+  const pctLine    = data.pct_of_video != null
+    ? `<div class="estimate-pct">&#8776; ${data.pct_of_video}% of video duration</div>`
+    : '';
 
   document.getElementById('estimate-area').innerHTML = `
     <div class="estimate-box">
@@ -763,9 +1120,9 @@ function renderEstimate(info, data) {
         <span style="display:flex;align-items:center;gap:8px">
           ${totalBadge}
           <span class="${tClass(data.total_seconds)}">${data.total_hms}</span>
-          ${data.pct_of_video !== undefined ? `<span style="color:var(--muted);font-size:11px;font-weight:400">(${data.pct_of_video}% of video)</span>` : ''}
         </span>
       </div>
+      ${pctLine}
     </div>`;
 }
 
@@ -780,10 +1137,11 @@ async function startIngest() {
   btn.disabled = true;
   btn.textContent = 'Starting…';
 
+  const contextNames = Array.from(document.querySelectorAll('.ingest-ctx-check:checked')).map(cb => cb.value);
   const startRes = await fetch('/api/ingest/start', {
     method:  'POST',
     headers: {'Content-Type': 'application/json'},
-    body:    JSON.stringify({path, model, profile, energy_mode: document.getElementById('ingest-energy-mode').value}),
+    body:    JSON.stringify({path, model, profile, energy_mode: document.getElementById('ingest-energy-mode').value, context_names: contextNames}),
   });
 
   if (!startRes.ok) {
@@ -794,15 +1152,18 @@ async function startIngest() {
     return;
   }
 
+  const filename = path.split(/[\\/]/).pop();
   closeIngestModal();
   btn.disabled = false;
   btn.textContent = 'Start Ingest';
   openLog();
+  appendLog(`Ingesting: ${filename}`);
   streamSSE(
     '/api/ingest/events',
     () => { loadVideos(); showToast('Ingest complete — clips are ready to review'); },
     INGEST_STEPS,
-    'Ingesting',
+    `Ingesting ${filename}`,
+    true,
   );
 }
 
@@ -822,15 +1183,17 @@ const SCORE_STEPS = [
 ];
 
 let _jobStepDefs = [];
+let _activeES    = null;
 
-function startJobUI(stepDefs, jobLabel) {
+function startJobUI(stepDefs, jobLabel, cancellable = false) {
   _jobStepDefs = stepDefs;
   document.getElementById('job-steps').innerHTML =
-    `<span style="color:var(--muted);margin-right:4px">${jobLabel}</span>` +
+    `<span style="color:var(--muted);margin-right:4px">${escHtml(jobLabel)}</span>` +
     stepDefs.map((s, i) => `<span class="step" id="step-${i}">${s.label}</span>`).join('');
   document.getElementById('job-status').classList.add('visible');
   document.getElementById('header-spacer').style.display = 'none';
   document.querySelectorAll('#btn-ingest,#btn-score,#btn-demo').forEach(b => b.disabled = true);
+  document.getElementById('btn-cancel-job').style.display = cancellable ? '' : 'none';
 }
 
 function updateJobUI(line) {
@@ -851,6 +1214,7 @@ function endJobUI() {
     const el = document.getElementById(`step-${i}`);
     if (el) el.className = 'step done';
   });
+  document.getElementById('btn-cancel-job').style.display = 'none';
   setTimeout(() => {
     document.getElementById('job-status').classList.remove('visible');
     document.getElementById('header-spacer').style.display = '';
@@ -859,13 +1223,15 @@ function endJobUI() {
 }
 
 // ── SSE helper ─────────────────────────────────────────────────────────────────
-function streamSSE(url, onDone, stepDefs, jobLabel) {
-  if (stepDefs) startJobUI(stepDefs, jobLabel);
+function streamSSE(url, onDone, stepDefs, jobLabel, cancellable = false) {
+  if (stepDefs) startJobUI(stepDefs, jobLabel, cancellable);
   const es = new EventSource(url);
+  _activeES = es;
   es.onmessage = e => {
     const text = JSON.parse(e.data);
     if (text === '__DONE__') {
       es.close();
+      if (_activeES === es) _activeES = null;
       if (stepDefs) endJobUI();
       if (onDone) onDone();
       return;
@@ -875,6 +1241,7 @@ function streamSSE(url, onDone, stepDefs, jobLabel) {
   };
   es.onerror = () => {
     es.close();
+    if (_activeES === es) _activeES = null;
     appendLog('[connection error — job failed to start or server disconnected]');
     showToast('Job failed — see log for details', 'error');
     if (stepDefs) endJobUI();
@@ -882,23 +1249,40 @@ function streamSSE(url, onDone, stepDefs, jobLabel) {
   };
 }
 
+async function cancelJob() {
+  if (_activeES) { _activeES.close(); _activeES = null; }
+  try { await fetch('/api/ingest/cancel', {method: 'POST'}); } catch {}
+  appendLog('[Ingest cancelled]');
+  endJobUI();
+  loadVideos();
+}
+
 // ── log panel ──────────────────────────────────────────────────────────────────
-function openLog()  { document.getElementById('log-panel').classList.add('visible'); }
-function closeLog() { document.getElementById('log-panel').classList.remove('visible'); }
+function openLog() {
+  const panel = document.getElementById('log-panel');
+  panel.classList.add('visible');
+  panel.classList.remove('minimized');
+  document.getElementById('log-toggle').textContent = '▼';
+}
+
+function toggleLog() {
+  const panel = document.getElementById('log-panel');
+  const minimized = panel.classList.toggle('minimized');
+  document.getElementById('log-toggle').textContent = minimized ? '▲' : '▼';
+}
 
 function appendLog(raw) {
   const text = stripRichMarkup(raw);
   if (!text.trim()) return;
   const div = document.createElement('div');
-  // Detect line intent from the raw text (before markup was stripped)
   const isOk   = raw.includes(' OK') || raw.includes('[green]') || raw.includes('Done');
   const isErr   = raw.includes('FAIL') || raw.includes('Error') || raw.includes('[red]') || raw.includes('error');
   const isWarn  = raw.includes('[yellow]') || raw.includes('WARNING') || raw.includes('overlap');
   div.className = 'log-line' + (isOk ? ' ok' : isErr ? ' err' : isWarn ? ' warn' : '');
   div.textContent = text;
-  const lines = document.getElementById('log-lines');
-  lines.appendChild(div);
-  lines.scrollTop = lines.scrollHeight;
+  document.getElementById('log-lines').appendChild(div);
+  const body = document.getElementById('log-body');
+  body.scrollTop = body.scrollHeight;
 }
 
 // ── toast notifications ────────────────────────────────────────────────────────
@@ -916,8 +1300,22 @@ function showToast(message, type = 'success', durationMs = 4000) {
 }
 
 // ── utils ──────────────────────────────────────────────────────────────────────
+function _scoreIcon(score) {
+  const color = score >= 0.7 ? 'var(--green)' : score >= 0.4 ? 'var(--yellow)' : 'var(--muted)';
+  return `<span style="color:${color};font-size:10px">★</span>`;
+}
+
+function _msToHms(ms) {
+  const s = Math.floor(ms / 1000);
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60), sec = s % 60;
+  if (m < 60) return `${m}m ${String(sec).padStart(2, '0')}s`;
+  const h = Math.floor(m / 60), min = m % 60;
+  return `${h}h ${String(min).padStart(2, '0')}m`;
+}
+
 function escHtml(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 function formatApiError(err) {
@@ -985,12 +1383,16 @@ async function _refreshProfileList() {
       <span style="flex:1;font-size:13px">${p.builtin ? '&#128274; ' : ''}${escHtml(p.display_name)}</span>
       <span style="color:var(--muted);font-size:12px">${p.num_tracks} track${p.num_tracks !== 1 ? 's' : ''}</span>
       ${!p.builtin ? `
-        <button class="btn" style="padding:4px 10px;font-size:12px" data-delete-profile="${escHtml(p.name)}"
-                onclick="editProfile(${JSON.stringify(p.name)})">Edit</button>
-        <button class="btn" style="padding:4px 10px;font-size:12px;color:var(--red)"
-                onclick="deleteProfile(${JSON.stringify(p.name)})">Delete</button>
+        <button class="btn" style="padding:4px 10px;font-size:12px" data-edit-profile="${escHtml(p.name)}">Edit</button>
+        <button class="btn" style="padding:4px 10px;font-size:12px;color:var(--red)" data-delete-profile="${escHtml(p.name)}">Delete</button>
       ` : ''}
     </div>`).join('');
+  el.onclick = e => {
+    const editBtn   = e.target.closest('[data-edit-profile]');
+    const deleteBtn = e.target.closest('[data-delete-profile]');
+    if (editBtn)   editProfile(editBtn.dataset.editProfile);
+    if (deleteBtn) deleteProfile(deleteBtn.dataset.deleteProfile);
+  };
 }
 
 function openNewProfile() {
@@ -1136,6 +1538,174 @@ async function startDemo() {
     [{label: 'Building', patterns: ['Building demo', 'Generating', 'OK']}],
     'Reel',
   );
+}
+
+// ── context manager ────────────────────────────────────────────────────────────
+async function _loadContexts() {
+  _contexts = await fetch('/api/contexts').then(r => r.json()).catch(() => []);
+}
+
+async function openContextManager() {
+  document.getElementById('context-modal').classList.add('visible');
+  document.getElementById('context-editor').style.display = 'none';
+  await _refreshContextList();
+}
+
+function closeContextManager() {
+  document.getElementById('context-modal').classList.remove('visible');
+}
+
+async function _refreshContextList() {
+  _contexts = await fetch('/api/contexts').then(r => r.json()).catch(() => []);
+  const el = document.getElementById('context-list-items');
+  if (!_contexts.length) {
+    el.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:4px 0">No contexts yet — create one.</div>';
+    return;
+  }
+  el.innerHTML = _contexts.map(c => `
+    <div style="display:flex;align-items:center;padding:7px 10px;border:1px solid var(--border);border-radius:6px;cursor:pointer"
+         data-edit-ctx="${escHtml(c.slug)}">
+      <span style="font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(c.display_name || c.slug)}</span>
+    </div>`).join('');
+  el.onclick = e => {
+    const item = e.target.closest('[data-edit-ctx]');
+    if (item) editContext(item.dataset.editCtx);
+  };
+}
+
+function openNewContext() {
+  _editingContextSlug = null;
+  ['ce-slug','ce-display-name','ce-setting','ce-your-chars','ce-other-chars','ce-notes'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('ce-slug').disabled = false;
+  document.getElementById('btn-delete-context').style.display = 'none';
+  document.getElementById('context-editor').style.display = 'flex';
+  document.getElementById('ce-slug').focus();
+}
+
+function editContext(slug) {
+  const ctx = _contexts.find(c => c.slug === slug);
+  if (!ctx) return;
+  _editingContextSlug = slug;
+  document.getElementById('ce-slug').value            = ctx.slug;
+  document.getElementById('ce-slug').disabled         = true;
+  document.getElementById('ce-display-name').value    = ctx.display_name || '';
+  document.getElementById('ce-setting').value         = ctx.setting || '';
+  document.getElementById('ce-your-chars').value      = ctx.your_characters || '';
+  document.getElementById('ce-other-chars').value     = ctx.other_characters || '';
+  document.getElementById('ce-notes').value           = ctx.notes || '';
+  document.getElementById('btn-delete-context').style.display = '';
+  document.getElementById('context-editor').style.display = 'flex';
+}
+
+function cancelContextEdit() {
+  document.getElementById('context-editor').style.display = 'none';
+}
+
+async function saveContext() {
+  const slug        = _editingContextSlug || document.getElementById('ce-slug').value.trim();
+  const displayName = document.getElementById('ce-display-name').value.trim();
+  if (!slug)        { showToast('Slug is required', 'error'); return; }
+  if (!displayName) { showToast('Display name is required', 'error'); return; }
+  const res = await fetch('/api/contexts', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      slug, display_name: displayName,
+      setting:          document.getElementById('ce-setting').value,
+      your_characters:  document.getElementById('ce-your-chars').value,
+      other_characters: document.getElementById('ce-other-chars').value,
+      notes:            document.getElementById('ce-notes').value,
+    }),
+  });
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({}));
+    showToast(formatApiError(e) || 'Save failed', 'error');
+    return;
+  }
+  document.getElementById('context-editor').style.display = 'none';
+  await _refreshContextList();
+  showToast(`Context "${displayName}" saved`);
+}
+
+async function deleteContext() {
+  if (!_editingContextSlug) return;
+  const ctx  = _contexts.find(c => c.slug === _editingContextSlug);
+  const name = ctx ? ctx.display_name : _editingContextSlug;
+  if (!confirm(`Delete context "${name}"?\n\nVideos already assigned to it will keep the slug in their list — you can re-create the context to restore it.`)) return;
+  await fetch(`/api/contexts/${encodeURIComponent(_editingContextSlug)}`, {method: 'DELETE'});
+  document.getElementById('context-editor').style.display = 'none';
+  await _refreshContextList();
+  showToast(`Context "${name}" deleted`);
+}
+
+// ── video context assignment ───────────────────────────────────────────────────
+async function addVideoContext(videoId, slug) {
+  if (!slug) return;
+  const video   = _videos.find(v => v.id === videoId);
+  const current = video ? [...(video.context_names || [])] : [];
+  if (!current.includes(slug)) current.push(slug);
+  await _saveVideoContexts(videoId, current);
+}
+
+async function removeVideoContext(videoId, slug) {
+  const video   = _videos.find(v => v.id === videoId);
+  const current = (video ? video.context_names || [] : []).filter(s => s !== slug);
+  await _saveVideoContexts(videoId, current);
+}
+
+async function _saveVideoContexts(videoId, slugs) {
+  const res = await fetch(`/api/videos/${videoId}/contexts`, {
+    method: 'PATCH', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({context_names: slugs}),
+  });
+  if (!res.ok) { showToast('Failed to update contexts', 'error'); return; }
+  const video = _videos.find(v => v.id === videoId);
+  if (video) {
+    video.context_names = slugs;
+    if (activeVideoId === videoId) renderVideoDetail(video, null);
+  }
+}
+
+// Global delegation for chip × buttons in the detail panel
+document.addEventListener('click', e => {
+  const rmBtn = e.target.closest('[data-rmctx]');
+  if (rmBtn && activeVideoId) removeVideoContext(activeVideoId, rmBtn.dataset.rmctx);
+});
+
+// ── re-score clips with context ────────────────────────────────────────────────
+function rescoreClips(videoId, btn) {
+  const orig = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Re-scoring…';
+  openLog();
+  const es = new EventSource(`/api/videos/${videoId}/rescore-clips`);
+  es.onmessage = e => {
+    const data = JSON.parse(e.data);
+    if (data === '__DONE__') {
+      es.close();
+      btn.disabled = false;
+      btn.textContent = orig;
+      showToast('Re-scoring complete');
+      loadVideos().then(() => {
+        if (activeVideoId === videoId) {
+          const v = _videos.find(v => v.id === videoId);
+          if (v) renderVideoDetail(v, null);
+          fetch(`/api/videos/${videoId}/clips?sort=${_clipsSortParam()}`).then(r => r.json()).then(clips => {
+            _clips = clips; renderClipList(_clips);
+          });
+        }
+      });
+      return;
+    }
+    appendLog(String(data));
+  };
+  es.onerror = () => {
+    es.close();
+    btn.disabled = false;
+    btn.textContent = orig;
+    showToast('Re-scoring failed — see log', 'error');
+  };
 }
 
 // ── retranscribe ───────────────────────────────────────────────────────────────

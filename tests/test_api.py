@@ -303,3 +303,123 @@ class TestProbe:
     def test_probe_missing_file_returns_400(self, client):
         r = client.post("/api/probe", json={"path": "/nonexistent/file.mkv"})
         assert r.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# DB session cleanup — proves no connection lingers after route handlers
+# ---------------------------------------------------------------------------
+
+class TestDbSessionCleanup:
+    def test_db_writable_after_list_videos(self, client, project_dir):
+        """After GET /api/videos the DB must accept writes (no held lock)."""
+        client.get("/api/videos")
+        client.get("/api/videos")
+
+        from rp_clipper.db.models import Video, make_session
+        db_path = project_dir / ".rp-clipper" / "project.db"
+        session = make_session(db_path)
+        try:
+            v = Video(
+                path=str(project_dir / "new_video.mkv"),
+                filename="new_video.mkv",
+                status="pending",
+                duration_ms=30_000,
+            )
+            session.add(v)
+            session.commit()  # raises OperationalError if lock is still held
+        finally:
+            session.close()
+
+        videos = client.get("/api/videos").json()
+        assert any(v["filename"] == "new_video.mkv" for v in videos)
+
+    def test_db_writable_after_clip_status_update(self, client, project_dir):
+        """After POST /api/clips/{id}/status the DB must accept writes."""
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        clip_id = client.get(f"/api/videos/{vid_id}/clips").json()[0]["id"]
+        client.post(f"/api/clips/{clip_id}/status", json={"status": "approved"})
+
+        from rp_clipper.db.models import Video, make_session
+        db_path = project_dir / ".rp-clipper" / "project.db"
+        session = make_session(db_path)
+        try:
+            v = Video(
+                path=str(project_dir / "another_video.mkv"),
+                filename="another_video.mkv",
+                status="pending",
+                duration_ms=30_000,
+            )
+            session.add(v)
+            session.commit()
+        finally:
+            session.close()
+
+    def test_many_concurrent_reads_leave_no_lock(self, client, project_dir):
+        """Repeated reads from multiple endpoints must not accumulate held locks."""
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        clips = client.get(f"/api/videos/{vid_id}/clips").json()
+        for clip in clips:
+            client.get(f"/api/clips/{clip['id']}")
+            client.get(f"/api/clips/{clip['id']}/media_url")
+
+        from rp_clipper.db.models import Video, make_session
+        db_path = project_dir / ".rp-clipper" / "project.db"
+        session = make_session(db_path)
+        try:
+            v = Video(
+                path=str(project_dir / "third_video.mkv"),
+                filename="third_video.mkv",
+                status="pending",
+                duration_ms=30_000,
+            )
+            session.add(v)
+            session.commit()
+        finally:
+            session.close()
+
+
+# ---------------------------------------------------------------------------
+# Graceful shutdown — lifespan terminates running ingest subprocess
+# ---------------------------------------------------------------------------
+
+class TestGracefulShutdown:
+    def test_shutdown_terminates_running_ingest(self, project_dir):
+        """When the server exits, a running ingest_proc must be terminated."""
+        from unittest.mock import AsyncMock, MagicMock
+        from fastapi.testclient import TestClient
+        from rp_clipper.web.app import create_app
+
+        app = create_app(project_dir)
+        mock_proc = MagicMock()
+        mock_proc.returncode = None          # still running
+        mock_proc.pid = 99999
+        mock_proc.wait = AsyncMock(return_value=0)
+
+        with TestClient(app) as tc:
+            app.state.ctx.ingest_proc = mock_proc
+
+        mock_proc.terminate.assert_called_once()
+
+    def test_shutdown_noop_when_no_ingest_running(self, project_dir):
+        """Server shutdown must not raise when there is no active subprocess."""
+        from fastapi.testclient import TestClient
+        from rp_clipper.web.app import create_app
+
+        app = create_app(project_dir)
+        with TestClient(app):
+            pass  # just verify it exits cleanly
+
+    def test_shutdown_noop_when_ingest_already_finished(self, project_dir):
+        """Server shutdown must not call terminate on a process that already exited."""
+        from unittest.mock import MagicMock
+        from fastapi.testclient import TestClient
+        from rp_clipper.web.app import create_app
+
+        app = create_app(project_dir)
+        mock_proc = MagicMock()
+        mock_proc.returncode = 0  # already exited
+
+        with TestClient(app) as tc:
+            app.state.ctx.ingest_proc = mock_proc
+
+        mock_proc.terminate.assert_not_called()

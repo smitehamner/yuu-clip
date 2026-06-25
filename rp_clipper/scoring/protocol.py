@@ -19,7 +19,8 @@ class ScoreResult:
     score_funny:    float = 0.0
     score_dramatic: float = 0.0
     score_action:   float = 0.0
-    description: str = ""          # one-sentence summary of what happens in the clip
+    description: str = ""           # one-sentence summary of what happens in the clip
+    description_long: str = ""     # structured paragraph: what/why/who/details
     tags:  list[str]       = field(default_factory=list)
     notes: dict[str, Any]  = field(default_factory=dict)
 

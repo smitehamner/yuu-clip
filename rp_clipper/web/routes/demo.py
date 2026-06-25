@@ -8,6 +8,7 @@ Validation at the start step prevents starting a long render only to fail early.
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException
@@ -50,12 +51,15 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             )
 
         db = ctx.get_db()
-        q = db.query(ClipCandidate).filter_by(status="approved")
-        if req.video_id:
-            q = q.filter_by(video_id=req.video_id)
-        clips = q.order_by(ClipCandidate.score_overall.desc()).all()
-        if not clips:
-            raise HTTPException(400, "No approved clips found to compile into a demo reel")
+        try:
+            q = db.query(ClipCandidate).filter_by(status="approved")
+            if req.video_id:
+                q = q.filter_by(video_id=req.video_id)
+            clips = q.order_by(ClipCandidate.score_overall.desc()).all()
+            if not clips:
+                raise HTTPException(400, "No approved clips found to compile into a demo reel")
+        finally:
+            db.close()
 
         ctx.export_dir.mkdir(parents=True, exist_ok=True)
         output_path = ctx.export_dir / _safe_filename(req.output_name)

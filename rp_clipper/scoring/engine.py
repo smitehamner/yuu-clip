@@ -46,6 +46,8 @@ class ScoringEngine:
 
             if result.description:
                 clip.description = result.description
+            if result.description_long:
+                clip.description_long = result.description_long
 
             for tag in result.tags:
                 existing = clip.tags
@@ -69,7 +71,7 @@ class ScoringEngine:
             ) / dim_total
 
     # ------------------------------------------------------------------
-    def score_video(self, video: "Video", session: "Session") -> int:
+    def score_video(self, video: "Video", session: "Session", progress_cb=None) -> int:
         """Score all ClipCandidates for *video*.  Returns count scored."""
         from rp_clipper.db.models import ClipCandidate
         candidates = (
@@ -77,6 +79,9 @@ class ScoringEngine:
             .filter_by(video_id=video.id)
             .all()
         )
-        for clip in candidates:
+        total = len(candidates)
+        for i, clip in enumerate(candidates, 1):
             self.score_clip(clip, session)
-        return len(candidates)
+            if progress_cb:
+                progress_cb(i, total)
+        return total

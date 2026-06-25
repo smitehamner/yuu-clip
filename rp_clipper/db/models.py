@@ -28,7 +28,9 @@ from sqlalchemy import (
     Text,
     create_engine,
     event,
+    text,
 )
+from sqlalchemy.pool import NullPool
 from sqlalchemy.orm import (
     DeclarativeBase,
     Mapped,
@@ -51,13 +53,18 @@ def make_engine(db_path: Path):
     """Create a SQLite engine.  Works identically on Windows and Linux."""
     # forward slashes are fine in SQLite URIs even on Windows
     url = f"sqlite:///{db_path.as_posix()}"
-    engine = create_engine(url, echo=False)
+    # NullPool: never keep connections open between requests.  With SQLite's
+    # single-writer model this prevents pooled server connections from blocking
+    # the ingest subprocess when it tries to INSERT.
+    engine = create_engine(url, echo=False, poolclass=NullPool)
 
-    # Enable WAL mode for better concurrent read performance (Phase 3 UI)
     @event.listens_for(engine, "connect")
-    def set_wal(dbapi_connection, _):
+    def set_pragmas(dbapi_connection, _):
         dbapi_connection.execute("PRAGMA journal_mode=WAL")
         dbapi_connection.execute("PRAGMA foreign_keys=ON")
+        # Wait up to 30 s when another writer holds the lock instead of failing immediately.
+        # Needed when the ingest subprocess writes while the web server has open sessions.
+        dbapi_connection.execute("PRAGMA busy_timeout=30000")
 
     Base.metadata.create_all(engine)
     _migrate(engine)
@@ -67,24 +74,41 @@ def make_engine(db_path: Path):
 def _migrate(engine) -> None:
     """Apply lightweight forward-only column migrations for schema additions."""
     with engine.connect() as conn:
-        raw = conn.connection
-        cur = raw.cursor()
-        # Phase 2: add do_score to audio_tracks if missing
-        cur.execute("PRAGMA table_info(audio_tracks)")
-        existing = {row[1] for row in cur.fetchall()}
+        existing = {row[1] for row in conn.execute(text("PRAGMA table_info(audio_tracks)"))}
         if "do_score" not in existing:
-            cur.execute(
+            conn.execute(text(
                 "ALTER TABLE audio_tracks ADD COLUMN do_score BOOLEAN NOT NULL DEFAULT 1"
-            )
-            raw.commit()
+            ))
 
-        cur.execute("PRAGMA table_info(clip_candidates)")
-        existing = {row[1] for row in cur.fetchall()}
+        existing = {row[1] for row in conn.execute(text("PRAGMA table_info(videos)"))}
+        if "title" not in existing:
+            conn.execute(text("ALTER TABLE videos ADD COLUMN title TEXT"))
+        if "summary" not in existing:
+            conn.execute(text("ALTER TABLE videos ADD COLUMN summary TEXT"))
+        if "timeline_json" not in existing:
+            conn.execute(text("ALTER TABLE videos ADD COLUMN timeline_json TEXT"))
+        if "context_names_json" not in existing:
+            conn.execute(text("ALTER TABLE videos ADD COLUMN context_names_json TEXT"))
+        if "clips_scored_at" not in existing:
+            conn.execute(text("ALTER TABLE videos ADD COLUMN clips_scored_at DATETIME"))
+        if "clips_scored_context_json" not in existing:
+            conn.execute(text("ALTER TABLE videos ADD COLUMN clips_scored_context_json TEXT"))
+        if "summarized_at" not in existing:
+            conn.execute(text("ALTER TABLE videos ADD COLUMN summarized_at DATETIME"))
+        if "summary_context_json" not in existing:
+            conn.execute(text("ALTER TABLE videos ADD COLUMN summary_context_json TEXT"))
+        if "timeline_generated_at" not in existing:
+            conn.execute(text("ALTER TABLE videos ADD COLUMN timeline_generated_at DATETIME"))
+        if "timeline_context_json" not in existing:
+            conn.execute(text("ALTER TABLE videos ADD COLUMN timeline_context_json TEXT"))
+
+        existing = {row[1] for row in conn.execute(text("PRAGMA table_info(clip_candidates)"))}
         if "description" not in existing:
-            cur.execute("ALTER TABLE clip_candidates ADD COLUMN description TEXT")
-            raw.commit()
+            conn.execute(text("ALTER TABLE clip_candidates ADD COLUMN description TEXT"))
+        if "description_long" not in existing:
+            conn.execute(text("ALTER TABLE clip_candidates ADD COLUMN description_long TEXT"))
 
-        cur.close()
+        conn.commit()
 
 
 def make_session(db_path: Path) -> Session:
@@ -114,6 +138,21 @@ class Video(Base):
     status: Mapped[str] = mapped_column(String, default="pending")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     processed_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+
+    title: Mapped[Optional[str]] = mapped_column(Text)
+    summary: Mapped[Optional[str]] = mapped_column(Text)
+    timeline_json: Mapped[Optional[str]] = mapped_column(Text)
+
+    # RP context assignment (JSON list of context slugs, e.g. ["una-server"])
+    context_names_json: Mapped[Optional[str]] = mapped_column(Text)
+
+    # Scoring provenance — what context was active when each LLM operation ran
+    clips_scored_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    clips_scored_context_json: Mapped[Optional[str]] = mapped_column(Text)
+    summarized_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    summary_context_json: Mapped[Optional[str]] = mapped_column(Text)
+    timeline_generated_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    timeline_context_json: Mapped[Optional[str]] = mapped_column(Text)
 
     audio_tracks: Mapped[List["AudioTrack"]] = relationship(
         back_populates="video", cascade="all, delete-orphan"
@@ -240,6 +279,8 @@ class ClipCandidate(Base):
     transcript_excerpt: Mapped[Optional[str]] = mapped_column(Text)
     # One-sentence LLM-generated summary of what happens in the clip
     description: Mapped[Optional[str]] = mapped_column(Text)
+    # Structured paragraph: what/why/who/details (generated alongside description)
+    description_long: Mapped[Optional[str]] = mapped_column(Text)
 
     # pending → approved / rejected / trimmed
     status: Mapped[str] = mapped_column(String, default="pending")

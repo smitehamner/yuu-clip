@@ -27,8 +27,12 @@ _log = get_logger(__name__)
 _SSE_DONE_SENTINEL = "__DONE__"
 
 
-async def subprocess_sse(cmd: list[str], cwd: Path) -> StreamingResponse:
-    """Run *cmd* as a subprocess and stream its stdout as an SSE response."""
+async def subprocess_sse(cmd: list[str], cwd: Path, ctx=None) -> StreamingResponse:
+    """Run *cmd* as a subprocess and stream its stdout as an SSE response.
+
+    If *ctx* is a ProjectContext, the running process is stored on
+    ``ctx.ingest_proc`` so it can be terminated via the cancel endpoint.
+    """
 
     async def _generate() -> AsyncGenerator[str, None]:
         proc = await asyncio.create_subprocess_exec(
@@ -38,17 +42,29 @@ async def subprocess_sse(cmd: list[str], cwd: Path) -> StreamingResponse:
             cwd=str(cwd),
         )
         assert proc.stdout
-        async for raw_line in proc.stdout:
-            text = raw_line.decode("utf-8", errors="replace").rstrip()
-            _log.info("[subprocess] %s", text)
-            yield f"data: {json.dumps(text)}\n\n"
-        await proc.wait()
-        if proc.returncode != 0:
-            _log.error(
-                "Subprocess exited with code %d: %s",
-                proc.returncode,
-                " ".join(str(c) for c in cmd),
-            )
-        yield f"data: {json.dumps(_SSE_DONE_SENTINEL)}\n\n"
+        if ctx is not None:
+            ctx.ingest_proc = proc
+        try:
+            async for raw_line in proc.stdout:
+                text = raw_line.decode("utf-8", errors="replace").rstrip()
+                _log.info("[subprocess] %s", text)
+                yield f"data: {json.dumps(text)}\n\n"
+            await proc.wait()
+            if ctx is not None and ctx.ingest_cancelled:
+                ctx.ingest_cancelled = False
+                yield f"data: {json.dumps('[Ingest cancelled]')}\n\n"
+            elif proc.returncode != 0:
+                _log.error(
+                    "Subprocess exited with code %d: %s",
+                    proc.returncode,
+                    " ".join(str(c) for c in cmd),
+                )
+            yield f"data: {json.dumps(_SSE_DONE_SENTINEL)}\n\n"
+        finally:
+            if proc.returncode is None:
+                proc.terminate()
+                await proc.wait()
+            if ctx is not None:
+                ctx.ingest_proc = None
 
     return StreamingResponse(_generate(), media_type="text/event-stream")

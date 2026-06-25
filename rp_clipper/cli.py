@@ -149,9 +149,12 @@ def ingest(
     force: bool = typer.Option(False, "--force", help="Re-process even if already ingested"),
     language: Optional[str] = typer.Option(None, "--language", "-l", help="Force Whisper language (e.g. en)"),
     energy_mode: str = typer.Option("fast", "--energy-mode", help="Audio energy analysis: none|fast|full"),
+    no_interact: bool = typer.Option(False, "--no-interact", help="Never prompt interactively — use defaults or fail cleanly (set automatically by the web UI)"),
+    context: list[str] = typer.Option([], "--context", help="RP context slug(s) to apply (can repeat)"),
 ):
     """Full pipeline: probe, label tracks, extract audio, transcribe, generate candidates, score."""
     from rp_clipper.config import project_audio_dir
+    from rp_clipper.contexts import format_context_block, load_contexts
 
     _require_ffmpeg()
 
@@ -160,6 +163,8 @@ def ingest(
 
     config.whisper_model  = model
     config.whisper_device = device
+
+    context_text = format_context_block(load_contexts(proj_dir), context) if context else ""
 
     video_paths = _resolve_videos(path)
     console.print(f"\n[bold]rp-clip  ·  ingest[/bold]  ({len(video_paths)} video(s))\n")
@@ -177,9 +182,11 @@ def ingest(
             force=force,
             language=language,
             energy_mode=energy_mode,
+            non_interactive=no_interact,
+            context_names=context,
+            context_text=context_text,
         )
 
-    session.commit()
     console.print("\n[bold green]Done![/bold green]  Run [cyan]rp-clip status[/cyan] to see your project.\n")
 
 
@@ -194,6 +201,9 @@ def _ingest_one(
     video_path, session, config, audio_dir,
     profile, no_transcribe, no_segment, no_score, force, language,
     energy_mode: str = "fast",
+    non_interactive: bool = False,
+    context_names: list[str] | None = None,
+    context_text: str = "",
 ) -> None:
     """Orchestrate all pipeline stages for a single video file."""
     from rp_clipper.db.models import Video
@@ -205,28 +215,38 @@ def _ingest_one(
         console.print(f"[dim]Skipping {video_path.name} (already done — use --force to redo)[/dim]")
         return
 
+    console.print(f"Ingesting: {video_path.name}")
     console.rule(f"[bold]{video_path.name}[/bold]")
 
     info = _probe_video(video_path)
     if info is None:
         return
 
-    video, track_objs = _upsert_video_and_tracks(session, video_path, info, existing, profile, force)
+    video, track_objs = _upsert_video_and_tracks(
+        session, video_path, info, existing, profile, force, non_interactive=non_interactive
+    )
+    if context_names is not None:
+        import json as _json
+        video.context_names_json = _json.dumps(context_names)
+    session.commit()
 
     _extract_audio_and_check_rms_overlap(video_path, video, track_objs, config, audio_dir, session, force)
+    session.commit()
 
     transcripts = (
         _transcribe_and_check_overlap(track_objs, config, session, video, language)
         if not no_transcribe else []
     )
+    session.commit()
 
     candidates = _generate_candidates(video, transcripts, config, session, no_segment, no_transcribe, force)
+    session.commit()
 
     if not no_score and candidates:
-        _run_scoring(video, track_objs, config, session, energy_mode=energy_mode)
+        _run_scoring(video, track_objs, config, session, energy_mode=energy_mode, context_text=context_text)
 
     video.processed_at = datetime.utcnow()
-    session.flush()
+    session.commit()
 
 
 def _probe_video(video_path: Path):
@@ -246,7 +266,8 @@ def _probe_video(video_path: Path):
     return info
 
 
-def _upsert_video_and_tracks(session, video_path: Path, info, existing, profile, force):
+def _upsert_video_and_tracks(session, video_path: Path, info, existing, profile, force,
+                             non_interactive: bool = False):
     """Create or update the Video row and its AudioTrack rows.
 
     Returns (video, track_objs) — the ORM objects for use by later stages.
@@ -270,7 +291,7 @@ def _upsert_video_and_tracks(session, video_path: Path, info, existing, profile,
         session.flush()
 
     console.print("  [bold]Labeling audio tracks...[/bold]")
-    assignments = label_tracks(info, profile_name=profile)
+    assignments = label_tracks(info, profile_name=profile, non_interactive=non_interactive)
 
     track_objs = []
     for i, stream_info in enumerate(info.audio_streams):
@@ -318,6 +339,9 @@ def _extract_audio_and_check_rms_overlap(
 
     console.print("  [bold]Extracting audio...[/bold]")
     for track in track_objs:
+        if not track.do_transcribe and not track.do_score:
+            console.print(f"  [dim]  Track {track.stream_index} [{track.label}] — skipped (not transcribed or scored)[/dim]")
+            continue
         if track.extracted_path and Path(track.extracted_path).exists() and not force:
             console.print(f"  [dim]  Track {track.stream_index} already extracted[/dim]")
             continue
@@ -419,7 +443,7 @@ def _generate_candidates(video, transcripts, config, session, no_segment, no_tra
 # Scoring helper — shared by ingest and the standalone score command
 # ---------------------------------------------------------------------------
 
-def _run_scoring(video, track_objs, config, session, energy_mode: str = "fast") -> None:
+def _run_scoring(video, track_objs, config, session, energy_mode: str = "fast", context_text: str = "") -> None:
     """Run Phase 2 scoring (energy, scenes, LLM) for all candidates belonging to *video*."""
     from rp_clipper.scoring.energy import AudioEnergyScorer, compute_energy
     from rp_clipper.scoring.engine import ScoringEngine
@@ -454,9 +478,16 @@ def _run_scoring(video, track_objs, config, session, energy_mode: str = "fast") 
             console.print(f"  [yellow]  Scene detection skipped: {e}[/yellow]")
 
     console.print("  [bold]Scoring candidates...[/bold]")
-    engine = ScoringEngine(config, [AudioEnergyScorer(config), SceneCutScorer(config), LLMScorer(config)])
-    n = engine.score_video(video, session)
+    engine = ScoringEngine(config, [AudioEnergyScorer(config), SceneCutScorer(config), LLMScorer(config, context_text=context_text)])
+    n = engine.score_video(
+        video, session,
+        progress_cb=lambda i, total: console.print(f"  Scoring {i}/{total}..."),
+    )
     console.print(f"  [green]  OK[/green] {n} candidates scored")
+    import json as _json
+    from datetime import datetime as _dt
+    video.clips_scored_at = _dt.utcnow()
+    video.clips_scored_context_json = video.context_names_json or "[]"
     session.flush()
 
 
@@ -497,9 +528,13 @@ def score(
 
     for v in videos:
         console.rule(f"[bold]{v.filename}[/bold]")
-        _run_scoring(v, v.audio_tracks, config, session)
+        from rp_clipper.contexts import format_context_block, load_contexts
+        import json as _json
+        _cn = _json.loads(v.context_names_json) if v.context_names_json else []
+        _ctx = format_context_block(load_contexts(proj_dir), _cn)
+        _run_scoring(v, v.audio_tracks, config, session, context_text=_ctx)
+        session.commit()
 
-    session.commit()
     console.print("\n[bold green]Scoring complete.[/bold green]\n")
 
 
@@ -612,7 +647,7 @@ def export(
     import tempfile
 
     from rp_clipper.config import project_exports_dir
-    from rp_clipper.db.models import ClipCandidate
+    from rp_clipper.db.models import AudioTrack, ClipCandidate
     from rp_clipper.ingest.extract import export_clip
     from rp_clipper.subtitles import export_srt_sidecars, lines_to_srt, merged_srt_lines
 
@@ -629,6 +664,13 @@ def export(
     if not video_path.exists():
         console.print(f"[red]Source video not found: {video_path}[/red]")
         raise typer.Exit(1)
+
+    # Prefer the combined track; fall back to any transcribed track; fall back to all.
+    audio_track = (
+        session.query(AudioTrack).filter_by(video_id=cand.video_id, label="combined").first()
+        or session.query(AudioTrack).filter_by(video_id=cand.video_id, do_transcribe=True).first()
+    )
+    audio_stream_idx = audio_track.stream_index if audio_track else None
 
     stem   = Path(cand.video.filename).stem
     suffix = video_path.suffix or ".mp4"
@@ -657,6 +699,7 @@ def export(
             output_path=output,
             reencode=reencode,
             subtitle_path=subtitle_path,
+            audio_stream_index=audio_stream_idx,
         )
         size_mb = result.stat().st_size / BYTES_PER_MB
         console.print(f"  [green]OK[/green] Saved to [cyan]{result}[/cyan]  [dim]({size_mb:.1f} MB)[/dim]")
@@ -815,6 +858,7 @@ def retranscribe(
 
     from rp_clipper.transcribe.whisper_runner import _get_model
 
+    new_tx_ids: list[int] = []
     with tempfile.TemporaryDirectory() as tmp_dir:
         tmp_path = Path(tmp_dir)
         for track in tracks:
@@ -846,6 +890,7 @@ def retranscribe(
             )
             session.add(tx)
             session.flush()
+            new_tx_ids.append(tx.id)
 
             # Whisper timestamps are relative to the segment start; add clip offset to get absolute times.
             offset_ms = cand.start_ms
@@ -863,13 +908,34 @@ def retranscribe(
             session.flush()
             console.print(f"  [green]  OK[/green] [{track.label}]  {seg_count} segments")
 
+    # Rebuild transcript_excerpt from the new segments so LLM re-score uses fresh text
+    if new_tx_ids:
+        new_segs = (
+            session.query(TranscriptSegment)
+            .filter(TranscriptSegment.transcript_id.in_(new_tx_ids))
+            .order_by(TranscriptSegment.start_ms)
+            .all()
+        )
+        if new_segs:
+            cand.transcript_excerpt = " ".join(s.text.strip() for s in new_segs)
+
     session.commit()
 
     if not no_rescore:
-        console.print("  Re-scoring...")
-        track_objs = session.query(AudioTrack).filter_by(video_id=cand.video_id).all()
-        _run_scoring(cand.video, track_objs, config, session)
+        from rp_clipper.contexts import format_context_block, load_contexts
+        from rp_clipper.db.models import Video as _Video
+        from rp_clipper.scoring.engine import ScoringEngine
+        from rp_clipper.scoring.llm import LLMScorer
+        import json as _json
+        cand = session.get(ClipCandidate, clip_id)
+        _vid = session.get(_Video, cand.video_id)
+        _cn = _json.loads(_vid.context_names_json) if _vid and _vid.context_names_json else []
+        _ctx_text = format_context_block(load_contexts(proj_dir), _cn)
+        console.print("  Re-scoring clip with LLM...")
+        engine = ScoringEngine(config, [LLMScorer(config, context_text=_ctx_text)])
+        engine.score_clip(cand, session)
         session.commit()
+        console.print("  [green]  OK[/green]")
 
     console.print("  [green]Done.[/green]")
 

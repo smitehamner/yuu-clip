@@ -34,6 +34,7 @@ console = Console()
 def label_tracks(
     video_info: VideoInfo,
     profile_name: Optional[str] = None,
+    non_interactive: bool = False,
 ) -> list[dict]:
     """
     Return a list of assignment dicts, one per audio stream:
@@ -48,6 +49,9 @@ def label_tracks(
 
     If *profile_name* is given and exists, it is applied without prompting.
     If the video has only one audio track, it is auto-labeled "combined".
+    If *non_interactive* is True, the function never blocks on stdin — it
+    applies the profile if possible, otherwise labels track 0 as combined and
+    marks the rest unlabeled (no transcription or scoring).
     Otherwise the user is prompted interactively.
     """
     streams = video_info.audio_streams
@@ -66,6 +70,10 @@ def label_tracks(
             "do_score": True,
         }]
 
+    # --- non-interactive: never prompt ---
+    if non_interactive:
+        return _label_non_interactive(streams, profile_name)
+
     # --- apply saved profile if requested ---
     if profile_name:
         result = _apply_profile(profile_name, streams)
@@ -83,6 +91,46 @@ def label_tracks(
 # ---------------------------------------------------------------------------
 # Interactive labeling
 # ---------------------------------------------------------------------------
+
+def _label_non_interactive(streams, profile_name: Optional[str]) -> list[dict]:
+    """Apply profile without prompting, or default to track 0 as combined.
+
+    Always returns one entry per stream so the caller can index by position.
+    Extra tracks are marked unlabeled with transcription and scoring disabled.
+    """
+    if profile_name and profile_name != "__default__":
+        result = _apply_profile(profile_name, streams)
+        if result:
+            return result
+        console.print(
+            f"  [yellow]Profile '{profile_name}' not found or track count mismatch "
+            f"({len(streams)} tracks) — using track 1 as combined.[/yellow]"
+        )
+
+    # Default: track 0 as combined, remaining tracks ignored
+    s = streams[0]
+    n_ignored = len(streams) - 1
+    suffix = f", ignoring {n_ignored} other track(s)" if n_ignored else ""
+    console.print(f"  [dim]Using track 1 as combined{suffix}[/dim]")
+    primary = {
+        "stream_index": s.stream_index,
+        "label": "combined",
+        "weight": LABEL_WEIGHTS["combined"],
+        "do_transcribe": True,
+        "do_score": True,
+    }
+    ignored = [
+        {
+            "stream_index": other.stream_index,
+            "label": "unlabeled",
+            "weight": LABEL_WEIGHTS["unlabeled"],
+            "do_transcribe": False,
+            "do_score": False,
+        }
+        for other in streams[1:]
+    ]
+    return [primary] + ignored
+
 
 def _label_interactive(video_info: VideoInfo) -> list[dict]:
     streams = video_info.audio_streams

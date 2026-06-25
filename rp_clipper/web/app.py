@@ -6,7 +6,9 @@ logic lives in rp_clipper/web/routes/*; this file is purely wiring.
 """
 from __future__ import annotations
 
+import asyncio
 import os
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -15,12 +17,12 @@ from fastapi.staticfiles import StaticFiles
 
 from rp_clipper.log import configure_logging, get_logger
 from rp_clipper.web.deps import ProjectContext
-from rp_clipper.web.routes import demo, ingest, logs, profiles, videos
+from rp_clipper.web.routes import contexts, demo, ingest, logs, profiles, videos
 
 _HERE = Path(__file__).parent
 _log  = get_logger(__name__)
 
-_ROUTE_MODULES = (videos, ingest, profiles, demo, logs)
+_ROUTE_MODULES = (videos, ingest, profiles, demo, logs, contexts)
 
 
 def _reload_factory() -> FastAPI:
@@ -41,7 +43,22 @@ def create_app(project_dir: Path) -> FastAPI:
     ctx = ProjectContext(project_dir)
     ctx.export_dir.mkdir(parents=True, exist_ok=True)
 
-    app = FastAPI(title="rp-clipper", version="0.1.0")
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        yield
+        proc = ctx.ingest_proc
+        if proc is not None and proc.returncode is None:
+            _log.info("Server shutting down — terminating ingest subprocess (pid %s)", proc.pid)
+            proc.terminate()
+            try:
+                await asyncio.wait_for(proc.wait(), timeout=5.0)
+            except asyncio.TimeoutError:
+                _log.warning("Subprocess did not exit in 5 s — killing")
+                proc.kill()
+                await proc.wait()
+
+    app = FastAPI(title="rp-clipper", version="0.1.0", lifespan=lifespan)
+    app.state.ctx = ctx  # expose for tests and diagnostics
 
     @app.get("/", response_class=HTMLResponse)
     async def index():

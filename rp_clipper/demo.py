@@ -25,6 +25,24 @@ _DEFAULT_FONT_SIZE_H1  = 52
 _DEFAULT_FONT_SIZE_H2  = 36
 _DEFAULT_FONT_SIZE_BODY = 28
 
+# Font candidates tried in order; first existing file wins.
+_FONT_CANDIDATES = [
+    r"C:\Windows\Fonts\arial.ttf",
+    r"C:\Windows\Fonts\calibri.ttf",
+    r"C:\Windows\Fonts\segoeui.ttf",
+    r"C:\Windows\Fonts\verdana.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+    "/usr/share/fonts/opentype/noto/NotoSans-Regular.ttf",
+]
+
+
+def _find_font() -> Optional[str]:
+    for p in _FONT_CANDIDATES:
+        if Path(p).exists():
+            return p.replace("\\", "/")  # forward-slash for FFmpeg
+    return None
+
 
 # ---------------------------------------------------------------------------
 # Title card generation
@@ -51,6 +69,10 @@ def _make_title_card(
     sample_rate: int = 48000,
 ) -> None:
     """Render a black title card with centred white text lines to *output_path*."""
+    font_path = _find_font()
+    # fontfile needs colon-escaped path in the FFmpeg filter string
+    font_spec = f":fontfile='{_esc(font_path)}'" if font_path else ""
+
     line_gap = 16
     total_h = sum(fs + line_gap for _, fs in lines) - line_gap
     y_start = (height - total_h) // 2
@@ -62,6 +84,7 @@ def _make_title_card(
             f"drawtext=text='{_esc(text)}'"
             f":fontcolor=white:fontsize={fs}"
             f":x=(w-text_w)/2:y={y}"
+            f"{font_spec}"
         )
         y += fs + line_gap
 

@@ -66,6 +66,7 @@ class EstimateRequest(BaseModel):
     duration_s: float
     model: str = "large-v3"
     audio_tracks: int = 2
+    transcribe_tracks: Optional[int] = None
     has_gpu: bool = True
     scene_mode: str = "fast"
     energy_mode: str = "fast"
@@ -77,6 +78,7 @@ class IngestRequest(BaseModel):
     profile: Optional[str] = None
     no_score: bool = False
     energy_mode: str = "fast"
+    context_names: list[str] = []
 
 
 # ── router factory ────────────────────────────────────────────────────────────
@@ -147,6 +149,9 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         if req.no_score:
             cmd += ["--no-score"]
         cmd += ["--energy-mode", req.energy_mode]
+        for slug in req.context_names:
+            cmd += ["--context", slug]
+        cmd += ["--no-interact"]
         ctx.ingest_cmd = cmd
         return {"status": "started"}
 
@@ -155,7 +160,24 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         """Stream the queued ingest subprocess output as SSE. Call /api/ingest/start first."""
         if not ctx.ingest_cmd:
             raise HTTPException(400, "No ingest command queued. Call /api/ingest/start first.")
-        return await subprocess_sse(ctx.ingest_cmd, ctx.project_dir)
+        return await subprocess_sse(ctx.ingest_cmd, ctx.project_dir, ctx)
+
+    @router.get("/api/ingest/status")
+    def ingest_status():
+        """Return whether an ingest subprocess is currently running."""
+        proc = ctx.ingest_proc
+        running = proc is not None and proc.returncode is None
+        return {"running": running}
+
+    @router.post("/api/ingest/cancel")
+    async def cancel_ingest():
+        """Terminate the currently running ingest subprocess, if any."""
+        proc = ctx.ingest_proc
+        if proc is not None and proc.returncode is None:
+            ctx.ingest_cancelled = True
+            proc.terminate()
+        ctx.ingest_cmd = None
+        return {"status": "cancelled"}
 
     @router.post("/api/score")
     async def score_all():
@@ -196,9 +218,10 @@ def make_router(ctx: ProjectContext) -> APIRouter:
 def _compute_time_estimate(req: EstimateRequest) -> dict:
     d = req.duration_s
     n_tracks = max(1, req.audio_tracks)
-    # Heuristic: roughly half of tracks are specialized (player voice, etc.) and
-    # therefore eligible for transcription in a typical OBS multi-track setup.
-    transcribe_tracks = max(1, n_tracks // 2)
+    if req.transcribe_tracks is not None:
+        transcribe_tracks = req.transcribe_tracks
+    else:
+        transcribe_tracks = max(1, n_tracks // 2)
 
     whisper_speed = _WHISPER_GPU_SPEED.get(req.model.split(":")[0], 6)
     if not req.has_gpu:

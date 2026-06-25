@@ -85,6 +85,7 @@ def export_clip(
     output_path: Path,
     reencode: bool = False,
     subtitle_path: Optional[Path] = None,
+    audio_stream_index: Optional[int] = None,
 ) -> Path:
     """
     Cut a clip from *video_path* between *start_ms* and *end_ms*.
@@ -98,6 +99,9 @@ def export_clip(
 
     With subtitle_path: burn subtitles from the given SRT file into the video.
     Forces re-encoding regardless of the reencode flag.
+
+    With audio_stream_index: export only that container stream index for audio
+    (plus the first video stream).  When None, all streams are copied.
 
     The output container format is inferred from output_path's suffix.
     Use .mp4 for broadest compatibility on both Windows and Linux.
@@ -115,6 +119,10 @@ def export_clip(
             "-i",  _ffmpeg_path(video_path),
             "-ss", str(start_s),
             "-t",  str(duration_s),
+        ]
+        if audio_stream_index is not None:
+            cmd += ["-map", "0:v:0", "-map", f"0:{audio_stream_index}"]
+        cmd += [
             "-c:v", "libx264", "-crf", "18", "-preset", "fast",
             "-c:a", "aac",     "-b:a", "192k",
         ]
@@ -131,9 +139,10 @@ def export_clip(
             "-ss", str(start_s),
             "-i",  _ffmpeg_path(video_path),
             "-t",  str(duration_s),
-            "-c",  "copy",
-            _ffmpeg_path(output_path),
         ]
+        if audio_stream_index is not None:
+            cmd += ["-map", "0:v:0", "-map", f"0:{audio_stream_index}"]
+        cmd += ["-c", "copy", _ffmpeg_path(output_path)]
 
     result = subprocess.run(cmd, capture_output=True, text=True)
 

@@ -64,9 +64,6 @@ def generate_candidates(
     candidates: list[ClipCandidate] = []
     for start_ms, end_ms, texts, tags in windows:
         excerpt = " ".join(t.strip() for t in texts)
-        # Trim excerpt to a reasonable display length
-        if len(excerpt) > 600:
-            excerpt = excerpt[:597] + "…"
 
         cand = ClipCandidate(
             video_id=video.id,

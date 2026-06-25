@@ -26,12 +26,17 @@ You analyze clips from an RP (roleplay) gaming session for highlight potential.
 Given a transcript excerpt, do the following in a single JSON response:
 
 1. Write a "description": one punchy sentence (≤20 words) capturing what actually happens.
-2. Rate 0.0–1.0 on three dimensions using the description to inform your scores:
+2. Write a "description_long": a paragraph (3-5 sentences) covering:
+   - What happens and why it stands out as a highlight
+   - Why it is funny, dramatic, or otherwise notable
+   - Who is involved (use character names if mentioned in the transcript)
+   - Any other interesting context, callbacks, or recurring bits
+3. Rate 0.0–1.0 on three dimensions:
    "score_funny":    jokes, absurdist RP, unexpected reactions, chaotic banter
    "score_dramatic": confrontations, revelations, emotional moments, story beats
    "score_action":   physical chaos, combat, chase, high-stakes tension
 
-Return ONLY valid JSON with exactly these four keys. No markdown, no extra text.\
+Return ONLY valid JSON with exactly these five keys. No markdown, no extra text.\
 """
 
 _USER_TEMPLATE = """\
@@ -43,11 +48,89 @@ JSON:\
 """
 
 
+_VIDEO_SUMMARY_SYSTEM = """\
+You summarize RP (roleplay) gaming session recordings for a clip extraction tool.
+Given a session transcript (or excerpt), return JSON with exactly two keys:
+  "title":   a 5-8 word headline capturing the session's defining moment or theme
+  "summary": a 3-5 sentence paragraph describing what happened — key story beats,
+             memorable moments, funny incidents, who was involved.
+Return ONLY valid JSON. No markdown, no extra text.\
+"""
+
+
+def summarize_transcript(text: str, config: "Config", context_text: str = "") -> tuple[str, str]:
+    """Generate a title and summary for a video's transcript via Ollama.
+
+    Truncates to 12 000 chars to stay within the model's context window.
+    Returns (title, summary). Raises on failure.
+    """
+    import ollama
+    client = ollama.Client(host=config.ollama_host, timeout=config.ollama_timeout_s)
+    excerpt = text[:12000]
+    system = (context_text + "\n\n" + _VIDEO_SUMMARY_SYSTEM) if context_text else _VIDEO_SUMMARY_SYSTEM
+    response = client.chat(
+        model=config.ollama_model,
+        messages=[
+            {"role": "system", "content": system},
+            {"role": "user",   "content": f"Transcript:\n\"\"\"\n{excerpt}\n\"\"\"\nJSON:"},
+        ],
+        format="json",
+        options={"temperature": 0.2},
+    )
+    data = json.loads(response.message.content)
+    return str(data.get("title", "")), str(data.get("summary", ""))
+
+
+_TIMELINE_CHUNK_SYSTEM = """\
+You are summarizing a 15-minute segment of an RP (roleplay) gaming session recording.
+Write 2-4 sentences describing what happened in this time window: key events, story beats,
+memorable moments, who was involved, and narrative flow. Use character names if mentioned.
+Be specific and grounded in the transcript. Skip filler phrases like "In this segment."
+Return ONLY the paragraph — no JSON, no headings, no extra formatting.\
+"""
+
+
+def generate_timeline_chunk(
+    transcript: str,
+    start_hms: str,
+    end_hms: str,
+    clip_descriptions: list[str],
+    config: "Config",
+    context_text: str = "",
+) -> str:
+    """Generate one timeline entry paragraph for a transcript time window.
+
+    Truncates transcript to 4 000 chars. Raises on failure.
+    """
+    import ollama
+    client = ollama.Client(host=config.ollama_host, timeout=config.ollama_timeout_s)
+    system = (context_text + "\n\n" + _TIMELINE_CHUNK_SYSTEM) if context_text else _TIMELINE_CHUNK_SYSTEM
+    clips_ctx = (
+        "\n\nNotable clips in this window:\n" + "\n".join(f"- {d}" for d in clip_descriptions)
+        if clip_descriptions else ""
+    )
+    user_msg = (
+        f"Time window: {start_hms} – {end_hms}\n\n"
+        f"Transcript:\n\"\"\"\n{transcript[:4000]}\n\"\"\""
+        f"{clips_ctx}"
+    )
+    response = client.chat(
+        model=config.ollama_model,
+        messages=[
+            {"role": "system", "content": system},
+            {"role": "user",   "content": user_msg},
+        ],
+        options={"temperature": 0.3},
+    )
+    return response.message.content.strip()
+
+
 class LLMScorer:
     name = "llm"
 
-    def __init__(self, config: "Config") -> None:
+    def __init__(self, config: "Config", context_text: str = "") -> None:
         self._config = config
+        self._context_text = context_text
         self.weight  = config.scorer_llm_weight
         self._available: bool | None = None  # cached after first check
 
@@ -79,10 +162,11 @@ class LLMScorer:
             return ScoreResult(tags=["llm_error"])
 
         return ScoreResult(
-            score_funny    = float(data.get("score_funny",    0.0)),
-            score_dramatic = float(data.get("score_dramatic", 0.0)),
-            score_action   = float(data.get("score_action",   0.0)),
-            description    = str(data.get("description", "")),
+            score_funny      = float(data.get("score_funny",      0.0)),
+            score_dramatic   = float(data.get("score_dramatic",   0.0)),
+            score_action     = float(data.get("score_action",     0.0)),
+            description      = str(data.get("description",        "")),
+            description_long = str(data.get("description_long",   "")),
             tags=["llm_scored"],
             notes={"model": self._config.ollama_model},
         )
@@ -95,10 +179,11 @@ class LLMScorer:
             host=self._config.ollama_host,
             timeout=self._config.ollama_timeout_s,
         )
+        system = (self._context_text + "\n\n" + _SYSTEM_PROMPT) if self._context_text else _SYSTEM_PROMPT
         response = client.chat(
             model=self._config.ollama_model,
             messages=[
-                {"role": "system", "content": _SYSTEM_PROMPT},
+                {"role": "system", "content": system},
                 {"role": "user",   "content": _USER_TEMPLATE.format(excerpt=excerpt)},
             ],
             format="json",

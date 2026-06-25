@@ -297,3 +297,99 @@ class TestDemoModal:
         expect(page.locator("#demo-output-name")).to_be_visible()
         val = page.locator("#demo-output-name").input_value()
         assert val.endswith(".mkv")
+
+
+# ---------------------------------------------------------------------------
+# Estimate display (renderEstimate called directly via page.evaluate)
+# ---------------------------------------------------------------------------
+
+_MOCK_INFO = {
+    "filename": "test.mkv",
+    "duration_hms": "1h 00m",
+    "duration_s": 3600,
+    "width": 1920,
+    "height": 1080,
+    "fps": 60,
+    "audio_tracks": 2,
+}
+
+def _make_steps(energy_mode: str = "fast") -> list:
+    energy_map = {
+        "none": ("Audio energy (none)", 0,    "skipped",    "0s"),
+        "fast": ("Audio energy (fast)", 14.4, "4 kHz numpy", "14s"),
+        "full": ("Audio energy (full)", 36.0, "16 kHz numpy", "36s"),
+    }
+    name, secs, note, hms = energy_map[energy_mode]
+    return [
+        {"name": "Extract audio",          "seconds": 360,  "note": "2 track(s)",                    "hms": "6m 00s"},
+        {"name": "Transcribe (medium)",     "seconds": 200,  "note": "1 track(s) on GPU",             "hms": "3m 20s"},
+        {"name": name,                      "seconds": secs, "note": note,                             "hms": hms},
+        {"name": "Scene detection (fast)",  "seconds": 18,   "note": "keyframes + transcript gaps",   "hms": "18s"},
+        {"name": "LLM scoring",             "seconds": 80,   "note": "~20 clips estimated",           "hms": "1m 20s"},
+    ]
+
+
+def _inject_estimate(page: "Page", energy_mode: str = "fast", pct: float = 18.7) -> None:
+    """Directly call renderEstimate() with controlled data — no file probe needed."""
+    steps = _make_steps(energy_mode)
+    total_s = sum(s["seconds"] for s in steps)
+    page.evaluate(f"""() => {{
+      window._probedInfo = {_MOCK_INFO};
+      renderEstimate(window._probedInfo, {{
+        steps: {steps},
+        total_hms: "11m 12s",
+        total_seconds: {total_s},
+        pct_of_video: {pct}
+      }});
+    }}""")
+
+
+@skip_no_server
+class TestEstimateDisplay:
+    def _open_ingest(self, page: "Page") -> None:
+        page.goto(LIVE_URL)
+        page.click("#btn-ingest")
+        page.wait_for_selector("#ingest-modal.visible")
+
+    def test_estimate_area_empty_on_modal_open(self, page: Page):
+        self._open_ingest(page)
+        expect(page.locator("#estimate-area")).to_be_empty()
+
+    def test_estimate_area_below_advanced_options(self, page: Page):
+        """#estimate-area must follow <details class=advanced> in the DOM (Advanced Options at top, estimate below)."""
+        self._open_ingest(page)
+        follows = page.evaluate("""() => {
+          const area    = document.getElementById('estimate-area');
+          const details = document.querySelector('details.advanced');
+          return (details.compareDocumentPosition(area) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+        }""")
+        assert follows, "#estimate-area should come after <details class=advanced>"
+
+    def test_energy_row_shows_mode_name(self, page: Page):
+        self._open_ingest(page)
+        _inject_estimate(page, energy_mode="fast")
+        expect(page.locator("#estimate-area")).to_contain_text("Audio energy (fast)")
+
+    def test_energy_none_shows_skipped(self, page: Page):
+        self._open_ingest(page)
+        _inject_estimate(page, energy_mode="none")
+        expect(page.locator("#estimate-area")).to_contain_text("Audio energy (none)")
+        expect(page.locator("#estimate-area")).to_contain_text("skipped")
+
+    def test_energy_full_shows_full(self, page: Page):
+        self._open_ingest(page)
+        _inject_estimate(page, energy_mode="full")
+        expect(page.locator("#estimate-area")).to_contain_text("Audio energy (full)")
+
+    def test_pct_of_video_is_visible(self, page: Page):
+        self._open_ingest(page)
+        _inject_estimate(page, pct=18.7)
+        pct_el = page.locator(".estimate-pct")
+        expect(pct_el).to_be_visible()
+        expect(pct_el).to_contain_text("18.7%")
+
+    def test_pct_element_exists_after_render(self, page: Page):
+        self._open_ingest(page)
+        _inject_estimate(page, pct=96.0)
+        expect(page.locator(".estimate-pct")).to_contain_text("96.0%")
+        expect(page.locator(".estimate-pct")).to_contain_text("of video")
