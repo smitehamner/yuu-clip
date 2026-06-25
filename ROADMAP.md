@@ -66,12 +66,26 @@
 - [ ] **Video summary** — on-demand "Generate Summary" button per video; calls Ollama on the
   full session transcript to produce a 5-8 word `title` (shown as 2nd sidebar line) and a
   structured `summary` paragraph (shown in the video detail panel). Stored as `Video.title` /
-  `Video.summary` columns.
+  `Video.summary` columns. Both fields are user-editable inline (see "Editable LLM fields"
+  below).
 
 - [ ] **Two-level clip descriptions** — keep `description` (1-sentence, existing) and add
   `description_long`: a structured paragraph covering what happened, why it stands out, who
   is involved, and any other interesting context. Both produced by the LLM scorer in one call.
-  `description_long` shown in the clip detail panel.
+  `description_long` shown in the clip detail panel. Both fields are user-editable inline (see
+  "Editable LLM fields" below).
+
+- [ ] **Editable LLM fields + regenerate-with-compare** — applies to: video title, video
+  summary, clip description (short), clip description (long), clip timeline (start/end).
+  Design:
+  - All LLM-generated text fields are inline-editable; user clicks to edit, saves explicitly
+  - DB stores both `*_original` (first LLM output, never overwritten) and `*_user` (current
+    value, starts null — falls back to original for display)
+  - "Regenerate" re-runs the LLM and shows a side-by-side diff: current value on the left,
+    new suggestion on the right; user picks one or keeps editing; neither overwrites until
+    confirmed
+  - Clip start/end time is editable as a numeric field (or drag handles once Clip trim lands);
+    same original-vs-new flow when re-scoring changes the suggested window
 
 - [ ] **Transcript editing** — inline editable text area for `TranscriptSegment.text`; lets the
   user fix character names, misspellings, and game-specific jargon before re-scoring. Save
