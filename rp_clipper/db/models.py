@@ -97,12 +97,24 @@ def _migrate(engine) -> None:
             conn.execute(text("ALTER TABLE videos ADD COLUMN timeline_generated_at DATETIME"))
         if "timeline_context_json" not in existing:
             conn.execute(text("ALTER TABLE videos ADD COLUMN timeline_context_json TEXT"))
+        if "title_user" not in existing:
+            conn.execute(text("ALTER TABLE videos ADD COLUMN title_user TEXT"))
+        if "summary_user" not in existing:
+            conn.execute(text("ALTER TABLE videos ADD COLUMN summary_user TEXT"))
 
         existing = {row[1] for row in conn.execute(text("PRAGMA table_info(clip_candidates)"))}
         if "description" not in existing:
             conn.execute(text("ALTER TABLE clip_candidates ADD COLUMN description TEXT"))
         if "description_long" not in existing:
             conn.execute(text("ALTER TABLE clip_candidates ADD COLUMN description_long TEXT"))
+        if "description_user" not in existing:
+            conn.execute(text("ALTER TABLE clip_candidates ADD COLUMN description_user TEXT"))
+        if "description_long_user" not in existing:
+            conn.execute(text("ALTER TABLE clip_candidates ADD COLUMN description_long_user TEXT"))
+        if "start_offset" not in existing:
+            conn.execute(text("ALTER TABLE clip_candidates ADD COLUMN start_offset REAL NOT NULL DEFAULT 0.0"))
+        if "end_offset" not in existing:
+            conn.execute(text("ALTER TABLE clip_candidates ADD COLUMN end_offset REAL NOT NULL DEFAULT 0.0"))
 
         conn.commit()
 
@@ -132,7 +144,9 @@ class Video(Base):
     processed_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
 
     title: Mapped[Optional[str]] = mapped_column(Text)
+    title_user: Mapped[Optional[str]] = mapped_column(Text)
     summary: Mapped[Optional[str]] = mapped_column(Text)
+    summary_user: Mapped[Optional[str]] = mapped_column(Text)
     timeline_json: Mapped[Optional[str]] = mapped_column(Text)
 
     context_names_json: Mapped[Optional[str]] = mapped_column(Text)  # JSON list of context slugs
@@ -248,8 +262,13 @@ class ClipCandidate(Base):
     tags_json: Mapped[Optional[str]] = mapped_column(Text)       # JSON list of strings
 
     transcript_excerpt: Mapped[Optional[str]] = mapped_column(Text)
-    description: Mapped[Optional[str]] = mapped_column(Text)       # one-sentence LLM summary
-    description_long: Mapped[Optional[str]] = mapped_column(Text)  # structured paragraph
+    description: Mapped[Optional[str]] = mapped_column(Text)
+    description_user: Mapped[Optional[str]] = mapped_column(Text)
+    description_long: Mapped[Optional[str]] = mapped_column(Text)
+    description_long_user: Mapped[Optional[str]] = mapped_column(Text)
+
+    start_offset: Mapped[float] = mapped_column(Float, default=0.0)
+    end_offset: Mapped[float] = mapped_column(Float, default=0.0)
 
     # pending → approved / rejected / trimmed
     status: Mapped[str] = mapped_column(String, default="pending")

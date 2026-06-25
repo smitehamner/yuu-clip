@@ -90,7 +90,7 @@
     seconds, or MM:SS.s — all stored as `start_offset` / `end_offset` floats on `ClipCandidate`;
     original `start_time` / `end_time` are immutable
 
-- [ ] **Header hamburger menu** *(absorbs "Controls UI polish")*
+- [x] **Header hamburger menu** *(absorbs "Controls UI polish")*
   - Trim header to: `+ Ingest` · `Build Reel` · `≡` (hamburger trigger)
   - **Score All button removed from UI** — CLI-only via `rp-clip score`; add interactive
     confirmation + GPU time warning to the CLI command
@@ -99,7 +99,7 @@
   - Controls modal: keyboard shortcut cheatsheet (replaces "?" button)
   - About modal: licensing + credits (unchanged content, new entry point)
 
-- [ ] **Confirmation dialogs on destructive actions**
+- [x] **Confirmation dialogs on destructive actions**
   - All five existing `confirm()` calls converted to modals: delete video, delete clip,
     cancel ingest, delete profile, delete context
   - New confirmation modals for: re-score clips per video (expensive), reset approvals per video
@@ -257,6 +257,20 @@
 - [ ] **Detail panel chunking** — group the clip detail panel into cards: Summary → Actions →
   Transcript, rather than a flat list *(UX debt: Chunking)*
 
+- [ ] **Sensitive content detection** — a "Sensitive Terms" list, kept entirely separate from
+  Hot-words (which affects score). Two categories:
+  - **Privacy Terms** — real names, identifying info the user doesn't want surfacing in shared
+    clips (e.g. a family member calling their name from off-screen, home address)
+  - **Censor Words** — profanity and platform-restricted language; useful for flagging clips
+    before posting to kid-friendly platforms
+  Per-term match modes: exact, case-insensitive, or fuzzy/phonetic (user toggle per entry —
+  phonetic matching exists specifically for names that Whisper is likely to misspell). No score
+  impact — warning/flag only.
+  Clips with matches get a warning badge on the sidebar card and a flagged-terms section in the
+  detail panel (which term matched, at which transcript timestamp). `Flagged` filter tab added
+  alongside `All · Pending · Approved · Rejected`. Lives in Settings page under a
+  `Sensitive Content` section. Export-time bleep integration for Censor Words deferred.
+
 ---
 
 ## Phase 3.5 — Performance and storage guidance (Pending)
@@ -384,6 +398,14 @@ unlock downstream.
 
 - [ ] **Built-in user manual** — in-app help: what each score means, contexts workflow, ingest
   walkthrough, keyboard shortcuts, export options. Low priority until the UI is more stable.
+
+- [ ] **Copyright content detection** — detect music in the audio track that might trigger
+  copyright claims or content strikes on platforms like YouTube. Requires audio fingerprinting
+  against a reference database (e.g. AcoustID or similar). No clear implementation path yet —
+  needs evaluation of fingerprinting libraries, database licensing terms, and accuracy on gaming
+  audio where background music blends with ambient sound and effects. Deferred until sensitive
+  content detection is stable and a suitable fingerprinting approach with acceptable licencing
+  is identified.
 
 ---
 

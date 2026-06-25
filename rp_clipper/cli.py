@@ -637,6 +637,13 @@ def export(
     if output is None:
         output = exports / f"{base}{suffix}"
 
+    # Apply trim offsets (stored in seconds, convert to ms).
+    effective_start_ms = cand.start_ms + int((cand.start_offset or 0.0) * 1000)
+    effective_end_ms   = cand.end_ms   + int((cand.end_offset   or 0.0) * 1000)
+    effective_start_ms = max(0, effective_start_ms)
+    if cand.video.duration_ms:
+        effective_end_ms = min(effective_end_ms, cand.video.duration_ms)
+
     console.print(f"  Exporting clip [bold]{clip_id}[/bold]  {cand.start_hms}  ({cand.duration_hms})  ...")
 
     subtitle_path: Optional[Path] = None
@@ -653,8 +660,8 @@ def export(
     try:
         result = export_clip(
             video_path=video_path,
-            start_ms=cand.start_ms,
-            end_ms=cand.end_ms,
+            start_ms=effective_start_ms,
+            end_ms=effective_end_ms,
             output_path=output,
             reencode=reencode,
             subtitle_path=subtitle_path,

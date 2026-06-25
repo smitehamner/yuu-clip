@@ -1992,3 +1992,251 @@ class TestClipDescriptionRawText:
         r = client.get(f"/api/clips/{clip_id}")
         assert r.status_code == 200
         assert r.json()["description"] == raw
+
+
+# ---------------------------------------------------------------------------
+# Editable LLM fields — PATCH /api/videos/{id}/fields
+# ---------------------------------------------------------------------------
+
+class TestEditableVideoFields:
+    """PATCH /api/videos/{id}/fields — accept_new, accept_edit, revert."""
+
+    def _vid_id(self, client) -> int:
+        return client.get("/api/videos").json()[0]["id"]
+
+    def _seed_title_summary(self, project_dir, title="LLM Title", summary="LLM Summary"):
+        from rp_clipper.db.models import Video, make_session
+        db_path = project_dir / ".rp-clipper" / "project.db"
+        session = make_session(db_path)
+        try:
+            v = session.query(Video).first()
+            v.title   = title
+            v.summary = summary
+            session.commit()
+        finally:
+            session.close()
+
+    def test_accept_new_overwrites_title_clears_user(self, client, project_dir):
+        self._seed_title_summary(project_dir)
+        vid_id = self._vid_id(client)
+        r = client.patch(f"/api/videos/{vid_id}/fields", json={
+            "action": "accept_new", "field": "title", "new_title": "Brand New Title",
+        })
+        assert r.status_code == 200
+        d = r.json()
+        assert d["title"] == "Brand New Title"
+        assert d["title_is_edited"] is False
+        assert d["title_original"] == "Brand New Title"
+
+    def test_accept_edit_sets_user_title_preserves_original(self, client, project_dir):
+        self._seed_title_summary(project_dir)
+        vid_id = self._vid_id(client)
+        r = client.patch(f"/api/videos/{vid_id}/fields", json={
+            "action": "accept_edit", "field": "title", "new_title": "My Edit",
+        })
+        assert r.status_code == 200
+        d = r.json()
+        assert d["title"] == "My Edit"
+        assert d["title_is_edited"] is True
+        assert d["title_original"] == "LLM Title"
+
+    def test_revert_title_clears_user_edit(self, client, project_dir):
+        self._seed_title_summary(project_dir)
+        vid_id = self._vid_id(client)
+        client.patch(f"/api/videos/{vid_id}/fields", json={
+            "action": "accept_edit", "field": "title", "new_title": "My Edit",
+        })
+        r = client.patch(f"/api/videos/{vid_id}/fields", json={
+            "action": "revert", "field": "title",
+        })
+        assert r.status_code == 200
+        d = r.json()
+        assert d["title"] == "LLM Title"
+        assert d["title_is_edited"] is False
+
+    def test_accept_edit_summary_preserves_original(self, client, project_dir):
+        self._seed_title_summary(project_dir)
+        vid_id = self._vid_id(client)
+        r = client.patch(f"/api/videos/{vid_id}/fields", json={
+            "action": "accept_edit", "field": "summary", "new_summary": "Edited summary",
+        })
+        assert r.status_code == 200
+        d = r.json()
+        assert d["summary"] == "Edited summary"
+        assert d["summary_is_edited"] is True
+        assert d["summary_original"] == "LLM Summary"
+
+    def test_invalid_action_returns_400(self, client, project_dir):
+        self._seed_title_summary(project_dir)
+        vid_id = self._vid_id(client)
+        r = client.patch(f"/api/videos/{vid_id}/fields", json={
+            "action": "bad_action", "field": "title",
+        })
+        assert r.status_code == 400
+
+    def test_invalid_field_returns_400(self, client, project_dir):
+        self._seed_title_summary(project_dir)
+        vid_id = self._vid_id(client)
+        r = client.patch(f"/api/videos/{vid_id}/fields", json={
+            "action": "revert", "field": "unknown_field",
+        })
+        assert r.status_code == 400
+
+    def test_patch_video_fields_404(self, client):
+        r = client.patch("/api/videos/99999/fields", json={"action": "revert", "field": "title"})
+        assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Editable LLM fields — PATCH /api/clips/{id}/fields
+# ---------------------------------------------------------------------------
+
+class TestEditableClipFields:
+    """PATCH /api/clips/{id}/fields — accept_new, accept_edit, revert."""
+
+    def _first_clip_id(self, client) -> int:
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        return client.get(f"/api/videos/{vid_id}/clips").json()[0]["id"]
+
+    def test_accept_edit_sets_description_user(self, client):
+        clip_id = self._first_clip_id(client)
+        r = client.patch(f"/api/clips/{clip_id}/fields", json={
+            "action": "accept_edit", "field": "description",
+            "new_description": "My custom description",
+        })
+        assert r.status_code == 200
+        d = r.json()
+        assert d["description"] == "My custom description"
+        assert d["description_is_edited"] is True
+
+    def test_accept_new_overwrites_description_clears_user(self, client):
+        clip_id = self._first_clip_id(client)
+        r = client.patch(f"/api/clips/{clip_id}/fields", json={
+            "action": "accept_new", "field": "description",
+            "new_description": "New LLM description",
+        })
+        assert r.status_code == 200
+        d = r.json()
+        assert d["description"] == "New LLM description"
+        assert d["description_is_edited"] is False
+        assert d["description_original"] == "New LLM description"
+
+    def test_revert_description_clears_user_edit(self, client):
+        clip_id = self._first_clip_id(client)
+        orig = client.get(f"/api/clips/{clip_id}").json()["description"]
+        client.patch(f"/api/clips/{clip_id}/fields", json={
+            "action": "accept_edit", "field": "description", "new_description": "My edit",
+        })
+        r = client.patch(f"/api/clips/{clip_id}/fields", json={
+            "action": "revert", "field": "description",
+        })
+        assert r.status_code == 200
+        d = r.json()
+        assert d["description"] == orig
+        assert d["description_is_edited"] is False
+
+    def test_user_override_shown_as_description_in_get(self, client):
+        """GET /api/clips/{id} must surface the user override as 'description'."""
+        clip_id = self._first_clip_id(client)
+        client.patch(f"/api/clips/{clip_id}/fields", json={
+            "action": "accept_edit", "field": "description",
+            "new_description": "Override value",
+        })
+        d = client.get(f"/api/clips/{clip_id}").json()
+        assert d["description"] == "Override value"
+        assert d["description_original"] != "Override value"
+        assert d["description_is_edited"] is True
+
+    def test_patch_clip_fields_404(self, client):
+        r = client.patch("/api/clips/99999/fields", json={"action": "revert", "field": "description"})
+        assert r.status_code == 404
+
+    def test_invalid_action_returns_400(self, client):
+        clip_id = self._first_clip_id(client)
+        r = client.patch(f"/api/clips/{clip_id}/fields", json={
+            "action": "zap", "field": "description",
+        })
+        assert r.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# Clip timing — PATCH /api/clips/{id}/timing
+# ---------------------------------------------------------------------------
+
+class TestClipTiming:
+    """PATCH /api/clips/{id}/timing — stores start_offset and end_offset."""
+
+    def _first_clip_id(self, client) -> int:
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        return client.get(f"/api/videos/{vid_id}/clips").json()[0]["id"]
+
+    def test_set_timing_offsets_returned_in_response(self, client):
+        clip_id = self._first_clip_id(client)
+        r = client.patch(f"/api/clips/{clip_id}/timing", json={
+            "start_offset": 2.5, "end_offset": -1.0,
+        })
+        assert r.status_code == 200
+        d = r.json()
+        assert abs(d["start_offset"] - 2.5) < 1e-6
+        assert abs(d["end_offset"] - (-1.0)) < 1e-6
+
+    def test_timing_offsets_persisted(self, client):
+        clip_id = self._first_clip_id(client)
+        client.patch(f"/api/clips/{clip_id}/timing", json={"start_offset": 3.0, "end_offset": 0.0})
+        d = client.get(f"/api/clips/{clip_id}").json()
+        assert abs(d["start_offset"] - 3.0) < 1e-6
+        assert d["end_offset"] == 0.0
+
+    def test_clip_detail_includes_offset_fields(self, client):
+        clip_id = self._first_clip_id(client)
+        d = client.get(f"/api/clips/{clip_id}").json()
+        assert "start_offset" in d
+        assert "end_offset" in d
+
+    def test_timing_patch_404(self, client):
+        r = client.patch("/api/clips/99999/timing", json={"start_offset": 0.0, "end_offset": 0.0})
+        assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Reset approvals — POST /api/videos/{id}/reset-approvals
+# ---------------------------------------------------------------------------
+
+class TestResetApprovals:
+    def _vid_id(self, client) -> int:
+        return client.get("/api/videos").json()[0]["id"]
+
+    def test_reset_approvals_sets_all_clips_to_pending(self, client):
+        vid_id = self._vid_id(client)
+        r = client.post(f"/api/videos/{vid_id}/reset-approvals")
+        assert r.status_code == 200
+        d = r.json()
+        assert "reset" in d
+        assert d["reset"] >= 1  # seeded with 1 approved + 1 rejected
+        clips = client.get(f"/api/videos/{vid_id}/clips").json()
+        assert all(c["status"] == "pending" for c in clips)
+
+    def test_reset_approvals_count_excludes_already_pending(self, client):
+        vid_id = self._vid_id(client)
+        r = client.post(f"/api/videos/{vid_id}/reset-approvals")
+        assert r.json()["reset"] == 2  # exactly the approved + rejected seeds
+
+    def test_reset_approvals_404(self, client):
+        r = client.post("/api/videos/99999/reset-approvals")
+        assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Video list — editable field metadata present
+# ---------------------------------------------------------------------------
+
+class TestVideoListEditableFields:
+    def test_video_list_includes_editable_field_keys(self, client):
+        v = client.get("/api/videos").json()[0]
+        for key in ("title_is_edited", "title_original", "summary_is_edited", "summary_original"):
+            assert key in v, f"missing key: {key}"
+
+    def test_title_is_edited_false_when_no_user_override(self, client):
+        v = client.get("/api/videos").json()[0]
+        assert v["title_is_edited"] is False
+        assert v["summary_is_edited"] is False

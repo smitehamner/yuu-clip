@@ -237,6 +237,36 @@
 
   /* ── app footer bar ── */
   .app-footer { height: 22px; background: var(--surface); border-top: 1px solid var(--border); display: flex; align-items: center; padding: 0 12px; flex-shrink: 0; font-size: 11px; color: var(--muted); }
+
+  /* ── hamburger menu ── */
+  .hamburger-wrap { position: relative; }
+  .hamburger-menu { position: absolute; right: 0; top: calc(100% + 6px); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; min-width: 180px; box-shadow: 0 8px 24px rgba(0,0,0,.5); z-index: 300; display: none; flex-direction: column; padding: 4px 0; }
+  .hamburger-menu.open { display: flex; }
+  .hamburger-item { display: flex; align-items: center; gap: 10px; padding: 9px 14px; font-size: 13px; color: var(--text); cursor: pointer; background: none; border: none; text-align: left; text-decoration: none; transition: background .1s; width: 100%; }
+  .hamburger-item:hover:not(:disabled) { background: var(--border); }
+  .hamburger-item:disabled { opacity: .4; cursor: not-allowed; }
+  .hamburger-divider { height: 1px; background: var(--border); margin: 4px 0; }
+
+  /* ── diff modal ── */
+  .diff-modal { width: 860px; max-width: 95vw; }
+  .diff-panels { display: flex; gap: 14px; }
+  .diff-panel { flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .diff-panel-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); }
+  .diff-current { flex: 1; white-space: pre-wrap; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; font-size: 13px; line-height: 1.7; color: #c8c8e0; overflow-y: auto; min-height: 80px; }
+  .diff-current.empty { color: var(--muted); font-style: italic; }
+  .diff-new { flex: 1; resize: none; background: var(--bg); border: 1px solid var(--accent); border-radius: 6px; padding: 10px 12px; font-size: 13px; line-height: 1.7; color: var(--text); font-family: inherit; min-height: 80px; width: 100%; }
+  .diff-field-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+  .diff-field-title { font-size: 12px; font-weight: 600; color: var(--muted); border-top: 1px solid var(--border); padding-top: 10px; margin-bottom: 2px; }
+
+  /* ── editable field ── */
+  .field-row { display: flex; align-items: flex-start; gap: 6px; }
+  .field-row > :first-child { flex: 1; min-width: 0; }
+  .kebab-btn { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 16px; padding: 2px 5px; border-radius: 4px; line-height: 1; flex-shrink: 0; }
+  .kebab-btn:hover { background: var(--border); color: var(--text); }
+  .edited-badge { font-size: 10px; color: var(--accent2); background: rgba(79,195,247,.1); border: 1px solid rgba(79,195,247,.3); border-radius: 4px; padding: 1px 5px; vertical-align: middle; margin-left: 4px; }
+  .timing-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .timing-input { width: 80px; padding: 4px 8px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 12px; font-family: monospace; text-align: center; }
+  .timing-input:focus { border-color: var(--accent); outline: none; }
 </style>
 </head>
 <body>
@@ -250,13 +280,21 @@
             style="padding:2px 10px;font-size:12px;display:none">Cancel</button>
   </div>
   <div class="header-spacer" id="header-spacer"></div>
-  <button class="btn" id="btn-contexts" onclick="openContextManager()">Contexts</button>
   <button class="btn primary" id="btn-ingest" onclick="openIngestModal()">+ Ingest</button>
   <button class="btn" id="btn-demo" onclick="openDemoModal()">Build Reel</button>
-  <button class="btn" id="btn-reels" onclick="openReelsModal()">View Reels</button>
-  <a class="btn ghost" id="btn-logs" href="/api/logs/export" download="rp-clipper.log"
-     title="Download debug log — attach when reporting a bug">&#8595; Log</a>
-  <button class="btn ghost" onclick="openAboutModal()" title="About &amp; licencing">?</button>
+  <div class="hamburger-wrap" id="hamburger-wrap">
+    <button class="btn ghost" id="btn-hamburger" onclick="toggleHamburger()" title="More options" style="font-size:17px;padding:5px 11px;line-height:1">&#9776;</button>
+    <div class="hamburger-menu" id="hamburger-menu">
+      <button class="hamburger-item" onclick="openReelsModal();closeHamburger()">&#127916; View Reels</button>
+      <div class="hamburger-divider"></div>
+      <button class="hamburger-item" onclick="openContextManager();closeHamburger()">&#127917; Contexts</button>
+      <button class="hamburger-item" onclick="openControlsModal();closeHamburger()">&#9000; Controls</button>
+      <button class="hamburger-item" onclick="openAboutModal();closeHamburger()">&#9432; About</button>
+      <div class="hamburger-divider"></div>
+      <a class="hamburger-item" href="/api/logs/export" download="rp-clipper.log" onclick="closeHamburger()">&#8595; Download Log</a>
+      <button class="hamburger-item" disabled title="Coming soon">&#9881; Settings</button>
+    </div>
+  </div>
 </header>
 
 <div class="layout">
@@ -578,6 +616,66 @@
   </div>
 </div>
 
+<!-- Diff Modal (editable LLM field compare) -->
+<div class="modal-bg" id="diff-modal">
+  <div class="modal diff-modal">
+    <h3 id="diff-modal-title">Review Generated Content</h3>
+    <div id="diff-fields"></div>
+    <div class="modal-actions">
+      <button class="btn" id="diff-discard-btn" onclick="_diffDiscard()">Discard</button>
+      <button class="btn" id="diff-accept-edit-btn" onclick="_diffAcceptEdit()">Accept as Edit</button>
+      <button class="btn primary" id="diff-accept-new-btn" onclick="_diffAcceptNew()">Accept New</button>
+    </div>
+  </div>
+</div>
+
+<!-- Field Edit Modal -->
+<div class="modal-bg" id="field-edit-modal">
+  <div class="modal" style="width:540px">
+    <h3 id="field-edit-title">Edit Field</h3>
+    <textarea id="field-edit-text" style="width:100%;min-height:100px;padding:8px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;font-family:inherit;resize:vertical;box-sizing:border-box" rows="5"></textarea>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeFieldEditModal()">Cancel</button>
+      <button class="btn primary" onclick="_fieldEditSave()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm Modal -->
+<div class="modal-bg" id="confirm-modal">
+  <div class="modal" style="width:420px">
+    <h3 id="confirm-title"></h3>
+    <p id="confirm-body" style="color:var(--muted);font-size:13px;line-height:1.6;margin-top:-4px"></p>
+    <div class="modal-actions">
+      <button class="btn" onclick="_confirmCancel()">Cancel</button>
+      <button class="btn" id="confirm-ok-btn" onclick="_confirmOk()">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- Controls Modal -->
+<div class="modal-bg" id="controls-modal">
+  <div class="modal" style="max-width:400px">
+    <h3>Keyboard Controls</h3>
+    <table style="width:100%;font-size:12px;border-collapse:collapse;color:var(--muted)">
+      <tbody>
+        <tr><td style="padding:4px 0"><kbd>A</kbd></td><td>Approve selected clip</td></tr>
+        <tr><td><kbd>R</kbd></td><td>Reject selected clip</td></tr>
+        <tr><td><kbd>Space</kbd></td><td>Play / Pause video</td></tr>
+        <tr><td><kbd>E</kbd></td><td>Export selected clip</td></tr>
+        <tr><td><kbd>&#8592; &#8593;</kbd></td><td>Previous clip</td></tr>
+        <tr><td><kbd>&#8594; &#8595;</kbd></td><td>Next clip</td></tr>
+        <tr><td><kbd>Ctrl+Z</kbd></td><td>Undo last status change</td></tr>
+        <tr><td><kbd>?</kbd></td><td>Open this panel</td></tr>
+        <tr><td><kbd>Esc</kbd></td><td>Close any open modal</td></tr>
+      </tbody>
+    </table>
+    <div class="modal-actions" style="margin-top:16px">
+      <button class="btn" onclick="closeControlsModal()">Close</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ── state ─────────────────────────────────────────────────────────────────────
 let activeVideoId   = null;
@@ -589,6 +687,174 @@ let _contexts       = [];
 let _editingContextSlug = null;
 let _clipFilter     = 'all';
 let _lastStatusChange = null; // {clipId, fromStatus, timer}
+let _confirmCallback  = null;
+let _activeClipData   = null;
+let _activeVideoData  = null;
+let _bootRestoreDone  = false;
+
+// ── confirm modal ─────────────────────────────────────────────────────────────
+function showConfirm(title, body, okLabel, onOk, danger = false) {
+  document.getElementById('confirm-title').textContent = title;
+  document.getElementById('confirm-body').innerHTML = body;
+  const ok = document.getElementById('confirm-ok-btn');
+  ok.textContent = okLabel;
+  ok.className = danger ? 'btn reject' : 'btn primary';
+  _confirmCallback = onOk;
+  document.getElementById('confirm-modal').classList.add('visible');
+}
+function _confirmOk() {
+  document.getElementById('confirm-modal').classList.remove('visible');
+  const cb = _confirmCallback;
+  _confirmCallback = null;
+  if (cb) cb();
+}
+function _confirmCancel() {
+  document.getElementById('confirm-modal').classList.remove('visible');
+  _confirmCallback = null;
+}
+
+// ── hamburger menu ────────────────────────────────────────────────────────────
+function toggleHamburger() {
+  document.getElementById('hamburger-menu').classList.toggle('open');
+}
+function closeHamburger() {
+  document.getElementById('hamburger-menu').classList.remove('open');
+}
+document.addEventListener('click', e => {
+  if (!document.getElementById('hamburger-wrap').contains(e.target)) {
+    closeHamburger();
+  }
+});
+
+// ── controls modal ────────────────────────────────────────────────────────────
+function openControlsModal()  { document.getElementById('controls-modal').classList.add('visible'); }
+function closeControlsModal() { document.getElementById('controls-modal').classList.remove('visible'); }
+
+// ── diff modal ────────────────────────────────────────────────────────────────
+// _diffState: {title, fields:[{label,current,proposed}], onCommit(action, editedValues)}
+let _diffState = null;
+
+function openDiffModal(title, fields, onCommit, opts = {}) {
+  _diffState = {title, fields, onCommit};
+  const revert = opts.revertMode || false;
+  document.getElementById('diff-modal-title').textContent = title;
+  const container = document.getElementById('diff-fields');
+  container.innerHTML = fields.map((f, i) => `
+    <div class="diff-field-group">
+      ${fields.length > 1 ? `<div class="diff-field-title">${escHtml(f.label)}</div>` : ''}
+      <div class="diff-panels">
+        <div class="diff-panel">
+          <div class="diff-panel-label">${revert ? 'Your Edit' : 'Current'}</div>
+          <div class="diff-current${f.current ? '' : ' empty'}">${
+            f.current ? escHtml(f.current) : '(none yet)'
+          }</div>
+        </div>
+        <div class="diff-panel">
+          <div class="diff-panel-label">${revert ? 'Original (LLM)' : 'New — editable'}</div>
+          ${revert
+            ? `<div class="diff-current${f.proposed ? '' : ' empty'}">${f.proposed ? escHtml(f.proposed) : '(none)'}</div>`
+            : `<textarea class="diff-new" id="diff-new-${i}" rows="4">${escHtml(f.proposed || '')}</textarea>`
+          }
+        </div>
+      </div>
+    </div>`).join('');
+  document.getElementById('diff-discard-btn').textContent   = revert ? 'Keep My Edit' : 'Discard';
+  document.getElementById('diff-accept-edit-btn').style.display = revert ? 'none' : '';
+  document.getElementById('diff-accept-new-btn').textContent = revert ? 'Revert to Original' : 'Accept New';
+  document.getElementById('diff-modal').classList.add('visible');
+}
+
+function _diffGetEdited() {
+  return (_diffState?.fields || []).map((_, i) => {
+    const ta = document.getElementById(`diff-new-${i}`);
+    return ta ? ta.value : '';
+  });
+}
+
+function _diffAcceptNew() {
+  const edited = _diffGetEdited();
+  document.getElementById('diff-modal').classList.remove('visible');
+  const cb = _diffState?.onCommit;
+  _diffState = null;
+  if (cb) cb('accept_new', edited);
+}
+
+function _diffAcceptEdit() {
+  const edited = _diffGetEdited();
+  document.getElementById('diff-modal').classList.remove('visible');
+  const cb = _diffState?.onCommit;
+  _diffState = null;
+  if (cb) cb('accept_edit', edited);
+}
+
+function _diffDiscard() {
+  document.getElementById('diff-modal').classList.remove('visible');
+  _diffState = null;
+}
+
+// ── field edit modal ──────────────────────────────────────────────────────────
+let _fieldEditCallback = null;
+
+function openFieldEditModal(title, currentValue, onSave) {
+  document.getElementById('field-edit-title').textContent = title;
+  document.getElementById('field-edit-text').value = currentValue;
+  _fieldEditCallback = onSave;
+  document.getElementById('field-edit-modal').classList.add('visible');
+  setTimeout(() => document.getElementById('field-edit-text').focus(), 50);
+}
+
+function closeFieldEditModal() {
+  document.getElementById('field-edit-modal').classList.remove('visible');
+  _fieldEditCallback = null;
+}
+
+function _fieldEditSave() {
+  const val = document.getElementById('field-edit-text').value;
+  const cb = _fieldEditCallback;
+  closeFieldEditModal();
+  if (cb) cb(val);
+}
+
+// ── kebab menus ───────────────────────────────────────────────────────────────
+let _activeKebab = null;
+
+function showKebab(anchorEl, items) {
+  if (_activeKebab) { _activeKebab.remove(); _activeKebab = null; }
+  const menu = document.createElement('div');
+  menu.className = 'hamburger-menu open';
+  menu.style.cssText = 'position:fixed;z-index:500;min-width:160px';
+  for (const item of items) {
+    if (item === null) {
+      const sep = document.createElement('div');
+      sep.className = 'hamburger-divider';
+      menu.appendChild(sep);
+      continue;
+    }
+    const btn = document.createElement('button');
+    btn.className = 'hamburger-item';
+    btn.textContent = item.label;
+    if (item.disabled) btn.disabled = true;
+    btn.onclick = () => { menu.remove(); _activeKebab = null; item.action(); };
+    menu.appendChild(btn);
+  }
+  document.body.appendChild(menu);
+  _activeKebab = menu;
+
+  const rect = anchorEl.getBoundingClientRect();
+  let top  = rect.bottom + 4;
+  let left = rect.right - menu.offsetWidth;
+  if (left < 4) left = rect.left;
+  if (top + 200 > window.innerHeight) top = rect.top - 200;
+  menu.style.top  = top  + 'px';
+  menu.style.left = left + 'px';
+
+  setTimeout(() => {
+    const dismiss = e => {
+      if (!menu.contains(e.target)) { menu.remove(); _activeKebab = null; document.removeEventListener('click', dismiss); }
+    };
+    document.addEventListener('click', dismiss);
+  }, 0);
+}
 
 // ── boot ──────────────────────────────────────────────────────────────────────
 _loadContexts();
@@ -661,6 +927,23 @@ async function loadVideos() {
 
   const totalApproved = videos.reduce((n, v) => n + v.approved, 0);
   _updateDemoButton(totalApproved);
+
+  if (!_bootRestoreDone) {
+    _bootRestoreDone = true;
+    _restoreView();
+  }
+}
+
+async function _restoreView() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('rp-view') || 'null');
+    if (!saved?.videoId) return;
+    if (!_videos.find(v => v.id === saved.videoId)) return;
+    await selectVideo(saved.videoId);
+    if (saved.clipId && _clips.find(c => c.id === saved.clipId)) {
+      await selectClip(saved.clipId);
+    }
+  } catch {}
 }
 
 function _showEmptyState() {
@@ -695,6 +978,7 @@ function _clipsSortParam() {
 async function selectVideo(id) {
   activeVideoId = id;
   activeClipId  = null;
+  localStorage.setItem('rp-view', JSON.stringify({videoId: id, clipId: null}));
   _clipFilter = 'all';
   document.querySelectorAll('.clip-tab').forEach(t =>
     t.classList.toggle('active', t.dataset.filter === 'all'));
@@ -706,24 +990,33 @@ async function selectVideo(id) {
 }
 
 function renderVideoDetail(video, savedTimeline) {
+  _activeVideoData = video;
+  const eb = (isEdited) => isEdited ? `<span class="edited-badge">edited</span>` : '';
   document.getElementById('player-area').innerHTML = '';
   document.getElementById('detail').innerHTML = `
     <div class="clip-header">
-      <h2>${escHtml(video.title || video.filename)}</h2>
+      <div class="field-row" style="align-items:center">
+        <h2 style="margin:0">${escHtml(video.title || video.filename)}${eb(video.title_is_edited)}</h2>
+        ${video.title ? `<button class="kebab-btn" title="Edit or regenerate title" onclick="openVideoTitleKebab(${video.id}, this)">&#8943;</button>` : ''}
+      </div>
     </div>
     <div style="color:var(--muted);font-size:13px">${video.duration_hms} &middot; ${video.clip_count} clips &middot; ${_msToHms(video.total_clip_ms)} clipped</div>
 
     ${_renderContextSection(video)}
 
     ${video.summary ? `
-      <div>
-        <div class="section-title" style="margin-bottom:6px">Session Summary</div>
+      <div style="margin-bottom:8px">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+          <div class="section-title">Session Summary${eb(video.summary_is_edited)}</div>
+          <button class="kebab-btn" title="Edit or regenerate summary" onclick="openVideoSummaryKebab(${video.id}, this)">&#8943;</button>
+        </div>
         <div class="description-long">${escHtml(video.summary)}</div>
       </div>` : ''}
 
     <div class="actions">
-      <button class="btn" onclick="summarizeVideo(${video.id}, this)">${video.summary ? 'Regenerate Summary' : 'Generate Summary'}</button>
+      <button class="btn" id="btn-summarize-video" onclick="summarizeVideo(${video.id}, this)">${video.summary ? 'Regenerate Summary' : 'Generate Summary'}</button>
       <button class="btn" id="btn-generate-timeline" onclick="generateTimeline(${video.id})">${video.has_timeline ? 'Regenerate Timeline' : 'Generate Timeline'}</button>
+      <button class="btn" style="color:var(--red)" onclick="resetApprovals(${video.id})">Reset Approvals</button>
     </div>
 
     <div id="timeline-section">
@@ -859,9 +1152,10 @@ function generateTimeline(id) {
 }
 
 async function summarizeVideo(id, btn) {
-  const orig = btn.textContent;
-  btn.disabled = true;
-  btn.textContent = 'Generating…';
+  const actionBtn = document.getElementById('btn-summarize-video') || btn;
+  if (actionBtn && actionBtn.disabled) return;
+  const orig = actionBtn ? actionBtn.textContent : '';
+  if (actionBtn) { actionBtn.disabled = true; actionBtn.textContent = 'Generating…'; }
   try {
     const res = await fetch(`/api/videos/${id}/summarize`, {method: 'POST'});
     if (!res.ok) {
@@ -869,16 +1163,89 @@ async function summarizeVideo(id, btn) {
       throw new Error(formatApiError(err));
     }
     const data = await res.json();
-    await loadVideos();
-    const video = _videos.find(v => v.id === id);
-    if (video) renderVideoDetail({...video, title: data.title, summary: data.summary});
-    else renderVideoDetail({id, title: data.title, summary: data.summary});
-    showToast('Summary generated');
+    openDiffModal('Review Generated Summary', [
+      {label: 'Title',   current: data.title_current,   proposed: data.title_new},
+      {label: 'Summary', current: data.summary_current, proposed: data.summary_new},
+    ], async (action, edited) => {
+      const patch = await fetch(`/api/videos/${id}/fields`, {
+        method: 'PATCH', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({action, field: 'both', new_title: edited[0], new_summary: edited[1]}),
+      });
+      if (!patch.ok) { showToast('Save failed', 'error'); return; }
+      await loadVideos();
+      const video = _videos.find(v => v.id === id);
+      if (video) renderVideoDetail(video, null);
+      showToast(action === 'accept_new' ? 'Summary accepted' : 'Summary saved as edit');
+    });
   } catch (err) {
     showToast(`Summary failed: ${err.message}`, 'error');
-    btn.disabled = false;
-    btn.textContent = orig;
+  } finally {
+    if (actionBtn) { actionBtn.disabled = false; actionBtn.textContent = orig; }
   }
+}
+
+function openVideoTitleKebab(videoId, btn) {
+  const video = _activeVideoData;
+  const items = [
+    { label: 'Edit', action: () =>
+      openFieldEditModal('Edit Title', video?.title || '', async v => {
+        await _patchVideoField(videoId, 'accept_edit', 'title', v, null);
+        await loadVideos();
+        const updated = _videos.find(x => x.id === videoId);
+        if (updated) renderVideoDetail(updated, null);
+      })
+    },
+  ];
+  if (video?.title_is_edited) {
+    items.push({ label: 'Revert to Original', action: () =>
+      openDiffModal('Revert Title', [
+        {label: 'Title', current: video.title, proposed: video.title_original},
+      ], async () => {
+        await _patchVideoField(videoId, 'revert', 'title', null, null);
+        await loadVideos();
+        const updated = _videos.find(x => x.id === videoId);
+        if (updated) renderVideoDetail(updated, null);
+      }, {revertMode: true})
+    });
+  }
+  items.push(null, { label: 'Regenerate', action: () => summarizeVideo(videoId, null) });
+  showKebab(btn, items);
+}
+
+function openVideoSummaryKebab(videoId, btn) {
+  const video = _activeVideoData;
+  const items = [
+    { label: 'Edit', action: () =>
+      openFieldEditModal('Edit Summary', video?.summary || '', async v => {
+        await _patchVideoField(videoId, 'accept_edit', 'summary', null, v);
+        await loadVideos();
+        const updated = _videos.find(x => x.id === videoId);
+        if (updated) renderVideoDetail(updated, null);
+      })
+    },
+  ];
+  if (video?.summary_is_edited) {
+    items.push({ label: 'Revert to Original', action: () =>
+      openDiffModal('Revert Summary', [
+        {label: 'Summary', current: video.summary, proposed: video.summary_original},
+      ], async () => {
+        await _patchVideoField(videoId, 'revert', 'summary', null, null);
+        await loadVideos();
+        const updated = _videos.find(x => x.id === videoId);
+        if (updated) renderVideoDetail(updated, null);
+      }, {revertMode: true})
+    });
+  }
+  items.push(null, { label: 'Regenerate', action: () => summarizeVideo(videoId, null) });
+  showKebab(btn, items);
+}
+
+async function _patchVideoField(videoId, action, field, newTitle, newSummary) {
+  const res = await fetch(`/api/videos/${videoId}/fields`, {
+    method: 'PATCH', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({action, field, new_title: newTitle, new_summary: newSummary}),
+  });
+  if (!res.ok) showToast('Save failed', 'error');
 }
 
 async function onClipsSortChange() {
@@ -930,6 +1297,7 @@ function renderClipList(clips) {
 
 async function selectClip(id) {
   activeClipId = id;
+  localStorage.setItem('rp-view', JSON.stringify({videoId: activeVideoId, clipId: id}));
   try {
     const [clipRes, mediaRes] = await Promise.all([
       fetch(`/api/clips/${id}`),
@@ -939,6 +1307,7 @@ async function selectClip(id) {
     const clip  = await clipRes.json();
     const media = await mediaRes.json();
     const captionsUrl = media.has_captions ? `/api/clips/${id}/captions.vtt` : null;
+    _activeClipData = clip;
     renderPlayer(media.url, captionsUrl);
     renderDetail(clip);
   } catch (err) {
@@ -965,17 +1334,33 @@ function renderPlayer(url, captionsUrl) {
 
 // ── detail ─────────────────────────────────────────────────────────────────────
 function renderDetail(clip) {
+  const eb = (isEdited) => isEdited ? `<span class="edited-badge">edited</span>` : '';
   document.getElementById('detail').innerHTML = `
     <div class="clip-header">
       <h2>Clip ${clip.id}</h2>
       <span class="time">${clip.start_hms} &middot; ${clip.duration_hms}</span>
     </div>
 
-    ${clip.description ? `<div class="description">"${escHtml(clip.description)}"</div>` : ''}
+    <div class="timing-row" style="margin-bottom:8px">
+      <span class="section-title" style="font-size:12px">Trim</span>
+      <span style="color:var(--muted);font-size:12px">Start</span>
+      <input class="timing-input" id="clip-trim-start" value="${_fmtOffset(clip.start_offset)}" placeholder="+0.0" title="Offset in ±seconds, absolute seconds, or M:SS">
+      <span style="color:var(--muted);font-size:12px">End</span>
+      <input class="timing-input" id="clip-trim-end" value="${_fmtOffset(clip.end_offset)}" placeholder="+0.0" title="Offset in ±seconds, absolute seconds, or M:SS">
+      <button class="btn" style="font-size:12px;padding:4px 10px" onclick="saveClipTiming(${clip.id})">Apply</button>
+    </div>
+
+    <div class="field-row" style="margin-bottom:8px">
+      <div class="description">${clip.description ? `"${escHtml(clip.description)}"` : `<span style="color:var(--muted);font-size:13px">No description yet — Re-score to generate</span>`}${eb(clip.description_is_edited)}</div>
+      <button class="kebab-btn" title="Edit or regenerate description" onclick="openDescKebab(${clip.id}, this)">&#8943;</button>
+    </div>
 
     ${clip.description_long ? `
-      <div>
-        <div class="section-title" style="margin-bottom:6px">Description</div>
+      <div style="margin-bottom:8px">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+          <div class="section-title">Description${eb(clip.description_long_is_edited)}</div>
+          <button class="kebab-btn" title="Edit or regenerate long description" onclick="openDescLongKebab(${clip.id}, this)">&#8943;</button>
+        </div>
         <div class="description-long">${escHtml(clip.description_long)}</div>
       </div>` : ''}
 
@@ -1012,6 +1397,93 @@ function scoreRow(label, val, cls) {
     <span class="score-label">${label}</span>
     <div class="score-bar-wrap"><div class="score-bar bar-${cls}" style="width:${(val*100).toFixed(1)}%"></div></div>
     <span class="score-val" style="color:var(--${cls})">${val.toFixed(2)}</span>`;
+}
+
+function _fmtOffset(v) {
+  if (!v) return '+0.0';
+  return (v >= 0 ? '+' : '') + v.toFixed(1);
+}
+
+function saveClipTiming(clipId) {
+  const parseOff = (str) => {
+    if (!str) return 0.0;
+    const s = str.trim();
+    if (/^[+-]/.test(s)) return parseFloat(s);
+    if (/^\d+:\d+(\.\d+)?$/.test(s)) {
+      const [m, sec] = s.split(':');
+      const absSec = parseInt(m) * 60 + parseFloat(sec);
+      const clipStartSec = _activeClipData?.start_ms ? _activeClipData.start_ms / 1000 : 0;
+      return absSec - clipStartSec;
+    }
+    return parseFloat(s);
+  };
+  const startOffset = parseOff(document.getElementById('clip-trim-start').value);
+  const endOffset   = parseOff(document.getElementById('clip-trim-end').value);
+  if (isNaN(startOffset) || isNaN(endOffset)) { showToast('Invalid timing value', 'error'); return; }
+  fetch(`/api/clips/${clipId}/timing`, {
+    method: 'PATCH', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({start_offset: startOffset, end_offset: endOffset}),
+  }).then(r => {
+    if (!r.ok) { showToast('Save timing failed', 'error'); return; }
+    showToast('Timing saved');
+    selectClip(clipId);
+  }).catch(() => showToast('Save timing failed', 'error'));
+}
+
+function openDescKebab(clipId, btn) {
+  const clip = _activeClipData;
+  const items = [
+    { label: 'Edit', action: () =>
+      openFieldEditModal('Edit Description', clip?.description || '', async v => {
+        await _patchClipField(clipId, 'accept_edit', 'description', v, null);
+        selectClip(clipId);
+      })
+    },
+  ];
+  if (clip?.description_is_edited) {
+    items.push({ label: 'Revert to Original', action: () =>
+      openDiffModal('Revert Description', [
+        {label: 'Description', current: clip.description, proposed: clip.description_original},
+      ], async () => {
+        await _patchClipField(clipId, 'revert', 'description', null, null);
+        selectClip(clipId);
+      }, {revertMode: true})
+    });
+  }
+  items.push(null, { label: 'Regenerate via Re-score', action: () => rescoreClip(clipId) });
+  showKebab(btn, items);
+}
+
+function openDescLongKebab(clipId, btn) {
+  const clip = _activeClipData;
+  const items = [
+    { label: 'Edit', action: () =>
+      openFieldEditModal('Edit Long Description', clip?.description_long || '', async v => {
+        await _patchClipField(clipId, 'accept_edit', 'description_long', null, v);
+        selectClip(clipId);
+      })
+    },
+  ];
+  if (clip?.description_long_is_edited) {
+    items.push({ label: 'Revert to Original', action: () =>
+      openDiffModal('Revert Long Description', [
+        {label: 'Description', current: clip.description_long, proposed: clip.description_long_original},
+      ], async () => {
+        await _patchClipField(clipId, 'revert', 'description_long', null, null);
+        selectClip(clipId);
+      }, {revertMode: true})
+    });
+  }
+  items.push(null, { label: 'Regenerate via Re-score', action: () => rescoreClip(clipId) });
+  showKebab(btn, items);
+}
+
+async function _patchClipField(clipId, action, field, newDesc, newDescLong) {
+  const res = await fetch(`/api/clips/${clipId}/fields`, {
+    method: 'PATCH', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({action, field, new_description: newDesc, new_description_long: newDescLong}),
+  });
+  if (!res.ok) showToast('Save failed', 'error');
 }
 
 function clearDetail() {
@@ -1104,14 +1576,21 @@ function exportClip(id) {
 }
 
 // ── delete ─────────────────────────────────────────────────────────────────────
-async function deleteVideo(id) {
+function deleteVideo(id) {
   const video = _videos.find(v => v.id === id);
   const name  = video ? video.filename : `video ${id}`;
-  if (!confirm(
-    `Remove "${name}" from rp-clipper?\n\n` +
-    `This deletes all clips, transcripts, and extracted audio from the database.\n` +
-    `Your source recording file is NOT touched.`
-  )) return;
+  showConfirm(
+    'Remove video?',
+    `Remove <strong>${escHtml(name)}</strong> from rp-clipper?<br><br>` +
+    `All clips, transcripts, and extracted audio are removed from the database. ` +
+    `Your source recording file is <strong>not</strong> deleted.`,
+    'Remove',
+    () => _doDeleteVideo(id, name),
+    true,
+  );
+}
+
+async function _doDeleteVideo(id, name) {
   const delRes = await fetch(`/api/videos/${id}`, {method: 'DELETE'});
   if (!delRes.ok) {
     const err = await delRes.json().catch(() => ({}));
@@ -1128,12 +1607,18 @@ async function deleteVideo(id) {
   showToast(`"${name}" removed from rp-clipper`);
 }
 
-async function deleteClip(id) {
-  if (!confirm(
-    `Delete this clip?\n\n` +
-    `The clip record will be removed from the database.\n` +
-    `Its exported video file (if any) will also be deleted from the exports folder.`
-  )) return;
+function deleteClip(id) {
+  showConfirm(
+    'Delete clip?',
+    `The clip record will be removed from the database. ` +
+    `Its exported video file (if any) will also be deleted from the exports folder.`,
+    'Delete',
+    () => _doDeleteClip(id),
+    true,
+  );
+}
+
+async function _doDeleteClip(id) {
   const videoId = activeVideoId;
   const delRes = await fetch(`/api/clips/${id}`, {method: 'DELETE'});
   if (!delRes.ok) {
@@ -1444,8 +1929,17 @@ function streamSSE(url, onDone, stepDefs, jobLabel, cancellable = false) {
   };
 }
 
-async function cancelJob() {
-  if (!confirm('Cancel the running ingest?\n\nAll progress for this video will be lost and you will need to ingest it again.')) return;
+function cancelJob() {
+  showConfirm(
+    'Cancel ingest?',
+    `All progress for this video will be lost and you will need to ingest it again.`,
+    'Cancel Ingest',
+    _doCancelJob,
+    true,
+  );
+}
+
+async function _doCancelJob() {
   if (_activeES) { _activeES.close(); _activeES = null; }
   try { await fetch('/api/ingest/cancel', {method: 'POST'}); } catch {}
   appendLog('[Ingest cancelled]');
@@ -1691,8 +2185,17 @@ async function saveProfile() {
   showToast(`Profile "${name}" saved`);
 }
 
-async function deleteProfile(name) {
-  if (!confirm(`Delete profile "${name}"?`)) return;
+function deleteProfile(name) {
+  showConfirm(
+    'Delete profile?',
+    `Delete track profile <strong>${escHtml(name)}</strong>? This cannot be undone.`,
+    'Delete',
+    () => _doDeleteProfile(name),
+    true,
+  );
+}
+
+async function _doDeleteProfile(name) {
   const res = await fetch(`/api/profiles/${encodeURIComponent(name)}`, {method: 'DELETE'});
   if (!res.ok) {
     const e = await res.json().catch(() => ({}));
@@ -1896,11 +2399,21 @@ async function saveContext() {
   showToast(`Context "${displayName}" saved`);
 }
 
-async function deleteContext() {
+function deleteContext() {
   if (!_editingContextSlug) return;
   const ctx  = _contexts.find(c => c.slug === _editingContextSlug);
   const name = ctx ? ctx.display_name : _editingContextSlug;
-  if (!confirm(`Delete context "${name}"?\n\nVideos already assigned to it will keep the slug in their list — you can re-create the context to restore it.`)) return;
+  showConfirm(
+    'Delete context?',
+    `Delete context <strong>${escHtml(name)}</strong>?<br><br>` +
+    `Videos already assigned to it will keep the slug — you can re-create the context to restore it.`,
+    'Delete',
+    () => _doDeleteContext(name),
+    true,
+  );
+}
+
+async function _doDeleteContext(name) {
   const res = await fetch(`/api/contexts/${encodeURIComponent(_editingContextSlug)}`, {method: 'DELETE'});
   if (!res.ok) {
     const e = await res.json().catch(() => ({}));
@@ -1948,6 +2461,18 @@ document.addEventListener('click', e => {
 
 // ── re-score clips with context ────────────────────────────────────────────────
 function rescoreClips(videoId, btn) {
+  const video = _videos.find(v => v.id === videoId);
+  const count = video ? video.clip_count : 0;
+  showConfirm(
+    'Re-score clips with context?',
+    `This will run Ollama scoring on <strong>${count} clip${count !== 1 ? 's' : ''}</strong>.<br>` +
+    `GPU time varies with clip count — this may take several minutes.`,
+    'Re-score',
+    () => _doRescoreClips(videoId, btn),
+  );
+}
+
+function _doRescoreClips(videoId, btn) {
   const orig = btn.textContent;
   btn.disabled = true;
   btn.textContent = 'Re-scoring…';
@@ -1985,6 +2510,32 @@ function rescoreClips(videoId, btn) {
   };
 }
 
+// ── reset approvals ────────────────────────────────────────────────────────────
+function resetApprovals(videoId) {
+  const nonPending = _clips.filter(c => c.status !== 'pending').length;
+  if (!nonPending) { showToast('All clips are already Pending', 'info'); return; }
+  showConfirm(
+    'Reset all approvals?',
+    `Reset <strong>${nonPending} clip${nonPending !== 1 ? 's' : ''}</strong> back to Pending for this video. This cannot be undone.`,
+    'Reset',
+    () => _doResetApprovals(videoId),
+    true,
+  );
+}
+
+async function _doResetApprovals(videoId) {
+  const res = await fetch(`/api/videos/${videoId}/reset-approvals`, {method: 'POST'});
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    showToast(`Failed to reset approvals: ${formatApiError(err)}`, 'error');
+    return;
+  }
+  const data = await res.json();
+  _clips = await fetch(`/api/videos/${videoId}/clips?sort=${_clipsSortParam()}`).then(r => r.json());
+  renderClipList(_clips);
+  showToast(`Reset ${data.reset} clip${data.reset !== 1 ? 's' : ''} to Pending`);
+}
+
 // ── retranscribe ───────────────────────────────────────────────────────────────
 let _retranscribeClipId = null;
 
@@ -2013,20 +2564,38 @@ function startRetranscribe() {
 // ── re-score individual clip ────────────────────────────────────────────────
 function rescoreClip(clipId) {
   const btn = document.getElementById('btn-rescore-clip');
+  if (btn && btn.disabled) return;
   if (btn) { btn.disabled = true; btn.textContent = 'Scoring…'; }
   if (_activeES) { _activeES.close(); _activeES = null; }
   openLog();
   const es = new EventSource(`/api/clips/${clipId}/rescore`);
   _activeES = es;
-  es.onmessage = e => {
+  es.onmessage = async e => {
     const msg = JSON.parse(e.data);
-    if (msg === '__DONE__') {
+    if (msg?.type === '__DONE__') {
       if (_activeES === es) _activeES = null;
       es.close();
-      selectClip(clipId);
+      if (btn) { btn.disabled = false; btn.textContent = 'Re-score'; }
+      const clip = await fetch(`/api/clips/${clipId}`).then(r => r.json()).catch(() => null);
+      const descNew     = msg.description_new;
+      const descLongNew = msg.description_long_new;
+      if (descNew || descLongNew) {
+        openDiffModal('Review Re-scored Descriptions', [
+          {label: 'Description',       current: clip?.description_original      || clip?.description      || '', proposed: descNew     || ''},
+          {label: 'Description (long)', current: clip?.description_long_original || clip?.description_long || '', proposed: descLongNew || ''},
+        ], async (action, edited) => {
+          await fetch(`/api/clips/${clipId}/fields`, {
+            method: 'PATCH', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({action, field: 'both', new_description: edited[0], new_description_long: edited[1]}),
+          });
+          selectClip(clipId);
+        });
+      } else {
+        selectClip(clipId);
+      }
       showToast('Clip re-scored');
     } else {
-      appendLog(msg);
+      appendLog(String(msg));
     }
   };
   es.onerror = () => {
@@ -2047,17 +2616,22 @@ document.addEventListener('keydown', e => {
 
   if (e.key === '?' || e.key === '/') {
     e.preventDefault();
-    openAboutModal();
+    openControlsModal();
     return;
   }
   if (e.key === 'Escape') {
     closeAboutModal();
+    closeControlsModal();
+    _confirmCancel();
+    closeFieldEditModal();
+    _diffDiscard();
     closeIngestModal();
     closeProfileManager();
     closeDemoModal();
     closeReelsModal();
     closeRetranscribeModal();
     closeContextManager();
+    closeHamburger();
     return;
   }
   if (e.key === 'z' && (e.ctrlKey || e.metaKey)) {

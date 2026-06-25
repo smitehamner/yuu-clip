@@ -37,6 +37,25 @@ class ContextAssignment(BaseModel):
     context_names: list[str]
 
 
+class VideoFieldsUpdate(BaseModel):
+    action: str                          # accept_new | accept_edit | revert
+    field: str                           # title | summary | both
+    new_title: Optional[str] = None
+    new_summary: Optional[str] = None
+
+
+class ClipFieldsUpdate(BaseModel):
+    action: str                          # accept_new | accept_edit | revert
+    field: str                           # description | description_long | both
+    new_description: Optional[str] = None
+    new_description_long: Optional[str] = None
+
+
+class ClipTimingUpdate(BaseModel):
+    start_offset: float
+    end_offset: float
+
+
 def make_router(ctx: ProjectContext) -> APIRouter:
     router = APIRouter()
 
@@ -74,6 +93,23 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             video.context_names_json = json_lib.dumps(body.context_names)
             db.commit()
             return {"context_names": body.context_names}
+        finally:
+            db.close()
+
+    @router.post("/api/videos/{video_id}/reset-approvals")
+    def reset_approvals(video_id: int):
+        """Reset all clip statuses to 'pending' for a video."""
+        db = ctx.get_db()
+        try:
+            if not db.get(Video, video_id):
+                raise HTTPException(404, "Video not found")
+            clips = db.query(ClipCandidate).filter_by(video_id=video_id).all()
+            count = sum(1 for c in clips if c.status != "pending")
+            for clip in clips:
+                clip.status = "pending"
+            db.commit()
+            _log.info("Reset %d clip approvals for video %d", count, video_id)
+            return {"reset": count}
         finally:
             db.close()
 
@@ -230,7 +266,11 @@ def make_router(ctx: ProjectContext) -> APIRouter:
 
     @router.post("/api/videos/{video_id}/summarize")
     def summarize_video(video_id: int):
-        """Generate a title and summary for a video's transcript via Ollama."""
+        """Generate title + summary via Ollama and return them for the compare modal.
+
+        Does NOT write to the DB — the caller commits via PATCH /fields after the
+        user accepts the result in the diff modal.
+        """
         from rp_clipper.scoring.llm import summarize_transcript
         db = ctx.get_db()
         try:
@@ -250,19 +290,72 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             if not full_text:
                 raise HTTPException(400, "No transcript available — run ingest first")
 
+            title_current = (
+                video.title_user if video.title_user is not None else (video.title or "")
+            )
+            summary_current = (
+                video.summary_user if video.summary_user is not None else (video.summary or "")
+            )
+
             context_text = format_context_block(load_contexts(ctx.project_dir), context_names)
             try:
-                title, summary = summarize_transcript(full_text, ctx.config, context_text=context_text)
+                title_new, summary_new = summarize_transcript(
+                    full_text, ctx.config, context_text=context_text
+                )
             except Exception as exc:
                 _log.warning("Ollama summarize failed for video %d: %s", video_id, exc)
                 raise HTTPException(502, f"Ollama error: {exc}")
 
-            video.title = title
-            video.summary = summary
-            video.summarized_at = datetime.now(timezone.utc)
-            video.summary_context_json = json_lib.dumps(context_names)
+            return {
+                "title_new": title_new,
+                "summary_new": summary_new,
+                "title_current": title_current,
+                "summary_current": summary_current,
+            }
+        finally:
+            db.close()
+
+    @router.patch("/api/videos/{video_id}/fields")
+    def update_video_fields(video_id: int, body: VideoFieldsUpdate):
+        """Commit the user's accept/edit/revert choice from the diff modal."""
+        if body.action not in ("accept_new", "accept_edit", "revert"):
+            raise HTTPException(400, "action must be accept_new | accept_edit | revert")
+        if body.field not in ("title", "summary", "both"):
+            raise HTTPException(400, "field must be title | summary | both")
+        db = ctx.get_db()
+        try:
+            video = db.get(Video, video_id)
+            if not video:
+                raise HTTPException(404, "Video not found")
+
+            touch_title   = body.field in ("title",   "both")
+            touch_summary = body.field in ("summary", "both")
+
+            if body.action == "accept_new":
+                if touch_title:
+                    video.title      = body.new_title
+                    video.title_user = None
+                if touch_summary:
+                    video.summary      = body.new_summary
+                    video.summary_user = None
+                video.summarized_at        = datetime.now(timezone.utc)
+                video.summary_context_json = json_lib.dumps(
+                    _json_list(video.context_names_json)
+                )
+            elif body.action == "accept_edit":
+                if touch_title:
+                    video.title_user = body.new_title
+                if touch_summary:
+                    video.summary_user = body.new_summary
+            else:  # revert
+                if touch_title:
+                    video.title_user = None
+                if touch_summary:
+                    video.summary_user = None
+
             db.commit()
-            return {"title": title, "summary": summary}
+            stats = _bulk_clip_stats(db, [video_id]).get(video_id, _EMPTY_STATS)
+            return _video_dict(video, stats)
         finally:
             db.close()
 
@@ -390,6 +483,57 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         finally:
             db.close()
 
+    @router.patch("/api/clips/{clip_id}/fields")
+    def update_clip_fields(clip_id: int, body: ClipFieldsUpdate):
+        """Commit the user's accept/edit/revert choice from the diff modal."""
+        if body.action not in ("accept_new", "accept_edit", "revert"):
+            raise HTTPException(400, "action must be accept_new | accept_edit | revert")
+        if body.field not in ("description", "description_long", "both"):
+            raise HTTPException(400, "field must be description | description_long | both")
+        db = ctx.get_db()
+        try:
+            clip = _require_clip(db, clip_id)
+            video = db.get(Video, clip.video_id)
+
+            touch_desc      = body.field in ("description",      "both")
+            touch_desc_long = body.field in ("description_long", "both")
+
+            if body.action == "accept_new":
+                if touch_desc:
+                    clip.description      = body.new_description
+                    clip.description_user = None
+                if touch_desc_long:
+                    clip.description_long      = body.new_description_long
+                    clip.description_long_user = None
+            elif body.action == "accept_edit":
+                if touch_desc:
+                    clip.description_user = body.new_description
+                if touch_desc_long:
+                    clip.description_long_user = body.new_description_long
+            else:  # revert
+                if touch_desc:
+                    clip.description_user = None
+                if touch_desc_long:
+                    clip.description_long_user = None
+
+            db.commit()
+            return _clip_dict(clip, full=True, export_dir=ctx.export_dir, video=video)
+        finally:
+            db.close()
+
+    @router.patch("/api/clips/{clip_id}/timing")
+    def update_clip_timing(clip_id: int, body: ClipTimingUpdate):
+        """Set start_offset and end_offset (seconds) on a clip."""
+        db = ctx.get_db()
+        try:
+            clip = _require_clip(db, clip_id)
+            clip.start_offset = body.start_offset
+            clip.end_offset   = body.end_offset
+            db.commit()
+            return {"start_offset": clip.start_offset, "end_offset": clip.end_offset}
+        finally:
+            db.close()
+
     @router.get("/api/clips/{clip_id}/rescore")
     async def rescore_clip(clip_id: int):
         db = ctx.get_db()
@@ -415,10 +559,20 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                 engine = ScoringEngine(config, [LLMScorer(config, context_text=context_text)])
                 score_db = ctx.get_db()
                 error = None
+                desc_new = desc_long_new = None
                 try:
                     clip = score_db.get(ClipCandidate, clip_id)
                     if clip:
+                        # Snapshot existing description values before scoring so we
+                        # can restore them — scores are committed, descriptions go
+                        # back to the frontend for the compare modal instead.
+                        old_desc      = clip.description
+                        old_desc_long = clip.description_long
                         await asyncio.to_thread(engine.score_clip, clip, score_db)
+                        desc_new      = clip.description
+                        desc_long_new = clip.description_long
+                        clip.description      = old_desc
+                        clip.description_long = old_desc_long
                         score_db.commit()
                 except Exception as exc:
                     score_db.rollback()
@@ -431,7 +585,12 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                     yield f"data: {json_lib.dumps(f'[Error: {error}]')}\n\n"
                 else:
                     yield f"data: {json_lib.dumps('Scored clip')}\n\n"
-                yield f"data: {json_lib.dumps('__DONE__')}\n\n"
+                done_payload = {
+                    "type": "__DONE__",
+                    "description_new": desc_new,
+                    "description_long_new": desc_long_new,
+                }
+                yield f"data: {json_lib.dumps(done_payload)}\n\n"
             finally:
                 ctx.active_jobs -= 1
 
@@ -535,8 +694,12 @@ def _video_dict(video: Video, stats: dict) -> dict:
         "clip_count": stats["clip_count"],
         "approved": stats["approved"],
         "total_clip_ms": stats["total_clip_ms"],
-        "title": video.title or "",
-        "summary": video.summary or "",
+        "title": video.title_user if video.title_user is not None else (video.title or ""),
+        "title_original": video.title or "",
+        "title_is_edited": video.title_user is not None,
+        "summary": video.summary_user if video.summary_user is not None else (video.summary or ""),
+        "summary_original": video.summary or "",
+        "summary_is_edited": video.summary_user is not None,
         "has_timeline": bool(video.timeline_json),
         "context_names": _json_list(video.context_names_json),
         "clips_scored_at": video.clips_scored_at.isoformat() if video.clips_scored_at else None,
@@ -565,8 +728,20 @@ def _clip_dict(
         "score_funny": round(clip.score_funny, 3),
         "score_dramatic": round(clip.score_dramatic, 3),
         "score_action": round(clip.score_action, 3),
-        "description": clip.description or "",
-        "description_long": clip.description_long or "",
+        "description": (
+            clip.description_user if clip.description_user is not None
+            else (clip.description or "")
+        ),
+        "description_original": clip.description or "",
+        "description_is_edited": clip.description_user is not None,
+        "description_long": (
+            clip.description_long_user if clip.description_long_user is not None
+            else (clip.description_long or "")
+        ),
+        "description_long_original": clip.description_long or "",
+        "description_long_is_edited": clip.description_long_user is not None,
+        "start_offset": clip.start_offset,
+        "end_offset": clip.end_offset,
         "status": clip.status,
         "tags": clip.tags,
         "has_export": (
