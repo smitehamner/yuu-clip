@@ -63,6 +63,24 @@
 
 ### Near-term (next up)
 
+- [ ] **Video summary** — on-demand "Generate Summary" button per video; calls Ollama on the
+  full session transcript to produce a 5-8 word `title` (shown as 2nd sidebar line) and a
+  structured `summary` paragraph (shown in the video detail panel). Stored as `Video.title` /
+  `Video.summary` columns.
+
+- [ ] **Two-level clip descriptions** — keep `description` (1-sentence, existing) and add
+  `description_long`: a structured paragraph covering what happened, why it stands out, who
+  is involved, and any other interesting context. Both produced by the LLM scorer in one call.
+  `description_long` shown in the clip detail panel.
+
+- [ ] **Transcript editing** — inline editable text area for `TranscriptSegment.text`; lets the
+  user fix character names, misspellings, and game-specific jargon before re-scoring. Save
+  triggers LLM re-score on that clip. Design: edit on a per-segment basis vs. full-text edit.
+
+- [ ] **Related clips** — "Find Similar" button in clip detail; sends `description_long` to
+  Ollama with all other clip descriptions and returns a ranked list of related clips. Separate
+  UI panel, not embedded in the LLM scorer prompt.
+
 - [ ] **Hot-word / phrase config** — new `[hotwords]` config section;
   editable list in the Settings page; clips containing a hot-word get a score boost
   and a tag; sidebar search/filter by phrase shows all matching clips
@@ -75,11 +93,18 @@
 
 - [ ] **Re-score individual clip** — button in clip detail; re-runs LLM scorer on
   that clip's transcript excerpt; SSE progress; refreshes scores on completion
+  *(UI hook exists; backend endpoint needed)*
 
 - [ ] **Clip deduplication** — merge overlapping candidates (from different tracks or
   overlapping windows) into one; keep highest-scoring source transcript
 
 ### Medium-term
+
+- [ ] **Clips vs Scenes** *(design first)* — introduce a second candidate type alongside clips:
+  "Scenes" are longer contextual moments (1-5 min, may include pauses and story arc) while
+  "clips" remain the short punchy bits (15-90 s). Design questions: separate pipeline with
+  different windower params? A flag on `ClipCandidate`? Separate table? Separate review UI?
+  Deferred until after transcript editing is stable.
 
 - [ ] **Clip trim (in/out adjust)** — drag handles on the player timeline to set new
   start/end before exporting; stores trim offsets on `ClipCandidate`
@@ -107,7 +132,25 @@
 
 - [ ] **Character / speaker tagging** — pyannote.audio diarization; label speaker
   clusters with character names; filter clips by character; score boost per character;
-  requires HuggingFace token for model download
+  requires HuggingFace token for model download. Once per-speaker transcription is
+  available, map auto-detected speakers to named characters and use that to anchor
+  transcript correction (see "Transcript name correction" below).
+
+- [ ] **Transcript name correction** — after speaker diarization links a speaker cluster
+  to a character name, auto-suggest replacements for mis-transcribed names (e.g. "You"
+  → "Yuu") across that speaker's segments. Not a simple find/replace — must be
+  speaker-scoped and confidence-gated to avoid false positives. Reviewable diff before
+  committing changes.
+
+- [ ] **Generalise for any video content** — remove RP-specific assumptions so the tool
+  works for any gaming session, stream, or video:
+  - Replace the hard-coded RP context prompt with a free-text "session context" field
+    in the ingest modal (user describes content, genre, cast, etc.)
+  - Make character/name vocabulary a user-supplied list rather than RP-implied
+  - Rename the app and CLI away from "rp-clipper" / "rp-clip" — pick a content-neutral
+    name and update all references (branding, CLI entry point, package name, config
+    dir `~/.rp-clipper`, log file, DB paths). *Design the rename before touching code.*
+  - Audit and soften any remaining RP-specific language in the UI and LLM prompts
 
 - [ ] **Manual score override + scoring refinement** — slider to set a ground-truth
   score; accumulated overrides used to tune LLM prompt or weight vector;
@@ -136,6 +179,9 @@
 - 15 API unit tests; all passing after refactor
 
 ### Remaining known issues
+- **Ingest time estimate counts all audio tracks, not just selected ones** — the probe
+  preview shows e.g. "6 track(s) 39m 01s" even when only "combined" is selected. Fix:
+  resolve the active profile's track selection before computing the estimate, not after.
 - `datetime.utcnow()` calls in ORM models — deprecated in Python 3.12; replace with `datetime.now(UTC)`
 - `_ingest_one` still has many parameters — consider a dataclass if it grows further
 - `ingest/labeler.py:_label_interactive` is ~100 lines mixing UI and logic; candidate for future split
