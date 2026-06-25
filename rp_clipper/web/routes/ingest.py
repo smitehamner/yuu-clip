@@ -24,8 +24,11 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from rp_clipper.config import validate_whisper_model
+from rp_clipper.log import get_logger
 from rp_clipper.web.deps import ProjectContext
 from rp_clipper.web.sse import subprocess_sse
+
+_log = get_logger(__name__)
 
 # ── Whisper real-time speed ratios ──────────────────────────────────────────
 # Seconds of video processed per second of wall-clock time.
@@ -56,8 +59,6 @@ _ENERGY_MODE: dict[str, tuple[float, str]] = {
 }
 
 
-# ── request models ────────────────────────────────────────────────────────────
-
 class ProbeRequest(BaseModel):
     path: str
 
@@ -78,10 +79,9 @@ class IngestRequest(BaseModel):
     profile: Optional[str] = None
     no_score: bool = False
     energy_mode: str = "fast"
+    scene_mode: str = "fast"
     context_names: list[str] = []
 
-
-# ── router factory ────────────────────────────────────────────────────────────
 
 def make_router(ctx: ProjectContext) -> APIRouter:
     router = APIRouter()
@@ -149,10 +149,12 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         if req.no_score:
             cmd += ["--no-score"]
         cmd += ["--energy-mode", req.energy_mode]
+        cmd += ["--scene-mode", req.scene_mode]
         for slug in req.context_names:
             cmd += ["--context", slug]
         cmd += ["--no-interact"]
         ctx.ingest_cmd = cmd
+        _log.info("Ingest queued: %s (model=%s, energy=%s, scene=%s)", req.path, req.model, req.energy_mode, req.scene_mode)
         return {"status": "started"}
 
     @router.get("/api/ingest/events")
@@ -165,6 +167,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     @router.get("/api/status")
     def server_status():
         """Return whether any processing is currently active (ingest, scoring, timeline, etc.)."""
+        # Lazy import: ingest.py is loaded by app.py, so a top-level import would be circular.
         from rp_clipper.web.app import _SERVER_START
         proc = ctx.ingest_proc
         ingest_running = proc is not None and proc.returncode is None
@@ -187,6 +190,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         """Terminate the currently running ingest subprocess, if any."""
         proc = ctx.ingest_proc
         if proc is not None and proc.returncode is None:
+            _log.warning("Ingest cancelled by user (pid %s)", proc.pid)
             ctx.ingest_cancelled = True
             proc.terminate()
         ctx.ingest_cmd = None
@@ -208,7 +212,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             sys.executable, "-m", "rp_clipper.cli", "export", str(clip_id),
             "--subtitles", "--project", str(ctx.project_dir),
         ]
-        return await subprocess_sse(cmd, ctx.project_dir)
+        return await subprocess_sse(cmd, ctx.project_dir, ctx)
 
     @router.get("/api/clips/{clip_id}/retranscribe")
     async def retranscribe_clip(clip_id: int, model: str = Query("large-v3")):
@@ -221,12 +225,10 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             sys.executable, "-m", "rp_clipper.cli", "retranscribe", str(clip_id),
             "--model", model, "--project", str(ctx.project_dir),
         ]
-        return await subprocess_sse(cmd, ctx.project_dir)
+        return await subprocess_sse(cmd, ctx.project_dir, ctx)
 
     return router
 
-
-# ── time estimate calculation ─────────────────────────────────────────────────
 
 def _compute_time_estimate(req: EstimateRequest) -> dict:
     d = req.duration_s

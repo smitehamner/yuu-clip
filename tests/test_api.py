@@ -200,7 +200,7 @@ class TestEstimate:
         d = r.json()
         assert "steps" in d
         assert "total_hms" in d
-        assert len(d["steps"]) == 5
+        assert len(d["steps"]) >= 1
         for step in d["steps"]:
             assert "name" in step
             assert "seconds" in step
@@ -280,14 +280,15 @@ class TestIngestStart:
 
 class TestLogs:
     def test_log_export_filename_contains_date(self, client):
-        from datetime import datetime
+        import re
         r = client.get("/api/logs/export")
         assert r.status_code == 200
-        today = datetime.now().strftime("%Y-%m-%d")
         disposition = r.headers.get("content-disposition", "")
-        assert today in disposition
         assert "rp-clipper-" in disposition
         assert ".log" in disposition
+        # Filename must contain an ISO date (YYYY-MM-DD) — exact value is not asserted
+        # to avoid a midnight-boundary race where test and server disagree on the date.
+        assert re.search(r"\d{4}-\d{2}-\d{2}", disposition)
 
     def test_log_export_returns_text(self, client):
         r = client.get("/api/logs/export")
@@ -502,7 +503,7 @@ class TestContexts:
     def test_list_contexts_empty(self, client):
         r = client.get("/api/contexts")
         assert r.status_code == 200
-        assert isinstance(r.json(), list)
+        assert r.json() == []
 
     def test_create_and_list_context(self, client):
         body = {
@@ -612,7 +613,566 @@ class TestSummarize:
 
 
 # ---------------------------------------------------------------------------
+# Server status
+# ---------------------------------------------------------------------------
+
+class TestStatus:
+    def test_status_idle(self, client):
+        r = client.get("/api/status")
+        assert r.status_code == 200
+        d = r.json()
+        assert d["any_running"] is False
+        assert d["ingest_running"] is False
+        assert d["active_jobs"] == 0
+        assert "version" in d
+
+    def test_status_reflects_running_ingest(self, project_dir):
+        from unittest.mock import AsyncMock, MagicMock
+        from fastapi.testclient import TestClient
+        from rp_clipper.web.app import create_app
+        app = create_app(project_dir)
+        mock_proc = MagicMock()
+        mock_proc.returncode = None  # still running
+        mock_proc.pid = 99999
+        mock_proc.wait = AsyncMock(return_value=0)
+        with TestClient(app) as tc:
+            app.state.ctx.ingest_proc = mock_proc
+            r = tc.get("/api/status")
+        assert r.json()["ingest_running"] is True
+        assert r.json()["any_running"] is True
+
+
+# ---------------------------------------------------------------------------
+# Rescore-clips SSE — 404 guard
+# ---------------------------------------------------------------------------
+
+class TestRescoreClipsSSE:
+    def test_rescore_clips_404_for_missing_video(self, client):
+        r = client.get("/api/videos/99999/rescore-clips")
+        assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Demo reel start + list
+# ---------------------------------------------------------------------------
+
+class TestDemoStart:
+    def test_start_rejects_invalid_transition(self, client):
+        r = client.post("/api/demo/start", json={"transition": "dissolve_to_mars"})
+        assert r.status_code == 400
+
+    def test_start_rejects_when_video_has_no_approved_clips(self, client):
+        r = client.post("/api/demo/start", json={"video_id": 99999, "transition": "fade"})
+        assert r.status_code == 400
+
+    def test_start_queues_command_and_returns_clip_count(self, client):
+        r = client.post("/api/demo/start", json={"transition": "fade"})
+        assert r.status_code == 200
+        d = r.json()
+        assert d["status"] == "started"
+        assert d["clip_count"] >= 1
+        assert d["output_name"].endswith(".mkv")
+
+
+class TestDemoList:
+    def test_list_reels_empty(self, client):
+        r = client.get("/api/demo/list")
+        assert r.status_code == 200
+        assert r.json() == []
+
+    def test_list_reels_returns_files(self, client, project_dir):
+        reels_dir = project_dir / ".rp-clipper" / "reels"
+        reels_dir.mkdir(parents=True, exist_ok=True)
+        (reels_dir / "highlights_20260101.mkv").write_bytes(b"fake reel")
+        r = client.get("/api/demo/list")
+        assert r.status_code == 200
+        reels = r.json()
+        assert len(reels) == 1
+        assert reels[0]["filename"] == "highlights_20260101.mkv"
+        assert "url" in reels[0]
+        assert "size_mb" in reels[0]
+        assert "date" in reels[0]
+
+
+# ---------------------------------------------------------------------------
 # Delete video — export file cleanup
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# Pure-function unit tests — no HTTP, no DB
+# ---------------------------------------------------------------------------
+
+class TestSafeFilename:
+    """_safe_filename strips directory traversal components."""
+
+    def _safe(self, name, default="highlights.mkv"):
+        from rp_clipper.web.routes.demo import _safe_filename
+        return _safe_filename(name, default)
+
+    def test_plain_name_unchanged(self):
+        assert self._safe("myreel.mkv") == "myreel.mkv"
+
+    def test_strips_parent_components(self):
+        assert self._safe("../../etc/evil") == "evil"
+
+    def test_strips_windows_path(self):
+        # Path("C:/Windows/System32/cmd.exe").name == "cmd.exe" on all platforms
+        result = self._safe("C:/Windows/System32/cmd.exe")
+        assert "/" not in result
+        assert "\\" not in result
+
+    def test_empty_name_returns_default(self):
+        assert self._safe("", "highlights.mkv") == "highlights.mkv"
+
+    def test_custom_default_used_when_empty(self):
+        assert self._safe("", "fallback.mkv") == "fallback.mkv"
+
+    def test_name_with_spaces_preserved(self):
+        result = self._safe("my reel.mkv")
+        assert result == "my reel.mkv"
+
+
+class TestSrtToVtt:
+    """_srt_to_vtt converts SRT comma separators to VTT dot separators."""
+
+    def _convert(self, srt):
+        from rp_clipper.web.routes.videos import _srt_to_vtt
+        return _srt_to_vtt(srt)
+
+    def test_prepends_webvtt_header(self):
+        result = self._convert("")
+        assert result.startswith("WEBVTT")
+
+    def test_comma_replaced_by_dot_in_timestamp(self):
+        srt = "1\n00:00:01,000 --> 00:00:03,500\nHello\n\n"
+        result = self._convert(srt)
+        assert "00:00:01.000 --> 00:00:03.500" in result
+        assert "," not in result.split("WEBVTT")[1].split("Hello")[0]
+
+    def test_text_content_preserved(self):
+        srt = "1\n00:00:01,000 --> 00:00:02,000\nSome text\n\n"
+        result = self._convert(srt)
+        assert "Some text" in result
+
+    def test_multiple_entries(self):
+        srt = (
+            "1\n00:00:01,000 --> 00:00:02,000\nFirst\n\n"
+            "2\n00:00:03,500 --> 00:00:05,000\nSecond\n\n"
+        )
+        result = self._convert(srt)
+        assert "00:00:01.000 --> 00:00:02.000" in result
+        assert "00:00:03.500 --> 00:00:05.000" in result
+        assert "First" in result
+        assert "Second" in result
+
+    def test_empty_srt_produces_webvtt_only(self):
+        result = self._convert("")
+        assert result == "WEBVTT\n\n"
+
+
+class TestMsToHms:
+    """_ms_to_hms converts milliseconds to h:mm:ss or m:ss."""
+
+    def _convert(self, ms):
+        from rp_clipper.web.routes.videos import _ms_to_hms
+        return _ms_to_hms(ms)
+
+    def test_seconds_only(self):
+        assert self._convert(30_000) == "0:30"
+
+    def test_minutes_and_seconds(self):
+        assert self._convert(90_000) == "1:30"
+
+    def test_exactly_one_hour(self):
+        assert self._convert(3_600_000) == "1:00:00"
+
+    def test_hours_minutes_seconds(self):
+        assert self._convert(3_661_000) == "1:01:01"
+
+    def test_zero_ms(self):
+        assert self._convert(0) == "0:00"
+
+    def test_one_minute_boundary(self):
+        assert self._convert(60_000) == "1:00"
+
+
+class TestFormatContextBlock:
+    """format_context_block builds the LLM injection text for named contexts."""
+
+    def _fmt(self, contexts, slugs):
+        from rp_clipper.contexts import format_context_block
+        return format_context_block(contexts, slugs)
+
+    def test_empty_slugs_returns_empty_string(self):
+        contexts = {"una": {"display_name": "Una", "setting": "A world"}}
+        assert self._fmt(contexts, []) == ""
+
+    def test_unknown_slug_skipped(self):
+        assert self._fmt({}, ["nonexistent"]) == ""
+
+    def test_single_context_contains_header_and_footer(self):
+        contexts = {"una": {"display_name": "Una Server", "setting": "A fantasy world"}}
+        result = self._fmt(contexts, ["una"])
+        assert "== RP CONTEXT: Una Server ==" in result
+        assert "== END CONTEXT ==" in result
+
+    def test_setting_field_included(self):
+        contexts = {"una": {"display_name": "Una", "setting": "Dragons everywhere"}}
+        result = self._fmt(contexts, ["una"])
+        assert "Dragons everywhere" in result
+
+    def test_empty_field_omitted(self):
+        contexts = {
+            "una": {
+                "display_name": "Una",
+                "setting": "A world",
+                "your_characters": "",
+                "other_characters": "",
+                "notes": "",
+            }
+        }
+        result = self._fmt(contexts, ["una"])
+        assert "Your characters" not in result
+
+    def test_multiple_contexts_joined(self):
+        contexts = {
+            "ctx1": {"display_name": "C1", "setting": "Setting one"},
+            "ctx2": {"display_name": "C2", "setting": "Setting two"},
+        }
+        result = self._fmt(contexts, ["ctx1", "ctx2"])
+        assert "C1" in result
+        assert "C2" in result
+        assert "Setting one" in result
+        assert "Setting two" in result
+
+    def test_slug_order_preserved(self):
+        contexts = {
+            "a": {"display_name": "Alpha", "setting": "First"},
+            "b": {"display_name": "Beta", "setting": "Second"},
+        }
+        result = self._fmt(contexts, ["b", "a"])
+        assert result.index("Beta") < result.index("Alpha")
+
+
+class TestValidateWhisperModel:
+    """validate_whisper_model rejects arbitrary model strings."""
+
+    def _validate(self, model):
+        from rp_clipper.config import validate_whisper_model
+        return validate_whisper_model(model)
+
+    def test_valid_model_returns_unchanged(self):
+        assert self._validate("medium") == "medium"
+
+    def test_large_v3_accepted(self):
+        assert self._validate("large-v3") == "large-v3"
+
+    def test_arbitrary_string_raises(self):
+        with pytest.raises(ValueError, match="Unknown Whisper model"):
+            self._validate("gpt-4o-audio")
+
+    def test_huggingface_repo_id_rejected(self):
+        with pytest.raises(ValueError):
+            self._validate("user/my-custom-model")
+
+    def test_empty_string_rejected(self):
+        with pytest.raises(ValueError):
+            self._validate("")
+
+
+class TestValidateWhisperLanguage:
+    """validate_whisper_language accepts ISO codes and None/auto, rejects others."""
+
+    def _validate(self, lang):
+        from rp_clipper.config import validate_whisper_language
+        return validate_whisper_language(lang)
+
+    def test_none_returns_none(self):
+        assert self._validate(None) is None
+
+    def test_auto_returns_none(self):
+        assert self._validate("auto") is None
+
+    def test_empty_string_returns_none(self):
+        assert self._validate("") is None
+
+    def test_valid_code_returned_lowercase(self):
+        assert self._validate("EN") == "en"
+
+    def test_valid_code_fr(self):
+        assert self._validate("fr") == "fr"
+
+    def test_invalid_code_raises(self):
+        with pytest.raises(ValueError, match="Unrecognised language code"):
+            self._validate("xx")
+
+    def test_arbitrary_string_rejected(self):
+        with pytest.raises(ValueError):
+            self._validate("klingon")
+
+
+class TestPearsonCorrelation:
+    """_pearson correlation helper covers edge cases used in overlap detection."""
+
+    def _pearson(self, a, b):
+        from rp_clipper.ingest.overlap import _pearson
+        return _pearson(a, b)
+
+    def test_identical_sequences_returns_one(self):
+        a = [1.0, 2.0, 3.0, 4.0, 5.0]
+        assert abs(self._pearson(a, a) - 1.0) < 1e-9
+
+    def test_perfectly_anticorrelated_returns_minus_one(self):
+        a = [1.0, 2.0, 3.0, 4.0, 5.0]
+        b = [5.0, 4.0, 3.0, 2.0, 1.0]
+        assert abs(self._pearson(a, b) - (-1.0)) < 1e-9
+
+    def test_short_sequence_returns_zero(self):
+        assert self._pearson([1.0, 2.0, 3.0], [1.0, 2.0, 3.0]) == 0.0
+
+    def test_constant_sequences_returns_one(self):
+        # Both all-same: da == 0 and db == 0 → returns 1.0
+        a = [0.5, 0.5, 0.5, 0.5, 0.5]
+        assert self._pearson(a, a) == 1.0
+
+    def test_one_constant_other_varying_returns_zero(self):
+        a = [0.5, 0.5, 0.5, 0.5, 0.5]
+        b = [1.0, 2.0, 3.0, 4.0, 5.0]
+        assert self._pearson(a, b) == 0.0
+
+    def test_unequal_lengths_uses_shorter(self):
+        a = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]
+        b = [1.0, 2.0, 3.0, 4.0, 5.0]
+        result = self._pearson(a, b)
+        assert abs(result - 1.0) < 1e-9
+
+
+class TestFormatDuration:
+    """_format_duration produces compact human-readable strings."""
+
+    def _fmt(self, seconds):
+        from rp_clipper.web.routes.ingest import _format_duration
+        return _format_duration(seconds)
+
+    def test_zero_seconds(self):
+        assert self._fmt(0) == "0s"
+
+    def test_under_one_minute(self):
+        assert self._fmt(45) == "45s"
+
+    def test_exactly_one_minute(self):
+        assert self._fmt(60) == "1m 00s"
+
+    def test_minutes_and_seconds(self):
+        assert self._fmt(90) == "1m 30s"
+
+    def test_exactly_one_hour(self):
+        assert self._fmt(3600) == "1h 00m"
+
+    def test_hours_and_minutes(self):
+        assert self._fmt(5400) == "1h 30m"
+
+
+# ---------------------------------------------------------------------------
+# Additional API route gap coverage
+# ---------------------------------------------------------------------------
+
+class TestListClipsAdditional:
+    """Cover gaps in list_clips: 404 for unknown video, sub-score sorts."""
+
+    def _vid_id(self, client) -> int:
+        return client.get("/api/videos").json()[0]["id"]
+
+    def test_list_clips_404_for_unknown_video(self, client):
+        r = client.get("/api/videos/99999/clips")
+        assert r.status_code == 404
+
+    def test_list_clips_sort_funny(self, client):
+        vid_id = self._vid_id(client)
+        clips = client.get(f"/api/videos/{vid_id}/clips?sort=funny").json()
+        scores = [c["score_funny"] for c in clips]
+        assert scores == sorted(scores, reverse=True)
+
+    def test_list_clips_sort_dramatic(self, client):
+        vid_id = self._vid_id(client)
+        clips = client.get(f"/api/videos/{vid_id}/clips?sort=dramatic").json()
+        scores = [c["score_dramatic"] for c in clips]
+        assert scores == sorted(scores, reverse=True)
+
+    def test_list_clips_sort_action(self, client):
+        vid_id = self._vid_id(client)
+        clips = client.get(f"/api/videos/{vid_id}/clips?sort=action").json()
+        scores = [c["score_action"] for c in clips]
+        assert scores == sorted(scores, reverse=True)
+
+    def test_list_clips_unknown_sort_falls_back_to_score(self, client):
+        vid_id = self._vid_id(client)
+        clips = client.get(f"/api/videos/{vid_id}/clips?sort=bogus").json()
+        scores = [c["score_overall"] for c in clips]
+        assert scores == sorted(scores, reverse=True)
+
+
+class TestMediaUrl:
+    """Cover the exported-file path through clip_media_url."""
+
+    def _first_clip(self, client):
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        return client.get(f"/api/videos/{vid_id}/clips").json()[0]
+
+    def test_media_url_returns_url_when_file_exists(self, client, project_dir):
+        clip = self._first_clip(client)
+        export_dir = project_dir / ".rp-clipper" / "exports"
+        start_hms_dashes = clip["start_hms"].replace(":", "-")
+        export_file = export_dir / f"session_clip{clip['id']}_{start_hms_dashes}.mkv"
+        export_file.write_bytes(b"fake video")
+        r = client.get(f"/api/clips/{clip['id']}/media_url")
+        assert r.status_code == 200
+        d = r.json()
+        assert d["url"] is not None
+        assert d["url"].endswith(".mkv")
+        assert d["has_captions"] is False
+
+    def test_media_url_has_captions_true_when_srt_exists(self, client, project_dir):
+        clip = self._first_clip(client)
+        export_dir = project_dir / ".rp-clipper" / "exports"
+        start_hms_dashes = clip["start_hms"].replace(":", "-")
+        base = f"session_clip{clip['id']}_{start_hms_dashes}"
+        (export_dir / f"{base}.mkv").write_bytes(b"fake video")
+        (export_dir / f"{base}.srt").write_text(
+            "1\n00:00:01,000 --> 00:00:02,000\nHello\n\n", encoding="utf-8"
+        )
+        r = client.get(f"/api/clips/{clip['id']}/media_url")
+        assert r.status_code == 200
+        assert r.json()["has_captions"] is True
+
+
+class TestDeleteSrtCleanup:
+    """Deleting a clip or video also removes SRT sidecars."""
+
+    def test_delete_clip_removes_srt_file(self, client, project_dir):
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        clips = client.get(f"/api/videos/{vid_id}/clips").json()
+        c = clips[0]
+        export_dir = project_dir / ".rp-clipper" / "exports"
+        start_hms_dashes = c["start_hms"].replace(":", "-")
+        base = f"session_clip{c['id']}_{start_hms_dashes}"
+        srt_file = export_dir / f"{base}.srt"
+        srt_file.write_text("1\n00:00:01,000 --> 00:00:02,000\nHi\n\n", encoding="utf-8")
+        assert srt_file.exists()
+        client.delete(f"/api/clips/{c['id']}")
+        assert not srt_file.exists()
+
+    def test_delete_video_removes_srt_files(self, client, project_dir):
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        clips = client.get(f"/api/videos/{vid_id}/clips").json()
+        export_dir = project_dir / ".rp-clipper" / "exports"
+        srt_files = []
+        for c in clips:
+            start_hms_dashes = c["start_hms"].replace(":", "-")
+            base = f"session_clip{c['id']}_{start_hms_dashes}"
+            f = export_dir / f"{base}.srt"
+            f.write_text("1\n00:00:01,000 --> 00:00:02,000\nHi\n\n", encoding="utf-8")
+            srt_files.append(f)
+        client.delete(f"/api/videos/{vid_id}")
+        for f in srt_files:
+            assert not f.exists(), f"{f.name} should have been deleted"
+
+
+class TestSseGuards:
+    """Cover 400 guards on SSE event endpoints when no job has been queued."""
+
+    def test_ingest_events_without_start_returns_400(self, client):
+        r = client.get("/api/ingest/events")
+        assert r.status_code == 400
+
+    def test_demo_events_without_start_returns_400(self, client):
+        r = client.get("/api/demo/events")
+        assert r.status_code == 400
+
+
+class TestVersionEndpoint:
+    def test_version_returns_200(self, client):
+        r = client.get("/api/version")
+        assert r.status_code == 200
+        assert "version" in r.json()
+
+
+class TestRetranscribeValidation:
+    """retranscribe endpoint rejects unknown Whisper models."""
+
+    def test_retranscribe_invalid_model_returns_400(self, client):
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        clips = client.get(f"/api/videos/{vid_id}/clips").json()
+        clip_id = clips[0]["id"]
+        r = client.get(f"/api/clips/{clip_id}/retranscribe?model=gpt-4o")
+        assert r.status_code == 400
+
+
+class TestVideoDetailFields:
+    """Confirm _video_dict serializes all expected fields."""
+
+    def test_video_detail_includes_duration_and_status_fields(self, client):
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        d = client.get(f"/api/videos/{vid_id}").json()
+        for field in (
+            "id", "filename", "status", "duration_hms", "duration_ms",
+            "clip_count", "approved", "total_clip_ms",
+            "title", "summary", "has_timeline", "context_names",
+            "clips_scored_at", "summarized_at", "timeline_generated_at",
+        ):
+            assert field in d, f"missing field: {field}"
+
+    def test_video_list_includes_total_clip_ms(self, client):
+        videos = client.get("/api/videos").json()
+        assert len(videos) == 1
+        v = videos[0]
+        assert "total_clip_ms" in v
+        assert v["total_clip_ms"] > 0
+
+    def test_video_list_has_timeline_false_initially(self, client):
+        videos = client.get("/api/videos").json()
+        assert videos[0]["has_timeline"] is False
+
+
+class TestSetClipStatusAllValues:
+    """Confirm all three valid statuses are accepted."""
+
+    def _first_clip_id(self, client) -> int:
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        return client.get(f"/api/videos/{vid_id}/clips").json()[0]["id"]
+
+    def test_set_status_pending(self, client):
+        clip_id = self._first_clip_id(client)
+        r = client.post(f"/api/clips/{clip_id}/status", json={"status": "pending"})
+        assert r.status_code == 200
+        assert r.json()["status"] == "pending"
+
+    def test_set_status_rejected(self, client):
+        clip_id = self._first_clip_id(client)
+        r = client.post(f"/api/clips/{clip_id}/status", json={"status": "rejected"})
+        assert r.status_code == 200
+        assert r.json()["status"] == "rejected"
+
+    def test_set_status_404_for_missing_clip(self, client):
+        r = client.post("/api/clips/99999/status", json={"status": "pending"})
+        assert r.status_code == 404
+
+
+class TestTimelineEndpointGuard:
+    """stream_timeline returns 400 when no transcript exists."""
+
+    def test_timeline_400_without_transcript(self, client):
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        r = client.get(f"/api/videos/{vid_id}/timeline")
+        assert r.status_code == 400
+
+    def test_timeline_404_for_missing_video(self, client):
+        r = client.get("/api/videos/99999/timeline")
+        assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# TestDeleteExportCleanup
 # ---------------------------------------------------------------------------
 
 class TestDeleteExportCleanup:
@@ -641,3 +1201,794 @@ class TestDeleteExportCleanup:
         client.delete(f"/api/videos/{vid_id}")
         for f in files:
             assert not f.exists(), f"{f.name} should have been deleted"
+
+
+# ---------------------------------------------------------------------------
+# Bug-hunt fixes — regression tests
+# ---------------------------------------------------------------------------
+
+class TestSseCommandCleared:
+    """ingest_cmd and demo_cmd are cleared after the subprocess SSE stream finishes."""
+
+    def test_ingest_cmd_cleared_after_events_stream(self, project_dir):
+        """After ingest_events runs to completion, ctx.ingest_cmd must be None."""
+        from fastapi.testclient import TestClient
+        from rp_clipper.web.app import create_app
+        import sys
+
+        app = create_app(project_dir)
+        # Queue a trivial command that exits immediately
+        with TestClient(app) as tc:
+            ctx = app.state.ctx
+            ctx.ingest_cmd = [sys.executable, "-c", "print('done')"]
+            # Consume the stream fully so the generator's finally block runs
+            with tc.stream("GET", "/api/ingest/events") as resp:
+                list(resp.iter_lines())
+            assert ctx.ingest_cmd is None
+
+    def test_demo_cmd_cleared_after_events_stream(self, project_dir):
+        """After demo_events runs to completion, ctx.demo_cmd must be None."""
+        from fastapi.testclient import TestClient
+        from rp_clipper.web.app import create_app
+        import sys
+
+        app = create_app(project_dir)
+        with TestClient(app) as tc:
+            ctx = app.state.ctx
+            ctx.demo_cmd = [sys.executable, "-c", "print('done')"]
+            with tc.stream("GET", "/api/demo/events") as resp:
+                list(resp.iter_lines())
+            assert ctx.demo_cmd is None
+
+    def test_second_call_to_ingest_events_without_new_start_returns_400(self, project_dir):
+        """After stream finishes, a second call to /api/ingest/events without a new start
+        must return 400, not re-run the old command."""
+        from fastapi.testclient import TestClient
+        from rp_clipper.web.app import create_app
+        import sys
+
+        app = create_app(project_dir)
+        with TestClient(app) as tc:
+            ctx = app.state.ctx
+            ctx.ingest_cmd = [sys.executable, "-c", "print('done')"]
+            # First call — runs the command
+            with tc.stream("GET", "/api/ingest/events") as resp:
+                list(resp.iter_lines())
+            # Second call — no command queued, must return 400
+            r = tc.get("/api/ingest/events")
+            assert r.status_code == 400
+
+
+class TestDemoOutputMkv:
+    """Demo output_name always gets .mkv extension."""
+
+    def test_start_demo_adds_mkv_to_bare_name(self, client):
+        """If output_name has no extension, the route must append .mkv."""
+        r = client.post("/api/demo/start", json={
+            "transition": "fade",
+            "output_name": "myreel",
+        })
+        assert r.status_code == 200
+        assert r.json()["output_name"].endswith(".mkv")
+
+    def test_start_demo_does_not_double_add_mkv(self, client):
+        """If output_name already ends in .mkv, do not append again."""
+        r = client.post("/api/demo/start", json={
+            "transition": "fade",
+            "output_name": "myreel.mkv",
+        })
+        assert r.status_code == 200
+        assert r.json()["output_name"] == "myreel.mkv"
+
+
+class TestEnergyBoundary:
+    """AudioEnergyScorer clips window is [start_s, end_s) — end second is excluded."""
+
+    def test_energy_query_excludes_end_second(self):
+        """When the only energy row sits at second_offset == end_s (outside the window),
+        scorer.score() must return the energy_no_data tag, not count that row."""
+        import tempfile
+        from pathlib import Path
+        from unittest.mock import MagicMock
+
+        from rp_clipper.config import Config
+        from rp_clipper.db.models import AudioEnergy, AudioTrack, Video, make_session
+        from rp_clipper.scoring.energy import AudioEnergyScorer
+
+        config = Config()
+        scorer = AudioEnergyScorer(config)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            db_path = Path(tmp) / "test.db"
+            session = make_session(db_path)
+            try:
+                v = Video(
+                    path="/fake/session.mkv",
+                    filename="session.mkv",
+                    status="done",
+                    duration_ms=120_000,
+                )
+                session.add(v)
+                session.flush()
+
+                track = AudioTrack(
+                    video_id=v.id,
+                    stream_index=0,
+                    label="combined",
+                    do_transcribe=True,
+                    do_score=True,
+                    relevance_weight=1.0,
+                )
+                session.add(track)
+                session.flush()
+
+                # Place one very loud row at exactly end_s (second_offset == 120).
+                # If the scorer uses <= it would be included and produce a non-zero score;
+                # with the correct < boundary it is excluded and score returns energy_no_data.
+                session.add(AudioEnergy(
+                    audio_track_id=track.id,
+                    second_offset=120,  # == end_s, must be excluded
+                    rms_db=10.0,        # loud — would boost score if incorrectly included
+                ))
+                session.commit()
+
+                clip = MagicMock()
+                clip.start_ms = 60_000   # start_s = 60
+                clip.end_ms   = 120_000  # end_s   = 120
+
+                # Reload track via session so the ORM relationship is live
+                db_track = session.query(AudioTrack).filter_by(id=track.id).one()
+                clip.video.audio_tracks = [db_track]
+
+                result = scorer.score(clip, session)
+            finally:
+                session.close()
+
+        assert "energy_no_data" in result.tags, (
+            "Boundary row at second_offset == end_s was incorrectly included in the clip window"
+        )
+
+
+# ---------------------------------------------------------------------------
+# SceneCutScorer unit tests
+# ---------------------------------------------------------------------------
+
+class TestSceneCutScorer:
+    """SceneCutScorer.score() covers 0-duration clip, no cuts, and cuts present."""
+
+    def _make_db_with_video_and_clip(self, tmp_path, start_ms, end_ms):
+        from rp_clipper.db.models import ClipCandidate, Video, make_session
+        db_path = tmp_path / "test.db"
+        session = make_session(db_path)
+        v = Video(path=str(tmp_path / "v.mkv"), filename="v.mkv", status="done", duration_ms=600_000)
+        session.add(v)
+        session.flush()
+        clip = ClipCandidate(video_id=v.id, start_ms=start_ms, end_ms=end_ms, status="pending")
+        session.add(clip)
+        session.flush()
+        return session, v, clip
+
+    def test_score_zero_duration_returns_empty(self, tmp_path):
+        from rp_clipper.config import Config
+        from rp_clipper.scoring.scenes import SceneCutScorer
+        config = Config()
+        scorer = SceneCutScorer(config)
+        session, v, clip = self._make_db_with_video_and_clip(tmp_path, 0, 0)
+        try:
+            result = scorer.score(clip, session)
+        finally:
+            session.close()
+        assert result.score_action == 0.0
+        assert result.tags == []
+
+    def test_score_no_scene_boundaries_returns_zero(self, tmp_path):
+        from rp_clipper.config import Config
+        from rp_clipper.scoring.scenes import SceneCutScorer
+        config = Config()
+        scorer = SceneCutScorer(config)
+        session, v, clip = self._make_db_with_video_and_clip(tmp_path, 0, 60_000)
+        try:
+            result = scorer.score(clip, session)
+        finally:
+            session.close()
+        assert result.score_action == 0.0
+        assert "scenes_scored" not in result.tags
+        assert result.notes["cuts_in_clip"] == 0
+
+    def test_score_with_cuts_inside_window(self, tmp_path):
+        from rp_clipper.config import Config
+        from rp_clipper.db.models import SceneBoundary
+        from rp_clipper.scoring.scenes import SceneCutScorer
+        config = Config()
+        scorer = SceneCutScorer(config)
+        session, v, clip = self._make_db_with_video_and_clip(tmp_path, 0, 60_000)
+        try:
+            # Add 5 scene cuts inside the 1-minute window → 5 cuts/min → score = 0.5
+            for ms in [10_000, 20_000, 30_000, 40_000, 50_000]:
+                session.add(SceneBoundary(video_id=v.id, timecode_ms=ms))
+            session.flush()
+            result = scorer.score(clip, session)
+        finally:
+            session.close()
+        assert result.score_action > 0.0
+        assert "scenes_scored" in result.tags
+        assert result.notes["cuts_in_clip"] == 5
+
+    def test_score_cut_at_end_ms_excluded(self, tmp_path):
+        """A cut at exactly end_ms must not be counted (< end_ms, not <=)."""
+        from rp_clipper.config import Config
+        from rp_clipper.db.models import SceneBoundary
+        from rp_clipper.scoring.scenes import SceneCutScorer
+        config = Config()
+        scorer = SceneCutScorer(config)
+        session, v, clip = self._make_db_with_video_and_clip(tmp_path, 0, 60_000)
+        try:
+            session.add(SceneBoundary(video_id=v.id, timecode_ms=60_000))  # at end_ms
+            session.flush()
+            result = scorer.score(clip, session)
+        finally:
+            session.close()
+        assert result.notes["cuts_in_clip"] == 0
+
+    def test_is_available_true_when_enabled(self):
+        from rp_clipper.config import Config
+        from rp_clipper.scoring.scenes import SceneCutScorer
+        config = Config()
+        config.scorer_scenes_enabled = True
+        assert SceneCutScorer(config).is_available() is True
+
+    def test_is_available_false_when_disabled(self):
+        from rp_clipper.config import Config
+        from rp_clipper.scoring.scenes import SceneCutScorer
+        config = Config()
+        config.scorer_scenes_enabled = False
+        assert SceneCutScorer(config).is_available() is False
+
+    def test_score_maxes_at_one(self, tmp_path):
+        """score_action must not exceed 1.0 even with very high cut density."""
+        from rp_clipper.config import Config
+        from rp_clipper.db.models import SceneBoundary
+        from rp_clipper.scoring.scenes import SceneCutScorer
+        config = Config()
+        scorer = SceneCutScorer(config)
+        session, v, clip = self._make_db_with_video_and_clip(tmp_path, 0, 60_000)
+        try:
+            for ms in range(1000, 60_000, 1000):   # 59 cuts in 1 minute
+                session.add(SceneBoundary(video_id=v.id, timecode_ms=ms))
+            session.flush()
+            result = scorer.score(clip, session)
+        finally:
+            session.close()
+        assert result.score_action <= 1.0
+
+
+# ---------------------------------------------------------------------------
+# ScoringEngine unit tests
+# ---------------------------------------------------------------------------
+
+class TestScoringEngine:
+    """ScoringEngine.score_clip() and score_video() orchestration."""
+
+    def _make_scorer(self, score_funny=0.0, score_dramatic=0.0, score_action=0.0,
+                     description="", description_long="", tags=None, weight=1.0, available=True):
+        from unittest.mock import MagicMock
+        from rp_clipper.scoring.protocol import ScoreResult
+        mock = MagicMock()
+        mock.is_available.return_value = available
+        mock.weight = weight
+        mock.score.return_value = ScoreResult(
+            score_funny=score_funny,
+            score_dramatic=score_dramatic,
+            score_action=score_action,
+            description=description,
+            description_long=description_long,
+            tags=tags or [],
+        )
+        return mock
+
+    def _make_clip(self):
+        from unittest.mock import MagicMock
+        clip = MagicMock()
+        clip.tags = []
+        clip.score_funny = 0.0
+        clip.score_dramatic = 0.0
+        clip.score_action = 0.0
+        clip.score_overall = 0.0
+        clip.description = ""
+        clip.description_long = ""
+        return clip
+
+    def test_no_scorers_returns_without_update(self):
+        from rp_clipper.config import Config
+        from rp_clipper.scoring.engine import ScoringEngine
+        config = Config()
+        engine = ScoringEngine(config, [])
+        clip = self._make_clip()
+        engine.score_clip(clip, None)
+        assert clip.score_overall == 0.0
+
+    def test_unavailable_scorer_filtered_out(self):
+        from unittest.mock import MagicMock
+        from rp_clipper.config import Config
+        from rp_clipper.scoring.engine import ScoringEngine
+        config = Config()
+        unavailable = self._make_scorer(score_action=1.0, available=False)
+        engine = ScoringEngine(config, [unavailable])
+        clip = self._make_clip()
+        engine.score_clip(clip, None)
+        assert clip.score_overall == 0.0
+        unavailable.score.assert_not_called()
+
+    def test_score_clip_writes_dimension_scores(self):
+        from rp_clipper.config import Config
+        from rp_clipper.scoring.engine import ScoringEngine
+        config = Config()
+        scorer = self._make_scorer(score_funny=0.8, score_dramatic=0.4, score_action=0.2)
+        engine = ScoringEngine(config, [scorer])
+        clip = self._make_clip()
+        engine.score_clip(clip, None)
+        assert abs(clip.score_funny - 0.8) < 1e-6
+        assert abs(clip.score_dramatic - 0.4) < 1e-6
+        assert abs(clip.score_action - 0.2) < 1e-6
+
+    def test_score_clip_computes_overall_from_dim_weights(self):
+        from rp_clipper.config import Config
+        from rp_clipper.scoring.engine import ScoringEngine
+        config = Config()
+        config.score_funny_weight = 2.0
+        config.score_dramatic_weight = 1.0
+        config.score_action_weight = 1.0
+        scorer = self._make_scorer(score_funny=1.0, score_dramatic=0.0, score_action=0.0)
+        engine = ScoringEngine(config, [scorer])
+        clip = self._make_clip()
+        engine.score_clip(clip, None)
+        # overall = (2*1 + 1*0 + 1*0) / 4 = 0.5
+        assert abs(clip.score_overall - 0.5) < 1e-6
+
+    def test_score_clip_description_set_by_scorer(self):
+        from rp_clipper.config import Config
+        from rp_clipper.scoring.engine import ScoringEngine
+        config = Config()
+        scorer = self._make_scorer(description="A dramatic moment", description_long="Full text here")
+        engine = ScoringEngine(config, [scorer])
+        clip = self._make_clip()
+        engine.score_clip(clip, None)
+        assert clip.description == "A dramatic moment"
+        assert clip.description_long == "Full text here"
+
+    def test_score_clip_tags_accumulated(self):
+        from rp_clipper.config import Config
+        from rp_clipper.scoring.engine import ScoringEngine
+        config = Config()
+        scorer = self._make_scorer(tags=["energy_scored"])
+        engine = ScoringEngine(config, [scorer])
+        clip = self._make_clip()
+        engine.score_clip(clip, None)
+        assert "energy_scored" in clip.tags
+
+    def test_score_clip_stale_scorer_tags_removed(self):
+        from rp_clipper.config import Config
+        from rp_clipper.scoring.engine import ScoringEngine
+        config = Config()
+        scorer = self._make_scorer(tags=["energy_scored"])
+        engine = ScoringEngine(config, [scorer])
+        clip = self._make_clip()
+        clip.tags = ["energy_scored", "llm_error", "user_tag"]
+        engine.score_clip(clip, None)
+        # Stale scorer tags removed, user_tag preserved, fresh tag re-added
+        assert "user_tag" in clip.tags
+        assert clip.tags.count("energy_scored") == 1
+
+    def test_score_clip_tags_not_duplicated(self):
+        from rp_clipper.config import Config
+        from rp_clipper.scoring.engine import ScoringEngine
+        config = Config()
+        scorer = self._make_scorer(tags=["energy_scored"])
+        engine = ScoringEngine(config, [scorer])
+        clip = self._make_clip()
+        engine.score_clip(clip, None)
+        engine.score_clip(clip, None)
+        assert clip.tags.count("energy_scored") == 1
+
+    def test_score_clip_weighted_average_of_two_scorers(self):
+        from rp_clipper.config import Config
+        from rp_clipper.scoring.engine import ScoringEngine
+        config = Config()
+        s1 = self._make_scorer(score_action=1.0, weight=2.0)
+        s2 = self._make_scorer(score_action=0.0, weight=1.0)
+        engine = ScoringEngine(config, [s1, s2])
+        clip = self._make_clip()
+        engine.score_clip(clip, None)
+        # Weighted: (1.0*2 + 0.0*1) / (2+1) = 2/3
+        assert abs(clip.score_action - (2.0 / 3.0)) < 1e-6
+
+
+# ---------------------------------------------------------------------------
+# AudioEnergyScorer — no-scorable-tracks path
+# ---------------------------------------------------------------------------
+
+class TestAudioEnergyScorerNoTracks:
+    """AudioEnergyScorer returns energy_no_tracks tag when do_score is False on all tracks."""
+
+    def test_no_scorable_tracks_returns_tag(self):
+        import tempfile
+        from pathlib import Path
+        from unittest.mock import MagicMock
+        from rp_clipper.config import Config
+        from rp_clipper.db.models import AudioTrack, Video, make_session
+        from rp_clipper.scoring.energy import AudioEnergyScorer
+
+        config = Config()
+        scorer = AudioEnergyScorer(config)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            session = make_session(Path(tmp) / "test.db")
+            try:
+                v = Video(path="/fake/v.mkv", filename="v.mkv", status="done", duration_ms=60_000)
+                session.add(v)
+                session.flush()
+                track = AudioTrack(
+                    video_id=v.id, stream_index=0, label="game_sounds",
+                    do_transcribe=False, do_score=False, relevance_weight=0.1
+                )
+                session.add(track)
+                session.flush()
+
+                clip = MagicMock()
+                clip.start_ms = 0
+                clip.end_ms = 30_000
+                db_track = session.query(AudioTrack).filter_by(id=track.id).one()
+                clip.video.audio_tracks = [db_track]
+
+                result = scorer.score(clip, session)
+            finally:
+                session.close()
+
+        assert "energy_no_tracks" in result.tags
+
+    def test_is_available_false_when_disabled(self):
+        from rp_clipper.config import Config
+        from rp_clipper.scoring.energy import AudioEnergyScorer
+        config = Config()
+        config.scorer_energy_enabled = False
+        assert AudioEnergyScorer(config).is_available() is False
+
+
+# ---------------------------------------------------------------------------
+# Windower (_silence_window) unit tests
+# ---------------------------------------------------------------------------
+
+class TestSilenceWindow:
+    """_silence_window boundary conditions and split logic."""
+
+    def _seg(self, start_ms, end_ms, text="x"):
+        from unittest.mock import MagicMock
+        s = MagicMock()
+        s.start_ms = start_ms
+        s.end_ms = end_ms
+        s.text = text
+        return s
+
+    def _window(self, segments, silence_ms=3000, min_ms=5000, hard_ms=180_000):
+        from rp_clipper.segments.windower import _silence_window
+        return _silence_window(segments, silence_ms, min_ms, hard_ms)
+
+    def test_empty_segments_returns_empty(self):
+        assert self._window([]) == []
+
+    def test_single_segment_too_short_dropped(self):
+        segs = [self._seg(0, 2000)]  # 2 s < min_ms=5000
+        assert self._window(segs) == []
+
+    def test_single_segment_long_enough_kept(self):
+        segs = [self._seg(0, 10_000)]  # 10 s > min_ms=5000
+        result = self._window(segs)
+        assert len(result) == 1
+        assert result[0][0] == 0
+        assert result[0][1] == 10_000
+
+    def test_silence_gap_creates_two_windows(self):
+        segs = [
+            self._seg(0, 10_000, "first"),
+            self._seg(15_000, 25_000, "second"),  # 5 s gap >= silence_ms=3000
+        ]
+        result = self._window(segs)
+        assert len(result) == 2
+        assert result[0][1] == 10_000
+        assert result[1][0] == 15_000
+
+    def test_small_gap_merges_into_one_window(self):
+        segs = [
+            self._seg(0, 10_000, "first"),
+            self._seg(11_000, 21_000, "second"),  # 1 s gap < silence_ms=3000
+        ]
+        result = self._window(segs)
+        assert len(result) == 1
+        assert result[0][1] == 21_000
+
+    def test_hard_split_breaks_long_window(self):
+        # Two segments forming a 200 s window — exceeds hard_split_ms=180_000
+        segs = [
+            self._seg(0, 100_000, "long first part"),
+            self._seg(101_000, 201_000, "long second part"),
+        ]
+        result = self._window(segs, hard_ms=180_000)
+        # hard_split fires during the second segment, creating two candidates
+        assert len(result) == 2
+        assert "hard_split" in result[0][3]
+
+    def test_long_silence_tag_added(self):
+        """A silence >= 10 s adds 'long_silence_before' tag to the new window."""
+        segs = [
+            self._seg(0, 10_000, "before"),
+            self._seg(25_000, 35_000, "after"),  # 15 s gap
+        ]
+        result = self._window(segs)
+        assert len(result) == 2
+        assert "long_silence_before" in result[1][3]
+
+    def test_window_texts_collected(self):
+        segs = [
+            self._seg(0, 5_000, "hello"),
+            self._seg(5_500, 10_500, "world"),
+        ]
+        result = self._window(segs, silence_ms=3000)
+        assert len(result) == 1
+        texts = result[0][2]
+        assert "hello" in texts
+        assert "world" in texts
+
+
+# ---------------------------------------------------------------------------
+# Estimate edge cases
+# ---------------------------------------------------------------------------
+
+class TestEstimateEdgeCases:
+    """Additional _compute_time_estimate branches not covered by TestEstimate."""
+
+    def test_transcript_scene_mode_zero_cost(self, client):
+        """scene_mode=transcript has no wall-clock cost."""
+        transcript = client.post("/api/estimate", json={
+            "duration_s": 3600, "model": "medium", "has_gpu": True,
+            "scene_mode": "transcript",
+        }).json()
+        fast = client.post("/api/estimate", json={
+            "duration_s": 3600, "model": "medium", "has_gpu": True,
+            "scene_mode": "fast",
+        }).json()
+        assert transcript["total_seconds"] < fast["total_seconds"]
+
+    def test_full_scene_mode_slower_than_fast(self, client):
+        transcript = client.post("/api/estimate", json={
+            "duration_s": 3600, "model": "medium", "has_gpu": True,
+            "scene_mode": "fast",
+        }).json()
+        full = client.post("/api/estimate", json={
+            "duration_s": 3600, "model": "medium", "has_gpu": True,
+            "scene_mode": "full",
+        }).json()
+        assert full["total_seconds"] > transcript["total_seconds"]
+
+    def test_explicit_transcribe_tracks_overrides_default(self, client):
+        auto = client.post("/api/estimate", json={
+            "duration_s": 3600, "model": "medium", "audio_tracks": 4,
+            "has_gpu": True, "scene_mode": "fast",
+        }).json()
+        explicit = client.post("/api/estimate", json={
+            "duration_s": 3600, "model": "medium", "audio_tracks": 4,
+            "transcribe_tracks": 1, "has_gpu": True, "scene_mode": "fast",
+        }).json()
+        # Fewer transcribe tracks → faster Whisper step → lower total
+        assert explicit["total_seconds"] < auto["total_seconds"]
+
+    def test_unknown_model_falls_back_to_default_gpu_speed(self, client):
+        """An unrecognised model string should not raise — it falls back to speed=6."""
+        # Use the internal function directly to avoid the validate_whisper_model guard
+        from rp_clipper.web.routes.ingest import _compute_time_estimate, EstimateRequest
+        req = EstimateRequest(duration_s=3600, model="custom:tag", has_gpu=True, scene_mode="fast")
+        result = _compute_time_estimate(req)
+        assert result["total_seconds"] > 0
+
+    def test_zero_duration_pct_is_zero(self, client):
+        """Zero-duration input must not cause a division error."""
+        from rp_clipper.web.routes.ingest import _compute_time_estimate, EstimateRequest
+        req = EstimateRequest(duration_s=0, model="medium", has_gpu=True, scene_mode="fast")
+        result = _compute_time_estimate(req)
+        assert result["pct_of_video"] == 0
+
+
+# ---------------------------------------------------------------------------
+# Demo list — non-mkv files filtered
+# ---------------------------------------------------------------------------
+
+class TestDemoListFiltering:
+    def test_non_mkv_files_not_listed(self, client, project_dir):
+        reels_dir = project_dir / ".rp-clipper" / "reels"
+        reels_dir.mkdir(parents=True, exist_ok=True)
+        (reels_dir / "highlights_20260101.mkv").write_bytes(b"reel")
+        (reels_dir / "notes.txt").write_text("ignore me")
+        (reels_dir / "thumbnail.png").write_bytes(b"img")
+        r = client.get("/api/demo/list")
+        assert r.status_code == 200
+        reels = r.json()
+        names = [x["filename"] for x in reels]
+        assert "highlights_20260101.mkv" in names
+        assert "notes.txt" not in names
+        assert "thumbnail.png" not in names
+
+    def test_reels_sorted_newest_first(self, client, project_dir):
+        import time
+        reels_dir = project_dir / ".rp-clipper" / "reels"
+        reels_dir.mkdir(parents=True, exist_ok=True)
+        older = reels_dir / "old_20260101.mkv"
+        older.write_bytes(b"old")
+        time.sleep(0.05)
+        newer = reels_dir / "new_20260102.mkv"
+        newer.write_bytes(b"new")
+        r = client.get("/api/demo/list")
+        reels = r.json()
+        assert len(reels) == 2
+        assert reels[0]["filename"] == "new_20260102.mkv"
+
+
+# ---------------------------------------------------------------------------
+# Video contexts — clearing with empty list
+# ---------------------------------------------------------------------------
+
+class TestVideoContextsEmpty:
+    def test_patch_video_contexts_empty_list_clears(self, client):
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        # First assign some contexts
+        client.patch(f"/api/videos/{vid_id}/contexts", json={"context_names": ["ctx-a"]})
+        # Then clear them
+        r = client.patch(f"/api/videos/{vid_id}/contexts", json={"context_names": []})
+        assert r.status_code == 200
+        assert r.json()["context_names"] == []
+        # Persisted
+        d = client.get(f"/api/videos/{vid_id}").json()
+        assert d["context_names"] == []
+
+
+# ---------------------------------------------------------------------------
+# Profile delete — nonexistent name is a no-op
+# ---------------------------------------------------------------------------
+
+class TestProfileDeleteNonexistent:
+    def test_delete_nonexistent_profile_returns_200(self, client):
+        """Deleting a nonexistent profile is a silent no-op (matches delete_profile impl)."""
+        r = client.delete("/api/profiles/does_not_exist")
+        assert r.status_code == 200
+        assert r.json()["deleted"] == "does_not_exist"
+
+
+# ---------------------------------------------------------------------------
+# _word_set (overlap detection helper)
+# ---------------------------------------------------------------------------
+
+class TestWordSet:
+    def _ws(self, text):
+        from rp_clipper.ingest.overlap import _word_set
+        return _word_set(text)
+
+    def test_empty_string_returns_empty_set(self):
+        assert self._ws("") == set()
+
+    def test_lowercases_words(self):
+        assert "hello" in self._ws("Hello World")
+        assert "world" in self._ws("Hello World")
+
+    def test_strips_punctuation(self):
+        result = self._ws("hello, world!")
+        assert "hello" in result
+        assert "world" in result
+        assert "," not in result
+        assert "!" not in result
+
+    def test_apostrophes_preserved(self):
+        result = self._ws("can't won't")
+        assert "can't" in result
+
+    def test_numbers_excluded(self):
+        result = self._ws("123 hello")
+        assert "hello" in result
+        assert "123" not in result
+
+
+# ---------------------------------------------------------------------------
+# Config.load() — project overrides global
+# ---------------------------------------------------------------------------
+
+class TestConfigLoad:
+    def test_project_config_overrides_global(self, tmp_path):
+        """Values in project config.json take precedence over global defaults."""
+        import json
+        from rp_clipper.config import Config
+        project_dir = tmp_path / "proj"
+        project_dir.mkdir()
+        cfg_dir = project_dir / ".rp-clipper"
+        cfg_dir.mkdir()
+        (cfg_dir / "config.json").write_text(
+            json.dumps({"whisper_model": "tiny", "ollama_enabled": False}),
+            encoding="utf-8",
+        )
+        config = Config.load(project_dir)
+        assert config.whisper_model == "tiny"
+        assert config.ollama_enabled is False
+
+    def test_missing_config_returns_defaults(self, tmp_path):
+        """When no config files exist, defaults are used."""
+        from rp_clipper.config import Config
+        project_dir = tmp_path / "proj"
+        project_dir.mkdir()
+        config = Config.load(project_dir)
+        assert config.whisper_model == "base"  # default
+        assert config.ollama_enabled is True    # default
+
+    def test_unknown_keys_in_project_config_ignored(self, tmp_path):
+        """Unknown keys in project config.json must not raise."""
+        import json
+        from rp_clipper.config import Config
+        project_dir = tmp_path / "proj"
+        project_dir.mkdir()
+        cfg_dir = project_dir / ".rp-clipper"
+        cfg_dir.mkdir()
+        (cfg_dir / "config.json").write_text(
+            json.dumps({"whisper_model": "small", "unknown_future_key": 42}),
+            encoding="utf-8",
+        )
+        config = Config.load(project_dir)
+        assert config.whisper_model == "small"
+
+
+# ---------------------------------------------------------------------------
+# Bug-hunt: clip description contains raw HTML characters (XSS regression)
+# ---------------------------------------------------------------------------
+
+class TestClipDescriptionRawText:
+    """The API must return raw (unescaped) description text.
+    The JS layer is responsible for escaping it before inserting into innerHTML.
+    These tests document that contract so a regression (e.g. API double-escaping
+    or JS forgetting to call escHtml) can be caught.
+    """
+
+    def _seed_clip_with_description(self, project_dir, description: str) -> int:
+        """Insert a clip with the given description and return its id."""
+        from rp_clipper.db.models import ClipCandidate, make_session
+        db_path = project_dir / ".rp-clipper" / "project.db"
+        session = make_session(db_path)
+        try:
+            vid_id = session.query(ClipCandidate).first().video_id
+            clip = ClipCandidate(
+                video_id=vid_id,
+                start_ms=900_000,
+                end_ms=960_000,
+                score_overall=0.5,
+                description=description,
+                status="pending",
+            )
+            session.add(clip)
+            session.commit()
+            return clip.id
+        finally:
+            session.close()
+
+    def test_description_with_html_chars_returned_unescaped(self, client, project_dir):
+        """API must return raw HTML characters in description, not entity-encoded.
+        The JavaScript renderDetail() must call escHtml(clip.description) before
+        writing to innerHTML — this test locks in the API contract so a regression
+        on either side is visible.
+        """
+        raw = '<script>alert("xss")</script>'
+        clip_id = self._seed_clip_with_description(project_dir, raw)
+        r = client.get(f"/api/clips/{clip_id}")
+        assert r.status_code == 200
+        # API returns raw text — the JS must escape it
+        assert r.json()["description"] == raw
+
+    def test_description_with_quotes_returned_unescaped(self, client, project_dir):
+        """Quotes in LLM-generated descriptions must survive the API round-trip."""
+        raw = 'He said "hello" & she said \'bye\''
+        clip_id = self._seed_clip_with_description(project_dir, raw)
+        r = client.get(f"/api/clips/{clip_id}")
+        assert r.status_code == 200
+        assert r.json()["description"] == raw

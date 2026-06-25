@@ -24,10 +24,6 @@ def _ffmpeg_path(p: Path) -> str:
     return p.as_posix()
 
 
-# ---------------------------------------------------------------------------
-# Audio extraction
-# ---------------------------------------------------------------------------
-
 def extract_audio_track(
     video_path: Path,
     stream_index: int,
@@ -73,10 +69,6 @@ def extract_audio_track(
 
     return output_path
 
-
-# ---------------------------------------------------------------------------
-# Clip export
-# ---------------------------------------------------------------------------
 
 def export_clip(
     video_path: Path,

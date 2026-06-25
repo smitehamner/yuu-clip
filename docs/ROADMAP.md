@@ -400,6 +400,8 @@ unlock downstream.
 - **`_ingest_one` has many parameters** — consider a dataclass if it grows further
 - **`ingest/labeler.py:_label_interactive`** — ~100 lines mixing UI and logic; candidate for split
 - **JS in `index.html` (~1737 lines)** — no-build-step SPA; consider ES modules if it grows further
+- **No integration test for `demo_events` SSE** — `demo.py:demo_events` passes `ctx` to `subprocess_sse` (needed for graceful shutdown and `/api/status`); this path has no test coverage and was silently broken before the Phase 3 bug-hunt pass
+- **Ollama scoring errors are silent** — `LLMScorer.score()` degrades gracefully by returning `tags=["llm_error"]` with no log emission; a failure during `score_all` is only detectable by inspecting clip tags, not the server log; add a `WARNING` log in `LLMScorer.score()` when Ollama returns an error
 
 ---
 

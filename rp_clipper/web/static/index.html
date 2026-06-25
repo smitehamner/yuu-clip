@@ -605,8 +605,16 @@ document.getElementById('log-toggle').textContent = '▲';
 
 // ── videos ────────────────────────────────────────────────────────────────────
 async function loadVideos() {
-  const res    = await fetch('/api/videos');
-  const videos = await res.json();
+  let videos;
+  try {
+    const res = await fetch('/api/videos');
+    if (!res.ok) throw new Error(`Server error ${res.status}`);
+    videos = await res.json();
+  } catch (err) {
+    document.getElementById('video-list').innerHTML =
+      `<li style="padding:10px 14px;color:var(--red)">Failed to load videos: ${escHtml(String(err.message || err))}</li>`;
+    return;
+  }
   _videos = videos;
 
   const list = document.getElementById('video-list');
@@ -756,8 +764,8 @@ function _renderContextSection(video) {
     const stale = JSON.stringify([...assigned].sort()) !== JSON.stringify([...scoredCtx].sort());
     const when = _fmtDate(video.clips_scored_at);
     const ctxNames = scoredCtx.map(s => { const c = _contexts.find(x => x.slug === s); return c ? c.display_name : s; });
-    const ctxStr = ctxNames.length ? ' · ' + ctxNames.join(', ') : ' · no context';
-    provLines.push(`<span class="${stale ? 'provenance-stale' : ''}">Clips scored ${when}${ctxStr}${stale ? ' — contexts changed since last score' : ''}</span>`);
+    const ctxStr = ctxNames.length ? ' · ' + ctxNames.map(escHtml).join(', ') : ' · no context';
+    provLines.push(`<span class="${stale ? 'provenance-stale' : ''}">Clips scored ${escHtml(when)}${ctxStr}${stale ? ' — contexts changed since last score' : ''}</span>`);
   }
 
   const noContextsDefined = _contexts.length === 0;
@@ -876,7 +884,9 @@ async function summarizeVideo(id, btn) {
 async function onClipsSortChange() {
   if (!activeVideoId) return;
   localStorage.setItem('clips-sort', _clipsSortParam());
-  _clips = await fetch(`/api/videos/${activeVideoId}/clips?sort=${_clipsSortParam()}`).then(r => r.json());
+  try {
+    _clips = await fetch(`/api/videos/${activeVideoId}/clips?sort=${_clipsSortParam()}`).then(r => r.json());
+  } catch { return; }
   const filtered = _clipFilter === 'all' ? _clips : _clips.filter(c => c.status === _clipFilter);
   renderClipList(filtered);
 }
@@ -920,15 +930,20 @@ function renderClipList(clips) {
 
 async function selectClip(id) {
   activeClipId = id;
-  const [clipRes, mediaRes] = await Promise.all([
-    fetch(`/api/clips/${id}`),
-    fetch(`/api/clips/${id}/media_url`),
-  ]);
-  const clip  = await clipRes.json();
-  const media = await mediaRes.json();
-  const captionsUrl = media.has_captions ? `/api/clips/${id}/captions.vtt` : null;
-  renderPlayer(media.url, captionsUrl);
-  renderDetail(clip);
+  try {
+    const [clipRes, mediaRes] = await Promise.all([
+      fetch(`/api/clips/${id}`),
+      fetch(`/api/clips/${id}/media_url`),
+    ]);
+    if (!clipRes.ok || !mediaRes.ok) throw new Error('Failed to load clip');
+    const clip  = await clipRes.json();
+    const media = await mediaRes.json();
+    const captionsUrl = media.has_captions ? `/api/clips/${id}/captions.vtt` : null;
+    renderPlayer(media.url, captionsUrl);
+    renderDetail(clip);
+  } catch (err) {
+    showToast(`Could not load clip: ${err.message}`, 'error');
+  }
 }
 
 // ── player ─────────────────────────────────────────────────────────────────────
@@ -956,7 +971,7 @@ function renderDetail(clip) {
       <span class="time">${clip.start_hms} &middot; ${clip.duration_hms}</span>
     </div>
 
-    ${clip.description ? `<div class="description">"${clip.description}"</div>` : ''}
+    ${clip.description ? `<div class="description">"${escHtml(clip.description)}"</div>` : ''}
 
     ${clip.description_long ? `
       <div>
@@ -1018,11 +1033,16 @@ function setClipFilter(filter) {
 async function setStatus(id, status) {
   const clip = _clips.find(c => c.id === id);
   const fromStatus = clip?.status;
-  await fetch(`/api/clips/${id}/status`, {
+  const res = await fetch(`/api/clips/${id}/status`, {
     method:  'POST',
     headers: {'Content-Type': 'application/json'},
     body:    JSON.stringify({status}),
   });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    showToast(`Failed to update status: ${formatApiError(err)}`, 'error');
+    return;
+  }
   activeClipId = id;
   const [clipsData, clipDetail] = await Promise.all([
     fetch(`/api/videos/${activeVideoId}/clips?sort=${_clipsSortParam()}`).then(r => r.json()),
@@ -1092,7 +1112,12 @@ async function deleteVideo(id) {
     `This deletes all clips, transcripts, and extracted audio from the database.\n` +
     `Your source recording file is NOT touched.`
   )) return;
-  await fetch(`/api/videos/${id}`, {method: 'DELETE'});
+  const delRes = await fetch(`/api/videos/${id}`, {method: 'DELETE'});
+  if (!delRes.ok) {
+    const err = await delRes.json().catch(() => ({}));
+    showToast(`Failed to remove video: ${formatApiError(err)}`, 'error');
+    return;
+  }
   if (activeVideoId === id) {
     activeVideoId = null;
     activeClipId  = null;
@@ -1110,7 +1135,12 @@ async function deleteClip(id) {
     `Its exported video file (if any) will also be deleted from the exports folder.`
   )) return;
   const videoId = activeVideoId;
-  await fetch(`/api/clips/${id}`, {method: 'DELETE'});
+  const delRes = await fetch(`/api/clips/${id}`, {method: 'DELETE'});
+  if (!delRes.ok) {
+    const err = await delRes.json().catch(() => ({}));
+    showToast(`Failed to delete clip: ${formatApiError(err)}`, 'error');
+    return;
+  }
   activeClipId = null;
   clearDetail();
   if (videoId) {
@@ -1306,7 +1336,7 @@ async function startIngest() {
   const startRes = await fetch('/api/ingest/start', {
     method:  'POST',
     headers: {'Content-Type': 'application/json'},
-    body:    JSON.stringify({path, model, profile, energy_mode: document.getElementById('ingest-energy-mode').value, context_names: contextNames}),
+    body:    JSON.stringify({path, model, profile, energy_mode: document.getElementById('ingest-energy-mode').value, scene_mode: document.getElementById('ingest-scene-mode').value, context_names: contextNames}),
   });
 
   if (!startRes.ok) {
@@ -2003,6 +2033,7 @@ function rescoreClip(clipId) {
     if (_activeES === es) _activeES = null;
     es.close();
     if (btn) { btn.disabled = false; btn.textContent = 'Re-score'; }
+    showToast('Re-score failed — see log', 'error');
   };
 }
 
@@ -2021,6 +2052,12 @@ document.addEventListener('keydown', e => {
   }
   if (e.key === 'Escape') {
     closeAboutModal();
+    closeIngestModal();
+    closeProfileManager();
+    closeDemoModal();
+    closeReelsModal();
+    closeRetranscribeModal();
+    closeContextManager();
     return;
   }
   if (e.key === 'z' && (e.ctrlKey || e.metaKey)) {

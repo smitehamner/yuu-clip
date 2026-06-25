@@ -14,12 +14,15 @@ tracks and enable transcription on the first combined track instead.
 """
 from __future__ import annotations
 
+import logging
 import math
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from rp_clipper.db.models import AudioTrack
+
+log = logging.getLogger(__name__)
 
 SAMPLE_SECONDS = 30
 OVERLAP_THRESHOLD = 0.97
@@ -56,7 +59,8 @@ def _rms_curve(wav_path: str, max_seconds: int = SAMPLE_SECONDS) -> list[float]:
                     n = len(raw) // 2
                     arr = _array.array("h", raw)
                     buf.extend(x / 32768.0 for x in arr)
-            except Exception:
+            except Exception as exc:
+                log.debug("RMS frame decode failed (skipping frame): %s", exc)
                 continue
 
             while samples_per_sec and len(buf) >= samples_per_sec:
@@ -115,16 +119,19 @@ def detect_and_apply_overlap_fallback(
     if not overlapping:
         return False
 
-    # Disable duplicated specialized tracks
     for t in overlapping:
+        log.warning(
+            "Track overlap: track %d [%s] duplicates combined audio — disabling transcription/scoring",
+            t.id, t.label,
+        )
         t.do_transcribe = False
         t.do_score = False
 
-    # Enable transcription and scoring on the first combined track as fallback
     first_combined = combined[0]
     first_combined.do_transcribe = True
     first_combined.do_score = True
     first_combined.relevance_weight = max(first_combined.relevance_weight, 1.5)
+    log.info("Track overlap fallback: using combined track %d for transcription/scoring", first_combined.id)
 
     return True
 
@@ -174,6 +181,10 @@ def detect_transcript_overlap(
             continue
         overlap = len(spec_words & combined_words) / len(spec_words)
         if overlap >= threshold:
+            log.warning(
+                "Transcript overlap: track %d [%s] %.0f%% overlap with combined — disabling scoring",
+                spec.id, spec.label, overlap * 100,
+            )
             spec.do_score = False
             changed = True
 
@@ -182,5 +193,6 @@ def detect_transcript_overlap(
         first_combined.do_transcribe = True
         first_combined.do_score = True
         first_combined.relevance_weight = max(first_combined.relevance_weight, 1.5)
+        log.info("Transcript overlap fallback: using combined track %d for scoring", first_combined.id)
 
     return changed

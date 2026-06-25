@@ -27,10 +27,6 @@ from rp_clipper.ingest.probe import VideoInfo
 console = Console()
 
 
-# ---------------------------------------------------------------------------
-# Public API
-# ---------------------------------------------------------------------------
-
 def label_tracks(
     video_info: VideoInfo,
     profile_name: Optional[str] = None,
@@ -56,7 +52,6 @@ def label_tracks(
     """
     streams = video_info.audio_streams
 
-    # --- single track: auto-label as combined ---
     if len(streams) == 1:
         s = streams[0]
         console.print(
@@ -70,11 +65,9 @@ def label_tracks(
             "do_score": True,
         }]
 
-    # --- non-interactive: never prompt ---
     if non_interactive:
         return _label_non_interactive(streams, profile_name)
 
-    # --- apply saved profile if requested ---
     if profile_name:
         result = _apply_profile(profile_name, streams)
         if result:
@@ -84,13 +77,8 @@ def label_tracks(
             f"— falling back to interactive labeling.[/yellow]"
         )
 
-    # --- interactive labeling ---
     return _label_interactive(video_info)
 
-
-# ---------------------------------------------------------------------------
-# Interactive labeling
-# ---------------------------------------------------------------------------
 
 def _label_non_interactive(streams, profile_name: Optional[str]) -> list[dict]:
     """Apply profile without prompting, or default to track 0 as combined.
@@ -107,7 +95,6 @@ def _label_non_interactive(streams, profile_name: Optional[str]) -> list[dict]:
             f"({len(streams)} tracks) — using track 1 as combined.[/yellow]"
         )
 
-    # Default: track 0 as combined, remaining tracks ignored
     s = streams[0]
     n_ignored = len(streams) - 1
     suffix = f", ignoring {n_ignored} other track(s)" if n_ignored else ""
@@ -136,11 +123,9 @@ def _label_interactive(video_info: VideoInfo) -> list[dict]:
     streams = video_info.audio_streams
     profiles = load_profiles()
 
-    # Show track table
     console.print()
     _print_stream_table(video_info)
 
-    # Offer to use a saved profile
     if profiles:
         profile_keys = list(profiles.keys())
         console.print("\n  [bold]Saved profiles:[/bold]")
@@ -160,7 +145,6 @@ def _label_interactive(video_info: VideoInfo) -> list[dict]:
                 return result
             console.print("  [yellow]Track count mismatch — labeling manually.[/yellow]")
 
-    # Label each track
     console.print()
     _print_label_menu()
 
@@ -176,7 +160,6 @@ def _label_interactive(video_info: VideoInfo) -> list[dict]:
         choice = max(1, min(choice, len(TRACK_LABELS)))
         label = TRACK_LABELS[choice - 1]
 
-        # Transcription
         if label in DEFAULT_SKIP_TRANSCRIBE:
             do_transcribe = Confirm.ask(
                 f"    Transcribe this track? (default: no for {label})",
@@ -185,7 +168,6 @@ def _label_interactive(video_info: VideoInfo) -> list[dict]:
         else:
             do_transcribe = True
 
-        # Scoring (energy analysis)
         if label in DEFAULT_SKIP_SCORE:
             do_score = Confirm.ask(
                 f"    Include in energy scoring? (default: no for {label})",
@@ -207,11 +189,9 @@ def _label_interactive(video_info: VideoInfo) -> list[dict]:
 
     _print_assignment_summary(assignments)
 
-    # Offer to save as a profile
     if Confirm.ask("\n  Save these assignments as a profile for future videos?", default=False):
         name = Prompt.ask("  Profile name").strip()
         if name:
-            # Store position-relative assignments (not absolute stream indices)
             positional = [
                 {
                     "stream_position": idx,
@@ -226,10 +206,6 @@ def _label_interactive(video_info: VideoInfo) -> list[dict]:
 
     return assignments
 
-
-# ---------------------------------------------------------------------------
-# Profile application
-# ---------------------------------------------------------------------------
 
 def _apply_profile(name: str, streams) -> Optional[list[dict]]:
     profiles = load_profiles()
@@ -258,10 +234,6 @@ def _apply_profile(name: str, streams) -> Optional[list[dict]]:
     _print_assignment_summary(assignments)
     return assignments
 
-
-# ---------------------------------------------------------------------------
-# Display helpers
-# ---------------------------------------------------------------------------
 
 def _print_stream_table(video_info: VideoInfo) -> None:
     table = Table(

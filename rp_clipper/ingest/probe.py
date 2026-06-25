@@ -74,7 +74,6 @@ def probe_video(path: Path) -> VideoInfo:
         cmd,
         capture_output=True,
         text=True,
-        # No shell=True needed; works on Windows and Linux as-is
     )
 
     if result.returncode != 0:
@@ -86,7 +85,6 @@ def probe_video(path: Path) -> VideoInfo:
     streams = data.get("streams", [])
     fmt = data.get("format", {})
 
-    # --- video stream ---
     video_stream = next(
         (s for s in streams if s.get("codec_type") == "video"), None
     )
@@ -96,7 +94,6 @@ def probe_video(path: Path) -> VideoInfo:
     width  = video_stream.get("width",  0) if video_stream else 0
     height = video_stream.get("height", 0) if video_stream else 0
 
-    # --- audio streams ---
     audio_raw = [s for s in streams if s.get("codec_type") == "audio"]
     audio_streams: list[AudioStreamInfo] = []
 

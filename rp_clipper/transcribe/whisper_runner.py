@@ -28,23 +28,22 @@ from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeEl
 
 from rp_clipper.config import Config, validate_whisper_language, validate_whisper_model
 from rp_clipper.db.models import AudioTrack, Transcript, TranscriptSegment
+from rp_clipper.log import get_logger
+
+_log = get_logger(__name__)
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
 console = Console()
 
-# Module-level model cache so the same model isn't re-loaded between tracks
-_model_cache: dict[tuple, object] = {}
+_model_cache: dict[tuple, object] = {}  # avoids re-loading the same model between tracks
 
 
 def _get_model(config: Config):
     """Load (or retrieve from cache) a WhisperModel."""
     from faster_whisper import WhisperModel  # imported here so the module loads without it
 
-    # Validate before any network activity happens inside faster-whisper.
-    # validate_whisper_model raises ValueError for unknown identifiers,
-    # preventing arbitrary HuggingFace repo IDs from triggering downloads.
     validate_whisper_model(config.whisper_model)
 
     device = config.whisper_device
@@ -52,7 +51,8 @@ def _get_model(config: Config):
         try:
             import ctranslate2
             device = "cuda" if ctranslate2.get_cuda_device_count() > 0 else "cpu"
-        except Exception:
+        except Exception as exc:
+            _log.debug("ctranslate2 device detection failed, defaulting to cpu: %s", exc)
             device = "cpu"
 
     # int8 is CPU-optimal; upgrade to float16 on CUDA for better quality
@@ -99,10 +99,13 @@ def transcribe_track(
     if not audio_path.exists():
         raise FileNotFoundError(f"Extracted audio not found: {audio_path}")
 
-    # Validate language before touching the model — raises ValueError for bad codes.
     language = validate_whisper_language(language)
 
     model = _get_model(config)
+    _log.info(
+        "Transcribing track %d [%s] using model=%s device=auto path=%s",
+        track.id, track.label, config.whisper_model, audio_path.name,
+    )
 
     transcript = Transcript(
         audio_track_id=track.id,
@@ -157,9 +160,12 @@ def transcribe_track(
             session.add(db_seg)
             progress.update(task, segs=seg_count)
 
-            # Flush in batches to avoid holding everything in memory
-            if seg_count % 200 == 0:
+            if seg_count % 200 == 0:  # flush in batches to avoid holding everything in memory
                 session.flush()
 
     session.flush()
+    _log.info(
+        "Transcription complete: track %d [%s], %d segments, language=%s",
+        track.id, track.label, seg_count, transcript.language or "auto",
+    )
     return transcript

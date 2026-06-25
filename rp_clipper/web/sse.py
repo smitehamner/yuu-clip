@@ -35,6 +35,7 @@ async def subprocess_sse(cmd: list[str], cwd: Path, ctx=None) -> StreamingRespon
     """
 
     async def _generate() -> AsyncGenerator[str, None]:
+        _log.debug("Launching subprocess: %s", " ".join(str(c) for c in cmd))
         proc = await asyncio.create_subprocess_exec(
             *cmd,
             stdout=asyncio.subprocess.PIPE,
@@ -42,6 +43,7 @@ async def subprocess_sse(cmd: list[str], cwd: Path, ctx=None) -> StreamingRespon
             cwd=str(cwd),
         )
         assert proc.stdout
+        _log.info("Subprocess started (pid %s): %s", proc.pid, cmd[2] if len(cmd) > 2 else cmd[0])
         if ctx is not None:
             ctx.ingest_proc = proc
         try:
@@ -52,6 +54,7 @@ async def subprocess_sse(cmd: list[str], cwd: Path, ctx=None) -> StreamingRespon
             await proc.wait()
             if ctx is not None and ctx.ingest_cancelled:
                 ctx.ingest_cancelled = False
+                _log.info("Subprocess (pid %s) cancelled by user", proc.pid)
                 yield f"data: {json.dumps('[Ingest cancelled]')}\n\n"
             elif proc.returncode != 0:
                 _log.error(
@@ -59,6 +62,8 @@ async def subprocess_sse(cmd: list[str], cwd: Path, ctx=None) -> StreamingRespon
                     proc.returncode,
                     " ".join(str(c) for c in cmd),
                 )
+            else:
+                _log.info("Subprocess (pid %s) completed successfully", proc.pid)
             yield f"data: {json.dumps(_SSE_DONE_SENTINEL)}\n\n"
         finally:
             if proc.returncode is None:
@@ -66,5 +71,7 @@ async def subprocess_sse(cmd: list[str], cwd: Path, ctx=None) -> StreamingRespon
                 await proc.wait()
             if ctx is not None:
                 ctx.ingest_proc = None
+                ctx.ingest_cmd = None
+                ctx.demo_cmd = None
 
     return StreamingResponse(_generate(), media_type="text/event-stream")

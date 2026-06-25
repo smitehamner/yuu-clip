@@ -40,7 +40,6 @@ def generate_candidates(
     Returns the list of newly created ClipCandidate objects (already
     added to *session* but not yet committed).
     """
-    # --- collect all segments, weighted by track relevance ---
     all_segments: list[TranscriptSegment] = []
     for t in transcripts:
         if t.audio_track.do_transcribe:
@@ -49,15 +48,12 @@ def generate_candidates(
     if not all_segments:
         return []
 
-    # Sort by start time
     all_segments.sort(key=lambda s: s.start_ms)
 
-    # --- run the windower ---
     windows = _silence_window(
         all_segments,
         silence_threshold_ms=config.silence_threshold_ms,
         min_clip_ms=config.min_clip_ms,
-        max_clip_ms=config.max_clip_ms,
         hard_split_ms=config.hard_split_ms,
     )
 
@@ -73,22 +69,16 @@ def generate_candidates(
             status="pending",
         )
         cand.tags = tags
-        # PHASE2: score_* fields will be populated by the LLM scorer
         session.add(cand)
         candidates.append(cand)
 
     return candidates
 
 
-# ---------------------------------------------------------------------------
-# Core windowing logic
-# ---------------------------------------------------------------------------
-
 def _silence_window(
     segments: list[TranscriptSegment],
     silence_threshold_ms: int,
     min_clip_ms: int,
-    max_clip_ms: int,
     hard_split_ms: int,
 ) -> list[tuple[int, int, list[str], list[str]]]:
     """
@@ -102,7 +92,6 @@ def _silence_window(
 
     results: list[tuple[int, int, list[str], list[str]]] = []
 
-    # Initialise the first window from the first segment
     win_start = segments[0].start_ms
     win_end   = segments[0].end_ms
     win_texts = [segments[0].text]
@@ -118,7 +107,6 @@ def _silence_window(
         gap_ms    = seg.start_ms - win_end
         duration  = seg.end_ms   - win_start
 
-        # Force-split if the window is getting very long
         if duration > hard_split_ms:
             _flush(["hard_split"])
             win_start = seg.start_ms
@@ -127,7 +115,6 @@ def _silence_window(
             win_tags  = ["after_hard_split"]
             continue
 
-        # Natural boundary: silence gap
         if gap_ms >= silence_threshold_ms:
             gap_tag = f"silence_{gap_ms // 1000}s"
             _flush([gap_tag])
@@ -140,11 +127,9 @@ def _silence_window(
                 win_tags.append("long_silence_before")
             continue
 
-        # Extend the current window
         win_end = seg.end_ms
         win_texts.append(seg.text)
 
-    # Flush whatever remains
     _flush([])
 
     return results

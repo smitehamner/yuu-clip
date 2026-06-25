@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from rp_clipper.log import get_logger
 from rp_clipper.scoring.protocol import ScoreResult, Scorer
 
 if TYPE_CHECKING:
@@ -12,11 +13,15 @@ if TYPE_CHECKING:
     from rp_clipper.config import Config
     from rp_clipper.db.models import ClipCandidate, Video
 
+_log = get_logger(__name__)
+
 
 class ScoringEngine:
     def __init__(self, config: "Config", scorers: list[Scorer]) -> None:
         self._config  = config
         self._scorers = [s for s in scorers if s.is_available()]
+        if not self._scorers:
+            _log.warning("ScoringEngine: no scorers are available — clips will not be scored")
 
     # Tags emitted by scorers — stripped before each re-score so stale
     # results from a previous partial run don't accumulate.
@@ -25,13 +30,11 @@ class ScoringEngine:
         "llm_scored", "llm_error", "llm_skipped", "llm_no_transcript",
     })
 
-    # ------------------------------------------------------------------
     def score_clip(self, clip: "ClipCandidate", session: "Session") -> None:
         """Run all available scorers and update clip.score_* fields in place."""
         if not self._scorers:
             return
 
-        # Clear stale scorer tags so re-scoring starts clean
         clip.tags = [t for t in clip.tags if t not in self._SCORER_TAGS]
 
         funny_num = dramatic_num = action_num = weight_sum = 0.0
@@ -70,7 +73,6 @@ class ScoringEngine:
                 cfg.score_action_weight   * clip.score_action
             ) / dim_total
 
-    # ------------------------------------------------------------------
     def score_video(self, video: "Video", session: "Session", progress_cb=None) -> int:
         """Score all ClipCandidates for *video*.  Returns count scored."""
         from rp_clipper.db.models import ClipCandidate
@@ -80,8 +82,10 @@ class ScoringEngine:
             .all()
         )
         total = len(candidates)
+        _log.info("Scoring %d clip(s) for video %d using %d scorer(s)", total, video.id, len(self._scorers))
         for i, clip in enumerate(candidates, 1):
             self.score_clip(clip, session)
             if progress_cb:
                 progress_cb(i, total)
+        _log.info("Scoring complete for video %d: %d clip(s) scored", video.id, total)
         return total

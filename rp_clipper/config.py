@@ -31,10 +31,6 @@ def _profiles_path() -> Path:
     return _global_config_dir() / "profiles.json"
 
 
-# ---------------------------------------------------------------------------
-# Track label constants (used across modules)
-# ---------------------------------------------------------------------------
-
 TRACK_LABELS = ["player_voice", "ingame_voicechat", "game_sounds", "combined", "unlabeled"]
 
 LABEL_WEIGHTS: dict[str, float] = {
@@ -131,13 +127,8 @@ DEFAULT_SKIP_TRANSCRIBE = {"game_sounds"}
 DEFAULT_SKIP_SCORE: frozenset[str] = frozenset({"game_sounds"})
 
 
-# ---------------------------------------------------------------------------
-# Config dataclass
-# ---------------------------------------------------------------------------
-
 @dataclass
 class Config:
-    # Whisper settings
     whisper_model: str = "base"
     # "cpu" works everywhere; "cuda" needs NVIDIA GPU + CUDA toolkit on Windows/Linux
     # "auto" lets faster-whisper pick (cuda if available, else cpu)
@@ -161,27 +152,18 @@ class Config:
     #   large-v3: check https://huggingface.co/Systran/faster-whisper-large-v3/commits/main
     whisper_model_revision: Optional[str] = None
 
-    # Audio extraction
     audio_sample_rate: int = 16_000  # Whisper expects 16 kHz
     audio_channels: int = 1           # Whisper expects mono
 
-    # Segmentation
     silence_threshold_ms: int = 3_000   # gap that marks a clip boundary
     min_clip_ms: int = 15_000           # shortest candidate kept (15 s)
-    max_clip_ms: int = 300_000          # longest candidate kept (5 min)
     hard_split_ms: int = 180_000        # force-split continuous speech (3 min)
 
-    # ---------------------------------------------------------------------------
-    # Phase 2 — scoring
-    # ---------------------------------------------------------------------------
-
-    # Ollama connection
     ollama_host: str = "http://localhost:11434"
     ollama_model: str = "llama3.1:8b"
     ollama_timeout_s: float = 120.0
     ollama_enabled: bool = True
 
-    # Enable individual scorers independently
     scorer_energy_enabled: bool = True
     scorer_scenes_enabled: bool = True
     scorer_llm_enabled: bool = True
@@ -194,12 +176,10 @@ class Config:
     # Minimum silence gap in seconds to register as a transcript-mode scene boundary
     scene_transcript_gap_s: float = 3.0
 
-    # How much each scorer contributes to the dimension scores (weighted mean)
     scorer_energy_weight: float = 1.0
     scorer_scene_weight: float = 0.5
     scorer_llm_weight: float = 2.0
 
-    # How dimension scores combine into score_overall (weighted sum, then normalised)
     score_funny_weight: float = 1.0
     score_dramatic_weight: float = 1.0
     score_action_weight: float = 1.0
@@ -207,17 +187,25 @@ class Config:
     @classmethod
     def load(cls, project_dir: Path) -> "Config":
         """Load config, merging global defaults with project overrides."""
+        import logging
+        _cfg_log = logging.getLogger(__name__)
+
         merged: dict = {}
 
         global_cfg = _global_config_dir() / "config.json"
         if global_cfg.exists():
             merged.update(json.loads(global_cfg.read_text(encoding="utf-8")))
+            _cfg_log.debug("Loaded global config from %s", global_cfg)
 
         project_cfg = project_dir / ".rp-clipper" / "config.json"
         if project_cfg.exists():
             merged.update(json.loads(project_cfg.read_text(encoding="utf-8")))
+            _cfg_log.debug("Loaded project config from %s", project_cfg)
 
         known = {f for f in cls.__dataclass_fields__}
+        unknown = set(merged) - known
+        if unknown:
+            _cfg_log.warning("Config: unrecognised keys ignored: %s", sorted(unknown))
         return cls(**{k: v for k, v in merged.items() if k in known})
 
     def save_project(self, project_dir: Path) -> None:
@@ -233,16 +221,18 @@ class Config:
         )
 
 
-# ---------------------------------------------------------------------------
-# Track labeling profiles
-# ---------------------------------------------------------------------------
-
 def load_profiles() -> dict:
     """Load saved track-label profiles from the global config dir."""
     p = _profiles_path()
     if p.exists():
         return json.loads(p.read_text(encoding="utf-8"))
     return {}
+
+
+def _write_profiles(profiles: dict) -> None:
+    p = _profiles_path()
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps(profiles, indent=2), encoding="utf-8")
 
 
 def save_profile(name: str, assignments: list[dict]) -> None:
@@ -259,22 +249,14 @@ def save_profile(name: str, assignments: list[dict]) -> None:
         "num_tracks": len(assignments),
         "assignments": assignments,
     }
-    p = _profiles_path()
-    p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(json.dumps(profiles, indent=2), encoding="utf-8")
+    _write_profiles(profiles)
 
 
 def delete_profile(name: str) -> None:
     profiles = load_profiles()
     profiles.pop(name, None)
-    p = _profiles_path()
-    p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(json.dumps(profiles, indent=2), encoding="utf-8")
+    _write_profiles(profiles)
 
-
-# ---------------------------------------------------------------------------
-# Project directory helpers
-# ---------------------------------------------------------------------------
 
 def project_audio_dir(project_dir: Path) -> Path:
     d = project_dir / ".rp-clipper" / "audio"
@@ -293,10 +275,6 @@ def project_db_path(project_dir: Path) -> Path:
     d.mkdir(parents=True, exist_ok=True)
     return d / "project.db"
 
-
-# ---------------------------------------------------------------------------
-# FFmpeg discovery (cross-platform)
-# ---------------------------------------------------------------------------
 
 def find_ffmpeg() -> tuple[str, str]:
     """

@@ -21,7 +21,10 @@ from sqlalchemy import case, func
 
 from rp_clipper.contexts import format_context_block, load_contexts
 from rp_clipper.db.models import AudioEnergy, AudioTrack, ClipCandidate, SceneBoundary, Video
+from rp_clipper.log import get_logger
 from rp_clipper.web.deps import ProjectContext
+
+_log = get_logger(__name__)
 
 _VALID_STATUSES = ("approved", "rejected", "pending")
 
@@ -82,7 +85,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             video = db.get(Video, video_id)
             if not video:
                 raise HTTPException(404, "Video not found")
-            context_names = json_lib.loads(video.context_names_json) if video.context_names_json else []
+            context_names = _json_list(video.context_names_json)
             clips = (
                 db.query(ClipCandidate)
                 .filter_by(video_id=video_id)
@@ -117,6 +120,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                     except Exception as exc:
                         score_db.rollback()
                         error = str(exc)
+                        _log.error("rescore_clips: clip %d failed for video %d: %s", clip_id, video_id, exc)
                     finally:
                         score_db.close()
                     if error:
@@ -138,11 +142,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             finally:
                 ctx.active_jobs -= 1
 
-        return StreamingResponse(
-            event_stream(),
-            media_type="text/event-stream",
-            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-        )
+        return _sse_response(event_stream())
 
     @router.get("/api/videos/{video_id}/timeline")
     async def stream_timeline(video_id: int):
@@ -165,7 +165,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                 raise HTTPException(400, "No transcript available — run ingest first")
 
             # Extract raw data before closing the session
-            context_names = json_lib.loads(video.context_names_json) if video.context_names_json else []
+            context_names = _json_list(video.context_names_json)
             seg_data = [(s.start_ms, s.end_ms, s.text) for s in all_segs]
             clips = (
                 db.query(ClipCandidate)
@@ -204,6 +204,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                             generate_timeline_chunk, chunk_text, start_hms, end_hms, window_clips, config, context_text
                         )
                     except Exception as exc:
+                        _log.error("timeline chunk %s–%s failed for video %d: %s", start_hms, end_hms, video_id, exc)
                         entry_text = f"[Error generating entry: {exc}]"
 
                     entry = {"start_hms": start_hms, "end_hms": end_hms, "text": entry_text}
@@ -225,11 +226,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             finally:
                 ctx.active_jobs -= 1
 
-        return StreamingResponse(
-            event_stream(),
-            media_type="text/event-stream",
-            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-        )
+        return _sse_response(event_stream())
 
     @router.post("/api/videos/{video_id}/summarize")
     def summarize_video(video_id: int):
@@ -241,7 +238,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             if not video:
                 raise HTTPException(404, "Video not found")
 
-            context_names = json_lib.loads(video.context_names_json) if video.context_names_json else []
+            context_names = _json_list(video.context_names_json)
             tracks = db.query(AudioTrack).filter_by(video_id=video_id, do_transcribe=True).all()
             all_segs = []
             for track in tracks:
@@ -257,6 +254,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             try:
                 title, summary = summarize_transcript(full_text, ctx.config, context_text=context_text)
             except Exception as exc:
+                _log.warning("Ollama summarize failed for video %d: %s", video_id, exc)
                 raise HTTPException(502, f"Ollama error: {exc}")
 
             video.title = title
@@ -286,7 +284,6 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                 "funny":    ClipCandidate.score_funny,
                 "dramatic": ClipCandidate.score_dramatic,
                 "action":   ClipCandidate.score_action,
-                "timeline": None,
             }
             if sort == "timeline":
                 order = ClipCandidate.start_ms.asc()
@@ -367,6 +364,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
 
             db.delete(video)  # cascades: ClipCandidate, AudioTrack → Transcript → TranscriptSegment
             db.commit()
+            _log.info("Deleted video %d (%s) and %d exported clip(s)", video_id, video.filename, len(clips))
             return {"deleted": video_id}
         finally:
             db.close()
@@ -387,6 +385,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
 
             db.delete(clip)
             db.commit()
+            _log.info("Deleted clip %d from video %d", clip_id, video_id)
             return {"deleted": clip_id, "video_id": video_id}
         finally:
             db.close()
@@ -399,7 +398,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             video = db.get(Video, clip.video_id)
             if not video:
                 raise HTTPException(404, "Video not found")
-            context_names = json_lib.loads(video.context_names_json) if video.context_names_json else []
+            context_names = _json_list(video.context_names_json)
         finally:
             db.close()
 
@@ -424,6 +423,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                 except Exception as exc:
                     score_db.rollback()
                     error = str(exc)
+                    _log.error("rescore_clip: clip %d failed: %s", clip_id, exc)
                 finally:
                     score_db.close()
 
@@ -435,7 +435,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             finally:
                 ctx.active_jobs -= 1
 
-        return StreamingResponse(event_stream(), media_type="text/event-stream")
+        return _sse_response(event_stream())
 
     @router.get("/api/clips/{clip_id}/captions.vtt")
     def clip_captions_vtt(clip_id: int):
@@ -454,8 +454,6 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     return router
 
 
-# ── serialization helpers ────────────────────────────────────────────────────
-
 def _require_clip(db, clip_id: int) -> ClipCandidate:
     clip = db.get(ClipCandidate, clip_id)
     if not clip:
@@ -463,17 +461,17 @@ def _require_clip(db, clip_id: int) -> ClipCandidate:
     return clip
 
 
+def _clip_stem(clip: ClipCandidate, video: Video) -> str:
+    """Base filename stem shared by the exported video and its SRT sidecar."""
+    return f"{Path(video.filename).stem}_clip{clip.id}_{clip.start_hms.replace(':', '-')}"
+
+
 def _export_filename(clip: ClipCandidate, video: Video) -> str:
-    stem = Path(video.filename).stem
-    start_hms = clip.start_hms.replace(":", "-")
-    return f"{stem}_clip{clip.id}_{start_hms}.mkv"
+    return f"{_clip_stem(clip, video)}.mkv"
 
 
 def _srt_path(clip: ClipCandidate, video: Video, export_dir: Path) -> Optional[Path]:
-    stem = Path(video.filename).stem
-    start_hms = clip.start_hms.replace(":", "-")
-    base = f"{stem}_clip{clip.id}_{start_hms}"
-    p = export_dir / f"{base}.srt"
+    p = export_dir / f"{_clip_stem(clip, video)}.srt"
     return p if p.exists() else None
 
 
@@ -490,6 +488,16 @@ def _srt_to_vtt(srt: str) -> str:
 
 
 _EMPTY_STATS = {"clip_count": 0, "approved": 0, "total_clip_ms": 0}
+_SSE_HEADERS = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
+
+
+def _sse_response(generator) -> StreamingResponse:
+    return StreamingResponse(generator, media_type="text/event-stream", headers=_SSE_HEADERS)
+
+
+def _json_list(s: Optional[str]) -> list:
+    """Decode a JSON-encoded list column, returning [] for NULL/missing values."""
+    return json_lib.loads(s) if s else []
 
 
 def _bulk_clip_stats(db, video_ids: list[int]) -> dict[int, dict]:
@@ -530,13 +538,13 @@ def _video_dict(video: Video, stats: dict) -> dict:
         "title": video.title or "",
         "summary": video.summary or "",
         "has_timeline": bool(video.timeline_json),
-        "context_names": json_lib.loads(video.context_names_json) if video.context_names_json else [],
+        "context_names": _json_list(video.context_names_json),
         "clips_scored_at": video.clips_scored_at.isoformat() if video.clips_scored_at else None,
-        "clips_scored_context": json_lib.loads(video.clips_scored_context_json) if video.clips_scored_context_json else [],
+        "clips_scored_context": _json_list(video.clips_scored_context_json),
         "summarized_at": video.summarized_at.isoformat() if video.summarized_at else None,
-        "summary_context": json_lib.loads(video.summary_context_json) if video.summary_context_json else [],
+        "summary_context": _json_list(video.summary_context_json),
         "timeline_generated_at": video.timeline_generated_at.isoformat() if video.timeline_generated_at else None,
-        "timeline_context": json_lib.loads(video.timeline_context_json) if video.timeline_context_json else [],
+        "timeline_context": _json_list(video.timeline_context_json),
     }
 
 

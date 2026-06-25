@@ -16,8 +16,11 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from rp_clipper.db.models import ClipCandidate
+from rp_clipper.log import get_logger
 from rp_clipper.web.deps import ProjectContext
 from rp_clipper.web.sse import subprocess_sse
+
+_log = get_logger(__name__)
 
 
 class DemoRequest(BaseModel):
@@ -64,6 +67,8 @@ def make_router(ctx: ProjectContext) -> APIRouter:
 
         if req.output_name:
             output_name = _safe_filename(req.output_name)
+            if not output_name.endswith(".mkv"):
+                output_name += ".mkv"
         else:
             ts = datetime.now().strftime("%Y%m%d_%H%M%S")
             output_name = f"highlights_{ts}.mkv"
@@ -83,6 +88,10 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             cmd += ["--video-id", str(req.video_id)]
 
         ctx.demo_cmd = cmd
+        _log.info(
+            "Demo reel queued: %d approved clip(s), output=%s, transition=%s",
+            len(clips), output_name, req.transition,
+        )
         return {"status": "started", "clip_count": len(clips), "output_name": output_name}
 
     @router.get("/api/demo/events")
@@ -90,7 +99,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         """Stream demo compilation progress as SSE. Call /api/demo/start first."""
         if not ctx.demo_cmd:
             raise HTTPException(400, "No demo queued. Call /api/demo/start first.")
-        return await subprocess_sse(ctx.demo_cmd, ctx.project_dir)
+        return await subprocess_sse(ctx.demo_cmd, ctx.project_dir, ctx)
 
     @router.get("/api/demo/list")
     def list_reels():

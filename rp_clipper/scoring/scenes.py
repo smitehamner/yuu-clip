@@ -34,10 +34,6 @@ log = logging.getLogger(__name__)
 _MAX_CPM = 10.0   # cuts/min → score_action = 1.0
 
 
-# ---------------------------------------------------------------------------
-# Detection strategies
-# ---------------------------------------------------------------------------
-
 def _detect_transcript(video: "Video", session: "Session", gap_s: float) -> list[int]:
     """Return cut timecodes (ms) from silence gaps in the transcript."""
     from rp_clipper.db.models import AudioTrack, Transcript, TranscriptSegment
@@ -113,10 +109,6 @@ def _detect_content(video_path: str, frame_skip: int = 0) -> list[int]:
         return []
 
 
-# ---------------------------------------------------------------------------
-# Public pre-computation entry point
-# ---------------------------------------------------------------------------
-
 def compute_scenes(
     video: "Video",
     session: "Session",
@@ -169,10 +161,6 @@ def compute_scenes(
 
     return len(timecodes)
 
-
-# ---------------------------------------------------------------------------
-# Scorer
-# ---------------------------------------------------------------------------
 
 class SceneCutScorer:
     name = "scene_cuts"

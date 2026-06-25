@@ -4,8 +4,10 @@ rp-clip  —  RP gaming session clip extraction CLI
 from __future__ import annotations
 
 import io
+import json
 import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -31,10 +33,6 @@ console = Console()
 VIDEO_EXTENSIONS = {".mp4", ".mkv", ".mov", ".avi", ".webm", ".flv", ".ts"}
 BYTES_PER_MB: int = 1_048_576
 
-
-# ---------------------------------------------------------------------------
-# Shared helpers
-# ---------------------------------------------------------------------------
 
 def _project_dir(given: Optional[Path]) -> Path:
     return (given or Path.cwd()).resolve()
@@ -85,10 +83,6 @@ def _extract_wav_segment(src: Path, dst: Path, start_s: float, end_s: float) -> 
     )
 
 
-# ---------------------------------------------------------------------------
-# probe
-# ---------------------------------------------------------------------------
-
 @app.command()
 def probe(
     path: Path = typer.Argument(..., help="Video file to probe"),
@@ -132,10 +126,6 @@ def probe(
     console.print(t)
 
 
-# ---------------------------------------------------------------------------
-# ingest
-# ---------------------------------------------------------------------------
-
 @app.command()
 def ingest(
     path: Path = typer.Argument(..., help="Video file or directory of videos to ingest"),
@@ -149,6 +139,7 @@ def ingest(
     force: bool = typer.Option(False, "--force", help="Re-process even if already ingested"),
     language: Optional[str] = typer.Option(None, "--language", "-l", help="Force Whisper language (e.g. en)"),
     energy_mode: str = typer.Option("fast", "--energy-mode", help="Audio energy analysis: none|fast|full"),
+    scene_mode: str = typer.Option("fast", "--scene-mode", help="Scene detection: transcript|fast|full"),
     no_interact: bool = typer.Option(False, "--no-interact", help="Never prompt interactively — use defaults or fail cleanly (set automatically by the web UI)"),
     context: list[str] = typer.Option([], "--context", help="RP context slug(s) to apply (can repeat)"),
 ):
@@ -161,8 +152,9 @@ def ingest(
     proj_dir, session, config = _load_project(project)
     audio_dir = project_audio_dir(proj_dir)
 
-    config.whisper_model  = model
-    config.whisper_device = device
+    config.whisper_model        = model
+    config.whisper_device       = device
+    config.scene_detection_mode = scene_mode
 
     context_text = format_context_block(load_contexts(proj_dir), context) if context else ""
 
@@ -190,13 +182,6 @@ def ingest(
     console.print("\n[bold green]Done![/bold green]  Run [cyan]rp-clip status[/cyan] to see your project.\n")
 
 
-# ---------------------------------------------------------------------------
-# Ingest pipeline stages
-# Each stage handles its own console output and returns the data needed by the
-# next stage. Stages return None and print a [red] message on recoverable
-# failure, allowing the outer loop to skip to the next video.
-# ---------------------------------------------------------------------------
-
 def _ingest_one(
     video_path, session, config, audio_dir,
     profile, no_transcribe, no_segment, no_score, force, language,
@@ -207,7 +192,6 @@ def _ingest_one(
 ) -> None:
     """Orchestrate all pipeline stages for a single video file."""
     from rp_clipper.db.models import Video
-    from datetime import datetime, timezone
 
     abs_path = str(video_path.resolve())
     existing = session.query(Video).filter_by(path=abs_path).first()
@@ -226,8 +210,7 @@ def _ingest_one(
         session, video_path, info, existing, profile, force, non_interactive=non_interactive
     )
     if context_names is not None:
-        import json as _json
-        video.context_names_json = _json.dumps(context_names)
+        video.context_names_json = json.dumps(context_names)
     session.commit()
 
     _extract_audio_and_check_rms_overlap(video_path, video, track_objs, config, audio_dir, session, force)
@@ -439,10 +422,6 @@ def _generate_candidates(video, transcripts, config, session, no_segment, no_tra
     return candidates
 
 
-# ---------------------------------------------------------------------------
-# Scoring helper — shared by ingest and the standalone score command
-# ---------------------------------------------------------------------------
-
 def _run_scoring(video, track_objs, config, session, energy_mode: str = "fast", context_text: str = "") -> None:
     """Run Phase 2 scoring (energy, scenes, LLM) for all candidates belonging to *video*."""
     from rp_clipper.scoring.energy import AudioEnergyScorer, compute_energy
@@ -484,16 +463,10 @@ def _run_scoring(video, track_objs, config, session, energy_mode: str = "fast", 
         progress_cb=lambda i, total: console.print(f"  Scoring {i}/{total}..."),
     )
     console.print(f"  [green]  OK[/green] {n} candidates scored")
-    import json as _json
-    from datetime import datetime, timezone
     video.clips_scored_at = datetime.now(timezone.utc)
     video.clips_scored_context_json = video.context_names_json or "[]"
     session.flush()
 
-
-# ---------------------------------------------------------------------------
-# score  (standalone re-score command)
-# ---------------------------------------------------------------------------
 
 @app.command()
 def score(
@@ -529,18 +502,13 @@ def score(
     for v in videos:
         console.rule(f"[bold]{v.filename}[/bold]")
         from rp_clipper.contexts import format_context_block, load_contexts
-        import json as _json
-        _cn = _json.loads(v.context_names_json) if v.context_names_json else []
+        _cn = json.loads(v.context_names_json) if v.context_names_json else []
         _ctx = format_context_block(load_contexts(proj_dir), _cn)
         _run_scoring(v, v.audio_tracks, config, session, context_text=_ctx)
         session.commit()
 
     console.print("\n[bold green]Scoring complete.[/bold green]\n")
 
-
-# ---------------------------------------------------------------------------
-# status
-# ---------------------------------------------------------------------------
 
 @app.command()
 def status(
@@ -578,10 +546,6 @@ def status(
         )
     console.print(t)
 
-
-# ---------------------------------------------------------------------------
-# clips
-# ---------------------------------------------------------------------------
 
 @app.command()
 def clips(
@@ -630,10 +594,6 @@ def clips(
     console.print(t)
 
 
-# ---------------------------------------------------------------------------
-# export
-# ---------------------------------------------------------------------------
-
 @app.command()
 def export(
     clip_id: int = typer.Argument(..., help="Clip candidate ID to export"),
@@ -665,7 +625,6 @@ def export(
         console.print(f"[red]Source video not found: {video_path}[/red]")
         raise typer.Exit(1)
 
-    # Prefer the combined track; fall back to any transcribed track; fall back to all.
     audio_track = (
         session.query(AudioTrack).filter_by(video_id=cand.video_id, label="combined").first()
         or session.query(AudioTrack).filter_by(video_id=cand.video_id, do_transcribe=True).first()
@@ -719,10 +678,6 @@ def export(
             console.print("  [dim]No transcript data — subtitles skipped[/dim]")
 
 
-# ---------------------------------------------------------------------------
-# demo — highlight reel compilation
-# ---------------------------------------------------------------------------
-
 @app.command()
 def demo(
     project:    Optional[Path]  = typer.Option(None, "-p", "--project"),
@@ -739,8 +694,6 @@ def demo(
                                      help="Output file path (default: .rp-clipper/exports/demo_<timestamp>.mkv)"),
 ) -> None:
     """Compile a highlight reel from exported clips with title cards and transitions."""
-    from datetime import datetime
-
     from rp_clipper.db.models import ClipCandidate, Video
     from rp_clipper.demo import TRANSITIONS, compile_demo
 
@@ -752,7 +705,6 @@ def demo(
     export_dir = proj_dir / ".rp-clipper" / "exports"
     reels_dir  = proj_dir / ".rp-clipper" / "reels"
 
-    # Merge --video-id alias into --video list
     effective_video_ids = list(video_ids)
     if video_id is not None and video_id not in effective_video_ids:
         effective_video_ids.append(video_id)
@@ -820,10 +772,6 @@ def _gather_demo_clips(session, video_ids: list[int], status_filter, min_score: 
     return clips
 
 
-# ---------------------------------------------------------------------------
-# retranscribe — re-transcribe just the clip's time window
-# ---------------------------------------------------------------------------
-
 @app.command()
 def retranscribe(
     clip_id: int = typer.Argument(..., help="Clip candidate ID"),
@@ -873,7 +821,6 @@ def retranscribe(
                 cand.start_ms / 1000.0, cand.end_ms / 1000.0,
             )
 
-            # Delete old transcripts for this track before writing new ones
             for old_tx in session.query(Transcript).filter_by(audio_track_id=track.id).all():
                 session.delete(old_tx)
             session.flush()
@@ -909,7 +856,6 @@ def retranscribe(
             session.flush()
             console.print(f"  [green]  OK[/green] [{track.label}]  {seg_count} segments")
 
-    # Rebuild transcript_excerpt from the new segments so LLM re-score uses fresh text
     if new_tx_ids:
         new_segs = (
             session.query(TranscriptSegment)
@@ -927,10 +873,9 @@ def retranscribe(
         from rp_clipper.db.models import Video as _Video
         from rp_clipper.scoring.engine import ScoringEngine
         from rp_clipper.scoring.llm import LLMScorer
-        import json as _json
         cand = session.get(ClipCandidate, clip_id)
         _vid = session.get(_Video, cand.video_id)
-        _cn = _json.loads(_vid.context_names_json) if _vid and _vid.context_names_json else []
+        _cn = json.loads(_vid.context_names_json) if _vid and _vid.context_names_json else []
         _ctx_text = format_context_block(load_contexts(proj_dir), _cn)
         console.print("  Re-scoring clip with LLM...")
         engine = ScoringEngine(config, [LLMScorer(config, context_text=_ctx_text)])
@@ -940,10 +885,6 @@ def retranscribe(
 
     console.print("  [green]Done.[/green]")
 
-
-# ---------------------------------------------------------------------------
-# serve — web UI
-# ---------------------------------------------------------------------------
 
 @app.command()
 def serve(
@@ -985,10 +926,6 @@ def serve(
         from rp_clipper.web.app import create_app
         uvicorn.run(create_app(proj_dir), host=host, port=port, log_level="warning")
 
-
-# ---------------------------------------------------------------------------
-# Entry point
-# ---------------------------------------------------------------------------
 
 def main():
     app()

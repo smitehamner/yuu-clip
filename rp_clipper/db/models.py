@@ -41,10 +41,6 @@ from sqlalchemy.orm import (
 )
 
 
-# ---------------------------------------------------------------------------
-# Base + engine factory
-# ---------------------------------------------------------------------------
-
 class Base(DeclarativeBase):
     pass
 
@@ -117,10 +113,6 @@ def make_session(db_path: Path) -> Session:
     return Session_()
 
 
-# ---------------------------------------------------------------------------
-# Video
-# ---------------------------------------------------------------------------
-
 class Video(Base):
     __tablename__ = "videos"
 
@@ -143,10 +135,10 @@ class Video(Base):
     summary: Mapped[Optional[str]] = mapped_column(Text)
     timeline_json: Mapped[Optional[str]] = mapped_column(Text)
 
-    # RP context assignment (JSON list of context slugs, e.g. ["una-server"])
-    context_names_json: Mapped[Optional[str]] = mapped_column(Text)
+    context_names_json: Mapped[Optional[str]] = mapped_column(Text)  # JSON list of context slugs
 
-    # Scoring provenance — what context was active when each LLM operation ran
+    # Provenance: timestamp + active context for each LLM operation, so the UI
+    # can warn when results are stale after a context change.
     clips_scored_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
     clips_scored_context_json: Mapped[Optional[str]] = mapped_column(Text)
     summarized_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
@@ -171,10 +163,6 @@ class Video(Base):
         return f"{h}h {m:02d}m {sec:02d}s" if h else f"{m}m {sec:02d}s"
 
 
-# ---------------------------------------------------------------------------
-# AudioTrack
-# ---------------------------------------------------------------------------
-
 class AudioTrack(Base):
     __tablename__ = "audio_tracks"
 
@@ -184,23 +172,18 @@ class AudioTrack(Base):
     # Zero-based index among ALL streams in the container (not just audio streams)
     stream_index: Mapped[int] = mapped_column(Integer, nullable=False)
 
-    # Label assigned during the labeling step
     label: Mapped[str] = mapped_column(String, default="unlabeled")
     relevance_weight: Mapped[float] = mapped_column(Float, default=1.0)
-
-    # Whether to run Whisper on this track (False for game_sounds by default)
+    # False for game_sounds by default — prevents unnecessary transcription/scoring
     do_transcribe: Mapped[bool] = mapped_column(Boolean, default=True)
-    # Whether to include this track in audio energy scoring (False for game_sounds)
     do_score: Mapped[bool] = mapped_column(Boolean, default=True)
 
-    # Raw stream metadata from ffprobe
     codec: Mapped[Optional[str]] = mapped_column(String)
     sample_rate: Mapped[Optional[int]] = mapped_column(Integer)
     channels: Mapped[Optional[int]] = mapped_column(Integer)
     channel_layout: Mapped[Optional[str]] = mapped_column(String)
-    stream_title_tag: Mapped[Optional[str]] = mapped_column(String)  # from metadata
+    stream_title_tag: Mapped[Optional[str]] = mapped_column(String)
 
-    # Set after extraction
     extracted_path: Mapped[Optional[str]] = mapped_column(String)
 
     video: Mapped["Video"] = relationship(back_populates="audio_tracks")
@@ -208,10 +191,6 @@ class AudioTrack(Base):
         back_populates="audio_track", cascade="all, delete-orphan"
     )
 
-
-# ---------------------------------------------------------------------------
-# Transcript + TranscriptSegment
-# ---------------------------------------------------------------------------
 
 class Transcript(Base):
     __tablename__ = "transcripts"
@@ -251,10 +230,6 @@ class TranscriptSegment(Base):
     transcript: Mapped["Transcript"] = relationship(back_populates="segments")
 
 
-# ---------------------------------------------------------------------------
-# ClipCandidate
-# ---------------------------------------------------------------------------
-
 class ClipCandidate(Base):
     __tablename__ = "clip_candidates"
 
@@ -264,31 +239,23 @@ class ClipCandidate(Base):
     start_ms: Mapped[int] = mapped_column(Integer, nullable=False)
     end_ms: Mapped[int] = mapped_column(Integer, nullable=False)
 
-    # Populated in Phase 1 via the windower (all 0.0 until Phase 2 scoring runs)
     score_overall: Mapped[float] = mapped_column(Float, default=0.0)
-    # PHASE2: scored by LLM
     score_funny: Mapped[float] = mapped_column(Float, default=0.0)
     score_dramatic: Mapped[float] = mapped_column(Float, default=0.0)
     score_action: Mapped[float] = mapped_column(Float, default=0.0)
 
-    # JSON-encoded list of strings, e.g. ["silence gap before", "energy spike"]
-    reasons_json: Mapped[Optional[str]] = mapped_column(Text)
-    # JSON-encoded list of tag strings, e.g. ["player_dialogue", "long_silence_after"]
-    tags_json: Mapped[Optional[str]] = mapped_column(Text)
+    reasons_json: Mapped[Optional[str]] = mapped_column(Text)   # JSON list of strings
+    tags_json: Mapped[Optional[str]] = mapped_column(Text)       # JSON list of strings
 
     transcript_excerpt: Mapped[Optional[str]] = mapped_column(Text)
-    # One-sentence LLM-generated summary of what happens in the clip
-    description: Mapped[Optional[str]] = mapped_column(Text)
-    # Structured paragraph: what/why/who/details (generated alongside description)
-    description_long: Mapped[Optional[str]] = mapped_column(Text)
+    description: Mapped[Optional[str]] = mapped_column(Text)       # one-sentence LLM summary
+    description_long: Mapped[Optional[str]] = mapped_column(Text)  # structured paragraph
 
     # pending → approved / rejected / trimmed
     status: Mapped[str] = mapped_column(String, default="pending")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     video: Mapped["Video"] = relationship(back_populates="clip_candidates")
-
-    # --------------- helpers ---------------
 
     @property
     def reasons(self) -> list[str]:
@@ -324,10 +291,6 @@ class ClipCandidate(Base):
         return f"{h}:{m:02d}:{sec:02d}" if h else f"{m}:{sec:02d}"
 
 
-# ---------------------------------------------------------------------------
-# Phase 2: Audio energy
-# ---------------------------------------------------------------------------
-
 class AudioEnergy(Base):
     """Per-second RMS energy for one audio track.  Populated by AudioEnergyScorer."""
     __tablename__ = "audio_energy"
@@ -343,10 +306,6 @@ class AudioEnergy(Base):
         Index("ix_audio_energy_track_second", "audio_track_id", "second_offset"),
     )
 
-
-# ---------------------------------------------------------------------------
-# Phase 2: Scene boundaries
-# ---------------------------------------------------------------------------
 
 class SceneBoundary(Base):
     """A detected scene cut in a video.  Populated by SceneCutScorer."""

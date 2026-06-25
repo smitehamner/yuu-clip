@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import math
+from collections import defaultdict
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -24,10 +25,6 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
-
-# ---------------------------------------------------------------------------
-# Pre-computation
-# ---------------------------------------------------------------------------
 
 # Downsample factor per mode: keeps every Nth sample before computing RMS.
 # IO-bound at typical SSD speeds so "fast" is only marginally quicker in
@@ -129,10 +126,6 @@ def _read_rms_per_second(wav_path: Path, downsample_factor: int = 1) -> list[flo
     return rms_db.tolist()
 
 
-# ---------------------------------------------------------------------------
-# Scorer
-# ---------------------------------------------------------------------------
-
 class AudioEnergyScorer:
     name   = "audio_energy"
 
@@ -156,7 +149,6 @@ class AudioEnergyScorer:
         start_s = clip.start_ms // 1000
         end_s   = clip.end_ms   // 1000
 
-        # Gather energy rows for all do_score tracks on this video
         scorable_track_ids = [
             t.id for t in clip.video.audio_tracks
             if t.do_score
@@ -169,21 +161,19 @@ class AudioEnergyScorer:
             .filter(
                 AudioEnergy.audio_track_id.in_(scorable_track_ids),
                 AudioEnergy.second_offset >= start_s,
-                AudioEnergy.second_offset <= end_s,
+                AudioEnergy.second_offset < end_s,
             )
             .all()
         )
         if not rows:
             return ScoreResult(tags=["energy_no_data"])
 
-        # Build track-level weighted mean over clip window
-        track_sums:    dict[int, float] = {}
-        track_counts:  dict[int, int]   = {}
+        track_sums:   defaultdict[int, float] = defaultdict(float)
+        track_counts: defaultdict[int, int]   = defaultdict(int)
         for row in rows:
-            track_sums[row.audio_track_id]   = track_sums.get(row.audio_track_id, 0.0) + row.rms_db
-            track_counts[row.audio_track_id] = track_counts.get(row.audio_track_id, 0) + 1
+            track_sums[row.audio_track_id]   += row.rms_db
+            track_counts[row.audio_track_id] += 1
 
-        # Weighted mean across tracks
         track_map = {t.id: t for t in clip.video.audio_tracks}
         weighted_sum   = 0.0
         weight_total   = 0.0
@@ -198,7 +188,6 @@ class AudioEnergyScorer:
 
         clip_mean_db = weighted_sum / weight_total
 
-        # Normalise: compute baseline (global mean + 1 std) across the full track
         all_rows = (
             session.query(AudioEnergy)
             .filter(AudioEnergy.audio_track_id.in_(scorable_track_ids))

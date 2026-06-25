@@ -141,7 +141,6 @@ class LLMScorer:
             return self._available
         try:
             import ollama
-            # Quick connectivity check — list models
             ollama.Client(host=self._config.ollama_host).list()
             self._available = True
         except Exception as exc:
@@ -171,8 +170,6 @@ class LLMScorer:
             notes={"model": self._config.ollama_model},
         )
 
-    # ------------------------------------------------------------------
-
     def _call_ollama(self, excerpt: str) -> str:
         import ollama
         client = ollama.Client(
@@ -193,8 +190,7 @@ class LLMScorer:
 
     def _parse(self, raw: str) -> dict:
         data = json.loads(raw)
-        # Clamp all score values to [0, 1]
-        for key in ("score_funny", "score_dramatic", "score_action"):
+        for key in ("score_funny", "score_dramatic", "score_action"):  # clamp to [0, 1]
             if key in data:
                 data[key] = max(0.0, min(1.0, float(data[key])))
         return data

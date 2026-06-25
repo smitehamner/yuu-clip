@@ -44,10 +44,6 @@ def _find_font() -> Optional[str]:
     return None
 
 
-# ---------------------------------------------------------------------------
-# Title card generation
-# ---------------------------------------------------------------------------
-
 def _esc(path: str) -> str:
     """Escape a path for use as a single-quoted ffmpeg filter option value.
 
@@ -118,10 +114,6 @@ def _make_title_card(
         subprocess.run(cmd, check=True)
 
 
-# ---------------------------------------------------------------------------
-# Duration probe
-# ---------------------------------------------------------------------------
-
 def _probe_fps(path: Path) -> float:
     """Return video frame rate as a float via ffprobe."""
     result = subprocess.run(
@@ -166,17 +158,13 @@ def _probe_duration(path: Path) -> float:
     return float(out)
 
 
-# ---------------------------------------------------------------------------
-# Concat (hard cut, no re-encode)
-# ---------------------------------------------------------------------------
-
 def _compile_concat(segments: list[Path], output: Path) -> None:
     """Fast concat using the concat demuxer — stream-copies, no re-encode."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False,
                                     encoding="utf-8") as f:
+        list_path = Path(f.name)
         for seg in segments:
             f.write(f"file '{seg.as_posix()}'\n")
-        list_path = Path(f.name)
     try:
         subprocess.run(
             [
@@ -191,10 +179,6 @@ def _compile_concat(segments: list[Path], output: Path) -> None:
     finally:
         list_path.unlink(missing_ok=True)
 
-
-# ---------------------------------------------------------------------------
-# xfade transitions
-# ---------------------------------------------------------------------------
 
 def _compile_xfade(
     segments: list[Path],
@@ -211,7 +195,6 @@ def _compile_xfade(
     for seg in segments:
         inputs += ["-i", str(seg)]
 
-    # Build filter_complex for video xfade chain
     v_chain: list[str] = []
     a_chain: list[str] = []
     cumulative = 0.0
@@ -251,10 +234,6 @@ def _compile_xfade(
     subprocess.run(cmd, check=True)
 
 
-# ---------------------------------------------------------------------------
-# Public API
-# ---------------------------------------------------------------------------
-
 def compile_demo(
     clips: list["ClipCandidate"],
     video_map: dict[int, "Video"],
@@ -275,7 +254,6 @@ def compile_demo(
 
     n = len(clips)
 
-    # Pass 1: resolve clip files, probe fps + durations.
     clip_files: list[Path] = []
     clip_durations: list[float] = []
     clip_fps: Optional[float] = None
@@ -313,7 +291,6 @@ def compile_demo(
             flush=True,
         )
 
-    # Pass 2: generate title cards and assemble segment list.
     with tempfile.TemporaryDirectory() as tmp:
         tmp_dir = Path(tmp)
         segments: list[Path] = []
