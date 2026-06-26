@@ -53,7 +53,7 @@
   .btn.approve:hover:not(:disabled) { opacity: .85; }
   .btn.reject  { background: var(--red);   border-color: var(--red);   color: #fff; padding: 9px 22px; font-size: 14px; font-weight: 600; }
   .btn.reject:hover:not(:disabled)  { opacity: .85; }
-  .btn.active  { outline: 2px solid #fff; outline-offset: 1px; }
+  .btn.active  { background: var(--accent); border-color: var(--accent); color: #fff; }
 
   /* ── toast notifications ── */
   .toast-container { position: fixed; top: 52px; right: 16px; z-index: 400; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
@@ -75,7 +75,7 @@
   .sidebar-section { padding: 10px 12px 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); }
   .clips-section-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px 4px; }
   .clips-section-header > span { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); }
-  .clips-sort-select { font-size: 10px; padding: 1px 5px; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; color: var(--muted); cursor: pointer; }
+  .clips-sort-select { font-size: 11px; padding: 2px 6px; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; color: var(--muted); cursor: pointer; }
   .export-tick { font-size: 10px; color: var(--green); flex-shrink: 0; margin-left: 1px; }
   .sidebar-list { list-style: none; overflow-y: auto; }
   .sidebar-list li { padding: 8px 14px; cursor: pointer; border-left: 3px solid transparent; transition: background .1s; }
@@ -155,7 +155,7 @@
   /* ── context chips ── */
   .context-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-height: 26px; }
   .context-chip { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 12px; background: rgba(124,106,247,.12); border: 1px solid rgba(124,106,247,.4); color: var(--accent); font-size: 12px; }
-  .chip-x { cursor: pointer; color: var(--muted); line-height: 1; }
+  .chip-x { cursor: pointer; color: var(--muted); line-height: 1; background: none; border: none; padding: 0; font-size: inherit; }
   .chip-x:hover { color: var(--red); }
   .provenance-note { font-size: 11px; color: var(--muted); margin-top: 4px; line-height: 1.6; }
   .provenance-stale { color: var(--yellow); }
@@ -164,7 +164,7 @@
   /* ── progress log ── */
   .log-panel { flex-shrink: 0; background: var(--surface); border-top: 1px solid var(--border); font-family: monospace; font-size: 12px; color: var(--text); display: none; }
   .log-panel.visible { display: block; }
-  .log-header { display: flex; align-items: center; justify-content: space-between; padding: 5px 14px; cursor: pointer; border-bottom: 1px solid var(--border); user-select: none; }
+  .log-header { display: flex; align-items: center; justify-content: space-between; padding: 5px 14px; cursor: pointer; border-bottom: 1px solid var(--border); user-select: none; width: 100%; background: none; border: none; border-bottom: 1px solid var(--border); text-align: left; }
   .log-header:hover { background: var(--border); }
   .log-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); }
   .log-toggle { color: var(--muted); font-size: 11px; }
@@ -317,7 +317,7 @@
   <button class="btn primary" id="btn-ingest" onclick="openIngestModal()">+ Analyze</button>
   <button class="btn" id="btn-demo" onclick="openDemoModal()">Highlight Reel</button>
   <div class="hamburger-wrap" id="hamburger-wrap">
-    <button class="btn ghost" id="btn-hamburger" onclick="toggleHamburger()" title="More options" style="font-size:17px;padding:5px 11px;line-height:1">&#9776;</button>
+    <button class="btn ghost" id="btn-hamburger" onclick="toggleHamburger()" title="More options" aria-label="More options" aria-haspopup="true" style="font-size:17px;padding:5px 11px;line-height:1">&#9776;</button>
     <div class="hamburger-menu" id="hamburger-menu">
       <button class="hamburger-item" onclick="openReelsModal();closeHamburger()">&#127916; View Highlight Reels</button>
       <div class="hamburger-divider"></div>
@@ -347,7 +347,7 @@
     <div class="settings-section-title">Whisper (Speech-to-text)</div>
     <div class="settings-row">
       <div class="settings-col">
-        <div class="settings-label">Model</div>
+        <label class="settings-label" for="s-whisper-model">Model</label>
         <div class="settings-note">Takes effect on next analysis</div>
       </div>
       <select class="settings-select" id="s-whisper-model" onchange="saveSettings('whisper_model', this.value)">
@@ -360,7 +360,7 @@
     </div>
     <div class="settings-row">
       <div class="settings-col">
-        <div class="settings-label">Compute device</div>
+        <label class="settings-label" for="s-whisper-device">Compute device</label>
         <div class="settings-note">auto = CUDA if available, else CPU</div>
       </div>
       <select class="settings-select" id="s-whisper-device" onchange="saveSettings('whisper_device', this.value)" style="max-width:200px">
@@ -371,7 +371,7 @@
     </div>
     <div class="settings-row">
       <div class="settings-col">
-        <div class="settings-label">Compute type</div>
+        <label class="settings-label" for="s-whisper-compute">Compute type</label>
         <div class="settings-note">int8 is fastest on CPU; float16 best on GPU</div>
       </div>
       <select class="settings-select" id="s-whisper-compute" onchange="saveSettings('whisper_compute_type', this.value)" style="max-width:200px">
@@ -398,7 +398,7 @@
     </div>
     <div class="settings-row">
       <div class="settings-col">
-        <div class="settings-label">LLM backend</div>
+        <label class="settings-label" for="s-llm-backend">LLM backend</label>
         <div class="settings-note">Local model file runs offline; Ollama requires a running server</div>
       </div>
       <select class="settings-select" id="s-llm-backend" onchange="_onLlmBackendChange(this.value)" style="max-width:220px">
@@ -410,7 +410,7 @@
     <div id="s-llamacpp-fields">
       <div class="settings-row">
         <div class="settings-col">
-          <div class="settings-label">Model file path</div>
+          <label class="settings-label" for="s-llm-model-path">Model file path</label>
           <div class="settings-note">Path to a local .gguf file</div>
         </div>
         <input class="settings-input" id="s-llm-model-path" type="text" placeholder="C:\models\llama3.gguf"
@@ -421,7 +421,7 @@
     <div id="s-ollama-fields" style="display:none">
       <div class="settings-row">
         <div class="settings-col">
-          <div class="settings-label">Model</div>
+          <label class="settings-label" for="s-ollama-model">Model</label>
           <div class="settings-note">Must be pulled in Ollama first</div>
         </div>
         <input class="settings-input" id="s-ollama-model" type="text" placeholder="llama3.1:8b"
@@ -429,7 +429,7 @@
       </div>
       <div class="settings-row">
         <div class="settings-col">
-          <div class="settings-label">Host</div>
+          <label class="settings-label" for="s-ollama-host">Host</label>
           <div class="settings-note">Default: http://localhost:11434</div>
         </div>
         <input class="settings-input" id="s-ollama-host" type="text" placeholder="http://localhost:11434"
@@ -437,7 +437,7 @@
       </div>
       <div class="settings-row">
         <div class="settings-col">
-          <div class="settings-label">Timeout (seconds)</div>
+          <label class="settings-label" for="s-ollama-timeout">Timeout (seconds)</label>
           <div class="settings-note">Per-clip LLM call timeout</div>
         </div>
         <input class="settings-input" id="s-ollama-timeout" type="number" min="1" max="600" step="5"
@@ -454,21 +454,21 @@
         <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Signal weights</div>
         <div class="settings-weight-row">
           <span class="settings-weight-label">&#128266; Audio energy</span>
-          <input type="range" min="0" max="5" step="0.1" id="s-energy-weight" style="flex:1"
+          <input type="range" min="0" max="5" step="0.1" id="s-energy-weight" aria-label="Audio energy weight" style="flex:1"
                  oninput="document.getElementById('s-energy-weight-val').textContent=parseFloat(this.value).toFixed(1)"
                  onchange="saveSettings('scorer_energy_weight', parseFloat(this.value))">
           <span class="settings-weight-val" id="s-energy-weight-val">1.0</span>
         </div>
         <div class="settings-weight-row">
           <span class="settings-weight-label">&#127916; Scene cuts</span>
-          <input type="range" min="0" max="5" step="0.1" id="s-scene-weight" style="flex:1"
+          <input type="range" min="0" max="5" step="0.1" id="s-scene-weight" aria-label="Scene cuts weight" style="flex:1"
                  oninput="document.getElementById('s-scene-weight-val').textContent=parseFloat(this.value).toFixed(1)"
                  onchange="saveSettings('scorer_scene_weight', parseFloat(this.value))">
           <span class="settings-weight-val" id="s-scene-weight-val">0.5</span>
         </div>
         <div class="settings-weight-row">
           <span class="settings-weight-label">&#129504; LLM score</span>
-          <input type="range" min="0" max="5" step="0.1" id="s-llm-weight" style="flex:1"
+          <input type="range" min="0" max="5" step="0.1" id="s-llm-weight" aria-label="LLM score weight" style="flex:1"
                  oninput="document.getElementById('s-llm-weight-val').textContent=parseFloat(this.value).toFixed(1)"
                  onchange="saveSettings('scorer_llm_weight', parseFloat(this.value))">
           <span class="settings-weight-val" id="s-llm-weight-val">2.0</span>
@@ -478,21 +478,21 @@
         <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Sub-score weights</div>
         <div class="settings-weight-row">
           <span class="settings-weight-label">&#128514; Funny</span>
-          <input type="range" min="0" max="5" step="0.1" id="s-funny-weight" style="flex:1"
+          <input type="range" min="0" max="5" step="0.1" id="s-funny-weight" aria-label="Funny sub-score weight" style="flex:1"
                  oninput="document.getElementById('s-funny-weight-val').textContent=parseFloat(this.value).toFixed(1)"
                  onchange="saveSettings('score_funny_weight', parseFloat(this.value))">
           <span class="settings-weight-val" id="s-funny-weight-val">1.0</span>
         </div>
         <div class="settings-weight-row">
           <span class="settings-weight-label">&#127917; Dramatic</span>
-          <input type="range" min="0" max="5" step="0.1" id="s-dramatic-weight" style="flex:1"
+          <input type="range" min="0" max="5" step="0.1" id="s-dramatic-weight" aria-label="Dramatic sub-score weight" style="flex:1"
                  oninput="document.getElementById('s-dramatic-weight-val').textContent=parseFloat(this.value).toFixed(1)"
                  onchange="saveSettings('score_dramatic_weight', parseFloat(this.value))">
           <span class="settings-weight-val" id="s-dramatic-weight-val">1.0</span>
         </div>
         <div class="settings-weight-row">
           <span class="settings-weight-label">&#9876;&#65039; Action</span>
-          <input type="range" min="0" max="5" step="0.1" id="s-action-weight" style="flex:1"
+          <input type="range" min="0" max="5" step="0.1" id="s-action-weight" aria-label="Action sub-score weight" style="flex:1"
                  oninput="document.getElementById('s-action-weight-val').textContent=parseFloat(this.value).toFixed(1)"
                  onchange="saveSettings('score_action_weight', parseFloat(this.value))">
           <span class="settings-weight-val" id="s-action-weight-val">1.0</span>
@@ -506,7 +506,7 @@
     <div class="settings-section-title">Analysis defaults <span style="font-size:11px;font-weight:400;color:var(--muted)">(pre-filled in Analyze modal)</span></div>
     <div class="settings-row">
       <div class="settings-col">
-        <div class="settings-label">Scene detection mode</div>
+        <label class="settings-label" for="s-scene-mode">Scene detection mode</label>
       </div>
       <select class="settings-select" id="s-scene-mode" onchange="saveSettings('scene_detection_mode', this.value)">
         <option value="transcript">Transcript — silence gaps only (instant)</option>
@@ -516,7 +516,7 @@
     </div>
     <div class="settings-row">
       <div class="settings-col">
-        <div class="settings-label">Silence threshold (ms)</div>
+        <label class="settings-label" for="s-silence-ms">Silence threshold (ms)</label>
         <div class="settings-note">Gap length that marks a clip boundary</div>
       </div>
       <input class="settings-input" id="s-silence-ms" type="number" min="500" max="30000" step="500"
@@ -524,7 +524,7 @@
     </div>
     <div class="settings-row">
       <div class="settings-col">
-        <div class="settings-label">Minimum clip length (ms)</div>
+        <label class="settings-label" for="s-min-clip-ms">Minimum clip length (ms)</label>
         <div class="settings-note">Shorter candidates are discarded</div>
       </div>
       <input class="settings-input" id="s-min-clip-ms" type="number" min="1000" max="120000" step="1000"
@@ -537,7 +537,7 @@
     <div class="settings-section-title">UI</div>
     <div class="settings-row">
       <div class="settings-col">
-        <div class="settings-label">Timeline interval</div>
+        <label class="settings-label" for="s-timeline-interval">Timeline interval</label>
         <div class="settings-note">Bucket size used when generating session timeline</div>
       </div>
       <div style="display:flex;gap:6px;align-items:center">
@@ -598,10 +598,10 @@
 
 <!-- Progress log -->
 <div class="log-panel" id="log-panel">
-  <div class="log-header" onclick="toggleLog()">
+  <button class="log-header" onclick="toggleLog()" aria-expanded="true" aria-controls="log-body">
     <span class="log-title">Log</span>
     <span class="log-toggle" id="log-toggle">&#9660;</span>
-  </div>
+  </button>
   <div class="log-body" id="log-body">
     <div id="log-lines"></div>
   </div>
@@ -625,7 +625,7 @@
     </p>
     <div class="section-title" style="margin-bottom:6px">Key dependencies</div>
     <table style="width:100%;font-size:12px;border-collapse:collapse;color:var(--muted)">
-      <thead><tr style="color:var(--text)"><th style="text-align:left;padding:3px 0">Package</th><th style="text-align:left;padding:3px 0">Purpose</th><th style="text-align:left;padding:3px 0">Licence</th></tr></thead>
+      <thead><tr style="color:var(--text)"><th scope="col" style="text-align:left;padding:3px 0">Package</th><th scope="col" style="text-align:left;padding:3px 0">Purpose</th><th scope="col" style="text-align:left;padding:3px 0">Licence</th></tr></thead>
       <tbody>
         <tr><td>faster-whisper</td><td>GPU-accelerated transcription</td><td>MIT</td></tr>
         <tr><td>FFmpeg</td><td>Audio/video extraction &amp; export</td><td>LGPL/GPL</td></tr>
@@ -650,14 +650,14 @@
   <div class="modal">
     <h3>Analyze Recording</h3>
     <div class="field">
-      <label>Video file path</label>
+      <label for="ingest-path">Video file path</label>
       <div class="path-row">
         <input type="text" id="ingest-path" placeholder="D:\recordings\session.mkv" oninput="scheduleProbe()">
-        <button class="btn" onclick="pickFile()" title="Browse for file">&#128193;</button>
+        <button class="btn" onclick="pickFile()" title="Browse for file" aria-label="Browse for file">&#128193;</button>
       </div>
     </div>
     <div class="field">
-      <label>Track layout</label>
+      <label for="ingest-profile">Track layout</label>
       <div style="display:flex;gap:6px">
         <select id="ingest-profile" style="flex:1" onchange="runEstimate()"></select>
         <button class="btn" onclick="openProfileManager()" title="Manage track layouts">&#9881;</button>
@@ -672,7 +672,7 @@
     <details class="advanced">
       <summary>Advanced options</summary>
       <div class="field">
-        <label>Whisper model</label>
+        <label for="ingest-model">Whisper model</label>
         <select id="ingest-model" onchange="runEstimate()">
           <option value="tiny">tiny — fastest, lowest quality</option>
           <option value="base">base — very fast, lower quality</option>
@@ -682,7 +682,7 @@
         </select>
       </div>
       <div class="field">
-        <label>Scene detection</label>
+        <label for="ingest-scene-mode">Scene detection</label>
         <select id="ingest-scene-mode" onchange="runEstimate()">
           <option value="transcript">Transcript only — silence gaps, instant</option>
           <option value="fast" selected>Fast — keyframes + transcript gaps (recommended)</option>
@@ -690,7 +690,7 @@
         </select>
       </div>
       <div class="field">
-        <label>Audio energy</label>
+        <label for="ingest-energy-mode">Audio energy</label>
         <select id="ingest-energy-mode" onchange="runEstimate()">
           <option value="none">None — skip (fastest)</option>
           <option value="fast" selected>Fast — 4 kHz numpy (recommended)</option>
@@ -717,11 +717,11 @@
     </div>
     <div id="profile-editor" style="display:none;border-top:1px solid var(--border);margin-top:14px;padding-top:14px">
       <div class="field">
-        <label>Layout name</label>
+        <label for="pe-name">Layout name</label>
         <input type="text" id="pe-name" placeholder="my_obs_setup">
       </div>
       <div class="field">
-        <label>Number of tracks</label>
+        <label for="pe-numtracks">Number of tracks</label>
         <input type="number" id="pe-numtracks" min="1" max="8" value="2" oninput="renderTrackRows()">
       </div>
       <div id="pe-tracks"></div>
@@ -739,7 +739,7 @@
     <h3 style="margin-top:0;margin-bottom:14px">Build Highlight Reel</h3>
 
     <div class="field" style="margin-bottom:10px">
-      <label>Clips from</label>
+      <label for="demo-video-id">Clips from</label>
       <select id="demo-video-id" onchange="loadReelClips()">
         <option value="">All approved clips</option>
       </select>
@@ -757,7 +757,7 @@
 
     <div style="display:flex;gap:12px;margin-bottom:10px">
       <div class="field" style="flex:1;margin:0">
-        <label>Transition</label>
+        <label for="demo-transition">Transition</label>
         <select id="demo-transition" onchange="updateReelEstimate()">
           <option value="fade" selected>Fade</option>
           <option value="dissolve">Dissolve</option>
@@ -770,17 +770,17 @@
         </select>
       </div>
       <div class="field" style="flex:1;margin:0">
-        <label>Transition duration (s)</label>
+        <label for="demo-trans-dur">Transition duration (s)</label>
         <input type="number" id="demo-trans-dur" value="0.5" min="0.1" max="2.0" step="0.1" onchange="updateReelEstimate()">
       </div>
       <div class="field" style="flex:1;margin:0">
-        <label>Title card duration (s)</label>
+        <label for="demo-title-dur">Title card duration (s)</label>
         <input type="number" id="demo-title-dur" value="3.0" min="1.0" max="10.0" step="0.5" onchange="updateReelEstimate()">
       </div>
     </div>
 
     <div class="field" style="margin-bottom:12px">
-      <label>Output filename</label>
+      <label for="demo-output-name">Output filename</label>
       <input type="text" id="demo-output-name" placeholder="highlights_YYYYMMDD_HHMMSS.mkv (auto)">
     </div>
 
@@ -810,7 +810,7 @@
   <div class="modal" style="width:400px">
     <h3 style="margin-top:0">Export Approved Clips</h3>
     <div class="field">
-      <label>Minimum score</label>
+      <label for="batch-min-score">Minimum score</label>
       <div style="display:flex;align-items:center;gap:10px">
         <input type="range" id="batch-min-score" min="0" max="1" step="0.05" value="0"
                oninput="document.getElementById('batch-min-score-val').textContent=parseFloat(this.value).toFixed(2);updateBatchEstimate()">
@@ -862,7 +862,7 @@
   <div class="modal" style="width:360px">
     <h3>Retranscribe Clip</h3>
     <div class="field">
-      <label>Whisper model</label>
+      <label for="retranscribe-model">Whisper model</label>
       <select id="retranscribe-model">
         <option value="tiny">tiny</option>
         <option value="base">base</option>
@@ -893,32 +893,32 @@
       </div>
       <div id="context-editor" style="flex:1;display:none;flex-direction:column;gap:10px;overflow-y:auto">
         <div class="field">
-          <label>ID <span style="color:var(--muted);font-weight:400">(letters, digits, hyphens only)</span></label>
+          <label for="ce-slug">ID <span style="color:var(--muted);font-weight:400">(letters, digits, hyphens only)</span></label>
           <input type="text" id="ce-slug" placeholder="una-server">
         </div>
         <div class="field">
-          <label>Display name</label>
+          <label for="ce-display-name">Display name</label>
           <input type="text" id="ce-display-name" placeholder="Up-N-Atom (UnA)">
         </div>
         <div class="field">
-          <label>Setting</label>
+          <label for="ce-setting">Setting</label>
           <textarea class="ctx-textarea" id="ce-setting" rows="2" placeholder="FiveM RP server. You work at Up-N-Atom (UnA) convenience store."></textarea>
         </div>
         <div class="field">
-          <label>Your characters</label>
+          <label for="ce-your-chars">Your characters</label>
           <textarea class="ctx-textarea" id="ce-your-chars" rows="2" placeholder="You play Yuu, a cashier at UnA."></textarea>
         </div>
         <div class="field">
-          <label>Frequent other characters <span style="color:var(--muted);font-weight:400">(not exhaustive)</span></label>
+          <label for="ce-other-chars">Frequent other characters <span style="color:var(--muted);font-weight:400">(not exhaustive)</span></label>
           <textarea class="ctx-textarea" id="ce-other-chars" rows="2" placeholder="Peggy is the manager. Regulars include…"></textarea>
         </div>
         <div class="field">
-          <label>Notes</label>
+          <label for="ce-notes">Notes</label>
           <textarea class="ctx-textarea" id="ce-notes" rows="2" placeholder="Anything else the LLM should know about this world context…"></textarea>
         </div>
         <div style="display:flex;gap:8px;padding-top:4px">
           <button class="btn primary" onclick="saveContext()">Save</button>
-          <button class="btn" id="btn-delete-context" style="color:var(--red)" onclick="deleteContext()">Delete</button>
+          <button class="btn reject" id="btn-delete-context" onclick="deleteContext()">Delete</button>
           <button class="btn" style="margin-left:auto" onclick="cancelContextEdit()">Cancel</button>
         </div>
       </div>
@@ -1402,7 +1402,7 @@ function renderVideoDetail(video, savedTimeline) {
     <div class="clip-header">
       <div class="field-row" style="align-items:center">
         <h2 style="margin:0">${escHtml(video.title || video.filename)}${eb(video.title_is_edited)}</h2>
-        ${video.title ? `<button class="kebab-btn" title="Edit or regenerate title" onclick="openVideoTitleKebab(${video.id}, this)">&#8943;</button>` : ''}
+        ${video.title ? `<button class="kebab-btn" title="Edit or regenerate title" aria-label="Edit or regenerate title" onclick="openVideoTitleKebab(${video.id}, this)">&#8943;</button>` : ''}
       </div>
     </div>
     <div style="color:var(--muted);font-size:13px">${video.duration_hms} &middot; ${video.clip_count} clips &middot; ${_msToHms(video.total_clip_ms)} clipped</div>
@@ -1413,7 +1413,7 @@ function renderVideoDetail(video, savedTimeline) {
       <div style="margin-bottom:8px">
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
           <div class="section-title">Session Summary${eb(video.summary_is_edited)}</div>
-          <button class="kebab-btn" title="Edit or regenerate summary" onclick="openVideoSummaryKebab(${video.id}, this)">&#8943;</button>
+          <button class="kebab-btn" title="Edit or regenerate summary" aria-label="Edit or regenerate summary" onclick="openVideoSummaryKebab(${video.id}, this)">&#8943;</button>
         </div>
         <div class="description-long">${escHtml(video.summary)}</div>
       </div>` : ''}
@@ -1423,7 +1423,7 @@ function renderVideoDetail(video, savedTimeline) {
       <button class="btn" id="btn-generate-timeline" onclick="generateTimeline(${video.id})">${video.has_timeline ? 'Regenerate Timeline' : 'Generate Timeline'}</button>
       <button class="btn" onclick="openAutoApproveModal(${video.id})">Approve Above Score</button>
       <button class="btn" onclick="openBatchExportModal(${video.id})">Export Approved</button>
-      <button class="btn" style="color:var(--red)" onclick="resetApprovals(${video.id})">Reset Approvals</button>
+      <button class="btn reject" onclick="resetApprovals(${video.id})">Reset Approvals</button>
     </div>
 
     <div id="timeline-section">
@@ -1447,7 +1447,7 @@ function _renderContextSection(video) {
   const chips = assigned.map(slug => {
     const ctx = _contexts.find(c => c.slug === slug);
     const name = ctx ? ctx.display_name : slug;
-    return `<span class="context-chip">${escHtml(name)}<span class="chip-x" data-rmctx="${escHtml(slug)}" title="Remove">×</span></span>`;
+    return `<span class="context-chip">${escHtml(name)}<button class="chip-x" data-rmctx="${escHtml(slug)}" title="Remove" aria-label="Remove ${escHtml(name)}">×</button></span>`;
   });
 
   const available = _contexts.filter(c => !assigned.includes(c.slug));
@@ -1747,7 +1747,10 @@ function renderClipList(clips) {
   const list = document.getElementById('clip-list');
   list.innerHTML = '';
   if (!clips.length) {
-    list.innerHTML = `<li style="padding:10px 14px;color:var(--muted)">No clips found — <a href="#" style="color:var(--muted);text-decoration:underline" onclick="event.preventDefault();openIngestModal()">Re-analyze this recording</a></li>`;
+    const filterMsg = _clipFilter !== 'all'
+      ? `No ${_clipFilter} clips`
+      : `No clips found — <a href="#" style="color:var(--muted);text-decoration:underline" onclick="event.preventDefault();openIngestModal()">Re-analyze this recording</a>`;
+    list.innerHTML = `<li style="padding:10px 14px;color:var(--muted)">${filterMsg}</li>`;
     return;
   }
   for (const c of clips) {
@@ -1766,9 +1769,9 @@ function renderClipList(clips) {
       </div>
       ${c.description ? `<div style="font-size:11px;color:var(--muted);margin-top:3px;padding-left:60px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(c.description)}</div>` : ''}
       <div class="clip-scores">
-        <span title="Funny">😂 ${c.score_funny.toFixed(2)}</span>
-        <span title="Dramatic">🎭 ${c.score_dramatic.toFixed(2)}</span>
-        <span title="Action">⚔️ ${c.score_action.toFixed(2)}</span>
+        <span title="Funny"><span aria-hidden="true">😂</span> ${c.score_funny.toFixed(2)}</span>
+        <span title="Dramatic"><span aria-hidden="true">🎭</span> ${c.score_dramatic.toFixed(2)}</span>
+        <span title="Action"><span aria-hidden="true">⚔️</span> ${c.score_action.toFixed(2)}</span>
       </div>`;
     li.onclick = () => {
       document.querySelectorAll('#clip-list li').forEach(l => l.classList.remove('active'));
@@ -1836,14 +1839,14 @@ function renderDetail(clip) {
 
     <div class="field-row" style="margin-bottom:8px">
       <div class="description">${clip.description ? `"${escHtml(clip.description)}"` : `<span style="color:var(--muted);font-size:13px">No description yet — Re-score to generate</span>`}${eb(clip.description_is_edited)}</div>
-      <button class="kebab-btn" title="Edit or regenerate description" onclick="openDescKebab(${clip.id}, this)">&#8943;</button>
+      <button class="kebab-btn" title="Edit or regenerate description" aria-label="Edit or regenerate description" onclick="openDescKebab(${clip.id}, this)">&#8943;</button>
     </div>
 
     ${clip.description_long ? `
       <div style="margin-bottom:8px">
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
           <div class="section-title">Description${eb(clip.description_long_is_edited)}</div>
-          <button class="kebab-btn" title="Edit or regenerate long description" onclick="openDescLongKebab(${clip.id}, this)">&#8943;</button>
+          <button class="kebab-btn" title="Edit or regenerate long description" aria-label="Edit or regenerate long description" onclick="openDescLongKebab(${clip.id}, this)">&#8943;</button>
         </div>
         <div class="description-long">${escHtml(clip.description_long)}</div>
       </div>` : ''}
@@ -2466,6 +2469,7 @@ function toggleLog() {
   const panel = document.getElementById('log-panel');
   const minimized = panel.classList.toggle('minimized');
   document.getElementById('log-toggle').textContent = minimized ? '▼' : '▲';
+  document.querySelector('.log-header').setAttribute('aria-expanded', minimized ? 'false' : 'true');
 }
 
 function appendLog(raw) {

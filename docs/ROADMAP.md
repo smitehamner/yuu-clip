@@ -555,6 +555,8 @@ Items wanted long-term but not yet assigned to a phase.
 - **`saveTimelineInterval` / `confirmGenerateTimeline` validation drift** — both paths send `ui_timeline_interval_seconds` to the API but have separate validation logic. If the minimum ever changes, both must be updated. Extracting a shared `_parseIntervalS(value, unit)` validator would prevent drift.
 - **Modal keyboard trap** — Escape closes all open modals simultaneously instead of only the topmost one. Fixing properly requires a modal stack. Low UX impact for a single-user tool; deferred.
 - **Modal focus management** — most modals (`openAboutModal`, `openAutoApproveModal`, etc.) do not move focus into the modal on open; only `openFieldEditModal` and `openNewContext` do. Extending to all ~13 remaining open-functions is mechanical. Deferred; no reported keyboard-navigation issues.
+- **Sidebar video list keyboard support** — `<li>` items in `#video-list` are mouse-only; no `tabindex` or `onkeydown` handler. Clip navigation works via A/R/←/→ shortcuts, but selecting a video requires a mouse. Fix: add `tabindex="0"` and Enter/Space handler to each `<li>`, or put a `<button>` inside.
+- **Clip filter tabs ARIA roles** — `.clip-tab` buttons have no `role="tab"`, no `role="tablist"` on the container, and no `aria-selected`. Adding these enables arrow-key tab switching and correct screen reader announcement.
 
 ---
 
