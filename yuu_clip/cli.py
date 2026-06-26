@@ -644,7 +644,6 @@ def export(
     if output is None:
         output = exports / f"{base}{suffix}"
 
-    # Apply trim offsets (stored in seconds, convert to ms).
     effective_start_ms = cand.start_ms + int((cand.start_offset or 0.0) * 1000)
     effective_end_ms   = cand.end_ms   + int((cand.end_offset   or 0.0) * 1000)
     effective_start_ms = max(0, effective_start_ms)

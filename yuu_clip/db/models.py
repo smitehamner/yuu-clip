@@ -237,7 +237,7 @@ class TranscriptSegment(Base):
     text: Mapped[str] = mapped_column(Text, nullable=False)
     confidence: Mapped[Optional[float]] = mapped_column(Float)
 
-    # FUTURE[diarization]: populated by speaker diarization (Phase 2+)
+    # FUTURE[diarization]: populated by speaker diarization (Phase 6)
     # Will hold a label like "SPEAKER_00", later mapped to a character name.
     speaker_label: Mapped[Optional[str]] = mapped_column(String)
 

@@ -302,10 +302,16 @@ def compile_demo(
         video = video_map[clip.video_id]
         stem = Path(video.filename).stem
         start_hms = clip.start_hms.replace(":", "-")
-        clip_file = export_dir / f"{stem}_clip{clip.id}_{start_hms}.mkv"
-        if not clip_file.exists():
+        base = f"{stem}_clip{clip.id}_{start_hms}"
+        clip_file = None
+        for ext in (".mkv", ".mp4", ".mov", ".avi", ".webm"):
+            candidate = export_dir / f"{base}{ext}"
+            if candidate.exists():
+                clip_file = candidate
+                break
+        if clip_file is None:
             raise FileNotFoundError(
-                f"Export not found for clip {clip.id}: {clip_file}\n"
+                f"Export not found for clip {clip.id} (tried .mkv/.mp4/.mov/.avi/.webm in {export_dir})\n"
                 f"Run 'yuuclip export {clip.id}' first."
             )
         if clip_fps is None:
@@ -319,19 +325,15 @@ def compile_demo(
 
     total_footage = sum(clip_durations)
     if effective_transition == "none":
-        print(
-            f"Compiling {n} clip(s) — {total_footage:.0f}s footage"
-            " — stream copy (fast)",
-            flush=True,
-        )
+        msg = f"Compiling {n} clip(s) — {total_footage:.0f}s footage — stream copy (fast)"
+        _log.info(msg)
+        print(msg, flush=True)
     else:
         total_encode = total_footage + n * title_dur
         eta = total_encode / 3.0
-        print(
-            f"Compiling {n} clip(s) — {total_footage:.0f}s footage"
-            f" — estimated encode ~{eta:.0f}s",
-            flush=True,
-        )
+        msg = f"Compiling {n} clip(s) — {total_footage:.0f}s footage — estimated encode ~{eta:.0f}s"
+        _log.info(msg)
+        print(msg, flush=True)
 
     with tempfile.TemporaryDirectory() as tmp:
         tmp_dir = Path(tmp)
@@ -361,6 +363,7 @@ def compile_demo(
             segments.append(clip_file)
             durations.append(clip_dur)
 
+        _log.info("Encoding final reel (%ds footage) → %s", int(total_footage), output.name)
         print(f"Encoding final reel ({total_footage:.0f}s footage)…", flush=True)
         if effective_transition == "none":
             _compile_concat(segments, output)
@@ -368,4 +371,6 @@ def compile_demo(
             _compile_xfade_random(segments, durations, output, _RANDOM_POOL, trans_dur, _random)
         else:
             _compile_xfade(segments, durations, output, effective_transition, trans_dur)
+        size_mb = output.stat().st_size / (1024 * 1024)
+        _log.info("Reel encode complete: %s (%.1f MB)", output.name, size_mb)
         print("Encode complete.", flush=True)

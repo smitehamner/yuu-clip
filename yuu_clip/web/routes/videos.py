@@ -346,6 +346,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                 raise HTTPException(400, "min_clip_ms must be >= 1000")
             cfg.min_clip_ms = body.min_clip_ms
         cfg.save_project(ctx.project_dir)
+        _log.info("Config updated: %s", {k: v for k, v in body.model_dump().items() if v is not None})
         return get_config()
 
     @router.get("/api/videos/{video_id}/timeline")
@@ -461,12 +462,8 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             if not full_text:
                 raise HTTPException(400, "No transcript available — analyze the recording first")
 
-            title_current = (
-                video.title_user if video.title_user is not None else (video.title or "")
-            )
-            summary_current = (
-                video.summary_user if video.summary_user is not None else (video.summary or "")
-            )
+            title_current   = _user_or_default(video.title_user, video.title)
+            summary_current = _user_or_default(video.summary_user, video.summary)
 
             context_text = format_context_block(load_contexts(ctx.project_dir), context_names)
             try:
@@ -590,12 +587,13 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         try:
             clip = _require_clip(db, clip_id)
             video = db.get(Video, clip.video_id)
-            filename = _export_filename(clip, video)
-            exported = (ctx.export_dir / filename).exists()
+            export_file = next(
+                (p for p in _export_paths(clip, video, ctx.export_dir) if p.exists()), None
+            )
             srt = _srt_path(clip, video, ctx.export_dir)
-            if exported:
-                return {"url": f"/media/exports/{filename}", "filename": filename, "has_captions": srt is not None}
-            return {"url": None, "filename": filename, "has_captions": False}
+            if export_file:
+                return {"url": f"/media/exports/{export_file.name}", "filename": export_file.name, "has_captions": srt is not None}
+            return {"url": None, "filename": None, "has_captions": False}
         finally:
             db.close()
 
@@ -611,7 +609,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             # Delete exported clip files from disk before removing DB records
             clips = db.query(ClipCandidate).filter_by(video_id=video_id).all()
             for clip in clips:
-                for p in [ctx.export_dir / _export_filename(clip, video),
+                for p in [*_export_paths(clip, video, ctx.export_dir),
                           _srt_path(clip, video, ctx.export_dir)]:
                     if p and p.exists():
                         p.unlink(missing_ok=True)
@@ -642,7 +640,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             video = db.get(Video, clip.video_id)
             video_id = clip.video_id
 
-            for p in [ctx.export_dir / _export_filename(clip, video),
+            for p in [*_export_paths(clip, video, ctx.export_dir),
                       _srt_path(clip, video, ctx.export_dir)]:
                 if p and p.exists():
                     p.unlink(missing_ok=True)
@@ -705,12 +703,9 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                             clip = check_db.get(ClipCandidate, cid)
                             vid  = check_db.get(Video, video_id) if clip else None
                             if clip and vid:
-                                stem = Path(vid.filename).stem
-                                hms  = clip.start_hms.replace(":", "-")
-                                for ext in (".mkv", ".mp4", ".mov", ".avi", ".webm"):
-                                    if (ctx.export_dir / f"{stem}_clip{cid}_{hms}{ext}").exists():
-                                        already_exported = True
-                                        break
+                                already_exported = any(
+                                    p.exists() for p in _export_paths(clip, vid, ctx.export_dir)
+                                )
                         finally:
                             check_db.close()
                     if already_exported:
@@ -741,6 +736,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                         else:
                             msg = out.decode(errors="replace").strip().splitlines()
                             last = msg[-1] if msg else "unknown error"
+                            _log.error("batch_export: clip %d export failed for video %d (rc=%d): %s", cid, video_id, proc.returncode, last)
                             yield f"data: {json_lib.dumps(f'[Error clip {cid}: {last}]')}\n\n"
                     except Exception as exc:
                         _log.error("batch_export: clip %d subprocess failed for video %d: %s", cid, video_id, exc)
@@ -883,6 +879,11 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     return router
 
 
+def _user_or_default(user_val: Optional[str], stored_val: Optional[str]) -> str:
+    """Return the user-edited override if set, otherwise the stored value (or empty string)."""
+    return user_val if user_val is not None else (stored_val or "")
+
+
 def _require_clip(db, clip_id: int) -> ClipCandidate:
     clip = db.get(ClipCandidate, clip_id)
     if not clip:
@@ -895,8 +896,10 @@ def _clip_stem(clip: ClipCandidate, video: Video) -> str:
     return f"{Path(video.filename).stem}_clip{clip.id}_{clip.start_hms.replace(':', '-')}"
 
 
-def _export_filename(clip: ClipCandidate, video: Video) -> str:
-    return f"{_clip_stem(clip, video)}.mkv"
+def _export_paths(clip: ClipCandidate, video: Video, export_dir: Path) -> list[Path]:
+    """Return all candidate export file paths for a clip (any supported container extension)."""
+    stem = _clip_stem(clip, video)
+    return [export_dir / f"{stem}{ext}" for ext in (".mkv", ".mp4", ".mov", ".avi", ".webm")]
 
 
 def _srt_path(clip: ClipCandidate, video: Video, export_dir: Path) -> Optional[Path]:
@@ -964,10 +967,10 @@ def _video_dict(video: Video, stats: dict) -> dict:
         "clip_count": stats["clip_count"],
         "approved": stats["approved"],
         "total_clip_ms": stats["total_clip_ms"],
-        "title": video.title_user if video.title_user is not None else (video.title or ""),
+        "title": _user_or_default(video.title_user, video.title),
         "title_original": video.title or "",
         "title_is_edited": video.title_user is not None,
-        "summary": video.summary_user if video.summary_user is not None else (video.summary or ""),
+        "summary": _user_or_default(video.summary_user, video.summary),
         "summary_original": video.summary or "",
         "summary_is_edited": video.summary_user is not None,
         "has_timeline": bool(video.timeline_json),
@@ -984,8 +987,8 @@ def _video_dict(video: Video, stats: dict) -> dict:
 def _clip_dict(
     clip: ClipCandidate,
     full: bool = False,
-    export_dir=None,
-    video: Video = None,
+    export_dir: Optional[Path] = None,
+    video: Optional[Video] = None,
 ) -> dict:
     d = {
         "id": clip.id,
@@ -998,16 +1001,10 @@ def _clip_dict(
         "score_funny": round(clip.score_funny, 3),
         "score_dramatic": round(clip.score_dramatic, 3),
         "score_action": round(clip.score_action, 3),
-        "description": (
-            clip.description_user if clip.description_user is not None
-            else (clip.description or "")
-        ),
+        "description": _user_or_default(clip.description_user, clip.description),
         "description_original": clip.description or "",
         "description_is_edited": clip.description_user is not None,
-        "description_long": (
-            clip.description_long_user if clip.description_long_user is not None
-            else (clip.description_long or "")
-        ),
+        "description_long": _user_or_default(clip.description_long_user, clip.description_long),
         "description_long_original": clip.description_long or "",
         "description_long_is_edited": clip.description_long_user is not None,
         "start_offset": clip.start_offset,
@@ -1017,7 +1014,7 @@ def _clip_dict(
         "has_export": (
             export_dir is not None
             and video is not None
-            and (export_dir / _export_filename(clip, video)).exists()
+            and any(p.exists() for p in _export_paths(clip, video, export_dir))
         ),
     }
     if full:

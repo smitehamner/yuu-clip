@@ -122,7 +122,6 @@ def _silence_window(
             win_end   = seg.end_ms
             win_texts = [seg.text]
             win_tags  = [f"after_silence_{gap_ms // 1000}s"]
-            # Flag unusually long silences — interesting for RP (dramatic pause?)
             if gap_ms >= 10_000:
                 win_tags.append("long_silence_before")
             continue

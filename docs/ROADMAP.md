@@ -170,11 +170,110 @@
     than last rescore
   - Top-N configured in Settings
 
+- [ ] **Prebuilt World Contexts**
+  - Ship 2–3 starter contexts: "Fantasy RP", "Action Game / FPS", "Variety Stream"
+  - Appear pre-populated in the Context Manager with a "Built-in" badge
+  - All fields are editable and the user can clone or delete them
+  - Avoids the blank-slate problem for first-time users
+
+- [ ] **Context nudge in Analyze modal**
+  - If no World Contexts exist when the modal opens: soft callout "No World Contexts set up —
+    clip descriptions will be generic. [Add one →]" linking to the Context Manager
+  - If contexts exist but none are checked: milder reminder "No context selected"
+
+- [ ] **Per-context score weights**
+  - Each World Context gets optional score weight overrides: action, funny, dramatic
+  - When a video is rescored using that context, its weights override the global defaults
+  - Configured in the Context editor UI alongside the existing fields
+  - Allows e.g. an "Action Game" context to set action=0.8, dramatic=0.2 without touching
+    global Settings — user sets it once per context and it follows the context everywhere
+
+- [ ] **Post-analysis toast**
+  - When an analysis SSE stream completes, fire a persistent toast: "Analysis complete — N clips found"
+    with a "Review" link that selects the video in the sidebar
+  - Only shown if the user is not already viewing that video's clip list
+  - Dismissable with ×
+
+- [ ] **Analysis progress indicator**
+  - Stage label + elapsed timer derived from SSE log lines already streamed
+    ("Transcribing… 2 m 14 s elapsed")
+  - Not a real percentage — reduces "did it crash?" anxiety without requiring Whisper progress hooks
+
+- [ ] **Caption / subtitle export**
+  - Export modal gains two new options:
+    - **Embed subtitle track** (softsub) — adds an SRT track to the container; stream copy,
+      no re-encode; fast
+    - **Burn in captions** (hardsub) — renders captions onto the video frames; requires re-encode;
+      UI shows a re-encode warning
+  - SRT generated from existing `TranscriptSegment` rows (already available per clip)
+  - Both options ship together; softsub is the default when captions are enabled
+
+- [ ] **New Recording panel (replaces Analyze modal)**
+  - `+ Analyze` in the header navigates to a "New Recording" panel that takes over the detail area
+    instead of opening a modal
+  - Sidebar stays live while the panel is open; clicking another video away cancels with a
+    discard prompt if configuration has been started
+  - File probe runs inline after file selection (already happens today — duration/estimate shown);
+    result feeds into split marker UI if the user wants to pre-split before analysis
+  - See *Recording Segments* below for the pre-split flow
+
+- [ ] **Recording Segments**
+
+  A single recording file can be split into multiple independent segments, each processed as its
+  own video entry with its own clips, contexts, title, summary, and timeline.
+
+  **Data model**
+  - `Video` gains: `parent_video_id` (FK → `Video`, nullable), `segment_start_s` (float, nullable),
+    `segment_end_s` (float, nullable)
+  - Original (unsplit) video: hidden from sidebar after split, kept in DB as the source record
+  - Each segment is a full `Video` row — same source file path, its own time range, its own data
+  - Segments can be re-split recursively (a segment is just a Video with a range)
+
+  **Sidebar display**
+  - Segments appear as normal video entries in the flat sidebar list
+  - Auto-named on creation ("session.mkv — Part 1"); user can rename at any time (same as video title)
+  - Original hidden; segments replace it
+
+  **Split editor**
+  - Takes over the main detail panel (not a modal); `← Back` breadcrumb in header to exit
+  - Sidebar stays live while editor is open; clicking away triggers a discard prompt if markers
+    have been placed
+  - Timeline visualisation: energy waveform + scene boundary markers as a visual layer
+  - Suggestion pins from energy valleys and scene gaps; click a pin to promote it to a real marker
+  - Click anywhere on timeline to place a marker; drag to reposition; × to remove
+  - Each resulting segment between markers shows: auto-generated title (editable inline), context
+    picker, per-segment analysis settings (Whisper model, etc.) with "use same settings for all"
+    toggle
+
+  **Before-analysis split**
+  - Accessed from the New Recording panel after file probe returns duration
+  - User places markers and configures each segment before starting analysis
+  - Analysis runs as separate ingest jobs per segment (FFmpeg trims audio to a temp slice per range)
+
+  **After-analysis split**
+  - "Split Recording" action on an analyzed video opens the split editor
+  - Existing clips shown as dots on the timeline to help the user see where activity is
+  - After placing markers and confirming, user chooses one of three options:
+    - **Partition only** — redistribute existing clips to segments by `start_time`; no reanalysis
+    - **Reanalyze — replace all** — clean-slate ingest per segment; replaces all existing clips
+    - **Reanalyze — keep exported** *(suggested default)* — preserves clips already exported;
+      replaces all others; reruns ingest on each segment
+
 - [x] **Highlight reel editor** — "Highlight Reel" modal redesigned: ordered clip list (check/uncheck, ↑↓ reorder), "Random" transition option, encode time estimate, "Preview" plays exported clips as a playlist in the main player; `--clip-ids` added to CLI `reel` command
 
 - ~~**Clip deduplication**~~ — **On hold**: design unclear; revisit after transcript editing is stable
 
 ### Medium-term
+
+- [ ] **Panel navigation UX direction**
+  - Modals remain for quick confirmations and simple pickers
+  - Multi-step flows (New Recording, Split Editor, eventually Reel Builder and Context Manager)
+    take over the main detail panel instead of opening modals
+  - Navigation: `← Back` breadcrumb in the panel header; clicking a sidebar video also navigates
+    away with a discard prompt if there are unsaved changes
+  - Tabs are appropriate for *within-view* navigation (e.g. Clips / Transcript / Timeline tabs
+    on a video detail page) — not for top-level navigation between major views
+  - Migrate existing modals to panel views incrementally; start with New Recording and Split Editor
 
 - [x] **Demo reel: separate reels folder + timestamp-based output filename** — reels saved to a
   dedicated `reels/` subfolder; default filename includes a timestamp
@@ -308,13 +407,6 @@ Complex, specialized, or AI-heavy features that are valuable but don't need to b
   Tags on sidebar card: pills if ≤3 matches, count pill `🔥 4` if more; full list in detail panel.
   Lives in Settings page under the `Hot-words` section.
 
-- [ ] **Related clips** — "Find Similar" button in clip detail opens a scope-selection modal:
-  current video pre-checked; other processed videos listed as individual checkboxes (no select-all).
-  Fires Ollama call with `description_long` + selected clips' descriptions. Results stored on
-  `ClipCandidate`: `related_clips_json` + `related_clips_at` timestamp. "Related Clips" section
-  in detail panel: ranked clickable links; stale indicator if older than last rescore. Top-N
-  configured in Settings.
-
 - [ ] **Laugh / non-speech sound detection** — detect laughter and notable non-speech audio events
   (sound effects, reactions) as a separate scoring signal from the Funny sub-score, not a modifier
   to it. Surfaced as its own attribute so users can filter/sort by it independently.
@@ -364,8 +456,9 @@ Complex, specialized, or AI-heavy features that are valuable but don't need to b
   formats; track each format as a separate file with individual delete; distinguish "regenerate this
   format" from "export a new format"
 
-- [ ] **Auto captions on clip export** — Whisper-generated captions burned into exported clips.
-  Relatively straightforward addition; prerequisite for the clip export editor's captions preview.
+- [ ] **Auto captions on clip export** — pulled forward to Phase 3 Near-term as *Caption / subtitle
+  export* (softsub + hardsub). See Near-term section. Full caption styling (font, colour,
+  per-speaker) is still Phase 6.
 
 - [ ] **Clip export editor** — in-browser editor launched before final export. Full scope:
   trim handles (adjust clip start/end), drag-to-position 9:16 crop box for Shorts/TikTok
@@ -431,6 +524,10 @@ Items wanted long-term but not yet assigned to a phase.
   first: separate pipeline? flag on `ClipCandidate`? separate table? separate review UI?
   Depends on transcript editing being stable.
 
+- [ ] **Sidebar grouping for segments** — once Recording Segments ships (Phase 3), consider a
+  collapsible parent row "session.mkv (3 segments)" with indented children as an alternative to
+  the flat list. Deferred until the flat list proves insufficient in practice.
+
 - [ ] **Score learning loop** — use accumulated manual score overrides (see Phase 5) to tune the
   prompt or scoring weight vector semi-automatically. Requires a meaningful corpus of overrides
   before it's worthwhile.
@@ -441,18 +538,21 @@ Items wanted long-term but not yet assigned to a phase.
 
 - **`_probe_duration` returns `'N/A'`** — `ffprobe stream=duration` returns the literal string
   `N/A` for some containers (e.g. MKV exports); the fallback to `format=duration` was skipped
-  because the empty-string check didn't catch `'N/A'`. Fixed in `demo.py` — both the stream and
+  because the empty-string check didn't catch `'N/A'`. Fixed in `reel.py` — both the stream and
   format probes now treat `N/A` as missing, with a clear error if both fail.
 
 ## Known issues (code quality)
 
 - ~~**Analysis time estimate counts all tracks**~~ — fixed: frontend passes `transcribe_tracks` from the selected track layout's `do_transcribe` assignments
 - **`_ingest_one` has many parameters** — consider a dataclass if it grows further
-- **`ingest/labeler.py:_label_interactive`** — ~100 lines mixing UI and logic; candidate for split
+- **`analyze/labeler.py:_label_interactive`** — ~100 lines mixing UI and logic; candidate for split
 - **JS in `index.html` (~1737 lines)** — no-build-step SPA; consider ES modules if it grows further
-- **No integration test for `demo_events` SSE** — `demo.py:demo_events` passes `ctx` to `subprocess_sse` (needed for graceful shutdown and `/api/status`); this path has no test coverage and was silently broken before the Phase 3 bug-hunt pass
+- **No integration test for `reel_events` SSE** — `reel.py:reel_events` passes `ctx` to `subprocess_sse` (needed for graceful shutdown and `/api/status`); this path has no test coverage and was silently broken before the Phase 3 bug-hunt pass
 - ~~**Ollama scoring errors are silent**~~ — fixed: `LLMScorer.score()` now emits `log.warning("LLM scoring failed for clip %d: %s", ...)` on any exception
 - **`_video_dict`/`_clip_dict` user-override pattern** — `field_user if field_user is not None else (field or "")` repeated across both serializers; the right fix is `@property` on the model class (`Video.effective_title`, `Video.effective_summary`, etc.) so the display logic lives once, on the model. Deferred because it touches the model layer and serialization contract.
+- **SSE batch export error reporting** — non-zero subprocess exits now log to file, but the SSE stream sends `[error]` without the exit code or stderr. Improving the stream message would make export failures diagnosable without opening the log.
+- **Timeline interval minimum validation** — the 10 s minimum in `saveTimelineInterval` (Settings panel) silently no-ops when the value is below threshold. A toast or inline hint would surface the constraint.
+- **`saveTimelineInterval` / `confirmGenerateTimeline` validation drift** — both paths send `ui_timeline_interval_seconds` to the API but have separate validation logic. If the minimum ever changes, both must be updated. Extracting a shared `_parseIntervalS(value, unit)` validator would prevent drift.
 - **Modal keyboard trap** — Escape closes all open modals simultaneously instead of only the topmost one. Fixing properly requires a modal stack. Low UX impact for a single-user tool; deferred.
 - **Modal focus management** — most modals (`openAboutModal`, `openAutoApproveModal`, etc.) do not move focus into the modal on open; only `openFieldEditModal` and `openNewContext` do. Extending to all ~13 remaining open-functions is mechanical. Deferred; no reported keyboard-navigation issues.
 

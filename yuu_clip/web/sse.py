@@ -49,7 +49,7 @@ async def subprocess_sse(cmd: list[str], cwd: Path, ctx=None) -> StreamingRespon
         try:
             async for raw_line in proc.stdout:
                 text = raw_line.decode("utf-8", errors="replace").rstrip()
-                _log.info("[subprocess] %s", text)
+                _log.debug("[subprocess] %s", text)
                 yield f"data: {json.dumps(text)}\n\n"
             await proc.wait()
             if ctx is not None and ctx.ingest_cancelled:

@@ -1080,6 +1080,64 @@ class TestDeleteSrtCleanup:
             assert not f.exists(), f"{f.name} should have been deleted"
 
 
+class TestMultiExtensionExport:
+    """Clips exported as non-.mkv containers are found by media_url, has_export, and delete."""
+
+    def _first_clip(self, client):
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        return client.get(f"/api/videos/{vid_id}/clips").json()[0]
+
+    def test_media_url_finds_mp4_export(self, client, project_dir):
+        clip = self._first_clip(client)
+        export_dir = project_dir / ".yuu-clip" / "exports"
+        start_hms_dashes = clip["start_hms"].replace(":", "-")
+        mp4_file = export_dir / f"session_clip{clip['id']}_{start_hms_dashes}.mp4"
+        mp4_file.write_bytes(b"fake mp4 video")
+        r = client.get(f"/api/clips/{clip['id']}/media_url")
+        assert r.status_code == 200
+        d = r.json()
+        assert d["url"] is not None
+        assert d["url"].endswith(".mp4")
+
+    def test_has_export_true_for_mp4(self, client, project_dir):
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        clips = client.get(f"/api/videos/{vid_id}/clips").json()
+        c = clips[0]
+        export_dir = project_dir / ".yuu-clip" / "exports"
+        start_hms_dashes = c["start_hms"].replace(":", "-")
+        mp4_file = export_dir / f"session_clip{c['id']}_{start_hms_dashes}.mp4"
+        mp4_file.write_bytes(b"fake mp4 video")
+        clips2 = client.get(f"/api/videos/{vid_id}/clips").json()
+        match = next(x for x in clips2 if x["id"] == c["id"])
+        assert match["has_export"] is True
+
+    def test_delete_clip_removes_mp4_export(self, client, project_dir):
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        clips = client.get(f"/api/videos/{vid_id}/clips").json()
+        c = clips[0]
+        export_dir = project_dir / ".yuu-clip" / "exports"
+        start_hms_dashes = c["start_hms"].replace(":", "-")
+        mp4_file = export_dir / f"session_clip{c['id']}_{start_hms_dashes}.mp4"
+        mp4_file.write_bytes(b"fake mp4 video")
+        assert mp4_file.exists()
+        client.delete(f"/api/clips/{c['id']}")
+        assert not mp4_file.exists()
+
+    def test_delete_video_removes_mp4_exports(self, client, project_dir):
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        clips = client.get(f"/api/videos/{vid_id}/clips").json()
+        export_dir = project_dir / ".yuu-clip" / "exports"
+        mp4_files = []
+        for c in clips:
+            start_hms_dashes = c["start_hms"].replace(":", "-")
+            f = export_dir / f"session_clip{c['id']}_{start_hms_dashes}.mp4"
+            f.write_bytes(b"fake mp4 video")
+            mp4_files.append(f)
+        client.delete(f"/api/videos/{vid_id}")
+        for f in mp4_files:
+            assert not f.exists(), f"{f.name} should have been deleted"
+
+
 class TestSseGuards:
     """Cover 400 guards on SSE event endpoints when no job has been queued."""
 
@@ -2838,3 +2896,129 @@ class TestDetectTranscriptOverlap:
         result = self._run(tracks, threshold=0.75)
         assert result is False
         assert specialized.do_score is True
+
+
+# ---------------------------------------------------------------------------
+# Auto-approve endpoint
+# ---------------------------------------------------------------------------
+
+class TestAutoApprove:
+    def _vid_id(self, client):
+        return client.get("/api/videos").json()[0]["id"]
+
+    def test_approves_pending_clips_above_threshold(self, client):
+        vid_id = self._vid_id(client)
+        # conftest seeds one pending clip with score 0.85
+        r = client.post(f"/api/videos/{vid_id}/auto-approve", json={"threshold": 0.8})
+        assert r.status_code == 200
+        assert r.json()["approved"] == 1
+
+    def test_does_not_approve_below_threshold(self, client):
+        vid_id = self._vid_id(client)
+        r = client.post(f"/api/videos/{vid_id}/auto-approve", json={"threshold": 0.99})
+        assert r.status_code == 200
+        assert r.json()["approved"] == 0
+
+    def test_does_not_re_approve_already_approved(self, client):
+        vid_id = self._vid_id(client)
+        # conftest seeds one approved clip (score 0.60) — threshold 0.5 would match it
+        # but it's already approved, not pending, so it should be ignored
+        r = client.post(f"/api/videos/{vid_id}/auto-approve", json={"threshold": 0.5})
+        assert r.status_code == 200
+        # only the pending clip with score 0.85 qualifies; rejected/approved are skipped
+        assert r.json()["approved"] == 1
+
+    def test_invalid_threshold_above_one(self, client):
+        vid_id = self._vid_id(client)
+        r = client.post(f"/api/videos/{vid_id}/auto-approve", json={"threshold": 1.5})
+        assert r.status_code == 400
+
+    def test_invalid_threshold_below_zero(self, client):
+        vid_id = self._vid_id(client)
+        r = client.post(f"/api/videos/{vid_id}/auto-approve", json={"threshold": -0.1})
+        assert r.status_code == 400
+
+    def test_invalid_score_field(self, client):
+        vid_id = self._vid_id(client)
+        r = client.post(f"/api/videos/{vid_id}/auto-approve", json={"threshold": 0.5, "score_field": "nonexistent"})
+        assert r.status_code == 400
+
+    def test_valid_sub_score_fields(self, client):
+        vid_id = self._vid_id(client)
+        for field in ("funny", "dramatic", "action"):
+            r = client.post(f"/api/videos/{vid_id}/auto-approve", json={"threshold": 0.99, "score_field": field})
+            assert r.status_code == 200
+
+    def test_video_not_found(self, client):
+        r = client.post("/api/videos/99999/auto-approve", json={"threshold": 0.5})
+        assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Batch-export endpoint — validation guards (SSE body not inspected)
+# ---------------------------------------------------------------------------
+
+class TestBatchExportValidation:
+    def _vid_id(self, client):
+        return client.get("/api/videos").json()[0]["id"]
+
+    def test_invalid_container_rejected(self, client):
+        vid_id = self._vid_id(client)
+        r = client.get(f"/api/videos/{vid_id}/batch-export?container=avi")
+        assert r.status_code == 400
+
+    def test_valid_containers_accepted(self, client):
+        vid_id = self._vid_id(client)
+        # Both mkv and mp4 should pass validation; no approved clips exist at score>1.0
+        for fmt in ("mkv", "mp4"):
+            r = client.get(f"/api/videos/{vid_id}/batch-export?container={fmt}&min_score=1.1")
+            # 400 because no clips pass the filter, not because container is wrong
+            assert r.status_code == 400
+            assert "container" not in r.text.lower()
+
+    def test_video_not_found(self, client):
+        r = client.get("/api/videos/99999/batch-export")
+        assert r.status_code == 404
+
+    def test_no_approved_clips_returns_400(self, client):
+        vid_id = self._vid_id(client)
+        # Use min_score > 1.0 so no clips can pass
+        r = client.get(f"/api/videos/{vid_id}/batch-export?min_score=1.1")
+        assert r.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# Approved-clips endpoint for reel builder
+# ---------------------------------------------------------------------------
+
+class TestApprovedClipsForReel:
+    def _vid_id(self, client):
+        return client.get("/api/videos").json()[0]["id"]
+
+    def test_returns_approved_clips_only(self, client):
+        r = client.get("/api/demo/approved-clips")
+        assert r.status_code == 200
+        clips = r.json()
+        # conftest seeds one approved clip
+        assert len(clips) == 1
+        assert all(c["id"] for c in clips)
+
+    def test_response_shape(self, client):
+        clips = client.get("/api/demo/approved-clips").json()
+        assert len(clips) >= 1
+        c = clips[0]
+        for key in ("id", "video_id", "video_name", "start_hms", "duration_hms",
+                    "duration_ms", "score_overall", "description", "has_export"):
+            assert key in c, f"missing key: {key}"
+
+    def test_filter_by_video_id(self, client):
+        vid_id = self._vid_id(client)
+        r = client.get(f"/api/demo/approved-clips?video_id={vid_id}")
+        assert r.status_code == 200
+        clips = r.json()
+        assert all(c["video_id"] == vid_id for c in clips)
+
+    def test_filter_by_nonexistent_video_returns_empty(self, client):
+        r = client.get("/api/demo/approved-clips?video_id=99999")
+        assert r.status_code == 200
+        assert r.json() == []

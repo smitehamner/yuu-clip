@@ -35,7 +35,7 @@ Do all three steps before reporting a backend fix as complete:
 Invoke-RestMethod http://127.0.0.1:8080/api/status
 ```
 
-This returns `{"any_running": bool, "analyze_running": bool, "active_jobs": int}`.
+This returns `{"any_running": bool, "analyze_running": bool, "active_jobs": int, "version": str}`.
 If `any_running` is `True`, **stop and ask the user** whether to wait or cancel before
 proceeding. Restarting mid-ingest silently kills the subprocess and loses all progress;
 interrupting other SSE jobs (rescore, timeline, summarize) is less catastrophic but
@@ -50,13 +50,15 @@ yuu_clip/
   cli.py                   # Typer CLI — ingest / serve / score / export / demo
   config.py                # Config + profile management
   db/models.py             # SQLAlchemy ORM (SQLite, NullPool)
-  ingest/                  # probe, labeler, extract, transcribe, segment
+  analyze/                 # probe, labeler, extract, overlap
   scoring/                 # energy, scene, llm, engine
+  segments/                # windower (sliding-window clip generation)
+  transcribe/              # whisper_runner
   web/
     app.py                 # FastAPI factory + lifespan (graceful shutdown)
     deps.py                # ProjectContext — shared server state
     sse.py                 # subprocess → SSE streaming helper
-    routes/                # videos, ingest, profiles, demo, logs
+    routes/                # videos, analyze, profiles, reel, contexts, logs
     static/index.html      # Single-page UI (vanilla JS, no build step)
 tests/
   conftest.py              # project_dir + client fixtures
@@ -109,6 +111,20 @@ Key terms to get right (common sources of drift):
 - "Unreviewed" — not "Pending" in user-facing text (code: `status = 'pending'`)
 - "Highlight reel" — not "demo reel" in user-facing text (code: `demo_reel`)
 
+## Behavior
+- Never cd into the current working directory before running a command
+- Always use approved project scripts (`.\scripts\*.ps1`) — never raw python calls outside the venv
+- Ask before touching files outside the current task scope
+- If uncertain about approach, stop and ask rather than proceeding with assumptions
+- Be concise in responses — no preamble, no "I've completed..." summaries
+- State what changed and why, nothing else
+
+## Testing
+- Tests before or alongside implementation, never after
+- Test behavior, not implementation
+- If you change existing code, verify existing tests still make sense
+- Run `.\scripts\test-api.ps1` before reporting any backend fix as done
+
 ## Code standards
 
 ### General
@@ -116,6 +132,11 @@ Key terms to get right (common sources of drift):
 - No docstrings on internal functions — clear names are enough
 - No error handling for things that can't happen; trust framework guarantees
 - Don't add features beyond what the immediate task requires
+- Methods/functions under 30 lines — decompose and flag if longer
+- No duplication — if similar logic appears twice, extract it
+- Names must be descriptive — no `x`, `tmp`, `data`, `result`, `val`
+- Error paths must be handled explicitly, not silently swallowed
+- One concern per function
 
 ### Python / backend
 - SQLAlchemy sessions must be explicitly closed in route handlers — always use `try/finally: db.close()`

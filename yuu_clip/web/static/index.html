@@ -592,7 +592,7 @@
 </footer>
 
 <!-- About modal -->
-<div class="modal-bg" id="about-modal">
+<div class="modal-bg" id="about-modal" onclick="if(event.target===this)closeAboutModal()">
   <div class="modal" style="max-width:480px">
     <h3>About yuu-clip</h3>
     <p style="color:var(--muted);font-size:13px;margin:0 0 12px">
@@ -622,7 +622,7 @@
 </div>
 
 <!-- Ingest modal -->
-<div class="modal-bg" id="ingest-modal">
+<div class="modal-bg" id="ingest-modal" onclick="if(event.target===this)closeIngestModal()">
   <div class="modal">
     <h3>Analyze Recording</h3>
     <div class="field">
@@ -683,7 +683,7 @@
 </div>
 
 <!-- Profile Manager Modal -->
-<div class="modal-bg" id="profile-modal">
+<div class="modal-bg" id="profile-modal" onclick="if(event.target===this)closeProfileManager()">
   <div class="modal" style="width:560px;max-height:80vh;overflow-y:auto">
     <h3>Track Layouts</h3>
     <div id="profile-list"></div>
@@ -710,7 +710,7 @@
 </div>
 
 <!-- Reel Builder Modal (redesigned) -->
-<div class="modal-bg" id="demo-modal">
+<div class="modal-bg" id="demo-modal" onclick="if(event.target===this)closeDemoModal()">
   <div class="modal reel-builder-modal">
     <h3 style="margin-top:0;margin-bottom:14px">Build Highlight Reel</h3>
 
@@ -782,7 +782,7 @@
 </div>
 
 <!-- Batch Export Modal -->
-<div class="modal-bg" id="batch-export-modal">
+<div class="modal-bg" id="batch-export-modal" onclick="if(event.target===this)closeBatchExportModal()">
   <div class="modal" style="width:400px">
     <h3 style="margin-top:0">Export Approved Clips</h3>
     <div class="field">
@@ -818,7 +818,7 @@
 </div>
 
 <!-- Demo Reels Viewer Modal -->
-<div class="modal-bg" id="reels-modal">
+<div class="modal-bg" id="reels-modal" onclick="if(event.target===this)closeReelsModal()">
   <div class="modal reels-modal">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
       <h3>Highlight Reels</h3>
@@ -834,7 +834,7 @@
 </div>
 
 <!-- Retranscribe Modal -->
-<div class="modal-bg" id="retranscribe-modal">
+<div class="modal-bg" id="retranscribe-modal" onclick="if(event.target===this)closeRetranscribeModal()">
   <div class="modal" style="width:360px">
     <h3>Retranscribe Clip</h3>
     <div class="field">
@@ -858,7 +858,7 @@
 </div>
 
 <!-- Context Manager Modal -->
-<div class="modal-bg" id="context-modal">
+<div class="modal-bg" id="context-modal" onclick="if(event.target===this)closeContextManager()">
   <div class="modal" style="width:680px;max-height:85vh">
     <h3>World Contexts</h3>
     <p style="font-size:12px;color:var(--muted);margin-top:-6px">Named knowledge injected into LLM prompts — characters, setting, and world lore.</p>
@@ -906,7 +906,7 @@
 </div>
 
 <!-- Diff Modal (editable LLM field compare) -->
-<div class="modal-bg" id="diff-modal">
+<div class="modal-bg" id="diff-modal" onclick="if(event.target===this)_diffDiscard()">
   <div class="modal diff-modal">
     <h3 id="diff-modal-title">Review Generated Content</h3>
     <div id="diff-fields"></div>
@@ -919,7 +919,7 @@
 </div>
 
 <!-- Field Edit Modal -->
-<div class="modal-bg" id="field-edit-modal">
+<div class="modal-bg" id="field-edit-modal" onclick="if(event.target===this)closeFieldEditModal()">
   <div class="modal" style="width:540px">
     <h3 id="field-edit-title">Edit Field</h3>
     <textarea id="field-edit-text" style="width:100%;min-height:100px;padding:8px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;font-family:inherit;resize:vertical;box-sizing:border-box" rows="5"></textarea>
@@ -931,7 +931,7 @@
 </div>
 
 <!-- Confirm Modal -->
-<div class="modal-bg" id="confirm-modal">
+<div class="modal-bg" id="confirm-modal" onclick="if(event.target===this)_confirmCancel()">
   <div class="modal" style="width:420px">
     <h3 id="confirm-title"></h3>
     <p id="confirm-body" style="color:var(--muted);font-size:13px;line-height:1.6;margin-top:-4px"></p>
@@ -943,7 +943,7 @@
 </div>
 
 <!-- Export Settings Modal -->
-<div class="modal-bg" id="export-settings-modal">
+<div class="modal-bg" id="export-settings-modal" onclick="if(event.target===this)closeExportModal()">
   <div class="modal" style="width:360px">
     <h3 style="margin-top:0">Export Clip</h3>
     <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:14px">
@@ -968,7 +968,7 @@
 </div>
 
 <!-- Timeline Interval Modal -->
-<div class="modal-bg" id="timeline-interval-modal">
+<div class="modal-bg" id="timeline-interval-modal" onclick="if(event.target===this)closeTimelineIntervalModal()">
   <div class="modal" style="width:380px">
     <h3 style="margin-top:0">Generate Timeline</h3>
     <div style="margin-bottom:14px">
@@ -993,7 +993,7 @@
 </div>
 
 <!-- Auto-approve Modal -->
-<div class="modal-bg" id="auto-approve-modal">
+<div class="modal-bg" id="auto-approve-modal" onclick="if(event.target===this)closeAutoApproveModal()">
   <div class="modal" style="width:360px">
     <h3 style="margin-top:0">Approve Above Score</h3>
     <div style="margin-bottom:16px">
@@ -1023,7 +1023,7 @@
 </div>
 
 <!-- Glossary Modal -->
-<div class="modal-bg" id="glossary-modal">
+<div class="modal-bg" id="glossary-modal" onclick="if(event.target===this)closeGlossaryModal()">
   <div class="modal" style="width:740px;max-height:88vh;display:flex;flex-direction:column">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
       <h3 style="margin:0">Terminology Glossary</h3>
@@ -1036,7 +1036,7 @@
 </div>
 
 <!-- Controls Modal -->
-<div class="modal-bg" id="controls-modal">
+<div class="modal-bg" id="controls-modal" onclick="if(event.target===this)closeControlsModal()">
   <div class="modal" style="max-width:400px">
     <h3>Keyboard Controls</h3>
     <table style="width:100%;font-size:12px;border-collapse:collapse;color:var(--muted)">
@@ -1248,7 +1248,7 @@ const _savedSort = localStorage.getItem('clips-sort');
 if (_savedSort) document.getElementById('clips-sort').value = _savedSort;
 // Log panel starts visible and minimized so it's always accessible
 document.getElementById('log-panel').classList.add('visible', 'minimized');
-document.getElementById('log-toggle').textContent = '▲';
+document.getElementById('log-toggle').textContent = '▼';
 
 // ── videos ────────────────────────────────────────────────────────────────────
 async function loadVideos() {
@@ -1287,7 +1287,7 @@ async function loadVideos() {
           <div class="name" title="${escHtml(v.filename)}">${escHtml(v.filename)}</div>
           ${v.title ? `<div class="video-title" title="${escHtml(v.title)}">${escHtml(v.title)}</div>` : ''}
           <div class="meta">${v.duration_hms} &middot; ${v.clip_count} clips &middot; ${_msToHms(v.total_clip_ms)} clipped${clipsPct}</div>
-          <div class="meta">${v.approved} approved &middot; ${v.status}</div>
+          <div class="meta">${v.approved} approved &middot; ${_fmtVideoStatus(v.status)}</div>
         </div>
         <button class="btn ghost" style="padding:2px 5px;font-size:11px;flex-shrink:0;margin-top:2px"
                 title="Remove from yuu-clip (source file is NOT deleted)"
@@ -1723,7 +1723,7 @@ function renderClipList(clips) {
   const list = document.getElementById('clip-list');
   list.innerHTML = '';
   if (!clips.length) {
-    list.innerHTML = '<li style="padding:10px 14px;color:var(--muted)">No clips</li>';
+    list.innerHTML = `<li style="padding:10px 14px;color:var(--muted)">No clips found — <a href="#" style="color:var(--muted);text-decoration:underline" onclick="event.preventDefault();openIngestModal()">Re-analyze this recording</a></li>`;
     return;
   }
   for (const c of clips) {
@@ -1834,7 +1834,7 @@ function renderDetail(clip) {
     <div class="actions">
       <button class="btn approve ${clip.status==='approved'?'active':''}" onclick="setStatus(${clip.id},'approved')">Approve</button>
       <button class="btn reject  ${clip.status==='rejected'?'active':''}" onclick="setStatus(${clip.id},'rejected')">Reject</button>
-      <button class="btn         ${clip.status==='pending' ?'active':''}" onclick="setStatus(${clip.id},'pending')" title="Mark as Unreviewed">Reset</button>
+      <button class="btn         ${clip.status==='pending' ?'active':''}" onclick="setStatus(${clip.id},'pending')" title="Mark as Unreviewed">Unreviewed</button>
       <button class="btn" onclick="openRetranscribeModal(${clip.id})">Retranscribe</button>
       <button class="btn" id="btn-rescore-clip" onclick="rescoreClip(${clip.id})">Re-score</button>
       <div style="flex:1"></div>
@@ -1988,7 +1988,7 @@ async function setStatus(id, status) {
 
   if (fromStatus && fromStatus !== status) {
     if (_lastStatusChange?.timer) clearTimeout(_lastStatusChange.timer);
-    const label = {approved:'Approved', rejected:'Rejected', pending:'Reset to unreviewed'}[status] || status;
+    const label = {approved:'Approved', rejected:'Rejected', pending:'Marked as Unreviewed'}[status] || status;
     _lastStatusChange = {clipId: id, fromStatus};
     _lastStatusChange.timer = setTimeout(() => { _lastStatusChange = null; }, 5000);
     showUndoToast(`Clip ${label}`, undoLastStatus);
@@ -2435,13 +2435,13 @@ function openLog() {
   const panel = document.getElementById('log-panel');
   panel.classList.add('visible');
   panel.classList.remove('minimized');
-  document.getElementById('log-toggle').textContent = '▼';
+  document.getElementById('log-toggle').textContent = '▲';
 }
 
 function toggleLog() {
   const panel = document.getElementById('log-panel');
   const minimized = panel.classList.toggle('minimized');
-  document.getElementById('log-toggle').textContent = minimized ? '▲' : '▼';
+  document.getElementById('log-toggle').textContent = minimized ? '▼' : '▲';
 }
 
 function appendLog(raw) {
@@ -2504,6 +2504,12 @@ function _sortScore(clip) {
   if (sort === 'action')   return clip.score_action;
   return clip.score_overall;
 }
+
+const _VIDEO_STATUS_DISPLAY = {
+  pending: 'Not analyzed', probed: 'Inspected', labeled: 'Tracks labeled',
+  extracting: 'Extracting', transcribing: 'Transcribing', segmented: 'Segmented', done: 'Analyzed',
+};
+function _fmtVideoStatus(s) { return _VIDEO_STATUS_DISPLAY[s] || s; }
 
 function _msToHms(ms) {
   const s = Math.floor(ms / 1000);
@@ -2575,7 +2581,7 @@ async function _refreshProfileList() {
   _allProfiles = await fetch('/api/profiles').then(r => r.json());
   const el = document.getElementById('profile-list');
   if (!_allProfiles.length) {
-    el.innerHTML = '<div style="color:var(--muted);font-size:13px">No profiles saved.</div>';
+    el.innerHTML = '<div style="color:var(--muted);font-size:13px">No track layouts saved.</div>';
     return;
   }
   el.innerHTML = _allProfiles.map(p => `
@@ -2646,8 +2652,8 @@ function onLabelChange(i) {
 
 async function saveProfile() {
   const name = document.getElementById('pe-name').value.trim();
-  if (!name)                { showToast('Profile name is required', 'error'); return; }
-  if (name.startsWith('__')) { showToast('Profile name cannot start with __', 'error'); return; }
+  if (!name)                { showToast('Layout name is required', 'error'); return; }
+  if (name.startsWith('__')) { showToast('Layout name cannot start with __', 'error'); return; }
   const n = parseInt(document.getElementById('pe-numtracks').value) || 1;
   const assignments = Array.from({length: n}, (_, i) => ({
     stream_position: i,
@@ -2666,13 +2672,13 @@ async function saveProfile() {
   }
   document.getElementById('profile-editor').style.display = 'none';
   await _refreshProfileList();
-  showToast(`Profile "${name}" saved`);
+  showToast(`Track layout "${name}" saved`);
 }
 
 function deleteProfile(name) {
   showConfirm(
     'Delete profile?',
-    `Delete track profile <strong>${escHtml(name)}</strong>? This cannot be undone.`,
+    `Delete track layout <strong>${escHtml(name)}</strong>? This cannot be undone.`,
     'Delete',
     () => _doDeleteProfile(name),
     true,
@@ -2687,7 +2693,7 @@ async function _doDeleteProfile(name) {
     return;
   }
   await _refreshProfileList();
-  showToast(`Profile "${name}" deleted`);
+  showToast(`Track layout "${name}" deleted`);
 }
 
 function cancelProfileEdit() {
@@ -3396,9 +3402,12 @@ function _applySettingsToUI(cfg) {
   setVal('s-scene-mode',    cfg.scene_detection_mode || 'fast');
   setVal('s-silence-ms',    cfg.silence_threshold_ms ?? 3000);
   setVal('s-min-clip-ms',   cfg.min_clip_ms          ?? 15000);
-  // UI
-  setVal('s-timeline-interval', cfg.ui_timeline_interval_seconds ?? 900);
-  setVal('s-timeline-unit',     cfg.ui_timeline_interval_unit    || 'minutes');
+  // UI — convert stored seconds to the display unit
+  const _tlUnit = cfg.ui_timeline_interval_unit || 'minutes';
+  const _tlSec  = cfg.ui_timeline_interval_seconds ?? 900;
+  const _tlVal  = _tlUnit === 'minutes' ? Math.round(_tlSec / 60) : _tlSec;
+  setVal('s-timeline-interval', _tlVal);
+  setVal('s-timeline-unit',     _tlUnit);
 }
 
 function saveSettings(key, value) {
@@ -3424,11 +3433,13 @@ function saveSettings(key, value) {
 async function saveTimelineInterval() {
   const val = parseInt(document.getElementById('s-timeline-interval').value);
   const unit = document.getElementById('s-timeline-unit').value;
-  if (isNaN(val) || val < 10) return;
+  if (isNaN(val) || val < 1) return;
+  const intervalS = unit === 'minutes' ? val * 60 : val;
+  if (intervalS < 10) return;
   try {
     const res = await fetch('/api/config', {
       method: 'PATCH', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ui_timeline_interval_seconds: val, ui_timeline_interval_unit: unit}),
+      body: JSON.stringify({ui_timeline_interval_seconds: intervalS, ui_timeline_interval_unit: unit}),
     });
     if (!res.ok) return;
     _flashSettingsSaved();
