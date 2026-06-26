@@ -108,13 +108,14 @@
   - Reset approvals: new button in video detail header; modal shows "will reset N clips to unreviewed"
   - `confirm()` / `alert()` banned going forward — always use the app modal pattern
 
-- [ ] **Timeline interval picker**
+- [x] **Timeline interval picker**
   - "Generate Timeline" opens a mini pre-generation settings modal:
     - Interval: number input + unit selector (seconds / minutes)
     - Video length hint shown: "Video is 45 m — intervals longer than this produce one bucket"
     - Planned future slots: scene boundaries as markers toggle, energy overlay toggle
   - Min 10 s, default 15 min (900 s); no hard max cap (hint only)
   - Persisted in `config.json`: `ui_timeline_interval_seconds` + `ui_timeline_interval_unit`
+  - `GET /api/config` / `PATCH /api/config` endpoints for UI config persistence
   - YAML migration deferred to Settings page phase
 
 - [ ] **Active-generation indicator**
@@ -125,12 +126,13 @@
   - Regeneration (field has content): existing content stays visible, spinner badge overlaid
   - SSE start/end events set/clear the per-field loading state
 
-- [ ] **Export settings** *(ships before batch export)*
+- [x] **Export settings** *(ships before batch export)*
   - Single "Export" button opens a pre-export settings modal:
-    - Retranscribe: checkbox + model picker (reuses existing retranscribe options)
-    - Rescore after retranscribe: checkbox
-    - Output format: container picker (MKV default, MP4, etc.)
+    - ~~Retranscribe: checkbox + model picker~~ — deferred; use the separate Retranscribe button
+    - ~~Rescore after retranscribe: checkbox~~ — deferred
+    - Output format: container picker (Match source default, MKV, MP4)
     - Burn subtitles: checkbox
+  - `--container` flag added to `rp-clip export` CLI command
   - Same modal reused by batch export
 
 - [ ] **Batch export** *(requires export settings)*
@@ -142,7 +144,7 @@
   - Single SSE progress stream in header: "Exporting 3 of 11…"
   - Collapsible per-clip status panel below the header; click the stream line to expand
 
-- [ ] **Auto-approve (simple)**
+- [x] **Auto-approve (simple)**
   - "Approve all above score" button in video detail panel
   - Threshold input + confirmation modal showing clip count
   - Filter + bulk-select in sidebar deferred to the search + filter feature
@@ -196,9 +198,7 @@
   Also allow the user to point to an external `.srt` file. Eliminates Whisper CPU time for
   users who already have subtitles from another source.
 
-- [ ] **Analysis time estimate fix** — inspection preview counts all audio tracks instead of only the ones
-  the selected track layout will actually transcribe; resolve the track layout selection before
-  computing the estimate
+- [x] **Analysis time estimate fix** — frontend passes `transcribe_tracks` from the selected track layout; backend uses it when provided
 
 ### Pre-packaging documentation
 
@@ -452,12 +452,12 @@ Items wanted long-term but not yet assigned to a phase.
 
 ## Known issues (code quality)
 
-- **Analysis time estimate counts all tracks** — tracked as a Phase 3 medium-term item above
+- ~~**Analysis time estimate counts all tracks**~~ — fixed: frontend passes `transcribe_tracks` from the selected track layout's `do_transcribe` assignments
 - **`_ingest_one` has many parameters** — consider a dataclass if it grows further
 - **`ingest/labeler.py:_label_interactive`** — ~100 lines mixing UI and logic; candidate for split
 - **JS in `index.html` (~1737 lines)** — no-build-step SPA; consider ES modules if it grows further
 - **No integration test for `demo_events` SSE** — `demo.py:demo_events` passes `ctx` to `subprocess_sse` (needed for graceful shutdown and `/api/status`); this path has no test coverage and was silently broken before the Phase 3 bug-hunt pass
-- **Ollama scoring errors are silent** — `LLMScorer.score()` degrades gracefully by returning `tags=["llm_error"]` with no log emission; a failure during `score_all` is only detectable by inspecting clip tags, not the server log; add a `WARNING` log in `LLMScorer.score()` when Ollama returns an error
+- ~~**Ollama scoring errors are silent**~~ — fixed: `LLMScorer.score()` now emits `log.warning("LLM scoring failed for clip %d: %s", ...)` on any exception
 
 ---
 

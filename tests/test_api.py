@@ -1941,6 +1941,39 @@ class TestConfigLoad:
 
 
 # ---------------------------------------------------------------------------
+# UI config endpoint — GET/PATCH /api/config
+# ---------------------------------------------------------------------------
+
+class TestUiConfig:
+    def test_get_config_returns_defaults(self, client):
+        r = client.get("/api/config")
+        assert r.status_code == 200
+        d = r.json()
+        assert d["ui_timeline_interval_seconds"] == 900
+        assert d["ui_timeline_interval_unit"] == "minutes"
+
+    def test_patch_config_updates_interval(self, client):
+        r = client.patch("/api/config", json={"ui_timeline_interval_seconds": 300, "ui_timeline_interval_unit": "seconds"})
+        assert r.status_code == 200
+        d = r.json()
+        assert d["ui_timeline_interval_seconds"] == 300
+        assert d["ui_timeline_interval_unit"] == "seconds"
+
+    def test_patch_config_partial_update(self, client):
+        client.patch("/api/config", json={"ui_timeline_interval_seconds": 600})
+        r = client.get("/api/config")
+        assert r.json()["ui_timeline_interval_seconds"] == 600
+
+    def test_patch_config_interval_below_10_returns_400(self, client):
+        r = client.patch("/api/config", json={"ui_timeline_interval_seconds": 5})
+        assert r.status_code == 400
+
+    def test_patch_config_invalid_unit_returns_400(self, client):
+        r = client.patch("/api/config", json={"ui_timeline_interval_unit": "hours"})
+        assert r.status_code == 400
+
+
+# ---------------------------------------------------------------------------
 # Bug-hunt: clip description contains raw HTML characters (XSS regression)
 # ---------------------------------------------------------------------------
 

@@ -206,12 +206,23 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         return await subprocess_sse(cmd, ctx.project_dir, ctx)
 
     @router.get("/api/clips/{clip_id}/export")
-    async def export_clip(clip_id: int):
+    async def export_clip(
+        clip_id: int,
+        burn_subs: bool = Query(False),
+        container: Optional[str] = Query(None),
+    ):
         """Export a clip to a video file and stream ffmpeg progress as SSE."""
+        allowed_containers = {"mkv", "mp4"}
+        if container is not None and container not in allowed_containers:
+            raise HTTPException(400, f"container must be one of: {', '.join(sorted(allowed_containers))}")
         cmd = [
             sys.executable, "-m", "rp_clipper.cli", "export", str(clip_id),
             "--subtitles", "--project", str(ctx.project_dir),
         ]
+        if burn_subs:
+            cmd.append("--burn-subs")
+        if container:
+            cmd.extend(["--container", container])
         return await subprocess_sse(cmd, ctx.project_dir, ctx)
 
     @router.get("/api/clips/{clip_id}/retranscribe")

@@ -69,6 +69,11 @@ class AutoApproveBody(BaseModel):
     score_field: str = "overall"
 
 
+class UiConfigUpdate(BaseModel):
+    ui_timeline_interval_seconds: Optional[int] = None
+    ui_timeline_interval_unit:    Optional[str] = None
+
+
 def make_router(ctx: ProjectContext) -> APIRouter:
     router = APIRouter()
 
@@ -226,8 +231,29 @@ def make_router(ctx: ProjectContext) -> APIRouter:
 
         return _sse_response(event_stream())
 
+    @router.get("/api/config")
+    def get_config():
+        return {
+            "ui_timeline_interval_seconds": ctx.config.ui_timeline_interval_seconds,
+            "ui_timeline_interval_unit":    ctx.config.ui_timeline_interval_unit,
+        }
+
+    @router.patch("/api/config")
+    def patch_config(body: UiConfigUpdate):
+        cfg = ctx.config
+        if body.ui_timeline_interval_seconds is not None:
+            if body.ui_timeline_interval_seconds < 10:
+                raise HTTPException(400, "interval must be at least 10 seconds")
+            cfg.ui_timeline_interval_seconds = body.ui_timeline_interval_seconds
+        if body.ui_timeline_interval_unit is not None:
+            if body.ui_timeline_interval_unit not in ("seconds", "minutes"):
+                raise HTTPException(400, "unit must be 'seconds' or 'minutes'")
+            cfg.ui_timeline_interval_unit = body.ui_timeline_interval_unit
+        cfg.save_project(ctx.project_dir)
+        return get_config()
+
     @router.get("/api/videos/{video_id}/timeline")
-    async def stream_timeline(video_id: int):
+    async def stream_timeline(video_id: int, interval_s: Optional[int] = Query(None)):
         """Generate a session timeline by chunking the transcript and calling Ollama.
         Streams each entry as an SSE event as it completes."""
         db = ctx.get_db()
@@ -263,11 +289,14 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         config = ctx.config
         context_text = format_context_block(load_contexts(ctx.project_dir), context_names)
 
+        effective_interval_s = interval_s if interval_s is not None else ctx.config.ui_timeline_interval_seconds
+        effective_interval_s = max(10, effective_interval_s)
+
         async def event_stream():
             from rp_clipper.scoring.llm import generate_timeline_chunk
             ctx.active_jobs += 1
             try:
-                chunk_ms = 15 * 60 * 1000
+                chunk_ms = effective_interval_s * 1000
                 entries = []
 
                 for chunk_start in range(0, total_ms + 1, chunk_ms):

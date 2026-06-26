@@ -642,6 +642,56 @@
   </div>
 </div>
 
+<!-- Export Settings Modal -->
+<div class="modal-bg" id="export-settings-modal">
+  <div class="modal" style="width:360px">
+    <h3 style="margin-top:0">Export Clip</h3>
+    <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:14px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <label style="font-size:13px;color:var(--muted);min-width:110px">Output format</label>
+        <select id="export-container" style="flex:1;padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px">
+          <option value="">Match source</option>
+          <option value="mkv">MKV</option>
+          <option value="mp4">MP4</option>
+        </select>
+      </div>
+      <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+        <input type="checkbox" id="export-burn-subs">
+        <span style="font-size:13px">Burn subtitles into video</span>
+      </label>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeExportModal()">Cancel</button>
+      <button class="btn primary" onclick="confirmExport()">Export</button>
+    </div>
+  </div>
+</div>
+
+<!-- Timeline Interval Modal -->
+<div class="modal-bg" id="timeline-interval-modal">
+  <div class="modal" style="width:380px">
+    <h3 style="margin-top:0">Generate Timeline</h3>
+    <div style="margin-bottom:14px">
+      <label style="font-size:13px;color:var(--muted);display:block;margin-bottom:8px">Interval per entry</label>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="number" id="timeline-interval-value" min="1" step="1" value="15"
+               style="width:80px;padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:14px"
+               oninput="updateTimelineIntervalHint()">
+        <select id="timeline-interval-unit" style="padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px"
+                onchange="updateTimelineIntervalHint()">
+          <option value="minutes">minutes</option>
+          <option value="seconds">seconds</option>
+        </select>
+      </div>
+      <div id="timeline-interval-hint" style="color:var(--muted);font-size:12px;margin-top:8px"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeTimelineIntervalModal()">Cancel</button>
+      <button class="btn primary" onclick="confirmGenerateTimeline()">Generate</button>
+    </div>
+  </div>
+</div>
+
 <!-- Auto-approve Modal -->
 <div class="modal-bg" id="auto-approve-modal">
   <div class="modal" style="width:360px">
@@ -1137,15 +1187,92 @@ function _renderTimelineHTML(entries) {
   </div>`;
 }
 
+let _timelineVideoId = null;
+
 function generateTimeline(id) {
+  _timelineVideoId = id;
+  const video = _videos.find(v => v.id === id);
+  _loadTimelineIntervalConfig().then(() => {
+    updateTimelineIntervalHint(video);
+    document.getElementById('timeline-interval-modal').classList.add('visible');
+  });
+}
+
+function closeTimelineIntervalModal() {
+  document.getElementById('timeline-interval-modal').classList.remove('visible');
+}
+
+async function _loadTimelineIntervalConfig() {
+  try {
+    const res = await fetch('/api/config');
+    if (!res.ok) return;
+    const cfg = await res.json();
+    const val = cfg.ui_timeline_interval_seconds || 900;
+    const unit = cfg.ui_timeline_interval_unit || 'minutes';
+    if (unit === 'minutes') {
+      document.getElementById('timeline-interval-value').value = Math.round(val / 60);
+      document.getElementById('timeline-interval-unit').value = 'minutes';
+    } else {
+      document.getElementById('timeline-interval-value').value = val;
+      document.getElementById('timeline-interval-unit').value = 'seconds';
+    }
+  } catch (_) {}
+}
+
+function updateTimelineIntervalHint(video) {
+  video = video || _videos.find(v => v.id === _timelineVideoId);
+  const val = parseInt(document.getElementById('timeline-interval-value').value, 10) || 1;
+  const unit = document.getElementById('timeline-interval-unit').value;
+  const intervalS = unit === 'minutes' ? val * 60 : val;
+  const hint = document.getElementById('timeline-interval-hint');
+  if (intervalS < 10) {
+    hint.textContent = 'Minimum interval is 10 seconds.';
+    hint.style.color = 'var(--red)';
+    return;
+  }
+  hint.style.color = 'var(--muted)';
+  if (video && video.duration_ms) {
+    const dur = video.duration_ms / 1000;
+    const durMin = Math.round(dur / 60);
+    const entries = Math.max(1, Math.ceil(dur / intervalS));
+    if (intervalS >= dur) {
+      hint.textContent = `Video is ${durMin} min — this produces 1 entry covering the whole session.`;
+    } else {
+      hint.textContent = `Video is ${durMin} min — produces ~${entries} entr${entries !== 1 ? 'ies' : 'y'}.`;
+    }
+  } else {
+    hint.textContent = '';
+  }
+}
+
+async function confirmGenerateTimeline() {
+  const val = parseInt(document.getElementById('timeline-interval-value').value, 10) || 15;
+  const unit = document.getElementById('timeline-interval-unit').value;
+  const intervalS = unit === 'minutes' ? val * 60 : val;
+  if (intervalS < 10) return;
+
+  fetch('/api/config', {
+    method: 'PATCH',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ui_timeline_interval_seconds: intervalS, ui_timeline_interval_unit: unit}),
+  }).catch(() => {});
+
+  closeTimelineIntervalModal();
+  _startGenerateTimeline(_timelineVideoId, intervalS);
+}
+
+function _startGenerateTimeline(id, intervalS) {
   const section = document.getElementById('timeline-section');
-  section.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:4px 0">Generating timeline — entries will appear as each 15-minute window completes…</div>';
+  const intervalLabel = intervalS >= 60
+    ? `${Math.round(intervalS / 60)}-minute`
+    : `${intervalS}-second`;
+  section.innerHTML = `<div style="color:var(--muted);font-size:12px;padding:4px 0">Generating timeline — entries will appear as each ${intervalLabel} window completes…</div>`;
   const btn = document.getElementById('btn-generate-timeline');
   btn.disabled = true;
   btn.textContent = 'Generating…';
 
   if (_activeES) { _activeES.close(); _activeES = null; }
-  const es = new EventSource(`/api/videos/${id}/timeline`);
+  const es = new EventSource(`/api/videos/${id}/timeline?interval_s=${intervalS}`);
   _activeES = es;
   let entries = [];
   let firstEntry = true;
@@ -1594,10 +1721,33 @@ function showUndoToast(message, undoFn) {
   setTimeout(() => toast.remove(), 5000);
 }
 
+let _exportClipId = null;
+
 function exportClip(id) {
+  _exportClipId = id;
+  document.getElementById('export-burn-subs').checked = false;
+  document.getElementById('export-container').value = '';
+  document.getElementById('export-settings-modal').classList.add('visible');
+}
+
+function closeExportModal() {
+  document.getElementById('export-settings-modal').classList.remove('visible');
+}
+
+function confirmExport() {
+  const id        = _exportClipId;
+  const burnSubs  = document.getElementById('export-burn-subs').checked;
+  const container = document.getElementById('export-container').value;
+  closeExportModal();
+
+  const params = new URLSearchParams();
+  if (burnSubs)  params.set('burn_subs', 'true');
+  if (container) params.set('container', container);
+  const qs = params.toString() ? `?${params}` : '';
+
   openLog();
   streamSSE(
-    `/api/clips/${id}/export`,
+    `/api/clips/${id}/export${qs}`,
     () => {
       fetch(`/api/clips/${id}/media_url`).then(r => r.json()).then(m => renderPlayer(m.url));
       loadVideos();

@@ -602,6 +602,7 @@ def export(
     reencode: bool = typer.Option(False, "--reencode", help="Precise export: re-encode for frame-accurate cut (slower)"),
     subtitles: bool = typer.Option(True, "--subtitles/--no-subtitles", help="Write SRT caption sidecar file(s)"),
     burn_subs: bool = typer.Option(False, "--burn-subs", help="Bake captions into video (forces precise export)"),
+    container: Optional[str] = typer.Option(None, "--container", help="Output container override: mkv or mp4. Defaults to source format."),
 ):
     """Export a clip to a video file."""
     import tempfile
@@ -632,7 +633,10 @@ def export(
     audio_stream_idx = audio_track.stream_index if audio_track else None
 
     stem   = Path(cand.video.filename).stem
-    suffix = video_path.suffix or ".mp4"
+    if container:
+        suffix = f".{container.lstrip('.')}"
+    else:
+        suffix = video_path.suffix or ".mkv"
     base   = f"{stem}_clip{cand.id}_{cand.start_hms.replace(':', '-')}"
     if output is None:
         output = exports / f"{base}{suffix}"

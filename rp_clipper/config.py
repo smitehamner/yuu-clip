@@ -184,6 +184,9 @@ class Config:
     score_dramatic_weight: float = 1.0
     score_action_weight: float = 1.0
 
+    ui_timeline_interval_seconds: int = 900
+    ui_timeline_interval_unit: str = "minutes"
+
     @classmethod
     def load(cls, project_dir: Path) -> "Config":
         """Load config, merging global defaults with project overrides."""
