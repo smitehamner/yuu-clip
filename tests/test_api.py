@@ -3022,3 +3022,375 @@ class TestApprovedClipsForReel:
         r = client.get("/api/demo/approved-clips?video_id=99999")
         assert r.status_code == 200
         assert r.json() == []
+
+
+# ---------------------------------------------------------------------------
+# LLMScorer — is_available() branches (new dual-backend code)
+# ---------------------------------------------------------------------------
+
+class TestLLMScorerIsAvailable:
+    """LLMScorer.is_available() covers ollama_enabled gate, llamacpp checks, ollama checks."""
+
+    def _make_config(self, **overrides):
+        from yuu_clip.config import Config
+        cfg = Config()
+        for k, v in overrides.items():
+            setattr(cfg, k, v)
+        return cfg
+
+    def _scorer(self, **config_overrides):
+        from yuu_clip.scoring.llm import LLMScorer
+        return LLMScorer(self._make_config(**config_overrides))
+
+    def test_ollama_enabled_false_returns_false_immediately(self):
+        scorer = self._scorer(ollama_enabled=False, llm_backend="llamacpp")
+        assert scorer.is_available() is False
+
+    def test_llamacpp_empty_model_path_returns_false(self):
+        scorer = self._scorer(llm_backend="llamacpp", llm_model_path="")
+        assert scorer.is_available() is False
+
+    def test_llamacpp_nonexistent_path_returns_false(self, tmp_path):
+        scorer = self._scorer(
+            llm_backend="llamacpp",
+            llm_model_path=str(tmp_path / "nonexistent.gguf"),
+        )
+        assert scorer.is_available() is False
+
+    def test_llamacpp_path_exists_but_import_fails_returns_false(self, tmp_path):
+        gguf = tmp_path / "model.gguf"
+        gguf.write_bytes(b"fake")
+        scorer = self._scorer(llm_backend="llamacpp", llm_model_path=str(gguf))
+        import unittest.mock as mock
+        with mock.patch.dict("sys.modules", {"llama_cpp": None}):
+            assert scorer.is_available() is False
+
+    def test_llamacpp_all_checks_pass_returns_true(self, tmp_path):
+        import sys
+        import unittest.mock as mock
+        gguf = tmp_path / "model.gguf"
+        gguf.write_bytes(b"fake")
+        scorer = self._scorer(llm_backend="llamacpp", llm_model_path=str(gguf))
+        fake_module = mock.MagicMock()
+        with mock.patch.dict(sys.modules, {"llama_cpp": fake_module}):
+            scorer._available = None
+            result = scorer._check_llamacpp()
+        assert result is True
+
+    def test_ollama_backend_unreachable_returns_false(self):
+        import unittest.mock as mock
+        scorer = self._scorer(llm_backend="ollama")
+        with mock.patch("ollama.Client") as mock_client:
+            mock_client.return_value.list.side_effect = Exception("connection refused")
+            scorer._available = None
+            result = scorer._check_ollama()
+        assert result is False
+
+    def test_ollama_backend_reachable_returns_true(self):
+        import unittest.mock as mock
+        scorer = self._scorer(llm_backend="ollama")
+        with mock.patch("ollama.Client") as mock_client:
+            mock_client.return_value.list.return_value = []
+            result = scorer._check_ollama()
+        assert result is True
+
+    def test_is_available_caches_result(self, tmp_path):
+        """Second call to is_available() must not redo the availability check."""
+        import unittest.mock as mock
+        scorer = self._scorer(llm_backend="ollama")
+        call_count = 0
+        def counting_list():
+            nonlocal call_count
+            call_count += 1
+            return []
+        with mock.patch("ollama.Client") as mock_client:
+            mock_client.return_value.list.side_effect = counting_list
+            scorer.is_available()
+            scorer.is_available()
+        assert call_count == 1
+
+
+# ---------------------------------------------------------------------------
+# LLMScorer — _parse() score clamping
+# ---------------------------------------------------------------------------
+
+class TestLLMScorerParse:
+    """_parse() clamps scores to [0, 1] and passes through other keys."""
+
+    def _parse(self, data: dict) -> dict:
+        import json
+        from yuu_clip.scoring.llm import LLMScorer
+        from yuu_clip.config import Config
+        scorer = LLMScorer(Config())
+        return scorer._parse(json.dumps(data))
+
+    def test_scores_within_range_unchanged(self):
+        result = self._parse({"score_funny": 0.5, "score_dramatic": 0.3, "score_action": 0.8})
+        assert abs(result["score_funny"] - 0.5) < 1e-9
+        assert abs(result["score_dramatic"] - 0.3) < 1e-9
+        assert abs(result["score_action"] - 0.8) < 1e-9
+
+    def test_score_above_one_clamped_to_one(self):
+        result = self._parse({"score_funny": 1.5, "score_dramatic": 2.0, "score_action": 99.0})
+        assert result["score_funny"] == 1.0
+        assert result["score_dramatic"] == 1.0
+        assert result["score_action"] == 1.0
+
+    def test_score_below_zero_clamped_to_zero(self):
+        result = self._parse({"score_funny": -0.5, "score_dramatic": -1.0, "score_action": -99.0})
+        assert result["score_funny"] == 0.0
+        assert result["score_dramatic"] == 0.0
+        assert result["score_action"] == 0.0
+
+    def test_missing_score_keys_not_added(self):
+        result = self._parse({"description": "test"})
+        assert "score_funny" not in result
+        assert result["description"] == "test"
+
+    def test_description_keys_preserved(self):
+        result = self._parse({
+            "score_funny": 0.5, "score_dramatic": 0.5, "score_action": 0.5,
+            "description": "A moment", "description_long": "Longer text here",
+        })
+        assert result["description"] == "A moment"
+        assert result["description_long"] == "Longer text here"
+
+
+# ---------------------------------------------------------------------------
+# LLMScorer — score() result paths
+# ---------------------------------------------------------------------------
+
+class TestLLMScorerScore:
+    """score() — no-transcript, error, and success paths."""
+
+    def _make_scorer(self, backend_response=None):
+        import unittest.mock as mock
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.llm import LLMScorer
+        scorer = LLMScorer(Config())
+        if backend_response is not None:
+            scorer._call_llm = mock.MagicMock(return_value=backend_response)
+        return scorer
+
+    def _make_clip(self, excerpt=""):
+        import unittest.mock as mock
+        clip = mock.MagicMock()
+        clip.id = 1
+        clip.transcript_excerpt = excerpt
+        return clip
+
+    def test_no_transcript_returns_llm_no_transcript_tag(self):
+        scorer = self._make_scorer()
+        clip = self._make_clip(excerpt="")
+        result = scorer.score(clip, None)
+        assert "llm_no_transcript" in result.tags
+        assert result.score_funny == 0.0
+
+    def test_none_transcript_returns_llm_no_transcript_tag(self):
+        scorer = self._make_scorer()
+        clip = self._make_clip(excerpt=None)
+        result = scorer.score(clip, None)
+        assert "llm_no_transcript" in result.tags
+
+    def test_backend_exception_returns_llm_error_tag(self):
+        import unittest.mock as mock
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.llm import LLMScorer
+        scorer = LLMScorer(Config())
+        scorer._call_llm = mock.MagicMock(side_effect=RuntimeError("backend down"))
+        clip = self._make_clip(excerpt="some transcript text")
+        result = scorer.score(clip, None)
+        assert "llm_error" in result.tags
+        assert result.score_funny == 0.0
+
+    def test_invalid_json_returns_llm_error_tag(self):
+        scorer = self._make_scorer(backend_response="not json {{{{")
+        clip = self._make_clip(excerpt="some transcript text")
+        result = scorer.score(clip, None)
+        assert "llm_error" in result.tags
+
+    def test_successful_score_populates_all_fields(self):
+        import json
+        payload = {
+            "score_funny": 0.7, "score_dramatic": 0.4, "score_action": 0.2,
+            "description": "A funny moment", "description_long": "Very detailed text",
+        }
+        scorer = self._make_scorer(backend_response=json.dumps(payload))
+        clip = self._make_clip(excerpt="transcript here")
+        result = scorer.score(clip, None)
+        assert "llm_scored" in result.tags
+        assert abs(result.score_funny - 0.7) < 1e-6
+        assert abs(result.score_dramatic - 0.4) < 1e-6
+        assert abs(result.score_action - 0.2) < 1e-6
+        assert result.description == "A funny moment"
+        assert result.description_long == "Very detailed text"
+
+    def test_out_of_range_scores_clamped(self):
+        import json
+        payload = {"score_funny": 2.0, "score_dramatic": -1.0, "score_action": 0.5}
+        scorer = self._make_scorer(backend_response=json.dumps(payload))
+        clip = self._make_clip(excerpt="transcript here")
+        result = scorer.score(clip, None)
+        assert result.score_funny == 1.0
+        assert result.score_dramatic == 0.0
+
+    def test_success_notes_include_model_id_for_llamacpp(self):
+        import json
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.llm import LLMScorer
+        import unittest.mock as mock
+        cfg = Config()
+        cfg.llm_backend = "llamacpp"
+        cfg.llm_model_path = "/models/llama3.gguf"
+        scorer = LLMScorer(cfg)
+        scorer._call_llm = mock.MagicMock(return_value=json.dumps({"score_funny": 0.5}))
+        clip = self._make_clip(excerpt="text")
+        result = scorer.score(clip, None)
+        assert result.notes.get("model") == "/models/llama3.gguf"
+
+    def test_success_notes_include_model_id_for_ollama(self):
+        import json
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.llm import LLMScorer
+        import unittest.mock as mock
+        cfg = Config()
+        cfg.llm_backend = "ollama"
+        cfg.ollama_model = "llama3.1:8b"
+        scorer = LLMScorer(cfg)
+        scorer._call_llm = mock.MagicMock(return_value=json.dumps({"score_funny": 0.5}))
+        clip = self._make_clip(excerpt="text")
+        result = scorer.score(clip, None)
+        assert result.notes.get("model") == "llama3.1:8b"
+
+
+# ---------------------------------------------------------------------------
+# Config — new llm_backend / llm_model_path defaults
+# ---------------------------------------------------------------------------
+
+class TestConfigNewLlmFields:
+    def test_llm_backend_default_is_llamacpp(self):
+        from yuu_clip.config import Config
+        assert Config().llm_backend == "llamacpp"
+
+    def test_llm_model_path_default_is_empty_string(self):
+        from yuu_clip.config import Config
+        assert Config().llm_model_path == ""
+
+    def test_llm_backend_roundtrips_through_config_load(self, tmp_path):
+        import json
+        from yuu_clip.config import Config
+        project_dir = tmp_path / "proj"
+        project_dir.mkdir()
+        cfg_dir = project_dir / ".yuu-clip"
+        cfg_dir.mkdir()
+        (cfg_dir / "config.json").write_text(
+            json.dumps({"llm_backend": "ollama", "llm_model_path": "/models/foo.gguf"}),
+            encoding="utf-8",
+        )
+        cfg = Config.load(project_dir)
+        assert cfg.llm_backend == "ollama"
+        assert cfg.llm_model_path == "/models/foo.gguf"
+
+
+# ---------------------------------------------------------------------------
+# /api/config — patch llm_backend and llm_model_path
+# ---------------------------------------------------------------------------
+
+class TestConfigApiLlmFields:
+    def test_get_config_includes_new_llm_fields(self, client):
+        d = client.get("/api/config").json()
+        assert "llm_backend" in d
+        assert "llm_model_path" in d
+
+    def test_patch_llm_backend_to_ollama(self, client):
+        r = client.patch("/api/config", json={"llm_backend": "ollama"})
+        assert r.status_code == 200
+        assert r.json()["llm_backend"] == "ollama"
+
+    def test_patch_llm_model_path(self, client):
+        r = client.patch("/api/config", json={"llm_model_path": "/models/llama3.gguf"})
+        assert r.status_code == 200
+        assert r.json()["llm_model_path"] == "/models/llama3.gguf"
+
+
+# ---------------------------------------------------------------------------
+# reel._esc() — path escaping for ffmpeg filter strings
+# ---------------------------------------------------------------------------
+
+class TestReelEsc:
+    def _esc(self, s):
+        from yuu_clip.reel import _esc
+        return _esc(s)
+
+    def test_plain_path_unchanged(self):
+        assert self._esc("/usr/share/fonts/arial.ttf") == "/usr/share/fonts/arial.ttf"
+
+    def test_backslash_doubled(self):
+        result = self._esc("C:\\fonts\\arial.ttf")
+        assert "\\\\" in result
+
+    def test_colon_escaped(self):
+        result = self._esc("C:/fonts/arial.ttf")
+        assert "\\:" in result
+        assert result.count(":") == 0 or all(result[i-1] == "\\" for i in range(len(result)) if result[i] == ":")
+
+    def test_percent_doubled(self):
+        result = self._esc("path%20with%20spaces")
+        assert "%%" in result
+
+    def test_single_quote_escaped(self):
+        result = self._esc("path/with'quote")
+        assert "'" not in result or "'\\''" in result
+
+    def test_empty_string_unchanged(self):
+        assert self._esc("") == ""
+
+
+# ---------------------------------------------------------------------------
+# reel._build_xfade_cmd() — pure command builder, no ffmpeg needed
+# ---------------------------------------------------------------------------
+
+class TestBuildXfadeCmd:
+    def _build(self, segments, durations, transition="fade", trans_dur=0.5):
+        from pathlib import Path
+        from yuu_clip.reel import _build_xfade_cmd
+        paths = [Path(f"/fake/seg{i}.mkv") for i in range(segments)]
+        durs = durations if isinstance(durations, list) else [durations] * segments
+        transitions = [transition] * max(0, segments - 1)
+        output = Path("/fake/output.mkv")
+        return _build_xfade_cmd(paths, durs, output, transitions, trans_dur)
+
+    def test_single_segment_uses_passthrough_filter(self):
+        cmd = self._build(1, [10.0])
+        fc = " ".join(cmd)
+        assert "copy[vout]" in fc
+        assert "acopy[aout]" in fc
+
+    def test_two_segments_produces_one_xfade(self):
+        cmd = self._build(2, [10.0, 10.0])
+        fc_idx = cmd.index("-filter_complex") + 1
+        fc = cmd[fc_idx]
+        assert "xfade" in fc
+        assert "acrossfade" in fc
+
+    def test_output_path_present_in_command(self):
+        cmd = self._build(2, [5.0, 5.0])
+        cmd_str = " ".join(cmd)
+        assert "output.mkv" in cmd_str
+
+    def test_all_input_paths_present(self):
+        cmd = self._build(3, [5.0, 5.0, 5.0])
+        cmd_str = " ".join(cmd)
+        for i in range(3):
+            assert f"seg{i}.mkv" in cmd_str
+
+    def test_three_segments_produces_two_xfades(self):
+        cmd = self._build(3, [10.0, 10.0, 10.0])
+        fc_idx = cmd.index("-filter_complex") + 1
+        fc = cmd[fc_idx]
+        assert fc.count("xfade") == 2
+
+    def test_vout_and_aout_mapped(self):
+        cmd = self._build(2, [5.0, 5.0])
+        assert "[vout]" in cmd
+        assert "[aout]" in cmd

@@ -383,9 +383,9 @@
     </div>
   </div>
 
-  <!-- Ollama section -->
+  <!-- LLM scoring section -->
   <div class="settings-section">
-    <div class="settings-section-title">Ollama (LLM scoring)</div>
+    <div class="settings-section-title">LLM scoring</div>
     <div class="settings-row">
       <div class="settings-col">
         <div class="settings-label">Enable LLM scoring</div>
@@ -398,27 +398,51 @@
     </div>
     <div class="settings-row">
       <div class="settings-col">
-        <div class="settings-label">Model</div>
-        <div class="settings-note">Must be pulled in Ollama first</div>
+        <div class="settings-label">LLM backend</div>
+        <div class="settings-note">Local model file runs offline; Ollama requires a running server</div>
       </div>
-      <input class="settings-input" id="s-ollama-model" type="text" placeholder="llama3.1:8b"
-             onblur="saveSettings('ollama_model', this.value)">
+      <select class="settings-select" id="s-llm-backend" onchange="_onLlmBackendChange(this.value)" style="max-width:220px">
+        <option value="llamacpp">Local model file</option>
+        <option value="ollama">Ollama</option>
+      </select>
     </div>
-    <div class="settings-row">
-      <div class="settings-col">
-        <div class="settings-label">Host</div>
-        <div class="settings-note">Default: http://localhost:11434</div>
+    <!-- llamacpp fields -->
+    <div id="s-llamacpp-fields">
+      <div class="settings-row">
+        <div class="settings-col">
+          <div class="settings-label">Model file path</div>
+          <div class="settings-note">Path to a local .gguf file</div>
+        </div>
+        <input class="settings-input" id="s-llm-model-path" type="text" placeholder="C:\models\llama3.gguf"
+               onblur="saveSettings('llm_model_path', this.value)" style="max-width:320px">
       </div>
-      <input class="settings-input" id="s-ollama-host" type="text" placeholder="http://localhost:11434"
-             onblur="saveSettings('ollama_host', this.value)">
     </div>
-    <div class="settings-row">
-      <div class="settings-col">
-        <div class="settings-label">Timeout (seconds)</div>
-        <div class="settings-note">Per-clip LLM call timeout</div>
+    <!-- ollama fields -->
+    <div id="s-ollama-fields" style="display:none">
+      <div class="settings-row">
+        <div class="settings-col">
+          <div class="settings-label">Model</div>
+          <div class="settings-note">Must be pulled in Ollama first</div>
+        </div>
+        <input class="settings-input" id="s-ollama-model" type="text" placeholder="llama3.1:8b"
+               onblur="saveSettings('ollama_model', this.value)">
       </div>
-      <input class="settings-input" id="s-ollama-timeout" type="number" min="1" max="600" step="5"
-             onchange="saveSettings('ollama_timeout_s', parseFloat(this.value))" style="max-width:100px">
+      <div class="settings-row">
+        <div class="settings-col">
+          <div class="settings-label">Host</div>
+          <div class="settings-note">Default: http://localhost:11434</div>
+        </div>
+        <input class="settings-input" id="s-ollama-host" type="text" placeholder="http://localhost:11434"
+               onblur="saveSettings('ollama_host', this.value)">
+      </div>
+      <div class="settings-row">
+        <div class="settings-col">
+          <div class="settings-label">Timeout (seconds)</div>
+          <div class="settings-note">Per-clip LLM call timeout</div>
+        </div>
+        <input class="settings-input" id="s-ollama-timeout" type="number" min="1" max="600" step="5"
+               onchange="saveSettings('ollama_timeout_s', parseFloat(this.value))" style="max-width:100px">
+      </div>
     </div>
   </div>
 
@@ -3381,7 +3405,11 @@ function _applySettingsToUI(cfg) {
   setVal('s-whisper-model',  cfg.whisper_model   || 'base');
   setVal('s-whisper-device', cfg.whisper_device  || 'auto');
   setVal('s-whisper-compute',cfg.whisper_compute_type || 'int8');
-  setChk('s-ollama-enabled', cfg.ollama_enabled  !== false);
+  setChk('s-ollama-enabled',  cfg.ollama_enabled   !== false);
+  const backend = cfg.llm_backend || 'llamacpp';
+  setVal('s-llm-backend',    backend);
+  _onLlmBackendChange(backend);
+  setVal('s-llm-model-path', cfg.llm_model_path  || '');
   setVal('s-ollama-model',   cfg.ollama_model    || '');
   setVal('s-ollama-host',    cfg.ollama_host     || '');
   setVal('s-ollama-timeout', cfg.ollama_timeout_s|| 120);
@@ -3428,6 +3456,15 @@ function saveSettings(key, value) {
       showToast('Settings save failed', 'error');
     }
   }, 400);
+}
+
+function _onLlmBackendChange(backend) {
+  const llamacppEl = document.getElementById('s-llamacpp-fields');
+  const ollamaEl   = document.getElementById('s-ollama-fields');
+  if (!llamacppEl || !ollamaEl) return;
+  llamacppEl.style.display = backend === 'llamacpp' ? '' : 'none';
+  ollamaEl.style.display   = backend === 'ollama'   ? '' : 'none';
+  saveSettings('llm_backend', backend);
 }
 
 async function saveTimelineInterval() {

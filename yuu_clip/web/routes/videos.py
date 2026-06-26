@@ -78,6 +78,9 @@ class ConfigPatch(BaseModel):
     whisper_model:                Optional[str]   = None
     whisper_device:               Optional[str]   = None
     whisper_compute_type:         Optional[str]   = None
+    # LLM backend
+    llm_backend:                  Optional[str]   = None
+    llm_model_path:               Optional[str]   = None
     # Ollama
     ollama_host:                  Optional[str]   = None
     ollama_model:                 Optional[str]   = None
@@ -257,94 +260,104 @@ def make_router(ctx: ProjectContext) -> APIRouter:
 
         return _sse_response(event_stream())
 
+    _CONFIG_FIELDS = (
+        "ui_timeline_interval_seconds", "ui_timeline_interval_unit",
+        "whisper_model", "whisper_device", "whisper_compute_type",
+        "llm_backend", "llm_model_path",
+        "ollama_host", "ollama_model", "ollama_timeout_s", "ollama_enabled",
+        "scorer_energy_weight", "scorer_scene_weight", "scorer_llm_weight",
+        "score_funny_weight", "score_dramatic_weight", "score_action_weight",
+        "scene_detection_mode", "silence_threshold_ms", "min_clip_ms",
+    )
+
     @router.get("/api/config")
     def get_config():
         c = ctx.config
-        return {
-            "ui_timeline_interval_seconds": c.ui_timeline_interval_seconds,
-            "ui_timeline_interval_unit":    c.ui_timeline_interval_unit,
-            "whisper_model":                c.whisper_model,
-            "whisper_device":               c.whisper_device,
-            "whisper_compute_type":         c.whisper_compute_type,
-            "ollama_host":                  c.ollama_host,
-            "ollama_model":                 c.ollama_model,
-            "ollama_timeout_s":             c.ollama_timeout_s,
-            "ollama_enabled":               c.ollama_enabled,
-            "scorer_energy_weight":         c.scorer_energy_weight,
-            "scorer_scene_weight":          c.scorer_scene_weight,
-            "scorer_llm_weight":            c.scorer_llm_weight,
-            "score_funny_weight":           c.score_funny_weight,
-            "score_dramatic_weight":        c.score_dramatic_weight,
-            "score_action_weight":          c.score_action_weight,
-            "scene_detection_mode":         c.scene_detection_mode,
-            "silence_threshold_ms":         c.silence_threshold_ms,
-            "min_clip_ms":                  c.min_clip_ms,
-        }
+        return {k: getattr(c, k) for k in _CONFIG_FIELDS}
 
-    _WHISPER_DEVICES      = {"cpu", "cuda", "auto"}
-    _WHISPER_COMPUTE      = {"int8", "float16", "float32", "int8_float16"}
-    _SCENE_MODES          = {"transcript", "fast", "full"}
+    _WHISPER_DEVICES = {"cpu", "cuda", "auto"}
+    _WHISPER_COMPUTE = {"int8", "float16", "float32", "int8_float16"}
+    _SCENE_MODES     = {"transcript", "fast", "full"}
+    _LLM_BACKENDS    = {"llamacpp", "ollama"}
+    # Weight fields: just clamp to [0, ∞), no other validation needed.
+    _WEIGHT_FIELDS   = (
+        "scorer_energy_weight", "scorer_scene_weight", "scorer_llm_weight",
+        "score_funny_weight", "score_dramatic_weight", "score_action_weight",
+    )
 
     @router.patch("/api/config")
     def patch_config(body: ConfigPatch):
         from yuu_clip.config import validate_whisper_model
         cfg = ctx.config
+
         if body.ui_timeline_interval_seconds is not None:
             if body.ui_timeline_interval_seconds < 10:
                 raise HTTPException(400, "interval must be at least 10 seconds")
             cfg.ui_timeline_interval_seconds = body.ui_timeline_interval_seconds
+
         if body.ui_timeline_interval_unit is not None:
             if body.ui_timeline_interval_unit not in ("seconds", "minutes"):
                 raise HTTPException(400, "unit must be 'seconds' or 'minutes'")
             cfg.ui_timeline_interval_unit = body.ui_timeline_interval_unit
+
         if body.whisper_model is not None:
             try:
                 validate_whisper_model(body.whisper_model)
             except ValueError as e:
                 raise HTTPException(400, str(e))
             cfg.whisper_model = body.whisper_model
+
         if body.whisper_device is not None:
             if body.whisper_device not in _WHISPER_DEVICES:
                 raise HTTPException(400, f"whisper_device must be one of: {sorted(_WHISPER_DEVICES)}")
             cfg.whisper_device = body.whisper_device
+
         if body.whisper_compute_type is not None:
             if body.whisper_compute_type not in _WHISPER_COMPUTE:
                 raise HTTPException(400, f"whisper_compute_type must be one of: {sorted(_WHISPER_COMPUTE)}")
             cfg.whisper_compute_type = body.whisper_compute_type
+
+        if body.llm_backend is not None:
+            if body.llm_backend not in _LLM_BACKENDS:
+                raise HTTPException(400, f"llm_backend must be one of: {sorted(_LLM_BACKENDS)}")
+            cfg.llm_backend = body.llm_backend
+
+        if body.llm_model_path is not None:
+            cfg.llm_model_path = body.llm_model_path
+
         if body.ollama_host is not None:
             cfg.ollama_host = body.ollama_host.strip()
         if body.ollama_model is not None:
             cfg.ollama_model = body.ollama_model.strip()
+
         if body.ollama_timeout_s is not None:
             if body.ollama_timeout_s < 1:
                 raise HTTPException(400, "ollama_timeout_s must be >= 1")
             cfg.ollama_timeout_s = body.ollama_timeout_s
+
         if body.ollama_enabled is not None:
             cfg.ollama_enabled = body.ollama_enabled
-        if body.scorer_energy_weight is not None:
-            cfg.scorer_energy_weight = max(0.0, body.scorer_energy_weight)
-        if body.scorer_scene_weight is not None:
-            cfg.scorer_scene_weight = max(0.0, body.scorer_scene_weight)
-        if body.scorer_llm_weight is not None:
-            cfg.scorer_llm_weight = max(0.0, body.scorer_llm_weight)
-        if body.score_funny_weight is not None:
-            cfg.score_funny_weight = max(0.0, body.score_funny_weight)
-        if body.score_dramatic_weight is not None:
-            cfg.score_dramatic_weight = max(0.0, body.score_dramatic_weight)
-        if body.score_action_weight is not None:
-            cfg.score_action_weight = max(0.0, body.score_action_weight)
+
+        for field in _WEIGHT_FIELDS:
+            val = getattr(body, field)
+            if val is not None:
+                setattr(cfg, field, max(0.0, val))
+
         if body.scene_detection_mode is not None:
             if body.scene_detection_mode not in _SCENE_MODES:
                 raise HTTPException(400, f"scene_detection_mode must be one of: {sorted(_SCENE_MODES)}")
             cfg.scene_detection_mode = body.scene_detection_mode
+
         if body.silence_threshold_ms is not None:
             if body.silence_threshold_ms < 500:
                 raise HTTPException(400, "silence_threshold_ms must be >= 500")
             cfg.silence_threshold_ms = body.silence_threshold_ms
+
         if body.min_clip_ms is not None:
             if body.min_clip_ms < 1000:
                 raise HTTPException(400, "min_clip_ms must be >= 1000")
             cfg.min_clip_ms = body.min_clip_ms
+
         cfg.save_project(ctx.project_dir)
         _log.info("Config updated: %s", {k: v for k, v in body.model_dump().items() if v is not None})
         return get_config()
@@ -609,10 +622,8 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             # Delete exported clip files from disk before removing DB records
             clips = db.query(ClipCandidate).filter_by(video_id=video_id).all()
             for clip in clips:
-                for p in [*_export_paths(clip, video, ctx.export_dir),
-                          _srt_path(clip, video, ctx.export_dir)]:
-                    if p and p.exists():
-                        p.unlink(missing_ok=True)
+                for p in _all_sidecar_paths(clip, video, ctx.export_dir):
+                    p.unlink(missing_ok=True)
 
             # AudioEnergy and SceneBoundary have no Python-level cascade; delete explicitly
             track_ids = [t.id for t in video.audio_tracks]
@@ -640,10 +651,8 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             video = db.get(Video, clip.video_id)
             video_id = clip.video_id
 
-            for p in [*_export_paths(clip, video, ctx.export_dir),
-                      _srt_path(clip, video, ctx.export_dir)]:
-                if p and p.exists():
-                    p.unlink(missing_ok=True)
+            for p in _all_sidecar_paths(clip, video, ctx.export_dir):
+                p.unlink(missing_ok=True)
 
             db.delete(clip)
             db.commit()
@@ -905,6 +914,12 @@ def _export_paths(clip: ClipCandidate, video: Video, export_dir: Path) -> list[P
 def _srt_path(clip: ClipCandidate, video: Video, export_dir: Path) -> Optional[Path]:
     p = export_dir / f"{_clip_stem(clip, video)}.srt"
     return p if p.exists() else None
+
+
+def _all_sidecar_paths(clip: ClipCandidate, video: Video, export_dir: Path) -> list[Path]:
+    """All on-disk sidecar paths for a clip: video exports + SRT (if it exists)."""
+    srt = _srt_path(clip, video, export_dir)
+    return [*_export_paths(clip, video, export_dir), *([] if srt is None else [srt])]
 
 
 def _ms_to_hms(ms: int) -> str:

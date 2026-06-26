@@ -53,9 +53,10 @@ class ScoringEngine:
                 clip.description_long = result.description_long
 
             for tag in result.tags:
-                existing = clip.tags
-                if tag not in existing:
-                    clip.tags = existing + [tag]
+                if tag not in clip.tags:
+                    # Full reassignment — SQLAlchemy JSON column needs a new list
+                    # object to detect the mutation; in-place .append() is invisible.
+                    clip.tags = clip.tags + [tag]
 
         if weight_sum == 0:
             return
