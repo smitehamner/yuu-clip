@@ -1,4 +1,4 @@
-"""Tests for highlight reel title card generation (rp_clipper.reel)."""
+"""Tests for highlight reel title card generation (yuu_clip.reel)."""
 from __future__ import annotations
 
 import subprocess
@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from rp_clipper.reel import _esc, _find_font, _make_title_card
+from yuu_clip.reel import _esc, _find_font, _make_title_card
 
 FONT_PATH = _find_font()   # e.g. "C:/Windows/Fonts/arial.ttf", or None
 

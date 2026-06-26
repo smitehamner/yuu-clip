@@ -1,4 +1,4 @@
-# Security review — rp-clipper
+# Security review — yuu-clip
 
 ## Scope
 
@@ -15,7 +15,7 @@ Phase 1–3 codebase. Reviewed modules:
 
 ### Threat model
 
-rp-clipper runs a FastAPI web server on `127.0.0.1:8080` (localhost only). It is a
+yuu-clip runs a FastAPI web server on `127.0.0.1:8080` (localhost only). It is a
 **single-user, local tool** — no authentication, no multi-tenancy, no public network
 exposure. The threat model is:
 
@@ -65,15 +65,15 @@ it would be used.
 
 **Severity**: Low for a personal local tool.
 
-**If you want to harden this**: set `RPCLIPPER_FFMPEG_PATH` and
-`RPCLIPPER_FFPROBE_PATH` environment variables to absolute paths, and
+**If you want to harden this**: set `YUUCLIP_FFMPEG_PATH` and
+`YUUCLIP_FFPROBE_PATH` environment variables to absolute paths, and
 update `find_ffmpeg()` in `config.py` to prefer them:
 
 ```python
 import os
 def find_ffmpeg():
-    ffmpeg  = os.environ.get("RPCLIPPER_FFMPEG_PATH")  or shutil.which("ffmpeg")
-    ffprobe = os.environ.get("RPCLIPPER_FFPROBE_PATH") or shutil.which("ffprobe")
+    ffmpeg  = os.environ.get("YUUCLIP_FFMPEG_PATH")  or shutil.which("ffmpeg")
+    ffprobe = os.environ.get("YUUCLIP_FFPROBE_PATH") or shutil.which("ffprobe")
     ...
 ```
 
@@ -162,7 +162,7 @@ To pin to a specific, verified commit:
 
 ### Step 2 — add to config
 
-In your project's `.rp-clipper/config.toml` (or the global config):
+In your project's `.yuu-clip/config.toml` (or the global config):
 
 ```toml
 [whisper]
@@ -170,7 +170,7 @@ model = "base"
 model_revision = "dc0e87e9c32a0b59e0c4b502c45e5b78e3c59a1a"
 ```
 
-From this point, `rp-clip analyze` will:
+From this point, `yuuclip analyze` will:
 - Pass `revision=` to `WhisperModel()`, which pins the HuggingFace model download
 - Print `revision=dc0e87e...` in the loading line so you can verify it at a glance
 - Re-use the cached download if the revision is already local
@@ -197,7 +197,7 @@ If they differ from the expected values for your pinned revision, do not proceed
 
 ---
 
-## What rp-clipper does NOT do
+## What yuu-clip does NOT do
 
 - It does not make any outbound network requests from its own code
 - It does not send your audio, transcripts, or video anywhere

@@ -1,7 +1,7 @@
 """
 Playwright UI tests — run against the live dev server on port 8080.
 
-Prerequisites: server must be running (`rp-clip serve`)
+Prerequisites: server must be running (`yuuclip serve`)
 Run:  pytest tests/test_ui.py -v
 
 These tests are skipped automatically if the server is not reachable.
@@ -38,7 +38,7 @@ skip_no_server = pytest.mark.skipif(
 class TestPageLoad:
     def test_title(self, page: Page):
         page.goto(LIVE_URL)
-        expect(page).to_have_title("rp-clipper")
+        expect(page).to_have_title("yuu-clip")
 
     def test_header_buttons_visible(self, page: Page):
         page.goto(LIVE_URL)

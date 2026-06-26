@@ -1,6 +1,6 @@
 .venv/
 *.db
-.rp-clipper/
+.yuu-clip/
 *.egg-info/
 __pycache__/
 *.pyc

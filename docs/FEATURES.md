@@ -1,11 +1,11 @@
-# rp-clipper — Implemented Features
+# yuu-clip — Implemented Features
 
 ## CLI commands
 
-### `rp-clip probe <video>`
+### `yuuclip probe <video>`
 Inspects a video without analyzing it. Prints duration, resolution, FPS, and a table of all audio streams with codec, sample rate, channel count, and stream title. Useful for checking track layout before choosing a track layout.
 
-### `rp-clip analyze <path> [options]`
+### `yuuclip analyze <path> [options]`
 Full end-to-end pipeline from raw video to scored clips.
 
 **Options**
@@ -47,16 +47,16 @@ Transcription dominates for large-v3; audio extraction dominates for fast models
 
 > **CPU note:** On CPU, `large-v3` is roughly 150× slower than an RTX GPU for transcription. Smaller models (`base`, `small`) are significantly faster on CPU but the in-app estimate uses a single conservative ratio for all models — expect the real time to be faster than shown for small/base on CPU. `medium` or larger on CPU is not practical for sessions over 30 minutes.
 
-### `rp-clip score [<video_id>|--all] [options]`
+### `yuuclip score [<video_id>|--all] [options]`
 Re-runs scoring on an already-analyzed recording. Useful after changing world contexts or the AI model. Options: `--no-energy`, `--no-scenes`, `--no-llm`.
 
-### `rp-clip status`
+### `yuuclip status`
 Table of all analyzed recordings: filename, duration, track count, clip count, analysis status (pending → probed → labeled → extracting → transcribed → done).
 
-### `rp-clip clips [VIDEO_NAME] [--status FILTER] [--limit N]`
+### `yuuclip clips [VIDEO_NAME] [--status FILTER] [--limit N]`
 Browse clips in the terminal. Filter by partial video name or status (unreviewed, approved, rejected). Shows ID, start time, duration, status, tags, and transcript excerpt.
 
-### `rp-clip export <clip_id> [options]`
+### `yuuclip export <clip_id> [options]`
 Extract a single clip to MKV.
 
 | Flag | Notes |
@@ -64,14 +64,14 @@ Extract a single clip to MKV.
 | `--precise` | Frame-accurate cut via libx264 (slower; default is quick export) |
 | `--captions` / `--no-captions` | Write SRT caption sidecar files (default: on) |
 | `--bake-captions` | Bake captions into video (forces precise export) |
-| `--output PATH` | Output path; default: `.rp-clipper/exports/` |
+| `--output PATH` | Output path; default: `.yuu-clip/exports/` |
 
 Output filename format: `{stem}_clip{id}_{start_hms}.mkv`
 
-### `rp-clip retranscribe <clip_id> [options]`
+### `yuuclip retranscribe <clip_id> [options]`
 Re-runs Whisper on just the clip's time window, then re-scores. Default model: large-v3. Options: `--model`, `--language`, `--no-rescore`.
 
-### `rp-clip reel [options]`
+### `yuuclip reel [options]`
 Compiles a highlight reel from approved clips with title cards and transitions.
 
 | Flag | Default | Notes |
@@ -83,9 +83,9 @@ Compiles a highlight reel from approved clips with title cards and transitions.
 | `--transition TYPE` | fade | fade, dissolve, wipeleft, wiperight, slideleft, slideright, none |
 | `--trans-dur S` | 0.5 | Overlap in seconds |
 | `--title-dur S` | 3.0 | Title card display time |
-| `--output PATH` | auto | Default: `.rp-clipper/reels/reel_<timestamp>.mkv` |
+| `--output PATH` | auto | Default: `.yuu-clip/reels/reel_<timestamp>.mkv` |
 
-### `rp-clip serve [options]`
+### `yuuclip serve [options]`
 Starts the web server and opens the browser. Options: `--host`, `--port` (default 8080), `--open`/`--no-open`, `--reload`. Preferred entry point for day-to-day use.
 
 ---
@@ -266,7 +266,7 @@ Weighted average of the three dimension scores. Default weight: equal. Configura
 - **Quick export (default)**: keyframe-aligned; typically completes in 1–5 seconds regardless of clip length
 - **Precise export** (`--reencode` or checkbox in UI): frame-accurate using libx264 + AAC; expect ~10–30 s per minute of clip on CPU, or ~3–8 s per minute on a GPU-accelerated ffmpeg build
 - **Captions**: SRT caption sidecar files written by default (one per transcript track); optionally baked into video
-- **Output**: MKV in `.rp-clipper/exports/`
+- **Output**: MKV in `.yuu-clip/exports/`
 
 ### Highlight reel
 
@@ -281,12 +281,12 @@ Weighted average of the three dimension scores. Default weight: equal. Configura
 
 ### Project directory
 
-All state is stored in `.rp-clipper/` next to your video files (or in the directory passed to `--project`):
+All state is stored in `.yuu-clip/` next to your video files (or in the directory passed to `--project`):
 
 ```
-.rp-clipper/
-  rp-clipper.db      # SQLite database
-  rp-clipper.log     # rolling log
+.yuu-clip/
+  yuu-clip.db      # SQLite database
+  yuu-clip.log     # rolling log
   exports/           # exported clips and demo reels
   audio/             # extracted WAV files (temporary; reused across runs)
 ```

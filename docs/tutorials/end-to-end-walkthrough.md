@@ -1,6 +1,6 @@
 # End-to-End Workflow Walkthrough
 
-This document walks through a complete session: analyzing a recording, reviewing the clips it finds, exporting the best ones, and compiling a highlight reel. It's written for someone seeing rp-clipper for the first time.
+This document walks through a complete session: analyzing a recording, reviewing the clips it finds, exporting the best ones, and compiling a highlight reel. It's written for someone seeing yuu-clip for the first time.
 
 If you're recording a tutorial video from this document, each top-level section maps to a natural chapter break.
 
@@ -9,7 +9,7 @@ If you're recording a tutorial video from this document, each top-level section 
 ## What you'll need
 
 - A video recording of a gaming or roleplay session (see [Recommended test videos](#recommended-test-videos) below)
-- rp-clipper running: `.\scripts\serve.ps1`
+- yuu-clip running: `.\scripts\serve.ps1`
 - Ollama running locally with at least one LLM loaded (the app will show which model it's using)
 - A browser open at `http://127.0.0.1:8080`
 

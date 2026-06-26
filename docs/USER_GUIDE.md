@@ -1,10 +1,10 @@
-# rp-clipper — What It Does and Why You'd Want It
+# yuu-clip — What It Does and Why You'd Want It
 
 ## The problem it solves
 
 You play for three hours. Something hilarious happens at the 47-minute mark, something dramatic goes down around 1:20, and there's a great action moment somewhere in the second half — but you don't remember exactly when, and scrubbing through three hours of footage to find them is a pain.
 
-rp-clipper watches your recordings for you. It listens to what was said, figures out where the interesting moments are, rates them, and gives you a simple browser-based interface to flip through the highlights, watch them, approve or skip them, and export the ones you want — without touching any code or command line beyond a single click to start it.
+yuu-clip watches your recordings for you. It listens to what was said, figures out where the interesting moments are, rates them, and gives you a simple browser-based interface to flip through the highlights, watch them, approve or skip them, and export the ones you want — without touching any code or command line beyond a single click to start it.
 
 ---
 
@@ -160,7 +160,7 @@ The reel uses the clip descriptions as title card text, so the output is already
 
 ## Things it won't do (and what to do instead)
 
-**It doesn't watch your game live.** It works on recordings after the fact — start your OBS capture as normal, finish your session, then run it through rp-clipper.
+**It doesn't watch your game live.** It works on recordings after the fact — start your OBS capture as normal, finish your session, then run it through yuu-clip.
 
 **It doesn't edit video.** It finds and exports clips; it doesn't add effects, color grade, or do anything fancy with the video itself. Take the exports into your editor of choice if you want that.
 

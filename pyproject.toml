@@ -3,9 +3,9 @@ requires = ["setuptools>=40"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "rp-clipper"
+name = "yuu-clip"
 version = "0.1.0"
-description = "RP gaming session clip extraction pipeline"
+description = "Video session clip extraction pipeline"
 requires-python = ">=3.11"
 dependencies = [
     # Transcription — GPU-accelerated Whisper via CTranslate2.
@@ -42,8 +42,8 @@ dev = [
 ]
 
 [project.scripts]
-rp-clip = "rp_clipper.cli:app"
+yuuclip = "yuu_clip.cli:app"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["rp_clipper*"]
+include = ["yuu_clip*"]

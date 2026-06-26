@@ -1,5 +1,5 @@
 """
-Shared fixtures for rp-clipper tests.
+Shared fixtures for yuu-clip tests.
 """
 from __future__ import annotations
 
@@ -11,10 +11,10 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from rp_clipper.db.models import (
+from yuu_clip.db.models import (
     AudioTrack, ClipCandidate, Video, make_session,
 )
-from rp_clipper.web.app import create_app
+from yuu_clip.web.app import create_app
 
 
 # ---------------------------------------------------------------------------
@@ -24,7 +24,7 @@ from rp_clipper.web.app import create_app
 @pytest.fixture()
 def project_dir(tmp_path: Path) -> Path:
     """A temporary project directory with a pre-seeded SQLite DB."""
-    data = tmp_path / ".rp-clipper"
+    data = tmp_path / ".yuu-clip"
     data.mkdir()
     (data / "exports").mkdir()
     (data / "audio").mkdir()

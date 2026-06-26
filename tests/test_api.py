@@ -170,7 +170,7 @@ class TestClipsExtended:
         vid_id = self._vid_id(client)
         clips = client.get(f"/api/videos/{vid_id}/clips").json()
         c = clips[0]
-        export_dir = project_dir / ".rp-clipper" / "exports"
+        export_dir = project_dir / ".yuu-clip" / "exports"
         start_hms_dashes = c["start_hms"].replace(":", "-")
         export_file = export_dir / f"session_clip{c['id']}_{start_hms_dashes}.mkv"
         export_file.write_bytes(b"fake video content")
@@ -284,7 +284,7 @@ class TestLogs:
         r = client.get("/api/logs/export")
         assert r.status_code == 200
         disposition = r.headers.get("content-disposition", "")
-        assert "rp-clipper-" in disposition
+        assert "yuu-clip-" in disposition
         assert ".log" in disposition
         # Filename must contain an ISO date (YYYY-MM-DD) — exact value is not asserted
         # to avoid a midnight-boundary race where test and server disagree on the date.
@@ -316,8 +316,8 @@ class TestDbSessionCleanup:
         client.get("/api/videos")
         client.get("/api/videos")
 
-        from rp_clipper.db.models import Video, make_session
-        db_path = project_dir / ".rp-clipper" / "project.db"
+        from yuu_clip.db.models import Video, make_session
+        db_path = project_dir / ".yuu-clip" / "project.db"
         session = make_session(db_path)
         try:
             v = Video(
@@ -340,8 +340,8 @@ class TestDbSessionCleanup:
         clip_id = client.get(f"/api/videos/{vid_id}/clips").json()[0]["id"]
         client.post(f"/api/clips/{clip_id}/status", json={"status": "approved"})
 
-        from rp_clipper.db.models import Video, make_session
-        db_path = project_dir / ".rp-clipper" / "project.db"
+        from yuu_clip.db.models import Video, make_session
+        db_path = project_dir / ".yuu-clip" / "project.db"
         session = make_session(db_path)
         try:
             v = Video(
@@ -366,8 +366,8 @@ class TestDbSessionCleanup:
             client.get(f"/api/clips/{clip['id']}")
             client.get(f"/api/clips/{clip['id']}/media_url")
 
-        from rp_clipper.db.models import Video, make_session
-        db_path = project_dir / ".rp-clipper" / "project.db"
+        from yuu_clip.db.models import Video, make_session
+        db_path = project_dir / ".yuu-clip" / "project.db"
         session = make_session(db_path)
         try:
             v = Video(
@@ -394,7 +394,7 @@ class TestGracefulShutdown:
         """When the server exits, a running ingest_proc must be terminated."""
         from unittest.mock import AsyncMock, MagicMock
         from fastapi.testclient import TestClient
-        from rp_clipper.web.app import create_app
+        from yuu_clip.web.app import create_app
 
         app = create_app(project_dir)
         mock_proc = MagicMock()
@@ -410,7 +410,7 @@ class TestGracefulShutdown:
     def test_shutdown_noop_when_no_analyze_running(self, project_dir):
         """Server shutdown must not raise when there is no active subprocess."""
         from fastapi.testclient import TestClient
-        from rp_clipper.web.app import create_app
+        from yuu_clip.web.app import create_app
 
         app = create_app(project_dir)
         with TestClient(app):
@@ -420,7 +420,7 @@ class TestGracefulShutdown:
         """Server shutdown must not call terminate on a process that already exited."""
         from unittest.mock import MagicMock
         from fastapi.testclient import TestClient
-        from rp_clipper.web.app import create_app
+        from yuu_clip.web.app import create_app
 
         app = create_app(project_dir)
         mock_proc = MagicMock()
@@ -573,7 +573,7 @@ class TestCaptionsVTT:
 
     def test_captions_vtt_returns_vtt_format(self, client, project_dir):
         clip = self._first_clip(client)
-        export_dir = project_dir / ".rp-clipper" / "exports"
+        export_dir = project_dir / ".yuu-clip" / "exports"
         start_hms_dashes = clip["start_hms"].replace(":", "-")
         srt_file = export_dir / f"session_clip{clip['id']}_{start_hms_dashes}.srt"
         srt_file.write_text(
@@ -635,7 +635,7 @@ class TestStatus:
     def test_status_reflects_running_ingest(self, project_dir):
         from unittest.mock import AsyncMock, MagicMock
         from fastapi.testclient import TestClient
-        from rp_clipper.web.app import create_app
+        from yuu_clip.web.app import create_app
         app = create_app(project_dir)
         mock_proc = MagicMock()
         mock_proc.returncode = None  # still running
@@ -687,7 +687,7 @@ class TestDemoList:
         assert r.json() == []
 
     def test_list_reels_returns_files(self, client, project_dir):
-        reels_dir = project_dir / ".rp-clipper" / "reels"
+        reels_dir = project_dir / ".yuu-clip" / "reels"
         reels_dir.mkdir(parents=True, exist_ok=True)
         (reels_dir / "highlights_20260101.mkv").write_bytes(b"fake reel")
         r = client.get("/api/demo/list")
@@ -708,7 +708,7 @@ class TestSafeFilename:
     """_safe_filename strips directory traversal components."""
 
     def _safe(self, name, default="highlights.mkv"):
-        from rp_clipper.web.routes.reel import _safe_filename
+        from yuu_clip.web.routes.reel import _safe_filename
         return _safe_filename(name, default)
 
     def test_plain_name_unchanged(self):
@@ -738,7 +738,7 @@ class TestSrtToVtt:
     """_srt_to_vtt converts SRT comma separators to VTT dot separators."""
 
     def _convert(self, srt):
-        from rp_clipper.web.routes.videos import _srt_to_vtt
+        from yuu_clip.web.routes.videos import _srt_to_vtt
         return _srt_to_vtt(srt)
 
     def test_prepends_webvtt_header(self):
@@ -776,7 +776,7 @@ class TestMsToHms:
     """_ms_to_hms converts milliseconds to h:mm:ss or m:ss."""
 
     def _convert(self, ms):
-        from rp_clipper.web.routes.videos import _ms_to_hms
+        from yuu_clip.web.routes.videos import _ms_to_hms
         return _ms_to_hms(ms)
 
     def test_seconds_only(self):
@@ -802,7 +802,7 @@ class TestFormatContextBlock:
     """format_context_block builds the LLM injection text for named contexts."""
 
     def _fmt(self, contexts, slugs):
-        from rp_clipper.contexts import format_context_block
+        from yuu_clip.contexts import format_context_block
         return format_context_block(contexts, slugs)
 
     def test_empty_slugs_returns_empty_string(self):
@@ -815,7 +815,7 @@ class TestFormatContextBlock:
     def test_single_context_contains_header_and_footer(self):
         contexts = {"una": {"display_name": "Una Server", "setting": "A fantasy world"}}
         result = self._fmt(contexts, ["una"])
-        assert "== RP CONTEXT: Una Server ==" in result
+        assert "== WORLD CONTEXT: Una Server ==" in result
         assert "== END CONTEXT ==" in result
 
     def test_setting_field_included(self):
@@ -860,7 +860,7 @@ class TestValidateWhisperModel:
     """validate_whisper_model rejects arbitrary model strings."""
 
     def _validate(self, model):
-        from rp_clipper.config import validate_whisper_model
+        from yuu_clip.config import validate_whisper_model
         return validate_whisper_model(model)
 
     def test_valid_model_returns_unchanged(self):
@@ -886,7 +886,7 @@ class TestValidateWhisperLanguage:
     """validate_whisper_language accepts ISO codes and None/auto, rejects others."""
 
     def _validate(self, lang):
-        from rp_clipper.config import validate_whisper_language
+        from yuu_clip.config import validate_whisper_language
         return validate_whisper_language(lang)
 
     def test_none_returns_none(self):
@@ -917,7 +917,7 @@ class TestPearsonCorrelation:
     """_pearson correlation helper covers edge cases used in overlap detection."""
 
     def _pearson(self, a, b):
-        from rp_clipper.analyze.overlap import _pearson
+        from yuu_clip.analyze.overlap import _pearson
         return _pearson(a, b)
 
     def test_identical_sequences_returns_one(self):
@@ -953,7 +953,7 @@ class TestFormatDuration:
     """_format_duration produces compact human-readable strings."""
 
     def _fmt(self, seconds):
-        from rp_clipper.web.routes.analyze import _format_duration
+        from yuu_clip.web.routes.analyze import _format_duration
         return _format_duration(seconds)
 
     def test_zero_seconds(self):
@@ -1023,7 +1023,7 @@ class TestMediaUrl:
 
     def test_media_url_returns_url_when_file_exists(self, client, project_dir):
         clip = self._first_clip(client)
-        export_dir = project_dir / ".rp-clipper" / "exports"
+        export_dir = project_dir / ".yuu-clip" / "exports"
         start_hms_dashes = clip["start_hms"].replace(":", "-")
         export_file = export_dir / f"session_clip{clip['id']}_{start_hms_dashes}.mkv"
         export_file.write_bytes(b"fake video")
@@ -1036,7 +1036,7 @@ class TestMediaUrl:
 
     def test_media_url_has_captions_true_when_srt_exists(self, client, project_dir):
         clip = self._first_clip(client)
-        export_dir = project_dir / ".rp-clipper" / "exports"
+        export_dir = project_dir / ".yuu-clip" / "exports"
         start_hms_dashes = clip["start_hms"].replace(":", "-")
         base = f"session_clip{clip['id']}_{start_hms_dashes}"
         (export_dir / f"{base}.mkv").write_bytes(b"fake video")
@@ -1055,7 +1055,7 @@ class TestDeleteSrtCleanup:
         vid_id = client.get("/api/videos").json()[0]["id"]
         clips = client.get(f"/api/videos/{vid_id}/clips").json()
         c = clips[0]
-        export_dir = project_dir / ".rp-clipper" / "exports"
+        export_dir = project_dir / ".yuu-clip" / "exports"
         start_hms_dashes = c["start_hms"].replace(":", "-")
         base = f"session_clip{c['id']}_{start_hms_dashes}"
         srt_file = export_dir / f"{base}.srt"
@@ -1067,7 +1067,7 @@ class TestDeleteSrtCleanup:
     def test_delete_video_removes_srt_files(self, client, project_dir):
         vid_id = client.get("/api/videos").json()[0]["id"]
         clips = client.get(f"/api/videos/{vid_id}/clips").json()
-        export_dir = project_dir / ".rp-clipper" / "exports"
+        export_dir = project_dir / ".yuu-clip" / "exports"
         srt_files = []
         for c in clips:
             start_hms_dashes = c["start_hms"].replace(":", "-")
@@ -1182,7 +1182,7 @@ class TestDeleteExportCleanup:
         vid_id = client.get("/api/videos").json()[0]["id"]
         clips = client.get(f"/api/videos/{vid_id}/clips").json()
         c = clips[0]
-        export_dir = project_dir / ".rp-clipper" / "exports"
+        export_dir = project_dir / ".yuu-clip" / "exports"
         start_hms_dashes = c["start_hms"].replace(":", "-")
         export_file = export_dir / f"session_clip{c['id']}_{start_hms_dashes}.mkv"
         export_file.write_bytes(b"fake video")
@@ -1193,7 +1193,7 @@ class TestDeleteExportCleanup:
     def test_delete_video_removes_export_files(self, client, project_dir):
         vid_id = client.get("/api/videos").json()[0]["id"]
         clips = client.get(f"/api/videos/{vid_id}/clips").json()
-        export_dir = project_dir / ".rp-clipper" / "exports"
+        export_dir = project_dir / ".yuu-clip" / "exports"
         files = []
         for c in clips:
             start_hms_dashes = c["start_hms"].replace(":", "-")
@@ -1215,7 +1215,7 @@ class TestSseCommandCleared:
     def test_ingest_cmd_cleared_after_events_stream(self, project_dir):
         """After ingest_events runs to completion, ctx.ingest_cmd must be None."""
         from fastapi.testclient import TestClient
-        from rp_clipper.web.app import create_app
+        from yuu_clip.web.app import create_app
         import sys
 
         app = create_app(project_dir)
@@ -1231,7 +1231,7 @@ class TestSseCommandCleared:
     def test_demo_cmd_cleared_after_events_stream(self, project_dir):
         """After demo_events runs to completion, ctx.demo_cmd must be None."""
         from fastapi.testclient import TestClient
-        from rp_clipper.web.app import create_app
+        from yuu_clip.web.app import create_app
         import sys
 
         app = create_app(project_dir)
@@ -1246,7 +1246,7 @@ class TestSseCommandCleared:
         """After stream finishes, a second call to /api/analyze/events without a new start
         must return 400, not re-run the old command."""
         from fastapi.testclient import TestClient
-        from rp_clipper.web.app import create_app
+        from yuu_clip.web.app import create_app
         import sys
 
         app = create_app(project_dir)
@@ -1293,9 +1293,9 @@ class TestEnergyBoundary:
         from pathlib import Path
         from unittest.mock import MagicMock
 
-        from rp_clipper.config import Config
-        from rp_clipper.db.models import AudioEnergy, AudioTrack, Video, make_session
-        from rp_clipper.scoring.energy import AudioEnergyScorer
+        from yuu_clip.config import Config
+        from yuu_clip.db.models import AudioEnergy, AudioTrack, Video, make_session
+        from yuu_clip.scoring.energy import AudioEnergyScorer
 
         config = Config()
         scorer = AudioEnergyScorer(config)
@@ -1359,7 +1359,7 @@ class TestSceneCutScorer:
     """SceneCutScorer.score() covers 0-duration clip, no cuts, and cuts present."""
 
     def _make_db_with_video_and_clip(self, tmp_path, start_ms, end_ms):
-        from rp_clipper.db.models import ClipCandidate, Video, make_session
+        from yuu_clip.db.models import ClipCandidate, Video, make_session
         db_path = tmp_path / "test.db"
         session = make_session(db_path)
         v = Video(path=str(tmp_path / "v.mkv"), filename="v.mkv", status="done", duration_ms=600_000)
@@ -1371,8 +1371,8 @@ class TestSceneCutScorer:
         return session, v, clip
 
     def test_score_zero_duration_returns_empty(self, tmp_path):
-        from rp_clipper.config import Config
-        from rp_clipper.scoring.scenes import SceneCutScorer
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.scenes import SceneCutScorer
         config = Config()
         scorer = SceneCutScorer(config)
         session, v, clip = self._make_db_with_video_and_clip(tmp_path, 0, 0)
@@ -1384,8 +1384,8 @@ class TestSceneCutScorer:
         assert result.tags == []
 
     def test_score_no_scene_boundaries_returns_zero(self, tmp_path):
-        from rp_clipper.config import Config
-        from rp_clipper.scoring.scenes import SceneCutScorer
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.scenes import SceneCutScorer
         config = Config()
         scorer = SceneCutScorer(config)
         session, v, clip = self._make_db_with_video_and_clip(tmp_path, 0, 60_000)
@@ -1398,9 +1398,9 @@ class TestSceneCutScorer:
         assert result.notes["cuts_in_clip"] == 0
 
     def test_score_with_cuts_inside_window(self, tmp_path):
-        from rp_clipper.config import Config
-        from rp_clipper.db.models import SceneBoundary
-        from rp_clipper.scoring.scenes import SceneCutScorer
+        from yuu_clip.config import Config
+        from yuu_clip.db.models import SceneBoundary
+        from yuu_clip.scoring.scenes import SceneCutScorer
         config = Config()
         scorer = SceneCutScorer(config)
         session, v, clip = self._make_db_with_video_and_clip(tmp_path, 0, 60_000)
@@ -1418,9 +1418,9 @@ class TestSceneCutScorer:
 
     def test_score_cut_at_end_ms_excluded(self, tmp_path):
         """A cut at exactly end_ms must not be counted (< end_ms, not <=)."""
-        from rp_clipper.config import Config
-        from rp_clipper.db.models import SceneBoundary
-        from rp_clipper.scoring.scenes import SceneCutScorer
+        from yuu_clip.config import Config
+        from yuu_clip.db.models import SceneBoundary
+        from yuu_clip.scoring.scenes import SceneCutScorer
         config = Config()
         scorer = SceneCutScorer(config)
         session, v, clip = self._make_db_with_video_and_clip(tmp_path, 0, 60_000)
@@ -1433,24 +1433,24 @@ class TestSceneCutScorer:
         assert result.notes["cuts_in_clip"] == 0
 
     def test_is_available_true_when_enabled(self):
-        from rp_clipper.config import Config
-        from rp_clipper.scoring.scenes import SceneCutScorer
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.scenes import SceneCutScorer
         config = Config()
         config.scorer_scenes_enabled = True
         assert SceneCutScorer(config).is_available() is True
 
     def test_is_available_false_when_disabled(self):
-        from rp_clipper.config import Config
-        from rp_clipper.scoring.scenes import SceneCutScorer
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.scenes import SceneCutScorer
         config = Config()
         config.scorer_scenes_enabled = False
         assert SceneCutScorer(config).is_available() is False
 
     def test_score_maxes_at_one(self, tmp_path):
         """score_action must not exceed 1.0 even with very high cut density."""
-        from rp_clipper.config import Config
-        from rp_clipper.db.models import SceneBoundary
-        from rp_clipper.scoring.scenes import SceneCutScorer
+        from yuu_clip.config import Config
+        from yuu_clip.db.models import SceneBoundary
+        from yuu_clip.scoring.scenes import SceneCutScorer
         config = Config()
         scorer = SceneCutScorer(config)
         session, v, clip = self._make_db_with_video_and_clip(tmp_path, 0, 60_000)
@@ -1474,7 +1474,7 @@ class TestScoringEngine:
     def _make_scorer(self, score_funny=0.0, score_dramatic=0.0, score_action=0.0,
                      description="", description_long="", tags=None, weight=1.0, available=True):
         from unittest.mock import MagicMock
-        from rp_clipper.scoring.protocol import ScoreResult
+        from yuu_clip.scoring.protocol import ScoreResult
         mock = MagicMock()
         mock.is_available.return_value = available
         mock.weight = weight
@@ -1501,8 +1501,8 @@ class TestScoringEngine:
         return clip
 
     def test_no_scorers_returns_without_update(self):
-        from rp_clipper.config import Config
-        from rp_clipper.scoring.engine import ScoringEngine
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.engine import ScoringEngine
         config = Config()
         engine = ScoringEngine(config, [])
         clip = self._make_clip()
@@ -1511,8 +1511,8 @@ class TestScoringEngine:
 
     def test_unavailable_scorer_filtered_out(self):
         from unittest.mock import MagicMock
-        from rp_clipper.config import Config
-        from rp_clipper.scoring.engine import ScoringEngine
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.engine import ScoringEngine
         config = Config()
         unavailable = self._make_scorer(score_action=1.0, available=False)
         engine = ScoringEngine(config, [unavailable])
@@ -1522,8 +1522,8 @@ class TestScoringEngine:
         unavailable.score.assert_not_called()
 
     def test_score_clip_writes_dimension_scores(self):
-        from rp_clipper.config import Config
-        from rp_clipper.scoring.engine import ScoringEngine
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.engine import ScoringEngine
         config = Config()
         scorer = self._make_scorer(score_funny=0.8, score_dramatic=0.4, score_action=0.2)
         engine = ScoringEngine(config, [scorer])
@@ -1534,8 +1534,8 @@ class TestScoringEngine:
         assert abs(clip.score_action - 0.2) < 1e-6
 
     def test_score_clip_computes_overall_from_dim_weights(self):
-        from rp_clipper.config import Config
-        from rp_clipper.scoring.engine import ScoringEngine
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.engine import ScoringEngine
         config = Config()
         config.score_funny_weight = 2.0
         config.score_dramatic_weight = 1.0
@@ -1548,8 +1548,8 @@ class TestScoringEngine:
         assert abs(clip.score_overall - 0.5) < 1e-6
 
     def test_score_clip_description_set_by_scorer(self):
-        from rp_clipper.config import Config
-        from rp_clipper.scoring.engine import ScoringEngine
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.engine import ScoringEngine
         config = Config()
         scorer = self._make_scorer(description="A dramatic moment", description_long="Full text here")
         engine = ScoringEngine(config, [scorer])
@@ -1559,8 +1559,8 @@ class TestScoringEngine:
         assert clip.description_long == "Full text here"
 
     def test_score_clip_tags_accumulated(self):
-        from rp_clipper.config import Config
-        from rp_clipper.scoring.engine import ScoringEngine
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.engine import ScoringEngine
         config = Config()
         scorer = self._make_scorer(tags=["energy_scored"])
         engine = ScoringEngine(config, [scorer])
@@ -1569,8 +1569,8 @@ class TestScoringEngine:
         assert "energy_scored" in clip.tags
 
     def test_score_clip_stale_scorer_tags_removed(self):
-        from rp_clipper.config import Config
-        from rp_clipper.scoring.engine import ScoringEngine
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.engine import ScoringEngine
         config = Config()
         scorer = self._make_scorer(tags=["energy_scored"])
         engine = ScoringEngine(config, [scorer])
@@ -1582,8 +1582,8 @@ class TestScoringEngine:
         assert clip.tags.count("energy_scored") == 1
 
     def test_score_clip_tags_not_duplicated(self):
-        from rp_clipper.config import Config
-        from rp_clipper.scoring.engine import ScoringEngine
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.engine import ScoringEngine
         config = Config()
         scorer = self._make_scorer(tags=["energy_scored"])
         engine = ScoringEngine(config, [scorer])
@@ -1593,8 +1593,8 @@ class TestScoringEngine:
         assert clip.tags.count("energy_scored") == 1
 
     def test_score_clip_weighted_average_of_two_scorers(self):
-        from rp_clipper.config import Config
-        from rp_clipper.scoring.engine import ScoringEngine
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.engine import ScoringEngine
         config = Config()
         s1 = self._make_scorer(score_action=1.0, weight=2.0)
         s2 = self._make_scorer(score_action=0.0, weight=1.0)
@@ -1616,9 +1616,9 @@ class TestAudioEnergyScorerNoTracks:
         import tempfile
         from pathlib import Path
         from unittest.mock import MagicMock
-        from rp_clipper.config import Config
-        from rp_clipper.db.models import AudioTrack, Video, make_session
-        from rp_clipper.scoring.energy import AudioEnergyScorer
+        from yuu_clip.config import Config
+        from yuu_clip.db.models import AudioTrack, Video, make_session
+        from yuu_clip.scoring.energy import AudioEnergyScorer
 
         config = Config()
         scorer = AudioEnergyScorer(config)
@@ -1649,8 +1649,8 @@ class TestAudioEnergyScorerNoTracks:
         assert "energy_no_tracks" in result.tags
 
     def test_is_available_false_when_disabled(self):
-        from rp_clipper.config import Config
-        from rp_clipper.scoring.energy import AudioEnergyScorer
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.energy import AudioEnergyScorer
         config = Config()
         config.scorer_energy_enabled = False
         assert AudioEnergyScorer(config).is_available() is False
@@ -1672,7 +1672,7 @@ class TestSilenceWindow:
         return s
 
     def _window(self, segments, silence_ms=3000, min_ms=5000, hard_ms=180_000):
-        from rp_clipper.segments.windower import _silence_window
+        from yuu_clip.segments.windower import _silence_window
         return _silence_window(segments, silence_ms, min_ms, hard_ms)
 
     def test_empty_segments_returns_empty(self):
@@ -1786,14 +1786,14 @@ class TestEstimateEdgeCases:
     def test_unknown_model_falls_back_to_default_gpu_speed(self, client):
         """An unrecognised model string should not raise — it falls back to speed=6."""
         # Use the internal function directly to avoid the validate_whisper_model guard
-        from rp_clipper.web.routes.analyze import _compute_time_estimate, EstimateRequest
+        from yuu_clip.web.routes.analyze import _compute_time_estimate, EstimateRequest
         req = EstimateRequest(duration_s=3600, model="custom:tag", has_gpu=True, scene_mode="fast")
         result = _compute_time_estimate(req)
         assert result["total_seconds"] > 0
 
     def test_zero_duration_pct_is_zero(self, client):
         """Zero-duration input must not cause a division error."""
-        from rp_clipper.web.routes.analyze import _compute_time_estimate, EstimateRequest
+        from yuu_clip.web.routes.analyze import _compute_time_estimate, EstimateRequest
         req = EstimateRequest(duration_s=0, model="medium", has_gpu=True, scene_mode="fast")
         result = _compute_time_estimate(req)
         assert result["pct_of_video"] == 0
@@ -1805,7 +1805,7 @@ class TestEstimateEdgeCases:
 
 class TestDemoListFiltering:
     def test_non_mkv_files_not_listed(self, client, project_dir):
-        reels_dir = project_dir / ".rp-clipper" / "reels"
+        reels_dir = project_dir / ".yuu-clip" / "reels"
         reels_dir.mkdir(parents=True, exist_ok=True)
         (reels_dir / "highlights_20260101.mkv").write_bytes(b"reel")
         (reels_dir / "notes.txt").write_text("ignore me")
@@ -1820,7 +1820,7 @@ class TestDemoListFiltering:
 
     def test_reels_sorted_newest_first(self, client, project_dir):
         import time
-        reels_dir = project_dir / ".rp-clipper" / "reels"
+        reels_dir = project_dir / ".yuu-clip" / "reels"
         reels_dir.mkdir(parents=True, exist_ok=True)
         older = reels_dir / "old_20260101.mkv"
         older.write_bytes(b"old")
@@ -1869,7 +1869,7 @@ class TestProfileDeleteNonexistent:
 
 class TestWordSet:
     def _ws(self, text):
-        from rp_clipper.analyze.overlap import _word_set
+        from yuu_clip.analyze.overlap import _word_set
         return _word_set(text)
 
     def test_empty_string_returns_empty_set(self):
@@ -1904,10 +1904,10 @@ class TestConfigLoad:
     def test_project_config_overrides_global(self, tmp_path):
         """Values in project config.json take precedence over global defaults."""
         import json
-        from rp_clipper.config import Config
+        from yuu_clip.config import Config
         project_dir = tmp_path / "proj"
         project_dir.mkdir()
-        cfg_dir = project_dir / ".rp-clipper"
+        cfg_dir = project_dir / ".yuu-clip"
         cfg_dir.mkdir()
         (cfg_dir / "config.json").write_text(
             json.dumps({"whisper_model": "tiny", "ollama_enabled": False}),
@@ -1919,7 +1919,7 @@ class TestConfigLoad:
 
     def test_missing_config_returns_defaults(self, tmp_path):
         """When no config files exist, defaults are used."""
-        from rp_clipper.config import Config
+        from yuu_clip.config import Config
         project_dir = tmp_path / "proj"
         project_dir.mkdir()
         config = Config.load(project_dir)
@@ -1929,10 +1929,10 @@ class TestConfigLoad:
     def test_unknown_keys_in_project_config_ignored(self, tmp_path):
         """Unknown keys in project config.json must not raise."""
         import json
-        from rp_clipper.config import Config
+        from yuu_clip.config import Config
         project_dir = tmp_path / "proj"
         project_dir.mkdir()
-        cfg_dir = project_dir / ".rp-clipper"
+        cfg_dir = project_dir / ".yuu-clip"
         cfg_dir.mkdir()
         (cfg_dir / "config.json").write_text(
             json.dumps({"whisper_model": "small", "unknown_future_key": 42}),
@@ -1988,8 +1988,8 @@ class TestClipDescriptionRawText:
 
     def _seed_clip_with_description(self, project_dir, description: str) -> int:
         """Insert a clip with the given description and return its id."""
-        from rp_clipper.db.models import ClipCandidate, make_session
-        db_path = project_dir / ".rp-clipper" / "project.db"
+        from yuu_clip.db.models import ClipCandidate, make_session
+        db_path = project_dir / ".yuu-clip" / "project.db"
         session = make_session(db_path)
         try:
             vid_id = session.query(ClipCandidate).first().video_id
@@ -2040,8 +2040,8 @@ class TestEditableVideoFields:
         return client.get("/api/videos").json()[0]["id"]
 
     def _seed_title_summary(self, project_dir, title="LLM Title", summary="LLM Summary"):
-        from rp_clipper.db.models import Video, make_session
-        db_path = project_dir / ".rp-clipper" / "project.db"
+        from yuu_clip.db.models import Video, make_session
+        db_path = project_dir / ".yuu-clip" / "project.db"
         session = make_session(db_path)
         try:
             v = session.query(Video).first()
@@ -2283,7 +2283,7 @@ class TestVideoListEditableFields:
 
 class TestMsToSrtTime:
     def _fmt(self, ms):
-        from rp_clipper.subtitles import _ms_to_srt_time
+        from yuu_clip.subtitles import _ms_to_srt_time
         return _ms_to_srt_time(ms)
 
     def test_zero(self):
@@ -2316,7 +2316,7 @@ class TestMsToSrtTime:
 
 class TestLabelDisplay:
     def _ld(self, label):
-        from rp_clipper.subtitles import _label_display
+        from yuu_clip.subtitles import _label_display
         return _label_display(label)
 
     def test_known_player_voice(self):
@@ -2341,14 +2341,14 @@ class TestLabelDisplay:
 
 class TestLinesToSrt:
     def _srt(self, lines):
-        from rp_clipper.subtitles import lines_to_srt
+        from yuu_clip.subtitles import lines_to_srt
         return lines_to_srt(lines)
 
     def test_empty_input_returns_empty_string(self):
         assert self._srt([]) == ""
 
     def test_single_line_no_speaker(self):
-        from rp_clipper.subtitles import SubLine
+        from yuu_clip.subtitles import SubLine
         result = self._srt([SubLine(0, 1000, "Hello")])
         assert "1\n" in result
         assert "00:00:00,000 --> 00:00:01,000" in result
@@ -2356,12 +2356,12 @@ class TestLinesToSrt:
         assert "[" not in result
 
     def test_single_line_with_speaker(self):
-        from rp_clipper.subtitles import SubLine
+        from yuu_clip.subtitles import SubLine
         result = self._srt([SubLine(0, 1000, "Hi", "Player")])
         assert "[Player] Hi" in result
 
     def test_multiple_lines_sorted_by_start(self):
-        from rp_clipper.subtitles import SubLine
+        from yuu_clip.subtitles import SubLine
         lines = [SubLine(2000, 3000, "Second"), SubLine(0, 1000, "First")]
         result = self._srt(lines)
         first_pos = result.index("First")
@@ -2369,20 +2369,20 @@ class TestLinesToSrt:
         assert first_pos < second_pos
 
     def test_sequential_numbering(self):
-        from rp_clipper.subtitles import SubLine
+        from yuu_clip.subtitles import SubLine
         lines = [SubLine(0, 500, "A"), SubLine(600, 1000, "B")]
         result = self._srt(lines)
         assert "1\n" in result
         assert "2\n" in result
 
     def test_text_is_stripped(self):
-        from rp_clipper.subtitles import SubLine
+        from yuu_clip.subtitles import SubLine
         result = self._srt([SubLine(0, 500, "  trimmed  ")])
         assert "trimmed" in result
         assert "  trimmed  " not in result
 
     def test_blocks_separated_by_double_newline(self):
-        from rp_clipper.subtitles import SubLine
+        from yuu_clip.subtitles import SubLine
         lines = [SubLine(0, 500, "A"), SubLine(600, 1000, "B")]
         result = self._srt(lines)
         assert "\n\n" in result
@@ -2426,26 +2426,26 @@ class TestCollectClipSubtitles:
         return types.SimpleNamespace(start_ms=start_ms, end_ms=end_ms, text=text)
 
     def test_empty_when_no_tracks(self):
-        from rp_clipper.subtitles import collect_clip_subtitles
+        from yuu_clip.subtitles import collect_clip_subtitles
         clip = self._make_clip([])
         assert collect_clip_subtitles(clip) == {}
 
     def test_skips_game_sounds_track(self):
-        from rp_clipper.subtitles import collect_clip_subtitles
+        from yuu_clip.subtitles import collect_clip_subtitles
         seg = self._make_seg(5_000, 8_000, "noise")
         track = self._make_track("game_sounds", True, [seg])
         clip = self._make_clip([track])
         assert collect_clip_subtitles(clip) == {}
 
     def test_skips_do_transcribe_false(self):
-        from rp_clipper.subtitles import collect_clip_subtitles
+        from yuu_clip.subtitles import collect_clip_subtitles
         seg = self._make_seg(5_000, 8_000, "speech")
         track = self._make_track("player_voice", False, [seg])
         clip = self._make_clip([track])
         assert collect_clip_subtitles(clip) == {}
 
     def test_skips_segments_outside_clip_window(self):
-        from rp_clipper.subtitles import collect_clip_subtitles
+        from yuu_clip.subtitles import collect_clip_subtitles
         seg_before = self._make_seg(0, 4_000, "before")
         seg_after  = self._make_seg(11_000, 13_000, "after")
         track = self._make_track("player_voice", True, [seg_before, seg_after])
@@ -2453,7 +2453,7 @@ class TestCollectClipSubtitles:
         assert collect_clip_subtitles(clip) == {}
 
     def test_clips_segment_to_window_and_makes_relative(self):
-        from rp_clipper.subtitles import collect_clip_subtitles
+        from yuu_clip.subtitles import collect_clip_subtitles
         # segment spans 4s–8s; clip window is 5s–10s → clipped to 5s–8s → relative 0–3s
         seg = self._make_seg(4_000, 8_000, "overlap")
         track = self._make_track("player_voice", True, [seg])
@@ -2465,7 +2465,7 @@ class TestCollectClipSubtitles:
         assert line.end_ms == 3_000
 
     def test_fully_inside_segment_correct_relative_times(self):
-        from rp_clipper.subtitles import collect_clip_subtitles
+        from yuu_clip.subtitles import collect_clip_subtitles
         seg = self._make_seg(6_000, 9_000, "hello")
         track = self._make_track("player_voice", True, [seg])
         clip = self._make_clip([track])
@@ -2476,7 +2476,7 @@ class TestCollectClipSubtitles:
 
     def test_uses_most_recent_transcript(self):
         import types, datetime
-        from rp_clipper.subtitles import collect_clip_subtitles
+        from yuu_clip.subtitles import collect_clip_subtitles
 
         seg_old = self._make_seg(6_000, 7_000, "old")
         seg_new = self._make_seg(6_000, 7_000, "new")
@@ -2524,19 +2524,19 @@ class TestMergedSrtLines:
         return clip
 
     def test_empty_clip_returns_empty(self):
-        from rp_clipper.subtitles import merged_srt_lines
+        from yuu_clip.subtitles import merged_srt_lines
         clip = self._make_clip([])
         assert merged_srt_lines(clip) == []
 
     def test_single_track_has_speaker_prefix(self):
-        from rp_clipper.subtitles import merged_srt_lines
+        from yuu_clip.subtitles import merged_srt_lines
         clip = self._make_clip([("player_voice", True, [(1000, 2000, "hi")])])
         lines = merged_srt_lines(clip)
         assert len(lines) == 1
         assert lines[0].speaker == "Player"
 
     def test_multi_track_sorted_by_start(self):
-        from rp_clipper.subtitles import merged_srt_lines
+        from yuu_clip.subtitles import merged_srt_lines
         clip = self._make_clip([
             ("player_voice", True, [(3000, 4000, "later")]),
             ("ingame_voicechat", True, [(1000, 2000, "earlier")]),
@@ -2552,7 +2552,7 @@ class TestMergedSrtLines:
 
 class TestParseFps:
     def _fps(self, s):
-        from rp_clipper.analyze.probe import _parse_fps
+        from yuu_clip.analyze.probe import _parse_fps
         return _parse_fps(s)
 
     def test_integer_string(self):
@@ -2581,7 +2581,7 @@ class TestParseFps:
 
 class TestVideoInfoProperties:
     def _make_info(self, duration_ms, n_audio=1):
-        from rp_clipper.analyze.probe import VideoInfo, AudioStreamInfo
+        from yuu_clip.analyze.probe import VideoInfo, AudioStreamInfo
         from pathlib import Path
         streams = [
             AudioStreamInfo(
@@ -2622,7 +2622,7 @@ class TestVideoInfoProperties:
 
 class TestLabelTracksSingleTrack:
     def _make_video_info(self, n_streams, title_tags=None):
-        from rp_clipper.analyze.probe import VideoInfo, AudioStreamInfo
+        from yuu_clip.analyze.probe import VideoInfo, AudioStreamInfo
         from pathlib import Path
         streams = [
             AudioStreamInfo(
@@ -2638,7 +2638,7 @@ class TestLabelTracksSingleTrack:
         )
 
     def test_single_track_auto_labeled_combined(self):
-        from rp_clipper.analyze.labeler import label_tracks
+        from yuu_clip.analyze.labeler import label_tracks
         vi = self._make_video_info(1)
         result = label_tracks(vi, non_interactive=True)
         assert len(result) == 1
@@ -2647,7 +2647,7 @@ class TestLabelTracksSingleTrack:
         assert result[0]["do_score"] is True
 
     def test_multi_track_non_interactive_no_profile_uses_track0(self):
-        from rp_clipper.analyze.labeler import label_tracks
+        from yuu_clip.analyze.labeler import label_tracks
         vi = self._make_video_info(3)
         result = label_tracks(vi, non_interactive=True)
         assert len(result) == 3
@@ -2664,7 +2664,7 @@ class TestLabelTracksSingleTrack:
 
 class TestLabelNonInteractive:
     def _make_streams(self, n, title_tags=None):
-        from rp_clipper.analyze.probe import AudioStreamInfo
+        from yuu_clip.analyze.probe import AudioStreamInfo
         return [
             AudioStreamInfo(
                 stream_index=i, codec_name="aac", sample_rate=48000,
@@ -2675,14 +2675,14 @@ class TestLabelNonInteractive:
         ]
 
     def test_single_stream_returns_primary_only(self):
-        from rp_clipper.analyze.labeler import _label_non_interactive
+        from yuu_clip.analyze.labeler import _label_non_interactive
         streams = self._make_streams(1)
         result = _label_non_interactive(streams, None)
         assert len(result) == 1
         assert result[0]["label"] == "combined"
 
     def test_two_streams_second_is_unlabeled(self):
-        from rp_clipper.analyze.labeler import _label_non_interactive
+        from yuu_clip.analyze.labeler import _label_non_interactive
         streams = self._make_streams(2)
         result = _label_non_interactive(streams, None)
         assert result[0]["label"] == "combined"
@@ -2690,7 +2690,7 @@ class TestLabelNonInteractive:
         assert result[1]["do_transcribe"] is False
 
     def test_stream_index_preserved(self):
-        from rp_clipper.analyze.labeler import _label_non_interactive
+        from yuu_clip.analyze.labeler import _label_non_interactive
         streams = self._make_streams(2)
         result = _label_non_interactive(streams, None)
         assert result[0]["stream_index"] == 0
@@ -2698,7 +2698,7 @@ class TestLabelNonInteractive:
 
     def test_default_profile_name_skipped(self):
         """__default__ profile name should not attempt a profile lookup."""
-        from rp_clipper.analyze.labeler import _label_non_interactive
+        from yuu_clip.analyze.labeler import _label_non_interactive
         streams = self._make_streams(2)
         result = _label_non_interactive(streams, "__default__")
         assert result[0]["label"] == "combined"
@@ -2710,14 +2710,14 @@ class TestLabelNonInteractive:
 
 class TestGuessLabelIndex:
     def _make_stream(self, title):
-        from rp_clipper.analyze.probe import AudioStreamInfo
+        from yuu_clip.analyze.probe import AudioStreamInfo
         return AudioStreamInfo(
             stream_index=0, codec_name="aac", sample_rate=48000,
             channels=2, channel_layout="stereo", duration_ms=None, title_tag=title,
         )
 
     def _guess(self, title):
-        from rp_clipper.analyze.labeler import _guess_label_index
+        from yuu_clip.analyze.labeler import _guess_label_index
         return _guess_label_index(self._make_stream(title))
 
     def test_mic_in_title_returns_player_voice(self):
@@ -2757,7 +2757,7 @@ class TestDetectTranscriptOverlap:
         )
 
     def _run(self, tracks, threshold=0.75):
-        from rp_clipper.analyze.overlap import detect_transcript_overlap
+        from yuu_clip.analyze.overlap import detect_transcript_overlap
 
         track_text_map = {t.id: t._words for t in tracks}
 

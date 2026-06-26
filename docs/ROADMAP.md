@@ -1,4 +1,4 @@
-# rp-clipper — Roadmap
+# yuu-clip — Roadmap
 
 ## Status overview
 
@@ -23,7 +23,7 @@
 - Sliding window clip generation from silence gaps
 - SRT caption sidecars (per-track + merged)
 - `--bake-captions` for baked-in captions
-- CLI: `rp-clip analyze / export / clips / status / probe`
+- CLI: `yuuclip analyze / export / clips / status / probe`
 
 ---
 
@@ -41,8 +41,8 @@
 - Track overlap detection: RMS Pearson correlation + post-transcription word overlap
   - Falls back to combined track when specialized tracks duplicate it
 - `clip_candidates.description` column with DB migration
-- `rp-clip score` standalone re-scoring command; useful after changing world contexts
-- `rp-clip reel` highlight reel compiler (FFmpeg xfade transitions + title cards)
+- `yuuclip score` standalone re-scoring command; useful after changing world contexts
+- `yuuclip reel` highlight reel compiler (FFmpeg xfade transitions + title cards)
 
 ---
 
@@ -50,13 +50,13 @@
 
 ### Done
 
-- FastAPI + uvicorn server (`rp-clip serve`)
+- FastAPI + uvicorn server (`yuuclip serve`)
 - Single-page frontend (vanilla JS, no build step)
 - Video list and clip list sidebar with sub-score bars (F/D/A) and clip ID
 - Clip detail: video player, score bars, description, transcript excerpt
 - Approve / Reject / Reset workflow with status dot
 - Export clip via SSE progress stream
-- ~~Score All button with SSE progress~~ — removed from UI; CLI-only via `rp-clip score`
+- ~~Score All button with SSE progress~~ — removed from UI; CLI-only via `yuuclip score`
 - Analyze modal: native OS file picker, inspect + time estimates, warning threshold
 - Step-by-step progress indicator in header during jobs
 - Track layout manager modal: create/edit/delete track layouts
@@ -94,7 +94,7 @@
 
 - [x] **Header hamburger menu** *(absorbs "Controls UI polish")*
   - Trim header to: `+ Analyze` · `Highlight Reel` · `≡` (hamburger trigger)
-  - **Score All button removed from UI** — CLI-only via `rp-clip score`; add interactive
+  - **Score All button removed from UI** — CLI-only via `yuuclip score`; add interactive
     confirmation + GPU time warning to the CLI command
   - Hamburger dropdown (icon + text per item):
     `🎭 Contexts` · `⌨ Controls` · `ℹ About` · `⬇ Download Log` · `⚙ Settings`
@@ -132,7 +132,7 @@
     - ~~Rescore after retranscribe: checkbox~~ — deferred
     - Output format: container picker (Match source default, MKV, MP4)
     - Burn subtitles: checkbox
-  - `--container` flag added to `rp-clip export` CLI command
+  - `--container` flag added to `yuuclip export` CLI command
   - Same modal reused by batch export
 
 - [x] **Batch export** *(requires export settings)*
@@ -219,7 +219,7 @@ Python backend would run as a bundled subprocess.
 |---|---|---|
 | Electron wrapper | Native desktop feel, auto-update, self-contained window | Adds JS build step; large bundle |
 | PyInstaller bundle | No Python needed, simpler build | ~300 MB binary; no auto-update |
-| `pip install rp-clipper` | Simple for Python users | Requires Python + pip knowledge |
+| `pip install yuu-clip` | Simple for Python users | Requires Python + pip knowledge |
 | Docker | Fully self-contained | Requires Docker; GPU passthrough is extra setup |
 
 ### Bundling AI dependencies

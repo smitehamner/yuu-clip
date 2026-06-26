@@ -1,4 +1,4 @@
-# rp-clipper — Claude Code context
+# yuu-clip — Claude Code context
 
 ## What this project is
 
@@ -41,12 +41,12 @@ proceeding. Restarting mid-ingest silently kills the subprocess and loses all pr
 interrupting other SSE jobs (rescore, timeline, summarize) is less catastrophic but
 should still be confirmed.
 
-HTML/JS edits to `rp_clipper/web/static/index.html` do **not** need a server restart.
+HTML/JS edits to `yuu_clip/web/static/index.html` do **not** need a server restart.
 
 ## Project layout
 
 ```
-rp_clipper/
+yuu_clip/
   cli.py                   # Typer CLI — ingest / serve / score / export / demo
   config.py                # Config + profile management
   db/models.py             # SQLAlchemy ORM (SQLite, NullPool)
@@ -79,7 +79,7 @@ Run at least `test-api.ps1` before reporting a backend fix as done.
 goal is to get the web UI stable enough for regular use. Approach:
 
 1. Try an action in the browser
-2. If it fails, check `.rp-clipper\rp-clipper.log`
+2. If it fails, check `.yuu-clip\yuu-clip.log`
 3. Fix the bug, restart the server, reproduce to confirm
 
 ## Terminology
@@ -103,7 +103,7 @@ Key terms to get right (common sources of drift):
 - "Analyze" / "Analysis" — not "Ingest" in user-facing text (code: `ingest`)
 - "Inspect" — not "Probe" in user-facing text (code: `probe()`)
 - "Track layout" — not "Profile" in user-facing text (code: `profile`)
-- "World context" — not "RP context" in user-facing text (code: `rp_context`)
+- "World context" — not "RP context" in user-facing text (code: `world_context`)
 - "LLM scoring" — not "AI scoring"
 - "Clip" — not "clip candidate" in user-facing text (code: `ClipCandidate`)
 - "Unreviewed" — not "Pending" in user-facing text (code: `status = 'pending'`)

@@ -1,6 +1,6 @@
-# rp-clipper — Glossary / Ubiquitous Language
+# yuu-clip — Glossary / Ubiquitous Language
 
-This file defines the authoritative term for every concept in rp-clipper. Use these terms consistently in code, UI labels, docs, and conversation. When a term here conflicts with what is currently in the code or UI, the code/UI should eventually be updated — not this file.
+This file defines the authoritative term for every concept in yuu-clip. Use these terms consistently in code, UI labels, docs, and conversation. When a term here conflicts with what is currently in the code or UI, the code/UI should eventually be updated — not this file.
 
 Two design principles drove the choices below:
 - **Creator-first naming** — terminology should make sense to a content creator, not require a developer background.
@@ -12,7 +12,7 @@ Two design principles drove the choices below:
 
 ### Recording
 
-A video file containing a gaming session — the primary input to rp-clipper.
+A video file containing a gaming session — the primary input to yuu-clip.
 
 - **Code:** `video`, `video_path`
 - **Also called in codebase:** "video", "source file"
@@ -119,7 +119,7 @@ Read a recording's metadata without running the full pipeline.
 - **Code:** `probe()`
 - **Also called in codebase:** "probe"
 - **Do not call it:** "probe" in user-facing text
-- **Notes:** Runs automatically as Stage 1 of analysis; also available standalone via `rp-clip probe` (CLI name unchanged for now).
+- **Notes:** Runs automatically as Stage 1 of analysis; also available standalone via `yuuclip probe` (CLI name unchanged for now).
 
 ---
 
@@ -168,7 +168,7 @@ The full text of everything said during a recording, as produced by speech-to-te
 
 ### Speech-to-Text Model
 
-The local AI model that converts audio to text. rp-clipper uses Whisper.
+The local AI model that converts audio to text. yuu-clip uses Whisper.
 
 - **Code:** `whisper_model`
 - **Also called:** "Whisper model", "transcription model"
@@ -477,7 +477,7 @@ The collapsible section that shows live output from the running job.
 
 ### Project Folder
 
-The hidden directory `.rp-clipper/` created inside the folder containing the recording. Holds the database, extracted audio, and exported clips.
+The hidden directory `.yuu-clip/` created inside the folder containing the recording. Holds the database, extracted audio, and exported clips.
 
 - **Code:** `project_dir`, `project_root`
 - **Notes:** Transparent to the creator unless they go looking. All per-recording state lives here.

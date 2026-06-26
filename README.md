@@ -1,6 +1,6 @@
-# rp-clipper
+# yuu-clip
 
-An RP gaming session clip extraction pipeline. Ingests OBS recordings, transcribes all audio tracks with Whisper, scores clip candidates with a local LLM, and surfaces the best moments through a web review UI.
+A local-first video session clip extraction pipeline. Ingests OBS recordings, transcribes all audio tracks with Whisper, scores clip candidates with a local LLM, and surfaces the best moments through a web review UI.
 
 Everything runs locally — no cloud APIs, no internet required after first model download.
 
@@ -18,7 +18,7 @@ Everything runs locally — no cloud APIs, no internet required after first mode
 - Generates a one-sentence description of each clip
 - Web UI to review clips, approve/reject, and export
 - Exports clips via FFmpeg with optional SRT subtitle sidecars
-- `rp-clip reel` command to compile approved clips into a highlight reel with transitions
+- `yuuclip reel` command to compile approved clips into a highlight reel with transitions
 
 ---
 
@@ -49,8 +49,8 @@ Ollama must be running (`ollama serve`) when you ingest or score.
 ## Install
 
 ```bash
-git clone https://github.com/you/rp-clipper
-cd rp-clipper
+git clone https://github.com/you/yuu-clip
+cd yuu-clip
 python -m venv .venv
 
 # Windows:
@@ -68,7 +68,7 @@ pip install -e .
 ### Start the web UI (recommended)
 ```bash
 cd my-recordings-folder
-rp-clip serve
+yuuclip serve
 ```
 Then navigate to `http://127.0.0.1:8080`. Use the **+ Analyze** button to add a video.
 
@@ -76,19 +76,19 @@ Then navigate to `http://127.0.0.1:8080`. Use the **+ Analyze** button to add a 
 
 ```bash
 # Analyze a video (auto-assigns tracks via a saved track layout)
-rp-clip analyze session.mkv --track-layout my_obs_setup
+yuuclip analyze session.mkv --track-layout my_obs_setup
 
 # Re-score all clips (useful after changing the AI model or world contexts)
-rp-clip score --all
+yuuclip score --all
 
 # Export a clip by ID
-rp-clip export 42 --captions
+yuuclip export 42 --captions
 
 # Compile approved clips into a highlight reel
-rp-clip reel --output highlights.mkv --transition fade
+yuuclip reel --output highlights.mkv --transition fade
 
 # Start the web UI for a specific project folder
-rp-clip serve --project /path/to/recordings
+yuuclip serve --project /path/to/recordings
 ```
 
 ---
@@ -101,7 +101,7 @@ For best results, install CUDA drivers for your GPU. The tool will automatically
 
 ```bash
 # Check which device is being used — shown in analyze output
-rp-clip analyze session.mkv
+yuuclip analyze session.mkv
 ```
 
 ---
@@ -124,7 +124,7 @@ Models are downloaded from HuggingFace on first use and cached locally (`~/.cach
 
 ```
 recordings-folder/
-└── .rp-clipper/
+└── .yuu-clip/
     ├── project.db        ← SQLite (all metadata, transcripts, candidates, scores)
     ├── config.toml       ← project config (overrides global defaults)
     ├── audio/
@@ -135,9 +135,9 @@ recordings-folder/
 ```
 
 Global config and profiles:
-- **Windows:** `%APPDATA%\rp-clipper\`
-- **Linux:**   `~/.config/rp-clipper/`
-- **macOS:**   `~/Library/Application Support/rp-clipper/`
+- **Windows:** `%APPDATA%\yuu-clip\`
+- **Linux:**   `~/.config/yuu-clip/`
+- **macOS:**   `~/Library/Application Support/yuu-clip/`
 
 ---
 
