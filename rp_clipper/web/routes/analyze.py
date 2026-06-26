@@ -106,8 +106,11 @@ def make_router(ctx: ProjectContext) -> APIRouter:
 
     @router.post("/api/probe")
     def probe_video_file(req: ProbeRequest):
-        """Probe a video file and return its duration, resolution, and stream counts."""
+        """Probe a video file and return its duration, resolution, stream counts, and subtitle info."""
+        import json as _json
+        import subprocess as _sp
         from rp_clipper.analyze.probe import probe_video
+        from rp_clipper.config import find_ffmpeg
         p = Path(req.path)
         if not p.exists():
             raise HTTPException(400, f"File not found: {req.path}")
@@ -115,14 +118,44 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             info = probe_video(p)
         except Exception as e:
             raise HTTPException(400, str(e))
+
+        # Detect embedded subtitle streams and .srt sidecar
+        subtitle_streams: list[dict] = []
+        try:
+            _, ffprobe = find_ffmpeg()
+            raw = _sp.run(
+                [ffprobe, "-v", "quiet", "-print_format", "json",
+                 "-show_streams", "-select_streams", "s", str(p)],
+                capture_output=True, text=True,
+            )
+            if raw.returncode == 0:
+                for s in _json.loads(raw.stdout).get("streams", []):
+                    subtitle_streams.append({
+                        "index": s.get("index"),
+                        "codec": s.get("codec_name", ""),
+                        "title": s.get("tags", {}).get("title", ""),
+                        "language": s.get("tags", {}).get("language", ""),
+                    })
+        except Exception:
+            pass
+
+        srt_sidecar: Optional[str] = None
+        for ext in (".srt", ".SRT"):
+            candidate = p.with_suffix(ext)
+            if candidate.exists():
+                srt_sidecar = str(candidate)
+                break
+
         return {
-            "filename":     p.name,
-            "duration_s":   (info.duration_ms or 0) / 1000,
-            "duration_hms": info.duration_hms,
-            "width":        info.width,
-            "height":       info.height,
-            "fps":          info.fps,
-            "audio_tracks": len(info.audio_streams),
+            "filename":         p.name,
+            "duration_s":       (info.duration_ms or 0) / 1000,
+            "duration_hms":     info.duration_hms,
+            "width":            info.width,
+            "height":           info.height,
+            "fps":              info.fps,
+            "audio_tracks":     len(info.audio_streams),
+            "subtitle_streams": subtitle_streams,
+            "srt_sidecar":      srt_sidecar,
         }
 
     @router.post("/api/estimate")
@@ -220,7 +253,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             "--captions", "--project", str(ctx.project_dir),
         ]
         if burn_subs:
-            cmd.append("--burn-subs")
+            cmd.append("--bake-captions")
         if container:
             cmd.extend(["--container", container])
         return await subprocess_sse(cmd, ctx.project_dir, ctx)

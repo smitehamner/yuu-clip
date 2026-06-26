@@ -267,6 +267,40 @@
   .timing-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .timing-input { width: 80px; padding: 4px 8px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 12px; font-family: monospace; text-align: center; }
   .timing-input:focus { border-color: var(--accent); outline: none; }
+
+  /* ── settings panel ── */
+  .settings-panel { display: none; flex: 1; flex-direction: column; overflow-y: auto; padding: 24px 32px; gap: 0; }
+  .settings-panel.visible { display: flex; }
+  .settings-section { border-bottom: 1px solid var(--border); padding-bottom: 24px; margin-bottom: 24px; }
+  .settings-section:last-child { border-bottom: none; }
+  .settings-section-title { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; color: var(--accent); margin-bottom: 14px; }
+  .settings-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+  .settings-label { font-size: 13px; color: var(--text); min-width: 200px; flex-shrink: 0; }
+  .settings-note { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .settings-col { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+  .settings-input { padding: 6px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 13px; width: 100%; }
+  .settings-input:focus { border-color: var(--accent); outline: none; }
+  .settings-select { padding: 6px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 13px; width: 100%; }
+  .settings-checkbox { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+  .settings-save-badge { font-size: 11px; color: var(--green); opacity: 0; transition: opacity .3s; }
+  .settings-save-badge.show { opacity: 1; }
+  .settings-weight-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .settings-weight-label { font-size: 12px; color: var(--muted); min-width: 140px; }
+  .settings-weight-val { font-size: 12px; font-weight: 600; min-width: 32px; text-align: right; }
+
+  /* ── reel builder ── */
+  .reel-builder-modal { width: 760px; max-width: 95vw; }
+  .reel-clip-list { display: flex; flex-direction: column; gap: 4px; max-height: 300px; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px; padding: 4px; background: var(--bg); }
+  .reel-clip-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 4px; background: var(--surface); }
+  .reel-clip-row.excluded { opacity: .4; }
+  .reel-clip-move { display: flex; flex-direction: column; gap: 1px; }
+  .reel-clip-move button { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 10px; padding: 1px 4px; line-height: 1; border-radius: 2px; }
+  .reel-clip-move button:hover { background: var(--border); color: var(--text); }
+  .reel-clip-info { flex: 1; min-width: 0; }
+  .reel-clip-name { font-size: 12px; font-weight: 500; }
+  .reel-clip-meta { font-size: 11px; color: var(--muted); }
+  .reel-estimate { font-size: 12px; color: var(--muted); padding: 6px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; }
+  .reel-no-export-warn { font-size: 11px; color: var(--yellow); margin-top: 3px; }
 </style>
 </head>
 <body>
@@ -293,12 +327,214 @@
       <button class="hamburger-item" onclick="openAboutModal();closeHamburger()">&#9432; About</button>
       <div class="hamburger-divider"></div>
       <a class="hamburger-item" href="/api/logs/export" download="rp-clipper.log" onclick="closeHamburger()">&#8595; Download Log</a>
-      <button class="hamburger-item" disabled title="Coming soon">&#9881; Settings</button>
+      <button class="hamburger-item" onclick="openSettings();closeHamburger()">&#9881; Settings</button>
     </div>
   </div>
 </header>
 
-<div class="layout">
+<!-- Settings panel (replaces main layout when active) -->
+<div class="settings-panel" id="settings-panel">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+    <h2 style="font-size:16px;font-weight:700">Settings</h2>
+    <div style="display:flex;align-items:center;gap:10px">
+      <span class="settings-save-badge" id="settings-saved-badge">&#10003; Saved</span>
+      <button class="btn ghost" onclick="closeSettings()" style="font-size:16px">&#x2715;</button>
+    </div>
+  </div>
+
+  <!-- Whisper section -->
+  <div class="settings-section">
+    <div class="settings-section-title">Whisper (Speech-to-text)</div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <div class="settings-label">Model</div>
+        <div class="settings-note">Takes effect on next analysis</div>
+      </div>
+      <select class="settings-select" id="s-whisper-model" onchange="saveSettings('whisper_model', this.value)">
+        <option value="tiny">tiny — fastest, lowest quality</option>
+        <option value="base">base — fast, lower quality</option>
+        <option value="small">small (~500 MB VRAM)</option>
+        <option value="medium">medium — good balance (~1.5 GB VRAM)</option>
+        <option value="large-v3">large-v3 — best quality (~3 GB VRAM)</option>
+      </select>
+    </div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <div class="settings-label">Compute device</div>
+        <div class="settings-note">auto = CUDA if available, else CPU</div>
+      </div>
+      <select class="settings-select" id="s-whisper-device" onchange="saveSettings('whisper_device', this.value)" style="max-width:200px">
+        <option value="auto">auto (recommended)</option>
+        <option value="cuda">cuda (NVIDIA GPU)</option>
+        <option value="cpu">cpu</option>
+      </select>
+    </div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <div class="settings-label">Compute type</div>
+        <div class="settings-note">int8 is fastest on CPU; float16 best on GPU</div>
+      </div>
+      <select class="settings-select" id="s-whisper-compute" onchange="saveSettings('whisper_compute_type', this.value)" style="max-width:200px">
+        <option value="int8">int8</option>
+        <option value="float16">float16</option>
+        <option value="float32">float32</option>
+        <option value="int8_float16">int8_float16</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Ollama section -->
+  <div class="settings-section">
+    <div class="settings-section-title">Ollama (LLM scoring)</div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <div class="settings-label">Enable LLM scoring</div>
+        <div class="settings-note">Disabling skips description + sub-score generation</div>
+      </div>
+      <label class="settings-checkbox">
+        <input type="checkbox" id="s-ollama-enabled" onchange="saveSettings('ollama_enabled', this.checked)">
+        <span style="font-size:13px">Enabled</span>
+      </label>
+    </div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <div class="settings-label">Model</div>
+        <div class="settings-note">Must be pulled in Ollama first</div>
+      </div>
+      <input class="settings-input" id="s-ollama-model" type="text" placeholder="llama3.1:8b"
+             onblur="saveSettings('ollama_model', this.value)">
+    </div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <div class="settings-label">Host</div>
+        <div class="settings-note">Default: http://localhost:11434</div>
+      </div>
+      <input class="settings-input" id="s-ollama-host" type="text" placeholder="http://localhost:11434"
+             onblur="saveSettings('ollama_host', this.value)">
+    </div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <div class="settings-label">Timeout (seconds)</div>
+        <div class="settings-note">Per-clip LLM call timeout</div>
+      </div>
+      <input class="settings-input" id="s-ollama-timeout" type="number" min="1" max="600" step="5"
+             onchange="saveSettings('ollama_timeout_s', parseFloat(this.value))" style="max-width:100px">
+    </div>
+  </div>
+
+  <!-- Scoring weights section -->
+  <div class="settings-section">
+    <div class="settings-section-title">Scoring weights <span style="font-size:11px;font-weight:400;color:var(--muted)">(takes effect on next re-score)</span></div>
+    <div class="settings-row" style="align-items:flex-start">
+      <div style="flex:1">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Signal weights</div>
+        <div class="settings-weight-row">
+          <span class="settings-weight-label">&#128266; Audio energy</span>
+          <input type="range" min="0" max="5" step="0.1" id="s-energy-weight" style="flex:1"
+                 oninput="document.getElementById('s-energy-weight-val').textContent=parseFloat(this.value).toFixed(1)"
+                 onchange="saveSettings('scorer_energy_weight', parseFloat(this.value))">
+          <span class="settings-weight-val" id="s-energy-weight-val">1.0</span>
+        </div>
+        <div class="settings-weight-row">
+          <span class="settings-weight-label">&#127916; Scene cuts</span>
+          <input type="range" min="0" max="5" step="0.1" id="s-scene-weight" style="flex:1"
+                 oninput="document.getElementById('s-scene-weight-val').textContent=parseFloat(this.value).toFixed(1)"
+                 onchange="saveSettings('scorer_scene_weight', parseFloat(this.value))">
+          <span class="settings-weight-val" id="s-scene-weight-val">0.5</span>
+        </div>
+        <div class="settings-weight-row">
+          <span class="settings-weight-label">&#129504; LLM score</span>
+          <input type="range" min="0" max="5" step="0.1" id="s-llm-weight" style="flex:1"
+                 oninput="document.getElementById('s-llm-weight-val').textContent=parseFloat(this.value).toFixed(1)"
+                 onchange="saveSettings('scorer_llm_weight', parseFloat(this.value))">
+          <span class="settings-weight-val" id="s-llm-weight-val">2.0</span>
+        </div>
+      </div>
+      <div style="flex:1;margin-left:24px">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Sub-score weights</div>
+        <div class="settings-weight-row">
+          <span class="settings-weight-label">&#128514; Funny</span>
+          <input type="range" min="0" max="5" step="0.1" id="s-funny-weight" style="flex:1"
+                 oninput="document.getElementById('s-funny-weight-val').textContent=parseFloat(this.value).toFixed(1)"
+                 onchange="saveSettings('score_funny_weight', parseFloat(this.value))">
+          <span class="settings-weight-val" id="s-funny-weight-val">1.0</span>
+        </div>
+        <div class="settings-weight-row">
+          <span class="settings-weight-label">&#127917; Dramatic</span>
+          <input type="range" min="0" max="5" step="0.1" id="s-dramatic-weight" style="flex:1"
+                 oninput="document.getElementById('s-dramatic-weight-val').textContent=parseFloat(this.value).toFixed(1)"
+                 onchange="saveSettings('score_dramatic_weight', parseFloat(this.value))">
+          <span class="settings-weight-val" id="s-dramatic-weight-val">1.0</span>
+        </div>
+        <div class="settings-weight-row">
+          <span class="settings-weight-label">&#9876;&#65039; Action</span>
+          <input type="range" min="0" max="5" step="0.1" id="s-action-weight" style="flex:1"
+                 oninput="document.getElementById('s-action-weight-val').textContent=parseFloat(this.value).toFixed(1)"
+                 onchange="saveSettings('score_action_weight', parseFloat(this.value))">
+          <span class="settings-weight-val" id="s-action-weight-val">1.0</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Analysis defaults section -->
+  <div class="settings-section">
+    <div class="settings-section-title">Analysis defaults <span style="font-size:11px;font-weight:400;color:var(--muted)">(pre-filled in Analyze modal)</span></div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <div class="settings-label">Scene detection mode</div>
+      </div>
+      <select class="settings-select" id="s-scene-mode" onchange="saveSettings('scene_detection_mode', this.value)">
+        <option value="transcript">Transcript — silence gaps only (instant)</option>
+        <option value="fast">Fast — keyframes + transcript gaps (recommended)</option>
+        <option value="full">Full — every frame, most accurate (slow)</option>
+      </select>
+    </div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <div class="settings-label">Silence threshold (ms)</div>
+        <div class="settings-note">Gap length that marks a clip boundary</div>
+      </div>
+      <input class="settings-input" id="s-silence-ms" type="number" min="500" max="30000" step="500"
+             onchange="saveSettings('silence_threshold_ms', parseInt(this.value))" style="max-width:120px">
+    </div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <div class="settings-label">Minimum clip length (ms)</div>
+        <div class="settings-note">Shorter candidates are discarded</div>
+      </div>
+      <input class="settings-input" id="s-min-clip-ms" type="number" min="1000" max="120000" step="1000"
+             onchange="saveSettings('min_clip_ms', parseInt(this.value))" style="max-width:120px">
+    </div>
+  </div>
+
+  <!-- UI section -->
+  <div class="settings-section">
+    <div class="settings-section-title">UI</div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <div class="settings-label">Timeline interval</div>
+        <div class="settings-note">Bucket size used when generating session timeline</div>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <input class="settings-input" id="s-timeline-interval" type="number" min="10" step="1"
+               onchange="saveTimelineInterval()" style="max-width:80px">
+        <select class="settings-select" id="s-timeline-unit" onchange="saveTimelineInterval()" style="max-width:120px">
+          <option value="seconds">seconds</option>
+          <option value="minutes">minutes</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- Paths section (read-only for now) -->
+  <div class="settings-section">
+    <div class="settings-section-title">Paths <span style="font-size:11px;font-weight:400;color:var(--muted)">(read-only — set via --project flag)</span></div>
+    <div id="s-paths-display" style="font-size:12px;color:var(--muted);line-height:2"></div>
+  </div>
+</div>
+
+<div class="layout" id="main-layout">
   <!-- Sidebar -->
   <div class="sidebar">
     <div class="sidebar-group videos-group">
@@ -473,46 +709,100 @@
   </div>
 </div>
 
-<!-- Demo Reel Modal -->
+<!-- Reel Builder Modal (redesigned) -->
 <div class="modal-bg" id="demo-modal">
-  <div class="modal">
-    <h3>Build Highlight Reel</h3>
-    <div class="field">
-      <label>Clips to include</label>
-      <select id="demo-video-id">
+  <div class="modal reel-builder-modal">
+    <h3 style="margin-top:0;margin-bottom:14px">Build Highlight Reel</h3>
+
+    <div class="field" style="margin-bottom:10px">
+      <label>Clips from</label>
+      <select id="demo-video-id" onchange="loadReelClips()">
         <option value="">All approved clips</option>
       </select>
     </div>
-    <div class="field">
-      <label>Transition</label>
-      <select id="demo-transition">
-        <option value="fade" selected>Fade</option>
-        <option value="dissolve">Dissolve</option>
-        <option value="wipeleft">Wipe left</option>
-        <option value="wiperight">Wipe right</option>
-        <option value="slideleft">Slide left</option>
-        <option value="slideright">Slide right</option>
-        <option value="none">None (hard cut)</option>
-      </select>
+
+    <div style="margin-bottom:10px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <label style="font-size:12px;color:var(--muted)">Clip order <span style="font-size:10px">(check to include · ↑↓ to reorder)</span></label>
+        <button class="btn ghost" style="font-size:11px;padding:2px 8px" onclick="loadReelClips()">&#8635; Refresh</button>
+      </div>
+      <div class="reel-clip-list" id="reel-clip-list">
+        <div style="padding:16px;text-align:center;color:var(--muted);font-size:12px">Loading clips…</div>
+      </div>
     </div>
-    <div style="display:flex;gap:12px">
-      <div class="field" style="flex:1">
+
+    <div id="reel-estimate" class="reel-estimate" style="margin-bottom:10px">Loading estimate…</div>
+
+    <div style="display:flex;gap:12px;margin-bottom:10px">
+      <div class="field" style="flex:1;margin:0">
+        <label>Transition</label>
+        <select id="demo-transition" onchange="updateReelEstimate()">
+          <option value="fade" selected>Fade</option>
+          <option value="dissolve">Dissolve</option>
+          <option value="wipeleft">Wipe left</option>
+          <option value="wiperight">Wipe right</option>
+          <option value="slideleft">Slide left</option>
+          <option value="slideright">Slide right</option>
+          <option value="random">Random (different each cut)</option>
+          <option value="none">None (hard cut)</option>
+        </select>
+      </div>
+      <div class="field" style="flex:1;margin:0">
         <label>Transition duration (s)</label>
-        <input type="number" id="demo-trans-dur" value="0.5" min="0.1" max="2.0" step="0.1">
+        <input type="number" id="demo-trans-dur" value="0.5" min="0.1" max="2.0" step="0.1" onchange="updateReelEstimate()">
       </div>
-      <div class="field" style="flex:1">
+      <div class="field" style="flex:1;margin:0">
         <label>Title card duration (s)</label>
-        <input type="number" id="demo-title-dur" value="3.0" min="1.0" max="10.0" step="0.5">
+        <input type="number" id="demo-title-dur" value="3.0" min="1.0" max="10.0" step="0.5" onchange="updateReelEstimate()">
       </div>
     </div>
-    <div class="field">
+
+    <div class="field" style="margin-bottom:12px">
       <label>Output filename</label>
       <input type="text" id="demo-output-name" placeholder="highlights_YYYYMMDD_HHMMSS.mkv (auto)">
     </div>
-    <div id="demo-status" style="font-size:12px;color:var(--muted)"></div>
+
+    <div id="demo-status" style="font-size:12px;color:var(--muted);margin-bottom:10px"></div>
     <div class="modal-actions">
       <button class="btn" onclick="closeDemoModal()">Cancel</button>
+      <button class="btn" onclick="previewReelPlaylist()" title="Play exported clips in sequence">&#9654; Preview</button>
       <button class="btn primary" onclick="startDemo()">Build Reel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Batch Export Modal -->
+<div class="modal-bg" id="batch-export-modal">
+  <div class="modal" style="width:400px">
+    <h3 style="margin-top:0">Export Approved Clips</h3>
+    <div class="field">
+      <label>Minimum score</label>
+      <div style="display:flex;align-items:center;gap:10px">
+        <input type="range" id="batch-min-score" min="0" max="1" step="0.05" value="0"
+               oninput="document.getElementById('batch-min-score-val').textContent=parseFloat(this.value).toFixed(2);updateBatchEstimate()">
+        <span id="batch-min-score-val" style="font-size:13px;font-weight:600;min-width:36px">0.00</span>
+      </div>
+    </div>
+    <div id="batch-estimate-line" style="font-size:12px;color:var(--muted);margin-bottom:10px"></div>
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;margin-bottom:10px">
+      <input type="checkbox" id="batch-skip-exported" checked>
+      Skip clips already exported
+    </label>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+      <label style="font-size:13px;color:var(--muted);min-width:110px">Output format</label>
+      <select id="batch-container" style="flex:1;padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px">
+        <option value="">Match source</option>
+        <option value="mkv">MKV</option>
+        <option value="mp4">MP4</option>
+      </select>
+    </div>
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;margin-bottom:14px">
+      <input type="checkbox" id="batch-burn-subs">
+      Burn subtitles into video
+    </label>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeBatchExportModal()">Cancel</button>
+      <button class="btn primary" onclick="confirmBatchExport()">Export</button>
     </div>
   </div>
 </div>
@@ -1099,6 +1389,7 @@ function renderVideoDetail(video, savedTimeline) {
       <button class="btn" id="btn-summarize-video" onclick="summarizeVideo(${video.id}, this)">${video.summary ? 'Regenerate Summary' : 'Generate Summary'}</button>
       <button class="btn" id="btn-generate-timeline" onclick="generateTimeline(${video.id})">${video.has_timeline ? 'Regenerate Timeline' : 'Generate Timeline'}</button>
       <button class="btn" onclick="openAutoApproveModal(${video.id})">Approve Above Score</button>
+      <button class="btn" onclick="openBatchExportModal(${video.id})">Export Approved</button>
       <button class="btn" style="color:var(--red)" onclick="resetApprovals(${video.id})">Reset Approvals</button>
     </div>
 
@@ -2394,6 +2685,8 @@ function cancelProfileEdit() {
 }
 
 // ── demo reel ──────────────────────────────────────────────────────────────────
+let _reelClips = [];   // [{id, video_id, start_hms, duration_ms, score_overall, description, has_export, included}]
+
 async function openDemoModal() {
   const totalApproved = _videos.reduce((n, v) => n + v.approved, 0);
   if (totalApproved === 0) {
@@ -2411,21 +2704,147 @@ async function openDemoModal() {
     opt.textContent = `${v.filename} (${v.approved} approved)`;
     sel.appendChild(opt);
   }
+  await loadReelClips();
+}
+
+async function loadReelClips() {
+  const videoIdVal = document.getElementById('demo-video-id').value;
+  const qs = videoIdVal ? `?video_id=${videoIdVal}` : '';
+  const listEl = document.getElementById('reel-clip-list');
+  listEl.innerHTML = '<div style="padding:16px;text-align:center;color:var(--muted);font-size:12px">Loading…</div>';
+  try {
+    const clips = await fetch(`/api/demo/approved-clips${qs}`).then(r => r.json());
+    _reelClips = clips.map(c => ({...c, included: true}));
+  } catch {
+    _reelClips = [];
+  }
+  renderReelClipList();
+  updateReelEstimate();
+}
+
+function renderReelClipList() {
+  const listEl = document.getElementById('reel-clip-list');
+  if (!_reelClips.length) {
+    listEl.innerHTML = '<div style="padding:16px;text-align:center;color:var(--muted);font-size:12px">No approved clips found</div>';
+    return;
+  }
+  listEl.innerHTML = '';
+  _reelClips.forEach((c, i) => {
+    const row = document.createElement('div');
+    row.className = 'reel-clip-row' + (c.included ? '' : ' excluded');
+    row.innerHTML = `
+      <div class="reel-clip-move">
+        <button title="Move up" onclick="_reelMove(${i}, -1)">&#9650;</button>
+        <button title="Move down" onclick="_reelMove(${i}, 1)">&#9660;</button>
+      </div>
+      <input type="checkbox" ${c.included ? 'checked' : ''} onchange="_reelToggle(${i}, this.checked)" title="Include in reel">
+      <div class="reel-clip-info">
+        <div class="reel-clip-name">${escHtml(c.description || `Clip ${c.id}`)}</div>
+        <div class="reel-clip-meta">${escHtml(c.start_hms)} · ${escHtml(c.duration_hms)} · ⭐${c.score_overall.toFixed(2)}
+          ${c.has_export ? '' : ' · <span style="color:var(--yellow)">not exported</span>'}
+        </div>
+      </div>`;
+    listEl.appendChild(row);
+  });
+}
+
+function _reelMove(i, dir) {
+  const j = i + dir;
+  if (j < 0 || j >= _reelClips.length) return;
+  [_reelClips[i], _reelClips[j]] = [_reelClips[j], _reelClips[i]];
+  renderReelClipList();
+  updateReelEstimate();
+}
+
+function _reelToggle(i, included) {
+  _reelClips[i].included = included;
+  renderReelClipList();
+  updateReelEstimate();
+}
+
+function updateReelEstimate() {
+  const included = _reelClips.filter(c => c.included);
+  const n = included.length;
+  const totalFootageMs = included.reduce((s, c) => s + c.duration_ms, 0);
+  const titleDur = parseFloat(document.getElementById('demo-title-dur')?.value || 3);
+  const transDur = parseFloat(document.getElementById('demo-trans-dur')?.value || 0.5);
+  const transition = document.getElementById('demo-transition')?.value || 'fade';
+
+  const totalFootageS = totalFootageMs / 1000;
+  let encodeEtaS = 0;
+  if (transition === 'none') {
+    encodeEtaS = 5;  // stream copy, nearly instant
+  } else {
+    const totalEncodeS = totalFootageS + n * titleDur;
+    encodeEtaS = totalEncodeS / 3;  // ~3x realtime on GPU
+  }
+
+  const unexported = included.filter(c => !c.has_export).length;
+  const el = document.getElementById('reel-estimate');
+  if (!el) return;
+  if (!n) {
+    el.innerHTML = 'No clips selected';
+    return;
+  }
+  const fmtS = s => s < 60 ? `${s.toFixed(0)}s` : `${Math.floor(s/60)}m ${(s%60).toFixed(0)}s`;
+  el.innerHTML =
+    `${n} clip(s) · ${fmtS(totalFootageS)} footage · encode ~${fmtS(encodeEtaS)}` +
+    (unexported ? `<div class="reel-no-export-warn">⚠ ${unexported} clip(s) not yet exported — export them first or they will be skipped</div>` : '');
 }
 
 function closeDemoModal() {
   document.getElementById('demo-modal').classList.remove('visible');
 }
 
+async function previewReelPlaylist() {
+  const included = _reelClips.filter(c => c.included && c.has_export);
+  if (!included.length) {
+    showToast('No exported clips selected — export clips first to preview them', 'info');
+    return;
+  }
+  closeDemoModal();
+  let idx = 0;
+  const playNext = async () => {
+    if (idx >= included.length) {
+      showToast('Playlist complete');
+      return;
+    }
+    const c = included[idx++];
+    const media = await fetch(`/api/clips/${c.id}/media_url`).then(r => r.json()).catch(() => null);
+    if (media?.url) {
+      renderPlayer(media.url, null);
+      const vid = document.querySelector('#player-area video');
+      if (vid) {
+        vid.onended = playNext;
+        vid.play().catch(() => {});
+      }
+    } else {
+      playNext();
+    }
+  };
+  await playNext();
+  showToast(`Playing ${included.length} clip(s) in sequence — click a clip in the sidebar to stop`);
+}
+
 async function startDemo() {
-  const videoIdVal = document.getElementById('demo-video-id').value;
+  const included = _reelClips.filter(c => c.included);
+  if (!included.length) {
+    showToast('No clips selected', 'info');
+    return;
+  }
+  const unexported = included.filter(c => !c.has_export);
+  if (unexported.length > 0 && included.length === unexported.length) {
+    showToast('None of the selected clips have been exported — export them first', 'error');
+    return;
+  }
+
   const body = {
+    clip_ids:    included.map(c => c.id),
     transition:  document.getElementById('demo-transition').value,
     trans_dur:   parseFloat(document.getElementById('demo-trans-dur').value),
     title_dur:   parseFloat(document.getElementById('demo-title-dur').value),
     output_name: document.getElementById('demo-output-name').value.trim(),
   };
-  if (videoIdVal) body.video_id = parseInt(videoIdVal);
 
   const statusEl = document.getElementById('demo-status');
   statusEl.style.color = 'var(--muted)';
@@ -2438,7 +2857,7 @@ async function startDemo() {
   if (!res.ok) {
     const e = await res.json();
     statusEl.style.color = 'var(--red)';
-    statusEl.textContent = e.detail || 'Failed to start demo build.';
+    statusEl.textContent = e.detail || 'Failed to start reel build.';
     return;
   }
   const data = await res.json();
@@ -2448,8 +2867,60 @@ async function startDemo() {
   streamSSE(
     '/api/demo/events',
     () => { loadVideos(); showToast('Highlight reel complete!'); openReelsModal(); },
-    [{label: 'Building', patterns: ['Building demo', 'Generating', 'OK']}],
+    [{label: 'Building', patterns: ['Generating title', 'Encoding', 'OK']}],
     'Reel',
+  );
+}
+
+// ── batch export ───────────────────────────────────────────────────────────────
+let _batchExportVideoId = null;
+
+function openBatchExportModal(videoId) {
+  _batchExportVideoId = videoId;
+  document.getElementById('batch-min-score').value = 0;
+  document.getElementById('batch-min-score-val').textContent = '0.00';
+  document.getElementById('batch-skip-exported').checked = true;
+  document.getElementById('batch-container').value = '';
+  document.getElementById('batch-burn-subs').checked = false;
+  document.getElementById('batch-export-modal').classList.add('visible');
+  updateBatchEstimate();
+}
+
+function closeBatchExportModal() {
+  document.getElementById('batch-export-modal').classList.remove('visible');
+}
+
+function updateBatchEstimate() {
+  const minScore = parseFloat(document.getElementById('batch-min-score').value);
+  const video = _videos.find(v => v.id === _batchExportVideoId);
+  if (!video) return;
+  const el = document.getElementById('batch-estimate-line');
+  // Count from _clips if available; otherwise show video's approved count
+  const eligible = _clips
+    ? _clips.filter(c => c.status === 'approved' && c.score_overall >= minScore).length
+    : video.approved;
+  el.textContent = `${eligible} clip(s) match`;
+}
+
+async function confirmBatchExport() {
+  const id = _batchExportVideoId;
+  const minScore   = parseFloat(document.getElementById('batch-min-score').value);
+  const skipExp    = document.getElementById('batch-skip-exported').checked;
+  const container  = document.getElementById('batch-container').value;
+  const burnSubs   = document.getElementById('batch-burn-subs').checked;
+  closeBatchExportModal();
+
+  const params = new URLSearchParams({min_score: minScore});
+  if (!skipExp) params.set('skip_exported', 'false');
+  if (container) params.set('container', container);
+  if (burnSubs)  params.set('burn_subs', 'true');
+
+  openLog();
+  streamSSE(
+    `/api/videos/${id}/batch-export?${params}`,
+    () => { loadVideos(); showToast('Batch export complete'); },
+    [{label: 'Exporting', patterns: ['Exporting clip', 'OK clip', 'Skipping']}],
+    'Batch Export',
   );
 }
 
@@ -2852,6 +3323,108 @@ function rescoreClip(clipId) {
   };
 }
 
+// ── settings panel ─────────────────────────────────────────────────────────────
+let _settingsSaveTimer = null;
+
+async function openSettings() {
+  document.getElementById('main-layout').style.display = 'none';
+  document.getElementById('settings-panel').style.flex = '1';
+  document.getElementById('settings-panel').classList.add('visible');
+  // Load current config
+  try {
+    const cfg = await fetch('/api/config').then(r => r.json());
+    _applySettingsToUI(cfg);
+  } catch (e) {
+    showToast('Failed to load settings', 'error');
+  }
+  // Show project paths (version string contains some info)
+  const pathsEl = document.getElementById('s-paths-display');
+  if (pathsEl) {
+    const st = await fetch('/api/status').then(r => r.json()).catch(() => ({}));
+    pathsEl.innerHTML = `<div>${escHtml(st.version || '')}</div>`;
+  }
+}
+
+function closeSettings() {
+  if (!document.getElementById('settings-panel').classList.contains('visible')) return;
+  document.getElementById('settings-panel').classList.remove('visible');
+  document.getElementById('main-layout').style.display = '';
+}
+
+function _applySettingsToUI(cfg) {
+  const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+  const setChk = (id, val) => { const el = document.getElementById(id); if (el) el.checked = val; };
+  const setTxt = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+  setVal('s-whisper-model',  cfg.whisper_model   || 'base');
+  setVal('s-whisper-device', cfg.whisper_device  || 'auto');
+  setVal('s-whisper-compute',cfg.whisper_compute_type || 'int8');
+  setChk('s-ollama-enabled', cfg.ollama_enabled  !== false);
+  setVal('s-ollama-model',   cfg.ollama_model    || '');
+  setVal('s-ollama-host',    cfg.ollama_host     || '');
+  setVal('s-ollama-timeout', cfg.ollama_timeout_s|| 120);
+  // Weights
+  const ew = (cfg.scorer_energy_weight  ?? 1.0).toFixed(1);
+  const sw = (cfg.scorer_scene_weight   ?? 0.5).toFixed(1);
+  const lw = (cfg.scorer_llm_weight     ?? 2.0).toFixed(1);
+  const fw = (cfg.score_funny_weight    ?? 1.0).toFixed(1);
+  const dw = (cfg.score_dramatic_weight ?? 1.0).toFixed(1);
+  const aw = (cfg.score_action_weight   ?? 1.0).toFixed(1);
+  setVal('s-energy-weight', ew);   setTxt('s-energy-weight-val', ew);
+  setVal('s-scene-weight',  sw);   setTxt('s-scene-weight-val',  sw);
+  setVal('s-llm-weight',    lw);   setTxt('s-llm-weight-val',    lw);
+  setVal('s-funny-weight',  fw);   setTxt('s-funny-weight-val',  fw);
+  setVal('s-dramatic-weight',dw);  setTxt('s-dramatic-weight-val',dw);
+  setVal('s-action-weight', aw);   setTxt('s-action-weight-val', aw);
+  // Analysis
+  setVal('s-scene-mode',    cfg.scene_detection_mode || 'fast');
+  setVal('s-silence-ms',    cfg.silence_threshold_ms ?? 3000);
+  setVal('s-min-clip-ms',   cfg.min_clip_ms          ?? 15000);
+  // UI
+  setVal('s-timeline-interval', cfg.ui_timeline_interval_seconds ?? 900);
+  setVal('s-timeline-unit',     cfg.ui_timeline_interval_unit    || 'minutes');
+}
+
+function saveSettings(key, value) {
+  clearTimeout(_settingsSaveTimer);
+  _settingsSaveTimer = setTimeout(async () => {
+    try {
+      const res = await fetch('/api/config', {
+        method: 'PATCH', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({[key]: value}),
+      });
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        showToast(`Settings error: ${e.detail || 'save failed'}`, 'error');
+        return;
+      }
+      _flashSettingsSaved();
+    } catch {
+      showToast('Settings save failed', 'error');
+    }
+  }, 400);
+}
+
+async function saveTimelineInterval() {
+  const val = parseInt(document.getElementById('s-timeline-interval').value);
+  const unit = document.getElementById('s-timeline-unit').value;
+  if (isNaN(val) || val < 10) return;
+  try {
+    const res = await fetch('/api/config', {
+      method: 'PATCH', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ui_timeline_interval_seconds: val, ui_timeline_interval_unit: unit}),
+    });
+    if (!res.ok) return;
+    _flashSettingsSaved();
+  } catch {}
+}
+
+function _flashSettingsSaved() {
+  const badge = document.getElementById('settings-saved-badge');
+  if (!badge) return;
+  badge.classList.add('show');
+  setTimeout(() => badge.classList.remove('show'), 2000);
+}
+
 // ── about modal ────────────────────────────────────────────────────────────
 function openAboutModal()  { document.getElementById('about-modal').classList.add('visible'); }
 function closeAboutModal() { document.getElementById('about-modal').classList.remove('visible'); }
@@ -2956,6 +3529,8 @@ document.addEventListener('keydown', e => {
     closeReelsModal();
     closeRetranscribeModal();
     closeContextManager();
+    closeBatchExportModal();
+    closeSettings();
     closeHamburger();
     return;
   }

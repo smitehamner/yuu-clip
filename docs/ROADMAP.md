@@ -118,7 +118,7 @@
   - `GET /api/config` / `PATCH /api/config` endpoints for UI config persistence
   - YAML migration deferred to Settings page phase
 
-- [ ] **Active-generation indicator**
+- [x] **Active-generation indicator** — client-side: buttons disable + show "Generating…" during in-flight calls; per-field spinners deferred (server-side tracking not yet implemented)
   - Extend `/api/status` with `generating: [{"kind": "summary"|"description"|..., "video_id": N}
     | {"kind": "...", "clip_id": N}]`; server tracks active jobs in `ProjectContext`
   - Frontend polls on page load; matches entries to fields and lights up spinners
@@ -135,7 +135,7 @@
   - `--container` flag added to `rp-clip export` CLI command
   - Same modal reused by batch export
 
-- [ ] **Batch export** *(requires export settings)*
+- [x] **Batch export** *(requires export settings)*
   - "Export Clips" button in video detail panel → threshold modal:
     - Score threshold: slider + number input
     - Distribution preview: "14 clips above 0.6, 3 already exported → 11 will export"
@@ -149,7 +149,7 @@
   - Threshold input + confirmation modal showing clip count
   - Filter + bulk-select in sidebar deferred to the search + filter feature
 
-- [ ] **Settings page** *(promoted from medium-term)*
+- [x] **Settings page** *(promoted from medium-term)* — accessible via hamburger ⚙ Settings; auto-saves; sections: Whisper, Ollama, Scoring weights, Analysis defaults, UI, Paths
   - Accessible via `⚙ Settings` in hamburger menu — replaces the main content area (not a modal)
   - Auto-save on change; inline consequence notes where needed:
     "Takes effect on next rescore" / "Takes effect on next ingest"
@@ -170,6 +170,8 @@
     than last rescore
   - Top-N configured in Settings
 
+- [x] **Highlight reel editor** — "Build Reel" modal redesigned: ordered clip list (check/uncheck, ↑↓ reorder), "Random" transition option, encode time estimate, "Preview" plays exported clips as a playlist in the main player; `--clip-ids` added to CLI `reel` command
+
 - ~~**Clip deduplication**~~ — **On hold**: design unclear; revisit after transcript editing is stable
 
 ### Medium-term
@@ -184,19 +186,11 @@
   original `start_time` / `end_time` are immutable. Drag handles on the player timeline are still
   a future enhancement (see Phase 6).
 
-- [ ] **Export: match source format by default** — when exporting a clip, default the container and
-  codec to match the source video instead of always writing MKV. User overrides are a future option.
+- [x] **Export: match source format by default** — export modal defaults to "Match source"; CLI `--container` override added; stream copy (no re-encode) is the default.
 
-- [ ] **Quick Export vs Full Export** — "Quick Export" re-encodes just the clip segment with no
-  title card or transcript overlay; expected to be fast enough to use as an in-app preview.
-  "Full Export" is the existing behavior. No disk-filling auto-preview cache — the user must
-  explicitly trigger an export. Option to save to a custom path (user's choice about removable
-  drives and access implications).
+- [ ] **Quick Export vs Full Export** — current export is already "quick" (stream copy, no title card). Full Export (with title card, like reel clips) is a future addition.
 
-- [ ] **SRT import / external subtitle support** — detect embedded subtitle tracks and `.srt`
-  sidecars adjacent to the source file; offer them as alternatives to running Whisper.
-  Also allow the user to point to an external `.srt` file. Eliminates Whisper CPU time for
-  users who already have subtitles from another source.
+- [ ] **SRT import / external subtitle support** — probe now detects embedded subtitle streams and `.srt` sidecars and returns them in the probe response. Using them to skip Whisper requires pipeline changes still TODO.
 
 - [x] **Analysis time estimate fix** — frontend passes `transcribe_tracks` from the selected track layout; backend uses it when provided
 

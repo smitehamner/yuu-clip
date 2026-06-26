@@ -697,6 +697,7 @@ def reel(
     project:    Optional[Path]  = typer.Option(None, "-p", "--project"),
     video_ids:  list[int]       = typer.Option([], "--video", "-v", help="Video ID(s) to include (default: all)"),
     video_id:   Optional[int]   = typer.Option(None, "--video-id", help="Single video ID (alias for --video)"),
+    clip_ids:   list[int]       = typer.Option([], "--clip-id", help="Specific clip IDs to include (in order); overrides video/status/score filters"),
     top:        Optional[int]   = typer.Option(None, "--top", help="Top N clips per video by overall score"),
     min_score:  float           = typer.Option(0.0,  "--min-score", help="Minimum overall score to include"),
     status_filter: Optional[str] = typer.Option(None, "--status", help="Filter by clip status (e.g. approved)"),
@@ -719,11 +720,15 @@ def reel(
     export_dir = proj_dir / ".rp-clipper" / "exports"
     reels_dir  = proj_dir / ".rp-clipper" / "reels"
 
-    effective_video_ids = list(video_ids)
-    if video_id is not None and video_id not in effective_video_ids:
-        effective_video_ids.append(video_id)
-
-    all_clips = _gather_demo_clips(session, effective_video_ids, status_filter, min_score, top)
+    if clip_ids:
+        from rp_clipper.db.models import ClipCandidate as _CC
+        id_map = {c.id: c for c in session.query(_CC).filter(_CC.id.in_(clip_ids)).all()}
+        all_clips = [id_map[cid] for cid in clip_ids if cid in id_map]
+    else:
+        effective_video_ids = list(video_ids)
+        if video_id is not None and video_id not in effective_video_ids:
+            effective_video_ids.append(video_id)
+        all_clips = _gather_demo_clips(session, effective_video_ids, status_filter, min_score, top)
     if not all_clips:
         console.print("[yellow]No clips found matching the filters.[/yellow]")
         raise typer.Exit(0)

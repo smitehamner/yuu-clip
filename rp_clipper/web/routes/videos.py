@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import json as json_lib
 import re
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -69,9 +70,34 @@ class AutoApproveBody(BaseModel):
     score_field: str = "overall"
 
 
-class UiConfigUpdate(BaseModel):
-    ui_timeline_interval_seconds: Optional[int] = None
-    ui_timeline_interval_unit:    Optional[str] = None
+class ConfigPatch(BaseModel):
+    # UI
+    ui_timeline_interval_seconds: Optional[int]   = None
+    ui_timeline_interval_unit:    Optional[str]   = None
+    # Whisper
+    whisper_model:                Optional[str]   = None
+    whisper_device:               Optional[str]   = None
+    whisper_compute_type:         Optional[str]   = None
+    # Ollama
+    ollama_host:                  Optional[str]   = None
+    ollama_model:                 Optional[str]   = None
+    ollama_timeout_s:             Optional[float] = None
+    ollama_enabled:               Optional[bool]  = None
+    # Scoring weights
+    scorer_energy_weight:         Optional[float] = None
+    scorer_scene_weight:          Optional[float] = None
+    scorer_llm_weight:            Optional[float] = None
+    score_funny_weight:           Optional[float] = None
+    score_dramatic_weight:        Optional[float] = None
+    score_action_weight:          Optional[float] = None
+    # Analysis defaults
+    scene_detection_mode:         Optional[str]   = None
+    silence_threshold_ms:         Optional[int]   = None
+    min_clip_ms:                  Optional[int]   = None
+
+
+# Kept for backwards compat — PATCH /api/config uses ConfigPatch now
+UiConfigUpdate = ConfigPatch
 
 
 def make_router(ctx: ProjectContext) -> APIRouter:
@@ -233,13 +259,35 @@ def make_router(ctx: ProjectContext) -> APIRouter:
 
     @router.get("/api/config")
     def get_config():
+        c = ctx.config
         return {
-            "ui_timeline_interval_seconds": ctx.config.ui_timeline_interval_seconds,
-            "ui_timeline_interval_unit":    ctx.config.ui_timeline_interval_unit,
+            "ui_timeline_interval_seconds": c.ui_timeline_interval_seconds,
+            "ui_timeline_interval_unit":    c.ui_timeline_interval_unit,
+            "whisper_model":                c.whisper_model,
+            "whisper_device":               c.whisper_device,
+            "whisper_compute_type":         c.whisper_compute_type,
+            "ollama_host":                  c.ollama_host,
+            "ollama_model":                 c.ollama_model,
+            "ollama_timeout_s":             c.ollama_timeout_s,
+            "ollama_enabled":               c.ollama_enabled,
+            "scorer_energy_weight":         c.scorer_energy_weight,
+            "scorer_scene_weight":          c.scorer_scene_weight,
+            "scorer_llm_weight":            c.scorer_llm_weight,
+            "score_funny_weight":           c.score_funny_weight,
+            "score_dramatic_weight":        c.score_dramatic_weight,
+            "score_action_weight":          c.score_action_weight,
+            "scene_detection_mode":         c.scene_detection_mode,
+            "silence_threshold_ms":         c.silence_threshold_ms,
+            "min_clip_ms":                  c.min_clip_ms,
         }
 
+    _WHISPER_DEVICES      = {"cpu", "cuda", "auto"}
+    _WHISPER_COMPUTE      = {"int8", "float16", "float32", "int8_float16"}
+    _SCENE_MODES          = {"transcript", "fast", "full"}
+
     @router.patch("/api/config")
-    def patch_config(body: UiConfigUpdate):
+    def patch_config(body: ConfigPatch):
+        from rp_clipper.config import validate_whisper_model
         cfg = ctx.config
         if body.ui_timeline_interval_seconds is not None:
             if body.ui_timeline_interval_seconds < 10:
@@ -249,6 +297,54 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             if body.ui_timeline_interval_unit not in ("seconds", "minutes"):
                 raise HTTPException(400, "unit must be 'seconds' or 'minutes'")
             cfg.ui_timeline_interval_unit = body.ui_timeline_interval_unit
+        if body.whisper_model is not None:
+            try:
+                validate_whisper_model(body.whisper_model)
+            except ValueError as e:
+                raise HTTPException(400, str(e))
+            cfg.whisper_model = body.whisper_model
+        if body.whisper_device is not None:
+            if body.whisper_device not in _WHISPER_DEVICES:
+                raise HTTPException(400, f"whisper_device must be one of: {sorted(_WHISPER_DEVICES)}")
+            cfg.whisper_device = body.whisper_device
+        if body.whisper_compute_type is not None:
+            if body.whisper_compute_type not in _WHISPER_COMPUTE:
+                raise HTTPException(400, f"whisper_compute_type must be one of: {sorted(_WHISPER_COMPUTE)}")
+            cfg.whisper_compute_type = body.whisper_compute_type
+        if body.ollama_host is not None:
+            cfg.ollama_host = body.ollama_host.strip()
+        if body.ollama_model is not None:
+            cfg.ollama_model = body.ollama_model.strip()
+        if body.ollama_timeout_s is not None:
+            if body.ollama_timeout_s < 1:
+                raise HTTPException(400, "ollama_timeout_s must be >= 1")
+            cfg.ollama_timeout_s = body.ollama_timeout_s
+        if body.ollama_enabled is not None:
+            cfg.ollama_enabled = body.ollama_enabled
+        if body.scorer_energy_weight is not None:
+            cfg.scorer_energy_weight = max(0.0, body.scorer_energy_weight)
+        if body.scorer_scene_weight is not None:
+            cfg.scorer_scene_weight = max(0.0, body.scorer_scene_weight)
+        if body.scorer_llm_weight is not None:
+            cfg.scorer_llm_weight = max(0.0, body.scorer_llm_weight)
+        if body.score_funny_weight is not None:
+            cfg.score_funny_weight = max(0.0, body.score_funny_weight)
+        if body.score_dramatic_weight is not None:
+            cfg.score_dramatic_weight = max(0.0, body.score_dramatic_weight)
+        if body.score_action_weight is not None:
+            cfg.score_action_weight = max(0.0, body.score_action_weight)
+        if body.scene_detection_mode is not None:
+            if body.scene_detection_mode not in _SCENE_MODES:
+                raise HTTPException(400, f"scene_detection_mode must be one of: {sorted(_SCENE_MODES)}")
+            cfg.scene_detection_mode = body.scene_detection_mode
+        if body.silence_threshold_ms is not None:
+            if body.silence_threshold_ms < 500:
+                raise HTTPException(400, "silence_threshold_ms must be >= 500")
+            cfg.silence_threshold_ms = body.silence_threshold_ms
+        if body.min_clip_ms is not None:
+            if body.min_clip_ms < 1000:
+                raise HTTPException(400, "min_clip_ms must be >= 1000")
+            cfg.min_clip_ms = body.min_clip_ms
         cfg.save_project(ctx.project_dir)
         return get_config()
 
@@ -557,6 +653,104 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             return {"deleted": clip_id, "video_id": video_id}
         finally:
             db.close()
+
+    @router.get("/api/videos/{video_id}/batch-export")
+    async def batch_export(
+        video_id: int,
+        min_score: float = Query(0.0),
+        skip_exported: bool = Query(True),
+        burn_subs: bool = Query(False),
+        container: Optional[str] = Query(None),
+    ):
+        """Export all approved clips for a video above min_score, streaming per-clip progress as SSE."""
+        import asyncio as _asyncio
+        import subprocess as _sp
+
+        allowed_containers = {"mkv", "mp4"}
+        if container is not None and container not in allowed_containers:
+            raise HTTPException(400, f"container must be one of {sorted(allowed_containers)}")
+
+        db = ctx.get_db()
+        try:
+            if not db.get(Video, video_id):
+                raise HTTPException(404, "Video not found")
+            clips = (
+                db.query(ClipCandidate)
+                .filter(
+                    ClipCandidate.video_id == video_id,
+                    ClipCandidate.status == "approved",
+                    ClipCandidate.score_overall >= min_score,
+                )
+                .order_by(ClipCandidate.start_ms)
+                .all()
+            )
+            clip_ids = [c.id for c in clips]
+        finally:
+            db.close()
+
+        if not clip_ids:
+            raise HTTPException(400, "No approved clips match the filter")
+
+        async def event_stream():
+            ctx.active_jobs += 1
+            total = len(clip_ids)
+            exported = 0
+            skipped  = 0
+            try:
+                for i, cid in enumerate(clip_ids, 1):
+                    already_exported = False
+                    if skip_exported:
+                        check_db = ctx.get_db()
+                        try:
+                            clip = check_db.get(ClipCandidate, cid)
+                            vid  = check_db.get(Video, video_id) if clip else None
+                            if clip and vid:
+                                stem = Path(vid.filename).stem
+                                hms  = clip.start_hms.replace(":", "-")
+                                for ext in (".mkv", ".mp4", ".mov", ".avi", ".webm"):
+                                    if (ctx.export_dir / f"{stem}_clip{cid}_{hms}{ext}").exists():
+                                        already_exported = True
+                                        break
+                        finally:
+                            check_db.close()
+                    if already_exported:
+                        skipped += 1
+                        yield f"data: {json_lib.dumps(f'Skipping clip {cid} (already exported) [{i}/{total}]')}\n\n"
+                        continue
+
+                    yield f"data: {json_lib.dumps(f'Exporting clip {cid} [{i}/{total}]...')}\n\n"
+                    cmd = [
+                        sys.executable, "-m", "rp_clipper.cli", "export", str(cid),
+                        "--captions", "--project", str(ctx.project_dir),
+                    ]
+                    if burn_subs:
+                        cmd.append("--bake-captions")
+                    if container:
+                        cmd.extend(["--container", container])
+                    try:
+                        proc = await _asyncio.create_subprocess_exec(
+                            *cmd,
+                            stdout=_sp.PIPE,
+                            stderr=_sp.STDOUT,
+                            cwd=str(ctx.project_dir),
+                        )
+                        out, _ = await proc.communicate()
+                        if proc.returncode == 0:
+                            exported += 1
+                            yield f"data: {json_lib.dumps(f'OK clip {cid} [{i}/{total}]')}\n\n"
+                        else:
+                            msg = out.decode(errors="replace").strip().splitlines()
+                            last = msg[-1] if msg else "unknown error"
+                            yield f"data: {json_lib.dumps(f'[Error clip {cid}: {last}]')}\n\n"
+                    except Exception as exc:
+                        yield f"data: {json_lib.dumps(f'[Error clip {cid}: {exc}]')}\n\n"
+
+                yield f"data: {json_lib.dumps(f'Batch export complete: {exported} exported, {skipped} skipped')}\n\n"
+                yield f"data: {json_lib.dumps('__DONE__')}\n\n"
+            finally:
+                ctx.active_jobs -= 1
+
+        return _sse_response(event_stream())
 
     @router.patch("/api/clips/{clip_id}/fields")
     def update_clip_fields(clip_id: int, body: ClipFieldsUpdate):

@@ -17,7 +17,7 @@ from typing import Optional, TYPE_CHECKING
 if TYPE_CHECKING:
     from rp_clipper.db.models import ClipCandidate, Video
 
-TRANSITIONS = ("fade", "dissolve", "wipeleft", "wiperight", "slideleft", "slideright", "none")
+TRANSITIONS = ("fade", "dissolve", "wipeleft", "wiperight", "slideleft", "slideright", "none", "random")
 _DEFAULT_TRANSITION    = "fade"
 _DEFAULT_TRANS_DUR     = 0.5   # seconds of overlap
 _DEFAULT_TITLE_DUR     = 3.0   # seconds each title card shows
@@ -234,6 +234,59 @@ def _compile_xfade(
     subprocess.run(cmd, check=True)
 
 
+def _compile_xfade_random(
+    segments: list[Path],
+    durations: list[float],
+    output: Path,
+    pool: list[str],
+    trans_dur: float,
+    rng,
+) -> None:
+    """Like _compile_xfade but picks a different transition at each cut."""
+    n = len(segments)
+    transitions = [rng.choice(pool) for _ in range(max(0, n - 1))]
+
+    inputs: list[str] = []
+    for seg in segments:
+        inputs += ["-i", str(seg)]
+
+    v_chain: list[str] = []
+    a_chain: list[str] = []
+    cumulative = 0.0
+
+    for i in range(n - 1):
+        cumulative += durations[i]
+        offset = max(0.0, cumulative - (i + 1) * trans_dur)
+        t = transitions[i]
+
+        in_v = f"[x{i-1}]" if i > 0 else f"[{i}:v]"
+        out_v = f"[x{i}]" if i < n - 2 else "[vout]"
+        v_chain.append(
+            f"{in_v}[{i+1}:v]xfade=transition={t}"
+            f":duration={trans_dur}:offset={offset:.3f}{out_v}"
+        )
+
+        in_a = f"[ca{i-1}]" if i > 0 else f"[{i}:a]"
+        out_a = f"[ca{i}]" if i < n - 2 else "[aout]"
+        a_chain.append(f"{in_a}[{i+1}:a]acrossfade=d={trans_dur}{out_a}")
+
+    filter_complex = ";".join(v_chain + a_chain)
+    if n == 1:
+        filter_complex = "[0:v]copy[vout];[0:a]acopy[aout]"
+
+    cmd = [
+        "ffmpeg", "-y", "-loglevel", "error",
+        *inputs,
+        "-filter_complex", filter_complex,
+        "-map", "[vout]", "-map", "[aout]",
+        "-c:v", "libx264", "-preset", "fast", "-crf", "18",
+        "-c:a", "aac", "-b:a", "192k",
+        "-pix_fmt", "yuv420p",
+        str(output),
+    ]
+    subprocess.run(cmd, check=True)
+
+
 def compile_demo(
     clips: list["ClipCandidate"],
     video_map: dict[int, "Video"],
@@ -249,9 +302,14 @@ def compile_demo(
     Each clip must have a corresponding exported file in *export_dir*.
     Title cards are generated in a temp directory and cleaned up afterward.
     """
+    import random as _random
+
     if transition not in TRANSITIONS:
         raise ValueError(f"transition must be one of {TRANSITIONS}")
 
+    _RANDOM_POOL = [t for t in TRANSITIONS if t not in ("none", "random")]
+
+    effective_transition = transition
     n = len(clips)
 
     clip_files: list[Path] = []
@@ -276,7 +334,7 @@ def compile_demo(
         clip_durations.append(_probe_duration(clip_file))
 
     total_footage = sum(clip_durations)
-    if transition == "none":
+    if effective_transition == "none":
         print(
             f"Compiling {n} clip(s) — {total_footage:.0f}s footage"
             " — stream copy (fast)",
@@ -320,8 +378,10 @@ def compile_demo(
             durations.append(clip_dur)
 
         print(f"Encoding final reel ({total_footage:.0f}s footage)…", flush=True)
-        if transition == "none":
+        if effective_transition == "none":
             _compile_concat(segments, output)
+        elif effective_transition == "random":
+            _compile_xfade_random(segments, durations, output, _RANDOM_POOL, trans_dur, _random)
         else:
-            _compile_xfade(segments, durations, output, transition, trans_dur)
+            _compile_xfade(segments, durations, output, effective_transition, trans_dur)
         print("Encode complete.", flush=True)

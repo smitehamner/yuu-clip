@@ -10,9 +10,9 @@ from __future__ import annotations
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from rp_clipper.db.models import ClipCandidate
@@ -24,7 +24,8 @@ _log = get_logger(__name__)
 
 
 class DemoRequest(BaseModel):
-    video_id:    Optional[int] = None
+    video_id:    Optional[int]       = None
+    clip_ids:    Optional[list[int]] = None   # ordered list; overrides video_id filter
     transition:  str   = "fade"
     trans_dur:   float = 0.5
     title_dur:   float = 3.0
@@ -56,10 +57,17 @@ def make_router(ctx: ProjectContext) -> APIRouter:
 
         db = ctx.get_db()
         try:
-            q = db.query(ClipCandidate).filter_by(status="approved")
-            if req.video_id:
-                q = q.filter_by(video_id=req.video_id)
-            clips = q.order_by(ClipCandidate.score_overall.desc()).all()
+            if req.clip_ids:
+                clips = [
+                    c for cid in req.clip_ids
+                    for c in [db.get(ClipCandidate, cid)]
+                    if c is not None
+                ]
+            else:
+                q = db.query(ClipCandidate).filter_by(status="approved")
+                if req.video_id:
+                    q = q.filter_by(video_id=req.video_id)
+                clips = q.order_by(ClipCandidate.score_overall.desc()).all()
             if not clips:
                 raise HTTPException(400, "No approved clips found to compile into a highlight reel")
         finally:
@@ -82,10 +90,14 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             "--trans-dur",  str(req.trans_dur),
             "--title-dur",  str(req.title_dur),
             "--output",     str(output_path),
-            "--status",     "approved",
         ]
-        if req.video_id:
-            cmd += ["--video-id", str(req.video_id)]
+        if req.clip_ids:
+            for cid in req.clip_ids:
+                cmd += ["--clip-id", str(cid)]
+        else:
+            cmd += ["--status", "approved"]
+            if req.video_id:
+                cmd += ["--video-id", str(req.video_id)]
 
         ctx.demo_cmd = cmd
         _log.info(
@@ -100,6 +112,44 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         if not ctx.demo_cmd:
             raise HTTPException(400, "No demo queued. Call /api/demo/start first.")
         return await subprocess_sse(ctx.demo_cmd, ctx.project_dir, ctx)
+
+    @router.get("/api/demo/approved-clips")
+    def approved_clips_for_reel(video_id: Optional[int] = Query(None)):
+        """Return approved clips (timeline order) for the reel builder, with export status."""
+        from rp_clipper.db.models import Video
+        db = ctx.get_db()
+        try:
+            q = db.query(ClipCandidate).filter_by(status="approved")
+            if video_id:
+                q = q.filter_by(video_id=video_id)
+            clips = q.order_by(ClipCandidate.start_ms).all()
+            result = []
+            for c in clips:
+                video = db.get(Video, c.video_id)
+                stem = Path(video.filename).stem if video else ""
+                start_hms = c.start_hms.replace(":", "-")
+                # Check multiple possible extensions for the export file
+                export_file = None
+                for ext in (".mkv", ".mp4", ".mov", ".avi", ".webm"):
+                    candidate = ctx.export_dir / f"{stem}_clip{c.id}_{start_hms}{ext}"
+                    if candidate.exists():
+                        export_file = candidate
+                        break
+                result.append({
+                    "id": c.id,
+                    "video_id": c.video_id,
+                    "video_name": video.filename if video else "",
+                    "start_hms": c.start_hms,
+                    "duration_hms": c.duration_hms,
+                    "duration_ms": c.end_ms - c.start_ms,
+                    "score_overall": c.score_overall,
+                    "description": c.description or "",
+                    "has_export": export_file is not None,
+                    "export_url": f"/api/clips/{c.id}/media_url" if export_file else None,
+                })
+        finally:
+            db.close()
+        return result
 
     @router.get("/api/demo/list")
     def list_reels():

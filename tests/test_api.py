@@ -951,7 +951,7 @@ class TestFormatDuration:
     """_format_duration produces compact human-readable strings."""
 
     def _fmt(self, seconds):
-        from rp_clipper.web.routes.ingest import _format_duration
+        from rp_clipper.web.routes.analyze import _format_duration
         return _format_duration(seconds)
 
     def test_zero_seconds(self):
@@ -1784,14 +1784,14 @@ class TestEstimateEdgeCases:
     def test_unknown_model_falls_back_to_default_gpu_speed(self, client):
         """An unrecognised model string should not raise — it falls back to speed=6."""
         # Use the internal function directly to avoid the validate_whisper_model guard
-        from rp_clipper.web.routes.ingest import _compute_time_estimate, EstimateRequest
+        from rp_clipper.web.routes.analyze import _compute_time_estimate, EstimateRequest
         req = EstimateRequest(duration_s=3600, model="custom:tag", has_gpu=True, scene_mode="fast")
         result = _compute_time_estimate(req)
         assert result["total_seconds"] > 0
 
     def test_zero_duration_pct_is_zero(self, client):
         """Zero-duration input must not cause a division error."""
-        from rp_clipper.web.routes.ingest import _compute_time_estimate, EstimateRequest
+        from rp_clipper.web.routes.analyze import _compute_time_estimate, EstimateRequest
         req = EstimateRequest(duration_s=0, model="medium", has_gpu=True, scene_mode="fast")
         result = _compute_time_estimate(req)
         assert result["pct_of_video"] == 0
