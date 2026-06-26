@@ -56,6 +56,19 @@ class ClipTimingUpdate(BaseModel):
     end_offset: float
 
 
+_AUTO_APPROVE_FIELDS = {
+    "overall":  ClipCandidate.score_overall,
+    "funny":    ClipCandidate.score_funny,
+    "dramatic": ClipCandidate.score_dramatic,
+    "action":   ClipCandidate.score_action,
+}
+
+
+class AutoApproveBody(BaseModel):
+    threshold: float
+    score_field: str = "overall"
+
+
 def make_router(ctx: ProjectContext) -> APIRouter:
     router = APIRouter()
 
@@ -93,6 +106,39 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             video.context_names_json = json_lib.dumps(body.context_names)
             db.commit()
             return {"context_names": body.context_names}
+        finally:
+            db.close()
+
+    @router.post("/api/videos/{video_id}/auto-approve")
+    def auto_approve(video_id: int, body: AutoApproveBody):
+        """Approve all pending clips at or above the given score threshold on the chosen sub-score."""
+        if not (0.0 <= body.threshold <= 1.0):
+            raise HTTPException(400, "threshold must be between 0.0 and 1.0")
+        if body.score_field not in _AUTO_APPROVE_FIELDS:
+            raise HTTPException(400, f"score_field must be one of: {', '.join(_AUTO_APPROVE_FIELDS)}")
+        db = ctx.get_db()
+        try:
+            if not db.get(Video, video_id):
+                raise HTTPException(404, "Video not found")
+            score_col = _AUTO_APPROVE_FIELDS[body.score_field]
+            clips = (
+                db.query(ClipCandidate)
+                .filter(
+                    ClipCandidate.video_id == video_id,
+                    ClipCandidate.status == "pending",
+                    score_col >= body.threshold,
+                )
+                .all()
+            )
+            count = len(clips)
+            for clip in clips:
+                clip.status = "approved"
+            db.commit()
+            _log.info(
+                "Auto-approved %d clips with %s >= %.2f for video %d",
+                count, body.score_field, body.threshold, video_id,
+            )
+            return {"approved": count}
         finally:
             db.close()
 

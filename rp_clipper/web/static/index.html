@@ -642,6 +642,36 @@
   </div>
 </div>
 
+<!-- Auto-approve Modal -->
+<div class="modal-bg" id="auto-approve-modal">
+  <div class="modal" style="width:360px">
+    <h3 style="margin-top:0">Approve Above Score</h3>
+    <div style="margin-bottom:16px">
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px">
+        <label style="font-size:13px;color:var(--muted);white-space:nowrap">Score type</label>
+        <select id="auto-approve-field" style="flex:1;font-size:13px;padding:3px 6px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text)"
+                onchange="updateAutoApprovePreview()">
+          <option value="overall">⭐ Overall</option>
+          <option value="funny">😂 Funny</option>
+          <option value="dramatic">🎭 Dramatic</option>
+          <option value="action">⚔️ Action</option>
+        </select>
+      </div>
+      <label style="font-size:13px;color:var(--muted)">Threshold</label>
+      <div style="display:flex;align-items:center;gap:10px;margin-top:8px">
+        <input type="range" id="auto-approve-slider" min="0" max="1" step="0.05" value="0.6"
+               style="flex:1" oninput="updateAutoApprovePreview()">
+        <span id="auto-approve-threshold-label" style="font-size:14px;font-weight:600;min-width:36px;text-align:right">0.60</span>
+      </div>
+      <div id="auto-approve-preview" style="color:var(--muted);font-size:13px;margin-top:10px;min-height:18px"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeAutoApproveModal()">Cancel</button>
+      <button class="btn primary" id="auto-approve-ok" onclick="doAutoApprove()">Approve</button>
+    </div>
+  </div>
+</div>
+
 <!-- Glossary Modal -->
 <div class="modal-bg" id="glossary-modal">
   <div class="modal" style="width:740px;max-height:88vh;display:flex;flex-direction:column">
@@ -1018,6 +1048,7 @@ function renderVideoDetail(video, savedTimeline) {
     <div class="actions">
       <button class="btn" id="btn-summarize-video" onclick="summarizeVideo(${video.id}, this)">${video.summary ? 'Regenerate Summary' : 'Generate Summary'}</button>
       <button class="btn" id="btn-generate-timeline" onclick="generateTimeline(${video.id})">${video.has_timeline ? 'Regenerate Timeline' : 'Generate Timeline'}</button>
+      <button class="btn" onclick="openAutoApproveModal(${video.id})">Approve Above Score</button>
       <button class="btn" style="color:var(--red)" onclick="resetApprovals(${video.id})">Reset Approvals</button>
     </div>
 
@@ -2536,6 +2567,69 @@ async function _doResetApprovals(videoId) {
   _clips = await fetch(`/api/videos/${videoId}/clips?sort=${_clipsSortParam()}`).then(r => r.json());
   renderClipList(_clips);
   showToast(`Reset ${data.reset} clip${data.reset !== 1 ? 's' : ''} to Pending`);
+}
+
+// ── auto-approve ───────────────────────────────────────────────────────────────
+let _autoApproveVideoId = null;
+
+const _AUTO_APPROVE_FIELD_MAP = {
+  overall:  'score_overall',
+  funny:    'score_funny',
+  dramatic: 'score_dramatic',
+  action:   'score_action',
+};
+
+function openAutoApproveModal(videoId) {
+  _autoApproveVideoId = videoId;
+  document.getElementById('auto-approve-slider').value = 0.6;
+  document.getElementById('auto-approve-field').value = 'overall';
+  updateAutoApprovePreview();
+  document.getElementById('auto-approve-modal').classList.add('visible');
+}
+
+function closeAutoApproveModal() {
+  document.getElementById('auto-approve-modal').classList.remove('visible');
+}
+
+function updateAutoApprovePreview() {
+  const threshold = parseFloat(document.getElementById('auto-approve-slider').value);
+  const field = document.getElementById('auto-approve-field').value;
+  document.getElementById('auto-approve-threshold-label').textContent = threshold.toFixed(2);
+  const scoreKey = _AUTO_APPROVE_FIELD_MAP[field] || 'score_overall';
+  const pending = _clips.filter(c => c.status === 'pending');
+  const eligible = pending.filter(c => (c[scoreKey] || 0) >= threshold);
+  const el = document.getElementById('auto-approve-preview');
+  if (pending.length === 0) {
+    el.textContent = 'No unreviewed clips.';
+    document.getElementById('auto-approve-ok').disabled = true;
+  } else if (eligible.length === 0) {
+    el.textContent = `No unreviewed clips meet this threshold (${pending.length} unreviewed total).`;
+    document.getElementById('auto-approve-ok').disabled = true;
+  } else {
+    el.textContent = `${eligible.length} of ${pending.length} unreviewed clip${eligible.length !== 1 ? 's' : ''} will be approved.`;
+    document.getElementById('auto-approve-ok').disabled = false;
+  }
+}
+
+async function doAutoApprove() {
+  const threshold = parseFloat(document.getElementById('auto-approve-slider').value);
+  const score_field = document.getElementById('auto-approve-field').value;
+  const videoId = _autoApproveVideoId;
+  closeAutoApproveModal();
+  const res = await fetch(`/api/videos/${videoId}/auto-approve`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({threshold, score_field}),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    showToast(`Auto-approve failed: ${formatApiError(err)}`, 'error');
+    return;
+  }
+  const data = await res.json();
+  _clips = await fetch(`/api/videos/${videoId}/clips?sort=${_clipsSortParam()}`).then(r => r.json());
+  renderClipList(_clips);
+  showToast(`Approved ${data.approved} clip${data.approved !== 1 ? 's' : ''}`);
 }
 
 // ── retranscribe ───────────────────────────────────────────────────────────────

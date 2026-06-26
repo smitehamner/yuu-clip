@@ -8,6 +8,8 @@
 | 2 | Signal enrichment + scoring | Done |
 | 3 | Web UI | In progress |
 | 4 | Packaging for distribution | Pending |
+| 5 | Post-launch polish | Pending |
+| 6 | Advanced features | Pending |
 
 ---
 
@@ -78,7 +80,7 @@
 
 ### Near-term
 
-- [ ] **Editable LLM fields + regenerate-with-compare** *(priority #1)*
+- [x] **Editable LLM fields + regenerate-with-compare** *(priority #1)*
   - `*_original` + `*_user` column split on all four fields: `title`, `summary`, `description`,
     `description_long`. Display: `*_user ?? *_original`
   - `*_original` updated only when user explicitly accepts a regeneration into it
@@ -149,19 +151,13 @@
   - Accessible via `⚙ Settings` in hamburger menu — replaces the main content area (not a modal)
   - Auto-save on change; inline consequence notes where needed:
     "Takes effect on next rescore" / "Takes effect on next ingest"
-  - Sections: `UI` · `Scoring` · `Whisper` · `Ollama` · `Export` · `Hot-words`
+  - Sections: `UI` · `Scoring` · `Whisper` · `Ollama` · `Export` · `Hot-words` · `Paths`
   - Covers: timeline interval, score weights, scene mode, Whisper defaults,
-    Ollama model/host/timeout, export format default, hot-words list, related clips top-N
+    Ollama model/host/timeout, export format default
+  - `Hot-words` and `Sensitive Content` sections reserved as placeholders (features are Phase 6)
+  - `Paths` section: project folder, exports folder, scratch/working directory — key for
+    non-default setups (different drives, external storage, shared network paths)
   - Config format stays JSON for now; YAML with nested sections deferred
-
-- [ ] **Hot-word / phrase config** *(requires Settings page)*
-  - Each entry: phrase, match mode (exact / case-insensitive / LLM-semantic), score boost (float),
-    boost target (overall or a specific sub-score)
-  - LLM-semantic is opt-in per entry with a visible GPU time warning
-  - Exact + case-insensitive matching runs at ingest and rescore time
-  - LLM-semantic runs via explicit per-video "Scan" button
-  - Tags on sidebar card: pills if ≤3 matches, count pill `🔥 4` if more; full list in detail panel
-  - Lives in Settings page under the `Hot-words` section
 
 - [ ] **Related clips**
   - "Find Similar" button in clip detail opens a scope-selection modal:
@@ -176,25 +172,15 @@
 
 ### Medium-term
 
-- [ ] **Image-based clip analysis** — optional, clip-only feature: sample frames at a configurable
-  interval and send them to a vision model to enrich clip descriptions and scoring. Requires a
-  separately downloadable vision model (permissive licence required — clips may be monetized by
-  users). Configurable: on/off toggle, frames-per-clip frequency. Design questions: separate
-  LLM call after scoring, or integrated into the scoring pipeline? Store results on
-  `ClipCandidate` with a timestamp so stale results are detectable.
+- [x] **Demo reel: separate reels folder + timestamp-based output filename** — reels saved to a
+  dedicated `reels/` subfolder; default filename includes a timestamp
+  (e.g. `highlights_20260625_143022.mkv`) to avoid silently overwriting previous reels; encode
+  ETA shown during generation.
 
-- [ ] **Model selection and capability gating** — research and recommend text LLM models that are
-  better-tuned for clip description/scoring and carry permissive licences suitable for monetized
-  content. Similarly for the vision model (see image-based analysis above). Disabled UI options
-  (e.g. "Generate descriptions", "Image analysis") should detect whether the required model is
-  installed and show a prompt to the install/setup function if not.
-
-- [ ] **Demo reel: random transition + advanced editor** — add "random" as a transition option in
-  the demo reel builder. Separately, add an advanced clip list editor: reorder approved clips via
-  drag-and-drop, add clips from rejected or unrated pool, remove individual clips before compiling.
-
-- [ ] **Demo reel: timestamp-based default output filename** — default output name should include a
-  timestamp (e.g. `highlights_20260625_143022.mkv`) to avoid silently overwriting previous reels.
+- [x] **Clip trim (in/out adjust)** — implemented as part of *Editable LLM fields*: combo input
+  (±offset / absolute seconds / MM:SS.s) stores `start_offset` / `end_offset` on `ClipCandidate`;
+  original `start_time` / `end_time` are immutable. Drag handles on the player timeline are still
+  a future enhancement (see Phase 6).
 
 - [ ] **Export: match source format by default** — when exporting a clip, default the container and
   codec to match the source video instead of always writing MKV. User overrides are a future option.
@@ -210,72 +196,11 @@
   Also allow the user to point to an external `.srt` file. Eliminates Whisper CPU time for
   users who already have subtitles from another source.
 
-- [ ] **Batch processing status panel** — once batch export or auto-approve lands, add a collapsible
-  status summary bar at the top of the clips view showing active/queued/completed job counts.
-  Clicking the bar expands per-job detail. Long-term: move the raw log view behind a "Developer"
-  toggle so end users see only UI-friendly status.
-
-- [ ] **Laugh / non-speech sound detection** — detect laughter and notable non-speech audio events
-  (sound effects, reactions) as a separate scoring signal from the Funny sub-score, not a modifier
-  to it. Surfaced as its own attribute so users can filter/sort by it independently.
-
-- [ ] **Transcript editing** — inline editable text area for `TranscriptSegment.text`; lets the user
-  fix character names, misspellings, and game-specific jargon before re-scoring. Deferred from
-  near-term because it needs per-speaker segment grouping first (see Speaker diarization below) —
-  without that, the transcript is one undifferentiated wall of text and editing is awkward.
-
-- [ ] **Clip trim (in/out adjust)** — drag handles on the player timeline to set new start/end before
-  exporting; stores trim offsets on `ClipCandidate`
-
-- [ ] **Merge adjacent clips** — button to combine two consecutive candidates into one; useful when a
-  moment spans a silence gap. Options: include the gap from the source video (seamless), or insert a
-  scene transition to keep it compact — let the user choose at merge time.
-
-- [ ] **Clip queue / batch export** — checkbox per clip; "Export selected" runs all at once in
-  background
-
-- [ ] **Export presets + per-format management** — saved output profiles (YouTube 1080p, Discord
-  8 MB cap, TikTok 9:16 crop) with a picker at export time; support exporting a clip in multiple
-  formats; track each format as a separate file with individual delete; distinguish "regenerate this
-  format" from "export a new format"
-
-- [ ] **Subtitle style options** — font, size, colour, position for burned-in subtitles. Once
-  speaker diarization is available, support per-speaker colour/style so different characters are
-  visually distinct.
-
-- [ ] **Search + filter** — text search across descriptions and transcripts; filter sidebar by score
-  range, status, tag, or hot-word. Advanced users can use regex. Match-mode reuses the same
-  exact / case-insensitive / LLM-semantic options as hot-words.
-
 - [ ] **Analysis time estimate fix** — inspection preview counts all audio tracks instead of only the ones
   the selected track layout will actually transcribe; resolve the track layout selection before
   computing the estimate
 
-- [ ] **Per-step analysis progress percentage** — step chips in the header already advance through
-  stages; add a completion % within each step *(UX debt: Goal-Gradient Effect)*
-
-- [ ] **Detail panel chunking** — group the clip detail panel into cards: Summary → Actions →
-  Transcript, rather than a flat list *(UX debt: Chunking)*
-
-- [ ] **Sensitive content detection** — a "Sensitive Terms" list, kept entirely separate from
-  Hot-words (which affects score). Two categories:
-  - **Privacy Terms** — real names, identifying info the user doesn't want surfacing in shared
-    clips (e.g. a family member calling their name from off-screen, home address)
-  - **Censor Words** — profanity and platform-restricted language; useful for flagging clips
-    before posting to kid-friendly platforms
-  Per-term match modes: exact, case-insensitive, or fuzzy/phonetic (user toggle per entry —
-  phonetic matching exists specifically for names that Whisper is likely to misspell). No score
-  impact — warning/flag only.
-  Clips with matches get a warning badge on the sidebar card and a flagged-terms section in the
-  detail panel (which term matched, at which transcript timestamp). `Flagged` filter tab added
-  alongside `All · Pending · Approved · Rejected`. Lives in Settings page under a
-  `Sensitive Content` section. Export-time bleep integration for Censor Words deferred.
-
----
-
-## Phase 3.5 — Performance and storage guidance (Pending)
-
-> Informational/documentation work needed before distribution.
+### Pre-packaging documentation
 
 - [ ] **Performance and storage notes** — document expected install size, per-session disk
   usage (audio extracts, Whisper models, exports), and how quickly disk fills with typical use.
@@ -327,15 +252,90 @@ Python backend would run as a bundled subprocess.
   vision models — with licence and hardware guidance for each
 - Disabled UI options must clearly indicate which prerequisite is missing and link to the wizard
 - One-click installer / bundled release
+- **Choose a licence** — currently unlicensed (all rights reserved, smitehamner). Options:
+  MIT (permissive), GPL-3 (copyleft), or source-available. Decide before any public release.
+  Update `LICENSE`, `pyproject.toml`, and the About modal once chosen.
+- **Linux compatibility testing** — verify the full pipeline works on a Linux host; identify any
+  Windows-only assumptions in path handling, file pickers, or process management.
 
 ---
 
-## Future considerations (no phase yet)
+## Phase 5 — Post-launch polish (Pending)
 
-Items that are wanted long-term but not yet assigned to a phase. Roughly ordered by how much they
-unlock downstream.
+Smaller improvements and UX debt that don't block initial distribution but are high-value for
+regular users.
 
-- [ ] **Linux compatibility testing** — verify the full pipeline (ingest, transcription, scoring, web UI, export) works on a Linux host; identify any Windows-only assumptions in path handling, file pickers, or process management. Target before any public release or packaging.
+- [ ] **Search + filter** — text search across descriptions and transcripts; filter sidebar by score
+  range, status, or tag. Advanced users can use regex.
+
+- [ ] **Merge adjacent clips** — button to combine two consecutive candidates into one; useful when a
+  moment spans a silence gap. Options: include the gap from the source video (seamless), or insert a
+  scene transition to keep it compact — let the user choose at merge time.
+
+- [ ] **Demo reel: random transition + advanced editor** — add "random" as a transition option in
+  the demo reel builder. Separately, add an advanced clip list editor: reorder approved clips via
+  drag-and-drop, add clips from rejected or unrated pool, remove individual clips before compiling.
+
+- [ ] **Batch processing status panel** — collapsible status summary bar at the top of the clips
+  view showing active/queued/completed job counts; clicking expands per-job detail. Long-term: move
+  the raw log view behind a "Developer" toggle.
+
+- [ ] **Per-step analysis progress percentage** — step chips in the header already advance through
+  stages; add a completion % within each step *(UX debt: Goal-Gradient Effect)*
+
+- [ ] **Detail panel chunking** — group the clip detail panel into cards: Summary → Actions →
+  Transcript, rather than a flat list *(UX debt: Chunking)*
+
+- [ ] **Project switcher in UI** — dropdown to switch between project directories without
+  restarting the server
+
+- [ ] **Manual score override** — let the user set a ground-truth score per clip via a slider.
+  Display the user score prominently with a distinct indicator (not replacing the LLM score —
+  show both).
+
+- [ ] **Built-in user manual** — in-app help: what each score means, contexts workflow, ingest
+  walkthrough, keyboard shortcuts, export options. Low priority until the UI is more stable.
+
+- [ ] **Multi-session grouping** — treat multiple OBS files from one play session as a single
+  project with a unified timeline
+
+---
+
+## Phase 6 — Advanced features (Pending)
+
+Complex, specialized, or AI-heavy features that are valuable but don't need to block distribution.
+
+### Scoring and signal enrichment
+
+- [ ] **Hot-word / phrase config** — each entry: phrase, match mode (exact / case-insensitive /
+  LLM-semantic), score boost (float), boost target (overall or a specific sub-score).
+  LLM-semantic is opt-in per entry with a visible GPU time warning. Exact + case-insensitive
+  matching runs at ingest and rescore time; LLM-semantic runs via explicit per-video "Scan" button.
+  Tags on sidebar card: pills if ≤3 matches, count pill `🔥 4` if more; full list in detail panel.
+  Lives in Settings page under the `Hot-words` section.
+
+- [ ] **Related clips** — "Find Similar" button in clip detail opens a scope-selection modal:
+  current video pre-checked; other processed videos listed as individual checkboxes (no select-all).
+  Fires Ollama call with `description_long` + selected clips' descriptions. Results stored on
+  `ClipCandidate`: `related_clips_json` + `related_clips_at` timestamp. "Related Clips" section
+  in detail panel: ranked clickable links; stale indicator if older than last rescore. Top-N
+  configured in Settings.
+
+- [ ] **Laugh / non-speech sound detection** — detect laughter and notable non-speech audio events
+  (sound effects, reactions) as a separate scoring signal from the Funny sub-score, not a modifier
+  to it. Surfaced as its own attribute so users can filter/sort by it independently.
+
+- [ ] **Image-based clip analysis** — optional, clip-only feature: sample frames at a configurable
+  interval and send them to a vision model to enrich clip descriptions and scoring. Requires a
+  separately downloadable vision model (permissive licence required — clips may be monetized by
+  users). Configurable: on/off toggle, frames-per-clip frequency.
+
+- [ ] **Model selection and capability gating** — research and recommend text LLM models that are
+  better-tuned for clip description/scoring and carry permissive licences suitable for monetized
+  content. Similarly for the vision model (see image-based analysis above). Disabled UI options
+  should detect whether the required model is installed and link to the wizard if not.
+
+### Transcript and speaker features
 
 - [ ] **Speaker diarization** — identify who is speaking and when; assign speaker labels to
   transcript segments. Unlocks: transcript editing (speaker-grouped), per-speaker subtitle styles,
@@ -351,10 +351,57 @@ unlock downstream.
   clearly inferior. Whichever is chosen, the token setup (if any) should be part of the first-run
   wizard.
 
+- [ ] **Transcript editing** — inline editable text area for `TranscriptSegment.text`; lets the user
+  fix character names, misspellings, and game-specific jargon before re-scoring. Requires speaker
+  diarization first so the transcript has per-speaker grouping.
+
 - [ ] **Transcript name correction** — after speaker diarization maps clusters to character names,
   auto-suggest replacements for mis-transcribed names that *other* speakers say (e.g. Whisper
-  hears "You" when someone is saying the name "Yuu"). Must be speaker-scoped and confidence-gated
-  to avoid false positives; surfaced as a reviewable diff before committing.
+  hears "You" when someone is saying the name "Yuu"). Must be speaker-scoped and confidence-gated;
+  surfaced as a reviewable diff before committing.
+
+- [ ] **Subtitle style options** — font, size, colour, position for burned-in subtitles. With
+  speaker diarization: per-speaker colour/style so different characters are visually distinct.
+
+### Export and delivery
+
+- [ ] **Export presets + per-format management** — saved output profiles (YouTube 1080p, Discord
+  8 MB cap, TikTok 9:16 crop) with a picker at export time; support exporting a clip in multiple
+  formats; track each format as a separate file with individual delete; distinguish "regenerate this
+  format" from "export a new format"
+
+- [ ] **Auto captions on clip export** — Whisper-generated captions burned into exported clips.
+  Relatively straightforward addition; prerequisite for the clip export editor's captions preview.
+
+- [ ] **Clip export editor** — in-browser editor launched before final export. Full scope:
+  trim handles (adjust clip start/end), drag-to-position 9:16 crop box for Shorts/TikTok
+  framing, and a live preview of burned-in captions if caption export is enabled.
+  Reference UX: Twitch clip editor. Natural dependency order: Vertical crop and Auto captions
+  should land first, then the editor ties them together.
+
+- [ ] **Vertical crop / Shorts export** — 9:16 output for TikTok / YouTube Shorts; requires
+  face/webcam tracking (YOLO or MediaPipe) to auto-frame the crop region.
+
+### Content safety and moderation
+
+- [ ] **Sensitive content detection** — a "Sensitive Terms" list, kept entirely separate from
+  Hot-words (which affects score). Two categories:
+  - **Privacy Terms** — real names, identifying info the user doesn't want surfacing in shared
+    clips (e.g. a family member calling their name from off-screen, home address)
+  - **Censor Words** — profanity and platform-restricted language; useful for flagging clips
+    before posting to kid-friendly platforms
+  Per-term match modes: exact, case-insensitive, or fuzzy/phonetic. No score impact — warning/flag
+  only. Clips with matches get a warning badge on the sidebar card and a flagged-terms section in
+  the detail panel. `Flagged` filter tab added alongside `All · Unreviewed · Approved · Rejected`.
+  Lives in Settings page under a `Sensitive Content` section.
+
+- [ ] **Copyright content detection** — detect music in the audio track that might trigger
+  copyright claims or content strikes on platforms like YouTube. Requires audio fingerprinting
+  against a reference database (e.g. AcoustID or similar). No clear implementation path yet —
+  needs evaluation of fingerprinting libraries, database licensing terms, and accuracy on gaming
+  audio. Deferred until sensitive content detection is stable.
+
+### Generalisation
 
 - [ ] **Content-type presets** — configurable specialization for different streaming styles so the
   LLM prompts and scoring weights are tuned without manual config editing:
@@ -367,45 +414,32 @@ unlock downstream.
   score weights, hot-words, and LLM prompt language. Prerequisite for the rename/generalisation work.
 
 - [ ] **Generalise for any video content** — remove RP-specific assumptions from the tool name,
-  CLI, config paths, and LLM prompts:
-  - Replace hard-coded RP context prompt with a free-text "session context" field
-  - Character/name vocabulary becomes a user-supplied list
-  - Rename app and CLI; update `~/.rp-clipper`, log file, DB paths
-  - Audit remaining RP-specific language in UI and prompts
+  CLI, config paths, and LLM prompts. Replace hard-coded RP context prompt with a free-text
+  "session context" field; character vocabulary becomes a user-supplied list; rename app and CLI;
+  audit remaining RP-specific language in UI and prompts.
   *Design the rename before touching code — it's a wide change.*
   Content-type presets (above) should be designed first so the rename ships with a clear value
   proposition for non-RP users.
 
-- [ ] **Manual score override** — let the user set a ground-truth score per clip via a slider.
-  Display the user score prominently with a distinct indicator (not replacing the LLM score —
-  show both). Accumulated overrides can eventually be used to tune the prompt or weight vector,
-  but that refinement loop is separate.
+- [ ] **URL import (Twitch VOD / YouTube)** — let the user paste a URL instead of a local file path.
+  Scope: download via `yt-dlp` with a live progress bar in the UI before analysis starts; store
+  source URL, scraped title, upload date, game/category, and streamer name as new columns on
+  `Video`; hand off to the normal ingest pipeline automatically after download completes.
 
-- [ ] **Project switcher in UI** — dropdown to switch between project directories without
-  restarting the server
+---
 
-- [ ] **Multi-session grouping** — treat multiple OBS files from one play session as a single
-  project with a unified timeline
+## Future considerations (no phase yet)
+
+Items wanted long-term but not yet assigned to a phase.
 
 - [ ] **Clips vs Scenes** — introduce a second candidate type: "Scenes" are longer contextual
   moments (1–5 min, may include pauses and story arc) vs. "clips" (15–90 s punchy bits). Design
   first: separate pipeline? flag on `ClipCandidate`? separate table? separate review UI?
   Depends on transcript editing being stable.
 
-- [ ] **Choose a licence** — currently unlicensed (all rights reserved, smitehamner). Options:
-  MIT (permissive), GPL-3 (copyleft), or source-available. Decide before any public release or
-  packaging. Update `LICENSE`, `pyproject.toml`, and the About modal once chosen.
-
-- [ ] **Built-in user manual** — in-app help: what each score means, contexts workflow, ingest
-  walkthrough, keyboard shortcuts, export options. Low priority until the UI is more stable.
-
-- [ ] **Copyright content detection** — detect music in the audio track that might trigger
-  copyright claims or content strikes on platforms like YouTube. Requires audio fingerprinting
-  against a reference database (e.g. AcoustID or similar). No clear implementation path yet —
-  needs evaluation of fingerprinting libraries, database licensing terms, and accuracy on gaming
-  audio where background music blends with ambient sound and effects. Deferred until sensitive
-  content detection is stable and a suitable fingerprinting approach with acceptable licencing
-  is identified.
+- [ ] **Score learning loop** — use accumulated manual score overrides (see Phase 5) to tune the
+  prompt or scoring weight vector semi-automatically. Requires a meaningful corpus of overrides
+  before it's worthwhile.
 
 ---
 
@@ -418,7 +452,7 @@ unlock downstream.
 
 ## Known issues (code quality)
 
-- **Analysis time estimate counts all tracks** — tracked as a medium-term near-term item above
+- **Analysis time estimate counts all tracks** — tracked as a Phase 3 medium-term item above
 - **`_ingest_one` has many parameters** — consider a dataclass if it grows further
 - **`ingest/labeler.py:_label_interactive`** — ~100 lines mixing UI and logic; candidate for split
 - **JS in `index.html` (~1737 lines)** — no-build-step SPA; consider ES modules if it grows further
