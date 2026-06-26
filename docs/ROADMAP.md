@@ -22,8 +22,8 @@
 - CUDA auto-detection using `ctranslate2.get_cuda_device_count()` (no PyTorch dep)
 - Sliding window clip generation from silence gaps
 - SRT caption sidecars (per-track + merged)
-- `--burn-subs` for baked-in captions
-- CLI: `rp-clip ingest / export / clips / status / probe`
+- `--bake-captions` for baked-in captions
+- CLI: `rp-clip analyze / export / clips / status / probe`
 
 ---
 
@@ -42,7 +42,7 @@
   - Falls back to combined track when specialized tracks duplicate it
 - `clip_candidates.description` column with DB migration
 - `rp-clip score` standalone re-scoring command; useful after changing world contexts
-- `rp-clip demo` highlight reel compiler (FFmpeg xfade transitions + title cards)
+- `rp-clip reel` highlight reel compiler (FFmpeg xfade transitions + title cards)
 
 ---
 

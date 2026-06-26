@@ -18,14 +18,14 @@ from fastapi.staticfiles import StaticFiles
 
 from rp_clipper.log import configure_logging, get_logger
 from rp_clipper.web.deps import ProjectContext
-from rp_clipper.web.routes import contexts, demo, ingest, logs, profiles, videos
+from rp_clipper.web.routes import analyze, contexts, logs, profiles, reel, videos
 
 _HERE = Path(__file__).parent
 _log  = get_logger(__name__)
 
 _SERVER_START = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
-_ROUTE_MODULES = (videos, ingest, profiles, demo, logs, contexts)
+_ROUTE_MODULES = (videos, analyze, profiles, reel, logs, contexts)
 
 
 def _reload_factory() -> FastAPI:

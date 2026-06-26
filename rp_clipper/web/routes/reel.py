@@ -1,5 +1,5 @@
 """
-Demo reel compilation routes.
+Highlight reel compilation routes.
 
 Uses the same start→events pattern as ingest: the POST endpoint validates
 options and queues the CLI command; the GET endpoint streams its output as SSE.
@@ -47,7 +47,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     @router.post("/api/demo/start")
     def start_demo(req: DemoRequest):
         """Validate options, confirm there are approved clips, and queue the demo command."""
-        from rp_clipper.demo import TRANSITIONS
+        from rp_clipper.reel import TRANSITIONS
         if req.transition not in TRANSITIONS:
             raise HTTPException(
                 400,
@@ -76,7 +76,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         ctx.reels_dir.mkdir(parents=True, exist_ok=True)
         output_path = ctx.reels_dir / output_name
         cmd = [
-            sys.executable, "-m", "rp_clipper.cli", "demo",
+            sys.executable, "-m", "rp_clipper.cli", "reel",
             "--project",    str(ctx.project_dir),
             "--transition", req.transition,
             "--trans-dur",  str(req.trans_dur),
@@ -103,7 +103,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
 
     @router.get("/api/demo/list")
     def list_reels():
-        """Return demo reel files from the reels directory, newest first."""
+        """Return highlight reel files from the reels directory, newest first."""
         if not ctx.reels_dir.exists():
             return []
         reels = []

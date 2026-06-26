@@ -5,22 +5,22 @@
 ### `rp-clip probe <video>`
 Inspects a video without analyzing it. Prints duration, resolution, FPS, and a table of all audio streams with codec, sample rate, channel count, and stream title. Useful for checking track layout before choosing a track layout.
 
-### `rp-clip ingest <path> [options]`
-Full end-to-end pipeline from raw video to scored clip candidates.
+### `rp-clip analyze <path> [options]`
+Full end-to-end pipeline from raw video to scored clips.
 
 **Options**
 
 | Flag | Default | Notes |
 |------|---------|-------|
-| `--model` | `base` | Whisper model: tiny (~40 MB VRAM), base (~75 MB), small (~240 MB), medium (~1.5 GB), large-v3 (~10 GB) |
+| `--model` | `base` | Speech-to-text model: tiny (~40 MB VRAM), base (~75 MB), small (~240 MB), medium (~1.5 GB), large-v3 (~10 GB) |
 | `--device` | `auto` | cuda or cpu; auto detects GPU — falls back to CPU if VRAM is insufficient for the chosen model |
-| `--profile NAME` | — | Saved track layout to apply |
-| `--language CODE` | — | Force Whisper language (e.g. `en`) |
+| `--track-layout NAME` | — | Saved track layout to apply |
+| `--language CODE` | — | Force speech-to-text language (e.g. `en`) |
 | `--energy-mode` | `fast` | `none` / `fast` (4 kHz) / `full` (16 kHz) |
 | `--context SLUG` | — | World context ID to attach; repeatable |
-| `--no-transcribe` | — | Skip Whisper step |
+| `--no-transcribe` | — | Skip transcription step |
 | `--no-segment` | — | Skip clip generation |
-| `--no-score` | — | Skip Phase 2 scoring |
+| `--no-score` | — | Skip scoring step |
 | `--force` | — | Reprocess even if already analyzed |
 | `--no-interact` | — | Never prompt (always set by web UI) |
 
@@ -48,22 +48,22 @@ Transcription dominates for large-v3; audio extraction dominates for fast models
 > **CPU note:** On CPU, `large-v3` is roughly 150× slower than an RTX GPU for transcription. Smaller models (`base`, `small`) are significantly faster on CPU but the in-app estimate uses a single conservative ratio for all models — expect the real time to be faster than shown for small/base on CPU. `medium` or larger on CPU is not practical for sessions over 30 minutes.
 
 ### `rp-clip score [<video_id>|--all] [options]`
-Re-runs Phase 2 scoring on an already-analyzed recording. Useful after changing world contexts or Ollama model. Options: `--no-energy`, `--no-scenes`, `--no-llm`.
+Re-runs scoring on an already-analyzed recording. Useful after changing world contexts or the AI model. Options: `--no-energy`, `--no-scenes`, `--no-llm`.
 
 ### `rp-clip status`
 Table of all analyzed recordings: filename, duration, track count, clip count, analysis status (pending → probed → labeled → extracting → transcribed → done).
 
 ### `rp-clip clips [VIDEO_NAME] [--status FILTER] [--limit N]`
-Browse clips in the terminal. Filter by partial video name or status (pending, approved, rejected). Shows ID, start time, duration, status, tags, and transcript excerpt.
+Browse clips in the terminal. Filter by partial video name or status (unreviewed, approved, rejected). Shows ID, start time, duration, status, tags, and transcript excerpt.
 
 ### `rp-clip export <clip_id> [options]`
 Extract a single clip to MKV.
 
 | Flag | Notes |
 |------|-------|
-| `--reencode` | Frame-accurate cut via libx264 (slower; default is quick export) |
-| `--subtitles` / `--no-subtitles` | Write SRT caption sidecar files (default: on) |
-| `--burn-subs` | Bake captions into video (forces re-encode) |
+| `--precise` | Frame-accurate cut via libx264 (slower; default is quick export) |
+| `--captions` / `--no-captions` | Write SRT caption sidecar files (default: on) |
+| `--bake-captions` | Bake captions into video (forces precise export) |
 | `--output PATH` | Output path; default: `.rp-clipper/exports/` |
 
 Output filename format: `{stem}_clip{id}_{start_hms}.mkv`
@@ -71,8 +71,8 @@ Output filename format: `{stem}_clip{id}_{start_hms}.mkv`
 ### `rp-clip retranscribe <clip_id> [options]`
 Re-runs Whisper on just the clip's time window, then re-scores. Default model: large-v3. Options: `--model`, `--language`, `--no-rescore`.
 
-### `rp-clip demo [options]`
-Compiles a highlight reel from clips with title cards and transitions.
+### `rp-clip reel [options]`
+Compiles a highlight reel from approved clips with title cards and transitions.
 
 | Flag | Default | Notes |
 |------|---------|-------|
@@ -83,7 +83,7 @@ Compiles a highlight reel from clips with title cards and transitions.
 | `--transition TYPE` | fade | fade, dissolve, wipeleft, wiperight, slideleft, slideright, none |
 | `--trans-dur S` | 0.5 | Overlap in seconds |
 | `--title-dur S` | 3.0 | Title card display time |
-| `--output PATH` | auto | Default: `.rp-clipper/exports/demo_<timestamp>.mkv` |
+| `--output PATH` | auto | Default: `.rp-clipper/reels/reel_<timestamp>.mkv` |
 
 ### `rp-clip serve [options]`
 Starts the web server and opens the browser. Options: `--host`, `--port` (default 8080), `--open`/`--no-open`, `--reload`. Preferred entry point for day-to-day use.

@@ -400,7 +400,7 @@
       <label>Track layout</label>
       <div style="display:flex;gap:6px">
         <select id="ingest-profile" style="flex:1" onchange="runEstimate()"></select>
-        <button class="btn" onclick="openProfileManager()" title="Manage profiles">&#9881;</button>
+        <button class="btn" onclick="openProfileManager()" title="Manage track layouts">&#9881;</button>
       </div>
     </div>
     <div class="field" id="ingest-context-field" style="display:none">
@@ -590,7 +590,7 @@
         </div>
         <div class="field">
           <label>Notes</label>
-          <textarea class="ctx-textarea" id="ce-notes" rows="2" placeholder="Anything else the LLM should know about this RP context…"></textarea>
+          <textarea class="ctx-textarea" id="ce-notes" rows="2" placeholder="Anything else the LLM should know about this world context…"></textarea>
         </div>
         <div style="display:flex;gap:8px;padding-top:4px">
           <button class="btn primary" onclick="saveContext()">Save</button>
@@ -657,7 +657,7 @@
       </div>
       <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
         <input type="checkbox" id="export-burn-subs">
-        <span style="font-size:13px">Burn subtitles into video</span>
+        <span style="font-size:13px">Bake captions into video</span>
       </label>
     </div>
     <div class="modal-actions">
@@ -1157,7 +1157,7 @@ function _renderContextSection(video) {
 
   return `
     <div>
-      <div class="section-title" style="margin-bottom:6px">RP Contexts</div>
+      <div class="section-title" style="margin-bottom:6px">World Contexts</div>
       <div class="context-chips">
         ${chips.join('')}${emptyMsg}${addSelect ? '&nbsp;' + addSelect : ''}
       </div>
@@ -2001,7 +2001,7 @@ async function startIngest() {
   btn.textContent = 'Starting…';
 
   const contextNames = Array.from(document.querySelectorAll('.ingest-ctx-check:checked')).map(cb => cb.value);
-  const startRes = await fetch('/api/ingest/start', {
+  const startRes = await fetch('/api/analyze/start', {
     method:  'POST',
     headers: {'Content-Type': 'application/json'},
     body:    JSON.stringify({path, model, profile, energy_mode: document.getElementById('ingest-energy-mode').value, scene_mode: document.getElementById('ingest-scene-mode').value, context_names: contextNames}),
@@ -2022,7 +2022,7 @@ async function startIngest() {
   openLog();
   appendLog(`Analyzing: ${filename}`);
   streamSSE(
-    '/api/ingest/events',
+    '/api/analyze/events',
     () => { loadVideos(); showToast('Analysis complete — clips are ready to review'); },
     INGEST_STEPS,
     `Analyzing ${filename}`,
@@ -2037,12 +2037,12 @@ const INGEST_STEPS = [
   {label: 'Generate Clips', patterns: ['Generating clip']},
   {label: 'Energy',         patterns: ['Computing audio energy']},
   {label: 'Scenes',         patterns: ['Detecting scene']},
-  {label: 'Score',          patterns: ['Scoring candidates']},
+  {label: 'Score',          patterns: ['Scoring clips']},
 ];
 const SCORE_STEPS = [
   {label: 'Energy',  patterns: ['Computing audio energy']},
   {label: 'Scenes',  patterns: ['Detecting scene']},
-  {label: 'Scoring', patterns: ['Scoring candidates']},
+  {label: 'Scoring', patterns: ['Scoring clips']},
 ];
 
 let _jobStepDefs = [];
@@ -2124,7 +2124,7 @@ function cancelJob() {
 
 async function _doCancelJob() {
   if (_activeES) { _activeES.close(); _activeES = null; }
-  try { await fetch('/api/ingest/cancel', {method: 'POST'}); } catch {}
+  try { await fetch('/api/analyze/cancel', {method: 'POST'}); } catch {}
   appendLog('[Analysis cancelled]');
   endJobUI();
   loadVideos();
@@ -2648,7 +2648,7 @@ function rescoreClips(videoId, btn) {
   const count = video ? video.clip_count : 0;
   showConfirm(
     'Re-score clips with context?',
-    `This will run Ollama scoring on <strong>${count} clip${count !== 1 ? 's' : ''}</strong>.<br>` +
+    `This will run LLM scoring on <strong>${count} clip${count !== 1 ? 's' : ''}</strong>.<br>` +
     `GPU time varies with clip count — this may take several minutes.`,
     'Re-score',
     () => _doRescoreClips(videoId, btn),
@@ -2696,10 +2696,10 @@ function _doRescoreClips(videoId, btn) {
 // ── reset approvals ────────────────────────────────────────────────────────────
 function resetApprovals(videoId) {
   const nonPending = _clips.filter(c => c.status !== 'pending').length;
-  if (!nonPending) { showToast('All clips are already Pending', 'info'); return; }
+  if (!nonPending) { showToast('All clips are already Unreviewed', 'info'); return; }
   showConfirm(
     'Reset all approvals?',
-    `Reset <strong>${nonPending} clip${nonPending !== 1 ? 's' : ''}</strong> back to Pending for this video. This cannot be undone.`,
+    `Reset <strong>${nonPending} clip${nonPending !== 1 ? 's' : ''}</strong> back to Unreviewed for this video. This cannot be undone.`,
     'Reset',
     () => _doResetApprovals(videoId),
     true,
@@ -2716,7 +2716,7 @@ async function _doResetApprovals(videoId) {
   const data = await res.json();
   _clips = await fetch(`/api/videos/${videoId}/clips?sort=${_clipsSortParam()}`).then(r => r.json());
   renderClipList(_clips);
-  showToast(`Reset ${data.reset} clip${data.reset !== 1 ? 's' : ''} to Pending`);
+  showToast(`Reset ${data.reset} clip${data.reset !== 1 ? 's' : ''} to Unreviewed`);
 }
 
 // ── auto-approve ───────────────────────────────────────────────────────────────

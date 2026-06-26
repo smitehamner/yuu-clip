@@ -9,8 +9,8 @@ Phase 1–3 codebase. Reviewed modules:
 `segments/windower.py`, `scoring/`
 
 **Web server (Phase 3):** `web/app.py`, `web/deps.py`, `web/sse.py`,
-`web/routes/videos.py`, `web/routes/ingest.py`, `web/routes/contexts.py`,
-`web/routes/profiles.py`, `web/routes/demo.py`, `web/routes/logs.py`,
+`web/routes/videos.py`, `web/routes/analyze.py`, `web/routes/contexts.py`,
+`web/routes/profiles.py`, `web/routes/reel.py`, `web/routes/logs.py`,
 `web/static/index.html`
 
 ### Threat model
@@ -170,7 +170,7 @@ model = "base"
 model_revision = "dc0e87e9c32a0b59e0c4b502c45e5b78e3c59a1a"
 ```
 
-From this point, `rp-clip ingest` will:
+From this point, `rp-clip analyze` will:
 - Pass `revision=` to `WhisperModel()`, which pins the HuggingFace model download
 - Print `revision=dc0e87e...` in the loading line so you can verify it at a glance
 - Re-use the cached download if the revision is already local

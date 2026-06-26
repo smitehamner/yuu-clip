@@ -18,7 +18,7 @@ Everything runs locally — no cloud APIs, no internet required after first mode
 - Generates a one-sentence description of each clip
 - Web UI to review clips, approve/reject, and export
 - Exports clips via FFmpeg with optional SRT subtitle sidecars
-- `rp-clip demo` command to compile approved clips into a highlight reel with transitions
+- `rp-clip reel` command to compile approved clips into a highlight reel with transitions
 
 ---
 
@@ -70,22 +70,22 @@ pip install -e .
 cd my-recordings-folder
 rp-clip serve
 ```
-Then navigate to `http://127.0.0.1:8080`. Use the **+ Ingest** button to add a video.
+Then navigate to `http://127.0.0.1:8080`. Use the **+ Analyze** button to add a video.
 
 ### CLI usage
 
 ```bash
-# Ingest a video (auto-labels tracks via a saved profile)
-rp-clip ingest session.mkv --profile my_obs_setup
+# Analyze a video (auto-assigns tracks via a saved track layout)
+rp-clip analyze session.mkv --track-layout my_obs_setup
 
-# Re-score all clips (useful after changing Ollama model or weights)
+# Re-score all clips (useful after changing the AI model or world contexts)
 rp-clip score --all
 
 # Export a clip by ID
-rp-clip export 42 --subtitles
+rp-clip export 42 --captions
 
-# Compile approved clips into a demo reel
-rp-clip demo --output highlights.mkv --transition fade
+# Compile approved clips into a highlight reel
+rp-clip reel --output highlights.mkv --transition fade
 
 # Start the web UI for a specific project folder
 rp-clip serve --project /path/to/recordings
@@ -100,8 +100,8 @@ faster-whisper uses CTranslate2, which detects CUDA automatically. No PyTorch ne
 For best results, install CUDA drivers for your GPU. The tool will automatically use `float16` compute on CUDA and fall back to CPU `int8` otherwise.
 
 ```bash
-# Check which device is being used — shown in ingest output
-rp-clip ingest session.mkv
+# Check which device is being used — shown in analyze output
+rp-clip analyze session.mkv
 ```
 
 ---

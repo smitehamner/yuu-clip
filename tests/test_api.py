@@ -248,15 +248,15 @@ class TestIngestStart:
         return p
 
     def test_missing_file_returns_400(self, client):
-        r = client.post("/api/ingest/start", json={"path": "/nonexistent/video.mkv", "model": "medium"})
+        r = client.post("/api/analyze/start", json={"path": "/nonexistent/video.mkv", "model": "medium"})
         assert r.status_code == 400
 
     def test_invalid_model_returns_400(self, client, video_path):
-        r = client.post("/api/ingest/start", json={"path": str(video_path), "model": "gpt-vision"})
+        r = client.post("/api/analyze/start", json={"path": str(video_path), "model": "gpt-vision"})
         assert r.status_code == 400
 
     def test_valid_request_with_energy_mode(self, client, video_path):
-        r = client.post("/api/ingest/start", json={
+        r = client.post("/api/analyze/start", json={
             "path": str(video_path),
             "model": "medium",
             "energy_mode": "none",
@@ -266,7 +266,7 @@ class TestIngestStart:
 
     def test_all_energy_modes_accepted(self, client, video_path):
         for mode in ("none", "fast", "full"):
-            r = client.post("/api/ingest/start", json={
+            r = client.post("/api/analyze/start", json={
                 "path": str(video_path),
                 "model": "medium",
                 "energy_mode": mode,
@@ -401,7 +401,7 @@ class TestGracefulShutdown:
 
         mock_proc.terminate.assert_called_once()
 
-    def test_shutdown_noop_when_no_ingest_running(self, project_dir):
+    def test_shutdown_noop_when_no_analyze_running(self, project_dir):
         """Server shutdown must not raise when there is no active subprocess."""
         from fastapi.testclient import TestClient
         from rp_clipper.web.app import create_app
@@ -587,12 +587,12 @@ class TestCaptionsVTT:
 
 class TestIngestCancel:
     def test_cancel_when_nothing_running_returns_ok(self, client):
-        r = client.post("/api/ingest/cancel")
+        r = client.post("/api/analyze/cancel")
         assert r.status_code == 200
         assert r.json()["status"] == "cancelled"
 
     def test_ingest_status_false_when_idle(self, client):
-        r = client.get("/api/ingest/status")
+        r = client.get("/api/analyze/status")
         assert r.status_code == 200
         assert r.json()["running"] is False
 
@@ -622,7 +622,7 @@ class TestStatus:
         assert r.status_code == 200
         d = r.json()
         assert d["any_running"] is False
-        assert d["ingest_running"] is False
+        assert d["analyze_running"] is False
         assert d["active_jobs"] == 0
         assert "version" in d
 
@@ -638,7 +638,7 @@ class TestStatus:
         with TestClient(app) as tc:
             app.state.ctx.ingest_proc = mock_proc
             r = tc.get("/api/status")
-        assert r.json()["ingest_running"] is True
+        assert r.json()["analyze_running"] is True
         assert r.json()["any_running"] is True
 
 
@@ -706,7 +706,7 @@ class TestSafeFilename:
     """_safe_filename strips directory traversal components."""
 
     def _safe(self, name, default="highlights.mkv"):
-        from rp_clipper.web.routes.demo import _safe_filename
+        from rp_clipper.web.routes.reel import _safe_filename
         return _safe_filename(name, default)
 
     def test_plain_name_unchanged(self):
@@ -915,7 +915,7 @@ class TestPearsonCorrelation:
     """_pearson correlation helper covers edge cases used in overlap detection."""
 
     def _pearson(self, a, b):
-        from rp_clipper.ingest.overlap import _pearson
+        from rp_clipper.analyze.overlap import _pearson
         return _pearson(a, b)
 
     def test_identical_sequences_returns_one(self):
@@ -1082,7 +1082,7 @@ class TestSseGuards:
     """Cover 400 guards on SSE event endpoints when no job has been queued."""
 
     def test_ingest_events_without_start_returns_400(self, client):
-        r = client.get("/api/ingest/events")
+        r = client.get("/api/analyze/events")
         assert r.status_code == 400
 
     def test_demo_events_without_start_returns_400(self, client):
@@ -1222,7 +1222,7 @@ class TestSseCommandCleared:
             ctx = app.state.ctx
             ctx.ingest_cmd = [sys.executable, "-c", "print('done')"]
             # Consume the stream fully so the generator's finally block runs
-            with tc.stream("GET", "/api/ingest/events") as resp:
+            with tc.stream("GET", "/api/analyze/events") as resp:
                 list(resp.iter_lines())
             assert ctx.ingest_cmd is None
 
@@ -1241,7 +1241,7 @@ class TestSseCommandCleared:
             assert ctx.demo_cmd is None
 
     def test_second_call_to_ingest_events_without_new_start_returns_400(self, project_dir):
-        """After stream finishes, a second call to /api/ingest/events without a new start
+        """After stream finishes, a second call to /api/analyze/events without a new start
         must return 400, not re-run the old command."""
         from fastapi.testclient import TestClient
         from rp_clipper.web.app import create_app
@@ -1252,10 +1252,10 @@ class TestSseCommandCleared:
             ctx = app.state.ctx
             ctx.ingest_cmd = [sys.executable, "-c", "print('done')"]
             # First call — runs the command
-            with tc.stream("GET", "/api/ingest/events") as resp:
+            with tc.stream("GET", "/api/analyze/events") as resp:
                 list(resp.iter_lines())
             # Second call — no command queued, must return 400
-            r = tc.get("/api/ingest/events")
+            r = tc.get("/api/analyze/events")
             assert r.status_code == 400
 
 
@@ -1867,7 +1867,7 @@ class TestProfileDeleteNonexistent:
 
 class TestWordSet:
     def _ws(self, text):
-        from rp_clipper.ingest.overlap import _word_set
+        from rp_clipper.analyze.overlap import _word_set
         return _word_set(text)
 
     def test_empty_string_returns_empty_set(self):

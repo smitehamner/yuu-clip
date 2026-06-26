@@ -22,7 +22,7 @@ from rp_clipper.config import (
     load_profiles,
     save_profile,
 )
-from rp_clipper.ingest.probe import VideoInfo
+from rp_clipper.analyze.probe import VideoInfo
 
 console = Console()
 

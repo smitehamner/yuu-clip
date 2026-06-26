@@ -35,7 +35,7 @@ Do all three steps before reporting a backend fix as complete:
 Invoke-RestMethod http://127.0.0.1:8080/api/status
 ```
 
-This returns `{"any_running": bool, "ingest_running": bool, "active_jobs": int}`.
+This returns `{"any_running": bool, "analyze_running": bool, "active_jobs": int}`.
 If `any_running` is `True`, **stop and ask the user** whether to wait or cancel before
 proceeding. Restarting mid-ingest silently kills the subprocess and loses all progress;
 interrupting other SSE jobs (rescore, timeline, summarize) is less catastrophic but
@@ -148,12 +148,12 @@ If you see `OperationalError: database is locked`:
 - Also check: the server was not restarted after a Python change.
 
 ### Interactive labeling
-`label_tracks()` must never be called interactively from the web UI. The CLI ingest
+`label_tracks()` must never be called interactively from the web UI. The CLI analyze
 command always receives `--no-interact`; this causes `_label_non_interactive()` to
 use track 0 as combined and mark the rest unlabeled without prompting.
 
 ### Subprocess cancellation
-`POST /api/ingest/cancel` sets `ctx.ingest_cancelled = True` and calls
+`POST /api/analyze/cancel` sets `ctx.ingest_cancelled = True` and calls
 `proc.terminate()`. The SSE generator checks the flag after the process exits and
 yields a `[Analysis cancelled]` message before the `__DONE__` sentinel.
 

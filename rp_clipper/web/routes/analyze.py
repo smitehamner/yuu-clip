@@ -1,7 +1,7 @@
 """
-Ingest-pipeline routes.
+Analysis-pipeline routes.
 
-Covers the full ingest workflow from file selection through to clip export:
+Covers the full analyze workflow from file selection through to clip export:
   - Native OS file picker
   - Video probe (duration, streams, fps)
   - Processing-time estimates
@@ -107,7 +107,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     @router.post("/api/probe")
     def probe_video_file(req: ProbeRequest):
         """Probe a video file and return its duration, resolution, and stream counts."""
-        from rp_clipper.ingest.probe import probe_video
+        from rp_clipper.analyze.probe import probe_video
         p = Path(req.path)
         if not p.exists():
             raise HTTPException(400, f"File not found: {req.path}")
@@ -127,10 +127,10 @@ def make_router(ctx: ProjectContext) -> APIRouter:
 
     @router.post("/api/estimate")
     def estimate_processing_time(req: EstimateRequest):
-        """Return per-step wall-clock time estimates for ingesting a video of the given length."""
+        """Return per-step wall-clock time estimates for analyzing a video of the given length."""
         return _compute_time_estimate(req)
 
-    @router.post("/api/ingest/start")
+    @router.post("/api/analyze/start")
     async def start_ingest(req: IngestRequest):
         """Validate the video path, build the ingest CLI command, and queue it for the SSE stream."""
         if not Path(req.path).exists():
@@ -140,12 +140,12 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         except ValueError as e:
             raise HTTPException(400, str(e))
         cmd = [
-            sys.executable, "-m", "rp_clipper.cli", "ingest",
+            sys.executable, "-m", "rp_clipper.cli", "analyze",
             str(req.path), "--model", req.model,
             "--project", str(ctx.project_dir),
         ]
         if req.profile:
-            cmd += ["--profile", req.profile]
+            cmd += ["--track-layout", req.profile]
         if req.no_score:
             cmd += ["--no-score"]
         cmd += ["--energy-mode", req.energy_mode]
@@ -154,43 +154,43 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             cmd += ["--context", slug]
         cmd += ["--no-interact"]
         ctx.ingest_cmd = cmd
-        _log.info("Ingest queued: %s (model=%s, energy=%s, scene=%s)", req.path, req.model, req.energy_mode, req.scene_mode)
+        _log.info("Analyze queued: %s (model=%s, energy=%s, scene=%s)", req.path, req.model, req.energy_mode, req.scene_mode)
         return {"status": "started"}
 
-    @router.get("/api/ingest/events")
+    @router.get("/api/analyze/events")
     async def ingest_events():
-        """Stream the queued ingest subprocess output as SSE. Call /api/ingest/start first."""
+        """Stream the queued ingest subprocess output as SSE. Call /api/analyze/start first."""
         if not ctx.ingest_cmd:
-            raise HTTPException(400, "No ingest command queued. Call /api/ingest/start first.")
+            raise HTTPException(400, "No analyze command queued. Call /api/analyze/start first.")
         return await subprocess_sse(ctx.ingest_cmd, ctx.project_dir, ctx)
 
     @router.get("/api/status")
     def server_status():
-        """Return whether any processing is currently active (ingest, scoring, timeline, etc.)."""
-        # Lazy import: ingest.py is loaded by app.py, so a top-level import would be circular.
+        """Return whether any processing is currently active (analysis, scoring, timeline, etc.)."""
+        # Lazy import: analyze.py is loaded by app.py, so a top-level import would be circular.
         from rp_clipper.web.app import _SERVER_START
         proc = ctx.ingest_proc
-        ingest_running = proc is not None and proc.returncode is None
+        analyze_running = proc is not None and proc.returncode is None
         return {
-            "any_running": ingest_running or ctx.active_jobs > 0,
-            "ingest_running": ingest_running,
+            "any_running": analyze_running or ctx.active_jobs > 0,
+            "analyze_running": analyze_running,
             "active_jobs": ctx.active_jobs,
             "version": f"Development · started {_SERVER_START}",
         }
 
-    @router.get("/api/ingest/status")
-    def ingest_status():
-        """Return whether an ingest subprocess is currently running."""
+    @router.get("/api/analyze/status")
+    def analyze_status():
+        """Return whether an analyze subprocess is currently running."""
         proc = ctx.ingest_proc
         running = proc is not None and proc.returncode is None
         return {"running": running}
 
-    @router.post("/api/ingest/cancel")
-    async def cancel_ingest():
-        """Terminate the currently running ingest subprocess, if any."""
+    @router.post("/api/analyze/cancel")
+    async def cancel_analyze():
+        """Terminate the currently running analyze subprocess, if any."""
         proc = ctx.ingest_proc
         if proc is not None and proc.returncode is None:
-            _log.warning("Ingest cancelled by user (pid %s)", proc.pid)
+            _log.warning("Analysis cancelled by user (pid %s)", proc.pid)
             ctx.ingest_cancelled = True
             proc.terminate()
         ctx.ingest_cmd = None
@@ -217,7 +217,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             raise HTTPException(400, f"container must be one of: {', '.join(sorted(allowed_containers))}")
         cmd = [
             sys.executable, "-m", "rp_clipper.cli", "export", str(clip_id),
-            "--subtitles", "--project", str(ctx.project_dir),
+            "--captions", "--project", str(ctx.project_dir),
         ]
         if burn_subs:
             cmd.append("--burn-subs")

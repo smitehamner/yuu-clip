@@ -88,7 +88,7 @@ def probe(
     path: Path = typer.Argument(..., help="Video file to probe"),
 ):
     """Inspect a recording's audio tracks and metadata without analyzing it."""
-    from rp_clipper.ingest.probe import probe_video
+    from rp_clipper.analyze.probe import probe_video
 
     _require_ffmpeg()
 
@@ -127,17 +127,17 @@ def probe(
 
 
 @app.command()
-def ingest(
-    path: Path = typer.Argument(..., help="Video file or directory of videos to ingest"),
+def analyze(
+    path: Path = typer.Argument(..., help="Video file or directory of videos to analyze"),
     project: Optional[Path] = typer.Option(None, "--project", "-p", help="Project directory (default: cwd)"),
-    model: str = typer.Option("base", "--model", "-m", help="Whisper model: tiny|base|small|medium|large-v3"),
+    model: str = typer.Option("base", "--model", "-m", help="Speech-to-text model: tiny|base|small|medium|large-v3"),
     device: str = typer.Option("auto", "--device", help="Compute device: auto|cpu|cuda"),
-    profile: Optional[str] = typer.Option(None, "--profile", help="Apply a saved track layout"),
+    track_layout: Optional[str] = typer.Option(None, "--track-layout", help="Apply a saved track layout"),
     no_transcribe: bool = typer.Option(False, "--no-transcribe", help="Skip transcription step"),
     no_segment: bool = typer.Option(False, "--no-segment", help="Skip clip generation"),
     no_score: bool = typer.Option(False, "--no-score", help="Skip scoring step"),
-    force: bool = typer.Option(False, "--force", help="Re-process even if already ingested"),
-    language: Optional[str] = typer.Option(None, "--language", "-l", help="Force Whisper language (e.g. en)"),
+    force: bool = typer.Option(False, "--force", help="Re-process even if already analyzed"),
+    language: Optional[str] = typer.Option(None, "--language", "-l", help="Force speech-to-text language (e.g. en)"),
     energy_mode: str = typer.Option("fast", "--energy-mode", help="Audio energy analysis: none|fast|full"),
     scene_mode: str = typer.Option("fast", "--scene-mode", help="Scene detection: transcript|fast|full"),
     no_interact: bool = typer.Option(False, "--no-interact", help="Never prompt interactively — use defaults or fail cleanly (set automatically by the web UI)"),
@@ -167,7 +167,7 @@ def ingest(
             session=session,
             config=config,
             audio_dir=audio_dir,
-            profile=profile,
+            profile=track_layout,
             no_transcribe=no_transcribe,
             no_segment=no_segment,
             no_score=no_score,
@@ -179,7 +179,7 @@ def ingest(
             context_text=context_text,
         )
 
-    console.print("\n[bold green]Done![/bold green]  Run [cyan]rp-clip status[/cyan] to see your project.\n")
+    console.print("\n[bold green]Done![/bold green]  Run [cyan]rp-clip status[/cyan] to review your clips.\n")
 
 
 def _ingest_one(
@@ -199,7 +199,7 @@ def _ingest_one(
         console.print(f"[dim]Skipping {video_path.name} (already done — use --force to redo)[/dim]")
         return
 
-    console.print(f"Ingesting: {video_path.name}")
+    console.print(f"Analyzing: {video_path.name}")
     console.rule(f"[bold]{video_path.name}[/bold]")
 
     info = _probe_video(video_path)
@@ -234,12 +234,12 @@ def _ingest_one(
 
 def _probe_video(video_path: Path):
     """Run ffprobe on the video and return a ProbeResult, or None on failure."""
-    from rp_clipper.ingest.probe import probe_video
-    console.print("  [bold]Probing...[/bold]")
+    from rp_clipper.analyze.probe import probe_video
+    console.print("  [bold]Inspecting...[/bold]")
     try:
         info = probe_video(video_path)
     except Exception as e:
-        console.print(f"  [red]Probe failed: {e}[/red]")
+        console.print(f"  [red]Inspect failed: {e}[/red]")
         return None
     console.print(
         f"  [dim]Duration: [cyan]{info.duration_hms}[/cyan]  ·  "
@@ -256,7 +256,7 @@ def _upsert_video_and_tracks(session, video_path: Path, info, existing, profile,
     Returns (video, track_objs) — the ORM objects for use by later stages.
     """
     from rp_clipper.db.models import AudioTrack, Video
-    from rp_clipper.ingest.labeler import label_tracks
+    from rp_clipper.analyze.labeler import label_tracks
 
     if existing:
         video = existing
@@ -273,7 +273,7 @@ def _upsert_video_and_tracks(session, video_path: Path, info, existing, profile,
         session.add(video)
         session.flush()
 
-    console.print("  [bold]Labeling audio tracks...[/bold]")
+    console.print("  [bold]Assigning tracks...[/bold]")
     assignments = label_tracks(info, profile_name=profile, non_interactive=non_interactive)
 
     track_objs = []
@@ -317,8 +317,8 @@ def _extract_audio_and_check_rms_overlap(
     individual tracks. The RMS Pearson-correlation check (overlap.py) detects this
     and marks duplicates so they are not scored separately.
     """
-    from rp_clipper.ingest.extract import extract_audio_track
-    from rp_clipper.ingest.overlap import detect_and_apply_overlap_fallback
+    from rp_clipper.analyze.extract import extract_audio_track
+    from rp_clipper.analyze.overlap import detect_and_apply_overlap_fallback
 
     console.print("  [bold]Extracting audio...[/bold]")
     for track in track_objs:
@@ -358,7 +358,7 @@ def _extract_audio_and_check_rms_overlap(
 
 def _transcribe_and_check_overlap(track_objs, config, session, video, language) -> list:
     """Transcribe all eligible tracks and suppress duplicates found in combined-track content."""
-    from rp_clipper.ingest.overlap import detect_transcript_overlap
+    from rp_clipper.analyze.overlap import detect_transcript_overlap
     from rp_clipper.transcribe.whisper_runner import transcribe_track
 
     console.print(f"  [bold]Transcribing (model: {config.whisper_model})...[/bold]")
@@ -456,7 +456,7 @@ def _run_scoring(video, track_objs, config, session, energy_mode: str = "fast", 
         except Exception as e:
             console.print(f"  [yellow]  Scene detection skipped: {e}[/yellow]")
 
-    console.print("  [bold]Scoring candidates...[/bold]")
+    console.print("  [bold]Scoring clips...[/bold]")
     engine = ScoringEngine(config, [AudioEnergyScorer(config), SceneCutScorer(config), LLMScorer(config, context_text=context_text)])
     n = engine.score_video(
         video, session,
@@ -477,7 +477,7 @@ def score(
     no_scenes: bool = typer.Option(False, "--no-scenes", help="Skip scene detection step"),
     no_llm: bool = typer.Option(False, "--no-llm", help="Skip LLM scoring step"),
 ):
-    """Re-run Phase 2 scoring for one video or all videos."""
+    """Re-run scoring for one recording or all recordings."""
     from rp_clipper.db.models import Video
 
     if video_id is None and not all_videos:
@@ -514,7 +514,7 @@ def score(
 def status(
     project: Optional[Path] = typer.Option(None, "--project", "-p"),
 ):
-    """Show the status of all ingested videos in this project."""
+    """Show the status of all analyzed recordings in this project."""
     from rp_clipper.db.models import ClipCandidate, Video
 
     proj_dir = _project_dir(project)
@@ -522,14 +522,14 @@ def status(
     videos   = session.query(Video).order_by(Video.created_at).all()
 
     if not videos:
-        console.print("[dim]No recordings analyzed yet.  Run [cyan]rp-clip ingest <path>[/cyan] to start.[/dim]")
+        console.print("[dim]No recordings analyzed yet.  Run [cyan]rp-clip analyze <path>[/cyan] to start.[/dim]")
         return
 
     t = Table(show_header=True, header_style="bold cyan", border_style="dim")
     t.add_column("Filename")
     t.add_column("Duration",   width=12)
     t.add_column("Tracks",     width=7)
-    t.add_column("Candidates", width=11)
+    t.add_column("Clips",      width=11)
     t.add_column("Status",     width=12)
 
     _STATUS_STYLE = {
@@ -551,7 +551,7 @@ def status(
 def clips(
     video_name: Optional[str] = typer.Argument(None, help="Filter by video filename (partial match)"),
     project: Optional[Path] = typer.Option(None, "--project", "-p"),
-    status_filter: Optional[str] = typer.Option(None, "--status", "-s", help="pending|approved|rejected"),
+    status_filter: Optional[str] = typer.Option(None, "--status", "-s", help="unreviewed|approved|rejected  (unreviewed = not yet reviewed)"),
     limit: int = typer.Option(50, "--limit", "-n"),
 ):
     """List clips."""
@@ -564,7 +564,8 @@ def clips(
     if video_name:
         q = q.filter(Video.filename.contains(video_name))
     if status_filter:
-        q = q.filter(ClipCandidate.status == status_filter)
+        db_status = "pending" if status_filter == "unreviewed" else status_filter
+        q = q.filter(ClipCandidate.status == db_status)
     q = q.order_by(ClipCandidate.video_id, ClipCandidate.start_ms).limit(limit)
     candidates = q.all()
 
@@ -572,7 +573,8 @@ def clips(
         console.print("[dim]No clips found.[/dim]")
         return
 
-    _STATUS_STYLE = {"approved": "green", "rejected": "red", "pending": "dim"}
+    _STATUS_STYLE    = {"approved": "green", "rejected": "red", "pending": "dim"}
+    _STATUS_DISPLAY  = {"pending": "Unreviewed", "approved": "Approved", "rejected": "Rejected"}
     t = Table(show_header=True, header_style="bold cyan", border_style="dim")
     t.add_column("ID",     width=5)
     t.add_column("Video",  width=22)
@@ -584,10 +586,11 @@ def clips(
 
     for c in candidates:
         style   = _STATUS_STYLE.get(c.status, "white")
+        label   = _STATUS_DISPLAY.get(c.status, c.status)
         excerpt = (c.transcript_excerpt or "")[:60].replace("\n", " ")
         t.add_row(
             str(c.id), c.video.filename[:22], c.start_hms, c.duration_hms,
-            f"[{style}]{c.status}[/{style}]",
+            f"[{style}]{label}[/{style}]",
             ", ".join(c.tags[:2]),
             excerpt,
         )
@@ -599,9 +602,9 @@ def export(
     clip_id: int = typer.Argument(..., help="Clip candidate ID to export"),
     project: Optional[Path] = typer.Option(None, "--project", "-p"),
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file path"),
-    reencode: bool = typer.Option(False, "--reencode", help="Precise export: re-encode for frame-accurate cut (slower)"),
-    subtitles: bool = typer.Option(True, "--subtitles/--no-subtitles", help="Write SRT caption sidecar file(s)"),
-    burn_subs: bool = typer.Option(False, "--burn-subs", help="Bake captions into video (forces precise export)"),
+    precise: bool = typer.Option(False, "--precise", help="Precise export: re-encode for frame-accurate cut (slower)"),
+    captions: bool = typer.Option(True, "--captions/--no-captions", help="Write SRT caption sidecar file(s)"),
+    bake_captions: bool = typer.Option(False, "--bake-captions", help="Bake captions into video (forces precise export)"),
     container: Optional[str] = typer.Option(None, "--container", help="Output container override: mkv or mp4. Defaults to source format."),
 ):
     """Export a clip to a video file."""
@@ -609,7 +612,7 @@ def export(
 
     from rp_clipper.config import project_exports_dir
     from rp_clipper.db.models import AudioTrack, ClipCandidate
-    from rp_clipper.ingest.extract import export_clip
+    from rp_clipper.analyze.extract import export_clip
     from rp_clipper.subtitles import export_srt_sidecars, lines_to_srt, merged_srt_lines
 
     proj_dir = _project_dir(project)
@@ -651,7 +654,7 @@ def export(
     console.print(f"  Exporting clip [bold]{clip_id}[/bold]  {cand.start_hms}  ({cand.duration_hms})  ...")
 
     subtitle_path: Optional[Path] = None
-    if burn_subs:
+    if bake_captions:
         merged = merged_srt_lines(cand)
         if merged:
             tmp = tempfile.NamedTemporaryFile(suffix=".srt", delete=False, mode="w", encoding="utf-8")
@@ -659,7 +662,7 @@ def export(
             tmp.close()
             subtitle_path = Path(tmp.name)
         else:
-            console.print("  [yellow]--burn-subs: no transcript data found, skipping burn-in[/yellow]")
+            console.print("  [yellow]--bake-captions: no transcript data found, skipping burn-in[/yellow]")
 
     try:
         result = export_clip(
@@ -667,7 +670,7 @@ def export(
             start_ms=effective_start_ms,
             end_ms=effective_end_ms,
             output_path=output,
-            reencode=reencode,
+            reencode=precise,
             subtitle_path=subtitle_path,
             audio_stream_index=audio_stream_idx,
         )
@@ -680,17 +683,17 @@ def export(
         if subtitle_path and subtitle_path.exists():
             subtitle_path.unlink(missing_ok=True)
 
-    if subtitles:
+    if captions:
         srt_files = export_srt_sidecars(cand, output.parent, base)
         if srt_files:
             for srt in srt_files:
-                console.print(f"  [green]OK[/green] Subtitle  [cyan]{srt.name}[/cyan]")
+                console.print(f"  [green]OK[/green] Captions  [cyan]{srt.name}[/cyan]")
         else:
             console.print("  [dim]No transcript data — captions skipped[/dim]")
 
 
 @app.command()
-def demo(
+def reel(
     project:    Optional[Path]  = typer.Option(None, "-p", "--project"),
     video_ids:  list[int]       = typer.Option([], "--video", "-v", help="Video ID(s) to include (default: all)"),
     video_id:   Optional[int]   = typer.Option(None, "--video-id", help="Single video ID (alias for --video)"),
@@ -702,11 +705,11 @@ def demo(
     trans_dur:  float           = typer.Option(0.5,  "--trans-dur",  help="Transition overlap duration in seconds"),
     title_dur:  float           = typer.Option(3.0,  "--title-dur",  help="Title card display duration in seconds"),
     output:     Optional[Path]  = typer.Option(None, "-o", "--output",
-                                     help="Output file path (default: .rp-clipper/exports/demo_<timestamp>.mkv)"),
+                                     help="Output file path (default: .rp-clipper/reels/reel_<timestamp>.mkv)"),
 ) -> None:
-    """Compile a highlight reel from exported clips with title cards and transitions."""
+    """Compile a highlight reel from approved clips with title cards and transitions."""
     from rp_clipper.db.models import ClipCandidate, Video
-    from rp_clipper.demo import TRANSITIONS, compile_demo
+    from rp_clipper.reel import TRANSITIONS, compile_demo
 
     if transition not in TRANSITIONS:
         console.print(f"[red]Unknown transition '{transition}'. Choose from: {', '.join(TRANSITIONS)}[/red]")
@@ -730,7 +733,7 @@ def demo(
 
     if not output:
         ts     = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output = reels_dir / f"demo_{ts}.mkv"
+        output = reels_dir / f"reel_{ts}.mkv"
     output.parent.mkdir(parents=True, exist_ok=True)
 
     console.print(f"\n[bold]Building highlight reel[/bold] — {len(all_clips)} clip(s), transition=[cyan]{transition}[/cyan]")

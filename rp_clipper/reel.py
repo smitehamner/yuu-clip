@@ -1,5 +1,5 @@
 """
-Demo video compilation.
+Highlight reel compilation.
 
 Combines exported clip files into a single highlight reel with:
   - Title cards between clips (black background, white text, clip description)
