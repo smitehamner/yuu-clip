@@ -19,6 +19,7 @@ if sys.stderr and hasattr(sys.stderr, "buffer") and sys.stderr.encoding.lower() 
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
 import typer
+from dataclasses import dataclass, field
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -32,6 +33,20 @@ console = Console()
 
 VIDEO_EXTENSIONS = {".mp4", ".mkv", ".mov", ".avi", ".webm", ".flv", ".ts"}
 BYTES_PER_MB: int = 1_048_576
+
+
+@dataclass
+class AnalyzeOptions:
+    profile: Optional[str] = None
+    no_transcribe: bool = False
+    no_segment: bool = False
+    no_score: bool = False
+    force: bool = False
+    language: Optional[str] = None
+    energy_mode: str = "fast"
+    non_interactive: bool = False
+    context_names: list[str] = field(default_factory=list)
+    context_text: str = ""
 
 
 def _project_dir(given: Optional[Path]) -> Path:
@@ -161,41 +176,37 @@ def analyze(
     video_paths = _resolve_videos(path)
     console.print(f"\n[bold]yuuclip  ·  analyze[/bold]  ({len(video_paths)} video(s))\n")
 
+    opts = AnalyzeOptions(
+        profile=track_layout,
+        no_transcribe=no_transcribe,
+        no_segment=no_segment,
+        no_score=no_score,
+        force=force,
+        language=language,
+        energy_mode=energy_mode,
+        non_interactive=no_interact,
+        context_names=list(context),
+        context_text=context_text,
+    )
     for video_path in video_paths:
-        _ingest_one(
-            video_path=video_path,
-            session=session,
-            config=config,
-            audio_dir=audio_dir,
-            profile=track_layout,
-            no_transcribe=no_transcribe,
-            no_segment=no_segment,
-            no_score=no_score,
-            force=force,
-            language=language,
-            energy_mode=energy_mode,
-            non_interactive=no_interact,
-            context_names=context,
-            context_text=context_text,
-        )
+        _analyze_one(video_path, session, config, audio_dir, opts)
 
     console.print("\n[bold green]Done![/bold green]  Run [cyan]yuuclip status[/cyan] to review your clips.\n")
 
 
-def _ingest_one(
-    video_path, session, config, audio_dir,
-    profile, no_transcribe, no_segment, no_score, force, language,
-    energy_mode: str = "fast",
-    non_interactive: bool = False,
-    context_names: list[str] | None = None,
-    context_text: str = "",
+def _analyze_one(
+    video_path: Path,
+    session,
+    config,
+    audio_dir: Path,
+    opts: AnalyzeOptions,
 ) -> None:
     """Orchestrate all pipeline stages for a single video file."""
     from yuu_clip.db.models import Video
 
     abs_path = str(video_path.resolve())
     existing = session.query(Video).filter_by(path=abs_path).first()
-    if existing and existing.status == "done" and not force:
+    if existing and existing.status == "done" and not opts.force:
         console.print(f"[dim]Skipping {video_path.name} (already done — use --force to redo)[/dim]")
         return
 
@@ -207,26 +218,27 @@ def _ingest_one(
         return
 
     video, track_objs = _upsert_video_and_tracks(
-        session, video_path, info, existing, profile, force, non_interactive=non_interactive
+        session, video_path, info, existing, opts.profile, opts.force,
+        non_interactive=opts.non_interactive,
     )
-    if context_names is not None:
-        video.context_names_json = json.dumps(context_names)
+    if opts.context_names:
+        video.context_names_json = json.dumps(opts.context_names)
     session.commit()
 
-    _extract_audio_and_check_rms_overlap(video_path, video, track_objs, config, audio_dir, session, force)
+    _extract_audio_and_check_rms_overlap(video_path, video, track_objs, config, audio_dir, session, opts.force)
     session.commit()
 
     transcripts = (
-        _transcribe_and_check_overlap(track_objs, config, session, video, language)
-        if not no_transcribe else []
+        _transcribe_and_check_overlap(track_objs, config, session, video, opts.language)
+        if not opts.no_transcribe else []
     )
     session.commit()
 
-    candidates = _generate_candidates(video, transcripts, config, session, no_segment, no_transcribe, force)
+    candidates = _generate_candidates(video, transcripts, config, session, opts.no_segment, opts.no_transcribe, opts.force)
     session.commit()
 
-    if not no_score and candidates:
-        _run_scoring(video, track_objs, config, session, energy_mode=energy_mode, context_text=context_text)
+    if not opts.no_score and candidates:
+        _run_scoring(video, track_objs, config, session, energy_mode=opts.energy_mode, context_text=opts.context_text)
 
     video.processed_at = datetime.now(timezone.utc)
     session.commit()

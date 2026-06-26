@@ -3394,3 +3394,395 @@ class TestBuildXfadeCmd:
         cmd = self._build(2, [5.0, 5.0])
         assert "[vout]" in cmd
         assert "[aout]" in cmd
+
+
+# ---------------------------------------------------------------------------
+# analyze/extract._ffmpeg_path — pure Windows-path normalisation
+# ---------------------------------------------------------------------------
+
+class TestFfmpegPath:
+    """_ffmpeg_path converts backslash paths to forward slashes for FFmpeg."""
+
+    def _fp(self, path_str):
+        from pathlib import Path
+        from yuu_clip.analyze.extract import _ffmpeg_path
+        return _ffmpeg_path(Path(path_str))
+
+    def test_posix_path_unchanged(self):
+        result = self._fp("/usr/share/video.mkv")
+        assert "\\" not in result
+        assert result.endswith("video.mkv")
+
+    def test_windows_path_uses_forward_slashes(self):
+        # On Windows, Path("C:\\Users\\foo\\bar.mkv").as_posix() → "C:/Users/foo/bar.mkv"
+        from pathlib import PureWindowsPath
+        from yuu_clip.analyze.extract import _ffmpeg_path
+        p = PureWindowsPath("C:\\Users\\foo\\bar.mkv")
+        result = _ffmpeg_path(p)
+        assert "\\" not in result
+        assert "bar.mkv" in result
+
+    def test_returns_string(self):
+        result = self._fp("/some/path.mkv")
+        assert isinstance(result, str)
+
+
+# ---------------------------------------------------------------------------
+# analyze/extract.export_clip — command structure (subprocess mocked)
+# ---------------------------------------------------------------------------
+
+class TestExportClipCommand:
+    """Validate the ffmpeg command built by export_clip without running FFmpeg."""
+
+    def _run_export(self, tmp_path, reencode=False, subtitle_path=None,
+                    audio_stream_index=None):
+        from pathlib import Path
+        from unittest.mock import patch, MagicMock
+        from yuu_clip.analyze.extract import export_clip
+
+        video = tmp_path / "video.mkv"
+        video.write_bytes(b"fake")
+        output = tmp_path / "out.mkv"
+
+        captured = {}
+
+        def fake_run(cmd, **kwargs):
+            captured["cmd"] = cmd
+            r = MagicMock()
+            r.returncode = 0
+            return r
+
+        with patch("yuu_clip.analyze.extract.subprocess.run", side_effect=fake_run), \
+             patch("yuu_clip.analyze.extract.find_ffmpeg", return_value=("ffmpeg", None)):
+            export_clip(
+                video, start_ms=5_000, end_ms=15_000, output_path=output,
+                reencode=reencode, subtitle_path=subtitle_path,
+                audio_stream_index=audio_stream_index,
+            )
+
+        return captured["cmd"]
+
+    def test_stream_copy_mode_uses_copy_codec(self, tmp_path):
+        cmd = self._run_export(tmp_path)
+        assert "-c" in cmd
+        copy_idx = cmd.index("-c")
+        assert cmd[copy_idx + 1] == "copy"
+
+    def test_stream_copy_seek_before_input(self, tmp_path):
+        cmd = self._run_export(tmp_path)
+        ss_idx = cmd.index("-ss")
+        i_idx  = cmd.index("-i")
+        assert ss_idx < i_idx
+
+    def test_reencode_seek_after_input(self, tmp_path):
+        cmd = self._run_export(tmp_path, reencode=True)
+        i_idx  = cmd.index("-i")
+        ss_idx = next(i for i, v in enumerate(cmd) if v == "-ss" and i > i_idx)
+        assert ss_idx > i_idx
+
+    def test_reencode_uses_libx264(self, tmp_path):
+        cmd = self._run_export(tmp_path, reencode=True)
+        assert "libx264" in cmd
+
+    def test_subtitle_forces_reencode(self, tmp_path):
+        subtitle = tmp_path / "subs.srt"
+        subtitle.write_text("1\n00:00:00,000 --> 00:00:01,000\nHi\n\n", encoding="utf-8")
+        cmd = self._run_export(tmp_path, subtitle_path=subtitle)
+        assert "libx264" in cmd
+        assert any("subtitles=" in str(arg) for arg in cmd)
+
+    def test_audio_stream_index_adds_map_flags(self, tmp_path):
+        cmd = self._run_export(tmp_path, audio_stream_index=2)
+        maps = [cmd[i + 1] for i, v in enumerate(cmd) if v == "-map"]
+        assert "0:v:0" in maps
+        assert "0:2" in maps
+
+    def test_no_audio_stream_index_omits_map_flags(self, tmp_path):
+        cmd = self._run_export(tmp_path)
+        assert "-map" not in cmd
+
+    def test_failure_raises_runtime_error(self, tmp_path):
+        from pathlib import Path
+        from unittest.mock import patch, MagicMock
+        from yuu_clip.analyze.extract import export_clip
+
+        video = tmp_path / "video.mkv"
+        video.write_bytes(b"fake")
+
+        def failing_run(cmd, **kwargs):
+            r = MagicMock()
+            r.returncode = 1
+            r.stderr = "codec not found"
+            return r
+
+        with patch("yuu_clip.analyze.extract.subprocess.run", side_effect=failing_run), \
+             patch("yuu_clip.analyze.extract.find_ffmpeg", return_value=("ffmpeg", None)):
+            with pytest.raises(RuntimeError, match="FFmpeg clip export failed"):
+                export_clip(video, 0, 5_000, tmp_path / "out.mkv")
+
+
+# ---------------------------------------------------------------------------
+# windower.generate_candidates — public API with a real DB session
+# ---------------------------------------------------------------------------
+
+class TestGenerateCandidates:
+    """generate_candidates produces ClipCandidates from Transcript + TranscriptSegments."""
+
+    def _setup_db(self, tmp_path, do_transcribe=True):
+        from yuu_clip.db.models import (
+            AudioTrack, Transcript, TranscriptSegment, Video, make_session,
+        )
+        db_path = tmp_path / "test.db"
+        session = make_session(db_path)
+
+        v = Video(path=str(tmp_path / "v.mkv"), filename="v.mkv",
+                  status="done", duration_ms=600_000)
+        session.add(v)
+        session.flush()
+
+        track = AudioTrack(
+            video_id=v.id, stream_index=0, label="combined",
+            do_transcribe=do_transcribe, do_score=True, relevance_weight=1.0,
+        )
+        session.add(track)
+        session.flush()
+
+        tx = Transcript(audio_track_id=track.id, model_name="base")
+        session.add(tx)
+        session.flush()
+
+        return session, v, tx
+
+    def _add_seg(self, session, tx_id, start_ms, end_ms, text="x"):
+        from yuu_clip.db.models import TranscriptSegment
+        session.add(TranscriptSegment(
+            transcript_id=tx_id, start_ms=start_ms, end_ms=end_ms, text=text,
+        ))
+
+    def test_empty_transcripts_returns_empty_list(self, tmp_path):
+        from yuu_clip.config import Config
+        from yuu_clip.segments.windower import generate_candidates
+        session, v, tx = self._setup_db(tmp_path)
+        try:
+            result = generate_candidates(v, [], Config(), session)
+        finally:
+            session.close()
+        assert result == []
+
+    def test_non_transcribable_track_ignored(self, tmp_path):
+        from yuu_clip.config import Config
+        from yuu_clip.db.models import Transcript
+        from yuu_clip.segments.windower import generate_candidates
+        session, v, tx = self._setup_db(tmp_path, do_transcribe=False)
+        # Add segments — they should be ignored because do_transcribe=False
+        self._add_seg(session, tx.id, 0, 10_000)
+        session.flush()
+        try:
+            result = generate_candidates(v, [tx.audio_track.transcripts[0]], Config(), session)
+        finally:
+            session.close()
+        assert result == []
+
+    def test_segments_shorter_than_min_clip_dropped(self, tmp_path):
+        from yuu_clip.config import Config
+        from yuu_clip.segments.windower import generate_candidates
+        session, v, tx = self._setup_db(tmp_path)
+        # 2-second segment, default min_clip_ms = 5000
+        self._add_seg(session, tx.id, 0, 2_000, "short")
+        session.flush()
+        config = Config()
+        try:
+            result = generate_candidates(v, [tx.audio_track.transcripts[0]], config, session)
+        finally:
+            session.close()
+        assert result == []
+
+    def test_long_segment_produces_one_candidate(self, tmp_path):
+        from yuu_clip.config import Config
+        from yuu_clip.segments.windower import generate_candidates
+        session, v, tx = self._setup_db(tmp_path)
+        self._add_seg(session, tx.id, 0, 30_000, "hello world")
+        session.flush()
+        config = Config()
+        try:
+            result = generate_candidates(v, [tx.audio_track.transcripts[0]], config, session)
+        finally:
+            session.close()
+        assert len(result) == 1
+        assert result[0].start_ms == 0
+        assert result[0].end_ms == 30_000
+        assert result[0].video_id == v.id
+        assert result[0].status == "pending"
+
+    def test_silence_gap_produces_two_candidates(self, tmp_path):
+        from yuu_clip.config import Config
+        from yuu_clip.segments.windower import generate_candidates
+        session, v, tx = self._setup_db(tmp_path)
+        # Two clusters each > min_clip_ms (15 s), separated by > silence_threshold_ms (3 s)
+        # Cluster A: 0 – 20 000 ms  (4 × 5 s segments)
+        for i in range(4):
+            self._add_seg(session, tx.id, i * 5_000, (i + 1) * 5_000, f"a{i}")
+        # Cluster B: 30 000 – 50 000 ms
+        for i in range(4):
+            offset = 30_000 + i * 5_000
+            self._add_seg(session, tx.id, offset, offset + 5_000, f"b{i}")
+        session.flush()
+        config = Config()
+        try:
+            result = generate_candidates(v, [tx.audio_track.transcripts[0]], config, session)
+        finally:
+            session.close()
+        assert len(result) == 2
+        assert result[0].end_ms < result[1].start_ms
+
+    def test_transcript_excerpt_joins_segment_texts(self, tmp_path):
+        from yuu_clip.config import Config
+        from yuu_clip.segments.windower import generate_candidates
+        session, v, tx = self._setup_db(tmp_path)
+        self._add_seg(session, tx.id, 0, 10_000, "hello")
+        self._add_seg(session, tx.id, 11_000, 20_000, "world")
+        session.flush()
+        config = Config()
+        try:
+            result = generate_candidates(v, [tx.audio_track.transcripts[0]], config, session)
+        finally:
+            session.close()
+        assert len(result) >= 1
+        # Both words should appear in at least one excerpt
+        all_text = " ".join(c.transcript_excerpt or "" for c in result)
+        assert "hello" in all_text
+        assert "world" in all_text
+
+    def test_candidates_added_to_session(self, tmp_path):
+        from yuu_clip.config import Config
+        from yuu_clip.db.models import ClipCandidate
+        from yuu_clip.segments.windower import generate_candidates
+        session, v, tx = self._setup_db(tmp_path)
+        self._add_seg(session, tx.id, 0, 30_000, "content")
+        session.flush()
+        config = Config()
+        try:
+            result = generate_candidates(v, [tx.audio_track.transcripts[0]], config, session)
+            session.commit()
+            count = session.query(ClipCandidate).count()
+        finally:
+            session.close()
+        assert count == len(result)
+        assert count >= 1
+
+
+# ---------------------------------------------------------------------------
+# AudioEnergyScorer — happy path (data inside window produces positive score)
+# ---------------------------------------------------------------------------
+
+class TestAudioEnergyScorerHappyPath:
+    """score() with energy rows inside the clip window returns energy_scored tag."""
+
+    def _make_db_with_energy(self, tmp_path, n_rows=30, loud_start=10, loud_end=20,
+                              loud_db=10.0, quiet_db=-30.0):
+        from unittest.mock import MagicMock
+        from yuu_clip.config import Config
+        from yuu_clip.db.models import AudioEnergy, AudioTrack, Video, make_session
+        from yuu_clip.scoring.energy import AudioEnergyScorer
+
+        session = make_session(tmp_path / "test.db")
+        v = Video(path="/fake/v.mkv", filename="v.mkv", status="done", duration_ms=600_000)
+        session.add(v)
+        session.flush()
+        track = AudioTrack(
+            video_id=v.id, stream_index=0, label="combined",
+            do_transcribe=True, do_score=True, relevance_weight=1.0,
+        )
+        session.add(track)
+        session.flush()
+
+        # Populate the whole track with mostly quiet rows, and louder rows in
+        # [loud_start, loud_end) — these are the ones the clip window covers.
+        for s in range(n_rows):
+            db = loud_db if loud_start <= s < loud_end else quiet_db
+            session.add(AudioEnergy(audio_track_id=track.id, second_offset=s, rms_db=db))
+        session.flush()
+
+        db_track = session.query(AudioTrack).filter_by(id=track.id).one()
+
+        clip = MagicMock()
+        clip.start_ms = loud_start * 1000
+        clip.end_ms   = loud_end   * 1000
+        clip.video.audio_tracks = [db_track]
+
+        return AudioEnergyScorer(Config()), clip, session
+
+    def test_energy_rows_inside_window_produce_energy_scored_tag(self, tmp_path):
+        scorer, clip, session = self._make_db_with_energy(tmp_path)
+        try:
+            result = scorer.score(clip, session)
+        finally:
+            session.close()
+        assert "energy_scored" in result.tags
+
+    def test_loud_window_produces_positive_score_action(self, tmp_path):
+        scorer, clip, session = self._make_db_with_energy(tmp_path, loud_db=0.0, quiet_db=-60.0)
+        try:
+            result = scorer.score(clip, session)
+        finally:
+            session.close()
+        assert result.score_action > 0.0
+
+    def test_score_action_does_not_exceed_one(self, tmp_path):
+        # Clip window is extremely loud; score must be clamped at 1.0
+        scorer, clip, session = self._make_db_with_energy(
+            tmp_path, loud_db=100.0, quiet_db=-100.0
+        )
+        try:
+            result = scorer.score(clip, session)
+        finally:
+            session.close()
+        assert result.score_action <= 1.0
+
+    def test_score_result_includes_notes(self, tmp_path):
+        scorer, clip, session = self._make_db_with_energy(tmp_path)
+        try:
+            result = scorer.score(clip, session)
+        finally:
+            session.close()
+        assert "clip_mean_db" in result.notes
+        assert "baseline_db" in result.notes
+
+    def test_quiet_window_in_loud_video_scores_lower(self, tmp_path):
+        """A clip at the quiet section of an otherwise loud video scores low."""
+        from unittest.mock import MagicMock
+        from yuu_clip.config import Config
+        from yuu_clip.db.models import AudioEnergy, AudioTrack, Video, make_session
+        from yuu_clip.scoring.energy import AudioEnergyScorer
+
+        session = make_session(tmp_path / "test.db")
+        v = Video(path="/fake/v.mkv", filename="v.mkv", status="done", duration_ms=600_000)
+        session.add(v)
+        session.flush()
+        track = AudioTrack(
+            video_id=v.id, stream_index=0, label="combined",
+            do_transcribe=True, do_score=True, relevance_weight=1.0,
+        )
+        session.add(track)
+        session.flush()
+
+        # Most of the video is loud; seconds 0–9 are quiet
+        for s in range(30):
+            db = -60.0 if s < 10 else 0.0
+            session.add(AudioEnergy(audio_track_id=track.id, second_offset=s, rms_db=db))
+        session.flush()
+
+        db_track = session.query(AudioTrack).filter_by(id=track.id).one()
+        clip = MagicMock()
+        clip.start_ms = 0
+        clip.end_ms   = 10_000
+        clip.video.audio_tracks = [db_track]
+
+        scorer = AudioEnergyScorer(Config())
+        try:
+            result = scorer.score(clip, session)
+        finally:
+            session.close()
+
+        # Score should be 0.0 (below baseline) — quiet clip in a loud video
+        assert result.score_action == 0.0

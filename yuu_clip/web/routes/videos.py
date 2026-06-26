@@ -11,6 +11,7 @@ import asyncio
 import json as json_lib
 import re
 import sys
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -101,6 +102,74 @@ class ConfigPatch(BaseModel):
 
 # Kept for backwards compat — PATCH /api/config uses ConfigPatch now
 UiConfigUpdate = ConfigPatch
+
+@asynccontextmanager
+async def _active_job(ctx):
+    ctx.active_jobs += 1
+    try:
+        yield
+    finally:
+        ctx.active_jobs -= 1
+
+
+_CONFIG_FIELDS = (
+    "ui_timeline_interval_seconds", "ui_timeline_interval_unit",
+    "whisper_model", "whisper_device", "whisper_compute_type",
+    "llm_backend", "llm_model_path",
+    "ollama_host", "ollama_model", "ollama_timeout_s", "ollama_enabled",
+    "scorer_energy_weight", "scorer_scene_weight", "scorer_llm_weight",
+    "score_funny_weight", "score_dramatic_weight", "score_action_weight",
+    "scene_detection_mode", "silence_threshold_ms", "min_clip_ms",
+)
+
+
+def _enum_validator(allowed: set, label: str):
+    def _v(v):
+        if v not in allowed:
+            raise HTTPException(400, f"{label} must be one of: {sorted(allowed)}")
+        return v
+    return _v
+
+
+def _min_validator(minimum, label: str):
+    def _v(v):
+        if v < minimum:
+            raise HTTPException(400, f"{label} must be >= {minimum}")
+        return v
+    return _v
+
+
+def _whisper_model_validator(v: str) -> str:
+    from yuu_clip.config import validate_whisper_model
+    try:
+        validate_whisper_model(v)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return v
+
+
+_CONFIG_PATCH_RULES: list[tuple[str, object]] = [
+    ("ui_timeline_interval_seconds", _min_validator(10,   "interval")),
+    ("ui_timeline_interval_unit",    _enum_validator({"seconds", "minutes"}, "unit")),
+    ("whisper_model",                _whisper_model_validator),
+    ("whisper_device",               _enum_validator({"cpu", "cuda", "auto"}, "whisper_device")),
+    ("whisper_compute_type",         _enum_validator({"int8", "float16", "float32", "int8_float16"}, "whisper_compute_type")),
+    ("llm_backend",                  _enum_validator({"llamacpp", "ollama"}, "llm_backend")),
+    ("llm_model_path",               lambda v: v),
+    ("ollama_host",                  lambda v: v.strip()),
+    ("ollama_model",                 lambda v: v.strip()),
+    ("ollama_timeout_s",             _min_validator(1,    "ollama_timeout_s")),
+    ("ollama_enabled",               lambda v: v),
+    ("scorer_energy_weight",         lambda v: max(0.0, v)),
+    ("scorer_scene_weight",          lambda v: max(0.0, v)),
+    ("scorer_llm_weight",            lambda v: max(0.0, v)),
+    ("score_funny_weight",           lambda v: max(0.0, v)),
+    ("score_dramatic_weight",        lambda v: max(0.0, v)),
+    ("score_action_weight",          lambda v: max(0.0, v)),
+    ("scene_detection_mode",         _enum_validator({"transcript", "fast", "full"}, "scene_detection_mode")),
+    ("silence_threshold_ms",         _min_validator(500,  "silence_threshold_ms")),
+    ("min_clip_ms",                  _min_validator(1000, "min_clip_ms")),
+]
 
 
 def make_router(ctx: ProjectContext) -> APIRouter:
@@ -220,8 +289,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             from yuu_clip.scoring.engine import ScoringEngine
             from yuu_clip.scoring.llm import LLMScorer
 
-            ctx.active_jobs += 1
-            try:
+            async with _active_job(ctx):
                 total = len(clip_ids)
                 engine = ScoringEngine(config, [LLMScorer(config, context_text=context_text)])
 
@@ -255,109 +323,21 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                     prov_db.close()
 
                 yield f"data: {json_lib.dumps('__DONE__')}\n\n"
-            finally:
-                ctx.active_jobs -= 1
 
         return _sse_response(event_stream())
-
-    _CONFIG_FIELDS = (
-        "ui_timeline_interval_seconds", "ui_timeline_interval_unit",
-        "whisper_model", "whisper_device", "whisper_compute_type",
-        "llm_backend", "llm_model_path",
-        "ollama_host", "ollama_model", "ollama_timeout_s", "ollama_enabled",
-        "scorer_energy_weight", "scorer_scene_weight", "scorer_llm_weight",
-        "score_funny_weight", "score_dramatic_weight", "score_action_weight",
-        "scene_detection_mode", "silence_threshold_ms", "min_clip_ms",
-    )
 
     @router.get("/api/config")
     def get_config():
         c = ctx.config
         return {k: getattr(c, k) for k in _CONFIG_FIELDS}
 
-    _WHISPER_DEVICES = {"cpu", "cuda", "auto"}
-    _WHISPER_COMPUTE = {"int8", "float16", "float32", "int8_float16"}
-    _SCENE_MODES     = {"transcript", "fast", "full"}
-    _LLM_BACKENDS    = {"llamacpp", "ollama"}
-    # Weight fields: just clamp to [0, ∞), no other validation needed.
-    _WEIGHT_FIELDS   = (
-        "scorer_energy_weight", "scorer_scene_weight", "scorer_llm_weight",
-        "score_funny_weight", "score_dramatic_weight", "score_action_weight",
-    )
-
     @router.patch("/api/config")
     def patch_config(body: ConfigPatch):
-        from yuu_clip.config import validate_whisper_model
         cfg = ctx.config
-
-        if body.ui_timeline_interval_seconds is not None:
-            if body.ui_timeline_interval_seconds < 10:
-                raise HTTPException(400, "interval must be at least 10 seconds")
-            cfg.ui_timeline_interval_seconds = body.ui_timeline_interval_seconds
-
-        if body.ui_timeline_interval_unit is not None:
-            if body.ui_timeline_interval_unit not in ("seconds", "minutes"):
-                raise HTTPException(400, "unit must be 'seconds' or 'minutes'")
-            cfg.ui_timeline_interval_unit = body.ui_timeline_interval_unit
-
-        if body.whisper_model is not None:
-            try:
-                validate_whisper_model(body.whisper_model)
-            except ValueError as e:
-                raise HTTPException(400, str(e))
-            cfg.whisper_model = body.whisper_model
-
-        if body.whisper_device is not None:
-            if body.whisper_device not in _WHISPER_DEVICES:
-                raise HTTPException(400, f"whisper_device must be one of: {sorted(_WHISPER_DEVICES)}")
-            cfg.whisper_device = body.whisper_device
-
-        if body.whisper_compute_type is not None:
-            if body.whisper_compute_type not in _WHISPER_COMPUTE:
-                raise HTTPException(400, f"whisper_compute_type must be one of: {sorted(_WHISPER_COMPUTE)}")
-            cfg.whisper_compute_type = body.whisper_compute_type
-
-        if body.llm_backend is not None:
-            if body.llm_backend not in _LLM_BACKENDS:
-                raise HTTPException(400, f"llm_backend must be one of: {sorted(_LLM_BACKENDS)}")
-            cfg.llm_backend = body.llm_backend
-
-        if body.llm_model_path is not None:
-            cfg.llm_model_path = body.llm_model_path
-
-        if body.ollama_host is not None:
-            cfg.ollama_host = body.ollama_host.strip()
-        if body.ollama_model is not None:
-            cfg.ollama_model = body.ollama_model.strip()
-
-        if body.ollama_timeout_s is not None:
-            if body.ollama_timeout_s < 1:
-                raise HTTPException(400, "ollama_timeout_s must be >= 1")
-            cfg.ollama_timeout_s = body.ollama_timeout_s
-
-        if body.ollama_enabled is not None:
-            cfg.ollama_enabled = body.ollama_enabled
-
-        for field in _WEIGHT_FIELDS:
-            val = getattr(body, field)
+        for field_name, transform in _CONFIG_PATCH_RULES:
+            val = getattr(body, field_name)
             if val is not None:
-                setattr(cfg, field, max(0.0, val))
-
-        if body.scene_detection_mode is not None:
-            if body.scene_detection_mode not in _SCENE_MODES:
-                raise HTTPException(400, f"scene_detection_mode must be one of: {sorted(_SCENE_MODES)}")
-            cfg.scene_detection_mode = body.scene_detection_mode
-
-        if body.silence_threshold_ms is not None:
-            if body.silence_threshold_ms < 500:
-                raise HTTPException(400, "silence_threshold_ms must be >= 500")
-            cfg.silence_threshold_ms = body.silence_threshold_ms
-
-        if body.min_clip_ms is not None:
-            if body.min_clip_ms < 1000:
-                raise HTTPException(400, "min_clip_ms must be >= 1000")
-            cfg.min_clip_ms = body.min_clip_ms
-
+                setattr(cfg, field_name, transform(val))
         cfg.save_project(ctx.project_dir)
         _log.info("Config updated: %s", {k: v for k, v in body.model_dump().items() if v is not None})
         return get_config()
@@ -404,8 +384,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
 
         async def event_stream():
             from yuu_clip.scoring.llm import generate_timeline_chunk
-            ctx.active_jobs += 1
-            try:
+            async with _active_job(ctx):
                 chunk_ms = effective_interval_s * 1000
                 entries = []
 
@@ -444,8 +423,6 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                     save_db.close()
 
                 yield f"data: {json_lib.dumps('__DONE__')}\n\n"
-            finally:
-                ctx.active_jobs -= 1
 
         return _sse_response(event_stream())
 
@@ -699,11 +676,10 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             raise HTTPException(400, "No approved clips match the filter")
 
         async def event_stream():
-            ctx.active_jobs += 1
-            total = len(clip_ids)
-            exported = 0
-            skipped  = 0
-            try:
+            async with _active_job(ctx):
+                total = len(clip_ids)
+                exported = 0
+                skipped  = 0
                 for i, cid in enumerate(clip_ids, 1):
                     already_exported = False
                     if skip_exported:
@@ -753,8 +729,6 @@ def make_router(ctx: ProjectContext) -> APIRouter:
 
                 yield f"data: {json_lib.dumps(f'Batch export complete: {exported} exported, {skipped} skipped')}\n\n"
                 yield f"data: {json_lib.dumps('__DONE__')}\n\n"
-            finally:
-                ctx.active_jobs -= 1
 
         return _sse_response(event_stream())
 
@@ -829,8 +803,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             from yuu_clip.scoring.engine import ScoringEngine
             from yuu_clip.scoring.llm import LLMScorer
 
-            ctx.active_jobs += 1
-            try:
+            async with _active_job(ctx):
                 engine = ScoringEngine(config, [LLMScorer(config, context_text=context_text)])
                 score_db = ctx.get_db()
                 error = None
@@ -866,8 +839,6 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                     "description_long_new": desc_long_new,
                 }
                 yield f"data: {json_lib.dumps(done_payload)}\n\n"
-            finally:
-                ctx.active_jobs -= 1
 
         return _sse_response(event_stream())
 
