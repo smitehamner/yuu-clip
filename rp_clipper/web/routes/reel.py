@@ -123,12 +123,18 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             if video_id:
                 q = q.filter_by(video_id=video_id)
             clips = q.order_by(ClipCandidate.start_ms).all()
+
+            vid_ids = {c.video_id for c in clips}
+            video_map = {
+                v.id: v
+                for v in db.query(Video).filter(Video.id.in_(vid_ids)).all()
+            }
+
             result = []
             for c in clips:
-                video = db.get(Video, c.video_id)
+                video = video_map.get(c.video_id)
                 stem = Path(video.filename).stem if video else ""
                 start_hms = c.start_hms.replace(":", "-")
-                # Check multiple possible extensions for the export file
                 export_file = None
                 for ext in (".mkv", ".mp4", ".mov", ".avi", ".webm"):
                     candidate = ctx.export_dir / f"{stem}_clip{c.id}_{start_hms}{ext}"

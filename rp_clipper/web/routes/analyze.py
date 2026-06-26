@@ -136,8 +136,8 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                         "title": s.get("tags", {}).get("title", ""),
                         "language": s.get("tags", {}).get("language", ""),
                     })
-        except Exception:
-            pass
+        except Exception as exc:
+            _log.debug("Subtitle stream detection failed for %s: %s", p.name, exc)
 
         srt_sidecar: Optional[str] = None
         for ext in (".srt", ".SRT"):

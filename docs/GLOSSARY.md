@@ -418,7 +418,7 @@ A compiled video assembled from multiple approved clips, with optional transitio
 - **Code:** `demo_reel`, `build_reel()`
 - **Also called in codebase:** "demo reel", "compilation"
 - **Do not call it:** "demo reel" in user-facing text — "highlight reel" is more creator-natural
-- **UI label:** "Build Reel" / "Reels" — planned rename to "Highlight Reel"
+- **UI label:** "Highlight Reel" (header button) / "View Highlight Reels" (hamburger) / "Highlight Reels" (viewer modal title)
 
 ---
 

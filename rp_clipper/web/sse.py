@@ -55,7 +55,7 @@ async def subprocess_sse(cmd: list[str], cwd: Path, ctx=None) -> StreamingRespon
             if ctx is not None and ctx.ingest_cancelled:
                 ctx.ingest_cancelled = False
                 _log.info("Subprocess (pid %s) cancelled by user", proc.pid)
-                yield f"data: {json.dumps('[Ingest cancelled]')}\n\n"
+                yield f"data: {json.dumps('[Analysis cancelled]')}\n\n"
             elif proc.returncode != 0:
                 _log.error(
                     "Subprocess exited with code %d: %s",

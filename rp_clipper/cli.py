@@ -893,11 +893,11 @@ def retranscribe(
         from rp_clipper.scoring.engine import ScoringEngine
         from rp_clipper.scoring.llm import LLMScorer
         cand = session.get(ClipCandidate, clip_id)
-        _vid = session.get(_Video, cand.video_id)
-        _cn = json.loads(_vid.context_names_json) if _vid and _vid.context_names_json else []
-        _ctx_text = format_context_block(load_contexts(proj_dir), _cn)
+        vid = session.get(_Video, cand.video_id)
+        context_names = json.loads(vid.context_names_json) if vid and vid.context_names_json else []
+        context_text = format_context_block(load_contexts(proj_dir), context_names)
         console.print("  Re-scoring clip with LLM...")
-        engine = ScoringEngine(config, [LLMScorer(config, context_text=_ctx_text)])
+        engine = ScoringEngine(config, [LLMScorer(config, context_text=context_text)])
         engine.score_clip(cand, session)
         session.commit()
         console.print("  [green]  OK[/green]")

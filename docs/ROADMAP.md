@@ -93,7 +93,7 @@
     original `start_time` / `end_time` are immutable
 
 - [x] **Header hamburger menu** *(absorbs "Controls UI polish")*
-  - Trim header to: `+ Analyze` · `Build Reel` · `≡` (hamburger trigger)
+  - Trim header to: `+ Analyze` · `Highlight Reel` · `≡` (hamburger trigger)
   - **Score All button removed from UI** — CLI-only via `rp-clip score`; add interactive
     confirmation + GPU time warning to the CLI command
   - Hamburger dropdown (icon + text per item):
@@ -170,7 +170,7 @@
     than last rescore
   - Top-N configured in Settings
 
-- [x] **Highlight reel editor** — "Build Reel" modal redesigned: ordered clip list (check/uncheck, ↑↓ reorder), "Random" transition option, encode time estimate, "Preview" plays exported clips as a playlist in the main player; `--clip-ids` added to CLI `reel` command
+- [x] **Highlight reel editor** — "Highlight Reel" modal redesigned: ordered clip list (check/uncheck, ↑↓ reorder), "Random" transition option, encode time estimate, "Preview" plays exported clips as a playlist in the main player; `--clip-ids` added to CLI `reel` command
 
 - ~~**Clip deduplication**~~ — **On hold**: design unclear; revisit after transcript editing is stable
 
@@ -452,6 +452,9 @@ Items wanted long-term but not yet assigned to a phase.
 - **JS in `index.html` (~1737 lines)** — no-build-step SPA; consider ES modules if it grows further
 - **No integration test for `demo_events` SSE** — `demo.py:demo_events` passes `ctx` to `subprocess_sse` (needed for graceful shutdown and `/api/status`); this path has no test coverage and was silently broken before the Phase 3 bug-hunt pass
 - ~~**Ollama scoring errors are silent**~~ — fixed: `LLMScorer.score()` now emits `log.warning("LLM scoring failed for clip %d: %s", ...)` on any exception
+- **`_video_dict`/`_clip_dict` user-override pattern** — `field_user if field_user is not None else (field or "")` repeated across both serializers; the right fix is `@property` on the model class (`Video.effective_title`, `Video.effective_summary`, etc.) so the display logic lives once, on the model. Deferred because it touches the model layer and serialization contract.
+- **Modal keyboard trap** — Escape closes all open modals simultaneously instead of only the topmost one. Fixing properly requires a modal stack. Low UX impact for a single-user tool; deferred.
+- **Modal focus management** — most modals (`openAboutModal`, `openAutoApproveModal`, etc.) do not move focus into the modal on open; only `openFieldEditModal` and `openNewContext` do. Extending to all ~13 remaining open-functions is mechanical. Deferred; no reported keyboard-navigation issues.
 
 ---
 

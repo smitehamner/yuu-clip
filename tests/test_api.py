@@ -355,6 +355,9 @@ class TestDbSessionCleanup:
         finally:
             session.close()
 
+        videos = client.get("/api/videos").json()
+        assert any(v["filename"] == "another_video.mkv" for v in videos)
+
     def test_many_concurrent_reads_leave_no_lock(self, client, project_dir):
         """Repeated reads from multiple endpoints must not accumulate held locks."""
         vid_id = client.get("/api/videos").json()[0]["id"]
@@ -377,6 +380,9 @@ class TestDbSessionCleanup:
             session.commit()
         finally:
             session.close()
+
+        videos = client.get("/api/videos").json()
+        assert any(v["filename"] == "third_video.mkv" for v in videos)
 
 
 # ---------------------------------------------------------------------------
@@ -693,10 +699,6 @@ class TestDemoList:
         assert "size_mb" in reels[0]
         assert "date" in reels[0]
 
-
-# ---------------------------------------------------------------------------
-# Delete video — export file cleanup
-# ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
 # Pure-function unit tests — no HTTP, no DB
@@ -2273,3 +2275,566 @@ class TestVideoListEditableFields:
         v = client.get("/api/videos").json()[0]
         assert v["title_is_edited"] is False
         assert v["summary_is_edited"] is False
+
+
+# ---------------------------------------------------------------------------
+# subtitles.py — _ms_to_srt_time
+# ---------------------------------------------------------------------------
+
+class TestMsToSrtTime:
+    def _fmt(self, ms):
+        from rp_clipper.subtitles import _ms_to_srt_time
+        return _ms_to_srt_time(ms)
+
+    def test_zero(self):
+        assert self._fmt(0) == "00:00:00,000"
+
+    def test_negative_clamped_to_zero(self):
+        assert self._fmt(-500) == "00:00:00,000"
+
+    def test_one_second(self):
+        assert self._fmt(1000) == "00:00:01,000"
+
+    def test_one_minute(self):
+        assert self._fmt(60_000) == "00:01:00,000"
+
+    def test_one_hour(self):
+        assert self._fmt(3_600_000) == "01:00:00,000"
+
+    def test_fractional_ms(self):
+        assert self._fmt(1_234) == "00:00:01,234"
+
+    def test_complex_value(self):
+        # 1h 2m 3s 456ms
+        ms = 3_600_000 + 2 * 60_000 + 3_000 + 456
+        assert self._fmt(ms) == "01:02:03,456"
+
+
+# ---------------------------------------------------------------------------
+# subtitles.py — _label_display
+# ---------------------------------------------------------------------------
+
+class TestLabelDisplay:
+    def _ld(self, label):
+        from rp_clipper.subtitles import _label_display
+        return _label_display(label)
+
+    def test_known_player_voice(self):
+        assert self._ld("player_voice") == "Player"
+
+    def test_known_ingame_voicechat(self):
+        assert self._ld("ingame_voicechat") == "Voice Chat"
+
+    def test_known_combined(self):
+        assert self._ld("combined") == "Combined"
+
+    def test_known_unlabeled(self):
+        assert self._ld("unlabeled") == "Unknown"
+
+    def test_unknown_label_titlifies(self):
+        assert self._ld("my_custom_track") == "My Custom Track"
+
+
+# ---------------------------------------------------------------------------
+# subtitles.py — lines_to_srt
+# ---------------------------------------------------------------------------
+
+class TestLinesToSrt:
+    def _srt(self, lines):
+        from rp_clipper.subtitles import lines_to_srt
+        return lines_to_srt(lines)
+
+    def test_empty_input_returns_empty_string(self):
+        assert self._srt([]) == ""
+
+    def test_single_line_no_speaker(self):
+        from rp_clipper.subtitles import SubLine
+        result = self._srt([SubLine(0, 1000, "Hello")])
+        assert "1\n" in result
+        assert "00:00:00,000 --> 00:00:01,000" in result
+        assert "Hello" in result
+        assert "[" not in result
+
+    def test_single_line_with_speaker(self):
+        from rp_clipper.subtitles import SubLine
+        result = self._srt([SubLine(0, 1000, "Hi", "Player")])
+        assert "[Player] Hi" in result
+
+    def test_multiple_lines_sorted_by_start(self):
+        from rp_clipper.subtitles import SubLine
+        lines = [SubLine(2000, 3000, "Second"), SubLine(0, 1000, "First")]
+        result = self._srt(lines)
+        first_pos = result.index("First")
+        second_pos = result.index("Second")
+        assert first_pos < second_pos
+
+    def test_sequential_numbering(self):
+        from rp_clipper.subtitles import SubLine
+        lines = [SubLine(0, 500, "A"), SubLine(600, 1000, "B")]
+        result = self._srt(lines)
+        assert "1\n" in result
+        assert "2\n" in result
+
+    def test_text_is_stripped(self):
+        from rp_clipper.subtitles import SubLine
+        result = self._srt([SubLine(0, 500, "  trimmed  ")])
+        assert "trimmed" in result
+        assert "  trimmed  " not in result
+
+    def test_blocks_separated_by_double_newline(self):
+        from rp_clipper.subtitles import SubLine
+        lines = [SubLine(0, 500, "A"), SubLine(600, 1000, "B")]
+        result = self._srt(lines)
+        assert "\n\n" in result
+
+
+# ---------------------------------------------------------------------------
+# subtitles.py — collect_clip_subtitles (with mock DB objects)
+# ---------------------------------------------------------------------------
+
+class TestCollectClipSubtitles:
+    def _make_clip(self, tracks):
+        class FakeClip:
+            start_ms = 5_000
+            end_ms   = 10_000
+
+            class FakeVideo:
+                pass
+
+        clip = FakeClip()
+        clip.video = FakeClip.FakeVideo()
+        clip.video.audio_tracks = tracks
+        return clip
+
+    def _make_track(self, label, do_transcribe, segments, transcripts=None):
+        import types, datetime
+        track = types.SimpleNamespace(
+            label=label,
+            do_transcribe=do_transcribe,
+            transcripts=transcripts if transcripts is not None else [],
+        )
+        if segments is not None:
+            tx = types.SimpleNamespace(
+                created_at=datetime.datetime(2024, 1, 1),
+                segments=segments,
+            )
+            track.transcripts = [tx]
+        return track
+
+    def _make_seg(self, start_ms, end_ms, text):
+        import types
+        return types.SimpleNamespace(start_ms=start_ms, end_ms=end_ms, text=text)
+
+    def test_empty_when_no_tracks(self):
+        from rp_clipper.subtitles import collect_clip_subtitles
+        clip = self._make_clip([])
+        assert collect_clip_subtitles(clip) == {}
+
+    def test_skips_game_sounds_track(self):
+        from rp_clipper.subtitles import collect_clip_subtitles
+        seg = self._make_seg(5_000, 8_000, "noise")
+        track = self._make_track("game_sounds", True, [seg])
+        clip = self._make_clip([track])
+        assert collect_clip_subtitles(clip) == {}
+
+    def test_skips_do_transcribe_false(self):
+        from rp_clipper.subtitles import collect_clip_subtitles
+        seg = self._make_seg(5_000, 8_000, "speech")
+        track = self._make_track("player_voice", False, [seg])
+        clip = self._make_clip([track])
+        assert collect_clip_subtitles(clip) == {}
+
+    def test_skips_segments_outside_clip_window(self):
+        from rp_clipper.subtitles import collect_clip_subtitles
+        seg_before = self._make_seg(0, 4_000, "before")
+        seg_after  = self._make_seg(11_000, 13_000, "after")
+        track = self._make_track("player_voice", True, [seg_before, seg_after])
+        clip = self._make_clip([track])
+        assert collect_clip_subtitles(clip) == {}
+
+    def test_clips_segment_to_window_and_makes_relative(self):
+        from rp_clipper.subtitles import collect_clip_subtitles
+        # segment spans 4s–8s; clip window is 5s–10s → clipped to 5s–8s → relative 0–3s
+        seg = self._make_seg(4_000, 8_000, "overlap")
+        track = self._make_track("player_voice", True, [seg])
+        clip = self._make_clip([track])
+        result = collect_clip_subtitles(clip)
+        assert "player_voice" in result
+        line = result["player_voice"][0]
+        assert line.start_ms == 0
+        assert line.end_ms == 3_000
+
+    def test_fully_inside_segment_correct_relative_times(self):
+        from rp_clipper.subtitles import collect_clip_subtitles
+        seg = self._make_seg(6_000, 9_000, "hello")
+        track = self._make_track("player_voice", True, [seg])
+        clip = self._make_clip([track])
+        result = collect_clip_subtitles(clip)
+        line = result["player_voice"][0]
+        assert line.start_ms == 1_000
+        assert line.end_ms == 4_000
+
+    def test_uses_most_recent_transcript(self):
+        import types, datetime
+        from rp_clipper.subtitles import collect_clip_subtitles
+
+        seg_old = self._make_seg(6_000, 7_000, "old")
+        seg_new = self._make_seg(6_000, 7_000, "new")
+        tx_old = types.SimpleNamespace(
+            created_at=datetime.datetime(2024, 1, 1), segments=[seg_old]
+        )
+        tx_new = types.SimpleNamespace(
+            created_at=datetime.datetime(2024, 6, 1), segments=[seg_new]
+        )
+        track = self._make_track("player_voice", True, None, transcripts=[tx_old, tx_new])
+        clip = self._make_clip([track])
+        result = collect_clip_subtitles(clip)
+        assert result["player_voice"][0].text == "new"
+
+
+# ---------------------------------------------------------------------------
+# subtitles.py — merged_srt_lines
+# ---------------------------------------------------------------------------
+
+class TestMergedSrtLines:
+    def _make_clip(self, track_data):
+        """track_data: list of (label, do_transcribe, segments)"""
+        import types, datetime
+
+        class FakeClip:
+            start_ms = 0
+            end_ms = 10_000
+
+        clip = FakeClip()
+
+        tracks = []
+        for label, do_transcribe, segs in track_data:
+            seg_objs = [
+                types.SimpleNamespace(start_ms=s, end_ms=e, text=t)
+                for s, e, t in segs
+            ]
+            tx = types.SimpleNamespace(
+                created_at=datetime.datetime(2024, 1, 1), segments=seg_objs
+            )
+            tracks.append(types.SimpleNamespace(
+                label=label, do_transcribe=do_transcribe, transcripts=[tx]
+            ))
+
+        clip.video = types.SimpleNamespace(audio_tracks=tracks)
+        return clip
+
+    def test_empty_clip_returns_empty(self):
+        from rp_clipper.subtitles import merged_srt_lines
+        clip = self._make_clip([])
+        assert merged_srt_lines(clip) == []
+
+    def test_single_track_has_speaker_prefix(self):
+        from rp_clipper.subtitles import merged_srt_lines
+        clip = self._make_clip([("player_voice", True, [(1000, 2000, "hi")])])
+        lines = merged_srt_lines(clip)
+        assert len(lines) == 1
+        assert lines[0].speaker == "Player"
+
+    def test_multi_track_sorted_by_start(self):
+        from rp_clipper.subtitles import merged_srt_lines
+        clip = self._make_clip([
+            ("player_voice", True, [(3000, 4000, "later")]),
+            ("ingame_voicechat", True, [(1000, 2000, "earlier")]),
+        ])
+        lines = merged_srt_lines(clip)
+        assert lines[0].text == "earlier"
+        assert lines[1].text == "later"
+
+
+# ---------------------------------------------------------------------------
+# analyze/probe.py — _parse_fps
+# ---------------------------------------------------------------------------
+
+class TestParseFps:
+    def _fps(self, s):
+        from rp_clipper.analyze.probe import _parse_fps
+        return _parse_fps(s)
+
+    def test_integer_string(self):
+        assert self._fps("30") == 30.0
+
+    def test_fraction_string(self):
+        result = self._fps("60000/1001")
+        assert abs(result - 59.94) < 0.01
+
+    def test_exact_fraction(self):
+        assert self._fps("30/1") == 30.0
+
+    def test_zero_denominator_returns_default(self):
+        assert self._fps("30/0") == 30.0
+
+    def test_invalid_string_returns_default(self):
+        assert self._fps("not_a_number") == 30.0
+
+    def test_empty_string_returns_default(self):
+        assert self._fps("") == 30.0
+
+
+# ---------------------------------------------------------------------------
+# analyze/probe.py — VideoInfo properties
+# ---------------------------------------------------------------------------
+
+class TestVideoInfoProperties:
+    def _make_info(self, duration_ms, n_audio=1):
+        from rp_clipper.analyze.probe import VideoInfo, AudioStreamInfo
+        from pathlib import Path
+        streams = [
+            AudioStreamInfo(
+                stream_index=i, codec_name="aac", sample_rate=48000,
+                channels=2, channel_layout="stereo", duration_ms=None, title_tag=None,
+            )
+            for i in range(n_audio)
+        ]
+        return VideoInfo(
+            path=Path("fake.mkv"), duration_ms=duration_ms,
+            fps=60.0, width=1920, height=1080, audio_streams=streams,
+        )
+
+    def test_has_multiple_audio_tracks_false_for_one(self):
+        assert self._make_info(1000, n_audio=1).has_multiple_audio_tracks is False
+
+    def test_has_multiple_audio_tracks_true_for_two(self):
+        assert self._make_info(1000, n_audio=2).has_multiple_audio_tracks is True
+
+    def test_duration_hms_minutes_only(self):
+        # 5m 30s = 330 000 ms
+        info = self._make_info(330_000)
+        assert info.duration_hms == "5m 30s"
+
+    def test_duration_hms_with_hours(self):
+        # 1h 2m 3s = 3723000 ms
+        info = self._make_info(3_723_000)
+        assert info.duration_hms == "1h 02m 03s"
+
+    def test_duration_hms_zero(self):
+        info = self._make_info(0)
+        assert info.duration_hms == "0m 00s"
+
+
+# ---------------------------------------------------------------------------
+# analyze/labeler.py — label_tracks single-track auto-label
+# ---------------------------------------------------------------------------
+
+class TestLabelTracksSingleTrack:
+    def _make_video_info(self, n_streams, title_tags=None):
+        from rp_clipper.analyze.probe import VideoInfo, AudioStreamInfo
+        from pathlib import Path
+        streams = [
+            AudioStreamInfo(
+                stream_index=i, codec_name="aac", sample_rate=48000,
+                channels=2, channel_layout="stereo", duration_ms=None,
+                title_tag=(title_tags[i] if title_tags else None),
+            )
+            for i in range(n_streams)
+        ]
+        return VideoInfo(
+            path=Path("fake.mkv"), duration_ms=60_000,
+            fps=30.0, width=1920, height=1080, audio_streams=streams,
+        )
+
+    def test_single_track_auto_labeled_combined(self):
+        from rp_clipper.analyze.labeler import label_tracks
+        vi = self._make_video_info(1)
+        result = label_tracks(vi, non_interactive=True)
+        assert len(result) == 1
+        assert result[0]["label"] == "combined"
+        assert result[0]["do_transcribe"] is True
+        assert result[0]["do_score"] is True
+
+    def test_multi_track_non_interactive_no_profile_uses_track0(self):
+        from rp_clipper.analyze.labeler import label_tracks
+        vi = self._make_video_info(3)
+        result = label_tracks(vi, non_interactive=True)
+        assert len(result) == 3
+        assert result[0]["label"] == "combined"
+        assert result[1]["label"] == "unlabeled"
+        assert result[2]["label"] == "unlabeled"
+        assert result[1]["do_transcribe"] is False
+        assert result[2]["do_score"] is False
+
+
+# ---------------------------------------------------------------------------
+# analyze/labeler.py — _label_non_interactive
+# ---------------------------------------------------------------------------
+
+class TestLabelNonInteractive:
+    def _make_streams(self, n, title_tags=None):
+        from rp_clipper.analyze.probe import AudioStreamInfo
+        return [
+            AudioStreamInfo(
+                stream_index=i, codec_name="aac", sample_rate=48000,
+                channels=2, channel_layout="stereo", duration_ms=None,
+                title_tag=(title_tags[i] if title_tags else None),
+            )
+            for i in range(n)
+        ]
+
+    def test_single_stream_returns_primary_only(self):
+        from rp_clipper.analyze.labeler import _label_non_interactive
+        streams = self._make_streams(1)
+        result = _label_non_interactive(streams, None)
+        assert len(result) == 1
+        assert result[0]["label"] == "combined"
+
+    def test_two_streams_second_is_unlabeled(self):
+        from rp_clipper.analyze.labeler import _label_non_interactive
+        streams = self._make_streams(2)
+        result = _label_non_interactive(streams, None)
+        assert result[0]["label"] == "combined"
+        assert result[1]["label"] == "unlabeled"
+        assert result[1]["do_transcribe"] is False
+
+    def test_stream_index_preserved(self):
+        from rp_clipper.analyze.labeler import _label_non_interactive
+        streams = self._make_streams(2)
+        result = _label_non_interactive(streams, None)
+        assert result[0]["stream_index"] == 0
+        assert result[1]["stream_index"] == 1
+
+    def test_default_profile_name_skipped(self):
+        """__default__ profile name should not attempt a profile lookup."""
+        from rp_clipper.analyze.labeler import _label_non_interactive
+        streams = self._make_streams(2)
+        result = _label_non_interactive(streams, "__default__")
+        assert result[0]["label"] == "combined"
+
+
+# ---------------------------------------------------------------------------
+# analyze/labeler.py — _guess_label_index
+# ---------------------------------------------------------------------------
+
+class TestGuessLabelIndex:
+    def _make_stream(self, title):
+        from rp_clipper.analyze.probe import AudioStreamInfo
+        return AudioStreamInfo(
+            stream_index=0, codec_name="aac", sample_rate=48000,
+            channels=2, channel_layout="stereo", duration_ms=None, title_tag=title,
+        )
+
+    def _guess(self, title):
+        from rp_clipper.analyze.labeler import _guess_label_index
+        return _guess_label_index(self._make_stream(title))
+
+    def test_mic_in_title_returns_player_voice(self):
+        assert self._guess("Mic (Clean)") == 1
+
+    def test_voice_in_title_returns_player_voice(self):
+        assert self._guess("My Voice") == 1
+
+    def test_desktop_in_title_returns_combined(self):
+        assert self._guess("Desktop Audio") == 4
+
+    def test_game_in_title_returns_combined(self):
+        assert self._guess("Game Capture") == 4
+
+    def test_unknown_title_returns_unlabeled(self):
+        assert self._guess("Track 1") == 5
+
+    def test_none_title_returns_unlabeled(self):
+        assert self._guess(None) == 5
+
+
+# ---------------------------------------------------------------------------
+# analyze/overlap.py — detect_transcript_overlap (unit, no DB)
+# ---------------------------------------------------------------------------
+
+class TestDetectTranscriptOverlap:
+    def _make_track(self, label, do_score, words):
+        """Build a minimal track-like object whose transcript returns *words*."""
+        import types
+        return types.SimpleNamespace(
+            id=1,
+            label=label,
+            do_score=do_score,
+            relevance_weight=1.0,
+            do_transcribe=False,
+            _words=words,
+        )
+
+    def _run(self, tracks, threshold=0.75):
+        from rp_clipper.analyze.overlap import detect_transcript_overlap
+
+        track_text_map = {t.id: t._words for t in tracks}
+
+        class FakeTx:
+            def __init__(self, text):
+                self._text = text
+            def full_text(self):
+                return self._text
+
+        class FakeOrderBy:
+            def __init__(self, text):
+                self._text = text
+            def order_by(self, *a):
+                return self
+            def first(self):
+                return FakeTx(self._text)
+
+        class FakeQuery:
+            def filter_by(self, **kw):
+                tid = kw.get("audio_track_id")
+                return FakeOrderBy(track_text_map.get(tid, ""))
+
+        class FakeSession:
+            def query(self, model):
+                return FakeQuery()
+
+        return detect_transcript_overlap(tracks, FakeSession(), threshold=threshold)
+
+    def test_no_combined_returns_false(self):
+        tracks = [self._make_track("player_voice", True, "hello world foo bar")]
+        result = self._run(tracks)
+        assert result is False
+
+    def test_no_specialized_returns_false(self):
+        long_text = " ".join(["word"] * 25)
+        tracks = [self._make_track("combined", True, long_text)]
+        result = self._run(tracks)
+        assert result is False
+
+    def test_combined_too_short_returns_false(self):
+        tracks = [
+            self._make_track("combined", True, "short text"),
+            self._make_track("player_voice", True, "short text"),
+        ]
+        result = self._run(tracks)
+        assert result is False
+
+    def test_high_overlap_disables_specialized_scoring(self):
+        # _word_set uses [a-z']+ so words must be purely alphabetic
+        import string
+        # 26 unique single-letter words a-z as combined; specialized uses a-x (24)
+        alpha = list(string.ascii_lowercase)        # 26 unique words
+        combined_words = " ".join(alpha)            # a b c ... z
+        specialized_words = " ".join(alpha[:24])    # a b c ... x  (24/24 = 100% overlap)
+        combined = self._make_track("combined", True, combined_words)
+        combined.id = 10
+        specialized = self._make_track("player_voice", True, specialized_words)
+        specialized.id = 11
+        tracks = [combined, specialized]
+        result = self._run(tracks, threshold=0.75)
+        assert result is True
+        assert specialized.do_score is False
+        assert combined.do_transcribe is True
+        assert combined.do_score is True
+
+    def test_low_overlap_leaves_specialized_unchanged(self):
+        import string
+        alpha = list(string.ascii_lowercase)        # 26 unique words
+        # combined has a-z; specialized has entirely different words
+        combined_words = " ".join(alpha)
+        # build 20 words not in alpha by repeating suffixes
+        specialized_words = " ".join([f"zz{c}" for c in alpha[:20]])
+        combined = self._make_track("combined", True, combined_words)
+        combined.id = 10
+        specialized = self._make_track("player_voice", True, specialized_words)
+        specialized.id = 11
+        tracks = [combined, specialized]
+        result = self._run(tracks, threshold=0.75)
+        assert result is False
+        assert specialized.do_score is True

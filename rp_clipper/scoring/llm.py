@@ -21,6 +21,12 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
+
+def _prepend_context(system_prompt: str, context_text: str) -> str:
+    """Prepend world-context text to a system prompt when context is available."""
+    return (context_text + "\n\n" + system_prompt) if context_text else system_prompt
+
+
 _SYSTEM_PROMPT = """\
 You analyze clips from an RP (roleplay) gaming session for highlight potential.
 Given a transcript excerpt, do the following in a single JSON response:
@@ -67,7 +73,7 @@ def summarize_transcript(text: str, config: "Config", context_text: str = "") ->
     import ollama
     client = ollama.Client(host=config.ollama_host, timeout=config.ollama_timeout_s)
     excerpt = text[:12000]
-    system = (context_text + "\n\n" + _VIDEO_SUMMARY_SYSTEM) if context_text else _VIDEO_SUMMARY_SYSTEM
+    system = _prepend_context(_VIDEO_SUMMARY_SYSTEM, context_text)
     response = client.chat(
         model=config.ollama_model,
         messages=[
@@ -104,7 +110,7 @@ def generate_timeline_chunk(
     """
     import ollama
     client = ollama.Client(host=config.ollama_host, timeout=config.ollama_timeout_s)
-    system = (context_text + "\n\n" + _TIMELINE_CHUNK_SYSTEM) if context_text else _TIMELINE_CHUNK_SYSTEM
+    system = _prepend_context(_TIMELINE_CHUNK_SYSTEM, context_text)
     clips_ctx = (
         "\n\nNotable clips in this window:\n" + "\n".join(f"- {d}" for d in clip_descriptions)
         if clip_descriptions else ""
@@ -176,7 +182,7 @@ class LLMScorer:
             host=self._config.ollama_host,
             timeout=self._config.ollama_timeout_s,
         )
-        system = (self._context_text + "\n\n" + _SYSTEM_PROMPT) if self._context_text else _SYSTEM_PROMPT
+        system = _prepend_context(_SYSTEM_PROMPT, self._context_text)
         response = client.chat(
             model=self._config.ollama_model,
             messages=[

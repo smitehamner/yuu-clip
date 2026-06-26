@@ -9,6 +9,7 @@ Requires ffmpeg on PATH.
 """
 from __future__ import annotations
 
+import logging
 import subprocess
 import tempfile
 from pathlib import Path
@@ -16,6 +17,8 @@ from typing import Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from rp_clipper.db.models import ClipCandidate, Video
+
+_log = logging.getLogger(__name__)
 
 TRANSITIONS = ("fade", "dissolve", "wipeleft", "wiperight", "slideleft", "slideright", "none", "random")
 _DEFAULT_TRANSITION    = "fade"
@@ -180,16 +183,23 @@ def _compile_concat(segments: list[Path], output: Path) -> None:
         list_path.unlink(missing_ok=True)
 
 
-def _compile_xfade(
+def _build_xfade_cmd(
     segments: list[Path],
     durations: list[float],
     output: Path,
-    transition: str,
+    per_cut_transitions: list[str],
     trans_dur: float,
-) -> None:
-    """Re-encode with xfade/acrossfade transitions between every segment pair."""
+) -> list[str]:
+    """Build an ffmpeg command that re-encodes segments with xfade/acrossfade transitions.
+
+    *per_cut_transitions* must have exactly len(segments)-1 entries — one
+    transition name per cut. Callers that want a single uniform transition
+    pass a list of the same value repeated; callers that want random
+    transitions pass a pre-shuffled list.
+    """
     n = len(segments)
     assert n == len(durations)
+    assert len(per_cut_transitions) == max(0, n - 1)
 
     inputs: list[str] = []
     for seg in segments:
@@ -202,62 +212,7 @@ def _compile_xfade(
     for i in range(n - 1):
         cumulative += durations[i]
         offset = max(0.0, cumulative - (i + 1) * trans_dur)
-
-        in_v = f"[x{i-1}]" if i > 0 else f"[{i}:v]"
-        out_v = f"[x{i}]" if i < n - 2 else "[vout]"
-        v_chain.append(
-            f"{in_v}[{i+1}:v]xfade=transition={transition}"
-            f":duration={trans_dur}:offset={offset:.3f}{out_v}"
-        )
-
-        in_a = f"[ca{i-1}]" if i > 0 else f"[{i}:a]"
-        out_a = f"[ca{i}]" if i < n - 2 else "[aout]"
-        a_chain.append(
-            f"{in_a}[{i+1}:a]acrossfade=d={trans_dur}{out_a}"
-        )
-
-    filter_complex = ";".join(v_chain + a_chain)
-    if n == 1:
-        # Only one segment — just re-encode it
-        filter_complex = "[0:v]copy[vout];[0:a]acopy[aout]"
-
-    cmd = [
-        "ffmpeg", "-y", "-loglevel", "error",
-        *inputs,
-        "-filter_complex", filter_complex,
-        "-map", "[vout]", "-map", "[aout]",
-        "-c:v", "libx264", "-preset", "fast", "-crf", "18",
-        "-c:a", "aac", "-b:a", "192k",
-        "-pix_fmt", "yuv420p",
-        str(output),
-    ]
-    subprocess.run(cmd, check=True)
-
-
-def _compile_xfade_random(
-    segments: list[Path],
-    durations: list[float],
-    output: Path,
-    pool: list[str],
-    trans_dur: float,
-    rng,
-) -> None:
-    """Like _compile_xfade but picks a different transition at each cut."""
-    n = len(segments)
-    transitions = [rng.choice(pool) for _ in range(max(0, n - 1))]
-
-    inputs: list[str] = []
-    for seg in segments:
-        inputs += ["-i", str(seg)]
-
-    v_chain: list[str] = []
-    a_chain: list[str] = []
-    cumulative = 0.0
-
-    for i in range(n - 1):
-        cumulative += durations[i]
-        offset = max(0.0, cumulative - (i + 1) * trans_dur)
-        t = transitions[i]
+        t = per_cut_transitions[i]
 
         in_v = f"[x{i-1}]" if i > 0 else f"[{i}:v]"
         out_v = f"[x{i}]" if i < n - 2 else "[vout]"
@@ -272,9 +227,11 @@ def _compile_xfade_random(
 
     filter_complex = ";".join(v_chain + a_chain)
     if n == 1:
+        # The loop above builds zero filter entries, which would produce an
+        # empty -filter_complex and fail. Use passthrough filters instead.
         filter_complex = "[0:v]copy[vout];[0:a]acopy[aout]"
 
-    cmd = [
+    return [
         "ffmpeg", "-y", "-loglevel", "error",
         *inputs,
         "-filter_complex", filter_complex,
@@ -284,7 +241,33 @@ def _compile_xfade_random(
         "-pix_fmt", "yuv420p",
         str(output),
     ]
-    subprocess.run(cmd, check=True)
+
+
+def _compile_xfade(
+    segments: list[Path],
+    durations: list[float],
+    output: Path,
+    transition: str,
+    trans_dur: float,
+) -> None:
+    """Re-encode with xfade/acrossfade transitions between every segment pair."""
+    n = len(segments)
+    transitions = [transition] * max(0, n - 1)
+    subprocess.run(_build_xfade_cmd(segments, durations, output, transitions, trans_dur), check=True)
+
+
+def _compile_xfade_random(
+    segments: list[Path],
+    durations: list[float],
+    output: Path,
+    pool: list[str],
+    trans_dur: float,
+    rng,
+) -> None:
+    """Like _compile_xfade but picks a different transition at each cut."""
+    n = len(segments)
+    transitions = [rng.choice(pool) for _ in range(max(0, n - 1))]
+    subprocess.run(_build_xfade_cmd(segments, durations, output, transitions, trans_dur), check=True)
 
 
 def compile_demo(
@@ -328,7 +311,8 @@ def compile_demo(
         if clip_fps is None:
             try:
                 clip_fps = _probe_fps(clip_file)
-            except Exception:
+            except Exception as exc:
+                _log.warning("Could not probe fps for %s: %s — using 30 fps", clip_file, exc)
                 clip_fps = 30.0
         clip_files.append(clip_file)
         clip_durations.append(_probe_duration(clip_file))

@@ -743,6 +743,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                             last = msg[-1] if msg else "unknown error"
                             yield f"data: {json_lib.dumps(f'[Error clip {cid}: {last}]')}\n\n"
                     except Exception as exc:
+                        _log.error("batch_export: clip %d subprocess failed for video %d: %s", cid, video_id, exc)
                         yield f"data: {json_lib.dumps(f'[Error clip {cid}: {exc}]')}\n\n"
 
                 yield f"data: {json_lib.dumps(f'Batch export complete: {exported} exported, {skipped} skipped')}\n\n"

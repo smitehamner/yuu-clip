@@ -8,12 +8,15 @@ the JSON output — no ffmpeg-python wrapper needed.
 from __future__ import annotations
 
 import json
+import logging
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
 from rp_clipper.config import find_ffmpeg
+
+log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -131,4 +134,5 @@ def _parse_fps(fps_str: str) -> float:
             return round(int(num) / den_i, 3) if den_i else 30.0
         return float(fps_str)
     except (ValueError, ZeroDivisionError):
+        log.warning("Could not parse fps string %r — defaulting to 30.0", fps_str)
         return 30.0
