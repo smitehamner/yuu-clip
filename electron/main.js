@@ -127,16 +127,19 @@ function httpGet(url, timeoutMs) {
   });
 }
 
-function pollReady(port, attempts = 40, delayMs = 500) {
+function pollReady(port, attempts = 120, delayMs = 500) {
   return new Promise(async (resolve, reject) => {
     for (let i = 0; i < attempts; i++) {
+      if (pyProc && pyProc.exitCode !== null) {
+        return reject(new Error(`Python backend exited unexpectedly (exit code ${pyProc.exitCode}). Check the log at:\n${projectDir}\\.yuu-clip\\yuu-clip.log`));
+      }
       try {
         await httpGet(`http://127.0.0.1:${port}/api/videos`, 1000);
         return resolve();
       } catch (_) { /* not ready yet */ }
       await new Promise(r => setTimeout(r, delayMs));
     }
-    reject(new Error('Python backend did not start in time'));
+    reject(new Error(`Python backend did not start within 60 seconds. Check the log at:\n${projectDir}\\.yuu-clip\\yuu-clip.log`));
   });
 }
 
