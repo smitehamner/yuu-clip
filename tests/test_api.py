@@ -2446,7 +2446,7 @@ class TestLinesToSrt:
 # ---------------------------------------------------------------------------
 
 class TestCollectClipSubtitles:
-    def _make_clip(self, tracks):
+    def _make_clip(self, tracks, start_offset=0.0, end_offset=0.0):
         class FakeClip:
             start_ms = 5_000
             end_ms   = 10_000
@@ -2455,13 +2455,16 @@ class TestCollectClipSubtitles:
                 pass
 
         clip = FakeClip()
+        clip.start_offset = start_offset
+        clip.end_offset = end_offset
         clip.video = FakeClip.FakeVideo()
         clip.video.audio_tracks = tracks
         return clip
 
-    def _make_track(self, label, do_transcribe, segments, transcripts=None):
+    def _make_track(self, label, do_transcribe, segments, transcripts=None, track_id=1):
         import types, datetime
         track = types.SimpleNamespace(
+            id=track_id,
             label=label,
             do_transcribe=do_transcribe,
             transcripts=transcripts if transcripts is not None else [],
@@ -2544,6 +2547,32 @@ class TestCollectClipSubtitles:
         result = collect_clip_subtitles(clip)
         assert result["player_voice"][0].text == "new"
 
+    def test_start_offset_shifts_clip_window(self):
+        from yuu_clip.subtitles import collect_clip_subtitles
+        # clip: 5s–10s with start_offset=+2s → effective window 7s–10s
+        # segment 6s–9s should be clipped to 7s–9s → relative 0–2s
+        seg = self._make_seg(6_000, 9_000, "speech")
+        track = self._make_track("player_voice", True, [seg])
+        clip = self._make_clip([track], start_offset=2.0)
+        result = collect_clip_subtitles(clip)
+        assert "player_voice" in result
+        line = result["player_voice"][0]
+        assert line.start_ms == 0
+        assert line.end_ms == 2_000
+
+    def test_negative_start_offset_expands_clip_window(self):
+        from yuu_clip.subtitles import collect_clip_subtitles
+        # clip: 5s–10s with start_offset=-1s → effective window 4s–10s
+        # segment 4s–6s → relative 0–2s
+        seg = self._make_seg(4_000, 6_000, "speech")
+        track = self._make_track("player_voice", True, [seg])
+        clip = self._make_clip([track], start_offset=-1.0)
+        result = collect_clip_subtitles(clip)
+        assert "player_voice" in result
+        line = result["player_voice"][0]
+        assert line.start_ms == 0
+        assert line.end_ms == 2_000
+
 
 # ---------------------------------------------------------------------------
 # subtitles.py — merged_srt_lines
@@ -2557,11 +2586,13 @@ class TestMergedSrtLines:
         class FakeClip:
             start_ms = 0
             end_ms = 10_000
+            start_offset = 0.0
+            end_offset = 0.0
 
         clip = FakeClip()
 
         tracks = []
-        for label, do_transcribe, segs in track_data:
+        for track_id, (label, do_transcribe, segs) in enumerate(track_data, start=1):
             seg_objs = [
                 types.SimpleNamespace(start_ms=s, end_ms=e, text=t)
                 for s, e, t in segs
@@ -2570,7 +2601,7 @@ class TestMergedSrtLines:
                 created_at=datetime.datetime(2024, 1, 1), segments=seg_objs
             )
             tracks.append(types.SimpleNamespace(
-                label=label, do_transcribe=do_transcribe, transcripts=[tx]
+                id=track_id, label=label, do_transcribe=do_transcribe, transcripts=[tx]
             ))
 
         clip.video = types.SimpleNamespace(audio_tracks=tracks)
@@ -2980,6 +3011,26 @@ class TestBatchExportValidation:
         # Use min_score > 1.0 so no clips can pass
         r = client.get(f"/api/videos/{vid_id}/batch-export?min_score=1.1")
         assert r.status_code == 400
+
+    def test_invalid_retranscribe_model_returns_400(self, client):
+        vid_id = self._vid_id(client)
+        r = client.get(f"/api/videos/{vid_id}/batch-export?retranscribe=true&retranscribe_model=gpt-4o&min_score=1.1")
+        assert r.status_code == 400
+
+    def test_valid_retranscribe_model_passes_validation(self, client):
+        vid_id = self._vid_id(client)
+        # min_score=1.1 means no clips pass filter → 400 from clip check, not model validation
+        for mdl in ("tiny", "base", "small", "medium", "large-v3"):
+            r = client.get(f"/api/videos/{vid_id}/batch-export?retranscribe=true&retranscribe_model={mdl}&min_score=1.1")
+            assert r.status_code == 400
+            assert "model" not in r.text.lower()
+
+    def test_retranscribe_false_skips_model_validation(self, client):
+        vid_id = self._vid_id(client)
+        # retranscribe=false with a bad model name should be fine (validation skipped)
+        r = client.get(f"/api/videos/{vid_id}/batch-export?retranscribe=false&retranscribe_model=gpt-4o&min_score=1.1")
+        assert r.status_code == 400
+        assert "model" not in r.text.lower()
 
 
 # ---------------------------------------------------------------------------

@@ -31,24 +31,14 @@ async function loadVideos() {
       ? ` (${Math.round(v.total_clip_ms / v.duration_ms * 100)}%)`
       : '';
     li.innerHTML = `
-      <div style="display:flex;align-items:flex-start;gap:4px">
-        <div style="flex:1;overflow:hidden">
-          <div class="name" title="${escHtml(v.filename)}">${escHtml(v.filename)}</div>
-          ${v.title ? `<div class="video-title" title="${escHtml(v.title)}">${escHtml(v.title)}</div>` : ''}
-          <div class="meta">${v.duration_hms} &middot; ${v.clip_count} clips &middot; ${_msToHms(v.total_clip_ms)} clipped${clipsPct}</div>
-          <div class="meta">${v.approved} approved &middot; ${_fmtVideoStatus(v.status)}</div>
-        </div>
-        <button class="btn ghost" style="padding:4px 8px;font-size:13px;flex-shrink:0;margin-top:2px"
-                title="Remove from yuu-clip (source file is NOT deleted)"
-                aria-label="Remove ${escHtml(v.filename)} from yuu-clip"
-                data-delete-video="${v.id}">✕</button>
-      </div>`;
+      <div class="name" title="${escHtml(v.filename)}">${escHtml(v.filename)}</div>
+      ${v.title ? `<div class="video-title" title="${escHtml(v.title)}">${escHtml(v.title)}</div>` : ''}
+      <div class="meta">${v.duration_hms} &middot; ${v.clip_count} clips &middot; ${_msToHms(v.total_clip_ms)} clipped${clipsPct}</div>
+      <div class="meta">${v.approved} approved &middot; ${_fmtVideoStatus(v.status)}</div>`;
     list.appendChild(li);
   }
 
   const _handleVideoListActivate = e => {
-    const del = e.target.closest('[data-delete-video]');
-    if (del) { e.stopPropagation(); deleteVideo(parseInt(del.dataset.deleteVideo)); return; }
     const li = e.target.closest('li[data-video-id]');
     if (!li) return;
     document.querySelectorAll('#video-list li').forEach(l => l.classList.remove('active'));
@@ -125,25 +115,28 @@ async function selectVideo(id) {
 function renderVideoDetail(video, savedTimeline) {
   _activeVideoData = video;
   const eb = (isEdited) => isEdited ? `<span class="edited-badge">edited</span>` : '';
-  document.getElementById('player-area').innerHTML = '';
+  document.getElementById('player-area').innerHTML =
+    `<video controls preload="metadata" src="/api/videos/${video.id}/source" aria-label="Recording preview" style="display:block;width:100%;max-height:var(--player-max-height, 42vh);object-fit:contain;background:#000"></video>`;
   document.getElementById('detail').innerHTML = `
     <div>
       <div class="detail-type-badge video-badge" style="margin-bottom:8px">&#127916; Video</div>
       <div class="video-detail-header">
-        <div class="field-row" style="align-items:center">
-          <h2 style="margin:0">${escHtml(video.title || video.filename)}${eb(video.title_is_edited)}</h2>
-          ${video.title ? `<button class="kebab-btn" title="Edit or regenerate title" aria-label="Edit or regenerate title" onclick="openVideoTitleKebab(${video.id}, this)">&#8943;</button>` : ''}
-        </div>
         <div style="color:var(--muted);font-size:13px;margin-top:4px">${video.duration_hms} &middot; ${video.clip_count} clips &middot; ${_msToHms(video.total_clip_ms)} clipped</div>
       </div>
     </div>
 
-    ${_renderContextSection(video)}
+    <div class="detail-card">
+      <div class="detail-card-header">
+        <h2 style="margin:0;font-size:17px;font-weight:700">${escHtml(video.title || video.filename)}${eb(video.title_is_edited)}</h2>
+        ${video.title ? `<button class="kebab-btn" title="Edit or regenerate title" aria-label="Edit or regenerate title" onclick="openVideoTitleKebab(${video.id}, this)">&#8943;</button>` : ''}
+      </div>
+      ${_renderContextSection(video)}
+    </div>
 
     ${video.summary ? `
-      <div style="margin-bottom:8px">
-        <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
-          <div class="section-title">Session Summary${eb(video.summary_is_edited)}</div>
+      <div class="detail-card">
+        <div class="detail-card-header">
+          <span class="detail-card-title">Session Summary${eb(video.summary_is_edited)}</span>
           <button class="kebab-btn" title="Edit or regenerate summary" aria-label="Edit or regenerate summary" onclick="openVideoSummaryKebab(${video.id}, this)">&#8943;</button>
         </div>
         <div class="description-long">${escHtml(video.summary)}</div>
@@ -155,6 +148,7 @@ function renderVideoDetail(video, savedTimeline) {
       <button class="btn" onclick="openAutoApproveModal(${video.id})">Approve Above Score</button>
       <button class="btn" onclick="openBatchExportModal(${video.id})">Export Approved</button>
       <button class="btn danger" onclick="resetApprovals(${video.id})">Reset Approvals</button>
+      <button class="btn danger" onclick="deleteVideo(${video.id})" title="Remove from yuu-clip (source file is NOT deleted)">Remove Recording</button>
     </div>
 
     <div id="timeline-section">
@@ -318,7 +312,7 @@ function _startGenerateTimeline(id, intervalS) {
   section.innerHTML = `<div style="color:var(--muted);font-size:12px;padding:4px 0">Generating timeline — entries will appear as each ${intervalLabel} window completes…</div>`;
   const btn = document.getElementById('btn-generate-timeline');
   btn.disabled = true;
-  btn.textContent = 'Generating…';
+  btn.textContent = 'Generating Timeline…';
 
   if (_activeES) { _activeES.close(); _activeES = null; }
   const es = new EventSource(`/api/videos/${id}/timeline?interval_s=${intervalS}`);
@@ -365,7 +359,7 @@ async function summarizeVideo(id, btn) {
   const actionBtn = document.getElementById('btn-summarize-video') || btn;
   if (actionBtn && actionBtn.disabled) return;
   const orig = actionBtn ? actionBtn.textContent : '';
-  if (actionBtn) { actionBtn.disabled = true; actionBtn.textContent = 'Generating…'; }
+  if (actionBtn) { actionBtn.disabled = true; actionBtn.textContent = 'Generating Summary…'; }
   try {
     const res = await fetch(`/api/videos/${id}/summarize`, {method: 'POST'});
     if (!res.ok) {

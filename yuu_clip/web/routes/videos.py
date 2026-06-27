@@ -645,6 +645,23 @@ def make_router(ctx: ProjectContext) -> APIRouter:
 
         return FileResponse(str(out_path), media_type="video/mp4")
 
+    @router.get("/api/videos/{video_id}/source")
+    def video_source(video_id: int):
+        db = ctx.get_db()
+        try:
+            video = db.get(Video, video_id)
+            if not video:
+                raise HTTPException(404, "Video not found")
+            src = Path(video.path)
+        finally:
+            db.close()
+        if not src.exists():
+            raise HTTPException(404, "Source video file not found on disk")
+        _EXT_TYPE = {'.mkv': 'video/x-matroska', '.mp4': 'video/mp4',
+                     '.mov': 'video/quicktime', '.avi': 'video/x-msvideo', '.webm': 'video/webm'}
+        media_type = _EXT_TYPE.get(src.suffix.lower(), 'video/mp4')
+        return FileResponse(str(src), media_type=media_type)
+
     @router.delete("/api/videos/{video_id}")
     def delete_video(video_id: int):
         """Remove a video and all its data from the database. Source file is NOT deleted."""
@@ -718,6 +735,8 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         skip_exported: bool = Query(True),
         burn_subs: bool = Query(False),
         container: Optional[str] = Query(None),
+        retranscribe: bool = Query(False),
+        retranscribe_model: str = Query("large-v3"),
     ):
         """Export all approved clips for a video above min_score, streaming per-clip progress as SSE."""
         import asyncio as _asyncio
@@ -726,6 +745,9 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         allowed_containers = {"mkv", "mp4"}
         if container is not None and container not in allowed_containers:
             raise HTTPException(400, f"container must be one of {sorted(allowed_containers)}")
+
+        if retranscribe:
+            _whisper_model_validator(retranscribe_model)
 
         db = ctx.get_db()
         try:
@@ -780,6 +802,8 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                         cmd.append("--bake-captions")
                     if container:
                         cmd.extend(["--container", container])
+                    if retranscribe:
+                        cmd.extend(["--retranscribe", "--retranscribe-model", retranscribe_model])
                     try:
                         proc = await _asyncio.create_subprocess_exec(
                             *cmd,

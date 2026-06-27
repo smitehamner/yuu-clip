@@ -16,23 +16,21 @@ function renderClipList(clips) {
     li.style.borderLeftColor = _scoreBorderColor(_sortScore(c), c.status === 'rejected');
     li.tabIndex = 0;
     li.innerHTML = `
-      <div class="clip-item">
-        <span class="score-badge" title="Overall score">${_scoreIcon(c.score_overall)}${c.score_overall.toFixed(2)}</span>
-        <span class="clip-label" title="${escHtml(c.description || '')}">
-          <span style="color:var(--muted);font-size:11px">#${c.id}</span>
-          ${c.start_hms} &middot; ${c.duration_hms}
-        </span>
+      <div class="clip-item-row1">
+        <span class="clip-num" title="Clip #${c.id}">#${c.id}</span>
+        <span class="clip-time">${c.start_hms} &middot; ${c.duration_hms}</span>
         ${c.has_export
           ? '<span class="export-pill is-exported" title="Clip has been exported">Exported</span>'
           : '<span class="export-pill not-exported" title="Not yet exported">Not exported</span>'}
         <span class="status-dot dot-${c.status}" title="${c.status === 'approved' ? 'Approved' : c.status === 'rejected' ? 'Rejected' : 'Unreviewed'}">${c.status === 'approved' ? '✓' : c.status === 'rejected' ? '✕' : ''}</span>
       </div>
-      ${c.description ? `<div style="font-size:11px;color:var(--muted);margin-top:3px;padding-left:60px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(c.description)}</div>` : ''}
       <div class="clip-scores">
+        <span title="Overall">${_scoreIcon(c.score_overall)} ${c.score_overall.toFixed(2)}</span>
         <span title="Funny"><span aria-hidden="true">😂</span> ${c.score_funny.toFixed(2)}</span>
         <span title="Dramatic"><span aria-hidden="true">🎭</span> ${c.score_dramatic.toFixed(2)}</span>
         <span title="Action"><span aria-hidden="true">⚔️</span> ${c.score_action.toFixed(2)}</span>
-      </div>`;
+      </div>
+      ${c.description ? `<div class="clip-desc-preview" title="${escHtml(c.description)}">${escHtml(c.description)}</div>` : ''}`;
     const _activateClip = () => {
       document.querySelectorAll('#clip-list li').forEach(l => l.classList.remove('active'));
       li.classList.add('active');
@@ -68,19 +66,21 @@ async function selectClip(id) {
 // ── player ────────────────────────────────────────────────────────────────────
 function renderPlayer(url, captionsUrl, clipId) {
   const area = document.getElementById('player-area');
+  const autoplay = localStorage.getItem('yuuclip-autoplay') === 'true';
   if (url) {
     const track = captionsUrl
       ? `<track kind="captions" src="${captionsUrl}" label="Transcript" default>`
       : '';
-    area.innerHTML = `<video controls src="${url}" aria-label="Clip preview">${track}</video>`;
+    area.innerHTML = `<video controls ${autoplay ? 'autoplay' : ''} src="${url}" aria-label="Clip preview">${track}</video>`;
   } else {
     const wrap = document.createElement('div');
     wrap.style.position = 'relative';
     const vid = document.createElement('video');
     vid.controls = true;
+    vid.autoplay = autoplay;
     vid.src = `/api/clips/${clipId}/preview`;
     vid.setAttribute('aria-label', 'Clip source preview');
-    vid.style.cssText = 'display:block;width:100%;max-height:42vh;object-fit:contain;background:#000';
+    vid.style.cssText = 'display:block;width:100%;max-height:var(--player-max-height, 42vh);object-fit:contain;background:#000';
     vid.onerror = async () => {
       const detail = await fetch(`/api/clips/${clipId}/preview`)
         .then(r => r.json()).then(j => j.detail || 'unavailable').catch(() => 'unavailable');
@@ -99,6 +99,29 @@ function renderPlayer(url, captionsUrl, clipId) {
 // ── detail ────────────────────────────────────────────────────────────────────
 function renderDetail(clip) {
   const eb = (isEdited) => isEdited ? `<span class="edited-badge">edited</span>` : '';
+
+  const trimExportHtml = `
+    <hr class="detail-card-divider">
+    <div style="font-size:12px;color:var(--muted)">
+      <div style="margin-bottom:4px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.6px">Trim</div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+        <span>Start <strong style="color:var(--text);font-family:monospace">${_fmtOffset(clip.start_offset)}</strong></span>
+        <span>End <strong style="color:var(--text);font-family:monospace">${_fmtOffset(clip.end_offset)}</strong></span>
+        <span style="font-size:11px">(edit in Export)</span>
+      </div>
+      ${clip.has_export ? `
+        <div style="margin-top:8px;margin-bottom:4px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.6px">Exported</div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap">
+          ${clip.exported_container ? `<span>Container: <strong style="color:var(--text)">${clip.exported_container.toUpperCase()}</strong></span>` : ''}
+          <span>Captions: <strong style="color:var(--text)">${
+            clip.subtitle_status === 'baked-in'    ? 'Baked in' :
+            clip.subtitle_status === 'srt-sidecar' ? 'SRT sidecar' :
+            'None'
+          }</strong></span>
+          ${clip.exported_at ? `<span>When: <strong style="color:var(--text)">${_fmtAgo(clip.exported_at)}</strong></span>` : ''}
+        </div>` : ''}
+    </div>`;
+
   document.getElementById('detail').innerHTML = `
     <div>
       <div class="detail-type-badge clip-badge" style="margin-bottom:8px">&#9986; Clip #${clip.id}</div>
@@ -107,71 +130,58 @@ function renderDetail(clip) {
       </div>
     </div>
 
-    <div class="field-row" style="margin-bottom:4px">
-      <div class="description">${clip.description ? `"${escHtml(clip.description)}"` : `<span style="color:var(--muted);font-size:13px">No description yet — Re-score to generate</span>`}${eb(clip.description_is_edited)}</div>
-      <button class="kebab-btn" title="Edit or regenerate description" aria-label="Edit or regenerate description" onclick="openDescKebab(${clip.id}, this)">&#8943;</button>
+    <div class="detail-card">
+      <div class="detail-card-header">
+        <span class="detail-card-title">Description${eb(clip.description_is_edited)}</span>
+        <button class="kebab-btn" title="Edit or regenerate description" aria-label="Edit or regenerate description" onclick="openDescKebab(${clip.id}, this)">&#8943;</button>
+      </div>
+      <div class="description">${clip.description ? `"${escHtml(clip.description)}"` : `<span style="color:var(--muted);font-size:13px">No description yet — Re-score to generate</span>`}</div>
     </div>
 
     ${clip.description_long ? `
-      <div>
-        <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
-          <div class="section-title">Full Description${eb(clip.description_long_is_edited)}</div>
+      <div class="detail-card">
+        <div class="detail-card-header">
+          <span class="detail-card-title">Full Description${eb(clip.description_long_is_edited)}</span>
           <button class="kebab-btn" title="Edit or regenerate long description" aria-label="Edit or regenerate long description" onclick="openDescLongKebab(${clip.id}, this)">&#8943;</button>
         </div>
         <div class="description-long">${escHtml(clip.description_long)}</div>
       </div>` : ''}
 
-    <div class="scores">
-      ${scoreRow('Overall',  clip.score_overall,  'overall')}
-      ${scoreRow('Funny',    clip.score_funny,    'funny')}
-      ${scoreRow('Dramatic', clip.score_dramatic, 'dramatic')}
-      ${scoreRow('Action',   clip.score_action,   'action')}
-    </div>
-
-    <div class="clip-actions">
-      <div class="review-actions">
-        <button class="btn approve ${clip.status==='approved'?'active':''}" onclick="setStatus(${clip.id},'approved')">Approve</button>
-        <button class="btn reject  ${clip.status==='rejected'?'active':''}" onclick="setStatus(${clip.id},'rejected')">Reject</button>
-        <button class="btn         ${clip.status==='pending' ?'active':''}" onclick="setStatus(${clip.id},'pending')" title="Mark as Unreviewed">Unreviewed</button>
+    <div class="detail-cards-row">
+      <div class="detail-card" style="flex:1">
+        <div class="detail-card-title" style="margin-bottom:10px">Scoring</div>
+        <div class="scores">
+          ${scoreRow('Overall',  clip.score_overall,  'overall')}
+          ${scoreRow('Funny',    clip.score_funny,    'funny')}
+          ${scoreRow('Dramatic', clip.score_dramatic, 'dramatic')}
+          ${scoreRow('Action',   clip.score_action,   'action')}
+        </div>
       </div>
-      <div class="op-actions">
-        <button class="btn" id="btn-rescore-clip" onclick="rescoreClip(${clip.id})">Re-score</button>
-        <button class="btn" onclick="openRetranscribeModal(${clip.id})">Retranscribe</button>
-        <button class="btn" onclick="exportClip(${clip.id})">${clip.has_export ? 'Re-export' : 'Export'}</button>
-        ${clip.has_export && _activeMediaFilename
-          ? `<a class="btn" href="/media/exports/${escHtml(_activeMediaFilename)}" download="${escHtml(_activeMediaFilename)}" title="Save exported clip to disk">Save As</a>`
-          : ''}
+      <div class="detail-card" style="flex:1">
+        <div class="clip-actions">
+          <div class="review-actions">
+            <button class="btn approve ${clip.status==='approved'?'active':''}" onclick="setStatus(${clip.id},'approved')">Approve</button>
+            <button class="btn reject  ${clip.status==='rejected'?'active':''}" onclick="setStatus(${clip.id},'rejected')">Reject</button>
+            <button class="btn         ${clip.status==='pending' ?'active':''}" onclick="setStatus(${clip.id},'pending')" title="Mark as Unreviewed">Unreviewed</button>
+          </div>
+          <div class="op-actions">
+            <button class="btn" id="btn-rescore-clip" onclick="rescoreClip(${clip.id})">Re-score</button>
+            <button class="btn" onclick="openRetranscribeModal(${clip.id})">Retranscribe</button>
+            <button class="btn" onclick="exportClip(${clip.id})">${clip.has_export ? 'Re-export' : 'Export'}</button>
+            ${clip.has_export && _activeMediaFilename
+              ? `<a class="btn" href="/media/exports/${escHtml(_activeMediaFilename)}" download="${escHtml(_activeMediaFilename)}" title="Save exported clip to disk">Save As</a>`
+              : ''}
+          </div>
+          <div class="danger-actions">
+            ${clip.has_export ? `<button class="btn danger" onclick="deleteExport(${clip.id})" title="Delete exported file but keep clip record">Delete Export</button>` : ''}
+            <button class="btn danger" onclick="deleteClip(${clip.id})" title="Delete clip record and exported file">Delete Clip</button>
+          </div>
+          ${trimExportHtml}
+        </div>
       </div>
-      <div class="danger-actions">
-        ${clip.has_export ? `<button class="btn danger" onclick="deleteExport(${clip.id})" title="Delete exported file but keep clip record">Delete Export</button>` : ''}
-        <button class="btn danger" onclick="deleteClip(${clip.id})" title="Delete clip record and exported file">Delete Clip</button>
-      </div>
-    </div>
-
-    <div class="timing-row">
-      <span class="section-title" style="font-size:12px">Trim</span>
-      <span style="color:var(--muted);font-size:12px">Start</span>
-      <input class="timing-input" id="clip-trim-start" value="${_fmtOffset(clip.start_offset)}" placeholder="+0.0" title="Offset in ±seconds, absolute seconds, or M:SS">
-      <span style="color:var(--muted);font-size:12px">End</span>
-      <input class="timing-input" id="clip-trim-end" value="${_fmtOffset(clip.end_offset)}" placeholder="+0.0" title="Offset in ±seconds, absolute seconds, or M:SS">
-      <button class="btn" style="font-size:12px;padding:4px 10px" onclick="saveClipTiming(${clip.id})">Apply</button>
     </div>
 
     ${clip.tags.length ? `<div class="tags">${clip.tags.map(t=>`<span class="tag">${escHtml(t)}</span>`).join('')}</div>` : ''}
-
-    ${clip.has_export ? `
-      <div>
-        <div class="section-title" style="margin-bottom:6px">Export info</div>
-        <div style="font-size:12px;color:var(--muted);display:flex;gap:16px;flex-wrap:wrap">
-          ${clip.exported_container ? `<span>Container: <strong style="color:var(--text)">${clip.exported_container.toUpperCase()}</strong></span>` : ''}
-          <span>Captions: <strong style="color:var(--text)">${
-            clip.subtitle_status === 'baked-in'    ? 'Baked into video' :
-            clip.subtitle_status === 'srt-sidecar' ? 'Separate SRT file' :
-            'None'
-          }</strong></span>
-          ${clip.exported_at ? `<span>Exported: <strong style="color:var(--text)">${_fmtAgo(clip.exported_at)}</strong></span>` : ''}
-        </div>
-      </div>` : ''}
 
     ${clip.transcript_excerpt ? `
       <div>
@@ -188,30 +198,17 @@ function scoreRow(label, val, cls) {
     <span class="score-val" style="color:var(--${cls})">${val.toFixed(2)}</span>`;
 }
 
-function saveClipTiming(clipId) {
-  const parseOff = (str) => {
-    if (!str) return 0.0;
-    const s = str.trim();
-    if (/^[+-]/.test(s)) return parseFloat(s);
-    if (/^\d+:\d+(\.\d+)?$/.test(s)) {
-      const [m, sec] = s.split(':');
-      const absSec = parseInt(m) * 60 + parseFloat(sec);
-      const clipStartSec = _activeClipData?.start_ms ? _activeClipData.start_ms / 1000 : 0;
-      return absSec - clipStartSec;
-    }
-    return parseFloat(s);
-  };
-  const startOffset = parseOff(document.getElementById('clip-trim-start').value);
-  const endOffset   = parseOff(document.getElementById('clip-trim-end').value);
-  if (isNaN(startOffset) || isNaN(endOffset)) { showToast('Invalid timing value', 'error'); return; }
-  fetch(`/api/clips/${clipId}/timing`, {
-    method: 'PATCH', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({start_offset: startOffset, end_offset: endOffset}),
-  }).then(r => {
-    if (!r.ok) { showToast('Save timing failed', 'error'); return; }
-    showToast('Timing saved');
-    selectClip(clipId);
-  }).catch(() => showToast('Save timing failed', 'error'));
+function _parseTimingOffset(str) {
+  if (!str) return 0.0;
+  const s = str.trim();
+  if (/^[+-]/.test(s)) return parseFloat(s);
+  if (/^\d+:\d+(\.\d+)?$/.test(s)) {
+    const [m, sec] = s.split(':');
+    const absSec = parseInt(m) * 60 + parseFloat(sec);
+    const clipStartSec = _activeClipData?.start_ms ? _activeClipData.start_ms / 1000 : 0;
+    return absSec - clipStartSec;
+  }
+  return parseFloat(s);
 }
 
 function openDescKebab(clipId, btn) {
@@ -351,6 +348,11 @@ function exportClip(id) {
   _exportClipId = id;
   document.getElementById('export-burn-subs').checked = false;
   document.getElementById('export-container').value = '';
+  document.getElementById('export-trim-start').value = _fmtOffset(_activeClipData?.start_offset);
+  document.getElementById('export-trim-end').value   = _fmtOffset(_activeClipData?.end_offset);
+  const retx = document.getElementById('export-retranscribe');
+  retx.checked = false;
+  document.getElementById('export-retranscribe-model').disabled = true;
   document.getElementById('export-settings-modal').classList.add('visible');
 }
 
@@ -358,16 +360,31 @@ function closeExportModal() {
   document.getElementById('export-settings-modal').classList.remove('visible');
 }
 
-function confirmExport() {
+async function confirmExport() {
   const id        = _exportClipId;
   const burnSubs  = document.getElementById('export-burn-subs').checked;
   const container = document.getElementById('export-container').value;
+  const trimStart = _parseTimingOffset(document.getElementById('export-trim-start').value);
+  const trimEnd   = _parseTimingOffset(document.getElementById('export-trim-end').value);
+  const retx      = document.getElementById('export-retranscribe').checked;
+  const retxModel = document.getElementById('export-retranscribe-model').value;
   closeExportModal();
+
+  if (!isNaN(trimStart) && !isNaN(trimEnd)) {
+    await fetch(`/api/clips/${id}/timing`, {
+      method: 'PATCH', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({start_offset: trimStart, end_offset: trimEnd}),
+    }).catch(() => {});
+  }
 
   const params = new URLSearchParams();
   if (burnSubs)  params.set('burn_subs', 'true');
   if (container) params.set('container', container);
+  if (retx) { params.set('retranscribe', 'true'); params.set('retranscribe_model', retxModel); }
   const qs = params.toString() ? `?${params}` : '';
+
+  const steps = [{label: 'Export', patterns: ['Exporting', 'OK Saved']}];
+  if (retx) steps.unshift({label: 'Transcribe', patterns: ['Retranscribing', 'OK']});
 
   openLog();
   streamSSE(
@@ -389,8 +406,8 @@ function confirmExport() {
       loadVideos();
       showToast('Clip exported successfully');
     },
-    [{label: 'Export', patterns: ['Exporting', 'OK Saved']}],
-    'Exporting',
+    steps,
+    retx ? 'Retranscribing' : 'Exporting',
   );
 }
 

@@ -13,6 +13,7 @@ document.querySelectorAll('.modal-bg').forEach((bg, i) => {
 });
 
 // ── boot ──────────────────────────────────────────────────────────────────────
+initResize();
 _loadContexts();
 loadVideos();
 fetch('/api/status').then(r => r.json()).then(d => {

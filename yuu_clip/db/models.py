@@ -102,6 +102,10 @@ def _migrate(engine) -> None:
         if "summary_user" not in existing:
             conn.execute(text("ALTER TABLE videos ADD COLUMN summary_user TEXT"))
 
+        existing = {row[1] for row in conn.execute(text("PRAGMA table_info(transcripts)"))}
+        if "clip_id" not in existing:
+            conn.execute(text("ALTER TABLE transcripts ADD COLUMN clip_id INTEGER REFERENCES clip_candidates(id)"))
+
         existing = {row[1] for row in conn.execute(text("PRAGMA table_info(clip_candidates)"))}
         if "description" not in existing:
             conn.execute(text("ALTER TABLE clip_candidates ADD COLUMN description TEXT"))
@@ -208,7 +212,10 @@ class AudioTrack(Base):
 
     video: Mapped["Video"] = relationship(back_populates="audio_tracks")
     transcripts: Mapped[List["Transcript"]] = relationship(
-        back_populates="audio_track", cascade="all, delete-orphan"
+        back_populates="audio_track",
+        cascade="all, delete-orphan",
+        primaryjoin="and_(AudioTrack.id == Transcript.audio_track_id, Transcript.clip_id == None)",
+        foreign_keys="Transcript.audio_track_id",
     )
 
 
@@ -217,6 +224,8 @@ class Transcript(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     audio_track_id: Mapped[int] = mapped_column(Integer, ForeignKey("audio_tracks.id"))
+    # NULL = track-level (full recording); set = clip-specific retranscription
+    clip_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("clip_candidates.id"), nullable=True)
 
     model_name: Mapped[str] = mapped_column(String)
     language: Mapped[Optional[str]] = mapped_column(String)
@@ -285,6 +294,11 @@ class ClipCandidate(Base):
     exported_burn_subs: Mapped[Optional[bool]] = mapped_column(Boolean)
 
     video: Mapped["Video"] = relationship(back_populates="clip_candidates")
+    clip_transcripts: Mapped[List["Transcript"]] = relationship(
+        cascade="all, delete-orphan",
+        primaryjoin="ClipCandidate.id == Transcript.clip_id",
+        foreign_keys="Transcript.clip_id",
+    )
 
     @property
     def reasons(self) -> list[str]:

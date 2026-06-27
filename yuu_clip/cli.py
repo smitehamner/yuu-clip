@@ -609,6 +609,81 @@ def clips(
     console.print(t)
 
 
+def _run_retranscribe(cand, session, config, language: Optional[str] = None) -> None:
+    """Retranscribe a clip's time window and store a clip-scoped Transcript row.
+
+    Does not rescore. Caller is responsible for session.commit() afterward.
+    """
+    import tempfile
+
+    from yuu_clip.db.models import AudioTrack, Transcript, TranscriptSegment
+    from yuu_clip.transcribe.whisper_runner import _get_model
+
+    tracks = session.query(AudioTrack).filter_by(video_id=cand.video_id, do_transcribe=True).all()
+    if not tracks:
+        console.print("[yellow]  No tracks marked for transcription — skipping retranscribe[/yellow]")
+        return
+
+    effective_start_s  = max(0.0, cand.start_ms / 1000.0 + (cand.start_offset or 0.0))
+    effective_end_s    = cand.end_ms / 1000.0 + (cand.end_offset or 0.0)
+    effective_start_ms = int(effective_start_s * 1000)
+
+    new_tx_ids: list[int] = []
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp_path = Path(tmp_dir)
+        for track in tracks:
+            if not track.extracted_path or not Path(track.extracted_path).exists():
+                console.print(f"  [yellow]  Track {track.stream_index} — no extracted audio, skipping[/yellow]")
+                continue
+
+            segment_wav = tmp_path / f"seg_{track.stream_index}.wav"
+            _extract_wav_segment(Path(track.extracted_path), segment_wav, effective_start_s, effective_end_s)
+
+            for old_tx in session.query(Transcript).filter_by(audio_track_id=track.id, clip_id=cand.id).all():
+                session.delete(old_tx)
+            session.flush()
+
+            console.print(f"  [dim]  Retranscribing track {track.stream_index} [{track.label}]...[/dim]")
+            whisper_model = _get_model(config)
+            segments_raw, info = whisper_model.transcribe(str(segment_wav), language=language, vad_filter=True)
+
+            tx = Transcript(
+                audio_track_id=track.id,
+                clip_id=cand.id,
+                model_name=config.whisper_model,
+                language=getattr(info, "language", None),
+            )
+            session.add(tx)
+            session.flush()
+            new_tx_ids.append(tx.id)
+
+            offset_ms = effective_start_ms
+            seg_count = 0
+            for seg in segments_raw:
+                session.add(TranscriptSegment(
+                    transcript_id=tx.id,
+                    start_ms=offset_ms + int(seg.start * 1000),
+                    end_ms=offset_ms + int(seg.end * 1000),
+                    text=seg.text,
+                    confidence=getattr(seg, "avg_logprob", None),
+                ))
+                seg_count += 1
+
+            session.flush()
+            console.print(f"  [green]  OK[/green] [{track.label}]  {seg_count} segments")
+
+    if new_tx_ids:
+        from yuu_clip.db.models import TranscriptSegment as _TS
+        new_segs = (
+            session.query(_TS)
+            .filter(_TS.transcript_id.in_(new_tx_ids))
+            .order_by(_TS.start_ms)
+            .all()
+        )
+        if new_segs:
+            cand.transcript_excerpt = " ".join(s.text.strip() for s in new_segs)
+
+
 @app.command()
 def export(
     clip_id: int = typer.Argument(..., help="Clip candidate ID to export"),
@@ -618,14 +693,23 @@ def export(
     captions: bool = typer.Option(True, "--captions/--no-captions", help="Write SRT caption sidecar file(s)"),
     bake_captions: bool = typer.Option(False, "--bake-captions", help="Bake captions into video (forces precise export)"),
     container: Optional[str] = typer.Option(None, "--container", help="Output container override: mkv or mp4. Defaults to source format."),
+    retranscribe: bool = typer.Option(False, "--retranscribe", help="Re-transcribe the clip window before exporting"),
+    retranscribe_model: str = typer.Option("large-v3", "--retranscribe-model", help="Whisper model for retranscription: tiny|base|small|medium|large-v3"),
 ):
     """Export a clip to a video file."""
     import tempfile
 
-    from yuu_clip.config import project_exports_dir
+    from yuu_clip.config import project_exports_dir, validate_whisper_model
     from yuu_clip.db.models import AudioTrack, ClipCandidate
     from yuu_clip.analyze.extract import export_clip
     from yuu_clip.subtitles import export_srt_sidecars, lines_to_srt, merged_srt_lines
+
+    if retranscribe:
+        try:
+            validate_whisper_model(retranscribe_model)
+        except ValueError as e:
+            console.print(f"[red]{e}[/red]")
+            raise typer.Exit(1)
 
     proj_dir = _project_dir(project)
     session  = _get_session(proj_dir)
@@ -635,6 +719,16 @@ def export(
     if not cand:
         console.print(f"[red]No clip with ID {clip_id}[/red]")
         raise typer.Exit(1)
+
+    if retranscribe:
+        from yuu_clip.config import Config
+        retx_config = Config.load(proj_dir)
+        retx_config.whisper_model = retranscribe_model
+        console.print(
+            f"  Retranscribing clip [bold]{clip_id}[/bold] with model [cyan]{retranscribe_model}[/cyan] before export..."
+        )
+        _run_retranscribe(cand, session, retx_config)
+        session.commit()
 
     video_path = Path(cand.video.path)
     if not video_path.exists():
@@ -816,10 +910,8 @@ def retranscribe(
     no_rescore: bool = typer.Option(False, "--no-rescore"),
 ) -> None:
     """Re-transcribe just the time window of a clip, then re-score it."""
-    import tempfile
-
-    from yuu_clip.config import Config, validate_whisper_model
-    from yuu_clip.db.models import AudioTrack, ClipCandidate, Transcript, TranscriptSegment
+    from yuu_clip.config import validate_whisper_model
+    from yuu_clip.db.models import ClipCandidate
 
     validate_whisper_model(model)
     proj_dir, session, config = _load_project(project)
@@ -835,72 +927,7 @@ def retranscribe(
         f"{cand.start_hms}  ({cand.duration_hms})  (model: {model})"
     )
 
-    tracks = session.query(AudioTrack).filter_by(video_id=cand.video_id, do_transcribe=True).all()
-    if not tracks:
-        console.print("[yellow]No tracks marked for transcription.[/yellow]")
-        raise typer.Exit(0)
-
-    from yuu_clip.transcribe.whisper_runner import _get_model
-
-    new_tx_ids: list[int] = []
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        tmp_path = Path(tmp_dir)
-        for track in tracks:
-            if not track.extracted_path or not Path(track.extracted_path).exists():
-                console.print(f"  [yellow]  Track {track.stream_index} — no extracted audio, skipping[/yellow]")
-                continue
-
-            segment_wav = tmp_path / f"seg_{track.stream_index}.wav"
-            _extract_wav_segment(
-                Path(track.extracted_path), segment_wav,
-                cand.start_ms / 1000.0, cand.end_ms / 1000.0,
-            )
-
-            for old_tx in session.query(Transcript).filter_by(audio_track_id=track.id).all():
-                session.delete(old_tx)
-            session.flush()
-
-            console.print(f"  [dim]  Track {track.stream_index} [{track.label}]...[/dim]")
-            whisper_model = _get_model(config)
-            segments_raw, info = whisper_model.transcribe(
-                str(segment_wav), language=language, vad_filter=True,
-            )
-
-            tx = Transcript(
-                audio_track_id=track.id,
-                model_name=model,
-                language=getattr(info, "language", None),
-            )
-            session.add(tx)
-            session.flush()
-            new_tx_ids.append(tx.id)
-
-            # Whisper timestamps are relative to the segment start; add clip offset to get absolute times.
-            offset_ms = cand.start_ms
-            seg_count = 0
-            for seg in segments_raw:
-                session.add(TranscriptSegment(
-                    transcript_id=tx.id,
-                    start_ms=offset_ms + int(seg.start * 1000),
-                    end_ms=offset_ms + int(seg.end * 1000),
-                    text=seg.text,
-                    confidence=getattr(seg, "avg_logprob", None),
-                ))
-                seg_count += 1
-
-            session.flush()
-            console.print(f"  [green]  OK[/green] [{track.label}]  {seg_count} segments")
-
-    if new_tx_ids:
-        new_segs = (
-            session.query(TranscriptSegment)
-            .filter(TranscriptSegment.transcript_id.in_(new_tx_ids))
-            .order_by(TranscriptSegment.start_ms)
-            .all()
-        )
-        if new_segs:
-            cand.transcript_excerpt = " ".join(s.text.strip() for s in new_segs)
-
+    _run_retranscribe(cand, session, config, language=language)
     session.commit()
 
     if not no_rescore:

@@ -164,3 +164,92 @@ function showKebab(anchorEl, items) {
     document.addEventListener('click', dismiss);
   }, 0);
 }
+
+// ── pane resize ───────────────────────────────────────────────────────────────
+const _PANE_KEY = 'yuuclip-pane-sizes';
+
+function _loadPaneSizes() {
+  try { return JSON.parse(localStorage.getItem(_PANE_KEY) || '{}'); } catch { return {}; }
+}
+
+function _savePaneSize(key, val) {
+  const s = _loadPaneSizes();
+  s[key] = val;
+  localStorage.setItem(_PANE_KEY, JSON.stringify(s));
+}
+
+function _makeDragHandle(id, onStart) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.addEventListener('mousedown', e => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    el.classList.add('dragging');
+    const onMove = onStart(e);
+    const onUp = () => {
+      el.classList.remove('dragging');
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+}
+
+function initResize() {
+  const root    = document.documentElement;
+  const sizes   = _loadPaneSizes();
+
+  if (sizes.sidebarWidth)   root.style.setProperty('--sidebar-width',       sizes.sidebarWidth + 'px');
+  if (sizes.videosHeight)   root.style.setProperty('--videos-group-height', sizes.videosHeight + 'px');
+  if (sizes.playerMaxH)     root.style.setProperty('--player-max-height',   sizes.playerMaxH + 'px');
+  if (sizes.logMaxH)        root.style.setProperty('--log-max-height',       sizes.logMaxH + 'px');
+
+  _makeDragHandle('sidebar-resize-handle', startE => {
+    const startX  = startE.clientX;
+    const sidebar = document.querySelector('.sidebar');
+    const startW  = sidebar.getBoundingClientRect().width;
+    return moveE => {
+      const w = Math.max(160, Math.min(480, startW + moveE.clientX - startX));
+      root.style.setProperty('--sidebar-width', w + 'px');
+      _savePaneSize('sidebarWidth', w);
+    };
+  });
+
+  _makeDragHandle('videos-clips-resize-handle', startE => {
+    const startY  = startE.clientY;
+    const vg      = document.querySelector('.sidebar-group.videos-group');
+    const sidebar = document.querySelector('.sidebar');
+    const startH  = vg.getBoundingClientRect().height;
+    return moveE => {
+      const maxH = sidebar.getBoundingClientRect().height - 120;
+      const h = Math.max(40, Math.min(maxH, startH + moveE.clientY - startY));
+      root.style.setProperty('--videos-group-height', h + 'px');
+      _savePaneSize('videosHeight', h);
+    };
+  });
+
+  _makeDragHandle('player-resize-handle', startE => {
+    const startY = startE.clientY;
+    const pa     = document.getElementById('player-area');
+    const main   = document.querySelector('.main');
+    const startH = pa.getBoundingClientRect().height;
+    return moveE => {
+      const maxH = main.getBoundingClientRect().height - 100;
+      const h = Math.max(80, Math.min(maxH, startH + moveE.clientY - startY));
+      root.style.setProperty('--player-max-height', h + 'px');
+      _savePaneSize('playerMaxH', h);
+    };
+  });
+
+  _makeDragHandle('log-resize-handle', startE => {
+    const startY = startE.clientY;
+    const lb     = document.getElementById('log-body');
+    const startH = lb.getBoundingClientRect().height || 0;
+    return moveE => {
+      const h = Math.max(40, Math.min(600, startH - (moveE.clientY - startY)));
+      root.style.setProperty('--log-max-height', h + 'px');
+      _savePaneSize('logMaxH', h);
+    };
+  });
+}

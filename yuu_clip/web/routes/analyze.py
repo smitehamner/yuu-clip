@@ -243,11 +243,18 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         clip_id: int,
         burn_subs: bool = Query(False),
         container: Optional[str] = Query(None),
+        retranscribe: bool = Query(False),
+        retranscribe_model: str = Query("large-v3"),
     ):
         """Export a clip to a video file and stream ffmpeg progress as SSE."""
         allowed_containers = {"mkv", "mp4"}
         if container is not None and container not in allowed_containers:
             raise HTTPException(400, f"container must be one of: {', '.join(sorted(allowed_containers))}")
+        if retranscribe:
+            try:
+                validate_whisper_model(retranscribe_model)
+            except ValueError as e:
+                raise HTTPException(400, str(e))
         cmd = [
             sys.executable, "-m", "yuu_clip.cli", "export", str(clip_id),
             "--captions", "--project", str(ctx.project_dir),
@@ -256,18 +263,20 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             cmd.append("--bake-captions")
         if container:
             cmd.extend(["--container", container])
+        if retranscribe:
+            cmd.extend(["--retranscribe", "--retranscribe-model", retranscribe_model])
         return await subprocess_sse(cmd, ctx.project_dir, ctx)
 
     @router.get("/api/clips/{clip_id}/retranscribe")
     async def retranscribe_clip(clip_id: int, model: str = Query("large-v3")):
-        """Re-transcribe a clip's time window with the given Whisper model, then re-score."""
+        """Re-transcribe a clip's time window with the given Whisper model."""
         try:
             validate_whisper_model(model)
         except ValueError as e:
             raise HTTPException(400, str(e))
         cmd = [
             sys.executable, "-m", "yuu_clip.cli", "retranscribe", str(clip_id),
-            "--model", model, "--project", str(ctx.project_dir),
+            "--model", model, "--no-rescore", "--project", str(ctx.project_dir),
         ]
         return await subprocess_sse(cmd, ctx.project_dir, ctx)
 

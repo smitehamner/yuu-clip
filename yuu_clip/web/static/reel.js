@@ -204,6 +204,9 @@ function openBatchExportModal(videoId) {
   document.getElementById('batch-skip-exported').checked = true;
   document.getElementById('batch-container').value = '';
   document.getElementById('batch-burn-subs').checked = false;
+  const retx = document.getElementById('batch-retranscribe');
+  retx.checked = false;
+  document.getElementById('batch-retranscribe-model').disabled = true;
   document.getElementById('batch-export-modal').classList.add('visible');
   updateBatchEstimate();
 }
@@ -229,12 +232,15 @@ async function confirmBatchExport() {
   const skipExp    = document.getElementById('batch-skip-exported').checked;
   const container  = document.getElementById('batch-container').value;
   const burnSubs   = document.getElementById('batch-burn-subs').checked;
+  const retx       = document.getElementById('batch-retranscribe').checked;
+  const retxModel  = document.getElementById('batch-retranscribe-model').value;
   closeBatchExportModal();
 
   const params = new URLSearchParams({min_score: minScore});
   if (!skipExp) params.set('skip_exported', 'false');
   if (container) params.set('container', container);
   if (burnSubs)  params.set('burn_subs', 'true');
+  if (retx) { params.set('retranscribe', 'true'); params.set('retranscribe_model', retxModel); }
 
   openLog();
   streamSSE(

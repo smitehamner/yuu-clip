@@ -307,7 +307,7 @@ function startRetranscribe() {
   streamSSE(
     `/api/clips/${_retranscribeClipId}/retranscribe?model=${encodeURIComponent(model)}`,
     () => { selectClip(_retranscribeClipId); showToast('Retranscription complete'); },
-    [{label: 'Transcribe', patterns: ['Retranscribing', 'OK']}, {label: 'Score', patterns: ['Re-scoring']}],
+    [{label: 'Transcribe', patterns: ['Retranscribing', 'OK']}],
     'Retranscribing',
   );
 }

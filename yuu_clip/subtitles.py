@@ -59,17 +59,26 @@ def collect_clip_subtitles(clip) -> dict[str, list[SubLine]]:
     Skips game_sounds tracks and any track with do_transcribe=False.
     Uses the most recent Transcript when a track has been re-transcribed.
     """
-    clip_start = clip.start_ms
-    clip_end = clip.end_ms
+    clip_start = max(0, clip.start_ms + int((clip.start_offset or 0.0) * 1000))
+    clip_end   = clip.end_ms + int((clip.end_offset or 0.0) * 1000)
     result: dict[str, list[SubLine]] = {}
+
+    clip_tx_by_track: dict = {}
+    for tx in getattr(clip, "clip_transcripts", []):
+        existing = clip_tx_by_track.get(tx.audio_track_id)
+        if existing is None or tx.created_at > existing.created_at:
+            clip_tx_by_track[tx.audio_track_id] = tx
 
     for track in clip.video.audio_tracks:
         if not track.do_transcribe or track.label == "game_sounds":
             continue
-        if not track.transcripts:
-            continue
 
-        transcript = max(track.transcripts, key=lambda t: t.created_at)
+        if track.id in clip_tx_by_track:
+            transcript = clip_tx_by_track[track.id]
+        elif track.transcripts:
+            transcript = max(track.transcripts, key=lambda t: t.created_at)
+        else:
+            continue
         lines: list[SubLine] = []
         for seg in transcript.segments:
             if seg.end_ms <= clip_start or seg.start_ms >= clip_end:

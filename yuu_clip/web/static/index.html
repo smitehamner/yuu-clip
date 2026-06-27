@@ -37,10 +37,11 @@
 
 <!-- Settings panel (replaces main layout when active) -->
 <div class="settings-panel" id="settings-panel">
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;max-width:720px">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;max-width:720px;margin-left:auto;margin-right:auto">
     <h2 style="font-size:16px;font-weight:700">Settings</h2>
     <div style="display:flex;align-items:center;gap:10px">
       <span class="settings-save-badge" id="settings-saved-badge">&#10003; Saved</span>
+      <button class="btn primary" id="btn-settings-save" onclick="saveSettings()" disabled>Save</button>
       <button class="btn ghost" onclick="closeSettings()" aria-label="Close" style="font-size:16px">&#x2715;</button>
     </div>
   </div>
@@ -54,7 +55,7 @@
         <label class="settings-label" for="s-whisper-model">Model</label>
         <div class="settings-note">Takes effect on next analysis</div>
       </div>
-      <select class="settings-select" id="s-whisper-model" onchange="saveSettings('whisper_model', this.value)">
+      <select class="settings-select" id="s-whisper-model">
         <option value="tiny">tiny — fastest, lowest quality</option>
         <option value="base">base — fast, lower quality</option>
         <option value="small">small (~500 MB VRAM)</option>
@@ -67,7 +68,7 @@
         <label class="settings-label" for="s-whisper-device">Compute device</label>
         <div class="settings-note">auto = CUDA if available, else CPU</div>
       </div>
-      <select class="settings-select" id="s-whisper-device" onchange="saveSettings('whisper_device', this.value)" style="max-width:200px">
+      <select class="settings-select" id="s-whisper-device">
         <option value="auto">auto (recommended)</option>
         <option value="cuda">cuda (NVIDIA GPU)</option>
         <option value="cpu">cpu</option>
@@ -78,7 +79,7 @@
         <label class="settings-label" for="s-whisper-compute">Compute type</label>
         <div class="settings-note">int8 is fastest on CPU; float16 best on GPU</div>
       </div>
-      <select class="settings-select" id="s-whisper-compute" onchange="saveSettings('whisper_compute_type', this.value)" style="max-width:200px">
+      <select class="settings-select" id="s-whisper-compute">
         <option value="int8">int8</option>
         <option value="float16">float16</option>
         <option value="float32">float32</option>
@@ -96,7 +97,7 @@
         <div class="settings-note">Disabling skips description + sub-score generation</div>
       </div>
       <label class="settings-checkbox">
-        <input type="checkbox" id="s-ollama-enabled" onchange="saveSettings('ollama_enabled', this.checked)">
+        <input type="checkbox" id="s-ollama-enabled">
         <span style="font-size:13px">Enabled</span>
       </label>
     </div>
@@ -105,7 +106,7 @@
         <label class="settings-label" for="s-llm-backend">LLM backend</label>
         <div class="settings-note">Local model file runs offline; Ollama requires a running server</div>
       </div>
-      <select class="settings-select" id="s-llm-backend" onchange="_onLlmBackendChange(this.value)" style="max-width:220px">
+      <select class="settings-select" id="s-llm-backend" onchange="_onLlmBackendChange(this.value)">
         <option value="llamacpp">Local model file</option>
         <option value="ollama">Ollama</option>
       </select>
@@ -117,8 +118,7 @@
           <label class="settings-label" for="s-llm-model-path">Model file path</label>
           <div class="settings-note">Path to a local .gguf file</div>
         </div>
-        <input class="settings-input" id="s-llm-model-path" type="text" placeholder="C:\models\llama3.gguf"
-               onblur="saveSettings('llm_model_path', this.value)" style="max-width:320px">
+        <input class="settings-input" id="s-llm-model-path" type="text" placeholder="C:\models\llama3.gguf" style="max-width:320px">
       </div>
     </div>
     <!-- ollama fields -->
@@ -128,24 +128,21 @@
           <label class="settings-label" for="s-ollama-model">Model</label>
           <div class="settings-note">Must be pulled in Ollama first</div>
         </div>
-        <input class="settings-input" id="s-ollama-model" type="text" placeholder="llama3.1:8b"
-               onblur="saveSettings('ollama_model', this.value)">
+        <input class="settings-input" id="s-ollama-model" type="text" placeholder="llama3.1:8b" style="max-width:200px">
       </div>
       <div class="settings-row">
         <div class="settings-col">
           <label class="settings-label" for="s-ollama-host">Host</label>
           <div class="settings-note">Default: http://localhost:11434</div>
         </div>
-        <input class="settings-input" id="s-ollama-host" type="text" placeholder="http://localhost:11434"
-               onblur="saveSettings('ollama_host', this.value)">
+        <input class="settings-input" id="s-ollama-host" type="text" placeholder="http://localhost:11434" style="max-width:240px">
       </div>
       <div class="settings-row">
         <div class="settings-col">
           <label class="settings-label" for="s-ollama-timeout">Timeout (seconds)</label>
           <div class="settings-note">Per-clip LLM call timeout</div>
         </div>
-        <input class="settings-input" id="s-ollama-timeout" type="number" min="1" max="600" step="5"
-               onchange="saveSettings('ollama_timeout_s', parseFloat(this.value))" style="max-width:100px">
+        <input class="settings-input" id="s-ollama-timeout" type="number" min="1" max="600" step="5" style="max-width:100px">
       </div>
     </div>
   </div>
@@ -157,44 +154,38 @@
     <div class="settings-weight-row">
       <span class="settings-weight-label">&#128266; Audio energy</span>
       <input type="range" min="0" max="5" step="0.1" id="s-energy-weight" aria-label="Audio energy weight" style="flex:1"
-             oninput="document.getElementById('s-energy-weight-val').textContent=parseFloat(this.value).toFixed(1)"
-             onchange="saveSettings('scorer_energy_weight', parseFloat(this.value))">
+             oninput="document.getElementById('s-energy-weight-val').textContent=parseFloat(this.value).toFixed(1)">
       <span class="settings-weight-val" id="s-energy-weight-val">1.0</span>
     </div>
     <div class="settings-weight-row">
       <span class="settings-weight-label">&#127916; Scene cuts</span>
       <input type="range" min="0" max="5" step="0.1" id="s-scene-weight" aria-label="Scene cuts weight" style="flex:1"
-             oninput="document.getElementById('s-scene-weight-val').textContent=parseFloat(this.value).toFixed(1)"
-             onchange="saveSettings('scorer_scene_weight', parseFloat(this.value))">
+             oninput="document.getElementById('s-scene-weight-val').textContent=parseFloat(this.value).toFixed(1)">
       <span class="settings-weight-val" id="s-scene-weight-val">0.5</span>
     </div>
     <div class="settings-weight-row" style="margin-bottom:16px">
       <span class="settings-weight-label">&#129504; LLM score</span>
       <input type="range" min="0" max="5" step="0.1" id="s-llm-weight" aria-label="LLM score weight" style="flex:1"
-             oninput="document.getElementById('s-llm-weight-val').textContent=parseFloat(this.value).toFixed(1)"
-             onchange="saveSettings('scorer_llm_weight', parseFloat(this.value))">
+             oninput="document.getElementById('s-llm-weight-val').textContent=parseFloat(this.value).toFixed(1)">
       <span class="settings-weight-val" id="s-llm-weight-val">2.0</span>
     </div>
     <div style="font-size:12px;color:var(--muted);margin-bottom:8px;font-weight:600">Sub-score weights</div>
     <div class="settings-weight-row">
       <span class="settings-weight-label">&#128514; Funny</span>
       <input type="range" min="0" max="5" step="0.1" id="s-funny-weight" aria-label="Funny sub-score weight" style="flex:1"
-             oninput="document.getElementById('s-funny-weight-val').textContent=parseFloat(this.value).toFixed(1)"
-             onchange="saveSettings('score_funny_weight', parseFloat(this.value))">
+             oninput="document.getElementById('s-funny-weight-val').textContent=parseFloat(this.value).toFixed(1)">
       <span class="settings-weight-val" id="s-funny-weight-val">1.0</span>
     </div>
     <div class="settings-weight-row">
       <span class="settings-weight-label">&#127917; Dramatic</span>
       <input type="range" min="0" max="5" step="0.1" id="s-dramatic-weight" aria-label="Dramatic sub-score weight" style="flex:1"
-             oninput="document.getElementById('s-dramatic-weight-val').textContent=parseFloat(this.value).toFixed(1)"
-             onchange="saveSettings('score_dramatic_weight', parseFloat(this.value))">
+             oninput="document.getElementById('s-dramatic-weight-val').textContent=parseFloat(this.value).toFixed(1)">
       <span class="settings-weight-val" id="s-dramatic-weight-val">1.0</span>
     </div>
     <div class="settings-weight-row">
       <span class="settings-weight-label">&#9876;&#65039; Action</span>
       <input type="range" min="0" max="5" step="0.1" id="s-action-weight" aria-label="Action sub-score weight" style="flex:1"
-             oninput="document.getElementById('s-action-weight-val').textContent=parseFloat(this.value).toFixed(1)"
-             onchange="saveSettings('score_action_weight', parseFloat(this.value))">
+             oninput="document.getElementById('s-action-weight-val').textContent=parseFloat(this.value).toFixed(1)">
       <span class="settings-weight-val" id="s-action-weight-val">1.0</span>
     </div>
   </div>
@@ -206,7 +197,7 @@
       <div class="settings-col">
         <label class="settings-label" for="s-scene-mode">Scene detection mode</label>
       </div>
-      <select class="settings-select" id="s-scene-mode" onchange="saveSettings('scene_detection_mode', this.value)">
+      <select class="settings-select" id="s-scene-mode">
         <option value="transcript">Transcript — silence gaps only (instant)</option>
         <option value="fast">Fast — keyframes + transcript gaps (recommended)</option>
         <option value="full">Full — every frame, most accurate (slow)</option>
@@ -217,16 +208,14 @@
         <label class="settings-label" for="s-silence-ms">Silence threshold (ms)</label>
         <div class="settings-note">Gap length that marks a clip boundary</div>
       </div>
-      <input class="settings-input" id="s-silence-ms" type="number" min="500" max="30000" step="500"
-             onchange="saveSettings('silence_threshold_ms', parseInt(this.value))" style="max-width:120px">
+      <input class="settings-input" id="s-silence-ms" type="number" min="500" max="30000" step="500" style="max-width:120px">
     </div>
     <div class="settings-row">
       <div class="settings-col">
         <label class="settings-label" for="s-min-clip-ms">Minimum clip length (ms)</label>
         <div class="settings-note">Shorter candidates are discarded</div>
       </div>
-      <input class="settings-input" id="s-min-clip-ms" type="number" min="1000" max="120000" step="1000"
-             onchange="saveSettings('min_clip_ms', parseInt(this.value))" style="max-width:120px">
+      <input class="settings-input" id="s-min-clip-ms" type="number" min="1000" max="120000" step="1000" style="max-width:120px">
     </div>
   </div>
 
@@ -235,13 +224,22 @@
     <div class="settings-section-title">UI</div>
     <div class="settings-row">
       <div class="settings-col">
+        <div class="settings-label">Autoplay clips</div>
+        <div class="settings-note">Play clip automatically when selected</div>
+      </div>
+      <label class="settings-checkbox">
+        <input type="checkbox" id="s-autoplay">
+        <span style="font-size:13px">Enabled</span>
+      </label>
+    </div>
+    <div class="settings-row">
+      <div class="settings-col">
         <label class="settings-label" for="s-timeline-interval">Timeline interval</label>
         <div class="settings-note">Bucket size used when generating session timeline</div>
       </div>
       <div style="display:flex;gap:6px;align-items:center">
-        <input class="settings-input" id="s-timeline-interval" type="number" min="10" step="1"
-               onchange="saveTimelineInterval()" style="max-width:80px">
-        <select class="settings-select" id="s-timeline-unit" onchange="saveTimelineInterval()" style="max-width:120px">
+        <input class="settings-input" id="s-timeline-interval" type="number" min="10" step="1" style="max-width:80px">
+        <select class="settings-select" id="s-timeline-unit">
           <option value="seconds">seconds</option>
           <option value="minutes">minutes</option>
         </select>
@@ -264,19 +262,23 @@
       <div class="sidebar-section">Videos</div>
       <ul class="sidebar-list" id="video-list"></ul>
     </div>
-    <div class="sidebar-divider"></div>
+    <div class="resize-handle resize-handle-v" id="videos-clips-resize-handle" title="Drag to resize Videos / Clips panels"></div>
     <div class="sidebar-group clips-group">
       <div class="clips-section-header">
         <span>Clips</span>
-        <select id="clips-sort" class="clips-sort-select" onchange="onClipsSortChange()">
-          <option value="score">&#11088; Overall</option>
-          <option value="funny">&#128514; Funny</option>
-          <option value="dramatic">&#127917; Dramatic</option>
-          <option value="action">&#9876;&#65039; Action</option>
-          <option value="timeline">Timeline</option>
-        </select>
+        <div style="display:flex;align-items:center;gap:4px">
+          <span style="font-size:10px;color:var(--muted)">Sort</span>
+          <select id="clips-sort" class="clips-sort-select" onchange="onClipsSortChange()">
+            <option value="score">&#11088; Overall</option>
+            <option value="funny">&#128514; Funny</option>
+            <option value="dramatic">&#127917; Dramatic</option>
+            <option value="action">&#9876;&#65039; Action</option>
+            <option value="timeline">Timeline</option>
+          </select>
+        </div>
       </div>
       <div class="clip-filter-tabs">
+        <span style="font-size:10px;color:var(--muted);padding:2px 4px;line-height:1.8;flex-shrink:0">Filter</span>
         <button class="clip-tab active" data-filter="all" onclick="setClipFilter('all')">All</button>
         <button class="clip-tab" data-filter="pending" onclick="setClipFilter('pending')">Unreviewed</button>
         <button class="clip-tab" data-filter="approved" onclick="setClipFilter('approved')">Approved</button>
@@ -286,9 +288,12 @@
     </div>
   </div>
 
+  <div class="resize-handle resize-handle-h" id="sidebar-resize-handle" title="Drag to resize sidebar"></div>
+
   <!-- Main panel -->
   <div class="main">
     <div class="player-area" id="player-area"></div>
+    <div class="resize-handle resize-handle-v" id="player-resize-handle" title="Drag to resize player"></div>
     <div class="detail" id="detail">
       <div class="detail-empty">Select a clip from the sidebar</div>
     </div>
@@ -297,6 +302,7 @@
 
 <!-- Progress log -->
 <div class="log-panel" id="log-panel">
+  <div class="resize-handle resize-handle-v" id="log-resize-handle" title="Drag to resize log"></div>
   <button class="log-header" onclick="toggleLog()" aria-expanded="true" aria-controls="log-body">
     <span class="log-title">Log</span>
     <span class="log-toggle" id="log-toggle">&#9660;</span>
@@ -529,10 +535,24 @@
         <option value="mp4">MP4</option>
       </select>
     </div>
-    <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;margin-bottom:14px">
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;margin-bottom:10px">
       <input type="checkbox" id="batch-burn-subs">
       Bake captions into video
     </label>
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;margin-bottom:8px">
+      <input type="checkbox" id="batch-retranscribe" onchange="document.getElementById('batch-retranscribe-model').disabled=!this.checked">
+      Retranscribe before export
+    </label>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+      <label for="batch-retranscribe-model" style="font-size:13px;color:var(--muted);min-width:110px">Caption model</label>
+      <select id="batch-retranscribe-model" disabled style="flex:1;padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px">
+        <option value="tiny">tiny</option>
+        <option value="base">base</option>
+        <option value="small">small</option>
+        <option value="medium">medium</option>
+        <option value="large-v3" selected>large-v3 (best quality)</option>
+      </select>
+    </div>
     <div class="modal-actions">
       <button class="btn" onclick="closeBatchExportModal()">Cancel</button>
       <button class="btn primary" onclick="confirmBatchExport()">Export</button>
@@ -667,7 +687,7 @@
 
 <!-- Export Settings Modal -->
 <div class="modal-bg" id="export-settings-modal" onclick="if(event.target===this)closeExportModal()">
-  <div class="modal" style="width:360px">
+  <div class="modal" style="width:380px">
     <h3 style="margin-top:0">Export Clip</h3>
     <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:14px">
       <div style="display:flex;align-items:center;gap:10px">
@@ -682,6 +702,28 @@
         <input type="checkbox" id="export-burn-subs">
         <span style="font-size:13px">Bake captions into video</span>
       </label>
+      <div style="display:flex;align-items:center;gap:10px">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;flex:1">
+          <input type="checkbox" id="export-retranscribe" onchange="document.getElementById('export-retranscribe-model').disabled=!this.checked">
+          <span style="font-size:13px">Retranscribe before export</span>
+        </label>
+        <select id="export-retranscribe-model" disabled style="padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px">
+          <option value="tiny">tiny</option>
+          <option value="base">base</option>
+          <option value="small">small</option>
+          <option value="medium">medium</option>
+          <option value="large-v3" selected>large-v3</option>
+        </select>
+      </div>
+      <div style="border-top:1px solid var(--border);padding-top:10px">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Trim offsets (±seconds, or M:SS)</div>
+        <div class="timing-row">
+          <span style="color:var(--muted);font-size:12px">Start</span>
+          <input class="timing-input" id="export-trim-start" value="+0.0" placeholder="+0.0" title="Start offset: ±seconds from clip boundary, or absolute M:SS">
+          <span style="color:var(--muted);font-size:12px">End</span>
+          <input class="timing-input" id="export-trim-end" value="+0.0" placeholder="+0.0" title="End offset: ±seconds from clip boundary, or absolute M:SS">
+        </div>
+      </div>
     </div>
     <div class="modal-actions">
       <button class="btn" onclick="closeExportModal()">Cancel</button>

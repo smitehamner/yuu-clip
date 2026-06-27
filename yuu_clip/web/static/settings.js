@@ -1,5 +1,37 @@
 // ── settings panel ────────────────────────────────────────────────────────────
-let _settingsSaveTimer = null;
+const _settingsFieldIds = [
+  's-whisper-model','s-whisper-device','s-whisper-compute',
+  's-ollama-enabled','s-llm-backend','s-llm-model-path',
+  's-ollama-model','s-ollama-host','s-ollama-timeout',
+  's-energy-weight','s-scene-weight','s-llm-weight',
+  's-funny-weight','s-dramatic-weight','s-action-weight',
+  's-scene-mode','s-silence-ms','s-min-clip-ms',
+  's-timeline-interval','s-timeline-unit','s-autoplay',
+];
+let _settingsOriginal = {};
+
+function _snapshotSettings() {
+  _settingsOriginal = {};
+  for (const id of _settingsFieldIds) {
+    const el = document.getElementById(id);
+    if (el) _settingsOriginal[id] = el.type === 'checkbox' ? el.checked : el.value;
+  }
+}
+
+function _checkSettingsDirty() {
+  let anyDirty = false;
+  for (const id of _settingsFieldIds) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    const current = el.type === 'checkbox' ? el.checked : el.value;
+    const dirty = String(current) !== String(_settingsOriginal[id]);
+    if (dirty) anyDirty = true;
+    const row = el.closest('.settings-row') || el.closest('.settings-weight-row');
+    if (row) row.classList.toggle('dirty', dirty);
+  }
+  const btn = document.getElementById('btn-settings-save');
+  if (btn) btn.disabled = !anyDirty;
+}
 
 async function openSettings() {
   document.getElementById('main-layout').style.display = 'none';
@@ -59,26 +91,9 @@ function _applySettingsToUI(cfg) {
   const _tlVal  = _tlUnit === 'minutes' ? Math.round(_tlSec / 60) : _tlSec;
   setVal('s-timeline-interval', _tlVal);
   setVal('s-timeline-unit',     _tlUnit);
-}
-
-function saveSettings(key, value) {
-  clearTimeout(_settingsSaveTimer);
-  _settingsSaveTimer = setTimeout(async () => {
-    try {
-      const res = await fetch('/api/config', {
-        method: 'PATCH', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({[key]: value}),
-      });
-      if (!res.ok) {
-        const e = await res.json().catch(() => ({}));
-        showToast(`Settings error: ${e.detail || 'save failed'}`, 'error');
-        return;
-      }
-      _flashSettingsSaved();
-    } catch {
-      showToast('Settings save failed', 'error');
-    }
-  }, 400);
+  setChk('s-autoplay', localStorage.getItem('yuuclip-autoplay') === 'true');
+  _snapshotSettings();
+  _checkSettingsDirty();
 }
 
 function _onLlmBackendChange(backend) {
@@ -87,24 +102,66 @@ function _onLlmBackendChange(backend) {
   if (!llamacppEl || !ollamaEl) return;
   llamacppEl.style.display = backend === 'llamacpp' ? '' : 'none';
   ollamaEl.style.display   = backend === 'ollama'   ? '' : 'none';
-  saveSettings('llm_backend', backend);
 }
 
-async function saveTimelineInterval() {
-  const val = parseInt(document.getElementById('s-timeline-interval').value);
-  const unit = document.getElementById('s-timeline-unit').value;
-  if (isNaN(val) || val < 1) return;
-  const intervalS = unit === 'minutes' ? val * 60 : val;
-  if (intervalS < 10) return;
+async function saveSettings() {
+  const getVal = id => { const el = document.getElementById(id); return el ? el.value : null; };
+  const getChk = id => { const el = document.getElementById(id); return el ? el.checked : null; };
+  const getNum = (id, parse) => { const v = getVal(id); return v !== null ? parse(v) : null; };
+
+  const tlUnit = getVal('s-timeline-unit');
+  const tlVal  = parseInt(getVal('s-timeline-interval'));
+  const tlSec  = !isNaN(tlVal) && tlVal >= 1
+    ? (tlUnit === 'minutes' ? tlVal * 60 : tlVal)
+    : null;
+
+  const payload = {
+    whisper_model:              getVal('s-whisper-model'),
+    whisper_device:             getVal('s-whisper-device'),
+    whisper_compute_type:       getVal('s-whisper-compute'),
+    ollama_enabled:             getChk('s-ollama-enabled'),
+    llm_backend:                getVal('s-llm-backend'),
+    llm_model_path:             getVal('s-llm-model-path'),
+    ollama_model:               getVal('s-ollama-model'),
+    ollama_host:                getVal('s-ollama-host'),
+    ollama_timeout_s:           getNum('s-ollama-timeout', parseFloat),
+    scorer_energy_weight:       getNum('s-energy-weight', parseFloat),
+    scorer_scene_weight:        getNum('s-scene-weight', parseFloat),
+    scorer_llm_weight:          getNum('s-llm-weight', parseFloat),
+    score_funny_weight:         getNum('s-funny-weight', parseFloat),
+    score_dramatic_weight:      getNum('s-dramatic-weight', parseFloat),
+    score_action_weight:        getNum('s-action-weight', parseFloat),
+    scene_detection_mode:       getVal('s-scene-mode'),
+    silence_threshold_ms:       getNum('s-silence-ms', parseInt),
+    min_clip_ms:                getNum('s-min-clip-ms', parseInt),
+    ...(tlSec && tlSec >= 10 ? {ui_timeline_interval_seconds: tlSec, ui_timeline_interval_unit: tlUnit} : {}),
+  };
+
+  localStorage.setItem('yuuclip-autoplay', getChk('s-autoplay'));
+
+  const btn = document.getElementById('btn-settings-save');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
   try {
     const res = await fetch('/api/config', {
       method: 'PATCH', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ui_timeline_interval_seconds: intervalS, ui_timeline_interval_unit: unit}),
+      body: JSON.stringify(payload),
     });
-    if (!res.ok) return;
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      showToast(`Settings error: ${e.detail || 'save failed'}`, 'error');
+      if (btn) { btn.disabled = false; btn.textContent = 'Save'; }
+      return;
+    }
     _flashSettingsSaved();
-  } catch {}
+    _snapshotSettings();
+    _checkSettingsDirty();
+    if (btn) btn.textContent = 'Save';
+  } catch {
+    showToast('Settings save failed', 'error');
+    if (btn) { btn.disabled = false; btn.textContent = 'Save'; }
+  }
 }
+
 
 function _flashSettingsSaved() {
   const badge = document.getElementById('settings-saved-badge');
@@ -112,6 +169,15 @@ function _flashSettingsSaved() {
   badge.classList.add('show');
   setTimeout(() => badge.classList.remove('show'), 2000);
 }
+
+// Dirty-state tracking: re-check on any input/change in the settings panel
+document.addEventListener('DOMContentLoaded', () => {
+  const panel = document.getElementById('settings-panel');
+  if (panel) {
+    panel.addEventListener('input',  _checkSettingsDirty);
+    panel.addEventListener('change', _checkSettingsDirty);
+  }
+});
 
 // ── about modal ───────────────────────────────────────────────────────────────
 function openAboutModal()  { document.getElementById('about-modal').classList.add('visible'); }

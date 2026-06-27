@@ -35,23 +35,25 @@ Core review workflow, sidebar, export, analyze modal, track layout manager, reel
 
 ### Near-term
 
-- [ ] **Related clips**
-  - "Find Similar" button in clip detail opens a scope-selection modal:
-    current video pre-checked; other processed videos listed as individual checkboxes (no select-all)
-  - Fires Ollama call with `description_long` + selected clips' descriptions
-  - Results stored on `ClipCandidate`: `related_clips_json` + `related_clips_at` timestamp
-  - "Related Clips" section in detail panel: ranked clickable links; stale indicator if older
-    than last rescore
-  - Top-N configured in Settings
+- [ ] **Score All progress + starting log** *(easy)*
+  - "Score All" / "Rescore All" operations currently show no progress and emit no starting log line
+  - Add a `[Starting LLM scoring for N clips…]` line at job start
+  - Pipe per-clip progress events through the SSE stream so the step chip advances as clips complete
+  - Pairs with *Regenerate All Summaries* below
 
-- [ ] **Per-context score weights**
-  - Each World Context gets optional score weight overrides: action, funny, dramatic
-  - When a video is rescored using that context, its weights override the global defaults
-  - Configured in the Context editor UI alongside the existing fields
-  - Allows e.g. an "Action Game" context to set action=0.8, dramatic=0.2 without touching
-    global Settings — user sets it once per context and it follows the context everywhere
+- [ ] **Regenerate All Summaries** *(easy)*
+  - Batch "Regenerate Summary" button in the video detail panel (next to the existing single "Generate Summary" button)
+  - Streams progress via SSE; shows per-video progress if multiple videos are queued (Phase 5 scope — single-video batch is the immediate target)
+  - Useful when a world context changes or the LLM model is swapped
 
-- [ ] **Caption / subtitle export**
+- [ ] **Video sidebar stats** *(easy–moderate)*
+  - Show richer per-video stats on each sidebar card; exact fields TBD during implementation, but confirmed scope includes:
+    - Clip counts: total / approved / exported
+    - Processing status indicators: whether summary, timeline, and LLM scoring have run (and whether stale)
+    - Score distribution: min/max or a mini bar across the video's clips
+  - Layout and which stats to surface will be refined during implementation based on what fits and what reads well
+
+- [ ] **Caption / subtitle export** *(moderate)*
   - Export modal gains two new options:
     - **Embed subtitle track** (softsub) — adds an SRT track to the container; stream copy,
       no re-encode; fast
@@ -60,7 +62,23 @@ Core review workflow, sidebar, export, analyze modal, track layout manager, reel
   - SRT generated from existing `TranscriptSegment` rows (already available per clip)
   - Both options ship together; softsub is the default when captions are enabled
 
-- [ ] **New Recording panel (replaces Analyze modal)**
+- [ ] **Per-context score weights** *(moderate)*
+  - Each World Context gets optional score weight overrides: action, funny, dramatic
+  - When a video is rescored using that context, its weights override the global defaults
+  - Configured in the Context editor UI alongside the existing fields
+  - Allows e.g. an "Action Game" context to set action=0.8, dramatic=0.2 without touching
+    global Settings — user sets it once per context and it follows the context everywhere
+
+- [ ] **Related clips** *(moderate)*
+  - "Find Similar" button in clip detail opens a scope-selection modal:
+    current video pre-checked; other processed videos listed as individual checkboxes (no select-all)
+  - Fires Ollama call with `description_long` + selected clips' descriptions
+  - Results stored on `ClipCandidate`: `related_clips_json` + `related_clips_at` timestamp
+  - "Related Clips" section in detail panel: ranked clickable links; stale indicator if older
+    than last rescore
+  - Top-N configured in Settings
+
+- [ ] **New Recording panel (replaces Analyze modal)** *(complex)*
   - `+ Analyze` in the header navigates to a "New Recording" panel that takes over the detail area
     instead of opening a modal
   - Sidebar stays live while the panel is open; clicking another video away cancels with a
@@ -69,7 +87,7 @@ Core review workflow, sidebar, export, analyze modal, track layout manager, reel
     result feeds into split marker UI if the user wants to pre-split before analysis
   - See *Recording Segments* below for the pre-split flow
 
-- [ ] **Recording Segments**
+- [ ] **Recording Segments** *(large/complex)*
 
   A single recording file can be split into multiple independent segments, each processed as its
   own video entry with its own clips, contexts, title, summary, and timeline.
@@ -289,8 +307,9 @@ Complex, specialized, or AI-heavy features that are valuable but don't need to b
 
 - [ ] **Export presets + per-format management** — saved output profiles (YouTube 1080p, Discord
   8 MB cap, TikTok 9:16 crop) with a picker at export time; support exporting a clip in multiple
-  formats; track each format as a separate file with individual delete; distinguish "regenerate this
-  format" from "export a new format"
+  formats and tracking each as a separate file with individual delete; distinguish "regenerate this
+  format" from "export a new format". Current model (one export file per clip) will need to be
+  extended — multiple rows or a JSON list — before this ships.
 
 - [ ] **Auto captions on clip export** — pulled forward to Phase 3 Near-term as *Caption / subtitle
   export* (softsub + hardsub). See Near-term section. Full caption styling (font, colour,
