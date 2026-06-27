@@ -1,7 +1,7 @@
 {
   "name": "yuu-clip",
-  "version": "0.1.5",
-  "description": "yuu-clip — Gaming clip review and export tool",
+  "version": "0.1.6",
+  "description": "yuu-clip â€” Gaming clip review and export tool",
   "author": "smitehamner",
   "main": "main.js",
   "scripts": {
