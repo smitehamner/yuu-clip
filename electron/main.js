@@ -22,11 +22,12 @@ const ELECTRON_CONFIG_PATH  = path.join(process.env.APPDATA, 'yuu-clip', 'electr
 const DEFAULT_PROJECT_DIR = path.join(process.env.USERPROFILE, 'Videos', 'yuu-clip');
 const BASE_PORT = 8080;
 
-let projectDir  = DEFAULT_PROJECT_DIR;
-let pyProc      = null;
-let mainWindow  = null;
-let appPort     = BASE_PORT;
-let wizardWin   = null;
+let projectDir      = DEFAULT_PROJECT_DIR;
+let pyProc          = null;
+let mainWindow      = null;
+let appPort         = BASE_PORT;
+let wizardWin       = null;
+let startupComplete = false;
 
 // ---------------------------------------------------------------------------
 // Electron config persistence (project dir choice etc.)
@@ -496,7 +497,7 @@ async function resolvePort() {
 // ---------------------------------------------------------------------------
 
 function spawnBackend(port) {
-  const args = ['-m', 'yuu_clip.cli', 'serve', '--project', projectDir, '--no-interact'];
+  const args = ['-m', 'yuu_clip.cli', 'serve', '--project', projectDir, '--no-open'];
   if (port !== BASE_PORT) args.push('--port', String(port));
 
   logSetup(`Spawning backend: ${VENV_PYTHON} ${args.join(' ')}`);
@@ -649,6 +650,7 @@ app.whenReady().then(async () => {
     await pollReady(appPort);
     logSetup('Creating main window');
     createWindow(appPort);
+    startupComplete = true;
     if (wizardWin && !wizardWin.isDestroyed()) { wizardWin.close(); wizardWin = null; }
   } catch (err) {
     if (!knownQuits.includes(err.message)) {
@@ -659,6 +661,7 @@ app.whenReady().then(async () => {
 });
 
 app.on('window-all-closed', () => {
+  if (!startupComplete) return;
   if (pyProc) { pyProc.kill(); pyProc = null; }
   app.quit();
 });
