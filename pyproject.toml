@@ -51,4 +51,7 @@ yuuclip = "yuu_clip.cli:app"
 where = ["."]
 include = ["yuu_clip*"]
 
+[tool.setuptools.package-data]
+yuu_clip = ["web/static/*"]
+
 

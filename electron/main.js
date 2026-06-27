@@ -63,6 +63,22 @@ function writeProjectConfig(dir, config) {
 // Logging
 // ---------------------------------------------------------------------------
 
+const MAX_LOG_FILES = 5;
+
+function rotateLogs() {
+  const dir = path.dirname(SETUP_LOG);
+  fs.mkdirSync(dir, { recursive: true });
+  try {
+    const oldest = `${SETUP_LOG}.${MAX_LOG_FILES - 1}`;
+    if (fs.existsSync(oldest)) fs.unlinkSync(oldest);
+    for (let i = MAX_LOG_FILES - 2; i >= 1; i--) {
+      const src = `${SETUP_LOG}.${i}`;
+      if (fs.existsSync(src)) fs.renameSync(src, `${SETUP_LOG}.${i + 1}`);
+    }
+    if (fs.existsSync(SETUP_LOG)) fs.renameSync(SETUP_LOG, `${SETUP_LOG}.1`);
+  } catch (_) {}
+}
+
 function logSetup(msg) {
   fs.mkdirSync(path.dirname(SETUP_LOG), { recursive: true });
   fs.appendFileSync(SETUP_LOG, `[${new Date().toISOString()}] ${msg}\n`);
@@ -159,7 +175,7 @@ function pollReady(port, attempts = 120, delayMs = 500) {
     for (let i = 0; i < attempts; i++) {
       if (pyProc && pyProc.exitCode !== null) {
         logSetup(`Backend exited during startup (code ${pyProc.exitCode}) after ${i} poll attempts`);
-        return reject(new Error(`Python backend exited unexpectedly (exit code ${pyProc.exitCode}). Check the log at:\n${projectDir}\\.yuu-clip\\yuu-clip.log`));
+        return reject(new Error(`Python backend exited unexpectedly (exit code ${pyProc.exitCode}).\n\nCheck the startup log at:\n${SETUP_LOG}`));
       }
       try {
         await httpGet(`http://127.0.0.1:${port}/api/videos`, 1000);
@@ -169,7 +185,7 @@ function pollReady(port, attempts = 120, delayMs = 500) {
       await new Promise(r => setTimeout(r, delayMs));
     }
     logSetup(`Backend did not respond after ${attempts} attempts (${Date.now() - t0} ms)`);
-    reject(new Error(`Python backend did not start within 60 seconds. Check the log at:\n${projectDir}\\.yuu-clip\\yuu-clip.log`));
+    reject(new Error(`Python backend did not start within 60 seconds.\n\nCheck the startup log at:\n${SETUP_LOG}`));
   });
 }
 
@@ -622,6 +638,7 @@ async function handleClose() {
 // ---------------------------------------------------------------------------
 
 app.whenReady().then(async () => {
+  rotateLogs();
   logSetup(`yuu-clip ${app.getVersion()} starting — ${process.platform} ${process.arch} node/${process.versions.node}`);
 
   const knownQuits = [
