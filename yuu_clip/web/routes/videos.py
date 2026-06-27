@@ -376,6 +376,11 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             db.close()
 
         config = ctx.config
+        from yuu_clip.scoring.llm import check_llm_available
+        llm_ok, llm_reason = check_llm_available(config)
+        if not llm_ok:
+            raise HTTPException(503, f"LLM unavailable — {llm_reason}")
+
         context_text = format_context_block(load_contexts(ctx.project_dir), context_names)
 
         effective_interval_s = interval_s if interval_s is not None else ctx.config.ui_timeline_interval_seconds

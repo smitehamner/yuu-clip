@@ -75,6 +75,11 @@ def create_app(project_dir: Path) -> FastAPI:
         return JSONResponse({"version": f"Development – {_SERVER_START}"})
 
     app.mount(
+        "/static",
+        StaticFiles(directory=str(_HERE / "static")),
+        name="static",
+    )
+    app.mount(
         "/media/exports",
         StaticFiles(directory=str(ctx.export_dir), html=False),
         name="exports",

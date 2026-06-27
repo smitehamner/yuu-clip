@@ -140,6 +140,31 @@ def generate_timeline_chunk(
     return _call_backend(messages, config, temperature=0.3).strip()
 
 
+def check_llm_available(config: "Config") -> tuple[bool, str]:
+    """Return (available, reason) without logging.  Used by routes to gate LLM calls."""
+    if not config.ollama_enabled:
+        return False, "LLM scoring is disabled in Settings"
+    if config.llm_backend == "llamacpp":
+        path = config.llm_model_path
+        if not path:
+            return False, "No model file path set — configure llm_model_path in Settings"
+        from pathlib import Path
+        if not Path(path).exists():
+            return False, f"Model file not found: {path}"
+        try:
+            import llama_cpp  # noqa: F401
+        except ImportError:
+            return False, "llama-cpp-python is not installed (pip install llama-cpp-python)"
+        return True, ""
+    else:
+        try:
+            import ollama
+            ollama.Client(host=config.ollama_host).list()
+            return True, ""
+        except Exception as exc:
+            return False, f"Ollama not reachable at {config.ollama_host}: {exc}"
+
+
 class LLMScorer:
     name = "llm"
 

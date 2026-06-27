@@ -1,0 +1,358 @@
+// ── context manager ───────────────────────────────────────────────────────────
+async function _loadContexts() {
+  _contexts = await fetch('/api/contexts').then(r => r.json()).catch(() => []);
+}
+
+async function openContextManager() {
+  document.getElementById('context-modal').classList.add('visible');
+  document.getElementById('context-editor').style.display = 'none';
+  await _refreshContextList();
+}
+
+function closeContextManager() {
+  document.getElementById('context-modal').classList.remove('visible');
+}
+
+async function _refreshContextList() {
+  _contexts = await fetch('/api/contexts').then(r => r.json()).catch(() => []);
+  const el = document.getElementById('context-list-items');
+  if (!_contexts.length) {
+    el.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:4px 0">No contexts yet — create one.</div>';
+    return;
+  }
+  el.innerHTML = _contexts.map(c => `
+    <div style="display:flex;align-items:center;gap:6px;padding:7px 10px;border:1px solid var(--border);border-radius:6px;cursor:pointer"
+         data-edit-ctx="${escHtml(c.context_id)}">
+      <span style="font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${escHtml(c.display_name || c.context_id)}</span>
+      ${c.builtin ? '<span style="font-size:10px;color:var(--muted);background:var(--border);border-radius:3px;padding:1px 5px;flex-shrink:0;pointer-events:none">Built-in</span>' : ''}
+    </div>`).join('');
+  el.onclick = e => {
+    const item = e.target.closest('[data-edit-ctx]');
+    if (item) editContext(item.dataset.editCtx);
+  };
+}
+
+function openNewContext() {
+  _editingContextId = null;
+  ['ce-context-id','ce-display-name','ce-setting','ce-your-chars','ce-other-chars','ce-notes'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('ce-context-id').disabled = false;
+  document.getElementById('btn-delete-context').style.display = 'none';
+  document.getElementById('context-editor').style.display = 'flex';
+  document.getElementById('ce-context-id').focus();
+}
+
+function editContext(context_id) {
+  const ctx = _contexts.find(c => c.context_id === context_id);
+  if (!ctx) return;
+  _editingContextId = context_id;
+  document.getElementById('ce-context-id').value            = ctx.context_id;
+  document.getElementById('ce-context-id').disabled         = true;
+  document.getElementById('ce-display-name').value    = ctx.display_name || '';
+  document.getElementById('ce-setting').value         = ctx.setting || '';
+  document.getElementById('ce-your-chars').value      = ctx.your_characters || '';
+  document.getElementById('ce-other-chars').value     = ctx.other_characters || '';
+  document.getElementById('ce-notes').value           = ctx.notes || '';
+  document.getElementById('btn-delete-context').style.display = '';
+  document.getElementById('context-editor').style.display = 'flex';
+}
+
+function cancelContextEdit() {
+  document.getElementById('context-editor').style.display = 'none';
+}
+
+async function saveContext() {
+  const context_id  = _editingContextId || document.getElementById('ce-context-id').value.trim();
+  const displayName = document.getElementById('ce-display-name').value.trim();
+  if (!context_id)  { showToast('ID is required', 'error'); return; }
+  if (!displayName) { showToast('Display name is required', 'error'); return; }
+  const res = await fetch('/api/contexts', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      context_id, display_name: displayName,
+      setting:          document.getElementById('ce-setting').value,
+      your_characters:  document.getElementById('ce-your-chars').value,
+      other_characters: document.getElementById('ce-other-chars').value,
+      notes:            document.getElementById('ce-notes').value,
+    }),
+  });
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({}));
+    showToast(formatApiError(e) || 'Save failed', 'error');
+    return;
+  }
+  document.getElementById('context-editor').style.display = 'none';
+  await _refreshContextList();
+  showToast(`Context "${displayName}" saved`);
+}
+
+function deleteContext() {
+  if (!_editingContextId) return;
+  const ctx  = _contexts.find(c => c.context_id === _editingContextId);
+  const name = ctx ? ctx.display_name : _editingContextId;
+  showConfirm(
+    'Delete context?',
+    `Delete context <strong>${escHtml(name)}</strong>?<br><br>` +
+    `Videos already assigned to it will keep the Context ID — you can re-create the context to restore it.`,
+    'Delete',
+    () => _doDeleteContext(name),
+    true,
+  );
+}
+
+async function _doDeleteContext(name) {
+  const res = await fetch(`/api/contexts/${encodeURIComponent(_editingContextId)}`, {method: 'DELETE'});
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({}));
+    showToast(formatApiError(e) || 'Delete failed', 'error');
+    return;
+  }
+  document.getElementById('context-editor').style.display = 'none';
+  await _refreshContextList();
+  showToast(`Context "${name}" deleted`);
+}
+
+// ── video context assignment ──────────────────────────────────────────────────
+async function addVideoContext(videoId, context_id) {
+  if (!context_id) return;
+  const video   = _videos.find(v => v.id === videoId);
+  const current = video ? [...(video.context_names || [])] : [];
+  if (!current.includes(context_id)) current.push(context_id);
+  await _saveVideoContexts(videoId, current);
+}
+
+async function removeVideoContext(videoId, context_id) {
+  const video   = _videos.find(v => v.id === videoId);
+  const current = (video ? video.context_names || [] : []).filter(s => s !== context_id);
+  await _saveVideoContexts(videoId, current);
+}
+
+async function _saveVideoContexts(videoId, context_ids) {
+  const res = await fetch(`/api/videos/${videoId}/contexts`, {
+    method: 'PATCH', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({context_names: context_ids}),
+  });
+  if (!res.ok) { showToast('Failed to update contexts', 'error'); return; }
+  const video = _videos.find(v => v.id === videoId);
+  if (video) {
+    video.context_names = context_ids;
+    if (activeVideoId === videoId) renderVideoDetail(video, null);
+  }
+}
+
+// Global delegation for chip × buttons in the detail panel
+document.addEventListener('click', e => {
+  const rmBtn = e.target.closest('[data-rmctx]');
+  if (rmBtn && activeVideoId) removeVideoContext(activeVideoId, rmBtn.dataset.rmctx);
+});
+
+// ── re-score clips with context ───────────────────────────────────────────────
+function rescoreClips(videoId, btn) {
+  const video = _videos.find(v => v.id === videoId);
+  const count = video ? video.clip_count : 0;
+  showConfirm(
+    'Re-score clips with context?',
+    `This will run LLM scoring on <strong>${count} clip${count !== 1 ? 's' : ''}</strong>.<br>` +
+    `GPU time varies with clip count — this may take several minutes.`,
+    'Re-score',
+    () => _doRescoreClips(videoId, btn),
+  );
+}
+
+function _doRescoreClips(videoId, btn) {
+  const orig = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Re-scoring…';
+  openLog();
+  if (_activeES) { _activeES.close(); _activeES = null; }
+  const es = new EventSource(`/api/videos/${videoId}/rescore-clips`);
+  _activeES = es;
+  es.onmessage = e => {
+    const data = JSON.parse(e.data);
+    if (data === '__DONE__') {
+      es.close();
+      if (_activeES === es) _activeES = null;
+      btn.disabled = false;
+      btn.textContent = orig;
+      showToast('Re-scoring complete');
+      loadVideos().then(() => {
+        if (activeVideoId === videoId) {
+          const v = _videos.find(v => v.id === videoId);
+          if (v) renderVideoDetail(v, null);
+          fetch(`/api/videos/${videoId}/clips?sort=${_clipsSortParam()}`).then(r => r.json()).then(clips => {
+            _clips = clips; renderClipList(_clips);
+          });
+        }
+      });
+      return;
+    }
+    appendLog(String(data));
+  };
+  es.onerror = () => {
+    es.close();
+    if (_activeES === es) _activeES = null;
+    btn.disabled = false;
+    btn.textContent = orig;
+    showToast('Re-scoring failed — see log', 'error');
+  };
+}
+
+// ── reset approvals ───────────────────────────────────────────────────────────
+function resetApprovals(videoId) {
+  const nonPending = _clips.filter(c => c.status !== 'pending').length;
+  if (!nonPending) { showToast('All clips are already Unreviewed', 'info'); return; }
+  showConfirm(
+    'Reset all approvals?',
+    `Reset <strong>${nonPending} clip${nonPending !== 1 ? 's' : ''}</strong> back to Unreviewed for this video. This cannot be undone.`,
+    'Reset',
+    () => _doResetApprovals(videoId),
+    true,
+  );
+}
+
+async function _doResetApprovals(videoId) {
+  const res = await fetch(`/api/videos/${videoId}/reset-approvals`, {method: 'POST'});
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    showToast(`Failed to reset approvals: ${formatApiError(err)}`, 'error');
+    return;
+  }
+  const data = await res.json();
+  _clips = await fetch(`/api/videos/${videoId}/clips?sort=${_clipsSortParam()}`).then(r => r.json());
+  renderClipList(_clips);
+  showToast(`Reset ${data.reset} clip${data.reset !== 1 ? 's' : ''} to Unreviewed`);
+}
+
+// ── auto-approve ──────────────────────────────────────────────────────────────
+let _autoApproveVideoId = null;
+
+const _AUTO_APPROVE_FIELD_MAP = {
+  overall:  'score_overall',
+  funny:    'score_funny',
+  dramatic: 'score_dramatic',
+  action:   'score_action',
+};
+
+function openAutoApproveModal(videoId) {
+  _autoApproveVideoId = videoId;
+  document.getElementById('auto-approve-slider').value = 0.6;
+  document.getElementById('auto-approve-field').value = 'overall';
+  updateAutoApprovePreview();
+  document.getElementById('auto-approve-modal').classList.add('visible');
+}
+
+function closeAutoApproveModal() {
+  document.getElementById('auto-approve-modal').classList.remove('visible');
+}
+
+function updateAutoApprovePreview() {
+  const threshold = parseFloat(document.getElementById('auto-approve-slider').value);
+  const field = document.getElementById('auto-approve-field').value;
+  document.getElementById('auto-approve-threshold-label').textContent = threshold.toFixed(2);
+  const scoreKey = _AUTO_APPROVE_FIELD_MAP[field] || 'score_overall';
+  const pending = _clips.filter(c => c.status === 'pending');
+  const eligible = pending.filter(c => (c[scoreKey] || 0) >= threshold);
+  const el = document.getElementById('auto-approve-preview');
+  if (pending.length === 0) {
+    el.textContent = 'No unreviewed clips.';
+    document.getElementById('auto-approve-ok').disabled = true;
+  } else if (eligible.length === 0) {
+    el.textContent = `No unreviewed clips meet this threshold (${pending.length} unreviewed total).`;
+    document.getElementById('auto-approve-ok').disabled = true;
+  } else {
+    el.textContent = `${eligible.length} of ${pending.length} unreviewed clip${eligible.length !== 1 ? 's' : ''} will be approved.`;
+    document.getElementById('auto-approve-ok').disabled = false;
+  }
+}
+
+async function doAutoApprove() {
+  const threshold = parseFloat(document.getElementById('auto-approve-slider').value);
+  const score_field = document.getElementById('auto-approve-field').value;
+  const videoId = _autoApproveVideoId;
+  closeAutoApproveModal();
+  const res = await fetch(`/api/videos/${videoId}/auto-approve`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({threshold, score_field}),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    showToast(`Auto-approve failed: ${formatApiError(err)}`, 'error');
+    return;
+  }
+  const data = await res.json();
+  _clips = await fetch(`/api/videos/${videoId}/clips?sort=${_clipsSortParam()}`).then(r => r.json());
+  renderClipList(_clips);
+  showToast(`Approved ${data.approved} clip${data.approved !== 1 ? 's' : ''}`);
+}
+
+// ── retranscribe ──────────────────────────────────────────────────────────────
+let _retranscribeClipId = null;
+
+function openRetranscribeModal(clipId) {
+  _retranscribeClipId = clipId;
+  document.getElementById('retranscribe-modal').classList.add('visible');
+}
+
+function closeRetranscribeModal() {
+  document.getElementById('retranscribe-modal').classList.remove('visible');
+}
+
+function startRetranscribe() {
+  if (!_retranscribeClipId) return;
+  const model = document.getElementById('retranscribe-model').value;
+  closeRetranscribeModal();
+  openLog();
+  streamSSE(
+    `/api/clips/${_retranscribeClipId}/retranscribe?model=${encodeURIComponent(model)}`,
+    () => { selectClip(_retranscribeClipId); showToast('Retranscription complete'); },
+    [{label: 'Transcribe', patterns: ['Retranscribing', 'OK']}, {label: 'Score', patterns: ['Re-scoring']}],
+    'Retranscribing',
+  );
+}
+
+// ── re-score individual clip ──────────────────────────────────────────────────
+function rescoreClip(clipId) {
+  const btn = document.getElementById('btn-rescore-clip');
+  if (btn && btn.disabled) return;
+  if (btn) { btn.disabled = true; btn.textContent = 'Scoring…'; }
+  if (_activeES) { _activeES.close(); _activeES = null; }
+  openLog();
+  const es = new EventSource(`/api/clips/${clipId}/rescore`);
+  _activeES = es;
+  es.onmessage = async e => {
+    const msg = JSON.parse(e.data);
+    if (msg?.type === '__DONE__') {
+      if (_activeES === es) _activeES = null;
+      es.close();
+      if (btn) { btn.disabled = false; btn.textContent = 'Re-score'; }
+      const clip = await fetch(`/api/clips/${clipId}`).then(r => r.json()).catch(() => null);
+      const descNew     = msg.description_new;
+      const descLongNew = msg.description_long_new;
+      if (descNew || descLongNew) {
+        openDiffModal('Review Re-scored Descriptions', [
+          {label: 'Description',       current: clip?.description_original      || clip?.description      || '', proposed: descNew     || ''},
+          {label: 'Description (long)', current: clip?.description_long_original || clip?.description_long || '', proposed: descLongNew || ''},
+        ], async (action, edited) => {
+          await fetch(`/api/clips/${clipId}/fields`, {
+            method: 'PATCH', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({action, field: 'both', new_description: edited[0], new_description_long: edited[1]}),
+          });
+          selectClip(clipId);
+        });
+      } else {
+        selectClip(clipId);
+      }
+      showToast('Clip re-scored');
+    } else {
+      appendLog(String(msg));
+    }
+  };
+  es.onerror = () => {
+    if (_activeES === es) _activeES = null;
+    es.close();
+    if (btn) { btn.disabled = false; btn.textContent = 'Re-score'; }
+    showToast('Re-score failed — see log', 'error');
+  };
+}

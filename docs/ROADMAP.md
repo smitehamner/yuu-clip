@@ -355,6 +355,22 @@ Complex, specialized, or AI-heavy features that are valuable but don't need to b
 
 Items wanted long-term but not yet assigned to a phase.
 
+- [ ] **JS code quality refactor** — the single-file SPA (`index.html` + separate `.js` modules,
+  currently ~1800+ lines across all files) has grown to where global constants, implicit shared
+  state, and inline styles are accumulating debt. Future pass: eliminate global constants in favour
+  of module-scoped values, audit shared mutable state (`_clips`, `activeVideoId`, etc.) for
+  encapsulation, extract inline style strings to CSS classes, and apply consistent naming
+  conventions. Pre-condition: the UI must be stable enough that a refactor won't chase moving
+  targets; defer until Phase 4 or later.
+
+- [ ] **Themes** — the app ships with a single dark theme. Future options:
+  - **Light mode** — full light-background theme matching the dark palette's contrast ratios
+  - **Colour variants** — alternative accent colours for both light and dark themes (e.g.
+    blue-accent vs current amber/green)
+  - Theme picker in Settings (persisted to localStorage); system `prefers-color-scheme` as the
+    default when no preference is saved. Design the CSS variable layer first so themes are pure
+    token swaps.
+
 - [ ] **Clips vs Scenes** — introduce a second candidate type: "Scenes" are longer contextual
   moments (1–5 min, may include pauses and story arc) vs. "clips" (15–90 s punchy bits). Design
   first: separate pipeline? flag on `ClipCandidate`? separate table? separate review UI?

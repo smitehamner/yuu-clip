@@ -1,0 +1,412 @@
+// ── analyze modal ─────────────────────────────────────────────────────────────
+let _probeTimer = null;
+let _probedInfo  = null;
+
+async function openAnalyzeModal() {
+  document.getElementById('analyze-modal').classList.add('visible');
+  document.getElementById('analyze-path').value = '';
+  document.getElementById('estimate-area').innerHTML = '';
+  _probedInfo = null;
+  _updateStartIngestButton();
+  await _loadProfileDropdown();
+  await _loadIngestContextPicker();
+}
+
+async function _loadIngestContextPicker() {
+  _contexts = await fetch('/api/contexts').then(r => r.json()).catch(() => []);
+  const field = document.getElementById('analyze-context-field');
+  const list  = document.getElementById('analyze-context-list');
+  field.style.display = '';
+  if (!_contexts.length) {
+    list.innerHTML = `<div style="font-size:12px;color:var(--muted);padding:4px 2px">
+      No World Contexts set up — clip descriptions will be generic.
+      <button class="btn ghost" style="font-size:11px;padding:0 6px;color:var(--accent);display:inline-flex"
+              onclick="closeAnalyzeModal();openContextManager()">Add one →</button>
+    </div>`;
+    return;
+  }
+  list.innerHTML = _contexts.map(c => `
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+      <input type="checkbox" class="analyze-ctx-check" value="${escHtml(c.context_id)}" onchange="_updateCtxNudge()">
+      ${escHtml(c.display_name || c.context_id)}
+    </label>`).join('') +
+    `<div id="ctx-none-selected-note" style="font-size:11px;color:var(--muted);padding:4px 2px;margin-top:2px">No context selected — descriptions will be generic</div>`;
+  _updateCtxNudge();
+}
+
+function _updateCtxNudge() {
+  const note = document.getElementById('ctx-none-selected-note');
+  if (!note) return;
+  const anyChecked = document.querySelectorAll('.analyze-ctx-check:checked').length > 0;
+  note.style.display = anyChecked ? 'none' : '';
+}
+
+async function _loadProfileDropdown() {
+  const sel = document.getElementById('analyze-profile');
+  try {
+    _analyzeProfiles = await fetch('/api/profiles').then(r => r.json());
+    sel.innerHTML = _analyzeProfiles.map(p =>
+      `<option value="${p.name}">${escHtml(p.display_name)}</option>`
+    ).join('');
+  } catch { _analyzeProfiles = []; }
+}
+
+function closeAnalyzeModal() {
+  document.getElementById('analyze-modal').classList.remove('visible');
+  clearTimeout(_probeTimer);
+}
+
+function scheduleProbe() {
+  clearTimeout(_probeTimer);
+  const path = document.getElementById('analyze-path').value.trim();
+  if (!path) {
+    document.getElementById('estimate-area').innerHTML = '';
+    _probedInfo = null;
+    _updateStartIngestButton();
+    return;
+  }
+  document.getElementById('estimate-area').innerHTML = '<div class="probing-spinner">Inspecting file...</div>';
+  _probeTimer = setTimeout(() => runProbe(path), 700);
+}
+
+async function runProbe(path) {
+  try {
+    const res = await fetch('/api/probe', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body:   JSON.stringify({path}),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      _probedInfo = null;
+      _updateStartIngestButton();
+      document.getElementById('estimate-area').innerHTML =
+        `<div style="color:var(--red);font-size:12px">${escHtml(formatApiError(err))}</div>`;
+      return;
+    }
+    _probedInfo = await res.json();
+    _updateStartIngestButton();
+    runEstimate();
+  } catch (err) {
+    _probedInfo = null;
+    _updateStartIngestButton();
+    document.getElementById('estimate-area').innerHTML =
+      `<div style="color:var(--red);font-size:12px">Could not inspect file: ${escHtml(String(err.message || err))}</div>`;
+  }
+}
+
+async function runEstimate() {
+  if (!_probedInfo) return;
+  const profileName = document.getElementById('analyze-profile').value;
+  const profile     = _analyzeProfiles.find(p => p.name === profileName);
+  const transcribeTracks = profile
+    ? profile.assignments.filter(a => a.do_transcribe).length
+    : undefined;
+  try {
+    const res = await fetch('/api/estimate', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body:   JSON.stringify({
+        duration_s:        _probedInfo.duration_s,
+        model:             document.getElementById('analyze-model').value,
+        audio_tracks:      _probedInfo.audio_tracks,
+        transcribe_tracks: transcribeTracks,
+        has_gpu:           true,
+        scene_mode:        document.getElementById('analyze-scene-mode').value,
+        energy_mode:       document.getElementById('analyze-energy-mode').value,
+      }),
+    });
+    if (!res.ok) return;
+    renderEstimate(_probedInfo, await res.json());
+  } catch { /* ignore; estimate is non-critical */ }
+}
+
+let _warnThresholdMin = 30;
+
+function renderEstimate(info, data) {
+  const warnS = _warnThresholdMin * 60;
+  const tClass = s => s >= warnS ? 't-warn' : s >= warnS / 3 ? 't-medium' : 't-fast';
+
+  const rows = data.steps.map(s => {
+    const isWarn = s.seconds >= warnS;
+    return `
+      <div class="estimate-row${isWarn ? ' warn' : ''}">
+        <span class="warn-icon">${isWarn ? '&#9888;' : ''}</span>
+        <span class="estimate-step">${s.name}</span>
+        <span class="estimate-note">${s.note}</span>
+        <span class="estimate-time ${tClass(s.seconds)}">${s.hms}</span>
+      </div>`;
+  }).join('');
+
+  const totalWarn  = data.total_seconds >= warnS;
+  const totalBadge = totalWarn ? `<span class="total-warn-badge">&#9888; Long job</span>` : '';
+  const pctLine    = data.pct_of_video != null
+    ? `<div class="estimate-pct">&#8776; ${data.pct_of_video}% of video duration</div>`
+    : '';
+
+  document.getElementById('estimate-area').innerHTML = `
+    <div class="estimate-box">
+      <div class="probe-info">
+        ${escHtml(info.filename)} &middot; ${info.duration_hms} &middot;
+        ${info.width}&#x2715;${info.height} @ ${info.fps.toFixed(0)}fps &middot;
+        ${info.audio_tracks} audio track(s)
+      </div>
+      <div class="estimate-threshold">
+        Warn steps longer than
+        <input type="number" min="1" max="480" value="${_warnThresholdMin}" id="warn-threshold-input"
+               onchange="_warnThresholdMin=+this.value; runEstimate()"> min
+      </div>
+      ${rows}
+      <div class="estimate-total">
+        <span>Total estimated</span>
+        <span style="display:flex;align-items:center;gap:8px">
+          ${totalBadge}
+          <span class="${tClass(data.total_seconds)}">${data.total_hms}</span>
+        </span>
+      </div>
+      ${pctLine}
+    </div>`;
+}
+
+async function startAnalyze() {
+  const path       = document.getElementById('analyze-path').value.trim();
+  const model      = document.getElementById('analyze-model').value;
+  const profileVal = document.getElementById('analyze-profile').value;
+  const profile    = (!profileVal || profileVal === '__default__') ? null : profileVal;
+  if (!path) return;
+
+  const btn = document.getElementById('btn-start-analyze');
+  btn.disabled = true;
+  btn.textContent = 'Starting…';
+
+  const contextNames = Array.from(document.querySelectorAll('.analyze-ctx-check:checked')).map(cb => cb.value);
+  const startRes = await fetch('/api/analyze/start', {
+    method:  'POST',
+    headers: {'Content-Type': 'application/json'},
+    body:    JSON.stringify({path, model, profile, energy_mode: document.getElementById('analyze-energy-mode').value, scene_mode: document.getElementById('analyze-scene-mode').value, context_names: contextNames}),
+  });
+
+  if (!startRes.ok) {
+    const err = await startRes.json().catch(() => ({}));
+    showToast(formatApiError(err) || 'Failed to start analysis', 'error');
+    btn.disabled = false;
+    btn.textContent = 'Start Analysis';
+    return;
+  }
+
+  const filename = path.split(/[\\/]/).pop();
+  _analyzeFilename = filename;
+  closeAnalyzeModal();
+  btn.disabled = false;
+  btn.textContent = 'Start Analysis';
+  openLog();
+  appendLog(`Analyzing: ${filename}`);
+  streamSSE(
+    '/api/analyze/events',
+    async () => {
+      await loadVideos();
+      const v = _videos.find(v => v.filename === _analyzeFilename);
+      _analyzeFilename = null;
+      _showAnalysisToast(v);
+    },
+    INGEST_STEPS,
+    `Analyzing ${filename}`,
+    true,
+  );
+}
+
+function _showAnalysisToast(video) {
+  const container = document.getElementById('toast-container');
+  const toast = document.createElement('div');
+  toast.className = 'toast success';
+  toast.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:12px';
+  const count = video ? video.clip_count : 0;
+  toast.appendChild(document.createTextNode(
+    `Analysis complete — ${count} clip${count !== 1 ? 's' : ''} found`
+  ));
+  const actions = document.createElement('div');
+  actions.style.cssText = 'display:flex;gap:6px;align-items:center;flex-shrink:0';
+  if (video && activeVideoId !== video.id) {
+    const link = document.createElement('button');
+    link.className = 'btn ghost';
+    link.style.cssText = 'font-size:11px;padding:2px 8px';
+    link.textContent = 'Review';
+    link.onclick = () => { selectVideo(video.id); toast.remove(); };
+    actions.appendChild(link);
+  }
+  const close = document.createElement('button');
+  close.className = 'btn ghost';
+  close.style.cssText = 'font-size:14px;padding:0 4px';
+  close.setAttribute('aria-label', 'Dismiss');
+  close.textContent = '×';
+  close.onclick = () => toast.remove();
+  actions.appendChild(close);
+  toast.appendChild(actions);
+  container.appendChild(toast);
+  setTimeout(() => {
+    toast.style.transition = 'opacity .3s';
+    toast.style.opacity = '0';
+    setTimeout(() => toast.remove(), 300);
+  }, 8000);
+}
+
+// ── native file picker ────────────────────────────────────────────────────────
+async function pickFile() {
+  const btn = document.querySelector('.path-row .btn');
+  const orig = btn.textContent;
+  btn.textContent = '…';
+  btn.disabled = true;
+  try {
+    const data = await fetch('/api/pick-file').then(r => r.json());
+    if (data.path) {
+      document.getElementById('analyze-path').value = data.path;
+      scheduleProbe();
+    }
+  } finally {
+    btn.textContent = orig;
+    btn.disabled = false;
+  }
+}
+
+// ── profile manager ───────────────────────────────────────────────────────────
+const TRACK_LABELS = ['player_voice', 'ingame_voicechat', 'game_sounds', 'combined', 'unlabeled'];
+const TRACK_LABEL_DISPLAY = {
+  player_voice:      'Player voice',
+  ingame_voicechat:  'In-game voice chat',
+  game_sounds:       'Game sounds',
+  combined:          'Combined (all tracks)',
+  unlabeled:         'Unlabeled',
+};
+let _allProfiles = [];
+
+async function openProfileManager() {
+  document.getElementById('profile-modal').classList.add('visible');
+  document.getElementById('profile-editor').style.display = 'none';
+  await _refreshProfileList();
+}
+
+function closeProfileManager() {
+  document.getElementById('profile-modal').classList.remove('visible');
+  _loadProfileDropdown();
+}
+
+async function _refreshProfileList() {
+  _allProfiles = await fetch('/api/profiles').then(r => r.json());
+  const el = document.getElementById('profile-list');
+  if (!_allProfiles.length) {
+    el.innerHTML = '<div style="color:var(--muted);font-size:13px">No track layouts saved.</div>';
+    return;
+  }
+  el.innerHTML = _allProfiles.map(p => `
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border)">
+      <span style="flex:1;font-size:13px">${p.builtin ? '&#128274; ' : ''}${escHtml(p.display_name)}</span>
+      <span style="color:var(--muted);font-size:12px">${p.num_tracks} track${p.num_tracks !== 1 ? 's' : ''}</span>
+      ${!p.builtin ? `
+        <button class="btn" style="padding:4px 10px;font-size:12px" data-edit-profile="${escHtml(p.name)}">Edit</button>
+        <button class="btn danger" style="padding:4px 10px;font-size:12px" data-delete-profile="${escHtml(p.name)}">Delete</button>
+      ` : ''}
+    </div>`).join('');
+  el.onclick = e => {
+    const editBtn   = e.target.closest('[data-edit-profile]');
+    const deleteBtn = e.target.closest('[data-delete-profile]');
+    if (editBtn)   editProfile(editBtn.dataset.editProfile);
+    if (deleteBtn) deleteProfile(deleteBtn.dataset.deleteProfile);
+  };
+}
+
+function openNewProfile() {
+  document.getElementById('profile-editor').style.display = '';
+  document.getElementById('pe-name').value = '';
+  document.getElementById('pe-numtracks').value = 2;
+  renderTrackRows();
+}
+
+function editProfile(name) {
+  const p = _allProfiles.find(x => x.name === name);
+  if (!p) return;
+  document.getElementById('profile-editor').style.display = '';
+  document.getElementById('pe-name').value     = p.name;
+  document.getElementById('pe-numtracks').value = p.num_tracks;
+  renderTrackRows(p.assignments);
+}
+
+function renderTrackRows(existingAssignments) {
+  const n   = parseInt(document.getElementById('pe-numtracks').value) || 1;
+  const rows = [];
+  for (let i = 0; i < n; i++) {
+    const a     = existingAssignments?.[i] ?? null;
+    const label = a ? a.label : (i === 0 ? 'combined' : 'unlabeled');
+    const doTx  = a ? (a.do_transcribe !== false) : (label !== 'game_sounds');
+    const doSc  = a ? (a.do_score !== false)      : (label !== 'game_sounds');
+    const opts  = TRACK_LABELS.map(l =>
+      `<option value="${l}"${l === label ? ' selected' : ''}>${TRACK_LABEL_DISPLAY[l] || l}</option>`
+    ).join('');
+    rows.push(`
+      <div style="display:flex;align-items:center;gap:8px;padding:5px 0;font-size:13px">
+        <span style="color:var(--muted);width:60px;flex-shrink:0">Track ${i}</span>
+        <select id="pe-label-${i}" onchange="onLabelChange(${i})"
+                style="flex:1;padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:12px">${opts}</select>
+        <label style="display:flex;align-items:center;gap:4px;font-size:12px;white-space:nowrap">
+          <input type="checkbox" id="pe-tx-${i}" ${doTx ? 'checked' : ''}> Transcribe
+        </label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:12px;white-space:nowrap">
+          <input type="checkbox" id="pe-sc-${i}" ${doSc ? 'checked' : ''}> Score
+        </label>
+      </div>`);
+  }
+  document.getElementById('pe-tracks').innerHTML = rows.join('');
+}
+
+function onLabelChange(i) {
+  const isGameSound = document.getElementById(`pe-label-${i}`).value === 'game_sounds';
+  document.getElementById(`pe-tx-${i}`).checked = !isGameSound;
+  document.getElementById(`pe-sc-${i}`).checked = !isGameSound;
+}
+
+async function saveProfile() {
+  const name = document.getElementById('pe-name').value.trim();
+  if (!name)                { showToast('Layout name is required', 'error'); return; }
+  if (name.startsWith('__')) { showToast('Layout name cannot start with __', 'error'); return; }
+  const n = parseInt(document.getElementById('pe-numtracks').value) || 1;
+  const assignments = Array.from({length: n}, (_, i) => ({
+    stream_position: i,
+    label:           document.getElementById(`pe-label-${i}`).value,
+    do_transcribe:   document.getElementById(`pe-tx-${i}`).checked,
+    do_score:        document.getElementById(`pe-sc-${i}`).checked,
+  }));
+  const res = await fetch('/api/profiles', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body:   JSON.stringify({name, assignments}),
+  });
+  if (!res.ok) {
+    const e = await res.json();
+    showToast(e.detail || 'Save failed', 'error');
+    return;
+  }
+  document.getElementById('profile-editor').style.display = 'none';
+  await _refreshProfileList();
+  showToast(`Track layout "${name}" saved`);
+}
+
+function deleteProfile(name) {
+  showConfirm(
+    'Delete track layout?',
+    `Delete track layout <strong>${escHtml(name)}</strong>? This cannot be undone.`,
+    'Delete',
+    () => _doDeleteProfile(name),
+    true,
+  );
+}
+
+async function _doDeleteProfile(name) {
+  const res = await fetch(`/api/profiles/${encodeURIComponent(name)}`, {method: 'DELETE'});
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({}));
+    showToast(formatApiError(e) || 'Delete failed', 'error');
+    return;
+  }
+  await _refreshProfileList();
+  showToast(`Track layout "${name}" deleted`);
+}
+
+function cancelProfileEdit() {
+  document.getElementById('profile-editor').style.display = 'none';
+}
