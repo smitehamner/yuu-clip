@@ -7,3 +7,9 @@ __pycache__/
 /personal-notes
 /exports
 .claude
+
+# Build artifacts
+/build/
+/dist/
+/electron/dist/
+/electron/resources/*.whl
