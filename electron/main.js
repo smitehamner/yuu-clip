@@ -68,6 +68,27 @@ function logSetup(msg) {
 }
 
 // ---------------------------------------------------------------------------
+// Async command runner — keeps the event loop free during long pip installs
+// ---------------------------------------------------------------------------
+
+function runCmd(cmd, args) {
+  return new Promise((resolve, reject) => {
+    const proc = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+    let stdout = '', stderr = '';
+    proc.stdout.on('data', d => { stdout += d; });
+    proc.stderr.on('data', d => { stderr += d; });
+    proc.on('close', code => {
+      if (code === 0) { resolve({ stdout, stderr }); return; }
+      const err = new Error(`Exited with code ${code}: ${cmd} ${args.join(' ')}`);
+      err.stdout = stdout;
+      err.stderr = stderr;
+      reject(err);
+    });
+    proc.on('error', reject);
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Python discovery
 // ---------------------------------------------------------------------------
 
@@ -427,15 +448,13 @@ async function ensureVenv() {
   const setupWin = showVenvSetupWindow();
   try {
     if (!venvExists) {
-      execFileSync(pythonBin, ['-m', 'venv', VENV_DIR]);
+      await runCmd(pythonBin, ['-m', 'venv', VENV_DIR]);
       logSetup('Venv created');
       logSetup('Upgrading pip…');
-      execFileSync(VENV_PIP, ['install', '--upgrade', 'pip'],
-        { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+      await runCmd(VENV_PIP, ['install', '--upgrade', 'pip']);
     }
     logSetup('Installing wheel…');
-    execFileSync(VENV_PIP, ['install', '--force-reinstall', wheelPath],
-      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    await runCmd(VENV_PIP, ['install', '--force-reinstall', wheelPath]);
     logSetup('Wheel installed');
     if (bundledVersion) fs.writeFileSync(WHEEL_MARKER, bundledVersion);
   } catch (err) {
