@@ -238,9 +238,17 @@ function renderStatus(s) {
     rows.push(row('ffmpeg', 'ok', '✓', 'FFmpeg', 'Found on PATH.'));
   } else {
     rows.push(row('ffmpeg', 'err', '✗', 'FFmpeg not found',
-      'Required for video processing. Download a Windows build, extract it, and add the <code>bin\\</code> folder to your system PATH.',
-      `<button class="sm" onclick="api.openURL('https://ffmpeg.org/download.html#build-windows')">Open ffmpeg.org</button>
-       <span style="color:#555;font-size:11px">or run: <code>winget install Gyan.FFmpeg</code></span>`
+      '<strong>Option 1 — winget</strong> (Windows 11 / updated Win 10): run the command below in a terminal. FFmpeg is installed and added to PATH automatically.<br><br>' +
+      '<strong>Option 2 — manual download:</strong> open gyan.dev, download the <em>ffmpeg-release-essentials.zip</em> (no GPU) or a <em>CUDA</em> build (NVIDIA GPU). ' +
+      'Extract the zip to a permanent folder (e.g. <code>C:\\ffmpeg</code>). ' +
+      'Then add the <code>bin\\</code> subfolder to your PATH:<br>' +
+      '1. Open Start → search <em>Edit the system environment variables</em> → click it<br>' +
+      '2. Click <em>Environment Variables</em><br>' +
+      '3. Under <em>System variables</em>, select <em>Path</em> → click <em>Edit</em><br>' +
+      '4. Click <em>New</em> → paste the full path to the <code>bin\\</code> folder (e.g. <code>C:\\ffmpeg\\bin</code>)<br>' +
+      '5. Click OK on all dialogs, then relaunch yuu-clip.',
+      `<code style="display:block;margin-bottom:6px">winget install Gyan.FFmpeg</code>` +
+      `<button class="sm" onclick="api.openURL('https://www.gyan.dev/ffmpeg/builds/')">Download from gyan.dev</button>`
     ));
   }
 
@@ -290,8 +298,12 @@ function renderStatus(s) {
   } else {
     rows.push(row('ollama', 'warn', '⚠',
       'Ollama not running',
-      `LLM scoring will be disabled. <a onclick="api.openURL('https://ollama.com/download')">Install Ollama</a>, ` +
-      `then run <code>ollama pull ${esc(s.ollamaModel)}</code> and start it before analyzing clips.`
+      `LLM scoring is optional but improves clip quality. ` +
+      `<a onclick="api.openURL('https://ollama.com/download')">Install Ollama</a> — after installing, it starts automatically and runs silently in the system tray. ` +
+      `You don't need to open or do anything inside the Ollama app.<br><br>` +
+      `Once installed, open a terminal and run:<br>` +
+      `<code>ollama pull ${esc(s.ollamaModel)}</code><br><br>` +
+      `Then relaunch yuu-clip — the model pull button will appear here to finish setup.`
     ));
   }
 
