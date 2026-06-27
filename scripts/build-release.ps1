@@ -1,10 +1,41 @@
 # build-release.ps1 — build the yuu-clip installer
-# Usage: .\scripts\build-release.ps1
+# Usage: .\scripts\build-release.ps1 [-Version 0.2.0]
+param(
+    [string]$Version = ""
+)
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $root = Split-Path $PSScriptRoot -Parent
+
+# ── 0. Bump version if requested ─────────────────────────────────────────────
+if ($Version -eq "") {
+    $pyprojectCurrent = Get-Content "$root\pyproject.toml" -Raw
+    if ($pyprojectCurrent -match 'version\s*=\s*"([^"]+)"') { $currentVer = $Matches[1] } else { $currentVer = "?" }
+    $Version = Read-Host "New version (current: $currentVer, Enter to keep)"
+}
+
+if ($Version -ne "") {
+    if ($Version -notmatch '^\d+\.\d+\.\d+') {
+        Write-Error "Version must be in x.y.z format (got: $Version)"
+        exit 1
+    }
+    $pyprojectPath = "$root\pyproject.toml"
+    $packagePath   = "$root\electron\package.json"
+
+    (Get-Content $pyprojectPath -Raw) -replace '(?m)^version\s*=\s*"[^"]+"', "version = `"$Version`"" |
+        Set-Content $pyprojectPath -Encoding utf8
+
+    (Get-Content $packagePath -Raw) -replace '"version"\s*:\s*"[^"]+"', "`"version`": `"$Version`"" |
+        Set-Content $packagePath -Encoding utf8
+
+    Write-Host "Version bumped to $Version in pyproject.toml and electron/package.json"
+
+    git -C $root add pyproject.toml electron/package.json
+    git -C $root commit -m "Bump version to $Version"
+    Write-Host "Committed version bump."
+}
 
 # ── 1. Warn if working tree is dirty ────────────────────────────────────────
 $dirty = git -C $root status --porcelain

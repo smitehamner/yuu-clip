@@ -35,17 +35,6 @@ Core review workflow, sidebar, export, analyze modal, track layout manager, reel
 
 ### Near-term
 
-- [ ] **Score All progress + starting log** *(easy)*
-  - "Score All" / "Rescore All" operations currently show no progress and emit no starting log line
-  - Add a `[Starting LLM scoring for N clips…]` line at job start
-  - Pipe per-clip progress events through the SSE stream so the step chip advances as clips complete
-  - Pairs with *Regenerate All Summaries* below
-
-- [ ] **Regenerate All Summaries** *(easy)*
-  - Batch "Regenerate Summary" button in the video detail panel (next to the existing single "Generate Summary" button)
-  - Streams progress via SSE; shows per-video progress if multiple videos are queued (Phase 5 scope — single-video batch is the immediate target)
-  - Useful when a world context changes or the LLM model is swapped
-
 - [ ] **Video sidebar stats** *(easy–moderate)*
   - Show richer per-video stats on each sidebar card; exact fields TBD during implementation, but confirmed scope includes:
     - Clip counts: total / approved / exported
@@ -68,15 +57,6 @@ Core review workflow, sidebar, export, analyze modal, track layout manager, reel
   - Configured in the Context editor UI alongside the existing fields
   - Allows e.g. an "Action Game" context to set action=0.8, dramatic=0.2 without touching
     global Settings — user sets it once per context and it follows the context everywhere
-
-- [ ] **Related clips** *(moderate)*
-  - "Find Similar" button in clip detail opens a scope-selection modal:
-    current video pre-checked; other processed videos listed as individual checkboxes (no select-all)
-  - Fires Ollama call with `description_long` + selected clips' descriptions
-  - Results stored on `ClipCandidate`: `related_clips_json` + `related_clips_at` timestamp
-  - "Related Clips" section in detail panel: ranked clickable links; stale indicator if older
-    than last rescore
-  - Top-N configured in Settings
 
 - [ ] **New Recording panel (replaces Analyze modal)** *(complex)*
   - `+ Analyze` in the header navigates to a "New Recording" panel that takes over the detail area

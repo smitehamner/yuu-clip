@@ -167,6 +167,7 @@ function renderDetail(clip) {
           <div class="op-actions">
             <button class="btn" id="btn-rescore-clip" onclick="rescoreClip(${clip.id})">Re-score</button>
             <button class="btn" onclick="openRetranscribeModal(${clip.id})">Retranscribe</button>
+            ${clip.description_long || clip.description ? `<button class="btn" id="btn-find-similar" onclick="openSimilarClipsModal(${clip.id})">Find Similar</button>` : ''}
             <button class="btn" onclick="exportClip(${clip.id})">${clip.has_export ? 'Re-export' : 'Export'}</button>
             ${clip.has_export && _activeMediaFilename
               ? `<a class="btn" href="/media/exports/${escHtml(_activeMediaFilename)}" download="${escHtml(_activeMediaFilename)}" title="Save exported clip to disk">Save As</a>`
@@ -182,6 +183,20 @@ function renderDetail(clip) {
     </div>
 
     ${clip.tags.length ? `<div class="tags">${clip.tags.map(t=>`<span class="tag">${escHtml(t)}</span>`).join('')}</div>` : ''}
+
+    ${clip.related_clips ? `
+      <div id="related-clips-section">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+          <div class="section-title">Related Clips</div>
+          ${clip.related_clips_stale ? `<span style="font-size:11px;color:var(--amber);font-style:italic">stale — re-score updated</span>` : ''}
+          <span style="font-size:11px;color:var(--muted);margin-left:auto">${_fmtAgo(clip.related_clips_at)}</span>
+        </div>
+        ${clip.related_clips.length ? clip.related_clips.map(r => `
+          <div style="display:flex;gap:8px;align-items:baseline;padding:4px 0;border-bottom:1px solid var(--border)">
+            <a href="#" style="color:var(--accent);text-decoration:none;font-size:13px;white-space:nowrap" onclick="event.preventDefault();selectClip(${r.id})">#${r.id}</a>
+            <span style="font-size:12px;color:var(--muted)">${escHtml(r.reason)}</span>
+          </div>`).join('') : `<div style="font-size:12px;color:var(--muted)">No similar clips found</div>`}
+      </div>` : ''}
 
     ${clip.transcript_excerpt ? `
       <div>
@@ -496,6 +511,79 @@ async function _doDeleteClip(id) {
   }
   await loadVideos();
   showToast('Clip deleted');
+}
+
+// ── find similar ──────────────────────────────────────────────────────────────
+let _similarClipsClipId = null;
+
+function openSimilarClipsModal(clipId) {
+  _similarClipsClipId = clipId;
+  const currentVideo = _videos.find(v => v.id === activeVideoId);
+  const otherVideos = _videos.filter(v => v.id !== activeVideoId && v.status === 'done');
+
+  const scope = document.getElementById('similar-clips-scope');
+  scope.innerHTML = '';
+
+  const addCheck = (id, label, checked) => {
+    const row = document.createElement('label');
+    row.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer';
+    row.innerHTML = `<input type="checkbox" data-video-id="${id}" ${checked ? 'checked' : ''}> ${escHtml(label)}`;
+    scope.appendChild(row);
+  };
+
+  if (currentVideo) addCheck(currentVideo.id, `${currentVideo.title || currentVideo.filename} (this video)`, true);
+  for (const v of otherVideos) addCheck(v.id, v.title || v.filename, false);
+  if (!currentVideo && !otherVideos.length) {
+    scope.innerHTML = '<div style="font-size:12px;color:var(--muted)">No processed videos available</div>';
+  }
+
+  document.getElementById('similar-clips-modal').classList.add('visible');
+}
+
+function closeSimilarClipsModal() {
+  document.getElementById('similar-clips-modal').classList.remove('visible');
+  _similarClipsClipId = null;
+}
+
+function startFindSimilar() {
+  const clipId = _similarClipsClipId;
+  if (!clipId) return;
+
+  const checked = Array.from(document.querySelectorAll('#similar-clips-scope input[type=checkbox]:checked'));
+  const videoIds = checked.map(el => el.dataset.videoId).join(',');
+
+  closeSimilarClipsModal();
+
+  const btn = document.getElementById('btn-find-similar');
+  if (btn) { btn.disabled = true; btn.textContent = 'Searching…'; }
+  if (_activeES) { _activeES.close(); _activeES = null; }
+  openLog();
+
+  const qs = videoIds ? `?video_ids=${encodeURIComponent(videoIds)}` : '';
+  const es = new EventSource(`/api/clips/${clipId}/related-clips${qs}`);
+  _activeES = es;
+
+  es.onmessage = async e => {
+    const msg = JSON.parse(e.data);
+    if (msg?.type === '__DONE__') {
+      if (_activeES === es) _activeES = null;
+      es.close();
+      if (btn) { btn.disabled = false; btn.textContent = 'Find Similar'; }
+      const clip = await fetch(`/api/clips/${clipId}`).then(r => r.json()).catch(() => null);
+      if (clip) { _activeClipData = clip; renderDetail(clip); }
+      const count = msg.results?.length ?? 0;
+      showToast(count ? `Found ${count} similar clip${count !== 1 ? 's' : ''}` : 'No similar clips found');
+    } else {
+      appendLog(String(msg));
+    }
+  };
+
+  es.onerror = () => {
+    if (_activeES === es) _activeES = null;
+    es.close();
+    if (btn) { btn.disabled = false; btn.textContent = 'Find Similar'; }
+    showToast('Find Similar failed — see log', 'error');
+  };
 }
 
 // ── scoring ───────────────────────────────────────────────────────────────────

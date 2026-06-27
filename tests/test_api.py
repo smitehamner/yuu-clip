@@ -3972,3 +3972,109 @@ class TestPreviewCacheInvalidation:
         assert not fake_preview.exists(), (
             "Stale preview file was not deleted after timing update"
         )
+
+
+class TestRelatedClips:
+    """Tests for the related-clips endpoint and related_clips fields in clip dict."""
+
+    def _first_clip_id(self, client) -> int:
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        return client.get(f"/api/videos/{vid_id}/clips").json()[0]["id"]
+
+    def test_clip_dict_includes_related_clips_fields(self, client):
+        clip_id = self._first_clip_id(client)
+        r = client.get(f"/api/clips/{clip_id}")
+        assert r.status_code == 200
+        d = r.json()
+        assert "related_clips" in d
+        assert "related_clips_at" in d
+        assert "related_clips_stale" in d
+        assert d["related_clips"] is None
+        assert d["related_clips_at"] is None
+        assert d["related_clips_stale"] is False
+
+    def test_related_clips_404_for_unknown_clip(self, client):
+        r = client.get("/api/clips/99999/related-clips")
+        assert r.status_code == 404
+
+    def test_related_clips_400_when_no_description(self, client, project_dir):
+        from yuu_clip.db.models import ClipCandidate, make_session
+        db_path = project_dir / ".yuu-clip" / "project.db"
+        session = make_session(db_path)
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        clip_id = client.get(f"/api/videos/{vid_id}/clips").json()[-1]["id"]
+        clip = session.get(ClipCandidate, clip_id)
+        clip.description = None
+        clip.description_long = None
+        clip.description_user = None
+        clip.description_long_user = None
+        session.commit()
+        session.close()
+
+        r = client.get(f"/api/clips/{clip_id}/related-clips")
+        assert r.status_code == 400
+        assert "description" in r.json()["detail"].lower()
+
+    def test_related_clips_503_when_llm_disabled(self, client):
+        clip_id = self._first_clip_id(client)
+        r = client.get(f"/api/clips/{clip_id}/related-clips")
+        assert r.status_code == 503
+
+    def test_related_clips_400_for_invalid_video_ids(self, client, project_dir):
+        from yuu_clip.db.models import ClipCandidate, make_session
+        db_path = project_dir / ".yuu-clip" / "project.db"
+        session = make_session(db_path)
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        clip_id = client.get(f"/api/videos/{vid_id}/clips").json()[0]["id"]
+        clip = session.get(ClipCandidate, clip_id)
+        clip.description_long = "A test description for similarity search."
+        session.commit()
+        session.close()
+
+        r = client.get(f"/api/clips/{clip_id}/related-clips?video_ids=not-a-number")
+        assert r.status_code == 400
+
+    def test_related_clips_stale_when_scored_after(self, client, project_dir):
+        """related_clips_stale is True when related_clips_at < video.clips_scored_at."""
+        from datetime import datetime, timezone, timedelta
+        from yuu_clip.db.models import ClipCandidate, Video, make_session
+        db_path = project_dir / ".yuu-clip" / "project.db"
+        session = make_session(db_path)
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        clip_id = client.get(f"/api/videos/{vid_id}/clips").json()[0]["id"]
+
+        now = datetime.now(timezone.utc)
+        clip = session.get(ClipCandidate, clip_id)
+        clip.related_clips_json = "[]"
+        clip.related_clips_at = now - timedelta(hours=1)
+        video = session.get(Video, vid_id)
+        video.clips_scored_at = now
+        session.commit()
+        session.close()
+
+        r = client.get(f"/api/clips/{clip_id}")
+        assert r.status_code == 200
+        d = r.json()
+        assert d["related_clips_stale"] is True
+
+    def test_related_clips_not_stale_when_scored_before(self, client, project_dir):
+        from datetime import datetime, timezone, timedelta
+        from yuu_clip.db.models import ClipCandidate, Video, make_session
+        db_path = project_dir / ".yuu-clip" / "project.db"
+        session = make_session(db_path)
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        clip_id = client.get(f"/api/videos/{vid_id}/clips").json()[0]["id"]
+
+        now = datetime.now(timezone.utc)
+        clip = session.get(ClipCandidate, clip_id)
+        clip.related_clips_json = "[]"
+        clip.related_clips_at = now
+        video = session.get(Video, vid_id)
+        video.clips_scored_at = now - timedelta(hours=1)
+        session.commit()
+        session.close()
+
+        r = client.get(f"/api/clips/{clip_id}")
+        assert r.status_code == 200
+        d = r.json()
+        assert d["related_clips_stale"] is False

@@ -29,6 +29,7 @@
       <button class="hamburger-item" onclick="openControlsModal();closeHamburger()">&#9000; Controls</button>
       <button class="hamburger-item" onclick="openAboutModal();closeHamburger()">&#9432; About</button>
       <div class="hamburger-divider"></div>
+      <button class="hamburger-item" id="btn-setup-wizard" onclick="window.electronAPI.runSetupWizard();closeHamburger()" style="display:none">&#9965; Re-run Setup Wizard</button>
       <a class="hamburger-item" href="/api/logs/export" download="yuu-clip.log" onclick="closeHamburger()">&#8595; Download Log</a>
       <button class="hamburger-item" onclick="openSettings();closeHamburger()">&#9881; Settings</button>
     </div>
@@ -819,6 +820,22 @@
     </table>
     <div class="modal-actions" style="margin-top:16px">
       <button class="btn" onclick="closeControlsModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Find Similar Modal -->
+<div class="modal-bg" id="similar-clips-modal" onclick="if(event.target===this)closeSimilarClipsModal()">
+  <div class="modal" style="width:420px">
+    <h3>Find Similar Clips</h3>
+    <p style="font-size:12px;color:var(--muted);margin-top:-6px">Search for clips with similar themes or moments.</p>
+    <div class="field">
+      <label style="font-weight:600;font-size:12px">Search scope</label>
+      <div id="similar-clips-scope" style="display:flex;flex-direction:column;gap:6px;margin-top:6px;max-height:200px;overflow-y:auto"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeSimilarClipsModal()">Cancel</button>
+      <button class="btn primary" id="btn-find-similar-go" onclick="startFindSimilar()">Find Similar</button>
     </div>
   </div>
 </div>

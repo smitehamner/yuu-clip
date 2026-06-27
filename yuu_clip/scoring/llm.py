@@ -140,6 +140,46 @@ def generate_timeline_chunk(
     return _call_backend(messages, config, temperature=0.3).strip()
 
 
+_RELATED_CLIPS_SYSTEM = """\
+You find clips that are thematically or narratively similar to a reference clip.
+Given a reference clip description and a list of candidate clip descriptions (each with an ID),
+return the top clips most similar in theme, tone, or content.
+
+Return ONLY valid JSON: a list of objects with "id" (integer) and "reason" (≤15 words explaining similarity).
+Order by similarity descending. Return at most 5 results. No markdown, no extra text.\
+"""
+
+
+def find_related_clips(
+    reference_description: str,
+    candidates: list[dict],  # [{"id": int, "description": str}, ...]
+    config: "Config",
+    context_text: str = "",
+) -> list[dict]:
+    """Find clips similar to the reference based on description_long.
+
+    Returns a list of {"id": int, "reason": str} dicts ordered by similarity.
+    Raises on LLM failure.
+    """
+    candidate_lines = "\n".join(
+        f'{c["id"]}: {c["description"]}' for c in candidates
+    )
+    system = _prepend_context(_RELATED_CLIPS_SYSTEM, context_text)
+    user_msg = (
+        f"Reference clip:\n\"\"\"\n{reference_description[:2000]}\n\"\"\"\n\n"
+        f"Candidates:\n{candidate_lines[:6000]}\n\nJSON:"
+    )
+    messages = [
+        {"role": "system", "content": system},
+        {"role": "user",   "content": user_msg},
+    ]
+    raw = _call_backend(messages, config, temperature=0.1)
+    results = json.loads(raw)
+    if not isinstance(results, list):
+        raise ValueError(f"Expected list, got {type(results)}")
+    return [{"id": int(r["id"]), "reason": str(r.get("reason", ""))} for r in results]
+
+
 def check_llm_available(config: "Config") -> tuple[bool, str]:
     """Return (available, reason) without logging.  Used by routes to gate LLM calls."""
     if not config.ollama_enabled:

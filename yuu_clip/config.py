@@ -159,11 +159,11 @@ class Config:
     min_clip_ms: int = 15_000           # shortest candidate kept (15 s)
     hard_split_ms: int = 180_000        # force-split continuous speech (3 min)
 
-    llm_backend: str = "llamacpp"   # "llamacpp" | "ollama"
-    llm_model_path: str = ""        # path to .gguf file; required when backend is llamacpp
+    llm_backend: str = "ollama"      # "llamacpp" | "ollama"
+    llm_model_path: str = ""         # path to .gguf file; required when backend is llamacpp
 
     ollama_host: str = "http://localhost:11434"
-    ollama_model: str = "llama3.1:8b"
+    ollama_model: str = "llama3.2"
     ollama_timeout_s: float = 120.0
     ollama_enabled: bool = True
 

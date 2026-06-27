@@ -144,6 +144,7 @@ function renderVideoDetail(video, savedTimeline) {
 
     <div class="actions">
       <button class="btn" id="btn-summarize-video" onclick="summarizeVideo(${video.id}, this)">${video.summary ? 'Regenerate Summary' : 'Generate Summary'}</button>
+      ${video.summary ? `<button class="btn" id="btn-regen-summary" onclick="regenSummaryAuto(${video.id}, this)" title="Regenerate summary and auto-save without review">Regenerate (auto-save)</button>` : ''}
       <button class="btn" id="btn-generate-timeline" onclick="generateTimeline(${video.id})">${video.has_timeline ? 'Regenerate Timeline' : 'Generate Timeline'}</button>
       <button class="btn" onclick="openAutoApproveModal(${video.id})">Approve Above Score</button>
       <button class="btn" onclick="openBatchExportModal(${video.id})">Export Approved</button>
@@ -386,6 +387,40 @@ async function summarizeVideo(id, btn) {
   } finally {
     if (actionBtn) { actionBtn.disabled = false; actionBtn.textContent = orig; }
   }
+}
+
+function regenSummaryAuto(id, btn) {
+  const actionBtn = document.getElementById('btn-regen-summary') || btn;
+  if (actionBtn && actionBtn.disabled) return;
+  actionBtn.disabled = true;
+  actionBtn.textContent = 'Regenerating…';
+  openLog();
+  if (_activeES) { _activeES.close(); _activeES = null; }
+  const es = new EventSource(`/api/videos/${id}/regenerate-summary`);
+  _activeES = es;
+  es.onmessage = e => {
+    const data = JSON.parse(e.data);
+    if (data === '__DONE__') {
+      es.close();
+      if (_activeES === es) _activeES = null;
+      actionBtn.disabled = false;
+      actionBtn.textContent = 'Regenerate (auto-save)';
+      loadVideos().then(() => {
+        const video = _videos.find(v => v.id === id);
+        if (video && activeVideoId === id) renderVideoDetail(video, null);
+      });
+      showToast('Summary regenerated');
+      return;
+    }
+    appendLog(String(data));
+  };
+  es.onerror = () => {
+    es.close();
+    if (_activeES === es) _activeES = null;
+    actionBtn.disabled = false;
+    actionBtn.textContent = 'Regenerate (auto-save)';
+    showToast('Summary regeneration failed — see log', 'error');
+  };
 }
 
 function openVideoTitleKebab(videoId, btn) {

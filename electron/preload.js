@@ -1,4 +1,8 @@
 'use strict';
 
-// No node APIs exposed to the renderer — the web UI talks directly to the
-// Python backend over HTTP. contextIsolation is enforced in main.js.
+const { contextBridge, ipcRenderer } = require('electron');
+
+// Minimal bridge — only exposes what the web UI actually calls.
+contextBridge.exposeInMainWorld('electronAPI', {
+  runSetupWizard: () => ipcRenderer.send('app:run-setup-wizard'),
+});

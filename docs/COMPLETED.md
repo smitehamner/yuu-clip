@@ -153,3 +153,20 @@ Archive of shipped items. For pending work see [ROADMAP.md](ROADMAP.md).
 
 - **Analysis time estimate fix** — frontend passes `transcribe_tracks` from the selected track
   layout; backend uses it when provided
+
+### Near-term (shipped)
+
+- **Score All progress + starting log** — `[Starting LLM scoring for N clips…]` emitted at job
+  start; per-clip `Scored i/N clips` messages streamed.
+
+- **Regenerate All Summaries** — "Regenerate (auto-save)" button in video detail panel;
+  `GET /api/videos/{id}/regenerate-summary` SSE endpoint auto-commits title+summary without a
+  diff modal. Button only appears when a summary already exists.
+
+- **Related clips** — "Find Similar" button in clip detail (visible when clip has a description)
+  opens a scope-selection modal: current video pre-checked, other processed videos listed as
+  individual checkboxes. Fires an Ollama call with `description_long` + candidate descriptions;
+  returns up to 5 ranked results. Results stored on `ClipCandidate` as `related_clips_json` +
+  `related_clips_at`. "Related Clips" section in the detail panel shows ranked clickable links
+  (clicking navigates to that clip); stale indicator shown when `related_clips_at` predates the
+  video's last rescore (`clips_scored_at`).

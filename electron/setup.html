@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>yuu-clip Setup</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 13px;
+  background: #12121e;
+  color: #d0d0e0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  user-select: none;
+}
+
+header {
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid #1e1e30;
+}
+header h1 { font-size: 15px; font-weight: 600; color: #e8e8f8; }
+header p  { color: #666; margin-top: 3px; font-size: 12px; }
+
+/* ── checklist ── */
+#checklist {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 20px;
+}
+.item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid #1a1a2a;
+}
+.item:last-child { border-bottom: none; }
+.icon {
+  width: 18px;
+  flex-shrink: 0;
+  text-align: center;
+  font-size: 14px;
+  margin-top: 1px;
+}
+.body  { flex: 1; min-width: 0; }
+.title { font-weight: 500; color: #b8b8d0; margin-bottom: 2px; }
+.desc  { color: #666; line-height: 1.45; font-size: 12px; }
+.desc code { font-family: 'Consolas', monospace; background: #1e1e2e; padding: 1px 4px; border-radius: 3px; font-size: 11px; }
+.desc a    { color: #5b8ef0; cursor: pointer; text-decoration: none; }
+.desc a:hover { text-decoration: underline; }
+.action { margin-top: 6px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+.ok   .title { color: #4caf7d; }
+.warn .title { color: #d4902a; }
+.err  .title { color: #cf5050; }
+.info .title { color: #5b8ef0; }
+
+/* ── buttons inside checklist ── */
+button.sm {
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: 4px;
+  border: 1px solid #2e3050;
+  background: #1a1a30;
+  color: #b0b0cc;
+  cursor: pointer;
+  white-space: nowrap;
+}
+button.sm:hover:not(:disabled)  { background: #20203a; }
+button.sm:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── pull progress ── */
+.pull-bar  { height: 4px; background: #1e1e30; border-radius: 2px; overflow: hidden; }
+.pull-fill { height: 100%; background: #3a7bd5; width: 0%; transition: width 0.15s; }
+.pull-msg  { color: #555; font-size: 11px; margin-top: 3px; }
+
+/* ── config section ── */
+#config {
+  padding: 10px 20px 6px;
+  border-top: 1px solid #1e1e30;
+}
+.cfg-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 7px;
+}
+.cfg-label { color: #666; width: 105px; flex-shrink: 0; font-size: 12px; }
+.cfg-row input[type=text] {
+  flex: 1;
+  background: #0e0e1c;
+  border: 1px solid #252535;
+  color: #b0b0cc;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+.cfg-row select {
+  flex: 1;
+  background: #0e0e1c;
+  border: 1px solid #252535;
+  color: #b0b0cc;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+.rec { font-size: 11px; color: #4caf7d; white-space: nowrap; }
+
+/* ── rerun note ── */
+#rerun-note {
+  font-size: 11px;
+  color: #555;
+  padding: 0 20px 8px;
+  border-top: 1px solid #1e1e30;
+  padding-top: 6px;
+}
+
+/* ── footer ── */
+footer {
+  padding: 10px 20px;
+  border-top: 1px solid #1e1e30;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+#quit-btn {
+  padding: 6px 16px;
+  border-radius: 5px;
+  border: 1px solid #2a2a40;
+  background: #16162a;
+  color: #666;
+  cursor: pointer;
+  font-size: 13px;
+}
+#quit-btn:hover { background: #1e1e30; color: #888; }
+#launch-btn {
+  padding: 6px 22px;
+  border-radius: 5px;
+  border: none;
+  background: #2d6bbf;
+  color: #fff;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+}
+#launch-btn:hover:not(:disabled) { background: #3a7bd5; }
+#launch-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+/* ── spinner ── */
+.spin {
+  display: inline-block;
+  width: 13px; height: 13px;
+  border: 2px solid #333;
+  border-top-color: #5b8ef0;
+  border-radius: 50%;
+  animation: spin 0.65s linear infinite;
+  vertical-align: middle;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>yuu-clip Setup</h1>
+  <p id="subtitle">Checking your system…</p>
+</header>
+
+<div id="checklist">
+  <div class="item info" id="item-init">
+    <div class="icon"><span class="spin"></span></div>
+    <div class="body"><div class="title">Checking system…</div></div>
+  </div>
+</div>
+
+<div id="config" style="display:none">
+  <div class="cfg-row">
+    <span class="cfg-label">Project folder</span>
+    <input type="text" id="project-dir" readonly>
+    <button class="sm" id="browse-btn">Browse…</button>
+  </div>
+  <div class="cfg-row">
+    <span class="cfg-label">Whisper model</span>
+    <select id="whisper-sel">
+      <option value="tiny">tiny — fastest, lowest accuracy</option>
+      <option value="base">base — fast, decent accuracy</option>
+      <option value="small">small — balanced</option>
+      <option value="medium">medium — good quality (5 GB+ VRAM)</option>
+      <option value="large-v3">large-v3 — best quality (10 GB+ VRAM)</option>
+    </select>
+    <span class="rec" id="rec-tag"></span>
+  </div>
+</div>
+
+<div id="rerun-note" style="display:none">
+  Project folder changes take effect on next restart.
+</div>
+
+<footer>
+  <button id="quit-btn">Quit</button>
+  <button id="launch-btn" disabled>Launch</button>
+</footer>
+
+<script>
+const api = window.setupAPI;
+const params   = new URLSearchParams(window.location.search);
+const rerunMode = params.get('mode') === 'rerun';
+
+let status = null;
+let pulling = false;
+
+// ── helpers ────────────────────────────────────────────────────────────────
+
+function esc(s) {
+  return String(s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function updateLaunchBtn() {
+  const btn = document.getElementById('launch-btn');
+  btn.disabled = !status || !status.ffmpegOk || pulling;
+  btn.textContent = rerunMode ? 'Apply & Close' : 'Launch';
+}
+
+// ── render status ──────────────────────────────────────────────────────────
+
+function renderStatus(s) {
+  status = s;
+  const rows = [];
+
+  // FFmpeg
+  if (s.ffmpegOk) {
+    rows.push(row('ffmpeg', 'ok', '✓', 'FFmpeg', 'Found on PATH.'));
+  } else {
+    rows.push(row('ffmpeg', 'err', '✗', 'FFmpeg not found',
+      'Required for video processing. Download a Windows build, extract it, and add the <code>bin\\</code> folder to your system PATH.',
+      `<button class="sm" onclick="api.openURL('https://ffmpeg.org/download.html#build-windows')">Open ffmpeg.org</button>
+       <span style="color:#555;font-size:11px">or run: <code>winget install Gyan.FFmpeg</code></span>`
+    ));
+  }
+
+  // GPU / CUDA
+  if (s.gpu.vendor === 'nvidia') {
+    if (s.cuda.available) {
+      rows.push(row('gpu', 'ok', '✓',
+        `GPU: ${s.gpu.name}`,
+        `${s.gpu.vramMB.toLocaleString()} MB VRAM &nbsp;·&nbsp; CUDA ${esc(s.cuda.version)} — GPU acceleration active.`
+      ));
+    } else {
+      rows.push(row('gpu', 'warn', '⚠',
+        `GPU: ${s.gpu.name}`,
+        `${s.gpu.vramMB.toLocaleString()} MB VRAM &nbsp;·&nbsp; CUDA not found — Whisper and Ollama will run on CPU (much slower).`,
+        `<button class="sm" onclick="api.openURL('https://developer.nvidia.com/cuda-downloads')">Get CUDA Toolkit</button>
+         <span style="color:#555;font-size:11px">Install CUDA, then reinstall Ollama so it picks up GPU support.</span>`
+      ));
+    }
+  } else if (s.gpu.vendor === 'amd') {
+    rows.push(row('gpu', 'info', 'ℹ',
+      `GPU: ${s.gpu.name}`,
+      `${s.gpu.vramMB.toLocaleString()} MB VRAM &nbsp;·&nbsp; AMD GPU detected. Whisper will use CPU — ROCm is not supported on Windows.`
+    ));
+  } else {
+    rows.push(row('gpu', 'info', 'ℹ',
+      s.gpu.name !== 'Unknown' ? `GPU: ${s.gpu.name}` : 'No discrete GPU detected',
+      'Whisper and Ollama will run on CPU. Expect slower analysis times.'
+    ));
+  }
+
+  // Ollama + model
+  if (s.ollamaRunning) {
+    if (s.ollamaModelPulled) {
+      rows.push(row('ollama', 'ok', '✓',
+        `Ollama — ${esc(s.ollamaModel)} ready`,
+        'LLM scoring is fully configured.'
+      ));
+    } else {
+      rows.push(row('ollama', 'warn', '⚠',
+        `Ollama running — ${esc(s.ollamaModel)} not downloaded`,
+        `The model needs to be pulled before LLM scoring will work.`,
+        `<button class="sm" id="pull-btn" onclick="startPull()">Pull ${esc(s.ollamaModel)}</button>
+         <div class="pull-bar" id="pull-bar" style="display:none;width:100%;margin-top:5px"><div class="pull-fill" id="pull-fill"></div></div>
+         <div class="pull-msg" id="pull-msg"></div>`
+      ));
+    }
+  } else {
+    rows.push(row('ollama', 'warn', '⚠',
+      'Ollama not running',
+      `LLM scoring will be disabled. <a onclick="api.openURL('https://ollama.com/download')">Install Ollama</a>, ` +
+      `then run <code>ollama pull ${esc(s.ollamaModel)}</code> and start it before analyzing clips.`
+    ));
+  }
+
+  // Whisper (informational)
+  rows.push(row('whisper', 'info', 'ℹ',
+    'Whisper transcription',
+    `Model weights download automatically on first analysis — no action needed now. ` +
+    `Choose the model below based on your hardware.`
+  ));
+
+  document.getElementById('checklist').innerHTML = rows.join('');
+
+  // Config section
+  document.getElementById('project-dir').value = s.projectDir;
+  const sel = document.getElementById('whisper-sel');
+  sel.value = s.recommendedWhisper.model;
+  document.getElementById('rec-tag').textContent = `← recommended (${s.recommendedWhisper.reason})`;
+  document.getElementById('config').style.display = '';
+  if (rerunMode) document.getElementById('rerun-note').style.display = '';
+
+  document.getElementById('subtitle').textContent = s.ffmpegOk
+    ? 'System check complete.'
+    : 'Action required before you can launch.';
+
+  document.getElementById('quit-btn').textContent = rerunMode ? 'Close' : 'Quit';
+  updateLaunchBtn();
+}
+
+function row(id, cls, icon, title, descHtml, actionHtml = '') {
+  return `<div class="item ${cls}" id="item-${esc(id)}">
+    <div class="icon">${icon}</div>
+    <div class="body">
+      <div class="title">${esc(title)}</div>
+      <div class="desc">${descHtml}</div>
+      ${actionHtml ? `<div class="action">${actionHtml}</div>` : ''}
+    </div>
+  </div>`;
+}
+
+// ── Ollama model pull ──────────────────────────────────────────────────────
+
+function startPull() {
+  const btn  = document.getElementById('pull-btn');
+  const bar  = document.getElementById('pull-bar');
+  const fill = document.getElementById('pull-fill');
+  const msg  = document.getElementById('pull-msg');
+  if (btn)  btn.disabled = true;
+  if (bar)  bar.style.display = '';
+  pulling = true;
+  updateLaunchBtn();
+
+  api.onPullProgress(data => {
+    if (data.status === 'success') {
+      if (fill) fill.style.width = '100%';
+      if (msg)  msg.textContent  = 'Done!';
+      pulling = false;
+      status.ollamaModelPulled = true;
+      // Swap the item to green
+      const item = document.getElementById('item-ollama');
+      if (item) {
+        item.className = 'item ok';
+        item.querySelector('.icon').textContent   = '✓';
+        item.querySelector('.title').textContent  = `Ollama — ${status.ollamaModel} ready`;
+        item.querySelector('.desc').textContent   = 'LLM scoring is fully configured.';
+        const act = item.querySelector('.action');
+        if (act) act.remove();
+      }
+      updateLaunchBtn();
+    } else if (data.error) {
+      if (msg) msg.textContent = `Error: ${data.error}`;
+      pulling = false;
+      updateLaunchBtn();
+    } else if (data.total) {
+      const pct = Math.round((data.completed / data.total) * 100);
+      if (fill) fill.style.width = pct + '%';
+      if (msg)  msg.textContent  = `${esc(data.status)} — ${pct}%`;
+    } else if (data.status) {
+      if (msg) msg.textContent = data.status;
+    }
+  });
+
+  api.pullModel(status.ollamaModel);
+}
+
+// ── UI events ──────────────────────────────────────────────────────────────
+
+document.getElementById('browse-btn').addEventListener('click', async () => {
+  const dir = await api.pickFolder();
+  if (dir) document.getElementById('project-dir').value = dir;
+});
+
+document.getElementById('quit-btn').addEventListener('click', () => {
+  if (rerunMode) api.complete({
+    projectDir:   document.getElementById('project-dir').value,
+    whisperModel: document.getElementById('whisper-sel').value,
+  });
+  else api.quit();
+});
+
+document.getElementById('launch-btn').addEventListener('click', () => {
+  api.complete({
+    projectDir:   document.getElementById('project-dir').value,
+    whisperModel: document.getElementById('whisper-sel').value,
+  });
+});
+
+// ── boot ──────────────────────────────────────────────────────────────────
+
+(async () => {
+  try {
+    const s = await api.getStatus();
+    renderStatus(s);
+  } catch (e) {
+    document.getElementById('checklist').innerHTML =
+      `<div class="item err">
+         <div class="icon">✗</div>
+         <div class="body">
+           <div class="title">Setup check failed</div>
+           <div class="desc">${esc(String(e))}</div>
+         </div>
+       </div>`;
+    document.getElementById('subtitle').textContent = 'Something went wrong.';
+  }
+})();
+</script>
+</body>
+</html>

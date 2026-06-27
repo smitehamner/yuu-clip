@@ -177,6 +177,12 @@ document.addEventListener('DOMContentLoaded', () => {
     panel.addEventListener('input',  _checkSettingsDirty);
     panel.addEventListener('change', _checkSettingsDirty);
   }
+
+  // Show "Re-run Setup Wizard" in the hamburger only when running inside Electron.
+  if (window.electronAPI) {
+    const btn = document.getElementById('btn-setup-wizard');
+    if (btn) btn.style.display = '';
+  }
 });
 
 // ── about modal ───────────────────────────────────────────────────────────────

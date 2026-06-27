@@ -125,6 +125,10 @@ def _migrate(engine) -> None:
             conn.execute(text("ALTER TABLE clip_candidates ADD COLUMN exported_container TEXT"))
         if "exported_burn_subs" not in existing:
             conn.execute(text("ALTER TABLE clip_candidates ADD COLUMN exported_burn_subs BOOLEAN"))
+        if "related_clips_json" not in existing:
+            conn.execute(text("ALTER TABLE clip_candidates ADD COLUMN related_clips_json TEXT"))
+        if "related_clips_at" not in existing:
+            conn.execute(text("ALTER TABLE clip_candidates ADD COLUMN related_clips_at DATETIME"))
 
         conn.commit()
 
@@ -292,6 +296,9 @@ class ClipCandidate(Base):
     exported_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
     exported_container: Mapped[Optional[str]] = mapped_column(String)
     exported_burn_subs: Mapped[Optional[bool]] = mapped_column(Boolean)
+
+    related_clips_json: Mapped[Optional[str]] = mapped_column(Text)
+    related_clips_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
 
     video: Mapped["Video"] = relationship(back_populates="clip_candidates")
     clip_transcripts: Mapped[List["Transcript"]] = relationship(

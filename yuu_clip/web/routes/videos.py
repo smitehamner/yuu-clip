@@ -290,6 +290,8 @@ def make_router(ctx: ProjectContext) -> APIRouter:
 
             async with _active_job(ctx):
                 total = len(clip_ids)
+                plural = "s" if total != 1 else ""
+                yield f"data: {json_lib.dumps(f'[Starting LLM scoring for {total} clip{plural}…]')}\n\n"
                 engine = ScoringEngine(config, [LLMScorer(config, context_text=context_text)])
 
                 for i, clip_id in enumerate(clip_ids, 1):
@@ -476,6 +478,64 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             }
         finally:
             db.close()
+
+    @router.get("/api/videos/{video_id}/regenerate-summary")
+    async def regenerate_summary(video_id: int):
+        """Regenerate title + summary and auto-commit to DB. Streams one log line as SSE."""
+        from yuu_clip.scoring.llm import summarize_transcript
+
+        db = ctx.get_db()
+        try:
+            video = db.get(Video, video_id)
+            if not video:
+                raise HTTPException(404, "Video not found")
+            context_names = _json_list(video.context_names_json)
+            tracks = db.query(AudioTrack).filter_by(video_id=video_id, do_transcribe=True).all()
+            all_segs = []
+            for track in tracks:
+                for tx in track.transcripts:
+                    all_segs.extend(tx.segments)
+            all_segs.sort(key=lambda s: s.start_ms)
+            full_text = " ".join(s.text.strip() for s in all_segs)
+        finally:
+            db.close()
+
+        if not full_text:
+            raise HTTPException(400, "No transcript available — analyze the recording first")
+
+        context_text = format_context_block(load_contexts(ctx.project_dir), context_names)
+
+        async def event_stream():
+            async with _active_job(ctx):
+                yield f"data: {json_lib.dumps('[Generating summary…]')}\n\n"
+                try:
+                    title_new, summary_new = await asyncio.to_thread(
+                        summarize_transcript, full_text, ctx.config, context_text=context_text
+                    )
+                except Exception as exc:
+                    _log.warning("regenerate_summary: Ollama failed for video %d: %s", video_id, exc)
+                    yield f"data: {json_lib.dumps(f'[Error: {exc}]')}\n\n"
+                    yield f"data: {json_lib.dumps('__DONE__')}\n\n"
+                    return
+
+                save_db = ctx.get_db()
+                try:
+                    v = save_db.get(Video, video_id)
+                    if v:
+                        v.title = title_new
+                        v.title_user = None
+                        v.summary = summary_new
+                        v.summary_user = None
+                        v.summarized_at = datetime.now(timezone.utc)
+                        v.summary_context_json = json_lib.dumps(context_names)
+                        save_db.commit()
+                finally:
+                    save_db.close()
+
+                yield f"data: {json_lib.dumps('[Summary regenerated]')}\n\n"
+                yield f"data: {json_lib.dumps('__DONE__')}\n\n"
+
+        return _sse_response(event_stream())
 
     @router.patch("/api/videos/{video_id}/fields")
     def update_video_fields(video_id: int, body: VideoFieldsUpdate):
@@ -943,6 +1003,97 @@ def make_router(ctx: ProjectContext) -> APIRouter:
 
         return _sse_response(event_stream())
 
+    @router.get("/api/clips/{clip_id}/related-clips")
+    async def find_related_clips(clip_id: int, video_ids: str = Query("")):
+        """Find clips similar to this one via LLM. Streams progress as SSE.
+
+        video_ids: comma-separated list of video IDs to search (empty = current video only).
+        Saves results to related_clips_json on the clip.
+        """
+        from yuu_clip.scoring.llm import check_llm_available, find_related_clips as _find_related
+
+        config = ctx.config
+
+        db = ctx.get_db()
+        try:
+            clip = _require_clip(db, clip_id)
+            video = db.get(Video, clip.video_id)
+            if not video:
+                raise HTTPException(404, "Video not found")
+
+            ref_desc = (clip.description_long_user or clip.description_long or
+                        clip.description_user or clip.description or "")
+            if not ref_desc:
+                raise HTTPException(400, "Clip has no description — re-score first")
+
+            context_names = _json_list(video.context_names_json)
+
+            scope_ids: list[int] = []
+            if video_ids.strip():
+                try:
+                    scope_ids = [int(x) for x in video_ids.split(",") if x.strip()]
+                except ValueError:
+                    raise HTTPException(400, "video_ids must be comma-separated integers")
+            if not scope_ids:
+                scope_ids = [clip.video_id]
+
+            candidates_raw = (
+                db.query(ClipCandidate.id, ClipCandidate.description_long, ClipCandidate.description)
+                .filter(
+                    ClipCandidate.video_id.in_(scope_ids),
+                    ClipCandidate.id != clip_id,
+                )
+                .all()
+            )
+            candidates = [
+                {"id": r.id, "description": r.description_long or r.description or ""}
+                for r in candidates_raw
+                if (r.description_long or r.description)
+            ]
+        finally:
+            db.close()
+
+        llm_ok, llm_reason = check_llm_available(config)
+        if not llm_ok:
+            raise HTTPException(503, f"LLM unavailable — {llm_reason}")
+
+        from yuu_clip.contexts import format_context_block, load_contexts
+        context_text = format_context_block(load_contexts(ctx.project_dir), context_names)
+
+        async def event_stream():
+            async with _active_job(ctx):
+                total = len(candidates)
+                yield f"data: {json_lib.dumps(f'[Searching {total} clips for similar moments…]')}\n\n"
+
+                results = None
+                error = None
+                try:
+                    results = await asyncio.to_thread(
+                        _find_related, ref_desc, candidates, config, context_text
+                    )
+                except Exception as exc:
+                    error = str(exc)
+                    _log.error("find_related_clips: clip %d failed: %s", clip_id, exc, exc_info=True)
+
+                if error:
+                    yield f"data: {json_lib.dumps(f'[Error: {error}]')}\n\n"
+                    yield f"data: {json_lib.dumps('__DONE__')}\n\n"
+                    return
+
+                save_db = ctx.get_db()
+                try:
+                    c = save_db.get(ClipCandidate, clip_id)
+                    if c:
+                        c.related_clips_json = json_lib.dumps(results)
+                        c.related_clips_at = datetime.now(timezone.utc)
+                        save_db.commit()
+                finally:
+                    save_db.close()
+
+                yield f"data: {json_lib.dumps({'type': '__DONE__', 'results': results})}\n\n"
+
+        return _sse_response(event_stream())
+
     @router.get("/api/clips/{clip_id}/captions.vtt")
     def clip_captions_vtt(clip_id: int):
         """Convert the exported SRT sidecar to WebVTT and return it for browser <track> use."""
@@ -1075,6 +1226,14 @@ def _video_dict(video: Video, stats: dict) -> dict:
     }
 
 
+def _related_clips_stale(clip: ClipCandidate, video: Optional[Video]) -> bool:
+    if not clip.related_clips_at:
+        return False
+    if video and video.clips_scored_at and clip.related_clips_at < video.clips_scored_at:
+        return True
+    return False
+
+
 def _subtitle_status(clip: ClipCandidate, video: Optional[Video], export_dir: Optional[Path]) -> str:
     if clip.exported_burn_subs:
         return "baked-in"
@@ -1120,6 +1279,9 @@ def _clip_dict(
         "exported_container": clip.exported_container or None,
         "exported_burn_subs": clip.exported_burn_subs,
         "subtitle_status": _subtitle_status(clip, video, export_dir) if has_export else "none",
+        "related_clips": json_lib.loads(clip.related_clips_json) if clip.related_clips_json else None,
+        "related_clips_at": clip.related_clips_at.isoformat() if clip.related_clips_at else None,
+        "related_clips_stale": _related_clips_stale(clip, video),
     }
     if full:
         d["transcript_excerpt"] = clip.transcript_excerpt or ""
