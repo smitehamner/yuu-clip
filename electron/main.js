@@ -25,6 +25,7 @@ let projectDir  = DEFAULT_PROJECT_DIR;
 let pyProc      = null;
 let mainWindow  = null;
 let appPort     = BASE_PORT;
+let wizardWin   = null;
 
 // ---------------------------------------------------------------------------
 // Electron config persistence (project dir choice etc.)
@@ -324,7 +325,13 @@ function showSetupWizard({ rerun = false } = {}) {
       logSetup(`Setup complete — projectDir:${cfg.projectDir} whisperModel:${cfg.whisperModel}`);
       fs.mkdirSync(path.dirname(SETUP_COMPLETE_MARKER), { recursive: true });
       fs.writeFileSync(SETUP_COMPLETE_MARKER, new Date().toISOString());
-      win.close();
+      if (!rerun) {
+        const loadingHtml = `<!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;margin:0;display:flex;align-items:center;justify-content:center;height:100vh;background:#12121e;color:#d8d8e8;text-align:center"><style>@keyframes spin{to{transform:rotate(360deg)}}</style><div><div style="width:32px;height:32px;border:3px solid #1e1e30;border-top-color:#5b8ef0;border-radius:50%;animation:spin 0.65s linear infinite;margin:0 auto 14px"></div><h3 style="margin:0 0 6px;font-size:14px;color:#e8e8f8">Starting yuu-clip…</h3><p style="margin:0;color:#666;font-size:12px">Waiting for backend</p></div></body></html>`;
+        win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(loadingHtml)}`);
+        wizardWin = win;
+      } else {
+        win.close();
+      }
       resolve(cfg);
     });
 
@@ -571,6 +578,7 @@ app.whenReady().then(async () => {
     spawnBackend(appPort);
     await pollReady(appPort);
     createWindow(appPort);
+    if (wizardWin && !wizardWin.isDestroyed()) { wizardWin.close(); wizardWin = null; }
   } catch (err) {
     if (!knownQuits.includes(err.message)) {
       dialog.showErrorBox('Startup error', String(err));

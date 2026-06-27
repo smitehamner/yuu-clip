@@ -404,6 +404,9 @@ document.getElementById('quit-btn').addEventListener('click', () => {
 });
 
 document.getElementById('launch-btn').addEventListener('click', () => {
+  const btn = document.getElementById('launch-btn');
+  btn.disabled = true;
+  btn.textContent = 'Starting…';
   api.complete({
     projectDir:   document.getElementById('project-dir').value,
     whisperModel: document.getElementById('whisper-sel').value,
