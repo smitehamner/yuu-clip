@@ -11,6 +11,9 @@
     "electron-builder": "25.1.8"
   },
   "build": {
+    "directories": {
+      "output": "dist"
+    },
     "appId": "com.smitehamner.yuuclip",
     "productName": "yuu-clip",
     "win": {

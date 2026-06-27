@@ -36,21 +36,13 @@ if (-not $whl) {
 }
 Write-Host "Wheel: $($whl.FullName)"
 
-# ── 4. Copy wheel into electron/resources/ ──────────────────────────────────
-$resourcesDir = "$root\electron\resources"
-New-Item -ItemType Directory -Force $resourcesDir | Out-Null
-# Remove stale wheels before copying so electron-builder bundles only one
-Get-ChildItem "$resourcesDir\*.whl" | Remove-Item -Force
-Copy-Item $whl.FullName $resourcesDir
-Write-Host "Copied wheel to $resourcesDir"
-
-# ── 5. npm run dist ──────────────────────────────────────────────────────────
+# ── 4. npm run dist ──────────────────────────────────────────────────────────
 Write-Host "`nRunning electron-builder..."
 Push-Location "$root\electron"
 npm run dist
 Pop-Location
 
-# ── 6. Report output ────────────────────────────────────────────────────────
+# ── 5. Report output ────────────────────────────────────────────────────────
 $exe = Get-ChildItem "$root\electron\dist\*.exe" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
 if ($exe) {
     Write-Host "`nInstaller ready: $($exe.FullName)"
