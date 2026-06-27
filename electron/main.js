@@ -408,7 +408,7 @@ function showVenvSetupWindow() {
     resizable: false, frame: false, alwaysOnTop: true,
     webPreferences: { nodeIntegration: false, contextIsolation: true },
   });
-  const html = `<!DOCTYPE html><html><body style="font-family:sans-serif;margin:0;display:flex;align-items:center;justify-content:center;height:100vh;background:#12121e;color:#d8d8e8;text-align:center"><div><h3 style="margin:0 0 8px">Setting up yuu-clip</h3><p style="margin:0;color:#888">Installing Python dependencies — this may take a few minutes…</p></div></body></html>`;
+  const html = `<!DOCTYPE html><html><head><style>@keyframes spin{to{transform:rotate(360deg)}}</style></head><body style="font-family:sans-serif;margin:0;display:flex;align-items:center;justify-content:center;height:100vh;background:#12121e;color:#d8d8e8;text-align:center"><div><div style="width:32px;height:32px;border:3px solid #1e1e30;border-top-color:#5b8ef0;border-radius:50%;animation:spin 0.65s linear infinite;margin:0 auto 16px"></div><h3 style="margin:0 0 8px">Setting up yuu-clip</h3><p style="margin:0;color:#888">Installing Python dependencies — this may take a few minutes…</p></div></body></html>`;
   win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
   return win;
 }
