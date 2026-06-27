@@ -1,14 +1,14 @@
-[build-system]
+﻿[build-system]
 requires = ["setuptools>=40"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "yuu-clip"
-version = "0.1.0"
+version = "0.1.1"
 description = "Video session clip extraction pipeline"
 requires-python = ">=3.11"
 dependencies = [
-    # Transcription — GPU-accelerated Whisper via CTranslate2.
+    # Transcription â€” GPU-accelerated Whisper via CTranslate2.
     # av (PyAV) is a required dep of faster-whisper and is also used
     # directly in energy.py / overlap.py for audio frame decoding.
     "faster-whisper>=1.2,<2.0",
@@ -16,7 +16,7 @@ dependencies = [
     # CLI framework; [all] pulls in rich (pretty output) and shellingham.
     "typer[all]>=0.12,<1.0",
 
-    # ORM — SQLite database for clips, transcripts, scores.
+    # ORM â€” SQLite database for clips, transcripts, scores.
     "sqlalchemy>=2.0,<3.0",
 
     # Cross-platform config/data dirs (AppData on Windows, ~/.config on Linux).
@@ -50,3 +50,4 @@ yuuclip = "yuu_clip.cli:app"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["yuu_clip*"]
+
