@@ -643,3 +643,17 @@ app.on('window-all-closed', () => {
   if (pyProc) { pyProc.kill(); pyProc = null; }
   app.quit();
 });
+
+// Kill the backend on any process exit — covers crashes, SIGTERM, and
+// Task Manager kills that bypass the normal close flow.
+process.on('exit', () => {
+  if (pyProc) try { pyProc.kill(); } catch (_) {}
+});
+
+// Log uncaught main-process exceptions and shut down cleanly instead of
+// leaving the Python backend orphaned.
+process.on('uncaughtException', err => {
+  logSetup(`Uncaught exception: ${err.stack || err.message}`);
+  if (pyProc) try { pyProc.kill(); } catch (_) {}
+  app.quit();
+});
