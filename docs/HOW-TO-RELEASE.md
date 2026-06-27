@@ -148,7 +148,7 @@ When they first try LLM scoring, they'll need a GGUF model file:
 The app shows a dialog. Install Python 3.11 via `winget install Python.Python.3.11`, restart the app.
 
 **Venv install failed**
-Check `%APPDATA%\yuu-clip\venv-setup.log` (written by the Electron first-run setup). Common cause: Python is installed but not on PATH — open a new terminal after installing Python and try again.
+Check `%APPDATA%\yuu-clip\yuu-clip_install.log` (written by the Electron first-run setup). Common cause: Python is installed but not on PATH — open a new terminal after installing Python and try again.
 
 **App window is blank / "Cannot connect to server"**
 The Python backend failed to start. Check `%USERPROFILE%\Videos\yuu-clip\.yuu-clip\yuu-clip.log` for errors.

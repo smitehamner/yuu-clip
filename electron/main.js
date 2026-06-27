@@ -14,8 +14,9 @@ const path = require('path');
 const VENV_DIR    = path.join(process.env.LOCALAPPDATA, 'yuu-clip', 'venv');
 const VENV_PYTHON = path.join(VENV_DIR, 'Scripts', 'python.exe');
 const VENV_PIP    = path.join(VENV_DIR, 'Scripts', 'pip.exe');
-const SETUP_LOG   = path.join(process.env.APPDATA, 'yuu-clip', 'venv-setup.log');
+const SETUP_LOG   = path.join(process.env.APPDATA, 'yuu-clip', 'yuu-clip_install.log');
 const SETUP_COMPLETE_MARKER = path.join(process.env.APPDATA, 'yuu-clip', 'setup-complete');
+const WHEEL_MARKER          = path.join(process.env.APPDATA, 'yuu-clip', 'installed-wheel-version');
 const ELECTRON_CONFIG_PATH  = path.join(process.env.APPDATA, 'yuu-clip', 'electron-config.json');
 
 const DEFAULT_PROJECT_DIR = path.join(process.env.USERPROFILE, 'Videos', 'yuu-clip');
@@ -374,12 +375,36 @@ function showVenvSetupWindow() {
 }
 
 async function ensureVenv() {
-  if (fs.existsSync(VENV_PYTHON)) return;
+  const resourcesDir = process.resourcesPath || path.join(__dirname, '..', 'dist');
+  const wheels = fs.readdirSync(resourcesDir).filter(f => f.endsWith('.whl'));
+  if (wheels.length === 0) throw new Error(`No .whl found in ${resourcesDir}`);
+  const wheelFile = wheels[0];
+  const wheelPath = path.join(resourcesDir, wheelFile);
 
-  logSetup('Venv not found — running first-run setup');
+  const vm = wheelFile.match(/yuu_clip-([^-]+)-/);
+  const bundledVersion = vm ? vm[1] : null;
+
+  let installedVersion = null;
+  try { installedVersion = fs.readFileSync(WHEEL_MARKER, 'utf8').trim(); } catch (_) {}
+
+  logSetup(`Bundled wheel: ${wheelFile}`);
+
+  const venvExists = fs.existsSync(VENV_PYTHON);
+  const versionOk  = !bundledVersion || installedVersion === bundledVersion;
+  if (venvExists && versionOk) {
+    logSetup(`Venv OK — wheel ${bundledVersion || 'unknown'} already installed`);
+    return;
+  }
+
+  if (!venvExists) {
+    logSetup('Venv not found — running first-run setup');
+  } else {
+    logSetup(`Wheel update needed (installed: ${installedVersion || 'none'}, bundled: ${bundledVersion}) — reinstalling`);
+  }
 
   const pythonBin = findPython();
   if (!pythonBin) {
+    logSetup('No Python 3.11+ found on PATH — aborting setup');
     await dialog.showMessageBox({
       type: 'error', title: 'Python 3.11+ required',
       message:
@@ -395,28 +420,27 @@ async function ensureVenv() {
   }
 
   logSetup(`Using python: ${pythonBin}`);
-
-  const resourcesDir = process.resourcesPath || path.join(__dirname, '..', 'dist');
-  const wheels = fs.readdirSync(resourcesDir).filter(f => f.endsWith('.whl'));
-  if (wheels.length === 0) throw new Error(`No .whl found in ${resourcesDir}`);
-  const wheelPath = path.join(resourcesDir, wheels[0]);
   logSetup(`Installing wheel: ${wheelPath}`);
 
   fs.mkdirSync(path.dirname(VENV_DIR), { recursive: true });
 
   const setupWin = showVenvSetupWindow();
   try {
-    execFileSync(pythonBin, ['-m', 'venv', VENV_DIR]);
-    logSetup('Venv created');
-    logSetup('Upgrading pip…');
-    execFileSync(VENV_PIP, ['install', '--upgrade', 'pip'],
-      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    if (!venvExists) {
+      execFileSync(pythonBin, ['-m', 'venv', VENV_DIR]);
+      logSetup('Venv created');
+      logSetup('Upgrading pip…');
+      execFileSync(VENV_PIP, ['install', '--upgrade', 'pip'],
+        { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    }
     logSetup('Installing wheel…');
-    execFileSync(VENV_PIP, ['install', wheelPath],
+    execFileSync(VENV_PIP, ['install', '--force-reinstall', wheelPath],
       { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
     logSetup('Wheel installed');
+    if (bundledVersion) fs.writeFileSync(WHEEL_MARKER, bundledVersion);
   } catch (err) {
-    logSetup(`Venv setup failed: ${err.message}${err.stderr ? '\n' + err.stderr : ''}`);
+    const detail = [err.stderr, err.stdout].filter(Boolean).join('\n');
+    logSetup(`Venv setup failed: ${err.message}${detail ? '\n' + detail : ''}`);
     throw err;
   } finally {
     setupWin.close();
@@ -428,7 +452,10 @@ async function ensureVenv() {
 // ---------------------------------------------------------------------------
 
 async function resolvePort() {
-  if (!await isPortInUse(BASE_PORT)) return BASE_PORT;
+  if (!await isPortInUse(BASE_PORT)) {
+    logSetup(`Using port ${BASE_PORT}`);
+    return BASE_PORT;
+  }
 
   if (await isYuuClipOnPort(BASE_PORT)) {
     await dialog.showMessageBox({
@@ -595,6 +622,7 @@ app.whenReady().then(async () => {
       projectDir = cfg.projectDir;
     } else {
       projectDir = loadElectronConfig().projectDir || DEFAULT_PROJECT_DIR;
+      logSetup(`Project dir: ${projectDir}`);
     }
 
     appPort = await resolvePort();
