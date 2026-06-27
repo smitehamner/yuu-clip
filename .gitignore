@@ -13,3 +13,4 @@ __pycache__/
 /dist/
 /electron/dist/
 /electron/resources/*.whl
+/electron/node_modules/
