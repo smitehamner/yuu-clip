@@ -75,9 +75,12 @@ function findPython() {
     try {
       const out = execFileSync(candidate, ['--version'],
         { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
-      const m = out.match(/Python (\d+)\.(\d+)/);
+      const m = out.match(/Python (\d+)\.(\d+)\.(\d+)/);
       if (m && (parseInt(m[1]) > 3 || (parseInt(m[1]) === 3 && parseInt(m[2]) >= 11))) {
+        logSetup(`Found python: ${candidate} (${out.trim()})`);
         return candidate;
+      } else if (m) {
+        logSetup(`Skipping ${candidate}: version ${out.trim()} is below 3.11`);
       }
     } catch (_) { /* not on PATH */ }
   }
@@ -128,17 +131,21 @@ function httpGet(url, timeoutMs) {
 }
 
 function pollReady(port, attempts = 120, delayMs = 500) {
+  const t0 = Date.now();
   return new Promise(async (resolve, reject) => {
     for (let i = 0; i < attempts; i++) {
       if (pyProc && pyProc.exitCode !== null) {
+        logSetup(`Backend exited during startup (code ${pyProc.exitCode}) after ${i} poll attempts`);
         return reject(new Error(`Python backend exited unexpectedly (exit code ${pyProc.exitCode}). Check the log at:\n${projectDir}\\.yuu-clip\\yuu-clip.log`));
       }
       try {
         await httpGet(`http://127.0.0.1:${port}/api/videos`, 1000);
+        logSetup(`Backend ready after ${i + 1} attempts (${Date.now() - t0} ms)`);
         return resolve();
       } catch (_) { /* not ready yet */ }
       await new Promise(r => setTimeout(r, delayMs));
     }
+    logSetup(`Backend did not respond after ${attempts} attempts (${Date.now() - t0} ms)`);
     reject(new Error(`Python backend did not start within 60 seconds. Check the log at:\n${projectDir}\\.yuu-clip\\yuu-clip.log`));
   });
 }
@@ -401,9 +408,16 @@ async function ensureVenv() {
   try {
     execFileSync(pythonBin, ['-m', 'venv', VENV_DIR]);
     logSetup('Venv created');
-    execFileSync(VENV_PIP, ['install', '--upgrade', 'pip']);
-    execFileSync(VENV_PIP, ['install', wheelPath]);
+    logSetup('Upgrading pip…');
+    execFileSync(VENV_PIP, ['install', '--upgrade', 'pip'],
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    logSetup('Installing wheel…');
+    execFileSync(VENV_PIP, ['install', wheelPath],
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
     logSetup('Wheel installed');
+  } catch (err) {
+    logSetup(`Venv setup failed: ${err.message}${err.stderr ? '\n' + err.stderr : ''}`);
+    throw err;
   } finally {
     setupWin.close();
   }
@@ -439,13 +453,17 @@ function spawnBackend(port) {
   const args = ['-m', 'yuu_clip.cli', 'serve', '--project', projectDir, '--no-interact'];
   if (port !== BASE_PORT) args.push('--port', String(port));
 
+  logSetup(`Spawning backend: ${VENV_PYTHON} ${args.join(' ')}`);
   pyProc = spawn(VENV_PYTHON, args, {
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
   });
 
   pyProc.stdout.on('data', d => process.stdout.write(d));
-  pyProc.stderr.on('data', d => process.stderr.write(d));
+  pyProc.stderr.on('data', d => {
+    process.stderr.write(d);
+    logSetup(`[backend] ${d.toString().trimEnd()}`);
+  });
   pyProc.on('exit', code => {
     if (code !== 0 && mainWindow) {
       dialog.showMessageBox(mainWindow, {
@@ -557,6 +575,8 @@ async function handleClose() {
 // ---------------------------------------------------------------------------
 
 app.whenReady().then(async () => {
+  logSetup(`yuu-clip ${app.getVersion()} starting — ${process.platform} ${process.arch} node/${process.versions.node}`);
+
   const knownQuits = [
     'Python not found',
     'Setup window closed',
@@ -580,6 +600,7 @@ app.whenReady().then(async () => {
     appPort = await resolvePort();
     spawnBackend(appPort);
     await pollReady(appPort);
+    logSetup('Creating main window');
     createWindow(appPort);
     if (wizardWin && !wizardWin.isDestroyed()) { wizardWin.close(); wizardWin = null; }
   } catch (err) {
