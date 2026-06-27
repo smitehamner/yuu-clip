@@ -29,16 +29,16 @@ class ProjectContext:
         self.config = Config.load(project_dir)
 
         # Engine is created once so create_all / _migrate only run at startup,
-        # not on every API request (which could race with the ingest subprocess).
+        # not on every API request (which could race with the analyze subprocess).
         self._engine         = make_engine(self.db_path)
         self._Session        = sessionmaker(bind=self._engine)
 
         # Transient state shared between paired start→events SSE endpoints.
-        # Only one ingest or demo job can be queued at a time (single-user tool).
-        self.ingest_cmd:       list[str] | None = None
-        self.demo_cmd:         list[str] | None = None
-        self.ingest_proc:      object | None    = None  # asyncio.subprocess.Process
-        self.ingest_cancelled: bool             = False
+        # Only one analyze or demo job can be queued at a time (single-user tool).
+        self.analyze_cmd:       list[str] | None = None
+        self.demo_cmd:          list[str] | None = None
+        self.analyze_proc:      object | None    = None  # asyncio.subprocess.Process
+        self.analyze_cancelled: bool             = False
         # Count of in-process SSE jobs currently streaming (rescore, timeline, summarize).
         self.active_jobs:      int              = 0
 

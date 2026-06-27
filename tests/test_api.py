@@ -25,7 +25,6 @@ class TestVideos:
         assert data[0]["approved"] == 1
 
     def test_list_clips_for_video(self, client):
-        # Get video id from first video
         vid_id = client.get("/api/videos").json()[0]["id"]
         r = client.get(f"/api/videos/{vid_id}/clips")
         assert r.status_code == 200
@@ -71,7 +70,6 @@ class TestClips:
         r = client.post(f"/api/clips/{clip_id}/status", json={"status": "approved"})
         assert r.status_code == 200
         assert r.json()["status"] == "approved"
-        # Verify persisted
         r2 = client.get(f"/api/clips/{clip_id}")
         assert r2.json()["status"] == "approved"
 
@@ -113,15 +111,12 @@ class TestProfiles:
         assert r.status_code == 200
         assert r.json()["name"] == "test_profile"
 
-        # Should appear in list
         profiles = client.get("/api/profiles").json()
         assert any(p["name"] == "test_profile" for p in profiles)
 
-        # Delete it
         r2 = client.delete("/api/profiles/test_profile")
         assert r2.status_code == 200
 
-        # Gone
         profiles2 = client.get("/api/profiles").json()
         assert not any(p["name"] == "test_profile" for p in profiles2)
 
@@ -386,12 +381,12 @@ class TestDbSessionCleanup:
 
 
 # ---------------------------------------------------------------------------
-# Graceful shutdown — lifespan terminates running ingest subprocess
+# Graceful shutdown — lifespan terminates running analyze subprocess
 # ---------------------------------------------------------------------------
 
 class TestGracefulShutdown:
-    def test_shutdown_terminates_running_ingest(self, project_dir):
-        """When the server exits, a running ingest_proc must be terminated."""
+    def test_shutdown_terminates_running_analyze(self, project_dir):
+        """When the server exits, a running analyze_proc must be terminated."""
         from unittest.mock import AsyncMock, MagicMock
         from fastapi.testclient import TestClient
         from yuu_clip.web.app import create_app
@@ -403,7 +398,7 @@ class TestGracefulShutdown:
         mock_proc.wait = AsyncMock(return_value=0)
 
         with TestClient(app) as tc:
-            app.state.ctx.ingest_proc = mock_proc
+            app.state.ctx.analyze_proc = mock_proc
 
         mock_proc.terminate.assert_called_once()
 
@@ -416,7 +411,7 @@ class TestGracefulShutdown:
         with TestClient(app):
             pass  # just verify it exits cleanly
 
-    def test_shutdown_noop_when_ingest_already_finished(self, project_dir):
+    def test_shutdown_noop_when_analyze_already_finished(self, project_dir):
         """Server shutdown must not call terminate on a process that already exited."""
         from unittest.mock import MagicMock
         from fastapi.testclient import TestClient
@@ -427,7 +422,7 @@ class TestGracefulShutdown:
         mock_proc.returncode = 0  # already exited
 
         with TestClient(app) as tc:
-            app.state.ctx.ingest_proc = mock_proc
+            app.state.ctx.analyze_proc = mock_proc
 
         mock_proc.terminate.assert_not_called()
 
@@ -455,7 +450,6 @@ class TestVideoDetail:
         r = client.patch(f"/api/videos/{vid_id}/contexts", json={"context_names": ["ctx-a", "ctx-b"]})
         assert r.status_code == 200
         assert r.json()["context_names"] == ["ctx-a", "ctx-b"]
-        # Persisted
         d = client.get(f"/api/videos/{vid_id}").json()
         assert d["context_names"] == ["ctx-a", "ctx-b"]
 
@@ -479,7 +473,6 @@ class TestDelete:
         r = client.delete(f"/api/clips/{clip_id}")
         assert r.status_code == 200
         assert r.json()["deleted"] == clip_id
-        # Gone from list
         remaining = client.get(f"/api/videos/{vid_id}/clips").json()
         assert not any(c["id"] == clip_id for c in remaining)
 
@@ -492,7 +485,6 @@ class TestDelete:
         r = client.delete(f"/api/videos/{vid_id}")
         assert r.status_code == 200
         assert r.json()["deleted"] == vid_id
-        # Video gone
         videos = client.get("/api/videos").json()
         assert not any(v["id"] == vid_id for v in videos)
 
@@ -506,14 +498,18 @@ class TestDelete:
 # ---------------------------------------------------------------------------
 
 class TestContexts:
-    def test_list_contexts_empty(self, client):
+    def test_list_contexts_seeds_builtins(self, client):
         r = client.get("/api/contexts")
         assert r.status_code == 200
-        assert r.json() == []
+        contexts = r.json()
+        context_ids = {c["context_id"] for c in contexts}
+        expected = {"fantasy-rp", "multiplayer-shooter", "variety-stream", "horror-game", "speedrun", "sandbox-survival", "challenge-run"}
+        assert expected <= context_ids
+        assert all(c["builtin"] is True for c in contexts if c["context_id"] in expected)
 
     def test_create_and_list_context(self, client):
         body = {
-            "slug": "test-ctx",
+            "context_id": "test-ctx",
             "display_name": "Test Context",
             "setting": "A fantasy world",
             "your_characters": "Hero",
@@ -523,37 +519,37 @@ class TestContexts:
         r = client.post("/api/contexts", json=body)
         assert r.status_code == 200
         d = r.json()
-        assert d["slug"] == "test-ctx"
+        assert d["context_id"] == "test-ctx"
         assert d["display_name"] == "Test Context"
         assert d["setting"] == "A fantasy world"
 
         contexts = client.get("/api/contexts").json()
-        assert any(c["slug"] == "test-ctx" for c in contexts)
+        assert any(c["context_id"] == "test-ctx" for c in contexts)
 
     def test_upsert_updates_existing(self, client):
-        body = {"slug": "upd-ctx", "display_name": "Old Name", "setting": "old"}
+        body = {"context_id": "upd-ctx", "display_name": "Old Name", "setting": "old"}
         client.post("/api/contexts", json=body)
         r = client.post("/api/contexts", json={**body, "display_name": "New Name", "setting": "new"})
         assert r.status_code == 200
         assert r.json()["display_name"] == "New Name"
 
     def test_delete_context(self, client):
-        client.post("/api/contexts", json={"slug": "del-ctx", "display_name": "To Delete"})
+        client.post("/api/contexts", json={"context_id": "del-ctx", "display_name": "To Delete"})
         r = client.delete("/api/contexts/del-ctx")
         assert r.status_code == 200
         contexts = client.get("/api/contexts").json()
-        assert not any(c["slug"] == "del-ctx" for c in contexts)
+        assert not any(c["context_id"] == "del-ctx" for c in contexts)
 
     def test_delete_context_404(self, client):
         r = client.delete("/api/contexts/nonexistent")
         assert r.status_code == 404
 
-    def test_create_context_invalid_slug(self, client):
-        r = client.post("/api/contexts", json={"slug": "bad slug!", "display_name": "X"})
+    def test_create_context_invalid_id(self, client):
+        r = client.post("/api/contexts", json={"context_id": "bad slug!", "display_name": "X"})
         assert r.status_code == 400
 
-    def test_create_context_empty_slug(self, client):
-        r = client.post("/api/contexts", json={"slug": "", "display_name": "X"})
+    def test_create_context_empty_id(self, client):
+        r = client.post("/api/contexts", json={"context_id": "", "display_name": "X"})
         assert r.status_code == 400
 
 
@@ -588,16 +584,16 @@ class TestCaptionsVTT:
 
 
 # ---------------------------------------------------------------------------
-# Ingest cancel — no-op when nothing running
+# Analyze cancel — no-op when nothing running
 # ---------------------------------------------------------------------------
 
-class TestIngestCancel:
+class TestAnalyzeCancel:
     def test_cancel_when_nothing_running_returns_ok(self, client):
         r = client.post("/api/analyze/cancel")
         assert r.status_code == 200
         assert r.json()["status"] == "cancelled"
 
-    def test_ingest_status_false_when_idle(self, client):
+    def test_analyze_status_false_when_idle(self, client):
         r = client.get("/api/analyze/status")
         assert r.status_code == 200
         assert r.json()["running"] is False
@@ -632,7 +628,7 @@ class TestStatus:
         assert d["active_jobs"] == 0
         assert "version" in d
 
-    def test_status_reflects_running_ingest(self, project_dir):
+    def test_status_reflects_running_analyze(self, project_dir):
         from unittest.mock import AsyncMock, MagicMock
         from fastapi.testclient import TestClient
         from yuu_clip.web.app import create_app
@@ -642,7 +638,7 @@ class TestStatus:
         mock_proc.pid = 99999
         mock_proc.wait = AsyncMock(return_value=0)
         with TestClient(app) as tc:
-            app.state.ctx.ingest_proc = mock_proc
+            app.state.ctx.analyze_proc = mock_proc
             r = tc.get("/api/status")
         assert r.json()["analyze_running"] is True
         assert r.json()["any_running"] is True
@@ -801,15 +797,15 @@ class TestMsToHms:
 class TestFormatContextBlock:
     """format_context_block builds the LLM injection text for named contexts."""
 
-    def _fmt(self, contexts, slugs):
+    def _fmt(self, contexts, context_ids):
         from yuu_clip.contexts import format_context_block
-        return format_context_block(contexts, slugs)
+        return format_context_block(contexts, context_ids)
 
-    def test_empty_slugs_returns_empty_string(self):
+    def test_empty_context_ids_returns_empty_string(self):
         contexts = {"una": {"display_name": "Una", "setting": "A world"}}
         assert self._fmt(contexts, []) == ""
 
-    def test_unknown_slug_skipped(self):
+    def test_unknown_context_id_skipped(self):
         assert self._fmt({}, ["nonexistent"]) == ""
 
     def test_single_context_contains_header_and_footer(self):
@@ -847,7 +843,7 @@ class TestFormatContextBlock:
         assert "Setting one" in result
         assert "Setting two" in result
 
-    def test_slug_order_preserved(self):
+    def test_context_id_order_preserved(self):
         contexts = {
             "a": {"display_name": "Alpha", "setting": "First"},
             "b": {"display_name": "Beta", "setting": "Second"},
@@ -1141,7 +1137,7 @@ class TestMultiExtensionExport:
 class TestSseGuards:
     """Cover 400 guards on SSE event endpoints when no job has been queued."""
 
-    def test_ingest_events_without_start_returns_400(self, client):
+    def test_analyze_events_without_start_returns_400(self, client):
         r = client.get("/api/analyze/events")
         assert r.status_code == 400
 
@@ -1268,10 +1264,10 @@ class TestDeleteExportCleanup:
 # ---------------------------------------------------------------------------
 
 class TestSseCommandCleared:
-    """ingest_cmd and demo_cmd are cleared after the subprocess SSE stream finishes."""
+    """analyze_cmd and demo_cmd are cleared after the subprocess SSE stream finishes."""
 
-    def test_ingest_cmd_cleared_after_events_stream(self, project_dir):
-        """After ingest_events runs to completion, ctx.ingest_cmd must be None."""
+    def test_analyze_cmd_cleared_after_events_stream(self, project_dir):
+        """After analyze_events runs to completion, ctx.analyze_cmd must be None."""
         from fastapi.testclient import TestClient
         from yuu_clip.web.app import create_app
         import sys
@@ -1280,11 +1276,11 @@ class TestSseCommandCleared:
         # Queue a trivial command that exits immediately
         with TestClient(app) as tc:
             ctx = app.state.ctx
-            ctx.ingest_cmd = [sys.executable, "-c", "print('done')"]
+            ctx.analyze_cmd = [sys.executable, "-c", "print('done')"]
             # Consume the stream fully so the generator's finally block runs
             with tc.stream("GET", "/api/analyze/events") as resp:
                 list(resp.iter_lines())
-            assert ctx.ingest_cmd is None
+            assert ctx.analyze_cmd is None
 
     def test_demo_cmd_cleared_after_events_stream(self, project_dir):
         """After demo_events runs to completion, ctx.demo_cmd must be None."""
@@ -1300,7 +1296,7 @@ class TestSseCommandCleared:
                 list(resp.iter_lines())
             assert ctx.demo_cmd is None
 
-    def test_second_call_to_ingest_events_without_new_start_returns_400(self, project_dir):
+    def test_second_call_to_analyze_events_without_new_start_returns_400(self, project_dir):
         """After stream finishes, a second call to /api/analyze/events without a new start
         must return 400, not re-run the old command."""
         from fastapi.testclient import TestClient
@@ -1310,8 +1306,7 @@ class TestSseCommandCleared:
         app = create_app(project_dir)
         with TestClient(app) as tc:
             ctx = app.state.ctx
-            ctx.ingest_cmd = [sys.executable, "-c", "print('done')"]
-            # First call — runs the command
+            ctx.analyze_cmd = [sys.executable, "-c", "print('done')"]
             with tc.stream("GET", "/api/analyze/events") as resp:
                 list(resp.iter_lines())
             # Second call — no command queued, must return 400
@@ -3786,3 +3781,143 @@ class TestAudioEnergyScorerHappyPath:
 
         # Score should be 0.0 (below baseline) — quiet clip in a loud video
         assert result.score_action == 0.0
+
+
+# ---------------------------------------------------------------------------
+# contexts.py — load/save/seed unit tests
+# ---------------------------------------------------------------------------
+
+class TestLoadSaveContexts:
+    def test_load_contexts_returns_empty_when_no_file(self, tmp_path):
+        from yuu_clip.contexts import load_contexts
+        assert load_contexts(tmp_path) == {}
+
+    def test_save_and_load_roundtrip(self, tmp_path):
+        from yuu_clip.contexts import load_contexts, save_contexts
+        data = {"my-ctx": {"display_name": "My Ctx", "setting": "A world"}}
+        save_contexts(tmp_path, data)
+        assert load_contexts(tmp_path) == data
+
+    def test_save_creates_parent_dirs(self, tmp_path):
+        from yuu_clip.contexts import save_contexts, load_contexts
+        nested = tmp_path / "deep" / "project"
+        save_contexts(nested, {"x": {"display_name": "X"}})
+        assert load_contexts(nested) == {"x": {"display_name": "X"}}
+
+    def test_seed_builtin_contexts_writes_all_builtins(self, tmp_path):
+        from yuu_clip.contexts import seed_builtin_contexts, load_contexts, BUILTIN_IDS
+        seed_builtin_contexts(tmp_path)
+        result = load_contexts(tmp_path)
+        assert BUILTIN_IDS <= set(result)
+
+    def test_seed_builtin_contexts_does_not_overwrite_existing(self, tmp_path):
+        from yuu_clip.contexts import seed_builtin_contexts, save_contexts, load_contexts
+        existing = {"fantasy-rp": {"display_name": "Custom", "setting": "changed"}}
+        save_contexts(tmp_path, existing)
+        seed_builtin_contexts(tmp_path)
+        result = load_contexts(tmp_path)
+        assert result["fantasy-rp"]["display_name"] == "Custom"
+
+    def test_seed_builtin_contexts_adds_timestamps(self, tmp_path):
+        from yuu_clip.contexts import seed_builtin_contexts, load_contexts
+        seed_builtin_contexts(tmp_path)
+        result = load_contexts(tmp_path)
+        ctx = result["fantasy-rp"]
+        assert "created_at" in ctx
+        assert "updated_at" in ctx
+
+    def test_seed_is_idempotent(self, tmp_path):
+        from yuu_clip.contexts import seed_builtin_contexts, load_contexts
+        seed_builtin_contexts(tmp_path)
+        first = load_contexts(tmp_path)
+        seed_builtin_contexts(tmp_path)
+        second = load_contexts(tmp_path)
+        assert first == second
+
+
+# ---------------------------------------------------------------------------
+# config.py — load_profiles / save_profile / delete_profile unit tests
+# ---------------------------------------------------------------------------
+
+class TestProfileFunctions:
+    def test_load_profiles_returns_empty_when_no_file(self, monkeypatch, tmp_path):
+        from yuu_clip import config as cfg_mod
+        monkeypatch.setattr(cfg_mod, "_profiles_path", lambda: tmp_path / "profiles.json")
+        from yuu_clip.config import load_profiles
+        assert load_profiles() == {}
+
+    def test_save_and_load_profile(self, monkeypatch, tmp_path):
+        from yuu_clip import config as cfg_mod
+        monkeypatch.setattr(cfg_mod, "_profiles_path", lambda: tmp_path / "profiles.json")
+        from yuu_clip.config import save_profile, load_profiles
+        assignments = [{"stream_position": 0, "label": "combined", "do_transcribe": True, "do_score": True}]
+        save_profile("my_layout", assignments)
+        result = load_profiles()
+        assert "my_layout" in result
+        assert result["my_layout"]["assignments"] == assignments
+        assert result["my_layout"]["num_tracks"] == 1
+
+    def test_save_profile_overwrites_existing(self, monkeypatch, tmp_path):
+        from yuu_clip import config as cfg_mod
+        monkeypatch.setattr(cfg_mod, "_profiles_path", lambda: tmp_path / "profiles.json")
+        from yuu_clip.config import save_profile, load_profiles
+        save_profile("p", [{"stream_position": 0, "label": "old"}])
+        save_profile("p", [{"stream_position": 0, "label": "new"}, {"stream_position": 1, "label": "voice"}])
+        result = load_profiles()
+        assert result["p"]["num_tracks"] == 2
+        assert result["p"]["assignments"][0]["label"] == "new"
+
+    def test_delete_profile_removes_entry(self, monkeypatch, tmp_path):
+        from yuu_clip import config as cfg_mod
+        monkeypatch.setattr(cfg_mod, "_profiles_path", lambda: tmp_path / "profiles.json")
+        from yuu_clip.config import save_profile, delete_profile, load_profiles
+        save_profile("to_remove", [])
+        delete_profile("to_remove")
+        assert "to_remove" not in load_profiles()
+
+    def test_delete_profile_nonexistent_is_no_op(self, monkeypatch, tmp_path):
+        from yuu_clip import config as cfg_mod
+        monkeypatch.setattr(cfg_mod, "_profiles_path", lambda: tmp_path / "profiles.json")
+        from yuu_clip.config import delete_profile, load_profiles
+        delete_profile("ghost")
+        assert load_profiles() == {}
+
+
+# ---------------------------------------------------------------------------
+# Preview cache invalidation — regression test
+# ---------------------------------------------------------------------------
+
+class TestPreviewCacheInvalidation:
+    """Updating clip timing must evict the cached preview file so the next
+    request regenerates it from the new offsets."""
+
+    def _first_clip_id(self, client) -> int:
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        return client.get(f"/api/videos/{vid_id}/clips").json()[0]["id"]
+
+    def test_timing_update_evicts_preview_cache(self, client, project_dir):
+        """After PATCH /timing, the in-memory cache entry for that clip must be
+        removed so a stale preview is never served."""
+        from yuu_clip.web.routes import videos as videos_mod
+
+        clip_id = self._first_clip_id(client)
+
+        # Manually plant a fake preview file in the module-level cache to simulate
+        # a previously generated preview.
+        preview_dir = project_dir / ".yuu-clip" / "preview_cache"
+        preview_dir.mkdir(parents=True, exist_ok=True)
+        fake_preview = preview_dir / f"clip_{clip_id}_preview.mp4"
+        fake_preview.write_bytes(b"old preview content")
+        videos_mod._preview_cache[clip_id] = fake_preview
+
+        # Update clip timing — this must evict the cache entry and delete the file.
+        r = client.patch(f"/api/clips/{clip_id}/timing",
+                         json={"start_offset": 2.0, "end_offset": -1.0})
+        assert r.status_code == 200
+
+        assert clip_id not in videos_mod._preview_cache, (
+            "Cache entry was not evicted after timing update"
+        )
+        assert not fake_preview.exists(), (
+            "Stale preview file was not deleted after timing update"
+        )

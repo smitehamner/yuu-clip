@@ -23,11 +23,12 @@ class ScoringEngine:
         if not self._scorers:
             _log.warning("ScoringEngine: no scorers are available — clips will not be scored")
 
-    # Tags emitted by scorers — stripped before each re-score so stale
+    # All tags a scorer may emit — stripped before each re-score so stale
     # results from a previous partial run don't accumulate.
     _SCORER_TAGS: frozenset[str] = frozenset({
-        "energy_scored", "scenes_scored",
-        "llm_scored", "llm_error", "llm_skipped", "llm_no_transcript",
+        "energy_scored", "energy_no_tracks", "energy_no_data",
+        "scenes_scored",
+        "llm_scored", "llm_error", "llm_no_transcript",
     })
 
     def score_clip(self, clip: "ClipCandidate", session: "Session") -> None:

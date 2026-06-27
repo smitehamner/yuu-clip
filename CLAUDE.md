@@ -110,6 +110,13 @@ Key terms to get right (common sources of drift):
 - "Clip" — not "clip candidate" in user-facing text (code: `ClipCandidate`)
 - "Unreviewed" — not "Pending" in user-facing text (code: `status = 'pending'`)
 - "Highlight reel" — not "demo reel" in user-facing text (code: `demo_reel`)
+- "Context ID" — not "slug" in user-facing text (code: `context_slug`)
+- "Captions" — not "subtitles" in user-facing text (code: `subtitles`, SRT)
+- "Clip generation" — not "segmentation" in user-facing text
+- "Track role" — not "label" in user-facing text (code: `track.label`)
+- "Last scored with" — not "provenance" in user-facing text
+
+Use these glossary terms in **conversation** too, not just in code. If discussing a concept with the user, use the user-facing term (e.g. say "track layout" not "profile", "world context" not "RP context").
 
 ## Behavior
 - Never cd into the current working directory before running a command
@@ -126,6 +133,7 @@ Key terms to get right (common sources of drift):
 - Test behavior, not implementation
 - If you change existing code, verify existing tests still make sense
 - Run `.\scripts\test-api.ps1` before reporting any backend fix as done
+- If stuck in a circular codegen loop, write a minimal test first instead of iterating further on the implementation
 
 ## Code standards
 

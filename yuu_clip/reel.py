@@ -117,19 +117,24 @@ def _make_title_card(
         subprocess.run(cmd, check=True)
 
 
-def _probe_fps(path: Path) -> float:
-    """Return video frame rate as a float via ffprobe."""
+def _ffprobe_stream_value(path: Path, entry: str) -> str:
+    """Return one stream entry value from ffprobe, or empty string if unavailable."""
     result = subprocess.run(
         [
             "ffprobe", "-v", "error",
             "-select_streams", "v:0",
-            "-show_entries", "stream=r_frame_rate",
+            "-show_entries", f"stream={entry}",
             "-of", "default=noprint_wrappers=1:nokey=1",
             str(path),
         ],
         capture_output=True, text=True, check=True,
     )
-    out = result.stdout.strip()
+    return result.stdout.strip()
+
+
+def _probe_fps(path: Path) -> float:
+    """Return video frame rate as a float via ffprobe."""
+    out = _ffprobe_stream_value(path, "r_frame_rate")
     if "/" in out:
         num, den = out.split("/")
         return float(num) / float(den)
@@ -138,17 +143,7 @@ def _probe_fps(path: Path) -> float:
 
 def _probe_duration(path: Path) -> float:
     """Return duration in seconds via ffprobe."""
-    result = subprocess.run(
-        [
-            "ffprobe", "-v", "error",
-            "-select_streams", "v:0",
-            "-show_entries", "stream=duration",
-            "-of", "default=noprint_wrappers=1:nokey=1",
-            str(path),
-        ],
-        capture_output=True, text=True, check=True,
-    )
-    out = result.stdout.strip()
+    out = _ffprobe_stream_value(path, "duration")
     if not out or out == "N/A":
         result2 = subprocess.run(
             ["ffprobe", "-v", "error", "-show_entries", "format=duration",
@@ -270,6 +265,82 @@ def _compile_xfade_random(
     subprocess.run(_build_xfade_cmd(segments, durations, output, transitions, trans_dur), check=True)
 
 
+def _resolve_clip_files(
+    clips: list["ClipCandidate"],
+    video_map: dict[int, "Video"],
+    export_dir: Path,
+) -> tuple[list[Path], list[float], float]:
+    """Locate exported files for each clip and probe their durations.
+
+    Returns (clip_files, clip_durations, fps_of_first_file).
+    Raises FileNotFoundError if any clip has no exported file.
+    """
+    clip_files: list[Path] = []
+    clip_durations: list[float] = []
+    detected_fps: Optional[float] = None
+    for clip in clips:
+        video = video_map[clip.video_id]
+        stem = Path(video.filename).stem
+        base = f"{stem}_clip{clip.id}_{clip.start_hms.replace(':', '-')}"
+        clip_file = next(
+            (export_dir / f"{base}{ext}"
+             for ext in (".mkv", ".mp4", ".mov", ".avi", ".webm")
+             if (export_dir / f"{base}{ext}").exists()),
+            None,
+        )
+        if clip_file is None:
+            raise FileNotFoundError(
+                f"Export not found for clip {clip.id} (tried .mkv/.mp4/.mov/.avi/.webm in {export_dir})\n"
+                f"Run 'yuuclip export {clip.id}' first."
+            )
+        if detected_fps is None:
+            try:
+                detected_fps = _probe_fps(clip_file)
+            except Exception as exc:
+                _log.warning("Could not probe fps for %s: %s — using 30 fps", clip_file, exc)
+                detected_fps = 30.0
+        clip_files.append(clip_file)
+        clip_durations.append(_probe_duration(clip_file))
+    return clip_files, clip_durations, detected_fps or 30.0
+
+
+def _build_segment_list(
+    clips: list["ClipCandidate"],
+    video_map: dict[int, "Video"],
+    clip_files: list[Path],
+    clip_durations: list[float],
+    tmp_dir: Path,
+    fps: float,
+    title_dur: float,
+) -> tuple[list[Path], list[float]]:
+    """Render title cards and interleave them with clip files.
+
+    Returns (segments, durations) — alternating title card, clip file for each clip.
+    """
+    n = len(clips)
+    segments: list[Path] = []
+    durations: list[float] = []
+    for idx, (clip, clip_file, clip_dur) in enumerate(zip(clips, clip_files, clip_durations)):
+        video = video_map[clip.video_id]
+        session_date = Path(video.filename).stem[:10]
+        title_lines: list[tuple[str, int]] = [
+            (f"Clip {idx + 1} of {n}", _DEFAULT_FONT_SIZE_H1),
+            (session_date, _DEFAULT_FONT_SIZE_H2),
+        ]
+        if clip.description:
+            title_lines.append((clip.description, _DEFAULT_FONT_SIZE_BODY))
+
+        print(f"Generating title card {idx + 1}/{n}…", flush=True)
+        card_path = tmp_dir / f"title_{idx:03d}.mkv"
+        _make_title_card(title_lines, card_path, duration=title_dur, fps=fps)
+        segments.append(card_path)
+        durations.append(title_dur)
+
+        segments.append(clip_file)
+        durations.append(clip_dur)
+    return segments, durations
+
+
 def compile_demo(
     clips: list["ClipCandidate"],
     video_map: dict[int, "Video"],
@@ -279,8 +350,7 @@ def compile_demo(
     trans_dur: float = _DEFAULT_TRANS_DUR,
     title_dur: float = _DEFAULT_TITLE_DUR,
 ) -> None:
-    """
-    Build a highlight reel from *clips*.
+    """Build a highlight reel from *clips*.
 
     Each clip must have a corresponding exported file in *export_dir*.
     Title cards are generated in a temp directory and cleaned up afterward.
@@ -291,86 +361,31 @@ def compile_demo(
         raise ValueError(f"transition must be one of {TRANSITIONS}")
 
     _RANDOM_POOL = [t for t in TRANSITIONS if t not in ("none", "random")]
-
-    effective_transition = transition
     n = len(clips)
 
-    clip_files: list[Path] = []
-    clip_durations: list[float] = []
-    clip_fps: Optional[float] = None
-    for clip in clips:
-        video = video_map[clip.video_id]
-        stem = Path(video.filename).stem
-        start_hms = clip.start_hms.replace(":", "-")
-        base = f"{stem}_clip{clip.id}_{start_hms}"
-        clip_file = None
-        for ext in (".mkv", ".mp4", ".mov", ".avi", ".webm"):
-            candidate = export_dir / f"{base}{ext}"
-            if candidate.exists():
-                clip_file = candidate
-                break
-        if clip_file is None:
-            raise FileNotFoundError(
-                f"Export not found for clip {clip.id} (tried .mkv/.mp4/.mov/.avi/.webm in {export_dir})\n"
-                f"Run 'yuuclip export {clip.id}' first."
-            )
-        if clip_fps is None:
-            try:
-                clip_fps = _probe_fps(clip_file)
-            except Exception as exc:
-                _log.warning("Could not probe fps for %s: %s — using 30 fps", clip_file, exc)
-                clip_fps = 30.0
-        clip_files.append(clip_file)
-        clip_durations.append(_probe_duration(clip_file))
-
+    clip_files, clip_durations, clip_fps = _resolve_clip_files(clips, video_map, export_dir)
     total_footage = sum(clip_durations)
-    if effective_transition == "none":
+
+    if transition == "none":
         msg = f"Compiling {n} clip(s) — {total_footage:.0f}s footage — stream copy (fast)"
-        _log.info(msg)
-        print(msg, flush=True)
     else:
-        total_encode = total_footage + n * title_dur
-        eta = total_encode / 3.0
+        eta = (total_footage + n * title_dur) / 3.0
         msg = f"Compiling {n} clip(s) — {total_footage:.0f}s footage — estimated encode ~{eta:.0f}s"
-        _log.info(msg)
-        print(msg, flush=True)
+    _log.info(msg)
+    print(msg, flush=True)
 
     with tempfile.TemporaryDirectory() as tmp:
-        tmp_dir = Path(tmp)
-        segments: list[Path] = []
-        durations: list[float] = []
-
-        for idx, (clip, clip_file, clip_dur) in enumerate(
-            zip(clips, clip_files, clip_durations)
-        ):
-            video = video_map[clip.video_id]
-            stem = Path(video.filename).stem
-            session_date = stem[:10]
-            title_lines: list[tuple[str, int]] = [
-                (f"Clip {idx + 1} of {n}", _DEFAULT_FONT_SIZE_H1),
-                (session_date, _DEFAULT_FONT_SIZE_H2),
-            ]
-            if clip.description:
-                title_lines.append((clip.description, _DEFAULT_FONT_SIZE_BODY))
-
-            print(f"Generating title card {idx + 1}/{n}…", flush=True)
-            card_path = tmp_dir / f"title_{idx:03d}.mkv"
-            _make_title_card(title_lines, card_path, duration=title_dur,
-                             fps=clip_fps or 30.0)
-            segments.append(card_path)
-            durations.append(title_dur)
-
-            segments.append(clip_file)
-            durations.append(clip_dur)
-
+        segments, durations = _build_segment_list(
+            clips, video_map, clip_files, clip_durations, Path(tmp), clip_fps, title_dur,
+        )
         _log.info("Encoding final reel (%ds footage) → %s", int(total_footage), output.name)
         print(f"Encoding final reel ({total_footage:.0f}s footage)…", flush=True)
-        if effective_transition == "none":
+        if transition == "none":
             _compile_concat(segments, output)
-        elif effective_transition == "random":
+        elif transition == "random":
             _compile_xfade_random(segments, durations, output, _RANDOM_POOL, trans_dur, _random)
         else:
-            _compile_xfade(segments, durations, output, effective_transition, trans_dur)
+            _compile_xfade(segments, durations, output, transition, trans_dur)
         size_mb = output.stat().st_size / (1024 * 1024)
         _log.info("Reel encode complete: %s (%.1f MB)", output.name, size_mb)
         print("Encode complete.", flush=True)

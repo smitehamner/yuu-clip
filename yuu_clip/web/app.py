@@ -16,6 +16,7 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+from yuu_clip.contexts import seed_builtin_contexts
 from yuu_clip.log import configure_logging, get_logger
 from yuu_clip.web.deps import ProjectContext
 from yuu_clip.web.routes import analyze, contexts, logs, profiles, reel, videos
@@ -46,13 +47,14 @@ def create_app(project_dir: Path) -> FastAPI:
     ctx = ProjectContext(project_dir)
     ctx.export_dir.mkdir(parents=True, exist_ok=True)
     ctx.reels_dir.mkdir(parents=True, exist_ok=True)
+    seed_builtin_contexts(project_dir)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         yield
-        proc = ctx.ingest_proc
+        proc = ctx.analyze_proc
         if proc is not None and proc.returncode is None:
-            _log.info("Server shutting down — terminating ingest subprocess (pid %s)", proc.pid)
+            _log.info("Server shutting down — terminating analyze subprocess (pid %s)", proc.pid)
             proc.terminate()
             try:
                 await asyncio.wait_for(proc.wait(), timeout=5.0)

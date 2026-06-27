@@ -10,14 +10,16 @@ from __future__ import annotations
 import asyncio
 import json as json_lib
 import re
+import subprocess as _subprocess
 import sys
+from collections import OrderedDict
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
-from fastapi.responses import PlainTextResponse, StreamingResponse
+from fastapi.responses import FileResponse, PlainTextResponse, StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import case, func
 
@@ -99,9 +101,6 @@ class ConfigPatch(BaseModel):
     silence_threshold_ms:         Optional[int]   = None
     min_clip_ms:                  Optional[int]   = None
 
-
-# Kept for backwards compat — PATCH /api/config uses ConfigPatch now
-UiConfigUpdate = ConfigPatch
 
 @asynccontextmanager
 async def _active_job(ctx):
@@ -304,7 +303,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                     except Exception as exc:
                         score_db.rollback()
                         error = str(exc)
-                        _log.error("rescore_clips: clip %d failed for video %d: %s", clip_id, video_id, exc)
+                        _log.error("rescore_clips: clip %d failed for video %d: %s", clip_id, video_id, exc, exc_info=True)
                     finally:
                         score_db.close()
                     if error:
@@ -404,7 +403,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                             generate_timeline_chunk, chunk_text, start_hms, end_hms, window_clips, config, context_text
                         )
                     except Exception as exc:
-                        _log.error("timeline chunk %s–%s failed for video %d: %s", start_hms, end_hms, video_id, exc)
+                        _log.error("timeline chunk %s–%s failed for video %d: %s", start_hms, end_hms, video_id, exc, exc_info=True)
                         entry_text = f"[Error generating entry: {exc}]"
 
                     entry = {"start_hms": start_hms, "end_hms": end_hms, "text": entry_text}
@@ -587,6 +586,60 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         finally:
             db.close()
 
+    @router.get("/api/clips/{clip_id}/preview")
+    def clip_preview(clip_id: int):
+        """Generate a seekable MP4 preview of a clip from the source video (cached on disk)."""
+        cached = _preview_cache.get(clip_id)
+        if cached and cached.exists():
+            _preview_cache.move_to_end(clip_id)
+            return FileResponse(str(cached), media_type="video/mp4")
+
+        db = ctx.get_db()
+        try:
+            clip = _require_clip(db, clip_id)
+            video = db.get(Video, clip.video_id)
+        finally:
+            db.close()
+
+        if not video:
+            raise HTTPException(404, "Video not found")
+        src = Path(video.path)
+        if not src.exists():
+            raise HTTPException(404, "Source video file not found on disk")
+
+        start_s = clip.start_ms / 1000 + (clip.start_offset or 0)
+        end_s = clip.end_ms / 1000 + (clip.end_offset or 0)
+        duration_s = max(0.1, end_s - start_s)
+
+        preview_dir = ctx.data_dir / "preview_cache"
+        preview_dir.mkdir(exist_ok=True)
+        out_path = preview_dir / f"clip_{clip_id}_preview.mp4"
+
+        result = _subprocess.run(
+            [
+                "ffmpeg", "-y",
+                "-ss", str(start_s),
+                "-i", str(src),
+                "-t", str(duration_s),
+                "-c", "copy",
+                "-f", "mp4",
+                "-movflags", "+faststart",
+                str(out_path),
+            ],
+            stderr=_subprocess.DEVNULL,
+        )
+        if result.returncode != 0 or not out_path.exists():
+            _log.error("Preview generation failed for clip %d (rc=%d, src=%s)", clip_id, result.returncode, src.name)
+            raise HTTPException(500, "Preview generation failed")
+
+        _preview_cache[clip_id] = out_path
+        _preview_cache.move_to_end(clip_id)
+        if len(_preview_cache) > _PREVIEW_CACHE_MAX:
+            _, old = _preview_cache.popitem(last=False)
+            old.unlink(missing_ok=True)
+
+        return FileResponse(str(out_path), media_type="video/mp4")
+
     @router.delete("/api/videos/{video_id}")
     def delete_video(video_id: int):
         """Remove a video and all its data from the database. Source file is NOT deleted."""
@@ -616,6 +669,21 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             db.commit()
             _log.info("Deleted video %d (%s) and %d exported clip(s)", video_id, video.filename, len(clips))
             return {"deleted": video_id}
+        finally:
+            db.close()
+
+    @router.delete("/api/clips/{clip_id}/export")
+    def delete_clip_export(clip_id: int):
+        """Delete the exported file(s) for a clip from disk; keeps the clip record."""
+        db = ctx.get_db()
+        try:
+            clip = _require_clip(db, clip_id)
+            video = db.get(Video, clip.video_id)
+            deleted = [p for p in _all_sidecar_paths(clip, video, ctx.export_dir) if p.exists()]
+            for p in deleted:
+                p.unlink()
+            _log.info("Cleared export for clip %d (%d file(s))", clip_id, len(deleted))
+            return {"clip_id": clip_id, "files_deleted": len(deleted)}
         finally:
             db.close()
 
@@ -724,7 +792,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                             _log.error("batch_export: clip %d export failed for video %d (rc=%d): %s", cid, video_id, proc.returncode, last)
                             yield f"data: {json_lib.dumps(f'[Error clip {cid}: {last}]')}\n\n"
                     except Exception as exc:
-                        _log.error("batch_export: clip %d subprocess failed for video %d: %s", cid, video_id, exc)
+                        _log.error("batch_export: clip %d subprocess failed for video %d: %s", cid, video_id, exc, exc_info=True)
                         yield f"data: {json_lib.dumps(f'[Error clip {cid}: {exc}]')}\n\n"
 
                 yield f"data: {json_lib.dumps(f'Batch export complete: {exported} exported, {skipped} skipped')}\n\n"
@@ -779,6 +847,10 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             clip.start_offset = body.start_offset
             clip.end_offset   = body.end_offset
             db.commit()
+            # Invalidate the cached preview so the next request reflects the new timing.
+            cached = _preview_cache.pop(clip_id, None)
+            if cached:
+                cached.unlink(missing_ok=True)
             return {"start_offset": clip.start_offset, "end_offset": clip.end_offset}
         finally:
             db.close()
@@ -825,7 +897,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                 except Exception as exc:
                     score_db.rollback()
                     error = str(exc)
-                    _log.error("rescore_clip: clip %d failed: %s", clip_id, exc)
+                    _log.error("rescore_clip: clip %d failed: %s", clip_id, exc, exc_info=True)
                 finally:
                     score_db.close()
 
@@ -908,6 +980,10 @@ def _srt_to_vtt(srt: str) -> str:
 _EMPTY_STATS = {"clip_count": 0, "approved": 0, "total_clip_ms": 0}
 _SSE_HEADERS = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
 
+# LRU cache of preview temp files keyed by clip_id. Evicts oldest when full.
+_preview_cache: OrderedDict[int, Path] = OrderedDict()
+_PREVIEW_CACHE_MAX = 10
+
 
 def _sse_response(generator) -> StreamingResponse:
     return StreamingResponse(generator, media_type="text/event-stream", headers=_SSE_HEADERS)
@@ -970,12 +1046,25 @@ def _video_dict(video: Video, stats: dict) -> dict:
     }
 
 
+def _subtitle_status(clip: ClipCandidate, video: Optional[Video], export_dir: Optional[Path]) -> str:
+    if clip.exported_burn_subs:
+        return "baked-in"
+    if export_dir and video and _srt_path(clip, video, export_dir) is not None:
+        return "srt-sidecar"
+    return "none"
+
+
 def _clip_dict(
     clip: ClipCandidate,
     full: bool = False,
     export_dir: Optional[Path] = None,
     video: Optional[Video] = None,
 ) -> dict:
+    has_export = (
+        export_dir is not None
+        and video is not None
+        and any(p.exists() for p in _export_paths(clip, video, export_dir))
+    )
     d = {
         "id": clip.id,
         "video_id": clip.video_id,
@@ -997,11 +1086,11 @@ def _clip_dict(
         "end_offset": clip.end_offset,
         "status": clip.status,
         "tags": clip.tags,
-        "has_export": (
-            export_dir is not None
-            and video is not None
-            and any(p.exists() for p in _export_paths(clip, video, export_dir))
-        ),
+        "has_export": has_export,
+        "exported_at": clip.exported_at.isoformat() if clip.exported_at else None,
+        "exported_container": clip.exported_container or None,
+        "exported_burn_subs": clip.exported_burn_subs,
+        "subtitle_status": _subtitle_status(clip, video, export_dir) if has_export else "none",
     }
     if full:
         d["transcript_excerpt"] = clip.transcript_excerpt or ""

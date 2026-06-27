@@ -105,7 +105,7 @@ def _detect_content(video_path: str, frame_skip: int = 0) -> list[int]:
         scenes = detect(video_path, ContentDetector(), frame_skip=frame_skip)
         return [int(s[0].get_seconds() * 1000) for s in scenes]
     except Exception as exc:
-        log.error("ContentDetector failed: %s", exc)
+        log.error("ContentDetector failed: %s", exc, exc_info=True)
         return []
 
 

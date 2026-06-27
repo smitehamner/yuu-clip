@@ -1,9 +1,13 @@
 """
-LLMScorer — sends the transcript excerpt to a local Ollama instance and parses
-the returned dimension scores.
+LLMScorer — sends the transcript excerpt to an LLM and parses dimension scores.
 
-Requires Ollama running on ollama_host with ollama_model pulled.
-Gracefully degrades: if Ollama is unreachable or returns bad output,
+Supports two backends (config: llm_backend):
+  "ollama"   — Ollama HTTP API; requires Ollama running on ollama_host
+               with ollama_model pulled.
+  "llamacpp" — llama-cpp-python; requires llm_model_path pointing to a
+               .gguf file and llama-cpp-python installed.
+
+Gracefully degrades: if the backend is unreachable or returns bad output,
 logs a warning and returns a zero ScoreResult so ingest is never blocked.
 """
 from __future__ import annotations
@@ -190,7 +194,7 @@ class LLMScorer:
             raw = self._call_llm(clip.transcript_excerpt)
             data = self._parse(raw)
         except Exception as exc:
-            log.warning("LLM scoring failed for clip %d: %s", clip.id, exc)
+            log.warning("LLM scoring failed for clip %d: %s", clip.id, exc, exc_info=True)
             return ScoreResult(tags=["llm_error"])
 
         model_id = (

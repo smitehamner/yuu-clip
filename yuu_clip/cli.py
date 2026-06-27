@@ -414,7 +414,7 @@ def _generate_candidates(video, transcripts, config, session, no_segment, no_tra
 
     if no_segment or not transcripts:
         if not transcripts and not no_transcribe:
-            console.print("  [yellow]  No transcripts available — skipping segmentation[/yellow]")
+            console.print("  [yellow]  No transcripts available — skipping clip generation[/yellow]")
         else:
             video.status = "transcribed"
         session.flush()
@@ -424,7 +424,7 @@ def _generate_candidates(video, transcripts, config, session, no_segment, no_tra
         from yuu_clip.db.models import ClipCandidate
         deleted = session.query(ClipCandidate).filter_by(video_id=video.id).delete()
         if deleted:
-            console.print(f"  [dim]  Cleared {deleted} existing candidates (--force)[/dim]")
+            console.print(f"  [dim]  Cleared {deleted} existing clips (--force)[/dim]")
 
     console.print("  [bold]Generating clips...[/bold]")
     candidates = generate_candidates(video, transcripts, config, session)
@@ -474,7 +474,7 @@ def _run_scoring(video, track_objs, config, session, energy_mode: str = "fast", 
         video, session,
         progress_cb=lambda i, total: console.print(f"  Scoring {i}/{total}..."),
     )
-    console.print(f"  [green]  OK[/green] {n} candidates scored")
+    console.print(f"  [green]  OK[/green] {n} clips scored")
     video.clips_scored_at = datetime.now(timezone.utc)
     video.clips_scored_context_json = video.context_names_json or "[]"
     session.flush()
@@ -687,6 +687,11 @@ def export(
         )
         size_mb = result.stat().st_size / BYTES_PER_MB
         console.print(f"  [green]OK[/green] Saved to [cyan]{result}[/cyan]  [dim]({size_mb:.1f} MB)[/dim]")
+        from datetime import datetime, timezone as _tz
+        cand.exported_at = datetime.now(_tz.utc)
+        cand.exported_container = result.suffix.lstrip(".")
+        cand.exported_burn_subs = bake_captions
+        session.commit()
     except RuntimeError as e:
         console.print(f"  [red]Export failed: {e}[/red]")
         raise typer.Exit(1)

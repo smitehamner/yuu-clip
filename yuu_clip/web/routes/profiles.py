@@ -10,7 +10,10 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from yuu_clip.log import get_logger
 from yuu_clip.web.deps import ProjectContext
+
+_log = get_logger(__name__)
 
 
 class ProfileSave(BaseModel):
@@ -42,6 +45,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         if not body.name or body.name.startswith("__"):
             raise HTTPException(400, "Invalid track layout name — names beginning with __ are reserved")
         _save(body.name, body.assignments)
+        _log.info("Track layout saved: %r (%d track(s))", body.name, len(body.assignments))
         return {"name": body.name}
 
     @router.delete("/api/profiles/{name}")
@@ -50,6 +54,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         if name.startswith("__"):
             raise HTTPException(400, "Built-in track layouts cannot be deleted")
         _delete(name)
+        _log.info("Track layout deleted: %r", name)
         return {"deleted": name}
 
     return router

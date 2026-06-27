@@ -31,7 +31,7 @@ async def subprocess_sse(cmd: list[str], cwd: Path, ctx=None) -> StreamingRespon
     """Run *cmd* as a subprocess and stream its stdout as an SSE response.
 
     If *ctx* is a ProjectContext, the running process is stored on
-    ``ctx.ingest_proc`` so it can be terminated via the cancel endpoint.
+    ``ctx.analyze_proc`` so it can be terminated via the cancel endpoint.
     """
 
     async def _generate() -> AsyncGenerator[str, None]:
@@ -45,15 +45,15 @@ async def subprocess_sse(cmd: list[str], cwd: Path, ctx=None) -> StreamingRespon
         assert proc.stdout
         _log.info("Subprocess started (pid %s): %s", proc.pid, cmd[2] if len(cmd) > 2 else cmd[0])
         if ctx is not None:
-            ctx.ingest_proc = proc
+            ctx.analyze_proc = proc
         try:
             async for raw_line in proc.stdout:
                 text = raw_line.decode("utf-8", errors="replace").rstrip()
                 _log.debug("[subprocess] %s", text)
                 yield f"data: {json.dumps(text)}\n\n"
             await proc.wait()
-            if ctx is not None and ctx.ingest_cancelled:
-                ctx.ingest_cancelled = False
+            if ctx is not None and ctx.analyze_cancelled:
+                ctx.analyze_cancelled = False
                 _log.info("Subprocess (pid %s) cancelled by user", proc.pid)
                 yield f"data: {json.dumps('[Analysis cancelled]')}\n\n"
             elif proc.returncode != 0:
@@ -70,8 +70,8 @@ async def subprocess_sse(cmd: list[str], cwd: Path, ctx=None) -> StreamingRespon
                 proc.terminate()
                 await proc.wait()
             if ctx is not None:
-                ctx.ingest_proc = None
-                ctx.ingest_cmd = None
+                ctx.analyze_proc = None
+                ctx.analyze_cmd = None
                 ctx.demo_cmd = None
 
     return StreamingResponse(_generate(), media_type="text/event-stream")

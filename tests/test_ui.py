@@ -59,63 +59,63 @@ class TestPageLoad:
 
 
 # ---------------------------------------------------------------------------
-# Ingest modal
+# Analyze modal
 # ---------------------------------------------------------------------------
 
 @skip_no_server
-class TestIngestModal:
+class TestAnalyzeModal:
     def test_opens_and_closes(self, page: Page):
         page.goto(LIVE_URL)
-        page.click("#btn-ingest")
-        expect(page.locator("#ingest-modal")).to_be_visible()
+        page.click("#btn-analyze")
+        expect(page.locator("#analyze-modal")).to_be_visible()
         page.click("text=Cancel")
-        expect(page.locator("#ingest-modal")).not_to_be_visible()
+        expect(page.locator("#analyze-modal")).not_to_be_visible()
 
     def test_profile_dropdown_has_default(self, page: Page):
         page.goto(LIVE_URL)
-        page.click("#btn-ingest")
-        page.wait_for_selector("#ingest-profile option", timeout=3000)
-        options = page.locator("#ingest-profile option")
+        page.click("#btn-analyze")
+        page.wait_for_selector("#analyze-profile option", timeout=3000)
+        options = page.locator("#analyze-profile option")
         texts = [options.nth(i).text_content() for i in range(options.count())]
         assert any("Default" in t or "combined" in t.lower() for t in texts)
 
     def test_model_dropdown_default_is_medium(self, page: Page):
         page.goto(LIVE_URL)
-        page.click("#btn-ingest")
-        selected = page.locator("#ingest-model").input_value()
+        page.click("#btn-analyze")
+        selected = page.locator("#analyze-model").input_value()
         assert selected == "medium"
 
     def test_scene_mode_default_is_fast(self, page: Page):
         page.goto(LIVE_URL)
-        page.click("#btn-ingest")
-        selected = page.locator("#ingest-scene-mode").input_value()
+        page.click("#btn-analyze")
+        selected = page.locator("#analyze-scene-mode").input_value()
         assert selected == "fast"
 
-    def test_start_ingest_button_disabled_on_open(self, page: Page):
+    def test_start_analyze_button_disabled_on_open(self, page: Page):
         page.goto(LIVE_URL)
-        page.click("#btn-ingest")
-        expect(page.locator("#btn-start-ingest")).to_be_disabled()
+        page.click("#btn-analyze")
+        expect(page.locator("#btn-start-analyze")).to_be_disabled()
 
     def test_energy_mode_dropdown_visible_in_advanced(self, page: Page):
         page.goto(LIVE_URL)
-        page.click("#btn-ingest")
+        page.click("#btn-analyze")
         page.locator("details.advanced summary").click()
-        page.wait_for_selector("#ingest-energy-mode", timeout=2000)
-        expect(page.locator("#ingest-energy-mode")).to_be_visible()
+        page.wait_for_selector("#analyze-energy-mode", timeout=2000)
+        expect(page.locator("#analyze-energy-mode")).to_be_visible()
 
     def test_energy_mode_default_is_fast(self, page: Page):
         page.goto(LIVE_URL)
-        page.click("#btn-ingest")
+        page.click("#btn-analyze")
         page.locator("details.advanced summary").click()
-        page.wait_for_selector("#ingest-energy-mode", timeout=2000)
-        assert page.locator("#ingest-energy-mode").input_value() == "fast"
+        page.wait_for_selector("#analyze-energy-mode", timeout=2000)
+        assert page.locator("#analyze-energy-mode").input_value() == "fast"
 
     def test_energy_mode_has_none_and_full_options(self, page: Page):
         page.goto(LIVE_URL)
-        page.click("#btn-ingest")
+        page.click("#btn-analyze")
         page.locator("details.advanced summary").click()
-        page.wait_for_selector("#ingest-energy-mode", timeout=2000)
-        options = page.locator("#ingest-energy-mode option")
+        page.wait_for_selector("#analyze-energy-mode", timeout=2000)
+        options = page.locator("#analyze-energy-mode option")
         values = [options.nth(i).get_attribute("value") for i in range(options.count())]
         assert "none" in values
         assert "fast" in values
@@ -123,8 +123,8 @@ class TestIngestModal:
 
     def test_model_options_ordered_slow_to_fast(self, page: Page):
         page.goto(LIVE_URL)
-        page.click("#btn-ingest")
-        options = page.locator("#ingest-model option")
+        page.click("#btn-analyze")
+        options = page.locator("#analyze-model option")
         values = [options.nth(i).get_attribute("value") for i in range(options.count())]
         # Should go tiny → base → small → medium → large-v3
         assert values.index("tiny") < values.index("base")
@@ -139,15 +139,15 @@ class TestIngestModal:
 
 @skip_no_server
 class TestProfileManager:
-    def test_opens_from_ingest_modal(self, page: Page):
+    def test_opens_from_analyze_modal(self, page: Page):
         page.goto(LIVE_URL)
-        page.click("#btn-ingest")
+        page.click("#btn-analyze")
         page.click("button[title='Manage profiles']")
         expect(page.locator("#profile-modal")).to_be_visible()
 
     def test_default_profile_shown_as_locked(self, page: Page):
         page.goto(LIVE_URL)
-        page.click("#btn-ingest")
+        page.click("#btn-analyze")
         page.click("button[title='Manage profiles']")
         page.wait_for_selector("#profile-list", timeout=3000)
         # Default profile should have a lock indicator and no delete button
@@ -156,7 +156,7 @@ class TestProfileManager:
 
     def test_create_and_delete_profile(self, page: Page):
         page.goto(LIVE_URL)
-        page.click("#btn-ingest")
+        page.click("#btn-analyze")
         page.click("button[title='Manage profiles']")
         page.wait_for_selector("#profile-list", timeout=3000)
 
@@ -346,18 +346,18 @@ def _inject_estimate(page: "Page", energy_mode: str = "fast", pct: float = 18.7)
 
 @skip_no_server
 class TestEstimateDisplay:
-    def _open_ingest(self, page: "Page") -> None:
+    def _open_analyze(self, page: "Page") -> None:
         page.goto(LIVE_URL)
-        page.click("#btn-ingest")
-        page.wait_for_selector("#ingest-modal.visible")
+        page.click("#btn-analyze")
+        page.wait_for_selector("#analyze-modal.visible")
 
     def test_estimate_area_empty_on_modal_open(self, page: Page):
-        self._open_ingest(page)
+        self._open_analyze(page)
         expect(page.locator("#estimate-area")).to_be_empty()
 
     def test_estimate_area_below_advanced_options(self, page: Page):
         """#estimate-area must follow <details class=advanced> in the DOM (Advanced Options at top, estimate below)."""
-        self._open_ingest(page)
+        self._open_analyze(page)
         follows = page.evaluate("""() => {
           const area    = document.getElementById('estimate-area');
           const details = document.querySelector('details.advanced');
@@ -366,30 +366,30 @@ class TestEstimateDisplay:
         assert follows, "#estimate-area should come after <details class=advanced>"
 
     def test_energy_row_shows_mode_name(self, page: Page):
-        self._open_ingest(page)
+        self._open_analyze(page)
         _inject_estimate(page, energy_mode="fast")
         expect(page.locator("#estimate-area")).to_contain_text("Audio energy (fast)")
 
     def test_energy_none_shows_skipped(self, page: Page):
-        self._open_ingest(page)
+        self._open_analyze(page)
         _inject_estimate(page, energy_mode="none")
         expect(page.locator("#estimate-area")).to_contain_text("Audio energy (none)")
         expect(page.locator("#estimate-area")).to_contain_text("skipped")
 
     def test_energy_full_shows_full(self, page: Page):
-        self._open_ingest(page)
+        self._open_analyze(page)
         _inject_estimate(page, energy_mode="full")
         expect(page.locator("#estimate-area")).to_contain_text("Audio energy (full)")
 
     def test_pct_of_video_is_visible(self, page: Page):
-        self._open_ingest(page)
+        self._open_analyze(page)
         _inject_estimate(page, pct=18.7)
         pct_el = page.locator(".estimate-pct")
         expect(pct_el).to_be_visible()
         expect(pct_el).to_contain_text("18.7%")
 
     def test_pct_element_exists_after_render(self, page: Page):
-        self._open_ingest(page)
+        self._open_analyze(page)
         _inject_estimate(page, pct=96.0)
         expect(page.locator(".estimate-pct")).to_contain_text("96.0%")
         expect(page.locator(".estimate-pct")).to_contain_text("of video")

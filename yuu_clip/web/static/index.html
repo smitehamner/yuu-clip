@@ -48,11 +48,16 @@
   /* Ghost: de-emphasised, for utility actions like log export */
   .btn.ghost { background: transparent; border-color: transparent; color: var(--muted); font-size: 12px; padding: 6px 10px; }
   .btn.ghost:hover:not(:disabled) { background: var(--border); color: var(--text); }
-  /* Primary review actions — larger targets (Fitts's Law) */
-  .btn.approve { background: var(--green); border-color: var(--green); color: #fff; padding: 9px 22px; font-size: 14px; font-weight: 600; }
-  .btn.approve:hover:not(:disabled) { opacity: .85; }
-  .btn.reject  { background: var(--red);   border-color: var(--red);   color: #fff; padding: 9px 22px; font-size: 14px; font-weight: 600; }
-  .btn.reject:hover:not(:disabled)  { opacity: .85; }
+  /* Primary review actions — larger targets (Fitts's Law); outlined until chosen, filled when active */
+  .btn.approve { border-color: var(--green); color: var(--green); background: transparent; padding: 9px 22px; font-size: 14px; font-weight: 600; }
+  .btn.approve:hover:not(:disabled) { background: rgba(76,175,125,.15); }
+  .btn.approve.active { background: var(--green); border-color: var(--green); color: #fff; }
+  .btn.reject  { border-color: var(--red); color: var(--red); background: transparent; padding: 9px 22px; font-size: 14px; font-weight: 600; }
+  .btn.reject:hover:not(:disabled)  { background: rgba(224,92,92,.15); }
+  .btn.reject.active  { background: var(--red); border-color: var(--red); color: #fff; }
+  /* Danger: normal-size destructive action (Delete, Reset) */
+  .btn.danger  { border-color: var(--red); color: var(--red); }
+  .btn.danger:hover:not(:disabled)  { background: rgba(224,92,92,.12); color: var(--red); }
   .btn.active  { background: var(--accent); border-color: var(--accent); color: #fff; }
 
   /* ── toast notifications ── */
@@ -76,7 +81,9 @@
   .clips-section-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px 4px; }
   .clips-section-header > span { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); }
   .clips-sort-select { font-size: 11px; padding: 2px 6px; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; color: var(--muted); cursor: pointer; }
-  .export-tick { font-size: 10px; color: var(--green); flex-shrink: 0; margin-left: 1px; }
+  .export-pill { font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 9px; flex-shrink: 0; letter-spacing: .2px; }
+  .export-pill.is-exported { background: var(--green); color: #fff; opacity: .9; }
+  .export-pill.not-exported { background: var(--border); color: var(--muted); }
   .sidebar-list { list-style: none; overflow-y: auto; }
   .sidebar-list li { padding: 8px 14px; cursor: pointer; border-left: 3px solid transparent; transition: background .1s; }
   .sidebar-list li:hover { background: var(--border); }
@@ -186,7 +193,7 @@
   .path-row input { flex: 1; }
   .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
 
-  /* advanced options disclosure in ingest modal */
+  /* advanced options disclosure in analyze modal */
   details.advanced { border: 1px solid var(--border); border-radius: 6px; }
   details.advanced > summary { padding: 8px 12px; cursor: pointer; font-size: 12px; color: var(--muted); user-select: none; list-style: none; display: flex; align-items: center; gap: 6px; }
   details.advanced > summary::before { content: '▶'; font-size: 9px; transition: transform .15s; }
@@ -280,6 +287,12 @@
   .settings-col { display: flex; flex-direction: column; flex: 1; min-width: 0; }
   .settings-input { padding: 6px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 13px; width: 100%; }
   .settings-input:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 2px rgba(124,106,247,.35); }
+  /* ── universal focus ring ── */
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .btn:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; box-shadow: 0 0 0 4px rgba(124,106,247,.25); }
+  input:focus-visible, select:focus-visible, textarea:focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px rgba(124,106,247,.35); }
+  details summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  @media (prefers-reduced-motion: reduce) { .spinner { animation: none; border-top-color: var(--accent); border-right-color: var(--accent); } .toast { animation: none; } * { transition-duration: 0.01ms !important; } }
   .settings-select { padding: 6px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 13px; width: 100%; }
   .settings-checkbox { display: flex; align-items: center; gap: 8px; cursor: pointer; }
   .settings-save-badge { font-size: 11px; color: var(--green); opacity: 0; transition: opacity .3s; }
@@ -294,7 +307,7 @@
   .reel-clip-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 4px; background: var(--surface); }
   .reel-clip-row.excluded { opacity: .4; }
   .reel-clip-move { display: flex; flex-direction: column; gap: 1px; }
-  .reel-clip-move button { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 10px; padding: 1px 4px; line-height: 1; border-radius: 2px; }
+  .reel-clip-move button { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 13px; padding: 5px 8px; line-height: 1; border-radius: 4px; }
   .reel-clip-move button:hover { background: var(--border); color: var(--text); }
   .reel-clip-info { flex: 1; min-width: 0; }
   .reel-clip-name { font-size: 12px; font-weight: 500; }
@@ -308,16 +321,16 @@
 <header>
   <h1>yuu-clip</h1>
   <div class="job-status" id="job-status">
-    <div class="spinner"></div>
+    <div class="spinner" role="status" aria-label="Processing"></div>
     <div class="job-steps" id="job-steps"></div>
     <button class="btn" id="btn-cancel-job" onclick="cancelJob()"
             style="padding:2px 10px;font-size:12px;display:none">Cancel</button>
   </div>
   <div class="header-spacer" id="header-spacer"></div>
-  <button class="btn primary" id="btn-ingest" onclick="openIngestModal()">+ Analyze</button>
+  <button class="btn primary" id="btn-analyze" onclick="openAnalyzeModal()">+ Analyze</button>
   <button class="btn" id="btn-demo" onclick="openDemoModal()">Highlight Reel</button>
   <div class="hamburger-wrap" id="hamburger-wrap">
-    <button class="btn ghost" id="btn-hamburger" onclick="toggleHamburger()" title="More options" aria-label="More options" aria-haspopup="true" style="font-size:17px;padding:5px 11px;line-height:1">&#9776;</button>
+    <button class="btn ghost" id="btn-hamburger" onclick="toggleHamburger()" title="More options" aria-label="More options" aria-haspopup="true" aria-expanded="false" style="font-size:17px;padding:5px 11px;line-height:1">&#9776;</button>
     <div class="hamburger-menu" id="hamburger-menu">
       <button class="hamburger-item" onclick="openReelsModal();closeHamburger()">&#127916; View Highlight Reels</button>
       <div class="hamburger-divider"></div>
@@ -338,7 +351,7 @@
     <h2 style="font-size:16px;font-weight:700">Settings</h2>
     <div style="display:flex;align-items:center;gap:10px">
       <span class="settings-save-badge" id="settings-saved-badge">&#10003; Saved</span>
-      <button class="btn ghost" onclick="closeSettings()" style="font-size:16px">&#x2715;</button>
+      <button class="btn ghost" onclick="closeSettings()" aria-label="Close" style="font-size:16px">&#x2715;</button>
     </div>
   </div>
 
@@ -570,10 +583,10 @@
       <div class="clips-section-header">
         <span>Clips</span>
         <select id="clips-sort" class="clips-sort-select" onchange="onClipsSortChange()">
-          <option value="score">&#11088; Overall &#8595;</option>
-          <option value="funny">&#128514; Funny &#8595;</option>
-          <option value="dramatic">&#127917; Dramatic &#8595;</option>
-          <option value="action">&#9876;&#65039; Action &#8595;</option>
+          <option value="score">&#11088; Overall</option>
+          <option value="funny">&#128514; Funny</option>
+          <option value="dramatic">&#127917; Dramatic</option>
+          <option value="action">&#9876;&#65039; Action</option>
           <option value="timeline">Timeline</option>
         </select>
       </div>
@@ -646,34 +659,34 @@
 </div>
 
 <!-- Ingest modal -->
-<div class="modal-bg" id="ingest-modal" onclick="if(event.target===this)closeIngestModal()">
+<div class="modal-bg" id="analyze-modal" onclick="if(event.target===this)closeAnalyzeModal()">
   <div class="modal">
     <h3>Analyze Recording</h3>
     <div class="field">
-      <label for="ingest-path">Video file path</label>
+      <label for="analyze-path">Video file path</label>
       <div class="path-row">
-        <input type="text" id="ingest-path" placeholder="D:\recordings\session.mkv" oninput="scheduleProbe()">
+        <input type="text" id="analyze-path" placeholder="D:\recordings\session.mkv" oninput="scheduleProbe()">
         <button class="btn" onclick="pickFile()" title="Browse for file" aria-label="Browse for file">&#128193;</button>
       </div>
     </div>
     <div class="field">
-      <label for="ingest-profile">Track layout</label>
+      <label for="analyze-profile">Track layout</label>
       <div style="display:flex;gap:6px">
-        <select id="ingest-profile" style="flex:1" onchange="runEstimate()"></select>
+        <select id="analyze-profile" style="flex:1" onchange="runEstimate()"></select>
         <button class="btn" onclick="openProfileManager()" title="Manage track layouts">&#9881;</button>
       </div>
     </div>
-    <div class="field" id="ingest-context-field" style="display:none">
+    <div class="field" id="analyze-context-field" style="display:none">
       <label>World Contexts <span style="color:var(--muted);font-weight:400">(optional)</span></label>
-      <div id="ingest-context-list"
+      <div id="analyze-context-list"
            style="display:flex;flex-direction:column;gap:5px;padding:6px 8px;background:var(--bg);border:1px solid var(--border);border-radius:6px;max-height:100px;overflow-y:auto"></div>
     </div>
 
     <details class="advanced">
       <summary>Advanced options</summary>
       <div class="field">
-        <label for="ingest-model">Whisper model</label>
-        <select id="ingest-model" onchange="runEstimate()">
+        <label for="analyze-model">Whisper model</label>
+        <select id="analyze-model" onchange="runEstimate()">
           <option value="tiny">tiny — fastest, lowest quality</option>
           <option value="base">base — very fast, lower quality</option>
           <option value="small">small — fast (~500 MB VRAM)</option>
@@ -682,16 +695,16 @@
         </select>
       </div>
       <div class="field">
-        <label for="ingest-scene-mode">Scene detection</label>
-        <select id="ingest-scene-mode" onchange="runEstimate()">
+        <label for="analyze-scene-mode">Scene detection</label>
+        <select id="analyze-scene-mode" onchange="runEstimate()">
           <option value="transcript">Transcript only — silence gaps, instant</option>
           <option value="fast" selected>Fast — keyframes + transcript gaps (recommended)</option>
           <option value="full">Full — every frame, most accurate (slow)</option>
         </select>
       </div>
       <div class="field">
-        <label for="ingest-energy-mode">Audio energy</label>
-        <select id="ingest-energy-mode" onchange="runEstimate()">
+        <label for="analyze-energy-mode">Audio energy</label>
+        <select id="analyze-energy-mode" onchange="runEstimate()">
           <option value="none">None — skip (fastest)</option>
           <option value="fast" selected>Fast — 4 kHz numpy (recommended)</option>
           <option value="full">Full — 16 kHz numpy (most accurate)</option>
@@ -700,8 +713,8 @@
     </details>
     <div id="estimate-area"></div>
     <div class="modal-actions">
-      <button class="btn" onclick="closeIngestModal()">Cancel</button>
-      <button class="btn primary" id="btn-start-ingest" onclick="startIngest()" disabled title="Select a valid recording file first">Start Analysis</button>
+      <button class="btn" onclick="closeAnalyzeModal()">Cancel</button>
+      <button class="btn primary" id="btn-start-analyze" onclick="startAnalyze()" disabled title="Select a valid recording file first">Start Analysis</button>
     </div>
   </div>
 </div>
@@ -799,7 +812,7 @@
   <div class="modal" style="width:720px;padding:14px">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
       <span id="reel-preview-label" style="font-size:13px;color:var(--muted)"></span>
-      <button class="btn ghost" style="padding:4px 8px" onclick="closeReelPreview()">&#x2715;</button>
+      <button class="btn ghost" style="padding:4px 8px" onclick="closeReelPreview()" aria-label="Close">&#x2715;</button>
     </div>
     <video id="reel-preview-video" controls style="width:100%;border-radius:6px;background:#000;max-height:72vh"></video>
   </div>
@@ -832,7 +845,7 @@
     </div>
     <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;margin-bottom:14px">
       <input type="checkbox" id="batch-burn-subs">
-      Burn subtitles into video
+      Bake captions into video
     </label>
     <div class="modal-actions">
       <button class="btn" onclick="closeBatchExportModal()">Cancel</button>
@@ -846,7 +859,7 @@
   <div class="modal reels-modal">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
       <h3>Highlight Reels</h3>
-      <button class="btn ghost" style="padding:4px 8px" onclick="closeReelsModal()">&#x2715;</button>
+      <button class="btn ghost" style="padding:4px 8px" onclick="closeReelsModal()" aria-label="Close">&#x2715;</button>
     </div>
     <div class="reels-layout" id="reels-layout">
       <div class="reels-empty">Loading&#x2026;</div>
@@ -867,8 +880,8 @@
         <option value="tiny">tiny</option>
         <option value="base">base</option>
         <option value="small">small</option>
-        <option value="medium">medium</option>
-        <option value="large-v3" selected>large-v3 (best quality)</option>
+        <option value="medium" selected>medium</option>
+        <option value="large-v3">large-v3 (best quality)</option>
       </select>
     </div>
     <div style="font-size:12px;color:var(--muted)">
@@ -885,7 +898,7 @@
 <div class="modal-bg" id="context-modal" onclick="if(event.target===this)closeContextManager()">
   <div class="modal" style="width:680px;max-height:85vh">
     <h3>World Contexts</h3>
-    <p style="font-size:12px;color:var(--muted);margin-top:-6px">Named knowledge injected into LLM prompts — characters, setting, and world lore.</p>
+    <p style="font-size:12px;color:var(--muted);margin-top:-6px">Named knowledge injected into LLM prompts — players, setting, and world lore.</p>
     <div style="display:flex;gap:16px;min-height:300px">
       <div style="width:180px;flex-shrink:0;display:flex;flex-direction:column;gap:6px">
         <div id="context-list-items" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:4px"></div>
@@ -893,32 +906,32 @@
       </div>
       <div id="context-editor" style="flex:1;display:none;flex-direction:column;gap:10px;overflow-y:auto">
         <div class="field">
-          <label for="ce-slug">ID <span style="color:var(--muted);font-weight:400">(letters, digits, hyphens only)</span></label>
-          <input type="text" id="ce-slug" placeholder="una-server">
+          <label for="ce-context-id">ID <span style="color:var(--muted);font-weight:400">(letters, digits, hyphens only)</span></label>
+          <input type="text" id="ce-context-id" placeholder="my-game">
         </div>
         <div class="field">
           <label for="ce-display-name">Display name</label>
-          <input type="text" id="ce-display-name" placeholder="Up-N-Atom (UnA)">
+          <input type="text" id="ce-display-name" placeholder="My Game">
         </div>
         <div class="field">
           <label for="ce-setting">Setting</label>
-          <textarea class="ctx-textarea" id="ce-setting" rows="2" placeholder="FiveM RP server. You work at Up-N-Atom (UnA) convenience store."></textarea>
+          <textarea class="ctx-textarea" id="ce-setting" rows="2" placeholder="Tactical FPS — squad-based competitive matches. Win by eliminating the enemy team or completing objectives."></textarea>
         </div>
         <div class="field">
-          <label for="ce-your-chars">Your characters</label>
-          <textarea class="ctx-textarea" id="ce-your-chars" rows="2" placeholder="You play Yuu, a cashier at UnA."></textarea>
+          <label for="ce-your-chars">Your player(s)</label>
+          <textarea class="ctx-textarea" id="ce-your-chars" rows="2" placeholder="You play as [username], duelist role, usually calling strats for the squad."></textarea>
         </div>
         <div class="field">
-          <label for="ce-other-chars">Frequent other characters <span style="color:var(--muted);font-weight:400">(not exhaustive)</span></label>
-          <textarea class="ctx-textarea" id="ce-other-chars" rows="2" placeholder="Peggy is the manager. Regulars include…"></textarea>
+          <label for="ce-other-chars">Other players &amp; NPCs <span style="color:var(--muted);font-weight:400">(not exhaustive)</span></label>
+          <textarea class="ctx-textarea" id="ce-other-chars" rows="2" placeholder="Squad: Alice (support), Bob (entry fragger). Common recurring opponents or NPCs…"></textarea>
         </div>
         <div class="field">
           <label for="ce-notes">Notes</label>
-          <textarea class="ctx-textarea" id="ce-notes" rows="2" placeholder="Anything else the LLM should know about this world context…"></textarea>
+          <textarea class="ctx-textarea" id="ce-notes" rows="2" placeholder="Anything else useful — win conditions, running gags, recurring bits, what makes a great clip here."></textarea>
         </div>
         <div style="display:flex;gap:8px;padding-top:4px">
           <button class="btn primary" onclick="saveContext()">Save</button>
-          <button class="btn reject" id="btn-delete-context" onclick="deleteContext()">Delete</button>
+          <button class="btn danger" id="btn-delete-context" onclick="deleteContext()">Delete</button>
           <button class="btn" style="margin-left:auto" onclick="cancelContextEdit()">Cancel</button>
         </div>
       </div>
@@ -936,8 +949,8 @@
     <div id="diff-fields"></div>
     <div class="modal-actions">
       <button class="btn" id="diff-discard-btn" onclick="_diffDiscard()">Discard</button>
-      <button class="btn" id="diff-accept-edit-btn" onclick="_diffAcceptEdit()">Accept as Edit</button>
-      <button class="btn primary" id="diff-accept-new-btn" onclick="_diffAcceptNew()">Accept New</button>
+      <button class="btn" id="diff-accept-edit-btn" onclick="_diffAcceptEdit()" title="Save the new text and mark it as manually edited">Save as manual edit</button>
+      <button class="btn primary" id="diff-accept-new-btn" onclick="_diffAcceptNew()">Accept</button>
     </div>
   </div>
 </div>
@@ -996,7 +1009,7 @@
   <div class="modal" style="width:380px">
     <h3 style="margin-top:0">Generate Timeline</h3>
     <div style="margin-bottom:14px">
-      <label for="timeline-interval-value" style="font-size:13px;color:var(--muted);display:block;margin-bottom:8px">Interval per entry</label>
+      <label for="timeline-interval-value" style="font-size:13px;color:var(--muted);display:block;margin-bottom:8px">Time per entry</label>
       <div style="display:flex;gap:8px;align-items:center">
         <input type="number" id="timeline-interval-value" min="1" step="1" value="15"
                style="width:80px;padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:14px"
@@ -1051,7 +1064,7 @@
   <div class="modal" style="width:740px;max-height:88vh;display:flex;flex-direction:column">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
       <h3 style="margin:0">Terminology Glossary</h3>
-      <button class="btn ghost" style="padding:4px 8px" onclick="closeGlossaryModal()">&#x2715;</button>
+      <button class="btn ghost" style="padding:4px 8px" onclick="closeGlossaryModal()" aria-label="Close">&#x2715;</button>
     </div>
     <div id="glossary-content" style="flex:1;overflow-y:auto;font-size:13px;line-height:1.7;padding-right:4px">
       <div style="color:var(--muted)">Loading&#x2026;</div>
@@ -1083,18 +1096,34 @@
 </div>
 
 <script>
+// ── accessibility init ────────────────────────────────────────────────────────
+document.querySelectorAll('.modal-bg').forEach((bg, i) => {
+  const inner = bg.querySelector('.modal, [class*="modal"]');
+  if (!inner) return;
+  inner.setAttribute('role', 'dialog');
+  inner.setAttribute('aria-modal', 'true');
+  const heading = inner.querySelector('h3');
+  if (heading) {
+    const labelId = `modal-title-${i}`;
+    heading.id = heading.id || labelId;
+    inner.setAttribute('aria-labelledby', heading.id || labelId);
+  }
+});
+
 // ── state ─────────────────────────────────────────────────────────────────────
-let activeVideoId   = null;
-let activeClipId    = null;
-let _videos         = [];
-let _clips          = [];
-let _ingestProfiles = [];
-let _contexts       = [];
-let _editingContextSlug = null;
+let activeVideoId    = null;
+let activeClipId     = null;
+let _videos          = [];
+let _clips           = [];
+let _analyzeProfiles  = [];
+let _contexts        = [];
+let _analyzeFilename = null;
+let _editingContextId = null;
 let _clipFilter     = 'all';
 let _lastStatusChange = null; // {clipId, fromStatus, timer}
 let _confirmCallback  = null;
-let _activeClipData   = null;
+let _activeClipData    = null;
+let _activeMediaFilename = null;
 let _activeVideoData  = null;
 let _bootRestoreDone  = false;
 
@@ -1121,10 +1150,13 @@ function _confirmCancel() {
 
 // ── hamburger menu ────────────────────────────────────────────────────────────
 function toggleHamburger() {
-  document.getElementById('hamburger-menu').classList.toggle('open');
+  const menu = document.getElementById('hamburger-menu');
+  menu.classList.toggle('open');
+  document.getElementById('btn-hamburger').setAttribute('aria-expanded', menu.classList.contains('open'));
 }
 function closeHamburger() {
   document.getElementById('hamburger-menu').classList.remove('open');
+  document.getElementById('btn-hamburger').setAttribute('aria-expanded', 'false');
 }
 document.addEventListener('click', e => {
   if (!document.getElementById('hamburger-wrap').contains(e.target)) {
@@ -1302,6 +1334,7 @@ async function loadVideos() {
     const li = document.createElement('li');
     li.className = 'video-item' + (v.id === activeVideoId ? ' active' : '');
     li.dataset.videoId = v.id;
+    li.tabIndex = 0;
     const clipsPct = v.duration_ms > 0
       ? ` (${Math.round(v.total_clip_ms / v.duration_ms * 100)}%)`
       : '';
@@ -1313,14 +1346,15 @@ async function loadVideos() {
           <div class="meta">${v.duration_hms} &middot; ${v.clip_count} clips &middot; ${_msToHms(v.total_clip_ms)} clipped${clipsPct}</div>
           <div class="meta">${v.approved} approved &middot; ${_fmtVideoStatus(v.status)}</div>
         </div>
-        <button class="btn ghost" style="padding:2px 5px;font-size:11px;flex-shrink:0;margin-top:2px"
+        <button class="btn ghost" style="padding:4px 8px;font-size:13px;flex-shrink:0;margin-top:2px"
                 title="Remove from yuu-clip (source file is NOT deleted)"
+                aria-label="Remove ${escHtml(v.filename)} from yuu-clip"
                 data-delete-video="${v.id}">✕</button>
       </div>`;
     list.appendChild(li);
   }
 
-  list.onclick = e => {
+  const _handleVideoListActivate = e => {
     const del = e.target.closest('[data-delete-video]');
     if (del) { e.stopPropagation(); deleteVideo(parseInt(del.dataset.deleteVideo)); return; }
     const li = e.target.closest('li[data-video-id]');
@@ -1329,6 +1363,8 @@ async function loadVideos() {
     li.classList.add('active');
     selectVideo(parseInt(li.dataset.videoId));
   };
+  list.onclick = _handleVideoListActivate;
+  list.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); _handleVideoListActivate(e); } };
 
   const totalApproved = videos.reduce((n, v) => n + v.approved, 0);
   _updateDemoButton(totalApproved);
@@ -1357,7 +1393,7 @@ function _showEmptyState() {
     <div class="empty-state">
       <h2>Welcome to yuu-clip</h2>
       <p>Analyze a recording to start reviewing and exporting your best gaming moments.</p>
-      <button class="btn primary" onclick="openIngestModal()">+ Analyze your first recording</button>
+      <button class="btn primary" onclick="openAnalyzeModal()">+ Analyze your first recording</button>
     </div>`;
 }
 
@@ -1370,7 +1406,7 @@ function _updateDemoButton(approvedCount) {
 }
 
 function _updateStartIngestButton() {
-  const btn = document.getElementById('btn-start-ingest');
+  const btn = document.getElementById('btn-start-analyze');
   if (!btn) return;
   btn.disabled = !_probedInfo;
   btn.title = _probedInfo ? '' : 'Select a valid video file first';
@@ -1423,7 +1459,7 @@ function renderVideoDetail(video, savedTimeline) {
       <button class="btn" id="btn-generate-timeline" onclick="generateTimeline(${video.id})">${video.has_timeline ? 'Regenerate Timeline' : 'Generate Timeline'}</button>
       <button class="btn" onclick="openAutoApproveModal(${video.id})">Approve Above Score</button>
       <button class="btn" onclick="openBatchExportModal(${video.id})">Export Approved</button>
-      <button class="btn reject" onclick="resetApprovals(${video.id})">Reset Approvals</button>
+      <button class="btn danger" onclick="resetApprovals(${video.id})">Reset Approvals</button>
     </div>
 
     <div id="timeline-section">
@@ -1444,18 +1480,18 @@ function renderVideoDetail(video, savedTimeline) {
 
 function _renderContextSection(video) {
   const assigned = video.context_names || [];
-  const chips = assigned.map(slug => {
-    const ctx = _contexts.find(c => c.slug === slug);
-    const name = ctx ? ctx.display_name : slug;
-    return `<span class="context-chip">${escHtml(name)}<button class="chip-x" data-rmctx="${escHtml(slug)}" title="Remove" aria-label="Remove ${escHtml(name)}">×</button></span>`;
+  const chips = assigned.map(context_id => {
+    const ctx = _contexts.find(c => c.context_id === context_id);
+    const name = ctx ? ctx.display_name : context_id;
+    return `<span class="context-chip">${escHtml(name)}<button class="chip-x" data-rmctx="${escHtml(context_id)}" title="Remove" aria-label="Remove ${escHtml(name)}">×</button></span>`;
   });
 
-  const available = _contexts.filter(c => !assigned.includes(c.slug));
+  const available = _contexts.filter(c => !assigned.includes(c.context_id));
   const addSelect = available.length
     ? `<select style="font-size:11px;padding:3px 7px;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--muted);cursor:pointer"
               onchange="addVideoContext(${video.id}, this.value); this.value=''">
         <option value="">+ Add</option>
-        ${available.map(c => `<option value="${escHtml(c.slug)}">${escHtml(c.display_name || c.slug)}</option>`).join('')}
+        ${available.map(c => `<option value="${escHtml(c.context_id)}">${escHtml(c.display_name || c.context_id)}</option>`).join('')}
        </select>` : '';
 
   const provLines = [];
@@ -1463,9 +1499,9 @@ function _renderContextSection(video) {
     const scoredCtx = video.clips_scored_context || [];
     const stale = JSON.stringify([...assigned].sort()) !== JSON.stringify([...scoredCtx].sort());
     const when = _fmtDate(video.clips_scored_at);
-    const ctxNames = scoredCtx.map(s => { const c = _contexts.find(x => x.slug === s); return c ? c.display_name : s; });
+    const ctxNames = scoredCtx.map(s => { const c = _contexts.find(x => x.context_id === s); return c ? c.display_name : s; });
     const ctxStr = ctxNames.length ? ' · ' + ctxNames.map(escHtml).join(', ') : ' · no context';
-    provLines.push(`<span class="${stale ? 'provenance-stale' : ''}">Clips scored ${escHtml(when)}${ctxStr}${stale ? ' — contexts changed since last score' : ''}</span>`);
+    provLines.push(`<span class="${stale ? 'provenance-stale' : ''}">Clips scored ${escHtml(when)}${ctxStr}${stale ? ' — ⚠ contexts changed since last score' : ''}</span>`);
   }
 
   const noContextsDefined = _contexts.length === 0;
@@ -1747,9 +1783,10 @@ function renderClipList(clips) {
   const list = document.getElementById('clip-list');
   list.innerHTML = '';
   if (!clips.length) {
+    const _statusLabel = {pending: 'Unreviewed', approved: 'Approved', rejected: 'Rejected'};
     const filterMsg = _clipFilter !== 'all'
-      ? `No ${_clipFilter} clips`
-      : `No clips found — <a href="#" style="color:var(--muted);text-decoration:underline" onclick="event.preventDefault();openIngestModal()">Re-analyze this recording</a>`;
+      ? `No ${_statusLabel[_clipFilter] || _clipFilter} clips`
+      : `No clips found — <a href="#" style="color:var(--muted);text-decoration:underline" onclick="event.preventDefault();openAnalyzeModal()">Re-analyze this recording</a>`;
     list.innerHTML = `<li style="padding:10px 14px;color:var(--muted)">${filterMsg}</li>`;
     return;
   }
@@ -1757,6 +1794,7 @@ function renderClipList(clips) {
     const li = document.createElement('li');
     li.className = c.id === activeClipId ? 'active' : '';
     li.style.borderLeftColor = _scoreBorderColor(_sortScore(c), c.status === 'rejected');
+    li.tabIndex = 0;
     li.innerHTML = `
       <div class="clip-item">
         <span class="score-badge" title="Overall score">${_scoreIcon(c.score_overall)}${c.score_overall.toFixed(2)}</span>
@@ -1764,7 +1802,9 @@ function renderClipList(clips) {
           <span style="color:var(--muted);font-size:11px">#${c.id}</span>
           ${c.start_hms} &middot; ${c.duration_hms}
         </span>
-        ${c.has_export ? '<span class="export-tick" title="Exported">&#10003;</span>' : ''}
+        ${c.has_export
+          ? '<span class="export-pill is-exported" title="Clip has been exported">Exported</span>'
+          : '<span class="export-pill not-exported" title="Not yet exported">Not exported</span>'}
         <span class="status-dot dot-${c.status}" title="${c.status === 'approved' ? 'Approved' : c.status === 'rejected' ? 'Rejected' : 'Unreviewed'}">${c.status === 'approved' ? '✓' : c.status === 'rejected' ? '✕' : ''}</span>
       </div>
       ${c.description ? `<div style="font-size:11px;color:var(--muted);margin-top:3px;padding-left:60px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(c.description)}</div>` : ''}
@@ -1773,11 +1813,13 @@ function renderClipList(clips) {
         <span title="Dramatic"><span aria-hidden="true">🎭</span> ${c.score_dramatic.toFixed(2)}</span>
         <span title="Action"><span aria-hidden="true">⚔️</span> ${c.score_action.toFixed(2)}</span>
       </div>`;
-    li.onclick = () => {
+    const _activateClip = () => {
       document.querySelectorAll('#clip-list li').forEach(l => l.classList.remove('active'));
       li.classList.add('active');
       selectClip(c.id);
     };
+    li.onclick = _activateClip;
+    li.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); _activateClip(); } };
     list.appendChild(li);
   }
 }
@@ -1795,7 +1837,8 @@ async function selectClip(id) {
     const media = await mediaRes.json();
     const captionsUrl = media.has_captions ? `/api/clips/${id}/captions.vtt` : null;
     _activeClipData = clip;
-    renderPlayer(media.url, captionsUrl);
+    _activeMediaFilename = media.filename;
+    renderPlayer(media.url, captionsUrl, id);
     renderDetail(clip);
   } catch (err) {
     showToast(`Could not load clip: ${err.message}`, 'error');
@@ -1803,19 +1846,33 @@ async function selectClip(id) {
 }
 
 // ── player ─────────────────────────────────────────────────────────────────────
-function renderPlayer(url, captionsUrl) {
+function renderPlayer(url, captionsUrl, clipId) {
   const area = document.getElementById('player-area');
   if (url) {
     const track = captionsUrl
       ? `<track kind="captions" src="${captionsUrl}" label="Transcript" default>`
       : '';
-    area.innerHTML = `<video controls autoplay src="${url}" aria-label="Clip preview">${track}</video>`;
+    area.innerHTML = `<video controls src="${url}" aria-label="Clip preview">${track}</video>`;
   } else {
-    area.innerHTML = `
-      <div class="no-export-msg">
-        <div>Clip not exported yet</div>
-        <button class="btn primary" onclick="exportClip(${activeClipId})">Export Clip</button>
-      </div>`;
+    const wrap = document.createElement('div');
+    wrap.style.position = 'relative';
+    const vid = document.createElement('video');
+    vid.controls = true;
+    vid.src = `/api/clips/${clipId}/preview`;
+    vid.setAttribute('aria-label', 'Clip source preview');
+    vid.style.cssText = 'display:block;width:100%;max-height:42vh;object-fit:contain;background:#000';
+    vid.onerror = async () => {
+      const detail = await fetch(`/api/clips/${clipId}/preview`)
+        .then(r => r.json()).then(j => j.detail || 'unavailable').catch(() => 'unavailable');
+      wrap.innerHTML = `<div style="padding:24px;color:var(--muted);font-size:13px">Source video unavailable: ${escHtml(detail)}</div>`;
+    };
+    const badge = document.createElement('span');
+    badge.style.cssText = 'position:absolute;top:8px;left:8px;background:rgba(0,0,0,.65);color:var(--muted);font-size:11px;padding:3px 8px;border-radius:4px;pointer-events:none';
+    badge.textContent = 'Source preview · not exported';
+    wrap.appendChild(vid);
+    wrap.appendChild(badge);
+    area.innerHTML = '';
+    area.appendChild(wrap);
   }
 }
 
@@ -1824,7 +1881,7 @@ function renderDetail(clip) {
   const eb = (isEdited) => isEdited ? `<span class="edited-badge">edited</span>` : '';
   document.getElementById('detail').innerHTML = `
     <div class="clip-header">
-      <h2>Clip ${clip.id}</h2>
+      <h2>${clip.description ? escHtml(clip.description.length > 72 ? clip.description.slice(0, 72) + '…' : clip.description) : 'Clip at ' + clip.start_hms}</h2>
       <span class="time">${clip.start_hms} &middot; ${clip.duration_hms}</span>
     </div>
 
@@ -1865,11 +1922,30 @@ function renderDetail(clip) {
       <button class="btn" onclick="openRetranscribeModal(${clip.id})">Retranscribe</button>
       <button class="btn" id="btn-rescore-clip" onclick="rescoreClip(${clip.id})">Re-score</button>
       <div style="flex:1"></div>
-      <button class="btn" onclick="exportClip(${clip.id})">Export</button>
-      <button class="btn" style="color:var(--red)" onclick="deleteClip(${clip.id})">Delete</button>
+      ${clip.has_export && _activeMediaFilename
+        ? `<a class="btn" href="/media/exports/${escHtml(_activeMediaFilename)}" download="${escHtml(_activeMediaFilename)}" title="Save exported clip to disk">Save As</a>`
+        : ''}
+      <button class="btn" onclick="exportClip(${clip.id})">${clip.has_export ? 'Re-export' : 'Export'}</button>
+      ${clip.has_export ? `<button class="btn" onclick="deleteExport(${clip.id})" title="Delete exported file but keep clip record">Delete Export</button>` : ''}
+      <div style="width:1px;background:var(--border);align-self:stretch;margin:0 2px"></div>
+      <button class="btn danger" onclick="deleteClip(${clip.id})" title="Delete clip record and exported file">Delete Clip</button>
     </div>
 
     ${clip.tags.length ? `<div class="tags">${clip.tags.map(t=>`<span class="tag">${escHtml(t)}</span>`).join('')}</div>` : ''}
+
+    ${clip.has_export ? `
+      <div>
+        <div class="section-title" style="margin-bottom:6px">Export info</div>
+        <div style="font-size:12px;color:var(--muted);display:flex;gap:16px;flex-wrap:wrap">
+          ${clip.exported_container ? `<span>Container: <strong style="color:var(--text)">${clip.exported_container.toUpperCase()}</strong></span>` : ''}
+          <span>Captions: <strong style="color:var(--text)">${
+            clip.subtitle_status === 'baked-in'    ? 'Baked into video' :
+            clip.subtitle_status === 'srt-sidecar' ? 'Separate SRT file' :
+            'None'
+          }</strong></span>
+          ${clip.exported_at ? `<span>Exported: <strong style="color:var(--text)">${_fmtAgo(clip.exported_at)}</strong></span>` : ''}
+        </div>
+      </div>` : ''}
 
     ${clip.transcript_excerpt ? `
       <div>
@@ -1884,6 +1960,14 @@ function scoreRow(label, val, cls) {
     <span class="score-label">${label}</span>
     <div class="score-bar-wrap"><div class="score-bar bar-${cls}" style="width:${(val*100).toFixed(1)}%"></div></div>
     <span class="score-val" style="color:var(--${cls})">${val.toFixed(2)}</span>`;
+}
+
+function _fmtAgo(isoString) {
+  const diffS = (Date.now() - new Date(isoString).getTime()) / 1000;
+  if (diffS < 60)   return 'just now';
+  if (diffS < 3600) return `${Math.floor(diffS / 60)}m ago`;
+  if (diffS < 86400) return `${Math.floor(diffS / 3600)}h ago`;
+  return `${Math.floor(diffS / 86400)}d ago`;
 }
 
 function _fmtOffset(v) {
@@ -2075,8 +2159,20 @@ function confirmExport() {
   openLog();
   streamSSE(
     `/api/clips/${id}/export${qs}`,
-    () => {
-      fetch(`/api/clips/${id}/media_url`).then(r => r.json()).then(m => renderPlayer(m.url));
+    async () => {
+      const [clip, media] = await Promise.all([
+        fetch(`/api/clips/${id}`).then(r => r.json()),
+        fetch(`/api/clips/${id}/media_url`).then(r => r.json()),
+      ]);
+      _activeClipData = clip;
+      _activeMediaFilename = media.filename;
+      const captionsUrl = media.has_captions ? `/api/clips/${id}/captions.vtt` : null;
+      renderPlayer(media.url, captionsUrl, id);
+      renderDetail(clip);
+      if (activeVideoId) {
+        _clips = await fetch(`/api/videos/${activeVideoId}/clips?sort=${_clipsSortParam()}`).then(r => r.json());
+        renderClipList(_clips);
+      }
       loadVideos();
       showToast('Clip exported successfully');
     },
@@ -2115,6 +2211,32 @@ async function _doDeleteVideo(id, name) {
   }
   await loadVideos();
   showToast(`"${name}" removed from yuu-clip`);
+}
+
+function deleteExport(id) {
+  showConfirm(
+    'Delete exported file?',
+    'The exported video file will be removed from disk. The clip record stays — you can re-export any time.',
+    'Delete Export',
+    async () => {
+      const res = await fetch(`/api/clips/${id}/export`, {method: 'DELETE'});
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        showToast(`Failed to delete export: ${formatApiError(err)}`, 'error');
+        return;
+      }
+      _activeClipData.has_export = false;
+      _activeMediaFilename = null;
+      renderPlayer(null, null, id);
+      renderDetail(_activeClipData);
+      if (activeVideoId) {
+        _clips = await fetch(`/api/videos/${activeVideoId}/clips?sort=${_clipsSortParam()}`).then(r => r.json());
+        renderClipList(_clips);
+      }
+      showToast('Exported file deleted');
+    },
+    true,
+  );
 }
 
 function deleteClip(id) {
@@ -2164,13 +2286,13 @@ function scoreAll() {
   );
 }
 
-// ── ingest ─────────────────────────────────────────────────────────────────────
+// ── analyze ────────────────────────────────────────────────────────────────────
 let _probeTimer = null;
 let _probedInfo  = null;
 
-async function openIngestModal() {
-  document.getElementById('ingest-modal').classList.add('visible');
-  document.getElementById('ingest-path').value = '';
+async function openAnalyzeModal() {
+  document.getElementById('analyze-modal').classList.add('visible');
+  document.getElementById('analyze-path').value = '';
   document.getElementById('estimate-area').innerHTML = '';
   _probedInfo = null;
   _updateStartIngestButton();
@@ -2180,35 +2302,51 @@ async function openIngestModal() {
 
 async function _loadIngestContextPicker() {
   _contexts = await fetch('/api/contexts').then(r => r.json()).catch(() => []);
-  const field = document.getElementById('ingest-context-field');
-  const list  = document.getElementById('ingest-context-list');
-  if (!_contexts.length) { field.style.display = 'none'; return; }
+  const field = document.getElementById('analyze-context-field');
+  const list  = document.getElementById('analyze-context-list');
   field.style.display = '';
+  if (!_contexts.length) {
+    list.innerHTML = `<div style="font-size:12px;color:var(--muted);padding:4px 2px">
+      No World Contexts set up — clip descriptions will be generic.
+      <button class="btn ghost" style="font-size:11px;padding:0 6px;color:var(--accent);display:inline-flex"
+              onclick="closeAnalyzeModal();openContextManager()">Add one →</button>
+    </div>`;
+    return;
+  }
   list.innerHTML = _contexts.map(c => `
     <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
-      <input type="checkbox" class="ingest-ctx-check" value="${escHtml(c.slug)}">
-      ${escHtml(c.display_name || c.slug)}
-    </label>`).join('');
+      <input type="checkbox" class="analyze-ctx-check" value="${escHtml(c.context_id)}" onchange="_updateCtxNudge()">
+      ${escHtml(c.display_name || c.context_id)}
+    </label>`).join('') +
+    `<div id="ctx-none-selected-note" style="font-size:11px;color:var(--muted);padding:4px 2px;margin-top:2px">No context selected — descriptions will be generic</div>`;
+  _updateCtxNudge();
+}
+
+function _updateCtxNudge() {
+  const note = document.getElementById('ctx-none-selected-note');
+  if (!note) return;
+  const anyChecked = document.querySelectorAll('.analyze-ctx-check:checked').length > 0;
+  note.style.display = anyChecked ? 'none' : '';
 }
 
 async function _loadProfileDropdown() {
-  const sel = document.getElementById('ingest-profile');
+  const sel = document.getElementById('analyze-profile');
   try {
-    _ingestProfiles = await fetch('/api/profiles').then(r => r.json());
-    sel.innerHTML = _ingestProfiles.map(p =>
+    _analyzeProfiles = await fetch('/api/profiles').then(r => r.json());
+    sel.innerHTML = _analyzeProfiles.map(p =>
       `<option value="${p.name}">${escHtml(p.display_name)}</option>`
     ).join('');
-  } catch { _ingestProfiles = []; }
+  } catch { _analyzeProfiles = []; }
 }
 
-function closeIngestModal() {
-  document.getElementById('ingest-modal').classList.remove('visible');
+function closeAnalyzeModal() {
+  document.getElementById('analyze-modal').classList.remove('visible');
   clearTimeout(_probeTimer);
 }
 
 function scheduleProbe() {
   clearTimeout(_probeTimer);
-  const path = document.getElementById('ingest-path').value.trim();
+  const path = document.getElementById('analyze-path').value.trim();
   if (!path) {
     document.getElementById('estimate-area').innerHTML = '';
     _probedInfo = null;
@@ -2246,8 +2384,8 @@ async function runProbe(path) {
 
 async function runEstimate() {
   if (!_probedInfo) return;
-  const profileName = document.getElementById('ingest-profile').value;
-  const profile     = _ingestProfiles.find(p => p.name === profileName);
+  const profileName = document.getElementById('analyze-profile').value;
+  const profile     = _analyzeProfiles.find(p => p.name === profileName);
   const transcribeTracks = profile
     ? profile.assignments.filter(a => a.do_transcribe).length
     : undefined;
@@ -2256,12 +2394,12 @@ async function runEstimate() {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body:   JSON.stringify({
         duration_s:        _probedInfo.duration_s,
-        model:             document.getElementById('ingest-model').value,
+        model:             document.getElementById('analyze-model').value,
         audio_tracks:      _probedInfo.audio_tracks,
         transcribe_tracks: transcribeTracks,
         has_gpu:           true,
-        scene_mode:        document.getElementById('ingest-scene-mode').value,
-        energy_mode:       document.getElementById('ingest-energy-mode').value,
+        scene_mode:        document.getElementById('analyze-scene-mode').value,
+        energy_mode:       document.getElementById('analyze-energy-mode').value,
       }),
     });
     if (!res.ok) return;
@@ -2316,22 +2454,22 @@ function renderEstimate(info, data) {
     </div>`;
 }
 
-async function startIngest() {
-  const path       = document.getElementById('ingest-path').value.trim();
-  const model      = document.getElementById('ingest-model').value;
-  const profileVal = document.getElementById('ingest-profile').value;
+async function startAnalyze() {
+  const path       = document.getElementById('analyze-path').value.trim();
+  const model      = document.getElementById('analyze-model').value;
+  const profileVal = document.getElementById('analyze-profile').value;
   const profile    = (!profileVal || profileVal === '__default__') ? null : profileVal;
   if (!path) return;
 
-  const btn = document.getElementById('btn-start-ingest');
+  const btn = document.getElementById('btn-start-analyze');
   btn.disabled = true;
   btn.textContent = 'Starting…';
 
-  const contextNames = Array.from(document.querySelectorAll('.ingest-ctx-check:checked')).map(cb => cb.value);
+  const contextNames = Array.from(document.querySelectorAll('.analyze-ctx-check:checked')).map(cb => cb.value);
   const startRes = await fetch('/api/analyze/start', {
     method:  'POST',
     headers: {'Content-Type': 'application/json'},
-    body:    JSON.stringify({path, model, profile, energy_mode: document.getElementById('ingest-energy-mode').value, scene_mode: document.getElementById('ingest-scene-mode').value, context_names: contextNames}),
+    body:    JSON.stringify({path, model, profile, energy_mode: document.getElementById('analyze-energy-mode').value, scene_mode: document.getElementById('analyze-scene-mode').value, context_names: contextNames}),
   });
 
   if (!startRes.ok) {
@@ -2343,14 +2481,20 @@ async function startIngest() {
   }
 
   const filename = path.split(/[\\/]/).pop();
-  closeIngestModal();
+  _analyzeFilename = filename;
+  closeAnalyzeModal();
   btn.disabled = false;
   btn.textContent = 'Start Analysis';
   openLog();
   appendLog(`Analyzing: ${filename}`);
   streamSSE(
     '/api/analyze/events',
-    () => { loadVideos(); showToast('Analysis complete — clips are ready to review'); },
+    async () => {
+      await loadVideos();
+      const v = _videos.find(v => v.filename === _analyzeFilename);
+      _analyzeFilename = null;
+      _showAnalysisToast(v);
+    },
     INGEST_STEPS,
     `Analyzing ${filename}`,
     true,
@@ -2372,17 +2516,24 @@ const SCORE_STEPS = [
   {label: 'Scoring', patterns: ['Scoring clips']},
 ];
 
-let _jobStepDefs = [];
-let _activeES    = null;
+let _jobStepDefs   = [];
+let _activeES      = null;
+let _jobStartTime  = 0;
+let _jobTimer      = null;
+let _activeStepIdx = -1;
 
 function startJobUI(stepDefs, jobLabel, cancellable = false) {
-  _jobStepDefs = stepDefs;
+  _jobStepDefs   = stepDefs;
+  _activeStepIdx = -1;
+  _jobStartTime  = Date.now();
+  if (_jobTimer) clearInterval(_jobTimer);
+  _jobTimer = setInterval(_tickJobTimer, 1000);
   document.getElementById('job-steps').innerHTML =
     `<span style="color:var(--muted);margin-right:4px">${escHtml(jobLabel)}</span>` +
     stepDefs.map((s, i) => `<span class="step" id="step-${i}">${s.label}</span>`).join('');
   document.getElementById('job-status').classList.add('visible');
   document.getElementById('header-spacer').style.display = 'none';
-  document.querySelectorAll('#btn-ingest,#btn-score,#btn-demo').forEach(b => b.disabled = true);
+  document.querySelectorAll('#btn-analyze,#btn-score,#btn-demo').forEach(b => b.disabled = true);
   document.getElementById('btn-cancel-job').style.display = cancellable ? '' : 'none';
 }
 
@@ -2391,24 +2542,39 @@ function updateJobUI(line) {
     if (s.patterns.some(p => line.includes(p))) {
       for (let j = 0; j < i; j++) {
         const el = document.getElementById(`step-${j}`);
-        if (el) el.className = 'step done';
+        if (el) { el.className = 'step done'; el.textContent = _jobStepDefs[j].label; }
       }
       const el = document.getElementById(`step-${i}`);
-      if (el) el.className = 'step active';
+      if (el) { el.className = 'step active'; _activeStepIdx = i; }
     }
   });
 }
 
+function _fmtElapsed(ms) {
+  const s = Math.floor(ms / 1000);
+  const m = Math.floor(s / 60);
+  return m > 0 ? `${m}m ${s % 60}s` : `${s}s`;
+}
+
+function _tickJobTimer() {
+  if (_activeStepIdx < 0) return;
+  const el  = document.getElementById(`step-${_activeStepIdx}`);
+  const def = _jobStepDefs[_activeStepIdx];
+  if (!el || !def || !el.classList.contains('active')) return;
+  el.textContent = `${def.label} · ${_fmtElapsed(Date.now() - _jobStartTime)}`;
+}
+
 function endJobUI() {
-  _jobStepDefs.forEach((_, i) => {
+  if (_jobTimer) { clearInterval(_jobTimer); _jobTimer = null; }
+  _jobStepDefs.forEach((s, i) => {
     const el = document.getElementById(`step-${i}`);
-    if (el) el.className = 'step done';
+    if (el) { el.className = 'step done'; el.textContent = s.label; }
   });
   document.getElementById('btn-cancel-job').style.display = 'none';
   setTimeout(() => {
     document.getElementById('job-status').classList.remove('visible');
     document.getElementById('header-spacer').style.display = '';
-    document.querySelectorAll('#btn-ingest,#btn-score').forEach(b => b.disabled = false);
+    document.querySelectorAll('#btn-analyze,#btn-score').forEach(b => b.disabled = false);
   }, 2000);
 }
 
@@ -2487,6 +2653,41 @@ function appendLog(raw) {
 }
 
 // ── toast notifications ────────────────────────────────────────────────────────
+function _showAnalysisToast(video) {
+  const container = document.getElementById('toast-container');
+  const toast = document.createElement('div');
+  toast.className = 'toast success';
+  toast.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:12px';
+  const count = video ? video.clip_count : 0;
+  toast.appendChild(document.createTextNode(
+    `Analysis complete — ${count} clip${count !== 1 ? 's' : ''} found`
+  ));
+  const actions = document.createElement('div');
+  actions.style.cssText = 'display:flex;gap:6px;align-items:center;flex-shrink:0';
+  if (video && activeVideoId !== video.id) {
+    const link = document.createElement('button');
+    link.className = 'btn ghost';
+    link.style.cssText = 'font-size:11px;padding:2px 8px';
+    link.textContent = 'Review';
+    link.onclick = () => { selectVideo(video.id); toast.remove(); };
+    actions.appendChild(link);
+  }
+  const close = document.createElement('button');
+  close.className = 'btn ghost';
+  close.style.cssText = 'font-size:14px;padding:0 4px';
+  close.setAttribute('aria-label', 'Dismiss');
+  close.textContent = '×';
+  close.onclick = () => toast.remove();
+  actions.appendChild(close);
+  toast.appendChild(actions);
+  container.appendChild(toast);
+  setTimeout(() => {
+    toast.style.transition = 'opacity .3s';
+    toast.style.opacity = '0';
+    setTimeout(() => toast.remove(), 300);
+  }, 8000);
+}
+
 function showToast(message, type = 'success', durationMs = 4000) {
   const container = document.getElementById('toast-container');
   container.setAttribute('aria-live', type === 'error' ? 'assertive' : 'polite');
@@ -2534,7 +2735,7 @@ function _sortScore(clip) {
 }
 
 const _VIDEO_STATUS_DISPLAY = {
-  pending: 'Not analyzed', probed: 'Inspected', labeled: 'Tracks labeled',
+  pending: 'Not analyzed', probed: 'Inspected', labeled: 'Tracks assigned',
   extracting: 'Extracting', transcribing: 'Transcribing', segmented: 'Segmented', done: 'Analyzed',
 };
 function _fmtVideoStatus(s) { return _VIDEO_STATUS_DISPLAY[s] || s; }
@@ -2581,7 +2782,7 @@ async function pickFile() {
   try {
     const data = await fetch('/api/pick-file').then(r => r.json());
     if (data.path) {
-      document.getElementById('ingest-path').value = data.path;
+      document.getElementById('analyze-path').value = data.path;
       scheduleProbe();
     }
   } finally {
@@ -2592,6 +2793,13 @@ async function pickFile() {
 
 // ── profile manager ────────────────────────────────────────────────────────────
 const TRACK_LABELS = ['player_voice', 'ingame_voicechat', 'game_sounds', 'combined', 'unlabeled'];
+const TRACK_LABEL_DISPLAY = {
+  player_voice:      'Player voice',
+  ingame_voicechat:  'In-game voice chat',
+  game_sounds:       'Game sounds',
+  combined:          'Combined (all tracks)',
+  unlabeled:         'Unlabeled',
+};
 let _allProfiles = [];
 
 async function openProfileManager() {
@@ -2618,7 +2826,7 @@ async function _refreshProfileList() {
       <span style="color:var(--muted);font-size:12px">${p.num_tracks} track${p.num_tracks !== 1 ? 's' : ''}</span>
       ${!p.builtin ? `
         <button class="btn" style="padding:4px 10px;font-size:12px" data-edit-profile="${escHtml(p.name)}">Edit</button>
-        <button class="btn" style="padding:4px 10px;font-size:12px;color:var(--red)" data-delete-profile="${escHtml(p.name)}">Delete</button>
+        <button class="btn danger" style="padding:4px 10px;font-size:12px" data-delete-profile="${escHtml(p.name)}">Delete</button>
       ` : ''}
     </div>`).join('');
   el.onclick = e => {
@@ -2654,7 +2862,7 @@ function renderTrackRows(existingAssignments) {
     const doTx  = a ? (a.do_transcribe !== false) : (label !== 'game_sounds');
     const doSc  = a ? (a.do_score !== false)      : (label !== 'game_sounds');
     const opts  = TRACK_LABELS.map(l =>
-      `<option value="${l}"${l === label ? ' selected' : ''}>${l}</option>`
+      `<option value="${l}"${l === label ? ' selected' : ''}>${TRACK_LABEL_DISPLAY[l] || l}</option>`
     ).join('');
     rows.push(`
       <div style="display:flex;align-items:center;gap:8px;padding:5px 0;font-size:13px">
@@ -2705,7 +2913,7 @@ async function saveProfile() {
 
 function deleteProfile(name) {
   showConfirm(
-    'Delete profile?',
+    'Delete track layout?',
     `Delete track layout <strong>${escHtml(name)}</strong>? This cannot be undone.`,
     'Delete',
     () => _doDeleteProfile(name),
@@ -3040,9 +3248,10 @@ async function _refreshContextList() {
     return;
   }
   el.innerHTML = _contexts.map(c => `
-    <div style="display:flex;align-items:center;padding:7px 10px;border:1px solid var(--border);border-radius:6px;cursor:pointer"
-         data-edit-ctx="${escHtml(c.slug)}">
-      <span style="font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(c.display_name || c.slug)}</span>
+    <div style="display:flex;align-items:center;gap:6px;padding:7px 10px;border:1px solid var(--border);border-radius:6px;cursor:pointer"
+         data-edit-ctx="${escHtml(c.context_id)}">
+      <span style="font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${escHtml(c.display_name || c.context_id)}</span>
+      ${c.builtin ? '<span style="font-size:10px;color:var(--muted);background:var(--border);border-radius:3px;padding:1px 5px;flex-shrink:0;pointer-events:none">Built-in</span>' : ''}
     </div>`).join('');
   el.onclick = e => {
     const item = e.target.closest('[data-edit-ctx]');
@@ -3051,22 +3260,22 @@ async function _refreshContextList() {
 }
 
 function openNewContext() {
-  _editingContextSlug = null;
-  ['ce-slug','ce-display-name','ce-setting','ce-your-chars','ce-other-chars','ce-notes'].forEach(id => {
+  _editingContextId = null;
+  ['ce-context-id','ce-display-name','ce-setting','ce-your-chars','ce-other-chars','ce-notes'].forEach(id => {
     document.getElementById(id).value = '';
   });
-  document.getElementById('ce-slug').disabled = false;
+  document.getElementById('ce-context-id').disabled = false;
   document.getElementById('btn-delete-context').style.display = 'none';
   document.getElementById('context-editor').style.display = 'flex';
-  document.getElementById('ce-slug').focus();
+  document.getElementById('ce-context-id').focus();
 }
 
-function editContext(slug) {
-  const ctx = _contexts.find(c => c.slug === slug);
+function editContext(context_id) {
+  const ctx = _contexts.find(c => c.context_id === context_id);
   if (!ctx) return;
-  _editingContextSlug = slug;
-  document.getElementById('ce-slug').value            = ctx.slug;
-  document.getElementById('ce-slug').disabled         = true;
+  _editingContextId = context_id;
+  document.getElementById('ce-context-id').value            = ctx.context_id;
+  document.getElementById('ce-context-id').disabled         = true;
   document.getElementById('ce-display-name').value    = ctx.display_name || '';
   document.getElementById('ce-setting').value         = ctx.setting || '';
   document.getElementById('ce-your-chars').value      = ctx.your_characters || '';
@@ -3081,14 +3290,14 @@ function cancelContextEdit() {
 }
 
 async function saveContext() {
-  const slug        = _editingContextSlug || document.getElementById('ce-slug').value.trim();
+  const context_id  = _editingContextId || document.getElementById('ce-context-id').value.trim();
   const displayName = document.getElementById('ce-display-name').value.trim();
-  if (!slug)        { showToast('ID is required', 'error'); return; }
+  if (!context_id)  { showToast('ID is required', 'error'); return; }
   if (!displayName) { showToast('Display name is required', 'error'); return; }
   const res = await fetch('/api/contexts', {
     method: 'POST', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({
-      slug, display_name: displayName,
+      context_id, display_name: displayName,
       setting:          document.getElementById('ce-setting').value,
       your_characters:  document.getElementById('ce-your-chars').value,
       other_characters: document.getElementById('ce-other-chars').value,
@@ -3106,13 +3315,13 @@ async function saveContext() {
 }
 
 function deleteContext() {
-  if (!_editingContextSlug) return;
-  const ctx  = _contexts.find(c => c.slug === _editingContextSlug);
-  const name = ctx ? ctx.display_name : _editingContextSlug;
+  if (!_editingContextId) return;
+  const ctx  = _contexts.find(c => c.context_id === _editingContextId);
+  const name = ctx ? ctx.display_name : _editingContextId;
   showConfirm(
     'Delete context?',
     `Delete context <strong>${escHtml(name)}</strong>?<br><br>` +
-    `Videos already assigned to it will keep the slug — you can re-create the context to restore it.`,
+    `Videos already assigned to it will keep the Context ID — you can re-create the context to restore it.`,
     'Delete',
     () => _doDeleteContext(name),
     true,
@@ -3120,7 +3329,7 @@ function deleteContext() {
 }
 
 async function _doDeleteContext(name) {
-  const res = await fetch(`/api/contexts/${encodeURIComponent(_editingContextSlug)}`, {method: 'DELETE'});
+  const res = await fetch(`/api/contexts/${encodeURIComponent(_editingContextId)}`, {method: 'DELETE'});
   if (!res.ok) {
     const e = await res.json().catch(() => ({}));
     showToast(formatApiError(e) || 'Delete failed', 'error');
@@ -3132,29 +3341,29 @@ async function _doDeleteContext(name) {
 }
 
 // ── video context assignment ───────────────────────────────────────────────────
-async function addVideoContext(videoId, slug) {
-  if (!slug) return;
+async function addVideoContext(videoId, context_id) {
+  if (!context_id) return;
   const video   = _videos.find(v => v.id === videoId);
   const current = video ? [...(video.context_names || [])] : [];
-  if (!current.includes(slug)) current.push(slug);
+  if (!current.includes(context_id)) current.push(context_id);
   await _saveVideoContexts(videoId, current);
 }
 
-async function removeVideoContext(videoId, slug) {
+async function removeVideoContext(videoId, context_id) {
   const video   = _videos.find(v => v.id === videoId);
-  const current = (video ? video.context_names || [] : []).filter(s => s !== slug);
+  const current = (video ? video.context_names || [] : []).filter(s => s !== context_id);
   await _saveVideoContexts(videoId, current);
 }
 
-async function _saveVideoContexts(videoId, slugs) {
+async function _saveVideoContexts(videoId, context_ids) {
   const res = await fetch(`/api/videos/${videoId}/contexts`, {
     method: 'PATCH', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({context_names: slugs}),
+    body: JSON.stringify({context_names: context_ids}),
   });
   if (!res.ok) { showToast('Failed to update contexts', 'error'); return; }
   const video = _videos.find(v => v.id === videoId);
   if (video) {
-    video.context_names = slugs;
+    video.context_names = context_ids;
     if (activeVideoId === videoId) renderVideoDetail(video, null);
   }
 }
@@ -3595,13 +3804,17 @@ document.addEventListener('keydown', e => {
     _confirmCancel();
     closeFieldEditModal();
     _diffDiscard();
-    closeIngestModal();
+    closeAnalyzeModal();
     closeProfileManager();
     closeDemoModal();
     closeReelsModal();
     closeRetranscribeModal();
     closeContextManager();
     closeBatchExportModal();
+    closeExportModal();
+    closeTimelineIntervalModal();
+    closeAutoApproveModal();
+    closeReelPreview();
     closeSettings();
     closeHamburger();
     return;

@@ -164,8 +164,8 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         return _compute_time_estimate(req)
 
     @router.post("/api/analyze/start")
-    async def start_ingest(req: IngestRequest):
-        """Validate the video path, build the ingest CLI command, and queue it for the SSE stream."""
+    async def start_analyze(req: IngestRequest):
+        """Validate the video path, build the analyze CLI command, and queue it for the SSE stream."""
         if not Path(req.path).exists():
             raise HTTPException(400, f"File not found: {req.path}")
         try:
@@ -183,26 +183,26 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             cmd += ["--no-score"]
         cmd += ["--energy-mode", req.energy_mode]
         cmd += ["--scene-mode", req.scene_mode]
-        for slug in req.context_names:
-            cmd += ["--context", slug]
+        for context_id in req.context_names:
+            cmd += ["--context", context_id]
         cmd += ["--no-interact"]
-        ctx.ingest_cmd = cmd
+        ctx.analyze_cmd = cmd
         _log.info("Analyze queued: %s (model=%s, energy=%s, scene=%s)", req.path, req.model, req.energy_mode, req.scene_mode)
         return {"status": "started"}
 
     @router.get("/api/analyze/events")
-    async def ingest_events():
-        """Stream the queued ingest subprocess output as SSE. Call /api/analyze/start first."""
-        if not ctx.ingest_cmd:
+    async def analyze_events():
+        """Stream the queued analyze subprocess output as SSE. Call /api/analyze/start first."""
+        if not ctx.analyze_cmd:
             raise HTTPException(400, "No analyze command queued. Call /api/analyze/start first.")
-        return await subprocess_sse(ctx.ingest_cmd, ctx.project_dir, ctx)
+        return await subprocess_sse(ctx.analyze_cmd, ctx.project_dir, ctx)
 
     @router.get("/api/status")
     def server_status():
         """Return whether any processing is currently active (analysis, scoring, timeline, etc.)."""
         # Lazy import: analyze.py is loaded by app.py, so a top-level import would be circular.
         from yuu_clip.web.app import _SERVER_START
-        proc = ctx.ingest_proc
+        proc = ctx.analyze_proc
         analyze_running = proc is not None and proc.returncode is None
         return {
             "any_running": analyze_running or ctx.active_jobs > 0,
@@ -214,19 +214,19 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     @router.get("/api/analyze/status")
     def analyze_status():
         """Return whether an analyze subprocess is currently running."""
-        proc = ctx.ingest_proc
+        proc = ctx.analyze_proc
         running = proc is not None and proc.returncode is None
         return {"running": running}
 
     @router.post("/api/analyze/cancel")
     async def cancel_analyze():
         """Terminate the currently running analyze subprocess, if any."""
-        proc = ctx.ingest_proc
+        proc = ctx.analyze_proc
         if proc is not None and proc.returncode is None:
             _log.warning("Analysis cancelled by user (pid %s)", proc.pid)
-            ctx.ingest_cancelled = True
+            ctx.analyze_cancelled = True
             proc.terminate()
-        ctx.ingest_cmd = None
+        ctx.analyze_cmd = None
         return {"status": "cancelled"}
 
     @router.post("/api/score")

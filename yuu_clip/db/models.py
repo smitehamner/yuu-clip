@@ -115,6 +115,12 @@ def _migrate(engine) -> None:
             conn.execute(text("ALTER TABLE clip_candidates ADD COLUMN start_offset REAL NOT NULL DEFAULT 0.0"))
         if "end_offset" not in existing:
             conn.execute(text("ALTER TABLE clip_candidates ADD COLUMN end_offset REAL NOT NULL DEFAULT 0.0"))
+        if "exported_at" not in existing:
+            conn.execute(text("ALTER TABLE clip_candidates ADD COLUMN exported_at DATETIME"))
+        if "exported_container" not in existing:
+            conn.execute(text("ALTER TABLE clip_candidates ADD COLUMN exported_container TEXT"))
+        if "exported_burn_subs" not in existing:
+            conn.execute(text("ALTER TABLE clip_candidates ADD COLUMN exported_burn_subs BOOLEAN"))
 
         conn.commit()
 
@@ -149,7 +155,7 @@ class Video(Base):
     summary_user: Mapped[Optional[str]] = mapped_column(Text)
     timeline_json: Mapped[Optional[str]] = mapped_column(Text)
 
-    context_names_json: Mapped[Optional[str]] = mapped_column(Text)  # JSON list of context slugs
+    context_names_json: Mapped[Optional[str]] = mapped_column(Text)  # JSON list of context IDs
 
     # Provenance: timestamp + active context for each LLM operation, so the UI
     # can warn when results are stale after a context change.
@@ -273,6 +279,10 @@ class ClipCandidate(Base):
     # pending → approved / rejected / trimmed
     status: Mapped[str] = mapped_column(String, default="pending")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    exported_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    exported_container: Mapped[Optional[str]] = mapped_column(String)
+    exported_burn_subs: Mapped[Optional[bool]] = mapped_column(Boolean)
 
     video: Mapped["Video"] = relationship(back_populates="clip_candidates")
 

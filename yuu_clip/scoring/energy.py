@@ -72,7 +72,7 @@ def compute_energy(track: "AudioTrack", session: "Session", energy_mode: str = "
     try:
         rows = _read_rms_per_second(wav_path, downsample_factor=downsample_factor)
     except Exception as exc:
-        log.error("Energy computation failed for track %d: %s", track.id, exc)
+        log.error("Energy computation failed for track %d: %s", track.id, exc, exc_info=True)
         return 0
 
     for second_offset, rms_db in enumerate(rows):

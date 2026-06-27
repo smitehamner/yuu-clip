@@ -15,151 +15,25 @@
 
 ## Phase 1 — Core pipeline (Done)
 
-- ffprobe video probing (duration, streams, fps, codec info)
-- Interactive track labeling + saved track layouts (`profiles.json`)
-- Audio extraction per track to 16 kHz mono WAV via FFmpeg
-- Whisper transcription via faster-whisper (CTranslate2 backend)
-- CUDA auto-detection using `ctranslate2.get_cuda_device_count()` (no PyTorch dep)
-- Sliding window clip generation from silence gaps
-- SRT caption sidecars (per-track + merged)
-- `--bake-captions` for baked-in captions
-- CLI: `yuuclip analyze / export / clips / status / probe`
+ffprobe probing, interactive track labeling, audio extraction, Whisper transcription (faster-whisper/CTranslate2, CUDA), sliding-window clip generation, SRT sidecars, baked captions. CLI: `yuuclip analyze / export / clips / status / probe`.
+
+See [COMPLETED.md](COMPLETED.md) for full details.
 
 ---
 
 ## Phase 2 — Signal enrichment + scoring (Done)
 
-- `AudioEnergy` table: per-second RMS energy via PyAV
-- `SceneBoundary` table: tiered scene detection
-  - Transcript gaps (instant)
-  - Keyframe timestamps via ffprobe (seconds)
-  - Full ContentDetector via PySceneDetect (slow, opt-in)
-- `LLMScorer`: Ollama (local GPU) with JSON-structured output
-  - Generates 1-sentence clip description + scores in one call
-  - `score_funny`, `score_dramatic`, `score_action`
-- `ScoringEngine`: weighted aggregation across all signals
-- Track overlap detection: RMS Pearson correlation + post-transcription word overlap
-  - Falls back to combined track when specialized tracks duplicate it
-- `clip_candidates.description` column with DB migration
-- `yuuclip score` standalone re-scoring command; useful after changing world contexts
-- `yuuclip reel` highlight reel compiler (FFmpeg xfade transitions + title cards)
+Audio energy (PyAV RMS), tiered scene detection (transcript gaps / keyframes / PySceneDetect), LLM scoring via Ollama (JSON-structured, funny/dramatic/action sub-scores + clip description), track overlap detection, weighted scoring engine. `yuuclip score` and `yuuclip reel` CLI commands.
+
+See [COMPLETED.md](COMPLETED.md) for full details.
 
 ---
 
 ## Phase 3 — Web UI (In progress)
 
-### Done
-
-- FastAPI + uvicorn server (`yuuclip serve`)
-- Single-page frontend (vanilla JS, no build step)
-- Video list and clip list sidebar with sub-score bars (F/D/A) and clip ID
-- Clip detail: video player, score bars, description, transcript excerpt
-- Approve / Reject / Reset workflow with status dot
-- Export clip via SSE progress stream
-- ~~Score All button with SSE progress~~ — removed from UI; CLI-only via `yuuclip score`
-- Analyze modal: native OS file picker, inspect + time estimates, warning threshold
-- Step-by-step progress indicator in header during jobs
-- Track layout manager modal: create/edit/delete track layouts
-- Highlight reel builder modal with transition and duration controls
-- Retranscribe individual clips with a different Whisper model
-- Export Log button: one-click debug log download
-- Video summary — `POST /api/videos/{id}/summarize`; `Video.title` + `Video.summary` columns; user-editable inline
-- Two-level clip descriptions — `description` (1-sentence) + `description_long` (paragraph); both LLM-generated; user-editable inline
-- Session timeline — `GET /api/videos/{id}/timeline`; `timeline_json` column; visual timeline in video detail panel
-- World Contexts — context assignment per-video; `context_names_json` column; world context manager modal
-- Re-score individual clip — "Re-score" button in clip detail; SSE; backend `GET /api/clips/{id}/rescore`
-- Keyboard shortcuts — A/R/Space/E/←→; `?` key opens About panel
-- About / Credits modal — licencing notice, dependency table, keyboard shortcut cheatsheet
-- `GET /api/status` — reports `any_running`, `ingest_running`, `active_jobs`, `version` (covers all SSE jobs, not just ingest)
-- App footer bar — VS Code-style thin bar at bottom; version string bottom-left from `/api/status`
-- Sidebar score icons — emoji + number line replacing sub-score bars: `⭐ 0.74  😂 0.8  🎭 0.4  ⚔️ 0.6`; 4px colored left border per card (gradient on selected sort score; muted on rejected)
-- Sort by sub-score — dropdown extended: `⭐ Overall ↓ · 😂 Funny ↓ · 🎭 Dramatic ↓ · ⚔️ Action ↓ · Timeline`; `localStorage` persistence; border color tracks selection
-- Filter tabs — `All · Unreviewed · Approved · Rejected` above clip list; resets to All on video switch
-- Rejected clip undo — toast + `Ctrl+Z` reverts last status change within 5 s
-- Rename "Slug" → "ID" in Context Manager
+Core review workflow, sidebar, export, analyze modal, track layout manager, reel builder, video summary + title, two-level clip descriptions, session timeline, World Contexts, settings panel, keyboard shortcuts, editable LLM fields with diff/compare, batch export, auto-approve, confirmation dialogs, prebuilt contexts, context nudge, post-analysis toast, elapsed timer on job steps, clip preview before export (seekable, LRU-cached temp files from source via FFmpeg), export status pills in sidebar, Save As button, Delete Export vs Delete Clip separation, export metadata display (container/captions/timestamp), and more. See [COMPLETED.md](COMPLETED.md) for the full shipped list.
 
 ### Near-term
-
-- [x] **Editable LLM fields + regenerate-with-compare** *(priority #1)*
-  - `*_original` + `*_user` column split on all four fields: `title`, `summary`, `description`,
-    `description_long`. Display: `*_user ?? *_original`
-  - `*_original` updated only when user explicitly accepts a regeneration into it
-  - Per-field `...` kebab menu → diff modal: current value left, new LLM output right; user can
-    edit the right panel before committing
-  - Modal actions: **Accept New** (sets `*_original` = new, clears `*_user`), **Accept as Edit**
-    (preserves `*_original`, sets `*_user` = new), **Discard** (no changes)
-  - Clip start/end time editable via combo input: offset (±s from detected timestamp), absolute
-    seconds, or MM:SS.s — all stored as `start_offset` / `end_offset` floats on `ClipCandidate`;
-    original `start_time` / `end_time` are immutable
-
-- [x] **Header hamburger menu** *(absorbs "Controls UI polish")*
-  - Trim header to: `+ Analyze` · `Highlight Reel` · `≡` (hamburger trigger)
-  - **Score All button removed from UI** — CLI-only via `yuuclip score`; add interactive
-    confirmation + GPU time warning to the CLI command
-  - Hamburger dropdown (icon + text per item):
-    `🎭 Contexts` · `⌨ Controls` · `ℹ About` · `⬇ Download Log` · `⚙ Settings`
-  - Controls modal: keyboard shortcut cheatsheet (replaces "?" button)
-  - About modal: licensing + credits (unchanged content, new entry point)
-
-- [x] **Confirmation dialogs on destructive actions**
-  - All five existing `confirm()` calls converted to modals: delete video, delete clip,
-    cancel analysis, delete track layout, delete context
-  - New confirmation modals for: re-score clips per video (expensive), reset approvals per video
-  - Reset approvals: new button in video detail header; modal shows "will reset N clips to unreviewed"
-  - `confirm()` / `alert()` banned going forward — always use the app modal pattern
-
-- [x] **Timeline interval picker**
-  - "Generate Timeline" opens a mini pre-generation settings modal:
-    - Interval: number input + unit selector (seconds / minutes)
-    - Video length hint shown: "Video is 45 m — intervals longer than this produce one bucket"
-    - Planned future slots: scene boundaries as markers toggle, energy overlay toggle
-  - Min 10 s, default 15 min (900 s); no hard max cap (hint only)
-  - Persisted in `config.json`: `ui_timeline_interval_seconds` + `ui_timeline_interval_unit`
-  - `GET /api/config` / `PATCH /api/config` endpoints for UI config persistence
-  - YAML migration deferred to Settings page phase
-
-- [x] **Active-generation indicator** — client-side: buttons disable + show "Generating…" during in-flight calls; per-field spinners deferred (server-side tracking not yet implemented)
-  - Extend `/api/status` with `generating: [{"kind": "summary"|"description"|..., "video_id": N}
-    | {"kind": "...", "clip_id": N}]`; server tracks active jobs in `ProjectContext`
-  - Frontend polls on page load; matches entries to fields and lights up spinners
-  - First generation (empty field): "Generating…" text + spinner in the empty slot
-  - Regeneration (field has content): existing content stays visible, spinner badge overlaid
-  - SSE start/end events set/clear the per-field loading state
-
-- [x] **Export settings** *(ships before batch export)*
-  - Single "Export" button opens a pre-export settings modal:
-    - ~~Retranscribe: checkbox + model picker~~ — deferred; use the separate Retranscribe button
-    - ~~Rescore after retranscribe: checkbox~~ — deferred
-    - Output format: container picker (Match source default, MKV, MP4)
-    - Burn subtitles: checkbox
-  - `--container` flag added to `yuuclip export` CLI command
-  - Same modal reused by batch export
-
-- [x] **Batch export** *(requires export settings)*
-  - "Export Clips" button in video detail panel → threshold modal:
-    - Score threshold: slider + number input
-    - Distribution preview: "14 clips above 0.6, 3 already exported → 11 will export"
-    - "Re-export already exported clips" checkbox
-  - Launches export settings modal before queuing
-  - Single SSE progress stream in header: "Exporting 3 of 11…"
-  - Collapsible per-clip status panel below the header; click the stream line to expand
-
-- [x] **Auto-approve (simple)**
-  - "Approve all above score" button in video detail panel
-  - Threshold input + confirmation modal showing clip count
-  - Filter + bulk-select in sidebar deferred to the search + filter feature
-
-- [x] **Settings page** *(promoted from medium-term)* — accessible via hamburger ⚙ Settings; auto-saves; sections: Whisper, Ollama, Scoring weights, Analysis defaults, UI, Paths
-  - Accessible via `⚙ Settings` in hamburger menu — replaces the main content area (not a modal)
-  - Auto-save on change; inline consequence notes where needed:
-    "Takes effect on next rescore" / "Takes effect on next ingest"
-  - Sections: `UI` · `Scoring` · `Whisper` · `Ollama` · `Export` · `Hot-words` · `Paths`
-  - Covers: timeline interval, score weights, scene mode, Whisper defaults,
-    Ollama model/host/timeout, export format default
-  - `Hot-words` and `Sensitive Content` sections reserved as placeholders (features are Phase 6)
-  - `Paths` section: project folder, exports folder, scratch/working directory — key for
-    non-default setups (different drives, external storage, shared network paths)
-  - Config format stays JSON for now; YAML with nested sections deferred
 
 - [ ] **Related clips**
   - "Find Similar" button in clip detail opens a scope-selection modal:
@@ -170,34 +44,12 @@
     than last rescore
   - Top-N configured in Settings
 
-- [ ] **Prebuilt World Contexts**
-  - Ship 2–3 starter contexts: "Fantasy RP", "Action Game / FPS", "Variety Stream"
-  - Appear pre-populated in the Context Manager with a "Built-in" badge
-  - All fields are editable and the user can clone or delete them
-  - Avoids the blank-slate problem for first-time users
-
-- [ ] **Context nudge in Analyze modal**
-  - If no World Contexts exist when the modal opens: soft callout "No World Contexts set up —
-    clip descriptions will be generic. [Add one →]" linking to the Context Manager
-  - If contexts exist but none are checked: milder reminder "No context selected"
-
 - [ ] **Per-context score weights**
   - Each World Context gets optional score weight overrides: action, funny, dramatic
   - When a video is rescored using that context, its weights override the global defaults
   - Configured in the Context editor UI alongside the existing fields
   - Allows e.g. an "Action Game" context to set action=0.8, dramatic=0.2 without touching
     global Settings — user sets it once per context and it follows the context everywhere
-
-- [ ] **Post-analysis toast**
-  - When an analysis SSE stream completes, fire a persistent toast: "Analysis complete — N clips found"
-    with a "Review" link that selects the video in the sidebar
-  - Only shown if the user is not already viewing that video's clip list
-  - Dismissable with ×
-
-- [ ] **Analysis progress indicator**
-  - Stage label + elapsed timer derived from SSE log lines already streamed
-    ("Transcribing… 2 m 14 s elapsed")
-  - Not a real percentage — reduces "did it crash?" anxiety without requiring Whisper progress hooks
 
 - [ ] **Caption / subtitle export**
   - Export modal gains two new options:
@@ -259,8 +111,6 @@
     - **Reanalyze — keep exported** *(suggested default)* — preserves clips already exported;
       replaces all others; reruns ingest on each segment
 
-- [x] **Highlight reel editor** — "Highlight Reel" modal redesigned: ordered clip list (check/uncheck, ↑↓ reorder), "Random" transition option, encode time estimate, "Preview" plays exported clips as a playlist in the main player; `--clip-ids` added to CLI `reel` command
-
 - ~~**Clip deduplication**~~ — **On hold**: design unclear; revisit after transcript editing is stable
 
 ### Medium-term
@@ -275,23 +125,9 @@
     on a video detail page) — not for top-level navigation between major views
   - Migrate existing modals to panel views incrementally; start with New Recording and Split Editor
 
-- [x] **Demo reel: separate reels folder + timestamp-based output filename** — reels saved to a
-  dedicated `reels/` subfolder; default filename includes a timestamp
-  (e.g. `highlights_20260625_143022.mkv`) to avoid silently overwriting previous reels; encode
-  ETA shown during generation.
-
-- [x] **Clip trim (in/out adjust)** — implemented as part of *Editable LLM fields*: combo input
-  (±offset / absolute seconds / MM:SS.s) stores `start_offset` / `end_offset` on `ClipCandidate`;
-  original `start_time` / `end_time` are immutable. Drag handles on the player timeline are still
-  a future enhancement (see Phase 6).
-
-- [x] **Export: match source format by default** — export modal defaults to "Match source"; CLI `--container` override added; stream copy (no re-encode) is the default.
-
 - [ ] **Quick Export vs Full Export** — current export is already "quick" (stream copy, no title card). Full Export (with title card, like reel clips) is a future addition.
 
 - [ ] **SRT import / external subtitle support** — probe now detects embedded subtitle streams and `.srt` sidecars and returns them in the probe response. Using them to skip Whisper requires pipeline changes still TODO.
-
-- [x] **Analysis time estimate fix** — frontend passes `transcribe_tracks` from the selected track layout; backend uses it when provided
 
 ### Pre-packaging documentation
 
@@ -546,7 +382,7 @@ Items wanted long-term but not yet assigned to a phase.
 - ~~**Analysis time estimate counts all tracks**~~ — fixed: frontend passes `transcribe_tracks` from the selected track layout's `do_transcribe` assignments
 - **`_ingest_one` has many parameters** — consider a dataclass if it grows further
 - **`analyze/labeler.py:_label_interactive`** — ~100 lines mixing UI and logic; candidate for split
-- **JS in `index.html` (~1737 lines)** — no-build-step SPA; consider ES modules if it grows further
+- **JS in `index.html` (~1800 lines)** — no-build-step SPA; consider ES modules if it grows further
 - **No integration test for `reel_events` SSE** — `reel.py:reel_events` passes `ctx` to `subprocess_sse` (needed for graceful shutdown and `/api/status`); this path has no test coverage and was silently broken before the Phase 3 bug-hunt pass
 - ~~**Ollama scoring errors are silent**~~ — fixed: `LLMScorer.score()` now emits `log.warning("LLM scoring failed for clip %d: %s", ...)` on any exception
 - **`_video_dict`/`_clip_dict` user-override pattern** — `field_user if field_user is not None else (field or "")` repeated across both serializers; the right fix is `@property` on the model class (`Video.effective_title`, `Video.effective_summary`, etc.) so the display logic lives once, on the model. Deferred because it touches the model layer and serialization contract.
@@ -557,6 +393,8 @@ Items wanted long-term but not yet assigned to a phase.
 - **Modal focus management** — most modals (`openAboutModal`, `openAutoApproveModal`, etc.) do not move focus into the modal on open; only `openFieldEditModal` and `openNewContext` do. Extending to all ~13 remaining open-functions is mechanical. Deferred; no reported keyboard-navigation issues.
 - **Sidebar video list keyboard support** — `<li>` items in `#video-list` are mouse-only; no `tabindex` or `onkeydown` handler. Clip navigation works via A/R/←/→ shortcuts, but selecting a video requires a mouse. Fix: add `tabindex="0"` and Enter/Space handler to each `<li>`, or put a `<button>` inside.
 - **Clip filter tabs ARIA roles** — `.clip-tab` buttons have no `role="tab"`, no `role="tablist"` on the container, and no `aria-selected`. Adding these enables arrow-key tab switching and correct screen reader announcement.
+- **`_video_dict`/`_clip_dict` effective-field properties** — move the `field_user if field_user is not None else (field or "")` display logic to `@property` on the model (`Video.effective_title`, `Video.effective_summary`, etc.) so it lives once. Pre-condition for cleaner serialization if the model grows. Already tracked above under `_video_dict`/`_clip_dict` user-override pattern.
+- **Preview cache test isolation** — the module-level `_preview_cache` dict in `routes/videos.py` is shared across all `create_app()` calls in tests. Not a bug today, but if any test directly manipulates cache state the lack of isolation will cause ordering-dependent failures.
 
 ---
 
