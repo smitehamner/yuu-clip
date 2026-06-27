@@ -403,6 +403,13 @@ Items wanted long-term but not yet assigned to a phase.
   prompt or scoring weight vector semi-automatically. Requires a meaningful corpus of overrides
   before it's worthwhile.
 
+- [ ] **Code signing for public distribution** — the installer is currently unsigned; Windows shows
+  a SmartScreen "unknown publisher" warning on first run, and some AV tools will flag it. Required
+  before distributing outside friends/trusted users. Options: EV code signing certificate (~$300/yr,
+  immediate SmartScreen trust) or standard OV cert (cheaper, builds SmartScreen reputation over time
+  via volume). electron-builder supports both via `CSC_LINK` / `CSC_KEY_PASSWORD` env vars; remove
+  the `CSC_IDENTITY_AUTO_DISCOVERY=false` override in `build-release.ps1` when a cert is in place.
+
 ---
 
 ## Known issues (fixed)
