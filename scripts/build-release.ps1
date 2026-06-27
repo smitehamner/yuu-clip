@@ -39,21 +39,22 @@ Write-Host "Wheel: $($whl.FullName)"
 # ── 4. npm run dist ──────────────────────────────────────────────────────────
 Write-Host "`nRunning electron-builder..."
 Push-Location "$root\electron"
+$env:CSC_IDENTITY_AUTO_DISCOVERY = "false"
 npm run dist
 Pop-Location
 
 # ── 5. Report output ────────────────────────────────────────────────────────
-$exe = Get-ChildItem "$root\electron\dist\*.exe" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+$exe = Get-ChildItem "$root\electron\dist\*.exe" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
 if ($exe) {
     Write-Host "`nInstaller ready: $($exe.FullName)"
-} else {
-    Write-Warning "Build completed but no .exe found in electron/dist/"
-}
-
-Write-Host @"
+    Write-Host @"
 
 Next steps:
   1. Install $($exe.Name) in a secondary account and run the smoke-test checklist
   2. git tag v$version && git push origin v$version
   3. Upload to GitHub Releases (or share directly)
 "@
+} else {
+    Write-Warning "Build completed but no .exe found in electron/dist/"
+    exit 1
+}
