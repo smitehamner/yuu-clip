@@ -1,6 +1,6 @@
-{
+﻿{
   "name": "yuu-clip",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Gaming clip review and export tool",
   "author": "smitehamner",
   "main": "main.js",
@@ -14,7 +14,7 @@
   },
   "build": {
     "directories": {
-      "output": "dist"
+      "output": "../build/installer"
     },
     "appId": "com.smitehamner.yuuclip",
     "productName": "yuu-clip",
@@ -30,9 +30,10 @@
       "deleteAppDataOnUninstall": false
     },
     "extraResources": [
-      { "from": "../dist/*.whl", "to": "." }
+      { "from": "../build/wheel", "to": ".", "filter": ["*.whl"] }
     ],
     "publish": null
   }
 }
+
 
