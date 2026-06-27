@@ -24,11 +24,13 @@ if ($Version -ne "") {
     $pyprojectPath = "$root\pyproject.toml"
     $packagePath   = "$root\electron\package.json"
 
-    (Get-Content $pyprojectPath -Raw) -replace '(?m)^version\s*=\s*"[^"]+"', "version = `"$Version`"" |
-        Set-Content $pyprojectPath -Encoding utf8
+    $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
 
-    (Get-Content $packagePath -Raw) -replace '"version"\s*:\s*"[^"]+"', "`"version`": `"$Version`"" |
-        Set-Content $packagePath -Encoding utf8
+    $newPyproject = (Get-Content $pyprojectPath -Raw) -replace '(?m)^version\s*=\s*"[^"]+"', "version = `"$Version`""
+    [System.IO.File]::WriteAllText($pyprojectPath, $newPyproject, $utf8NoBom)
+
+    $newPackage = (Get-Content $packagePath -Raw) -replace '"version"\s*:\s*"[^"]+"', "`"version`": `"$Version`""
+    [System.IO.File]::WriteAllText($packagePath, $newPackage, $utf8NoBom)
 
     Write-Host "Version bumped to $Version in pyproject.toml and electron/package.json"
 
@@ -56,13 +58,16 @@ Write-Host "Building version: $version"
 
 # ── 3. Build Python wheel ────────────────────────────────────────────────────
 Write-Host "`nBuilding Python wheel..."
+$wheelDir = "$root\build\wheel"
+Remove-Item "$wheelDir\*.whl" -ErrorAction SilentlyContinue
+New-Item -ItemType Directory -Force -Path $wheelDir | Out-Null
 Push-Location $root
-python -m build --wheel
+python -m build --wheel --outdir $wheelDir
 Pop-Location
 
-$whl = Get-ChildItem "$root\dist\*.whl" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+$whl = Get-ChildItem "$wheelDir\*.whl" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
 if (-not $whl) {
-    Write-Error "No .whl found in dist/ after build"
+    Write-Error "No .whl found in build/wheel/ after build"
     exit 1
 }
 Write-Host "Wheel: $($whl.FullName)"
@@ -75,7 +80,7 @@ npm run dist
 Pop-Location
 
 # ── 5. Report output ────────────────────────────────────────────────────────
-$exe = Get-ChildItem "$root\electron\dist\*.exe" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+$exe = Get-ChildItem "$root\build\installer\*.exe" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
 if ($exe) {
     Write-Host "`nInstaller ready: $($exe.FullName)"
     Write-Host @"
@@ -86,6 +91,6 @@ Next steps:
   3. Upload to GitHub Releases (or share directly)
 "@
 } else {
-    Write-Warning "Build completed but no .exe found in electron/dist/"
+    Write-Warning "Build completed but no .exe found in build/installer/"
     exit 1
 }
