@@ -28,6 +28,7 @@ let mainWindow      = null;
 let appPort         = BASE_PORT;
 let wizardWin       = null;
 let startupComplete = false;
+let isQuitting      = false;
 
 // ---------------------------------------------------------------------------
 // Electron config persistence (project dir choice etc.)
@@ -557,6 +558,7 @@ function createWindow(port) {
   mainWindow.loadURL(`http://127.0.0.1:${port}`);
 
   mainWindow.on('close', async e => {
+    if (isQuitting) return;
     e.preventDefault();
     await handleClose();
   });
@@ -628,6 +630,7 @@ async function handleClose() {
     if (response !== 1) return;
   }
 
+  isQuitting = true;
   if (pyProc) { pyProc.kill(); pyProc = null; }
   mainWindow = null;
   app.quit();
