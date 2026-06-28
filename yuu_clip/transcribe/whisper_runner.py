@@ -29,6 +29,7 @@ from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeEl
 from yuu_clip.config import Config, validate_whisper_language, validate_whisper_model
 from yuu_clip.db.models import AudioTrack, Transcript, TranscriptSegment
 from yuu_clip.log import get_logger
+from yuu_clip.transcribe.diarization_client import make_diarization_client
 
 _log = get_logger(__name__)
 
@@ -38,6 +39,34 @@ if TYPE_CHECKING:
 console = Console()
 
 _model_cache: dict[tuple, object] = {}  # avoids re-loading the same model between tracks
+
+
+def _assign_speakers(
+    session: "Session",
+    transcript_id: int,
+    turns: list[tuple[float, float, str]],
+) -> None:
+    """Populate speaker_label on every segment by greatest time overlap with *turns*."""
+    if not turns:
+        return
+    segs = (
+        session.query(TranscriptSegment)
+        .filter_by(transcript_id=transcript_id)
+        .order_by(TranscriptSegment.start_ms)
+        .all()
+    )
+    for seg in segs:
+        seg_start = seg.start_ms / 1000
+        seg_end   = seg.end_ms   / 1000
+        best_label: str | None = None
+        best_overlap = 0.0
+        for turn_start, turn_end, label in turns:
+            overlap = max(0.0, min(seg_end, turn_end) - max(seg_start, turn_start))
+            if overlap > best_overlap:
+                best_overlap = overlap
+                best_label   = label
+        seg.speaker_label = best_label
+    session.flush()
 
 
 def _resolve_device_and_compute(config: Config) -> tuple[str, str]:
@@ -151,7 +180,7 @@ def transcribe_track(
                 "min_silence_duration_ms": 500,
                 "speech_pad_ms": 200,
             },
-            word_timestamps=False,  # FUTURE[diarization]: set True when adding pyannote
+            word_timestamps=False,
         )
 
         if language is None and hasattr(info, "language"):
@@ -165,7 +194,7 @@ def transcribe_track(
                 end_ms=int(seg.end * 1000),
                 text=seg.text,
                 confidence=getattr(seg, "avg_logprob", None),
-                speaker_label=None,  # FUTURE[diarization]: populated by pyannote pass
+                speaker_label=None,
             )
             session.add(db_seg)
             progress.update(task, segs=seg_count)
@@ -178,4 +207,15 @@ def transcribe_track(
         "Transcription complete: track %d [%s], %d segments, language=%s",
         track.id, track.label, seg_count, transcript.language or "auto",
     )
+
+    diar_client = make_diarization_client(config)
+    ok, reason = diar_client.available()
+    if ok:
+        _log.info("Running diarization for track %d [%s]…", track.id, track.label)
+        turns = diar_client.diarize(str(audio_path))
+        _assign_speakers(session, transcript.id, turns)
+        _log.info("Diarization complete: %d turns for track %d", len(turns), track.id)
+    elif config.diarization_backend != "null":
+        _log.warning("Diarization skipped for track %d [%s]: %s", track.id, track.label, reason)
+
     return transcript

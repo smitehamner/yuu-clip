@@ -122,6 +122,9 @@ class ConfigPatch(BaseModel):
     scene_detection_mode:         Optional[str]   = None
     silence_threshold_ms:         Optional[int]   = None
     min_clip_ms:                  Optional[int]   = None
+    # Speaker labels
+    diarization_backend:          Optional[str]   = None
+    huggingface_token:            Optional[str]   = None
 
 
 @asynccontextmanager
@@ -142,6 +145,7 @@ _CONFIG_FIELDS = (
     "scorer_energy_weight", "scorer_scene_weight", "scorer_llm_weight",
     "score_funny_weight", "score_dramatic_weight", "score_action_weight",
     "scene_detection_mode", "silence_threshold_ms", "min_clip_ms",
+    "diarization_backend", "huggingface_token",
 )
 
 
@@ -194,6 +198,8 @@ _CONFIG_PATCH_RULES: list[tuple[str, object]] = [
     ("scene_detection_mode",         _enum_validator({"transcript", "fast", "full"}, "scene_detection_mode")),
     ("silence_threshold_ms",         _min_validator(500,  "silence_threshold_ms")),
     ("min_clip_ms",                  _min_validator(1000, "min_clip_ms")),
+    ("diarization_backend",          _enum_validator({"null", "pyannote"}, "diarization_backend")),
+    ("huggingface_token",            lambda v: v.strip()),
 ]
 
 

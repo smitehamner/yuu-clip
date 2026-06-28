@@ -1032,9 +1032,9 @@ class TestSilenceWindow:
         ]
         result = self._window(segs, silence_ms=3000)
         assert len(result) == 1
-        texts = result[0][2]
-        assert "hello" in texts
-        assert "world" in texts
+        seg_texts = [s.text for s in result[0][2]]
+        assert "hello" in seg_texts
+        assert "world" in seg_texts
 
     def test_overlapping_segment_does_not_shrink_win_end(self):
         # Segment B overlaps and ends before segment A — win_end must not go backwards.

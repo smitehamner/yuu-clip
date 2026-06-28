@@ -4,6 +4,7 @@ const _settingsFieldIds = [
   's-ollama-enabled','s-llm-backend','s-llm-model-path',
   's-ollama-model','s-ollama-host','s-ollama-timeout',
   's-claude-api-key','s-claude-model','s-claude-timeout',
+  's-diarization-backend','s-hf-token',
   's-energy-weight','s-scene-weight','s-llm-weight',
   's-funny-weight','s-dramatic-weight','s-action-weight',
   's-scene-mode','s-silence-ms','s-min-clip-ms',
@@ -76,6 +77,10 @@ function _applySettingsToUI(cfg) {
   setVal('s-claude-model',   cfg.claude_model    || 'claude-haiku-4-5-20251001');
   setVal('s-claude-timeout', cfg.claude_timeout_s ?? 30);
   _updateLlmRemoteIndicator(cfg.llm_backend || 'llamacpp', cfg.ollama_enabled !== false);
+  const diarBackend = cfg.diarization_backend || 'null';
+  setVal('s-diarization-backend', diarBackend);
+  _onDiarizationBackendChange(diarBackend);
+  setVal('s-hf-token', cfg.huggingface_token || '');
   const ew = (cfg.scorer_energy_weight  ?? 1.0).toFixed(1);
   const sw = (cfg.scorer_scene_weight   ?? 0.5).toFixed(1);
   const lw = (cfg.scorer_llm_weight     ?? 2.0).toFixed(1);
@@ -110,6 +115,54 @@ function _onLlmBackendChange(backend) {
   if (ollamaEl)   ollamaEl.style.display   = backend === 'ollama'   ? '' : 'none';
   if (claudeEl)   claudeEl.style.display   = backend === 'claude'   ? '' : 'none';
   if (warnEl)     warnEl.style.display     = backend === 'claude'   ? '' : 'none';
+}
+
+function _onDiarizationBackendChange(backend) {
+  const pyannoteEl = document.getElementById('s-pyannote-fields');
+  if (pyannoteEl) pyannoteEl.style.display = backend === 'pyannote' ? '' : 'none';
+}
+
+async function installPyannote() {
+  const btn    = document.getElementById('btn-install-pyannote');
+  const status = document.getElementById('pyannote-install-status');
+  const log    = document.getElementById('pyannote-install-log');
+  btn.disabled = true;
+  btn.textContent = 'Installing…';
+  status.textContent = '';
+  log.textContent = '';
+  log.style.display = '';
+  try {
+    const resp = await fetch('/api/install/pyannote', { method: 'POST' });
+    if (!resp.ok) { throw new Error(await resp.text()); }
+    const reader = resp.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      const lines = buf.split('\n');
+      buf = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const msg = JSON.parse(line.slice(6));
+        if (msg === '__DONE__') {
+          status.textContent = '✓ Installed';
+          status.style.color = 'var(--green, #22c55e)';
+          btn.textContent = 'Reinstall';
+          btn.disabled = false;
+          return;
+        }
+        log.textContent += msg + '\n';
+        log.scrollTop = log.scrollHeight;
+      }
+    }
+  } catch (e) {
+    status.textContent = '✗ Failed — check log above';
+    status.style.color = 'var(--red, #ef4444)';
+  }
+  btn.textContent = 'Retry';
+  btn.disabled = false;
 }
 
 function _updateLlmRemoteIndicator(backend, llmEnabled) {
@@ -147,6 +200,8 @@ async function saveSettings() {
     score_funny_weight:         getNum('s-funny-weight', parseFloat),
     score_dramatic_weight:      getNum('s-dramatic-weight', parseFloat),
     score_action_weight:        getNum('s-action-weight', parseFloat),
+    diarization_backend:        getVal('s-diarization-backend'),
+    huggingface_token:          getVal('s-hf-token'),
     scene_detection_mode:       getVal('s-scene-mode'),
     silence_threshold_ms:       getNum('s-silence-ms', parseInt),
     min_clip_ms:                getNum('s-min-clip-ms', parseInt),

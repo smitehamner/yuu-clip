@@ -180,6 +180,42 @@
     </div>
   </div>
 
+  <!-- Speaker labels section -->
+  <div class="settings-section">
+    <div class="settings-section-title">Speaker labels</div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <label class="settings-label" for="s-diarization-backend">Backend</label>
+        <div class="settings-note">Identifies who is speaking within each audio track and prefixes transcripts accordingly</div>
+      </div>
+      <select class="settings-select" id="s-diarization-backend" onchange="_onDiarizationBackendChange(this.value)">
+        <option value="null">Off</option>
+        <option value="pyannote">Pyannote (requires HuggingFace token)</option>
+      </select>
+    </div>
+    <!-- pyannote fields -->
+    <div id="s-pyannote-fields" style="display:none">
+      <div class="settings-row">
+        <div class="settings-col">
+          <div class="settings-label">Python package</div>
+          <div class="settings-note">pyannote.audio is not included by default — install it once here</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="btn-secondary" id="btn-install-pyannote" onclick="installPyannote()">Install pyannote.audio</button>
+          <span id="pyannote-install-status" style="font-size:12px"></span>
+        </div>
+      </div>
+      <div id="pyannote-install-log" style="display:none;margin:0 0 8px;padding:8px;background:var(--bg-deep,#0d0d0d);border:1px solid var(--border);border-radius:4px;max-height:140px;overflow-y:auto;font-family:monospace;font-size:11px;white-space:pre-wrap;color:var(--muted)"></div>
+      <div class="settings-row">
+        <div class="settings-col">
+          <label class="settings-label" for="s-hf-token">HuggingFace token</label>
+          <div class="settings-note">Required to download the diarization model. <a href="https://huggingface.co/settings/tokens" target="_blank" style="color:var(--accent)">Get a token</a>, then accept the <a href="https://huggingface.co/pyannote/speaker-diarization-3.1" target="_blank" style="color:var(--accent)">pyannote model terms</a></div>
+        </div>
+        <input class="settings-input" id="s-hf-token" type="password" placeholder="hf_..." style="max-width:280px">
+      </div>
+    </div>
+  </div>
+
   <!-- Scoring weights section -->
   <div class="settings-section">
     <div class="settings-section-title">Scoring weights <span style="font-size:11px;font-weight:400;color:var(--muted)">(takes effect on next re-score)</span></div>

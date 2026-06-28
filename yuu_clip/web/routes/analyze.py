@@ -280,6 +280,12 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         ]
         return await subprocess_sse(cmd, ctx.project_dir, ctx)
 
+    @router.post("/api/install/pyannote")
+    async def install_pyannote():
+        """Install pyannote.audio into the current Python environment via pip."""
+        cmd = [sys.executable, "-m", "pip", "install", "pyannote.audio"]
+        return await subprocess_sse(cmd, ctx.project_dir)
+
     return router
 
 
