@@ -15,8 +15,9 @@ from pathlib import Path
 from typing import Optional
 
 from yuu_clip.config import find_ffmpeg
+from yuu_clip.log import get_logger
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 
 @dataclass
@@ -97,31 +98,37 @@ def probe_video(path: Path) -> VideoInfo:
     width  = video_stream.get("width",  0) if video_stream else 0
     height = video_stream.get("height", 0) if video_stream else 0
 
-    audio_raw = [s for s in streams if s.get("codec_type") == "audio"]
-    audio_streams: list[AudioStreamInfo] = []
+    audio_streams = [
+        _parse_audio_stream(s)
+        for s in streams
+        if s.get("codec_type") == "audio"
+    ]
 
-    for s in audio_raw:
-        dur_ms: Optional[int] = None
-        if "duration" in s:
-            dur_ms = int(float(s["duration"]) * 1000)
-
-        audio_streams.append(AudioStreamInfo(
-            stream_index   = s["index"],
-            codec_name     = s.get("codec_name", "unknown"),
-            sample_rate    = int(s.get("sample_rate", 44100)),
-            channels       = s.get("channels", 2),
-            channel_layout = s.get("channel_layout"),
-            duration_ms    = dur_ms,
-            title_tag      = s.get("tags", {}).get("title"),
-        ))
-
-    return VideoInfo(
+    info = VideoInfo(
         path         = path,
         duration_ms  = duration_ms,
         fps          = fps,
         width        = width,
         height       = height,
         audio_streams = audio_streams,
+    )
+    log.info(
+        "Probed %s: duration=%s, fps=%.3f, %dx%d, audio_tracks=%d",
+        path.name, info.duration_hms, fps, width, height, len(audio_streams),
+    )
+    return info
+
+
+def _parse_audio_stream(s: dict) -> AudioStreamInfo:
+    dur_ms: Optional[int] = int(float(s["duration"]) * 1000) if "duration" in s else None
+    return AudioStreamInfo(
+        stream_index   = s["index"],
+        codec_name     = s.get("codec_name", "unknown"),
+        sample_rate    = int(s.get("sample_rate", 44100)),
+        channels       = s.get("channels", 2),
+        channel_layout = s.get("channel_layout"),
+        duration_ms    = dur_ms,
+        title_tag      = s.get("tags", {}).get("title"),
     )
 
 

@@ -12,6 +12,9 @@ from pathlib import Path
 from typing import Optional
 
 from yuu_clip.config import find_ffmpeg
+from yuu_clip.log import get_logger
+
+_log = get_logger(__name__)
 
 
 def _ffmpeg_path(p: Path) -> str:
@@ -40,7 +43,7 @@ def extract_audio_track(
     ----------
     video_path:   source video file
     stream_index: the container stream index (from ffprobe, NOT the audio-only index)
-    output_path:  destination .wav file (parent dir must exist)
+    output_path:  destination .wav file (parent dir is created if absent)
     sample_rate:  target sample rate (Whisper expects 16000 Hz)
     channels:     1 = mono (Whisper expects mono)
 
@@ -49,6 +52,11 @@ def extract_audio_track(
     ffmpeg, _ = find_ffmpeg()
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
+    _log.debug(
+        "Extracting audio: %s stream %d → %s%s",
+        video_path.name, stream_index, output_path.name,
+        f" [{start_s}s–{end_s}s]" if start_s is not None or end_s is not None else "",
+    )
     cmd = [ffmpeg, "-y"]
     if start_s is not None:
         cmd += ["-ss", str(start_s)]
@@ -75,6 +83,12 @@ def extract_audio_track(
     return output_path
 
 
+# export_clip has three distinct FFmpeg command shapes (reencode, softsub, stream-copy).
+# Each branch is short on its own but shares the path and duration setup that precedes it.
+# Splitting into three helper functions would require passing those shared values as params
+# and would send readers jumping across three call sites to understand the full switch logic.
+# Left in one function; the branch comments ('Frame-accurate', 'Softsub', 'Fast stream copy')
+# serve as in-place section headers.
 def export_clip(
     video_path: Path,
     start_ms: int,

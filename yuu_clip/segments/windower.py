@@ -1,5 +1,5 @@
 """
-Phase 1 clip candidate generation.
+Clip candidate generation from transcript segments.
 
 Strategy: group TranscriptSegments by natural silence gaps.
 A gap longer than `silence_threshold_ms` marks a boundary between
@@ -9,8 +9,6 @@ those longer than `hard_split_ms` are force-split regardless of silence.
 This produces far more natural candidate boundaries than a fixed
 sliding window — RP sessions have natural conversational rhythms
 that align with these gaps.
-
-Phase 2 will add scoring; for now every candidate has score 0.0.
 """
 from __future__ import annotations
 
@@ -18,9 +16,12 @@ from typing import TYPE_CHECKING
 
 from yuu_clip.config import Config
 from yuu_clip.db.models import ClipCandidate, Transcript, TranscriptSegment, Video
+from yuu_clip.log import get_logger
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
+
+_log = get_logger(__name__)
 
 
 def generate_candidates(
@@ -32,10 +33,8 @@ def generate_candidates(
     """
     Derive ClipCandidates from all transcripts for *video*.
 
-    Transcripts from higher-weight tracks (e.g. player_voice) are used
-    first; if no segments overlap a window from the combined/game_sounds
-    track, that track's segments fill in.  For Phase 1 we simply merge
-    all segments from transcribeable tracks into one timeline.
+    Merges segments from all transcribable tracks into one timeline,
+    then groups them by silence gaps via _silence_window.
 
     Returns the list of newly created ClipCandidate objects (already
     added to *session* but not yet committed).
@@ -46,6 +45,7 @@ def generate_candidates(
             all_segments.extend(t.segments)
 
     if not all_segments:
+        _log.info("generate_candidates: no transcribable segments for video %d — returning empty", video.id)
         return []
 
     all_segments.sort(key=lambda s: s.start_ms)
@@ -72,6 +72,11 @@ def generate_candidates(
         session.add(cand)
         candidates.append(cand)
 
+    _log.info(
+        "generate_candidates: video %d — %d segments → %d candidates (silence=%dms, min=%dms, hard=%dms)",
+        video.id, len(all_segments), len(candidates),
+        config.silence_threshold_ms, config.min_clip_ms, config.hard_split_ms,
+    )
     return candidates
 
 
@@ -85,7 +90,7 @@ def _silence_window(
     Return a list of (start_ms, end_ms, texts, tags) windows.
 
     tags is a list of string descriptors that hint at why a boundary
-    was placed here — useful for Phase 2 scoring and for display.
+    was placed here (e.g. "hard_split", "long_silence_before").
     """
     if not segments:
         return []
@@ -126,7 +131,7 @@ def _silence_window(
                 win_tags.append("long_silence_before")
             continue
 
-        win_end = seg.end_ms
+        win_end = max(win_end, seg.end_ms)
         win_texts.append(seg.text)
 
     _flush([])

@@ -301,9 +301,9 @@ class TestScoringEngine:
         clip = self._make_clip()
         clip.tags = ["energy_scored", "llm_error", "user_tag"]
         engine.score_clip(clip, None)
-        # Stale scorer tags removed, user_tag preserved, fresh tag re-added
-        assert "user_tag" in clip.tags
-        assert clip.tags.count("energy_scored") == 1
+        assert "user_tag" in clip.tags           # non-scorer tag preserved
+        assert "llm_error" not in clip.tags      # stale scorer tag removed
+        assert clip.tags.count("energy_scored") == 1  # fresh tag re-added exactly once
 
     def test_score_clip_tags_not_duplicated(self):
         from yuu_clip.config import Config
@@ -916,6 +916,20 @@ class TestSilenceWindow:
         assert "hello" in texts
         assert "world" in texts
 
+    def test_overlapping_segment_does_not_shrink_win_end(self):
+        # Segment B overlaps and ends before segment A — win_end must not go backwards.
+        # Without the fix, win_end drops to 4000 and the subsequent gap becomes
+        # 6000-4000=2000 ms which is below silence_ms=3000, merging what should split.
+        segs = [
+            self._seg(0, 10_000, "A"),       # win_end → 10000
+            self._seg(3_000, 4_000, "B"),    # overlaps A; must not drop win_end to 4000
+            self._seg(14_000, 24_000, "C"),  # 4 s gap from real win_end (10000) → split
+        ]
+        result = self._window(segs, silence_ms=3000, min_ms=5000)
+        assert len(result) == 2, "overlapping inner segment must not suppress a later silence split"
+        assert result[0][1] == 10_000
+        assert result[1][0] == 14_000
+
 
 # ---------------------------------------------------------------------------
 # windower.generate_candidates — public API with a real DB session
@@ -1104,3 +1118,189 @@ class TestClipTiming:
     def test_timing_patch_404(self, client):
         r = client.patch("/api/clips/99999/timing", json={"start_offset": 0.0, "end_offset": 0.0})
         assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# overlap._word_set
+# ---------------------------------------------------------------------------
+
+class TestWordSet:
+    def _ws(self, text):
+        from yuu_clip.analyze.overlap import _word_set
+        return _word_set(text)
+
+    def test_basic_words_extracted(self):
+        assert self._ws("Hello, World!") == {"hello", "world"}
+
+    def test_lowercased(self):
+        assert "hello" in self._ws("HELLO")
+
+    def test_empty_string_returns_empty_set(self):
+        assert self._ws("") == set()
+
+    def test_punctuation_stripped(self):
+        result = self._ws("don't stop!")
+        assert "don't" in result
+        assert "stop" in result
+
+
+# ---------------------------------------------------------------------------
+# overlap.detect_transcript_overlap
+# ---------------------------------------------------------------------------
+
+class TestDetectTranscriptOverlap:
+    def _setup(self, tmp_path):
+        from yuu_clip.db.models import (
+            AudioTrack, Transcript, TranscriptSegment, Video, make_session,
+        )
+        session = make_session(tmp_path / "test.db")
+        v = Video(path=str(tmp_path / "v.mkv"), filename="v.mkv", status="done", duration_ms=600_000)
+        session.add(v)
+        session.flush()
+        return session, v
+
+    def _add_track(self, session, video_id, label, do_score=True):
+        from yuu_clip.db.models import AudioTrack
+        t = AudioTrack(
+            video_id=video_id, stream_index=len(label), label=label,
+            do_transcribe=True, do_score=do_score, relevance_weight=1.0,
+        )
+        session.add(t)
+        session.flush()
+        return t
+
+    def _add_transcript(self, session, track_id, words):
+        from yuu_clip.db.models import Transcript, TranscriptSegment
+        tx = Transcript(audio_track_id=track_id, model_name="base")
+        session.add(tx)
+        session.flush()
+        # One segment per word group — space out timestamps
+        for i, word in enumerate(words):
+            session.add(TranscriptSegment(
+                transcript_id=tx.id,
+                start_ms=i * 1000, end_ms=(i + 1) * 1000,
+                text=word,
+            ))
+        session.flush()
+        return tx
+
+    def test_no_combined_track_returns_false(self, tmp_path):
+        from yuu_clip.analyze.overlap import detect_transcript_overlap
+        session, v = self._setup(tmp_path)
+        spec = self._add_track(session, v.id, "player_voice")
+        self._add_transcript(session, spec.id, ["hello"] * 25)
+        try:
+            result = detect_transcript_overlap([spec], session)
+        finally:
+            session.close()
+        assert result is False
+
+    def test_not_enough_combined_words_returns_false(self, tmp_path):
+        from yuu_clip.analyze.overlap import detect_transcript_overlap
+        session, v = self._setup(tmp_path)
+        comb = self._add_track(session, v.id, "combined")
+        spec = self._add_track(session, v.id, "player_voice")
+        # Only 5 unique words in combined — below the 20-word threshold
+        self._add_transcript(session, comb.id, ["one", "two", "three", "four", "five"])
+        self._add_transcript(session, spec.id, ["one", "two", "three"] * 10)
+        try:
+            result = detect_transcript_overlap([comb, spec], session)
+        finally:
+            session.close()
+        assert result is False
+
+    def test_high_overlap_disables_specialized_track(self, tmp_path):
+        from yuu_clip.analyze.overlap import detect_transcript_overlap
+        session, v = self._setup(tmp_path)
+        comb = self._add_track(session, v.id, "combined")
+        spec = self._add_track(session, v.id, "player_voice")
+        # 25 purely alphabetic unique words — _word_set only keeps [a-z'] tokens
+        combined_words = [chr(ord('a') + i) * 4 for i in range(25)]  # aaaa, bbbb, ...
+        self._add_transcript(session, comb.id, combined_words)
+        # Specialized transcript is 100% contained in combined
+        self._add_transcript(session, spec.id, combined_words[:10])
+        try:
+            result = detect_transcript_overlap([comb, spec], session)
+            assert result is True
+            assert spec.do_score is False
+            assert comb.do_transcribe is True
+            assert comb.do_score is True
+        finally:
+            session.close()
+
+    def test_no_overlap_leaves_specialized_track_enabled(self, tmp_path):
+        from yuu_clip.analyze.overlap import detect_transcript_overlap
+        session, v = self._setup(tmp_path)
+        comb = self._add_track(session, v.id, "combined")
+        spec = self._add_track(session, v.id, "player_voice")
+        # Disjoint vocabularies: "ca" prefix vs "sb" prefix — zero word overlap
+        combined_words = ["ca" + chr(ord('a') + i) for i in range(25)]
+        spec_words     = ["sb" + chr(ord('a') + i) for i in range(25)]
+        self._add_transcript(session, comb.id, combined_words)
+        self._add_transcript(session, spec.id, spec_words)
+        try:
+            result = detect_transcript_overlap([comb, spec], session)
+        finally:
+            session.close()
+        assert result is False
+        assert spec.do_score is True
+
+    def test_no_specialized_tracks_returns_false(self, tmp_path):
+        from yuu_clip.analyze.overlap import detect_transcript_overlap
+        session, v = self._setup(tmp_path)
+        comb = self._add_track(session, v.id, "combined")
+        self._add_transcript(session, comb.id, [f"w{i}" for i in range(25)])
+        try:
+            result = detect_transcript_overlap([comb], session)
+        finally:
+            session.close()
+        assert result is False
+
+
+# ---------------------------------------------------------------------------
+# _silence_window — tag content
+# ---------------------------------------------------------------------------
+
+class TestSilenceWindowTags:
+    def _seg(self, start_ms, end_ms, text="x"):
+        from unittest.mock import MagicMock
+        s = MagicMock()
+        s.start_ms = start_ms
+        s.end_ms = end_ms
+        s.text = text
+        return s
+
+    def _window(self, segments, silence_ms=3000, min_ms=5000, hard_ms=180_000):
+        from yuu_clip.segments.windower import _silence_window
+        return _silence_window(segments, silence_ms, min_ms, hard_ms)
+
+    def test_flushed_window_carries_silence_gap_tag(self):
+        """The first window closed by a silence gap should carry a silence_Xs tag."""
+        segs = [
+            self._seg(0, 10_000, "first"),
+            self._seg(18_000, 28_000, "second"),  # 8 s gap
+        ]
+        result = self._window(segs)
+        assert len(result) == 2
+        # First window flushed with e.g. "silence_8s"
+        assert any("silence_" in t for t in result[0][3])
+
+    def test_new_window_after_silence_carries_after_silence_tag(self):
+        """The second window opened after a silence gap should carry an after_silence_Xs tag."""
+        segs = [
+            self._seg(0, 10_000, "first"),
+            self._seg(18_000, 28_000, "second"),  # 8 s gap
+        ]
+        result = self._window(segs)
+        assert len(result) == 2
+        assert any("after_silence_" in t for t in result[1][3])
+
+    def test_second_window_after_hard_split_carries_after_hard_split_tag(self):
+        """The window opened after a hard split must carry the after_hard_split tag."""
+        segs = [
+            self._seg(0, 100_000, "part A"),
+            self._seg(101_000, 201_000, "part B"),
+        ]
+        result = self._window(segs, hard_ms=180_000)
+        assert len(result) == 2
+        assert "after_hard_split" in result[1][3]

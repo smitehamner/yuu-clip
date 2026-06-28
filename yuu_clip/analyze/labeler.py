@@ -23,7 +23,9 @@ from yuu_clip.config import (
     save_profile,
 )
 from yuu_clip.analyze.probe import VideoInfo
+from yuu_clip.log import get_logger
 
+_log = get_logger(__name__)
 console = Console()
 
 
@@ -54,6 +56,7 @@ def label_tracks(
 
     if len(streams) == 1:
         s = streams[0]
+        _log.info("Single audio track (stream %d) — auto-labeled as combined", s.stream_index)
         console.print(
             f"  [dim]Single audio track detected — labeling as[/dim] [bold]combined[/bold]"
         )
@@ -72,6 +75,11 @@ def label_tracks(
         result = _apply_profile(profile_name, streams)
         if result:
             return result
+        _log.warning(
+            "Track layout '%s' not found or track count mismatch (%d tracks) — "
+            "falling back to interactive labeling",
+            profile_name, len(streams),
+        )
         console.print(
             f"  [yellow]Track layout '{profile_name}' not found or track count mismatch "
             f"— falling back to interactive labeling.[/yellow]"
@@ -90,6 +98,11 @@ def _label_non_interactive(streams, profile_name: Optional[str]) -> list[dict]:
         result = _apply_profile(profile_name, streams)
         if result:
             return result
+        _log.warning(
+            "Track layout '%s' not found or track count mismatch (%d tracks) — "
+            "falling back to track 0 as combined",
+            profile_name, len(streams),
+        )
         console.print(
             f"  [yellow]Track layout '{profile_name}' not found or track count mismatch "
             f"({len(streams)} tracks) — using track 1 as combined.[/yellow]"
@@ -98,6 +111,10 @@ def _label_non_interactive(streams, profile_name: Optional[str]) -> list[dict]:
     s = streams[0]
     n_ignored = len(streams) - 1
     suffix = f", ignoring {n_ignored} other track(s)" if n_ignored else ""
+    _log.info(
+        "Non-interactive labeling: stream %d as combined%s",
+        s.stream_index, f", ignoring {n_ignored} other track(s)" if n_ignored else "",
+    )
     console.print(f"  [dim]Using track 1 as combined{suffix}[/dim]")
     primary = {
         "stream_index": s.stream_index,
@@ -188,23 +205,27 @@ def _label_interactive(video_info: VideoInfo) -> list[dict]:
         })
 
     _print_assignment_summary(assignments)
-
-    if Confirm.ask("\n  Save these assignments as a track layout for future recordings?", default=False):
-        name = Prompt.ask("  Track layout name").strip()
-        if name:
-            positional = [
-                {
-                    "stream_position": idx,
-                    "label": a["label"],
-                    "do_transcribe": a["do_transcribe"],
-                    "do_score": a["do_score"],
-                }
-                for idx, a in enumerate(assignments)
-            ]
-            save_profile(name, positional)
-            console.print(f"  [green]Track layout '{name}' saved.[/green]")
-
+    _maybe_save_profile(assignments)
     return assignments
+
+
+def _maybe_save_profile(assignments: list[dict]) -> None:
+    if not Confirm.ask("\n  Save these assignments as a track layout for future recordings?", default=False):
+        return
+    name = Prompt.ask("  Track layout name").strip()
+    if not name:
+        return
+    positional = [
+        {
+            "stream_position": idx,
+            "label": a["label"],
+            "do_transcribe": a["do_transcribe"],
+            "do_score": a["do_score"],
+        }
+        for idx, a in enumerate(assignments)
+    ]
+    save_profile(name, positional)
+    console.print(f"  [green]Track layout '{name}' saved.[/green]")
 
 
 def _apply_profile(name: str, streams) -> Optional[list[dict]]:
@@ -230,6 +251,11 @@ def _apply_profile(name: str, streams) -> Optional[list[dict]]:
             "do_score": pos_assign.get("do_score", label not in DEFAULT_SKIP_SCORE),
         })
 
+    _log.info(
+        "Applied track layout '%s': %s",
+        name,
+        ", ".join(f"stream {a['stream_index']}→{a['label']}" for a in assignments),
+    )
     console.print(f"  [green]Applied track layout '{name}'[/green]")
     _print_assignment_summary(assignments)
     return assignments

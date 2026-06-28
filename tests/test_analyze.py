@@ -436,8 +436,8 @@ class TestVersionEndpoint:
 class TestEstimateEdgeCases:
     """Additional _compute_time_estimate branches not covered by TestEstimate."""
 
-    def test_transcript_scene_mode_zero_cost(self, client):
-        """scene_mode=transcript has no wall-clock cost."""
+    def test_transcript_scene_mode_cheaper_than_fast(self, client):
+        """scene_mode=transcript skips ffmpeg scene detection so it costs less than 'fast'."""
         transcript = client.post("/api/estimate", json={
             "duration_s": 3600, "model": "medium", "has_gpu": True,
             "scene_mode": "transcript",
@@ -536,3 +536,196 @@ class TestAnalyzeStartWithVideoId:
             assert "--segment-start" in ctx.analyze_cmd
             assert "10.5" in ctx.analyze_cmd
             assert "--segment-end" in ctx.analyze_cmd
+
+
+# ---------------------------------------------------------------------------
+# probe._parse_fps — branch coverage
+# ---------------------------------------------------------------------------
+
+class TestParseFps:
+    def _parse(self, s):
+        from yuu_clip.analyze.probe import _parse_fps
+        return _parse_fps(s)
+
+    def test_normal_fraction(self):
+        assert abs(self._parse("60000/1001") - 59.94) < 0.01
+
+    def test_plain_integer_fraction(self):
+        assert abs(self._parse("30/1") - 30.0) < 1e-9
+
+    def test_plain_float_string(self):
+        assert abs(self._parse("29.97") - 29.97) < 1e-9
+
+    def test_zero_denominator_returns_default(self):
+        assert self._parse("30/0") == 30.0
+
+    def test_invalid_string_returns_default(self):
+        assert self._parse("bogus") == 30.0
+
+    def test_empty_string_returns_default(self):
+        assert self._parse("") == 30.0
+
+
+# ---------------------------------------------------------------------------
+# labeler.label_tracks — single-stream auto-label
+# ---------------------------------------------------------------------------
+
+class TestLabelTracksSingleStream:
+    def _make_video_info(self, n_streams=1):
+        from unittest.mock import MagicMock
+        info = MagicMock()
+        info.audio_streams = [
+            _make_mock_stream(i, f"Track {i}")
+            for i in range(n_streams)
+        ]
+        return info
+
+    def test_single_stream_auto_labeled_combined(self):
+        from yuu_clip.analyze.labeler import label_tracks
+        info = self._make_video_info(n_streams=1)
+        result = label_tracks(info)
+        assert len(result) == 1
+        assert result[0]["label"] == "combined"
+        assert result[0]["do_transcribe"] is True
+        assert result[0]["do_score"] is True
+
+
+def _make_mock_stream(stream_index: int, title: str | None = None):
+    from unittest.mock import MagicMock
+    s = MagicMock()
+    s.stream_index = stream_index
+    s.title_tag = title
+    return s
+
+
+# ---------------------------------------------------------------------------
+# labeler._label_non_interactive — profile and fallback paths
+# ---------------------------------------------------------------------------
+
+class TestLabelNonInteractive:
+    def _streams(self, n):
+        return [_make_mock_stream(i) for i in range(n)]
+
+    def test_no_profile_defaults_track0_combined(self):
+        from yuu_clip.analyze.labeler import _label_non_interactive
+        result = _label_non_interactive(self._streams(3), profile_name=None)
+        assert result[0]["label"] == "combined"
+        assert result[0]["do_transcribe"] is True
+        for r in result[1:]:
+            assert r["label"] == "unlabeled"
+            assert r["do_transcribe"] is False
+            assert r["do_score"] is False
+
+    def test_default_sentinel_skips_profile_lookup(self):
+        from unittest.mock import patch
+        from yuu_clip.analyze.labeler import _label_non_interactive
+        with patch("yuu_clip.analyze.labeler.load_profiles") as mock_lp:
+            mock_lp.return_value = {"__default__": {}}
+            result = _label_non_interactive(self._streams(2), profile_name="__default__")
+        # __default__ must not be applied — falls back to track 0 as combined
+        assert result[0]["label"] == "combined"
+        mock_lp.assert_not_called()
+
+    def test_profile_applied_when_track_count_matches(self):
+        from unittest.mock import patch
+        from yuu_clip.analyze.labeler import _label_non_interactive
+        profile = {
+            "my_layout": {
+                "num_tracks": 2,
+                "assignments": [
+                    {"stream_position": 0, "label": "player_voice", "do_transcribe": True, "do_score": True},
+                    {"stream_position": 1, "label": "combined",     "do_transcribe": True, "do_score": True},
+                ],
+            }
+        }
+        with patch("yuu_clip.analyze.labeler.load_profiles", return_value=profile):
+            result = _label_non_interactive(self._streams(2), profile_name="my_layout")
+        assert result[0]["label"] == "player_voice"
+        assert result[1]["label"] == "combined"
+
+    def test_profile_mismatch_falls_back_to_default(self):
+        from unittest.mock import patch
+        from yuu_clip.analyze.labeler import _label_non_interactive
+        profile = {
+            "my_layout": {
+                "num_tracks": 5,  # wrong count
+                "assignments": [],
+            }
+        }
+        with patch("yuu_clip.analyze.labeler.load_profiles", return_value=profile):
+            result = _label_non_interactive(self._streams(2), profile_name="my_layout")
+        assert result[0]["label"] == "combined"
+        assert result[1]["label"] == "unlabeled"
+
+
+# ---------------------------------------------------------------------------
+# labeler._apply_profile
+# ---------------------------------------------------------------------------
+
+class TestApplyProfile:
+    def _streams(self, n):
+        return [_make_mock_stream(i) for i in range(n)]
+
+    def _profile_data(self, n_tracks):
+        return {
+            "test_layout": {
+                "num_tracks": n_tracks,
+                "assignments": [
+                    {"stream_position": i, "label": "combined", "do_transcribe": True, "do_score": True}
+                    for i in range(n_tracks)
+                ],
+            }
+        }
+
+    def test_unknown_name_returns_none(self):
+        from unittest.mock import patch
+        from yuu_clip.analyze.labeler import _apply_profile
+        with patch("yuu_clip.analyze.labeler.load_profiles", return_value={}):
+            assert _apply_profile("nonexistent", self._streams(2)) is None
+
+    def test_track_count_mismatch_returns_none(self):
+        from unittest.mock import patch
+        from yuu_clip.analyze.labeler import _apply_profile
+        with patch("yuu_clip.analyze.labeler.load_profiles", return_value=self._profile_data(3)):
+            assert _apply_profile("test_layout", self._streams(2)) is None
+
+    def test_matching_profile_returns_assignments(self):
+        from unittest.mock import patch
+        from yuu_clip.analyze.labeler import _apply_profile
+        with patch("yuu_clip.analyze.labeler.load_profiles", return_value=self._profile_data(2)):
+            result = _apply_profile("test_layout", self._streams(2))
+        assert result is not None
+        assert len(result) == 2
+        assert all(r["label"] == "combined" for r in result)
+
+
+# ---------------------------------------------------------------------------
+# labeler._guess_label_index
+# ---------------------------------------------------------------------------
+
+class TestGuessLabelIndex:
+    def _stream(self, title):
+        return _make_mock_stream(0, title)
+
+    def _guess_label(self, title):
+        from yuu_clip.analyze.labeler import _guess_label_index
+        from yuu_clip.config import TRACK_LABELS
+        return TRACK_LABELS[_guess_label_index(self._stream(title)) - 1]
+
+    def test_mic_keyword_labels_as_player_voice(self):
+        assert self._guess_label("Microphone") == "player_voice"
+
+    def test_voice_keyword_labels_as_player_voice(self):
+        assert self._guess_label("Player Voice") == "player_voice"
+
+    def test_desktop_keyword_labels_as_combined(self):
+        assert self._guess_label("Desktop Audio") == "combined"
+
+    def test_game_keyword_labels_as_combined(self):
+        assert self._guess_label("Game Capture") == "combined"
+
+    def test_unknown_title_labels_as_unlabeled(self):
+        assert self._guess_label("Track 3") == "unlabeled"
+
+    def test_none_title_labels_as_unlabeled(self):
+        assert self._guess_label(None) == "unlabeled"

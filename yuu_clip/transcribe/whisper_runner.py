@@ -40,12 +40,8 @@ console = Console()
 _model_cache: dict[tuple, object] = {}  # avoids re-loading the same model between tracks
 
 
-def _get_model(config: Config):
-    """Load (or retrieve from cache) a WhisperModel."""
-    from faster_whisper import WhisperModel  # imported here so the module loads without it
-
-    validate_whisper_model(config.whisper_model)
-
+def _resolve_device_and_compute(config: Config) -> tuple[str, str]:
+    """Return (device, compute_type) resolving 'auto' and upgrading int8 on CUDA."""
     device = config.whisper_device
     if device == "auto":
         try:
@@ -59,6 +55,17 @@ def _get_model(config: Config):
     compute_type = config.whisper_compute_type
     if device == "cuda" and compute_type == "int8":
         compute_type = "float16"
+
+    return device, compute_type
+
+
+def _get_model(config: Config):
+    """Load (or retrieve from cache) a WhisperModel."""
+    from faster_whisper import WhisperModel  # imported here so the module loads without it
+
+    validate_whisper_model(config.whisper_model)
+
+    device, compute_type = _resolve_device_and_compute(config)
 
     key = (config.whisper_model, device, compute_type, config.whisper_model_revision)
     if key not in _model_cache:
@@ -79,6 +86,9 @@ def _get_model(config: Config):
     return _model_cache[key]
 
 
+# transcribe_track is long because the Progress context, the model call, and the segment
+# loop share seg_count, transcript, and progress as live state. Splitting the loop into a
+# helper requires threading all three, producing more complexity than the length costs.
 def transcribe_track(
     track: AudioTrack,
     config: Config,
