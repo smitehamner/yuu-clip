@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-import pytest
-
-
 # ---------------------------------------------------------------------------
 # Captions VTT endpoint
 # ---------------------------------------------------------------------------
@@ -207,7 +204,8 @@ class TestCollectClipSubtitles:
         return clip
 
     def _make_track(self, label, do_transcribe, segments, transcripts=None, track_id=1):
-        import types, datetime
+        import datetime
+        import types
         track = types.SimpleNamespace(
             id=track_id,
             label=label,
@@ -276,7 +274,9 @@ class TestCollectClipSubtitles:
         assert line.end_ms == 4_000
 
     def test_uses_most_recent_transcript(self):
-        import types, datetime
+        import datetime
+        import types
+
         from yuu_clip.subtitles import collect_clip_subtitles
 
         seg_old = self._make_seg(6_000, 7_000, "old")
@@ -326,7 +326,8 @@ class TestCollectClipSubtitles:
 class TestMergedSrtLines:
     def _make_clip(self, track_data):
         """track_data: list of (label, do_transcribe, segments)"""
-        import types, datetime
+        import datetime
+        import types
 
         class FakeClip:
             start_ms = 0
@@ -436,7 +437,8 @@ class TestClipDescriptionRawText:
 class TestExportSrtSidecars:
     def _make_clip(self, track_data, start_ms=5_000, end_ms=10_000):
         """Build a minimal clip-like object with tracks and transcript segments."""
-        import types, datetime
+        import datetime
+        import types
 
         clip = types.SimpleNamespace(
             start_ms=start_ms, end_ms=end_ms,
@@ -557,7 +559,9 @@ class TestCollectClipSubtitlesClipTranscripts:
     """clip_transcripts (clip-level re-transcription) should override track-level transcripts."""
 
     def test_clip_transcript_overrides_track_transcript(self):
-        import types, datetime
+        import datetime
+        import types
+
         from yuu_clip.subtitles import collect_clip_subtitles
 
         seg_track = types.SimpleNamespace(start_ms=5_000, end_ms=8_000, text="track-level")
@@ -596,8 +600,9 @@ class TestCollectClipSubtitlesClipTranscripts:
 
 class TestLabelTracksSingleTrack:
     def _make_video_info(self, n_streams, title_tags=None):
-        from yuu_clip.analyze.probe import VideoInfo, AudioStreamInfo
         from pathlib import Path
+
+        from yuu_clip.analyze.probe import AudioStreamInfo, VideoInfo
         streams = [
             AudioStreamInfo(
                 stream_index=i, codec_name="aac", sample_rate=48000,

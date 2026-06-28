@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-import pytest
-
-
 # ---------------------------------------------------------------------------
 # AudioEnergyScorer — boundary test
 # ---------------------------------------------------------------------------
@@ -198,6 +195,7 @@ class TestScoringEngine:
     def _make_scorer(self, score_funny=0.0, score_dramatic=0.0, score_action=0.0,
                      description="", description_long="", tags=None, weight=1.0, available=True):
         from unittest.mock import MagicMock
+
         from yuu_clip.scoring.protocol import ScoreResult
         mock = MagicMock()
         mock.is_available.return_value = available
@@ -235,7 +233,6 @@ class TestScoringEngine:
         assert clip.score_overall == 0.7
 
     def test_unavailable_scorer_filtered_out(self):
-        from unittest.mock import MagicMock
         from yuu_clip.config import Config
         from yuu_clip.scoring.engine import ScoringEngine
         config = Config()
@@ -342,6 +339,7 @@ class TestAudioEnergyScorerNoTracks:
         import tempfile
         from pathlib import Path
         from unittest.mock import MagicMock
+
         from yuu_clip.config import Config
         from yuu_clip.db.models import AudioTrack, Video, make_session
         from yuu_clip.scoring.energy import AudioEnergyScorer
@@ -392,6 +390,7 @@ class TestAudioEnergyScorerHappyPath:
     def _make_db_with_energy(self, tmp_path, n_rows=30, loud_start=10, loud_end=20,
                               loud_db=10.0, quiet_db=-30.0):
         from unittest.mock import MagicMock
+
         from yuu_clip.config import Config
         from yuu_clip.db.models import AudioEnergy, AudioTrack, Video, make_session
         from yuu_clip.scoring.energy import AudioEnergyScorer
@@ -462,6 +461,7 @@ class TestAudioEnergyScorerHappyPath:
     def test_quiet_window_in_loud_video_scores_lower(self, tmp_path):
         """A clip at the quiet section of an otherwise loud video scores low."""
         from unittest.mock import MagicMock
+
         from yuu_clip.config import Config
         from yuu_clip.db.models import AudioEnergy, AudioTrack, Video, make_session
         from yuu_clip.scoring.energy import AudioEnergyScorer
@@ -635,8 +635,9 @@ class TestLLMScorerParse:
 
     def _parse(self, data: dict) -> dict:
         import json
-        from yuu_clip.scoring.llm import LLMScorer
+
         from yuu_clip.config import Config
+        from yuu_clip.scoring.llm import LLMScorer
         scorer = LLMScorer(Config())
         return scorer._parse(json.dumps(data))
 
@@ -681,6 +682,7 @@ class TestLLMScorerScore:
 
     def _make_scorer(self, backend_response=None):
         import unittest.mock as mock
+
         from yuu_clip.config import Config
         from yuu_clip.scoring.llm import LLMScorer
         scorer = LLMScorer(Config())
@@ -710,6 +712,7 @@ class TestLLMScorerScore:
 
     def test_backend_exception_returns_llm_error_tag(self):
         import unittest.mock as mock
+
         from yuu_clip.config import Config
         from yuu_clip.scoring.llm import LLMScorer
         scorer = LLMScorer(Config())
@@ -752,9 +755,10 @@ class TestLLMScorerScore:
 
     def test_success_notes_include_model_id_for_llamacpp(self):
         import json
+        import unittest.mock as mock
+
         from yuu_clip.config import Config
         from yuu_clip.scoring.llm import LLMScorer
-        import unittest.mock as mock
         cfg = Config()
         cfg.llm_backend = "llamacpp"
         cfg.llm_model_path = "/models/llama3.gguf"
@@ -766,9 +770,10 @@ class TestLLMScorerScore:
 
     def test_success_notes_include_model_id_for_ollama(self):
         import json
+        import unittest.mock as mock
+
         from yuu_clip.config import Config
         from yuu_clip.scoring.llm import LLMScorer
-        import unittest.mock as mock
         cfg = Config()
         cfg.llm_backend = "ollama"
         cfg.ollama_model = "llama3.1:8b"
@@ -805,6 +810,7 @@ class TestAudioEnergyScorerIsAvailable:
     def test_is_available_false_when_av_missing(self):
         import sys
         import unittest.mock as mock
+
         from yuu_clip.config import Config
         from yuu_clip.scoring.energy import AudioEnergyScorer
         cfg = Config()
@@ -816,6 +822,7 @@ class TestAudioEnergyScorerIsAvailable:
     def test_is_available_true_when_deps_present(self):
         import sys
         import unittest.mock as mock
+
         from yuu_clip.config import Config
         from yuu_clip.scoring.energy import AudioEnergyScorer
         cfg = Config()
@@ -830,6 +837,7 @@ class TestAudioEnergyScorerIsAvailable:
 class TestScoringEngineWeightEdgeCases:
     def _make_scorer(self, score_action=0.0, weight=1.0):
         from unittest.mock import MagicMock
+
         from yuu_clip.scoring.protocol import ScoreResult
         mock = MagicMock()
         mock.is_available.return_value = True
@@ -1052,7 +1060,10 @@ class TestGenerateCandidates:
 
     def _setup_db(self, tmp_path, do_transcribe=True):
         from yuu_clip.db.models import (
-            AudioTrack, Transcript, TranscriptSegment, Video, make_session,
+            AudioTrack,
+            Transcript,
+            Video,
+            make_session,
         )
         db_path = tmp_path / "test.db"
         session = make_session(db_path)
@@ -1093,7 +1104,6 @@ class TestGenerateCandidates:
 
     def test_non_transcribable_track_ignored(self, tmp_path):
         from yuu_clip.config import Config
-        from yuu_clip.db.models import Transcript
         from yuu_clip.segments.windower import generate_candidates
         session, v, tx = self._setup_db(tmp_path, do_transcribe=False)
         # Add segments — they should be ignored because do_transcribe=False
@@ -1263,7 +1273,8 @@ class TestWordSet:
 class TestDetectTranscriptOverlap:
     def _setup(self, tmp_path):
         from yuu_clip.db.models import (
-            AudioTrack, Transcript, TranscriptSegment, Video, make_session,
+            Video,
+            make_session,
         )
         session = make_session(tmp_path / "test.db")
         v = Video(path=str(tmp_path / "v.mkv"), filename="v.mkv", status="done", duration_ms=600_000)

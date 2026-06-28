@@ -3,19 +3,18 @@ Shared fixtures for yuu-clip tests.
 """
 from __future__ import annotations
 
-import json
-import shutil
-import tempfile
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
 from yuu_clip.db.models import (
-    AudioTrack, ClipCandidate, Video, make_session,
+    AudioTrack,
+    ClipCandidate,
+    Video,
+    make_session,
 )
 from yuu_clip.web.app import create_app
-
 
 # ---------------------------------------------------------------------------
 # Minimal project dir fixture — isolated temp dir with a seeded DB

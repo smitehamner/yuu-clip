@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # Estimate
 # ---------------------------------------------------------------------------
@@ -91,6 +90,7 @@ class TestIngestStart:
 
     def test_no_score_flag_added_to_cmd(self, project_dir, video_path):
         from fastapi.testclient import TestClient
+
         from yuu_clip.web.app import create_app
         app = create_app(project_dir)
         with TestClient(app) as tc:
@@ -101,6 +101,7 @@ class TestIngestStart:
 
     def test_profile_flag_added_to_cmd(self, project_dir, video_path):
         from fastapi.testclient import TestClient
+
         from yuu_clip.web.app import create_app
         app = create_app(project_dir)
         with TestClient(app) as tc:
@@ -113,6 +114,7 @@ class TestIngestStart:
 
     def test_subtitle_source_flag_added_to_cmd(self, project_dir, video_path):
         from fastapi.testclient import TestClient
+
         from yuu_clip.web.app import create_app
         app = create_app(project_dir)
         with TestClient(app) as tc:
@@ -125,6 +127,7 @@ class TestIngestStart:
 
     def test_context_names_added_to_cmd(self, project_dir, video_path):
         from fastapi.testclient import TestClient
+
         from yuu_clip.web.app import create_app
         app = create_app(project_dir)
         with TestClient(app) as tc:
@@ -261,7 +264,9 @@ class TestGracefulShutdown:
     def test_shutdown_terminates_running_analyze(self, project_dir):
         """When the server exits, a running analyze_proc must be terminated."""
         from unittest.mock import AsyncMock, MagicMock
+
         from fastapi.testclient import TestClient
+
         from yuu_clip.web.app import create_app
 
         app = create_app(project_dir)
@@ -270,7 +275,7 @@ class TestGracefulShutdown:
         mock_proc.pid = 99999
         mock_proc.wait = AsyncMock(return_value=0)
 
-        with TestClient(app) as tc:
+        with TestClient(app) as _:
             app.state.ctx.analyze_proc = mock_proc
 
         mock_proc.terminate.assert_called_once()
@@ -278,6 +283,7 @@ class TestGracefulShutdown:
     def test_shutdown_noop_when_no_analyze_running(self, project_dir):
         """Server shutdown must not raise when there is no active subprocess."""
         from fastapi.testclient import TestClient
+
         from yuu_clip.web.app import create_app
 
         app = create_app(project_dir)
@@ -287,14 +293,16 @@ class TestGracefulShutdown:
     def test_shutdown_noop_when_analyze_already_finished(self, project_dir):
         """Server shutdown must not call terminate on a process that already exited."""
         from unittest.mock import MagicMock
+
         from fastapi.testclient import TestClient
+
         from yuu_clip.web.app import create_app
 
         app = create_app(project_dir)
         mock_proc = MagicMock()
         mock_proc.returncode = 0  # already exited
 
-        with TestClient(app) as tc:
+        with TestClient(app) as _:
             app.state.ctx.analyze_proc = mock_proc
 
         mock_proc.terminate.assert_not_called()
@@ -347,7 +355,9 @@ class TestStatus:
 
     def test_status_reflects_running_analyze(self, project_dir):
         from unittest.mock import AsyncMock, MagicMock
+
         from fastapi.testclient import TestClient
+
         from yuu_clip.web.app import create_app
         app = create_app(project_dir)
         mock_proc = MagicMock()
@@ -409,9 +419,11 @@ class TestSseCommandCleared:
 
     def test_analyze_cmd_cleared_after_events_stream(self, project_dir):
         """After analyze_events runs to completion, ctx.analyze_cmd must be None."""
-        from fastapi.testclient import TestClient
-        from yuu_clip.web.app import create_app
         import sys
+
+        from fastapi.testclient import TestClient
+
+        from yuu_clip.web.app import create_app
 
         app = create_app(project_dir)
         # Queue a trivial command that exits immediately
@@ -425,9 +437,11 @@ class TestSseCommandCleared:
 
     def test_demo_cmd_cleared_after_events_stream(self, project_dir):
         """After demo_events runs to completion, ctx.demo_cmd must be None."""
-        from fastapi.testclient import TestClient
-        from yuu_clip.web.app import create_app
         import sys
+
+        from fastapi.testclient import TestClient
+
+        from yuu_clip.web.app import create_app
 
         app = create_app(project_dir)
         with TestClient(app) as tc:
@@ -440,9 +454,11 @@ class TestSseCommandCleared:
     def test_second_call_to_analyze_events_without_new_start_returns_400(self, project_dir):
         """After stream finishes, a second call to /api/analyze/events without a new start
         must return 400, not re-run the old command."""
-        from fastapi.testclient import TestClient
-        from yuu_clip.web.app import create_app
         import sys
+
+        from fastapi.testclient import TestClient
+
+        from yuu_clip.web.app import create_app
 
         app = create_app(project_dir)
         with TestClient(app) as tc:
@@ -456,9 +472,11 @@ class TestSseCommandCleared:
 
     def test_score_run_does_not_clear_analyze_cmd(self, project_dir):
         """Running /api/score must not erase a queued analyze_cmd (Bug 2)."""
-        from fastapi.testclient import TestClient
-        from yuu_clip.web.app import create_app
         import sys
+
+        from fastapi.testclient import TestClient
+
+        from yuu_clip.web.app import create_app
 
         app = create_app(project_dir)
         sentinel_cmd = [sys.executable, "-c", "print('sentinel')"]
@@ -471,9 +489,10 @@ class TestSseCommandCleared:
 
     def test_analyze_cancelled_flag_not_triggered_by_score(self, project_dir):
         """analyze_cancelled=True must not cause score SSE to emit '[Analysis cancelled]' (Bug 1)."""
+
         from fastapi.testclient import TestClient
+
         from yuu_clip.web.app import create_app
-        import sys
 
         app = create_app(project_dir)
         with TestClient(app) as tc:
@@ -499,36 +518,45 @@ class TestSseOutputPaths:
             return list(resp.iter_lines())
 
     def test_successful_subprocess_emits_done_sentinel(self, project_dir):
+        import json as _json
+        import sys
+
         from fastapi.testclient import TestClient
+
         from yuu_clip.web.app import create_app
-        import sys, json as _json
 
         app = create_app(project_dir)
         with TestClient(app) as tc:
             app.state.ctx.analyze_cmd = [sys.executable, "-c", "print('hi')"]
             lines = self._stream_lines(tc, "/api/analyze/events")
-        data_values = [_json.loads(l.removeprefix("data: ")) for l in lines if l.startswith("data: ")]
+        data_values = [_json.loads(ln.removeprefix("data: ")) for ln in lines if ln.startswith("data: ")]
         assert "__DONE__" in data_values
 
     def test_failed_subprocess_emits_error_and_done(self, project_dir):
+        import json as _json
+        import sys
+
         from fastapi.testclient import TestClient
+
         from yuu_clip.web.app import create_app
-        import sys, json as _json
 
         app = create_app(project_dir)
         with TestClient(app) as tc:
             app.state.ctx.analyze_cmd = [sys.executable, "-c", "raise SystemExit(1)"]
             lines = self._stream_lines(tc, "/api/analyze/events")
-        data_values = [_json.loads(l.removeprefix("data: ")) for l in lines if l.startswith("data: ")]
+        data_values = [_json.loads(ln.removeprefix("data: ")) for ln in lines if ln.startswith("data: ")]
         assert any("[Error:" in v for v in data_values)
         assert "__DONE__" in data_values
 
     def test_cancelled_analyze_emits_cancelled_message(self, project_dir):
         """When analyze_cancelled=True and the process exits, the SSE stream
         must emit '[Analysis cancelled]' before '__DONE__'."""
+        import json as _json
+        import sys
+
         from fastapi.testclient import TestClient
+
         from yuu_clip.web.app import create_app
-        import sys, json as _json
 
         app = create_app(project_dir)
         with TestClient(app) as tc:
@@ -538,7 +566,7 @@ class TestSseOutputPaths:
             # cancellation flag takes precedence over the error branch.
             ctx.analyze_cmd = [sys.executable, "-c", "raise SystemExit(1)"]
             lines = self._stream_lines(tc, "/api/analyze/events")
-        data_values = [_json.loads(l.removeprefix("data: ")) for l in lines if l.startswith("data: ")]
+        data_values = [_json.loads(ln.removeprefix("data: ")) for ln in lines if ln.startswith("data: ")]
         assert "[Analysis cancelled]" in data_values
         assert "__DONE__" in data_values
         assert not any("[Error:" in v for v in data_values)
@@ -551,9 +579,11 @@ class TestSseOutputPaths:
 class TestAnalyzeCancelSideEffects:
     def test_cancel_clears_analyze_cmd(self, project_dir):
         """POST /api/analyze/cancel must clear analyze_cmd regardless of proc state."""
-        from fastapi.testclient import TestClient
-        from yuu_clip.web.app import create_app
         import sys
+
+        from fastapi.testclient import TestClient
+
+        from yuu_clip.web.app import create_app
 
         app = create_app(project_dir)
         with TestClient(app) as tc:
@@ -563,8 +593,10 @@ class TestAnalyzeCancelSideEffects:
             assert ctx.analyze_cmd is None
 
     def test_cancel_sets_cancelled_flag_when_proc_running(self, project_dir):
-        from unittest.mock import MagicMock, AsyncMock
+        from unittest.mock import AsyncMock, MagicMock
+
         from fastapi.testclient import TestClient
+
         from yuu_clip.web.app import create_app
 
         app = create_app(project_dir)
@@ -676,14 +708,14 @@ class TestEstimateEdgeCases:
     def test_unknown_model_falls_back_to_default_gpu_speed(self, client):
         """An unrecognised model string should not raise — it falls back to speed=6."""
         # Use the internal function directly to avoid the validate_whisper_model guard
-        from yuu_clip.web.routes.analyze import _compute_time_estimate, EstimateRequest
+        from yuu_clip.web.routes.analyze import EstimateRequest, _compute_time_estimate
         req = EstimateRequest(duration_s=3600, model="custom:tag", has_gpu=True, scene_mode="fast")
         result = _compute_time_estimate(req)
         assert result["total_seconds"] > 0
 
     def test_zero_duration_pct_is_zero(self, client):
         """Zero-duration input must not cause a division error."""
-        from yuu_clip.web.routes.analyze import _compute_time_estimate, EstimateRequest
+        from yuu_clip.web.routes.analyze import EstimateRequest, _compute_time_estimate
         req = EstimateRequest(duration_s=0, model="medium", has_gpu=True, scene_mode="fast")
         result = _compute_time_estimate(req)
         assert result["pct_of_video"] == 0
@@ -696,6 +728,7 @@ class TestEstimateEdgeCases:
 class TestAnalyzeStartWithVideoId:
     def test_video_id_queues_analyze_command(self, project_dir):
         from fastapi.testclient import TestClient
+
         from yuu_clip.web.app import create_app
 
         app = create_app(project_dir)
@@ -710,6 +743,7 @@ class TestAnalyzeStartWithVideoId:
 
     def test_video_id_not_found_returns_404(self, project_dir):
         from fastapi.testclient import TestClient
+
         from yuu_clip.web.app import create_app
 
         app = create_app(project_dir)
@@ -718,8 +752,8 @@ class TestAnalyzeStartWithVideoId:
             assert r.status_code == 404
 
     def test_segment_start_end_added_to_cmd(self, project_dir):
-        from pathlib import Path
         from fastapi.testclient import TestClient
+
         from yuu_clip.web.app import create_app
 
         app = create_app(project_dir)
@@ -820,6 +854,7 @@ class TestLabelNonInteractive:
 
     def test_default_sentinel_skips_profile_lookup(self):
         from unittest.mock import patch
+
         from yuu_clip.analyze.labeler import _label_non_interactive
         with patch("yuu_clip.analyze.labeler.load_profiles") as mock_lp:
             mock_lp.return_value = {"__default__": {}}
@@ -830,6 +865,7 @@ class TestLabelNonInteractive:
 
     def test_profile_applied_when_track_count_matches(self):
         from unittest.mock import patch
+
         from yuu_clip.analyze.labeler import _label_non_interactive
         profile = {
             "my_layout": {
@@ -847,6 +883,7 @@ class TestLabelNonInteractive:
 
     def test_profile_mismatch_falls_back_to_default(self):
         from unittest.mock import patch
+
         from yuu_clip.analyze.labeler import _label_non_interactive
         profile = {
             "my_layout": {
@@ -881,18 +918,21 @@ class TestApplyProfile:
 
     def test_unknown_name_returns_none(self):
         from unittest.mock import patch
+
         from yuu_clip.analyze.labeler import _apply_profile
         with patch("yuu_clip.analyze.labeler.load_profiles", return_value={}):
             assert _apply_profile("nonexistent", self._streams(2)) is None
 
     def test_track_count_mismatch_returns_none(self):
         from unittest.mock import patch
+
         from yuu_clip.analyze.labeler import _apply_profile
         with patch("yuu_clip.analyze.labeler.load_profiles", return_value=self._profile_data(3)):
             assert _apply_profile("test_layout", self._streams(2)) is None
 
     def test_matching_profile_returns_assignments(self):
         from unittest.mock import patch
+
         from yuu_clip.analyze.labeler import _apply_profile
         with patch("yuu_clip.analyze.labeler.load_profiles", return_value=self._profile_data(2)):
             result = _apply_profile("test_layout", self._streams(2))

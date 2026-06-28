@@ -13,6 +13,7 @@ from rich.console import Console
 from rich.prompt import Confirm, IntPrompt, Prompt
 from rich.table import Table
 
+from yuu_clip.analyze.probe import VideoInfo
 from yuu_clip.config import (
     DEFAULT_SKIP_SCORE,
     DEFAULT_SKIP_TRANSCRIBE,
@@ -22,7 +23,6 @@ from yuu_clip.config import (
     load_profiles,
     save_profile,
 )
-from yuu_clip.analyze.probe import VideoInfo
 from yuu_clip.log import get_logger
 
 _log = get_logger(__name__)
@@ -58,7 +58,7 @@ def label_tracks(
         s = streams[0]
         _log.info("Single audio track (stream %d) — auto-labeled as combined", s.stream_index)
         console.print(
-            f"  [dim]Single audio track detected — labeling as[/dim] [bold]combined[/bold]"
+            "  [dim]Single audio track detected — labeling as[/dim] [bold]combined[/bold]"
         )
         return [{
             "stream_index": s.stream_index,
@@ -149,7 +149,7 @@ def _label_interactive(video_info: VideoInfo) -> list[dict]:
         for i, name in enumerate(profile_keys, 1):
             p = profiles[name]
             console.print(f"    [{i}] {name}  ({p['num_tracks']} tracks)")
-        console.print(f"    [0] Label manually")
+        console.print("    [0] Label manually")
 
         choice = IntPrompt.ask(
             "  Use a saved track layout?",

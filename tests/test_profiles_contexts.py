@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-import pytest
-
-
 # ---------------------------------------------------------------------------
 # Profiles
 # ---------------------------------------------------------------------------
@@ -150,19 +147,19 @@ class TestLoadSaveContexts:
         assert load_contexts(tmp_path) == data
 
     def test_save_creates_parent_dirs(self, tmp_path):
-        from yuu_clip.contexts import save_contexts, load_contexts
+        from yuu_clip.contexts import load_contexts, save_contexts
         nested = tmp_path / "deep" / "project"
         save_contexts(nested, {"x": {"display_name": "X"}})
         assert load_contexts(nested) == {"x": {"display_name": "X"}}
 
     def test_seed_builtin_contexts_writes_all_builtins(self, tmp_path):
-        from yuu_clip.contexts import seed_builtin_contexts, load_contexts, BUILTIN_IDS
+        from yuu_clip.contexts import BUILTIN_IDS, load_contexts, seed_builtin_contexts
         seed_builtin_contexts(tmp_path)
         result = load_contexts(tmp_path)
         assert BUILTIN_IDS <= set(result)
 
     def test_seed_builtin_contexts_does_not_overwrite_existing(self, tmp_path):
-        from yuu_clip.contexts import seed_builtin_contexts, save_contexts, load_contexts
+        from yuu_clip.contexts import load_contexts, save_contexts, seed_builtin_contexts
         existing = {"fantasy-rp": {"display_name": "Custom", "setting": "changed"}}
         save_contexts(tmp_path, existing)
         seed_builtin_contexts(tmp_path)
@@ -170,7 +167,7 @@ class TestLoadSaveContexts:
         assert result["fantasy-rp"]["display_name"] == "Custom"
 
     def test_seed_builtin_contexts_adds_timestamps(self, tmp_path):
-        from yuu_clip.contexts import seed_builtin_contexts, load_contexts
+        from yuu_clip.contexts import load_contexts, seed_builtin_contexts
         seed_builtin_contexts(tmp_path)
         result = load_contexts(tmp_path)
         ctx = result["fantasy-rp"]
@@ -178,7 +175,7 @@ class TestLoadSaveContexts:
         assert "updated_at" in ctx
 
     def test_seed_is_idempotent(self, tmp_path):
-        from yuu_clip.contexts import seed_builtin_contexts, load_contexts
+        from yuu_clip.contexts import load_contexts, seed_builtin_contexts
         seed_builtin_contexts(tmp_path)
         first = load_contexts(tmp_path)
         seed_builtin_contexts(tmp_path)
@@ -303,8 +300,9 @@ class TestContextWeightFields:
         assert r.json()["display_name"] == "fallback-ctx"
 
     def test_upsert_preserves_created_at(self, tmp_path):
-        from yuu_clip.contexts import save_contexts, load_contexts
         from datetime import datetime, timezone
+
+        from yuu_clip.contexts import load_contexts, save_contexts
         original_ts = "2024-01-01T00:00:00+00:00"
         save_contexts(tmp_path, {"my-ctx": {"display_name": "V1", "created_at": original_ts, "updated_at": original_ts}})
         contexts = load_contexts(tmp_path)
@@ -337,7 +335,7 @@ class TestProfileFunctions:
     def test_save_and_load_profile(self, monkeypatch, tmp_path):
         from yuu_clip import config as cfg_mod
         monkeypatch.setattr(cfg_mod, "_profiles_path", lambda: tmp_path / "profiles.json")
-        from yuu_clip.config import save_profile, load_profiles
+        from yuu_clip.config import load_profiles, save_profile
         assignments = [{"stream_position": 0, "label": "combined", "do_transcribe": True, "do_score": True}]
         save_profile("my_layout", assignments)
         result = load_profiles()
@@ -348,7 +346,7 @@ class TestProfileFunctions:
     def test_save_profile_overwrites_existing(self, monkeypatch, tmp_path):
         from yuu_clip import config as cfg_mod
         monkeypatch.setattr(cfg_mod, "_profiles_path", lambda: tmp_path / "profiles.json")
-        from yuu_clip.config import save_profile, load_profiles
+        from yuu_clip.config import load_profiles, save_profile
         save_profile("p", [{"stream_position": 0, "label": "old"}])
         save_profile("p", [{"stream_position": 0, "label": "new"}, {"stream_position": 1, "label": "voice"}])
         result = load_profiles()
@@ -358,7 +356,7 @@ class TestProfileFunctions:
     def test_delete_profile_removes_entry(self, monkeypatch, tmp_path):
         from yuu_clip import config as cfg_mod
         monkeypatch.setattr(cfg_mod, "_profiles_path", lambda: tmp_path / "profiles.json")
-        from yuu_clip.config import save_profile, delete_profile, load_profiles
+        from yuu_clip.config import delete_profile, load_profiles, save_profile
         save_profile("to_remove", [])
         delete_profile("to_remove")
         assert "to_remove" not in load_profiles()

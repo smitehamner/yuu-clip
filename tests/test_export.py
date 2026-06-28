@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # Demo reel start + list
 # ---------------------------------------------------------------------------
@@ -268,6 +267,7 @@ class TestReelEsc:
 class TestBuildXfadeCmd:
     def _build(self, segments, durations, transition="fade", trans_dur=0.5):
         from pathlib import Path
+
         from yuu_clip.reel import _build_xfade_cmd
         paths = [Path(f"/fake/seg{i}.mkv") for i in range(segments)]
         durs = durations if isinstance(durations, list) else [durations] * segments
@@ -316,6 +316,7 @@ class TestFfmpegPath:
 
     def _fp(self, path_str):
         from pathlib import Path
+
         from yuu_clip.analyze.extract import _ffmpeg_path
         return _ffmpeg_path(Path(path_str))
 
@@ -327,6 +328,7 @@ class TestFfmpegPath:
     def test_windows_path_uses_forward_slashes(self):
         # On Windows, Path("C:\\Users\\foo\\bar.mkv").as_posix() → "C:/Users/foo/bar.mkv"
         from pathlib import PureWindowsPath
+
         from yuu_clip.analyze.extract import _ffmpeg_path
         p = PureWindowsPath("C:\\Users\\foo\\bar.mkv")
         result = _ffmpeg_path(p)
@@ -343,8 +345,8 @@ class TestExportClipCommand:
 
     def _run_export(self, tmp_path, reencode=False, subtitle_path=None,
                     audio_stream_index=None):
-        from pathlib import Path
-        from unittest.mock import patch, MagicMock
+        from unittest.mock import MagicMock, patch
+
         from yuu_clip.analyze.extract import export_clip
 
         video = tmp_path / "video.mkv"
@@ -409,8 +411,8 @@ class TestExportClipCommand:
         assert "-map" not in cmd
 
     def test_failure_raises_runtime_error(self, tmp_path):
-        from pathlib import Path
-        from unittest.mock import patch, MagicMock
+        from unittest.mock import MagicMock, patch
+
         from yuu_clip.analyze.extract import export_clip
 
         video = tmp_path / "video.mkv"
@@ -475,7 +477,7 @@ class TestExportVideoTranscript:
     """POST /api/videos/{id}/export-transcript writes SRT next to the source file."""
 
     def _seed_transcript(self, project_dir):
-        from yuu_clip.db.models import make_session, Video, AudioTrack, Transcript, TranscriptSegment
+        from yuu_clip.db.models import AudioTrack, Transcript, TranscriptSegment, Video, make_session
         db_path = project_dir / ".yuu-clip" / "project.db"
         session = make_session(db_path)
         try:

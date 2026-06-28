@@ -3,10 +3,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from yuu_clip.log import get_logger
-from yuu_clip.scoring.protocol import ScoreResult, Scorer
+from yuu_clip.scoring.protocol import Scorer, ScoreResult
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
+
     from yuu_clip.config import Config
     from yuu_clip.db.models import ClipCandidate, Video
 

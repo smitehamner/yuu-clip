@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # Config.load() — project overrides global
 # ---------------------------------------------------------------------------
@@ -11,6 +10,7 @@ class TestConfigLoad:
     def test_project_config_overrides_global(self, tmp_path, monkeypatch):
         """Values in project config.json take precedence over global defaults."""
         import json
+
         import yuu_clip.config as cfg_mod
         from yuu_clip.config import Config
         monkeypatch.setattr(cfg_mod, "_global_config_dir", lambda: tmp_path / "global_cfg")
@@ -40,6 +40,7 @@ class TestConfigLoad:
     def test_global_config_is_loaded(self, tmp_path, monkeypatch):
         """Values in global config.json are merged in when no project config overrides them."""
         import json
+
         import yuu_clip.config as cfg_mod
         from yuu_clip.config import Config
         global_dir = tmp_path / "global_cfg"
@@ -56,6 +57,7 @@ class TestConfigLoad:
     def test_project_config_overrides_global_value(self, tmp_path, monkeypatch):
         """Project config takes precedence over global config for the same key."""
         import json
+
         import yuu_clip.config as cfg_mod
         from yuu_clip.config import Config
         global_dir = tmp_path / "global_cfg"
@@ -77,6 +79,7 @@ class TestConfigLoad:
     def test_unknown_keys_in_project_config_ignored(self, tmp_path, monkeypatch):
         """Unknown keys in project config.json must not raise."""
         import json
+
         import yuu_clip.config as cfg_mod
         from yuu_clip.config import Config
         monkeypatch.setattr(cfg_mod, "_global_config_dir", lambda: tmp_path / "global_cfg")
@@ -140,6 +143,7 @@ class TestConfigNewLlmFields:
 
     def test_llm_backend_roundtrips_through_config_load(self, tmp_path, monkeypatch):
         import json
+
         import yuu_clip.config as cfg_mod
         from yuu_clip.config import Config
         monkeypatch.setattr(cfg_mod, "_global_config_dir", lambda: tmp_path / "global_cfg")
@@ -260,7 +264,7 @@ class TestProfiles:
 
     def test_save_and_load_profile(self, monkeypatch, tmp_path):
         self._patch(monkeypatch, tmp_path)
-        from yuu_clip.config import save_profile, load_profiles
+        from yuu_clip.config import load_profiles, save_profile
         assignments = [{"stream_position": 0, "label": "player_voice", "transcribe": True}]
         save_profile("2track", assignments)
         profiles = load_profiles()
@@ -270,14 +274,14 @@ class TestProfiles:
 
     def test_save_overwrites_existing_profile(self, monkeypatch, tmp_path):
         self._patch(monkeypatch, tmp_path)
-        from yuu_clip.config import save_profile, load_profiles
+        from yuu_clip.config import load_profiles, save_profile
         save_profile("p", [{"stream_position": 0, "label": "combined", "transcribe": True}])
         save_profile("p", [{"stream_position": 0, "label": "player_voice", "transcribe": True}])
         assert load_profiles()["p"]["assignments"][0]["label"] == "player_voice"
 
     def test_delete_profile(self, monkeypatch, tmp_path):
         self._patch(monkeypatch, tmp_path)
-        from yuu_clip.config import save_profile, delete_profile, load_profiles
+        from yuu_clip.config import delete_profile, load_profiles, save_profile
         save_profile("to_delete", [])
         delete_profile("to_delete")
         assert "to_delete" not in load_profiles()
@@ -289,7 +293,7 @@ class TestProfiles:
 
     def test_multiple_profiles_coexist(self, monkeypatch, tmp_path):
         self._patch(monkeypatch, tmp_path)
-        from yuu_clip.config import save_profile, load_profiles
+        from yuu_clip.config import load_profiles, save_profile
         save_profile("alpha", [])
         save_profile("beta", [])
         profiles = load_profiles()

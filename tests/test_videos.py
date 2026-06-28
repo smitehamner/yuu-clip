@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # Videos
 # ---------------------------------------------------------------------------
@@ -611,8 +610,9 @@ class TestResetApprovals:
 
 class TestVideoInfoProperties:
     def _make_info(self, duration_ms, n_audio=1):
-        from yuu_clip.analyze.probe import VideoInfo, AudioStreamInfo
         from pathlib import Path
+
+        from yuu_clip.analyze.probe import AudioStreamInfo, VideoInfo
         streams = [
             AudioStreamInfo(
                 stream_index=i, codec_name="aac", sample_rate=48000,
@@ -708,7 +708,8 @@ class TestRelatedClips:
 
     def test_related_clips_stale_when_scored_after(self, client, project_dir):
         """related_clips_stale is True when related_clips_at < video.clips_scored_at."""
-        from datetime import datetime, timezone, timedelta
+        from datetime import datetime, timedelta, timezone
+
         from yuu_clip.db.models import ClipCandidate, Video, make_session
         db_path = project_dir / ".yuu-clip" / "project.db"
         session = make_session(db_path)
@@ -730,7 +731,8 @@ class TestRelatedClips:
         assert d["related_clips_stale"] is True
 
     def test_related_clips_not_stale_when_scored_before(self, client, project_dir):
-        from datetime import datetime, timezone, timedelta
+        from datetime import datetime, timedelta, timezone
+
         from yuu_clip.db.models import ClipCandidate, Video, make_session
         db_path = project_dir / ".yuu-clip" / "project.db"
         session = make_session(db_path)
@@ -905,7 +907,7 @@ class TestSplitVideoOrphanCleanup:
     """Re-splitting an analyzed segment must not orphan or FK-violate clips."""
 
     def test_resplit_after_clips_exist_on_segment(self, client, project_dir):
-        from yuu_clip.db.models import ClipCandidate, Video, make_session
+        from yuu_clip.db.models import ClipCandidate, make_session
 
         vid_id = client.get("/api/videos").json()[0]["id"]
         # First split

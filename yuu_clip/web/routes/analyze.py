@@ -329,6 +329,7 @@ def _build_analyze_cmd(req: IngestRequest, video_path: str, project_dir: Path) -
 def _probe_subtitle_streams(p: Path) -> list[dict]:
     import json as _json
     import subprocess as _sp
+
     from yuu_clip.config import find_ffmpeg
     try:
         _, ffprobe = find_ffmpeg()

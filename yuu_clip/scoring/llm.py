@@ -20,6 +20,7 @@ from yuu_clip.scoring.protocol import ScoreResult
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
+
     from yuu_clip.config import Config
     from yuu_clip.db.models import ClipCandidate
 

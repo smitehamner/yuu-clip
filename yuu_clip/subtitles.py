@@ -45,13 +45,13 @@ def _merge_with_speakers(groups: dict[str, list[SubLine]]) -> list[SubLine]:
     all_lines: list[SubLine] = []
     for label, lines in groups.items():
         speaker = _label_display(label)
-        all_lines.extend(SubLine(l.start_ms, l.end_ms, l.text, speaker) for l in lines)
+        all_lines.extend(SubLine(sub.start_ms, sub.end_ms, sub.text, speaker) for sub in lines)
     return all_lines
 
 
 def lines_to_srt(lines: Iterable[SubLine]) -> str:
     """Render SubLine objects as an SRT-format string."""
-    sorted_lines = sorted(lines, key=lambda l: l.start_ms)
+    sorted_lines = sorted(lines, key=lambda sub: sub.start_ms)
     blocks = []
     for i, line in enumerate(sorted_lines, start=1):
         prefix = f"[{line.speaker}] " if line.speaker else ""
@@ -132,7 +132,7 @@ def export_srt_sidecars(clip, output_dir: Path, base_stem: str) -> list[Path]:
     else:
         for label, lines in groups.items():
             speaker = _label_display(label)
-            labeled = [SubLine(l.start_ms, l.end_ms, l.text, speaker) for l in lines]
+            labeled = [SubLine(sub.start_ms, sub.end_ms, sub.text, speaker) for sub in lines]
             path = output_dir / f"{base_stem}.{label}.srt"
             path.write_text(lines_to_srt(labeled), encoding="utf-8")
             written.append(path)
@@ -185,4 +185,4 @@ def export_video_transcript_srt(video, output_path: Path) -> Path:
 
 def merged_srt_lines(clip) -> list[SubLine]:
     """Return all subtitle lines for *clip* merged and sorted, with speaker prefixes."""
-    return sorted(_merge_with_speakers(collect_clip_subtitles(clip)), key=lambda l: l.start_ms)
+    return sorted(_merge_with_speakers(collect_clip_subtitles(clip)), key=lambda sub: sub.start_ms)

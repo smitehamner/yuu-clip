@@ -18,8 +18,9 @@ if sys.stdout and hasattr(sys.stdout, "buffer") and sys.stdout.encoding.lower() 
 if sys.stderr and hasattr(sys.stderr, "buffer") and sys.stderr.encoding.lower() != "utf-8":
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
-import typer
 from dataclasses import dataclass, field
+
+import typer
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -333,6 +334,7 @@ def _import_subtitles(subtitle_source: str, video_path: Path, track_objs, sessio
     Returns a list of Transcript ORM objects (one per do_transcribe track).
     """
     import tempfile
+
     from yuu_clip.config import find_ffmpeg
     from yuu_clip.db.models import Transcript, TranscriptSegment
 
@@ -415,8 +417,8 @@ def _upsert_video_and_tracks(session, video_path: Path, info, existing, profile,
 
     Returns (video, track_objs) — the ORM objects for use by later stages.
     """
-    from yuu_clip.db.models import AudioTrack, Video
     from yuu_clip.analyze.labeler import label_tracks
+    from yuu_clip.db.models import AudioTrack, Video
 
     if existing:
         video = existing
@@ -687,9 +689,12 @@ def score(
 
     proj_dir, session, config = _load_project(project)
 
-    if no_energy: config.scorer_energy_enabled = False
-    if no_scenes: config.scorer_scenes_enabled = False
-    if no_llm:    config.ollama_enabled = False
+    if no_energy:
+        config.scorer_energy_enabled = False
+    if no_scenes:
+        config.scorer_scenes_enabled = False
+    if no_llm:
+        config.ollama_enabled = False
 
     from yuu_clip.contexts import format_context_block, load_contexts
 
@@ -897,6 +902,7 @@ def _apply_title_card(clip_path: Path, cand, output: Path) -> Path:
     Deletes the intermediate *clip_path* after concatenation.
     """
     import tempfile as _tmp
+
     from yuu_clip.reel import _compile_concat, _make_title_card
 
     console.print("  Generating title card...")
@@ -932,9 +938,9 @@ def export(
     """Export a clip to a video file."""
     import tempfile
 
+    from yuu_clip.analyze.extract import export_clip
     from yuu_clip.config import project_exports_dir, validate_whisper_model
     from yuu_clip.db.models import AudioTrack, ClipCandidate
-    from yuu_clip.analyze.extract import export_clip
     from yuu_clip.subtitles import export_srt_sidecars, lines_to_srt, merged_srt_lines
 
     if retranscribe:
@@ -1021,7 +1027,8 @@ def export(
             result = _apply_title_card(result, cand, output)
         size_mb = result.stat().st_size / BYTES_PER_MB
         console.print(f"  [green]OK[/green] Saved to [cyan]{result}[/cyan]  [dim]({size_mb:.1f} MB)[/dim]")
-        from datetime import datetime, timezone as _tz
+        from datetime import datetime
+        from datetime import timezone as _tz
         cand.exported_at = datetime.now(_tz.utc)
         cand.exported_container = result.suffix.lstrip(".")
         cand.exported_burn_subs = bake_captions
@@ -1060,7 +1067,7 @@ def reel(
                                      help="Output file path (default: .yuu-clip/reels/reel_<timestamp>.mkv)"),
 ) -> None:
     """Compile a highlight reel from approved clips with title cards and transitions."""
-    from yuu_clip.db.models import ClipCandidate, Video
+    from yuu_clip.db.models import Video
     from yuu_clip.reel import TRANSITIONS, compile_demo
 
     if transition not in TRANSITIONS:

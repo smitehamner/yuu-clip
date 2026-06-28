@@ -42,11 +42,12 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     @router.post("/api/profiles")
     def save_profile(body: ProfileSave):
         from yuu_clip.config import save_profile as _save
-        if not body.name.strip() or body.name.startswith("__"):
+        name = body.name.strip()
+        if not name or name.startswith("__"):
             raise HTTPException(400, "Invalid track layout name — names beginning with __ are reserved")
-        _save(body.name, body.assignments)
-        _log.info("Track layout saved: %r (%d track(s))", body.name, len(body.assignments))
-        return {"name": body.name}
+        _save(name, body.assignments)
+        _log.info("Track layout saved: %r (%d track(s))", name, len(body.assignments))
+        return {"name": name}
 
     @router.delete("/api/profiles/{name}")
     def delete_profile(name: str):

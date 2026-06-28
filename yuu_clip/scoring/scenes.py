@@ -26,6 +26,7 @@ from yuu_clip.scoring.protocol import ScoreResult
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
+
     from yuu_clip.config import Config
     from yuu_clip.db.models import ClipCandidate, Video
 
@@ -36,8 +37,9 @@ _MAX_CPM = 10.0   # cuts/min → score_action = 1.0
 
 def _detect_transcript(video: "Video", session: "Session", gap_s: float) -> list[int]:
     """Return cut timecodes (ms) from silence gaps in the transcript."""
-    from yuu_clip.db.models import AudioTrack, Transcript, TranscriptSegment
     from sqlalchemy import asc
+
+    from yuu_clip.db.models import AudioTrack, Transcript, TranscriptSegment
 
     tracks = session.query(AudioTrack).filter_by(video_id=video.id, do_transcribe=True).all()
     cuts: set[int] = set()

@@ -6,8 +6,6 @@ Tests that touch the DB use the shared `project_dir` fixture from conftest.py.
 """
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 from click.exceptions import Exit as ClickExit
 from typer.testing import CliRunner

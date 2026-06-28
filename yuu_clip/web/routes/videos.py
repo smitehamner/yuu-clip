@@ -671,10 +671,10 @@ def make_router(ctx: ProjectContext) -> APIRouter:
 
             if body.action == "accept_new":
                 if touch_title:
-                    video.title      = body.new_title
+                    video.title      = body.new_title.strip()
                     video.title_user = None
                 if touch_summary:
-                    video.summary      = body.new_summary
+                    video.summary      = body.new_summary.strip()
                     video.summary_user = None
                     video.summarized_at        = datetime.now(timezone.utc)
                     video.summary_context_json = json_lib.dumps(
@@ -682,9 +682,9 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                     )
             elif body.action == "accept_edit":
                 if touch_title:
-                    video.title_user = body.new_title
+                    video.title_user = body.new_title.strip()
                 if touch_summary:
-                    video.summary_user = body.new_summary
+                    video.summary_user = body.new_summary.strip()
             else:  # revert
                 if touch_title:
                     video.title_user = None
@@ -1196,16 +1196,16 @@ def make_router(ctx: ProjectContext) -> APIRouter:
 
             if body.action == "accept_new":
                 if touch_desc:
-                    clip.description      = body.new_description
+                    clip.description      = body.new_description.strip()
                     clip.description_user = None
                 if touch_desc_long:
-                    clip.description_long      = body.new_description_long
+                    clip.description_long      = body.new_description_long.strip()
                     clip.description_long_user = None
             elif body.action == "accept_edit":
                 if touch_desc:
-                    clip.description_user = body.new_description
+                    clip.description_user = body.new_description.strip()
                 if touch_desc_long:
-                    clip.description_long_user = body.new_description_long
+                    clip.description_long_user = body.new_description_long.strip()
             else:  # revert
                 if touch_desc:
                     clip.description_user = None
@@ -1358,7 +1358,8 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         video_ids: comma-separated list of video IDs to search (empty = current video only).
         Saves results to related_clips_json on the clip.
         """
-        from yuu_clip.scoring.llm import check_llm_available, find_related_clips as _find_related
+        from yuu_clip.scoring.llm import check_llm_available
+        from yuu_clip.scoring.llm import find_related_clips as _find_related
 
         config = ctx.config
 

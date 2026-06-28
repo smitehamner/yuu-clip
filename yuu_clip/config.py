@@ -15,11 +15,11 @@ import json
 import logging
 import shutil
 import sys
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Optional
 
-from platformdirs import user_config_dir, user_data_dir
+from platformdirs import user_config_dir
 
 APP_NAME = "yuu-clip"
 
@@ -175,6 +175,10 @@ class Config:
     claude_api_key: str = ""                         # Anthropic API key
     claude_model: str = "claude-haiku-4-5-20251001"  # model to use
     claude_timeout_s: float = 30.0                   # per-request timeout
+
+    # Speaker diarization — identifies who is speaking within a track
+    diarization_backend: str = "null"  # "null" | "pyannote"
+    huggingface_token: str = ""        # required for pyannote backend
 
     scorer_energy_enabled: bool = True
     scorer_scenes_enabled: bool = True

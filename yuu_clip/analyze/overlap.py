@@ -51,12 +51,10 @@ def _rms_curve(wav_path: str, max_seconds: int = SAMPLE_SECONDS) -> list[float]:
                 import array as _array
                 raw = bytes(plane)
                 if frame.format.name in ("fltp", "flt"):
-                    n = len(raw) // 4
                     samples = _array.array("f", raw)
                     buf.extend(samples)
                 else:
                     # assume s16le
-                    n = len(raw) // 2
                     arr = _array.array("h", raw)
                     buf.extend(x / 32768.0 for x in arr)
             except Exception as exc:

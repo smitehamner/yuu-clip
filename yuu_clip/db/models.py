@@ -30,7 +30,6 @@ from sqlalchemy import (
     event,
     text,
 )
-from sqlalchemy.pool import NullPool
 from sqlalchemy.orm import (
     DeclarativeBase,
     Mapped,
@@ -39,6 +38,7 @@ from sqlalchemy.orm import (
     relationship,
     sessionmaker,
 )
+from sqlalchemy.pool import NullPool
 
 
 class Base(DeclarativeBase):

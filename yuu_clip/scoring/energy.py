@@ -20,6 +20,7 @@ from yuu_clip.scoring.protocol import ScoreResult
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
+
     from yuu_clip.config import Config
     from yuu_clip.db.models import AudioTrack, ClipCandidate
 
@@ -62,8 +63,8 @@ def compute_energy(track: "AudioTrack", session: "Session", energy_mode: str = "
         return 0
 
     try:
-        import av
-        import numpy as np
+        import av  # noqa: F401
+        import numpy as np  # noqa: F401
     except ImportError:
         log.warning("av or numpy not available — cannot compute audio energy")
         return 0
@@ -172,8 +173,8 @@ class AudioEnergyScorer:
         if not self._config.scorer_energy_enabled:
             return False
         try:
-            import av        # noqa: F401
-            import numpy     # noqa: F401
+            import av  # noqa: F401
+            import numpy  # noqa: F401
             return True
         except ImportError:
             return False

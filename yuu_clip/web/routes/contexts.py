@@ -53,7 +53,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         existing = contexts.get(context_id, {})
         is_new = context_id not in contexts
         contexts[context_id] = {
-            "display_name":          body.display_name or context_id,
+            "display_name":          (body.display_name or context_id).strip(),
             "setting":               body.setting,
             "your_characters":       body.your_characters,
             "other_characters":      body.other_characters,
