@@ -49,6 +49,10 @@ class TestProfiles:
         })
         assert r.status_code == 400
 
+    def test_cannot_create_whitespace_profile(self, client):
+        r = client.post("/api/profiles", json={"name": "   ", "assignments": []})
+        assert r.status_code == 400
+
 
 # ---------------------------------------------------------------------------
 # Contexts
@@ -109,6 +113,15 @@ class TestContexts:
         r = client.post("/api/contexts", json={"context_id": "", "display_name": "X"})
         assert r.status_code == 400
 
+    def test_cannot_delete_builtin_context(self, client):
+        r = client.delete("/api/contexts/fantasy-rp")
+        assert r.status_code == 400
+
+    def test_builtin_context_survives_delete_attempt(self, client):
+        client.delete("/api/contexts/fantasy-rp")
+        contexts = client.get("/api/contexts").json()
+        assert any(c["context_id"] == "fantasy-rp" for c in contexts)
+
 
 # ---------------------------------------------------------------------------
 # Profile delete — nonexistent name is a no-op
@@ -116,7 +129,6 @@ class TestContexts:
 
 class TestProfileDeleteNonexistent:
     def test_delete_nonexistent_profile_returns_200(self, client):
-        """Deleting a nonexistent profile is a silent no-op (matches delete_profile impl)."""
         r = client.delete("/api/profiles/does_not_exist")
         assert r.status_code == 200
         assert r.json()["deleted"] == "does_not_exist"
@@ -172,6 +184,143 @@ class TestLoadSaveContexts:
         seed_builtin_contexts(tmp_path)
         second = load_contexts(tmp_path)
         assert first == second
+
+
+# ---------------------------------------------------------------------------
+# contexts.py — extract_context_weights unit tests
+# ---------------------------------------------------------------------------
+
+class TestExtractContextWeights:
+    def test_empty_context_ids_returns_all_none(self):
+        from yuu_clip.contexts import extract_context_weights
+        result = extract_context_weights({}, [])
+        assert result == {"score_funny_weight": None, "score_dramatic_weight": None, "score_action_weight": None}
+
+    def test_missing_context_id_is_skipped(self):
+        from yuu_clip.contexts import extract_context_weights
+        result = extract_context_weights({}, ["does-not-exist"])
+        assert result["score_funny_weight"] is None
+
+    def test_single_weight_returned(self):
+        from yuu_clip.contexts import extract_context_weights
+        contexts = {"a": {"score_funny_weight": 2.0, "score_dramatic_weight": None, "score_action_weight": None}}
+        result = extract_context_weights(contexts, ["a"])
+        assert result["score_funny_weight"] == 2.0
+        assert result["score_dramatic_weight"] is None
+
+    def test_averages_across_multiple_contexts(self):
+        from yuu_clip.contexts import extract_context_weights
+        contexts = {
+            "a": {"score_funny_weight": 1.0, "score_dramatic_weight": None, "score_action_weight": 3.0},
+            "b": {"score_funny_weight": 3.0, "score_dramatic_weight": None, "score_action_weight": 1.0},
+        }
+        result = extract_context_weights(contexts, ["a", "b"])
+        assert result["score_funny_weight"] == 2.0
+        assert result["score_dramatic_weight"] is None
+        assert result["score_action_weight"] == 2.0
+
+    def test_only_set_contexts_contribute_to_average(self):
+        from yuu_clip.contexts import extract_context_weights
+        contexts = {
+            "a": {"score_funny_weight": 4.0},
+            "b": {"score_funny_weight": None},
+        }
+        result = extract_context_weights(contexts, ["a", "b"])
+        assert result["score_funny_weight"] == 4.0
+
+
+# ---------------------------------------------------------------------------
+# contexts.py — format_context_block unit tests
+# ---------------------------------------------------------------------------
+
+class TestFormatContextBlock:
+    def test_empty_list_returns_empty_string(self):
+        from yuu_clip.contexts import format_context_block
+        assert format_context_block({}, []) == ""
+
+    def test_missing_context_id_is_skipped(self):
+        from yuu_clip.contexts import format_context_block
+        assert format_context_block({}, ["not-there"]) == ""
+
+    def test_single_context_with_fields(self):
+        from yuu_clip.contexts import format_context_block
+        contexts = {"my-ctx": {"display_name": "My World", "setting": "A dark forest", "your_characters": "Hero", "other_characters": "", "notes": ""}}
+        block = format_context_block(contexts, ["my-ctx"])
+        assert "WORLD CONTEXT: My World" in block
+        assert "A dark forest" in block
+        assert "Hero" in block
+        assert "END CONTEXT" in block
+
+    def test_empty_fields_omitted(self):
+        from yuu_clip.contexts import format_context_block
+        contexts = {"ctx": {"display_name": "C", "setting": "", "your_characters": "", "other_characters": "", "notes": ""}}
+        block = format_context_block(contexts, ["ctx"])
+        assert "[Setting]" not in block
+        assert "WORLD CONTEXT: C" in block
+
+    def test_multiple_contexts_joined(self):
+        from yuu_clip.contexts import format_context_block
+        contexts = {
+            "a": {"display_name": "A", "setting": "world A", "your_characters": "", "other_characters": "", "notes": ""},
+            "b": {"display_name": "B", "setting": "world B", "your_characters": "", "other_characters": "", "notes": ""},
+        }
+        block = format_context_block(contexts, ["a", "b"])
+        assert "WORLD CONTEXT: A" in block
+        assert "WORLD CONTEXT: B" in block
+
+
+# ---------------------------------------------------------------------------
+# contexts route — weight fields and display_name fallback
+# ---------------------------------------------------------------------------
+
+class TestContextWeightFields:
+    def test_weight_fields_round_trip(self, client):
+        body = {
+            "context_id": "weighted-ctx",
+            "display_name": "Weighted",
+            "score_funny_weight": 1.5,
+            "score_dramatic_weight": 0.5,
+            "score_action_weight": None,
+        }
+        r = client.post("/api/contexts", json=body)
+        assert r.status_code == 200
+        d = r.json()
+        assert d["score_funny_weight"] == 1.5
+        assert d["score_dramatic_weight"] == 0.5
+        assert d["score_action_weight"] is None
+
+    def test_weight_fields_default_to_none_in_list(self, client):
+        client.post("/api/contexts", json={"context_id": "no-weights", "display_name": "No weights"})
+        contexts = client.get("/api/contexts").json()
+        ctx = next(c for c in contexts if c["context_id"] == "no-weights")
+        assert ctx["score_funny_weight"] is None
+        assert ctx["score_dramatic_weight"] is None
+        assert ctx["score_action_weight"] is None
+
+    def test_display_name_falls_back_to_context_id(self, client):
+        r = client.post("/api/contexts", json={"context_id": "fallback-ctx", "display_name": ""})
+        assert r.status_code == 200
+        assert r.json()["display_name"] == "fallback-ctx"
+
+    def test_upsert_preserves_created_at(self, tmp_path):
+        from yuu_clip.contexts import save_contexts, load_contexts
+        from datetime import datetime, timezone
+        original_ts = "2024-01-01T00:00:00+00:00"
+        save_contexts(tmp_path, {"my-ctx": {"display_name": "V1", "created_at": original_ts, "updated_at": original_ts}})
+        contexts = load_contexts(tmp_path)
+        existing = contexts["my-ctx"]
+        contexts["my-ctx"] = {**existing, "display_name": "V2", "updated_at": datetime.now(timezone.utc).isoformat()}
+        save_contexts(tmp_path, contexts)
+        result = load_contexts(tmp_path)
+        assert result["my-ctx"]["created_at"] == original_ts
+        assert result["my-ctx"]["display_name"] == "V2"
+
+    def test_list_response_omits_timestamps(self, client):
+        client.post("/api/contexts", json={"context_id": "ts-check", "display_name": "TS"})
+        contexts = client.get("/api/contexts").json()
+        ctx = next(c for c in contexts if c["context_id"] == "ts-check")
+        assert "created_at" not in ctx
+        assert "updated_at" not in ctx
 
 
 # ---------------------------------------------------------------------------

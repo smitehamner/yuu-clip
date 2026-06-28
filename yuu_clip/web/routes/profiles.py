@@ -42,7 +42,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     @router.post("/api/profiles")
     def save_profile(body: ProfileSave):
         from yuu_clip.config import save_profile as _save
-        if not body.name or body.name.startswith("__"):
+        if not body.name.strip() or body.name.startswith("__"):
             raise HTTPException(400, "Invalid track layout name — names beginning with __ are reserved")
         _save(body.name, body.assignments)
         _log.info("Track layout saved: %r (%d track(s))", body.name, len(body.assignments))
@@ -61,7 +61,6 @@ def make_router(ctx: ProjectContext) -> APIRouter:
 
 
 def _builtin_default() -> dict:
-    """Return the hard-coded default profile (single combined track)."""
     return {
         "name":         "__default__",
         "display_name": "Default (combined only)",

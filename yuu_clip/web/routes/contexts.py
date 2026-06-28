@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from yuu_clip.contexts import BUILTIN_IDS, load_contexts, save_contexts
+from yuu_clip.contexts import BUILTIN_IDS, WEIGHT_FIELDS, load_contexts, save_contexts
 from yuu_clip.log import get_logger
 from yuu_clip.web.deps import ProjectContext
 
@@ -70,6 +70,8 @@ def make_router(ctx: ProjectContext) -> APIRouter:
 
     @router.delete("/api/contexts/{context_id}")
     def delete_context(context_id: str):
+        if context_id in BUILTIN_IDS:
+            raise HTTPException(400, "Built-in world contexts cannot be deleted")
         contexts = load_contexts(ctx.project_dir)
         if context_id not in contexts:
             raise HTTPException(404, f"Context '{context_id}' not found")
@@ -81,12 +83,11 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     return router
 
 
-_WEIGHT_KEYS = ("score_funny_weight", "score_dramatic_weight", "score_action_weight")
 _OMIT_KEYS = frozenset(("created_at", "updated_at"))
 
 
 def _strip(data: dict) -> dict:
     d = {k: v for k, v in data.items() if k not in _OMIT_KEYS}
-    for k in _WEIGHT_KEYS:
+    for k in WEIGHT_FIELDS:
         d.setdefault(k, None)
     return d

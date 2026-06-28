@@ -127,7 +127,7 @@ def save_contexts(project_dir: Path, contexts: dict) -> None:
     p.write_text(json.dumps(contexts, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
-_WEIGHT_FIELDS = ("score_funny_weight", "score_dramatic_weight", "score_action_weight")
+WEIGHT_FIELDS = ("score_funny_weight", "score_dramatic_weight", "score_action_weight")
 
 
 def extract_context_weights(contexts: dict, context_ids: list[str]) -> dict[str, float | None]:
@@ -136,10 +136,10 @@ def extract_context_weights(contexts: dict, context_ids: list[str]) -> dict[str,
     Returns a dict with keys score_funny_weight / score_dramatic_weight / score_action_weight.
     A key is None when no assigned context sets that weight (caller should fall back to global).
     """
-    totals: dict[str, list[float]] = {k: [] for k in _WEIGHT_FIELDS}
+    totals: dict[str, list[float]] = {k: [] for k in WEIGHT_FIELDS}
     for cid in context_ids:
         ctx = contexts.get(cid, {})
-        for key in _WEIGHT_FIELDS:
+        for key in WEIGHT_FIELDS:
             val = ctx.get(key)
             if val is not None:
                 totals[key].append(float(val))
