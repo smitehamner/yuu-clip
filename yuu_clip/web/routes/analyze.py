@@ -280,10 +280,17 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         ]
         return await subprocess_sse(cmd, ctx.project_dir, ctx)
 
-    @router.post("/api/install/pyannote")
-    async def install_pyannote():
-        """Install pyannote.audio into the current Python environment via pip."""
-        cmd = [sys.executable, "-m", "pip", "install", "pyannote.audio"]
+    @router.post("/api/install/{slug}")
+    async def install_package(slug: str):
+        """Install an optional pip package into the current Python environment."""
+        _INSTALLABLE = {
+            "pyannote":   "pyannote.audio",
+            "llamacpp":   "llama-cpp-python",
+            "anthropic":  "anthropic",
+        }
+        if slug not in _INSTALLABLE:
+            raise HTTPException(400, f"Unknown package slug '{slug}' — allowed: {sorted(_INSTALLABLE)}")
+        cmd = [sys.executable, "-m", "pip", "install", _INSTALLABLE[slug]]
         return await subprocess_sse(cmd, ctx.project_dir)
 
     return router

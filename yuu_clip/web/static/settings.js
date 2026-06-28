@@ -6,6 +6,7 @@ const _settingsFieldIds = [
   's-claude-api-key','s-claude-model','s-claude-timeout',
   's-diarization-backend','s-hf-token',
   's-energy-weight','s-scene-weight','s-llm-weight',
+  's-laugh-weight','s-laugh-mode','s-laugh-model-id',
   's-funny-weight','s-dramatic-weight','s-action-weight',
   's-scene-mode','s-silence-ms','s-min-clip-ms',
   's-timeline-interval','s-timeline-unit','s-autoplay',
@@ -81,18 +82,23 @@ function _applySettingsToUI(cfg) {
   setVal('s-diarization-backend', diarBackend);
   _onDiarizationBackendChange(diarBackend);
   setVal('s-hf-token', cfg.huggingface_token || '');
-  const ew = (cfg.scorer_energy_weight  ?? 1.0).toFixed(1);
-  const sw = (cfg.scorer_scene_weight   ?? 0.5).toFixed(1);
-  const lw = (cfg.scorer_llm_weight     ?? 2.0).toFixed(1);
-  const fw = (cfg.score_funny_weight    ?? 1.0).toFixed(1);
-  const dw = (cfg.score_dramatic_weight ?? 1.0).toFixed(1);
-  const aw = (cfg.score_action_weight   ?? 1.0).toFixed(1);
-  setVal('s-energy-weight', ew);   setTxt('s-energy-weight-val', ew);
-  setVal('s-scene-weight',  sw);   setTxt('s-scene-weight-val',  sw);
-  setVal('s-llm-weight',    lw);   setTxt('s-llm-weight-val',    lw);
-  setVal('s-funny-weight',  fw);   setTxt('s-funny-weight-val',  fw);
-  setVal('s-dramatic-weight',dw);  setTxt('s-dramatic-weight-val',dw);
-  setVal('s-action-weight', aw);   setTxt('s-action-weight-val', aw);
+  const ew  = (cfg.scorer_energy_weight  ?? 1.0).toFixed(1);
+  const sw  = (cfg.scorer_scene_weight   ?? 0.5).toFixed(1);
+  const lw  = (cfg.scorer_llm_weight     ?? 2.0).toFixed(1);
+  const law = (cfg.scorer_laugh_weight   ?? 1.5).toFixed(1);
+  const fw  = (cfg.score_funny_weight    ?? 1.0).toFixed(1);
+  const dw  = (cfg.score_dramatic_weight ?? 1.0).toFixed(1);
+  const aw  = (cfg.score_action_weight   ?? 1.0).toFixed(1);
+  setVal('s-energy-weight', ew);    setTxt('s-energy-weight-val', ew);
+  setVal('s-scene-weight',  sw);    setTxt('s-scene-weight-val',  sw);
+  setVal('s-llm-weight',    lw);    setTxt('s-llm-weight-val',    lw);
+  setVal('s-laugh-weight',  law);   setTxt('s-laugh-weight-val',  law);
+  setVal('s-laugh-mode',    cfg.scorer_laugh_mode     || 'transcript');
+  setVal('s-laugh-model-id',cfg.scorer_laugh_model_id || 'MIT/ast-finetuned-audioset-10-10-0.4593');
+  _onLaughModeChange(cfg.scorer_laugh_mode || 'transcript');
+  setVal('s-funny-weight',  fw);    setTxt('s-funny-weight-val',  fw);
+  setVal('s-dramatic-weight',dw);   setTxt('s-dramatic-weight-val',dw);
+  setVal('s-action-weight', aw);    setTxt('s-action-weight-val', aw);
   setVal('s-scene-mode',    cfg.scene_detection_mode || 'fast');
   setVal('s-silence-ms',    cfg.silence_threshold_ms ?? 3000);
   setVal('s-min-clip-ms',   cfg.min_clip_ms          ?? 15000);
@@ -122,17 +128,22 @@ function _onDiarizationBackendChange(backend) {
   if (pyannoteEl) pyannoteEl.style.display = backend === 'pyannote' ? '' : 'none';
 }
 
-async function installPyannote() {
-  const btn    = document.getElementById('btn-install-pyannote');
-  const status = document.getElementById('pyannote-install-status');
-  const log    = document.getElementById('pyannote-install-log');
+function _onLaughModeChange(mode) {
+  const modelEl = document.getElementById('s-laugh-model-fields');
+  if (modelEl) modelEl.style.display = mode === 'model' ? '' : 'none';
+}
+
+async function installPackage(slug) {
+  const btn    = document.getElementById(`btn-install-${slug}`);
+  const status = document.getElementById(`install-status-${slug}`);
+  const log    = document.getElementById(`install-log-${slug}`);
   btn.disabled = true;
   btn.textContent = 'Installing…';
   status.textContent = '';
   log.textContent = '';
   log.style.display = '';
   try {
-    const resp = await fetch('/api/install/pyannote', { method: 'POST' });
+    const resp = await fetch(`/api/install/${slug}`, { method: 'POST' });
     if (!resp.ok) { throw new Error(await resp.text()); }
     const reader = resp.body.getReader();
     const dec = new TextDecoder();
@@ -197,6 +208,9 @@ async function saveSettings() {
     scorer_energy_weight:       getNum('s-energy-weight', parseFloat),
     scorer_scene_weight:        getNum('s-scene-weight', parseFloat),
     scorer_llm_weight:          getNum('s-llm-weight', parseFloat),
+    scorer_laugh_weight:        getNum('s-laugh-weight', parseFloat),
+    scorer_laugh_mode:          getVal('s-laugh-mode'),
+    scorer_laugh_model_id:      getVal('s-laugh-model-id'),
     score_funny_weight:         getNum('s-funny-weight', parseFloat),
     score_dramatic_weight:      getNum('s-dramatic-weight', parseFloat),
     score_action_weight:        getNum('s-action-weight', parseFloat),

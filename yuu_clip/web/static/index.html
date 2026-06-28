@@ -121,6 +121,17 @@
     <div id="s-llamacpp-fields">
       <div class="settings-row">
         <div class="settings-col">
+          <div class="settings-label">Python package</div>
+          <div class="settings-note">llama-cpp-python is optional — installs CPU-only inference</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="btn-secondary" id="btn-install-llamacpp" onclick="installPackage('llamacpp')">Install llama-cpp-python</button>
+          <span id="install-status-llamacpp" style="font-size:12px"></span>
+        </div>
+      </div>
+      <div id="install-log-llamacpp" style="display:none;margin:0 0 8px;padding:8px;background:var(--bg-deep,#0d0d0d);border:1px solid var(--border);border-radius:4px;max-height:140px;overflow-y:auto;font-family:monospace;font-size:11px;white-space:pre-wrap;color:var(--muted)"></div>
+      <div class="settings-row">
+        <div class="settings-col">
           <label class="settings-label" for="s-llm-model-path">Model file path</label>
           <div class="settings-note">Path to a local .gguf file</div>
         </div>
@@ -153,6 +164,17 @@
     </div>
     <!-- Claude API fields -->
     <div id="s-claude-fields" style="display:none">
+      <div class="settings-row">
+        <div class="settings-col">
+          <div class="settings-label">Python package</div>
+          <div class="settings-note">anthropic is optional — required for the Claude backend</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="btn-secondary" id="btn-install-anthropic" onclick="installPackage('anthropic')">Install anthropic</button>
+          <span id="install-status-anthropic" style="font-size:12px"></span>
+        </div>
+      </div>
+      <div id="install-log-anthropic" style="display:none;margin:0 0 8px;padding:8px;background:var(--bg-deep,#0d0d0d);border:1px solid var(--border);border-radius:4px;max-height:140px;overflow-y:auto;font-family:monospace;font-size:11px;white-space:pre-wrap;color:var(--muted)"></div>
       <div class="settings-row">
         <div class="settings-col">
           <label class="settings-label" for="s-claude-api-key">Anthropic API key</label>
@@ -201,11 +223,11 @@
           <div class="settings-note">pyannote.audio is not included by default — install it once here</div>
         </div>
         <div style="display:flex;gap:8px;align-items:center">
-          <button class="btn-secondary" id="btn-install-pyannote" onclick="installPyannote()">Install pyannote.audio</button>
-          <span id="pyannote-install-status" style="font-size:12px"></span>
+          <button class="btn-secondary" id="btn-install-pyannote" onclick="installPackage('pyannote')">Install pyannote.audio</button>
+          <span id="install-status-pyannote" style="font-size:12px"></span>
         </div>
       </div>
-      <div id="pyannote-install-log" style="display:none;margin:0 0 8px;padding:8px;background:var(--bg-deep,#0d0d0d);border:1px solid var(--border);border-radius:4px;max-height:140px;overflow-y:auto;font-family:monospace;font-size:11px;white-space:pre-wrap;color:var(--muted)"></div>
+      <div id="install-log-pyannote" style="display:none;margin:0 0 8px;padding:8px;background:var(--bg-deep,#0d0d0d);border:1px solid var(--border);border-radius:4px;max-height:140px;overflow-y:auto;font-family:monospace;font-size:11px;white-space:pre-wrap;color:var(--muted)"></div>
       <div class="settings-row">
         <div class="settings-col">
           <label class="settings-label" for="s-hf-token">HuggingFace token</label>
@@ -232,12 +254,36 @@
              oninput="document.getElementById('s-scene-weight-val').textContent=parseFloat(this.value).toFixed(1)">
       <span class="settings-weight-val" id="s-scene-weight-val">0.5</span>
     </div>
-    <div class="settings-weight-row" style="margin-bottom:16px">
+    <div class="settings-weight-row">
       <span class="settings-weight-label">&#129504; LLM score</span>
       <input type="range" min="0" max="5" step="0.1" id="s-llm-weight" aria-label="LLM score weight" style="flex:1"
              oninput="document.getElementById('s-llm-weight-val').textContent=parseFloat(this.value).toFixed(1)">
       <span class="settings-weight-val" id="s-llm-weight-val">2.0</span>
     </div>
+    <div class="settings-weight-row" style="margin-bottom:4px">
+      <span class="settings-weight-label">&#128514; Laugh detection</span>
+      <input type="range" min="0" max="5" step="0.1" id="s-laugh-weight" aria-label="Laugh detection weight" style="flex:1"
+             oninput="document.getElementById('s-laugh-weight-val').textContent=parseFloat(this.value).toFixed(1)">
+      <span class="settings-weight-val" id="s-laugh-weight-val">1.5</span>
+    </div>
+    <div style="margin-bottom:4px;display:flex;gap:8px;align-items:center">
+      <label class="settings-label" for="s-laugh-mode" style="white-space:nowrap;min-width:90px">Laugh mode</label>
+      <select id="s-laugh-mode" class="settings-input" style="flex:1" onchange="_onLaughModeChange(this.value)">
+        <option value="transcript">Transcript (default — pattern matching)</option>
+        <option value="audio">Audio (spectral rhythm, no extra deps)</option>
+        <option value="model">Model (HuggingFace classifier, best accuracy)</option>
+      </select>
+    </div>
+    <div id="s-laugh-model-fields" style="display:none;margin-bottom:16px">
+      <label class="settings-label" for="s-laugh-model-id">HuggingFace model ID</label>
+      <input type="text" id="s-laugh-model-id" class="settings-input" style="width:100%;box-sizing:border-box"
+             placeholder="MIT/ast-finetuned-audioset-10-10-0.4593">
+      <div style="font-size:11px;color:var(--muted);margin-top:4px">
+        Install deps first: <code>pip install transformers torch torchaudio soundfile</code><br>
+        Recommended: <code>MIT/ast-finetuned-audioset-10-10-0.4593</code> (~350 MB, downloads on first use)
+      </div>
+    </div>
+    <div style="margin-bottom:16px" id="s-laugh-model-fields-spacer"></div>
     <div style="font-size:12px;color:var(--muted);margin-bottom:8px;font-weight:600">Sub-score weights</div>
     <div class="settings-weight-row">
       <span class="settings-weight-label">&#128514; Funny</span>
@@ -550,13 +596,13 @@
       Built by <strong>smitehamner</strong>. Provided as-is with absolutely no warranty.<br>
       Licencing: <em>unlicensed — all rights reserved</em> until a licence is chosen.
     </p>
-    <div class="section-title" style="margin-bottom:6px">Key dependencies</div>
-    <table style="width:100%;font-size:12px;border-collapse:collapse;color:var(--muted)">
+    <div class="section-title" style="margin-bottom:4px">Required dependencies</div>
+    <table style="width:100%;font-size:12px;border-collapse:collapse;color:var(--muted);margin-bottom:12px">
       <thead><tr style="color:var(--text)"><th scope="col" style="text-align:left;padding:3px 0">Package</th><th scope="col" style="text-align:left;padding:3px 0">Purpose</th><th scope="col" style="text-align:left;padding:3px 0">Licence</th></tr></thead>
       <tbody>
         <tr><td>faster-whisper</td><td>GPU-accelerated transcription</td><td>MIT</td></tr>
         <tr><td>FFmpeg</td><td>Audio/video extraction &amp; export</td><td>LGPL/GPL</td></tr>
-        <tr><td>Ollama</td><td>Local LLM scoring</td><td>MIT</td></tr>
+        <tr><td>ollama</td><td>Ollama API client</td><td>MIT</td></tr>
         <tr><td>FastAPI</td><td>Web server API</td><td>MIT</td></tr>
         <tr><td>SQLAlchemy</td><td>Database ORM</td><td>MIT</td></tr>
         <tr><td>PyAV (av)</td><td>Audio frame decoding</td><td>BSD-3</td></tr>
@@ -564,6 +610,15 @@
         <tr><td>Typer</td><td>CLI framework</td><td>MIT</td></tr>
         <tr><td>uvicorn</td><td>ASGI server</td><td>BSD-3</td></tr>
         <tr><td>platformdirs</td><td>Cross-platform config paths</td><td>MIT</td></tr>
+      </tbody>
+    </table>
+    <div class="section-title" style="margin-bottom:4px">Optional dependencies</div>
+    <table style="width:100%;font-size:12px;border-collapse:collapse;color:var(--muted)">
+      <thead><tr style="color:var(--text)"><th scope="col" style="text-align:left;padding:3px 0">Package</th><th scope="col" style="text-align:left;padding:3px 0">Purpose</th><th scope="col" style="text-align:left;padding:3px 0">Licence</th></tr></thead>
+      <tbody>
+        <tr><td>llama-cpp-python</td><td>Local LLM via .gguf model files</td><td>MIT</td></tr>
+        <tr><td>anthropic</td><td>Claude API LLM backend</td><td>MIT</td></tr>
+        <tr><td>pyannote.audio</td><td>Speaker diarization</td><td>MIT (model: HF gated)</td></tr>
       </tbody>
     </table>
     <div class="modal-actions" style="margin-top:16px">
