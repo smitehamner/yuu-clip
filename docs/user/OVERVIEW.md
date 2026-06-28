@@ -4,7 +4,7 @@
 
 You play for three hours. Something hilarious happens at the 47-minute mark, something dramatic goes down around 1:20, and there's a great action moment somewhere in the second half — but you don't remember exactly when, and scrubbing through three hours of footage to find them is a pain.
 
-yuu-clip watches your recordings for you. It listens to what was said, figures out where the interesting moments are, rates them, and gives you a simple browser-based interface to flip through the highlights, watch them, approve or skip them, and export the ones you want — without touching any code or command line beyond a single click to start it.
+yuu-clip watches your recordings for you. It listens to what was said, figures out where the interesting moments are, rates them, and gives you a browser interface to flip through the highlights, watch them, approve or skip them, and export the ones you want — without touching any code or command line beyond a single click to start it.
 
 ---
 
@@ -42,7 +42,7 @@ Click a clip and the main panel shows you everything about it:
 
 ### The video player
 
-Once you export a clip, a player appears right there in the panel. It plays the actual exported video with captions — useful for double-checking before you share it. Before you export, there's just an Export button in its place.
+Before you export, the player streams a live preview from your source file — seekable, no waiting. Once you export a clip, it switches to the exported file and shows captions. Auto-plays on clip selection.
 
 ---
 
@@ -60,7 +60,7 @@ The fastest way to go through a session is keyboard shortcuts:
 | `E` | Export this clip |
 | `?` | Open the help panel |
 
-You can go through dozens of clips in a few minutes just using arrow keys and A/R.
+You can go through dozens of clips in a few minutes just using arrow keys and A/R. A typical 1-hour session produces 20–40 clips; a full review pass takes under 5 minutes.
 
 ---
 
@@ -74,9 +74,9 @@ Each clip gets rated 0–1 on three dimensions:
 
 **Action** — high tension, combat, things escalating fast, everyone talking over each other at once
 
-The **Overall** score is a weighted average of all three. Higher is better, but the individual bars tell you more — a clip with a 0.9 Funny score and a 0.1 Dramatic score is a very different clip than one that's 0.9 Dramatic.
+The **Overall** score is a weighted average of all three. Higher is better, but the individual bars tell you more — a 0.9 Funny / 0.1 Dramatic clip is a very different moment than 0.9 Dramatic.
 
-The scoring isn't perfect. It reads transcripts, not video — so a moment where something visually spectacular happens in silence won't score as high as it deserves. Use the scores as a filter to find the candidates quickly, not as a final verdict.
+The scoring reads transcripts, not video — so a moment where something visually spectacular happens in silence won't score as high as it deserves. Use the scores as a filter to find candidates quickly, not as a final verdict.
 
 ---
 
@@ -93,68 +93,33 @@ If you play on a roleplay server, the LLM has no idea who your character is, wha
 
 Once you've set one up you can assign it to any session at analysis time or afterward. The AI then uses all of that when scoring, so it knows what's a throwaway line and what's actually a significant story beat.
 
-You can have multiple contexts for different servers or campaigns and mix them on a single session if you were doing crossover stuff.
+You can have multiple contexts for different servers or campaigns.
 
 ---
 
-## How long does it actually take?
+## How long does it take?
 
-It depends on your recording length, which Whisper model you pick, and whether you have an Nvidia GPU. Here's a realistic range for a typical gaming session:
+It depends mainly on your recording length and whether you have an Nvidia GPU. A typical 1-hour session takes 9–18 minutes on an RTX GPU, or 2.5–3 hours on CPU only. Almost all of that time is transcription; everything else adds 2–5 minutes regardless of length.
 
-| Session length | Nvidia GPU (any RTX) | CPU only |
-|---|---|---|
-| 30 minutes | 5–9 min | 1–1.5 hours |
-| 1 hour | 9–18 min | 2.5–3 hours |
-| 2.5 hours | 23–45 min | 6+ hours |
+Whisper model choice matters too — `base` is fast but rougher, `large-v3` is the most accurate but requires a GPU with ~10 GB VRAM. `medium` is the practical sweet spot for most sessions.
 
-The wide range within the GPU column is the Whisper model choice — `base` is fast but less accurate with names and crosstalk, `large-v3` takes longer but handles heavy accents, overlapping speakers, and RP-specific terminology much better. `medium` is a good middle ground for most sessions.
-
-**CPU-only is usable for short clips but painful for full sessions.** If you don't have a compatible Nvidia GPU, `base` or `small` is the only practical choice — they're faster than the estimates above suggest (the app's estimate is conservative for small models on CPU).
-
-### What's actually taking the time?
-
-Almost all of it is transcription (Whisper listening to your audio). Everything else — audio energy analysis, finding scene cuts, LLM scoring — adds maybe 2–5 minutes on top regardless of session length. The scoring step is fast because it's just reading text, not processing video.
-
----
-
-## Choosing a Whisper model
-
-The model selector appears in the analysis options. In order from fastest to slowest (and least to most accurate):
-
-**`tiny`** — Very fast, noticeably rough. Fine for a quick first pass if you just want timestamps.
-
-**`base`** — Default. Good enough for clear audio with one speaker. Struggles with crosstalk and unusual names.
-
-**`small`** — Meaningfully better than base for overlapping voices, only a bit slower.
-
-**`medium`** — Solid all-around. Handles most RP sessions well, including character voices and server slang.
-
-**`large-v3`** — Best accuracy. Worth using if you care about the transcript being right — especially for dramatic/dialogue-heavy sessions where the descriptions and scores depend on getting the words correct. Requires a GPU with ~10 GB VRAM (e.g. RTX 3080/3090/4070+). Your best strategy with this is to select a faster model for the full video, but then retranscribe your chosen clips with large-v3.
+Detailed timing estimates and model comparisons are in [FEATURES.md](FEATURES.md).
 
 ---
 
 ## Exporting clips
 
-Hit the Export button on any clip (or press `E`). By default it does a **quick export** — it pulls the clip out of the original file without re-encoding it, which means it finishes in 1–5 seconds and the video quality is identical to the source.
+Hit **Export** on any clip (or press `E`). By default it does a quick export — no re-encoding, identical quality to the source, finishes in 1–5 seconds. An SRT caption file is written alongside it automatically.
 
-You can optionally:
-- **Include captions** — a separate SRT file is written alongside the clip, which most video players and editors pick up automatically
-- **Bake captions in** — bakes the text into the video itself, useful if you're sharing somewhere that doesn't support sidecar files (requires re-encoding, takes longer)
-- **Precise export** — forces a frame-accurate cut instead of snapping to the nearest keyframe; only matters if the beginning/end of your clip feels like it starts or ends a fraction of a second off
+Options for baking captions into the video, precise frame-accurate cuts, and container format are in the export modal or in [FEATURES.md](FEATURES.md).
 
-Exports go to a folder called `exports` inside your project directory.
+Exports go to `exports/` inside your project directory.
 
 ---
 
 ## Building a highlight reel
 
-Once you've approved a set of clips, the **Build Reel** button in the header compiles them into a single video with title cards and transitions between clips. You pick:
-
-- Which sessions to pull from (or just "all approved clips")
-- Transition style (fade, dissolve, wipe, slide, or hard cut)
-- How long the transitions and title cards last
-
-The reel uses the clip descriptions as title card text, so the output is already labeled without any extra editing. Good for a quick "here's what happened this session" video to share with your community.
+Once you've approved a set of clips, **Build Reel** in the header compiles them into a single video with title cards and transitions between clips. The title cards use the clip one-liners as text, so the output is already labeled. Good for a quick "here's what happened this session" share.
 
 ---
 
@@ -167,3 +132,10 @@ The reel uses the clip descriptions as title card text, so the output is already
 **It doesn't upload anything.** Everything stays on your machine. The flip side is that you need Ollama installed and running locally for the LLM scoring to work — it's a one-time setup, but it's a setup.
 
 **The scores are a starting point, not a verdict.** A 0.3-scoring clip might be the funniest moment of the session but happen to be mostly non-verbal. Always sort by score to find the obvious candidates fast, then flip through the lower-scoring ones in timeline order before you close out.
+
+---
+
+## Next steps
+
+- **Walk through your first session:** [tutorials/end-to-end-walkthrough.md](tutorials/end-to-end-walkthrough.md)
+- **Full feature reference (all options, CLI, config):** [FEATURES.md](FEATURES.md)

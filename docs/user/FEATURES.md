@@ -1,97 +1,5 @@
 # yuu-clip — Implemented Features
 
-## CLI commands
-
-### `yuuclip probe <video>`
-Inspects a video without analyzing it. Prints duration, resolution, FPS, and a table of all audio streams with codec, sample rate, channel count, and stream title. Useful for checking track layout before choosing a track layout.
-
-### `yuuclip analyze <path> [options]`
-Full end-to-end pipeline from raw video to scored clips.
-
-**Options**
-
-| Flag | Default | Notes |
-|------|---------|-------|
-| `--model` | `base` | Speech-to-text model: tiny (~40 MB VRAM), base (~75 MB), small (~240 MB), medium (~1.5 GB), large-v3 (~10 GB) |
-| `--device` | `auto` | cuda or cpu; auto detects GPU — falls back to CPU if VRAM is insufficient for the chosen model |
-| `--track-layout NAME` | — | Saved track layout to apply |
-| `--language CODE` | — | Force speech-to-text language (e.g. `en`) |
-| `--energy-mode` | `fast` | `none` / `fast` (4 kHz) / `full` (16 kHz) |
-| `--context SLUG` | — | World context ID to attach; repeatable |
-| `--no-transcribe` | — | Skip transcription step |
-| `--no-segment` | — | Skip clip generation |
-| `--no-score` | — | Skip scoring step |
-| `--force` | — | Reprocess even if already analyzed |
-| `--no-interact` | — | Never prompt (always set by web UI) |
-
-**Pipeline stages (in order)**
-1. **Inspect** — FFprobe extracts video metadata
-2. **Label tracks** — Assign each audio stream a role: combined, player_voice, ingame_voicechat, game_sounds, or unlabeled
-3. **Extract audio** — FFmpeg → 16-bit mono WAV at 16 kHz per track
-4. **Overlap detection** — RMS correlation; suppress specialized tracks that duplicate the combined track
-5. **Transcribe** — Whisper on each eligible track; suppress near-duplicate transcripts
-6. **Generate clips** — Sliding-window segmentation aligned to transcript word boundaries (30–120 s windows, 15 s stride)
-7. **Score** — Audio energy, scene detection, LLM scoring (see Scoring section)
-
-**End-to-end timing — default settings (energy: fast, scene: fast, 2 audio tracks)**
-
-Numbers below assume one transcribed track (combined). The web UI shows a live estimate for your specific file before you start.
-
-| Video length | RTX GPU + `base` | RTX GPU + `medium` | RTX GPU + `large-v3` | CPU-only + `large-v3` |
-|---|---|---|---|---|
-| 30 min | ~5 min | ~6 min | ~9 min | ~1h 20min |
-| 1 hour | ~9 min | ~11 min | ~18 min | ~2h 40min |
-| 2.5 hours | ~23 min | ~28 min | ~45 min | ~6h 35min |
-
-Transcription dominates for large-v3; audio extraction dominates for fast models. Approximate breakdown for a 1-hour session on GPU + `large-v3`: extract 6 min, transcribe 10 min, energy 14 s, scene 18 s, LLM scoring 1.5 min.
-
-> **CPU note:** On CPU, `large-v3` is roughly 150× slower than an RTX GPU for transcription. Smaller models (`base`, `small`) are significantly faster on CPU but the in-app estimate uses a single conservative ratio for all models — expect the real time to be faster than shown for small/base on CPU. `medium` or larger on CPU is not practical for sessions over 30 minutes.
-
-### `yuuclip score [<video_id>|--all] [options]`
-Re-runs scoring on an already-analyzed recording. Useful after changing world contexts or the AI model. Options: `--no-energy`, `--no-scenes`, `--no-llm`.
-
-### `yuuclip status`
-Table of all analyzed recordings: filename, duration, track count, clip count, analysis status (pending → probed → labeled → extracting → transcribed → done).
-
-### `yuuclip clips [VIDEO_NAME] [--status FILTER] [--limit N]`
-Browse clips in the terminal. Filter by partial video name or status (unreviewed, approved, rejected). Shows ID, start time, duration, status, tags, and transcript excerpt.
-
-### `yuuclip export <clip_id> [options]`
-Extract a single clip to MKV.
-
-| Flag | Notes |
-|------|-------|
-| `--precise` | Frame-accurate cut via libx264 (slower; default is quick export) |
-| `--captions` / `--no-captions` | Write SRT caption sidecar files (default: on) |
-| `--bake-captions` | Burn captions into video frames (hardsub; forces re-encode) |
-| `--embed-subs` | Add captions as a subtitle track (softsub; stream copy, fast) |
-| `--container mkv\|mp4` | Override output container |
-| `--output PATH` | Output path; default: `.yuu-clip/exports/` |
-
-Output filename format: `{stem}_clip{id}_{start_hms}.mkv`
-
-### `yuuclip retranscribe <clip_id> [options]`
-Re-runs Whisper on just the clip's time window, then re-scores. Default model: large-v3. Options: `--model`, `--language`, `--no-rescore`.
-
-### `yuuclip reel [options]`
-Compiles a highlight reel from approved clips with title cards and transitions.
-
-| Flag | Default | Notes |
-|------|---------|-------|
-| `--video ID` | all | Repeatable; restrict to these video IDs |
-| `--top N` | all | Top N clips per video by score |
-| `--min-score F` | 0.0 | Minimum overall score |
-| `--status` | approved | Clip status filter |
-| `--transition TYPE` | fade | fade, dissolve, wipeleft, wiperight, slideleft, slideright, none |
-| `--trans-dur S` | 0.5 | Overlap in seconds |
-| `--title-dur S` | 3.0 | Title card display time |
-| `--output PATH` | auto | Default: `.yuu-clip/reels/reel_<timestamp>.mkv` |
-
-### `yuuclip serve [options]`
-Starts the web server and opens the browser. Options: `--host`, `--port` (default 8080), `--open`/`--no-open`, `--reload`. Preferred entry point for day-to-day use.
-
----
-
 ## Web UI
 
 ### Layout
@@ -213,6 +121,98 @@ Keyboard shortcuts, dependency versions table, and licensing notes. Open with `?
 | `←` / `↑` | Previous clip |
 | `→` / `↓` | Next clip |
 | `?` | Open about panel |
+
+---
+
+## CLI commands
+
+### `yuuclip probe <video>`
+Inspects a video without analyzing it. Prints duration, resolution, FPS, and a table of all audio streams with codec, sample rate, channel count, and stream title. Useful for checking track layout before choosing a track layout.
+
+### `yuuclip analyze <path> [options]`
+Full end-to-end pipeline from raw video to scored clips.
+
+**Options**
+
+| Flag | Default | Notes |
+|------|---------|-------|
+| `--model` | `base` | Speech-to-text model: tiny (~40 MB VRAM), base (~75 MB), small (~240 MB), medium (~1.5 GB), large-v3 (~10 GB) |
+| `--device` | `auto` | cuda or cpu; auto detects GPU — falls back to CPU if VRAM is insufficient for the chosen model |
+| `--track-layout NAME` | — | Saved track layout to apply |
+| `--language CODE` | — | Force speech-to-text language (e.g. `en`) |
+| `--energy-mode` | `fast` | `none` / `fast` (4 kHz) / `full` (16 kHz) |
+| `--context SLUG` | — | World context ID to attach; repeatable |
+| `--no-transcribe` | — | Skip transcription step |
+| `--no-segment` | — | Skip clip generation |
+| `--no-score` | — | Skip scoring step |
+| `--force` | — | Reprocess even if already analyzed |
+| `--no-interact` | — | Never prompt (always set by web UI) |
+
+**Pipeline stages (in order)**
+1. **Inspect** — FFprobe extracts video metadata
+2. **Label tracks** — Assign each audio stream a role: combined, player_voice, ingame_voicechat, game_sounds, or unlabeled
+3. **Extract audio** — FFmpeg → 16-bit mono WAV at 16 kHz per track
+4. **Overlap detection** — RMS correlation; suppress specialized tracks that duplicate the combined track
+5. **Transcribe** — Whisper on each eligible track; suppress near-duplicate transcripts
+6. **Generate clips** — Sliding-window segmentation aligned to transcript word boundaries (30–120 s windows, 15 s stride)
+7. **Score** — Audio energy, scene detection, LLM scoring (see Scoring section)
+
+**End-to-end timing — default settings (energy: fast, scene: fast, 2 audio tracks)**
+
+Numbers below assume one transcribed track (combined). The web UI shows a live estimate for your specific file before you start.
+
+| Video length | RTX GPU + `base` | RTX GPU + `medium` | RTX GPU + `large-v3` | CPU-only + `large-v3` |
+|---|---|---|---|---|
+| 30 min | ~5 min | ~6 min | ~9 min | ~1h 20min |
+| 1 hour | ~9 min | ~11 min | ~18 min | ~2h 40min |
+| 2.5 hours | ~23 min | ~28 min | ~45 min | ~6h 35min |
+
+Transcription dominates for large-v3; audio extraction dominates for fast models. Approximate breakdown for a 1-hour session on GPU + `large-v3`: extract 6 min, transcribe 10 min, energy 14 s, scene 18 s, LLM scoring 1.5 min.
+
+> **CPU note:** On CPU, `large-v3` is roughly 150× slower than an RTX GPU for transcription. Smaller models (`base`, `small`) are significantly faster on CPU but the in-app estimate uses a single conservative ratio for all models — expect the real time to be faster than shown for small/base on CPU. `medium` or larger on CPU is not practical for sessions over 30 minutes.
+
+### `yuuclip score [<video_id>|--all] [options]`
+Re-runs scoring on an already-analyzed recording. Useful after changing world contexts or the AI model. Options: `--no-energy`, `--no-scenes`, `--no-llm`.
+
+### `yuuclip status`
+Table of all analyzed recordings: filename, duration, track count, clip count, analysis status (pending → probed → labeled → extracting → transcribed → done).
+
+### `yuuclip clips [VIDEO_NAME] [--status FILTER] [--limit N]`
+Browse clips in the terminal. Filter by partial video name or status (unreviewed, approved, rejected). Shows ID, start time, duration, status, tags, and transcript excerpt.
+
+### `yuuclip export <clip_id> [options]`
+Extract a single clip to MKV.
+
+| Flag | Notes |
+|------|-------|
+| `--precise` | Frame-accurate cut via libx264 (slower; default is quick export) |
+| `--captions` / `--no-captions` | Write SRT caption sidecar files (default: on) |
+| `--bake-captions` | Burn captions into video frames (hardsub; forces re-encode) |
+| `--embed-subs` | Add captions as a subtitle track (softsub; stream copy, fast) |
+| `--container mkv\|mp4` | Override output container |
+| `--output PATH` | Output path; default: `.yuu-clip/exports/` |
+
+Output filename format: `{stem}_clip{id}_{start_hms}.mkv`
+
+### `yuuclip retranscribe <clip_id> [options]`
+Re-runs Whisper on just the clip's time window, then re-scores. Default model: large-v3. Options: `--model`, `--language`, `--no-rescore`.
+
+### `yuuclip reel [options]`
+Compiles a highlight reel from approved clips with title cards and transitions.
+
+| Flag | Default | Notes |
+|------|---------|-------|
+| `--video ID` | all | Repeatable; restrict to these video IDs |
+| `--top N` | all | Top N clips per video by score |
+| `--min-score F` | 0.0 | Minimum overall score |
+| `--status` | approved | Clip status filter |
+| `--transition TYPE` | fade | fade, dissolve, wipeleft, wiperight, slideleft, slideright, none |
+| `--trans-dur S` | 0.5 | Overlap in seconds |
+| `--title-dur S` | 3.0 | Title card display time |
+| `--output PATH` | auto | Default: `.yuu-clip/reels/reel_<timestamp>.mkv` |
+
+### `yuuclip serve [options]`
+Starts the web server and opens the browser. Options: `--host`, `--port` (default 8080), `--open`/`--no-open`, `--reload`. Preferred entry point for day-to-day use.
 
 ---
 

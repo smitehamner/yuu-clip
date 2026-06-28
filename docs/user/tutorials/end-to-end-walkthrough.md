@@ -50,7 +50,7 @@ Nothing works yet — there's no data. Let's fix that.
 
 2. Click the file picker button and select your recording. After a few seconds you'll see an inspection summary: file duration, the audio tracks found, and a time estimate for transcription. The estimate is deliberately conservative — your actual runtime will often be shorter.
 
-3. **Pick a Whisper model.** For your first test, `base` or `small` is fine — they're fast, and you just want to see the pipeline run. For real sessions where you care about clip quality, use `medium` or `large-v3` (see the [User Guide](../USER_GUIDE.md#choosing-a-whisper-model) for details).
+3. **Pick a Whisper model.** For your first test, `base` or `small` is fine — they're fast, and you just want to see the pipeline run. For real sessions where you care about clip quality, use `medium` or `large-v3` (see [FEATURES.md](../FEATURES.md) for model comparisons).
 
 4. **Pick a track layout.** If you haven't created one yet, the default layout will be selected. A track layout tells the app which audio tracks to transcribe — for most recordings there's only one relevant track (your microphone), but OBS sometimes captures game audio separately, and you want to skip that.
 
@@ -168,7 +168,7 @@ If your video is a roleplay session, the LLM doesn't know your character, your s
 4. Close the modal and go back to your video detail. Assign the context there.
 5. Re-score one of the clips to see whether the descriptions improve.
 
-See the [User Guide](../USER_GUIDE.md#world-contexts--making-the-scores-actually-make-sense) for more on what to include.
+See [OVERVIEW.md](../OVERVIEW.md#world-contexts--making-the-scores-actually-make-sense) for more on what to include.
 
 ---
 
