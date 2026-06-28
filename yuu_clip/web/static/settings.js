@@ -268,7 +268,7 @@ function _renderGlossaryMd(md) {
 
 // ── keyboard shortcuts ────────────────────────────────────────────────────────
 document.addEventListener('keydown', e => {
-  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'BUTTON' || e.target.tagName === 'SELECT' || e.target.tagName === 'A' || e.target.isContentEditable) return;
 
   const _anyModalOpen = () => document.querySelector('.modal-bg.visible') !== null;
 
@@ -295,6 +295,7 @@ document.addEventListener('keydown', e => {
     closeExportModal();
     closeTimelineIntervalModal();
     closeAutoApproveModal();
+    closeSimilarClipsModal();
     closeReelPreview();
     closeSettings();
     closeHamburger();

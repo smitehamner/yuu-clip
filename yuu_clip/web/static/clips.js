@@ -24,11 +24,11 @@ function renderClipList(clips) {
           : '<span class="export-pill not-exported" title="Not yet exported">Not exported</span>'}
         <span class="status-dot dot-${c.status}" title="${c.status === 'approved' ? 'Approved' : c.status === 'rejected' ? 'Rejected' : 'Unreviewed'}">${c.status === 'approved' ? '✓' : c.status === 'rejected' ? '✕' : ''}</span>
       </div>
-      <div class="clip-scores">
-        <span title="Overall">${_scoreIcon(c.score_overall)} ${c.score_overall.toFixed(2)}</span>
-        <span title="Funny"><span aria-hidden="true">😂</span> ${c.score_funny.toFixed(2)}</span>
-        <span title="Dramatic"><span aria-hidden="true">🎭</span> ${c.score_dramatic.toFixed(2)}</span>
-        <span title="Action"><span aria-hidden="true">⚔️</span> ${c.score_action.toFixed(2)}</span>
+      <div class="clip-scores" aria-label="Scores: overall ${c.score_overall.toFixed(2)}, funny ${c.score_funny.toFixed(2)}, dramatic ${c.score_dramatic.toFixed(2)}, action ${c.score_action.toFixed(2)}">
+        <span aria-hidden="true" title="Overall">${_scoreIcon(c.score_overall)} ${c.score_overall.toFixed(2)}</span>
+        <span aria-hidden="true" title="Funny"><span>😂</span> ${c.score_funny.toFixed(2)}</span>
+        <span aria-hidden="true" title="Dramatic"><span>🎭</span> ${c.score_dramatic.toFixed(2)}</span>
+        <span aria-hidden="true" title="Action"><span>⚔️</span> ${c.score_action.toFixed(2)}</span>
       </div>
       ${c.description ? `<div class="clip-desc-preview" title="${escHtml(c.description)}">${escHtml(c.description)}</div>` : ''}`;
     const _activateClip = () => {
@@ -380,8 +380,11 @@ function clearDetail() {
 // ── filter tabs ───────────────────────────────────────────────────────────────
 function setClipFilter(filter) {
   _clipFilter = filter;
-  document.querySelectorAll('.clip-tab').forEach(t =>
-    t.classList.toggle('active', t.dataset.filter === filter));
+  document.querySelectorAll('.clip-tab').forEach(t => {
+    const active = t.dataset.filter === filter;
+    t.classList.toggle('active', active);
+    t.setAttribute('aria-selected', active ? 'true' : 'false');
+  });
   const filtered = filter === 'all' ? _clips : _clips.filter(c => c.status === filter);
   renderClipList(filtered);
 }

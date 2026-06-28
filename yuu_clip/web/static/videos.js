@@ -143,8 +143,11 @@ async function selectVideo(id) {
   activeClipId  = null;
   localStorage.setItem('yuuclip-view', JSON.stringify({videoId: id, clipId: null}));
   _clipFilter = 'all';
-  document.querySelectorAll('.clip-tab').forEach(t =>
-    t.classList.toggle('active', t.dataset.filter === 'all'));
+  document.querySelectorAll('.clip-tab').forEach(t => {
+    const active = t.dataset.filter === 'all';
+    t.classList.toggle('active', active);
+    t.setAttribute('aria-selected', active ? 'true' : 'false');
+  });
   _clips = await fetch(`/api/videos/${id}/clips?sort=${_clipsSortParam()}`).then(r => r.json());
   renderClipList(_clips);
   const video = _videos.find(v => v.id === id);

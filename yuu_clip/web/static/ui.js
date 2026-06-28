@@ -153,7 +153,8 @@ function showKebab(anchorEl, items) {
   let top  = rect.bottom + 4;
   let left = rect.right - menu.offsetWidth;
   if (left < 4) left = rect.left;
-  if (top + 200 > window.innerHeight) top = rect.top - 200;
+  const menuH = menu.offsetHeight;
+  if (top + menuH > window.innerHeight) top = rect.top - menuH;
   menu.style.top  = top  + 'px';
   menu.style.left = left + 'px';
 

@@ -18,7 +18,7 @@ let _bootRestoreDone   = false;
 // ── score utils ───────────────────────────────────────────────────────────────
 function _scoreIcon(score) {
   const color = score >= 0.7 ? 'var(--green)' : score >= 0.4 ? 'var(--yellow)' : 'var(--muted)';
-  return `<span style="color:${color};font-size:10px">⭐</span>`;
+  return `<span style="color:${color};font-size:10px" aria-hidden="true">⭐</span>`;
 }
 
 function _lerpColor(c1, c2, t) {
@@ -184,6 +184,8 @@ function endJobUI() {
     document.getElementById('job-status').classList.remove('visible');
     document.getElementById('header-spacer').style.display = '';
     document.querySelectorAll('#btn-analyze,#btn-score').forEach(b => b.disabled = false);
+    const totalApproved = (_videos || []).reduce((n, v) => n + v.approved, 0);
+    _updateDemoButton(totalApproved);
   }, 2000);
 }
 

@@ -278,12 +278,12 @@
           </select>
         </div>
       </div>
-      <div class="clip-filter-tabs">
-        <span style="font-size:10px;color:var(--muted);padding:2px 4px;line-height:1.8;flex-shrink:0">Filter</span>
-        <button class="clip-tab active" data-filter="all" onclick="setClipFilter('all')">All</button>
-        <button class="clip-tab" data-filter="pending" onclick="setClipFilter('pending')">Unreviewed</button>
-        <button class="clip-tab" data-filter="approved" onclick="setClipFilter('approved')">Approved</button>
-        <button class="clip-tab" data-filter="rejected" onclick="setClipFilter('rejected')">Rejected</button>
+      <div class="clip-filter-tabs" role="tablist" aria-label="Clip filter">
+        <span style="font-size:10px;color:var(--muted);padding:2px 4px;line-height:1.8;flex-shrink:0" aria-hidden="true">Filter</span>
+        <button class="clip-tab active" role="tab" aria-selected="true"  data-filter="all"      onclick="setClipFilter('all')">All</button>
+        <button class="clip-tab"        role="tab" aria-selected="false" data-filter="pending"  onclick="setClipFilter('pending')">Unreviewed</button>
+        <button class="clip-tab"        role="tab" aria-selected="false" data-filter="approved" onclick="setClipFilter('approved')">Approved</button>
+        <button class="clip-tab"        role="tab" aria-selected="false" data-filter="rejected" onclick="setClipFilter('rejected')">Rejected</button>
       </div>
       <ul class="sidebar-list" id="clip-list"></ul>
     </div>
