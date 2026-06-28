@@ -3,6 +3,7 @@ const _settingsFieldIds = [
   's-whisper-model','s-whisper-device','s-whisper-compute',
   's-ollama-enabled','s-llm-backend','s-llm-model-path',
   's-ollama-model','s-ollama-host','s-ollama-timeout',
+  's-claude-api-key','s-claude-model','s-claude-timeout',
   's-energy-weight','s-scene-weight','s-llm-weight',
   's-funny-weight','s-dramatic-weight','s-action-weight',
   's-scene-mode','s-silence-ms','s-min-clip-ms',
@@ -71,6 +72,10 @@ function _applySettingsToUI(cfg) {
   setVal('s-ollama-model',   cfg.ollama_model    || '');
   setVal('s-ollama-host',    cfg.ollama_host     || '');
   setVal('s-ollama-timeout', cfg.ollama_timeout_s|| 120);
+  setVal('s-claude-api-key', cfg.claude_api_key  || '');
+  setVal('s-claude-model',   cfg.claude_model    || 'claude-haiku-4-5-20251001');
+  setVal('s-claude-timeout', cfg.claude_timeout_s ?? 30);
+  _updateLlmRemoteIndicator(cfg.llm_backend || 'llamacpp', cfg.ollama_enabled !== false);
   const ew = (cfg.scorer_energy_weight  ?? 1.0).toFixed(1);
   const sw = (cfg.scorer_scene_weight   ?? 0.5).toFixed(1);
   const lw = (cfg.scorer_llm_weight     ?? 2.0).toFixed(1);
@@ -99,9 +104,17 @@ function _applySettingsToUI(cfg) {
 function _onLlmBackendChange(backend) {
   const llamacppEl = document.getElementById('s-llamacpp-fields');
   const ollamaEl   = document.getElementById('s-ollama-fields');
-  if (!llamacppEl || !ollamaEl) return;
-  llamacppEl.style.display = backend === 'llamacpp' ? '' : 'none';
-  ollamaEl.style.display   = backend === 'ollama'   ? '' : 'none';
+  const claudeEl   = document.getElementById('s-claude-fields');
+  const warnEl     = document.getElementById('s-backend-remote-warning');
+  if (llamacppEl) llamacppEl.style.display = backend === 'llamacpp' ? '' : 'none';
+  if (ollamaEl)   ollamaEl.style.display   = backend === 'ollama'   ? '' : 'none';
+  if (claudeEl)   claudeEl.style.display   = backend === 'claude'   ? '' : 'none';
+  if (warnEl)     warnEl.style.display     = backend === 'claude'   ? '' : 'none';
+}
+
+function _updateLlmRemoteIndicator(backend, llmEnabled) {
+  const badge = document.getElementById('llm-remote-badge');
+  if (badge) badge.style.display = (llmEnabled && backend === 'claude') ? '' : 'none';
 }
 
 async function saveSettings() {
@@ -125,6 +138,9 @@ async function saveSettings() {
     ollama_model:               getVal('s-ollama-model'),
     ollama_host:                getVal('s-ollama-host'),
     ollama_timeout_s:           getNum('s-ollama-timeout', parseFloat),
+    claude_api_key:             getVal('s-claude-api-key'),
+    claude_model:               getVal('s-claude-model'),
+    claude_timeout_s:           getNum('s-claude-timeout', parseFloat),
     scorer_energy_weight:       getNum('s-energy-weight', parseFloat),
     scorer_scene_weight:        getNum('s-scene-weight', parseFloat),
     scorer_llm_weight:          getNum('s-llm-weight', parseFloat),
@@ -156,6 +172,7 @@ async function saveSettings() {
     _snapshotSettings();
     _checkSettingsDirty();
     if (btn) btn.textContent = 'Save';
+    _updateLlmRemoteIndicator(payload.llm_backend || 'llamacpp', payload.ollama_enabled !== false);
   } catch {
     showToast('Settings save failed', 'error');
     if (btn) { btn.disabled = false; btn.textContent = 'Save'; }

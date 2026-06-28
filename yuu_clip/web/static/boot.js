@@ -24,6 +24,10 @@ if (window.electronAPI) {
   document.getElementById('btn-setup-wizard').style.display = '';
 }
 
+fetch('/api/config').then(r => r.json()).then(cfg => {
+  _updateLlmRemoteIndicator(cfg.llm_backend || 'llamacpp', cfg.ollama_enabled !== false);
+}).catch(() => {});
+
 window._prereqs = {ffmpeg_ok: true, llm_ok: true};
 fetch('/api/prereqs').then(r => r.json()).then(p => {
   window._prereqs = p;

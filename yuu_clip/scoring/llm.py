@@ -1,11 +1,10 @@
 """
 LLMScorer — sends the transcript excerpt to an LLM and parses dimension scores.
 
-Supports two backends (config: llm_backend):
-  "ollama"   — Ollama HTTP API; requires Ollama running on ollama_host
-               with ollama_model pulled.
-  "llamacpp" — llama-cpp-python; requires llm_model_path pointing to a
-               .gguf file and llama-cpp-python installed.
+Supports three backends (config: llm_backend):
+  "llamacpp" — llama-cpp-python; local, no API costs.
+  "ollama"   — Ollama HTTP API; local, no API costs.
+  "claude"   — Anthropic Claude API; REMOTE, billed per token.
 
 Gracefully degrades: if the backend is unreachable or returns bad output,
 logs a warning and returns a zero ScoreResult so ingest is never blocked.
@@ -16,6 +15,7 @@ import json
 import logging
 from typing import TYPE_CHECKING
 
+from yuu_clip.scoring.llm_client import make_client
 from yuu_clip.scoring.protocol import ScoreResult
 
 if TYPE_CHECKING:
@@ -67,21 +67,8 @@ Return ONLY valid JSON. No markdown, no extra text.\
 """
 
 
-def _call_backend(messages: list[dict], config: "Config", temperature: float = 0.1) -> str:
-    if config.llm_backend == "llamacpp":
-        from llama_cpp import Llama
-        llm = Llama(model_path=config.llm_model_path)
-        response = llm.create_chat_completion(messages=messages, temperature=temperature)
-        return response["choices"][0]["message"]["content"]
-    else:
-        import ollama
-        client = ollama.Client(host=config.ollama_host, timeout=config.ollama_timeout_s)
-        response = client.chat(
-            model=config.ollama_model,
-            messages=messages,
-            options={"temperature": temperature},
-        )
-        return response.message.content
+def _call_client(messages: list[dict], config: "Config", temperature: float = 0.1) -> str:
+    return make_client(config).chat(messages, temperature)
 
 
 def summarize_transcript(text: str, config: "Config", context_text: str = "") -> tuple[str, str]:
@@ -96,7 +83,7 @@ def summarize_transcript(text: str, config: "Config", context_text: str = "") ->
         {"role": "system", "content": system},
         {"role": "user",   "content": f"Transcript:\n\"\"\"\n{excerpt}\n\"\"\"\nJSON:"},
     ]
-    raw = _call_backend(messages, config, temperature=0.2)
+    raw = _call_client(messages, config, temperature=0.2)
     data = json.loads(raw)
     return str(data.get("title", "")), str(data.get("summary", ""))
 
@@ -136,7 +123,7 @@ def generate_timeline_chunk(
         {"role": "system", "content": system},
         {"role": "user",   "content": user_msg},
     ]
-    return _call_backend(messages, config, temperature=0.3).strip()
+    return _call_client(messages, config, temperature=0.3).strip()
 
 
 _RELATED_CLIPS_SYSTEM = """\
@@ -172,7 +159,7 @@ def find_related_clips(
         {"role": "system", "content": system},
         {"role": "user",   "content": user_msg},
     ]
-    raw = _call_backend(messages, config, temperature=0.1)
+    raw = _call_client(messages, config, temperature=0.1)
     results = json.loads(raw)
     if not isinstance(results, list):
         raise ValueError(f"Expected list, got {type(results)}")
@@ -183,25 +170,7 @@ def check_llm_available(config: "Config") -> tuple[bool, str]:
     """Return (available, reason) without logging.  Used by routes to gate LLM calls."""
     if not config.ollama_enabled:
         return False, "LLM scoring is disabled in Settings"
-    if config.llm_backend == "llamacpp":
-        path = config.llm_model_path
-        if not path:
-            return False, "No model file path set — open Settings (⚙) and set 'Model file path' under LLM scoring"
-        from pathlib import Path
-        if not Path(path).exists():
-            return False, f"Model file not found: {path}"
-        try:
-            import llama_cpp  # noqa: F401
-        except ImportError:
-            return False, "llama-cpp-python is not installed (pip install llama-cpp-python)"
-        return True, ""
-    else:
-        try:
-            import ollama
-            ollama.Client(host=config.ollama_host).list()
-            return True, ""
-        except Exception as exc:
-            return False, f"Ollama not reachable at {config.ollama_host}: {exc}"
+    return make_client(config).available()
 
 
 class LLMScorer:
@@ -210,45 +179,20 @@ class LLMScorer:
     def __init__(self, config: "Config", context_text: str = "") -> None:
         self._config = config
         self._context_text = context_text
-        self.weight  = config.scorer_llm_weight
-        self._available: bool | None = None  # cached after first check
+        self.weight = config.scorer_llm_weight
+        self._client = make_client(config)
+        self._available: bool | None = None
 
     def is_available(self) -> bool:
         if not self._config.ollama_enabled:
             return False
         if self._available is not None:
             return self._available
-        if self._config.llm_backend == "llamacpp":
-            self._available = self._check_llamacpp()
-        else:
-            self._available = self._check_ollama()
-        return self._available
-
-    def _check_llamacpp(self) -> bool:
-        path = self._config.llm_model_path
-        if not path:
-            log.warning("LLM scoring disabled: open Settings (⚙) and set 'Model file path' under LLM scoring to a .gguf file")
-            return False
-        from pathlib import Path
-        if not Path(path).exists():
-            log.warning("LLM scoring disabled: model file %r not found — update 'Model file path' in Settings (⚙)", path)
-            return False
-        try:
-            import llama_cpp  # noqa: F401
-        except ImportError:
-            log.warning("LLM scoring disabled: llama-cpp-python is not installed")
-            return False
-        return True
-
-    def _check_ollama(self) -> bool:
-        try:
-            import ollama
-            ollama.Client(host=self._config.ollama_host).list()
-            return True
-        except Exception as exc:
-            log.warning("Ollama not reachable at %s: %s — LLM scoring disabled",
-                        self._config.ollama_host, exc)
-            return False
+        ok, reason = self._client.available()
+        if not ok:
+            log.warning("LLM scoring disabled: %s", reason)
+        self._available = ok
+        return ok
 
     def score(self, clip: "ClipCandidate", session: "Session") -> ScoreResult:
         if not clip.transcript_excerpt:
@@ -261,9 +205,8 @@ class LLMScorer:
             log.warning("LLM scoring failed for clip %d: %s", clip.id, exc, exc_info=True)
             return ScoreResult(tags=["llm_error"])
 
-        model_id = (
-            self._config.llm_model_path
-            if self._config.llm_backend == "llamacpp"
+        model_id = self._config.claude_model if self._config.llm_backend == "claude" else (
+            self._config.llm_model_path if self._config.llm_backend == "llamacpp"
             else self._config.ollama_model
         )
         return ScoreResult(
@@ -282,11 +225,11 @@ class LLMScorer:
             {"role": "system", "content": system},
             {"role": "user",   "content": _USER_TEMPLATE.format(excerpt=excerpt)},
         ]
-        return _call_backend(messages, self._config, temperature=0.1)
+        return self._client.chat(messages, temperature=0.1)
 
     def _parse(self, raw: str) -> dict:
         data = json.loads(raw)
-        for key in ("score_funny", "score_dramatic", "score_action"):  # clamp to [0, 1]
+        for key in ("score_funny", "score_dramatic", "score_action"):
             if key in data:
                 data[key] = max(0.0, min(1.0, float(data[key])))
         return data

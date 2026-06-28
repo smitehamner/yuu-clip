@@ -589,24 +589,25 @@ class TestLLMScorerIsAvailable:
         fake_module = mock.MagicMock()
         with mock.patch.dict(sys.modules, {"llama_cpp": fake_module}):
             scorer._available = None
-            result = scorer._check_llamacpp()
+            result = scorer.is_available()
         assert result is True
 
     def test_ollama_backend_unreachable_returns_false(self):
         import unittest.mock as mock
         scorer = self._scorer(llm_backend="ollama")
-        with mock.patch("ollama.Client") as mock_client:
-            mock_client.return_value.list.side_effect = Exception("connection refused")
+        with mock.patch("yuu_clip.scoring.llm_client.OllamaClient.available",
+                        return_value=(False, "connection refused")):
             scorer._available = None
-            result = scorer._check_ollama()
+            result = scorer.is_available()
         assert result is False
 
     def test_ollama_backend_reachable_returns_true(self):
         import unittest.mock as mock
         scorer = self._scorer(llm_backend="ollama")
-        with mock.patch("ollama.Client") as mock_client:
-            mock_client.return_value.list.return_value = []
-            result = scorer._check_ollama()
+        with mock.patch("yuu_clip.scoring.llm_client.OllamaClient.available",
+                        return_value=(True, "")):
+            scorer._available = None
+            result = scorer.is_available()
         assert result is True
 
     def test_is_available_caches_result(self, tmp_path):

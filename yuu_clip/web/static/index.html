@@ -17,6 +17,7 @@
             style="padding:2px 10px;font-size:12px;display:none">Cancel</button>
   </div>
   <div class="header-spacer" id="header-spacer"></div>
+  <span id="llm-remote-badge" title="LLM scoring is using a remote API — requests are billed per token" style="display:none;font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;background:var(--warn,#f59e0b);color:#1a1a1a;cursor:default">&#9729; Remote LLM</span>
   <button class="btn primary" id="btn-analyze" onclick="openNewRecordingPanel()">+ Analyze</button>
   <button class="btn" id="btn-demo" onclick="openDemoModal()">Highlight Reel</button>
   <div class="hamburger-wrap" id="hamburger-wrap">
@@ -108,9 +109,13 @@
         <div class="settings-note">Local model file runs offline; Ollama requires a running server</div>
       </div>
       <select class="settings-select" id="s-llm-backend" onchange="_onLlmBackendChange(this.value)">
-        <option value="llamacpp">Local model file</option>
-        <option value="ollama">Ollama</option>
+        <option value="llamacpp">Local model file (offline)</option>
+        <option value="ollama">Ollama (local server)</option>
+        <option value="claude">Claude API &#x26A0; Remote</option>
       </select>
+    </div>
+    <div id="s-backend-remote-warning" style="display:none;margin:0 0 8px;padding:8px 12px;border-radius:6px;background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.4);font-size:12px;color:var(--warn,#f59e0b)">
+      &#x26A0; <strong>Remote backend</strong> — transcript data is sent to an external API and <strong>billed per token</strong>. Every analyze run, re-score, timeline, and video summary will incur costs.
     </div>
     <!-- llamacpp fields -->
     <div id="s-llamacpp-fields">
@@ -144,6 +149,33 @@
           <div class="settings-note">Per-clip LLM call timeout</div>
         </div>
         <input class="settings-input" id="s-ollama-timeout" type="number" min="1" max="600" step="5" style="max-width:100px">
+      </div>
+    </div>
+    <!-- Claude API fields -->
+    <div id="s-claude-fields" style="display:none">
+      <div class="settings-row">
+        <div class="settings-col">
+          <label class="settings-label" for="s-claude-api-key">Anthropic API key</label>
+          <div class="settings-note">Stored in project config; keep this file private</div>
+        </div>
+        <input class="settings-input" id="s-claude-api-key" type="password" placeholder="sk-ant-..." style="max-width:280px">
+      </div>
+      <div class="settings-row">
+        <div class="settings-col">
+          <label class="settings-label" for="s-claude-model">Model</label>
+          <div class="settings-note">Haiku is fast and cheap; Sonnet is smarter</div>
+        </div>
+        <select class="settings-select" id="s-claude-model">
+          <option value="claude-haiku-4-5-20251001">claude-haiku-4-5 (fast, cheap)</option>
+          <option value="claude-sonnet-4-6">claude-sonnet-4-6 (smarter)</option>
+        </select>
+      </div>
+      <div class="settings-row">
+        <div class="settings-col">
+          <label class="settings-label" for="s-claude-timeout">Timeout (seconds)</label>
+          <div class="settings-note">Per-request timeout</div>
+        </div>
+        <input class="settings-input" id="s-claude-timeout" type="number" min="5" max="300" step="5" style="max-width:100px">
       </div>
     </div>
   </div>

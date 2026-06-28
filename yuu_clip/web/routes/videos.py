@@ -102,11 +102,15 @@ class ConfigPatch(BaseModel):
     # LLM backend
     llm_backend:                  Optional[str]   = None
     llm_model_path:               Optional[str]   = None
-    # Ollama
+    # Ollama (local)
     ollama_host:                  Optional[str]   = None
     ollama_model:                 Optional[str]   = None
     ollama_timeout_s:             Optional[float] = None
     ollama_enabled:               Optional[bool]  = None
+    # Claude API (remote — billed per token)
+    claude_api_key:               Optional[str]   = None
+    claude_model:                 Optional[str]   = None
+    claude_timeout_s:             Optional[float] = None
     # Scoring weights
     scorer_energy_weight:         Optional[float] = None
     scorer_scene_weight:          Optional[float] = None
@@ -134,6 +138,7 @@ _CONFIG_FIELDS = (
     "whisper_model", "whisper_device", "whisper_compute_type",
     "llm_backend", "llm_model_path",
     "ollama_host", "ollama_model", "ollama_timeout_s", "ollama_enabled",
+    "claude_api_key", "claude_model", "claude_timeout_s",
     "scorer_energy_weight", "scorer_scene_weight", "scorer_llm_weight",
     "score_funny_weight", "score_dramatic_weight", "score_action_weight",
     "scene_detection_mode", "silence_threshold_ms", "min_clip_ms",
@@ -171,12 +176,15 @@ _CONFIG_PATCH_RULES: list[tuple[str, object]] = [
     ("whisper_model",                _whisper_model_validator),
     ("whisper_device",               _enum_validator({"cpu", "cuda", "auto"}, "whisper_device")),
     ("whisper_compute_type",         _enum_validator({"int8", "float16", "float32", "int8_float16"}, "whisper_compute_type")),
-    ("llm_backend",                  _enum_validator({"llamacpp", "ollama"}, "llm_backend")),
+    ("llm_backend",                  _enum_validator({"llamacpp", "ollama", "claude"}, "llm_backend")),
     ("llm_model_path",               lambda v: v),
     ("ollama_host",                  lambda v: v.strip()),
     ("ollama_model",                 lambda v: v.strip()),
     ("ollama_timeout_s",             _min_validator(1,    "ollama_timeout_s")),
     ("ollama_enabled",               lambda v: v),
+    ("claude_api_key",               lambda v: v.strip()),
+    ("claude_model",                 lambda v: v.strip()),
+    ("claude_timeout_s",             _min_validator(1, "claude_timeout_s")),
     ("scorer_energy_weight",         lambda v: max(0.0, v)),
     ("scorer_scene_weight",          lambda v: max(0.0, v)),
     ("scorer_llm_weight",            lambda v: max(0.0, v)),
