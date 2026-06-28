@@ -30,11 +30,27 @@ async function loadVideos() {
     const clipsPct = v.duration_ms > 0
       ? ` (${Math.round(v.total_clip_ms / v.duration_ms * 100)}%)`
       : '';
+    const scoreBar = (v.score_min !== null && v.score_max !== null && v.clip_count > 0)
+      ? `<div style="margin-top:4px;display:flex;align-items:center;gap:6px">
+           <span style="font-size:11px;color:var(--muted);min-width:24px">${v.score_min.toFixed(2)}</span>
+           <div class="score-bar-wrap" style="flex:1;height:5px" title="Score range: ${v.score_min.toFixed(2)} – ${v.score_max.toFixed(2)}">
+             <div class="score-bar" style="width:${(v.score_max * 100).toFixed(0)}%;background:var(--accent)"></div>
+           </div>
+           <span style="font-size:11px;color:var(--muted);min-width:24px;text-align:right">${v.score_max.toFixed(2)}</span>
+         </div>`
+      : '';
+    const procBadges = [
+      v.summarized_at   ? '' : '<span style="font-size:10px;color:var(--muted)" title="No summary yet">∅ summary</span>',
+      v.clips_scored_at ? '' : '<span style="font-size:10px;color:var(--muted)" title="Not scored yet">∅ scored</span>',
+      v.has_timeline    ? '' : '<span style="font-size:10px;color:var(--muted)" title="No timeline yet">∅ timeline</span>',
+    ].filter(Boolean).join(' &middot; ');
     li.innerHTML = `
       <div class="name" title="${escHtml(v.filename)}">${escHtml(v.filename)}</div>
       ${v.title ? `<div class="video-title" title="${escHtml(v.title)}">${escHtml(v.title)}</div>` : ''}
       <div class="meta">${v.duration_hms} &middot; ${v.clip_count} clips &middot; ${_msToHms(v.total_clip_ms)} clipped${clipsPct}</div>
-      <div class="meta">${v.approved} approved &middot; ${_fmtVideoStatus(v.status)}</div>`;
+      <div class="meta">${v.approved} approved &middot; ${v.exported} exported &middot; ${_fmtVideoStatus(v.status)}</div>
+      ${procBadges ? `<div class="meta" style="margin-top:2px">${procBadges}</div>` : ''}
+      ${scoreBar}`;
     list.appendChild(li);
   }
 

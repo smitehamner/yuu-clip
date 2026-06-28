@@ -692,6 +692,7 @@ def export(
     precise: bool = typer.Option(False, "--precise", help="Precise export: re-encode for frame-accurate cut (slower)"),
     captions: bool = typer.Option(True, "--captions/--no-captions", help="Write SRT caption sidecar file(s)"),
     bake_captions: bool = typer.Option(False, "--bake-captions", help="Bake captions into video (forces precise export)"),
+    embed_subs: bool = typer.Option(False, "--embed-subs", help="Embed captions as a subtitle track (softsub, stream copy, fast)"),
     container: Optional[str] = typer.Option(None, "--container", help="Output container override: mkv or mp4. Defaults to source format."),
     retranscribe: bool = typer.Option(False, "--retranscribe", help="Re-transcribe the clip window before exporting"),
     retranscribe_model: str = typer.Option("large-v3", "--retranscribe-model", help="Whisper model for retranscription: tiny|base|small|medium|large-v3"),
@@ -759,6 +760,7 @@ def export(
     console.print(f"  Exporting clip [bold]{clip_id}[/bold]  {cand.start_hms}  ({cand.duration_hms})  ...")
 
     subtitle_path: Optional[Path] = None
+    subtitle_track_path: Optional[Path] = None
     if bake_captions:
         merged = merged_srt_lines(cand)
         if merged:
@@ -768,6 +770,15 @@ def export(
             subtitle_path = Path(tmp.name)
         else:
             console.print("  [yellow]--bake-captions: no transcript data found, skipping burn-in[/yellow]")
+    elif embed_subs:
+        merged = merged_srt_lines(cand)
+        if merged:
+            tmp = tempfile.NamedTemporaryFile(suffix=".srt", delete=False, mode="w", encoding="utf-8")
+            tmp.write(lines_to_srt(merged))
+            tmp.close()
+            subtitle_track_path = Path(tmp.name)
+        else:
+            console.print("  [yellow]--embed-subs: no transcript data found, skipping subtitle track[/yellow]")
 
     try:
         result = export_clip(
@@ -777,6 +788,7 @@ def export(
             output_path=output,
             reencode=precise,
             subtitle_path=subtitle_path,
+            subtitle_track_path=subtitle_track_path,
             audio_stream_index=audio_stream_idx,
         )
         size_mb = result.stat().st_size / BYTES_PER_MB
@@ -790,8 +802,9 @@ def export(
         console.print(f"  [red]Export failed: {e}[/red]")
         raise typer.Exit(1)
     finally:
-        if subtitle_path and subtitle_path.exists():
-            subtitle_path.unlink(missing_ok=True)
+        for tmp_path in (subtitle_path, subtitle_track_path):
+            if tmp_path and tmp_path.exists():
+                tmp_path.unlink(missing_ok=True)
 
     if captions:
         srt_files = export_srt_sidecars(cand, output.parent, base)

@@ -242,6 +242,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     async def export_clip(
         clip_id: int,
         burn_subs: bool = Query(False),
+        embed_subs: bool = Query(False),
         container: Optional[str] = Query(None),
         retranscribe: bool = Query(False),
         retranscribe_model: str = Query("large-v3"),
@@ -261,6 +262,8 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         ]
         if burn_subs:
             cmd.append("--bake-captions")
+        elif embed_subs:
+            cmd.append("--embed-subs")
         if container:
             cmd.extend(["--container", container])
         if retranscribe:

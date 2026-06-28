@@ -1,4 +1,8 @@
 // ── context manager ───────────────────────────────────────────────────────────
+function _parseWeight(id) {
+  const v = parseFloat(document.getElementById(id).value);
+  return isNaN(v) ? null : Math.max(0, v);
+}
 async function _loadContexts() {
   _contexts = await fetch('/api/contexts').then(r => r.json()).catch(() => []);
 }
@@ -34,7 +38,8 @@ async function _refreshContextList() {
 
 function openNewContext() {
   _editingContextId = null;
-  ['ce-context-id','ce-display-name','ce-setting','ce-your-chars','ce-other-chars','ce-notes'].forEach(id => {
+  ['ce-context-id','ce-display-name','ce-setting','ce-your-chars','ce-other-chars','ce-notes',
+   'ce-weight-funny','ce-weight-dramatic','ce-weight-action'].forEach(id => {
     document.getElementById(id).value = '';
   });
   document.getElementById('ce-context-id').disabled = false;
@@ -54,6 +59,9 @@ function editContext(context_id) {
   document.getElementById('ce-your-chars').value      = ctx.your_characters || '';
   document.getElementById('ce-other-chars').value     = ctx.other_characters || '';
   document.getElementById('ce-notes').value           = ctx.notes || '';
+  document.getElementById('ce-weight-funny').value    = ctx.score_funny_weight    != null ? ctx.score_funny_weight    : '';
+  document.getElementById('ce-weight-dramatic').value = ctx.score_dramatic_weight != null ? ctx.score_dramatic_weight : '';
+  document.getElementById('ce-weight-action').value   = ctx.score_action_weight   != null ? ctx.score_action_weight   : '';
   document.getElementById('btn-delete-context').style.display = '';
   document.getElementById('context-editor').style.display = 'flex';
 }
@@ -71,10 +79,13 @@ async function saveContext() {
     method: 'POST', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({
       context_id, display_name: displayName,
-      setting:          document.getElementById('ce-setting').value,
-      your_characters:  document.getElementById('ce-your-chars').value,
-      other_characters: document.getElementById('ce-other-chars').value,
-      notes:            document.getElementById('ce-notes').value,
+      setting:               document.getElementById('ce-setting').value,
+      your_characters:       document.getElementById('ce-your-chars').value,
+      other_characters:      document.getElementById('ce-other-chars').value,
+      notes:                 document.getElementById('ce-notes').value,
+      score_funny_weight:    _parseWeight('ce-weight-funny'),
+      score_dramatic_weight: _parseWeight('ce-weight-dramatic'),
+      score_action_weight:   _parseWeight('ce-weight-action'),
     }),
   });
   if (!res.ok) {

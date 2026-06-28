@@ -35,28 +35,22 @@ Core review workflow, sidebar, export, analyze modal, track layout manager, reel
 
 ### Near-term
 
-- [ ] **Video sidebar stats** *(easy–moderate)*
-  - Show richer per-video stats on each sidebar card; exact fields TBD during implementation, but confirmed scope includes:
-    - Clip counts: total / approved / exported
-    - Processing status indicators: whether summary, timeline, and LLM scoring have run (and whether stale)
-    - Score distribution: min/max or a mini bar across the video's clips
-  - Layout and which stats to surface will be refined during implementation based on what fits and what reads well
+- [x] **Video sidebar stats** *(done)*
+  - Sidebar cards now show: total / approved / exported clip counts, score min–max range bar,
+    and processing status badges (∅ summary / ∅ scored / ∅ timeline) when those steps haven't run.
 
-- [ ] **Caption / subtitle export** *(moderate)*
-  - Export modal gains two new options:
-    - **Embed subtitle track** (softsub) — adds an SRT track to the container; stream copy,
-      no re-encode; fast
-    - **Burn in captions** (hardsub) — renders captions onto the video frames; requires re-encode;
-      UI shows a re-encode warning
-  - SRT generated from existing `TranscriptSegment` rows (already available per clip)
-  - Both options ship together; softsub is the default when captions are enabled
+- [x] **Caption / subtitle export** *(done)*
+  - Export and batch-export modals now have a three-way Captions picker:
+    - **None** — no captions (default)
+    - **Embed subtitle track** (softsub) — adds an SRT track to the container; stream copy, fast
+    - **Burn in captions** (hardsub) — re-encode with subtitle filter; shows re-encode warning
+  - Both single-clip and batch-export paths support all three modes.
 
-- [ ] **Per-context score weights** *(moderate)*
-  - Each World Context gets optional score weight overrides: action, funny, dramatic
-  - When a video is rescored using that context, its weights override the global defaults
-  - Configured in the Context editor UI alongside the existing fields
-  - Allows e.g. an "Action Game" context to set action=0.8, dramatic=0.2 without touching
-    global Settings — user sets it once per context and it follows the context everywhere
+- [x] **Per-context score weights** *(done)*
+  - Each World Context can now optionally override the global LLM scoring weights (funny / dramatic / action).
+  - Set in the Context editor under "LLM scoring weights"; blank = use global defaults.
+  - When a video is rescored, weights are averaged across all assigned contexts that have overrides;
+    contexts without overrides contribute nothing to the average.
 
 - [ ] **New Recording panel (replaces Analyze modal)** *(complex)*
   - `+ Analyze` in the header navigates to a "New Recording" panel that takes over the detail area

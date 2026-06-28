@@ -77,6 +77,7 @@ def export_clip(
     output_path: Path,
     reencode: bool = False,
     subtitle_path: Optional[Path] = None,
+    subtitle_track_path: Optional[Path] = None,
     audio_stream_index: Optional[int] = None,
 ) -> Path:
     """
@@ -124,6 +125,19 @@ def export_clip(
             escaped = subtitle_path.as_posix().replace(":", "\\:")
             cmd += ["-vf", f"subtitles={escaped}"]
         cmd.append(_ffmpeg_path(output_path))
+    elif subtitle_track_path is not None:
+        # Softsub: stream-copy video+audio, add SRT as a subtitle track (no re-encode)
+        sub_codec = "mov_text" if output_path.suffix.lower() == ".mp4" else "srt"
+        cmd = [
+            ffmpeg, "-y",
+            "-ss", str(start_s),
+            "-i",  _ffmpeg_path(video_path),
+            "-t",  str(duration_s),
+            "-i",  _ffmpeg_path(subtitle_track_path),
+            "-map", "0", "-map", "1:s",
+            "-c:v", "copy", "-c:a", "copy", "-c:s", sub_codec,
+            _ffmpeg_path(output_path),
+        ]
     else:
         # Fast stream copy: seek before -i (keyframe-aligned)
         cmd = [

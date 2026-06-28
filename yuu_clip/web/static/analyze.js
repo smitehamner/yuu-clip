@@ -46,7 +46,7 @@ async function _loadProfileDropdown() {
   try {
     _analyzeProfiles = await fetch('/api/profiles').then(r => r.json());
     sel.innerHTML = _analyzeProfiles.map(p =>
-      `<option value="${p.name}">${escHtml(p.display_name)}</option>`
+      `<option value="${escHtml(p.name)}">${escHtml(p.display_name)}</option>`
     ).join('');
   } catch { _analyzeProfiles = []; }
 }

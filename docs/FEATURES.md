@@ -63,7 +63,9 @@ Extract a single clip to MKV.
 |------|-------|
 | `--precise` | Frame-accurate cut via libx264 (slower; default is quick export) |
 | `--captions` / `--no-captions` | Write SRT caption sidecar files (default: on) |
-| `--bake-captions` | Bake captions into video (forces precise export) |
+| `--bake-captions` | Burn captions into video frames (hardsub; forces re-encode) |
+| `--embed-subs` | Add captions as a subtitle track (softsub; stream copy, fast) |
+| `--container mkv\|mp4` | Override output container |
 | `--output PATH` | Output path; default: `.yuu-clip/exports/` |
 
 Output filename format: `{stem}_clip{id}_{start_hms}.mkv`
@@ -94,7 +96,7 @@ Starts the web server and opens the browser. Options: `--host`, `--port` (defaul
 
 ### Layout
 
-- **Sidebar left pane** — video list with per-video clip count, total clipped time, approval count, and pipeline status
+- **Sidebar left pane** — video list with per-video clip count, approved count, exported count, score range bar, clipped time, and processing status badges (∅ summary / ∅ scored / ∅ timeline)
 - **Sidebar right pane** — clip list for the selected video; sortable by score (highest first) or timeline (chronological)
 - **Main panel** — detail view for the selected video or clip, plus video player
 - **Header** — global action buttons and live job status (step pills + cancel button)
@@ -175,12 +177,13 @@ Accessible from the header. Create and edit named context bundles:
 |-------|---------|
 | Context ID | Short ID used in CLI (`--context una-server`) |
 | Display name | Human-readable label shown in the UI |
-| Setting | RP world description injected into LLM prompts |
+| Setting | World description injected into LLM prompts |
 | Your characters | Character(s) you play |
 | Frequent other characters | Common NPCs / other players |
 | Notes | Any other lore or context for the LLM |
+| LLM scoring weights | Optional per-context overrides for funny / dramatic / action weights |
 
-Contexts are assigned per-video and injected into every LLM call for that video.
+Contexts are assigned per-video and injected into every LLM call for that video. When a video is rescored, any weight overrides from assigned contexts are averaged together and applied instead of the global Settings weights.
 
 ### About / help panel
 
@@ -263,10 +266,12 @@ Weighted average of the three dimension scores. Default weight: equal. Configura
 
 ### Single clip
 
-- **Quick export (default)**: keyframe-aligned; typically completes in 1–5 seconds regardless of clip length
-- **Precise export** (`--reencode` or checkbox in UI): frame-accurate using libx264 + AAC; expect ~10–30 s per minute of clip on CPU, or ~3–8 s per minute on a GPU-accelerated ffmpeg build
-- **Captions**: SRT caption sidecar files written by default (one per transcript track); optionally baked into video
-- **Output**: MKV in `.yuu-clip/exports/`
+- **Quick export (default)**: keyframe-aligned stream copy; typically completes in 1–5 seconds regardless of clip length
+- **Precise export** (`--precise`): frame-accurate using libx264 + AAC; expect ~10–30 s per minute of clip on CPU, or ~3–8 s per minute on a GPU-accelerated ffmpeg build
+- **Captions — None** (default): SRT sidecar written alongside the export for later use
+- **Captions — Softsub** (`--embed-subs`): SRT added as a subtitle track in the container; stream copy, fast; use MKV for broadest player support
+- **Captions — Hardsub** (`--bake-captions`): subtitles burned into video frames; forces re-encode
+- **Output**: `.yuu-clip/exports/`
 
 ### Highlight reel
 
@@ -297,4 +302,6 @@ Saved per-project. Each track layout stores: number of tracks, and per-track lab
 
 ### Scoring weights
 
-Set in the project config: `score_funny_weight`, `score_dramatic_weight`, `score_action_weight`. Overall score = weighted average normalized to [0, 1].
+Global defaults set in Settings (`score_funny_weight`, `score_dramatic_weight`, `score_action_weight`). Overall score = weighted average normalized to [0, 1].
+
+Per-context overrides can be set in the World Context editor. When a video is rescored, the weights from all assigned contexts that have overrides are averaged and used instead of the global defaults. Contexts without overrides are ignored in the average.

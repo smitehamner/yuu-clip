@@ -197,13 +197,18 @@ async function startDemo() {
 // ── batch export ──────────────────────────────────────────────────────────────
 let _batchExportVideoId = null;
 
+function _onBatchCaptionsChange(val) {
+  document.getElementById('batch-hardsub-warn').style.display = val === 'hardsub' ? '' : 'none';
+}
+
 function openBatchExportModal(videoId) {
   _batchExportVideoId = videoId;
   document.getElementById('batch-min-score').value = 0;
   document.getElementById('batch-min-score-val').textContent = '0.00';
   document.getElementById('batch-skip-exported').checked = true;
   document.getElementById('batch-container').value = '';
-  document.getElementById('batch-burn-subs').checked = false;
+  document.getElementById('batch-captions').value = 'none';
+  document.getElementById('batch-hardsub-warn').style.display = 'none';
   const retx = document.getElementById('batch-retranscribe');
   retx.checked = false;
   document.getElementById('batch-retranscribe-model').disabled = true;
@@ -231,7 +236,7 @@ async function confirmBatchExport() {
   const minScore   = parseFloat(document.getElementById('batch-min-score').value);
   const skipExp    = document.getElementById('batch-skip-exported').checked;
   const container  = document.getElementById('batch-container').value;
-  const burnSubs   = document.getElementById('batch-burn-subs').checked;
+  const captions   = document.getElementById('batch-captions').value;
   const retx       = document.getElementById('batch-retranscribe').checked;
   const retxModel  = document.getElementById('batch-retranscribe-model').value;
   closeBatchExportModal();
@@ -239,7 +244,8 @@ async function confirmBatchExport() {
   const params = new URLSearchParams({min_score: minScore});
   if (!skipExp) params.set('skip_exported', 'false');
   if (container) params.set('container', container);
-  if (burnSubs)  params.set('burn_subs', 'true');
+  if (captions === 'hardsub') params.set('burn_subs', 'true');
+  if (captions === 'softsub') params.set('embed_subs', 'true');
   if (retx) { params.set('retranscribe', 'true'); params.set('retranscribe_model', retxModel); }
 
   openLog();

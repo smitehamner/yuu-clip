@@ -359,9 +359,14 @@ function showUndoToast(message, undoFn) {
 
 let _exportClipId = null;
 
+function _onExportCaptionsChange(val) {
+  document.getElementById('export-hardsub-warn').style.display = val === 'hardsub' ? '' : 'none';
+}
+
 function exportClip(id) {
   _exportClipId = id;
-  document.getElementById('export-burn-subs').checked = false;
+  document.getElementById('export-captions').value = 'none';
+  document.getElementById('export-hardsub-warn').style.display = 'none';
   document.getElementById('export-container').value = '';
   document.getElementById('export-trim-start').value = _fmtOffset(_activeClipData?.start_offset);
   document.getElementById('export-trim-end').value   = _fmtOffset(_activeClipData?.end_offset);
@@ -377,7 +382,9 @@ function closeExportModal() {
 
 async function confirmExport() {
   const id        = _exportClipId;
-  const burnSubs  = document.getElementById('export-burn-subs').checked;
+  const captions  = document.getElementById('export-captions').value;
+  const burnSubs  = captions === 'hardsub';
+  const embedSubs = captions === 'softsub';
   const container = document.getElementById('export-container').value;
   const trimStart = _parseTimingOffset(document.getElementById('export-trim-start').value);
   const trimEnd   = _parseTimingOffset(document.getElementById('export-trim-end').value);
@@ -394,6 +401,7 @@ async function confirmExport() {
 
   const params = new URLSearchParams();
   if (burnSubs)  params.set('burn_subs', 'true');
+  if (embedSubs) params.set('embed_subs', 'true');
   if (container) params.set('container', container);
   if (retx) { params.set('retranscribe', 'true'); params.set('retranscribe_model', retxModel); }
   const qs = params.toString() ? `?${params}` : '';

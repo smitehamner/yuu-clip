@@ -171,6 +171,21 @@ Archive of shipped items. For pending work see [ROADMAP.md](ROADMAP.md).
   (clicking navigates to that clip); stale indicator shown when `related_clips_at` predates the
   video's last rescore (`clips_scored_at`).
 
+- **Video sidebar stats** — sidebar cards now show: total / approved / exported clip counts, a
+  score min–max range bar (with numeric labels), and processing status badges (∅ summary / ∅ scored
+  / ∅ timeline) when those steps haven't run yet for a video.
+
+- **Caption / subtitle export** — export and batch-export modals replaced the "Bake captions"
+  checkbox with a three-way Captions picker: **None** (default) / **Embed subtitle track** (softsub
+  — stream-copy + SRT mux, fast) / **Burn in captions** (hardsub — re-encode, shows warning). Both
+  single-clip and batch-export paths support all three modes. Softsub uses `mov_text` for MP4
+  containers and `srt` for MKV/others.
+
+- **Per-context score weights** — each World Context can now optionally override the global LLM
+  scoring weights (funny / dramatic / action). Set in the Context editor under "LLM scoring weights"
+  (blank = use global defaults). During rescore, weights are averaged across all assigned contexts
+  that have overrides; contexts without overrides are ignored in the average.
+
 ---
 
 ## Phase 4 — Packaging + distribution (in progress; partial)

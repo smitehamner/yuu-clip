@@ -127,6 +127,25 @@ def save_contexts(project_dir: Path, contexts: dict) -> None:
     p.write_text(json.dumps(contexts, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
+_WEIGHT_FIELDS = ("score_funny_weight", "score_dramatic_weight", "score_action_weight")
+
+
+def extract_context_weights(contexts: dict, context_ids: list[str]) -> dict[str, float | None]:
+    """Average per-context score weight overrides across the given context IDs.
+
+    Returns a dict with keys score_funny_weight / score_dramatic_weight / score_action_weight.
+    A key is None when no assigned context sets that weight (caller should fall back to global).
+    """
+    totals: dict[str, list[float]] = {k: [] for k in _WEIGHT_FIELDS}
+    for cid in context_ids:
+        ctx = contexts.get(cid, {})
+        for key in _WEIGHT_FIELDS:
+            val = ctx.get(key)
+            if val is not None:
+                totals[key].append(float(val))
+    return {k: (sum(vs) / len(vs) if vs else None) for k, vs in totals.items()}
+
+
 def format_context_block(contexts: dict, context_ids: list[str]) -> str:
     """Build the LLM injection block for the given context IDs.
 

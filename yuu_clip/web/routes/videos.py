@@ -14,6 +14,7 @@ import subprocess as _subprocess
 import sys
 from collections import OrderedDict
 from contextlib import asynccontextmanager
+from dataclasses import replace as _dc_replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -23,7 +24,7 @@ from fastapi.responses import FileResponse, PlainTextResponse, StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import case, func
 
-from yuu_clip.contexts import format_context_block, load_contexts
+from yuu_clip.contexts import extract_context_weights, format_context_block, load_contexts
 from yuu_clip.db.models import AudioEnergy, AudioTrack, ClipCandidate, SceneBoundary, Video
 from yuu_clip.log import get_logger
 from yuu_clip.web.deps import ProjectContext
@@ -282,7 +283,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
 
         contexts = load_contexts(ctx.project_dir)
         context_text = format_context_block(contexts, context_names)
-        config = ctx.config
+        config = _config_with_context_weights(ctx.config, contexts, context_names)
 
         async def event_stream():
             from yuu_clip.scoring.engine import ScoringEngine
@@ -794,6 +795,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         min_score: float = Query(0.0),
         skip_exported: bool = Query(True),
         burn_subs: bool = Query(False),
+        embed_subs: bool = Query(False),
         container: Optional[str] = Query(None),
         retranscribe: bool = Query(False),
         retranscribe_model: str = Query("large-v3"),
@@ -860,6 +862,8 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                     ]
                     if burn_subs:
                         cmd.append("--bake-captions")
+                    elif embed_subs:
+                        cmd.append("--embed-subs")
                     if container:
                         cmd.extend(["--container", container])
                     if retranscribe:
@@ -958,7 +962,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
 
         contexts = load_contexts(ctx.project_dir)
         context_text = format_context_block(contexts, context_names)
-        config = ctx.config
+        config = _config_with_context_weights(ctx.config, contexts, context_names)
 
         async def event_stream():
             from yuu_clip.scoring.engine import ScoringEngine
@@ -1157,12 +1161,19 @@ def _srt_to_vtt(srt: str) -> str:
     return f"WEBVTT\n\n{vtt}"
 
 
-_EMPTY_STATS = {"clip_count": 0, "approved": 0, "total_clip_ms": 0}
+_EMPTY_STATS = {"clip_count": 0, "approved": 0, "exported": 0, "total_clip_ms": 0, "score_min": None, "score_max": None}
 _SSE_HEADERS = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
 
 # LRU cache of preview temp files keyed by clip_id. Evicts oldest when full.
 _preview_cache: OrderedDict[int, Path] = OrderedDict()
 _PREVIEW_CACHE_MAX = 10
+
+
+def _config_with_context_weights(config, contexts: dict, context_names: list[str]):
+    """Return a config copy with any per-context score weight overrides applied."""
+    weights = extract_context_weights(contexts, context_names)
+    overrides = {k: v for k, v in weights.items() if v is not None}
+    return _dc_replace(config, **overrides) if overrides else config
 
 
 def _sse_response(generator) -> StreamingResponse:
@@ -1183,7 +1194,10 @@ def _bulk_clip_stats(db, video_ids: list[int]) -> dict[int, dict]:
             ClipCandidate.video_id,
             func.count().label("clip_count"),
             func.sum(case((ClipCandidate.status == "approved", 1), else_=0)).label("approved"),
+            func.sum(case((ClipCandidate.exported_at.isnot(None), 1), else_=0)).label("exported"),
             func.sum(ClipCandidate.end_ms - ClipCandidate.start_ms).label("total_clip_ms"),
+            func.min(ClipCandidate.score_overall).label("score_min"),
+            func.max(ClipCandidate.score_overall).label("score_max"),
         )
         .filter(ClipCandidate.video_id.in_(video_ids))
         .group_by(ClipCandidate.video_id)
@@ -1193,7 +1207,10 @@ def _bulk_clip_stats(db, video_ids: list[int]) -> dict[int, dict]:
         row.video_id: {
             "clip_count":    row.clip_count,
             "approved":      row.approved,
+            "exported":      row.exported,
             "total_clip_ms": row.total_clip_ms or 0,
+            "score_min":     row.score_min,
+            "score_max":     row.score_max,
         }
         for row in rows
     }
@@ -1208,7 +1225,10 @@ def _video_dict(video: Video, stats: dict) -> dict:
         "duration_ms": video.duration_ms or 0,
         "clip_count": stats["clip_count"],
         "approved": stats["approved"],
+        "exported": stats["exported"],
         "total_clip_ms": stats["total_clip_ms"],
+        "score_min": stats["score_min"],
+        "score_max": stats["score_max"],
         "title": _user_or_default(video.title_user, video.title),
         "title_original": video.title or "",
         "title_is_edited": video.title_user is not None,

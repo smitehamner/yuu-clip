@@ -26,6 +26,9 @@ class ContextBody(BaseModel):
     your_characters: str = ""
     other_characters: str = ""
     notes: str = ""
+    score_funny_weight: float | None = None
+    score_dramatic_weight: float | None = None
+    score_action_weight: float | None = None
 
 
 def make_router(ctx: ProjectContext) -> APIRouter:
@@ -50,13 +53,16 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         existing = contexts.get(context_id, {})
         is_new = context_id not in contexts
         contexts[context_id] = {
-            "display_name":    body.display_name or context_id,
-            "setting":         body.setting,
-            "your_characters": body.your_characters,
-            "other_characters": body.other_characters,
-            "notes":           body.notes,
-            "created_at":      existing.get("created_at", datetime.now(timezone.utc).isoformat()),
-            "updated_at":      datetime.now(timezone.utc).isoformat(),
+            "display_name":          body.display_name or context_id,
+            "setting":               body.setting,
+            "your_characters":       body.your_characters,
+            "other_characters":      body.other_characters,
+            "notes":                 body.notes,
+            "score_funny_weight":    body.score_funny_weight,
+            "score_dramatic_weight": body.score_dramatic_weight,
+            "score_action_weight":   body.score_action_weight,
+            "created_at":            existing.get("created_at", datetime.now(timezone.utc).isoformat()),
+            "updated_at":            datetime.now(timezone.utc).isoformat(),
         }
         save_contexts(ctx.project_dir, contexts)
         _log.info("World context %s: %s (display_name=%r)", "created" if is_new else "updated", context_id, body.display_name)
@@ -75,5 +81,12 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     return router
 
 
+_WEIGHT_KEYS = ("score_funny_weight", "score_dramatic_weight", "score_action_weight")
+_OMIT_KEYS = frozenset(("created_at", "updated_at"))
+
+
 def _strip(data: dict) -> dict:
-    return {k: v for k, v in data.items() if k not in ("created_at", "updated_at")}
+    d = {k: v for k, v in data.items() if k not in _OMIT_KEYS}
+    for k in _WEIGHT_KEYS:
+        d.setdefault(k, None)
+    return d
