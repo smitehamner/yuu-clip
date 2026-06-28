@@ -305,7 +305,8 @@ All state is stored in `.yuu-clip/` next to your video files (or in the director
 .yuu-clip/
   yuu-clip.db      # SQLite database
   yuu-clip.log     # rolling log
-  exports/           # exported clips and demo reels
+  exports/           # exported clips
+  reels/             # compiled highlight reels (timestamp-named MKVs)
   audio/             # extracted WAV files (temporary; reused across runs)
 ```
 

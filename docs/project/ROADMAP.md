@@ -37,7 +37,7 @@ All near-term and medium-term items shipped. See [COMPLETED.md](COMPLETED.md).
 
 ---
 
-## Phase 4 — Packaging + distribution (In progress)
+## Phase 4 — Packaging + distribution (Done)
 
 Goal: friends can install and use without knowing Python.
 

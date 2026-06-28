@@ -74,7 +74,7 @@ A saved template that maps track positions to roles, reusable across recordings 
 - **Code:** `profile`
 - **Also called in codebase:** "labeling profile", "audio profile"
 - **Do not call it:** "profile" in user-facing text (confusable with "user profile")
-- **UI label:** currently "Profile" — planned rename to "Track Layout"
+- **UI label:** "Track Layout"
 
 ---
 
@@ -87,7 +87,7 @@ The end-to-end process of running a recording through all pipeline stages to pro
 - **Code:** `ingest`, `run_ingest()`
 - **Also called in codebase:** "ingest"
 - **Do not call it:** "ingest" in user-facing text
-- **UI label:** "Ingest" (planned rename to "Analyze")
+- **UI label:** "Analyze" / "+ Analyze" button
 - **Notes:** Only one analysis can run at a time. Covers all pipeline stages.
 
 ---
@@ -108,7 +108,7 @@ One step in the ingest process. Displayed as step pills in the UI (gray → blue
 | 6 | **Score** | Evaluate all clip candidates |
 
 - **Code:** `step` (in SSE progress messages)
-- **UI label:** step pill text ("Probe", "Label tracks", etc. — planned to use names above)
+- **UI label:** step pill text — matches stage names above (Extract / Transcribe / Generate Clips / Energy / Scenes / Score)
 
 ---
 

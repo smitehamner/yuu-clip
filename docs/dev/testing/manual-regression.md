@@ -12,7 +12,7 @@ Run this before any release or after a significant change. Each item should pass
 |---|------|----------|
 | 1 | Open `http://127.0.0.1:8080` | Page loads; no console errors |
 | 2 | Check footer bar | Version string visible bottom-left |
-| 3 | Click `≡` hamburger | Dropdown shows: World Contexts, Terminology, Controls, About, Download Log |
+| 3 | Click `≡` hamburger | Dropdown shows: View Highlight Reels, World Contexts, Terminology, Controls, About, Download Log, Settings |
 
 ---
 
@@ -20,7 +20,7 @@ Run this before any release or after a significant change. Each item should pass
 
 | # | Step | Expected |
 |---|------|----------|
-| 4 | Click `+ Analyze` | Modal opens with file picker button |
+| 4 | Click `+ Analyze` | New Recording panel opens in main area (sidebar stays live); file picker button visible |
 | 5 | Select a video file | Inspection results appear: duration, track list, time estimate |
 | 6 | Change the Whisper model | Estimate updates |
 | 7 | Change the track layout | Estimate updates; track selection reflects new layout |
@@ -130,7 +130,7 @@ Run this before any release or after a significant change. Each item should pass
 
 | # | Step | Expected |
 |---|------|----------|
-| 44 | Click `Build Reel` | Modal opens; transition picker and duration controls visible |
+| 44 | Click `Highlight Reel` in the header | Modal opens; transition picker and duration controls visible |
 | 45 | Configure and click compile | SSE progress in header; reel file path shown on completion |
 
 ---
@@ -178,5 +178,5 @@ Run this before any release or after a significant change. Each item should pass
 
 | # | Step | Expected |
 |---|------|----------|
-| 57 | `GET /api/status` while idle | `{"any_running": false, "ingest_running": false, "active_jobs": 0}` |
+| 57 | `GET /api/status` while idle | `{"any_running": false, "analyze_running": false, "active_jobs": 0}` |
 | 58 | `GET /api/status` during an SSE job | `any_running` is `true`; `active_jobs` ≥ 1 |

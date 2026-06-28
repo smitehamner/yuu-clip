@@ -59,7 +59,9 @@ yuu_clip/
     deps.py                # ProjectContext — shared server state
     sse.py                 # subprocess → SSE streaming helper
     routes/                # videos, analyze, profiles, reel, contexts, logs
-    static/index.html      # Single-page UI (vanilla JS, no build step)
+    static/index.html      # Single-page UI shell (vanilla JS, no build step)
+    static/*.js            # Feature modules: analyze, clips, contexts, reel, settings, split, ui, utils
+    static/app.css         # Stylesheet
 tests/
   conftest.py              # project_dir + client fixtures
   test_api.py              # API unit tests (TestClient, no live server)
