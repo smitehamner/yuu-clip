@@ -251,8 +251,18 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                         f"Split point {p}s is outside the recording range (0–{duration_s:.1f}s)",
                     )
 
-            # Idempotent: remove existing segments before recreating.
-            db.query(Video).filter_by(parent_video_id=video_id).delete(synchronize_session=False)
+            # Idempotent: remove existing segments (and their dependents) before recreating.
+            # AudioEnergy and SceneBoundary have no DB-level cascade; delete explicitly.
+            # ClipCandidate, AudioTrack, Transcript cascade via ORM on db.delete().
+            for seg in db.query(Video).filter_by(parent_video_id=video_id).all():
+                seg_track_ids = [t.id for t in seg.audio_tracks]
+                if seg_track_ids:
+                    db.query(AudioEnergy).filter(
+                        AudioEnergy.audio_track_id.in_(seg_track_ids)
+                    ).delete(synchronize_session=False)
+                db.query(SceneBoundary).filter_by(video_id=seg.id).delete(synchronize_session=False)
+                db.delete(seg)
+            db.flush()
 
             boundaries = [0.0] + pts + [duration_s]
             stem = Path(video.filename).stem
@@ -461,12 +471,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             if not video:
                 raise HTTPException(404, "Video not found")
 
-            tracks = db.query(AudioTrack).filter_by(video_id=video_id, do_transcribe=True).all()
-            all_segs = []
-            for track in tracks:
-                for tx in track.transcripts:
-                    all_segs.extend(tx.segments)
-            all_segs.sort(key=lambda s: s.start_ms)
+            all_segs = _collect_transcript_segments(db, video_id)
 
             if not all_segs:
                 raise HTTPException(400, "No transcript available — analyze the recording first")
@@ -555,12 +560,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                 raise HTTPException(404, "Video not found")
 
             context_names = _json_list(video.context_names_json)
-            tracks = db.query(AudioTrack).filter_by(video_id=video_id, do_transcribe=True).all()
-            all_segs = []
-            for track in tracks:
-                for tx in track.transcripts:
-                    all_segs.extend(tx.segments)
-            all_segs.sort(key=lambda s: s.start_ms)
+            all_segs = _collect_transcript_segments(db, video_id)
             full_text = " ".join(s.text.strip() for s in all_segs)
 
             if not full_text:
@@ -575,7 +575,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                     full_text, ctx.config, context_text=context_text
                 )
             except Exception as exc:
-                _log.warning("Ollama summarize failed for video %d: %s", video_id, exc)
+                _log.warning("Ollama summarize failed for video %d: %s", video_id, exc, exc_info=True)
                 raise HTTPException(502, f"Ollama error: {exc}")
 
             return {
@@ -598,12 +598,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             if not video:
                 raise HTTPException(404, "Video not found")
             context_names = _json_list(video.context_names_json)
-            tracks = db.query(AudioTrack).filter_by(video_id=video_id, do_transcribe=True).all()
-            all_segs = []
-            for track in tracks:
-                for tx in track.transcripts:
-                    all_segs.extend(tx.segments)
-            all_segs.sort(key=lambda s: s.start_ms)
+            all_segs = _collect_transcript_segments(db, video_id)
             full_text = " ".join(s.text.strip() for s in all_segs)
         finally:
             db.close()
@@ -621,7 +616,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                         summarize_transcript, full_text, ctx.config, context_text=context_text
                     )
                 except Exception as exc:
-                    _log.warning("regenerate_summary: Ollama failed for video %d: %s", video_id, exc)
+                    _log.warning("regenerate_summary: Ollama failed for video %d: %s", video_id, exc, exc_info=True)
                     yield f"data: {json_lib.dumps(f'[Error: {exc}]')}\n\n"
                     yield f"data: {json_lib.dumps('__DONE__')}\n\n"
                     return
@@ -668,10 +663,10 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                 if touch_summary:
                     video.summary      = body.new_summary
                     video.summary_user = None
-                video.summarized_at        = datetime.now(timezone.utc)
-                video.summary_context_json = json_lib.dumps(
-                    _json_list(video.context_names_json)
-                )
+                    video.summarized_at        = datetime.now(timezone.utc)
+                    video.summary_context_json = json_lib.dumps(
+                        _json_list(video.context_names_json)
+                    )
             elif body.action == "accept_edit":
                 if touch_title:
                     video.title_user = body.new_title
@@ -877,16 +872,6 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             if not video:
                 raise HTTPException(404, "Video not found")
             video_path = Path(video.path)
-            existing_tracks = (
-                db.query(AudioTrack).filter_by(video_id=video_id).all()
-            )
-            track_ids_with_energy = set(
-                r.audio_track_id
-                for r in db.query(AudioEnergy.audio_track_id)
-                .filter(AudioEnergy.audio_track_id.in_([t.id for t in existing_tracks]))
-                .distinct()
-                .all()
-            ) if existing_tracks else set()
         finally:
             db.close()
 
@@ -904,6 +889,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                     from yuu_clip.analyze.probe import probe_video
                     info = await asyncio.to_thread(probe_video, video_path)
                 except Exception as exc:
+                    _log.error("compute_waveform: probe failed for video %d: %s", video_id, exc, exc_info=True)
                     yield f"data: {json_lib.dumps(f'[Error inspecting video: {exc}]')}\n\n"
                     yield f"data: {json_lib.dumps('__DONE__')}\n\n"
                     return
@@ -913,48 +899,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                     yield f"data: {json_lib.dumps('__DONE__')}\n\n"
                     return
 
-                # Create AudioTrack rows for any streams not yet in DB
-                track_rows: list[AudioTrack] = []
-                setup_db = ctx.get_db()
-                try:
-                    for stream in info.audio_streams:
-                        existing = (
-                            setup_db.query(AudioTrack)
-                            .filter_by(video_id=video_id, stream_index=stream.stream_index)
-                            .first()
-                        )
-                        if existing:
-                            track_rows.append(existing)
-                        else:
-                            t = AudioTrack(
-                                video_id=video_id,
-                                stream_index=stream.stream_index,
-                                label="unlabeled",
-                                codec=stream.codec_name,
-                                sample_rate=stream.sample_rate,
-                                channels=stream.channels,
-                                channel_layout=stream.channel_layout,
-                                stream_title_tag=stream.title_tag,
-                            )
-                            setup_db.add(t)
-                    setup_db.commit()
-                    # Re-query to get IDs
-                    track_rows = (
-                        setup_db.query(AudioTrack).filter_by(video_id=video_id).all()
-                    )
-                    track_ids_with_energy = set(
-                        r.audio_track_id
-                        for r in setup_db.query(AudioEnergy.audio_track_id)
-                        .filter(AudioEnergy.audio_track_id.in_([t.id for t in track_rows]))
-                        .distinct()
-                        .all()
-                    )
-                    track_data = [
-                        (t.id, t.stream_index, t.extracted_path, t.id in track_ids_with_energy)
-                        for t in track_rows
-                    ]
-                finally:
-                    setup_db.close()
+                track_data = _sync_waveform_track_data(ctx, video_id, info.audio_streams)
 
                 from yuu_clip.analyze.extract import extract_audio_track
                 from yuu_clip.scoring.energy import compute_energy
@@ -983,6 +928,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                             finally:
                                 upd_db.close()
                         except Exception as exc:
+                            _log.error("compute_waveform: audio extraction failed for video %d track %d: %s", video_id, track_id, exc, exc_info=True)
                             yield f"data: {json_lib.dumps(f'[Error extracting {label}: {exc}]')}\n\n"
                             continue
 
@@ -995,6 +941,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                             energy_db.commit()
                     except Exception as exc:
                         energy_db.rollback()
+                        _log.error("compute_waveform: energy computation failed for video %d track %d: %s", video_id, track_id, exc, exc_info=True)
                         yield f"data: {json_lib.dumps(f'[Error computing waveform {label}: {exc}]')}\n\n"
                     finally:
                         energy_db.close()
@@ -1188,18 +1135,12 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                         continue
 
                     yield f"data: {json_lib.dumps(f'Exporting clip {cid} [{i}/{total}]...')}\n\n"
-                    cmd = [
-                        sys.executable, "-m", "yuu_clip.cli", "export", str(cid),
-                        "--captions", "--project", str(ctx.project_dir),
-                    ]
-                    if burn_subs:
-                        cmd.append("--bake-captions")
-                    elif embed_subs:
-                        cmd.append("--embed-subs")
-                    if container:
-                        cmd.extend(["--container", container])
-                    if retranscribe:
-                        cmd.extend(["--retranscribe", "--retranscribe-model", retranscribe_model])
+                    cmd = _build_export_cmd(
+                        ctx, cid,
+                        burn_subs=burn_subs, embed_subs=embed_subs,
+                        container=container,
+                        retranscribe=retranscribe, retranscribe_model=retranscribe_model,
+                    )
                     try:
                         proc = await _asyncio.create_subprocess_exec(
                             *cmd,
@@ -1311,10 +1252,10 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             db.delete(clip_b)
             db.commit()
 
-            cached = _preview_cache.pop(clip_id, None)
-            if cached:
-                cached.unlink(missing_ok=True)
-            _preview_cache.pop(body.clip_b_id, None)
+            for _cid in (clip_id, body.clip_b_id):
+                _cached = _preview_cache.pop(_cid, None)
+                if _cached:
+                    _cached.unlink(missing_ok=True)
 
             _log.info("Merged clip %d into clip %d (new range %d–%d ms)", body.clip_b_id, clip_id, start_ms, end_ms)
             return _clip_dict(clip_a, full=True, export_dir=ctx.export_dir, video=video)
@@ -1505,8 +1446,81 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     return router
 
 
+def _sync_waveform_track_data(ctx: ProjectContext, video_id: int, audio_streams) -> list[tuple]:
+    """Upsert AudioTrack rows for each discovered stream, return track_data tuples.
+
+    Returns a list of (track_id, stream_index, extracted_path, has_energy) for
+    every track belonging to this video.
+    """
+    db = ctx.get_db()
+    try:
+        for stream in audio_streams:
+            if not db.query(AudioTrack).filter_by(
+                video_id=video_id, stream_index=stream.stream_index
+            ).first():
+                db.add(AudioTrack(
+                    video_id=video_id,
+                    stream_index=stream.stream_index,
+                    label="unlabeled",
+                    codec=stream.codec_name,
+                    sample_rate=stream.sample_rate,
+                    channels=stream.channels,
+                    channel_layout=stream.channel_layout,
+                    stream_title_tag=stream.title_tag,
+                ))
+        db.commit()
+        track_rows = db.query(AudioTrack).filter_by(video_id=video_id).all()
+        track_ids_with_energy = set(
+            r.audio_track_id
+            for r in db.query(AudioEnergy.audio_track_id)
+            .filter(AudioEnergy.audio_track_id.in_([t.id for t in track_rows]))
+            .distinct()
+            .all()
+        )
+        return [
+            (t.id, t.stream_index, t.extracted_path, t.id in track_ids_with_energy)
+            for t in track_rows
+        ]
+    finally:
+        db.close()
+
+
+def _build_export_cmd(
+    ctx: ProjectContext,
+    clip_id: int,
+    *,
+    burn_subs: bool,
+    embed_subs: bool,
+    container: Optional[str],
+    retranscribe: bool,
+    retranscribe_model: str,
+) -> list[str]:
+    cmd = [
+        sys.executable, "-m", "yuu_clip.cli", "export", str(clip_id),
+        "--captions", "--project", str(ctx.project_dir),
+    ]
+    if burn_subs:
+        cmd.append("--bake-captions")
+    elif embed_subs:
+        cmd.append("--embed-subs")
+    if container:
+        cmd.extend(["--container", container])
+    if retranscribe:
+        cmd.extend(["--retranscribe", "--retranscribe-model", retranscribe_model])
+    return cmd
+
+
+def _collect_transcript_segments(db, video_id: int) -> list:
+    tracks = db.query(AudioTrack).filter_by(video_id=video_id, do_transcribe=True).all()
+    segs = []
+    for track in tracks:
+        for tx in track.transcripts:
+            segs.extend(tx.segments)
+    segs.sort(key=lambda s: s.start_ms)
+    return segs
+
+
 def _user_or_default(user_val: Optional[str], stored_val: Optional[str]) -> str:
-    """Return the user-edited override if set, otherwise the stored value (or empty string)."""
     return user_val if user_val is not None else (stored_val or "")
 
 
@@ -1518,7 +1532,6 @@ def _require_clip(db, clip_id: int) -> ClipCandidate:
 
 
 def _clip_stem(clip: ClipCandidate, video: Video) -> str:
-    """Base filename stem shared by the exported video and its SRT sidecar."""
     return f"{Path(video.filename).stem}_clip{clip.id}_{clip.start_hms.replace(':', '-')}"
 
 
@@ -1568,7 +1581,6 @@ _PREVIEW_CACHE_MAX = 10
 
 
 def _config_with_context_weights(config, contexts: dict, context_names: list[str]):
-    """Return a config copy with any per-context score weight overrides applied."""
     weights = extract_context_weights(contexts, context_names)
     overrides = {k: v for k, v in weights.items() if v is not None}
     return _dc_replace(config, **overrides) if overrides else config

@@ -512,6 +512,65 @@ class TestEditableClipFields:
         assert r.status_code == 400
 
 
+class TestAcceptNewTitleOnlyDoesNotStampSummarizedAt:
+    """accept_new with field='title' must not touch summarized_at or summary_context_json."""
+
+    def test_summarized_at_not_set_when_only_title_accepted(self, client, project_dir):
+        from yuu_clip.db.models import Video, make_session
+
+        # Seed a known summarized_at value
+        db = make_session(project_dir / ".yuu-clip" / "project.db")
+        try:
+            v = db.query(Video).first()
+            v.title = "LLM Title"
+            v.summary = "LLM Summary"
+            v.summarized_at = None
+            v.summary_context_json = None
+            db.commit()
+        finally:
+            db.close()
+
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        r = client.patch(f"/api/videos/{vid_id}/fields", json={
+            "action": "accept_new", "field": "title", "new_title": "Accepted Title",
+        })
+        assert r.status_code == 200
+
+        db2 = make_session(project_dir / ".yuu-clip" / "project.db")
+        try:
+            v = db2.query(Video).first()
+            assert v.summarized_at is None, "summarized_at must not be set when only title was accepted"
+            assert v.summary_context_json is None
+        finally:
+            db2.close()
+
+    def test_summarized_at_set_when_summary_accepted(self, client, project_dir):
+        from yuu_clip.db.models import Video, make_session
+
+        db = make_session(project_dir / ".yuu-clip" / "project.db")
+        try:
+            v = db.query(Video).first()
+            v.title = "LLM Title"
+            v.summary = "LLM Summary"
+            v.summarized_at = None
+            db.commit()
+        finally:
+            db.close()
+
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        r = client.patch(f"/api/videos/{vid_id}/fields", json={
+            "action": "accept_new", "field": "summary", "new_summary": "Accepted Summary",
+        })
+        assert r.status_code == 200
+
+        db2 = make_session(project_dir / ".yuu-clip" / "project.db")
+        try:
+            v = db2.query(Video).first()
+            assert v.summarized_at is not None
+        finally:
+            db2.close()
+
+
 class TestVideoContextsEmpty:
     def test_patch_video_contexts_empty_list_clears(self, client):
         vid_id = client.get("/api/videos").json()[0]["id"]
@@ -697,7 +756,7 @@ class TestSplitVideo:
     def _video_id(self, client) -> int:
         return client.get("/api/videos").json()[0]["id"]
 
-    def test_split_happy_path(self, client):
+    def test_split_two_points_produces_three_segments(self, client):
         vid_id = self._video_id(client)
         r = client.post(f"/api/videos/{vid_id}/split", json={"split_points": [120.0, 300.0]})
         assert r.status_code == 200
@@ -756,6 +815,48 @@ class TestSplitVideo:
         assert s["segment_start_s"] is not None
         assert s["segment_end_s"] is not None
         assert s["segment_end_s"] > s["segment_start_s"]
+
+
+class TestSplitVideoOrphanCleanup:
+    """Re-splitting an analyzed segment must not orphan or FK-violate clips."""
+
+    def test_resplit_after_clips_exist_on_segment(self, client, project_dir):
+        from yuu_clip.db.models import ClipCandidate, Video, make_session
+
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        # First split
+        seg_ids = client.post(
+            f"/api/videos/{vid_id}/split", json={"split_points": [120.0]}
+        ).json()["segment_ids"]
+
+        # Simulate a clip having been generated for the first segment
+        db = make_session(project_dir / ".yuu-clip" / "project.db")
+        try:
+            db.add(ClipCandidate(
+                video_id=seg_ids[0],
+                start_ms=0, end_ms=30_000,
+                score_overall=0.5, score_funny=0.0,
+                score_dramatic=0.0, score_action=0.0,
+                status="pending",
+            ))
+            db.commit()
+        finally:
+            db.close()
+
+        # Re-split — should not raise FK violation or leave orphan clips
+        r = client.post(
+            f"/api/videos/{vid_id}/split", json={"split_points": [180.0, 360.0]}
+        )
+        assert r.status_code == 200
+        assert len(r.json()["segment_ids"]) == 3
+
+        # The clip on the now-deleted segment must be gone
+        db2 = make_session(project_dir / ".yuu-clip" / "project.db")
+        try:
+            orphan = db2.query(ClipCandidate).filter_by(video_id=seg_ids[0]).first()
+            assert orphan is None
+        finally:
+            db2.close()
 
 
 class TestClearClips:
@@ -820,6 +921,10 @@ class TestMediaUrl:
         assert d["url"].endswith(".mkv")
         assert d["has_captions"] is False
 
+    def test_media_url_404_for_unknown_clip(self, client):
+        r = client.get("/api/clips/99999/media_url")
+        assert r.status_code == 404
+
     def test_media_url_has_captions_true_when_srt_exists(self, client, project_dir):
         clip = self._first_clip(client)
         export_dir = project_dir / ".yuu-clip" / "exports"
@@ -832,3 +937,466 @@ class TestMediaUrl:
         r = client.get(f"/api/clips/{clip['id']}/media_url")
         assert r.status_code == 200
         assert r.json()["has_captions"] is True
+
+
+class TestAutoApprove:
+    def _vid_id(self, client) -> int:
+        return client.get("/api/videos").json()[0]["id"]
+
+    def test_auto_approve_approves_clips_above_threshold(self, client):
+        vid_id = self._vid_id(client)
+        # Seed: scores 0.85 pending, 0.60 approved, 0.20 rejected
+        # Only the 0.85 pending clip should be approved
+        r = client.post(f"/api/videos/{vid_id}/auto-approve", json={"threshold": 0.80})
+        assert r.status_code == 200
+        assert r.json()["approved"] == 1
+        clips = client.get(f"/api/videos/{vid_id}/clips?status=approved").json()
+        assert len(clips) == 2  # 1 originally approved + 1 newly approved
+
+    def test_auto_approve_only_touches_pending_clips(self, client):
+        vid_id = self._vid_id(client)
+        # Low threshold: would nominally match all scores, but auto_approve only
+        # touches pending clips — the 0.60 approved and 0.20 rejected are skipped.
+        r = client.post(f"/api/videos/{vid_id}/auto-approve", json={"threshold": 0.0})
+        assert r.status_code == 200
+        assert r.json()["approved"] == 1  # only the 0.85 pending clip qualifies
+
+    def test_auto_approve_zero_when_threshold_above_all_scores(self, client):
+        vid_id = self._vid_id(client)
+        r = client.post(f"/api/videos/{vid_id}/auto-approve", json={"threshold": 0.99})
+        assert r.status_code == 200
+        assert r.json()["approved"] == 0
+
+    def test_auto_approve_sub_score_field(self, client):
+        vid_id = self._vid_id(client)
+        # score_funny = score * 0.9; clip 1 funny ≈ 0.765, clip 3 funny ≈ 0.18
+        r = client.post(
+            f"/api/videos/{vid_id}/auto-approve",
+            json={"threshold": 0.70, "score_field": "funny"},
+        )
+        assert r.status_code == 200
+        assert r.json()["approved"] == 1
+
+    def test_auto_approve_invalid_threshold(self, client):
+        vid_id = self._vid_id(client)
+        r = client.post(f"/api/videos/{vid_id}/auto-approve", json={"threshold": 1.5})
+        assert r.status_code == 400
+
+    def test_auto_approve_invalid_score_field(self, client):
+        vid_id = self._vid_id(client)
+        r = client.post(
+            f"/api/videos/{vid_id}/auto-approve",
+            json={"threshold": 0.5, "score_field": "vibes"},
+        )
+        assert r.status_code == 400
+
+    def test_auto_approve_404(self, client):
+        r = client.post("/api/videos/99999/auto-approve", json={"threshold": 0.5})
+        assert r.status_code == 404
+
+
+class TestClipScoreOverride:
+    def _first_clip_id(self, client) -> int:
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        return client.get(f"/api/videos/{vid_id}/clips").json()[0]["id"]
+
+    def test_set_score_override(self, client):
+        clip_id = self._first_clip_id(client)
+        r = client.post(f"/api/clips/{clip_id}/score-override", json={"score_overall_user": 0.75})
+        assert r.status_code == 200
+        assert r.json()["score_overall_user"] == pytest.approx(0.75, abs=1e-3)
+
+    def test_score_override_clamped_to_0_1(self, client):
+        clip_id = self._first_clip_id(client)
+        r = client.post(f"/api/clips/{clip_id}/score-override", json={"score_overall_user": 1.5})
+        assert r.status_code == 200
+        assert r.json()["score_overall_user"] == pytest.approx(1.0, abs=1e-3)
+
+        r2 = client.post(f"/api/clips/{clip_id}/score-override", json={"score_overall_user": -0.1})
+        assert r2.status_code == 200
+        assert r2.json()["score_overall_user"] == pytest.approx(0.0, abs=1e-3)
+
+    def test_score_override_persisted_on_get(self, client):
+        clip_id = self._first_clip_id(client)
+        client.post(f"/api/clips/{clip_id}/score-override", json={"score_overall_user": 0.42})
+        d = client.get(f"/api/clips/{clip_id}").json()
+        assert d["score_overall_user"] == pytest.approx(0.42, abs=1e-3)
+
+    def test_clear_score_override(self, client):
+        clip_id = self._first_clip_id(client)
+        client.post(f"/api/clips/{clip_id}/score-override", json={"score_overall_user": 0.5})
+        r = client.post(f"/api/clips/{clip_id}/score-override", json={"score_overall_user": None})
+        assert r.status_code == 200
+        assert r.json()["score_overall_user"] is None
+        assert client.get(f"/api/clips/{clip_id}").json()["score_overall_user"] is None
+
+    def test_score_override_404(self, client):
+        r = client.post("/api/clips/99999/score-override", json={"score_overall_user": 0.5})
+        assert r.status_code == 404
+
+
+class TestMergeClips:
+    def _clips_by_timeline(self, client):
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        return client.get(f"/api/videos/{vid_id}/clips?sort=timeline").json()
+
+    def test_merge_extends_range_and_deletes_clip_b(self, client):
+        clips = self._clips_by_timeline(client)
+        a, b = clips[0], clips[1]
+        r = client.post(f"/api/clips/{a['id']}/merge", json={"clip_b_id": b["id"]})
+        assert r.status_code == 200
+        merged = r.json()
+        assert merged["start_ms"] == min(a["start_ms"], b["start_ms"])
+        assert merged["end_ms"] == max(a["end_ms"], b["end_ms"])
+        # clip_b should be gone
+        assert client.get(f"/api/clips/{b['id']}").status_code == 404
+
+    def test_merge_clip_b_not_found_returns_404(self, client):
+        clips = self._clips_by_timeline(client)
+        clip_a_id = clips[0]["id"]
+        r = client.post(f"/api/clips/{clip_a_id}/merge", json={"clip_b_id": 99999})
+        assert r.status_code == 404
+
+    def test_merge_clips_from_different_videos_rejected(self, client, project_dir):
+        from yuu_clip.db.models import ClipCandidate, Video, make_session
+        db = make_session(project_dir / ".yuu-clip" / "project.db")
+        try:
+            v2 = Video(path="/other/video.mkv", filename="other.mkv", status="done", duration_ms=60_000)
+            db.add(v2)
+            db.flush()
+            clip_b = ClipCandidate(
+                video_id=v2.id, start_ms=0, end_ms=10_000,
+                score_overall=0.5, score_funny=0.0, score_dramatic=0.0, score_action=0.0,
+                status="pending",
+            )
+            db.add(clip_b)
+            db.commit()
+            clip_b_id = clip_b.id
+        finally:
+            db.close()
+
+        clip_a_id = self._clips_by_timeline(client)[0]["id"]
+        r = client.post(f"/api/clips/{clip_a_id}/merge", json={"clip_b_id": clip_b_id})
+        assert r.status_code == 400
+
+    def test_merge_self_rejected(self, client):
+        clips = self._clips_by_timeline(client)
+        clip_id = clips[0]["id"]
+        r = client.post(f"/api/clips/{clip_id}/merge", json={"clip_b_id": clip_id})
+        assert r.status_code == 400
+
+    def test_merge_clip_a_404(self, client):
+        r = client.post("/api/clips/99999/merge", json={"clip_b_id": 1})
+        assert r.status_code == 404
+
+    def test_merge_resets_export_metadata(self, client):
+        clips = self._clips_by_timeline(client)
+        a, b = clips[0], clips[1]
+        r = client.post(f"/api/clips/{a['id']}/merge", json={"clip_b_id": b["id"]})
+        assert r.status_code == 200
+        merged = r.json()
+        assert merged["exported_at"] is None
+        assert merged["exported_container"] is None
+
+
+class TestClipTiming:
+    def _first_clip_id(self, client) -> int:
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        return client.get(f"/api/videos/{vid_id}/clips").json()[0]["id"]
+
+    def test_update_timing_persisted(self, client):
+        clip_id = self._first_clip_id(client)
+        r = client.patch(f"/api/clips/{clip_id}/timing", json={"start_offset": -1.5, "end_offset": 2.0})
+        assert r.status_code == 200
+        d = r.json()
+        assert d["start_offset"] == pytest.approx(-1.5)
+        assert d["end_offset"] == pytest.approx(2.0)
+        detail = client.get(f"/api/clips/{clip_id}").json()
+        assert detail["start_offset"] == pytest.approx(-1.5)
+        assert detail["end_offset"] == pytest.approx(2.0)
+
+    def test_update_timing_zero_offsets(self, client):
+        clip_id = self._first_clip_id(client)
+        r = client.patch(f"/api/clips/{clip_id}/timing", json={"start_offset": 0.0, "end_offset": 0.0})
+        assert r.status_code == 200
+
+    def test_update_timing_404(self, client):
+        r = client.patch("/api/clips/99999/timing", json={"start_offset": 0.0, "end_offset": 0.0})
+        assert r.status_code == 404
+
+
+class TestConfig:
+    def test_get_config_returns_expected_fields(self, client):
+        r = client.get("/api/config")
+        assert r.status_code == 200
+        d = r.json()
+        for field in (
+            "whisper_model", "whisper_device", "whisper_compute_type",
+            "llm_backend", "scorer_energy_weight", "scorer_scene_weight", "scorer_llm_weight",
+            "ui_timeline_interval_seconds",
+        ):
+            assert field in d, f"missing config field: {field}"
+
+    def test_patch_config_updates_field(self, client):
+        r = client.patch("/api/config", json={"whisper_device": "cpu"})
+        assert r.status_code == 200
+        assert r.json()["whisper_device"] == "cpu"
+
+    def test_patch_config_invalid_enum(self, client):
+        r = client.patch("/api/config", json={"whisper_device": "tpu"})
+        assert r.status_code == 400
+
+    def test_patch_config_min_validator(self, client):
+        r = client.patch("/api/config", json={"min_clip_ms": 100})
+        assert r.status_code == 400
+
+    def test_patch_config_weight_clamped_to_zero(self, client):
+        r = client.patch("/api/config", json={"scorer_energy_weight": -5.0})
+        assert r.status_code == 200
+        assert r.json()["scorer_energy_weight"] == pytest.approx(0.0)
+
+
+class TestCaptionsVtt:
+    def _first_clip(self, client):
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        return client.get(f"/api/videos/{vid_id}/clips").json()[0]
+
+    def test_captions_vtt_404_when_no_srt(self, client):
+        clip = self._first_clip(client)
+        r = client.get(f"/api/clips/{clip['id']}/captions.vtt")
+        assert r.status_code == 404
+
+    def test_captions_vtt_returns_webvtt_when_srt_exists(self, client, project_dir):
+        clip = self._first_clip(client)
+        export_dir = project_dir / ".yuu-clip" / "exports"
+        start_hms_dashes = clip["start_hms"].replace(":", "-")
+        srt_path = export_dir / f"session_clip{clip['id']}_{start_hms_dashes}.srt"
+        srt_path.write_text(
+            "1\n00:00:01,500 --> 00:00:03,000\nHello world\n\n",
+            encoding="utf-8",
+        )
+        r = client.get(f"/api/clips/{clip['id']}/captions.vtt")
+        assert r.status_code == 200
+        assert r.headers["content-type"].startswith("text/vtt")
+        body = r.text
+        assert body.startswith("WEBVTT")
+        assert "00:00:01.500 --> 00:00:03.000" in body
+
+    def test_captions_vtt_404_for_unknown_clip(self, client):
+        r = client.get("/api/clips/99999/captions.vtt")
+        assert r.status_code == 404
+
+
+class TestDeleteClipExport:
+    def _first_clip(self, client):
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        return client.get(f"/api/videos/{vid_id}/clips").json()[0]
+
+    def test_delete_export_removes_file_keeps_record(self, client, project_dir):
+        clip = self._first_clip(client)
+        export_dir = project_dir / ".yuu-clip" / "exports"
+        start_hms_dashes = clip["start_hms"].replace(":", "-")
+        export_file = export_dir / f"session_clip{clip['id']}_{start_hms_dashes}.mkv"
+        export_file.write_bytes(b"fake export")
+        assert export_file.exists()
+
+        r = client.delete(f"/api/clips/{clip['id']}/export")
+        assert r.status_code == 200
+        assert r.json()["files_deleted"] == 1
+        assert not export_file.exists()
+        # Clip record must still exist
+        assert client.get(f"/api/clips/{clip['id']}").status_code == 200
+
+    def test_delete_export_when_no_files_returns_zero(self, client):
+        clip = self._first_clip(client)
+        r = client.delete(f"/api/clips/{clip['id']}/export")
+        assert r.status_code == 200
+        assert r.json()["files_deleted"] == 0
+
+    def test_delete_export_404(self, client):
+        r = client.delete("/api/clips/99999/export")
+        assert r.status_code == 404
+
+
+class TestSceneBoundaries:
+    def _vid_id(self, client) -> int:
+        return client.get("/api/videos").json()[0]["id"]
+
+    def test_scene_boundaries_empty_when_none(self, client):
+        vid_id = self._vid_id(client)
+        r = client.get(f"/api/videos/{vid_id}/scene-boundaries")
+        assert r.status_code == 200
+        assert r.json()["boundaries_ms"] == []
+
+    def test_scene_boundaries_returned_in_order(self, client, project_dir):
+        from yuu_clip.db.models import SceneBoundary, make_session
+        vid_id = self._vid_id(client)
+        db = make_session(project_dir / ".yuu-clip" / "project.db")
+        try:
+            db.add(SceneBoundary(video_id=vid_id, timecode_ms=30_000))
+            db.add(SceneBoundary(video_id=vid_id, timecode_ms=10_000))
+            db.commit()
+        finally:
+            db.close()
+        r = client.get(f"/api/videos/{vid_id}/scene-boundaries")
+        assert r.status_code == 200
+        bounds = r.json()["boundaries_ms"]
+        assert bounds == [10_000, 30_000]
+
+    def test_scene_boundaries_404(self, client):
+        r = client.get("/api/videos/99999/scene-boundaries")
+        assert r.status_code == 404
+
+
+class TestVideoEnergy:
+    def _vid_id(self, client) -> int:
+        return client.get("/api/videos").json()[0]["id"]
+
+    def test_energy_empty_when_no_data(self, client):
+        vid_id = self._vid_id(client)
+        r = client.get(f"/api/videos/{vid_id}/energy")
+        assert r.status_code == 200
+        tracks = r.json()["tracks"]
+        # One audio track was seeded, but with no energy rows
+        assert len(tracks) == 1
+        assert tracks[0]["samples"] == []
+        assert tracks[0]["label"] == "combined"
+
+    def test_energy_returns_samples(self, client, project_dir):
+        from yuu_clip.db.models import AudioEnergy, AudioTrack, make_session
+        vid_id = self._vid_id(client)
+        db = make_session(project_dir / ".yuu-clip" / "project.db")
+        try:
+            track = db.query(AudioTrack).filter_by(video_id=vid_id).first()
+            db.add(AudioEnergy(audio_track_id=track.id, second_offset=0, rms_db=-20.5))
+            db.add(AudioEnergy(audio_track_id=track.id, second_offset=1, rms_db=-18.0))
+            db.commit()
+        finally:
+            db.close()
+        r = client.get(f"/api/videos/{vid_id}/energy")
+        assert r.status_code == 200
+        samples = r.json()["tracks"][0]["samples"]
+        assert len(samples) == 2
+        assert samples[0] == {"second": 0, "rms_db": pytest.approx(-20.5)}
+
+    def test_energy_404(self, client):
+        r = client.get("/api/videos/99999/energy")
+        assert r.status_code == 404
+
+
+class TestEditableFieldsBothBranch:
+    """field='both' touches title+summary (video) or description+description_long (clip)."""
+
+    def _vid_id(self, client) -> int:
+        return client.get("/api/videos").json()[0]["id"]
+
+    def _first_clip_id(self, client) -> int:
+        vid_id = self._vid_id(client)
+        return client.get(f"/api/videos/{vid_id}/clips").json()[0]["id"]
+
+    def test_accept_edit_both_video_fields(self, client, project_dir):
+        from yuu_clip.db.models import Video, make_session
+        db = make_session(project_dir / ".yuu-clip" / "project.db")
+        try:
+            v = db.query(Video).first()
+            v.title = "LLM Title"
+            v.summary = "LLM Summary"
+            db.commit()
+        finally:
+            db.close()
+        vid_id = self._vid_id(client)
+        r = client.patch(f"/api/videos/{vid_id}/fields", json={
+            "action": "accept_edit", "field": "both",
+            "new_title": "My Title", "new_summary": "My Summary",
+        })
+        assert r.status_code == 200
+        d = r.json()
+        assert d["title"] == "My Title"
+        assert d["title_is_edited"] is True
+        assert d["summary"] == "My Summary"
+        assert d["summary_is_edited"] is True
+
+    def test_revert_both_video_fields(self, client, project_dir):
+        from yuu_clip.db.models import Video, make_session
+        db = make_session(project_dir / ".yuu-clip" / "project.db")
+        try:
+            v = db.query(Video).first()
+            v.title = "LLM Title"
+            v.title_user = "My Title"
+            v.summary = "LLM Summary"
+            v.summary_user = "My Summary"
+            db.commit()
+        finally:
+            db.close()
+        vid_id = self._vid_id(client)
+        r = client.patch(f"/api/videos/{vid_id}/fields", json={"action": "revert", "field": "both"})
+        assert r.status_code == 200
+        d = r.json()
+        assert d["title"] == "LLM Title"
+        assert d["title_is_edited"] is False
+        assert d["summary"] == "LLM Summary"
+        assert d["summary_is_edited"] is False
+
+    def test_accept_edit_both_clip_fields(self, client):
+        clip_id = self._first_clip_id(client)
+        r = client.patch(f"/api/clips/{clip_id}/fields", json={
+            "action": "accept_edit", "field": "both",
+            "new_description": "Short edit",
+            "new_description_long": "Long edit",
+        })
+        assert r.status_code == 200
+        d = r.json()
+        assert d["description"] == "Short edit"
+        assert d["description_is_edited"] is True
+        assert d["description_long"] == "Long edit"
+        assert d["description_long_is_edited"] is True
+
+    def test_revert_both_clip_fields(self, client):
+        clip_id = self._first_clip_id(client)
+        client.patch(f"/api/clips/{clip_id}/fields", json={
+            "action": "accept_edit", "field": "both",
+            "new_description": "Short edit", "new_description_long": "Long edit",
+        })
+        r = client.patch(f"/api/clips/{clip_id}/fields", json={"action": "revert", "field": "both"})
+        assert r.status_code == 200
+        d = r.json()
+        assert d["description_is_edited"] is False
+        assert d["description_long_is_edited"] is False
+
+    def test_invalid_clip_field_returns_400(self, client):
+        clip_id = self._first_clip_id(client)
+        r = client.patch(f"/api/clips/{clip_id}/fields", json={
+            "action": "revert", "field": "notes",
+        })
+        assert r.status_code == 400
+
+
+class TestMergeClipsPreviewCleanup:
+    """merge_clips must unlink the cached preview files for both clips."""
+
+    def test_merge_removes_clip_b_preview_file(self, client, project_dir):
+        from yuu_clip.web.routes import videos as _videos_module
+
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        clips = client.get(f"/api/videos/{vid_id}/clips?sort=timeline").json()
+        clip_a_id = clips[0]["id"]
+        clip_b_id = clips[1]["id"]
+
+        # Plant fake preview files in the cache and on disk
+        preview_dir = project_dir / ".yuu-clip" / "preview_cache"
+        preview_dir.mkdir(exist_ok=True)
+        file_a = preview_dir / f"clip_{clip_a_id}_preview.mp4"
+        file_b = preview_dir / f"clip_{clip_b_id}_preview.mp4"
+        file_a.write_bytes(b"fake a")
+        file_b.write_bytes(b"fake b")
+        _videos_module._preview_cache[clip_a_id] = file_a
+        _videos_module._preview_cache[clip_b_id] = file_b
+
+        r = client.post(f"/api/clips/{clip_a_id}/merge", json={"clip_b_id": clip_b_id})
+        assert r.status_code == 200
+
+        # Both preview files must be removed from disk
+        assert not file_a.exists(), "clip_a preview should be deleted after merge"
+        assert not file_b.exists(), "clip_b preview should be deleted after merge"
+        assert clip_a_id not in _videos_module._preview_cache
+        assert clip_b_id not in _videos_module._preview_cache
