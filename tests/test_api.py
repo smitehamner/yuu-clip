@@ -4078,3 +4078,169 @@ class TestRelatedClips:
         assert r.status_code == 200
         d = r.json()
         assert d["related_clips_stale"] is False
+
+
+# ---------------------------------------------------------------------------
+# Recording Segments — split route and sidebar filter
+# ---------------------------------------------------------------------------
+
+class TestSplitVideo:
+    def _video_id(self, client) -> int:
+        return client.get("/api/videos").json()[0]["id"]
+
+    def test_split_happy_path(self, client):
+        vid_id = self._video_id(client)
+        r = client.post(f"/api/videos/{vid_id}/split", json={"split_points": [120.0, 300.0]})
+        assert r.status_code == 200
+        data = r.json()
+        assert len(data["segment_ids"]) == 3
+
+    def test_split_idempotent_resplit(self, client):
+        vid_id = self._video_id(client)
+        # Split once into 2 segments
+        r1 = client.post(f"/api/videos/{vid_id}/split", json={"split_points": [120.0]})
+        assert r1.status_code == 200
+        assert len(r1.json()["segment_ids"]) == 2
+        # Re-split with different points — should succeed and produce new segment count
+        r2 = client.post(f"/api/videos/{vid_id}/split", json={"split_points": [180.0, 360.0]})
+        assert r2.status_code == 200
+        assert len(r2.json()["segment_ids"]) == 3
+        # Sidebar should show 3 segments, not the parent
+        visible = client.get("/api/videos").json()
+        assert not any(v["id"] == vid_id for v in visible)
+        assert len([v for v in visible if v.get("parent_video_id") == vid_id]) == 3
+
+    def test_split_bad_points_rejected(self, client):
+        vid_id = self._video_id(client)
+        # Point at 0 or beyond duration should 400
+        r = client.post(f"/api/videos/{vid_id}/split", json={"split_points": [0.0]})
+        assert r.status_code == 400
+        r2 = client.post(f"/api/videos/{vid_id}/split", json={"split_points": [99999.0]})
+        assert r2.status_code == 400
+
+    def test_split_cannot_split_a_segment(self, client):
+        vid_id = self._video_id(client)
+        r = client.post(f"/api/videos/{vid_id}/split", json={"split_points": [120.0]})
+        seg_id = r.json()["segment_ids"][0]
+        r2 = client.post(f"/api/videos/{seg_id}/split", json={"split_points": [60.0]})
+        assert r2.status_code == 400
+
+    def test_sidebar_hides_parent_after_split(self, client):
+        vid_id = self._video_id(client)
+        # Before split: parent is visible
+        before = client.get("/api/videos").json()
+        assert any(v["id"] == vid_id for v in before)
+
+        # After split: parent is hidden, segments are shown
+        client.post(f"/api/videos/{vid_id}/split", json={"split_points": [120.0]})
+        after = client.get("/api/videos").json()
+        assert not any(v["id"] == vid_id for v in after)
+        # Both segments are visible
+        assert len([v for v in after if v.get("parent_video_id") == vid_id]) == 2
+
+    def test_segment_has_expected_fields(self, client):
+        vid_id = self._video_id(client)
+        client.post(f"/api/videos/{vid_id}/split", json={"split_points": [120.0]})
+        segs = client.get("/api/videos").json()
+        s = segs[0]
+        assert s["parent_video_id"] == vid_id
+        assert s["segment_start_s"] is not None
+        assert s["segment_end_s"] is not None
+        assert s["segment_end_s"] > s["segment_start_s"]
+
+
+# ---------------------------------------------------------------------------
+# clips/clear endpoint — used by reanalyze-after-split
+# ---------------------------------------------------------------------------
+
+class TestClearClips:
+    def _setup(self, client):
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        return vid_id
+
+    def test_clear_all_clips(self, client):
+        vid_id = self._setup(client)
+        r = client.post(f"/api/videos/{vid_id}/clips/clear", json={"keep_exported": False})
+        assert r.status_code == 200
+        assert r.json()["deleted"] == 3
+        clips = client.get(f"/api/videos/{vid_id}/clips").json()
+        assert clips == []
+
+    def test_clear_keeps_exported_clips(self, client, project_dir):
+        from yuu_clip.config import project_db_path
+        from yuu_clip.db.models import ClipCandidate, make_session
+
+        vid_id = self._setup(client)
+        clips = client.get(f"/api/videos/{vid_id}/clips").json()
+        clip_id = clips[0]["id"]
+
+        # Set one clip to "exported" directly in the DB
+        db = make_session(project_db_path(project_dir))
+        try:
+            clip = db.get(ClipCandidate, clip_id)
+            clip.status = "exported"
+            db.commit()
+        finally:
+            db.close()
+
+        r = client.post(f"/api/videos/{vid_id}/clips/clear", json={"keep_exported": True})
+        assert r.status_code == 200
+        assert r.json()["deleted"] == 2  # 3 total, 1 exported kept
+        remaining = client.get(f"/api/videos/{vid_id}/clips").json()
+        assert len(remaining) == 1
+        assert remaining[0]["id"] == clip_id
+
+    def test_clear_404_on_missing_video(self, client):
+        r = client.post("/api/videos/99999/clips/clear", json={"keep_exported": False})
+        assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# analyze/start with video_id — reanalyze-after-split entry point
+# ---------------------------------------------------------------------------
+
+class TestAnalyzeStartWithVideoId:
+    def test_video_id_queues_analyze_command(self, project_dir):
+        from fastapi.testclient import TestClient
+        from yuu_clip.web.app import create_app
+
+        app = create_app(project_dir)
+        with TestClient(app) as c:
+            ctx = app.state.ctx
+            vid_id = c.get("/api/videos").json()[0]["id"]
+            r = c.post("/api/analyze/start", json={"video_id": vid_id, "model": "tiny"})
+            assert r.status_code == 200
+            assert ctx.analyze_cmd is not None
+            assert "--video-id" in ctx.analyze_cmd
+            assert str(vid_id) in ctx.analyze_cmd
+
+    def test_video_id_not_found_returns_404(self, project_dir):
+        from fastapi.testclient import TestClient
+        from yuu_clip.web.app import create_app
+
+        app = create_app(project_dir)
+        with TestClient(app) as c:
+            r = c.post("/api/analyze/start", json={"video_id": 99999, "model": "tiny"})
+            assert r.status_code == 404
+
+    def test_segment_start_end_added_to_cmd(self, project_dir):
+        from pathlib import Path
+        from fastapi.testclient import TestClient
+        from yuu_clip.web.app import create_app
+
+        app = create_app(project_dir)
+        with TestClient(app) as c:
+            ctx = app.state.ctx
+            # Create a real file so path validation passes
+            fake_path = project_dir / "session.mkv"
+            fake_path.write_bytes(b"")
+            r = c.post("/api/analyze/start", json={
+                "path": str(fake_path),
+                "model": "tiny",
+                "segment_start_s": 10.5,
+                "segment_end_s": 120.0,
+            })
+            assert r.status_code == 200
+            assert "--segment-start" in ctx.analyze_cmd
+            assert "10.5" in ctx.analyze_cmd
+            assert "--segment-end" in ctx.analyze_cmd

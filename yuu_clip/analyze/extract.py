@@ -30,6 +30,8 @@ def extract_audio_track(
     output_path: Path,
     sample_rate: int = 16_000,
     channels: int = 1,
+    start_s: Optional[float] = None,
+    end_s: Optional[float] = None,
 ) -> Path:
     """
     Extract a single audio stream from *video_path* to a 16kHz mono WAV.
@@ -47,10 +49,13 @@ def extract_audio_track(
     ffmpeg, _ = find_ffmpeg()
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    cmd = [
-        ffmpeg,
-        "-y",                              # overwrite without asking
-        "-i", _ffmpeg_path(video_path),
+    cmd = [ffmpeg, "-y"]
+    if start_s is not None:
+        cmd += ["-ss", str(start_s)]
+    cmd += ["-i", _ffmpeg_path(video_path)]
+    if end_s is not None:
+        cmd += ["-to", str(end_s)]
+    cmd += [
         "-map", f"0:{stream_index}",       # select exact stream by container index
         "-ac", str(channels),
         "-ar", str(sample_rate),

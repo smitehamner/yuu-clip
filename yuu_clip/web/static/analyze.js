@@ -22,6 +22,7 @@ async function openNewRecordingPanel() {
   _probedInfo   = null;
   _panelDirty   = false;
   _updateStartIngestButton();
+  hidePreSplitSection();
   await _loadProfileDropdown();
   await _loadIngestContextPicker();
   document.getElementById('analyze-path').focus();
@@ -125,9 +126,11 @@ async function runProbe(path) {
     _updateStartIngestButton();
     _renderSubtitleSourcePicker(_probedInfo);
     runEstimate();
+    initPreSplitDuration(_probedInfo.duration_s);
   } catch (err) {
     _probedInfo = null;
     _updateStartIngestButton();
+    hidePreSplitSection();
     document.getElementById('estimate-area').innerHTML =
       `<div style="color:var(--red);font-size:12px">Could not inspect file: ${escHtml(String(err.message || err))}</div>`;
   }
@@ -243,17 +246,36 @@ async function startAnalyze() {
   const profile    = (!profileVal || profileVal === '__default__') ? null : profileVal;
   if (!path) return;
 
+  const energyMode    = document.getElementById('analyze-energy-mode').value;
+  const sceneMode     = document.getElementById('analyze-scene-mode').value;
+  const contextNames  = _selectedContextIds();
+  const subtitleSrcEl = document.getElementById('analyze-subtitle-source');
+  const subtitleSource = subtitleSrcEl ? subtitleSrcEl.value || null : null;
+
+  const preSplitToggle = document.getElementById('pre-split-toggle');
+  if (preSplitToggle && preSplitToggle.checked && _splitPoints.length > 0 && _splitDurationS > 0) {
+    const pts      = [0, ..._splitPoints, _splitDurationS];
+    const segments = pts.slice(0, -1).map((start, i) => ({
+      start_s: start,
+      end_s:   pts[i + 1],
+    }));
+    _panelDirty = false;
+    _doCloseNewRecordingPanel();
+    openLog();
+    _analyzeSegmentsSequentially(
+      path, model, profile, energyMode, sceneMode, contextNames, subtitleSource, segments, 0,
+    );
+    return;
+  }
+
   const btn = document.getElementById('btn-start-analyze');
   btn.disabled = true;
   btn.textContent = 'Starting…';
 
-  const contextNames = _selectedContextIds();
-  const subtitleSrcEl = document.getElementById('analyze-subtitle-source');
-  const subtitleSource = subtitleSrcEl ? subtitleSrcEl.value || null : null;
   const startRes = await fetch('/api/analyze/start', {
     method:  'POST',
     headers: {'Content-Type': 'application/json'},
-    body:    JSON.stringify({path, model, profile, energy_mode: document.getElementById('analyze-energy-mode').value, scene_mode: document.getElementById('analyze-scene-mode').value, context_names: contextNames, subtitle_source: subtitleSource}),
+    body:    JSON.stringify({path, model, profile, energy_mode: energyMode, scene_mode: sceneMode, context_names: contextNames, subtitle_source: subtitleSource}),
   });
 
   if (!startRes.ok) {
@@ -282,6 +304,50 @@ async function startAnalyze() {
     `Analyzing ${filename}`,
     true,
   );
+}
+
+function _analyzeSegmentsSequentially(
+  path, model, profile, energyMode, sceneMode, contextNames, subtitleSource, segments, index,
+) {
+  if (index >= segments.length) {
+    loadVideos().then(() =>
+      showToast(`Analysis complete — ${segments.length} segment(s)`)
+    );
+    return;
+  }
+  const seg = segments[index];
+  appendLog(`Analyzing segment ${index + 1}/${segments.length}: ${_fmtSplitTime(seg.start_s)}–${_fmtSplitTime(seg.end_s)}`);
+  fetch('/api/analyze/start', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      path,
+      model,
+      profile,
+      energy_mode:      energyMode,
+      scene_mode:       sceneMode,
+      context_names:    contextNames,
+      subtitle_source:  subtitleSource,
+      segment_start_s:  seg.start_s,
+      segment_end_s:    seg.end_s,
+    }),
+  }).then(res => {
+    if (!res.ok) {
+      res.json().catch(() => ({})).then(err =>
+        showToast(formatApiError(err) || `Failed to start segment ${index + 1}`, 'error')
+      );
+      return;
+    }
+    streamSSE(
+      '/api/analyze/events',
+      () => _analyzeSegmentsSequentially(
+        path, model, profile, energyMode, sceneMode, contextNames, subtitleSource, segments, index + 1,
+      ),
+      INGEST_STEPS,
+      `Segment ${index + 1}/${segments.length}`,
+      false,
+    );
+  }).catch(err => showToast(`Network error: ${err.message}`, 'error'));
 }
 
 function _showAnalysisToast(video) {

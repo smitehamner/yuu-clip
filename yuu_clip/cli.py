@@ -50,6 +50,11 @@ class AnalyzeOptions:
     # Path to an .srt file, or "stream:<index>" for an embedded subtitle stream.
     # When set, transcription is skipped and the subtitles are imported directly.
     subtitle_source: Optional[str] = None
+    # Target a specific video record by ID (used by reanalyze-after-split flow).
+    video_id: Optional[int] = None
+    # Time window for pre-analysis splits: trim audio extraction to this range.
+    segment_start_s: Optional[float] = None
+    segment_end_s: Optional[float] = None
 
 
 def _project_dir(given: Optional[Path]) -> Path:
@@ -161,6 +166,9 @@ def analyze(
     no_interact: bool = typer.Option(False, "--no-interact", help="Never prompt interactively — use defaults or fail cleanly (set automatically by the web UI)"),
     context: list[str] = typer.Option([], "--context", help="World context IDs to apply (can repeat)"),
     subtitle_source: Optional[str] = typer.Option(None, "--subtitle-source", help="Use existing subtitles instead of Whisper: path/to/file.srt or stream:<index>"),
+    video_id: Optional[int] = typer.Option(None, "--video-id", help="Target an existing Video DB record by ID (reanalyze after split)"),
+    segment_start: Optional[float] = typer.Option(None, "--segment-start", help="Trim audio extraction start (seconds) for pre-analysis splits"),
+    segment_end: Optional[float] = typer.Option(None, "--segment-end", help="Trim audio extraction end (seconds) for pre-analysis splits"),
 ):
     """Full pipeline: inspect, assign tracks, extract audio, transcribe, generate clips, score."""
     from yuu_clip.config import project_audio_dir
@@ -177,9 +185,6 @@ def analyze(
 
     context_text = format_context_block(load_contexts(proj_dir), context) if context else ""
 
-    video_paths = _resolve_videos(path)
-    console.print(f"\n[bold]yuuclip  ·  analyze[/bold]  ({len(video_paths)} video(s))\n")
-
     opts = AnalyzeOptions(
         profile=track_layout,
         no_transcribe=no_transcribe or bool(subtitle_source),
@@ -192,7 +197,14 @@ def analyze(
         context_names=list(context),
         context_text=context_text,
         subtitle_source=subtitle_source,
+        video_id=video_id,
+        segment_start_s=segment_start,
+        segment_end_s=segment_end,
     )
+
+    video_paths = _resolve_videos(path)
+    console.print(f"\n[bold]yuuclip  ·  analyze[/bold]  ({len(video_paths)} video(s))\n")
+
     for video_path in video_paths:
         _analyze_one(video_path, session, config, audio_dir, opts)
 
@@ -210,7 +222,22 @@ def _analyze_one(
     from yuu_clip.db.models import Video
 
     abs_path = str(video_path.resolve())
-    existing = session.query(Video).filter_by(path=abs_path).first()
+
+    if opts.video_id is not None:
+        existing = session.query(Video).filter_by(id=opts.video_id).first()
+        if not existing:
+            console.print(f"[red]Video ID {opts.video_id} not found in DB[/red]")
+            return
+        video_path = Path(existing.path)
+        abs_path   = existing.path
+    elif opts.segment_start_s is not None:
+        # Pre-analysis split: each segment is a distinct video keyed by (path, segment_start_s).
+        existing = session.query(Video).filter_by(
+            path=abs_path, segment_start_s=opts.segment_start_s
+        ).first()
+    else:
+        existing = session.query(Video).filter_by(path=abs_path, segment_start_s=None).first()
+
     if existing and existing.status == "done" and not opts.force:
         console.print(f"[dim]Skipping {video_path.name} (already done — use --force to redo)[/dim]")
         return
@@ -222,15 +249,31 @@ def _analyze_one(
     if info is None:
         return
 
+    # For pre-analysis segments, pass the bounds so they get stored on the new Video row.
+    seg_start_for_upsert = opts.segment_start_s if opts.video_id is None else None
+    seg_end_for_upsert   = opts.segment_end_s   if opts.video_id is None else None
+
     video, track_objs = _upsert_video_and_tracks(
         session, video_path, info, existing, opts.profile, opts.force,
         non_interactive=opts.non_interactive,
+        segment_start_s=seg_start_for_upsert,
+        segment_end_s=seg_end_for_upsert,
     )
     if opts.context_names:
         video.context_names_json = json.dumps(opts.context_names)
+
+    # When this is a segment, use the segment window for duration and FFmpeg extraction.
+    seg_start = video.segment_start_s
+    seg_end   = video.segment_end_s
+    if seg_start is not None and seg_end is not None:
+        video.duration_ms = int((seg_end - seg_start) * 1000)
+
     session.commit()
 
-    _extract_audio_and_check_rms_overlap(video_path, video, track_objs, config, audio_dir, session, opts.force)
+    _extract_audio_and_check_rms_overlap(
+        video_path, video, track_objs, config, audio_dir, session, opts.force,
+        segment_start_s=seg_start, segment_end_s=seg_end,
+    )
     session.commit()
 
     if opts.subtitle_source:
@@ -354,7 +397,9 @@ def _probe_video(video_path: Path):
 
 
 def _upsert_video_and_tracks(session, video_path: Path, info, existing, profile, force,
-                             non_interactive: bool = False):
+                             non_interactive: bool = False,
+                             segment_start_s: Optional[float] = None,
+                             segment_end_s: Optional[float] = None):
     """Create or update the Video row and its AudioTrack rows.
 
     Returns (video, track_objs) — the ORM objects for use by later stages.
@@ -374,6 +419,9 @@ def _upsert_video_and_tracks(session, video_path: Path, info, existing, profile,
             height=info.height,
             status="probed",
         )
+        if segment_start_s is not None:
+            video.segment_start_s = segment_start_s
+            video.segment_end_s   = segment_end_s
         session.add(video)
         session.flush()
 
@@ -414,6 +462,7 @@ def _upsert_video_and_tracks(session, video_path: Path, info, existing, profile,
 
 def _extract_audio_and_check_rms_overlap(
     video_path: Path, video, track_objs, config, audio_dir: Path, session, force: bool,
+    segment_start_s: Optional[float] = None, segment_end_s: Optional[float] = None,
 ) -> None:
     """Extract each track to WAV, then suppress specialized tracks if they duplicate combined audio.
 
@@ -437,6 +486,7 @@ def _extract_audio_and_check_rms_overlap(
             extract_audio_track(
                 video_path, track.stream_index, out_path,
                 config.audio_sample_rate, config.audio_channels,
+                start_s=segment_start_s, end_s=segment_end_s,
             )
             track.extracted_path = str(out_path)
             size_mb = out_path.stat().st_size / BYTES_PER_MB

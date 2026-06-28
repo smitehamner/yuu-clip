@@ -186,6 +186,46 @@ Archive of shipped items. For pending work see [ROADMAP.md](ROADMAP.md).
   (blank = use global defaults). During rescore, weights are averaged across all assigned contexts
   that have overrides; contexts without overrides are ignored in the average.
 
+- **New Recording panel** — `+ Analyze` navigates to a "New Recording" panel in the main area
+  (replaces the Analyze modal). Sidebar stays live while the panel is open; clicking another video
+  closes it with a discard prompt if a path has been entered. File probe runs inline after file
+  selection (duration/estimate shown). SRT sidecar + embedded subtitle stream detection surfaces
+  in the panel as a `--subtitle-source` option to skip Whisper.
+
+- **SRT import / external subtitle support** — probe detects SRT sidecars and embedded subtitle
+  streams; surfaced as options in the New Recording panel; selecting one skips Whisper and imports
+  subtitles as transcript segments via `--subtitle-source`.
+
+- **Quick Export / Full Export** — export modal has a "Prepend title card" checkbox; when checked
+  the clip is re-encoded and a 3-second title card (description + timecode) is prepended using the
+  reel pipeline.
+
+- **Recording Segments** — a single recording file can be split into multiple independent segments,
+  each processed as its own `Video` row with its own clips, contexts, title, summary, and timeline.
+  - `Video` gains `parent_video_id` (FK, nullable), `segment_start_s`, `segment_end_s`; sidebar
+    hides parent videos once split; segments appear as normal entries, auto-named "file — Part N".
+  - **Split editor**: full-panel UI (not a modal); energy waveform rendered from per-second RMS data;
+    click to place markers, drag to reposition, × to remove; video preview with seek-to-marker
+    buttons; navigation guard (discard prompt when leaving with unsaved markers).
+  - **Waveform generation**: `GET /api/videos/{id}/compute-waveform` SSE endpoint probes the video,
+    creates `AudioTrack` rows if missing, extracts WAVs, and computes per-second RMS energy on demand.
+  - **After-analysis split**: "Split Recording" action opens the editor; existing clips shown as dots
+    on timeline; confirm creates segments and redistributes clips by `start_time` (partition only).
+  - **Before-analysis split**: toggle in New Recording panel after probe; markers placed before
+    analysis; sequential ingest jobs per segment via `_analyzeSegmentsSequentially`; FFmpeg `-ss`/`-to`
+    trims audio extraction to each segment's time window.
+  - **Reanalyze by video ID**: `--video-id` flag lets the ingest pipeline target an existing `Video`
+    row; used by the reanalyze-after-split path.
+
+### Phase 5 items shipped early
+
+- **Merge adjacent clips** — "Merge ↑ prev" / "Merge ↓ next" buttons in the clip Actions card;
+  merged clip spans both time ranges; consumed clip is deleted.
+
+- **Manual score override** — "Set override" button in the Scoring card; prompt accepts 0–1 value;
+  override replaces LLM score in sort order; both scores shown with an "override" badge; "Clear
+  override" removes it.
+
 ---
 
 ## Phase 4 — Packaging + distribution (in progress; partial)
@@ -198,4 +238,5 @@ Archive of shipped items. For pending work see [ROADMAP.md](ROADMAP.md).
 - **Backend health check** — 60 s startup timeout; detects early crash; crash-safe shutdown on close
 - **Rolling logs** — `venv-setup.log` for startup; rotating `yuu-clip.log` for server output
 - **Version in footer** — dev: version + server start time; production: version + build date
+- **Clean uninstall** — NSIS `deleteAppDataOnUninstall` removes `Roaming\yuu-clip`; custom macro in `installer.nsh` wipes `Local\yuu-clip` (venv) and `Local\yuu-clip-updater` on uninstall.
 - Shipped versions: 0.1.1 → 0.1.8

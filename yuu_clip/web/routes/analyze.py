@@ -74,7 +74,7 @@ class EstimateRequest(BaseModel):
 
 
 class IngestRequest(BaseModel):
-    path: str
+    path: str = ""
     model: str = "large-v3"
     profile: Optional[str] = None
     no_score: bool = False
@@ -84,6 +84,12 @@ class IngestRequest(BaseModel):
     # Path to an SRT file or "stream:<index>" to import existing subtitles instead of
     # running Whisper.  None = use Whisper (default).
     subtitle_source: Optional[str] = None
+    # Target an existing video record by ID (reanalyze after split).
+    # When provided, path is ignored — the video's stored path is used.
+    video_id: Optional[int] = None
+    # For pre-analysis split: trim the source file to this time window.
+    segment_start_s: Optional[float] = None
+    segment_end_s: Optional[float] = None
 
 
 def make_router(ctx: ProjectContext) -> APIRouter:
@@ -169,17 +175,39 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     @router.post("/api/analyze/start")
     async def start_analyze(req: IngestRequest):
         """Validate the video path, build the analyze CLI command, and queue it for the SSE stream."""
-        if not Path(req.path).exists():
-            raise HTTPException(400, f"File not found: {req.path}")
+        from yuu_clip.db.models import Video
+
+        if req.video_id is not None:
+            db = ctx.get_db()
+            try:
+                video = db.query(Video).filter_by(id=req.video_id).first()
+                if not video:
+                    raise HTTPException(404, f"Video {req.video_id} not found")
+                video_path = video.path
+            finally:
+                db.close()
+        else:
+            if not req.path:
+                raise HTTPException(400, "path is required when video_id is not provided")
+            if not Path(req.path).exists():
+                raise HTTPException(400, f"File not found: {req.path}")
+            video_path = req.path
+
         try:
             validate_whisper_model(req.model)
         except ValueError as e:
             raise HTTPException(400, str(e))
         cmd = [
             sys.executable, "-m", "yuu_clip.cli", "analyze",
-            str(req.path), "--model", req.model,
+            video_path, "--model", req.model,
             "--project", str(ctx.project_dir),
         ]
+        if req.video_id is not None:
+            cmd += ["--video-id", str(req.video_id)]
+        if req.segment_start_s is not None:
+            cmd += ["--segment-start", str(req.segment_start_s)]
+        if req.segment_end_s is not None:
+            cmd += ["--segment-end", str(req.segment_end_s)]
         if req.profile:
             cmd += ["--track-layout", req.profile]
         if req.no_score:
@@ -192,7 +220,10 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             cmd += ["--subtitle-source", req.subtitle_source]
         cmd += ["--no-interact"]
         ctx.analyze_cmd = cmd
-        _log.info("Analyze queued: %s (model=%s, energy=%s, scene=%s)", req.path, req.model, req.energy_mode, req.scene_mode)
+        _log.info(
+            "Analyze queued: %s (video_id=%s, model=%s, energy=%s, scene=%s)",
+            video_path, req.video_id, req.model, req.energy_mode, req.scene_mode,
+        )
         return {"status": "started"}
 
     @router.get("/api/analyze/events")
