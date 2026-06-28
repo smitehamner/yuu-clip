@@ -71,6 +71,7 @@ class ClipMergeRequest(BaseModel):
 
 class SplitRequest(BaseModel):
     split_points: list[float]
+    segment_names: list[str] = []
 
 
 class ClearClipsRequest(BaseModel):
@@ -258,6 +259,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
 
             segment_ids: list[int] = []
             for i, (start, end) in enumerate(zip(boundaries[:-1], boundaries[1:]), 1):
+                name = (body.segment_names[i - 1].strip() if i - 1 < len(body.segment_names) else "")
                 seg = Video(
                     path=video.path,
                     filename=video.filename,
@@ -269,7 +271,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                     parent_video_id=video_id,
                     segment_start_s=start,
                     segment_end_s=end,
-                    title=f"{stem} — Part {i}",
+                    title=name or f"{stem} — Part {i}",
                 )
                 db.add(seg)
                 db.flush()

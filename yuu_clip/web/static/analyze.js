@@ -9,6 +9,7 @@ function _isNewRecordingPanelOpen() {
 
 async function openNewRecordingPanel() {
   if (_isNewRecordingPanelOpen()) return;
+  if (document.getElementById('btn-analyze').disabled) return;
   document.getElementById('player-area').style.display = 'none';
   document.getElementById('player-resize-handle').style.display = 'none';
   document.getElementById('detail').style.display = 'none';
@@ -164,7 +165,7 @@ function _renderSubtitleSourcePicker(info) {
     }
   }
   el.innerHTML = `<label for="analyze-subtitle-source">Subtitles</label>
-    <select id="analyze-subtitle-source">${opts.join('')}</select>`;
+    <select id="analyze-subtitle-source" onchange="runEstimate()">${opts.join('')}</select>`;
 }
 
 async function runEstimate() {
@@ -174,14 +175,20 @@ async function runEstimate() {
   const transcribeTracks = profile
     ? profile.assignments.filter(a => a.do_transcribe).length
     : undefined;
+  const extractTracks = profile
+    ? profile.assignments.filter(a => a.do_score || a.do_transcribe).length
+    : _probedInfo.audio_tracks;
+  const externalSrt   = document.getElementById('analyze-external-srt').value.trim();
+  const subtitlePickEl = document.getElementById('analyze-subtitle-source');
+  const usingExternalCaptions = !!(externalSrt || (subtitlePickEl && subtitlePickEl.value));
   try {
     const res = await fetch('/api/estimate', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body:   JSON.stringify({
         duration_s:        _probedInfo.duration_s,
         model:             document.getElementById('analyze-model').value,
-        audio_tracks:      _probedInfo.audio_tracks,
-        transcribe_tracks: transcribeTracks,
+        audio_tracks:      extractTracks,
+        transcribe_tracks: usingExternalCaptions ? 0 : transcribeTracks,
         has_gpu:           true,
         scene_mode:        document.getElementById('analyze-scene-mode').value,
         energy_mode:       document.getElementById('analyze-energy-mode').value,
@@ -249,16 +256,16 @@ async function startAnalyze() {
   const energyMode    = document.getElementById('analyze-energy-mode').value;
   const sceneMode     = document.getElementById('analyze-scene-mode').value;
   const contextNames  = _selectedContextIds();
-  const subtitleSrcEl = document.getElementById('analyze-subtitle-source');
-  const subtitleSource = subtitleSrcEl ? subtitleSrcEl.value || null : null;
+  const externalSrt    = document.getElementById('analyze-external-srt').value.trim();
+  const subtitleSrcEl  = document.getElementById('analyze-subtitle-source');
+  const subtitleSource = externalSrt || (subtitleSrcEl ? subtitleSrcEl.value || null : null);
 
   const preSplitToggle = document.getElementById('pre-split-toggle');
   if (preSplitToggle && preSplitToggle.checked && _splitPoints.length > 0 && _splitDurationS > 0) {
     const pts      = [0, ..._splitPoints, _splitDurationS];
-    const segments = pts.slice(0, -1).map((start, i) => ({
-      start_s: start,
-      end_s:   pts[i + 1],
-    }));
+    const segments = pts.slice(0, -1)
+      .map((start, i) => ({ start_s: start, end_s: pts[i + 1], ignored: _splitIgnored.has(i) }))
+      .filter(s => !s.ignored);
     _panelDirty = false;
     _doCloseNewRecordingPanel();
     openLog();

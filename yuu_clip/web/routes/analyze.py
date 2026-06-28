@@ -350,9 +350,9 @@ def _compute_time_estimate(req: EstimateRequest) -> dict:
             "note":    f"{n_tracks} track(s)",
         },
         {
-            "name":    f"Transcribe ({req.model})",
-            "seconds": d * transcribe_tracks / whisper_speed,
-            "note":    f"{transcribe_tracks} track(s) on {'GPU' if req.has_gpu else 'CPU'}",
+            "name":    "Load captions" if transcribe_tracks == 0 else f"Transcribe ({req.model})",
+            "seconds": 2.0 if transcribe_tracks == 0 else d * transcribe_tracks / whisper_speed,
+            "note":    "from file" if transcribe_tracks == 0 else f"{transcribe_tracks} track(s) on {'GPU' if req.has_gpu else 'CPU'}",
         },
         {
             "name":    f"Audio energy ({req.energy_mode})",

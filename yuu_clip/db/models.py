@@ -152,6 +152,53 @@ def _migrate(engine) -> None:
             _log.info("Migration: adding clip_candidates.related_clips_at")
             conn.execute(text("ALTER TABLE clip_candidates ADD COLUMN related_clips_at DATETIME"))
 
+        # Drop the UNIQUE(path) constraint — segments share their parent's path, so a
+        # per-path unique index breaks re-analysis after segments exist.
+        # SQLite can't DROP CONSTRAINT; recreate the table without it.
+        videos_ddl = (conn.execute(text(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='videos'"
+        )).fetchone() or ("",))[0]
+        if "UNIQUE (path)" in videos_ddl:
+            _log.info("Migration: dropping UNIQUE(path) from videos (segments share parent path)")
+            all_cols = ", ".join(row[1] for row in conn.execute(text("PRAGMA table_info(videos)")))
+            conn.execute(text("PRAGMA foreign_keys=OFF"))
+            conn.execute(text(f"CREATE TABLE videos_migration_tmp AS SELECT {all_cols} FROM videos"))
+            conn.execute(text("DROP TABLE videos"))
+            conn.execute(text("""
+                CREATE TABLE videos (
+                    id INTEGER NOT NULL,
+                    path VARCHAR NOT NULL,
+                    filename VARCHAR NOT NULL,
+                    duration_ms INTEGER,
+                    fps FLOAT,
+                    width INTEGER,
+                    height INTEGER,
+                    status VARCHAR NOT NULL,
+                    created_at DATETIME NOT NULL,
+                    processed_at DATETIME,
+                    title TEXT,
+                    summary TEXT,
+                    timeline_json TEXT,
+                    context_names_json TEXT,
+                    clips_scored_at DATETIME,
+                    clips_scored_context_json TEXT,
+                    summarized_at DATETIME,
+                    summary_context_json TEXT,
+                    timeline_generated_at DATETIME,
+                    timeline_context_json TEXT,
+                    title_user TEXT,
+                    summary_user TEXT,
+                    parent_video_id INTEGER REFERENCES videos(id),
+                    segment_start_s REAL,
+                    segment_end_s REAL,
+                    PRIMARY KEY (id)
+                )
+            """))
+            conn.execute(text(f"INSERT INTO videos ({all_cols}) SELECT {all_cols} FROM videos_migration_tmp"))
+            conn.execute(text("DROP TABLE videos_migration_tmp"))
+            conn.execute(text("PRAGMA foreign_keys=ON"))
+            _log.info("Migration: UNIQUE(path) removed from videos")
+
         conn.commit()
         _log.info("DB migrations complete")
 
@@ -201,6 +248,12 @@ class Video(Base):
     timeline_generated_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
     timeline_context_json: Mapped[Optional[str]] = mapped_column(Text)
 
+    segments: Mapped[List["Video"]] = relationship(
+        "Video",
+        foreign_keys="[Video.parent_video_id]",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
     audio_tracks: Mapped[List["AudioTrack"]] = relationship(
         back_populates="video", cascade="all, delete-orphan"
     )

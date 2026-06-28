@@ -132,6 +132,7 @@ let _jobStepDefs   = [];
 let _activeES      = null;
 let _jobStartTime  = 0;
 let _jobTimer      = null;
+let _jobHideTimer  = null;
 let _activeStepIdx = -1;
 
 function startJobUI(stepDefs, jobLabel, cancellable = false) {
@@ -140,6 +141,7 @@ function startJobUI(stepDefs, jobLabel, cancellable = false) {
   _jobStartTime  = Date.now();
   if (_jobTimer) clearInterval(_jobTimer);
   _jobTimer = setInterval(_tickJobTimer, 1000);
+  if (_jobHideTimer) { clearTimeout(_jobHideTimer); _jobHideTimer = null; }
   document.getElementById('job-steps').innerHTML =
     `<span style="color:var(--muted);margin-right:4px">${escHtml(jobLabel)}</span>` +
     stepDefs.map((s, i) => `<span class="step" id="step-${i}">${s.label}</span>`).join('');
@@ -177,7 +179,8 @@ function endJobUI() {
     if (el) { el.className = 'step done'; el.textContent = s.label; }
   });
   document.getElementById('btn-cancel-job').style.display = 'none';
-  setTimeout(() => {
+  _jobHideTimer = setTimeout(() => {
+    _jobHideTimer = null;
     document.getElementById('job-status').classList.remove('visible');
     document.getElementById('header-spacer').style.display = '';
     document.querySelectorAll('#btn-analyze,#btn-score').forEach(b => b.disabled = false);

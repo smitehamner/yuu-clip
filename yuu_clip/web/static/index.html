@@ -358,6 +358,10 @@
               <option value="full">Full — 16 kHz numpy (most accurate)</option>
             </select>
           </div>
+          <div class="field">
+            <label for="analyze-external-srt">External captions file <span style="color:var(--muted);font-weight:400">(optional — skips Whisper)</span></label>
+            <input type="text" id="analyze-external-srt" placeholder="C:\path\to\captions.srt" style="font-family:monospace;font-size:12px" oninput="runEstimate()">
+          </div>
         </details>
 
         <div id="estimate-area"></div>
@@ -389,20 +393,21 @@
 </div>
 
 <!-- Split Editor panel (full-panel overlay, replaces main content) -->
-<div id="split-editor-panel" style="display:none;position:absolute;inset:0;background:var(--bg);z-index:10;flex-direction:column;padding:20px 24px;gap:16px;overflow-y:auto">
+<div id="split-editor-panel" style="display:none;position:absolute;inset:0;min-height:480px;background:var(--bg);z-index:10;flex-direction:column;padding:20px 24px;gap:16px;overflow-y:auto">
   <div style="display:flex;align-items:center;gap:10px">
     <button class="btn ghost" style="padding:4px 10px;font-size:13px" onclick="closeSplitEditor()">&#8592; Back</button>
     <span style="font-size:14px;font-weight:600" id="split-editor-title">Recording Segments</span>
-  </div>
-  <div style="font-size:12px;color:var(--muted)">
-    Click the timeline bar to place a split point. Click a marker to remove it.
-    Each segment can be analyzed independently after confirming.
   </div>
 
   <!-- Video preview -->
   <video id="split-preview-video" controls preload="metadata"
          style="display:none;width:100%;max-height:38vh;object-fit:contain;background:#000;border-radius:6px"
          aria-label="Recording preview"></video>
+
+  <div style="font-size:12px;color:var(--muted)">
+    Click the timeline bar to place a split point. Click a marker to remove it.
+    Each segment can be analyzed independently after confirming.
+  </div>
 
   <!-- Timeline bar -->
   <div style="position:relative;height:60px;background:var(--surface);border:1px solid var(--border);border-radius:6px;cursor:crosshair;user-select:none" id="split-timeline-bar" onclick="splitTimelineClick(event)">

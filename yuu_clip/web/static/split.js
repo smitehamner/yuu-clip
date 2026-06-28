@@ -4,6 +4,7 @@ let _splitVideoId   = null;
 let _splitDurationS = 0;
 let _splitPoints    = [];  // sorted list of seconds
 let _splitNames     = [];  // auto-names, editable
+let _splitIgnored   = new Set();  // indices of segments to skip
 
 // Overlay data fetched once when the editor opens
 let _splitEnergyFlat = [];   // [{second, rms_db}, …] merged across tracks
@@ -32,6 +33,7 @@ async function openSplitEditor(videoId) {
   _splitDurationS = (video.duration_ms || 0) / 1000;
   _splitPoints    = [];
   _splitNames     = [];
+  _splitIgnored   = new Set();
   _splitEnergyFlat = [];
   _splitSceneMs    = [];
   _splitClipRanges = [];
@@ -49,6 +51,7 @@ async function openSplitEditor(videoId) {
 
   const panel = document.getElementById('split-editor-panel');
   panel.style.display = 'flex';
+  document.querySelector('.main').style.overflowY = 'auto';
 
   _renderSplitEditor();
 
@@ -105,6 +108,7 @@ function closeSplitEditor() {
   previewEl.style.display = 'none';
   document.getElementById('split-editor-panel').style.display = 'none';
   document.getElementById('split-waveform-notice').style.display = 'none';
+  document.querySelector('.main').style.overflowY = '';
   _splitVideoId   = null;
   _dragActive     = false;
   _dragMarkerSec  = null;
@@ -112,7 +116,10 @@ function closeSplitEditor() {
 
 function _splitSeekTo(sec) {
   const v = document.getElementById('split-preview-video');
-  if (v && v.src) v.currentTime = sec;
+  if (v && v.src) {
+    v.currentTime = sec;
+    v.play().catch(() => {});
+  }
 }
 
 async function _generateWaveform() {
@@ -376,8 +383,9 @@ function _renderSplitTimeline() {
   segments.innerHTML = pts.slice(0, -1).map((start, i) => {
     const end      = pts[i + 1];
     const widthPct = ((end - start) / _splitDurationS * 100).toFixed(3);
-    const col      = palette[i % palette.length];
-    return `<div style="height:100%;width:${widthPct}%;background:${col};opacity:0.12;border-right:1px solid ${col}"></div>`;
+    const col      = _splitIgnored.has(i) ? 'var(--muted)' : palette[i % palette.length];
+    const opacity  = _splitIgnored.has(i) ? '0.08' : '0.12';
+    return `<div style="height:100%;width:${widthPct}%;background:${col};opacity:${opacity};border-right:1px solid ${col}"></div>`;
   }).join('');
 
   // User-placed markers with drag handles
@@ -391,24 +399,79 @@ function _renderSplitTimeline() {
   }).join('');
 }
 
-function _renderSplitSegmentList() {
-  const list = document.getElementById('split-segment-list');
-  if (!list) return;
+function _parseSplitTime(str) {
+  const parts = str.trim().split(':').map(Number);
+  if (parts.some(isNaN)) return null;
+  if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+  if (parts.length === 2) return parts[0] * 60 + parts[1];
+  if (parts.length === 1) return parts[0];
+  return null;
+}
+
+function _updateSplitPoint(idx, timeStr, onRerender) {
+  const sec = _parseSplitTime(timeStr);
+  if (sec === null || sec <= 0 || sec >= _splitDurationS) { onRerender(); return; }
+  _splitPoints[idx] = sec;
+  _splitPoints.sort((a, b) => a - b);
+  if (_splitVideoId) _rebuildSplitNames(); else _rebuildPreSplitNames();
+  onRerender();
+}
+
+function _renderSegmentList(listId, onRerender, showPlayBtn) {
+  const list = document.getElementById(listId);
+  if (!list || !_splitDurationS) return;
   const pts = [0, ..._splitPoints, _splitDurationS];
 
   list.innerHTML = pts.slice(0, -1).map((start, i) => {
-    const end  = pts[i + 1];
-    const name = escHtml(_splitNames[i] || `Part ${i + 1}`);
+    const end      = pts[i + 1];
+    const ignored  = _splitIgnored.has(i);
+    const name     = escHtml(_splitNames[i] || `Part ${i + 1}`);
+    const startStr = escHtml(_fmtSplitTime(start));
+    const endStr   = escHtml(_fmtSplitTime(end));
+    const onUpdate = `_updateSplitPoint(%idx%, this.value, ${onRerender.name})`;
+    const dimStyle = ignored ? 'opacity:0.45;' : '';
+    const startEl  = i === 0
+      ? `<span style="font-size:12px;color:var(--muted);min-width:58px">${startStr}</span>`
+      : `<input type="text" value="${startStr}"
+               style="font-size:12px;color:var(--muted);background:transparent;border:none;border-bottom:1px dashed var(--muted);width:58px;text-align:center;padding:1px 2px"
+               title="Edit split point (h:mm:ss or m:ss)"
+               onchange="${onUpdate.replace('%idx%', i - 1)}"
+               aria-label="Segment ${i + 1} start time">`;
+    const endEl    = i === pts.length - 2
+      ? `<span style="font-size:12px;color:var(--muted);min-width:58px">${endStr}</span>`
+      : `<input type="text" value="${endStr}"
+               style="font-size:12px;color:var(--muted);background:transparent;border:none;border-bottom:1px dashed var(--muted);width:58px;text-align:center;padding:1px 2px"
+               title="Edit split point (h:mm:ss or m:ss)"
+               onchange="${onUpdate.replace('%idx%', i)}"
+               aria-label="Segment ${i + 1} end time">`;
+    const playBtn  = showPlayBtn
+      ? `<button class="btn ghost" style="padding:2px 7px;font-size:12px;flex-shrink:0" title="Play from ${startStr}" onclick="_splitSeekTo(${start})">&#9654;</button>`
+      : '';
+    const ignoreChk = `<label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--muted);white-space:nowrap;cursor:pointer;flex-shrink:0" title="Ignore this segment — it will be split off but not analyzed">
+        <input type="checkbox" ${ignored ? 'checked' : ''} onchange="_toggleIgnored(${i}, ${onRerender.name})"> Ignore
+      </label>`;
     return `
-      <div style="display:flex;align-items:center;gap:10px;padding:6px 10px;background:var(--surface);border:1px solid var(--border);border-radius:6px">
-        <button class="btn ghost" style="padding:2px 7px;font-size:12px;flex-shrink:0" title="Jump to ${_fmtSplitTime(start)}" onclick="_splitSeekTo(${start})">&#9654;</button>
-        <span style="font-size:12px;color:var(--muted);white-space:nowrap;min-width:120px">${_fmtSplitTime(start)} – ${_fmtSplitTime(end)}</span>
+      <div style="display:flex;align-items:center;gap:10px;padding:6px 10px;background:var(--surface);border:1px solid var(--border);border-radius:6px;${ignored ? 'opacity:0.5' : ''}">
+        ${playBtn}
+        <div style="display:flex;align-items:center;gap:4px;white-space:nowrap;${dimStyle}">${startEl}<span style="font-size:12px;color:var(--muted)">–</span>${endEl}</div>
         <input type="text" value="${name}"
                style="flex:1;padding:4px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px"
                onchange="_splitNames[${i}] = this.value"
+               ${ignored ? 'disabled' : ''}
                aria-label="Segment ${i + 1} name">
+        ${ignoreChk}
       </div>`;
   }).join('');
+}
+
+function _toggleIgnored(idx, onRerender) {
+  if (_splitIgnored.has(idx)) _splitIgnored.delete(idx);
+  else _splitIgnored.add(idx);
+  onRerender();
+}
+
+function _renderSplitSegmentList() {
+  _renderSegmentList('split-segment-list', _renderSplitEditor, true);
 }
 
 function _fmtSplitTime(sec) {
@@ -444,7 +507,7 @@ async function _doSplitPartitionOnly() {
     const res = await fetch(`/api/videos/${_splitVideoId}/split`, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({split_points: _splitPoints}),
+      body: JSON.stringify({split_points: _splitPoints, segment_names: _splitNames}),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -474,7 +537,7 @@ async function _doSplitAndReanalyze(keepExported) {
     const splitRes = await fetch(`/api/videos/${_splitVideoId}/split`, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({split_points: _splitPoints}),
+      body: JSON.stringify({split_points: _splitPoints, segment_names: _splitNames}),
     });
     if (!splitRes.ok) {
       const err = await splitRes.json().catch(() => ({}));
@@ -488,8 +551,11 @@ async function _doSplitAndReanalyze(keepExported) {
     return;
   }
 
-  // Clear existing clips on each segment before reanalyzing
-  for (const segId of segmentIds) {
+  // Filter out ignored segments — they are split off but not analyzed
+  const activeIds = segmentIds.filter((_, i) => !_splitIgnored.has(i));
+
+  // Clear existing clips on each active segment before reanalyzing
+  for (const segId of activeIds) {
     const clearRes = await fetch(`/api/videos/${segId}/clips/clear`, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
@@ -505,7 +571,7 @@ async function _doSplitAndReanalyze(keepExported) {
 
   closeSplitEditor();
   openLog();
-  _reanalyzeSegmentsSequentially(segmentIds, 0);
+  _reanalyzeSegmentsSequentially(activeIds, 0);
 }
 
 function _reanalyzeSegmentsSequentially(segmentIds, index) {
@@ -530,7 +596,7 @@ function _reanalyzeSegmentsSequentially(segmentIds, index) {
     appendLog(`Analyzing segment ${index + 1}/${segmentIds.length}…`);
     streamSSE(
       '/api/analyze/events',
-      () => _reanalyzeSegmentsSequentially(segmentIds, index + 1),
+      () => { loadVideos(); _reanalyzeSegmentsSequentially(segmentIds, index + 1); },
       INGEST_STEPS,
       `Segment ${index + 1}/${segmentIds.length}`,
       false,
@@ -617,20 +683,7 @@ function _renderPreSplitTimeline() {
 }
 
 function _renderPreSplitSegmentList() {
-  const list = document.getElementById('pre-split-segment-list');
-  if (!list || !_splitDurationS) return;
-  const pts = [0, ..._splitPoints, _splitDurationS];
-  list.innerHTML = pts.slice(0, -1).map((start, i) => {
-    const end  = pts[i + 1];
-    const name = escHtml(_splitNames[i] || `Part ${i + 1}`);
-    return `<div style="display:flex;align-items:center;gap:10px;padding:6px 10px;background:var(--surface);border:1px solid var(--border);border-radius:6px">
-      <span style="font-size:12px;color:var(--muted);white-space:nowrap;min-width:120px">${_fmtSplitTime(start)} – ${_fmtSplitTime(end)}</span>
-      <input type="text" value="${name}"
-             style="flex:1;padding:4px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px"
-             onchange="_splitNames[${i}] = this.value"
-             aria-label="Segment ${i + 1} name">
-    </div>`;
-  }).join('');
+  _renderSegmentList('pre-split-segment-list', _renderPreSplitEditor, false);
 }
 
 function preSplitTimelineClick(e) {

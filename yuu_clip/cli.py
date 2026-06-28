@@ -287,6 +287,10 @@ def _analyze_one(
     candidates = _generate_candidates(video, transcripts, config, session, opts.no_segment, opts.no_transcribe, opts.force)
     session.commit()
 
+    if not opts.no_score and transcripts:
+        _summarize_video(video, transcripts, config, session, context_text=opts.context_text)
+        session.commit()
+
     if not opts.no_score and candidates:
         _run_scoring(video, track_objs, config, session, energy_mode=opts.energy_mode, context_text=opts.context_text)
 
@@ -574,6 +578,37 @@ def _generate_candidates(video, transcripts, config, session, no_segment, no_tra
     video.status = "done"
     session.flush()
     return candidates
+
+
+def _summarize_video(video, transcripts, config, session, context_text: str = "") -> None:
+    from yuu_clip.scoring.llm import summarize_transcript
+
+    seg_start_ms = int(video.segment_start_s * 1000) if video.segment_start_s is not None else None
+    seg_end_ms = int(video.segment_end_s * 1000) if video.segment_end_s is not None else None
+
+    parts = []
+    for transcript in transcripts:
+        for seg in transcript.segments:
+            if seg_start_ms is not None and seg.start_ms < seg_start_ms:
+                continue
+            if seg_end_ms is not None and seg.end_ms > seg_end_ms:
+                continue
+            parts.append(seg.text.strip())
+
+    text = " ".join(parts)
+    if not text:
+        return
+
+    console.print("  [bold]Generating video summary...[/bold]")
+    try:
+        title, summary = summarize_transcript(text, config, context_text=context_text)
+        video.title = title or video.title
+        video.summary = summary
+        video.summarized_at = datetime.now(timezone.utc)
+        video.summary_context_json = video.context_names_json or "[]"
+        console.print("  [green]  OK[/green] summary generated")
+    except Exception as exc:
+        console.print(f"  [yellow]  Summary skipped: {exc}[/yellow]")
 
 
 def _run_scoring(video, track_objs, config, session, energy_mode: str = "fast", context_text: str = "") -> None:
