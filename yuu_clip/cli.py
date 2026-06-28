@@ -628,6 +628,7 @@ def _run_scoring(video, track_objs, config, session, energy_mode: str = "fast", 
     """Run Phase 2 scoring (energy, scenes, LLM) for all candidates belonging to *video*."""
     from yuu_clip.scoring.energy import AudioEnergyScorer, compute_energy
     from yuu_clip.scoring.engine import ScoringEngine
+    from yuu_clip.scoring.laugh import LaughScorer
     from yuu_clip.scoring.llm import LLMScorer
     from yuu_clip.scoring.scenes import SceneCutScorer, compute_scenes
 
@@ -660,7 +661,12 @@ def _run_scoring(video, track_objs, config, session, energy_mode: str = "fast", 
             log.exception("Scene detection failed: video_id=%s", video.id)
 
     console.print("  [bold]Scoring clips...[/bold]")
-    engine = ScoringEngine(config, [AudioEnergyScorer(config), SceneCutScorer(config), LLMScorer(config, context_text=context_text)])
+    engine = ScoringEngine(config, [
+        AudioEnergyScorer(config),
+        SceneCutScorer(config),
+        LaughScorer(config),
+        LLMScorer(config, context_text=context_text),
+    ])
     n = engine.score_video(
         video, session,
         progress_cb=lambda i, total: console.print(f"  Scoring {i}/{total}..."),

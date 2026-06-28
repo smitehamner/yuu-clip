@@ -44,6 +44,14 @@ dev = [
 llamacpp = [
     "llama-cpp-python>=0.3,<1.0",
 ]
+laugh-model = [
+    # Required for scorer_laugh_mode = "model".
+    # Recommended model: MIT/ast-finetuned-audioset-10-10-0.4593 (~350 MB, auto-downloads)
+    "transformers>=4.30,<6.0",
+    "torch>=2.0",
+    "torchaudio>=2.0",
+    "soundfile>=0.12",
+]
 
 [project.scripts]
 yuuclip = "yuu_clip.cli:app"

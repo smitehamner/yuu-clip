@@ -227,6 +227,24 @@ Archive of shipped items. For pending work see [ROADMAP.md](ROADMAP.md).
   override replaces LLM score in sort order; both scores shown with an "override" badge; "Clear
   override" removes it.
 
+### Phase 6 items shipped early
+
+- **Laugh detection scorer** — `LaughScorer` with three configurable modes:
+  - `transcript` (default): regex-matches Whisper non-verbal markers (`[laughs]`, `[laughter]`,
+    `[chuckles]`, `haha`, `lmao`, etc.) and normalises by clip duration (4+ events/min → 1.0).
+    No extra dependencies.
+  - `audio`: spectral burst-rhythm analysis of the extracted WAV; FFT of a 50 ms energy envelope
+    detects power in the 4–12 Hz laughter-cadence band. Uses PyAV + numpy (existing deps). WAV
+    reads cached per-track within a scoring run.
+  - `model`: HuggingFace `audio-classification` pipeline searching for "laugh" in top-20 predictions.
+    Recommended model: `MIT/ast-finetuned-audioset-10-10-0.4593` (~350 MB, auto-downloads on first
+    use). Requires `pip install "yuu-clip[laugh-model]"` (`transformers`, `torch`, `torchaudio`,
+    `soundfile`).
+  - Contributes to `score_funny`. Configurable weight (default 1.5), mode, and model ID in Settings.
+  - New config fields: `scorer_laugh_enabled`, `scorer_laugh_mode`, `scorer_laugh_model_id`,
+    `scorer_laugh_weight`. Tags: `laugh_transcript`, `laugh_audio`, `laugh_model`,
+    `laugh_no_transcript`, `laugh_no_wav`.
+
 ---
 
 ## Phase 4 — Packaging + distribution (done)

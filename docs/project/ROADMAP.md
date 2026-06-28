@@ -103,9 +103,15 @@ Complex, specialized, or AI-heavy features that are valuable but don't need to b
   Tags on sidebar card: pills if ≤3 matches, count pill `🔥 4` if more; full list in detail panel.
   Lives in Settings page under the `Hot-words` section.
 
-- [ ] **Laugh / non-speech sound detection** — detect laughter and notable non-speech audio events
-  (sound effects, reactions) as a separate scoring signal from the Funny sub-score, not a modifier
-  to it. Surfaced as its own attribute so users can filter/sort by it independently.
+- [x] **Laugh detection scorer** — `LaughScorer` shipped with three modes: `transcript` (regex on
+  Whisper output, default), `audio` (spectral burst-rhythm via PyAV + numpy), and `model`
+  (HuggingFace `audio-classification` pipeline; optional `[laugh-model]` extras). Contributes to
+  `score_funny`. See [COMPLETED.md](COMPLETED.md).
+
+- [ ] **Laugh / non-speech sound detection: separate attribute** — follow-on to the shipped scorer.
+  Add a dedicated `score_laugh` column so laugh density can be sorted and filtered independently
+  of the Funny sub-score; surface it in the sidebar score line and sort/filter dropdowns.
+  Non-speech event detection (sound effects, reactions) also deferred to this item.
 
 - [ ] **Image-based clip analysis** — optional, clip-only feature: sample frames at a configurable
   interval and send them to a vision model to enrich clip descriptions and scoring. Requires a
@@ -119,23 +125,23 @@ Complex, specialized, or AI-heavy features that are valuable but don't need to b
 
 ### Transcript and speaker features
 
-- [ ] **Speaker diarization** — identify who is speaking and when; assign speaker labels to
-  transcript segments. Unlocks: transcript editing (speaker-grouped), per-speaker subtitle styles,
-  score boost per named character.
+- [x] **Speaker diarization — infrastructure shipped** — `DiarizationClient` ABC with Null (default)
+  and Pyannote backends; config-driven factory mirrors `LLMClient`. Post-transcription pass in
+  `whisper_runner.py` populates `TranscriptSegment.speaker_label`; `_build_excerpt` in `windower.py`
+  formats `transcript_excerpt` with `SPEAKER_XX:` prefixes so downstream LLM scoring and the UI
+  transcript view both benefit automatically. Settings UI: backend selector, HF token field,
+  one-click `pip install pyannote.audio` button with live pip log.
 
-  pyannote.audio 3.x (the most accurate option) requires a HuggingFace account token and
-  accepting model terms — an extra step for non-technical users. Token-free alternatives worth
-  evaluating: **NVIDIA NeMo** (`msdd_multiscale_diarizer` — no token, competitive accuracy, heavier
-  install) and **SpeechBrain** (MIT licence, no token, lighter). whisperX uses pyannote under the
-  hood so has the same token requirement.
+  Remaining downstream features (still pending below): transcript editing, per-speaker subtitle
+  styles, score boost per named character, transcript name correction.
 
-  Preferred path: evaluate NeMo and SpeechBrain first; fall back to pyannote only if they're
-  clearly inferior. Whichever is chosen, the token setup (if any) should be part of the first-run
-  wizard.
+  **Roadmap backends** (not yet built): SpeechBrain (Apache 2.0, no HF gating — ECAPA-TDNN
+  embeddings + sklearn clustering), NeMo TitaNet (Apache 2.0, no token, heavier install).
+  Adding a new backend = add a `DiarizationClient` subclass + allowlist entry in `install_package`.
 
 - [ ] **Transcript editing** — inline editable text area for `TranscriptSegment.text`; lets the user
-  fix character names, misspellings, and game-specific jargon before re-scoring. Requires speaker
-  diarization first so the transcript has per-speaker grouping.
+  fix character names, misspellings, and game-specific jargon before re-scoring. Now unblocked by
+  speaker diarization; speaker-grouped display is the target UX.
 
 - [ ] **Transcript name correction** — after speaker diarization maps clusters to character names,
   auto-suggest replacements for mis-transcribed names that *other* speakers say (e.g. Whisper

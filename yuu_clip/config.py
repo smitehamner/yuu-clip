@@ -183,6 +183,15 @@ class Config:
     scorer_energy_enabled: bool = True
     scorer_scenes_enabled: bool = True
     scorer_llm_enabled: bool = True
+    scorer_laugh_enabled: bool = True
+    # "transcript" — regex patterns in Whisper output, no extra deps (default)
+    # "audio"      — spectral rhythm analysis via PyAV + numpy
+    # "model"      — HuggingFace audio-classification (requires transformers+torch)
+    scorer_laugh_mode: str = "transcript"
+    # HuggingFace model ID or local path for mode="model".
+    # Recommended: MIT/ast-finetuned-audioset-10-10-0.4593 (AudioSet, ~350 MB)
+    # Install deps first: pip install transformers torch torchaudio soundfile
+    scorer_laugh_model_id: str = "MIT/ast-finetuned-audioset-10-10-0.4593"
 
     # Scene detection mode: "transcript" | "fast" | "full"
     # transcript = silence gaps only (instant, no extra deps)
@@ -195,6 +204,7 @@ class Config:
     scorer_energy_weight: float = 1.0
     scorer_scene_weight: float = 0.5
     scorer_llm_weight: float = 2.0
+    scorer_laugh_weight: float = 1.5
 
     score_funny_weight: float = 1.0
     score_dramatic_weight: float = 1.0

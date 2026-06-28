@@ -115,6 +115,9 @@ class ConfigPatch(BaseModel):
     scorer_energy_weight:         Optional[float] = None
     scorer_scene_weight:          Optional[float] = None
     scorer_llm_weight:            Optional[float] = None
+    scorer_laugh_weight:          Optional[float] = None
+    scorer_laugh_mode:            Optional[str]   = None
+    scorer_laugh_model_id:        Optional[str]   = None
     score_funny_weight:           Optional[float] = None
     score_dramatic_weight:        Optional[float] = None
     score_action_weight:          Optional[float] = None
@@ -143,6 +146,7 @@ _CONFIG_FIELDS = (
     "ollama_host", "ollama_model", "ollama_timeout_s", "ollama_enabled",
     "claude_api_key", "claude_model", "claude_timeout_s",
     "scorer_energy_weight", "scorer_scene_weight", "scorer_llm_weight",
+    "scorer_laugh_weight", "scorer_laugh_mode", "scorer_laugh_model_id",
     "score_funny_weight", "score_dramatic_weight", "score_action_weight",
     "scene_detection_mode", "silence_threshold_ms", "min_clip_ms",
     "diarization_backend", "huggingface_token",
@@ -192,6 +196,9 @@ _CONFIG_PATCH_RULES: list[tuple[str, object]] = [
     ("scorer_energy_weight",         lambda v: max(0.0, v)),
     ("scorer_scene_weight",          lambda v: max(0.0, v)),
     ("scorer_llm_weight",            lambda v: max(0.0, v)),
+    ("scorer_laugh_weight",          lambda v: max(0.0, v)),
+    ("scorer_laugh_mode",            _enum_validator({"transcript", "audio", "model"}, "scorer_laugh_mode")),
+    ("scorer_laugh_model_id",        lambda v: v.strip()),
     ("score_funny_weight",           lambda v: max(0.0, v)),
     ("score_dramatic_weight",        lambda v: max(0.0, v)),
     ("score_action_weight",          lambda v: max(0.0, v)),
