@@ -27,7 +27,8 @@
       "allowToChangeInstallationDirectory": false,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "deleteAppDataOnUninstall": false
+      "deleteAppDataOnUninstall": true,
+      "include": "installer.nsh"
     },
     "extraResources": [
       { "from": "../build/wheel", "to": ".", "filter": ["*.whl"] }
