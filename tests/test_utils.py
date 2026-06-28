@@ -155,6 +155,65 @@ class TestParseFps:
 
 
 # ---------------------------------------------------------------------------
+# Video / ClipCandidate model property unit tests
+# ---------------------------------------------------------------------------
+
+class TestVideoDurationHms:
+    def _video(self, duration_ms):
+        from yuu_clip.db.models import Video
+        return Video(path="/x", filename="x.mp4", status="done", duration_ms=duration_ms)
+
+    def test_none_returns_unknown(self):
+        assert self._video(None).duration_hms == "unknown"
+
+    def test_zero_returns_zero_not_unknown(self):
+        assert self._video(0).duration_hms == "0m 00s"
+
+    def test_minutes_and_seconds(self):
+        assert self._video(330_000).duration_hms == "5m 30s"
+
+    def test_hours(self):
+        assert self._video(3_723_000).duration_hms == "1h 02m 03s"
+
+
+class TestClipCandidateProperties:
+    def _clip(self, start_ms=0, end_ms=60_000):
+        from yuu_clip.db.models import ClipCandidate
+        return ClipCandidate(video_id=1, start_ms=start_ms, end_ms=end_ms)
+
+    def test_duration_ms(self):
+        assert self._clip(1_000, 4_000).duration_ms == 3_000
+
+    def test_duration_hms_minutes(self):
+        assert self._clip(0, 90_000).duration_hms == "1m 30s"
+
+    def test_duration_hms_hours(self):
+        assert self._clip(0, 3_661_000).duration_hms == "1h 01m 01s"
+
+    def test_start_hms_no_hours(self):
+        assert self._clip(start_ms=90_000).start_hms == "1:30"
+
+    def test_start_hms_with_hours(self):
+        assert self._clip(start_ms=3_661_000).start_hms == "1:01:01"
+
+    def test_reasons_empty_when_null(self):
+        assert self._clip().reasons == []
+
+    def test_reasons_roundtrip(self):
+        c = self._clip()
+        c.reasons = ["funny", "action"]
+        assert c.reasons == ["funny", "action"]
+
+    def test_tags_empty_when_null(self):
+        assert self._clip().tags == []
+
+    def test_tags_roundtrip(self):
+        c = self._clip()
+        c.tags = ["llm_scored", "energy_scored"]
+        assert c.tags == ["llm_scored", "energy_scored"]
+
+
+# ---------------------------------------------------------------------------
 # Preview cache invalidation — regression test
 # ---------------------------------------------------------------------------
 

@@ -2,13 +2,13 @@
 SQLAlchemy 2.0 ORM models for yuu-clip.
 
 Schema overview:
-  Video          - one row per source recording file
-  AudioTrack     - one row per audio stream within a video (with label + weight)
-  Transcript     - one Whisper run per audio track
-  TranscriptSeg  - individual Whisper segments (word-level timestamps)
-  ClipCandidate  - proposed clip with timestamps, score fields, and status
-  AudioEnergy    - per-second RMS energy curve per audio track (Phase 2)
-  SceneBoundary  - detected scene cuts per video (Phase 2)
+  Video             - one row per source recording file
+  AudioTrack        - one row per audio stream within a video (with label + weight)
+  Transcript        - one Whisper run per audio track
+  TranscriptSegment - individual Whisper segments (word-level timestamps)
+  ClipCandidate     - proposed clip with timestamps, score fields, and status
+  AudioEnergy       - per-second RMS energy curve per audio track
+  SceneBoundary     - detected scene cuts per video
 """
 from __future__ import annotations
 
@@ -43,6 +43,17 @@ from sqlalchemy.orm import (
 
 class Base(DeclarativeBase):
     pass
+
+
+def _format_ms_hms(ms: int) -> str:
+    s = ms // 1000
+    h, rem = divmod(s, 3600)
+    m, sec = divmod(rem, 60)
+    return f"{h}h {m:02d}m {sec:02d}s" if h else f"{m}m {sec:02d}s"
+
+
+def _decode_json_list(s) -> list:
+    return json.loads(s) if s else []
 
 
 def make_engine(db_path: Path):
@@ -263,12 +274,9 @@ class Video(Base):
 
     @property
     def duration_hms(self) -> str:
-        if not self.duration_ms:
+        if self.duration_ms is None:
             return "unknown"
-        s = self.duration_ms // 1000
-        h, rem = divmod(s, 3600)
-        m, sec = divmod(rem, 60)
-        return f"{h}h {m:02d}m {sec:02d}s" if h else f"{m}m {sec:02d}s"
+        return _format_ms_hms(self.duration_ms)
 
 
 class AudioTrack(Base):
@@ -336,7 +344,7 @@ class TranscriptSegment(Base):
     text: Mapped[str] = mapped_column(Text, nullable=False)
     confidence: Mapped[Optional[float]] = mapped_column(Float)
 
-    # FUTURE[diarization]: populated by speaker diarization (Phase 6)
+    # Reserved for speaker diarization — nothing sets this yet.
     # Will hold a label like "SPEAKER_00", later mapped to a character name.
     speaker_label: Mapped[Optional[str]] = mapped_column(String)
 
@@ -390,7 +398,7 @@ class ClipCandidate(Base):
 
     @property
     def reasons(self) -> list[str]:
-        return json.loads(self.reasons_json) if self.reasons_json else []
+        return _decode_json_list(self.reasons_json)
 
     @reasons.setter
     def reasons(self, value: list[str]) -> None:
@@ -398,7 +406,7 @@ class ClipCandidate(Base):
 
     @property
     def tags(self) -> list[str]:
-        return json.loads(self.tags_json) if self.tags_json else []
+        return _decode_json_list(self.tags_json)
 
     @tags.setter
     def tags(self, value: list[str]) -> None:
@@ -410,9 +418,7 @@ class ClipCandidate(Base):
 
     @property
     def duration_hms(self) -> str:
-        s = self.duration_ms // 1000
-        m, sec = divmod(s, 60)
-        return f"{m}m {sec:02d}s"
+        return _format_ms_hms(self.duration_ms)
 
     @property
     def start_hms(self) -> str:

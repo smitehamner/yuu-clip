@@ -12,6 +12,7 @@ Two levels:
 from __future__ import annotations
 
 import json
+import logging
 import shutil
 import sys
 from dataclasses import asdict, dataclass, field
@@ -21,6 +22,8 @@ from typing import Optional
 from platformdirs import user_config_dir, user_data_dir
 
 APP_NAME = "yuu-clip"
+
+_log = logging.getLogger(__name__)
 
 
 def _global_config_dir() -> Path:
@@ -193,25 +196,22 @@ class Config:
     @classmethod
     def load(cls, project_dir: Path) -> "Config":
         """Load config, merging global defaults with project overrides."""
-        import logging
-        _cfg_log = logging.getLogger(__name__)
-
         merged: dict = {}
 
         global_cfg = _global_config_dir() / "config.json"
         if global_cfg.exists():
             merged.update(json.loads(global_cfg.read_text(encoding="utf-8")))
-            _cfg_log.debug("Loaded global config from %s", global_cfg)
+            _log.debug("Loaded global config from %s", global_cfg)
 
         project_cfg = project_dir / ".yuu-clip" / "config.json"
         if project_cfg.exists():
             merged.update(json.loads(project_cfg.read_text(encoding="utf-8")))
-            _cfg_log.debug("Loaded project config from %s", project_cfg)
+            _log.debug("Loaded project config from %s", project_cfg)
 
         known = {f for f in cls.__dataclass_fields__}
         unknown = set(merged) - known
         if unknown:
-            _cfg_log.warning("Config: unrecognised keys ignored: %s", sorted(unknown))
+            _log.warning("Config: unrecognised keys ignored: %s", sorted(unknown))
         return cls(**{k: v for k, v in merged.items() if k in known})
 
     def save_project(self, project_dir: Path) -> None:

@@ -8,10 +8,12 @@ import pytest
 # ---------------------------------------------------------------------------
 
 class TestConfigLoad:
-    def test_project_config_overrides_global(self, tmp_path):
+    def test_project_config_overrides_global(self, tmp_path, monkeypatch):
         """Values in project config.json take precedence over global defaults."""
         import json
+        import yuu_clip.config as cfg_mod
         from yuu_clip.config import Config
+        monkeypatch.setattr(cfg_mod, "_global_config_dir", lambda: tmp_path / "global_cfg")
         project_dir = tmp_path / "proj"
         project_dir.mkdir()
         cfg_dir = project_dir / ".yuu-clip"
@@ -24,19 +26,60 @@ class TestConfigLoad:
         assert config.whisper_model == "tiny"
         assert config.ollama_enabled is False
 
-    def test_missing_config_returns_defaults(self, tmp_path):
+    def test_missing_config_returns_defaults(self, tmp_path, monkeypatch):
         """When no config files exist, defaults are used."""
+        import yuu_clip.config as cfg_mod
         from yuu_clip.config import Config
+        monkeypatch.setattr(cfg_mod, "_global_config_dir", lambda: tmp_path / "global_cfg")
         project_dir = tmp_path / "proj"
         project_dir.mkdir()
         config = Config.load(project_dir)
         assert config.whisper_model == "base"  # default
         assert config.ollama_enabled is True    # default
 
-    def test_unknown_keys_in_project_config_ignored(self, tmp_path):
+    def test_global_config_is_loaded(self, tmp_path, monkeypatch):
+        """Values in global config.json are merged in when no project config overrides them."""
+        import json
+        import yuu_clip.config as cfg_mod
+        from yuu_clip.config import Config
+        global_dir = tmp_path / "global_cfg"
+        global_dir.mkdir()
+        (global_dir / "config.json").write_text(
+            json.dumps({"whisper_model": "large-v3"}), encoding="utf-8"
+        )
+        monkeypatch.setattr(cfg_mod, "_global_config_dir", lambda: global_dir)
+        project_dir = tmp_path / "proj"
+        project_dir.mkdir()
+        config = Config.load(project_dir)
+        assert config.whisper_model == "large-v3"
+
+    def test_project_config_overrides_global_value(self, tmp_path, monkeypatch):
+        """Project config takes precedence over global config for the same key."""
+        import json
+        import yuu_clip.config as cfg_mod
+        from yuu_clip.config import Config
+        global_dir = tmp_path / "global_cfg"
+        global_dir.mkdir()
+        (global_dir / "config.json").write_text(
+            json.dumps({"whisper_model": "large-v3"}), encoding="utf-8"
+        )
+        monkeypatch.setattr(cfg_mod, "_global_config_dir", lambda: global_dir)
+        project_dir = tmp_path / "proj"
+        project_dir.mkdir()
+        cfg_dir = project_dir / ".yuu-clip"
+        cfg_dir.mkdir()
+        (cfg_dir / "config.json").write_text(
+            json.dumps({"whisper_model": "tiny"}), encoding="utf-8"
+        )
+        config = Config.load(project_dir)
+        assert config.whisper_model == "tiny"
+
+    def test_unknown_keys_in_project_config_ignored(self, tmp_path, monkeypatch):
         """Unknown keys in project config.json must not raise."""
         import json
+        import yuu_clip.config as cfg_mod
         from yuu_clip.config import Config
+        monkeypatch.setattr(cfg_mod, "_global_config_dir", lambda: tmp_path / "global_cfg")
         project_dir = tmp_path / "proj"
         project_dir.mkdir()
         cfg_dir = project_dir / ".yuu-clip"
@@ -95,9 +138,11 @@ class TestConfigNewLlmFields:
         from yuu_clip.config import Config
         assert Config().llm_model_path == ""
 
-    def test_llm_backend_roundtrips_through_config_load(self, tmp_path):
+    def test_llm_backend_roundtrips_through_config_load(self, tmp_path, monkeypatch):
         import json
+        import yuu_clip.config as cfg_mod
         from yuu_clip.config import Config
+        monkeypatch.setattr(cfg_mod, "_global_config_dir", lambda: tmp_path / "global_cfg")
         project_dir = tmp_path / "proj"
         project_dir.mkdir()
         cfg_dir = project_dir / ".yuu-clip"
@@ -195,3 +240,58 @@ class TestValidateWhisperLanguage:
     def test_arbitrary_string_rejected(self):
         with pytest.raises(ValueError):
             self._validate("klingon")
+
+
+# ---------------------------------------------------------------------------
+# Track-layout profile CRUD
+# ---------------------------------------------------------------------------
+
+class TestProfiles:
+    """save_profile / delete_profile / load_profiles round-trip through disk."""
+
+    def _patch(self, monkeypatch, tmp_path):
+        import yuu_clip.config as cfg_mod
+        monkeypatch.setattr(cfg_mod, "_global_config_dir", lambda: tmp_path / "cfg")
+
+    def test_empty_profiles_returns_empty_dict(self, monkeypatch, tmp_path):
+        self._patch(monkeypatch, tmp_path)
+        from yuu_clip.config import load_profiles
+        assert load_profiles() == {}
+
+    def test_save_and_load_profile(self, monkeypatch, tmp_path):
+        self._patch(monkeypatch, tmp_path)
+        from yuu_clip.config import save_profile, load_profiles
+        assignments = [{"stream_position": 0, "label": "player_voice", "transcribe": True}]
+        save_profile("2track", assignments)
+        profiles = load_profiles()
+        assert "2track" in profiles
+        assert profiles["2track"]["num_tracks"] == 1
+        assert profiles["2track"]["assignments"] == assignments
+
+    def test_save_overwrites_existing_profile(self, monkeypatch, tmp_path):
+        self._patch(monkeypatch, tmp_path)
+        from yuu_clip.config import save_profile, load_profiles
+        save_profile("p", [{"stream_position": 0, "label": "combined", "transcribe": True}])
+        save_profile("p", [{"stream_position": 0, "label": "player_voice", "transcribe": True}])
+        assert load_profiles()["p"]["assignments"][0]["label"] == "player_voice"
+
+    def test_delete_profile(self, monkeypatch, tmp_path):
+        self._patch(monkeypatch, tmp_path)
+        from yuu_clip.config import save_profile, delete_profile, load_profiles
+        save_profile("to_delete", [])
+        delete_profile("to_delete")
+        assert "to_delete" not in load_profiles()
+
+    def test_delete_nonexistent_profile_is_silent(self, monkeypatch, tmp_path):
+        self._patch(monkeypatch, tmp_path)
+        from yuu_clip.config import delete_profile
+        delete_profile("nonexistent")  # must not raise
+
+    def test_multiple_profiles_coexist(self, monkeypatch, tmp_path):
+        self._patch(monkeypatch, tmp_path)
+        from yuu_clip.config import save_profile, load_profiles
+        save_profile("alpha", [])
+        save_profile("beta", [])
+        profiles = load_profiles()
+        assert "alpha" in profiles
+        assert "beta" in profiles
