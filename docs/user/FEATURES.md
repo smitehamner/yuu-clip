@@ -247,7 +247,9 @@ Scene cuts are stored as database records and influence candidate boundaries.
 
 ### LLM scorer (Ollama)
 
-Sends each candidate's transcript excerpt to a locally running Ollama instance. Returns a JSON object with:
+Sends each candidate's transcript excerpt to a locally running Ollama instance. When speaker labels
+are enabled (see Settings → Speaker labels), the excerpt is formatted with `SPEAKER_XX:` prefixes
+so the LLM understands who said what without any extra configuration. Returns a JSON object with:
 
 | Field | Description |
 |-------|-------------|
@@ -319,3 +321,30 @@ Saved per-project. Each track layout stores: number of tracks, and per-track lab
 Global defaults set in Settings (`score_funny_weight`, `score_dramatic_weight`, `score_action_weight`). Overall score = weighted average normalized to [0, 1].
 
 Per-context overrides can be set in the World Context editor. When a video is rescored, the weights from all assigned contexts that have overrides are averaged and used instead of the global defaults. Contexts without overrides are ignored in the average.
+
+---
+
+## Settings
+
+### Speaker labels
+
+When enabled, yuu-clip runs speaker diarization after transcription and labels each transcript segment with who was speaking. This improves LLM scoring quality: transcript excerpts are formatted as `SPEAKER_00: ...` / `SPEAKER_01: ...` blocks instead of a flat text join.
+
+**Backends**
+
+| Backend | Default | Requirement |
+|---------|---------|-------------|
+| Off | ✓ | No extra setup |
+| Pyannote | — | HuggingFace account + `pip install pyannote.audio` (one-click install button in Settings) |
+
+To enable Pyannote:
+1. Create a free account at [HuggingFace](https://huggingface.co) and accept the [speaker-diarization-3.1](https://huggingface.co/pyannote/speaker-diarization-3.1) model terms
+2. Generate a token at HuggingFace → Settings → Access Tokens
+3. Open Settings → Speaker labels in the app; paste the token and click **Install pyannote.audio**
+4. Change the backend to **Pyannote** and save
+
+Diarization adds extra processing time after transcription (roughly 2–4× real-time on CPU, faster with CUDA). Speaker labels are re-used on retranscription; re-running diarization requires a full re-analysis.
+
+### Optional dependency install
+
+Settings sections for llamacpp, Claude API, and speaker labels each include an **Install** button that runs `pip install <package>` in a subprocess and streams the pip output live. If an install fails, the full log is shown inline.

@@ -229,6 +229,21 @@ Archive of shipped items. For pending work see [ROADMAP.md](ROADMAP.md).
 
 ### Phase 6 items shipped early
 
+- **Speaker diarization — infrastructure** — `DiarizationClient` ABC with Null (default, off)
+  and Pyannote backends; factory pattern mirrors `LLMClient`. Config fields: `diarization_backend`,
+  `huggingface_token`. Post-transcription pass in `whisper_runner.py` populates
+  `TranscriptSegment.speaker_label`. `_build_excerpt` in `windower.py` formats
+  `transcript_excerpt` with `SPEAKER_XX:` prefixes when any segment has a label, so LLM scoring
+  and the UI transcript view benefit automatically. Settings UI: Speaker labels section, backend
+  selector, HF token field, one-click `pip install pyannote.audio` button with live log.
+  Roadmap backends: SpeechBrain (Apache 2.0, no HF gating), NeMo TitaNet (Apache 2.0, no token).
+
+- **One-click optional dependency install** — generic `POST /api/install/{slug}` endpoint with
+  allowlist (`pyannote`, `llamacpp`, `anthropic`); runs pip in a subprocess and streams output via
+  SSE using `fetch` + `ReadableStream` (EventSource only supports GET). Install buttons added to:
+  speaker labels section (pyannote.audio), llamacpp LLM section, Claude API section. About modal
+  dependency table split into Required and Optional sections.
+
 - **Laugh detection scorer** — `LaughScorer` with three configurable modes:
   - `transcript` (default): regex-matches Whisper non-verbal markers (`[laughs]`, `[laughter]`,
     `[chuckles]`, `haha`, `lmao`, etc.) and normalises by clip duration (4+ events/min → 1.0).
