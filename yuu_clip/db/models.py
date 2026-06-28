@@ -107,6 +107,8 @@ def _migrate(engine) -> None:
             conn.execute(text("ALTER TABLE transcripts ADD COLUMN clip_id INTEGER REFERENCES clip_candidates(id)"))
 
         existing = {row[1] for row in conn.execute(text("PRAGMA table_info(clip_candidates)"))}
+        if "score_overall_user" not in existing:
+            conn.execute(text("ALTER TABLE clip_candidates ADD COLUMN score_overall_user REAL"))
         if "description" not in existing:
             conn.execute(text("ALTER TABLE clip_candidates ADD COLUMN description TEXT"))
         if "description_long" not in existing:
@@ -276,6 +278,7 @@ class ClipCandidate(Base):
     score_funny: Mapped[float] = mapped_column(Float, default=0.0)
     score_dramatic: Mapped[float] = mapped_column(Float, default=0.0)
     score_action: Mapped[float] = mapped_column(Float, default=0.0)
+    score_overall_user: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
 
     reasons_json: Mapped[Optional[str]] = mapped_column(Text)   # JSON list of strings
     tags_json: Mapped[Optional[str]] = mapped_column(Text)       # JSON list of strings

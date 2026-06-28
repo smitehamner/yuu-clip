@@ -47,6 +47,9 @@ class AnalyzeOptions:
     non_interactive: bool = False
     context_names: list[str] = field(default_factory=list)
     context_text: str = ""
+    # Path to an .srt file, or "stream:<index>" for an embedded subtitle stream.
+    # When set, transcription is skipped and the subtitles are imported directly.
+    subtitle_source: Optional[str] = None
 
 
 def _project_dir(given: Optional[Path]) -> Path:
@@ -157,6 +160,7 @@ def analyze(
     scene_mode: str = typer.Option("fast", "--scene-mode", help="Scene detection: transcript|fast|full"),
     no_interact: bool = typer.Option(False, "--no-interact", help="Never prompt interactively — use defaults or fail cleanly (set automatically by the web UI)"),
     context: list[str] = typer.Option([], "--context", help="World context IDs to apply (can repeat)"),
+    subtitle_source: Optional[str] = typer.Option(None, "--subtitle-source", help="Use existing subtitles instead of Whisper: path/to/file.srt or stream:<index>"),
 ):
     """Full pipeline: inspect, assign tracks, extract audio, transcribe, generate clips, score."""
     from yuu_clip.config import project_audio_dir
@@ -178,7 +182,7 @@ def analyze(
 
     opts = AnalyzeOptions(
         profile=track_layout,
-        no_transcribe=no_transcribe,
+        no_transcribe=no_transcribe or bool(subtitle_source),
         no_segment=no_segment,
         no_score=no_score,
         force=force,
@@ -187,6 +191,7 @@ def analyze(
         non_interactive=no_interact,
         context_names=list(context),
         context_text=context_text,
+        subtitle_source=subtitle_source,
     )
     for video_path in video_paths:
         _analyze_one(video_path, session, config, audio_dir, opts)
@@ -228,10 +233,12 @@ def _analyze_one(
     _extract_audio_and_check_rms_overlap(video_path, video, track_objs, config, audio_dir, session, opts.force)
     session.commit()
 
-    transcripts = (
-        _transcribe_and_check_overlap(track_objs, config, session, video, opts.language)
-        if not opts.no_transcribe else []
-    )
+    if opts.subtitle_source:
+        transcripts = _import_subtitles(opts.subtitle_source, video_path, track_objs, session, video)
+    elif not opts.no_transcribe:
+        transcripts = _transcribe_and_check_overlap(track_objs, config, session, video, opts.language)
+    else:
+        transcripts = []
     session.commit()
 
     candidates = _generate_candidates(video, transcripts, config, session, opts.no_segment, opts.no_transcribe, opts.force)
@@ -242,6 +249,91 @@ def _analyze_one(
 
     video.processed_at = datetime.now(timezone.utc)
     session.commit()
+
+
+def _import_subtitles(subtitle_source: str, video_path: Path, track_objs, session, video):
+    """Import subtitles from an SRT file or embedded stream as TranscriptSegments.
+
+    subtitle_source is either a file path ending in .srt, or "stream:<index>" for an
+    embedded subtitle stream (extracted via ffmpeg to a temp SRT first).
+    Returns a list of Transcript ORM objects (one per do_transcribe track).
+    """
+    import re as _re
+    import tempfile
+    from yuu_clip.config import find_ffmpeg
+    from yuu_clip.db.models import Transcript, TranscriptSegment
+
+    console.print("  [bold]Importing subtitles...[/bold]")
+
+    def _parse_srt(text: str) -> list[tuple[int, int, str]]:
+        segments = []
+        blocks = _re.split(r"\n\n+", text.strip())
+        for block in blocks:
+            lines = block.strip().splitlines()
+            if len(lines) < 3:
+                continue
+            m = _re.match(
+                r"(\d+):(\d+):(\d+)[,.](\d+)\s*-->\s*(\d+):(\d+):(\d+)[,.](\d+)",
+                lines[1].strip(),
+            )
+            if not m:
+                continue
+            g = [int(x) for x in m.groups()]
+            start_ms = (g[0]*3600 + g[1]*60 + g[2]) * 1000 + g[3]
+            end_ms   = (g[4]*3600 + g[5]*60 + g[6]) * 1000 + g[7]
+            text_body = " ".join(lines[2:]).strip()
+            if text_body:
+                segments.append((start_ms, end_ms, text_body))
+        return segments
+
+    srt_path: Optional[Path] = None
+    tmp_file = None
+    try:
+        if subtitle_source.startswith("stream:"):
+            stream_idx = subtitle_source.split(":", 1)[1]
+            ffmpeg, _ = find_ffmpeg()
+            tmp_file = tempfile.NamedTemporaryFile(suffix=".srt", delete=False, mode="w")
+            tmp_file.close()
+            import subprocess as _sp
+            _sp.run(
+                [ffmpeg, "-y", "-i", str(video_path),
+                 "-map", f"0:{stream_idx}", str(tmp_file.name)],
+                check=True, capture_output=True,
+            )
+            srt_path = Path(tmp_file.name)
+        else:
+            srt_path = Path(subtitle_source)
+
+        srt_text = srt_path.read_text(encoding="utf-8", errors="replace")
+        parsed = _parse_srt(srt_text)
+    except Exception as exc:
+        console.print(f"  [red]Subtitle import failed: {exc}[/red]")
+        return []
+    finally:
+        if tmp_file:
+            Path(tmp_file.name).unlink(missing_ok=True)
+
+    console.print(f"  Imported {len(parsed)} subtitle segment(s)")
+
+    transcripts = []
+    # Attach to the first do_transcribe track (or track 0 as fallback).
+    target_track = next((t for t in track_objs if t.do_transcribe), track_objs[0] if track_objs else None)
+    if target_track is None:
+        return []
+
+    tr = Transcript(audio_track_id=target_track.id, model_name="srt-import")
+    session.add(tr)
+    session.flush()
+    for start_ms, end_ms, text in parsed:
+        seg = TranscriptSegment(
+            transcript_id=tr.id, start_ms=start_ms, end_ms=end_ms, text=text,
+        )
+        session.add(seg)
+    video.status = "transcribing"
+    session.flush()
+    video.status = "segmented"
+    transcripts.append(tr)
+    return transcripts
 
 
 def _probe_video(video_path: Path):
@@ -696,6 +788,7 @@ def export(
     container: Optional[str] = typer.Option(None, "--container", help="Output container override: mkv or mp4. Defaults to source format."),
     retranscribe: bool = typer.Option(False, "--retranscribe", help="Re-transcribe the clip window before exporting"),
     retranscribe_model: str = typer.Option("large-v3", "--retranscribe-model", help="Whisper model for retranscription: tiny|base|small|medium|large-v3"),
+    title_card: bool = typer.Option(False, "--title-card", help="Prepend a title card with the clip description"),
 ):
     """Export a clip to a video file."""
     import tempfile
@@ -780,17 +873,36 @@ def export(
         else:
             console.print("  [yellow]--embed-subs: no transcript data found, skipping subtitle track[/yellow]")
 
+    tmp_clip_path: Optional[Path] = None
     try:
+        clip_dest = output if not title_card else output.with_suffix(".clip_tmp" + output.suffix)
         result = export_clip(
             video_path=video_path,
             start_ms=effective_start_ms,
             end_ms=effective_end_ms,
-            output_path=output,
-            reencode=precise,
+            output_path=clip_dest,
+            reencode=precise or title_card,  # title card concat requires matching codecs
             subtitle_path=subtitle_path,
             subtitle_track_path=subtitle_track_path,
             audio_stream_index=audio_stream_idx,
         )
+        if title_card:
+            from yuu_clip.reel import _make_title_card, _probe_duration, _compile_concat
+            import tempfile as _tmp
+            console.print("  Generating title card...")
+            fps    = cand.video.fps    or 30.0
+            width  = cand.video.width  or 1920
+            height = cand.video.height or 1080
+            title_lines = []
+            if cand.description:
+                title_lines.append((cand.description, 36))
+            title_lines.append((f"{cand.start_hms}  ·  {cand.duration_hms}", 24))
+            with _tmp.TemporaryDirectory() as td:
+                card_path = Path(td) / "title_card.mkv"
+                _make_title_card(title_lines, card_path, duration=3.0, fps=fps, width=width, height=height)
+                _compile_concat([card_path, result], output)
+            result.unlink(missing_ok=True)
+            result = output
         size_mb = result.stat().st_size / BYTES_PER_MB
         console.print(f"  [green]OK[/green] Saved to [cyan]{result}[/cyan]  [dim]({size_mb:.1f} MB)[/dim]")
         from datetime import datetime, timezone as _tz

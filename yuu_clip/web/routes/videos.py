@@ -61,6 +61,14 @@ class ClipTimingUpdate(BaseModel):
     end_offset: float
 
 
+class ClipScoreOverride(BaseModel):
+    score_overall_user: Optional[float] = None  # None = clear override
+
+
+class ClipMergeRequest(BaseModel):
+    clip_b_id: int
+
+
 _AUTO_APPROVE_FIELDS = {
     "overall":  ClipCandidate.score_overall,
     "funny":    ClipCandidate.score_funny,
@@ -606,7 +614,11 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             elif sort in _sort_col:
                 order = _sort_col[sort].desc()
             else:
-                order = ClipCandidate.score_overall.desc()
+                # Prefer user override when set, fall back to LLM score.
+                order = case(
+                    (ClipCandidate.score_overall_user.isnot(None), ClipCandidate.score_overall_user),
+                    else_=ClipCandidate.score_overall,
+                ).desc()
             clips = q.order_by(order).all()
             return [_clip_dict(c, export_dir=ctx.export_dir, video=video) for c in clips]
         finally:
@@ -928,6 +940,64 @@ def make_router(ctx: ProjectContext) -> APIRouter:
 
             db.commit()
             return _clip_dict(clip, full=True, export_dir=ctx.export_dir, video=video)
+        finally:
+            db.close()
+
+    @router.post("/api/clips/{clip_id}/score-override")
+    def set_clip_score_override(clip_id: int, body: ClipScoreOverride):
+        """Set or clear a manual overall-score override for a clip."""
+        if body.score_overall_user is not None:
+            val = round(max(0.0, min(1.0, body.score_overall_user)), 3)
+        else:
+            val = None
+        db = ctx.get_db()
+        try:
+            clip = _require_clip(db, clip_id)
+            clip.score_overall_user = val
+            db.commit()
+            video = db.get(Video, clip.video_id)
+            return _clip_dict(clip, full=True, export_dir=ctx.export_dir, video=video)
+        finally:
+            db.close()
+
+    @router.post("/api/clips/{clip_id}/merge")
+    def merge_clips(clip_id: int, body: ClipMergeRequest):
+        """Merge clip_b into clip_a: extends clip_a's end to clip_b's end, then deletes clip_b."""
+        db = ctx.get_db()
+        try:
+            clip_a = _require_clip(db, clip_id)
+            clip_b = _require_clip(db, body.clip_b_id)
+            if clip_a.video_id != clip_b.video_id:
+                raise HTTPException(400, "Clips must belong to the same recording")
+            if clip_a.id == clip_b.id:
+                raise HTTPException(400, "Cannot merge a clip with itself")
+
+            # Always merge so the result spans from the earlier start to the later end.
+            start_ms = min(clip_a.start_ms, clip_b.start_ms)
+            end_ms   = max(clip_a.end_ms,   clip_b.end_ms)
+            clip_a.start_ms     = start_ms
+            clip_a.end_ms       = end_ms
+            clip_a.start_offset = 0.0
+            clip_a.end_offset   = 0.0
+            clip_a.exported_at  = None
+            clip_a.exported_container = None
+            clip_a.exported_burn_subs = None
+
+            video = db.get(Video, clip_a.video_id)
+            for p in _all_sidecar_paths(clip_b, video, ctx.export_dir):
+                p.unlink(missing_ok=True)
+            for p in _all_sidecar_paths(clip_a, video, ctx.export_dir):
+                p.unlink(missing_ok=True)
+            db.delete(clip_b)
+            db.commit()
+
+            cached = _preview_cache.pop(clip_id, None)
+            if cached:
+                cached.unlink(missing_ok=True)
+            _preview_cache.pop(body.clip_b_id, None)
+
+            _log.info("Merged clip %d into clip %d (new range %d–%d ms)", body.clip_b_id, clip_id, start_ms, end_ms)
+            return _clip_dict(clip_a, full=True, export_dir=ctx.export_dir, video=video)
         finally:
             db.close()
 
@@ -1284,6 +1354,7 @@ def _clip_dict(
         "score_funny": round(clip.score_funny, 3),
         "score_dramatic": round(clip.score_dramatic, 3),
         "score_action": round(clip.score_action, 3),
+        "score_overall_user": round(clip.score_overall_user, 3) if clip.score_overall_user is not None else None,
         "description": _user_or_default(clip.description_user, clip.description),
         "description_original": clip.description or "",
         "description_is_edited": clip.description_user is not None,

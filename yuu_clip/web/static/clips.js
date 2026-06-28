@@ -149,9 +149,16 @@ function renderDetail(clip) {
 
     <div class="detail-cards-row">
       <div class="detail-card" style="flex:1">
-        <div class="detail-card-title" style="margin-bottom:10px">Scoring</div>
+        <div class="detail-card-header">
+          <span class="detail-card-title">Scoring</span>
+          ${clip.score_overall_user != null
+            ? `<button class="btn ghost" style="font-size:11px;padding:2px 8px" onclick="clearScoreOverride(${clip.id})" title="Remove manual score override">Clear override</button>`
+            : `<button class="btn ghost" style="font-size:11px;padding:2px 8px" onclick="openScoreOverride(${clip.id})">Set override</button>`}
+        </div>
         <div class="scores">
-          ${scoreRow('Overall',  clip.score_overall,  'overall')}
+          ${clip.score_overall_user != null
+            ? scoreRowOverride('Overall', clip.score_overall, clip.score_overall_user, 'overall')
+            : scoreRow('Overall', clip.score_overall, 'overall')}
           ${scoreRow('Funny',    clip.score_funny,    'funny')}
           ${scoreRow('Dramatic', clip.score_dramatic, 'dramatic')}
           ${scoreRow('Action',   clip.score_action,   'action')}
@@ -173,6 +180,7 @@ function renderDetail(clip) {
               ? `<a class="btn" href="/media/exports/${escHtml(_activeMediaFilename)}" download="${escHtml(_activeMediaFilename)}" title="Save exported clip to disk">Save As</a>`
               : ''}
           </div>
+          ${_mergeButtonsHtml(clip)}
           <div class="danger-actions">
             ${clip.has_export ? `<button class="btn danger" onclick="deleteExport(${clip.id})" title="Delete exported file but keep clip record">Delete Export</button>` : ''}
             <button class="btn danger" onclick="deleteClip(${clip.id})" title="Delete clip record and exported file">Delete Clip</button>
@@ -211,6 +219,87 @@ function scoreRow(label, val, cls) {
     <span class="score-label">${label}</span>
     <div class="score-bar-wrap"><div class="score-bar bar-${cls}" style="width:${(val*100).toFixed(1)}%"></div></div>
     <span class="score-val" style="color:var(--${cls})">${val.toFixed(2)}</span>`;
+}
+
+function scoreRowOverride(label, llmVal, userVal, cls) {
+  return `
+    <span class="score-label">${label} <span class="score-override-badge">override</span></span>
+    <div class="score-bar-wrap">
+      <div class="score-bar bar-${cls}" style="width:${(userVal*100).toFixed(1)}%;opacity:.5"></div>
+    </div>
+    <span class="score-val" style="color:var(--${cls})">${userVal.toFixed(2)} <span style="color:var(--muted);font-size:10px">(LLM: ${llmVal.toFixed(2)})</span></span>`;
+}
+
+function _mergeButtonsHtml(clip) {
+  const byTime = [..._clips].sort((a, b) => a.start_ms - b.start_ms);
+  const idx = byTime.findIndex(c => c.id === clip.id);
+  const prev = idx > 0 ? byTime[idx - 1] : null;
+  const next = idx >= 0 && idx < byTime.length - 1 ? byTime[idx + 1] : null;
+  if (!prev && !next) return '';
+  return `<div class="op-actions">
+    ${prev ? `<button class="btn" onclick="mergeClips(${clip.id},${prev.id},'prev')" title="Merge with previous clip (${prev.start_hms})">Merge ↑ prev</button>` : ''}
+    ${next ? `<button class="btn" onclick="mergeClips(${clip.id},${next.id},'next')" title="Merge with next clip (${next.start_hms})">Merge ↓ next</button>` : ''}
+  </div>`;
+}
+
+function _replaceClipInList(updated) {
+  const idx = _clips.findIndex(c => c.id === updated.id);
+  if (idx !== -1) _clips[idx] = updated;
+}
+
+async function openScoreOverride(clipId) {
+  const clip = _clips.find(c => c.id === clipId);
+  const current = clip?.score_overall ?? 0;
+  const val = prompt(`Set manual overall score (0.00 – 1.00). Current LLM score: ${current.toFixed(2)}`, current.toFixed(2));
+  if (val === null) return;
+  const num = parseFloat(val);
+  if (isNaN(num)) { showToast('Invalid score value', 'error'); return; }
+  const res = await fetch(`/api/clips/${clipId}/score-override`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({score_overall_user: num}),
+  });
+  if (!res.ok) { showToast('Failed to set score override', 'error'); return; }
+  const updated = await res.json();
+  _replaceClipInList(updated);
+  renderDetail(updated);
+}
+
+async function clearScoreOverride(clipId) {
+  const res = await fetch(`/api/clips/${clipId}/score-override`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({score_overall_user: null}),
+  });
+  if (!res.ok) { showToast('Failed to clear override', 'error'); return; }
+  const updated = await res.json();
+  _replaceClipInList(updated);
+  renderDetail(updated);
+}
+
+async function mergeClips(clipAId, clipBId, direction) {
+  const label = direction === 'prev' ? 'previous' : 'next';
+  showConfirm(
+    'Merge clips?',
+    `Merge this clip with the ${label} clip? The merged clip will span both time ranges. This cannot be undone.`,
+    'Merge',
+    () => _doMergeClips(clipAId, clipBId),
+    true,
+  );
+}
+
+async function _doMergeClips(clipAId, clipBId) {
+  const res = await fetch(`/api/clips/${clipAId}/merge`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({clip_b_id: clipBId}),
+  });
+  if (!res.ok) { const e = await res.json().catch(()=>({})); showToast(e.detail || 'Merge failed', 'error'); return; }
+  const updated = await res.json();
+  _clips = _clips.filter(c => c.id !== clipBId);
+  _replaceClipInList(updated);
+  activeClipId = clipAId;
+  const filtered = _clipFilter === 'all' ? _clips : _clips.filter(c => c.status === _clipFilter);
+  renderClipList(filtered);
+  renderDetail(updated);
+  showToast('Clips merged');
 }
 
 function _parseTimingOffset(str) {
@@ -373,6 +462,7 @@ function exportClip(id) {
   const retx = document.getElementById('export-retranscribe');
   retx.checked = false;
   document.getElementById('export-retranscribe-model').disabled = true;
+  document.getElementById('export-title-card').checked = false;
   document.getElementById('export-settings-modal').classList.add('visible');
 }
 
@@ -390,6 +480,7 @@ async function confirmExport() {
   const trimEnd   = _parseTimingOffset(document.getElementById('export-trim-end').value);
   const retx      = document.getElementById('export-retranscribe').checked;
   const retxModel = document.getElementById('export-retranscribe-model').value;
+  const titleCard = document.getElementById('export-title-card').checked;
   closeExportModal();
 
   if (!isNaN(trimStart) && !isNaN(trimEnd)) {
@@ -400,10 +491,11 @@ async function confirmExport() {
   }
 
   const params = new URLSearchParams();
-  if (burnSubs)  params.set('burn_subs', 'true');
-  if (embedSubs) params.set('embed_subs', 'true');
-  if (container) params.set('container', container);
-  if (retx) { params.set('retranscribe', 'true'); params.set('retranscribe_model', retxModel); }
+  if (burnSubs)   params.set('burn_subs', 'true');
+  if (embedSubs)  params.set('embed_subs', 'true');
+  if (container)  params.set('container', container);
+  if (retx)       { params.set('retranscribe', 'true'); params.set('retranscribe_model', retxModel); }
+  if (titleCard)  params.set('title_card', 'true');
   const qs = params.toString() ? `?${params}` : '';
 
   const steps = [{label: 'Export', patterns: ['Exporting', 'OK Saved']}];

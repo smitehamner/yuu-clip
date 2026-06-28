@@ -17,6 +17,8 @@ async function openNewRecordingPanel() {
 
   document.getElementById('analyze-path').value = '';
   document.getElementById('estimate-area').innerHTML = '';
+  const stEl = document.getElementById('subtitle-source-field');
+  if (stEl) stEl.style.display = 'none';
   _probedInfo   = null;
   _panelDirty   = false;
   _updateStartIngestButton();
@@ -121,6 +123,7 @@ async function runProbe(path) {
     }
     _probedInfo = await res.json();
     _updateStartIngestButton();
+    _renderSubtitleSourcePicker(_probedInfo);
     runEstimate();
   } catch (err) {
     _probedInfo = null;
@@ -128,6 +131,37 @@ async function runProbe(path) {
     document.getElementById('estimate-area').innerHTML =
       `<div style="color:var(--red);font-size:12px">Could not inspect file: ${escHtml(String(err.message || err))}</div>`;
   }
+}
+
+function _renderSubtitleSourcePicker(info) {
+  let el = document.getElementById('subtitle-source-field');
+  const hasSrt    = !!info.srt_sidecar;
+  const hasStream = info.subtitle_streams && info.subtitle_streams.length > 0;
+  if (!hasSrt && !hasStream) {
+    if (el) el.style.display = 'none';
+    return;
+  }
+  if (!el) {
+    const anchor = document.getElementById('estimate-area');
+    el = document.createElement('div');
+    el.id = 'subtitle-source-field';
+    el.className = 'field';
+    anchor.before(el);
+  }
+  el.style.display = '';
+  const opts = [`<option value="">Transcribe with Whisper (default)</option>`];
+  if (hasSrt) {
+    const name = info.srt_sidecar.split(/[\\/]/).pop();
+    opts.push(`<option value="${escHtml(info.srt_sidecar)}">Use SRT sidecar: ${escHtml(name)}</option>`);
+  }
+  if (hasStream) {
+    for (const s of info.subtitle_streams) {
+      const label = s.title || s.language || `stream ${s.index}`;
+      opts.push(`<option value="stream:${s.index}">Use embedded subtitles: ${escHtml(label)}</option>`);
+    }
+  }
+  el.innerHTML = `<label for="analyze-subtitle-source">Subtitles</label>
+    <select id="analyze-subtitle-source">${opts.join('')}</select>`;
 }
 
 async function runEstimate() {
@@ -214,10 +248,12 @@ async function startAnalyze() {
   btn.textContent = 'Starting…';
 
   const contextNames = _selectedContextIds();
+  const subtitleSrcEl = document.getElementById('analyze-subtitle-source');
+  const subtitleSource = subtitleSrcEl ? subtitleSrcEl.value || null : null;
   const startRes = await fetch('/api/analyze/start', {
     method:  'POST',
     headers: {'Content-Type': 'application/json'},
-    body:    JSON.stringify({path, model, profile, energy_mode: document.getElementById('analyze-energy-mode').value, scene_mode: document.getElementById('analyze-scene-mode').value, context_names: contextNames}),
+    body:    JSON.stringify({path, model, profile, energy_mode: document.getElementById('analyze-energy-mode').value, scene_mode: document.getElementById('analyze-scene-mode').value, context_names: contextNames, subtitle_source: subtitleSource}),
   });
 
   if (!startRes.ok) {

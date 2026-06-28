@@ -81,6 +81,9 @@ class IngestRequest(BaseModel):
     energy_mode: str = "fast"
     scene_mode: str = "fast"
     context_names: list[str] = []
+    # Path to an SRT file or "stream:<index>" to import existing subtitles instead of
+    # running Whisper.  None = use Whisper (default).
+    subtitle_source: Optional[str] = None
 
 
 def make_router(ctx: ProjectContext) -> APIRouter:
@@ -185,6 +188,8 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         cmd += ["--scene-mode", req.scene_mode]
         for context_id in req.context_names:
             cmd += ["--context", context_id]
+        if req.subtitle_source:
+            cmd += ["--subtitle-source", req.subtitle_source]
         cmd += ["--no-interact"]
         ctx.analyze_cmd = cmd
         _log.info("Analyze queued: %s (model=%s, energy=%s, scene=%s)", req.path, req.model, req.energy_mode, req.scene_mode)
@@ -246,6 +251,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         container: Optional[str] = Query(None),
         retranscribe: bool = Query(False),
         retranscribe_model: str = Query("large-v3"),
+        title_card: bool = Query(False),
     ):
         """Export a clip to a video file and stream ffmpeg progress as SSE."""
         allowed_containers = {"mkv", "mp4"}
@@ -268,6 +274,8 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             cmd.extend(["--container", container])
         if retranscribe:
             cmd.extend(["--retranscribe", "--retranscribe-model", retranscribe_model])
+        if title_card:
+            cmd.append("--title-card")
         return await subprocess_sse(cmd, ctx.project_dir, ctx)
 
     @router.get("/api/clips/{clip_id}/retranscribe")

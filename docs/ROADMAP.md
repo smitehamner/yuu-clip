@@ -115,9 +115,9 @@ Core review workflow, sidebar, export, analyze modal, track layout manager, reel
     on a video detail page) — not for top-level navigation between major views
   - Migrate existing modals to panel views incrementally; start with New Recording and Split Editor
 
-- [ ] **Quick Export vs Full Export** — current export is already "quick" (stream copy, no title card). Full Export (with title card, like reel clips) is a future addition.
+- [x] **Quick Export vs Full Export** *(done)* — export modal now has a "Prepend title card" checkbox. When checked, the clip is re-encoded and a 3-second title card (description + timecode) is prepended using the reel pipeline.
 
-- [ ] **SRT import / external subtitle support** — probe now detects embedded subtitle streams and `.srt` sidecars and returns them in the probe response. Using them to skip Whisper requires pipeline changes still TODO.
+- [x] **SRT import / external subtitle support** *(done)* — probe detects SRT sidecars and embedded subtitle streams and surfaces them as options in the New Recording panel. Selecting one skips Whisper and imports the subtitles as transcript segments (`--subtitle-source`).
 
 ### Pre-packaging documentation
 
@@ -166,9 +166,7 @@ regular users.
 - [ ] **Search + filter** — text search across descriptions and transcripts; filter sidebar by score
   range, status, or tag. Advanced users can use regex.
 
-- [ ] **Merge adjacent clips** — button to combine two consecutive candidates into one; useful when a
-  moment spans a silence gap. Options: include the gap from the source video (seamless), or insert a
-  scene transition to keep it compact — let the user choose at merge time.
+- [x] **Merge adjacent clips** *(done)* — "Merge ↑ prev" / "Merge ↓ next" buttons in the clip Actions card; the merged clip spans both time ranges and the consumed clip is deleted.
 
 - [ ] **Demo reel: random transition + advanced editor** — add "random" as a transition option in
   the demo reel builder. Separately, add an advanced clip list editor: reorder approved clips via
@@ -187,9 +185,7 @@ regular users.
 - [ ] **Project switcher in UI** — dropdown to switch between project directories without
   restarting the server
 
-- [ ] **Manual score override** — let the user set a ground-truth score per clip via a slider.
-  Display the user score prominently with a distinct indicator (not replacing the LLM score —
-  show both).
+- [x] **Manual score override** *(done)* — "Set override" button in the Scoring card opens a prompt to enter a value (0–1). The override replaces the LLM score in sort order; both scores shown in the detail panel with an "override" badge. "Clear override" removes it.
 
 - [ ] **Built-in user manual** — in-app help: what each score means, contexts workflow, ingest
   walkthrough, keyboard shortcuts, export options. Low priority until the UI is more stable.

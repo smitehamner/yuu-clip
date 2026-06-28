@@ -160,6 +160,7 @@ header h1 { font-size: 16px; font-weight: 700; letter-spacing: .5px; color: var(
 .bar-dramatic { background: var(--dramatic); }
 .bar-action   { background: var(--action); }
 .score-val { font-size: 12px; font-weight: 600; text-align: right; }
+.score-override-badge { font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: .4px; color: var(--accent2); background: rgba(79,195,247,.1); border: 1px solid rgba(79,195,247,.3); border-radius: 3px; padding: 1px 4px; vertical-align: middle; margin-left: 3px; }
 
 /* actions */
 .actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
