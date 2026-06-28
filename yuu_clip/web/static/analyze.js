@@ -1,44 +1,84 @@
-// ── analyze modal ─────────────────────────────────────────────────────────────
-let _probeTimer = null;
-let _probedInfo  = null;
+// ── new recording panel ───────────────────────────────────────────────────────
+let _probeTimer    = null;
+let _probedInfo    = null;
+let _panelDirty    = false;
 
-async function openAnalyzeModal() {
-  document.getElementById('analyze-modal').classList.add('visible');
+function _isNewRecordingPanelOpen() {
+  return document.getElementById('new-recording-panel').style.display !== 'none';
+}
+
+async function openNewRecordingPanel() {
+  if (_isNewRecordingPanelOpen()) return;
+  document.getElementById('player-area').style.display = 'none';
+  document.getElementById('player-resize-handle').style.display = 'none';
+  document.getElementById('detail').style.display = 'none';
+  document.getElementById('new-recording-panel').style.display = '';
+  document.getElementById('btn-analyze').setAttribute('aria-pressed', 'true');
+
   document.getElementById('analyze-path').value = '';
   document.getElementById('estimate-area').innerHTML = '';
-  _probedInfo = null;
+  _probedInfo   = null;
+  _panelDirty   = false;
   _updateStartIngestButton();
   await _loadProfileDropdown();
   await _loadIngestContextPicker();
+  document.getElementById('analyze-path').focus();
+}
+
+function closeNewRecordingPanel() {
+  if (!_isNewRecordingPanelOpen()) return;
+  if (_panelDirty) {
+    showConfirm(
+      'Discard new recording?',
+      'You have unsaved configuration. Close anyway?',
+      'Discard',
+      _doCloseNewRecordingPanel,
+      true,
+    );
+    return;
+  }
+  _doCloseNewRecordingPanel();
+}
+
+function _doCloseNewRecordingPanel() {
+  clearTimeout(_probeTimer);
+  document.getElementById('new-recording-panel').style.display = 'none';
+  document.getElementById('player-area').style.display = '';
+  document.getElementById('player-resize-handle').style.display = '';
+  document.getElementById('detail').style.display = '';
+  document.getElementById('btn-analyze').setAttribute('aria-pressed', 'false');
+  _panelDirty = false;
 }
 
 async function _loadIngestContextPicker() {
   _contexts = await fetch('/api/contexts').then(r => r.json()).catch(() => []);
-  const field = document.getElementById('analyze-context-field');
-  const list  = document.getElementById('analyze-context-list');
-  field.style.display = '';
+  const list = document.getElementById('analyze-context-list');
   if (!_contexts.length) {
-    list.innerHTML = `<div style="font-size:12px;color:var(--muted);padding:4px 2px">
+    list.innerHTML = `<div style="font-size:12px;color:var(--muted)">
       No World Contexts set up — clip descriptions will be generic.
       <button class="btn ghost" style="font-size:11px;padding:0 6px;color:var(--accent);display:inline-flex"
-              onclick="closeAnalyzeModal();openContextManager()">Add one →</button>
+              onclick="closeNewRecordingPanel();openContextManager()">Add one →</button>
     </div>`;
     return;
   }
-  list.innerHTML = _contexts.map(c => `
-    <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
-      <input type="checkbox" class="analyze-ctx-check" value="${escHtml(c.context_id)}" onchange="_updateCtxNudge()">
-      ${escHtml(c.display_name || c.context_id)}
-    </label>`).join('') +
-    `<div id="ctx-none-selected-note" style="font-size:11px;color:var(--muted);padding:4px 2px;margin-top:2px">No context selected — descriptions will be generic</div>`;
-  _updateCtxNudge();
+  list.innerHTML =
+    `<div class="ctx-picker" id="ctx-picker">` +
+    _contexts.map(c =>
+      `<button type="button" class="ctx-pill" data-ctx-id="${escHtml(c.context_id)}"
+               onclick="_toggleCtxPill(this)">${escHtml(c.display_name || c.context_id)}</button>`
+    ).join('') +
+    `</div>` +
+    `<div id="ctx-none-selected-note" style="font-size:11px;color:var(--muted);margin-top:6px">No context selected — descriptions will be generic</div>`;
 }
 
-function _updateCtxNudge() {
+function _toggleCtxPill(btn) {
+  btn.classList.toggle('selected');
   const note = document.getElementById('ctx-none-selected-note');
-  if (!note) return;
-  const anyChecked = document.querySelectorAll('.analyze-ctx-check:checked').length > 0;
-  note.style.display = anyChecked ? 'none' : '';
+  if (note) note.style.display = document.querySelectorAll('.ctx-pill.selected').length ? 'none' : '';
+}
+
+function _selectedContextIds() {
+  return Array.from(document.querySelectorAll('.ctx-pill.selected')).map(b => b.dataset.ctxId);
 }
 
 async function _loadProfileDropdown() {
@@ -51,12 +91,8 @@ async function _loadProfileDropdown() {
   } catch { _analyzeProfiles = []; }
 }
 
-function closeAnalyzeModal() {
-  document.getElementById('analyze-modal').classList.remove('visible');
-  clearTimeout(_probeTimer);
-}
-
 function scheduleProbe() {
+  _panelDirty = true;
   clearTimeout(_probeTimer);
   const path = document.getElementById('analyze-path').value.trim();
   if (!path) {
@@ -116,7 +152,7 @@ async function runEstimate() {
     });
     if (!res.ok) return;
     renderEstimate(_probedInfo, await res.json());
-  } catch { /* ignore; estimate is non-critical */ }
+  } catch { /* estimate is non-critical */ }
 }
 
 let _warnThresholdMin = 30;
@@ -177,7 +213,7 @@ async function startAnalyze() {
   btn.disabled = true;
   btn.textContent = 'Starting…';
 
-  const contextNames = Array.from(document.querySelectorAll('.analyze-ctx-check:checked')).map(cb => cb.value);
+  const contextNames = _selectedContextIds();
   const startRes = await fetch('/api/analyze/start', {
     method:  'POST',
     headers: {'Content-Type': 'application/json'},
@@ -194,9 +230,8 @@ async function startAnalyze() {
 
   const filename = path.split(/[\\/]/).pop();
   _analyzeFilename = filename;
-  closeAnalyzeModal();
-  btn.disabled = false;
-  btn.textContent = 'Start Analysis';
+  _panelDirty = false;
+  _doCloseNewRecordingPanel();
   openLog();
   appendLog(`Analyzing: ${filename}`);
   streamSSE(

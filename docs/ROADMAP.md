@@ -52,14 +52,12 @@ Core review workflow, sidebar, export, analyze modal, track layout manager, reel
   - When a video is rescored, weights are averaged across all assigned contexts that have overrides;
     contexts without overrides contribute nothing to the average.
 
-- [ ] **New Recording panel (replaces Analyze modal)** *(complex)*
-  - `+ Analyze` in the header navigates to a "New Recording" panel that takes over the detail area
-    instead of opening a modal
-  - Sidebar stays live while the panel is open; clicking another video away cancels with a
-    discard prompt if configuration has been started
-  - File probe runs inline after file selection (already happens today — duration/estimate shown);
-    result feeds into split marker UI if the user wants to pre-split before analysis
-  - See *Recording Segments* below for the pre-split flow
+- [x] **New Recording panel (replaces Analyze modal)** *(done)*
+  - `+ Analyze` in the header navigates to a "New Recording" panel inside the main area
+  - Sidebar stays live while the panel is open; clicking another video closes it with a
+    discard prompt if a path has been entered
+  - File probe runs inline after file selection (duration/estimate shown)
+  - Pre-split flow deferred to *Recording Segments* below
 
 - [ ] **Recording Segments** *(large/complex)*
 

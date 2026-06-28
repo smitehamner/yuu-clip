@@ -6,7 +6,7 @@ function renderClipList(clips) {
     const _statusLabel = {pending: 'Unreviewed', approved: 'Approved', rejected: 'Rejected'};
     const filterMsg = _clipFilter !== 'all'
       ? `No ${_statusLabel[_clipFilter] || _clipFilter} clips`
-      : `No clips found — <a href="#" style="color:var(--muted);text-decoration:underline" onclick="event.preventDefault();openAnalyzeModal()">Re-analyze this recording</a>`;
+      : `No clips found — <a href="#" style="color:var(--muted);text-decoration:underline" onclick="event.preventDefault();openNewRecordingPanel()">Analyze another recording</a>`;
     list.innerHTML = `<li style="padding:10px 14px;color:var(--muted)">${filterMsg}</li>`;
     return;
   }

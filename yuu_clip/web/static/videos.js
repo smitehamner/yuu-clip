@@ -91,7 +91,7 @@ function _showEmptyState() {
     <div class="empty-state">
       <h2>Welcome to yuu-clip</h2>
       <p>Analyze a recording to start reviewing and exporting your best gaming moments.</p>
-      <button class="btn primary" onclick="openAnalyzeModal()">+ Analyze your first recording</button>
+      <button class="btn primary" onclick="openNewRecordingPanel()">+ Analyze your first recording</button>
     </div>`;
 }
 
@@ -115,6 +115,17 @@ function _clipsSortParam() {
 }
 
 async function selectVideo(id) {
+  if (_isNewRecordingPanelOpen() && _panelDirty) {
+    showConfirm(
+      'Discard new recording?',
+      'You have unsaved configuration. Switch to this recording anyway?',
+      'Discard',
+      () => { _doCloseNewRecordingPanel(); selectVideo(id); },
+      true,
+    );
+    return;
+  }
+  if (_isNewRecordingPanelOpen()) _doCloseNewRecordingPanel();
   activeVideoId = id;
   activeClipId  = null;
   localStorage.setItem('yuuclip-view', JSON.stringify({videoId: id, clipId: null}));

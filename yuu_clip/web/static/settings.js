@@ -285,7 +285,7 @@ document.addEventListener('keydown', e => {
     _confirmCancel();
     closeFieldEditModal();
     _diffDiscard();
-    closeAnalyzeModal();
+    if (_isNewRecordingPanelOpen()) _doCloseNewRecordingPanel();
     closeProfileManager();
     closeDemoModal();
     closeReelsModal();

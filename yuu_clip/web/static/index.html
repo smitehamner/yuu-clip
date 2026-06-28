@@ -17,7 +17,7 @@
             style="padding:2px 10px;font-size:12px;display:none">Cancel</button>
   </div>
   <div class="header-spacer" id="header-spacer"></div>
-  <button class="btn primary" id="btn-analyze" onclick="openAnalyzeModal()">+ Analyze</button>
+  <button class="btn primary" id="btn-analyze" onclick="openNewRecordingPanel()">+ Analyze</button>
   <button class="btn" id="btn-demo" onclick="openDemoModal()">Highlight Reel</button>
   <div class="hamburger-wrap" id="hamburger-wrap">
     <button class="btn ghost" id="btn-hamburger" onclick="toggleHamburger()" title="More options" aria-label="More options" aria-haspopup="true" aria-expanded="false" style="font-size:17px;padding:5px 11px;line-height:1">&#9776;</button>
@@ -298,6 +298,76 @@
     <div class="detail" id="detail">
       <div class="detail-empty">Select a clip from the sidebar</div>
     </div>
+
+    <!-- New Recording panel — replaces player+detail when active -->
+    <div class="new-recording-panel" id="new-recording-panel" style="display:none">
+      <div class="new-recording-inner">
+        <div class="new-recording-header">
+          <h2>New Recording</h2>
+          <button class="btn ghost" id="btn-close-new-recording" onclick="closeNewRecordingPanel()"
+                  aria-label="Close" style="font-size:16px">&#x2715;</button>
+        </div>
+
+        <div class="field">
+          <label for="analyze-path">Recording file</label>
+          <div class="path-row">
+            <input type="text" id="analyze-path" placeholder="D:\recordings\session.mkv" oninput="scheduleProbe()">
+            <button class="btn" onclick="pickFile()" title="Browse for file" aria-label="Browse for file">&#128193;</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="analyze-profile">Track layout</label>
+          <div style="display:flex;gap:6px">
+            <select id="analyze-profile" style="flex:1" onchange="runEstimate()"></select>
+            <button class="btn" onclick="openProfileManager()" title="Manage track layouts">&#9881;</button>
+          </div>
+        </div>
+
+        <div class="field" id="analyze-context-field">
+          <label>World Contexts <span style="color:var(--muted);font-weight:400">(optional)</span></label>
+          <div id="analyze-context-list"
+               style="display:flex;flex-direction:column;gap:5px;padding:6px 8px;background:var(--bg);border:1px solid var(--border);border-radius:6px;max-height:120px;overflow-y:auto"></div>
+        </div>
+
+        <details class="advanced">
+          <summary>Advanced options</summary>
+          <div class="field">
+            <label for="analyze-model">Whisper model</label>
+            <select id="analyze-model" onchange="runEstimate()">
+              <option value="tiny">tiny — fastest, lowest quality</option>
+              <option value="base">base — very fast, lower quality</option>
+              <option value="small">small — fast (~500 MB VRAM)</option>
+              <option value="medium" selected>medium — good balance (~1.5 GB VRAM)</option>
+              <option value="large-v3">large-v3 — best quality (~3 GB VRAM)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="analyze-scene-mode">Scene detection</label>
+            <select id="analyze-scene-mode" onchange="runEstimate()">
+              <option value="transcript">Transcript only — silence gaps, instant</option>
+              <option value="fast" selected>Fast — keyframes + transcript gaps (recommended)</option>
+              <option value="full">Full — every frame, most accurate (slow)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="analyze-energy-mode">Audio energy</label>
+            <select id="analyze-energy-mode" onchange="runEstimate()">
+              <option value="none">None — skip (fastest)</option>
+              <option value="fast" selected>Fast — 4 kHz numpy (recommended)</option>
+              <option value="full">Full — 16 kHz numpy (most accurate)</option>
+            </select>
+          </div>
+        </details>
+
+        <div id="estimate-area"></div>
+
+        <div class="new-recording-actions">
+          <button class="btn primary" id="btn-start-analyze" onclick="startAnalyze()" disabled
+                  title="Select a valid recording file first">Start Analysis</button>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -351,66 +421,6 @@
   </div>
 </div>
 
-<!-- Analyze modal -->
-<div class="modal-bg" id="analyze-modal" onclick="if(event.target===this)closeAnalyzeModal()">
-  <div class="modal">
-    <h3>Analyze Recording</h3>
-    <div class="field">
-      <label for="analyze-path">Video file path</label>
-      <div class="path-row">
-        <input type="text" id="analyze-path" placeholder="D:\recordings\session.mkv" oninput="scheduleProbe()">
-        <button class="btn" onclick="pickFile()" title="Browse for file" aria-label="Browse for file">&#128193;</button>
-      </div>
-    </div>
-    <div class="field">
-      <label for="analyze-profile">Track layout</label>
-      <div style="display:flex;gap:6px">
-        <select id="analyze-profile" style="flex:1" onchange="runEstimate()"></select>
-        <button class="btn" onclick="openProfileManager()" title="Manage track layouts">&#9881;</button>
-      </div>
-    </div>
-    <div class="field" id="analyze-context-field" style="display:none">
-      <label>World Contexts <span style="color:var(--muted);font-weight:400">(optional)</span></label>
-      <div id="analyze-context-list"
-           style="display:flex;flex-direction:column;gap:5px;padding:6px 8px;background:var(--bg);border:1px solid var(--border);border-radius:6px;max-height:100px;overflow-y:auto"></div>
-    </div>
-
-    <details class="advanced">
-      <summary>Advanced options</summary>
-      <div class="field">
-        <label for="analyze-model">Whisper model</label>
-        <select id="analyze-model" onchange="runEstimate()">
-          <option value="tiny">tiny — fastest, lowest quality</option>
-          <option value="base">base — very fast, lower quality</option>
-          <option value="small">small — fast (~500 MB VRAM)</option>
-          <option value="medium" selected>medium — good balance (~1.5 GB VRAM)</option>
-          <option value="large-v3">large-v3 — best quality (~3 GB VRAM)</option>
-        </select>
-      </div>
-      <div class="field">
-        <label for="analyze-scene-mode">Scene detection</label>
-        <select id="analyze-scene-mode" onchange="runEstimate()">
-          <option value="transcript">Transcript only — silence gaps, instant</option>
-          <option value="fast" selected>Fast — keyframes + transcript gaps (recommended)</option>
-          <option value="full">Full — every frame, most accurate (slow)</option>
-        </select>
-      </div>
-      <div class="field">
-        <label for="analyze-energy-mode">Audio energy</label>
-        <select id="analyze-energy-mode" onchange="runEstimate()">
-          <option value="none">None — skip (fastest)</option>
-          <option value="fast" selected>Fast — 4 kHz numpy (recommended)</option>
-          <option value="full">Full — 16 kHz numpy (most accurate)</option>
-        </select>
-      </div>
-    </details>
-    <div id="estimate-area"></div>
-    <div class="modal-actions">
-      <button class="btn" onclick="closeAnalyzeModal()">Cancel</button>
-      <button class="btn primary" id="btn-start-analyze" onclick="startAnalyze()" disabled title="Select a valid recording file first">Start Analysis</button>
-    </div>
-  </div>
-</div>
 
 <!-- Profile Manager Modal -->
 <div class="modal-bg" id="profile-modal" onclick="if(event.target===this)closeProfileManager()">
