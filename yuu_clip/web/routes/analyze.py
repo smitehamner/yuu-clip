@@ -201,14 +201,14 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     def server_status():
         """Return whether any processing is currently active (analysis, scoring, timeline, etc.)."""
         # Lazy import: analyze.py is loaded by app.py, so a top-level import would be circular.
-        from yuu_clip.web.app import _SERVER_START
+        from yuu_clip.web.app import _VERSION_DISPLAY
         proc = ctx.analyze_proc
         analyze_running = proc is not None and proc.returncode is None
         return {
             "any_running": analyze_running or ctx.active_jobs > 0,
             "analyze_running": analyze_running,
             "active_jobs": ctx.active_jobs,
-            "version": f"Development · started {_SERVER_START}",
+            "version": _VERSION_DISPLAY,
         }
 
     @router.get("/api/analyze/status")

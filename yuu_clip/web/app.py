@@ -10,12 +10,14 @@ import asyncio
 import os
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
+from importlib.metadata import PackageNotFoundError, version as _pkg_version
 from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+from yuu_clip._build_info import BUILD_DATE as _BUILD_DATE
 from yuu_clip.contexts import seed_builtin_contexts
 from yuu_clip.log import configure_logging, get_logger
 from yuu_clip.web.deps import ProjectContext
@@ -25,6 +27,16 @@ _HERE = Path(__file__).parent
 _log  = get_logger(__name__)
 
 _SERVER_START = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+
+try:
+    _PKG_VERSION = _pkg_version("yuu-clip")
+except PackageNotFoundError:
+    _PKG_VERSION = "unknown"
+
+if _BUILD_DATE == "dev":
+    _VERSION_DISPLAY = f"{_PKG_VERSION}-dev · started {_SERVER_START}"
+else:
+    _VERSION_DISPLAY = f"{_PKG_VERSION} · {_BUILD_DATE}"
 
 _ROUTE_MODULES = (videos, analyze, profiles, reel, logs, contexts)
 
@@ -72,7 +84,7 @@ def create_app(project_dir: Path) -> FastAPI:
 
     @app.get("/api/version")
     async def version():
-        return JSONResponse({"version": f"Development – {_SERVER_START}"})
+        return JSONResponse({"version": _VERSION_DISPLAY})
 
     app.mount(
         "/static",

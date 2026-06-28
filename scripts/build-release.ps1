@@ -56,7 +56,12 @@ if ($pyproject -notmatch 'version\s*=\s*"([^"]+)"') {
 $version = $Matches[1]
 Write-Host "Building version: $version"
 
-# ── 3. Build Python wheel ────────────────────────────────────────────────────
+# ── 3. Stamp build date and build Python wheel ───────────────────────────────
+$buildDate = (Get-Date -Format "yyyy-MM-dd")
+$buildInfoPath = "$root\yuu_clip\_build_info.py"
+[System.IO.File]::WriteAllText($buildInfoPath, "BUILD_DATE = `"$buildDate`"`n", [System.Text.UTF8Encoding]::new($false))
+Write-Host "Build date stamped: $buildDate"
+
 Write-Host "`nBuilding Python wheel..."
 $wheelDir = "$root\build\wheel"
 Remove-Item "$wheelDir\*.whl" -ErrorAction SilentlyContinue
@@ -71,6 +76,9 @@ if (-not $whl) {
     exit 1
 }
 Write-Host "Wheel: $($whl.FullName)"
+
+[System.IO.File]::WriteAllText($buildInfoPath, "BUILD_DATE = `"dev`"`n", [System.Text.UTF8Encoding]::new($false))
+Write-Host "Build date reset to dev"
 
 # ── 4. npm run dist ──────────────────────────────────────────────────────────
 Write-Host "`nRunning electron-builder..."
