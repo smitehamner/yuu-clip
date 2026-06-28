@@ -7,7 +7,7 @@
 | 1 | Core pipeline | Done |
 | 2 | Signal enrichment + scoring | Done |
 | 3 | Web UI | In progress |
-| 4 | Packaging for distribution | Pending |
+| 4 | Packaging for distribution | In progress |
 | 5 | Post-launch polish | Pending |
 | 6 | Advanced features | Pending |
 
@@ -138,52 +138,31 @@ Core review workflow, sidebar, export, analyze modal, track layout manager, reel
 
 ---
 
-## Phase 4 — Packaging + distribution (Pending)
+## Phase 4 — Packaging + distribution (In progress)
 
 Goal: friends can install and use without knowing Python.
 
-### Distribution approach
+### Shipped (v0.1.1 – v0.1.8)
 
-Electron wrapper is the likely target — it embeds Chromium and presents the app in its own window
-rather than opening in the user's browser, which makes it feel like a native desktop app. The
-Python backend would run as a bundled subprocess.
+- **Electron wrapper** — app runs in its own window (not the browser); Python backend is a bundled subprocess
+- **First-run setup wizard** — `setup.html` page detects GPU, Ollama, FFmpeg; guides user through prerequisites with specific install instructions; skips on subsequent launches
+- **NSIS installer** — one-click install via `electron-builder`; creates desktop + Start Menu shortcuts; `build-release.ps1` script produces the installer
+- **Venv setup** — Electron creates a `.venv` and installs the bundled wheel on first run; non-blocking so the wizard window stays responsive; upgrade detection reruns install when wheel version changes
+- **Loading screen** — shown between wizard completion and main window load
+- **Backend health check** — 60 s startup timeout; detects early crash and shows error in UI; crash-safe shutdown on window close
+- **Rolling logs** — startup errors logged to `venv-setup.log`; server output to rotating `yuu-clip.log`
+- **Version in footer** — dev mode shows version + server start time; production shows version + build date
+- **`-Version` flag** on build script for automating version bumps
 
-| Option | Pros | Cons |
-|---|---|---|
-| Electron wrapper | Native desktop feel, auto-update, self-contained window | Adds JS build step; large bundle |
-| PyInstaller bundle | No Python needed, simpler build | ~300 MB binary; no auto-update |
-| `pip install yuu-clip` | Simple for Python users | Requires Python + pip knowledge |
-| Docker | Fully self-contained | Requires Docker; GPU passthrough is extra setup |
+### Still pending
 
-### Bundling AI dependencies
-
-- **Ollama**: investigate `llama.cpp` (or `ollama-python` with an embedded server) to avoid
-  requiring a separate Ollama install — a bundled inference backend would be a much smoother
-  first-run experience
-- **Whisper**: already bundled via `faster-whisper` / CTranslate2; weights download on first use
-
-### GPU support
-
-- **NVIDIA CUDA**: already supported via CTranslate2's CUDA backend
-- **AMD / Intel**: investigate ROCm (AMD) and OpenVINO (Intel) support in CTranslate2 — most
-  people are likely on NVIDIA but worth evaluating for the packaging phase
-- First-run wizard should detect GPU, CUDA version, and Ollama and give specific guidance when
-  something is missing or in the wrong order (e.g. Ollama installed before CUDA drivers leads to
-  CPU-only inference even after adding CUDA later)
-
-### Refactor targets for Phase 4
-
-- First-run wizard: detect FFmpeg, check GPU / CUDA, check Ollama, pick project folder; option in
-  main UI to re-run the wizard
-- Wizard assists with selecting and downloading Whisper models, text LLM models, and (optionally)
-  vision models — with licence and hardware guidance for each
-- Disabled UI options must clearly indicate which prerequisite is missing and link to the wizard
-- One-click installer / bundled release
-- **Choose a licence** — currently unlicensed (all rights reserved, smitehamner). Options:
-  MIT (permissive), GPL-3 (copyleft), or source-available. Decide before any public release.
-  Update `LICENSE`, `pyproject.toml`, and the About modal once chosen.
-- **Linux compatibility testing** — verify the full pipeline works on a Linux host; identify any
-  Windows-only assumptions in path handling, file pickers, or process management.
+- [ ] **Bundled inference backend** — investigate `llama.cpp` to avoid requiring a separate Ollama install; smoother first-run experience
+- [ ] **Disabled UI linking to wizard** — when a prerequisite is missing, disabled UI options should indicate which prereq and link to re-run the wizard
+- [ ] **Whisper + LLM model downloader in wizard** — guided download of Whisper weights and Ollama models with licence and hardware notes
+- [ ] **AMD / Intel GPU support** — evaluate ROCm (AMD) and OpenVINO (Intel) support in CTranslate2
+- [ ] **Choose a licence** — currently unlicensed (all rights reserved, smitehamner). Decide before any public release (MIT, GPL-3, or source-available). Update `LICENSE`, `pyproject.toml`, and About modal.
+- [ ] **Linux compatibility testing** — verify the full pipeline on Linux; identify Windows-only assumptions in path handling, file pickers, or process management.
+- [ ] **Performance and storage notes** — document expected install size, per-session disk usage, recommended specs (RAM, GPU, storage type). Surface SSD recommendation in the project folder picker.
 
 ---
 

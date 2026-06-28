@@ -170,3 +170,17 @@ Archive of shipped items. For pending work see [ROADMAP.md](ROADMAP.md).
   `related_clips_at`. "Related Clips" section in the detail panel shows ranked clickable links
   (clicking navigates to that clip); stale indicator shown when `related_clips_at` predates the
   video's last rescore (`clips_scored_at`).
+
+---
+
+## Phase 4 — Packaging + distribution (in progress; partial)
+
+- **Electron wrapper** — app runs in its own Chromium window; Python backend launched as a child process
+- **First-run setup wizard** (`setup.html`) — detects GPU, Ollama, FFmpeg; gives specific install guidance; skips on subsequent launches
+- **NSIS installer** — built via `electron-builder`; creates desktop + Start Menu shortcuts; produced by `scripts/build-release.ps1`
+- **Venv setup** — creates `.venv` and installs bundled wheel on first run; non-blocking so wizard stays responsive; detects version upgrades and reruns install
+- **Loading screen** — shown between wizard and main window
+- **Backend health check** — 60 s startup timeout; detects early crash; crash-safe shutdown on close
+- **Rolling logs** — `venv-setup.log` for startup; rotating `yuu-clip.log` for server output
+- **Version in footer** — dev: version + server start time; production: version + build date
+- Shipped versions: 0.1.1 → 0.1.8
