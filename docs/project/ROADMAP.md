@@ -7,7 +7,7 @@
 | 1 | Core pipeline | Done |
 | 2 | Signal enrichment + scoring | Done |
 | 3 | Web UI | Done |
-| 4 | Packaging for distribution | In progress |
+| 4 | Packaging for distribution | Done |
 | 5 | Post-launch polish | Pending |
 | 6 | Advanced features | Pending |
 
@@ -43,10 +43,7 @@ Goal: friends can install and use without knowing Python.
 
 Electron wrapper, NSIS installer, first-run setup wizard, venv setup, backend health check, rolling logs, version in footer, bundled `llama-cpp-python` inference backend, LLM backend picker + Ollama model pull in wizard — shipped. See [COMPLETED.md](COMPLETED.md).
 
-### Still pending
-
-- [ ] **Disabled UI linking to wizard** — when a prerequisite is missing, disabled UI options should indicate which prereq and link to re-run the wizard
-- [ ] **Whisper model info in wizard** — Whisper auto-downloads on first analysis; the wizard already shows model sizes and VRAM requirements. Gap: licence notes per model are not shown.
+All Phase 4 items shipped. See [COMPLETED.md](COMPLETED.md).
 
 ---
 

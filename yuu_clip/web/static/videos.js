@@ -104,6 +104,7 @@ function _updateDemoButton(approvedCount) {
 function _updateStartIngestButton() {
   const btn = document.getElementById('btn-start-analyze');
   if (!btn) return;
+  if (window._prereqs && !window._prereqs.ffmpeg_ok) return;
   btn.disabled = !_probedInfo;
   btn.title = _probedInfo ? '' : 'Select a valid video file first';
 }

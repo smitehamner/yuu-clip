@@ -253,3 +253,27 @@ function initResize() {
     };
   });
 }
+
+// ── prereq warnings ───────────────────────────────────────────────────────────
+function _applyPrereqWarnings(prereqs) {
+  const inElectron = !!window.electronAPI;
+  const wizardLink = inElectron
+    ? ' <a href="#" onclick="window.electronAPI.runSetupWizard();return false" style="color:var(--amber)">Re-run Setup Wizard</a>'
+    : '';
+
+  const banner = document.getElementById('prereq-banner');
+  if (!banner) return;
+
+  if (!prereqs.ffmpeg_ok) {
+    banner.innerHTML = `<span>⚠ FFmpeg not found — analysis and export will fail.${wizardLink}</span>`;
+    banner.style.display = '';
+    const btn = document.getElementById('btn-start-analyze');
+    if (btn) {
+      btn.disabled = true;
+      btn.title = 'FFmpeg not found — Re-run Setup Wizard to install it';
+    }
+  } else if (!prereqs.llm_ok && inElectron) {
+    banner.innerHTML = `<span>ℹ LLM scoring is not configured — clips will be scored by energy and scenes only.${wizardLink}</span>`;
+    banner.style.display = '';
+  }
+}

@@ -229,7 +229,7 @@ Archive of shipped items. For pending work see [ROADMAP.md](ROADMAP.md).
 
 ---
 
-## Phase 4 — Packaging + distribution (in progress; partial)
+## Phase 4 — Packaging + distribution (done)
 
 - **Electron wrapper** — app runs in its own Chromium window; Python backend launched as a child process
 - **First-run setup wizard** (`setup.html`) — detects GPU, Ollama, FFmpeg; gives specific install guidance; skips on subsequent launches
@@ -241,4 +241,6 @@ Archive of shipped items. For pending work see [ROADMAP.md](ROADMAP.md).
 - **Version in footer** — dev: version + server start time; production: version + build date
 - **Clean uninstall** — NSIS `deleteAppDataOnUninstall` removes `Roaming\yuu-clip`; custom macro in `installer.nsh` wipes `Local\yuu-clip` (venv) and `Local\yuu-clip-updater` on uninstall.
 - **Bundled llama.cpp inference backend** — `llama-cpp-python` bundled in the wheel; `scoring/llm.py` supports both `llamacpp` (`.gguf` model file) and `ollama` backends; `llm_backend` / `llm_model_path` config fields; wizard LLM picker with `.gguf` file browser and Ollama model pull with progress bar. Ollama is now optional.
+- **Disabled UI linking to wizard** — `/api/prereqs` endpoint checks FFmpeg and LLM config at boot; if FFmpeg is missing, a banner appears in the recording panel with a "Re-run Setup Wizard" link and the analyze button stays disabled; "Re-run Setup Wizard" hamburger button now shown whenever running inside Electron
+- **Whisper model licence in wizard** — MIT licence note added to the wizard's Whisper checklist row
 - Shipped versions: 0.1.1 → 0.1.8

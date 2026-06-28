@@ -335,7 +335,8 @@ function renderStatus(s) {
   rows.push(row('whisper', 'info', 'ℹ',
     'Whisper transcription',
     `Model weights download automatically on first analysis — choose the size below based on your hardware.<br>` +
-    `<span style="color:#555;font-size:11px">Download sizes: tiny ~75 MB &nbsp;·&nbsp; base ~145 MB &nbsp;·&nbsp; small ~465 MB &nbsp;·&nbsp; medium ~1.5 GB &nbsp;·&nbsp; large-v3 ~3 GB</span>`
+    `<span style="color:#555;font-size:11px">Download sizes: tiny ~75 MB &nbsp;·&nbsp; base ~145 MB &nbsp;·&nbsp; small ~465 MB &nbsp;·&nbsp; medium ~1.5 GB &nbsp;·&nbsp; large-v3 ~3 GB</span><br>` +
+    `<span style="color:#555;font-size:11px">All models: OpenAI Whisper — MIT licence (commercial use permitted).</span>`
   ));
 
   document.getElementById('checklist').innerHTML = rows.join('');

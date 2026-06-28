@@ -247,6 +247,28 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             "version": _VERSION_DISPLAY,
         }
 
+    @router.get("/api/prereqs")
+    def prereqs():
+        """Return prerequisite availability for the UI to surface wizard links."""
+        from yuu_clip.config import find_ffmpeg
+        try:
+            find_ffmpeg()
+            ffmpeg_ok = True
+        except Exception:
+            ffmpeg_ok = False
+        try:
+            cfg = ctx.config
+            if cfg.llm_backend == "ollama":
+                import urllib.request
+                host = cfg.ollama_host or "http://localhost:11434"
+                urllib.request.urlopen(f"{host}/api/tags", timeout=2)
+                llm_ok = True
+            else:
+                llm_ok = bool(cfg.llm_model_path and Path(cfg.llm_model_path).exists())
+        except Exception:
+            llm_ok = False
+        return {"ffmpeg_ok": ffmpeg_ok, "llm_ok": llm_ok}
+
     @router.get("/api/analyze/status")
     def analyze_status():
         """Return whether an analyze subprocess is currently running."""
