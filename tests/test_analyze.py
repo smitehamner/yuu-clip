@@ -1,0 +1,538 @@
+from __future__ import annotations
+
+import pytest
+
+
+# ---------------------------------------------------------------------------
+# Estimate
+# ---------------------------------------------------------------------------
+
+class TestEstimate:
+    _BASE = dict(duration_s=3600, model="medium", audio_tracks=2, has_gpu=True, scene_mode="fast")
+
+    def test_estimate_returns_steps(self, client):
+        r = client.post("/api/estimate", json=self._BASE)
+        assert r.status_code == 200
+        d = r.json()
+        assert "steps" in d
+        assert "total_hms" in d
+        assert len(d["steps"]) >= 1
+        for step in d["steps"]:
+            assert "name" in step
+            assert "seconds" in step
+            assert "hms" in step
+
+    def test_estimate_gpu_faster_than_cpu(self, client):
+        payload = dict(duration_s=3600, model="large-v3", audio_tracks=1, scene_mode="fast")
+        gpu = client.post("/api/estimate", json={**payload, "has_gpu": True}).json()
+        cpu = client.post("/api/estimate", json={**payload, "has_gpu": False}).json()
+        assert gpu["total_seconds"] < cpu["total_seconds"]
+
+    def test_estimate_returns_pct_of_video(self, client):
+        d = client.post("/api/estimate", json=self._BASE).json()
+        assert "pct_of_video" in d
+        assert isinstance(d["pct_of_video"], (int, float))
+        assert 0 < d["pct_of_video"] < 200
+
+    def test_estimate_pct_matches_total(self, client):
+        d = client.post("/api/estimate", json=self._BASE).json()
+        expected = round(d["total_seconds"] / self._BASE["duration_s"] * 100, 1)
+        assert abs(d["pct_of_video"] - expected) < 0.5
+
+    def test_estimate_energy_none_cheapest(self, client):
+        none_s = client.post("/api/estimate", json={**self._BASE, "energy_mode": "none"}).json()["total_seconds"]
+        fast_s = client.post("/api/estimate", json={**self._BASE, "energy_mode": "fast"}).json()["total_seconds"]
+        full_s = client.post("/api/estimate", json={**self._BASE, "energy_mode": "full"}).json()["total_seconds"]
+        assert none_s < fast_s < full_s
+
+    def test_estimate_energy_step_name_reflects_mode(self, client):
+        for mode in ("none", "fast", "full"):
+            d = client.post("/api/estimate", json={**self._BASE, "energy_mode": mode}).json()
+            energy_step = next(s for s in d["steps"] if "energy" in s["name"].lower())
+            assert mode in energy_step["name"]
+
+
+# ---------------------------------------------------------------------------
+# Ingest start
+# ---------------------------------------------------------------------------
+
+class TestIngestStart:
+    @pytest.fixture()
+    def video_path(self, project_dir):
+        p = project_dir / "session.mkv"
+        p.write_bytes(b"fake")
+        return p
+
+    def test_missing_file_returns_400(self, client):
+        r = client.post("/api/analyze/start", json={"path": "/nonexistent/video.mkv", "model": "medium"})
+        assert r.status_code == 400
+
+    def test_invalid_model_returns_400(self, client, video_path):
+        r = client.post("/api/analyze/start", json={"path": str(video_path), "model": "gpt-vision"})
+        assert r.status_code == 400
+
+    def test_valid_request_with_energy_mode(self, client, video_path):
+        r = client.post("/api/analyze/start", json={
+            "path": str(video_path),
+            "model": "medium",
+            "energy_mode": "none",
+        })
+        assert r.status_code == 200
+        assert r.json()["status"] == "started"
+
+    def test_all_energy_modes_accepted(self, client, video_path):
+        for mode in ("none", "fast", "full"):
+            r = client.post("/api/analyze/start", json={
+                "path": str(video_path),
+                "model": "medium",
+                "energy_mode": mode,
+            })
+            assert r.status_code == 200, f"energy_mode={mode!r} was rejected"
+
+
+# ---------------------------------------------------------------------------
+# Logs
+# ---------------------------------------------------------------------------
+
+class TestLogs:
+    def test_log_export_filename_contains_date(self, client):
+        import re
+        r = client.get("/api/logs/export")
+        assert r.status_code == 200
+        disposition = r.headers.get("content-disposition", "")
+        assert "yuu-clip-" in disposition
+        assert ".log" in disposition
+        # Filename must contain an ISO date (YYYY-MM-DD) — exact value is not asserted
+        # to avoid a midnight-boundary race where test and server disagree on the date.
+        assert re.search(r"\d{4}-\d{2}-\d{2}", disposition)
+
+    def test_log_export_returns_text(self, client):
+        r = client.get("/api/logs/export")
+        assert r.status_code == 200
+        assert "text" in r.headers.get("content-type", "")
+
+
+# ---------------------------------------------------------------------------
+# Probe (file not found case — no real video needed)
+# ---------------------------------------------------------------------------
+
+class TestProbe:
+    def test_probe_missing_file_returns_400(self, client):
+        r = client.post("/api/probe", json={"path": "/nonexistent/file.mkv"})
+        assert r.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# DB session cleanup — proves no connection lingers after route handlers
+# ---------------------------------------------------------------------------
+
+class TestDbSessionCleanup:
+    def test_db_writable_after_list_videos(self, client, project_dir):
+        """After GET /api/videos the DB must accept writes (no held lock)."""
+        client.get("/api/videos")
+        client.get("/api/videos")
+
+        from yuu_clip.db.models import Video, make_session
+        db_path = project_dir / ".yuu-clip" / "project.db"
+        session = make_session(db_path)
+        try:
+            v = Video(
+                path=str(project_dir / "new_video.mkv"),
+                filename="new_video.mkv",
+                status="pending",
+                duration_ms=30_000,
+            )
+            session.add(v)
+            session.commit()  # raises OperationalError if lock is still held
+        finally:
+            session.close()
+
+        videos = client.get("/api/videos").json()
+        assert any(v["filename"] == "new_video.mkv" for v in videos)
+
+    def test_db_writable_after_clip_status_update(self, client, project_dir):
+        """After POST /api/clips/{id}/status the DB must accept writes."""
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        clip_id = client.get(f"/api/videos/{vid_id}/clips").json()[0]["id"]
+        client.post(f"/api/clips/{clip_id}/status", json={"status": "approved"})
+
+        from yuu_clip.db.models import Video, make_session
+        db_path = project_dir / ".yuu-clip" / "project.db"
+        session = make_session(db_path)
+        try:
+            v = Video(
+                path=str(project_dir / "another_video.mkv"),
+                filename="another_video.mkv",
+                status="pending",
+                duration_ms=30_000,
+            )
+            session.add(v)
+            session.commit()
+        finally:
+            session.close()
+
+        videos = client.get("/api/videos").json()
+        assert any(v["filename"] == "another_video.mkv" for v in videos)
+
+    def test_many_concurrent_reads_leave_no_lock(self, client, project_dir):
+        """Repeated reads from multiple endpoints must not accumulate held locks."""
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        clips = client.get(f"/api/videos/{vid_id}/clips").json()
+        for clip in clips:
+            client.get(f"/api/clips/{clip['id']}")
+            client.get(f"/api/clips/{clip['id']}/media_url")
+
+        from yuu_clip.db.models import Video, make_session
+        db_path = project_dir / ".yuu-clip" / "project.db"
+        session = make_session(db_path)
+        try:
+            v = Video(
+                path=str(project_dir / "third_video.mkv"),
+                filename="third_video.mkv",
+                status="pending",
+                duration_ms=30_000,
+            )
+            session.add(v)
+            session.commit()
+        finally:
+            session.close()
+
+        videos = client.get("/api/videos").json()
+        assert any(v["filename"] == "third_video.mkv" for v in videos)
+
+
+# ---------------------------------------------------------------------------
+# Graceful shutdown — lifespan terminates running analyze subprocess
+# ---------------------------------------------------------------------------
+
+class TestGracefulShutdown:
+    def test_shutdown_terminates_running_analyze(self, project_dir):
+        """When the server exits, a running analyze_proc must be terminated."""
+        from unittest.mock import AsyncMock, MagicMock
+        from fastapi.testclient import TestClient
+        from yuu_clip.web.app import create_app
+
+        app = create_app(project_dir)
+        mock_proc = MagicMock()
+        mock_proc.returncode = None          # still running
+        mock_proc.pid = 99999
+        mock_proc.wait = AsyncMock(return_value=0)
+
+        with TestClient(app) as tc:
+            app.state.ctx.analyze_proc = mock_proc
+
+        mock_proc.terminate.assert_called_once()
+
+    def test_shutdown_noop_when_no_analyze_running(self, project_dir):
+        """Server shutdown must not raise when there is no active subprocess."""
+        from fastapi.testclient import TestClient
+        from yuu_clip.web.app import create_app
+
+        app = create_app(project_dir)
+        with TestClient(app):
+            pass  # just verify it exits cleanly
+
+    def test_shutdown_noop_when_analyze_already_finished(self, project_dir):
+        """Server shutdown must not call terminate on a process that already exited."""
+        from unittest.mock import MagicMock
+        from fastapi.testclient import TestClient
+        from yuu_clip.web.app import create_app
+
+        app = create_app(project_dir)
+        mock_proc = MagicMock()
+        mock_proc.returncode = 0  # already exited
+
+        with TestClient(app) as tc:
+            app.state.ctx.analyze_proc = mock_proc
+
+        mock_proc.terminate.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Analyze cancel — no-op when nothing running
+# ---------------------------------------------------------------------------
+
+class TestAnalyzeCancel:
+    def test_cancel_when_nothing_running_returns_ok(self, client):
+        r = client.post("/api/analyze/cancel")
+        assert r.status_code == 200
+        assert r.json()["status"] == "cancelled"
+
+    def test_analyze_status_false_when_idle(self, client):
+        r = client.get("/api/analyze/status")
+        assert r.status_code == 200
+        assert r.json()["running"] is False
+
+
+# ---------------------------------------------------------------------------
+# Summarize — 400 when no transcript
+# ---------------------------------------------------------------------------
+
+class TestSummarize:
+    def test_summarize_returns_400_without_transcript(self, client):
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        r = client.post(f"/api/videos/{vid_id}/summarize")
+        assert r.status_code == 400
+
+    def test_summarize_404_for_missing_video(self, client):
+        r = client.post("/api/videos/99999/summarize")
+        assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Server status
+# ---------------------------------------------------------------------------
+
+class TestStatus:
+    def test_status_idle(self, client):
+        r = client.get("/api/status")
+        assert r.status_code == 200
+        d = r.json()
+        assert d["any_running"] is False
+        assert d["analyze_running"] is False
+        assert d["active_jobs"] == 0
+        assert "version" in d
+
+    def test_status_reflects_running_analyze(self, project_dir):
+        from unittest.mock import AsyncMock, MagicMock
+        from fastapi.testclient import TestClient
+        from yuu_clip.web.app import create_app
+        app = create_app(project_dir)
+        mock_proc = MagicMock()
+        mock_proc.returncode = None  # still running
+        mock_proc.pid = 99999
+        mock_proc.wait = AsyncMock(return_value=0)
+        with TestClient(app) as tc:
+            app.state.ctx.analyze_proc = mock_proc
+            r = tc.get("/api/status")
+        assert r.json()["analyze_running"] is True
+        assert r.json()["any_running"] is True
+
+
+# ---------------------------------------------------------------------------
+# Rescore-clips SSE — 404 guard
+# ---------------------------------------------------------------------------
+
+class TestRescoreClipsSSE:
+    def test_rescore_clips_404_for_missing_video(self, client):
+        r = client.get("/api/videos/99999/rescore-clips")
+        assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Timeline endpoint guard
+# ---------------------------------------------------------------------------
+
+class TestTimelineEndpointGuard:
+    """stream_timeline returns 400 when no transcript exists."""
+
+    def test_timeline_400_without_transcript(self, client):
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        r = client.get(f"/api/videos/{vid_id}/timeline")
+        assert r.status_code == 400
+
+    def test_timeline_404_for_missing_video(self, client):
+        r = client.get("/api/videos/99999/timeline")
+        assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# SSE guards
+# ---------------------------------------------------------------------------
+
+class TestSseGuards:
+    """Cover 400 guards on SSE event endpoints when no job has been queued."""
+
+    def test_analyze_events_without_start_returns_400(self, client):
+        r = client.get("/api/analyze/events")
+        assert r.status_code == 400
+
+    def test_demo_events_without_start_returns_400(self, client):
+        r = client.get("/api/demo/events")
+        assert r.status_code == 400
+
+
+class TestSseCommandCleared:
+    """analyze_cmd and demo_cmd are cleared after the subprocess SSE stream finishes."""
+
+    def test_analyze_cmd_cleared_after_events_stream(self, project_dir):
+        """After analyze_events runs to completion, ctx.analyze_cmd must be None."""
+        from fastapi.testclient import TestClient
+        from yuu_clip.web.app import create_app
+        import sys
+
+        app = create_app(project_dir)
+        # Queue a trivial command that exits immediately
+        with TestClient(app) as tc:
+            ctx = app.state.ctx
+            ctx.analyze_cmd = [sys.executable, "-c", "print('done')"]
+            # Consume the stream fully so the generator's finally block runs
+            with tc.stream("GET", "/api/analyze/events") as resp:
+                list(resp.iter_lines())
+            assert ctx.analyze_cmd is None
+
+    def test_demo_cmd_cleared_after_events_stream(self, project_dir):
+        """After demo_events runs to completion, ctx.demo_cmd must be None."""
+        from fastapi.testclient import TestClient
+        from yuu_clip.web.app import create_app
+        import sys
+
+        app = create_app(project_dir)
+        with TestClient(app) as tc:
+            ctx = app.state.ctx
+            ctx.demo_cmd = [sys.executable, "-c", "print('done')"]
+            with tc.stream("GET", "/api/demo/events") as resp:
+                list(resp.iter_lines())
+            assert ctx.demo_cmd is None
+
+    def test_second_call_to_analyze_events_without_new_start_returns_400(self, project_dir):
+        """After stream finishes, a second call to /api/analyze/events without a new start
+        must return 400, not re-run the old command."""
+        from fastapi.testclient import TestClient
+        from yuu_clip.web.app import create_app
+        import sys
+
+        app = create_app(project_dir)
+        with TestClient(app) as tc:
+            ctx = app.state.ctx
+            ctx.analyze_cmd = [sys.executable, "-c", "print('done')"]
+            with tc.stream("GET", "/api/analyze/events") as resp:
+                list(resp.iter_lines())
+            # Second call — no command queued, must return 400
+            r = tc.get("/api/analyze/events")
+            assert r.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# Retranscribe validation
+# ---------------------------------------------------------------------------
+
+class TestRetranscribeValidation:
+    """retranscribe endpoint rejects unknown Whisper models."""
+
+    def test_retranscribe_invalid_model_returns_400(self, client):
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        clips = client.get(f"/api/videos/{vid_id}/clips").json()
+        clip_id = clips[0]["id"]
+        r = client.get(f"/api/clips/{clip_id}/retranscribe?model=gpt-4o")
+        assert r.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# Version endpoint
+# ---------------------------------------------------------------------------
+
+class TestVersionEndpoint:
+    def test_version_returns_200(self, client):
+        r = client.get("/api/version")
+        assert r.status_code == 200
+        assert "version" in r.json()
+
+
+# ---------------------------------------------------------------------------
+# Estimate edge cases
+# ---------------------------------------------------------------------------
+
+class TestEstimateEdgeCases:
+    """Additional _compute_time_estimate branches not covered by TestEstimate."""
+
+    def test_transcript_scene_mode_zero_cost(self, client):
+        """scene_mode=transcript has no wall-clock cost."""
+        transcript = client.post("/api/estimate", json={
+            "duration_s": 3600, "model": "medium", "has_gpu": True,
+            "scene_mode": "transcript",
+        }).json()
+        fast = client.post("/api/estimate", json={
+            "duration_s": 3600, "model": "medium", "has_gpu": True,
+            "scene_mode": "fast",
+        }).json()
+        assert transcript["total_seconds"] < fast["total_seconds"]
+
+    def test_full_scene_mode_slower_than_fast(self, client):
+        transcript = client.post("/api/estimate", json={
+            "duration_s": 3600, "model": "medium", "has_gpu": True,
+            "scene_mode": "fast",
+        }).json()
+        full = client.post("/api/estimate", json={
+            "duration_s": 3600, "model": "medium", "has_gpu": True,
+            "scene_mode": "full",
+        }).json()
+        assert full["total_seconds"] > transcript["total_seconds"]
+
+    def test_explicit_transcribe_tracks_overrides_default(self, client):
+        auto = client.post("/api/estimate", json={
+            "duration_s": 3600, "model": "medium", "audio_tracks": 4,
+            "has_gpu": True, "scene_mode": "fast",
+        }).json()
+        explicit = client.post("/api/estimate", json={
+            "duration_s": 3600, "model": "medium", "audio_tracks": 4,
+            "transcribe_tracks": 1, "has_gpu": True, "scene_mode": "fast",
+        }).json()
+        # Fewer transcribe tracks → faster Whisper step → lower total
+        assert explicit["total_seconds"] < auto["total_seconds"]
+
+    def test_unknown_model_falls_back_to_default_gpu_speed(self, client):
+        """An unrecognised model string should not raise — it falls back to speed=6."""
+        # Use the internal function directly to avoid the validate_whisper_model guard
+        from yuu_clip.web.routes.analyze import _compute_time_estimate, EstimateRequest
+        req = EstimateRequest(duration_s=3600, model="custom:tag", has_gpu=True, scene_mode="fast")
+        result = _compute_time_estimate(req)
+        assert result["total_seconds"] > 0
+
+    def test_zero_duration_pct_is_zero(self, client):
+        """Zero-duration input must not cause a division error."""
+        from yuu_clip.web.routes.analyze import _compute_time_estimate, EstimateRequest
+        req = EstimateRequest(duration_s=0, model="medium", has_gpu=True, scene_mode="fast")
+        result = _compute_time_estimate(req)
+        assert result["pct_of_video"] == 0
+
+
+# ---------------------------------------------------------------------------
+# analyze/start with video_id — reanalyze-after-split entry point
+# ---------------------------------------------------------------------------
+
+class TestAnalyzeStartWithVideoId:
+    def test_video_id_queues_analyze_command(self, project_dir):
+        from fastapi.testclient import TestClient
+        from yuu_clip.web.app import create_app
+
+        app = create_app(project_dir)
+        with TestClient(app) as c:
+            ctx = app.state.ctx
+            vid_id = c.get("/api/videos").json()[0]["id"]
+            r = c.post("/api/analyze/start", json={"video_id": vid_id, "model": "tiny"})
+            assert r.status_code == 200
+            assert ctx.analyze_cmd is not None
+            assert "--video-id" in ctx.analyze_cmd
+            assert str(vid_id) in ctx.analyze_cmd
+
+    def test_video_id_not_found_returns_404(self, project_dir):
+        from fastapi.testclient import TestClient
+        from yuu_clip.web.app import create_app
+
+        app = create_app(project_dir)
+        with TestClient(app) as c:
+            r = c.post("/api/analyze/start", json={"video_id": 99999, "model": "tiny"})
+            assert r.status_code == 404
+
+    def test_segment_start_end_added_to_cmd(self, project_dir):
+        from pathlib import Path
+        from fastapi.testclient import TestClient
+        from yuu_clip.web.app import create_app
+
+        app = create_app(project_dir)
+        with TestClient(app) as c:
+            ctx = app.state.ctx
+            # Create a real file so path validation passes
+            fake_path = project_dir / "session.mkv"
+            fake_path.write_bytes(b"")
+            r = c.post("/api/analyze/start", json={
+                "path": str(fake_path),
+                "model": "tiny",
+                "segment_start_s": 10.5,
+                "segment_end_s": 120.0,
+            })
+            assert r.status_code == 200
+            assert "--segment-start" in ctx.analyze_cmd
+            assert "10.5" in ctx.analyze_cmd
+            assert "--segment-end" in ctx.analyze_cmd

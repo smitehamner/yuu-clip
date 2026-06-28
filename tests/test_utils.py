@@ -1,0 +1,194 @@
+from __future__ import annotations
+
+import pytest
+
+
+# ---------------------------------------------------------------------------
+# _ms_to_hms
+# ---------------------------------------------------------------------------
+
+class TestMsToHms:
+    """_ms_to_hms converts milliseconds to h:mm:ss or m:ss."""
+
+    def _convert(self, ms):
+        from yuu_clip.web.routes.videos import _ms_to_hms
+        return _ms_to_hms(ms)
+
+    def test_seconds_only(self):
+        assert self._convert(30_000) == "0:30"
+
+    def test_minutes_and_seconds(self):
+        assert self._convert(90_000) == "1:30"
+
+    def test_exactly_one_hour(self):
+        assert self._convert(3_600_000) == "1:00:00"
+
+    def test_hours_minutes_seconds(self):
+        assert self._convert(3_661_000) == "1:01:01"
+
+    def test_zero_ms(self):
+        assert self._convert(0) == "0:00"
+
+    def test_one_minute_boundary(self):
+        assert self._convert(60_000) == "1:00"
+
+
+# ---------------------------------------------------------------------------
+# format_context_block
+# ---------------------------------------------------------------------------
+
+class TestFormatContextBlock:
+    """format_context_block builds the LLM injection text for named contexts."""
+
+    def _fmt(self, contexts, context_ids):
+        from yuu_clip.contexts import format_context_block
+        return format_context_block(contexts, context_ids)
+
+    def test_empty_context_ids_returns_empty_string(self):
+        contexts = {"una": {"display_name": "Una", "setting": "A world"}}
+        assert self._fmt(contexts, []) == ""
+
+    def test_unknown_context_id_skipped(self):
+        assert self._fmt({}, ["nonexistent"]) == ""
+
+    def test_single_context_contains_header_and_footer(self):
+        contexts = {"una": {"display_name": "Una Server", "setting": "A fantasy world"}}
+        result = self._fmt(contexts, ["una"])
+        assert "== WORLD CONTEXT: Una Server ==" in result
+        assert "== END CONTEXT ==" in result
+
+    def test_setting_field_included(self):
+        contexts = {"una": {"display_name": "Una", "setting": "Dragons everywhere"}}
+        result = self._fmt(contexts, ["una"])
+        assert "Dragons everywhere" in result
+
+    def test_empty_field_omitted(self):
+        contexts = {
+            "una": {
+                "display_name": "Una",
+                "setting": "A world",
+                "your_characters": "",
+                "other_characters": "",
+                "notes": "",
+            }
+        }
+        result = self._fmt(contexts, ["una"])
+        assert "Your characters" not in result
+
+    def test_multiple_contexts_joined(self):
+        contexts = {
+            "ctx1": {"display_name": "C1", "setting": "Setting one"},
+            "ctx2": {"display_name": "C2", "setting": "Setting two"},
+        }
+        result = self._fmt(contexts, ["ctx1", "ctx2"])
+        assert "C1" in result
+        assert "C2" in result
+        assert "Setting one" in result
+        assert "Setting two" in result
+
+    def test_context_id_order_preserved(self):
+        contexts = {
+            "a": {"display_name": "Alpha", "setting": "First"},
+            "b": {"display_name": "Beta", "setting": "Second"},
+        }
+        result = self._fmt(contexts, ["b", "a"])
+        assert result.index("Beta") < result.index("Alpha")
+
+
+# ---------------------------------------------------------------------------
+# _format_duration
+# ---------------------------------------------------------------------------
+
+class TestFormatDuration:
+    """_format_duration produces compact human-readable strings."""
+
+    def _fmt(self, seconds):
+        from yuu_clip.web.routes.analyze import _format_duration
+        return _format_duration(seconds)
+
+    def test_zero_seconds(self):
+        assert self._fmt(0) == "0s"
+
+    def test_under_one_minute(self):
+        assert self._fmt(45) == "45s"
+
+    def test_exactly_one_minute(self):
+        assert self._fmt(60) == "1m 00s"
+
+    def test_minutes_and_seconds(self):
+        assert self._fmt(90) == "1m 30s"
+
+    def test_exactly_one_hour(self):
+        assert self._fmt(3600) == "1h 00m"
+
+    def test_hours_and_minutes(self):
+        assert self._fmt(5400) == "1h 30m"
+
+
+# ---------------------------------------------------------------------------
+# analyze/probe.py — _parse_fps
+# ---------------------------------------------------------------------------
+
+class TestParseFps:
+    def _fps(self, s):
+        from yuu_clip.analyze.probe import _parse_fps
+        return _parse_fps(s)
+
+    def test_integer_string(self):
+        assert self._fps("30") == 30.0
+
+    def test_fraction_string(self):
+        result = self._fps("60000/1001")
+        assert abs(result - 59.94) < 0.01
+
+    def test_exact_fraction(self):
+        assert self._fps("30/1") == 30.0
+
+    def test_zero_denominator_returns_default(self):
+        assert self._fps("30/0") == 30.0
+
+    def test_invalid_string_returns_default(self):
+        assert self._fps("not_a_number") == 30.0
+
+    def test_empty_string_returns_default(self):
+        assert self._fps("") == 30.0
+
+
+# ---------------------------------------------------------------------------
+# Preview cache invalidation — regression test
+# ---------------------------------------------------------------------------
+
+class TestPreviewCacheInvalidation:
+    """Updating clip timing must evict the cached preview file so the next
+    request regenerates it from the new offsets."""
+
+    def _first_clip_id(self, client) -> int:
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        return client.get(f"/api/videos/{vid_id}/clips").json()[0]["id"]
+
+    def test_timing_update_evicts_preview_cache(self, client, project_dir):
+        """After PATCH /timing, the in-memory cache entry for that clip must be
+        removed so a stale preview is never served."""
+        from yuu_clip.web.routes import videos as videos_mod
+
+        clip_id = self._first_clip_id(client)
+
+        # Manually plant a fake preview file in the module-level cache to simulate
+        # a previously generated preview.
+        preview_dir = project_dir / ".yuu-clip" / "preview_cache"
+        preview_dir.mkdir(parents=True, exist_ok=True)
+        fake_preview = preview_dir / f"clip_{clip_id}_preview.mp4"
+        fake_preview.write_bytes(b"old preview content")
+        videos_mod._preview_cache[clip_id] = fake_preview
+
+        # Update clip timing — this must evict the cache entry and delete the file.
+        r = client.patch(f"/api/clips/{clip_id}/timing",
+                         json={"start_offset": 2.0, "end_offset": -1.0})
+        assert r.status_code == 200
+
+        assert clip_id not in videos_mod._preview_cache, (
+            "Cache entry was not evicted after timing update"
+        )
+        assert not fake_preview.exists(), (
+            "Stale preview file was not deleted after timing update"
+        )
