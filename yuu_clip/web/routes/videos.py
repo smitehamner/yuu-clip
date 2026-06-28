@@ -228,8 +228,8 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         """Partition a recording into named segments at the given split points (seconds).
 
         Idempotent: re-splitting a video deletes and recreates its existing segments.
-        Existing clips on the parent are NOT redistributed here — use the partition
-        action after splitting to assign them to segments.
+        Clips on the parent are not migrated — callers either reanalyze each segment
+        (generating fresh clips) or leave them untouched on the now-hidden parent.
         """
         db = ctx.get_db()
         try:
@@ -268,8 +268,8 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             stem = Path(video.filename).stem
 
             segment_ids: list[int] = []
-            for i, (start, end) in enumerate(zip(boundaries[:-1], boundaries[1:]), 1):
-                name = (body.segment_names[i - 1].strip() if i - 1 < len(body.segment_names) else "")
+            for i, (start, end) in enumerate(zip(boundaries[:-1], boundaries[1:])):
+                name = (body.segment_names[i].strip() if i < len(body.segment_names) else "")
                 seg = Video(
                     path=video.path,
                     filename=video.filename,
@@ -281,7 +281,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                     parent_video_id=video_id,
                     segment_start_s=start,
                     segment_end_s=end,
-                    title=name or f"{stem} — Part {i}",
+                    title=name or f"{stem} — Part {i + 1}",
                 )
                 db.add(seg)
                 db.flush()
@@ -301,7 +301,8 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         """Delete clips on a video, optionally preserving exported ones.
 
         Used by the reanalyze-after-split flow to clear stale clips before
-        re-running the analysis pipeline on each segment.
+        re-running the analysis pipeline on each segment. Only DB records are
+        removed — export files on disk are intentionally left in place.
         """
         db = ctx.get_db()
         try:
@@ -312,6 +313,10 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                 q = q.filter(ClipCandidate.status != "exported")
             deleted = q.delete(synchronize_session=False)
             db.commit()
+            _log.info(
+                "Cleared %d clip(s) from video %d (keep_exported=%s)",
+                deleted, video_id, body.keep_exported,
+            )
             return {"deleted": deleted}
         finally:
             db.close()

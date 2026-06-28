@@ -808,13 +808,97 @@ class TestSplitVideo:
 
     def test_segment_has_expected_fields(self, client):
         vid_id = self._video_id(client)
-        client.post(f"/api/videos/{vid_id}/split", json={"split_points": [120.0]})
-        segs = client.get("/api/videos").json()
-        s = segs[0]
+        seg_ids = client.post(
+            f"/api/videos/{vid_id}/split", json={"split_points": [120.0]}
+        ).json()["segment_ids"]
+        segs = {s["id"]: s for s in client.get("/api/videos").json()}
+        s = segs[seg_ids[0]]
         assert s["parent_video_id"] == vid_id
-        assert s["segment_start_s"] is not None
-        assert s["segment_end_s"] is not None
+        assert s["segment_start_s"] == pytest.approx(0.0)
+        assert s["segment_end_s"] == pytest.approx(120.0)
         assert s["segment_end_s"] > s["segment_start_s"]
+
+
+class TestSplitVideoFields:
+    """Verify the arithmetic and field values produced by split_video."""
+
+    def _video_id(self, client) -> int:
+        return client.get("/api/videos").json()[0]["id"]
+
+    def test_split_404_for_unknown_video(self, client):
+        r = client.post("/api/videos/99999/split", json={"split_points": [60.0]})
+        assert r.status_code == 404
+
+    def test_segment_duration_ms_correct(self, client):
+        vid_id = self._video_id(client)
+        # Seed duration_ms is 600_000 ms (600 s). Split at 120 s → [0–120, 120–600].
+        r = client.post(f"/api/videos/{vid_id}/split", json={"split_points": [120.0]})
+        assert r.status_code == 200
+        seg_ids = r.json()["segment_ids"]
+        segs = {s["id"]: s for s in client.get("/api/videos").json()}
+        assert segs[seg_ids[0]]["duration_ms"] == 120_000
+        assert segs[seg_ids[1]]["duration_ms"] == 480_000
+
+    def test_segment_start_end_seconds_exact(self, client):
+        vid_id = self._video_id(client)
+        r = client.post(f"/api/videos/{vid_id}/split", json={"split_points": [120.0, 300.0]})
+        seg_ids = r.json()["segment_ids"]
+        segs = {s["id"]: s for s in client.get("/api/videos").json()}
+        assert segs[seg_ids[0]]["segment_start_s"] == pytest.approx(0.0)
+        assert segs[seg_ids[0]]["segment_end_s"] == pytest.approx(120.0)
+        assert segs[seg_ids[1]]["segment_start_s"] == pytest.approx(120.0)
+        assert segs[seg_ids[1]]["segment_end_s"] == pytest.approx(300.0)
+        assert segs[seg_ids[2]]["segment_start_s"] == pytest.approx(300.0)
+        assert segs[seg_ids[2]]["segment_end_s"] == pytest.approx(600.0)
+
+    def test_segment_default_title_format(self, client):
+        vid_id = self._video_id(client)
+        r = client.post(f"/api/videos/{vid_id}/split", json={"split_points": [120.0]})
+        seg_ids = r.json()["segment_ids"]
+        segs = {s["id"]: s for s in client.get("/api/videos").json()}
+        # filename is "session.mkv", stem is "session"
+        assert segs[seg_ids[0]]["title"] == "session — Part 1"
+        assert segs[seg_ids[1]]["title"] == "session — Part 2"
+
+    def test_segment_named_title_from_request(self, client):
+        vid_id = self._video_id(client)
+        r = client.post(f"/api/videos/{vid_id}/split", json={
+            "split_points": [120.0],
+            "segment_names": ["Intro", "Main"],
+        })
+        seg_ids = r.json()["segment_ids"]
+        segs = {s["id"]: s for s in client.get("/api/videos").json()}
+        assert segs[seg_ids[0]]["title"] == "Intro"
+        assert segs[seg_ids[1]]["title"] == "Main"
+
+    def test_segment_partial_names_falls_back_to_default(self, client):
+        vid_id = self._video_id(client)
+        # Provide only one name for a two-segment split; second gets default
+        r = client.post(f"/api/videos/{vid_id}/split", json={
+            "split_points": [120.0],
+            "segment_names": ["Intro"],
+        })
+        seg_ids = r.json()["segment_ids"]
+        segs = {s["id"]: s for s in client.get("/api/videos").json()}
+        assert segs[seg_ids[0]]["title"] == "Intro"
+        assert segs[seg_ids[1]]["title"] == "session — Part 2"
+
+    def test_duplicate_split_points_deduplicated(self, client):
+        vid_id = self._video_id(client)
+        # Two identical points should collapse to one split → two segments
+        r = client.post(f"/api/videos/{vid_id}/split", json={"split_points": [120.0, 120.0]})
+        assert r.status_code == 200
+        assert len(r.json()["segment_ids"]) == 2
+
+    def test_get_video_returns_segment_fields_for_segment(self, client):
+        vid_id = self._video_id(client)
+        seg_id = client.post(
+            f"/api/videos/{vid_id}/split", json={"split_points": [120.0]}
+        ).json()["segment_ids"][0]
+        d = client.get(f"/api/videos/{seg_id}").json()
+        assert d["parent_video_id"] == vid_id
+        assert d["segment_start_s"] == pytest.approx(0.0)
+        assert d["segment_end_s"] == pytest.approx(120.0)
 
 
 class TestSplitVideoOrphanCleanup:

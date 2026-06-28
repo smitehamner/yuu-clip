@@ -90,8 +90,8 @@ async function openSplitEditor(videoId) {
     _renderSceneLayer();
   }
 
-  if (clipsRes.status === 'fulfilled' && clipsRes.value?.clips?.length) {
-    _splitClipRanges = clipsRes.value.clips.map(c => ({
+  if (clipsRes.status === 'fulfilled' && clipsRes.value?.length) {
+    _splitClipRanges = clipsRes.value.map(c => ({
       start_ms: c.start_ms,
       end_ms: c.end_ms,
     }));

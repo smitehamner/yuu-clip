@@ -24,12 +24,15 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
+from yuu_clip.log import configure_logging, get_logger
+
 app = typer.Typer(
     name="yuuclip",
     help="Video session clip extraction pipeline.",
     add_completion=False,
 )
 console = Console()
+log = get_logger(__name__)
 
 VIDEO_EXTENSIONS = {".mp4", ".mkv", ".mov", ".avi", ".webm", ".flv", ".ts"}
 BYTES_PER_MB: int = 1_048_576
@@ -50,7 +53,7 @@ class AnalyzeOptions:
     # Path to an .srt file, or "stream:<index>" for an embedded subtitle stream.
     # When set, transcription is skipped and the subtitles are imported directly.
     subtitle_source: Optional[str] = None
-    # Target a specific video record by ID (used by reanalyze-after-split flow).
+    # When set, the video row is looked up by ID rather than by path; path arg is ignored.
     video_id: Optional[int] = None
     # Time window for pre-analysis splits: trim audio extraction to this range.
     segment_start_s: Optional[float] = None
@@ -71,6 +74,7 @@ def _load_project(project: Optional[Path]):
     """Resolve project dir, open DB session, and load config. Used by every command that needs DB access."""
     from yuu_clip.config import Config
     proj_dir = _project_dir(project)
+    configure_logging(proj_dir)
     session  = _get_session(proj_dir)
     config   = Config.load(proj_dir)
     return proj_dir, session, config
@@ -95,6 +99,29 @@ def _resolve_videos(path: Path) -> list[Path]:
         return [path]
     console.print(f"[red]Not a video file or directory: {path}[/red]")
     raise typer.Exit(1)
+
+
+def _parse_srt(text: str) -> list[tuple[int, int, str]]:
+    """Parse SRT subtitle text into (start_ms, end_ms, text) triples."""
+    import re as _re
+    segments = []
+    for block in _re.split(r"\n\n+", text.strip()):
+        lines = block.strip().splitlines()
+        if len(lines) < 3:
+            continue
+        m = _re.match(
+            r"(\d+):(\d+):(\d+)[,.](\d+)\s*-->\s*(\d+):(\d+):(\d+)[,.](\d+)",
+            lines[1].strip(),
+        )
+        if not m:
+            continue
+        g = [int(x) for x in m.groups()]
+        start_ms = (g[0] * 3600 + g[1] * 60 + g[2]) * 1000 + g[3]
+        end_ms   = (g[4] * 3600 + g[5] * 60 + g[6]) * 1000 + g[7]
+        text_body = " ".join(lines[2:]).strip()
+        if text_body:
+            segments.append((start_ms, end_ms, text_body))
+    return segments
 
 
 def _extract_wav_segment(src: Path, dst: Path, start_s: float, end_s: float) -> None:
@@ -305,33 +332,11 @@ def _import_subtitles(subtitle_source: str, video_path: Path, track_objs, sessio
     embedded subtitle stream (extracted via ffmpeg to a temp SRT first).
     Returns a list of Transcript ORM objects (one per do_transcribe track).
     """
-    import re as _re
     import tempfile
     from yuu_clip.config import find_ffmpeg
     from yuu_clip.db.models import Transcript, TranscriptSegment
 
     console.print("  [bold]Importing subtitles...[/bold]")
-
-    def _parse_srt(text: str) -> list[tuple[int, int, str]]:
-        segments = []
-        blocks = _re.split(r"\n\n+", text.strip())
-        for block in blocks:
-            lines = block.strip().splitlines()
-            if len(lines) < 3:
-                continue
-            m = _re.match(
-                r"(\d+):(\d+):(\d+)[,.](\d+)\s*-->\s*(\d+):(\d+):(\d+)[,.](\d+)",
-                lines[1].strip(),
-            )
-            if not m:
-                continue
-            g = [int(x) for x in m.groups()]
-            start_ms = (g[0]*3600 + g[1]*60 + g[2]) * 1000 + g[3]
-            end_ms   = (g[4]*3600 + g[5]*60 + g[6]) * 1000 + g[7]
-            text_body = " ".join(lines[2:]).strip()
-            if text_body:
-                segments.append((start_ms, end_ms, text_body))
-        return segments
 
     srt_path: Optional[Path] = None
     tmp_file = None
@@ -355,6 +360,7 @@ def _import_subtitles(subtitle_source: str, video_path: Path, track_objs, sessio
         parsed = _parse_srt(srt_text)
     except Exception as exc:
         console.print(f"  [red]Subtitle import failed: {exc}[/red]")
+        log.exception("Subtitle import failed: source=%s video=%s", subtitle_source, video_path)
         return []
     finally:
         if tmp_file:
@@ -391,6 +397,7 @@ def _probe_video(video_path: Path):
         info = probe_video(video_path)
     except Exception as e:
         console.print(f"  [red]Inspect failed: {e}[/red]")
+        log.exception("Probe failed: path=%s", video_path)
         return None
     console.print(
         f"  [dim]Duration: [cyan]{info.duration_hms}[/cyan]  ·  "
@@ -485,7 +492,8 @@ def _extract_audio_and_check_rms_overlap(
         if track.extracted_path and Path(track.extracted_path).exists() and not force:
             console.print(f"  [dim]  Track {track.stream_index} already extracted[/dim]")
             continue
-        out_path = audio_dir / f"{Path(video.filename).stem}_stream{track.stream_index}.wav"
+        seg_suffix = f"_seg{int(segment_start_s * 1000)}" if segment_start_s is not None else ""
+        out_path = audio_dir / f"{Path(video.filename).stem}_stream{track.stream_index}{seg_suffix}.wav"
         try:
             extract_audio_track(
                 video_path, track.stream_index, out_path,
@@ -499,6 +507,7 @@ def _extract_audio_and_check_rms_overlap(
             )
         except RuntimeError as e:
             console.print(f"  [red]  FAIL extraction: {e}[/red]")
+            log.exception("Audio extraction failed: video=%s stream=%s", video.filename, track.stream_index)
 
     session.flush()
     video.status = "extracting"
@@ -540,6 +549,7 @@ def _transcribe_and_check_overlap(track_objs, config, session, video, language) 
             transcripts.append(transcript)
         except Exception as e:
             console.print(f"  [red]  FAIL transcription: {e}[/red]")
+            log.exception("Transcription failed: video=%s stream=%s", video.filename, track.stream_index)
 
     session.flush()
     video.status = "transcribed"
@@ -609,6 +619,7 @@ def _summarize_video(video, transcripts, config, session, context_text: str = ""
         console.print("  [green]  OK[/green] summary generated")
     except Exception as exc:
         console.print(f"  [yellow]  Summary skipped: {exc}[/yellow]")
+        log.exception("Video summary failed: video_id=%s", video.id)
 
 
 def _run_scoring(video, track_objs, config, session, energy_mode: str = "fast", context_text: str = "") -> None:
@@ -644,6 +655,7 @@ def _run_scoring(video, track_objs, config, session, energy_mode: str = "fast", 
             session.flush()
         except Exception as e:
             console.print(f"  [yellow]  Scene detection skipped: {e}[/yellow]")
+            log.exception("Scene detection failed: video_id=%s", video.id)
 
     console.print("  [bold]Scoring clips...[/bold]")
     engine = ScoringEngine(config, [AudioEnergyScorer(config), SceneCutScorer(config), LLMScorer(config, context_text=context_text)])
@@ -679,6 +691,8 @@ def score(
     if no_scenes: config.scorer_scenes_enabled = False
     if no_llm:    config.ollama_enabled = False
 
+    from yuu_clip.contexts import format_context_block, load_contexts
+
     if all_videos:
         videos = session.query(Video).all()
     else:
@@ -690,7 +704,6 @@ def score(
 
     for v in videos:
         console.rule(f"[bold]{v.filename}[/bold]")
-        from yuu_clip.contexts import format_context_block, load_contexts
         _cn = json.loads(v.context_names_json) if v.context_names_json else []
         _ctx = format_context_block(load_contexts(proj_dir), _cn)
         _run_scoring(v, v.audio_tracks, config, session, context_text=_ctx)
@@ -861,6 +874,47 @@ def _run_retranscribe(cand, session, config, language: Optional[str] = None) -> 
             cand.transcript_excerpt = " ".join(s.text.strip() for s in new_segs)
 
 
+def _build_export_path(
+    cand, video_path: Path, container: Optional[str], exports_dir: Path, output: Optional[Path]
+) -> tuple[str, Path]:
+    """Return (base_stem, resolved_output_path) for an export clip.
+
+    base_stem is used by the caller when writing SRT sidecars.
+    output is the caller's --output override when provided; otherwise it is derived
+    from the clip ID and start timecode and placed in exports_dir.
+    """
+    stem   = Path(cand.video.filename).stem
+    suffix = f".{container.lstrip('.')}" if container else (video_path.suffix or ".mkv")
+    base   = f"{stem}_clip{cand.id}_{cand.start_hms.replace(':', '-')}"
+    if output is None:
+        output = exports_dir / f"{base}{suffix}"
+    return base, output
+
+
+def _apply_title_card(clip_path: Path, cand, output: Path) -> Path:
+    """Prepend a title card to *clip_path*, write the result to *output*, and return *output*.
+
+    Deletes the intermediate *clip_path* after concatenation.
+    """
+    import tempfile as _tmp
+    from yuu_clip.reel import _compile_concat, _make_title_card
+
+    console.print("  Generating title card...")
+    fps    = cand.video.fps    or 30.0
+    width  = cand.video.width  or 1920
+    height = cand.video.height or 1080
+    title_lines = []
+    if cand.description:
+        title_lines.append((cand.description, 36))
+    title_lines.append((f"{cand.start_hms}  ·  {cand.duration_hms}", 24))
+    with _tmp.TemporaryDirectory() as td:
+        card_path = Path(td) / "title_card.mkv"
+        _make_title_card(title_lines, card_path, duration=3.0, fps=fps, width=width, height=height)
+        _compile_concat([card_path, clip_path], output)
+    clip_path.unlink(missing_ok=True)
+    return output
+
+
 @app.command()
 def export(
     clip_id: int = typer.Argument(..., help="Clip candidate ID to export"),
@@ -920,14 +974,7 @@ def export(
     )
     audio_stream_idx = audio_track.stream_index if audio_track else None
 
-    stem   = Path(cand.video.filename).stem
-    if container:
-        suffix = f".{container.lstrip('.')}"
-    else:
-        suffix = video_path.suffix or ".mkv"
-    base   = f"{stem}_clip{cand.id}_{cand.start_hms.replace(':', '-')}"
-    if output is None:
-        output = exports / f"{base}{suffix}"
+    base, output = _build_export_path(cand, video_path, container, exports, output)
 
     effective_start_ms = cand.start_ms + int((cand.start_offset or 0.0) * 1000)
     effective_end_ms   = cand.end_ms   + int((cand.end_offset   or 0.0) * 1000)
@@ -958,7 +1005,6 @@ def export(
         else:
             console.print("  [yellow]--embed-subs: no transcript data found, skipping subtitle track[/yellow]")
 
-    tmp_clip_path: Optional[Path] = None
     try:
         clip_dest = output if not title_card else output.with_suffix(".clip_tmp" + output.suffix)
         result = export_clip(
@@ -972,22 +1018,7 @@ def export(
             audio_stream_index=audio_stream_idx,
         )
         if title_card:
-            from yuu_clip.reel import _make_title_card, _probe_duration, _compile_concat
-            import tempfile as _tmp
-            console.print("  Generating title card...")
-            fps    = cand.video.fps    or 30.0
-            width  = cand.video.width  or 1920
-            height = cand.video.height or 1080
-            title_lines = []
-            if cand.description:
-                title_lines.append((cand.description, 36))
-            title_lines.append((f"{cand.start_hms}  ·  {cand.duration_hms}", 24))
-            with _tmp.TemporaryDirectory() as td:
-                card_path = Path(td) / "title_card.mkv"
-                _make_title_card(title_lines, card_path, duration=3.0, fps=fps, width=width, height=height)
-                _compile_concat([card_path, result], output)
-            result.unlink(missing_ok=True)
-            result = output
+            result = _apply_title_card(result, cand, output)
         size_mb = result.stat().st_size / BYTES_PER_MB
         console.print(f"  [green]OK[/green] Saved to [cyan]{result}[/cyan]  [dim]({size_mb:.1f} MB)[/dim]")
         from datetime import datetime, timezone as _tz
@@ -1123,7 +1154,11 @@ def retranscribe(
     from yuu_clip.config import validate_whisper_model
     from yuu_clip.db.models import ClipCandidate
 
-    validate_whisper_model(model)
+    try:
+        validate_whisper_model(model)
+    except ValueError as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(1)
     proj_dir, session, config = _load_project(project)
     config.whisper_model = model
 
