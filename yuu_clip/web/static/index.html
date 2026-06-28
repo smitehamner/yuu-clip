@@ -362,11 +362,87 @@
 
         <div id="estimate-area"></div>
 
+        <div id="pre-split-section" style="display:none">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;padding:4px 0">
+            <input type="checkbox" id="pre-split-toggle" onchange="onPreSplitToggle(this.checked)">
+            Split before analyzing
+          </label>
+          <div id="pre-split-editor" style="display:none;flex-direction:column;gap:8px;margin-top:6px">
+            <div style="font-size:12px;color:var(--muted)">Click the bar to place split points. Click a marker to remove it.</div>
+            <div id="pre-split-timeline-bar"
+                 style="position:relative;height:48px;background:var(--surface);border:1px solid var(--border);border-radius:6px;cursor:crosshair;overflow:hidden"
+                 onclick="preSplitTimelineClick(event)">
+              <div id="pre-split-segments-layer" style="display:flex;height:100%;pointer-events:none"></div>
+              <div id="pre-split-markers-layer" style="position:absolute;inset:0;pointer-events:none"></div>
+            </div>
+            <div id="pre-split-segment-list" style="display:flex;flex-direction:column;gap:6px"></div>
+          </div>
+        </div>
+
         <div class="new-recording-actions">
           <button class="btn primary" id="btn-start-analyze" onclick="startAnalyze()" disabled
                   title="Select a valid recording file first">Start Analysis</button>
         </div>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Split Editor panel (full-panel overlay, replaces main content) -->
+<div id="split-editor-panel" style="display:none;position:absolute;inset:0;background:var(--bg);z-index:10;flex-direction:column;padding:20px 24px;gap:16px;overflow-y:auto">
+  <div style="display:flex;align-items:center;gap:10px">
+    <button class="btn ghost" style="padding:4px 10px;font-size:13px" onclick="closeSplitEditor()">&#8592; Back</button>
+    <span style="font-size:14px;font-weight:600" id="split-editor-title">Recording Segments</span>
+  </div>
+  <div style="font-size:12px;color:var(--muted)">
+    Click the timeline bar to place a split point. Click a marker to remove it.
+    Each segment can be analyzed independently after confirming.
+  </div>
+
+  <!-- Video preview -->
+  <video id="split-preview-video" controls preload="metadata"
+         style="display:none;width:100%;max-height:38vh;object-fit:contain;background:#000;border-radius:6px"
+         aria-label="Recording preview"></video>
+
+  <!-- Timeline bar -->
+  <div style="position:relative;height:60px;background:var(--surface);border:1px solid var(--border);border-radius:6px;cursor:crosshair;user-select:none" id="split-timeline-bar" onclick="splitTimelineClick(event)">
+    <canvas id="split-waveform-canvas" style="position:absolute;inset:0;width:100%;height:100%;border-radius:6px;pointer-events:none"></canvas>
+    <div id="split-scene-layer"    style="position:absolute;inset:0;pointer-events:none"></div>
+    <div id="split-suggestion-layer" style="position:absolute;inset:0;pointer-events:none"></div>
+    <div id="split-clips-layer"    style="position:absolute;inset:0;pointer-events:none"></div>
+    <div id="split-segments-layer" style="position:absolute;inset:0;pointer-events:none;display:flex"></div>
+    <div id="split-markers-layer"  style="position:absolute;inset:0;pointer-events:none"></div>
+  </div>
+  <!-- Waveform notice (shown when no energy data and not computing) -->
+  <div id="split-waveform-notice" style="display:none;font-size:12px;color:var(--muted);align-items:center;gap:10px">
+    <span>No waveform data — energy was not computed during analysis.</span>
+    <button class="btn" style="padding:3px 10px;font-size:12px" onclick="_generateWaveform()">Generate Waveform</button>
+  </div>
+
+  <!-- Segment list -->
+  <div>
+    <div class="section-title" style="margin-bottom:8px">Segments</div>
+    <div id="split-segment-list" style="display:flex;flex-direction:column;gap:6px"></div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:10px;padding-top:4px">
+    <div id="split-action-options" style="display:flex;flex-direction:column;gap:6px;font-size:13px">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input type="radio" name="split-action" value="partition" checked>
+        Partition only — redistribute existing clips by start time, no reanalysis
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input type="radio" name="split-action" value="reanalyze-all">
+        Reanalyze — replace all clips (deletes existing clips and reruns analysis)
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input type="radio" name="split-action" value="reanalyze-keep">
+        Reanalyze — keep exported clips (preserves exported clips, reruns analysis)
+      </label>
+    </div>
+    <div style="display:flex;gap:10px">
+      <button class="btn primary" id="btn-split-confirm" onclick="confirmSplit()">Confirm</button>
+      <button class="btn" onclick="closeSplitEditor()">Cancel</button>
     </div>
   </div>
 </div>
@@ -896,6 +972,7 @@
 <script src="/static/reel.js"></script>
 <script src="/static/contexts.js"></script>
 <script src="/static/settings.js"></script>
+<script src="/static/split.js"></script>
 <script src="/static/boot.js"></script>
 </body>
 </html>

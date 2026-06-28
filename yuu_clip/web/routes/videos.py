@@ -22,7 +22,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse, PlainTextResponse, StreamingResponse
 from pydantic import BaseModel
-from sqlalchemy import case, func
+from sqlalchemy import case, func, select
 
 from yuu_clip.contexts import extract_context_weights, format_context_block, load_contexts
 from yuu_clip.db.models import AudioEnergy, AudioTrack, ClipCandidate, SceneBoundary, Video
@@ -67,6 +67,14 @@ class ClipScoreOverride(BaseModel):
 
 class ClipMergeRequest(BaseModel):
     clip_b_id: int
+
+
+class SplitRequest(BaseModel):
+    split_points: list[float]
+
+
+class ClearClipsRequest(BaseModel):
+    keep_exported: bool = False
 
 
 _AUTO_APPROVE_FIELDS = {
@@ -187,7 +195,14 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     def list_videos():
         db = ctx.get_db()
         try:
-            videos = db.query(Video).order_by(Video.created_at.desc()).all()
+            # Hide parent videos that have been split into segments.
+            split_parent_ids = select(Video.parent_video_id).where(Video.parent_video_id.isnot(None))
+            videos = (
+                db.query(Video)
+                .filter(~Video.id.in_(split_parent_ids))
+                .order_by(Video.created_at.desc())
+                .all()
+            )
             stats = _bulk_clip_stats(db, [v.id for v in videos])
             return [_video_dict(v, stats.get(v.id, _EMPTY_STATS)) for v in videos]
         finally:
@@ -204,6 +219,88 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             result = _video_dict(video, stats.get(video_id, _EMPTY_STATS))
             result["timeline"] = json_lib.loads(video.timeline_json) if video.timeline_json else None
             return result
+        finally:
+            db.close()
+
+    @router.post("/api/videos/{video_id}/split")
+    def split_video(video_id: int, body: SplitRequest):
+        """Partition a recording into named segments at the given split points (seconds).
+
+        Idempotent: re-splitting a video deletes and recreates its existing segments.
+        Existing clips on the parent are NOT redistributed here — use the partition
+        action after splitting to assign them to segments.
+        """
+        db = ctx.get_db()
+        try:
+            video = db.get(Video, video_id)
+            if not video:
+                raise HTTPException(404, "Video not found")
+            if video.parent_video_id is not None:
+                raise HTTPException(400, "Cannot split a segment — split the parent recording instead")
+
+            duration_s = (video.duration_ms or 0) / 1000.0
+            if duration_s <= 0:
+                raise HTTPException(400, "Recording has no duration — analyze it first")
+
+            pts = sorted(set(body.split_points))
+            for p in pts:
+                if p <= 0 or p >= duration_s:
+                    raise HTTPException(
+                        400,
+                        f"Split point {p}s is outside the recording range (0–{duration_s:.1f}s)",
+                    )
+
+            # Idempotent: remove existing segments before recreating.
+            db.query(Video).filter_by(parent_video_id=video_id).delete(synchronize_session=False)
+
+            boundaries = [0.0] + pts + [duration_s]
+            stem = Path(video.filename).stem
+
+            segment_ids: list[int] = []
+            for i, (start, end) in enumerate(zip(boundaries[:-1], boundaries[1:]), 1):
+                seg = Video(
+                    path=video.path,
+                    filename=video.filename,
+                    duration_ms=int((end - start) * 1000),
+                    fps=video.fps,
+                    width=video.width,
+                    height=video.height,
+                    status=video.status,
+                    parent_video_id=video_id,
+                    segment_start_s=start,
+                    segment_end_s=end,
+                    title=f"{stem} — Part {i}",
+                )
+                db.add(seg)
+                db.flush()
+                segment_ids.append(seg.id)
+
+            db.commit()
+            _log.info(
+                "Split video %d into %d segment(s) at points %s: ids=%s",
+                video_id, len(segment_ids), pts, segment_ids,
+            )
+            return {"segment_ids": segment_ids}
+        finally:
+            db.close()
+
+    @router.post("/api/videos/{video_id}/clips/clear")
+    def clear_video_clips(video_id: int, body: ClearClipsRequest):
+        """Delete clips on a video, optionally preserving exported ones.
+
+        Used by the reanalyze-after-split flow to clear stale clips before
+        re-running the analysis pipeline on each segment.
+        """
+        db = ctx.get_db()
+        try:
+            if not db.get(Video, video_id):
+                raise HTTPException(404, "Video not found")
+            q = db.query(ClipCandidate).filter(ClipCandidate.video_id == video_id)
+            if body.keep_exported:
+                q = q.filter(ClipCandidate.status != "exported")
+            deleted = q.delete(synchronize_session=False)
+            db.commit()
+            return {"deleted": deleted}
         finally:
             db.close()
 
@@ -734,6 +831,194 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                      '.mov': 'video/quicktime', '.avi': 'video/x-msvideo', '.webm': 'video/webm'}
         media_type = _EXT_TYPE.get(src.suffix.lower(), 'video/mp4')
         return FileResponse(str(src), media_type=media_type)
+
+    @router.get("/api/videos/{video_id}/energy")
+    def get_video_energy(video_id: int):
+        """Return per-second RMS energy (dB) for every audio track of the video."""
+        db = ctx.get_db()
+        try:
+            video = db.get(Video, video_id)
+            if not video:
+                raise HTTPException(404, "Video not found")
+            tracks = (
+                db.query(AudioTrack)
+                .filter_by(video_id=video_id)
+                .order_by(AudioTrack.id)
+                .all()
+            )
+            result = []
+            for track in tracks:
+                rows = (
+                    db.query(AudioEnergy)
+                    .filter_by(audio_track_id=track.id)
+                    .order_by(AudioEnergy.second_offset)
+                    .all()
+                )
+                result.append({
+                    "track_id": track.id,
+                    "label": track.label,
+                    "samples": [{"second": r.second_offset, "rms_db": r.rms_db} for r in rows],
+                })
+            return {"tracks": result}
+        finally:
+            db.close()
+
+    @router.get("/api/videos/{video_id}/compute-waveform")
+    async def compute_waveform(video_id: int):
+        """Extract audio and compute per-second RMS energy for a video that was never analyzed.
+
+        Streams SSE progress. Idempotent — skips tracks that already have energy data.
+        """
+        db = ctx.get_db()
+        try:
+            video = db.get(Video, video_id)
+            if not video:
+                raise HTTPException(404, "Video not found")
+            video_path = Path(video.path)
+            existing_tracks = (
+                db.query(AudioTrack).filter_by(video_id=video_id).all()
+            )
+            track_ids_with_energy = set(
+                r.audio_track_id
+                for r in db.query(AudioEnergy.audio_track_id)
+                .filter(AudioEnergy.audio_track_id.in_([t.id for t in existing_tracks]))
+                .distinct()
+                .all()
+            ) if existing_tracks else set()
+        finally:
+            db.close()
+
+        if not video_path.exists():
+            raise HTTPException(404, "Source video file not found on disk")
+
+        from yuu_clip.config import project_audio_dir
+        audio_dir = project_audio_dir(ctx.project_dir)
+
+        async def event_stream():
+            async with _active_job(ctx):
+                yield f"data: {json_lib.dumps('[Inspecting audio streams…]')}\n\n"
+
+                try:
+                    from yuu_clip.analyze.probe import probe_video
+                    info = await asyncio.to_thread(probe_video, video_path)
+                except Exception as exc:
+                    yield f"data: {json_lib.dumps(f'[Error inspecting video: {exc}]')}\n\n"
+                    yield f"data: {json_lib.dumps('__DONE__')}\n\n"
+                    return
+
+                if not info.audio_streams:
+                    yield f"data: {json_lib.dumps('[No audio streams found — waveform unavailable]')}\n\n"
+                    yield f"data: {json_lib.dumps('__DONE__')}\n\n"
+                    return
+
+                # Create AudioTrack rows for any streams not yet in DB
+                track_rows: list[AudioTrack] = []
+                setup_db = ctx.get_db()
+                try:
+                    for stream in info.audio_streams:
+                        existing = (
+                            setup_db.query(AudioTrack)
+                            .filter_by(video_id=video_id, stream_index=stream.stream_index)
+                            .first()
+                        )
+                        if existing:
+                            track_rows.append(existing)
+                        else:
+                            t = AudioTrack(
+                                video_id=video_id,
+                                stream_index=stream.stream_index,
+                                label="unlabeled",
+                                codec=stream.codec_name,
+                                sample_rate=stream.sample_rate,
+                                channels=stream.channels,
+                                channel_layout=stream.channel_layout,
+                                stream_title_tag=stream.title_tag,
+                            )
+                            setup_db.add(t)
+                    setup_db.commit()
+                    # Re-query to get IDs
+                    track_rows = (
+                        setup_db.query(AudioTrack).filter_by(video_id=video_id).all()
+                    )
+                    track_ids_with_energy = set(
+                        r.audio_track_id
+                        for r in setup_db.query(AudioEnergy.audio_track_id)
+                        .filter(AudioEnergy.audio_track_id.in_([t.id for t in track_rows]))
+                        .distinct()
+                        .all()
+                    )
+                    track_data = [
+                        (t.id, t.stream_index, t.extracted_path, t.id in track_ids_with_energy)
+                        for t in track_rows
+                    ]
+                finally:
+                    setup_db.close()
+
+                from yuu_clip.analyze.extract import extract_audio_track
+                from yuu_clip.scoring.energy import compute_energy
+
+                for i, (track_id, stream_index, extracted_path, has_energy) in enumerate(track_data, 1):
+                    label = f"track {i}/{len(track_data)}"
+                    if has_energy:
+                        yield f"data: {json_lib.dumps(f'[{label}: energy already computed, skipping]')}\n\n"
+                        continue
+
+                    if not extracted_path or not Path(extracted_path).exists():
+                        yield f"data: {json_lib.dumps(f'Extracting audio {label}…')}\n\n"
+                        stem = Path(video_path).stem
+                        out_wav = audio_dir / f"{stem}_stream{stream_index}.wav"
+                        try:
+                            await asyncio.to_thread(
+                                extract_audio_track, video_path, stream_index, out_wav
+                            )
+                            upd_db = ctx.get_db()
+                            try:
+                                t = upd_db.get(AudioTrack, track_id)
+                                if t:
+                                    t.extracted_path = str(out_wav)
+                                    upd_db.commit()
+                                extracted_path = str(out_wav)
+                            finally:
+                                upd_db.close()
+                        except Exception as exc:
+                            yield f"data: {json_lib.dumps(f'[Error extracting {label}: {exc}]')}\n\n"
+                            continue
+
+                    yield f"data: {json_lib.dumps(f'Computing waveform {label}…')}\n\n"
+                    energy_db = ctx.get_db()
+                    try:
+                        track_obj = energy_db.get(AudioTrack, track_id)
+                        if track_obj:
+                            await asyncio.to_thread(compute_energy, track_obj, energy_db)
+                            energy_db.commit()
+                    except Exception as exc:
+                        energy_db.rollback()
+                        yield f"data: {json_lib.dumps(f'[Error computing waveform {label}: {exc}]')}\n\n"
+                    finally:
+                        energy_db.close()
+
+                yield f"data: {json_lib.dumps('Waveform ready')}\n\n"
+                yield f"data: {json_lib.dumps('__DONE__')}\n\n"
+
+        return _sse_response(event_stream())
+
+    @router.get("/api/videos/{video_id}/scene-boundaries")
+    def get_scene_boundaries(video_id: int):
+        """Return detected scene-cut timecodes (ms) for the video."""
+        db = ctx.get_db()
+        try:
+            video = db.get(Video, video_id)
+            if not video:
+                raise HTTPException(404, "Video not found")
+            rows = (
+                db.query(SceneBoundary)
+                .filter_by(video_id=video_id)
+                .order_by(SceneBoundary.timecode_ms)
+                .all()
+            )
+            return {"boundaries_ms": [r.timecode_ms for r in rows]}
+        finally:
+            db.close()
 
     @router.delete("/api/videos/{video_id}")
     def delete_video(video_id: int):
@@ -1307,6 +1592,9 @@ def _video_dict(video: Video, stats: dict) -> dict:
         "summary_is_edited": video.summary_user is not None,
         "has_timeline": bool(video.timeline_json),
         "context_names": _json_list(video.context_names_json),
+        "parent_video_id": video.parent_video_id,
+        "segment_start_s": video.segment_start_s,
+        "segment_end_s": video.segment_end_s,
         "clips_scored_at": video.clips_scored_at.isoformat() if video.clips_scored_at else None,
         "clips_scored_context": _json_list(video.clips_scored_context_json),
         "summarized_at": video.summarized_at.isoformat() if video.summarized_at else None,

@@ -67,72 +67,93 @@ def make_engine(db_path: Path):
     return engine
 
 
+_log = __import__("logging").getLogger(__name__)
+
+
 def _migrate(engine) -> None:
-    """Apply lightweight forward-only column migrations for schema additions."""
+    """Apply lightweight forward-only column migrations for schema additions.
+
+    Every ALTER TABLE here must be guarded by a column-existence check so the
+    migration is idempotent. Log each step at INFO so startup failures are
+    diagnosable from the log file without attaching a debugger.
+    """
+    _log.info("Running DB migrations")
     with engine.connect() as conn:
         existing = {row[1] for row in conn.execute(text("PRAGMA table_info(audio_tracks)"))}
         if "do_score" not in existing:
+            _log.info("Migration: adding audio_tracks.do_score")
             conn.execute(text(
                 "ALTER TABLE audio_tracks ADD COLUMN do_score BOOLEAN NOT NULL DEFAULT 1"
             ))
 
         existing = {row[1] for row in conn.execute(text("PRAGMA table_info(videos)"))}
-        if "title" not in existing:
-            conn.execute(text("ALTER TABLE videos ADD COLUMN title TEXT"))
-        if "summary" not in existing:
-            conn.execute(text("ALTER TABLE videos ADD COLUMN summary TEXT"))
-        if "timeline_json" not in existing:
-            conn.execute(text("ALTER TABLE videos ADD COLUMN timeline_json TEXT"))
-        if "context_names_json" not in existing:
-            conn.execute(text("ALTER TABLE videos ADD COLUMN context_names_json TEXT"))
-        if "clips_scored_at" not in existing:
-            conn.execute(text("ALTER TABLE videos ADD COLUMN clips_scored_at DATETIME"))
-        if "clips_scored_context_json" not in existing:
-            conn.execute(text("ALTER TABLE videos ADD COLUMN clips_scored_context_json TEXT"))
-        if "summarized_at" not in existing:
-            conn.execute(text("ALTER TABLE videos ADD COLUMN summarized_at DATETIME"))
-        if "summary_context_json" not in existing:
-            conn.execute(text("ALTER TABLE videos ADD COLUMN summary_context_json TEXT"))
-        if "timeline_generated_at" not in existing:
-            conn.execute(text("ALTER TABLE videos ADD COLUMN timeline_generated_at DATETIME"))
-        if "timeline_context_json" not in existing:
-            conn.execute(text("ALTER TABLE videos ADD COLUMN timeline_context_json TEXT"))
-        if "title_user" not in existing:
-            conn.execute(text("ALTER TABLE videos ADD COLUMN title_user TEXT"))
-        if "summary_user" not in existing:
-            conn.execute(text("ALTER TABLE videos ADD COLUMN summary_user TEXT"))
+        _video_migrations = [
+            ("parent_video_id", "INTEGER REFERENCES videos(id)"),
+            ("segment_start_s", "REAL"),
+            ("segment_end_s",   "REAL"),
+            ("title",           "TEXT"),
+            ("summary",         "TEXT"),
+            ("timeline_json",   "TEXT"),
+            ("context_names_json",        "TEXT"),
+            ("clips_scored_at",           "DATETIME"),
+            ("clips_scored_context_json", "TEXT"),
+            ("summarized_at",             "DATETIME"),
+            ("summary_context_json",      "TEXT"),
+            ("timeline_generated_at",     "DATETIME"),
+            ("timeline_context_json",     "TEXT"),
+            ("title_user",   "TEXT"),
+            ("summary_user", "TEXT"),
+        ]
+        for col, typedef in _video_migrations:
+            if col not in existing:
+                _log.info("Migration: adding videos.%s", col)
+                conn.execute(text(f"ALTER TABLE videos ADD COLUMN {col} {typedef}"))
 
         existing = {row[1] for row in conn.execute(text("PRAGMA table_info(transcripts)"))}
         if "clip_id" not in existing:
+            _log.info("Migration: adding transcripts.clip_id")
             conn.execute(text("ALTER TABLE transcripts ADD COLUMN clip_id INTEGER REFERENCES clip_candidates(id)"))
 
         existing = {row[1] for row in conn.execute(text("PRAGMA table_info(clip_candidates)"))}
         if "score_overall_user" not in existing:
+            _log.info("Migration: adding clip_candidates.score_overall_user")
             conn.execute(text("ALTER TABLE clip_candidates ADD COLUMN score_overall_user REAL"))
         if "description" not in existing:
+            _log.info("Migration: adding clip_candidates.description")
             conn.execute(text("ALTER TABLE clip_candidates ADD COLUMN description TEXT"))
         if "description_long" not in existing:
+            _log.info("Migration: adding clip_candidates.description_long")
             conn.execute(text("ALTER TABLE clip_candidates ADD COLUMN description_long TEXT"))
         if "description_user" not in existing:
+            _log.info("Migration: adding clip_candidates.description_user")
             conn.execute(text("ALTER TABLE clip_candidates ADD COLUMN description_user TEXT"))
         if "description_long_user" not in existing:
+            _log.info("Migration: adding clip_candidates.description_long_user")
             conn.execute(text("ALTER TABLE clip_candidates ADD COLUMN description_long_user TEXT"))
         if "start_offset" not in existing:
+            _log.info("Migration: adding clip_candidates.start_offset")
             conn.execute(text("ALTER TABLE clip_candidates ADD COLUMN start_offset REAL NOT NULL DEFAULT 0.0"))
         if "end_offset" not in existing:
+            _log.info("Migration: adding clip_candidates.end_offset")
             conn.execute(text("ALTER TABLE clip_candidates ADD COLUMN end_offset REAL NOT NULL DEFAULT 0.0"))
         if "exported_at" not in existing:
+            _log.info("Migration: adding clip_candidates.exported_at")
             conn.execute(text("ALTER TABLE clip_candidates ADD COLUMN exported_at DATETIME"))
         if "exported_container" not in existing:
+            _log.info("Migration: adding clip_candidates.exported_container")
             conn.execute(text("ALTER TABLE clip_candidates ADD COLUMN exported_container TEXT"))
         if "exported_burn_subs" not in existing:
+            _log.info("Migration: adding clip_candidates.exported_burn_subs")
             conn.execute(text("ALTER TABLE clip_candidates ADD COLUMN exported_burn_subs BOOLEAN"))
         if "related_clips_json" not in existing:
+            _log.info("Migration: adding clip_candidates.related_clips_json")
             conn.execute(text("ALTER TABLE clip_candidates ADD COLUMN related_clips_json TEXT"))
         if "related_clips_at" not in existing:
+            _log.info("Migration: adding clip_candidates.related_clips_at")
             conn.execute(text("ALTER TABLE clip_candidates ADD COLUMN related_clips_at DATETIME"))
 
         conn.commit()
+        _log.info("DB migrations complete")
 
 
 def make_session(db_path: Path) -> Session:
@@ -147,7 +168,7 @@ class Video(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     # Stored as a string; use Path(video.path) when you need a Path object.
     # We store the absolute path so the project DB is portable between drives.
-    path: Mapped[str] = mapped_column(String, unique=True, nullable=False)
+    path: Mapped[str] = mapped_column(String, nullable=False)
     filename: Mapped[str] = mapped_column(String, nullable=False)
     duration_ms: Mapped[Optional[int]] = mapped_column(Integer)
     fps: Mapped[Optional[float]] = mapped_column(Float)
@@ -158,6 +179,10 @@ class Video(Base):
     status: Mapped[str] = mapped_column(String, default="pending")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
     processed_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+
+    parent_video_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("videos.id"), nullable=True)
+    segment_start_s: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    segment_end_s: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
 
     title: Mapped[Optional[str]] = mapped_column(Text)
     title_user: Mapped[Optional[str]] = mapped_column(Text)

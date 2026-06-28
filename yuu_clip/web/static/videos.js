@@ -115,6 +115,20 @@ function _clipsSortParam() {
 }
 
 async function selectVideo(id) {
+  if (isSplitEditorOpen()) {
+    const hasSplits = typeof _splitPoints !== 'undefined' && _splitPoints.length > 0;
+    if (hasSplits) {
+      showConfirm(
+        'Leave Split editor?',
+        'You have unsaved split points. Switch to this recording and discard them?',
+        'Discard',
+        () => { closeSplitEditor(); selectVideo(id); },
+        true,
+      );
+      return;
+    }
+    closeSplitEditor();
+  }
   if (_isNewRecordingPanelOpen() && _panelDirty) {
     showConfirm(
       'Discard new recording?',
@@ -176,6 +190,7 @@ function renderVideoDetail(video, savedTimeline) {
       <button class="btn" onclick="openAutoApproveModal(${video.id})">Approve Above Score</button>
       <button class="btn" onclick="openBatchExportModal(${video.id})">Export Approved</button>
       <button class="btn danger" onclick="resetApprovals(${video.id})">Reset Approvals</button>
+      <button class="btn" onclick="openSplitEditor(${video.id})">Split Recording</button>
       <button class="btn danger" onclick="deleteVideo(${video.id})" title="Remove from yuu-clip (source file is NOT deleted)">Remove Recording</button>
     </div>
 
