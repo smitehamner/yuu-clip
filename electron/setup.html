@@ -186,13 +186,37 @@ footer {
   <div class="cfg-row">
     <span class="cfg-label">Whisper model</span>
     <select id="whisper-sel">
-      <option value="tiny">tiny — fastest, lowest accuracy</option>
-      <option value="base">base — fast, decent accuracy</option>
-      <option value="small">small — balanced</option>
-      <option value="medium">medium — good quality (5 GB+ VRAM)</option>
-      <option value="large-v3">large-v3 — best quality (10 GB+ VRAM)</option>
+      <option value="tiny">tiny — fastest, lowest accuracy (~75 MB)</option>
+      <option value="base">base — fast, decent accuracy (~145 MB)</option>
+      <option value="small">small — balanced (~465 MB)</option>
+      <option value="medium">medium — good quality (~1.5 GB, 5 GB+ VRAM)</option>
+      <option value="large-v3">large-v3 — best quality (~3 GB, 10 GB+ VRAM)</option>
     </select>
     <span class="rec" id="rec-tag"></span>
+  </div>
+
+  <div class="cfg-row" style="margin-top:10px">
+    <span class="cfg-label">LLM backend</span>
+    <select id="llm-backend-sel" onchange="_onLlmBackendChange(this.value)">
+      <option value="ollama">Ollama</option>
+      <option value="llamacpp">Local model file</option>
+    </select>
+  </div>
+  <div id="llm-llamacpp-fields" style="display:none">
+    <div class="cfg-row">
+      <span class="cfg-label">Model file (.gguf)</span>
+      <input type="text" id="llm-model-path" placeholder="C:\models\llama3.gguf" style="flex:1">
+      <button class="sm" id="llm-browse-btn">Browse…</button>
+    </div>
+  </div>
+  <div id="llm-ollama-fields">
+    <div class="cfg-row">
+      <span class="cfg-label">Ollama model</span>
+      <input type="text" id="ollama-model-input" style="flex:1;max-width:200px">
+    </div>
+  </div>
+  <div id="llm-warn" style="display:none;font-size:11px;color:#d4902a;padding:2px 0 4px 113px">
+    ⚠ No model file set — LLM scoring will be skipped. You can configure this later in Settings (⚙).
   </div>
 </div>
 
@@ -310,8 +334,8 @@ function renderStatus(s) {
   // Whisper (informational)
   rows.push(row('whisper', 'info', 'ℹ',
     'Whisper transcription',
-    `Model weights download automatically on first analysis — no action needed now. ` +
-    `Choose the model below based on your hardware.`
+    `Model weights download automatically on first analysis — choose the size below based on your hardware.<br>` +
+    `<span style="color:#555;font-size:11px">Download sizes: tiny ~75 MB &nbsp;·&nbsp; base ~145 MB &nbsp;·&nbsp; small ~465 MB &nbsp;·&nbsp; medium ~1.5 GB &nbsp;·&nbsp; large-v3 ~3 GB</span>`
   ));
 
   document.getElementById('checklist').innerHTML = rows.join('');
@@ -321,6 +345,12 @@ function renderStatus(s) {
   const sel = document.getElementById('whisper-sel');
   sel.value = s.recommendedWhisper.model;
   document.getElementById('rec-tag').textContent = `← recommended (${s.recommendedWhisper.reason})`;
+
+  document.getElementById('llm-backend-sel').value = s.llmBackend;
+  document.getElementById('llm-model-path').value  = s.llmModelPath || '';
+  document.getElementById('ollama-model-input').value = s.ollamaModel;
+  _onLlmBackendChange(s.llmBackend);
+
   document.getElementById('config').style.display = '';
   if (rerunMode) document.getElementById('rerun-note').style.display = '';
 
@@ -341,6 +371,21 @@ function row(id, cls, icon, title, descHtml, actionHtml = '') {
       ${actionHtml ? `<div class="action">${actionHtml}</div>` : ''}
     </div>
   </div>`;
+}
+
+// ── LLM backend toggle ────────────────────────────────────────────────────
+
+function _onLlmBackendChange(val) {
+  document.getElementById('llm-llamacpp-fields').style.display = val === 'llamacpp' ? '' : 'none';
+  document.getElementById('llm-ollama-fields').style.display   = val === 'ollama'   ? '' : 'none';
+  _updateLlmWarn();
+}
+
+function _updateLlmWarn() {
+  const backend  = document.getElementById('llm-backend-sel').value;
+  const filePath = (document.getElementById('llm-model-path').value || '').trim();
+  const warn     = document.getElementById('llm-warn');
+  if (warn) warn.style.display = (backend === 'llamacpp' && !filePath) ? '' : 'none';
 }
 
 // ── Ollama model pull ──────────────────────────────────────────────────────
@@ -395,11 +440,31 @@ document.getElementById('browse-btn').addEventListener('click', async () => {
   if (dir) document.getElementById('project-dir').value = dir;
 });
 
-document.getElementById('quit-btn').addEventListener('click', () => {
-  if (rerunMode) api.complete({
+document.getElementById('llm-browse-btn').addEventListener('click', async () => {
+  const file = await api.pickFile({
+    title:   'Choose LLM model file',
+    filters: [{ name: 'GGUF models', extensions: ['gguf'] }],
+  });
+  if (file) {
+    document.getElementById('llm-model-path').value = file;
+    _updateLlmWarn();
+  }
+});
+
+document.getElementById('llm-model-path').addEventListener('input', _updateLlmWarn);
+
+function collectConfig() {
+  return {
     projectDir:   document.getElementById('project-dir').value,
     whisperModel: document.getElementById('whisper-sel').value,
-  });
+    llmBackend:   document.getElementById('llm-backend-sel').value,
+    llmModelPath: (document.getElementById('llm-model-path').value || '').trim(),
+    ollamaModel:  (document.getElementById('ollama-model-input').value || '').trim() || 'llama3.2',
+  };
+}
+
+document.getElementById('quit-btn').addEventListener('click', () => {
+  if (rerunMode) api.complete(collectConfig());
   else api.quit();
 });
 
@@ -407,10 +472,7 @@ document.getElementById('launch-btn').addEventListener('click', () => {
   const btn = document.getElementById('launch-btn');
   btn.disabled = true;
   btn.textContent = 'Starting…';
-  api.complete({
-    projectDir:   document.getElementById('project-dir').value,
-    whisperModel: document.getElementById('whisper-sel').value,
-  });
+  api.complete(collectConfig());
 });
 
 // ── boot ──────────────────────────────────────────────────────────────────

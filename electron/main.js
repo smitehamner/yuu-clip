@@ -282,26 +282,38 @@ function recommendWhisperModel(vramMB) {
 
 function registerWizardIPC(wizardWin) {
   // Clean up any previous handlers first.
-  for (const ch of ['setup:get-status', 'setup:pick-folder']) {
+  for (const ch of ['setup:get-status', 'setup:pick-folder', 'setup:pick-file']) {
     try { ipcMain.removeHandler(ch); } catch (_) {}
   }
   ipcMain.removeAllListeners('setup:pull-model');
   ipcMain.removeAllListeners('setup:open-url');
 
   ipcMain.handle('setup:get-status', async () => {
-    const eCfg          = loadElectronConfig();
-    const ollamaModel   = 'llama3.2';
+    const eCfg = loadElectronConfig();
+    const pDir = eCfg.projectDir || DEFAULT_PROJECT_DIR;
+
+    let projCfg = {};
+    try { projCfg = JSON.parse(fs.readFileSync(path.join(pDir, '.yuu-clip', 'config.json'), 'utf8')); } catch (_) {}
+
+    const ollamaModel   = projCfg.ollama_model || 'llama3.2';
     const gpu           = detectGPU();
     const cuda          = detectCUDA();
     const ollamaRunning = await checkOllama();
     const ollamaModelPulled = ollamaRunning ? await checkOllamaModel(ollamaModel) : false;
+
+    const existingBackend   = projCfg.llm_backend;
+    const existingModelPath = projCfg.llm_model_path || '';
+    const defaultBackend    = existingBackend || (ollamaRunning ? 'ollama' : 'llamacpp');
+
     logSetup(`Status check — FFmpeg:${checkFFmpeg()} GPU:${gpu.name} CUDA:${cuda.available} Ollama:${ollamaRunning} Model:${ollamaModelPulled}`);
     return {
       ffmpegOk: checkFFmpeg(),
       gpu, cuda,
       ollamaRunning, ollamaModel, ollamaModelPulled,
       recommendedWhisper: recommendWhisperModel(gpu.vramMB),
-      projectDir: eCfg.projectDir || DEFAULT_PROJECT_DIR,
+      projectDir: pDir,
+      llmBackend:    defaultBackend,
+      llmModelPath:  existingModelPath,
     };
   });
 
@@ -310,6 +322,16 @@ function registerWizardIPC(wizardWin) {
       title: 'Choose project folder',
       defaultPath: projectDir,
       properties: ['openDirectory', 'createDirectory'],
+    });
+    return canceled ? null : filePaths[0];
+  });
+
+  ipcMain.handle('setup:pick-file', async (_, opts = {}) => {
+    const { canceled, filePaths } = await dialog.showOpenDialog(wizardWin, {
+      title:       opts.title || 'Choose file',
+      defaultPath: opts.defaultPath,
+      filters:     opts.filters,
+      properties:  ['openFile'],
     });
     return canceled ? null : filePaths[0];
   });
@@ -371,8 +393,14 @@ function showSetupWizard({ rerun = false } = {}) {
 
     ipcMain.once('setup:complete', (_, cfg) => {
       saveElectronConfig({ projectDir: cfg.projectDir });
-      writeProjectConfig(cfg.projectDir, { whisper_model: cfg.whisperModel });
-      logSetup(`Setup complete — projectDir:${cfg.projectDir} whisperModel:${cfg.whisperModel}`);
+      const pyCfg = { whisper_model: cfg.whisperModel, llm_backend: cfg.llmBackend };
+      if (cfg.llmBackend === 'llamacpp') {
+        pyCfg.llm_model_path = cfg.llmModelPath || '';
+      } else {
+        pyCfg.ollama_model = cfg.ollamaModel || 'llama3.2';
+      }
+      writeProjectConfig(cfg.projectDir, pyCfg);
+      logSetup(`Setup complete — projectDir:${cfg.projectDir} whisperModel:${cfg.whisperModel} llmBackend:${cfg.llmBackend}`);
       fs.mkdirSync(path.dirname(SETUP_COMPLETE_MARKER), { recursive: true });
       fs.writeFileSync(SETUP_COMPLETE_MARKER, new Date().toISOString());
       if (!rerun) {

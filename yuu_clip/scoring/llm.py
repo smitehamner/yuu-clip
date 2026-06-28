@@ -187,7 +187,7 @@ def check_llm_available(config: "Config") -> tuple[bool, str]:
     if config.llm_backend == "llamacpp":
         path = config.llm_model_path
         if not path:
-            return False, "No model file path set — configure llm_model_path in Settings"
+            return False, "No model file path set — open Settings (⚙) and set 'Model file path' under LLM scoring"
         from pathlib import Path
         if not Path(path).exists():
             return False, f"Model file not found: {path}"
@@ -228,11 +228,11 @@ class LLMScorer:
     def _check_llamacpp(self) -> bool:
         path = self._config.llm_model_path
         if not path:
-            log.warning("LLM scoring disabled: set llm_model_path in Settings to a .gguf file to enable LLM scoring")
+            log.warning("LLM scoring disabled: open Settings (⚙) and set 'Model file path' under LLM scoring to a .gguf file")
             return False
         from pathlib import Path
         if not Path(path).exists():
-            log.warning("LLM scoring disabled: llm_model_path %r does not exist", path)
+            log.warning("LLM scoring disabled: model file %r not found — update 'Model file path' in Settings (⚙)", path)
             return False
         try:
             import llama_cpp  # noqa: F401
