@@ -147,4 +147,4 @@ After the initial model downloads (Whisper via HuggingFace, LLM via `ollama pull
 
 ---
 
-See [docs/ROADMAP.md](docs/ROADMAP.md) for what's in progress and what's planned.
+See [docs/project/ROADMAP.md](docs/project/ROADMAP.md) for what's in progress and what's planned.

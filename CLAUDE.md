@@ -86,7 +86,7 @@ goal is to get the web UI stable enough for regular use. Approach:
 
 ## Terminology
 
-The authoritative term list is in `docs/GLOSSARY.md`. Read it before introducing any
+The authoritative term list is in `docs/dev/GLOSSARY.md`. Read it before introducing any
 new concept, and follow these rules:
 
 - **User-facing text** (UI labels, button text, toast messages, error messages, CLI
@@ -97,7 +97,7 @@ new concept, and follow these rules:
 - **When you add a new concept**: define it in the glossary first, then use that
   term everywhere from the start. Don't name it one thing in code and something
   else in the UI without documenting the split.
-- **When a concept is renamed**: update `docs/GLOSSARY.md`, then update all
+- **When a concept is renamed**: update `docs/dev/GLOSSARY.md`, then update all
   user-facing strings. Code identifiers can be left for a separate refactor pass —
   but the glossary entry must note the divergence under "Also called in codebase:".
 

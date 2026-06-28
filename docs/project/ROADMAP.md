@@ -33,23 +33,7 @@ See [COMPLETED.md](COMPLETED.md) for full details.
 
 Core review workflow, sidebar, export, analyze modal, track layout manager, reel builder, video summary + title, two-level clip descriptions, session timeline, World Contexts, settings panel, keyboard shortcuts, editable LLM fields with diff/compare, batch export, auto-approve, confirmation dialogs, prebuilt contexts, context nudge, post-analysis toast, elapsed timer on job steps, clip preview before export (seekable, LRU-cached temp files from source via FFmpeg), export status pills in sidebar, Save As button, Delete Export vs Delete Clip separation, export metadata display (container/captions/timestamp), and more. See [COMPLETED.md](COMPLETED.md) for the full shipped list.
 
-### Near-term
-
-All near-term items shipped. See [COMPLETED.md](COMPLETED.md).
-
-### Medium-term
-
-- [ ] **Panel navigation UX direction** — multi-step flows take over the main detail panel (not modals); `← Back` breadcrumb; discard prompt on unsaved changes; tabs only for within-view navigation. Migrate incrementally starting with Split Editor.
-
-
-### Pre-packaging documentation
-
-- [ ] **Performance and storage notes** — document expected install size, per-session disk
-  usage (audio extracts, Whisper models, exports), and how quickly disk fills with typical use.
-  Include recommended specs (RAM, GPU, storage type). Note the SSD vs. external HDD tradeoff:
-  large source files on an external drive is common, but the working project directory
-  (DB, extracts, exports) benefits from local SSD. The project folder location picker in the
-  first-run wizard should surface this recommendation.
+All near-term and medium-term items shipped. See [COMPLETED.md](COMPLETED.md).
 
 ---
 
@@ -57,17 +41,12 @@ All near-term items shipped. See [COMPLETED.md](COMPLETED.md).
 
 Goal: friends can install and use without knowing Python.
 
-Electron wrapper, NSIS installer, first-run setup wizard, venv setup, backend health check, rolling logs, version in footer (v0.1.1–v0.1.8) — shipped. See [COMPLETED.md](COMPLETED.md).
+Electron wrapper, NSIS installer, first-run setup wizard, venv setup, backend health check, rolling logs, version in footer, bundled `llama-cpp-python` inference backend, LLM backend picker + Ollama model pull in wizard — shipped. See [COMPLETED.md](COMPLETED.md).
 
 ### Still pending
 
-- [ ] **Bundled inference backend** — investigate `llama.cpp` to avoid requiring a separate Ollama install; smoother first-run experience
 - [ ] **Disabled UI linking to wizard** — when a prerequisite is missing, disabled UI options should indicate which prereq and link to re-run the wizard
-- [ ] **Whisper + LLM model downloader in wizard** — guided download of Whisper weights and Ollama models with licence and hardware notes
-- [ ] **AMD / Intel GPU support** — evaluate ROCm (AMD) and OpenVINO (Intel) support in CTranslate2
-- [ ] **Choose a licence** — currently unlicensed (all rights reserved, smitehamner). Decide before any public release (MIT, GPL-3, or source-available). Update `LICENSE`, `pyproject.toml`, and About modal.
-- [ ] **Linux compatibility testing** — verify the full pipeline on Linux; identify Windows-only assumptions in path handling, file pickers, or process management.
-- [ ] **Performance and storage notes** — document expected install size, per-session disk usage, recommended specs (RAM, GPU, storage type). Surface SSD recommendation in the project folder picker.
+- [ ] **Whisper model info in wizard** — Whisper auto-downloads on first analysis; the wizard already shows model sizes and VRAM requirements. Gap: licence notes per model are not shown.
 
 ---
 
@@ -75,6 +54,14 @@ Electron wrapper, NSIS installer, first-run setup wizard, venv setup, backend he
 
 Smaller improvements and UX debt that don't block initial distribution but are high-value for
 regular users.
+
+- [ ] **Panel navigation UX direction** — multi-step flows take over the main detail panel (not modals); `← Back` breadcrumb; discard prompt on unsaved changes; tabs only for within-view navigation. Migrate incrementally starting with Split Editor.
+
+- [ ] **Pause / resume analysis** — pause a running analysis job between videos (finish the video currently in progress, then hold before starting the next). Two trigger modes: **manual** ("Pause" button in the job header) and **automatic** (triggered by hardware health thermal threshold). On resume, the queue continues from the next unprocessed video. Pause state is in-memory and does not survive a server restart (acceptable for now). Applies to both single-video and batch analysis. Long-term possibilities: mid-video pause (hard; would require restarting that video from scratch), durable pause state across restarts.
+
+- [ ] **Hardware health monitoring** — two-part protective feature for laptop users during long analysis runs:
+  - *Pre-import estimate (low risk, high value)*: before analysis starts, calculate estimated GPU-hours from total video duration × per-minute benchmark; show a warning when the estimate is large; suggest batching as a mitigation.
+  - *Live thermal monitoring*: poll GPU temp via `pynvml` (NVIDIA only initially); log temps; surface a warning in the UI when temp exceeds threshold for N consecutive samples; pause ingest between videos (finish current, then hold — ties into Pause / resume above); UI options: "Pause now" / "Continue anyway". Sensible defaults (85°C warn, 90°C pause); user-configurable thresholds TBD.
 
 - [ ] **Search + filter** — text search across descriptions and transcripts; filter sidebar by score
   range, status, or tag. Advanced users can use regex.
@@ -257,9 +244,17 @@ Items wanted long-term but not yet assigned to a phase.
   collapsible parent row "session.mkv (3 segments)" with indented children as an alternative to
   the flat list. Deferred until the flat list proves insufficient in practice.
 
+- [ ] **Clip deduplication** — detect and merge near-duplicate clips (same event captured in overlapping time windows from different segmentation passes). Design unclear; revisit after transcript editing is stable.
+
 - [ ] **Score learning loop** — use accumulated manual score overrides (see Phase 5) to tune the
   prompt or scoring weight vector semi-automatically. Requires a meaningful corpus of overrides
   before it's worthwhile.
+
+- [ ] **AMD / Intel GPU support** — evaluate ROCm (AMD) and OpenVINO (Intel) in CTranslate2; the wizard already detects both and surfaces informational messages. Actual accelerated inference requires library support that doesn't exist on Windows for these vendors yet.
+
+- [ ] **Linux compatibility** — verify the full pipeline on Linux; audit Windows-only assumptions in path handling (`LOCALAPPDATA`/`APPDATA`), `wmic` GPU detection, file pickers, and process management. Electron wrapper is Windows-only; would need a separate packaging path.
+
+- [ ] **Distribution licence** — the preview `LICENSE` (all rights reserved, no redistribution) is intentionally restrictive. Before any public distribution, decide on a looser licence (MIT, GPL-3, source-available, or BSL). Update `LICENSE`, `pyproject.toml`, and the About modal.
 
 - [ ] **Code signing for public distribution** — the installer is currently unsigned; Windows shows
   a SmartScreen "unknown publisher" warning on first run, and some AV tools will flag it. Required

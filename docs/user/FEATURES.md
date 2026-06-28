@@ -140,18 +140,21 @@ Actions available per clip:
 
 ### Video player
 
-Embedded HTML5 player appears once a clip has been exported. Plays the exported MKV, shows WebVTT subtitles if an SRT sidecar exists, and auto-plays on clip selection. Before export, an "Export Clip" button is shown instead.
+Embedded HTML5 player shown in the clip detail panel. Before export, the player streams a preview directly from the source file via FFmpeg (seekable; LRU-cached temp files). After export it plays the exported file and shows WebVTT subtitles if an SRT sidecar exists. Auto-plays on clip selection.
 
-### Analyze modal
+### New Recording panel
 
-1. Type or browse for a video file path (native file picker via tkinter)
-2. Inspects the file immediately after selection; shows stream table and time estimates
+Open with the `+ Analyze` button in the header. Replaces the old modal with a full panel that keeps the sidebar live.
+
+1. Browse for a video file (native OS file picker); file is inspected immediately after selection — shows stream table and time estimate
+2. Optionally split the recording into segments before analysis (place markers on the waveform)
 3. Select a track layout (optional)
-4. Check world contexts to assign (optional)
-5. Expand **Advanced Options** to change Whisper model, scene mode, or energy mode
-6. **Start** button launches the analysis subprocess; progress appears in the header step pills
+4. If an SRT sidecar or embedded subtitle stream is detected, a `--subtitle-source` option appears to skip Whisper and import existing captions instead
+5. Check world contexts to assign (optional)
+6. Expand **Advanced Options** to change Whisper model, scene mode, or energy mode
+7. **Start** button launches the analysis subprocess; progress appears in the header step pills
 
-Time estimate panel breaks down expected wall-clock cost per step and warns if any step exceeds 30 minutes.
+Time estimate panel breaks down expected wall-clock cost per step and warns if any step exceeds 30 minutes. Clicking another video while the panel is open prompts to discard if a path has been entered.
 
 ### Job progress indicator
 
@@ -159,15 +162,25 @@ Step pills in the header: Extract → Transcribe → Generate Clips → Energy �
 
 ### Track layout manager
 
-Accessible via the Manage Layouts button in the analyze modal.
+Accessible via the Manage Layouts button in the New Recording panel.
 
 - Lists built-in and custom track layouts with track count
 - **Layout editor**: name, number of tracks (1–8), and per-track settings (label, transcribe flag, relevance weight)
-- Saved track layouts are available in the analyze modal dropdown
+- Saved track layouts are available in the New Recording panel dropdown
+
+### Recording segments (split editor)
+
+A recording can be split into independent segments before or after analysis.
+
+- **Before analysis**: toggle in New Recording panel after probe; place markers on the waveform; analysis runs sequentially on each segment
+- **After analysis**: "Split Recording" button opens the full-panel split editor; existing clips shown as dots on the waveform; confirm redistributes clips by start time and creates separate `Video` rows
+- Waveform is generated on demand from per-second RMS energy data
+- Segments appear in the sidebar as normal video entries; the parent is hidden once split
+- Each segment has its own clips, contexts, title, summary, and timeline
 
 ### Highlight reel builder
 
-Accessible from the header. Choose a video filter (all approved clips or a specific video), transition type and duration, title card duration, and output filename. Shows a preview list of clips to be compiled before building.
+Accessible from the header. Choose a video filter (all approved clips or a specific video), transition type and duration (including "random"), title card duration, and output filename. Ordered clip list lets you check/uncheck clips and reorder them before building. Saved reels go to `.yuu-clip/reels/` with a timestamp in the filename.
 
 ### World contexts manager
 

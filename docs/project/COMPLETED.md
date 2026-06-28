@@ -2,6 +2,7 @@
 
 Archive of shipped items. For pending work see [ROADMAP.md](ROADMAP.md).
 
+
 ---
 
 ## Phase 1 — Core pipeline
@@ -239,4 +240,5 @@ Archive of shipped items. For pending work see [ROADMAP.md](ROADMAP.md).
 - **Rolling logs** — `venv-setup.log` for startup; rotating `yuu-clip.log` for server output
 - **Version in footer** — dev: version + server start time; production: version + build date
 - **Clean uninstall** — NSIS `deleteAppDataOnUninstall` removes `Roaming\yuu-clip`; custom macro in `installer.nsh` wipes `Local\yuu-clip` (venv) and `Local\yuu-clip-updater` on uninstall.
+- **Bundled llama.cpp inference backend** — `llama-cpp-python` bundled in the wheel; `scoring/llm.py` supports both `llamacpp` (`.gguf` model file) and `ollama` backends; `llm_backend` / `llm_model_path` config fields; wizard LLM picker with `.gguf` file browser and Ollama model pull with progress bar. Ollama is now optional.
 - Shipped versions: 0.1.1 → 0.1.8
