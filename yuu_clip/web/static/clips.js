@@ -474,10 +474,14 @@ async function confirmExport() {
   closeExportModal();
 
   if (!isNaN(trimStart) && !isNaN(trimEnd)) {
-    await fetch(`/api/clips/${id}/timing`, {
+    const timingRes = await fetch(`/api/clips/${id}/timing`, {
       method: 'PATCH', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({start_offset: trimStart, end_offset: trimEnd}),
-    }).catch(() => {});
+    }).catch(err => { showToast(`Failed to save trim: ${err.message}`, 'error'); return null; });
+    if (!timingRes || !timingRes.ok) {
+      if (timingRes) showToast('Failed to save trim points', 'error');
+      return;
+    }
   }
 
   const params = new URLSearchParams();
