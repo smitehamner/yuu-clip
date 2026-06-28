@@ -42,8 +42,7 @@ class TestPageLoad:
 
     def test_header_buttons_visible(self, page: Page):
         page.goto(LIVE_URL)
-        expect(page.locator("button#btn-ingest")).to_be_visible()
-        expect(page.locator("button#btn-score")).to_be_visible()
+        expect(page.locator("button#btn-analyze")).to_be_visible()
         expect(page.locator("button#btn-demo")).to_be_visible()
 
     def test_sidebar_has_videos(self, page: Page):
@@ -64,16 +63,20 @@ class TestPageLoad:
 
 @skip_no_server
 class TestAnalyzeModal:
+    def _open_panel(self, page: Page) -> None:
+        page.click("#btn-analyze")
+        page.locator("#new-recording-panel").wait_for(state="visible")
+
     def test_opens_and_closes(self, page: Page):
         page.goto(LIVE_URL)
-        page.click("#btn-analyze")
-        expect(page.locator("#analyze-modal")).to_be_visible()
-        page.click("text=Cancel")
-        expect(page.locator("#analyze-modal")).not_to_be_visible()
+        self._open_panel(page)
+        expect(page.locator("#new-recording-panel")).to_be_visible()
+        page.click("#btn-close-new-recording")
+        expect(page.locator("#new-recording-panel")).not_to_be_visible()
 
     def test_profile_dropdown_has_default(self, page: Page):
         page.goto(LIVE_URL)
-        page.click("#btn-analyze")
+        self._open_panel(page)
         page.wait_for_selector("#analyze-profile option", timeout=3000)
         options = page.locator("#analyze-profile option")
         texts = [options.nth(i).text_content() for i in range(options.count())]
@@ -81,38 +84,36 @@ class TestAnalyzeModal:
 
     def test_model_dropdown_default_is_medium(self, page: Page):
         page.goto(LIVE_URL)
-        page.click("#btn-analyze")
-        selected = page.locator("#analyze-model").input_value()
-        assert selected == "medium"
+        self._open_panel(page)
+        assert page.locator("#analyze-model").input_value() == "medium"
 
     def test_scene_mode_default_is_fast(self, page: Page):
         page.goto(LIVE_URL)
-        page.click("#btn-analyze")
-        selected = page.locator("#analyze-scene-mode").input_value()
-        assert selected == "fast"
+        self._open_panel(page)
+        assert page.locator("#analyze-scene-mode").input_value() == "fast"
 
     def test_start_analyze_button_disabled_on_open(self, page: Page):
         page.goto(LIVE_URL)
-        page.click("#btn-analyze")
+        self._open_panel(page)
         expect(page.locator("#btn-start-analyze")).to_be_disabled()
 
     def test_energy_mode_dropdown_visible_in_advanced(self, page: Page):
         page.goto(LIVE_URL)
-        page.click("#btn-analyze")
+        self._open_panel(page)
         page.locator("details.advanced summary").click()
         page.wait_for_selector("#analyze-energy-mode", timeout=2000)
         expect(page.locator("#analyze-energy-mode")).to_be_visible()
 
     def test_energy_mode_default_is_fast(self, page: Page):
         page.goto(LIVE_URL)
-        page.click("#btn-analyze")
+        self._open_panel(page)
         page.locator("details.advanced summary").click()
         page.wait_for_selector("#analyze-energy-mode", timeout=2000)
         assert page.locator("#analyze-energy-mode").input_value() == "fast"
 
     def test_energy_mode_has_none_and_full_options(self, page: Page):
         page.goto(LIVE_URL)
-        page.click("#btn-analyze")
+        self._open_panel(page)
         page.locator("details.advanced summary").click()
         page.wait_for_selector("#analyze-energy-mode", timeout=2000)
         options = page.locator("#analyze-energy-mode option")
@@ -123,7 +124,7 @@ class TestAnalyzeModal:
 
     def test_model_options_ordered_slow_to_fast(self, page: Page):
         page.goto(LIVE_URL)
-        page.click("#btn-analyze")
+        self._open_panel(page)
         options = page.locator("#analyze-model option")
         values = [options.nth(i).get_attribute("value") for i in range(options.count())]
         # Should go tiny → base → small → medium → large-v3
@@ -142,26 +143,29 @@ class TestProfileManager:
     def test_opens_from_analyze_modal(self, page: Page):
         page.goto(LIVE_URL)
         page.click("#btn-analyze")
-        page.click("button[title='Manage profiles']")
+        page.locator("#new-recording-panel").wait_for(state="visible")
+        page.click("button[title='Manage track layouts']")
         expect(page.locator("#profile-modal")).to_be_visible()
 
     def test_default_profile_shown_as_locked(self, page: Page):
         page.goto(LIVE_URL)
         page.click("#btn-analyze")
-        page.click("button[title='Manage profiles']")
+        page.locator("#new-recording-panel").wait_for(state="visible")
+        page.click("button[title='Manage track layouts']")
         page.wait_for_selector("#profile-list", timeout=3000)
-        # Default profile should have a lock indicator and no delete button
+        # Built-in profiles have a lock icon and no delete button
         profile_list = page.locator("#profile-list")
         expect(profile_list).to_contain_text("Default")
 
     def test_create_and_delete_profile(self, page: Page):
         page.goto(LIVE_URL)
         page.click("#btn-analyze")
-        page.click("button[title='Manage profiles']")
+        page.locator("#new-recording-panel").wait_for(state="visible")
+        page.click("button[title='Manage track layouts']")
         page.wait_for_selector("#profile-list", timeout=3000)
 
-        # Open new profile editor
-        page.click("text=+ New Profile")
+        # Open new track layout editor
+        page.click("text=+ New Track Layout")
         page.wait_for_selector("#profile-editor", timeout=2000)
 
         # Fill in name
@@ -231,12 +235,12 @@ class TestClipReview:
         first_item = page.locator("#clip-list li").first
         expect(first_item).to_contain_text("#")
 
-    def test_sidebar_shows_sub_score_bars(self, page: Page):
+    def test_sidebar_shows_clip_scores(self, page: Page):
         page.goto(LIVE_URL)
         page.wait_for_selector("#video-list li", timeout=5000)
         page.locator("#video-list li").first.click()
         page.wait_for_selector("#clip-list li", timeout=5000)
-        expect(page.locator(".clip-miniscores").first).to_be_visible()
+        expect(page.locator(".clip-scores").first).to_be_visible()
 
 
 # ---------------------------------------------------------------------------
@@ -294,9 +298,10 @@ class TestDemoModal:
     def test_has_output_name_field(self, page: Page):
         page.goto(LIVE_URL)
         page.click("#btn-demo")
+        # Field is present and accepts text; left blank means the server auto-generates a filename
         expect(page.locator("#demo-output-name")).to_be_visible()
-        val = page.locator("#demo-output-name").input_value()
-        assert val.endswith(".mkv")
+        placeholder = page.locator("#demo-output-name").get_attribute("placeholder")
+        assert placeholder is not None and ".mkv" in placeholder
 
 
 # ---------------------------------------------------------------------------
@@ -349,7 +354,7 @@ class TestEstimateDisplay:
     def _open_analyze(self, page: "Page") -> None:
         page.goto(LIVE_URL)
         page.click("#btn-analyze")
-        page.wait_for_selector("#analyze-modal.visible")
+        page.locator("#new-recording-panel").wait_for(state="visible")
 
     def test_estimate_area_empty_on_modal_open(self, page: Page):
         self._open_analyze(page)
