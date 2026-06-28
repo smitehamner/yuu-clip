@@ -315,22 +315,30 @@ function _parseTimingOffset(str) {
   return parseFloat(s);
 }
 
-function openDescKebab(clipId, btn) {
-  const clip = _activeClipData;
+function _openClipDescKebab(clipId, btn, field) {
+  const clip    = _activeClipData;
+  const isLong  = field === 'description_long';
+  const editTitle   = isLong ? 'Edit Long Description'   : 'Edit Description';
+  const revertTitle = isLong ? 'Revert Long Description' : 'Revert Description';
+  const current  = isLong ? clip?.description_long          : clip?.description;
+  const isEdited = isLong ? clip?.description_long_is_edited : clip?.description_is_edited;
+  const original = isLong ? clip?.description_long_original  : clip?.description_original;
+
   const items = [
     { label: 'Edit', action: () =>
-      openFieldEditModal('Edit Description', clip?.description || '', async v => {
-        await _patchClipField(clipId, 'accept_edit', 'description', v, null);
+      openFieldEditModal(editTitle, current || '', async v => {
+        await _patchClipField(clipId, 'accept_edit', field,
+          isLong ? null : v, isLong ? v : null);
         selectClip(clipId);
       })
     },
   ];
-  if (clip?.description_is_edited) {
+  if (isEdited) {
     items.push({ label: 'Revert to Original', action: () =>
-      openDiffModal('Revert Description', [
-        {label: 'Description', current: clip.description, proposed: clip.description_original},
+      openDiffModal(revertTitle, [
+        {label: 'Description', current, proposed: original},
       ], async () => {
-        await _patchClipField(clipId, 'revert', 'description', null, null);
+        await _patchClipField(clipId, 'revert', field, null, null);
         selectClip(clipId);
       }, {revertMode: true})
     });
@@ -339,29 +347,8 @@ function openDescKebab(clipId, btn) {
   showKebab(btn, items);
 }
 
-function openDescLongKebab(clipId, btn) {
-  const clip = _activeClipData;
-  const items = [
-    { label: 'Edit', action: () =>
-      openFieldEditModal('Edit Long Description', clip?.description_long || '', async v => {
-        await _patchClipField(clipId, 'accept_edit', 'description_long', null, v);
-        selectClip(clipId);
-      })
-    },
-  ];
-  if (clip?.description_long_is_edited) {
-    items.push({ label: 'Revert to Original', action: () =>
-      openDiffModal('Revert Long Description', [
-        {label: 'Description', current: clip.description_long, proposed: clip.description_long_original},
-      ], async () => {
-        await _patchClipField(clipId, 'revert', 'description_long', null, null);
-        selectClip(clipId);
-      }, {revertMode: true})
-    });
-  }
-  items.push(null, { label: 'Regenerate via Re-score', action: () => rescoreClip(clipId) });
-  showKebab(btn, items);
-}
+function openDescKebab(clipId, btn)     { _openClipDescKebab(clipId, btn, 'description'); }
+function openDescLongKebab(clipId, btn) { _openClipDescKebab(clipId, btn, 'description_long'); }
 
 async function _patchClipField(clipId, action, field, newDesc, newDescLong) {
   const res = await fetch(`/api/clips/${clipId}/fields`, {

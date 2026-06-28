@@ -468,27 +468,38 @@ function regenSummaryAuto(id, btn) {
   };
 }
 
-function openVideoTitleKebab(videoId, btn) {
-  const video = _activeVideoData;
+async function _refreshVideoDetail(videoId) {
+  await loadVideos();
+  const updated = _videos.find(x => x.id === videoId);
+  if (updated) renderVideoDetail(updated, null);
+}
+
+function _openVideoFieldKebab(videoId, btn, field) {
+  const video      = _activeVideoData;
+  const isTitle    = field === 'title';
+  const editTitle  = isTitle ? 'Edit Title'   : 'Edit Summary';
+  const revertTitle = isTitle ? 'Revert Title' : 'Revert Summary';
+  const diffLabel  = isTitle ? 'Title'         : 'Summary';
+  const current    = isTitle ? video?.title    : video?.summary;
+  const isEdited   = isTitle ? video?.title_is_edited   : video?.summary_is_edited;
+  const original   = isTitle ? video?.title_original    : video?.summary_original;
+
   const items = [
     { label: 'Edit', action: () =>
-      openFieldEditModal('Edit Title', video?.title || '', async v => {
-        await _patchVideoField(videoId, 'accept_edit', 'title', v, null);
-        await loadVideos();
-        const updated = _videos.find(x => x.id === videoId);
-        if (updated) renderVideoDetail(updated, null);
+      openFieldEditModal(editTitle, current || '', async v => {
+        await _patchVideoField(videoId, 'accept_edit', field,
+          isTitle ? v : null, isTitle ? null : v);
+        await _refreshVideoDetail(videoId);
       })
     },
   ];
-  if (video?.title_is_edited) {
+  if (isEdited) {
     items.push({ label: 'Revert to Original', action: () =>
-      openDiffModal('Revert Title', [
-        {label: 'Title', current: video.title, proposed: video.title_original},
+      openDiffModal(revertTitle, [
+        {label: diffLabel, current, proposed: original},
       ], async () => {
-        await _patchVideoField(videoId, 'revert', 'title', null, null);
-        await loadVideos();
-        const updated = _videos.find(x => x.id === videoId);
-        if (updated) renderVideoDetail(updated, null);
+        await _patchVideoField(videoId, 'revert', field, null, null);
+        await _refreshVideoDetail(videoId);
       }, {revertMode: true})
     });
   }
@@ -496,33 +507,8 @@ function openVideoTitleKebab(videoId, btn) {
   showKebab(btn, items);
 }
 
-function openVideoSummaryKebab(videoId, btn) {
-  const video = _activeVideoData;
-  const items = [
-    { label: 'Edit', action: () =>
-      openFieldEditModal('Edit Summary', video?.summary || '', async v => {
-        await _patchVideoField(videoId, 'accept_edit', 'summary', null, v);
-        await loadVideos();
-        const updated = _videos.find(x => x.id === videoId);
-        if (updated) renderVideoDetail(updated, null);
-      })
-    },
-  ];
-  if (video?.summary_is_edited) {
-    items.push({ label: 'Revert to Original', action: () =>
-      openDiffModal('Revert Summary', [
-        {label: 'Summary', current: video.summary, proposed: video.summary_original},
-      ], async () => {
-        await _patchVideoField(videoId, 'revert', 'summary', null, null);
-        await loadVideos();
-        const updated = _videos.find(x => x.id === videoId);
-        if (updated) renderVideoDetail(updated, null);
-      }, {revertMode: true})
-    });
-  }
-  items.push(null, { label: 'Regenerate', action: () => summarizeVideo(videoId, null) });
-  showKebab(btn, items);
-}
+function openVideoTitleKebab(videoId, btn)   { _openVideoFieldKebab(videoId, btn, 'title'); }
+function openVideoSummaryKebab(videoId, btn) { _openVideoFieldKebab(videoId, btn, 'summary'); }
 
 async function _patchVideoField(videoId, action, field, newTitle, newSummary) {
   const res = await fetch(`/api/videos/${videoId}/fields`, {
