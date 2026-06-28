@@ -89,7 +89,7 @@ def _detect_keyframes(video_path: str) -> list[int]:
                     pass
         return cuts
     except Exception as exc:
-        log.warning("Keyframe extraction failed: %s", exc)
+        log.warning("Keyframe extraction failed: %s", exc, exc_info=True)
         return []
 
 
@@ -114,7 +114,7 @@ def compute_scenes(
     session: "Session",
     mode: str = "fast",
     transcript_gap_s: float = 3.0,
-    fast_frame_skip: int = 0,
+    frame_skip: int = 0,
 ) -> int:
     """
     Detect scene cuts for *video* and store SceneBoundary rows.
@@ -138,23 +138,22 @@ def compute_scenes(
     elif mode == "fast":
         kf = set(_detect_keyframes(video.path))
         tg = set(_detect_transcript(video, session, transcript_gap_s))
-        # Merge: keep keyframes that are within 2s of a transcript gap,
-        # plus all transcript gaps (silence is always a meaningful signal).
+        # Merge: keep keyframes within 2s of a transcript gap (corroborated cuts),
+        # or all keyframes if there are no transcript gaps.
+        # Deduplicate keyframe clusters to one representative per 1s window.
         merged: set[int] = set(tg)
-        for ms in kf:
-            if any(abs(ms - t) < 2000 for t in tg) or not tg:
-                merged.add(ms)
-        # Also keep keyframes not near any other keyframe (deduplicate clusters)
-        sorted_kf = sorted(kf)
-        prev = -999999
-        for ms in sorted_kf:
-            if ms - prev > 1000:   # at least 1s apart
+        candidate_kf = sorted(
+            ms for ms in kf if any(abs(ms - t) < 2000 for t in tg)
+        ) if tg else sorted(kf)
+        prev = -999_999
+        for ms in candidate_kf:
+            if ms - prev > 1000:
                 merged.add(ms)
                 prev = ms
         timecodes = sorted(merged)
 
     else:  # "full"
-        timecodes = _detect_content(video.path, frame_skip=fast_frame_skip)
+        timecodes = _detect_content(video.path, frame_skip=frame_skip)
 
     for ms in timecodes:
         session.add(SceneBoundary(video_id=video.id, timecode_ms=ms))

@@ -526,6 +526,35 @@ async function confirmExport() {
   );
 }
 
+// ── export transcript ─────────────────────────────────────────────────────────
+async function exportVideoTranscript(id, btn) {
+  await _doExportVideoTranscript(id, btn, false);
+}
+
+async function _doExportVideoTranscript(id, btn, overwrite) {
+  if (btn) { btn.disabled = true; btn.textContent = 'Exporting…'; }
+  try {
+    const res = await fetch(`/api/videos/${id}/export-transcript?overwrite=${overwrite}`, {method: 'POST'});
+    const data = await res.json().catch(() => ({}));
+    if (res.status === 409 && data.exists) {
+      showConfirm(
+        'Overwrite existing captions?',
+        `An SRT file already exists at:<br><code>${escHtml(data.path)}</code><br><br>Overwrite it with the current transcript?`,
+        'Overwrite',
+        () => _doExportVideoTranscript(id, btn, true),
+        true,
+      );
+      return;
+    }
+    if (!res.ok) throw new Error(formatApiError(data));
+    showToast(`Captions exported → ${data.path}`);
+  } catch (err) {
+    showToast(`Export failed: ${err.message}`, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Export Captions to File'; }
+  }
+}
+
 // ── delete ────────────────────────────────────────────────────────────────────
 function deleteVideo(id) {
   const video = _videos.find(v => v.id === id);

@@ -430,6 +430,167 @@ class TestClipDescriptionRawText:
 
 
 # ---------------------------------------------------------------------------
+# subtitles.py — export_srt_sidecars
+# ---------------------------------------------------------------------------
+
+class TestExportSrtSidecars:
+    def _make_clip(self, track_data, start_ms=5_000, end_ms=10_000):
+        """Build a minimal clip-like object with tracks and transcript segments."""
+        import types, datetime
+
+        clip = types.SimpleNamespace(
+            start_ms=start_ms, end_ms=end_ms,
+            start_offset=0.0, end_offset=0.0,
+            clip_transcripts=[],
+        )
+
+        tracks = []
+        for track_id, (label, do_transcribe, segs) in enumerate(track_data, start=1):
+            seg_objs = [
+                types.SimpleNamespace(start_ms=s, end_ms=e, text=t)
+                for s, e, t in segs
+            ]
+            tx = types.SimpleNamespace(
+                audio_track_id=track_id,
+                created_at=datetime.datetime(2024, 1, 1),
+                segments=seg_objs,
+            )
+            tracks.append(types.SimpleNamespace(
+                id=track_id, label=label, do_transcribe=do_transcribe, transcripts=[tx]
+            ))
+
+        clip.video = types.SimpleNamespace(audio_tracks=tracks)
+        return clip
+
+    def test_no_transcript_returns_empty(self, tmp_path):
+        from yuu_clip.subtitles import export_srt_sidecars
+        clip = self._make_clip([])
+        written = export_srt_sidecars(clip, tmp_path, "test_clip")
+        assert written == []
+        assert list(tmp_path.glob("*.srt")) == []
+
+    def test_single_track_writes_plain_srt(self, tmp_path):
+        from yuu_clip.subtitles import export_srt_sidecars
+        clip = self._make_clip([("player_voice", True, [(5_000, 8_000, "hello")])])
+        written = export_srt_sidecars(clip, tmp_path, "test_clip")
+        assert len(written) == 1
+        assert written[0].name == "test_clip.srt"
+        content = written[0].read_text(encoding="utf-8")
+        assert "hello" in content
+        assert "[Player]" not in content  # no speaker prefix for single-track
+
+    def test_single_track_no_label_suffix(self, tmp_path):
+        from yuu_clip.subtitles import export_srt_sidecars
+        clip = self._make_clip([("player_voice", True, [(5_000, 8_000, "hi")])])
+        export_srt_sidecars(clip, tmp_path, "test_clip")
+        assert (tmp_path / "test_clip.srt").exists()
+        assert not (tmp_path / "test_clip.player_voice.srt").exists()
+
+    def test_multi_track_writes_per_label_and_merged(self, tmp_path):
+        from yuu_clip.subtitles import export_srt_sidecars
+        clip = self._make_clip([
+            ("player_voice",     True, [(5_000, 7_000, "player says")]),
+            ("ingame_voicechat", True, [(7_000, 9_000, "team says")]),
+        ])
+        written = export_srt_sidecars(clip, tmp_path, "test_clip")
+        names = {p.name for p in written}
+        assert "test_clip.player_voice.srt" in names
+        assert "test_clip.ingame_voicechat.srt" in names
+        assert "test_clip.srt" in names
+
+    def test_multi_track_per_label_has_speaker_prefix(self, tmp_path):
+        from yuu_clip.subtitles import export_srt_sidecars
+        clip = self._make_clip([
+            ("player_voice",     True, [(5_000, 7_000, "player says")]),
+            ("ingame_voicechat", True, [(7_000, 9_000, "team says")]),
+        ])
+        export_srt_sidecars(clip, tmp_path, "test_clip")
+        pv = (tmp_path / "test_clip.player_voice.srt").read_text(encoding="utf-8")
+        assert "[Player]" in pv
+
+    def test_multi_track_merged_has_both_speakers(self, tmp_path):
+        from yuu_clip.subtitles import export_srt_sidecars
+        clip = self._make_clip([
+            ("player_voice",     True, [(5_000, 7_000, "player says")]),
+            ("ingame_voicechat", True, [(7_000, 9_000, "team says")]),
+        ])
+        export_srt_sidecars(clip, tmp_path, "test_clip")
+        merged = (tmp_path / "test_clip.srt").read_text(encoding="utf-8")
+        assert "[Player]" in merged
+        assert "[Voice Chat]" in merged
+
+    def test_game_sounds_track_excluded(self, tmp_path):
+        from yuu_clip.subtitles import export_srt_sidecars
+        clip = self._make_clip([
+            ("player_voice", True,  [(5_000, 8_000, "speech")]),
+            ("game_sounds",  True,  [(5_000, 8_000, "noise")]),
+        ])
+        written = export_srt_sidecars(clip, tmp_path, "test_clip")
+        # game_sounds excluded → only one transcribed track → single .srt
+        assert len(written) == 1
+        assert written[0].name == "test_clip.srt"
+
+    def test_do_transcribe_false_excluded(self, tmp_path):
+        from yuu_clip.subtitles import export_srt_sidecars
+        clip = self._make_clip([
+            ("player_voice",     True,  [(5_000, 8_000, "speech")]),
+            ("ingame_voicechat", False, [(5_000, 8_000, "not transcribed")]),
+        ])
+        written = export_srt_sidecars(clip, tmp_path, "test_clip")
+        # Only one transcribable track → single .srt
+        assert len(written) == 1
+        assert written[0].name == "test_clip.srt"
+
+    def test_creates_output_dir_if_missing(self, tmp_path):
+        from yuu_clip.subtitles import export_srt_sidecars
+        out = tmp_path / "nested" / "subdir"
+        clip = self._make_clip([("player_voice", True, [(5_000, 8_000, "hi")])])
+        export_srt_sidecars(clip, out, "test_clip")
+        assert (out / "test_clip.srt").exists()
+
+
+# ---------------------------------------------------------------------------
+# subtitles.py — collect_clip_subtitles: clip_transcripts override
+# ---------------------------------------------------------------------------
+
+class TestCollectClipSubtitlesClipTranscripts:
+    """clip_transcripts (clip-level re-transcription) should override track-level transcripts."""
+
+    def test_clip_transcript_overrides_track_transcript(self):
+        import types, datetime
+        from yuu_clip.subtitles import collect_clip_subtitles
+
+        seg_track = types.SimpleNamespace(start_ms=5_000, end_ms=8_000, text="track-level")
+        seg_clip  = types.SimpleNamespace(start_ms=5_000, end_ms=8_000, text="clip-level")
+
+        tx_track = types.SimpleNamespace(
+            audio_track_id=1,
+            created_at=datetime.datetime(2024, 1, 1),
+            segments=[seg_track],
+        )
+        tx_clip = types.SimpleNamespace(
+            audio_track_id=1,
+            created_at=datetime.datetime(2024, 6, 1),
+            segments=[seg_clip],
+        )
+
+        track = types.SimpleNamespace(
+            id=1, label="player_voice", do_transcribe=True, transcripts=[tx_track]
+        )
+
+        clip = types.SimpleNamespace(
+            start_ms=5_000, end_ms=10_000,
+            start_offset=0.0, end_offset=0.0,
+            clip_transcripts=[tx_clip],
+            video=types.SimpleNamespace(audio_tracks=[track]),
+        )
+
+        result = collect_clip_subtitles(clip)
+        assert "player_voice" in result
+        assert result["player_voice"][0].text == "clip-level"
+
+
+# ---------------------------------------------------------------------------
 # analyze/labeler.py — label_tracks single-track auto-label
 # ---------------------------------------------------------------------------
 
@@ -557,11 +718,14 @@ class TestGuessLabelIndex:
 # ---------------------------------------------------------------------------
 
 class TestDetectTranscriptOverlap:
+    _next_id = 100
+
     def _make_track(self, label, do_score, words):
         """Build a minimal track-like object whose transcript returns *words*."""
         import types
+        TestDetectTranscriptOverlap._next_id += 1
         return types.SimpleNamespace(
-            id=1,
+            id=TestDetectTranscriptOverlap._next_id,
             label=label,
             do_score=do_score,
             relevance_weight=1.0,

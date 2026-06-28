@@ -37,6 +37,18 @@ def _label_display(label: str) -> str:
     return _LABEL_DISPLAY.get(label, label.replace("_", " ").title())
 
 
+def _merge_with_speakers(groups: dict[str, list[SubLine]]) -> list[SubLine]:
+    """Flatten *groups* into a single list, tagging each line with its speaker label.
+
+    The speaker label is later rendered as a ``[Speaker]`` prefix by ``lines_to_srt``.
+    """
+    all_lines: list[SubLine] = []
+    for label, lines in groups.items():
+        speaker = _label_display(label)
+        all_lines.extend(SubLine(l.start_ms, l.end_ms, l.text, speaker) for l in lines)
+    return all_lines
+
+
 def lines_to_srt(lines: Iterable[SubLine]) -> str:
     """Render SubLine objects as an SRT-format string."""
     sorted_lines = sorted(lines, key=lambda l: l.start_ms)
@@ -57,7 +69,8 @@ def collect_clip_subtitles(clip) -> dict[str, list[SubLine]]:
 
     Timestamps are clip-relative (0 = start of the clip).
     Skips game_sounds tracks and any track with do_transcribe=False.
-    Uses the most recent Transcript when a track has been re-transcribed.
+    Clip-level transcripts (``clip.clip_transcripts``) take priority over
+    track-level transcripts; among duplicates the most recent wins.
     """
     clip_start = max(0, clip.start_ms + int((clip.start_offset or 0.0) * 1000))
     clip_end   = clip.end_ms + int((clip.end_offset or 0.0) * 1000)
@@ -124,21 +137,52 @@ def export_srt_sidecars(clip, output_dir: Path, base_stem: str) -> list[Path]:
             path.write_text(lines_to_srt(labeled), encoding="utf-8")
             written.append(path)
 
-        all_lines: list[SubLine] = []
-        for label, lines in groups.items():
-            speaker = _label_display(label)
-            all_lines.extend(SubLine(l.start_ms, l.end_ms, l.text, speaker) for l in lines)
         merged = output_dir / f"{base_stem}.srt"
-        merged.write_text(lines_to_srt(all_lines), encoding="utf-8")
+        merged.write_text(lines_to_srt(_merge_with_speakers(groups)), encoding="utf-8")
         written.append(merged)
 
     return written
 
 
+def export_video_transcript_srt(video, output_path: Path) -> Path:
+    """
+    Write a full-video SRT file to *output_path* using all transcribed tracks.
+
+    Timestamps are absolute from the start of the video (same origin as
+    TranscriptSegment.start_ms / end_ms), so the file can be fed back in as
+    --subtitle-source when re-importing the same recording.
+
+    Single transcribed track → plain SRT (no speaker prefix).
+    Multiple tracks → merged SRT with [Speaker] prefixes.
+
+    Returns *output_path*.  Raises ValueError if there is no transcript data.
+    """
+    transcribed_tracks = [t for t in video.audio_tracks if t.do_transcribe and t.label != "game_sounds"]
+    if not transcribed_tracks:
+        raise ValueError("No transcribed tracks found for this recording")
+
+    groups: dict[str, list[SubLine]] = {}
+    for track in transcribed_tracks:
+        if not track.transcripts:
+            continue
+        transcript = max(track.transcripts, key=lambda t: t.created_at)
+        lines = [SubLine(seg.start_ms, seg.end_ms, seg.text) for seg in transcript.segments]
+        if lines:
+            groups[track.label] = lines
+
+    if not groups:
+        raise ValueError("No transcript segments found for this recording")
+
+    if len(groups) == 1:
+        _, lines = next(iter(groups.items()))
+        srt = lines_to_srt(lines)
+    else:
+        srt = lines_to_srt(_merge_with_speakers(groups))
+
+    output_path.write_text(srt, encoding="utf-8")
+    return output_path
+
+
 def merged_srt_lines(clip) -> list[SubLine]:
     """Return all subtitle lines for *clip* merged and sorted, with speaker prefixes."""
-    all_lines: list[SubLine] = []
-    for label, lines in collect_clip_subtitles(clip).items():
-        speaker = _label_display(label)
-        all_lines.extend(SubLine(l.start_ms, l.end_ms, l.text, speaker) for l in lines)
-    return sorted(all_lines, key=lambda l: l.start_ms)
+    return sorted(_merge_with_speakers(collect_clip_subtitles(clip)), key=lambda l: l.start_ms)

@@ -1022,6 +1022,39 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         finally:
             db.close()
 
+    @router.post("/api/videos/{video_id}/export-transcript")
+    def export_video_transcript(video_id: int, overwrite: bool = Query(False)):
+        """Write a full-video SRT file next to the source recording file.
+
+        Useful for reimporting the transcript as --subtitle-source when
+        re-analyzing the same file, avoiding a second Whisper run.
+
+        Returns 409 with {"exists": true, "path": "..."} when the file already
+        exists and overwrite=false, so the caller can confirm and retry.
+        """
+        from yuu_clip.subtitles import export_video_transcript_srt
+        db = ctx.get_db()
+        try:
+            video = db.get(Video, video_id)
+            if not video:
+                raise HTTPException(404, "Video not found")
+            source_path = Path(video.path)
+            output_path = source_path.with_suffix(".srt")
+            if output_path.exists() and not overwrite:
+                from fastapi.responses import JSONResponse
+                return JSONResponse(
+                    status_code=409,
+                    content={"exists": True, "path": str(output_path)},
+                )
+            try:
+                export_video_transcript_srt(video, output_path)
+            except ValueError as e:
+                raise HTTPException(400, str(e))
+            _log.info("Exported transcript SRT for video %d → %s", video_id, output_path)
+            return {"path": str(output_path)}
+        finally:
+            db.close()
+
     @router.delete("/api/videos/{video_id}")
     def delete_video(video_id: int):
         """Remove a video and all its data from the database. Source file is NOT deleted."""
@@ -1501,9 +1534,17 @@ def _srt_path(clip: ClipCandidate, video: Video, export_dir: Path) -> Optional[P
 
 
 def _all_sidecar_paths(clip: ClipCandidate, video: Video, export_dir: Path) -> list[Path]:
-    """All on-disk sidecar paths for a clip: video exports + SRT (if it exists)."""
-    srt = _srt_path(clip, video, export_dir)
-    return [*_export_paths(clip, video, export_dir), *([] if srt is None else [srt])]
+    """All on-disk sidecar paths for a clip: video exports + all SRT sidecars.
+
+    Includes per-label sidecars (e.g. {stem}.player_voice.srt) produced by
+    export_srt_sidecars when multiple audio tracks are transcribed.
+    """
+    stem = _clip_stem(clip, video)
+    srt_files = list(export_dir.glob(f"{stem}.*.srt"))
+    merged_srt = export_dir / f"{stem}.srt"
+    if merged_srt.exists():
+        srt_files.append(merged_srt)
+    return [*_export_paths(clip, video, export_dir), *srt_files]
 
 
 def _ms_to_hms(ms: int) -> str:

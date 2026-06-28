@@ -62,6 +62,7 @@ async def subprocess_sse(cmd: list[str], cwd: Path, ctx=None) -> StreamingRespon
                     proc.returncode,
                     " ".join(str(c) for c in cmd),
                 )
+                yield f"data: {json.dumps(f'[Error: subprocess exited with code {proc.returncode}]')}\n\n"
             else:
                 _log.info("Subprocess (pid %s) completed successfully", proc.pid)
             yield f"data: {json.dumps(_SSE_DONE_SENTINEL)}\n\n"

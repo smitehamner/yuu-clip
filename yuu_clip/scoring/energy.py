@@ -65,7 +65,7 @@ def compute_energy(track: "AudioTrack", session: "Session", energy_mode: str = "
         import av
         import numpy as np
     except ImportError:
-        log.error("av or numpy not available — cannot compute audio energy")
+        log.warning("av or numpy not available — cannot compute audio energy")
         return 0
 
     downsample_factor = _ENERGY_DOWNSAMPLE.get(energy_mode, 4)
@@ -126,6 +126,41 @@ def _read_rms_per_second(wav_path: Path, downsample_factor: int = 1) -> list[flo
     return rms_db.tolist()
 
 
+def _weighted_mean_db(rows: list, track_map: dict) -> float | None:
+    """Return track-relevance-weighted mean dB across *rows*, or None if total weight is 0."""
+    track_sums:   defaultdict[int, float] = defaultdict(float)
+    track_counts: defaultdict[int, int]   = defaultdict(int)
+    for row in rows:
+        track_sums[row.audio_track_id]   += row.rms_db
+        track_counts[row.audio_track_id] += 1
+
+    weighted_sum = weight_total = 0.0
+    for tid, total in track_sums.items():
+        mean_db = total / track_counts[tid]
+        w = track_map[tid].relevance_weight if tid in track_map else 1.0
+        weighted_sum += mean_db * w
+        weight_total += w
+
+    return weighted_sum / weight_total if weight_total else None
+
+
+def _compute_baseline(all_rows: list) -> tuple[float, float] | None:
+    """Return (global_mean_db, baseline_db) for normalising clip scores, or None.
+
+    Returns None when there are fewer than 2 rows (can't estimate spread) or when
+    std == 0 (all rows identical — no meaningful spread to normalise against).
+    baseline_db = mean + std; a clip at or above baseline scores 1.0.
+    """
+    if len(all_rows) < 2:
+        return None
+    all_db = [r.rms_db for r in all_rows]
+    n = len(all_db)
+    mean_all = sum(all_db) / n
+    std_all  = math.sqrt(sum((x - mean_all) ** 2 for x in all_db) / n)
+    baseline = mean_all + std_all
+    return None if baseline <= mean_all else (mean_all, baseline)
+
+
 class AudioEnergyScorer:
     name   = "audio_energy"
 
@@ -144,19 +179,15 @@ class AudioEnergyScorer:
             return False
 
     def score(self, clip: "ClipCandidate", session: "Session") -> ScoreResult:
-        from yuu_clip.db.models import AudioEnergy, AudioTrack
+        from yuu_clip.db.models import AudioEnergy
 
-        start_s = clip.start_ms // 1000
-        end_s   = clip.end_ms   // 1000
-
-        scorable_track_ids = [
-            t.id for t in clip.video.audio_tracks
-            if t.do_score
-        ]
+        scorable_track_ids = [t.id for t in clip.video.audio_tracks if t.do_score]
         if not scorable_track_ids:
             return ScoreResult(tags=["energy_no_tracks"])
 
-        rows = (
+        start_s = clip.start_ms // 1000
+        end_s   = clip.end_ms   // 1000
+        clip_rows = (
             session.query(AudioEnergy)
             .filter(
                 AudioEnergy.audio_track_id.in_(scorable_track_ids),
@@ -165,47 +196,24 @@ class AudioEnergyScorer:
             )
             .all()
         )
-        if not rows:
+        if not clip_rows:
             return ScoreResult(tags=["energy_no_data"])
 
-        track_sums:   defaultdict[int, float] = defaultdict(float)
-        track_counts: defaultdict[int, int]   = defaultdict(int)
-        for row in rows:
-            track_sums[row.audio_track_id]   += row.rms_db
-            track_counts[row.audio_track_id] += 1
-
-        track_map = {t.id: t for t in clip.video.audio_tracks}
-        weighted_sum   = 0.0
-        weight_total   = 0.0
-        for tid, total in track_sums.items():
-            mean_db = total / track_counts[tid]
-            w = track_map[tid].relevance_weight if tid in track_map else 1.0
-            weighted_sum += mean_db * w
-            weight_total += w
-
-        if weight_total == 0:
+        track_map    = {t.id: t for t in clip.video.audio_tracks}
+        clip_mean_db = _weighted_mean_db(clip_rows, track_map)
+        if clip_mean_db is None:
             return ScoreResult()
-
-        clip_mean_db = weighted_sum / weight_total
 
         all_rows = (
             session.query(AudioEnergy)
             .filter(AudioEnergy.audio_track_id.in_(scorable_track_ids))
             .all()
         )
-        if len(all_rows) < 2:
+        baseline_pair = _compute_baseline(all_rows)
+        if baseline_pair is None:
             return ScoreResult()
 
-        all_db = [r.rms_db for r in all_rows]
-        n = len(all_db)
-        mean_all = sum(all_db) / n
-        variance = sum((x - mean_all) ** 2 for x in all_db) / n
-        std_all  = math.sqrt(variance)
-
-        baseline = mean_all + std_all  # energy at or above this → score ≥ 1.0
-        if baseline <= mean_all:
-            return ScoreResult()
-
+        mean_all, baseline = baseline_pair
         score = max(0.0, min(1.0, (clip_mean_db - mean_all) / (baseline - mean_all)))
         return ScoreResult(
             score_action=score,

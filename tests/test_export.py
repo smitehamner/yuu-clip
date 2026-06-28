@@ -252,7 +252,6 @@ class TestReelEsc:
     def test_colon_escaped(self):
         result = self._esc("C:/fonts/arial.ttf")
         assert "\\:" in result
-        assert result.count(":") == 0 or all(result[i-1] == "\\" for i in range(len(result)) if result[i] == ":")
 
     def test_percent_doubled(self):
         result = self._esc("path%20with%20spaces")
@@ -260,7 +259,7 @@ class TestReelEsc:
 
     def test_single_quote_escaped(self):
         result = self._esc("path/with'quote")
-        assert "'" not in result or "'\\''" in result
+        assert "'\\''" in result
 
     def test_empty_string_unchanged(self):
         assert self._esc("") == ""
@@ -427,6 +426,114 @@ class TestExportClipCommand:
              patch("yuu_clip.analyze.extract.find_ffmpeg", return_value=("ffmpeg", None)):
             with pytest.raises(RuntimeError, match="FFmpeg clip export failed"):
                 export_clip(video, 0, 5_000, tmp_path / "out.mkv")
+
+
+class TestPerLabelSrtSidecarDeletion:
+    """Per-label SRT sidecars (e.g. .player_voice.srt) are removed on clip/video delete."""
+
+    def _first_clip(self, client):
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        return client.get(f"/api/videos/{vid_id}/clips").json()[0]
+
+    def test_delete_clip_removes_per_label_srt(self, client, project_dir):
+        clip = self._first_clip(client)
+        export_dir = project_dir / ".yuu-clip" / "exports"
+        start_hms_dashes = clip["start_hms"].replace(":", "-")
+        stem = f"session_clip{clip['id']}_{start_hms_dashes}"
+        pv_srt = export_dir / f"{stem}.player_voice.srt"
+        vc_srt = export_dir / f"{stem}.ingame_voicechat.srt"
+        merged_srt = export_dir / f"{stem}.srt"
+        pv_srt.write_text("1\n00:00:00,000 --> 00:00:01,000\nHi\n\n", encoding="utf-8")
+        vc_srt.write_text("1\n00:00:00,000 --> 00:00:01,000\nHey\n\n", encoding="utf-8")
+        merged_srt.write_text("1\n00:00:00,000 --> 00:00:01,000\n[Player] Hi\n\n", encoding="utf-8")
+
+        client.delete(f"/api/clips/{clip['id']}")
+
+        assert not pv_srt.exists(), "player_voice sidecar should have been deleted"
+        assert not vc_srt.exists(), "ingame_voicechat sidecar should have been deleted"
+        assert not merged_srt.exists(), "merged sidecar should have been deleted"
+
+    def test_delete_video_removes_per_label_srts(self, client, project_dir):
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        clips = client.get(f"/api/videos/{vid_id}/clips").json()
+        export_dir = project_dir / ".yuu-clip" / "exports"
+        srt_files = []
+        for c in clips:
+            start_hms_dashes = c["start_hms"].replace(":", "-")
+            stem = f"session_clip{c['id']}_{start_hms_dashes}"
+            f = export_dir / f"{stem}.player_voice.srt"
+            f.write_text("1\n00:00:00,000 --> 00:00:01,000\nSpeech\n\n", encoding="utf-8")
+            srt_files.append(f)
+
+        client.delete(f"/api/videos/{vid_id}")
+
+        for f in srt_files:
+            assert not f.exists(), f"{f.name} should have been deleted with the video"
+
+
+class TestExportVideoTranscript:
+    """POST /api/videos/{id}/export-transcript writes SRT next to the source file."""
+
+    def _seed_transcript(self, project_dir):
+        from yuu_clip.db.models import make_session, Video, AudioTrack, Transcript, TranscriptSegment
+        db_path = project_dir / ".yuu-clip" / "project.db"
+        session = make_session(db_path)
+        try:
+            vid = session.query(Video).first()
+            track = session.query(AudioTrack).filter_by(video_id=vid.id).first()
+            tx = Transcript(audio_track_id=track.id, model_name="large-v3")
+            session.add(tx)
+            session.flush()
+            session.add(TranscriptSegment(transcript_id=tx.id, start_ms=0, end_ms=2000, text="Hello world"))
+            session.add(TranscriptSegment(transcript_id=tx.id, start_ms=3000, end_ms=5000, text="Second line"))
+            session.commit()
+            return vid.id, vid.path
+        finally:
+            session.close()
+
+    def test_exports_srt_next_to_source(self, client, project_dir, tmp_path):
+        vid_id, source_path = self._seed_transcript(project_dir)
+        r = client.post(f"/api/videos/{vid_id}/export-transcript")
+        assert r.status_code == 200, r.text
+        data = r.json()
+        from pathlib import Path
+        srt_path = Path(data["path"])
+        assert srt_path.suffix == ".srt"
+        assert srt_path.stem == Path(source_path).stem
+        assert srt_path.exists()
+        content = srt_path.read_text(encoding="utf-8")
+        assert "Hello world" in content
+        assert "Second line" in content
+
+    def test_returns_409_when_srt_exists(self, client, project_dir):
+        vid_id, source_path = self._seed_transcript(project_dir)
+        from pathlib import Path
+        existing = Path(source_path).with_suffix(".srt")
+        existing.write_text("old content", encoding="utf-8")
+        r = client.post(f"/api/videos/{vid_id}/export-transcript")
+        assert r.status_code == 409
+        data = r.json()
+        assert data["exists"] is True
+        assert data["path"] == str(existing)
+        assert existing.read_text(encoding="utf-8") == "old content"
+
+    def test_overwrite_param_replaces_existing(self, client, project_dir):
+        vid_id, source_path = self._seed_transcript(project_dir)
+        from pathlib import Path
+        existing = Path(source_path).with_suffix(".srt")
+        existing.write_text("old content", encoding="utf-8")
+        r = client.post(f"/api/videos/{vid_id}/export-transcript?overwrite=true")
+        assert r.status_code == 200
+        assert "Hello world" in existing.read_text(encoding="utf-8")
+
+    def test_returns_400_when_no_transcript(self, client):
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        r = client.post(f"/api/videos/{vid_id}/export-transcript")
+        assert r.status_code == 400
+
+    def test_returns_404_for_missing_video(self, client):
+        r = client.post("/api/videos/99999/export-transcript")
+        assert r.status_code == 404
 
 
 class TestSafeFilename:

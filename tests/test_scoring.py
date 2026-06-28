@@ -230,8 +230,9 @@ class TestScoringEngine:
         config = Config()
         engine = ScoringEngine(config, [])
         clip = self._make_clip()
+        clip.score_overall = 0.7   # sentinel: must be unchanged if no scorers run
         engine.score_clip(clip, None)
-        assert clip.score_overall == 0.0
+        assert clip.score_overall == 0.7
 
     def test_unavailable_scorer_filtered_out(self):
         from unittest.mock import MagicMock
@@ -241,8 +242,9 @@ class TestScoringEngine:
         unavailable = self._make_scorer(score_action=1.0, available=False)
         engine = ScoringEngine(config, [unavailable])
         clip = self._make_clip()
+        clip.score_overall = 0.7   # sentinel: must be unchanged if scorer never ran
         engine.score_clip(clip, None)
-        assert clip.score_overall == 0.0
+        assert clip.score_overall == 0.7
         unavailable.score.assert_not_called()
 
     def test_score_clip_writes_dimension_scores(self):
@@ -774,6 +776,115 @@ class TestLLMScorerScore:
         clip = self._make_clip(excerpt="text")
         result = scorer.score(clip, None)
         assert result.notes.get("model") == "llama3.1:8b"
+
+
+# ---------------------------------------------------------------------------
+# Coverage gaps — pure-function and edge-case paths
+# ---------------------------------------------------------------------------
+
+class TestPrependContext:
+    def _pp(self, system, context):
+        from yuu_clip.scoring.llm import _prepend_context
+        return _prepend_context(system, context)
+
+    def test_with_context_prepends_and_separates(self):
+        result = self._pp("SYSTEM", "CONTEXT")
+        assert result == "CONTEXT\n\nSYSTEM"
+
+    def test_empty_context_returns_system_unchanged(self):
+        assert self._pp("SYSTEM", "") == "SYSTEM"
+
+    def test_none_context_not_prepended(self):
+        # context_text="" is the expected sentinel; None is not a valid call, but
+        # the falsy branch must still return just the system prompt.
+        assert self._pp("SYSTEM", None) == "SYSTEM"
+
+
+class TestAudioEnergyScorerIsAvailable:
+    def test_is_available_false_when_av_missing(self):
+        import sys
+        import unittest.mock as mock
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.energy import AudioEnergyScorer
+        cfg = Config()
+        cfg.scorer_energy_enabled = True
+        scorer = AudioEnergyScorer(cfg)
+        with mock.patch.dict(sys.modules, {"av": None, "numpy": None}):
+            assert scorer.is_available() is False
+
+    def test_is_available_true_when_deps_present(self):
+        import sys
+        import unittest.mock as mock
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.energy import AudioEnergyScorer
+        cfg = Config()
+        cfg.scorer_energy_enabled = True
+        scorer = AudioEnergyScorer(cfg)
+        fake_av = mock.MagicMock()
+        fake_np = mock.MagicMock()
+        with mock.patch.dict(sys.modules, {"av": fake_av, "numpy": fake_np}):
+            assert scorer.is_available() is True
+
+
+class TestScoringEngineWeightEdgeCases:
+    def _make_scorer(self, score_action=0.0, weight=1.0):
+        from unittest.mock import MagicMock
+        from yuu_clip.scoring.protocol import ScoreResult
+        mock = MagicMock()
+        mock.is_available.return_value = True
+        mock.weight = weight
+        mock.score.return_value = ScoreResult(score_action=score_action)
+        return mock
+
+    def _make_clip(self):
+        from unittest.mock import MagicMock
+        clip = MagicMock()
+        clip.tags = []
+        clip.score_funny = clip.score_dramatic = clip.score_action = 0.0
+        clip.score_overall = 0.5   # stale value to verify it is not changed
+        clip.description = clip.description_long = ""
+        return clip
+
+    def test_all_scorer_weights_zero_clears_overall(self):
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.engine import ScoringEngine
+        scorer = self._make_scorer(score_action=1.0, weight=0.0)
+        engine = ScoringEngine(Config(), [scorer])
+        clip = self._make_clip()
+        engine.score_clip(clip, None)
+        # weight_sum == 0 → scores can't be computed; overall is reset to 0.0
+        assert clip.score_overall == 0.0
+
+    def test_all_dim_weights_zero_clears_overall(self):
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.engine import ScoringEngine
+        cfg = Config()
+        cfg.score_funny_weight = 0.0
+        cfg.score_dramatic_weight = 0.0
+        cfg.score_action_weight = 0.0
+        scorer = self._make_scorer(score_action=1.0, weight=1.0)
+        engine = ScoringEngine(cfg, [scorer])
+        clip = self._make_clip()
+        engine.score_clip(clip, None)
+        # dim_total == 0 → overall can't be computed; must not leave stale value
+        assert clip.score_overall == 0.0
+
+
+class TestComputeScenesIdempotent:
+    def test_skips_if_boundaries_already_exist(self, tmp_path):
+        from yuu_clip.db.models import SceneBoundary, Video, make_session
+        from yuu_clip.scoring.scenes import compute_scenes
+        session = make_session(tmp_path / "test.db")
+        v = Video(path=str(tmp_path / "v.mkv"), filename="v.mkv", status="done", duration_ms=60_000)
+        session.add(v)
+        session.flush()
+        session.add(SceneBoundary(video_id=v.id, timecode_ms=5_000))
+        session.flush()
+        try:
+            result = compute_scenes(v, session, mode="transcript")
+        finally:
+            session.close()
+        assert result == 0
 
 
 # ---------------------------------------------------------------------------

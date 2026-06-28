@@ -1,6 +1,3 @@
-"""
-ScoringEngine: orchestrates all scorers and writes results back to ClipCandidate rows.
-"""
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -14,6 +11,18 @@ if TYPE_CHECKING:
     from yuu_clip.db.models import ClipCandidate, Video
 
 _log = get_logger(__name__)
+
+
+def _compute_overall(cfg: "Config", funny: float, dramatic: float, action: float) -> float | None:
+    """Return the weighted overall score, or None when all dimension weights are zero."""
+    dim_total = cfg.score_funny_weight + cfg.score_dramatic_weight + cfg.score_action_weight
+    if dim_total == 0:
+        return None
+    return (
+        cfg.score_funny_weight * funny +
+        cfg.score_dramatic_weight * dramatic +
+        cfg.score_action_weight * action
+    ) / dim_total
 
 
 class ScoringEngine:
@@ -37,6 +46,7 @@ class ScoringEngine:
             return
 
         clip.tags = [t for t in clip.tags if t not in self._SCORER_TAGS]
+        clip.score_overall = 0.0
 
         funny_num = dramatic_num = action_num = weight_sum = 0.0
 
@@ -60,20 +70,16 @@ class ScoringEngine:
                     clip.tags = clip.tags + [tag]
 
         if weight_sum == 0:
+            _log.warning("score_clip: all scorer weights are 0 — clip %s will not be scored", getattr(clip, "id", "?"))
             return
 
         clip.score_funny    = funny_num    / weight_sum
         clip.score_dramatic = dramatic_num / weight_sum
         clip.score_action   = action_num   / weight_sum
 
-        cfg = self._config
-        dim_total = cfg.score_funny_weight + cfg.score_dramatic_weight + cfg.score_action_weight
-        if dim_total > 0:
-            clip.score_overall = (
-                cfg.score_funny_weight    * clip.score_funny    +
-                cfg.score_dramatic_weight * clip.score_dramatic +
-                cfg.score_action_weight   * clip.score_action
-            ) / dim_total
+        overall = _compute_overall(self._config, clip.score_funny, clip.score_dramatic, clip.score_action)
+        if overall is not None:
+            clip.score_overall = overall
 
     def score_video(self, video: "Video", session: "Session", progress_cb=None) -> int:
         """Score all ClipCandidates for *video*.  Returns count scored."""

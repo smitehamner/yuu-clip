@@ -27,7 +27,6 @@ log = logging.getLogger(__name__)
 
 
 def _prepend_context(system_prompt: str, context_text: str) -> str:
-    """Prepend world-context text to a system prompt when context is available."""
     return (context_text + "\n\n" + system_prompt) if context_text else system_prompt
 
 

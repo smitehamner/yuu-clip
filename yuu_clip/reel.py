@@ -21,6 +21,7 @@ if TYPE_CHECKING:
 _log = logging.getLogger(__name__)
 
 TRANSITIONS = ("fade", "dissolve", "wipeleft", "wiperight", "slideleft", "slideright", "none", "random")
+_RANDOM_POOL = [t for t in TRANSITIONS if t not in ("none", "random")]
 _DEFAULT_TRANSITION    = "fade"
 _DEFAULT_TRANS_DUR     = 0.5   # seconds of overlap
 _DEFAULT_TITLE_DUR     = 3.0   # seconds each title card shows
@@ -190,7 +191,7 @@ def _build_xfade_cmd(
     *per_cut_transitions* must have exactly len(segments)-1 entries — one
     transition name per cut. Callers that want a single uniform transition
     pass a list of the same value repeated; callers that want random
-    transitions pass a pre-shuffled list.
+    transitions pass a list built by sampling the pool with rng.choice per cut.
     """
     n = len(segments)
     assert n == len(durations)
@@ -360,7 +361,6 @@ def compile_demo(
     if transition not in TRANSITIONS:
         raise ValueError(f"transition must be one of {TRANSITIONS}")
 
-    _RANDOM_POOL = [t for t in TRANSITIONS if t not in ("none", "random")]
     n = len(clips)
 
     clip_files, clip_durations, clip_fps = _resolve_clip_files(clips, video_map, export_dir)
@@ -374,18 +374,22 @@ def compile_demo(
     _log.info(msg)
     print(msg, flush=True)
 
-    with tempfile.TemporaryDirectory() as tmp:
-        segments, durations = _build_segment_list(
-            clips, video_map, clip_files, clip_durations, Path(tmp), clip_fps, title_dur,
-        )
-        _log.info("Encoding final reel (%ds footage) → %s", int(total_footage), output.name)
-        print(f"Encoding final reel ({total_footage:.0f}s footage)…", flush=True)
-        if transition == "none":
-            _compile_concat(segments, output)
-        elif transition == "random":
-            _compile_xfade_random(segments, durations, output, _RANDOM_POOL, trans_dur, _random)
-        else:
-            _compile_xfade(segments, durations, output, transition, trans_dur)
-        size_mb = output.stat().st_size / (1024 * 1024)
-        _log.info("Reel encode complete: %s (%.1f MB)", output.name, size_mb)
-        print("Encode complete.", flush=True)
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            segments, durations = _build_segment_list(
+                clips, video_map, clip_files, clip_durations, Path(tmp), clip_fps, title_dur,
+            )
+            _log.info("Encoding final reel (%ds footage) → %s", int(total_footage), output.name)
+            print(f"Encoding final reel ({total_footage:.0f}s footage)…", flush=True)
+            if transition == "none":
+                _compile_concat(segments, output)
+            elif transition == "random":
+                _compile_xfade_random(segments, durations, output, _RANDOM_POOL, trans_dur, _random)
+            else:
+                _compile_xfade(segments, durations, output, transition, trans_dur)
+            size_mb = output.stat().st_size / (1024 * 1024)
+            _log.info("Reel encode complete: %s (%.1f MB)", output.name, size_mb)
+            print("Encode complete.", flush=True)
+    except Exception as exc:
+        _log.error("Reel compilation failed for %s: %s", output.name, exc, exc_info=True)
+        raise
