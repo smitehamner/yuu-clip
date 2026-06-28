@@ -27,11 +27,26 @@ _log = get_logger(__name__)
 _SSE_DONE_SENTINEL = "__DONE__"
 
 
-async def subprocess_sse(cmd: list[str], cwd: Path, ctx=None) -> StreamingResponse:
+async def subprocess_sse(
+    cmd: list[str],
+    cwd: Path,
+    ctx=None,
+    *,
+    is_analyze: bool = False,
+    clear_cmd_attr: str | None = None,
+) -> StreamingResponse:
     """Run *cmd* as a subprocess and stream its stdout as an SSE response.
 
     If *ctx* is a ProjectContext, the running process is stored on
     ``ctx.analyze_proc`` so it can be terminated via the cancel endpoint.
+
+    *is_analyze* must be True only for the analyze job — it gates the
+    ``ctx.analyze_cancelled`` check so cancellation messages are not emitted
+    for unrelated jobs (score, export, retranscribe, demo).
+
+    *clear_cmd_attr* names the ``ctx`` attribute to set to ``None`` when the
+    stream finishes (e.g. ``'analyze_cmd'`` or ``'demo_cmd'``). Callers that
+    own no queued-command slot (score, export, retranscribe) omit it.
     """
 
     async def _generate() -> AsyncGenerator[str, None]:
@@ -43,7 +58,7 @@ async def subprocess_sse(cmd: list[str], cwd: Path, ctx=None) -> StreamingRespon
             cwd=str(cwd),
         )
         assert proc.stdout
-        _log.info("Subprocess started (pid %s): %s", proc.pid, cmd[2] if len(cmd) > 2 else cmd[0])
+        _log.info("Subprocess started (pid %s): %s", proc.pid, cmd[3] if len(cmd) > 3 else cmd[0])
         if ctx is not None:
             ctx.analyze_proc = proc
         try:
@@ -52,7 +67,7 @@ async def subprocess_sse(cmd: list[str], cwd: Path, ctx=None) -> StreamingRespon
                 _log.debug("[subprocess] %s", text)
                 yield f"data: {json.dumps(text)}\n\n"
             await proc.wait()
-            if ctx is not None and ctx.analyze_cancelled:
+            if is_analyze and ctx is not None and ctx.analyze_cancelled:
                 ctx.analyze_cancelled = False
                 _log.info("Subprocess (pid %s) cancelled by user", proc.pid)
                 yield f"data: {json.dumps('[Analysis cancelled]')}\n\n"
@@ -72,7 +87,7 @@ async def subprocess_sse(cmd: list[str], cwd: Path, ctx=None) -> StreamingRespon
                 await proc.wait()
             if ctx is not None:
                 ctx.analyze_proc = None
-                ctx.analyze_cmd = None
-                ctx.demo_cmd = None
+                if clear_cmd_attr is not None:
+                    setattr(ctx, clear_cmd_attr, None)
 
     return StreamingResponse(_generate(), media_type="text/event-stream")

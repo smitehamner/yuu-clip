@@ -89,6 +89,58 @@ class TestIngestStart:
             })
             assert r.status_code == 200, f"energy_mode={mode!r} was rejected"
 
+    def test_no_score_flag_added_to_cmd(self, project_dir, video_path):
+        from fastapi.testclient import TestClient
+        from yuu_clip.web.app import create_app
+        app = create_app(project_dir)
+        with TestClient(app) as tc:
+            tc.post("/api/analyze/start", json={
+                "path": str(video_path), "model": "medium", "no_score": True,
+            })
+            assert "--no-score" in app.state.ctx.analyze_cmd
+
+    def test_profile_flag_added_to_cmd(self, project_dir, video_path):
+        from fastapi.testclient import TestClient
+        from yuu_clip.web.app import create_app
+        app = create_app(project_dir)
+        with TestClient(app) as tc:
+            tc.post("/api/analyze/start", json={
+                "path": str(video_path), "model": "medium", "profile": "my_layout",
+            })
+            cmd = app.state.ctx.analyze_cmd
+            assert "--track-layout" in cmd
+            assert "my_layout" in cmd
+
+    def test_subtitle_source_flag_added_to_cmd(self, project_dir, video_path):
+        from fastapi.testclient import TestClient
+        from yuu_clip.web.app import create_app
+        app = create_app(project_dir)
+        with TestClient(app) as tc:
+            tc.post("/api/analyze/start", json={
+                "path": str(video_path), "model": "medium", "subtitle_source": "stream:0",
+            })
+            cmd = app.state.ctx.analyze_cmd
+            assert "--subtitle-source" in cmd
+            assert "stream:0" in cmd
+
+    def test_context_names_added_to_cmd(self, project_dir, video_path):
+        from fastapi.testclient import TestClient
+        from yuu_clip.web.app import create_app
+        app = create_app(project_dir)
+        with TestClient(app) as tc:
+            tc.post("/api/analyze/start", json={
+                "path": str(video_path), "model": "medium",
+                "context_names": ["ctx_alpha", "ctx_beta"],
+            })
+            cmd = app.state.ctx.analyze_cmd
+            assert cmd.count("--context") == 2
+            assert "ctx_alpha" in cmd
+            assert "ctx_beta" in cmd
+
+    def test_empty_path_without_video_id_returns_400(self, client):
+        r = client.post("/api/analyze/start", json={"path": "", "model": "medium"})
+        assert r.status_code == 400
+
 
 # ---------------------------------------------------------------------------
 # Logs
@@ -402,6 +454,156 @@ class TestSseCommandCleared:
             r = tc.get("/api/analyze/events")
             assert r.status_code == 400
 
+    def test_score_run_does_not_clear_analyze_cmd(self, project_dir):
+        """Running /api/score must not erase a queued analyze_cmd (Bug 2)."""
+        from fastapi.testclient import TestClient
+        from yuu_clip.web.app import create_app
+        import sys
+
+        app = create_app(project_dir)
+        sentinel_cmd = [sys.executable, "-c", "print('sentinel')"]
+        with TestClient(app) as tc:
+            ctx = app.state.ctx
+            ctx.analyze_cmd = sentinel_cmd
+            with tc.stream("GET", "/api/score") as resp:
+                list(resp.iter_lines())
+            assert ctx.analyze_cmd is sentinel_cmd, "score run must not clear analyze_cmd"
+
+    def test_analyze_cancelled_flag_not_triggered_by_score(self, project_dir):
+        """analyze_cancelled=True must not cause score SSE to emit '[Analysis cancelled]' (Bug 1)."""
+        from fastapi.testclient import TestClient
+        from yuu_clip.web.app import create_app
+        import sys
+
+        app = create_app(project_dir)
+        with TestClient(app) as tc:
+            ctx = app.state.ctx
+            ctx.analyze_cancelled = True  # stale flag from a previous cancel
+            with tc.stream("GET", "/api/score") as resp:
+                lines = list(resp.iter_lines())
+            # Flag must be consumed only by analyze runs — score must leave it or ignore it
+            assert "[Analysis cancelled]" not in " ".join(lines)
+            # Flag should remain True since score did not consume it
+            assert ctx.analyze_cancelled is True
+
+
+# ---------------------------------------------------------------------------
+# SSE output paths — error exit, cancellation message, __DONE__ sentinel
+# ---------------------------------------------------------------------------
+
+class TestSseOutputPaths:
+    """SSE generator emits the right events for success, error-exit, and cancel."""
+
+    def _stream_lines(self, tc, url):
+        with tc.stream("GET", url) as resp:
+            return list(resp.iter_lines())
+
+    def test_successful_subprocess_emits_done_sentinel(self, project_dir):
+        from fastapi.testclient import TestClient
+        from yuu_clip.web.app import create_app
+        import sys, json as _json
+
+        app = create_app(project_dir)
+        with TestClient(app) as tc:
+            app.state.ctx.analyze_cmd = [sys.executable, "-c", "print('hi')"]
+            lines = self._stream_lines(tc, "/api/analyze/events")
+        data_values = [_json.loads(l.removeprefix("data: ")) for l in lines if l.startswith("data: ")]
+        assert "__DONE__" in data_values
+
+    def test_failed_subprocess_emits_error_and_done(self, project_dir):
+        from fastapi.testclient import TestClient
+        from yuu_clip.web.app import create_app
+        import sys, json as _json
+
+        app = create_app(project_dir)
+        with TestClient(app) as tc:
+            app.state.ctx.analyze_cmd = [sys.executable, "-c", "raise SystemExit(1)"]
+            lines = self._stream_lines(tc, "/api/analyze/events")
+        data_values = [_json.loads(l.removeprefix("data: ")) for l in lines if l.startswith("data: ")]
+        assert any("[Error:" in v for v in data_values)
+        assert "__DONE__" in data_values
+
+    def test_cancelled_analyze_emits_cancelled_message(self, project_dir):
+        """When analyze_cancelled=True and the process exits, the SSE stream
+        must emit '[Analysis cancelled]' before '__DONE__'."""
+        from fastapi.testclient import TestClient
+        from yuu_clip.web.app import create_app
+        import sys, json as _json
+
+        app = create_app(project_dir)
+        with TestClient(app) as tc:
+            ctx = app.state.ctx
+            ctx.analyze_cancelled = True
+            # Process exits with non-zero (as happens after terminate), but
+            # cancellation flag takes precedence over the error branch.
+            ctx.analyze_cmd = [sys.executable, "-c", "raise SystemExit(1)"]
+            lines = self._stream_lines(tc, "/api/analyze/events")
+        data_values = [_json.loads(l.removeprefix("data: ")) for l in lines if l.startswith("data: ")]
+        assert "[Analysis cancelled]" in data_values
+        assert "__DONE__" in data_values
+        assert not any("[Error:" in v for v in data_values)
+        assert ctx.analyze_cancelled is False  # flag cleared after consumption
+
+# ---------------------------------------------------------------------------
+# Cancel endpoint — state side-effects
+# ---------------------------------------------------------------------------
+
+class TestAnalyzeCancelSideEffects:
+    def test_cancel_clears_analyze_cmd(self, project_dir):
+        """POST /api/analyze/cancel must clear analyze_cmd regardless of proc state."""
+        from fastapi.testclient import TestClient
+        from yuu_clip.web.app import create_app
+        import sys
+
+        app = create_app(project_dir)
+        with TestClient(app) as tc:
+            ctx = app.state.ctx
+            ctx.analyze_cmd = [sys.executable, "-c", "pass"]
+            tc.post("/api/analyze/cancel")
+            assert ctx.analyze_cmd is None
+
+    def test_cancel_sets_cancelled_flag_when_proc_running(self, project_dir):
+        from unittest.mock import MagicMock, AsyncMock
+        from fastapi.testclient import TestClient
+        from yuu_clip.web.app import create_app
+
+        app = create_app(project_dir)
+        mock_proc = MagicMock()
+        mock_proc.returncode = None
+        mock_proc.pid = 12345
+        mock_proc.wait = AsyncMock(return_value=0)
+        with TestClient(app) as tc:
+            ctx = app.state.ctx
+            ctx.analyze_proc = mock_proc
+            tc.post("/api/analyze/cancel")
+            assert ctx.analyze_cancelled is True
+            mock_proc.terminate.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# Export validation
+# ---------------------------------------------------------------------------
+
+class TestExportValidation:
+    def test_invalid_container_returns_400(self, client):
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        clip_id = client.get(f"/api/videos/{vid_id}/clips").json()[0]["id"]
+        r = client.get(f"/api/clips/{clip_id}/export?container=avi")
+        assert r.status_code == 400
+
+    def test_valid_containers_accepted(self, client):
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        clip_id = client.get(f"/api/videos/{vid_id}/clips").json()[0]["id"]
+        for fmt in ("mkv", "mp4"):
+            r = client.get(f"/api/clips/{clip_id}/export?container={fmt}")
+            assert r.status_code == 200, f"container={fmt!r} was rejected"
+
+    def test_retranscribe_invalid_model_returns_400(self, client):
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        clip_id = client.get(f"/api/videos/{vid_id}/clips").json()[0]["id"]
+        r = client.get(f"/api/clips/{clip_id}/export?retranscribe=true&retranscribe_model=gpt-4o")
+        assert r.status_code == 400
+
 
 # ---------------------------------------------------------------------------
 # Retranscribe validation
@@ -449,7 +651,7 @@ class TestEstimateEdgeCases:
         assert transcript["total_seconds"] < fast["total_seconds"]
 
     def test_full_scene_mode_slower_than_fast(self, client):
-        transcript = client.post("/api/estimate", json={
+        fast_result = client.post("/api/estimate", json={
             "duration_s": 3600, "model": "medium", "has_gpu": True,
             "scene_mode": "fast",
         }).json()
@@ -457,7 +659,7 @@ class TestEstimateEdgeCases:
             "duration_s": 3600, "model": "medium", "has_gpu": True,
             "scene_mode": "full",
         }).json()
-        assert full["total_seconds"] > transcript["total_seconds"]
+        assert full["total_seconds"] > fast_result["total_seconds"]
 
     def test_explicit_transcribe_tracks_overrides_default(self, client):
         auto = client.post("/api/estimate", json={

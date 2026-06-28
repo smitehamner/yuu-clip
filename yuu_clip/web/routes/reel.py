@@ -111,7 +111,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         """Stream demo compilation progress as SSE. Call /api/demo/start first."""
         if not ctx.demo_cmd:
             raise HTTPException(400, "No demo queued. Call /api/demo/start first.")
-        return await subprocess_sse(ctx.demo_cmd, ctx.project_dir, ctx)
+        return await subprocess_sse(ctx.demo_cmd, ctx.project_dir, ctx, clear_cmd_attr="demo_cmd")
 
     @router.get("/api/demo/approved-clips")
     def approved_clips_for_reel(video_id: Optional[int] = Query(None)):

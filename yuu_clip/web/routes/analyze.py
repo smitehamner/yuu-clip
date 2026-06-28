@@ -39,7 +39,6 @@ _WHISPER_GPU_SPEED: dict[str, float] = {
 }
 _WHISPER_CPU_SPEED = 0.4  # large-v3 on CPU; other models scale similarly
 
-# Scene-detection wall-clock cost as a fraction of source video duration
 _SCENE_COST_FRACTION = {"transcript": 0.0, "fast": 0.005, "full": 0.6}
 _SCENE_FAST_FLOOR_S  = 10.0  # ffprobe cold-start minimum for "fast" mode
 
@@ -103,58 +102,34 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         root = tk.Tk()
         root.withdraw()
         root.wm_attributes("-topmost", True)
-        path = filedialog.askopenfilename(
-            title="Select Video File",
-            filetypes=[
-                ("Video files", "*.mkv *.mp4 *.mov *.avi *.webm *.flv *.ts"),
-                ("All files", "*.*"),
-            ],
-        )
-        root.destroy()
+        try:
+            path = filedialog.askopenfilename(
+                title="Select Video File",
+                filetypes=[
+                    ("Video files", "*.mkv *.mp4 *.mov *.avi *.webm *.flv *.ts"),
+                    ("All files", "*.*"),
+                ],
+            )
+        finally:
+            root.destroy()
         return {"path": str(Path(path)) if path else None}
 
     @router.post("/api/probe")
     def probe_video_file(req: ProbeRequest):
         """Probe a video file and return its duration, resolution, stream counts, and subtitle info."""
-        import json as _json
-        import subprocess as _sp
         from yuu_clip.analyze.probe import probe_video
-        from yuu_clip.config import find_ffmpeg
         p = Path(req.path)
         if not p.exists():
             raise HTTPException(400, f"File not found: {req.path}")
         try:
             info = probe_video(p)
         except Exception as e:
+            _log.warning("Probe failed for %s: %s", p.name, e)
             raise HTTPException(400, str(e))
-
-        # Detect embedded subtitle streams and .srt sidecar
-        subtitle_streams: list[dict] = []
-        try:
-            _, ffprobe = find_ffmpeg()
-            raw = _sp.run(
-                [ffprobe, "-v", "quiet", "-print_format", "json",
-                 "-show_streams", "-select_streams", "s", str(p)],
-                capture_output=True, text=True,
-            )
-            if raw.returncode == 0:
-                for s in _json.loads(raw.stdout).get("streams", []):
-                    subtitle_streams.append({
-                        "index": s.get("index"),
-                        "codec": s.get("codec_name", ""),
-                        "title": s.get("tags", {}).get("title", ""),
-                        "language": s.get("tags", {}).get("language", ""),
-                    })
-        except Exception as exc:
-            _log.debug("Subtitle stream detection failed for %s: %s", p.name, exc)
-
-        srt_sidecar: Optional[str] = None
-        for ext in (".srt", ".SRT"):
-            candidate = p.with_suffix(ext)
-            if candidate.exists():
-                srt_sidecar = str(candidate)
-                break
-
+        srt_sidecar = next(
+            (str(p.with_suffix(ext)) for ext in (".srt", ".SRT") if p.with_suffix(ext).exists()),
+            None,
+        )
         return {
             "filename":         p.name,
             "duration_s":       (info.duration_ms or 0) / 1000,
@@ -163,7 +138,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             "height":           info.height,
             "fps":              info.fps,
             "audio_tracks":     len(info.audio_streams),
-            "subtitle_streams": subtitle_streams,
+            "subtitle_streams": _probe_subtitle_streams(p),
             "srt_sidecar":      srt_sidecar,
         }
 
@@ -175,51 +150,12 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     @router.post("/api/analyze/start")
     async def start_analyze(req: IngestRequest):
         """Validate the video path, build the analyze CLI command, and queue it for the SSE stream."""
-        from yuu_clip.db.models import Video
-
-        if req.video_id is not None:
-            db = ctx.get_db()
-            try:
-                video = db.query(Video).filter_by(id=req.video_id).first()
-                if not video:
-                    raise HTTPException(404, f"Video {req.video_id} not found")
-                video_path = video.path
-            finally:
-                db.close()
-        else:
-            if not req.path:
-                raise HTTPException(400, "path is required when video_id is not provided")
-            if not Path(req.path).exists():
-                raise HTTPException(400, f"File not found: {req.path}")
-            video_path = req.path
-
+        video_path = _resolve_video_path(req, ctx)
         try:
             validate_whisper_model(req.model)
         except ValueError as e:
             raise HTTPException(400, str(e))
-        cmd = [
-            sys.executable, "-m", "yuu_clip.cli", "analyze",
-            video_path, "--model", req.model,
-            "--project", str(ctx.project_dir),
-        ]
-        if req.video_id is not None:
-            cmd += ["--video-id", str(req.video_id)]
-        if req.segment_start_s is not None:
-            cmd += ["--segment-start", str(req.segment_start_s)]
-        if req.segment_end_s is not None:
-            cmd += ["--segment-end", str(req.segment_end_s)]
-        if req.profile:
-            cmd += ["--track-layout", req.profile]
-        if req.no_score:
-            cmd += ["--no-score"]
-        cmd += ["--energy-mode", req.energy_mode]
-        cmd += ["--scene-mode", req.scene_mode]
-        for context_id in req.context_names:
-            cmd += ["--context", context_id]
-        if req.subtitle_source:
-            cmd += ["--subtitle-source", req.subtitle_source]
-        cmd += ["--no-interact"]
-        ctx.analyze_cmd = cmd
+        ctx.analyze_cmd = _build_analyze_cmd(req, video_path, ctx.project_dir)
         _log.info(
             "Analyze queued: %s (video_id=%s, model=%s, energy=%s, scene=%s)",
             video_path, req.video_id, req.model, req.energy_mode, req.scene_mode,
@@ -231,7 +167,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         """Stream the queued analyze subprocess output as SSE. Call /api/analyze/start first."""
         if not ctx.analyze_cmd:
             raise HTTPException(400, "No analyze command queued. Call /api/analyze/start first.")
-        return await subprocess_sse(ctx.analyze_cmd, ctx.project_dir, ctx)
+        return await subprocess_sse(ctx.analyze_cmd, ctx.project_dir, ctx, is_analyze=True, clear_cmd_attr="analyze_cmd")
 
     @router.get("/api/status")
     def server_status():
@@ -347,38 +283,96 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     return router
 
 
-def _compute_time_estimate(req: EstimateRequest) -> dict:
-    d = req.duration_s
-    n_tracks = max(1, req.audio_tracks)
-    if req.transcribe_tracks is not None:
-        transcribe_tracks = req.transcribe_tracks
-    else:
-        transcribe_tracks = max(1, n_tracks // 2)
+def _resolve_video_path(req: IngestRequest, ctx) -> str:
+    if req.video_id is not None:
+        from yuu_clip.db.models import Video
+        db = ctx.get_db()
+        try:
+            video = db.query(Video).filter_by(id=req.video_id).first()
+            if not video:
+                raise HTTPException(404, f"Video {req.video_id} not found")
+            return video.path
+        finally:
+            db.close()
+    if not req.path:
+        raise HTTPException(400, "path is required when video_id is not provided")
+    if not Path(req.path).exists():
+        raise HTTPException(400, f"File not found: {req.path}")
+    return req.path
 
-    whisper_speed = _WHISPER_GPU_SPEED.get(req.model.split(":")[0], 6)
-    if not req.has_gpu:
-        whisper_speed = _WHISPER_CPU_SPEED
+
+def _build_analyze_cmd(req: IngestRequest, video_path: str, project_dir: Path) -> list[str]:
+    cmd = [
+        sys.executable, "-m", "yuu_clip.cli", "analyze",
+        video_path, "--model", req.model,
+        "--project", str(project_dir),
+    ]
+    if req.video_id is not None:
+        cmd += ["--video-id", str(req.video_id)]
+    if req.segment_start_s is not None:
+        cmd += ["--segment-start", str(req.segment_start_s)]
+    if req.segment_end_s is not None:
+        cmd += ["--segment-end", str(req.segment_end_s)]
+    if req.profile:
+        cmd += ["--track-layout", req.profile]
+    if req.no_score:
+        cmd += ["--no-score"]
+    cmd += ["--energy-mode", req.energy_mode, "--scene-mode", req.scene_mode]
+    for context_id in req.context_names:
+        cmd += ["--context", context_id]
+    if req.subtitle_source:
+        cmd += ["--subtitle-source", req.subtitle_source]
+    cmd += ["--no-interact"]
+    return cmd
+
+
+def _probe_subtitle_streams(p: Path) -> list[dict]:
+    import json as _json
+    import subprocess as _sp
+    from yuu_clip.config import find_ffmpeg
+    try:
+        _, ffprobe = find_ffmpeg()
+        raw = _sp.run(
+            [ffprobe, "-v", "quiet", "-print_format", "json",
+             "-show_streams", "-select_streams", "s", str(p)],
+            capture_output=True, text=True,
+        )
+        if raw.returncode == 0:
+            return [
+                {
+                    "index":    s.get("index"),
+                    "codec":    s.get("codec_name", ""),
+                    "title":    s.get("tags", {}).get("title", ""),
+                    "language": s.get("tags", {}).get("language", ""),
+                }
+                for s in _json.loads(raw.stdout).get("streams", [])
+            ]
+    except Exception as exc:
+        _log.debug("Subtitle stream detection failed for %s: %s", p.name, exc)
+    return []
+
+
+def _compute_time_estimate(req: EstimateRequest) -> dict:
+    duration_s = req.duration_s
+    n_tracks = max(1, req.audio_tracks)
+    transcribe_tracks = req.transcribe_tracks if req.transcribe_tracks is not None else max(1, n_tracks // 2)
 
     scene_seconds = max(
         _SCENE_FAST_FLOOR_S if req.scene_mode == "fast" else 0.0,
-        d * _SCENE_COST_FRACTION.get(req.scene_mode, 0.005),
+        duration_s * _SCENE_COST_FRACTION.get(req.scene_mode, 0.005),
     )
     energy_cost, energy_label = _ENERGY_MODE.get(req.energy_mode, (0.002, ""))
 
     steps = [
         {
             "name":    "Extract audio",
-            "seconds": d * n_tracks * 0.05,
+            "seconds": duration_s * n_tracks * 0.05,
             "note":    f"{n_tracks} track(s)",
         },
-        {
-            "name":    "Load captions" if transcribe_tracks == 0 else f"Transcribe ({req.model})",
-            "seconds": 2.0 if transcribe_tracks == 0 else d * transcribe_tracks / whisper_speed,
-            "note":    "from file" if transcribe_tracks == 0 else f"{transcribe_tracks} track(s) on {'GPU' if req.has_gpu else 'CPU'}",
-        },
+        _whisper_step(req.model, req.has_gpu, duration_s, transcribe_tracks),
         {
             "name":    f"Audio energy ({req.energy_mode})",
-            "seconds": d * n_tracks * energy_cost,
+            "seconds": duration_s * n_tracks * energy_cost,
             "note":    energy_label,
         },
         {
@@ -388,14 +382,14 @@ def _compute_time_estimate(req: EstimateRequest) -> dict:
         },
         {
             "name":    "LLM scoring",
-            "seconds": (d / 180) * 4,
-            "note":    f"~{int(d / 180)} clips estimated",
+            "seconds": (duration_s / 180) * 4,
+            "note":    f"~{int(duration_s / 180)} clips estimated",
         },
     ]
     total = sum(s["seconds"] for s in steps)
     for step in steps:
         step["hms"] = _format_duration(step["seconds"])
-    pct_of_video = round(total / d * 100, 1) if d > 0 else 0
+    pct_of_video = round(total / duration_s * 100, 1) if duration_s > 0 else 0
     return {
         "steps": steps,
         "total_hms": _format_duration(total),
@@ -404,8 +398,19 @@ def _compute_time_estimate(req: EstimateRequest) -> dict:
     }
 
 
+def _whisper_step(model: str, has_gpu: bool, duration_s: float, transcribe_tracks: int) -> dict:
+    if transcribe_tracks == 0:
+        return {"name": "Load captions", "seconds": 2.0, "note": "from file"}
+    speed = _WHISPER_CPU_SPEED if not has_gpu else _WHISPER_GPU_SPEED.get(model.split(":")[0], 6)
+    device = "GPU" if has_gpu else "CPU"
+    return {
+        "name":    f"Transcribe ({model})",
+        "seconds": duration_s * transcribe_tracks / speed,
+        "note":    f"{transcribe_tracks} track(s) on {device}",
+    }
+
+
 def _format_duration(seconds: float) -> str:
-    """Format a duration in seconds as a compact human-readable string (e.g. '1h 23m')."""
     s = int(seconds)
     if s < 60:
         return f"{s}s"
