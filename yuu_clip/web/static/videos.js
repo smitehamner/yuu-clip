@@ -191,10 +191,12 @@ function renderVideoDetail(video, savedTimeline) {
       <button class="btn" id="btn-generate-timeline" onclick="generateTimeline(${video.id})">${video.has_timeline ? 'Regenerate Timeline' : 'Generate Timeline'}</button>
       <button class="btn" onclick="openAutoApproveModal(${video.id})">Approve Above Score</button>
       <button class="btn" onclick="openBatchExportModal(${video.id})">Export Approved</button>
-      <button class="btn danger" onclick="resetApprovals(${video.id})">Reset Approvals</button>
       <button class="btn" onclick="openSplitEditor(${video.id})">Split Recording</button>
       <button class="btn" onclick="exportVideoTranscript(${video.id}, this)" title="Write captions as an SRT file next to the source recording, for reuse on reimport">Export Captions to File</button>
-      <button class="btn danger" onclick="deleteVideo(${video.id})" title="Remove from yuu-clip (source file is NOT deleted)">Remove Recording</button>
+      <div class="danger-actions">
+        <button class="btn danger" onclick="resetApprovals(${video.id})">Reset Approvals</button>
+        <button class="btn danger" onclick="deleteVideo(${video.id})" title="Remove from yuu-clip (source file is NOT deleted)">Remove Recording</button>
+      </div>
     </div>
 
     <div id="timeline-section">

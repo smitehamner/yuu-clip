@@ -154,8 +154,8 @@ Use these glossary terms in **conversation** too, not just in code. If discussin
 - SQLAlchemy sessions must be explicitly closed in route handlers — always use `try/finally: db.close()`
 - All SQLite engines use `NullPool` (set in `make_engine`) — never change this; pooled connections block the ingest subprocess
 - Ingest subprocess is always launched with `--no-interact` from the web UI
-- `ctx.ingest_proc` tracks the running subprocess for cancellation and shutdown
-- The FastAPI `lifespan` in `app.py` terminates `ingest_proc` on server exit (5 s grace then kill)
+- `ctx.analyze_proc` tracks the running subprocess for cancellation and shutdown
+- The FastAPI `lifespan` in `app.py` terminates `analyze_proc` on server exit (5 s grace then kill)
 - For new route handlers that read the DB: follow the existing pattern in `routes/videos.py`
 
 ### JavaScript / frontend
