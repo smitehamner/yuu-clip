@@ -177,16 +177,22 @@ function _doRescoreClips(videoId, btn) {
   btn.textContent = 'Re-scoring…';
   openLog();
   if (_activeES) { _activeES.close(); _activeES = null; }
-  const es = new EventSource(`/api/videos/${videoId}/rescore-clips`);
-  _activeES = es;
-  es.onmessage = e => {
-    const data = JSON.parse(e.data);
-    if (data === '__DONE__') {
-      es.close();
-      if (_activeES === es) _activeES = null;
+  let errorCount = 0;
+  const handle = _openSSE(
+    `/api/videos/${videoId}/rescore-clips`,
+    data => {
+      if (typeof data === 'string' && data.startsWith('[Error')) errorCount++;
+      appendLog(String(data));
+    },
+    () => {
+      if (_activeES === handle) _activeES = null;
       btn.disabled = false;
       btn.textContent = orig;
-      showToast('Re-scoring complete');
+      if (errorCount > 0) {
+        showToast(`Re-scoring finished — ${errorCount} clip${errorCount !== 1 ? 's' : ''} failed (check log)`, 'error');
+      } else {
+        showToast('Re-scoring complete');
+      }
       loadVideos().then(() => {
         if (activeVideoId === videoId) {
           const v = _videos.find(v => v.id === videoId);
@@ -196,17 +202,15 @@ function _doRescoreClips(videoId, btn) {
           });
         }
       });
-      return;
-    }
-    appendLog(String(data));
-  };
-  es.onerror = () => {
-    es.close();
-    if (_activeES === es) _activeES = null;
-    btn.disabled = false;
-    btn.textContent = orig;
-    showToast('Re-scoring failed — see log', 'error');
-  };
+    },
+    errMsg => {
+      if (_activeES === handle) _activeES = null;
+      btn.disabled = false;
+      btn.textContent = orig;
+      showToast(`Re-scoring failed — ${errMsg}`, 'error');
+    },
+  );
+  _activeES = handle;
 }
 
 function rescoreAllClips(videoId, btn) {
@@ -253,16 +257,22 @@ function _doRedescribeClips(videoId, btn) {
   btn.textContent = 'Re-describing…';
   openLog();
   if (_activeES) { _activeES.close(); _activeES = null; }
-  const es = new EventSource(`/api/videos/${videoId}/redescribe-clips`);
-  _activeES = es;
-  es.onmessage = e => {
-    const data = JSON.parse(e.data);
-    if (data === '__DONE__') {
-      es.close();
-      if (_activeES === es) _activeES = null;
+  let errorCount = 0;
+  const handle = _openSSE(
+    `/api/videos/${videoId}/redescribe-clips`,
+    data => {
+      if (typeof data === 'string' && data.startsWith('[Error')) errorCount++;
+      appendLog(String(data));
+    },
+    () => {
+      if (_activeES === handle) _activeES = null;
       btn.disabled = false;
       btn.textContent = orig;
-      showToast('Descriptions regenerated');
+      if (errorCount > 0) {
+        showToast(`Re-describe finished — ${errorCount} clip${errorCount !== 1 ? 's' : ''} failed (check log)`, 'error');
+      } else {
+        showToast('Descriptions regenerated');
+      }
       if (activeVideoId === videoId) {
         fetch(`/api/videos/${videoId}/clips?sort=${_clipsSortParam()}`)
           .then(r => r.json())
@@ -272,17 +282,15 @@ function _doRedescribeClips(videoId, btn) {
             if (activeClipId) selectClip(activeClipId);
           });
       }
-      return;
-    }
-    appendLog(String(data));
-  };
-  es.onerror = () => {
-    es.close();
-    if (_activeES === es) _activeES = null;
-    btn.disabled = false;
-    btn.textContent = orig;
-    showToast('Re-describe failed — see log', 'error');
-  };
+    },
+    errMsg => {
+      if (_activeES === handle) _activeES = null;
+      btn.disabled = false;
+      btn.textContent = orig;
+      showToast(`Re-describe failed — ${errMsg}`, 'error');
+    },
+  );
+  _activeES = handle;
 }
 
 // ── reset approvals ───────────────────────────────────────────────────────────
@@ -407,16 +415,23 @@ function rescoreClip(clipId) {
   if (_activeES) { _activeES.close(); _activeES = null; }
   openLog();
   startJobUI(SCORE_STEPS, 'Re-scoring clip');
-  const es = new EventSource(`/api/clips/${clipId}/rescore`);
-  _activeES = es;
-  es.onmessage = async e => {
-    const msg = JSON.parse(e.data);
-    updateJobUI(typeof msg === 'string' ? msg : JSON.stringify(msg));
-    if (msg?.type === '__DONE__') {
-      if (_activeES === es) _activeES = null;
-      es.close();
+  let hadError = false;
+  const handle = _openSSE(
+    `/api/clips/${clipId}/rescore`,
+    msg => {
+      updateJobUI(typeof msg === 'string' ? msg : JSON.stringify(msg));
+      if (typeof msg === 'string' && msg.startsWith('[Error')) hadError = true;
+      appendLog(String(msg));
+    },
+    async msg => {
+      if (_activeES === handle) _activeES = null;
       endJobUI();
       if (btn) { btn.disabled = false; btn.textContent = 'Re-score'; }
+      if (hadError) {
+        showToast('Re-score failed — check log for details', 'error');
+        selectClip(clipId);
+        return;
+      }
       const clip = await fetch(`/api/clips/${clipId}`).then(r => r.json()).catch(() => null);
       const descNew     = msg.description_new;
       const descLongNew = msg.description_long_new;
@@ -435,15 +450,13 @@ function rescoreClip(clipId) {
         selectClip(clipId);
       }
       showToast('Clip re-scored');
-    } else {
-      appendLog(String(msg));
-    }
-  };
-  es.onerror = () => {
-    if (_activeES === es) _activeES = null;
-    es.close();
-    endJobUI();
-    if (btn) { btn.disabled = false; btn.textContent = 'Re-score'; }
-    showToast('Re-score failed — see log', 'error');
-  };
+    },
+    errMsg => {
+      if (_activeES === handle) _activeES = null;
+      endJobUI();
+      if (btn) { btn.disabled = false; btn.textContent = 'Re-score'; }
+      showToast(`Re-score failed — ${errMsg}`, 'error');
+    },
+  );
+  _activeES = handle;
 }

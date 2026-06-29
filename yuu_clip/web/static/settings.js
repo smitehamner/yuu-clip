@@ -382,6 +382,7 @@ document.addEventListener('keydown', e => {
     closeAboutModal();
     closeControlsModal();
     closeGlossaryModal();
+    closeAlertModal();
     _confirmCancel();
     closeFieldEditModal();
     closeScoreOverrideModal();

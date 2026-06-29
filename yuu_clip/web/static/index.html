@@ -972,6 +972,17 @@
   </div>
 </div>
 
+<!-- Alert Modal (single-button, no cancel) -->
+<div class="modal-bg" id="alert-modal" onclick="if(event.target===this)closeAlertModal()">
+  <div class="modal" style="width:420px">
+    <h3 id="alert-title"></h3>
+    <p id="alert-body" style="color:var(--muted);font-size:13px;line-height:1.6;margin-top:-4px"></p>
+    <div class="modal-actions">
+      <button class="btn primary" onclick="closeAlertModal()">OK</button>
+    </div>
+  </div>
+</div>
+
 <!-- Confirm Modal -->
 <div class="modal-bg" id="confirm-modal" onclick="if(event.target===this)_confirmCancel()">
   <div class="modal" style="width:420px">

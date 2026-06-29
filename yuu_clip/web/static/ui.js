@@ -1,3 +1,14 @@
+// ── alert modal (single-button, no cancel) ────────────────────────────────────
+function showAlert(title, body) {
+  document.getElementById('alert-title').textContent = title;
+  document.getElementById('alert-body').innerHTML = body;
+  document.getElementById('alert-modal').classList.add('visible');
+  setTimeout(() => document.querySelector('#alert-modal .btn').focus(), 50);
+}
+function closeAlertModal() {
+  document.getElementById('alert-modal').classList.remove('visible');
+}
+
 // ── confirm modal ─────────────────────────────────────────────────────────────
 function showConfirm(title, body, okLabel, onOk, danger = false) {
   document.getElementById('confirm-title').textContent = title;

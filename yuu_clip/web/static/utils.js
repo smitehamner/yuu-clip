@@ -189,31 +189,70 @@ function endJobUI() {
   }, 2000);
 }
 
-// ── SSE helper ────────────────────────────────────────────────────────────────
-function streamSSE(url, onDone, stepDefs, jobLabel, cancellable = false) {
-  if (stepDefs) startJobUI(stepDefs, jobLabel, cancellable);
-  const es = new EventSource(url);
-  _activeES = es;
-  es.onmessage = e => {
-    const text = JSON.parse(e.data);
-    if (text === '__DONE__') {
-      es.close();
-      if (_activeES === es) _activeES = null;
-      if (stepDefs) endJobUI();
-      if (onDone) onDone();
+// ── SSE transport ─────────────────────────────────────────────────────────────
+// Low-level SSE reader using fetch + ReadableStream so non-200 HTTP responses
+// can be read for their error detail (EventSource.onerror cannot do this).
+//
+// onLine(msg)  — called for each parsed SSE payload before __DONE__
+// onDone(msg)  — called with the full __DONE__ payload (string or object)
+// onError(str) — called with a plain-language message on HTTP error or network loss
+//
+// Returns a handle with .close() that aborts the in-flight request.
+function _openSSE(url, onLine, onDone, onError) {
+  const ctrl = new AbortController();
+  const handle = {close: () => ctrl.abort()};
+  fetch(url, {signal: ctrl.signal}).then(async res => {
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      onError(formatApiError(errData) || `Server error ${res.status}`);
       return;
     }
-    appendLog(text);
-    if (stepDefs) updateJobUI(text);
-  };
-  es.onerror = () => {
-    es.close();
-    if (_activeES === es) _activeES = null;
-    appendLog('[connection error — job failed to start or server disconnected]');
-    showToast('Job failed — see log for details', 'error');
-    if (stepDefs) endJobUI();
-    loadVideos();
-  };
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+    try {
+      while (true) {
+        const {done, value} = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, {stream: true});
+        const lines = buf.split('\n');
+        buf = lines.pop();
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const msg = JSON.parse(line.slice(6));
+          const isDone = msg === '__DONE__' || (msg && typeof msg === 'object' && msg.type === '__DONE__');
+          if (isDone) { onDone(msg); return; }
+          onLine(msg);
+        }
+      }
+    } catch (err) {
+      if (!ctrl.signal.aborted) onError('Connection lost — server disconnected');
+    }
+  }).catch(err => {
+    if (!ctrl.signal.aborted) onError(`Could not connect — ${err.message}`);
+  });
+  return handle;
+}
+
+function streamSSE(url, onDone, stepDefs, jobLabel, cancellable = false) {
+  if (stepDefs) startJobUI(stepDefs, jobLabel, cancellable);
+  const handle = _openSSE(
+    url,
+    text => { appendLog(text); if (stepDefs) updateJobUI(text); },
+    () => {
+      if (_activeES === handle) _activeES = null;
+      if (stepDefs) endJobUI();
+      if (onDone) onDone();
+    },
+    errMsg => {
+      if (_activeES === handle) _activeES = null;
+      appendLog(`[${errMsg}]`);
+      showToast(errMsg, 'error');
+      if (stepDefs) endJobUI();
+      loadVideos();
+    },
+  );
+  _activeES = handle;
 }
 
 function cancelJob() {

@@ -737,30 +737,24 @@ function startFindSimilar() {
   openLog();
 
   const qs = videoIds ? `?video_ids=${encodeURIComponent(videoIds)}` : '';
-  const es = new EventSource(`/api/clips/${clipId}/related-clips${qs}`);
-  _activeES = es;
-
-  es.onmessage = async e => {
-    const msg = JSON.parse(e.data);
-    if (msg?.type === '__DONE__') {
-      if (_activeES === es) _activeES = null;
-      es.close();
+  const handle = _openSSE(
+    `/api/clips/${clipId}/related-clips${qs}`,
+    msg => { appendLog(String(msg)); },
+    async msg => {
+      if (_activeES === handle) _activeES = null;
       if (btn) { btn.disabled = false; btn.textContent = 'Find Similar'; }
       const clip = await fetch(`/api/clips/${clipId}`).then(r => r.json()).catch(() => null);
       if (clip) { _activeClipData = clip; renderDetail(clip); }
       const count = msg.results?.length ?? 0;
       showToast(count ? `Found ${count} similar clip${count !== 1 ? 's' : ''}` : 'No similar clips found');
-    } else {
-      appendLog(String(msg));
-    }
-  };
-
-  es.onerror = () => {
-    if (_activeES === es) _activeES = null;
-    es.close();
-    if (btn) { btn.disabled = false; btn.textContent = 'Find Similar'; }
-    showToast('Find Similar failed — see log', 'error');
-  };
+    },
+    errMsg => {
+      if (_activeES === handle) _activeES = null;
+      if (btn) { btn.disabled = false; btn.textContent = 'Find Similar'; }
+      showToast(`Find Similar failed — ${errMsg}`, 'error');
+    },
+  );
+  _activeES = handle;
 }
 
 // ── scoring ───────────────────────────────────────────────────────────────────
