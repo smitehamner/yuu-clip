@@ -24,8 +24,8 @@ from yuu_clip.web.routes._shared import (
     _all_sidecar_paths,
     _export_paths,
     _require_clip,
-    _sse_response,
     _srt_path,
+    _sse_response,
     _user_or_default,
 )
 
@@ -140,6 +140,19 @@ def _clip_dict(
     if full:
         d["transcript_excerpt"] = clip.transcript_excerpt or ""
     return d
+
+
+def _clip_has_export_file(ctx: "ProjectContext", clip_id: int, video_id: int) -> bool:
+    """Check whether a clip already has an exported file on disk. Opens and closes its own DB session."""
+    db = ctx.get_db()
+    try:
+        clip = db.get(ClipCandidate, clip_id)
+        vid  = db.get(Video, video_id) if clip else None
+        if clip and vid:
+            return any(p.exists() for p in _export_paths(clip, vid, ctx.export_dir))
+        return False
+    finally:
+        db.close()
 
 
 def _build_export_cmd(
@@ -431,19 +444,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                 exported = 0
                 skipped  = 0
                 for i, cid in enumerate(clip_ids, 1):
-                    already_exported = False
-                    if skip_exported:
-                        check_db = ctx.get_db()
-                        try:
-                            clip = check_db.get(ClipCandidate, cid)
-                            vid  = check_db.get(Video, video_id) if clip else None
-                            if clip and vid:
-                                already_exported = any(
-                                    p.exists() for p in _export_paths(clip, vid, ctx.export_dir)
-                                )
-                        finally:
-                            check_db.close()
-                    if already_exported:
+                    if skip_exported and _clip_has_export_file(ctx, cid, video_id):
                         skipped += 1
                         yield f"data: {json_lib.dumps(f'Skipping clip {cid} (already exported) [{i}/{total}]')}\n\n"
                         continue

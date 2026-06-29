@@ -550,7 +550,6 @@ class TestLaughScorerTranscript:
         assert self._score("[laughs]", 15.0) > self._score("[laughs]", 60.0)
 
     def _make_scorer(self, mode="transcript", enabled=True, weight=1.5):
-        from unittest.mock import MagicMock
         from yuu_clip.config import Config
         from yuu_clip.scoring.laugh import LaughScorer
         cfg = Config()
@@ -638,6 +637,7 @@ class TestLaughScorerAudio:
 
     def test_no_scored_tracks_returns_no_wav_tag(self):
         from unittest.mock import MagicMock
+
         from yuu_clip.config import Config
         from yuu_clip.scoring.laugh import LaughScorer
         cfg = Config()
@@ -656,6 +656,7 @@ class TestLaughScorerAudio:
     def test_is_available_audio_mode_when_av_present(self):
         import sys
         import unittest.mock as mock
+
         from yuu_clip.config import Config
         from yuu_clip.scoring.laugh import LaughScorer
         cfg = Config()
@@ -670,6 +671,7 @@ class TestLaughScorerAudio:
     def test_is_available_audio_mode_missing_deps_returns_false(self):
         import sys
         import unittest.mock as mock
+
         from yuu_clip.config import Config
         from yuu_clip.scoring.laugh import LaughScorer
         cfg = Config()
@@ -718,6 +720,7 @@ class TestDetectLaughRhythm:
 
     def _rhythm(self, samples, sr, start_ms=0, end_ms=None):
         import numpy as np
+
         from yuu_clip.scoring.laugh import _detect_laugh_rhythm
         arr = np.array(samples, dtype=np.float32)
         if end_ms is None:
@@ -1696,7 +1699,6 @@ class TestMakeClient:
 
 class TestClaudeClientAvailable:
     def _client(self, **overrides):
-        import unittest.mock as mock
         from yuu_clip.config import Config
         from yuu_clip.scoring.llm_client import ClaudeClient
         cfg = Config()
@@ -1736,6 +1738,7 @@ class TestClaudeClientAvailable:
 
     def test_null_client_chat_raises(self):
         import pytest
+
         from yuu_clip.scoring.llm_client import NullLLMClient
         with pytest.raises(RuntimeError):
             NullLLMClient().chat([{"role": "user", "content": "hi"}])
@@ -1761,6 +1764,7 @@ class TestCheckLlmAvailable:
 
     def test_delegates_to_client_available(self):
         import unittest.mock as mock
+
         from yuu_clip.scoring.llm import check_llm_available
         cfg = self._cfg(ollama_enabled=True, llm_backend="ollama")
         with mock.patch("yuu_clip.scoring.llm_client.OllamaClient.available",
@@ -1782,6 +1786,7 @@ class TestSummarizeTranscript:
     def test_returns_title_and_summary(self):
         import json
         import unittest.mock as mock
+
         from yuu_clip.scoring.llm import summarize_transcript
         payload = json.dumps({"title": "Epic session", "summary": "Things happened."})
         with mock.patch("yuu_clip.scoring.llm._call_client", return_value=payload):
@@ -1792,6 +1797,7 @@ class TestSummarizeTranscript:
     def test_truncates_to_12000_chars(self):
         import json
         import unittest.mock as mock
+
         from yuu_clip.scoring.llm import summarize_transcript
         long_text = "x" * 20_000
         captured = {}
@@ -1806,6 +1812,7 @@ class TestSummarizeTranscript:
     def test_context_prepended_to_system(self):
         import json
         import unittest.mock as mock
+
         from yuu_clip.scoring.llm import summarize_transcript
         captured = {}
         def fake_call(messages, config, temperature=0.1):
@@ -1819,6 +1826,7 @@ class TestSummarizeTranscript:
     def test_missing_keys_return_empty_strings(self):
         import json
         import unittest.mock as mock
+
         from yuu_clip.scoring.llm import summarize_transcript
         with mock.patch("yuu_clip.scoring.llm._call_client", return_value=json.dumps({})):
             title, summary = summarize_transcript("text", self._cfg())
@@ -1833,6 +1841,7 @@ class TestGenerateTimelineChunk:
 
     def test_returns_stripped_string(self):
         import unittest.mock as mock
+
         from yuu_clip.scoring.llm import generate_timeline_chunk
         with mock.patch("yuu_clip.scoring.llm._call_client", return_value="  paragraph text  "):
             result = generate_timeline_chunk("transcript", "0:00", "15:00", [], self._cfg())
@@ -1840,6 +1849,7 @@ class TestGenerateTimelineChunk:
 
     def test_clip_descriptions_included_in_user_message(self):
         import unittest.mock as mock
+
         from yuu_clip.scoring.llm import generate_timeline_chunk
         captured = {}
         def fake_call(messages, config, temperature=0.1):
@@ -1853,6 +1863,7 @@ class TestGenerateTimelineChunk:
 
     def test_no_clip_descriptions_omits_notable_clips_section(self):
         import unittest.mock as mock
+
         from yuu_clip.scoring.llm import generate_timeline_chunk
         captured = {}
         def fake_call(messages, config, temperature=0.1):
@@ -1865,6 +1876,7 @@ class TestGenerateTimelineChunk:
 
     def test_context_prepended_to_system(self):
         import unittest.mock as mock
+
         from yuu_clip.scoring.llm import generate_timeline_chunk
         captured = {}
         def fake_call(messages, config, temperature=0.1):
@@ -1884,6 +1896,7 @@ class TestFindRelatedClips:
     def test_returns_list_of_id_reason_dicts(self):
         import json
         import unittest.mock as mock
+
         from yuu_clip.scoring.llm import find_related_clips
         payload = json.dumps([{"id": 7, "reason": "both chaotic"}, {"id": 3, "reason": "same tone"}])
         with mock.patch("yuu_clip.scoring.llm._call_client", return_value=payload):
@@ -1893,7 +1906,9 @@ class TestFindRelatedClips:
     def test_non_list_response_raises_value_error(self):
         import json
         import unittest.mock as mock
+
         import pytest
+
         from yuu_clip.scoring.llm import find_related_clips
         with mock.patch("yuu_clip.scoring.llm._call_client", return_value=json.dumps({"error": "bad"})):
             with pytest.raises(ValueError):
@@ -1902,6 +1917,7 @@ class TestFindRelatedClips:
     def test_id_coerced_to_int(self):
         import json
         import unittest.mock as mock
+
         from yuu_clip.scoring.llm import find_related_clips
         payload = json.dumps([{"id": "42", "reason": "similar"}])
         with mock.patch("yuu_clip.scoring.llm._call_client", return_value=payload):
@@ -1912,6 +1928,7 @@ class TestFindRelatedClips:
     def test_missing_reason_defaults_to_empty_string(self):
         import json
         import unittest.mock as mock
+
         from yuu_clip.scoring.llm import find_related_clips
         payload = json.dumps([{"id": 1}])
         with mock.patch("yuu_clip.scoring.llm._call_client", return_value=payload):
@@ -1921,6 +1938,7 @@ class TestFindRelatedClips:
     def test_empty_candidates_returns_empty_list(self):
         import json
         import unittest.mock as mock
+
         from yuu_clip.scoring.llm import find_related_clips
         with mock.patch("yuu_clip.scoring.llm._call_client", return_value=json.dumps([])):
             result = find_related_clips("ref", [], self._cfg())
@@ -1936,7 +1954,6 @@ class TestComputeScenesTranscriptMode:
         from yuu_clip.db.models import (
             AudioTrack,
             Transcript,
-            TranscriptSegment,
             Video,
             make_session,
         )
@@ -1981,7 +1998,7 @@ class TestComputeScenesTranscriptMode:
         assert boundaries[0].timecode_ms == 15_000
 
     def test_transcript_mode_no_transcribed_tracks_returns_zero(self, tmp_path):
-        from yuu_clip.db.models import AudioTrack, TranscriptSegment, Video, make_session
+        from yuu_clip.db.models import AudioTrack, Video, make_session
         from yuu_clip.scoring.scenes import compute_scenes
         session = make_session(tmp_path / "t2.db")
         v = Video(path=str(tmp_path / "v2.mkv"), filename="v2.mkv", status="done", duration_ms=60_000)
@@ -2004,6 +2021,7 @@ class TestComputeScenesTranscriptMode:
 class TestScoringEngineScoreVideo:
     def _make_scorer(self, score=0.5):
         import unittest.mock as mock
+
         from yuu_clip.scoring.protocol import ScoreResult
         scorer = mock.MagicMock()
         scorer.is_available.return_value = True

@@ -592,8 +592,9 @@ class TestResolveClipFiles:
         return video
 
     def test_raises_when_no_export_file_found(self, tmp_path):
-        from yuu_clip.reel import _resolve_clip_files
         import pytest
+
+        from yuu_clip.reel import _resolve_clip_files
         clip = self._make_clip(1, 10, 0, "0:00:00")
         video = self._make_video(10, "session.mkv")
         with pytest.raises(FileNotFoundError, match="clip 1"):
@@ -601,6 +602,7 @@ class TestResolveClipFiles:
 
     def test_finds_mkv_export(self, tmp_path):
         import unittest.mock as mock
+
         from yuu_clip.reel import _resolve_clip_files
         clip = self._make_clip(1, 10, 0, "0-00-00")
         video = self._make_video(10, "session.mkv")
@@ -615,6 +617,7 @@ class TestResolveClipFiles:
 
     def test_finds_mp4_export(self, tmp_path):
         import unittest.mock as mock
+
         from yuu_clip.reel import _resolve_clip_files
         clip = self._make_clip(2, 10, 0, "0-00-00")
         video = self._make_video(10, "session.mkv")
@@ -628,6 +631,7 @@ class TestResolveClipFiles:
 
     def test_fps_probed_only_from_first_file(self, tmp_path):
         import unittest.mock as mock
+
         from yuu_clip.reel import _resolve_clip_files
         clip_a = self._make_clip(1, 10, 0, "0-00-00")
         clip_b = self._make_clip(2, 10, 60_000, "0-01-00")
@@ -645,6 +649,7 @@ class TestResolveClipFiles:
 
     def test_fps_falls_back_to_30_when_probe_fails(self, tmp_path):
         import unittest.mock as mock
+
         from yuu_clip.reel import _resolve_clip_files
         clip = self._make_clip(1, 10, 0, "0-00-00")
         video = self._make_video(10, "session.mkv")

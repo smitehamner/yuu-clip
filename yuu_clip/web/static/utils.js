@@ -213,7 +213,10 @@ function _openSSE(url, onLine, onDone, onError) {
     try {
       while (true) {
         const {done, value} = await reader.read();
-        if (done) break;
+        if (done) {
+          if (!ctrl.signal.aborted) onError('Stream ended without a completion signal');
+          return;
+        }
         buf += dec.decode(value, {stream: true});
         const lines = buf.split('\n');
         buf = lines.pop();
@@ -235,6 +238,7 @@ function _openSSE(url, onLine, onDone, onError) {
 }
 
 function streamSSE(url, onDone, stepDefs, jobLabel, cancellable = false) {
+  if (_activeES) { _activeES.close(); _activeES = null; }
   if (stepDefs) startJobUI(stepDefs, jobLabel, cancellable);
   const handle = _openSSE(
     url,

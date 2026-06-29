@@ -9,8 +9,11 @@ Stored per-project in .yuu-clip/contexts.json.
 from __future__ import annotations
 
 import json
+import logging
 from datetime import datetime, timezone
 from pathlib import Path
+
+_log = logging.getLogger(__name__)
 
 _CONTEXTS_FILE = "contexts.json"
 
@@ -103,9 +106,13 @@ def _path(project_dir: Path) -> Path:
 
 def load_contexts(project_dir: Path) -> dict:
     p = _path(project_dir)
-    if p.exists():
+    if not p.exists():
+        return {}
+    try:
         return json.loads(p.read_text(encoding="utf-8"))
-    return {}
+    except Exception as exc:
+        _log.error("contexts.json is corrupt and could not be loaded: %s — returning empty set", exc)
+        return {}
 
 
 def seed_builtin_contexts(project_dir: Path) -> None:

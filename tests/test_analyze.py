@@ -657,7 +657,7 @@ class TestRetranscribeValidation:
 # ---------------------------------------------------------------------------
 
 class TestVersionEndpoint:
-    def test_version_returns_200(self, client):
+    def test_version_endpoint_returns_version_string(self, client):
         r = client.get("/api/version")
         assert r.status_code == 200
         assert "version" in r.json()

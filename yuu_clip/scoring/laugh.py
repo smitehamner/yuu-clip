@@ -140,7 +140,7 @@ class LaughScorer:
             return True
         if mode == "audio":
             try:
-                import av     # noqa: F401
+                import av  # noqa: F401
                 import numpy  # noqa: F401
                 return True
             except ImportError:
@@ -151,7 +151,7 @@ class LaughScorer:
                 log.warning("LaughScorer (model): scorer_laugh_model_id is not configured")
                 return False
             try:
-                import torch         # noqa: F401
+                import torch  # noqa: F401
                 import transformers  # noqa: F401
                 return True
             except ImportError:

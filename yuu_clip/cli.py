@@ -845,8 +845,7 @@ def _run_retranscribe(cand, session, config, language: Optional[str] = None) -> 
             session.flush()
 
             console.print(f"  [dim]  Retranscribing track {track.stream_index} [{track.label}]...[/dim]")
-            whisper_model = _get_model(config)
-            segments_raw, info = whisper_model.transcribe(str(segment_wav), language=language, vad_filter=True)
+            segments_raw, info = _get_model(config).transcribe(str(segment_wav), language=language, vad_filter=True)
 
             tx = Transcript(
                 audio_track_id=track.id,
@@ -858,13 +857,12 @@ def _run_retranscribe(cand, session, config, language: Optional[str] = None) -> 
             session.flush()
             new_tx_ids.append(tx.id)
 
-            offset_ms = effective_start_ms
             seg_count = 0
             for seg in segments_raw:
                 session.add(TranscriptSegment(
                     transcript_id=tx.id,
-                    start_ms=offset_ms + int(seg.start * 1000),
-                    end_ms=offset_ms + int(seg.end * 1000),
+                    start_ms=effective_start_ms + int(seg.start * 1000),
+                    end_ms=effective_start_ms + int(seg.end * 1000),
                     text=seg.text,
                     confidence=getattr(seg, "avg_logprob", None),
                 ))
@@ -873,16 +871,22 @@ def _run_retranscribe(cand, session, config, language: Optional[str] = None) -> 
             session.flush()
             console.print(f"  [green]  OK[/green] [{track.label}]  {seg_count} segments")
 
-    if new_tx_ids:
-        from yuu_clip.db.models import TranscriptSegment as _TS
-        new_segs = (
-            session.query(_TS)
-            .filter(_TS.transcript_id.in_(new_tx_ids))
-            .order_by(_TS.start_ms)
-            .all()
-        )
-        if new_segs:
-            cand.transcript_excerpt = " ".join(s.text.strip() for s in new_segs)
+    _update_clip_excerpt(cand, session, new_tx_ids)
+
+
+def _update_clip_excerpt(cand, session, tx_ids: list[int]) -> None:
+    """Rebuild the transcript_excerpt on a clip from the given transcript IDs."""
+    if not tx_ids:
+        return
+    from yuu_clip.db.models import TranscriptSegment as _TS
+    new_segs = (
+        session.query(_TS)
+        .filter(_TS.transcript_id.in_(tx_ids))
+        .order_by(_TS.start_ms)
+        .all()
+    )
+    if new_segs:
+        cand.transcript_excerpt = " ".join(s.text.strip() for s in new_segs)
 
 
 def _build_export_path(
@@ -1038,6 +1042,7 @@ def export(
         session.commit()
     except RuntimeError as e:
         console.print(f"  [red]Export failed: {e}[/red]")
+        log.error("Export failed: clip_id=%s video=%s: %s", clip_id, video_path, e)
         raise typer.Exit(1)
     finally:
         for tmp_path in (subtitle_path, subtitle_track_path):

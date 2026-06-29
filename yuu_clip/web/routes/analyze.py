@@ -193,7 +193,8 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         try:
             find_ffmpeg()
             ffmpeg_ok = True
-        except Exception:
+        except Exception as exc:
+            _log.debug("prereqs: ffmpeg check failed: %s", exc)
             ffmpeg_ok = False
         try:
             cfg = ctx.config
@@ -204,7 +205,8 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                 llm_ok = True
             else:
                 llm_ok = bool(cfg.llm_model_path and Path(cfg.llm_model_path).exists())
-        except Exception:
+        except Exception as exc:
+            _log.debug("prereqs: LLM check failed: %s", exc)
             llm_ok = False
         return {"ffmpeg_ok": ffmpeg_ok, "llm_ok": llm_ok}
 

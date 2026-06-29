@@ -111,10 +111,7 @@ def _label_non_interactive(streams, profile_name: Optional[str]) -> list[dict]:
     s = streams[0]
     n_ignored = len(streams) - 1
     suffix = f", ignoring {n_ignored} other track(s)" if n_ignored else ""
-    _log.info(
-        "Non-interactive labeling: stream %d as combined%s",
-        s.stream_index, f", ignoring {n_ignored} other track(s)" if n_ignored else "",
-    )
+    _log.info("Non-interactive labeling: stream %d as combined%s", s.stream_index, suffix)
     console.print(f"  [dim]Using track 1 as combined{suffix}[/dim]")
     primary = {
         "stream_index": s.stream_index,

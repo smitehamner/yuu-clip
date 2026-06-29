@@ -111,7 +111,7 @@ function renderPlayer(url, captionsUrl, clipId) {
   const autoplay = localStorage.getItem('yuuclip-autoplay') === 'true';
   if (url) {
     const track = captionsUrl
-      ? `<track kind="captions" src="${captionsUrl}" label="Transcript" default>`
+      ? `<track kind="captions" src="${captionsUrl}" label="Captions" default>`
       : '';
     area.innerHTML = `<video controls ${autoplay ? 'autoplay' : ''} src="${url}" aria-label="Clip preview">${track}</video>`;
   } else {
@@ -154,7 +154,7 @@ function renderDetail(clip) {
       ${clip.has_export ? `
         <div style="margin-top:8px;margin-bottom:4px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.6px">Exported</div>
         <div style="display:flex;gap:12px;flex-wrap:wrap">
-          ${clip.exported_container ? `<span>Container: <strong style="color:var(--text)">${clip.exported_container.toUpperCase()}</strong></span>` : ''}
+          ${clip.exported_container ? `<span>Container: <strong style="color:var(--text)">${escHtml(clip.exported_container.toUpperCase())}</strong></span>` : ''}
           <span>Captions: <strong style="color:var(--text)">${
             clip.subtitle_status === 'baked-in'    ? 'Baked in' :
             clip.subtitle_status === 'srt-sidecar' ? 'SRT sidecar' :
@@ -283,6 +283,12 @@ function _mergeButtonsHtml(clip) {
     ${prev ? `<button class="btn" onclick="mergeClips(${clip.id},${prev.id},'prev')" title="Merge with previous clip (${prev.start_hms})">← Merge previous</button>` : ''}
     ${next ? `<button class="btn" onclick="mergeClips(${clip.id},${next.id},'next')" title="Merge with next clip (${next.start_hms})">Merge next →</button>` : ''}
   </div>`;
+}
+
+async function _reloadClipList(videoId) {
+  if (!videoId) return;
+  _clips = await fetch(`/api/videos/${videoId}/clips?sort=${_clipsSortParam()}`).then(r => r.json());
+  renderClipList(_applyFilters());
 }
 
 function _replaceClipInList(updated) {
@@ -575,10 +581,7 @@ async function confirmExport() {
       const captionsUrl = media.has_captions ? `/api/clips/${id}/captions.vtt` : null;
       renderPlayer(media.url, captionsUrl, id);
       renderDetail(clip);
-      if (activeVideoId) {
-        _clips = await fetch(`/api/videos/${activeVideoId}/clips?sort=${_clipsSortParam()}`).then(r => r.json());
-        renderClipList(_applyFilters());
-      }
+      await _reloadClipList(activeVideoId);
       loadVideos();
       showToast('Clip exported successfully');
     },
@@ -664,10 +667,7 @@ function deleteExport(id) {
       _activeMediaFilename = null;
       renderPlayer(null, null, id);
       renderDetail(_activeClipData);
-      if (activeVideoId) {
-        _clips = await fetch(`/api/videos/${activeVideoId}/clips?sort=${_clipsSortParam()}`).then(r => r.json());
-        renderClipList(_applyFilters());
-      }
+      await _reloadClipList(activeVideoId);
       showToast('Exported file deleted');
     },
     true,
@@ -695,10 +695,7 @@ async function _doDeleteClip(id) {
   }
   activeClipId = null;
   clearDetail();
-  if (videoId) {
-    _clips = await fetch(`/api/videos/${videoId}/clips?sort=${_clipsSortParam()}`).then(r => r.json());
-    renderClipList(_applyFilters());
-  }
+  await _reloadClipList(videoId);
   await loadVideos();
   showToast('Clip deleted');
 }
@@ -786,10 +783,7 @@ function scoreAll() {
     '/api/score',
     () => {
       loadVideos();
-      if (activeVideoId) fetch(`/api/videos/${activeVideoId}/clips?sort=${_clipsSortParam()}`).then(r => r.json()).then(data => {
-        _clips = data;
-        renderClipList(_applyFilters());
-      });
+      _reloadClipList(activeVideoId);
       showToast('Scoring complete');
     },
     SCORE_STEPS,

@@ -142,12 +142,18 @@ async function selectVideo(id) {
   activeVideoId = id;
   activeClipId  = null;
   localStorage.setItem('yuuclip-view', JSON.stringify({videoId: id, clipId: null}));
-  _clipFilter = 'all';
+  _clipFilter  = 'all';
+  _clipSearch  = '';
+  _clipScoreMin = 0;
   document.querySelectorAll('.clip-tab').forEach(t => {
     const active = t.dataset.filter === 'all';
     t.classList.toggle('active', active);
     t.setAttribute('aria-selected', active ? 'true' : 'false');
   });
+  const _searchEl = document.getElementById('clip-search-input');
+  if (_searchEl) _searchEl.value = '';
+  const _scoreEl = document.getElementById('clip-score-min');
+  if (_scoreEl) _scoreEl.value = '0';
   _clips = await fetch(`/api/videos/${id}/clips?sort=${_clipsSortParam()}`).then(r => r.json());
   renderClipList(_clips);
   const video = _videos.find(v => v.id === id);
@@ -331,11 +337,14 @@ function updateTimelineIntervalHint(video) {
   const unit = document.getElementById('timeline-interval-unit').value;
   const intervalS = unit === 'minutes' ? val * 60 : val;
   const hint = document.getElementById('timeline-interval-hint');
+  const genBtn = document.querySelector('#timeline-interval-modal .btn.primary');
   if (intervalS < 10) {
     hint.textContent = 'Minimum interval is 10 seconds.';
     hint.style.color = 'var(--red)';
+    if (genBtn) genBtn.disabled = true;
     return;
   }
+  if (genBtn) genBtn.disabled = false;
   hint.style.color = 'var(--muted)';
   if (video && video.duration_ms) {
     const dur = video.duration_ms / 1000;
@@ -549,6 +558,5 @@ async function onClipsSortChange() {
   try {
     _clips = await fetch(`/api/videos/${activeVideoId}/clips?sort=${_clipsSortParam()}`).then(r => r.json());
   } catch { return; }
-  const filtered = _clipFilter === 'all' ? _clips : _clips.filter(c => c.status === _clipFilter);
-  renderClipList(filtered);
+  renderClipList(_applyFilters());
 }

@@ -326,8 +326,8 @@ class TranscriptSegment(Base):
     text: Mapped[str] = mapped_column(Text, nullable=False)
     confidence: Mapped[Optional[float]] = mapped_column(Float)
 
-    # Reserved for speaker diarization — nothing sets this yet.
-    # Will hold a label like "SPEAKER_00", later mapped to a character name.
+    # Speaker diarization label, e.g. "SPEAKER_00". Set by whisper_runner when
+    # diarization is enabled; None otherwise. Not yet surfaced in the UI.
     speaker_label: Mapped[Optional[str]] = mapped_column(String)
 
     transcript: Mapped["Transcript"] = relationship(back_populates="segments")

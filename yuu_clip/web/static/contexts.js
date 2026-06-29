@@ -226,7 +226,7 @@ function _doRescoreClips(videoId, btn) {
           const v = _videos.find(v => v.id === videoId);
           if (v) renderVideoDetail(v, null);
           fetch(`/api/videos/${videoId}/clips?sort=${_clipsSortParam()}`).then(r => r.json()).then(clips => {
-            _clips = clips; renderClipList(_clips);
+            _clips = clips; renderClipList(_applyFilters());
           });
         }
       });
@@ -306,7 +306,7 @@ function _doRedescribeClips(videoId, btn) {
           .then(r => r.json())
           .then(clips => {
             _clips = clips;
-            renderClipList(_clips);
+            renderClipList(_applyFilters());
             if (activeClipId) selectClip(activeClipId);
           });
       }
@@ -343,7 +343,7 @@ async function _doResetApprovals(videoId) {
   }
   const data = await res.json();
   _clips = await fetch(`/api/videos/${videoId}/clips?sort=${_clipsSortParam()}`).then(r => r.json());
-  renderClipList(_clips);
+  renderClipList(_applyFilters());
   showToast(`Reset ${data.reset} clip${data.reset !== 1 ? 's' : ''} to Unreviewed`);
 }
 
@@ -412,7 +412,7 @@ async function doAutoApprove() {
   }
   const data = await res.json();
   _clips = await fetch(`/api/videos/${videoId}/clips?sort=${_clipsSortParam()}`).then(r => r.json());
-  renderClipList(_clips);
+  renderClipList(_applyFilters());
   showToast(`Approved ${data.approved} clip${data.approved !== 1 ? 's' : ''}`);
 }
 

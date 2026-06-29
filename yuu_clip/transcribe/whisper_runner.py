@@ -212,9 +212,15 @@ def transcribe_track(
     ok, reason = diar_client.available()
     if ok:
         _log.info("Running diarization for track %d [%s]…", track.id, track.label)
-        turns = diar_client.diarize(str(audio_path))
-        _assign_speakers(session, transcript.id, turns)
-        _log.info("Diarization complete: %d turns for track %d", len(turns), track.id)
+        try:
+            turns = diar_client.diarize(str(audio_path))
+            _assign_speakers(session, transcript.id, turns)
+            _log.info("Diarization complete: %d turns for track %d", len(turns), track.id)
+        except Exception as exc:
+            _log.warning(
+                "Diarization failed for track %d [%s], speaker labels skipped: %s",
+                track.id, track.label, exc, exc_info=True,
+            )
     elif config.diarization_backend != "null":
         _log.warning("Diarization skipped for track %d [%s]: %s", track.id, track.label, reason)
 

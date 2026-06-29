@@ -9,7 +9,6 @@ from yuu_clip.transcribe.diarization_client import (
     make_diarization_client,
 )
 
-
 # ---------------------------------------------------------------------------
 # NullDiarizationClient
 # ---------------------------------------------------------------------------

@@ -8,7 +8,6 @@ from typing import Optional
 
 from fastapi import HTTPException
 from fastapi.responses import StreamingResponse
-from sqlalchemy import case, func
 
 from yuu_clip.db.models import ClipCandidate, Video
 

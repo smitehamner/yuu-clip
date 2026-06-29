@@ -1265,6 +1265,9 @@ class TestClipTiming:
         clip_id = self._first_clip_id(client)
         r = client.patch(f"/api/clips/{clip_id}/timing", json={"start_offset": 0.0, "end_offset": 0.0})
         assert r.status_code == 200
+        d = r.json()
+        assert d["start_offset"] == pytest.approx(0.0)
+        assert d["end_offset"] == pytest.approx(0.0)
 
     def test_update_timing_404(self, client):
         r = client.patch("/api/clips/99999/timing", json={"start_offset": 0.0, "end_offset": 0.0})
