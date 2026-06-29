@@ -209,6 +209,82 @@ function _doRescoreClips(videoId, btn) {
   };
 }
 
+function rescoreAllClips(videoId, btn) {
+  const video = _videos.find(v => v.id === videoId);
+  const count = video ? video.clip_count : 0;
+  const hasContext = video && video.context_names && video.context_names.length > 0;
+  const contextWarn = hasContext ? '' :
+    `<div style="margin-top:8px;padding:6px 10px;background:rgba(255,180,0,.1);border-left:3px solid var(--amber);border-radius:3px;font-size:12px">` +
+    `No world context assigned — descriptions will be generic.</div>`;
+  showConfirm(
+    'Re-score all clips?',
+    `Re-run LLM scoring on all <strong>${count} clip${count !== 1 ? 's' : ''}</strong>. ` +
+    `Scores and descriptions will be overwritten. This cannot be undone.` +
+    contextWarn +
+    `<div style="margin-top:8px;font-size:12px;color:var(--muted)">This may take several minutes.</div>`,
+    'Re-score All',
+    () => _doRescoreClips(videoId, btn),
+    true,
+  );
+}
+
+function redescribeAllClips(videoId, btn) {
+  const video = _videos.find(v => v.id === videoId);
+  const count = video ? video.clip_count : 0;
+  const hasContext = video && video.context_names && video.context_names.length > 0;
+  const contextWarn = hasContext ? '' :
+    `<div style="margin-top:8px;padding:6px 10px;background:rgba(255,180,0,.1);border-left:3px solid var(--amber);border-radius:3px;font-size:12px">` +
+    `No world context assigned — descriptions will be generic.</div>`;
+  showConfirm(
+    'Re-describe all clips?',
+    `Regenerate LLM descriptions for all <strong>${count} clip${count !== 1 ? 's' : ''}</strong>. ` +
+    `Scores will not change. Manually edited descriptions are preserved.` +
+    contextWarn +
+    `<div style="margin-top:8px;font-size:12px;color:var(--muted)">This may take several minutes.</div>`,
+    'Re-describe All',
+    () => _doRedescribeClips(videoId, btn),
+    true,
+  );
+}
+
+function _doRedescribeClips(videoId, btn) {
+  const orig = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Re-describing…';
+  openLog();
+  if (_activeES) { _activeES.close(); _activeES = null; }
+  const es = new EventSource(`/api/videos/${videoId}/redescribe-clips`);
+  _activeES = es;
+  es.onmessage = e => {
+    const data = JSON.parse(e.data);
+    if (data === '__DONE__') {
+      es.close();
+      if (_activeES === es) _activeES = null;
+      btn.disabled = false;
+      btn.textContent = orig;
+      showToast('Descriptions regenerated');
+      if (activeVideoId === videoId) {
+        fetch(`/api/videos/${videoId}/clips?sort=${_clipsSortParam()}`)
+          .then(r => r.json())
+          .then(clips => {
+            _clips = clips;
+            renderClipList(_clips);
+            if (activeClipId) selectClip(activeClipId);
+          });
+      }
+      return;
+    }
+    appendLog(String(data));
+  };
+  es.onerror = () => {
+    es.close();
+    if (_activeES === es) _activeES = null;
+    btn.disabled = false;
+    btn.textContent = orig;
+    showToast('Re-describe failed — see log', 'error');
+  };
+}
+
 // ── reset approvals ───────────────────────────────────────────────────────────
 function resetApprovals(videoId) {
   const nonPending = _clips.filter(c => c.status !== 'pending').length;

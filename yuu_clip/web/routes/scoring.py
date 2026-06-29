@@ -359,6 +359,72 @@ def make_router(ctx: ProjectContext) -> APIRouter:
 
         return _sse_response(event_stream())
 
+    @router.get("/api/videos/{video_id}/redescribe-clips")
+    async def redescribe_clips(video_id: int):
+        """Re-generate LLM descriptions for all clips without changing scores. Streams as SSE."""
+        from yuu_clip.scoring.llm import check_llm_available
+        from yuu_clip.scoring.llm import describe_clip as _describe_clip
+
+        db = ctx.get_db()
+        try:
+            video = db.get(Video, video_id)
+            if not video:
+                raise HTTPException(404, "Video not found")
+            context_names = _json_list(video.context_names_json)
+            clip_ids = [
+                c.id for c in
+                db.query(ClipCandidate)
+                .filter_by(video_id=video_id)
+                .order_by(ClipCandidate.start_ms)
+                .all()
+                if c.transcript_excerpt
+            ]
+        finally:
+            db.close()
+
+        llm_ok, llm_reason = check_llm_available(ctx.config)
+        if not llm_ok:
+            raise HTTPException(503, f"LLM unavailable — {llm_reason}")
+
+        context_text, config = _resolve_context(ctx, context_names)
+
+        async def event_stream():
+            async with _active_job(ctx):
+                total = len(clip_ids)
+                plural = "s" if total != 1 else ""
+                yield f"data: {json_lib.dumps(f'[Re-generating descriptions for {total} clip{plural}…]')}\n\n"
+
+                for i, clip_id in enumerate(clip_ids, 1):
+                    desc_db = ctx.get_db()
+                    error = None
+                    try:
+                        clip = desc_db.get(ClipCandidate, clip_id)
+                        if clip and clip.transcript_excerpt:
+                            desc, desc_long = await asyncio.to_thread(
+                                _describe_clip, clip.transcript_excerpt, config, context_text
+                            )
+                            if desc:
+                                clip.description = desc
+                                clip.description_long = desc_long or None
+                            desc_db.commit()
+                    except Exception as exc:
+                        desc_db.rollback()
+                        error = str(exc)
+                        _log.error(
+                            "redescribe_clips: clip %d failed for video %d: %s",
+                            clip_id, video_id, exc, exc_info=True,
+                        )
+                    finally:
+                        desc_db.close()
+                    if error:
+                        yield f"data: {json_lib.dumps(f'[Error describing clip {clip_id}: {error}]')}\n\n"
+                    else:
+                        yield f"data: {json_lib.dumps(f'Described {i}/{total} clips')}\n\n"
+
+                yield f"data: {json_lib.dumps('__DONE__')}\n\n"
+
+        return _sse_response(event_stream())
+
     @router.get("/api/clips/{clip_id}/related-clips")
     async def find_related_clips(clip_id: int, video_ids: str = Query("")):
         """Find clips similar to this one via LLM. Streams progress as SSE.

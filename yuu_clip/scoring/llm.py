@@ -167,6 +167,21 @@ def find_related_clips(
     return [{"id": int(r["id"]), "reason": str(r.get("reason", ""))} for r in results]
 
 
+def describe_clip(transcript: str, config: "Config", context_text: str = "") -> tuple[str, str]:
+    """Generate description and description_long for a clip transcript.
+
+    Returns (description, description_long). Raises on failure.
+    """
+    system = _prepend_context(_SYSTEM_PROMPT, context_text)
+    messages = [
+        {"role": "system", "content": system},
+        {"role": "user",   "content": _USER_TEMPLATE.format(excerpt=transcript)},
+    ]
+    raw = make_client(config).chat(messages, temperature=0.1)
+    data = json.loads(raw)
+    return str(data.get("description", "")), str(data.get("description_long", ""))
+
+
 def check_llm_available(config: "Config") -> tuple[bool, str]:
     """Return (available, reason) without logging.  Used by routes to gate LLM calls."""
     if not config.ollama_enabled:
