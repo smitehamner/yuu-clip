@@ -271,6 +271,10 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
+// ── getting started modal ─────────────────────────────────────────────────────
+function openGettingStartedModal()  { document.getElementById('getting-started-modal').classList.add('visible'); }
+function closeGettingStartedModal() { document.getElementById('getting-started-modal').classList.remove('visible'); }
+
 // ── about modal ───────────────────────────────────────────────────────────────
 function openAboutModal()  { document.getElementById('about-modal').classList.add('visible'); }
 function closeAboutModal() { document.getElementById('about-modal').classList.remove('visible'); }
@@ -365,6 +369,7 @@ document.addEventListener('keydown', e => {
     return;
   }
   if (e.key === 'Escape') {
+    closeGettingStartedModal();
     closeAboutModal();
     closeControlsModal();
     closeGlossaryModal();

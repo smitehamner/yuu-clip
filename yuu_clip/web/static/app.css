@@ -278,6 +278,10 @@ kbd { background: var(--surface); border: 1px solid var(--border); border-radius
 .clip-filter-tabs::-webkit-scrollbar { display: none; }
 .clip-tab { font-size: 10px; padding: 2px 8px; border-radius: 10px; border: none; background: none; color: var(--muted); cursor: pointer; }
 .clip-tab.active { background: var(--border); color: var(--text); }
+.clip-search-row { display: flex; gap: 4px; padding: 4px 8px 2px; }
+.clip-search-row input[type="search"] { flex: 1; min-width: 0; font-size: 11px; padding: 3px 7px; border-radius: 4px; border: 1px solid var(--border); background: var(--surface); color: var(--text); }
+.clip-search-row input[type="search"]::placeholder { color: var(--muted); }
+.clip-search-row select { font-size: 11px; padding: 3px 4px; border-radius: 4px; border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer; }
 
 /* ── app footer bar ── */
 .app-footer { height: 22px; background: var(--surface); border-top: 1px solid var(--border); display: flex; align-items: center; padding: 0 12px; flex-shrink: 0; font-size: 11px; color: var(--muted); }

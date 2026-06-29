@@ -220,6 +220,18 @@ Archive of shipped items. For pending work see [ROADMAP.md](ROADMAP.md).
 
 ### Phase 5 items shipped early
 
+- **Getting Started guide** — hamburger menu item "🚀 Getting Started" opens a modal covering the
+  four-step workflow (Analyze → Review → Export → Build Reel), score definitions (Overall / Funny /
+  Dramatic / Action), key concept definitions (Track layout, World context), and quick tips including
+  search and keyboard navigation. Escape key closes it.
+
+- **Clip search + score filter** — search input and minimum-score dropdown added above the status
+  filter tabs in the clip sidebar. Text search matches against description, long description, and
+  transcript excerpt (client-side, case-insensitive). Score threshold options: Any / 0.3+ / 0.5+ /
+  0.7+ / 0.9+. Both filters compose with the existing status tabs and sort order. Empty state message
+  is context-aware ("No clips match the current filters" vs the standard prompt). All filter state
+  survives clip list refreshes.
+
 - **Merge adjacent clips** — "Merge ↑ prev" / "Merge ↓ next" buttons in the clip Actions card;
   merged clip spans both time ranges; consumed clip is deleted.
 

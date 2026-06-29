@@ -23,6 +23,8 @@
   <div class="hamburger-wrap" id="hamburger-wrap">
     <button class="btn ghost" id="btn-hamburger" onclick="toggleHamburger()" title="More options" aria-label="More options" aria-haspopup="true" aria-expanded="false" style="font-size:17px;padding:5px 11px;line-height:1">&#9776;</button>
     <div class="hamburger-menu" id="hamburger-menu">
+      <button class="hamburger-item" onclick="openGettingStartedModal();closeHamburger()">&#128640; Getting Started</button>
+      <div class="hamburger-divider"></div>
       <button class="hamburger-item" onclick="openReelsModal();closeHamburger()">&#127916; View Highlight Reels</button>
       <div class="hamburger-divider"></div>
       <button class="hamburger-item" onclick="openContextManager();closeHamburger()">&#127917; World Contexts</button>
@@ -392,6 +394,16 @@
           </select>
         </div>
       </div>
+      <div class="clip-search-row">
+        <input type="search" id="clip-search-input" placeholder="Search clips…" oninput="setClipSearch(this.value)" aria-label="Search clips">
+        <select id="clip-score-min" onchange="setClipScoreMin(this.value)" aria-label="Minimum score" title="Minimum overall score">
+          <option value="0">Any score</option>
+          <option value="0.3">0.3+</option>
+          <option value="0.5">0.5+</option>
+          <option value="0.7">0.7+</option>
+          <option value="0.9">0.9+</option>
+        </select>
+      </div>
       <div class="clip-filter-tabs" role="tablist" aria-label="Clip filter">
         <span style="font-size:10px;color:var(--muted);padding:2px 4px;line-height:1.8;flex-shrink:0" aria-hidden="true">Filter</span>
         <button class="clip-tab active" role="tab" aria-selected="true"  data-filter="all"      onclick="setClipFilter('all')">All</button>
@@ -587,6 +599,51 @@
 <footer class="app-footer">
   <span id="version-tag"></span>
 </footer>
+
+<!-- Getting Started modal -->
+<div class="modal-bg" id="getting-started-modal" onclick="if(event.target===this)closeGettingStartedModal()">
+  <div class="modal" style="max-width:520px">
+    <h3>Getting Started</h3>
+
+    <div class="section-title" style="margin-bottom:6px">Your workflow</div>
+    <ol style="margin:0 0 16px;padding-left:20px;font-size:13px;line-height:1.9;color:var(--text)">
+      <li><strong>Analyze</strong> — click <em>+ Analyze</em> and select a recording. yuu-clip transcribes the audio, detects scene changes, and scores every clip candidate.</li>
+      <li><strong>Review</strong> — step through the clip list. Watch the preview, read the description, and press <kbd>A</kbd> to approve or <kbd>R</kbd> to reject.</li>
+      <li><strong>Export</strong> — click <em>Export</em> on any clip to extract it. Quick export is a stream copy (seconds); Precise re-encodes for frame-accurate cuts.</li>
+      <li><strong>Build a reel</strong> — click <em>Build Reel</em> to compile approved clips into a single highlight reel with title cards and transitions.</li>
+    </ol>
+
+    <div class="section-title" style="margin-bottom:6px">What the scores mean</div>
+    <table style="width:100%;font-size:13px;border-collapse:collapse;margin-bottom:16px">
+      <tbody>
+        <tr><td style="padding:3px 8px 3px 0;color:var(--text)">&#11088; Overall</td><td style="color:var(--muted)">Weighted average of the three sub-scores</td></tr>
+        <tr><td style="padding:3px 8px 3px 0;color:var(--text)">&#128514; Funny</td><td style="color:var(--muted)">Jokes, absurdist moments, chaotic banter</td></tr>
+        <tr><td style="padding:3px 8px 3px 0;color:var(--text)">&#127917; Dramatic</td><td style="color:var(--muted)">Confrontations, revelations, emotional beats</td></tr>
+        <tr><td style="padding:3px 8px 3px 0;color:var(--text)">&#9876;&#65039; Action</td><td style="color:var(--muted)">Combat, tension, high-stakes moments</td></tr>
+      </tbody>
+    </table>
+
+    <div class="section-title" style="margin-bottom:6px">Key concepts</div>
+    <table style="width:100%;font-size:13px;border-collapse:collapse;margin-bottom:16px">
+      <tbody>
+        <tr><td style="padding:3px 8px 3px 0;color:var(--text);white-space:nowrap">Track layout</td><td style="color:var(--muted)">Maps your OBS audio tracks to roles (player voice, game sounds, etc.) so yuu-clip knows what to transcribe</td></tr>
+        <tr><td style="padding:3px 8px 3px 0;color:var(--text);white-space:nowrap">World context</td><td style="color:var(--muted)">Tells the LLM scorer who your characters are and what the setting is — improves descriptions and scores for your specific game</td></tr>
+      </tbody>
+    </table>
+
+    <div class="section-title" style="margin-bottom:6px">Quick tips</div>
+    <ul style="margin:0 0 16px;padding-left:20px;font-size:13px;line-height:1.9;color:var(--muted)">
+      <li>Use the search box and score filter in the sidebar to find specific moments</li>
+      <li>Press <kbd>&#8592;</kbd> / <kbd>&#8594;</kbd> to move between clips without touching the mouse</li>
+      <li>Open <em>Controls</em> from the menu for the full keyboard shortcut list</li>
+      <li>Open <em>World Contexts</em> from the menu to add character and setting info before scoring</li>
+    </ul>
+
+    <div class="modal-actions">
+      <button class="btn" onclick="closeGettingStartedModal()">Close</button>
+    </div>
+  </div>
+</div>
 
 <!-- About modal -->
 <div class="modal-bg" id="about-modal" onclick="if(event.target===this)closeAboutModal()">

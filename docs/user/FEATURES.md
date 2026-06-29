@@ -36,6 +36,8 @@ Each clip detail view shows:
 - **Tags**: auto-generated labels such as `llm_scored`, `energy_scored`, `long_silence_after`
 - **Transcript excerpt** in a monospace box
 - **Status buttons**: Approve / Reject / Reset (unreviewed)
+- **Clip search** — text input above the status tabs; searches description, long description, and transcript excerpt (case-insensitive). Composes with the status tab and score filter.
+- **Minimum score filter** — dropdown (Any / 0.3+ / 0.5+ / 0.7+ / 0.9+) that hides clips below the selected overall score threshold. Composes with the search and status tab filters.
 
 Actions available per clip:
 
@@ -106,9 +108,13 @@ Accessible from the header. Create and edit named context bundles:
 
 Contexts are assigned per-video and injected into every LLM call for that video. When a video is rescored, any weight overrides from assigned contexts are averaged together and applied instead of the global Settings weights.
 
+### Getting Started guide
+
+Opens from the hamburger menu (🚀 Getting Started). Covers the four-step workflow, what each score means, key concept definitions (Track layout, World context), and quick tips.
+
 ### About / help panel
 
-Keyboard shortcuts, dependency versions table, and licensing notes. Open with `?`.
+Dependency versions table and licensing notes. Open from the hamburger menu → About.
 
 ### Keyboard shortcuts
 

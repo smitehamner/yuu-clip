@@ -60,8 +60,7 @@ regular users.
   - *Pre-import estimate (low risk, high value)*: before analysis starts, calculate estimated GPU-hours from total video duration × per-minute benchmark; show a warning when the estimate is large; suggest batching as a mitigation.
   - *Live thermal monitoring*: poll GPU temp via `pynvml` (NVIDIA only initially); log temps; surface a warning in the UI when temp exceeds threshold for N consecutive samples; pause ingest between videos (finish current, then hold — ties into Pause / resume above); UI options: "Pause now" / "Continue anyway". Sensible defaults (85°C warn, 90°C pause); user-configurable thresholds TBD.
 
-- [ ] **Search + filter** — text search across descriptions and transcripts; filter sidebar by score
-  range, status, or tag. Advanced users can use regex.
+- [x] **Search + filter** — text search across clip descriptions and transcripts; minimum score dropdown; both combine with the existing status tabs. Client-side; no backend changes. Regex and tag filter deferred.
 
 - [ ] **Demo reel: random transition + advanced editor** — add "random" as a transition option in
   the demo reel builder. Separately, add an advanced clip list editor: reorder approved clips via
@@ -82,8 +81,8 @@ regular users.
 
 - [ ] **Title card customization** — configurable title card for Quick Export: background color or image, font/color/size, content layout (description vs. timecode vs. both). Currently hardcoded style in the reel pipeline.
 
-- [ ] **Built-in user manual** — in-app help: what each score means, contexts workflow, ingest
-  walkthrough, keyboard shortcuts, export options. Low priority until the UI is more stable.
+- [x] **Built-in user manual** — "Getting Started" guide in the hamburger menu covers the four-step
+  workflow, score definitions, key concept definitions, and quick tips including search and keyboard navigation.
 
 - [ ] **Multi-session grouping** — treat multiple OBS files from one play session as a single
   project with a unified timeline

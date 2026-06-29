@@ -1,11 +1,36 @@
 // ── clips ─────────────────────────────────────────────────────────────────────
+function _applyFilters() {
+  let result = _clipFilter === 'all' ? _clips : _clips.filter(c => c.status === _clipFilter);
+  if (_clipScoreMin > 0) result = result.filter(c => c.score_overall >= _clipScoreMin);
+  if (_clipSearch) {
+    const q = _clipSearch.toLowerCase();
+    result = result.filter(c =>
+      (c.description || '').toLowerCase().includes(q) ||
+      (c.description_long || '').toLowerCase().includes(q) ||
+      (c.transcript_excerpt || '').toLowerCase().includes(q)
+    );
+  }
+  return result;
+}
+
+function setClipSearch(q) {
+  _clipSearch = q.trim();
+  renderClipList(_applyFilters());
+}
+
+function setClipScoreMin(val) {
+  _clipScoreMin = parseFloat(val) || 0;
+  renderClipList(_applyFilters());
+}
+
 function renderClipList(clips) {
   const list = document.getElementById('clip-list');
   list.innerHTML = '';
   if (!clips.length) {
     const _statusLabel = {pending: 'Unreviewed', approved: 'Approved', rejected: 'Rejected'};
-    const filterMsg = _clipFilter !== 'all'
-      ? `No ${_statusLabel[_clipFilter] || _clipFilter} clips`
+    const hasActiveFilter = _clipFilter !== 'all' || _clipSearch || _clipScoreMin > 0;
+    const filterMsg = hasActiveFilter
+      ? 'No clips match the current filters'
       : `No clips found — <a href="#" style="color:var(--muted);text-decoration:underline" onclick="event.preventDefault();openNewRecordingPanel()">Analyze another recording</a>`;
     list.innerHTML = `<li style="padding:10px 14px;color:var(--muted)">${filterMsg}</li>`;
     return;
@@ -296,8 +321,7 @@ async function _doMergeClips(clipAId, clipBId) {
   _clips = _clips.filter(c => c.id !== clipBId);
   _replaceClipInList(updated);
   activeClipId = clipAId;
-  const filtered = _clipFilter === 'all' ? _clips : _clips.filter(c => c.status === _clipFilter);
-  renderClipList(filtered);
+  renderClipList(_applyFilters());
   renderDetail(updated);
   showToast('Clips merged');
 }
@@ -372,8 +396,7 @@ function setClipFilter(filter) {
     t.classList.toggle('active', active);
     t.setAttribute('aria-selected', active ? 'true' : 'false');
   });
-  const filtered = filter === 'all' ? _clips : _clips.filter(c => c.status === filter);
-  renderClipList(filtered);
+  renderClipList(_applyFilters());
 }
 
 // ── clip actions ──────────────────────────────────────────────────────────────
@@ -396,8 +419,7 @@ async function setStatus(id, status) {
     fetch(`/api/clips/${id}`).then(r => r.json()),
   ]);
   _clips = clipsData;
-  const filtered = _clipFilter === 'all' ? _clips : _clips.filter(c => c.status === _clipFilter);
-  renderClipList(filtered);
+  renderClipList(_applyFilters());
   renderDetail(clipDetail);
   loadVideos();
 
@@ -510,7 +532,7 @@ async function confirmExport() {
       renderDetail(clip);
       if (activeVideoId) {
         _clips = await fetch(`/api/videos/${activeVideoId}/clips?sort=${_clipsSortParam()}`).then(r => r.json());
-        renderClipList(_clips);
+        renderClipList(_applyFilters());
       }
       loadVideos();
       showToast('Clip exported successfully');
@@ -599,7 +621,7 @@ function deleteExport(id) {
       renderDetail(_activeClipData);
       if (activeVideoId) {
         _clips = await fetch(`/api/videos/${activeVideoId}/clips?sort=${_clipsSortParam()}`).then(r => r.json());
-        renderClipList(_clips);
+        renderClipList(_applyFilters());
       }
       showToast('Exported file deleted');
     },
@@ -630,7 +652,7 @@ async function _doDeleteClip(id) {
   clearDetail();
   if (videoId) {
     _clips = await fetch(`/api/videos/${videoId}/clips?sort=${_clipsSortParam()}`).then(r => r.json());
-    renderClipList(_clips);
+    renderClipList(_applyFilters());
   }
   await loadVideos();
   showToast('Clip deleted');
@@ -718,7 +740,7 @@ function scoreAll() {
       loadVideos();
       if (activeVideoId) fetch(`/api/videos/${activeVideoId}/clips?sort=${_clipsSortParam()}`).then(r => r.json()).then(data => {
         _clips = data;
-        renderClipList(_clips);
+        renderClipList(_applyFilters());
       });
       showToast('Scoring complete');
     },
