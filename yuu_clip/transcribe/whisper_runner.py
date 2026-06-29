@@ -208,20 +208,33 @@ def transcribe_track(
         track.id, track.label, seg_count, transcript.language or "auto",
     )
 
-    diar_client = make_diarization_client(config)
-    ok, reason = diar_client.available()
-    if ok:
-        _log.info("Running diarization for track %d [%s]…", track.id, track.label)
-        try:
-            turns = diar_client.diarize(str(audio_path))
-            _assign_speakers(session, transcript.id, turns)
-            _log.info("Diarization complete: %d turns for track %d", len(turns), track.id)
-        except Exception as exc:
-            _log.warning(
-                "Diarization failed for track %d [%s], speaker labels skipped: %s",
-                track.id, track.label, exc, exc_info=True,
-            )
-    elif config.diarization_backend != "null":
-        _log.warning("Diarization skipped for track %d [%s]: %s", track.id, track.label, reason)
+    _maybe_diarize(config, session, transcript, audio_path, track)
 
     return transcript
+
+
+def _maybe_diarize(
+    config: Config,
+    session: "Session",
+    transcript: Transcript,
+    audio_path: Path,
+    track: AudioTrack,
+) -> None:
+    """Run diarization and assign speaker labels, if a backend is available."""
+    diar_client = make_diarization_client(config)
+    ok, reason = diar_client.available()
+    if not ok:
+        if config.diarization_backend != "null":
+            _log.warning("Diarization skipped for track %d [%s]: %s", track.id, track.label, reason)
+        return
+
+    _log.info("Running diarization for track %d [%s]…", track.id, track.label)
+    try:
+        turns = diar_client.diarize(str(audio_path))
+        _assign_speakers(session, transcript.id, turns)
+        _log.info("Diarization complete: %d turns for track %d", len(turns), track.id)
+    except Exception as exc:
+        _log.warning(
+            "Diarization failed for track %d [%s], speaker labels skipped: %s",
+            track.id, track.label, exc, exc_info=True,
+        )

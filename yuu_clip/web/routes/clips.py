@@ -182,7 +182,16 @@ def _build_export_cmd(
 
 def make_router(ctx: ProjectContext) -> APIRouter:
     router = APIRouter()
+    _register_approval_routes(router, ctx)
+    _register_clip_routes(router, ctx)
+    _register_delete_routes(router, ctx)
+    _register_batch_export_route(router, ctx)
+    _register_clip_edit_routes(router, ctx)
+    _register_caption_routes(router, ctx)
+    return router
 
+
+def _register_approval_routes(router: APIRouter, ctx: ProjectContext) -> None:
     @router.post("/api/videos/{video_id}/auto-approve")
     def auto_approve(video_id: int, body: AutoApproveBody):
         """Approve all pending clips at or above the given score threshold on the chosen sub-score."""
@@ -233,6 +242,8 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         finally:
             db.close()
 
+
+def _register_clip_routes(router: APIRouter, ctx: ProjectContext) -> None:
     @router.get("/api/videos/{video_id}/clips")
     def list_clips(
         video_id: int,
@@ -361,6 +372,8 @@ def make_router(ctx: ProjectContext) -> APIRouter:
 
         return FileResponse(str(out_path), media_type="video/mp4")
 
+
+def _register_delete_routes(router: APIRouter, ctx: ProjectContext) -> None:
     @router.delete("/api/clips/{clip_id}/export")
     def delete_clip_export(clip_id: int):
         """Delete the exported file(s) for a clip from disk; keeps the clip record."""
@@ -395,6 +408,8 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         finally:
             db.close()
 
+
+def _register_batch_export_route(router: APIRouter, ctx: ProjectContext) -> None:
     @router.get("/api/videos/{video_id}/batch-export")
     async def batch_export(
         video_id: int,
@@ -481,6 +496,8 @@ def make_router(ctx: ProjectContext) -> APIRouter:
 
         return _sse_response(event_stream())
 
+
+def _register_clip_edit_routes(router: APIRouter, ctx: ProjectContext) -> None:
     @router.patch("/api/clips/{clip_id}/fields")
     def update_clip_fields(clip_id: int, body: ClipFieldsUpdate):
         """Commit the user's accept/edit/revert choice from the diff modal."""
@@ -602,6 +619,8 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         finally:
             db.close()
 
+
+def _register_caption_routes(router: APIRouter, ctx: ProjectContext) -> None:
     @router.get("/api/clips/{clip_id}/captions.vtt")
     def clip_captions_vtt(clip_id: int):
         """Convert the exported SRT sidecar to WebVTT and return it for browser <track> use."""
@@ -615,5 +634,3 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             return PlainTextResponse(_srt_to_vtt(srt.read_text(encoding="utf-8", errors="replace")), media_type="text/vtt")
         finally:
             db.close()
-
-    return router

@@ -53,7 +53,14 @@ class ClearClipsRequest(BaseModel):
 
 def make_router(ctx: ProjectContext) -> APIRouter:
     router = APIRouter()
+    _register_video_read_routes(router, ctx)
+    _register_split_and_edit_routes(router, ctx)
+    _register_media_routes(router, ctx)
+    _register_video_data_routes(router, ctx)
+    return router
 
+
+def _register_video_read_routes(router: APIRouter, ctx: ProjectContext) -> None:
     @router.get("/api/videos")
     def list_videos():
         db = ctx.get_db()
@@ -85,6 +92,8 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         finally:
             db.close()
 
+
+def _register_split_and_edit_routes(router: APIRouter, ctx: ProjectContext) -> None:
     @router.post("/api/videos/{video_id}/split")
     def split_video(video_id: int, body: SplitRequest):
         """Partition a recording into named segments at the given split points (seconds).
@@ -106,48 +115,12 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                 raise HTTPException(400, "Recording has no duration — analyze it first")
 
             pts = sorted(set(body.split_points))
-            for p in pts:
-                if p <= 0 or p >= duration_s:
-                    raise HTTPException(
-                        400,
-                        f"Split point {p}s is outside the recording range (0-{duration_s:.1f}s)",
-                    )
+            _validate_split_points(pts, duration_s)
 
-            # Idempotent: remove existing segments (and their dependents) before recreating.
-            # AudioEnergy and SceneBoundary have no DB-level cascade; delete explicitly.
-            # ClipCandidate, AudioTrack, Transcript cascade via ORM on db.delete().
-            for seg in db.query(Video).filter_by(parent_video_id=video_id).all():
-                seg_track_ids = [t.id for t in seg.audio_tracks]
-                if seg_track_ids:
-                    db.query(AudioEnergy).filter(
-                        AudioEnergy.audio_track_id.in_(seg_track_ids)
-                    ).delete(synchronize_session=False)
-                db.query(SceneBoundary).filter_by(video_id=seg.id).delete(synchronize_session=False)
-                db.delete(seg)
-            db.flush()
-
+            # Idempotent: re-splitting deletes and recreates existing segments.
+            _delete_existing_segments(db, video_id)
             boundaries = [0.0] + pts + [duration_s]
-            stem = Path(video.filename).stem
-
-            segment_ids: list[int] = []
-            for i, (start, end) in enumerate(zip(boundaries[:-1], boundaries[1:])):
-                name = (body.segment_names[i].strip() if i < len(body.segment_names) else "")
-                seg = Video(
-                    path=video.path,
-                    filename=video.filename,
-                    duration_ms=int((end - start) * 1000),
-                    fps=video.fps,
-                    width=video.width,
-                    height=video.height,
-                    status=video.status,
-                    parent_video_id=video_id,
-                    segment_start_s=start,
-                    segment_end_s=end,
-                    title=name or f"{stem} — Part {i + 1}",
-                )
-                db.add(seg)
-                db.flush()
-                segment_ids.append(seg.id)
+            segment_ids = _create_segments(db, video, boundaries, body.segment_names)
 
             db.commit()
             _log.info(
@@ -248,6 +221,8 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         finally:
             db.close()
 
+
+def _register_media_routes(router: APIRouter, ctx: ProjectContext) -> None:
     @router.get("/api/videos/{video_id}/source")
     def video_source(video_id: int):
         db = ctx.get_db()
@@ -387,6 +362,8 @@ def make_router(ctx: ProjectContext) -> APIRouter:
 
         return _sse_response(event_stream())
 
+
+def _register_video_data_routes(router: APIRouter, ctx: ProjectContext) -> None:
     @router.get("/api/videos/{video_id}/scene-boundaries")
     def get_scene_boundaries(video_id: int):
         """Return detected scene-cut timecodes (ms) for the video."""
@@ -470,7 +447,56 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         finally:
             db.close()
 
-    return router
+
+def _validate_split_points(pts: list[float], duration_s: float) -> None:
+    for p in pts:
+        if p <= 0 or p >= duration_s:
+            raise HTTPException(
+                400,
+                f"Split point {p}s is outside the recording range (0-{duration_s:.1f}s)",
+            )
+
+
+def _delete_existing_segments(db, video_id: int) -> None:
+    """Remove a video's existing segments and their dependent energy/scene rows.
+
+    AudioEnergy and SceneBoundary have no DB-level cascade; delete explicitly.
+    ClipCandidate, AudioTrack, Transcript cascade via ORM on db.delete().
+    """
+    for seg in db.query(Video).filter_by(parent_video_id=video_id).all():
+        seg_track_ids = [t.id for t in seg.audio_tracks]
+        if seg_track_ids:
+            db.query(AudioEnergy).filter(
+                AudioEnergy.audio_track_id.in_(seg_track_ids)
+            ).delete(synchronize_session=False)
+        db.query(SceneBoundary).filter_by(video_id=seg.id).delete(synchronize_session=False)
+        db.delete(seg)
+    db.flush()
+
+
+def _create_segments(db, video: Video, boundaries: list[float], segment_names: list[str]) -> list[int]:
+    """Create one child Video per [start, end) interval; return the new segment IDs."""
+    stem = Path(video.filename).stem
+    segment_ids: list[int] = []
+    for i, (start, end) in enumerate(zip(boundaries[:-1], boundaries[1:])):
+        name = (segment_names[i].strip() if i < len(segment_names) else "")
+        seg = Video(
+            path=video.path,
+            filename=video.filename,
+            duration_ms=int((end - start) * 1000),
+            fps=video.fps,
+            width=video.width,
+            height=video.height,
+            status=video.status,
+            parent_video_id=video.id,
+            segment_start_s=start,
+            segment_end_s=end,
+            title=name or f"{stem} — Part {i + 1}",
+        )
+        db.add(seg)
+        db.flush()
+        segment_ids.append(seg.id)
+    return segment_ids
 
 
 def _sync_waveform_track_data(ctx: ProjectContext, video_id: int, audio_streams) -> list[tuple]:

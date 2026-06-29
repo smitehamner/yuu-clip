@@ -60,9 +60,43 @@ def _resolve_context(ctx: ProjectContext, context_names: list[str]) -> tuple:
     return context_text, config
 
 
+def _parse_scope_ids(video_ids: str, default_video_id: int) -> list[int]:
+    """Parse the comma-separated video_ids query param, defaulting to the clip's own video."""
+    if not video_ids.strip():
+        return [default_video_id]
+    try:
+        scope_ids = [int(x) for x in video_ids.split(",") if x.strip()]
+    except ValueError:
+        raise HTTPException(400, "video_ids must be comma-separated integers")
+    return scope_ids or [default_video_id]
+
+
+def _load_related_candidates(db, scope_ids: list[int], exclude_clip_id: int) -> list[dict]:
+    """Load described clips (excluding the reference clip) as {id, description} dicts."""
+    rows = (
+        db.query(ClipCandidate.id, ClipCandidate.description_long, ClipCandidate.description)
+        .filter(
+            ClipCandidate.video_id.in_(scope_ids),
+            ClipCandidate.id != exclude_clip_id,
+        )
+        .all()
+    )
+    return [
+        {"id": r.id, "description": r.description_long or r.description or ""}
+        for r in rows
+        if (r.description_long or r.description)
+    ]
+
+
 def make_router(ctx: ProjectContext) -> APIRouter:
     router = APIRouter()
+    _register_rescore_routes(router, ctx)
+    _register_summary_routes(router, ctx)
+    _register_clip_scoring_routes(router, ctx)
+    return router
 
+
+def _register_rescore_routes(router: APIRouter, ctx: ProjectContext) -> None:
     @router.get("/api/videos/{video_id}/rescore-clips")
     async def rescore_clips(video_id: int):
         """Re-run LLM scoring for all clips using the video's current context. Streams progress as SSE."""
@@ -210,6 +244,8 @@ def make_router(ctx: ProjectContext) -> APIRouter:
 
         return _sse_response(event_stream())
 
+
+def _register_summary_routes(router: APIRouter, ctx: ProjectContext) -> None:
     @router.post("/api/videos/{video_id}/summarize")
     def summarize_video(video_id: int):
         """Generate title + summary via LLM and return them for the compare modal.
@@ -303,6 +339,8 @@ def make_router(ctx: ProjectContext) -> APIRouter:
 
         return _sse_response(event_stream())
 
+
+def _register_clip_scoring_routes(router: APIRouter, ctx: ProjectContext) -> None:
     @router.get("/api/clips/{clip_id}/rescore")
     async def rescore_clip(clip_id: int):
         db = ctx.get_db()
@@ -451,28 +489,8 @@ def make_router(ctx: ProjectContext) -> APIRouter:
 
             context_names = _json_list(video.context_names_json)
 
-            scope_ids: list[int] = []
-            if video_ids.strip():
-                try:
-                    scope_ids = [int(x) for x in video_ids.split(",") if x.strip()]
-                except ValueError:
-                    raise HTTPException(400, "video_ids must be comma-separated integers")
-            if not scope_ids:
-                scope_ids = [clip.video_id]
-
-            candidates_raw = (
-                db.query(ClipCandidate.id, ClipCandidate.description_long, ClipCandidate.description)
-                .filter(
-                    ClipCandidate.video_id.in_(scope_ids),
-                    ClipCandidate.id != clip_id,
-                )
-                .all()
-            )
-            candidates = [
-                {"id": r.id, "description": r.description_long or r.description or ""}
-                for r in candidates_raw
-                if (r.description_long or r.description)
-            ]
+            scope_ids = _parse_scope_ids(video_ids, clip.video_id)
+            candidates = _load_related_candidates(db, scope_ids, clip_id)
         finally:
             db.close()
 
@@ -515,5 +533,3 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                 yield f"data: {json_lib.dumps({'type': '__DONE__', 'results': results})}\n\n"
 
         return _sse_response(event_stream())
-
-    return router

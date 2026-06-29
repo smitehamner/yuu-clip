@@ -141,27 +141,41 @@ def _label_interactive(video_info: VideoInfo) -> list[dict]:
     _print_stream_table(video_info)
 
     if profiles:
-        profile_keys = list(profiles.keys())
-        console.print("\n  [bold]Saved track layouts:[/bold]")
-        for i, name in enumerate(profile_keys, 1):
-            p = profiles[name]
-            console.print(f"    [{i}] {name}  ({p['num_tracks']} tracks)")
-        console.print("    [0] Label manually")
-
-        choice = IntPrompt.ask(
-            "  Use a saved track layout?",
-            default=0,
-        )
-        if 1 <= choice <= len(profile_keys):
-            result = _apply_profile(profile_keys[choice - 1], streams)
-            if result:
-                _print_assignment_summary(result)
-                return result
-            console.print("  [yellow]Track count mismatch — labeling manually.[/yellow]")
+        result = _prompt_saved_layout(profiles, streams)
+        if result:
+            return result
 
     console.print()
     _print_label_menu()
 
+    assignments = _prompt_stream_labels(streams)
+
+    _print_assignment_summary(assignments)
+    _maybe_save_profile(assignments)
+    return assignments
+
+
+def _prompt_saved_layout(profiles, streams) -> Optional[list[dict]]:
+    """Offer the saved track layouts; return assignments if one is chosen and fits."""
+    profile_keys = list(profiles.keys())
+    console.print("\n  [bold]Saved track layouts:[/bold]")
+    for i, name in enumerate(profile_keys, 1):
+        p = profiles[name]
+        console.print(f"    [{i}] {name}  ({p['num_tracks']} tracks)")
+    console.print("    [0] Label manually")
+
+    choice = IntPrompt.ask("  Use a saved track layout?", default=0)
+    if 1 <= choice <= len(profile_keys):
+        result = _apply_profile(profile_keys[choice - 1], streams)
+        if result:
+            _print_assignment_summary(result)
+            return result
+        console.print("  [yellow]Track count mismatch — labeling manually.[/yellow]")
+    return None
+
+
+def _prompt_stream_labels(streams) -> list[dict]:
+    """Prompt for a label, transcription, and scoring choice on each stream."""
     assignments: list[dict] = []
     for i, s in enumerate(streams):
         title = s.title_tag or f"stream {s.stream_index}"
@@ -200,9 +214,6 @@ def _label_interactive(video_info: VideoInfo) -> list[dict]:
             "do_transcribe": do_transcribe,
             "do_score": do_score,
         })
-
-    _print_assignment_summary(assignments)
-    _maybe_save_profile(assignments)
     return assignments
 
 
