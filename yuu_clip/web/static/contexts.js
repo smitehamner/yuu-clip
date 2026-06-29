@@ -378,7 +378,7 @@ function closeAutoApproveModal() {
 function updateAutoApprovePreview() {
   const threshold = parseFloat(document.getElementById('auto-approve-slider').value);
   const field = document.getElementById('auto-approve-field').value;
-  document.getElementById('auto-approve-threshold-label').textContent = threshold.toFixed(2);
+  document.getElementById('auto-approve-threshold-label').textContent = Math.round(threshold*100) + '%';
   const scoreKey = _AUTO_APPROVE_FIELD_MAP[field] || 'score_overall';
   const pending = _clips.filter(c => c.status === 'pending');
   const eligible = pending.filter(c => (c[scoreKey] || 0) >= threshold);

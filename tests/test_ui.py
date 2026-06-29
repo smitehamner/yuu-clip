@@ -464,7 +464,7 @@ class TestScoreOverrideModal:
         self._open_score_override(page)
         page.locator("#score-override-slider").fill("0.75")
         page.locator("#score-override-slider").dispatch_event("input")
-        expect(page.locator("#score-override-display")).to_contain_text("0.75")
+        expect(page.locator("#score-override-display")).to_contain_text("75%")
 
 
 # ---------------------------------------------------------------------------

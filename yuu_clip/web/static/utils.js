@@ -285,7 +285,7 @@ function toggleLog() {
   const panel = document.getElementById('log-panel');
   const minimized = panel.classList.toggle('minimized');
   document.getElementById('log-toggle').textContent = minimized ? '▼' : '▲';
-  document.querySelector('.log-header').setAttribute('aria-expanded', minimized ? 'false' : 'true');
+  document.getElementById('btn-log-toggle').setAttribute('aria-expanded', minimized ? 'false' : 'true');
 }
 
 function clearLog() {

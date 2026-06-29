@@ -129,6 +129,12 @@ function _applySettingsToUI(cfg) {
   setVal('s-scene-mode',    cfg.scene_detection_mode || 'fast');
   setVal('s-silence-ms',    cfg.silence_threshold_ms ?? 3000);
   setVal('s-min-clip-ms',   cfg.min_clip_ms          ?? 15000);
+  const _silenceEl = document.getElementById('s-silence-ms');
+  const _minClipEl = document.getElementById('s-min-clip-ms');
+  const _silenceHint = document.getElementById('s-silence-ms-hint');
+  const _minClipHint = document.getElementById('s-min-clip-ms-hint');
+  if (_silenceEl && _silenceHint) _silenceHint.textContent = (_silenceEl.value / 1000).toFixed(1) + ' s';
+  if (_minClipEl && _minClipHint) _minClipHint.textContent = (_minClipEl.value / 1000).toFixed(1) + ' s';
   const _tlUnit = cfg.ui_timeline_interval_unit || 'minutes';
   const _tlSec  = cfg.ui_timeline_interval_seconds ?? 900;
   const _tlVal  = _tlUnit === 'minutes' ? Math.round(_tlSec / 60) : _tlSec;

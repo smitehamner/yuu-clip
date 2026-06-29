@@ -22,7 +22,7 @@ function showConfirm(title, body, okLabel, onOk, danger = false) {
   document.getElementById('confirm-body').innerHTML = body;
   const ok = document.getElementById('confirm-ok-btn');
   ok.textContent = okLabel;
-  ok.className = danger ? 'btn reject' : 'btn primary';
+  ok.className = danger ? 'btn danger' : 'btn primary';
   _confirmCallback = onOk;
   document.getElementById('confirm-modal').classList.add('visible');
   setTimeout(() => document.getElementById('confirm-cancel-btn').focus(), 50);
@@ -96,7 +96,7 @@ function openDiffModal(title, fields, onCommit, opts = {}) {
           }</div>
         </div>
         <div class="diff-panel">
-          <div class="diff-panel-label">${revert ? 'Original (LLM)' : 'New — editable'}</div>
+          <div class="diff-panel-label">${revert ? 'Original (LLM)' : 'New — edit here, then choose below'}</div>
           ${revert
             ? `<div class="diff-current${f.proposed ? '' : ' empty'}">${f.proposed ? escHtml(f.proposed) : '(none)'}</div>`
             : `<textarea class="diff-new" id="diff-new-${i}" rows="4">${escHtml(f.proposed || '')}</textarea>`
@@ -106,7 +106,7 @@ function openDiffModal(title, fields, onCommit, opts = {}) {
     </div>`).join('');
   document.getElementById('diff-discard-btn').textContent   = revert ? 'Keep My Edit' : 'Discard';
   document.getElementById('diff-accept-edit-btn').style.display = revert ? 'none' : '';
-  document.getElementById('diff-accept-new-btn').textContent = revert ? 'Revert to Original' : 'Accept (AI version)';
+  document.getElementById('diff-accept-new-btn').textContent = revert ? 'Revert to Original' : 'Accept as-is';
   document.getElementById('diff-modal').classList.add('visible');
   setTimeout(() => {
     const firstTa = document.getElementById('diff-new-0');

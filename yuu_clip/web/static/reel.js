@@ -103,7 +103,7 @@ function renderReelClipList() {
       <input type="checkbox" ${c.included ? 'checked' : ''} onchange="_reelToggle(${i}, this.checked)" title="Include in reel">
       <div class="reel-clip-info">
         <div class="reel-clip-name">${escHtml(c.description || `Clip ${c.id}`)}</div>
-        <div class="reel-clip-meta">${escHtml(c.start_hms)} · ${escHtml(c.duration_hms)} · ⭐${c.score_overall.toFixed(2)}
+        <div class="reel-clip-meta">${escHtml(c.start_hms)} · ${escHtml(c.duration_hms)} · ⭐${Math.round(c.score_overall*100)}%
           ${c.has_export ? '' : ' · <span style="color:var(--yellow)">not exported</span>'}
         </div>
       </div>`;
@@ -263,7 +263,7 @@ function openBatchExportModal(videoId) {
   const modalTitle = document.querySelector('#batch-export-modal h3');
   if (modalTitle) modalTitle.textContent = video ? `Export Approved — ${video.filename}` : 'Export Approved Clips';
   document.getElementById('batch-min-score').value = 0;
-  document.getElementById('batch-min-score-val').textContent = '0.00';
+  document.getElementById('batch-min-score-val').textContent = '0%';
   document.getElementById('batch-skip-exported').checked = true;
   document.getElementById('batch-container').value = '';
   document.getElementById('batch-captions').value = 'none';

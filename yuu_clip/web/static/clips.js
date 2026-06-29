@@ -65,11 +65,11 @@ function renderClipList(clips) {
           : '<span class="export-pill not-exported" title="Not yet exported">Not exported</span>'}
         <span class="status-dot dot-${c.status}" title="${c.status === 'approved' ? 'Approved' : c.status === 'rejected' ? 'Rejected' : 'Unreviewed'}">${c.status === 'approved' ? '✓' : c.status === 'rejected' ? '✕' : ''}</span>
       </div>
-      <div class="clip-scores" aria-label="Scores: overall ${c.score_overall.toFixed(2)}, funny ${c.score_funny.toFixed(2)}, dramatic ${c.score_dramatic.toFixed(2)}, action ${c.score_action.toFixed(2)}">
-        <span aria-hidden="true" title="Overall">${_scoreIcon(c.score_overall)} ${c.score_overall.toFixed(2)}</span>
-        <span aria-hidden="true" title="Funny"><span>😂</span> ${c.score_funny.toFixed(2)}</span>
-        <span aria-hidden="true" title="Dramatic"><span>🎭</span> ${c.score_dramatic.toFixed(2)}</span>
-        <span aria-hidden="true" title="Action"><span>⚔️</span> ${c.score_action.toFixed(2)}</span>
+      <div class="clip-scores" aria-label="Scores: overall ${Math.round(c.score_overall*100)}%, funny ${Math.round(c.score_funny*100)}%, dramatic ${Math.round(c.score_dramatic*100)}%, action ${Math.round(c.score_action*100)}%">
+        <span aria-hidden="true" title="Overall">${_scoreIcon(c.score_overall)} ${Math.round(c.score_overall*100)}%</span>
+        <span aria-hidden="true" title="Funny"><span>😂</span> ${Math.round(c.score_funny*100)}%</span>
+        <span aria-hidden="true" title="Dramatic"><span>🎭</span> ${Math.round(c.score_dramatic*100)}%</span>
+        <span aria-hidden="true" title="Action"><span>⚔️</span> ${Math.round(c.score_action*100)}%</span>
       </div>
       ${c.description ? `<div class="clip-desc-preview" title="${escHtml(c.description)}">${escHtml(c.description)}</div>` : ''}`;
     const _activateClip = () => {
@@ -194,8 +194,8 @@ function renderDetail(clip) {
         <div class="detail-card-header">
           <span class="detail-card-title">Scoring</span>
           ${clip.score_overall_user != null
-            ? `<button class="btn ghost" style="font-size:11px;padding:2px 8px" onclick="clearScoreOverride(${clip.id})" title="Remove manual score override">Clear override</button>`
-            : `<button class="btn ghost" style="font-size:11px;padding:2px 8px" onclick="openScoreOverride(${clip.id})">Set override</button>`}
+            ? `<button class="btn ghost" style="font-size:11px;padding:2px 8px" onclick="clearScoreOverride(${clip.id})" title="Remove manual score override">Remove Override</button>`
+            : `<button class="btn ghost" style="font-size:11px;padding:2px 8px" onclick="openScoreOverride(${clip.id})">Override Score</button>`}
         </div>
         <div class="scores">
           ${clip.score_overall_user != null
@@ -209,8 +209,8 @@ function renderDetail(clip) {
       <div class="detail-card" style="flex:1">
         <div class="clip-actions">
           <div class="review-actions">
-            <button class="btn approve ${clip.status==='approved'?'active':''}" onclick="setStatus(${clip.id},'approved')">Approve</button>
-            <button class="btn reject  ${clip.status==='rejected'?'active':''}" onclick="setStatus(${clip.id},'rejected')">Reject</button>
+            <button class="btn approve ${clip.status==='approved'?'active':''}" onclick="setStatus(${clip.id},'approved')" title="Approve (press A)">Approve</button>
+            <button class="btn reject  ${clip.status==='rejected'?'active':''}" onclick="setStatus(${clip.id},'rejected')" title="Reject (press R)">Reject</button>
           </div>
           <div class="op-actions">
             ${clip.status !== 'pending' ? `<button class="btn ghost" style="font-size:12px" onclick="setStatus(${clip.id},'pending')" title="Clear review status">Mark Unreviewed</button>` : ''}
@@ -261,7 +261,7 @@ function scoreRow(label, val, cls) {
   return `
     <span class="score-label">${label}</span>
     <div class="score-bar-wrap"><div class="score-bar bar-${cls}" style="width:${(val*100).toFixed(1)}%"></div></div>
-    <span class="score-val" style="color:var(--${cls})">${val.toFixed(2)}</span>`;
+    <span class="score-val" style="color:var(--${cls})">${Math.round(val*100)}%</span>`;
 }
 
 function scoreRowOverride(label, llmVal, userVal, cls) {
@@ -270,7 +270,7 @@ function scoreRowOverride(label, llmVal, userVal, cls) {
     <div class="score-bar-wrap">
       <div class="score-bar bar-${cls}" style="width:${(userVal*100).toFixed(1)}%;opacity:.5"></div>
     </div>
-    <span class="score-val" style="color:var(--${cls})">${userVal.toFixed(2)} <span style="color:var(--muted);font-size:10px">(LLM: ${llmVal.toFixed(2)})</span></span>`;
+    <span class="score-val" style="color:var(--${cls})">${Math.round(userVal*100)}% <span style="color:var(--muted);font-size:10px">(LLM: ${Math.round(llmVal*100)}%)</span></span>`;
 }
 
 function _mergeButtonsHtml(clip) {
@@ -300,8 +300,8 @@ function openScoreOverride(clipId) {
   _scoreOverrideClipId = clipId;
   const slider = document.getElementById('score-override-slider');
   slider.value = current;
-  document.getElementById('score-override-display').textContent = current.toFixed(2);
-  document.getElementById('score-override-llm-note').textContent = `Current auto score: ${current.toFixed(2)}`;
+  document.getElementById('score-override-display').textContent = Math.round(current*100) + '%';
+  document.getElementById('score-override-llm-note').textContent = `Current auto score: ${Math.round(current*100)}%`;
   document.getElementById('score-override-modal').classList.add('visible');
   setTimeout(() => document.getElementById('score-override-slider')?.focus(), 50);
 }

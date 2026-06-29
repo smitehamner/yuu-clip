@@ -96,12 +96,12 @@
     <div class="settings-section-title">LLM scoring</div>
     <div class="settings-row">
       <div class="settings-col">
-        <div class="settings-label">Enable LLM scoring</div>
+        <label class="settings-label" id="lbl-ollama-enabled" for="s-ollama-enabled">Enable LLM scoring</label>
         <div class="settings-note">Disabling skips description + sub-score generation</div>
       </div>
       <label class="settings-checkbox">
-        <input type="checkbox" id="s-ollama-enabled">
-        <span style="font-size:13px">On</span>
+        <input type="checkbox" id="s-ollama-enabled" aria-labelledby="lbl-ollama-enabled">
+        <span style="font-size:13px" aria-hidden="true">On</span>
       </label>
     </div>
     <div class="settings-row">
@@ -328,14 +328,22 @@
         <label class="settings-label" for="s-silence-ms">Silence threshold (ms)</label>
         <div class="settings-note">Gap length that marks a clip boundary</div>
       </div>
-      <input class="settings-input" id="s-silence-ms" type="number" min="500" max="30000" step="500" style="max-width:120px">
+      <div style="display:flex;flex-direction:column;gap:2px">
+        <input class="settings-input" id="s-silence-ms" type="number" min="500" max="30000" step="500" style="max-width:120px"
+               oninput="document.getElementById('s-silence-ms-hint').textContent=(this.value/1000).toFixed(1)+' s'">
+        <span id="s-silence-ms-hint" style="font-size:11px;color:var(--muted)"></span>
+      </div>
     </div>
     <div class="settings-row">
       <div class="settings-col">
         <label class="settings-label" for="s-min-clip-ms">Minimum clip length (ms)</label>
         <div class="settings-note">Shorter candidates are discarded</div>
       </div>
-      <input class="settings-input" id="s-min-clip-ms" type="number" min="1000" max="120000" step="1000" style="max-width:120px">
+      <div style="display:flex;flex-direction:column;gap:2px">
+        <input class="settings-input" id="s-min-clip-ms" type="number" min="1000" max="120000" step="1000" style="max-width:120px"
+               oninput="document.getElementById('s-min-clip-ms-hint').textContent=(this.value/1000).toFixed(1)+' s'">
+        <span id="s-min-clip-ms-hint" style="font-size:11px;color:var(--muted)"></span>
+      </div>
     </div>
   </div>
 
@@ -382,13 +390,13 @@
       <div class="sidebar-section">Videos</div>
       <ul class="sidebar-list" id="video-list"></ul>
     </div>
-    <div class="resize-handle resize-handle-v" id="videos-clips-resize-handle" title="Drag to resize Videos / Clips panels" role="separator" aria-orientation="horizontal" aria-label="Resize Videos / Clips panels" tabindex="0"></div>
+    <div class="resize-handle resize-handle-v" id="videos-clips-resize-handle" title="Drag to resize Videos / Clips panels" role="separator" aria-orientation="horizontal" aria-label="Resize Videos / Clips panels"></div>
     <div class="sidebar-group clips-group">
       <div class="clips-section-header">
         <span>Clips</span>
         <div style="display:flex;align-items:center;gap:4px">
           <span style="font-size:10px;color:var(--muted)">&#x1F53D; Sort</span>
-          <select id="clips-sort" class="clips-sort-select" onchange="onClipsSortChange()">
+          <select id="clips-sort" class="clips-sort-select" aria-label="Sort clips by" onchange="onClipsSortChange()">
             <option value="score">&#11088; Overall</option>
             <option value="funny">&#128514; Funny</option>
             <option value="dramatic">&#127917; Dramatic</option>
@@ -401,10 +409,10 @@
         <input type="search" id="clip-search-input" placeholder="Search clips…" oninput="setClipSearch(this.value)" aria-label="Search clips">
         <select id="clip-score-min" onchange="setClipScoreMin(this.value)" aria-label="Minimum score" title="Minimum overall score">
           <option value="0">Any score</option>
-          <option value="0.3">0.3+</option>
-          <option value="0.5">0.5+</option>
-          <option value="0.7">0.7+</option>
-          <option value="0.9">0.9+</option>
+          <option value="0.3">30%+</option>
+          <option value="0.5">50%+</option>
+          <option value="0.7">70%+</option>
+          <option value="0.9">90%+</option>
         </select>
       </div>
       <div class="clip-filter-tabs" role="tablist" aria-label="Clip filter">
@@ -418,12 +426,12 @@
     </div>
   </div>
 
-  <div class="resize-handle resize-handle-h" id="sidebar-resize-handle" title="Drag to resize sidebar" role="separator" aria-orientation="vertical" aria-label="Resize sidebar" tabindex="0"></div>
+  <div class="resize-handle resize-handle-h" id="sidebar-resize-handle" title="Drag to resize sidebar" role="separator" aria-orientation="vertical" aria-label="Resize sidebar"></div>
 
   <!-- Main panel -->
   <div class="main">
     <div class="player-area" id="player-area"></div>
-    <div class="resize-handle resize-handle-v" id="player-resize-handle" title="Drag to resize player" role="separator" aria-orientation="horizontal" aria-label="Resize player" tabindex="0"></div>
+    <div class="resize-handle resize-handle-v" id="player-resize-handle" title="Drag to resize player" role="separator" aria-orientation="horizontal" aria-label="Resize player"></div>
     <div class="detail" id="detail">
       <div class="detail-empty">Select a clip from the sidebar</div>
     </div>
@@ -585,11 +593,13 @@
 
 <!-- Progress log -->
 <div class="log-panel" id="log-panel">
-  <div class="resize-handle resize-handle-v" id="log-resize-handle" title="Drag to resize log" role="separator" aria-orientation="horizontal" aria-label="Resize log panel" tabindex="0"></div>
-  <div class="log-header" onclick="toggleLog()" role="button" tabindex="0" aria-expanded="false" aria-controls="log-body" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleLog()}">
-    <span class="log-title">Log</span>
-    <span class="log-toggle" id="log-toggle">&#9660;</span>
-    <button class="btn ghost" id="btn-clear-log" onclick="event.stopPropagation();clearLog()" aria-label="Clear log" style="font-size:11px;padding:2px 8px;margin-left:auto">Clear</button>
+  <div class="resize-handle resize-handle-v" id="log-resize-handle" title="Drag to resize log" role="separator" aria-orientation="horizontal" aria-label="Resize log panel"></div>
+  <div class="log-header">
+    <button id="btn-log-toggle" onclick="toggleLog()" aria-expanded="false" aria-controls="log-body" style="flex:1;display:flex;align-items:center;gap:6px;background:none;border:none;cursor:pointer;color:inherit;padding:0;font:inherit;min-width:0">
+      <span class="log-title">Log</span>
+      <span class="log-toggle" id="log-toggle">&#9660;</span>
+    </button>
+    <button class="btn ghost" id="btn-clear-log" onclick="clearLog()" aria-label="Clear log" style="font-size:11px;padding:2px 8px">Clear</button>
   </div>
   <div class="log-body" id="log-body">
     <div id="log-lines"></div>
@@ -792,7 +802,7 @@
       <div class="modal-actions">
         <button class="btn" onclick="closeHighlightReelsModal()">Cancel</button>
         <button class="btn" onclick="previewReelPlaylist()" title="Play exported clips in sequence">&#9654; Preview</button>
-        <button class="btn primary" onclick="startDemo()">Build</button>
+        <button class="btn primary" onclick="startDemo()">Build Reel</button>
       </div>
     </div>
 
@@ -827,8 +837,8 @@
       <label for="batch-min-score">Minimum score</label>
       <div style="display:flex;align-items:center;gap:10px">
         <input type="range" id="batch-min-score" min="0" max="1" step="0.05" value="0"
-               oninput="document.getElementById('batch-min-score-val').textContent=parseFloat(this.value).toFixed(2);updateBatchEstimate()">
-        <span id="batch-min-score-val" style="font-size:13px;font-weight:600;min-width:36px">0.00</span>
+               oninput="document.getElementById('batch-min-score-val').textContent=Math.round(parseFloat(this.value)*100)+'%';updateBatchEstimate()">
+        <span id="batch-min-score-val" style="font-size:13px;font-weight:600;min-width:36px">0%</span>
       </div>
     </div>
     <div id="batch-estimate-line" style="font-size:12px;color:var(--muted);margin-bottom:10px"></div>
@@ -973,8 +983,8 @@
     <div id="diff-fields"></div>
     <div class="modal-actions">
       <button class="btn" id="diff-discard-btn" onclick="_diffDiscard()">Discard</button>
-      <button class="btn" id="diff-accept-edit-btn" onclick="_diffAcceptEdit()" title="Save your version and mark it as manually edited">Save as my edit</button>
-      <button class="btn primary" id="diff-accept-new-btn" onclick="_diffAcceptNew()">Accept (AI version)</button>
+      <button class="btn" id="diff-accept-edit-btn" onclick="_diffAcceptEdit()" title="Save your edited version and mark it as manually edited">Save edited version</button>
+      <button class="btn primary" id="diff-accept-new-btn" onclick="_diffAcceptNew()">Accept as-is</button>
     </div>
   </div>
 </div>
@@ -1066,6 +1076,7 @@
           <span style="color:var(--muted);font-size:12px">End</span>
           <input class="timing-input" id="export-trim-end" value="+0.0" placeholder="+0.0" title="End offset: ±seconds from clip boundary, or absolute M:SS">
         </div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">e.g. <code>-2.0</code> starts 2 s earlier · <code>1:30</code> sets absolute time</div>
       </div>
     </div>
     <div class="modal-actions">
@@ -1119,7 +1130,7 @@
       <div style="display:flex;align-items:center;gap:10px;margin-top:8px">
         <input type="range" id="auto-approve-slider" min="0" max="1" step="0.05" value="0.6"
                style="flex:1" oninput="updateAutoApprovePreview()">
-        <span id="auto-approve-threshold-label" style="font-size:14px;font-weight:600;min-width:36px;text-align:right">0.60</span>
+        <span id="auto-approve-threshold-label" style="font-size:14px;font-weight:600;min-width:36px;text-align:right">60%</span>
       </div>
       <div id="auto-approve-preview" style="color:var(--muted);font-size:13px;margin-top:10px;min-height:18px"></div>
     </div>
@@ -1189,11 +1200,11 @@
     <div style="margin:12px 0">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
         <label for="score-override-slider" style="font-size:13px;color:var(--muted)">Score</label>
-        <span id="score-override-display" style="font-size:24px;font-weight:700;color:var(--text);font-family:monospace">0.50</span>
+        <span id="score-override-display" style="font-size:24px;font-weight:700;color:var(--text);font-family:monospace">50%</span>
       </div>
       <input type="range" id="score-override-slider" min="0" max="1" step="0.01" value="0.5"
              style="width:100%;accent-color:var(--accent)"
-             oninput="document.getElementById('score-override-display').textContent=parseFloat(this.value).toFixed(2)">
+             oninput="document.getElementById('score-override-display').textContent=Math.round(parseFloat(this.value)*100)+'%'">
       <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:2px">
         <span>0.00</span><span>1.00</span>
       </div>

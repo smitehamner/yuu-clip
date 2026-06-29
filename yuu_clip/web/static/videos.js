@@ -42,8 +42,8 @@ async function loadVideos() {
       ? `<div class="meta" style="color:var(--accent2)">${_msToHms(v.segment_start_s * 1000)} – ${_msToHms(v.segment_end_s * 1000)}</div>`
       : '';
     li.innerHTML = `
-      <div class="name" title="${escHtml(v.filename)}">${escHtml(v.filename)}</div>
-      ${v.title ? `<div class="video-title" title="${escHtml(v.title)}">${escHtml(v.title)}</div>` : ''}
+      <div class="name" title="${v.title ? escHtml(v.filename) : ''}">${escHtml(v.title || v.filename)}</div>
+      ${v.title ? `<div class="video-title">${escHtml(v.filename)}</div>` : ''}
       ${segmentMeta}
       <div class="meta">${v.duration_hms} &middot; ${v.clip_count} clips &middot; ${_msToHms(v.total_clip_ms)} clipped${clipsPct}</div>
       <div class="meta">${v.approved} approved &middot; ${v.exported} exported &middot; ${_fmtVideoStatus(v.status)}</div>
