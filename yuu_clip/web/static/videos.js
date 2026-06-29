@@ -386,7 +386,8 @@ function _startGenerateTimeline(id, intervalS) {
   btn.disabled = true;
   btn.textContent = 'Generating Timeline…';
 
-  if (_activeES) { _activeES.close(); _activeES = null; }
+  _supersedeActiveStream();
+  const resetBtn = () => { btn.disabled = false; btn.textContent = 'Regenerate Timeline'; };
   let firstEntry = true;
 
   const handle = _openSSE(
@@ -404,22 +405,20 @@ function _startGenerateTimeline(id, intervalS) {
       document.getElementById('timeline-list').appendChild(row);
     },
     () => {
-      if (_activeES === handle) _activeES = null;
-      btn.disabled = false;
-      btn.textContent = 'Regenerate Timeline';
+      _clearActiveStream(handle);
+      resetBtn();
       const video = _videos.find(v => v.id === id);
       if (video) video.has_timeline = true;
       showToast('Timeline generated');
     },
     errMsg => {
-      if (_activeES === handle) _activeES = null;
-      btn.disabled = false;
-      btn.textContent = 'Regenerate Timeline';
+      _clearActiveStream(handle);
+      resetBtn();
       if (firstEntry) section.innerHTML = '';
       showToast(`Timeline generation failed — ${errMsg}`, 'error');
     },
   );
-  _activeES = handle;
+  _setActiveStream(handle, resetBtn);
 }
 
 // ── video summary ─────────────────────────────────────────────────────────────
@@ -471,7 +470,8 @@ function _doRegenSummaryAuto(id, btn) {
   if (actionBtn && actionBtn.disabled) return;
   if (actionBtn) { actionBtn.disabled = true; actionBtn.textContent = 'Regenerating…'; }
   openLog();
-  if (_activeES) { _activeES.close(); _activeES = null; }
+  _supersedeActiveStream();
+  const resetBtn = () => { if (actionBtn) { actionBtn.disabled = false; actionBtn.textContent = 'Regenerate (auto-save)'; } };
   let hadError = false;
   const handle = _openSSE(
     `/api/videos/${id}/regenerate-summary`,
@@ -480,8 +480,8 @@ function _doRegenSummaryAuto(id, btn) {
       appendLog(String(data));
     },
     () => {
-      if (_activeES === handle) _activeES = null;
-      if (actionBtn) { actionBtn.disabled = false; actionBtn.textContent = 'Regenerate (auto-save)'; }
+      _clearActiveStream(handle);
+      resetBtn();
       if (hadError) {
         showToast('Summary generation failed — check log for details', 'error');
         return;
@@ -493,12 +493,12 @@ function _doRegenSummaryAuto(id, btn) {
       showToast('Summary regenerated');
     },
     errMsg => {
-      if (_activeES === handle) _activeES = null;
-      if (actionBtn) { actionBtn.disabled = false; actionBtn.textContent = 'Regenerate (auto-save)'; }
+      _clearActiveStream(handle);
+      resetBtn();
       showToast(`Summary generation failed — ${errMsg}`, 'error');
     },
   );
-  _activeES = handle;
+  _setActiveStream(handle, resetBtn);
 }
 
 async function _refreshVideoDetail(videoId) {

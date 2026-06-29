@@ -560,3 +560,65 @@ class TestRegenSummaryAutoConfirm:
         page.wait_for_selector("#confirm-modal.visible", timeout=2000)
         with page.expect_request(lambda r: "regenerate-summary" in r.url, timeout=3000):
             page.click("#confirm-ok-btn")
+
+
+# ---------------------------------------------------------------------------
+# Pure utility functions (utils.js)
+#
+# These exercise the real served code via the browser's global scope rather
+# than a separate JS runtime, so they require the live server like the rest of
+# this suite. Assertions are timezone-independent: they compare two JS values
+# computed in the same engine, never against a host-clock-derived constant.
+# ---------------------------------------------------------------------------
+
+@skip_no_server
+class TestJsUtils:
+    def test_eschtml_escapes_quote_for_attributes(self, page: Page):
+        # The double-quote escape is load-bearing for data-*/title attributes.
+        out = page.evaluate("() => escHtml('a \"b\" <c> & d')")
+        assert out == "a &quot;b&quot; &lt;c&gt; &amp; d"
+
+    def test_parse_server_date_treats_naive_as_utc(self, page: Page):
+        # Regression: naive (zone-less) server timestamps must be read as UTC,
+        # not the viewer's local time. A naive string and its Z-suffixed twin
+        # must parse to the same instant regardless of the browser timezone.
+        same = page.evaluate(
+            "() => _parseServerDate('2026-06-29T12:00:00').getTime()"
+            "    === _parseServerDate('2026-06-29T12:00:00Z').getTime()"
+        )
+        assert same is True
+
+    def test_parse_server_date_keeps_explicit_offset(self, page: Page):
+        # An ISO string already carrying an offset must not be corrupted by a
+        # spurious appended 'Z' (which would yield an Invalid Date / NaN).
+        result = page.evaluate(
+            "() => {"
+            "  const offset = _parseServerDate('2026-06-29T12:00:00+02:00').getTime();"
+            "  const utc    = _parseServerDate('2026-06-29T10:00:00Z').getTime();"
+            "  return {finite: Number.isFinite(offset), equal: offset === utc};"
+            "}"
+        )
+        assert result == {"finite": True, "equal": True}
+
+    def test_fmt_ago_uses_utc_for_naive_timestamps(self, page: Page):
+        # Build a naive-UTC string ~2h in the past (mirrors the server's format)
+        # and assert the elapsed label is correct independent of local timezone.
+        label = page.evaluate(
+            "() => {"
+            "  const d = new Date(Date.now() - 2 * 3600 * 1000);"
+            "  const naive = d.toISOString().replace(/\\.\\d+Z$/, '');"
+            "  return _fmtAgo(naive);"
+            "}"
+        )
+        assert label == "2h ago"
+
+    def test_fmt_offset_handles_zero_and_sign(self, page: Page):
+        # Zero is a valid offset, not "missing" — must render as +0.0.
+        result = page.evaluate(
+            "() => [_fmtOffset(0), _fmtOffset(1.2), _fmtOffset(-3.5)]"
+        )
+        assert result == ["+0.0", "+1.2", "-3.5"]
+
+    def test_ms_to_hms_formats_minutes_and_seconds(self, page: Page):
+        result = page.evaluate("() => [_msToHms(5000), _msToHms(65000)]")
+        assert result == ["5s", "1m 05s"]

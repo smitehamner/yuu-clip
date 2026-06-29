@@ -83,15 +83,22 @@ function stripRichMarkup(text) {
 }
 
 
+// Server timestamps are naive UTC (SQLite DateTime → isoformat() with no zone).
+// Treat a zone-less string as UTC so it isn't parsed as the viewer's local time.
+function _parseServerDate(iso) {
+  const hasZone = /[zZ]$|[+-]\d{2}:?\d{2}$/.test(iso);
+  return new Date(hasZone ? iso : iso + 'Z');
+}
+
 function _fmtDate(iso) {
   if (!iso) return 'never';
-  const d = new Date(iso.endsWith('Z') ? iso : iso + 'Z');
+  const d = _parseServerDate(iso);
   return d.toLocaleDateString(undefined, {month:'short', day:'numeric'}) + ' at ' +
     d.toLocaleTimeString(undefined, {hour:'numeric', minute:'2-digit'});
 }
 
 function _fmtAgo(isoString) {
-  const diffS = (Date.now() - new Date(isoString).getTime()) / 1000;
+  const diffS = (Date.now() - _parseServerDate(isoString).getTime()) / 1000;
   if (diffS < 60)    return 'just now';
   if (diffS < 3600)  return `${Math.floor(diffS / 60)}m ago`;
   if (diffS < 86400) return `${Math.floor(diffS / 3600)}h ago`;
@@ -126,6 +133,7 @@ const SCORE_STEPS = [
 
 let _jobStepDefs   = [];
 let _activeES      = null;
+let _activeJobCleanup = null;
 let _jobStartTime  = 0;
 let _jobTimer      = null;
 let _jobHideTimer  = null;
@@ -237,26 +245,44 @@ function _openSSE(url, onLine, onDone, onError) {
   return handle;
 }
 
-function streamSSE(url, onDone, stepDefs, jobLabel, cancellable = false) {
+// Only one job stream is live at a time. Starting a new job aborts the previous
+// one — but aborting suppresses its onDone/onError, so its UI teardown (button
+// re-enable, progress pill) would never run. Each job registers that teardown as
+// a cleanup so a superseding job can run it. See _supersedeActiveStream.
+function _setActiveStream(handle, cleanup = null) {
+  _activeES = handle;
+  _activeJobCleanup = cleanup;
+}
+
+function _clearActiveStream(handle) {
+  if (_activeES === handle) { _activeES = null; _activeJobCleanup = null; }
+}
+
+function _supersedeActiveStream() {
   if (_activeES) { _activeES.close(); _activeES = null; }
+  if (_activeJobCleanup) { const cleanup = _activeJobCleanup; _activeJobCleanup = null; cleanup(); }
+}
+
+function streamSSE(url, onDone, stepDefs, jobLabel, cancellable = false) {
+  _supersedeActiveStream();
   if (stepDefs) startJobUI(stepDefs, jobLabel, cancellable);
   const handle = _openSSE(
     url,
     text => { appendLog(text); if (stepDefs) updateJobUI(text); },
     () => {
-      if (_activeES === handle) _activeES = null;
+      _clearActiveStream(handle);
       if (stepDefs) endJobUI();
       if (onDone) onDone();
     },
     errMsg => {
-      if (_activeES === handle) _activeES = null;
+      _clearActiveStream(handle);
       appendLog(`[${errMsg}]`);
       showToast(errMsg, 'error');
       if (stepDefs) endJobUI();
       loadVideos();
     },
   );
-  _activeES = handle;
+  _setActiveStream(handle, stepDefs ? endJobUI : null);
 }
 
 function cancelJob() {
@@ -270,7 +296,7 @@ function cancelJob() {
 }
 
 async function _doCancelJob() {
-  if (_activeES) { _activeES.close(); _activeES = null; }
+  _supersedeActiveStream();
   try { await fetch('/api/analyze/cancel', {method: 'POST'}); } catch {}
   appendLog('[Analysis cancelled]');
   endJobUI();

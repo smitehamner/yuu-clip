@@ -111,9 +111,9 @@ function renderPlayer(url, captionsUrl, clipId) {
   const autoplay = localStorage.getItem('yuuclip-autoplay') === 'true';
   if (url) {
     const track = captionsUrl
-      ? `<track kind="captions" src="${captionsUrl}" label="Captions" default>`
+      ? `<track kind="captions" src="${escHtml(captionsUrl)}" label="Captions" default>`
       : '';
-    area.innerHTML = `<video controls ${autoplay ? 'autoplay' : ''} src="${url}" aria-label="Clip preview">${track}</video>`;
+    area.innerHTML = `<video controls ${autoplay ? 'autoplay' : ''} src="${escHtml(url)}" aria-label="Clip preview">${track}</video>`;
   } else {
     const wrap = document.createElement('div');
     wrap.style.position = 'relative';
@@ -752,28 +752,29 @@ function startFindSimilar() {
 
   const btn = document.getElementById('btn-find-similar');
   if (btn) { btn.disabled = true; btn.textContent = 'Searching…'; }
-  if (_activeES) { _activeES.close(); _activeES = null; }
+  _supersedeActiveStream();
   openLog();
 
+  const resetBtn = () => { if (btn) { btn.disabled = false; btn.textContent = 'Find Similar'; } };
   const qs = videoIds ? `?video_ids=${encodeURIComponent(videoIds)}` : '';
   const handle = _openSSE(
     `/api/clips/${clipId}/related-clips${qs}`,
     msg => { appendLog(String(msg)); },
     async msg => {
-      if (_activeES === handle) _activeES = null;
-      if (btn) { btn.disabled = false; btn.textContent = 'Find Similar'; }
+      _clearActiveStream(handle);
+      resetBtn();
       const clip = await fetch(`/api/clips/${clipId}`).then(r => r.json()).catch(() => null);
       if (clip) { _activeClipData = clip; renderDetail(clip); }
       const count = msg.results?.length ?? 0;
       showToast(count ? `Found ${count} similar clip${count !== 1 ? 's' : ''}` : 'No similar clips found');
     },
     errMsg => {
-      if (_activeES === handle) _activeES = null;
-      if (btn) { btn.disabled = false; btn.textContent = 'Find Similar'; }
+      _clearActiveStream(handle);
+      resetBtn();
       showToast(`Find Similar failed — ${errMsg}`, 'error');
     },
   );
-  _activeES = handle;
+  _setActiveStream(handle, resetBtn);
 }
 
 // ── scoring ───────────────────────────────────────────────────────────────────

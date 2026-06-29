@@ -204,7 +204,8 @@ function _doRescoreClips(videoId, btn) {
   btn.disabled = true;
   btn.textContent = 'Re-scoring…';
   openLog();
-  if (_activeES) { _activeES.close(); _activeES = null; }
+  _supersedeActiveStream();
+  const resetBtn = () => { btn.disabled = false; btn.textContent = orig; };
   let errorCount = 0;
   const handle = _openSSE(
     `/api/videos/${videoId}/rescore-clips`,
@@ -213,9 +214,8 @@ function _doRescoreClips(videoId, btn) {
       appendLog(String(data));
     },
     () => {
-      if (_activeES === handle) _activeES = null;
-      btn.disabled = false;
-      btn.textContent = orig;
+      _clearActiveStream(handle);
+      resetBtn();
       if (errorCount > 0) {
         showToast(`Re-scoring finished — ${errorCount} clip${errorCount !== 1 ? 's' : ''} failed (check log)`, 'error');
       } else {
@@ -232,13 +232,12 @@ function _doRescoreClips(videoId, btn) {
       });
     },
     errMsg => {
-      if (_activeES === handle) _activeES = null;
-      btn.disabled = false;
-      btn.textContent = orig;
+      _clearActiveStream(handle);
+      resetBtn();
       showToast(`Re-scoring failed — ${errMsg}`, 'error');
     },
   );
-  _activeES = handle;
+  _setActiveStream(handle, resetBtn);
 }
 
 function rescoreAllClips(videoId, btn) {
@@ -284,7 +283,8 @@ function _doRedescribeClips(videoId, btn) {
   btn.disabled = true;
   btn.textContent = 'Re-describing…';
   openLog();
-  if (_activeES) { _activeES.close(); _activeES = null; }
+  _supersedeActiveStream();
+  const resetBtn = () => { btn.disabled = false; btn.textContent = orig; };
   let errorCount = 0;
   const handle = _openSSE(
     `/api/videos/${videoId}/redescribe-clips`,
@@ -293,9 +293,8 @@ function _doRedescribeClips(videoId, btn) {
       appendLog(String(data));
     },
     () => {
-      if (_activeES === handle) _activeES = null;
-      btn.disabled = false;
-      btn.textContent = orig;
+      _clearActiveStream(handle);
+      resetBtn();
       if (errorCount > 0) {
         showToast(`Re-describe finished — ${errorCount} clip${errorCount !== 1 ? 's' : ''} failed (check log)`, 'error');
       } else {
@@ -312,13 +311,12 @@ function _doRedescribeClips(videoId, btn) {
       }
     },
     errMsg => {
-      if (_activeES === handle) _activeES = null;
-      btn.disabled = false;
-      btn.textContent = orig;
+      _clearActiveStream(handle);
+      resetBtn();
       showToast(`Re-describe failed — ${errMsg}`, 'error');
     },
   );
-  _activeES = handle;
+  _setActiveStream(handle, resetBtn);
 }
 
 // ── reset approvals ───────────────────────────────────────────────────────────
@@ -452,9 +450,10 @@ function rescoreClip(clipId) {
   const btn = document.getElementById('btn-rescore-clip');
   if (btn && btn.disabled) return;
   if (btn) { btn.disabled = true; btn.textContent = 'Scoring…'; }
-  if (_activeES) { _activeES.close(); _activeES = null; }
+  _supersedeActiveStream();
   openLog();
   startJobUI(SCORE_STEPS, 'Re-scoring clip');
+  const teardown = () => { endJobUI(); if (btn) { btn.disabled = false; btn.textContent = 'Re-score'; } };
   let hadError = false;
   const handle = _openSSE(
     `/api/clips/${clipId}/rescore`,
@@ -464,9 +463,8 @@ function rescoreClip(clipId) {
       appendLog(String(msg));
     },
     async msg => {
-      if (_activeES === handle) _activeES = null;
-      endJobUI();
-      if (btn) { btn.disabled = false; btn.textContent = 'Re-score'; }
+      _clearActiveStream(handle);
+      teardown();
       if (hadError) {
         showToast('Re-score failed — check log for details', 'error');
         selectClip(clipId);
@@ -492,13 +490,12 @@ function rescoreClip(clipId) {
       showToast('Clip re-scored');
     },
     errMsg => {
-      if (_activeES === handle) _activeES = null;
-      endJobUI();
-      if (btn) { btn.disabled = false; btn.textContent = 'Re-score'; }
+      _clearActiveStream(handle);
+      teardown();
       showToast(`Re-score failed — ${errMsg}`, 'error');
     },
   );
-  _activeES = handle;
+  _setActiveStream(handle, teardown);
 }
 
 document.addEventListener('DOMContentLoaded', () => {
