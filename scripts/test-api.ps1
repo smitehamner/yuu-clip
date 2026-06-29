@@ -1,4 +1,5 @@
 $ErrorActionPreference = "Stop"
+& "$env:USERPROFILE\.claude\sound-cancel.ps1"
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 $Python   = Join-Path $RepoRoot ".venv\Scripts\python.exe"
 
