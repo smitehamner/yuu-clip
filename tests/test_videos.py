@@ -1026,11 +1026,13 @@ class TestClearClips:
         clips = client.get(f"/api/videos/{vid_id}/clips").json()
         clip_id = clips[0]["id"]
 
-        # Set one clip to "exported" directly in the DB
+        # Mark one clip as exported the way the real export flow does — by
+        # stamping exported_at, not by inventing a status the pipeline never sets.
+        from datetime import datetime, timezone
         db = make_session(project_db_path(project_dir))
         try:
             clip = db.get(ClipCandidate, clip_id)
-            clip.status = "exported"
+            clip.exported_at = datetime.now(timezone.utc)
             db.commit()
         finally:
             db.close()

@@ -145,7 +145,7 @@ def _register_split_and_edit_routes(router: APIRouter, ctx: ProjectContext) -> N
                 raise HTTPException(404, "Video not found")
             q = db.query(ClipCandidate).filter(ClipCandidate.video_id == video_id)
             if body.keep_exported:
-                q = q.filter(ClipCandidate.status != "exported")
+                q = q.filter(ClipCandidate.exported_at.is_(None))
             deleted = q.delete(synchronize_session=False)
             db.commit()
             _log.info(
