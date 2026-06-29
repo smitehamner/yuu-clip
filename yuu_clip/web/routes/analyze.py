@@ -26,7 +26,7 @@ from pydantic import BaseModel
 from yuu_clip.config import validate_whisper_model
 from yuu_clip.log import get_logger
 from yuu_clip.web.deps import ProjectContext
-from yuu_clip.web.sse import subprocess_sse
+from yuu_clip.web.sse import subprocess_sse, terminate_process_tree
 
 _log = get_logger(__name__)
 
@@ -224,7 +224,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         if proc is not None and proc.returncode is None:
             _log.warning("Analysis cancelled by user (pid %s)", proc.pid)
             ctx.analyze_cancelled = True
-            proc.terminate()
+            terminate_process_tree(proc)
         ctx.analyze_cmd = None
         return {"status": "cancelled"}
 
@@ -355,9 +355,9 @@ def _probe_subtitle_streams(p: Path) -> list[dict]:
     try:
         _, ffprobe = find_ffmpeg()
         raw = _sp.run(
-            [ffprobe, "-v", "quiet", "-print_format", "json",
+            [ffprobe, "-v", "error", "-print_format", "json",
              "-show_streams", "-select_streams", "s", str(p)],
-            capture_output=True, text=True,
+            capture_output=True, text=True, timeout=120,
         )
         if raw.returncode == 0:
             return [

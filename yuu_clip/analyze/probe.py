@@ -18,6 +18,11 @@ from yuu_clip.log import get_logger
 
 log = get_logger(__name__)
 
+# ffprobe only reads container metadata, so it returns in seconds even for huge
+# files. A generous cap turns a hung/stuck probe into a clean error instead of
+# blocking the whole analyze run forever.
+_FFPROBE_TIMEOUT_S = 120
+
 
 @dataclass
 class AudioStreamInfo:
@@ -66,18 +71,25 @@ def probe_video(path: Path) -> VideoInfo:
 
     cmd = [
         ffprobe,
-        "-v", "quiet",
+        "-v", "error",   # keep stdout JSON clean but surface real errors on stderr
         "-print_format", "json",
         "-show_streams",
         "-show_format",
         str(path),
     ]
 
-    result = subprocess.run(
-        cmd,
-        capture_output=True,
-        text=True,
-    )
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=_FFPROBE_TIMEOUT_S,
+        )
+    except subprocess.TimeoutExpired:
+        raise RuntimeError(
+            f"ffprobe timed out after {_FFPROBE_TIMEOUT_S}s on {path.name} — "
+            f"the file may be unreadable or on an unresponsive drive"
+        )
 
     if result.returncode != 0:
         raise RuntimeError(

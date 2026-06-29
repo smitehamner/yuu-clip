@@ -23,6 +23,7 @@ from yuu_clip.contexts import seed_builtin_contexts
 from yuu_clip.log import configure_logging, get_logger
 from yuu_clip.web.deps import ProjectContext
 from yuu_clip.web.routes import analyze, clips, config, contexts, logs, profiles, reel, scoring, videos
+from yuu_clip.web.sse import terminate_process_tree
 
 _HERE = Path(__file__).parent
 _log  = get_logger(__name__)
@@ -68,7 +69,7 @@ def create_app(project_dir: Path) -> FastAPI:
         proc = ctx.analyze_proc
         if proc is not None and proc.returncode is None:
             _log.info("Server shutting down — terminating analyze subprocess (pid %s)", proc.pid)
-            proc.terminate()
+            terminate_process_tree(proc)
             try:
                 await asyncio.wait_for(proc.wait(), timeout=5.0)
             except asyncio.TimeoutError:

@@ -16,6 +16,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+import subprocess
+import sys
 from pathlib import Path
 from typing import AsyncGenerator
 
@@ -25,6 +27,32 @@ from yuu_clip.log import get_logger
 
 _log = get_logger(__name__)
 _SSE_DONE_SENTINEL = "__DONE__"
+
+
+def terminate_process_tree(proc) -> None:
+    """Terminate *proc* and every descendant it spawned.
+
+    The analyze CLI subprocess shells out to ffmpeg/ffprobe children. A plain
+    ``proc.terminate()`` signals only the direct child, so on Windows an
+    in-flight ffmpeg grandchild is orphaned and keeps running after a cancel.
+    ``taskkill /T`` kills the whole tree. Callers still ``await proc.wait()``
+    afterwards to reap the child.
+
+    POSIX keeps the existing best-effort ``terminate()`` (the desktop tool is
+    Windows-only; group-killing there would need start_new_session at launch).
+    """
+    if proc is None or proc.returncode is not None:
+        return
+    if sys.platform == "win32":
+        try:
+            subprocess.run(
+                ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+                capture_output=True, check=False, timeout=10,
+            )
+            return
+        except Exception as exc:
+            _log.warning("taskkill failed for pid %s (%s) — falling back to terminate()", proc.pid, exc)
+    proc.terminate()
 
 
 async def subprocess_sse(
@@ -83,7 +111,7 @@ async def subprocess_sse(
             yield f"data: {json.dumps(_SSE_DONE_SENTINEL)}\n\n"
         finally:
             if proc.returncode is None:
-                proc.terminate()
+                terminate_process_tree(proc)
                 await proc.wait()
             if ctx is not None:
                 ctx.analyze_proc = None

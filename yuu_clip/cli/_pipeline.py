@@ -117,7 +117,15 @@ def _analyze_one(
         session.commit()
 
     if not opts.no_score and candidates:
-        _run_scoring(video, track_objs, config, session, energy_mode=opts.energy_mode, context_text=opts.context_text)
+        try:
+            _run_scoring(video, track_objs, config, session, energy_mode=opts.energy_mode, context_text=opts.context_text)
+        except Exception as exc:
+            # Clips are already committed; discard partial scoring writes and leave the
+            # video reviewable-but-unscored (clips_scored_at stays null → UI shows Rescore).
+            # Don't let one video's scoring failure abort the rest of the batch.
+            session.rollback()
+            console.print(f"  [yellow]Scoring failed — clips kept, unscored. Use Rescore to retry: {exc}[/yellow]")
+            log.exception("Scoring failed: video_id=%s", video.id)
 
     video.processed_at = datetime.now(timezone.utc)
     session.commit()

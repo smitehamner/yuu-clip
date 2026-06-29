@@ -176,6 +176,152 @@ class TestProbe:
         r = client.post("/api/probe", json={"path": "/nonexistent/file.mkv"})
         assert r.status_code == 400
 
+    def test_probe_timeout_raises_runtime_error(self, tmp_path):
+        """A stuck ffprobe must surface a clear timeout error, not hang the run."""
+        import subprocess
+        from unittest.mock import patch
+
+        from yuu_clip.analyze.probe import probe_video
+
+        video = tmp_path / "stuck.mkv"
+        video.write_bytes(b"fake")
+
+        def hang(cmd, **kwargs):
+            raise subprocess.TimeoutExpired(cmd, kwargs.get("timeout", 0))
+
+        with patch("yuu_clip.analyze.probe.subprocess.run", side_effect=hang), \
+             patch("yuu_clip.analyze.probe.find_ffmpeg", return_value=("ffmpeg", "ffprobe")):
+            with pytest.raises(RuntimeError, match="timed out"):
+                probe_video(video)
+
+    def test_probe_failure_surfaces_ffprobe_stderr(self, tmp_path):
+        """ffprobe must run at a loglevel that emits errors, so failures are diagnosable.
+
+        With -v quiet, ffprobe suppresses its own error output and the RuntimeError
+        message is blank. The cmd must request errors (and the message must carry them).
+        """
+        from unittest.mock import MagicMock, patch
+
+        from yuu_clip.analyze.probe import probe_video
+
+        video = tmp_path / "broken.mkv"
+        video.write_bytes(b"not a real video")
+
+        captured = {}
+
+        def failing_run(cmd, **kwargs):
+            captured["cmd"] = cmd
+            r = MagicMock()
+            r.returncode = 1
+            r.stderr = "broken.mkv: Invalid data found when processing input"
+            return r
+
+        with patch("yuu_clip.analyze.probe.subprocess.run", side_effect=failing_run), \
+             patch("yuu_clip.analyze.probe.find_ffmpeg", return_value=("ffmpeg", "ffprobe")):
+            with pytest.raises(RuntimeError, match="Invalid data found") as exc:
+                probe_video(video)
+
+        assert "quiet" not in captured["cmd"]
+        loglevel = captured["cmd"][captured["cmd"].index("-v") + 1]
+        assert loglevel == "error"
+        assert "Invalid data found" in str(exc.value)
+
+
+# ---------------------------------------------------------------------------
+# Scoring isolation — a scoring crash must not abort the analyze run or
+# discard the clips that were already generated and committed.
+# ---------------------------------------------------------------------------
+
+class TestScoringIsolation:
+    def test_scoring_failure_keeps_clips_and_marks_processed(self, tmp_path):
+        from unittest.mock import patch
+
+        from yuu_clip.cli import _pipeline
+        from yuu_clip.cli._base import AnalyzeOptions
+        from yuu_clip.db.models import ClipCandidate, Video, make_session
+
+        session = make_session(tmp_path / "project.db")
+        video = Video(path=str(tmp_path / "s.mkv"), filename="s.mkv", status="probed", duration_ms=60_000)
+        session.add(video)
+        session.flush()
+        session.add(ClipCandidate(video_id=video.id, start_ms=0, end_ms=10_000, status="pending"))
+        session.commit()
+        video_id = video.id
+
+        def boom(*a, **k):
+            raise RuntimeError("LLM endpoint unreachable")
+
+        with patch.object(_pipeline, "_resolve_existing_video", return_value=(tmp_path / "s.mkv", video)), \
+             patch.object(_pipeline, "_probe_video", return_value=object()), \
+             patch.object(_pipeline, "_upsert_video_and_tracks", return_value=(video, [])), \
+             patch.object(_pipeline, "_extract_audio_and_check_rms_overlap", return_value=None), \
+             patch.object(_pipeline, "_obtain_transcripts", return_value=[]), \
+             patch.object(_pipeline, "_generate_candidates", return_value=[object()]), \
+             patch.object(_pipeline, "_summarize_video", return_value=None), \
+             patch.object(_pipeline, "_run_scoring", side_effect=boom):
+            # Must not raise — a per-video scoring crash cannot abort the batch.
+            _pipeline._analyze_one(tmp_path / "s.mkv", session, object(), tmp_path, AnalyzeOptions())
+
+        session.close()
+        verify = make_session(tmp_path / "project.db")
+        reloaded = verify.get(Video, video_id)
+        assert reloaded.processed_at is not None          # run completed
+        assert reloaded.clips_scored_at is None            # left visibly unscored
+        assert verify.query(ClipCandidate).filter_by(video_id=video_id).count() == 1  # clips preserved
+        verify.close()
+
+
+# ---------------------------------------------------------------------------
+# Process-tree termination — cancel must kill ffmpeg grandchildren, not orphan them
+# ---------------------------------------------------------------------------
+
+class TestTerminateProcessTree:
+    class _FakeProc:
+        def __init__(self, returncode=None):
+            self.pid = 4321
+            self.returncode = returncode
+            self.terminated = False
+
+        def terminate(self):
+            self.terminated = True
+
+    def test_windows_kills_whole_tree_via_taskkill(self):
+        from unittest.mock import patch
+
+        from yuu_clip.web import sse
+
+        proc = self._FakeProc()
+        with patch.object(sse.sys, "platform", "win32"), \
+             patch.object(sse.subprocess, "run") as run:
+            sse.terminate_process_tree(proc)
+
+        run.assert_called_once()
+        argv = run.call_args.args[0]
+        assert argv[0] == "taskkill"
+        assert "/T" in argv and str(proc.pid) in argv
+        assert not proc.terminated  # tree-kill used, not the plain signal
+
+    def test_posix_falls_back_to_terminate(self):
+        from unittest.mock import patch
+
+        from yuu_clip.web import sse
+
+        proc = self._FakeProc()
+        with patch.object(sse.sys, "platform", "linux"):
+            sse.terminate_process_tree(proc)
+        assert proc.terminated
+
+    def test_noop_when_already_exited(self):
+        from unittest.mock import patch
+
+        from yuu_clip.web import sse
+
+        proc = self._FakeProc(returncode=0)
+        with patch.object(sse.subprocess, "run") as run:
+            sse.terminate_process_tree(proc)
+        run.assert_not_called()
+        assert not proc.terminated
+
 
 # ---------------------------------------------------------------------------
 # DB session cleanup — proves no connection lingers after route handlers
@@ -262,11 +408,12 @@ class TestDbSessionCleanup:
 
 class TestGracefulShutdown:
     def test_shutdown_terminates_running_analyze(self, project_dir):
-        """When the server exits, a running analyze_proc must be terminated."""
-        from unittest.mock import AsyncMock, MagicMock
+        """When the server exits, a running analyze_proc (and its ffmpeg tree) must be killed."""
+        from unittest.mock import AsyncMock, MagicMock, patch
 
         from fastapi.testclient import TestClient
 
+        from yuu_clip.web import sse
         from yuu_clip.web.app import create_app
 
         app = create_app(project_dir)
@@ -275,10 +422,13 @@ class TestGracefulShutdown:
         mock_proc.pid = 99999
         mock_proc.wait = AsyncMock(return_value=0)
 
-        with TestClient(app) as _:
-            app.state.ctx.analyze_proc = mock_proc
+        with patch.object(sse.sys, "platform", "win32"), \
+             patch.object(sse.subprocess, "run") as run:
+            with TestClient(app) as _:
+                app.state.ctx.analyze_proc = mock_proc
 
-        mock_proc.terminate.assert_called_once()
+        argv = run.call_args.args[0]
+        assert argv[0] == "taskkill" and "/T" in argv and str(mock_proc.pid) in argv
 
     def test_shutdown_noop_when_no_analyze_running(self, project_dir):
         """Server shutdown must not raise when there is no active subprocess."""
@@ -593,10 +743,11 @@ class TestAnalyzeCancelSideEffects:
             assert ctx.analyze_cmd is None
 
     def test_cancel_sets_cancelled_flag_when_proc_running(self, project_dir):
-        from unittest.mock import AsyncMock, MagicMock
+        from unittest.mock import AsyncMock, MagicMock, patch
 
         from fastapi.testclient import TestClient
 
+        from yuu_clip.web import sse
         from yuu_clip.web.app import create_app
 
         app = create_app(project_dir)
@@ -604,12 +755,15 @@ class TestAnalyzeCancelSideEffects:
         mock_proc.returncode = None
         mock_proc.pid = 12345
         mock_proc.wait = AsyncMock(return_value=0)
-        with TestClient(app) as tc:
-            ctx = app.state.ctx
-            ctx.analyze_proc = mock_proc
-            tc.post("/api/analyze/cancel")
-            assert ctx.analyze_cancelled is True
-            mock_proc.terminate.assert_called_once()
+        with patch.object(sse.sys, "platform", "win32"), \
+             patch.object(sse.subprocess, "run") as run:
+            with TestClient(app) as tc:
+                ctx = app.state.ctx
+                ctx.analyze_proc = mock_proc
+                tc.post("/api/analyze/cancel")
+                assert ctx.analyze_cancelled is True
+                # cancel must kill the whole tree, not orphan the ffmpeg grandchild
+                assert any(c.args[0][0] == "taskkill" for c in run.call_args_list)
 
 
 # ---------------------------------------------------------------------------
