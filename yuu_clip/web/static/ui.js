@@ -1,5 +1,7 @@
 // ── alert modal (single-button, no cancel) ────────────────────────────────────
+let _alertOpener = null;
 function showAlert(title, body) {
+  _alertOpener = document.activeElement;
   document.getElementById('alert-title').textContent = title;
   document.getElementById('alert-body').innerHTML = body;
   document.getElementById('alert-modal').classList.add('visible');
@@ -7,10 +9,15 @@ function showAlert(title, body) {
 }
 function closeAlertModal() {
   document.getElementById('alert-modal').classList.remove('visible');
+  const opener = _alertOpener;
+  _alertOpener = null;
+  if (opener?.focus) opener.focus();
 }
 
 // ── confirm modal ─────────────────────────────────────────────────────────────
+let _confirmOpener = null;
 function showConfirm(title, body, okLabel, onOk, danger = false) {
+  _confirmOpener = document.activeElement;
   document.getElementById('confirm-title').textContent = title;
   document.getElementById('confirm-body').innerHTML = body;
   const ok = document.getElementById('confirm-ok-btn');
@@ -24,11 +31,17 @@ function _confirmOk() {
   document.getElementById('confirm-modal').classList.remove('visible');
   const cb = _confirmCallback;
   _confirmCallback = null;
+  const opener = _confirmOpener;
+  _confirmOpener = null;
   if (cb) cb();
+  else if (opener?.focus) opener.focus();
 }
 function _confirmCancel() {
   document.getElementById('confirm-modal').classList.remove('visible');
   _confirmCallback = null;
+  const opener = _confirmOpener;
+  _confirmOpener = null;
+  if (opener?.focus) opener.focus();
 }
 
 // ── hamburger menu ────────────────────────────────────────────────────────────
@@ -48,14 +61,26 @@ document.addEventListener('click', e => {
 });
 
 // ── controls modal ────────────────────────────────────────────────────────────
-function openControlsModal()  { document.getElementById('controls-modal').classList.add('visible'); }
-function closeControlsModal() { document.getElementById('controls-modal').classList.remove('visible'); }
+let _controlsOpener = null;
+function openControlsModal() {
+  _controlsOpener = document.activeElement;
+  document.getElementById('controls-modal').classList.add('visible');
+  setTimeout(() => document.querySelector('#controls-modal .btn')?.focus(), 50);
+}
+function closeControlsModal() {
+  document.getElementById('controls-modal').classList.remove('visible');
+  const opener = _controlsOpener;
+  _controlsOpener = null;
+  if (opener?.focus) opener.focus();
+}
 
 // ── diff modal ────────────────────────────────────────────────────────────────
 // _diffState: {title, fields:[{label,current,proposed}], onCommit(action, editedValues)}
 let _diffState = null;
+let _diffOpener = null;
 
 function openDiffModal(title, fields, onCommit, opts = {}) {
+  _diffOpener = document.activeElement;
   _diffState = {title, fields, onCommit};
   const revert = opts.revertMode || false;
   document.getElementById('diff-modal-title').textContent = title;
@@ -83,6 +108,11 @@ function openDiffModal(title, fields, onCommit, opts = {}) {
   document.getElementById('diff-accept-edit-btn').style.display = revert ? 'none' : '';
   document.getElementById('diff-accept-new-btn').textContent = revert ? 'Revert to Original' : 'Accept (AI version)';
   document.getElementById('diff-modal').classList.add('visible');
+  setTimeout(() => {
+    const firstTa = document.getElementById('diff-new-0');
+    if (firstTa) firstTa.focus();
+    else document.getElementById('diff-discard-btn')?.focus();
+  }, 50);
 }
 
 function _diffGetEdited() {
@@ -92,11 +122,18 @@ function _diffGetEdited() {
   });
 }
 
+function _diffCloseDone() {
+  const opener = _diffOpener;
+  _diffOpener = null;
+  if (opener?.focus) opener.focus();
+}
+
 function _diffAcceptNew() {
   const edited = _diffGetEdited();
   document.getElementById('diff-modal').classList.remove('visible');
   const cb = _diffState?.onCommit;
   _diffState = null;
+  _diffOpener = null;
   if (cb) cb('accept_new', edited);
 }
 
@@ -105,18 +142,24 @@ function _diffAcceptEdit() {
   document.getElementById('diff-modal').classList.remove('visible');
   const cb = _diffState?.onCommit;
   _diffState = null;
+  _diffOpener = null;
   if (cb) cb('accept_edit', edited);
 }
 
 function _diffDiscard() {
   document.getElementById('diff-modal').classList.remove('visible');
   _diffState = null;
+  _diffCloseDone();
 }
 
 // ── field edit modal ──────────────────────────────────────────────────────────
 let _fieldEditCallback = null;
+let _fieldEditOriginalValue = '';
+let _fieldEditOpener = null;
 
 function openFieldEditModal(title, currentValue, onSave) {
+  _fieldEditOpener = document.activeElement;
+  _fieldEditOriginalValue = currentValue;
   document.getElementById('field-edit-title').textContent = title;
   document.getElementById('field-edit-text').value = currentValue;
   _fieldEditCallback = onSave;
@@ -125,14 +168,33 @@ function openFieldEditModal(title, currentValue, onSave) {
 }
 
 function closeFieldEditModal() {
+  if (!document.getElementById('field-edit-modal').classList.contains('visible')) return;
+  const currentValue = document.getElementById('field-edit-text').value;
+  if (currentValue !== _fieldEditOriginalValue) {
+    showConfirm(
+      'Discard edit?',
+      'You have unsaved changes. Close without saving?',
+      'Discard',
+      _doCloseFieldEditModal,
+      true,
+    );
+    return;
+  }
+  _doCloseFieldEditModal();
+}
+
+function _doCloseFieldEditModal() {
   document.getElementById('field-edit-modal').classList.remove('visible');
   _fieldEditCallback = null;
+  const opener = _fieldEditOpener;
+  _fieldEditOpener = null;
+  if (opener?.focus) opener.focus();
 }
 
 function _fieldEditSave() {
   const val = document.getElementById('field-edit-text').value;
   const cb = _fieldEditCallback;
-  closeFieldEditModal();
+  _doCloseFieldEditModal();
   if (cb) cb(val);
 }
 

@@ -7,14 +7,38 @@ async function _loadContexts() {
   _contexts = await fetch('/api/contexts').then(r => r.json()).catch(() => []);
 }
 
+let _contextEditorDirty = false;
+let _contextModalOpener = null;
+
 async function openContextManager() {
+  _contextModalOpener = document.activeElement;
   document.getElementById('context-modal').classList.add('visible');
   document.getElementById('context-editor').style.display = 'none';
   await _refreshContextList();
+  setTimeout(() => document.querySelector('#context-modal .btn.primary')?.focus(), 50);
 }
 
 function closeContextManager() {
+  if (!document.getElementById('context-modal').classList.contains('visible')) return;
+  const editor = document.getElementById('context-editor');
+  if (editor && editor.style.display !== 'none' && _contextEditorDirty) {
+    showConfirm(
+      'Discard changes?',
+      'You have unsaved changes in the context editor. Close without saving?',
+      'Discard',
+      () => { _contextEditorDirty = false; _doCloseContextManager(); },
+      true,
+    );
+    return;
+  }
+  _doCloseContextManager();
+}
+
+function _doCloseContextManager() {
   document.getElementById('context-modal').classList.remove('visible');
+  const opener = _contextModalOpener;
+  _contextModalOpener = null;
+  if (opener?.focus) opener.focus();
 }
 
 async function _refreshContextList() {
@@ -38,6 +62,7 @@ async function _refreshContextList() {
 
 function openNewContext() {
   _editingContextId = null;
+  _contextEditorDirty = false;
   ['ce-context-id','ce-display-name','ce-setting','ce-your-chars','ce-other-chars','ce-notes',
    'ce-weight-funny','ce-weight-dramatic','ce-weight-action'].forEach(id => {
     document.getElementById(id).value = '';
@@ -52,6 +77,7 @@ function editContext(context_id) {
   const ctx = _contexts.find(c => c.context_id === context_id);
   if (!ctx) return;
   _editingContextId = context_id;
+  _contextEditorDirty = false;
   document.getElementById('ce-context-id').value            = ctx.context_id;
   document.getElementById('ce-context-id').disabled         = true;
   document.getElementById('ce-display-name').value    = ctx.display_name || '';
@@ -67,6 +93,7 @@ function editContext(context_id) {
 }
 
 function cancelContextEdit() {
+  _contextEditorDirty = false;
   document.getElementById('context-editor').style.display = 'none';
 }
 
@@ -93,6 +120,7 @@ async function saveContext() {
     showToast(formatApiError(e) || 'Save failed', 'error');
     return;
   }
+  _contextEditorDirty = false;
   document.getElementById('context-editor').style.display = 'none';
   await _refreshContextList();
   showToast(`Context "${displayName}" saved`);
@@ -321,6 +349,7 @@ async function _doResetApprovals(videoId) {
 
 // ── auto-approve ──────────────────────────────────────────────────────────────
 let _autoApproveVideoId = null;
+let _autoApproveOpener = null;
 
 const _AUTO_APPROVE_FIELD_MAP = {
   overall:  'score_overall',
@@ -330,15 +359,20 @@ const _AUTO_APPROVE_FIELD_MAP = {
 };
 
 function openAutoApproveModal(videoId) {
+  _autoApproveOpener = document.activeElement;
   _autoApproveVideoId = videoId;
   document.getElementById('auto-approve-slider').value = 0.6;
   document.getElementById('auto-approve-field').value = 'overall';
   updateAutoApprovePreview();
   document.getElementById('auto-approve-modal').classList.add('visible');
+  setTimeout(() => document.getElementById('auto-approve-slider')?.focus(), 50);
 }
 
 function closeAutoApproveModal() {
   document.getElementById('auto-approve-modal').classList.remove('visible');
+  const opener = _autoApproveOpener;
+  _autoApproveOpener = null;
+  if (opener?.focus) opener.focus();
 }
 
 function updateAutoApprovePreview() {
@@ -384,14 +418,20 @@ async function doAutoApprove() {
 
 // ── retranscribe ──────────────────────────────────────────────────────────────
 let _retranscribeClipId = null;
+let _retranscribeOpener = null;
 
 function openRetranscribeModal(clipId) {
+  _retranscribeOpener = document.activeElement;
   _retranscribeClipId = clipId;
   document.getElementById('retranscribe-modal').classList.add('visible');
+  setTimeout(() => document.getElementById('retranscribe-model')?.focus(), 50);
 }
 
 function closeRetranscribeModal() {
   document.getElementById('retranscribe-modal').classList.remove('visible');
+  const opener = _retranscribeOpener;
+  _retranscribeOpener = null;
+  if (opener?.focus) opener.focus();
 }
 
 function startRetranscribe() {
@@ -460,3 +500,11 @@ function rescoreClip(clipId) {
   );
   _activeES = handle;
 }
+
+document.addEventListener('DOMContentLoaded', () => {
+  const editor = document.getElementById('context-editor');
+  if (editor) {
+    editor.addEventListener('input',  () => { _contextEditorDirty = true; });
+    editor.addEventListener('change', () => { _contextEditorDirty = true; });
+  }
+});

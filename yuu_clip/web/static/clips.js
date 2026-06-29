@@ -291,8 +291,10 @@ function _replaceClipInList(updated) {
 }
 
 let _scoreOverrideClipId = null;
+let _scoreOverrideOpener = null;
 
 function openScoreOverride(clipId) {
+  _scoreOverrideOpener = document.activeElement;
   const clip = _clips.find(c => c.id === clipId);
   const current = clip?.score_overall ?? 0.5;
   _scoreOverrideClipId = clipId;
@@ -301,11 +303,15 @@ function openScoreOverride(clipId) {
   document.getElementById('score-override-display').textContent = current.toFixed(2);
   document.getElementById('score-override-llm-note').textContent = `Current auto score: ${current.toFixed(2)}`;
   document.getElementById('score-override-modal').classList.add('visible');
+  setTimeout(() => document.getElementById('score-override-slider')?.focus(), 50);
 }
 
 function closeScoreOverrideModal() {
   document.getElementById('score-override-modal').classList.remove('visible');
   _scoreOverrideClipId = null;
+  const opener = _scoreOverrideOpener;
+  _scoreOverrideOpener = null;
+  if (opener?.focus) opener.focus();
 }
 
 async function _scoreOverrideSave() {
@@ -492,12 +498,14 @@ function showUndoToast(message, undoFn) {
 }
 
 let _exportClipId = null;
+let _exportOpener = null;
 
 function _onExportCaptionsChange(val) {
   document.getElementById('export-hardsub-warn').style.display = val === 'hardsub' ? '' : 'none';
 }
 
 function exportClip(id) {
+  _exportOpener = document.activeElement;
   _exportClipId = id;
   document.getElementById('export-captions').value = 'none';
   document.getElementById('export-hardsub-warn').style.display = 'none';
@@ -509,10 +517,14 @@ function exportClip(id) {
   document.getElementById('export-retranscribe-model').disabled = true;
   document.getElementById('export-title-card').checked = false;
   document.getElementById('export-settings-modal').classList.add('visible');
+  setTimeout(() => document.getElementById('export-captions')?.focus(), 50);
 }
 
 function closeExportModal() {
   document.getElementById('export-settings-modal').classList.remove('visible');
+  const opener = _exportOpener;
+  _exportOpener = null;
+  if (opener?.focus) opener.focus();
 }
 
 async function confirmExport() {
@@ -693,8 +705,10 @@ async function _doDeleteClip(id) {
 
 // ── find similar ──────────────────────────────────────────────────────────────
 let _similarClipsClipId = null;
+let _similarClipsOpener = null;
 
 function openSimilarClipsModal(clipId) {
+  _similarClipsOpener = document.activeElement;
   _similarClipsClipId = clipId;
   const currentVideo = _videos.find(v => v.id === activeVideoId);
   const otherVideos = _videos.filter(v => v.id !== activeVideoId && v.status === 'done');
@@ -716,11 +730,18 @@ function openSimilarClipsModal(clipId) {
   }
 
   document.getElementById('similar-clips-modal').classList.add('visible');
+  setTimeout(() => {
+    const first = document.querySelector('#similar-clips-scope input[type=checkbox]');
+    (first || document.querySelector('#similar-clips-modal .btn'))?.focus();
+  }, 50);
 }
 
 function closeSimilarClipsModal() {
   document.getElementById('similar-clips-modal').classList.remove('visible');
   _similarClipsClipId = null;
+  const opener = _similarClipsOpener;
+  _similarClipsOpener = null;
+  if (opener?.focus) opener.focus();
 }
 
 function startFindSimilar() {

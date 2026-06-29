@@ -415,16 +415,39 @@ const TRACK_LABEL_DISPLAY = {
   unlabeled:         'Unlabeled',
 };
 let _allProfiles = [];
+let _profileEditorDirty = false;
+let _profileModalOpener = null;
 
 async function openProfileManager() {
+  _profileModalOpener = document.activeElement;
   document.getElementById('profile-modal').classList.add('visible');
   document.getElementById('profile-editor').style.display = 'none';
   await _refreshProfileList();
+  setTimeout(() => document.querySelector('#profile-modal .btn.primary')?.focus(), 50);
 }
 
 function closeProfileManager() {
+  if (!document.getElementById('profile-modal').classList.contains('visible')) return;
+  const editor = document.getElementById('profile-editor');
+  if (editor && editor.style.display !== 'none' && _profileEditorDirty) {
+    showConfirm(
+      'Discard changes?',
+      'You have unsaved changes in the track layout editor. Close without saving?',
+      'Discard',
+      () => { _profileEditorDirty = false; _doCloseProfileManager(); },
+      true,
+    );
+    return;
+  }
+  _doCloseProfileManager();
+}
+
+function _doCloseProfileManager() {
   document.getElementById('profile-modal').classList.remove('visible');
   _loadProfileDropdown();
+  const opener = _profileModalOpener;
+  _profileModalOpener = null;
+  if (opener?.focus) opener.focus();
 }
 
 async function _refreshProfileList() {
@@ -452,15 +475,18 @@ async function _refreshProfileList() {
 }
 
 function openNewProfile() {
+  _profileEditorDirty = false;
   document.getElementById('profile-editor').style.display = '';
   document.getElementById('pe-name').value = '';
   document.getElementById('pe-numtracks').value = 2;
   renderTrackRows();
+  setTimeout(() => document.getElementById('pe-name')?.focus(), 50);
 }
 
 function editProfile(name) {
   const p = _allProfiles.find(x => x.name === name);
   if (!p) return;
+  _profileEditorDirty = false;
   document.getElementById('profile-editor').style.display = '';
   document.getElementById('pe-name').value     = p.name;
   document.getElementById('pe-numtracks').value = p.num_tracks;
@@ -520,6 +546,7 @@ async function saveProfile() {
     showToast(e.detail || 'Save failed', 'error');
     return;
   }
+  _profileEditorDirty = false;
   document.getElementById('profile-editor').style.display = 'none';
   await _refreshProfileList();
   showToast(`Track layout "${name}" saved`);
@@ -547,5 +574,14 @@ async function _doDeleteProfile(name) {
 }
 
 function cancelProfileEdit() {
+  _profileEditorDirty = false;
   document.getElementById('profile-editor').style.display = 'none';
 }
+
+document.addEventListener('DOMContentLoaded', () => {
+  const editor = document.getElementById('profile-editor');
+  if (editor) {
+    editor.addEventListener('input',  () => { _profileEditorDirty = true; });
+    editor.addEventListener('change', () => { _profileEditorDirty = true; });
+  }
+});

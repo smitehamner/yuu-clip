@@ -12,6 +12,7 @@ const _settingsFieldIds = [
   's-timeline-interval','s-timeline-unit','s-autoplay',
 ];
 let _settingsOriginal = {};
+let _settingsOpener = null;
 
 function _snapshotSettings() {
   _settingsOriginal = {};
@@ -37,12 +38,14 @@ function _checkSettingsDirty() {
 }
 
 async function openSettings() {
+  _settingsOpener = document.activeElement;
   document.getElementById('main-layout').style.display = 'none';
   document.getElementById('settings-panel').style.flex = '1';
   document.getElementById('settings-panel').classList.add('visible');
   try {
     const cfg = await fetch('/api/config').then(r => r.json());
     _applySettingsToUI(cfg);
+    setTimeout(() => document.getElementById('s-whisper-model')?.focus(), 50);
   } catch (e) {
     showToast('Failed to load settings', 'error');
   }
@@ -78,6 +81,9 @@ function closeSettings() {
 function _doCloseSettings() {
   document.getElementById('settings-panel').classList.remove('visible');
   document.getElementById('main-layout').style.display = '';
+  const opener = _settingsOpener;
+  _settingsOpener = null;
+  if (opener?.focus) opener.focus();
 }
 
 function _applySettingsToUI(cfg) {
@@ -293,19 +299,40 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ── getting started modal ─────────────────────────────────────────────────────
-function openGettingStartedModal()  { document.getElementById('getting-started-modal').classList.add('visible'); }
+let _gettingStartedOpener = null;
+function openGettingStartedModal() {
+  _gettingStartedOpener = document.activeElement;
+  document.getElementById('getting-started-modal').classList.add('visible');
+  setTimeout(() => document.querySelector('#getting-started-modal .btn')?.focus(), 50);
+}
 function closeGettingStartedModal() {
   document.getElementById('getting-started-modal').classList.remove('visible');
   localStorage.setItem('yuu-getting-started-seen', '1');
+  const opener = _gettingStartedOpener;
+  _gettingStartedOpener = null;
+  if (opener?.focus) opener.focus();
 }
 
 // ── about modal ───────────────────────────────────────────────────────────────
-function openAboutModal()  { document.getElementById('about-modal').classList.add('visible'); }
-function closeAboutModal() { document.getElementById('about-modal').classList.remove('visible'); }
+let _aboutOpener = null;
+function openAboutModal() {
+  _aboutOpener = document.activeElement;
+  document.getElementById('about-modal').classList.add('visible');
+  setTimeout(() => document.querySelector('#about-modal .btn')?.focus(), 50);
+}
+function closeAboutModal() {
+  document.getElementById('about-modal').classList.remove('visible');
+  const opener = _aboutOpener;
+  _aboutOpener = null;
+  if (opener?.focus) opener.focus();
+}
 
 // ── glossary modal ────────────────────────────────────────────────────────────
+let _glossaryOpener = null;
 async function openGlossaryModal() {
+  _glossaryOpener = document.activeElement;
   document.getElementById('glossary-modal').classList.add('visible');
+  setTimeout(() => document.querySelector('#glossary-modal .btn')?.focus(), 50);
   const el = document.getElementById('glossary-content');
   if (el.dataset.loaded) return;
   try {
@@ -318,6 +345,9 @@ async function openGlossaryModal() {
 }
 function closeGlossaryModal() {
   document.getElementById('glossary-modal').classList.remove('visible');
+  const opener = _glossaryOpener;
+  _glossaryOpener = null;
+  if (opener?.focus) opener.focus();
 }
 
 function _renderGlossaryMd(md) {

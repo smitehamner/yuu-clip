@@ -288,18 +288,24 @@ function _renderTimelineHTML(entries) {
 
 // ── timeline generation ───────────────────────────────────────────────────────
 let _timelineVideoId = null;
+let _timelineIntervalOpener = null;
 
 function generateTimeline(id) {
+  _timelineIntervalOpener = document.activeElement;
   _timelineVideoId = id;
   const video = _videos.find(v => v.id === id);
   _loadTimelineIntervalConfig().then(() => {
     updateTimelineIntervalHint(video);
     document.getElementById('timeline-interval-modal').classList.add('visible');
+    setTimeout(() => document.getElementById('timeline-interval-value')?.focus(), 50);
   });
 }
 
 function closeTimelineIntervalModal() {
   document.getElementById('timeline-interval-modal').classList.remove('visible');
+  const opener = _timelineIntervalOpener;
+  _timelineIntervalOpener = null;
+  if (opener?.focus) opener.focus();
 }
 
 async function _loadTimelineIntervalConfig() {

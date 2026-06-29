@@ -1,9 +1,12 @@
 // ── highlight reels (combined Build + View modal) ──────────────────────────────
 let _reelClips = [];
+let _reelsOpener = null;
 
 async function openHighlightReelsModal(tab) {
+  _reelsOpener = _reelsOpener || document.activeElement;
   document.getElementById('highlight-reels-modal').classList.add('visible');
   await switchReelTab(tab || 'build');
+  setTimeout(() => document.querySelector('#highlight-reels-modal .btn')?.focus(), 50);
 }
 
 async function switchReelTab(tab) {
@@ -62,6 +65,9 @@ function closeHighlightReelsModal() {
   const vid = document.getElementById('reels-video');
   if (vid) { vid.pause(); vid.src = ''; }
   document.getElementById('highlight-reels-modal').classList.remove('visible');
+  const opener = _reelsOpener;
+  _reelsOpener = null;
+  if (opener?.focus) opener.focus();
 }
 
 async function loadReelClips() {
@@ -151,16 +157,20 @@ function updateReelEstimate() {
 
 function closeDemoModal() { closeHighlightReelsModal(); }
 
+let _reelPreviewOpener = null;
+
 async function previewReelPlaylist() {
   const included = _reelClips.filter(c => c.included && c.has_export);
   if (!included.length) {
     showToast('No exported clips selected — export clips first to preview them', 'info');
     return;
   }
+  _reelPreviewOpener = document.activeElement;
   const modal = document.getElementById('reel-preview-modal');
   const vid   = document.getElementById('reel-preview-video');
   const label = document.getElementById('reel-preview-label');
   modal.classList.add('visible');
+  setTimeout(() => document.querySelector('#reel-preview-modal .btn')?.focus(), 50);
   let idx = 0;
   const playNext = async () => {
     if (idx >= included.length) {
@@ -187,6 +197,9 @@ function closeReelPreview() {
   vid.src = '';
   vid.onended = null;
   document.getElementById('reel-preview-modal').classList.remove('visible');
+  const opener = _reelPreviewOpener;
+  _reelPreviewOpener = null;
+  if (opener?.focus) opener.focus();
 }
 
 async function startDemo() {
@@ -237,12 +250,14 @@ async function startDemo() {
 
 // ── batch export ──────────────────────────────────────────────────────────────
 let _batchExportVideoId = null;
+let _batchExportOpener = null;
 
 function _onBatchCaptionsChange(val) {
   document.getElementById('batch-hardsub-warn').style.display = val === 'hardsub' ? '' : 'none';
 }
 
 function openBatchExportModal(videoId) {
+  _batchExportOpener = document.activeElement;
   _batchExportVideoId = videoId;
   const video = _videos.find(v => v.id === videoId);
   const modalTitle = document.querySelector('#batch-export-modal h3');
@@ -258,10 +273,14 @@ function openBatchExportModal(videoId) {
   document.getElementById('batch-retranscribe-model').disabled = true;
   document.getElementById('batch-export-modal').classList.add('visible');
   updateBatchEstimate();
+  setTimeout(() => document.getElementById('batch-min-score')?.focus(), 50);
 }
 
 function closeBatchExportModal() {
   document.getElementById('batch-export-modal').classList.remove('visible');
+  const opener = _batchExportOpener;
+  _batchExportOpener = null;
+  if (opener?.focus) opener.focus();
 }
 
 function updateBatchEstimate() {
