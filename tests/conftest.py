@@ -4,6 +4,7 @@ Shared fixtures for yuu-clip tests.
 from __future__ import annotations
 
 import os
+import socket
 from pathlib import Path
 
 import pytest
@@ -87,6 +88,20 @@ def client(project_dir: Path) -> TestClient:
 # ---------------------------------------------------------------------------
 
 LIVE_URL = "http://127.0.0.1:8080"
+
+
+def _server_up() -> bool:
+    try:
+        with socket.create_connection(("127.0.0.1", 8080), timeout=1):
+            return True
+    except OSError:
+        return False
+
+
+skip_no_server = pytest.mark.skipif(
+    not _server_up(),
+    reason="Live server not running on port 8080",
+)
 
 
 _had_failure = False

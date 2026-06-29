@@ -11,7 +11,10 @@ Push-Location $RepoRoot
 $testExitCode = 0
 try {
     $env:PYTHONUNBUFFERED = "1"
-    & $Python -u -m pytest tests/test_ui.py -v --tb=short --no-header -p no:warnings --timeout=60 -r fE @args 2>&1 |
+    # PowerShell does not glob-expand args to native commands, so resolve the
+    # test files here and pass explicit paths to pytest.
+    $UiTests = Get-ChildItem -Path (Join-Path $RepoRoot "tests") -Filter "test_ui_*.py" | ForEach-Object { $_.FullName }
+    & $Python -u -m pytest $UiTests -v --tb=short --no-header -p no:warnings --timeout=60 -r fE @args 2>&1 |
         Tee-Object -FilePath $LogFile
     $testExitCode = $LASTEXITCODE
 } finally {
@@ -32,8 +35,10 @@ try {
         Write-Host "Full log: $LogFile" -ForegroundColor DarkGray
     }
 
-    $player = New-Object Media.SoundPlayer 'C:\Windows\Media\tada.wav'
-    $player.Play()
-    Start-Sleep -Milliseconds 2000
+    # Tada chime disabled now that the teardown hang is fixed. Kept here so we
+    # can re-enable it if the ProactorEventLoop teardown hang resurfaces.
+    # $player = New-Object Media.SoundPlayer 'C:\Windows\Media\tada.wav'
+    # $player.Play()
+    # Start-Sleep -Milliseconds 2000
 }
 exit $testExitCode
