@@ -96,10 +96,9 @@ function _showEmptyState() {
 
 function _updateDemoButton(approvedCount) {
   const btn = document.getElementById('btn-highlight-reels');
-  btn.disabled = approvedCount === 0;
   btn.title = approvedCount === 0
-    ? 'Approve some clips first to build a highlight reel'
-    : `Build a highlight reel from ${approvedCount} approved clip(s)`;
+    ? 'View existing reels or build one after approving some clips'
+    : `View or build a highlight reel from ${approvedCount} approved clip(s)`;
 }
 
 function _updateStartIngestButton() {

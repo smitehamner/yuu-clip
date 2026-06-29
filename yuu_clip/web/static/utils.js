@@ -143,7 +143,7 @@ function startJobUI(stepDefs, jobLabel, cancellable = false) {
     stepDefs.map((s, i) => `<span class="step" id="step-${i}">${s.label}</span>`).join('');
   document.getElementById('job-status').classList.add('visible');
   document.getElementById('header-spacer').style.display = 'none';
-  document.querySelectorAll('#btn-analyze,#btn-score,#btn-highlight-reels').forEach(b => b.disabled = true);
+  document.querySelectorAll('#btn-analyze,#btn-score').forEach(b => b.disabled = true);
   const analyzeBtn = document.getElementById('btn-analyze');
   if (analyzeBtn) analyzeBtn.title = 'A job is already running';
   document.getElementById('btn-cancel-job').style.display = cancellable ? '' : 'none';

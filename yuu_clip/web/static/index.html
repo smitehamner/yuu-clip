@@ -279,10 +279,14 @@
       <label class="settings-label" for="s-laugh-model-id">HuggingFace model ID</label>
       <input type="text" id="s-laugh-model-id" class="settings-input" style="width:100%;box-sizing:border-box"
              placeholder="MIT/ast-finetuned-audioset-10-10-0.4593">
-      <div style="font-size:11px;color:var(--muted);margin-top:4px">
-        Install deps first: <code>pip install transformers torch torchaudio soundfile</code><br>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px;margin-bottom:6px">
         Recommended: <code>MIT/ast-finetuned-audioset-10-10-0.4593</code> (~350 MB, downloads on first use)
       </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn-secondary" id="btn-install-laugh-deps" onclick="installPackage('laugh-deps')">Install deps</button>
+        <span id="install-status-laugh-deps" style="font-size:12px"></span>
+      </div>
+      <pre id="install-log-laugh-deps" style="display:none;font-size:11px;background:var(--bg);padding:6px 8px;border-radius:4px;max-height:120px;overflow-y:auto;margin-top:6px;white-space:pre-wrap"></pre>
     </div>
     <div style="margin-bottom:16px" id="s-laugh-model-fields-spacer"></div>
     <div style="font-size:12px;color:var(--muted);margin-bottom:8px;font-weight:600">Sub-score weights</div>
@@ -659,7 +663,6 @@
       <tbody>
         <tr><td>faster-whisper</td><td>GPU-accelerated transcription</td><td>MIT</td></tr>
         <tr><td>FFmpeg</td><td>Audio/video extraction &amp; export</td><td>LGPL/GPL</td></tr>
-        <tr><td>ollama</td><td>Ollama API client</td><td>MIT</td></tr>
         <tr><td>FastAPI</td><td>Web server API</td><td>MIT</td></tr>
         <tr><td>SQLAlchemy</td><td>Database ORM</td><td>MIT</td></tr>
         <tr><td>PyAV (av)</td><td>Audio frame decoding</td><td>BSD-3</td></tr>
@@ -673,9 +676,11 @@
     <table style="width:100%;font-size:12px;border-collapse:collapse;color:var(--muted)">
       <thead><tr style="color:var(--text)"><th scope="col" style="text-align:left;padding:3px 0">Package</th><th scope="col" style="text-align:left;padding:3px 0">Purpose</th><th scope="col" style="text-align:left;padding:3px 0">Licence</th></tr></thead>
       <tbody>
+        <tr><td>ollama</td><td>Ollama LLM backend</td><td>MIT</td></tr>
         <tr><td>llama-cpp-python</td><td>Local LLM via .gguf model files</td><td>MIT</td></tr>
         <tr><td>anthropic</td><td>Claude API LLM backend</td><td>MIT</td></tr>
         <tr><td>pyannote.audio</td><td>Speaker diarization</td><td>MIT (model: HF gated)</td></tr>
+        <tr><td>transformers / torch</td><td>Laugh detection (model mode)</td><td>Apache-2 / BSD</td></tr>
       </tbody>
     </table>
     <div class="modal-actions" style="margin-top:16px">

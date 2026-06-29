@@ -37,7 +37,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     @router.get("/api/glossary")
     def get_glossary():
         """Return the terminology glossary as plain text markdown."""
-        glossary = Path(__file__).parent.parent.parent.parent / "docs" / "GLOSSARY.md"
+        glossary = Path(__file__).parent.parent.parent.parent / "docs" / "dev" / "GLOSSARY.md"
         if not glossary.exists():
             raise HTTPException(404, "Glossary not found")
         return PlainTextResponse(glossary.read_text(encoding="utf-8"))

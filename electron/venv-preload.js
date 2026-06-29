@@ -1,0 +1,5 @@
+'use strict';
+const { contextBridge, ipcRenderer } = require('electron');
+contextBridge.exposeInMainWorld('venvAPI', {
+  onProgress: (cb) => ipcRenderer.on('venv:progress', (_, msg) => cb(msg)),
+});

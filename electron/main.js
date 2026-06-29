@@ -432,11 +432,42 @@ function showSetupWizard({ rerun = false } = {}) {
 
 function showVenvSetupWindow() {
   const win = new BrowserWindow({
-    width: 440, height: 160,
+    width: 440, height: 200,
     resizable: false, frame: false, alwaysOnTop: true,
-    webPreferences: { nodeIntegration: false, contextIsolation: true },
+    webPreferences: {
+      nodeIntegration: false, contextIsolation: true,
+      preload: path.join(__dirname, 'venv-preload.js'),
+    },
   });
-  const html = `<!DOCTYPE html><html><head><style>@keyframes spin{to{transform:rotate(360deg)}}</style></head><body style="font-family:sans-serif;margin:0;display:flex;align-items:center;justify-content:center;height:100vh;background:#12121e;color:#d8d8e8;text-align:center"><div><div style="width:32px;height:32px;border:3px solid #1e1e30;border-top-color:#5b8ef0;border-radius:50%;animation:spin 0.65s linear infinite;margin:0 auto 16px"></div><h3 style="margin:0 0 8px">Setting up yuu-clip</h3><p style="margin:0;color:#888">Installing Python dependencies — this may take a few minutes…</p></div></body></html>`;
+  const html = `<!DOCTYPE html><html><head><style>
+    @keyframes spin{to{transform:rotate(360deg)}}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;margin:0;display:flex;align-items:center;justify-content:center;height:100vh;background:#12121e;color:#d8d8e8;text-align:center}
+    h3{margin:0 0 12px;font-size:14px;color:#e8e8f8}
+    .spin{display:inline-block;width:28px;height:28px;border:3px solid #1e1e30;border-top-color:#5b8ef0;border-radius:50%;animation:spin 0.65s linear infinite;margin:0 auto 14px}
+    .steps{list-style:none;margin:0;padding:0;text-align:left;display:inline-block}
+    .steps li{font-size:12px;color:#555;padding:2px 0;padding-left:18px;position:relative}
+    .steps li.done{color:#4caf7d}
+    .steps li.active{color:#d0d0e0}
+    .steps li::before{content:'·';position:absolute;left:4px}
+    .steps li.done::before{content:'✓';color:#4caf7d}
+    .steps li.active::before{content:'›';color:#5b8ef0}
+  </style></head><body><div>
+    <div class="spin"></div>
+    <h3>Setting up yuu-clip</h3>
+    <ul class="steps" id="steps">
+      <li id="s0">Create virtual environment</li>
+      <li id="s1">Upgrade pip</li>
+      <li id="s2">Install yuu-clip</li>
+    </ul>
+  </div><script>
+    if(window.venvAPI) window.venvAPI.onProgress(function(msg){
+      var steps=['s0','s1','s2'];
+      var idx=steps.indexOf(msg.id);
+      if(idx<0)return;
+      if(msg.state==='active'){document.getElementById(msg.id).className='active';}
+      else if(msg.state==='done'){document.getElementById(msg.id).className='done';}
+    });
+  </script></body></html>`;
   win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
   return win;
 }
@@ -492,15 +523,24 @@ async function ensureVenv() {
   fs.mkdirSync(path.dirname(VENV_DIR), { recursive: true });
 
   const setupWin = showVenvSetupWindow();
+  const progress = (id, state) => {
+    try { setupWin.webContents.send('venv:progress', { id, state }); } catch (_) {}
+  };
   try {
     if (!venvExists) {
+      progress('s0', 'active');
       await runCmd(pythonBin, ['-m', 'venv', VENV_DIR]);
       logSetup('Venv created');
+      progress('s0', 'done');
+      progress('s1', 'active');
       logSetup('Upgrading pip…');
       await runCmd(VENV_PIP, ['install', '--upgrade', 'pip']);
+      progress('s1', 'done');
     }
+    progress('s2', 'active');
     logSetup('Installing wheel…');
     await runCmd(VENV_PIP, ['install', '--force-reinstall', wheelPath]);
+    progress('s2', 'done');
     logSetup('Wheel installed');
     if (bundledVersion) fs.writeFileSync(WHEEL_MARKER, bundledVersion);
   } catch (err) {

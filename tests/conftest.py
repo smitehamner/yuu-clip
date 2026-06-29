@@ -90,6 +90,12 @@ LIVE_URL = "http://127.0.0.1:8080"
 
 
 _had_failure = False
+_is_ui_session = False
+
+
+def pytest_collection_finish(session) -> None:
+    global _is_ui_session
+    _is_ui_session = any("test_ui" in str(item.fspath) for item in session.items)
 
 
 def pytest_runtest_logreport(report: pytest.TestReport) -> None:
@@ -100,9 +106,8 @@ def pytest_runtest_logreport(report: pytest.TestReport) -> None:
 
 def pytest_runtest_teardown(item, nextitem) -> None:
     # Watchdog for Playwright session teardown hang on Windows (IOCP / ProactorEventLoop).
-    # pytest_sessionfinish never fires when the hang occurs, so we force-exit here.
-    # Summary line is not printed; all individual results are visible in -v output.
-    if nextitem is not None:
+    # Only active for UI test sessions — API tests let pytest print its summary normally.
+    if not _is_ui_session or nextitem is not None:
         return
     import threading
     import time
@@ -115,7 +120,10 @@ def pytest_runtest_teardown(item, nextitem) -> None:
 
 
 def pytest_sessionfinish(session, exitstatus) -> None:
-    # Fires only if session teardown doesn't hang — skip redundant cleanup.
+    # Only force-exit for UI sessions where teardown may hang.
+    # API test sessions return normally so pytest can print its summary line.
+    if not _is_ui_session:
+        return
     os._exit(int(exitstatus))
 
 
