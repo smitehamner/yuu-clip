@@ -24,16 +24,16 @@
   <div class="hamburger-wrap" id="hamburger-wrap">
     <button class="btn ghost" id="btn-hamburger" onclick="toggleHamburger()" title="More options" aria-label="More options" aria-haspopup="true" aria-expanded="false" style="font-size:17px;padding:5px 11px;line-height:1">&#9776;</button>
     <div class="hamburger-menu" id="hamburger-menu">
-      <button class="hamburger-item" onclick="openGettingStartedModal();closeHamburger()">&#128640; Getting Started</button>
+      <button class="hamburger-item" onclick="openGettingStartedModal();closeHamburger()">&#128214; Getting Started</button>
       <button class="hamburger-item" onclick="openControlsModal();closeHamburger()">&#9000; Controls</button>
       <div class="hamburger-divider"></div>
-      <button class="hamburger-item" onclick="openContextManager();closeHamburger()">&#127917; World Contexts</button>
+      <button class="hamburger-item" onclick="openContextManager();closeHamburger()">&#127757; World Contexts</button>
       <button class="hamburger-item" onclick="openGlossaryModal();closeHamburger()">&#128218; Terminology Glossary</button>
       <div class="hamburger-divider"></div>
       <button class="hamburger-item" onclick="openSettings();closeHamburger()">&#9881; Settings</button>
       <a class="hamburger-item" href="/api/logs/export" download="yuu-clip.log" onclick="closeHamburger()">&#8595; Download Log</a>
       <button class="hamburger-item" onclick="openAboutModal();closeHamburger()">&#9432; About</button>
-      <button class="hamburger-item" id="btn-setup-wizard" onclick="window.electronAPI.runSetupWizard();closeHamburger()" style="display:none">&#9965; Re-run Setup Wizard</button>
+      <button class="hamburger-item" id="btn-setup-wizard" onclick="window.electronAPI.runSetupWizard();closeHamburger()" style="display:none">&#128295; Re-run Setup Wizard</button>
     </div>
   </div>
 </header>
@@ -1120,7 +1120,7 @@
         <label style="font-size:13px;color:var(--muted);white-space:nowrap">Score type</label>
         <select id="auto-approve-field" style="flex:1;font-size:13px;padding:3px 6px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text)"
                 onchange="updateAutoApprovePreview()">
-          <option value="overall">⭐ Overall</option>
+          <option value="overall">&#11088; Overall</option>
           <option value="funny">😂 Funny</option>
           <option value="dramatic">🎭 Dramatic</option>
           <option value="action">⚔️ Action</option>

@@ -166,7 +166,7 @@ function renderDetail(clip) {
 
   document.getElementById('detail').innerHTML = `
     <div>
-      <div class="detail-type-badge clip-badge" style="margin-bottom:8px">&#9986; Clip #${clip.id}</div>
+      <div class="detail-type-badge clip-badge" style="margin-bottom:8px">&#127902; Clip #${clip.id}</div>
       <div class="clip-header">
         <span class="time">${clip.start_hms} &middot; ${clip.duration_hms}</span>
       </div>
