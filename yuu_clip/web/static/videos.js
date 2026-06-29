@@ -170,7 +170,7 @@ function renderVideoDetail(video, savedTimeline) {
 
     <div class="detail-card">
       <div class="detail-card-header">
-        <h2 style="margin:0;font-size:17px;font-weight:700">${escHtml(video.title || video.filename)}${eb(video.title_is_edited)}</h2>
+        <h2 style="margin:0;font-size:17px;font-weight:700" title="${escHtml(video.title || video.filename)}">${escHtml(video.title || video.filename)}${eb(video.title_is_edited)}</h2>
         ${video.title ? `<button class="kebab-btn" title="Edit or regenerate title" aria-label="Edit or regenerate title" onclick="openVideoTitleKebab(${video.id}, this)">&#8942;</button>` : ''}
       </div>
       ${_renderContextSection(video)}
