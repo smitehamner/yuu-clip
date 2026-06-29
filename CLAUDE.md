@@ -21,9 +21,22 @@ To watch the log live:
 
 ## MANDATORY: after any Python change
 
-Do all three steps before reporting a backend fix as complete:
+API tests take ~1 minute. Run them selectively — not after every edit.
 
-1. Run tests: `.\scripts\test-api.ps1`
+**Run `.\scripts\test-api.ps1` before reporting done when:**
+- Fixing a logic bug in a route handler or scoring/analyze pipeline
+- Adding or removing a route, or changing its response shape
+- Touching DB models, migrations, or config parsing
+- Making any change that could silently break existing behavior
+
+**Skip tests when:**
+- The change is cosmetic (log wording, comment, rename with no behavior change)
+- You're mid-iteration and will run tests at the end before reporting done
+- The change is HTML/JS/CSS only (no Python touched)
+
+Before reporting a backend fix complete, do:
+
+1. Run tests if the change qualifies above: `.\scripts\test-api.ps1`
 2. Restart the server: `.\scripts\serve.ps1`
 3. Confirm the fix works in the browser (or state explicitly that you cannot)
 
