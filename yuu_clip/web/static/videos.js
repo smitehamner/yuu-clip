@@ -435,6 +435,16 @@ async function summarizeVideo(id, btn) {
 }
 
 function regenSummaryAuto(id, btn) {
+  showConfirm(
+    'Regenerate and auto-save?',
+    'The current title and summary will be replaced without a review step. This cannot be undone.',
+    'Regenerate',
+    () => _doRegenSummaryAuto(id, btn),
+    true,
+  );
+}
+
+function _doRegenSummaryAuto(id, btn) {
   const actionBtn = document.getElementById('btn-regen-summary') || btn;
   if (actionBtn && actionBtn.disabled) return;
   actionBtn.disabled = true;

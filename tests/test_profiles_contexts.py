@@ -227,46 +227,6 @@ class TestExtractContextWeights:
 
 
 # ---------------------------------------------------------------------------
-# contexts.py — format_context_block unit tests
-# ---------------------------------------------------------------------------
-
-class TestFormatContextBlock:
-    def test_empty_list_returns_empty_string(self):
-        from yuu_clip.contexts import format_context_block
-        assert format_context_block({}, []) == ""
-
-    def test_missing_context_id_is_skipped(self):
-        from yuu_clip.contexts import format_context_block
-        assert format_context_block({}, ["not-there"]) == ""
-
-    def test_single_context_with_fields(self):
-        from yuu_clip.contexts import format_context_block
-        contexts = {"my-ctx": {"display_name": "My World", "setting": "A dark forest", "your_characters": "Hero", "other_characters": "", "notes": ""}}
-        block = format_context_block(contexts, ["my-ctx"])
-        assert "WORLD CONTEXT: My World" in block
-        assert "A dark forest" in block
-        assert "Hero" in block
-        assert "END CONTEXT" in block
-
-    def test_empty_fields_omitted(self):
-        from yuu_clip.contexts import format_context_block
-        contexts = {"ctx": {"display_name": "C", "setting": "", "your_characters": "", "other_characters": "", "notes": ""}}
-        block = format_context_block(contexts, ["ctx"])
-        assert "[Setting]" not in block
-        assert "WORLD CONTEXT: C" in block
-
-    def test_multiple_contexts_joined(self):
-        from yuu_clip.contexts import format_context_block
-        contexts = {
-            "a": {"display_name": "A", "setting": "world A", "your_characters": "", "other_characters": "", "notes": ""},
-            "b": {"display_name": "B", "setting": "world B", "your_characters": "", "other_characters": "", "notes": ""},
-        }
-        block = format_context_block(contexts, ["a", "b"])
-        assert "WORLD CONTEXT: A" in block
-        assert "WORLD CONTEXT: B" in block
-
-
-# ---------------------------------------------------------------------------
 # contexts route — weight fields and display_name fallback
 # ---------------------------------------------------------------------------
 

@@ -150,6 +150,8 @@ function startJobUI(stepDefs, jobLabel, cancellable = false) {
   document.getElementById('job-status').classList.add('visible');
   document.getElementById('header-spacer').style.display = 'none';
   document.querySelectorAll('#btn-analyze,#btn-score,#btn-demo').forEach(b => b.disabled = true);
+  const analyzeBtn = document.getElementById('btn-analyze');
+  if (analyzeBtn) analyzeBtn.title = 'A job is already running';
   document.getElementById('btn-cancel-job').style.display = cancellable ? '' : 'none';
 }
 
@@ -186,6 +188,8 @@ function endJobUI() {
     document.getElementById('job-status').classList.remove('visible');
     document.getElementById('header-spacer').style.display = '';
     document.querySelectorAll('#btn-analyze,#btn-score').forEach(b => b.disabled = false);
+    const analyzeBtn = document.getElementById('btn-analyze');
+    if (analyzeBtn) analyzeBtn.title = '';
     const totalApproved = (_videos || []).reduce((n, v) => n + v.approved, 0);
     _updateDemoButton(totalApproved);
   }, 2000);
@@ -249,6 +253,10 @@ function toggleLog() {
   const minimized = panel.classList.toggle('minimized');
   document.getElementById('log-toggle').textContent = minimized ? '▼' : '▲';
   document.querySelector('.log-header').setAttribute('aria-expanded', minimized ? 'false' : 'true');
+}
+
+function clearLog() {
+  document.getElementById('log-lines').innerHTML = '';
 }
 
 function appendLog(raw) {

@@ -49,7 +49,13 @@ async function openSettings() {
   const pathsEl = document.getElementById('s-paths-display');
   if (pathsEl) {
     const st = await fetch('/api/status').then(r => r.json()).catch(() => ({}));
-    pathsEl.innerHTML = `<div>${escHtml(st.version || '')}</div>`;
+    pathsEl.innerHTML = [
+      ['Project folder', st.project_dir],
+      ['Exports folder', st.export_dir],
+      ['Database',       st.db_path],
+    ].filter(([, v]) => v).map(([label, val]) =>
+      `<div><span style="color:var(--text);min-width:130px;display:inline-block">${escHtml(label)}</span><code style="font-size:11px;color:var(--muted)">${escHtml(val)}</code></div>`
+    ).join('') || '<div style="color:var(--muted)">Unavailable</div>';
   }
 }
 

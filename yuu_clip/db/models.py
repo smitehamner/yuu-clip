@@ -126,42 +126,24 @@ def _migrate(engine) -> None:
             conn.execute(text("ALTER TABLE transcripts ADD COLUMN clip_id INTEGER REFERENCES clip_candidates(id)"))
 
         existing = {row[1] for row in conn.execute(text("PRAGMA table_info(clip_candidates)"))}
-        if "score_overall_user" not in existing:
-            _log.info("Migration: adding clip_candidates.score_overall_user")
-            conn.execute(text("ALTER TABLE clip_candidates ADD COLUMN score_overall_user REAL"))
-        if "description" not in existing:
-            _log.info("Migration: adding clip_candidates.description")
-            conn.execute(text("ALTER TABLE clip_candidates ADD COLUMN description TEXT"))
-        if "description_long" not in existing:
-            _log.info("Migration: adding clip_candidates.description_long")
-            conn.execute(text("ALTER TABLE clip_candidates ADD COLUMN description_long TEXT"))
-        if "description_user" not in existing:
-            _log.info("Migration: adding clip_candidates.description_user")
-            conn.execute(text("ALTER TABLE clip_candidates ADD COLUMN description_user TEXT"))
-        if "description_long_user" not in existing:
-            _log.info("Migration: adding clip_candidates.description_long_user")
-            conn.execute(text("ALTER TABLE clip_candidates ADD COLUMN description_long_user TEXT"))
-        if "start_offset" not in existing:
-            _log.info("Migration: adding clip_candidates.start_offset")
-            conn.execute(text("ALTER TABLE clip_candidates ADD COLUMN start_offset REAL NOT NULL DEFAULT 0.0"))
-        if "end_offset" not in existing:
-            _log.info("Migration: adding clip_candidates.end_offset")
-            conn.execute(text("ALTER TABLE clip_candidates ADD COLUMN end_offset REAL NOT NULL DEFAULT 0.0"))
-        if "exported_at" not in existing:
-            _log.info("Migration: adding clip_candidates.exported_at")
-            conn.execute(text("ALTER TABLE clip_candidates ADD COLUMN exported_at DATETIME"))
-        if "exported_container" not in existing:
-            _log.info("Migration: adding clip_candidates.exported_container")
-            conn.execute(text("ALTER TABLE clip_candidates ADD COLUMN exported_container TEXT"))
-        if "exported_burn_subs" not in existing:
-            _log.info("Migration: adding clip_candidates.exported_burn_subs")
-            conn.execute(text("ALTER TABLE clip_candidates ADD COLUMN exported_burn_subs BOOLEAN"))
-        if "related_clips_json" not in existing:
-            _log.info("Migration: adding clip_candidates.related_clips_json")
-            conn.execute(text("ALTER TABLE clip_candidates ADD COLUMN related_clips_json TEXT"))
-        if "related_clips_at" not in existing:
-            _log.info("Migration: adding clip_candidates.related_clips_at")
-            conn.execute(text("ALTER TABLE clip_candidates ADD COLUMN related_clips_at DATETIME"))
+        _clip_migrations = [
+            ("score_overall_user",  "REAL"),
+            ("description",         "TEXT"),
+            ("description_long",    "TEXT"),
+            ("description_user",    "TEXT"),
+            ("description_long_user", "TEXT"),
+            ("start_offset",        "REAL NOT NULL DEFAULT 0.0"),
+            ("end_offset",          "REAL NOT NULL DEFAULT 0.0"),
+            ("exported_at",         "DATETIME"),
+            ("exported_container",  "TEXT"),
+            ("exported_burn_subs",  "BOOLEAN"),
+            ("related_clips_json",  "TEXT"),
+            ("related_clips_at",    "DATETIME"),
+        ]
+        for col, typedef in _clip_migrations:
+            if col not in existing:
+                _log.info("Migration: adding clip_candidates.%s", col)
+                conn.execute(text(f"ALTER TABLE clip_candidates ADD COLUMN {col} {typedef}"))
 
         # Drop the UNIQUE(path) constraint — segments share their parent's path, so a
         # per-path unique index breaks re-analysis after segments exist.

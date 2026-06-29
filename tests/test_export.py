@@ -566,3 +566,90 @@ class TestSafeFilename:
     def test_name_with_spaces_preserved(self):
         result = self._safe("my reel.mkv")
         assert result == "my reel.mkv"
+
+
+# ---------------------------------------------------------------------------
+# _resolve_clip_files
+# ---------------------------------------------------------------------------
+
+class TestResolveClipFiles:
+    """_resolve_clip_files locates exported clip files and probes their durations."""
+
+    def _make_clip(self, clip_id, video_id, start_ms, start_hms):
+        import unittest.mock as mock
+        clip = mock.MagicMock()
+        clip.id = clip_id
+        clip.video_id = video_id
+        clip.start_ms = start_ms
+        clip.start_hms = start_hms
+        return clip
+
+    def _make_video(self, video_id, filename):
+        import unittest.mock as mock
+        video = mock.MagicMock()
+        video.id = video_id
+        video.filename = filename
+        return video
+
+    def test_raises_when_no_export_file_found(self, tmp_path):
+        from yuu_clip.reel import _resolve_clip_files
+        import pytest
+        clip = self._make_clip(1, 10, 0, "0:00:00")
+        video = self._make_video(10, "session.mkv")
+        with pytest.raises(FileNotFoundError, match="clip 1"):
+            _resolve_clip_files([clip], {10: video}, tmp_path)
+
+    def test_finds_mkv_export(self, tmp_path):
+        import unittest.mock as mock
+        from yuu_clip.reel import _resolve_clip_files
+        clip = self._make_clip(1, 10, 0, "0-00-00")
+        video = self._make_video(10, "session.mkv")
+        export_file = tmp_path / "session_clip1_0-00-00.mkv"
+        export_file.write_bytes(b"fake")
+        with mock.patch("yuu_clip.reel._probe_fps", return_value=30.0), \
+             mock.patch("yuu_clip.reel._probe_duration", return_value=60.0):
+            files, durations, fps = _resolve_clip_files([clip], {10: video}, tmp_path)
+        assert files == [export_file]
+        assert durations == [60.0]
+        assert fps == 30.0
+
+    def test_finds_mp4_export(self, tmp_path):
+        import unittest.mock as mock
+        from yuu_clip.reel import _resolve_clip_files
+        clip = self._make_clip(2, 10, 0, "0-00-00")
+        video = self._make_video(10, "session.mkv")
+        export_file = tmp_path / "session_clip2_0-00-00.mp4"
+        export_file.write_bytes(b"fake")
+        with mock.patch("yuu_clip.reel._probe_fps", return_value=60.0), \
+             mock.patch("yuu_clip.reel._probe_duration", return_value=30.0):
+            files, durations, fps = _resolve_clip_files([clip], {10: video}, tmp_path)
+        assert files[0].suffix == ".mp4"
+        assert fps == 60.0
+
+    def test_fps_probed_only_from_first_file(self, tmp_path):
+        import unittest.mock as mock
+        from yuu_clip.reel import _resolve_clip_files
+        clip_a = self._make_clip(1, 10, 0, "0-00-00")
+        clip_b = self._make_clip(2, 10, 60_000, "0-01-00")
+        video = self._make_video(10, "session.mkv")
+        (tmp_path / "session_clip1_0-00-00.mkv").write_bytes(b"fake")
+        (tmp_path / "session_clip2_0-01-00.mkv").write_bytes(b"fake")
+        probe_fps_calls = []
+        def counting_fps(path):
+            probe_fps_calls.append(path)
+            return 30.0
+        with mock.patch("yuu_clip.reel._probe_fps", side_effect=counting_fps), \
+             mock.patch("yuu_clip.reel._probe_duration", return_value=10.0):
+            _resolve_clip_files([clip_a, clip_b], {10: video}, tmp_path)
+        assert len(probe_fps_calls) == 1
+
+    def test_fps_falls_back_to_30_when_probe_fails(self, tmp_path):
+        import unittest.mock as mock
+        from yuu_clip.reel import _resolve_clip_files
+        clip = self._make_clip(1, 10, 0, "0-00-00")
+        video = self._make_video(10, "session.mkv")
+        (tmp_path / "session_clip1_0-00-00.mkv").write_bytes(b"fake")
+        with mock.patch("yuu_clip.reel._probe_fps", side_effect=Exception("probe failed")), \
+             mock.patch("yuu_clip.reel._probe_duration", return_value=10.0):
+            _, _, fps = _resolve_clip_files([clip], {10: video}, tmp_path)
+        assert fps == 30.0

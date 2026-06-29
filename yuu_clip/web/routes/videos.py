@@ -424,9 +424,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         finally:
             db.close()
 
-        contexts = load_contexts(ctx.project_dir)
-        context_text = format_context_block(contexts, context_names)
-        config = _config_with_context_weights(ctx.config, contexts, context_names)
+        context_text, config = _resolve_context(ctx, context_names)
 
         async def event_stream():
             from yuu_clip.scoring.engine import ScoringEngine
@@ -484,7 +482,11 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             if val is not None:
                 setattr(cfg, field_name, transform(val))
         cfg.save_project(ctx.project_dir)
-        _log.info("Config updated: %s", {k: v for k, v in body.model_dump().items() if v is not None})
+        _REDACT = {"claude_api_key", "huggingface_token"}
+        _log.info("Config updated: %s", {
+            k: ("***" if k in _REDACT else v)
+            for k, v in body.model_dump().items() if v is not None
+        })
         return get_config()
 
     @router.get("/api/videos/{video_id}/timeline")
@@ -586,8 +588,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                 raise HTTPException(404, "Video not found")
 
             context_names = _json_list(video.context_names_json)
-            all_segs = _collect_transcript_segments(db, video_id)
-            full_text = " ".join(s.text.strip() for s in all_segs)
+            full_text = _video_transcript_text(db, video_id)
 
             if not full_text:
                 raise HTTPException(400, "No transcript available — analyze the recording first")
@@ -624,8 +625,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             if not video:
                 raise HTTPException(404, "Video not found")
             context_names = _json_list(video.context_names_json)
-            all_segs = _collect_transcript_segments(db, video_id)
-            full_text = " ".join(s.text.strip() for s in all_segs)
+            full_text = _video_transcript_text(db, video_id)
         finally:
             db.close()
 
@@ -684,9 +684,13 @@ def make_router(ctx: ProjectContext) -> APIRouter:
 
             if body.action == "accept_new":
                 if touch_title:
+                    if body.new_title is None:
+                        raise HTTPException(400, "new_title is required for accept_new")
                     video.title      = body.new_title.strip()
                     video.title_user = None
                 if touch_summary:
+                    if body.new_summary is None:
+                        raise HTTPException(400, "new_summary is required for accept_new")
                     video.summary      = body.new_summary.strip()
                     video.summary_user = None
                     video.summarized_at        = datetime.now(timezone.utc)
@@ -695,8 +699,12 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                     )
             elif body.action == "accept_edit":
                 if touch_title:
+                    if body.new_title is None:
+                        raise HTTPException(400, "new_title is required for accept_edit")
                     video.title_user = body.new_title.strip()
                 if touch_summary:
+                    if body.new_summary is None:
+                        raise HTTPException(400, "new_summary is required for accept_edit")
                     video.summary_user = body.new_summary.strip()
             else:  # revert
                 if touch_title:
@@ -1209,15 +1217,23 @@ def make_router(ctx: ProjectContext) -> APIRouter:
 
             if body.action == "accept_new":
                 if touch_desc:
+                    if body.new_description is None:
+                        raise HTTPException(400, "new_description is required for accept_new")
                     clip.description      = body.new_description.strip()
                     clip.description_user = None
                 if touch_desc_long:
+                    if body.new_description_long is None:
+                        raise HTTPException(400, "new_description_long is required for accept_new")
                     clip.description_long      = body.new_description_long.strip()
                     clip.description_long_user = None
             elif body.action == "accept_edit":
                 if touch_desc:
+                    if body.new_description is None:
+                        raise HTTPException(400, "new_description is required for accept_edit")
                     clip.description_user = body.new_description.strip()
                 if touch_desc_long:
+                    if body.new_description_long is None:
+                        raise HTTPException(400, "new_description_long is required for accept_edit")
                     clip.description_long_user = body.new_description_long.strip()
             else:  # revert
                 if touch_desc:
@@ -1317,9 +1333,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         finally:
             db.close()
 
-        contexts = load_contexts(ctx.project_dir)
-        context_text = format_context_block(contexts, context_names)
-        config = _config_with_context_weights(ctx.config, contexts, context_names)
+        context_text, config = _resolve_context(ctx, context_names)
 
         async def event_stream():
             from yuu_clip.scoring.engine import ScoringEngine
@@ -1547,6 +1561,12 @@ def _collect_transcript_segments(db, video_id: int) -> list:
     return segs
 
 
+def _video_transcript_text(db, video_id: int) -> str:
+    """Return the full transcript as a single space-joined string, or '' if none."""
+    segs = _collect_transcript_segments(db, video_id)
+    return " ".join(s.text.strip() for s in segs)
+
+
 def _user_or_default(user_val: Optional[str], stored_val: Optional[str]) -> str:
     return user_val if user_val is not None else (stored_val or "")
 
@@ -1611,6 +1631,18 @@ def _config_with_context_weights(config, contexts: dict, context_names: list[str
     weights = extract_context_weights(contexts, context_names)
     overrides = {k: v for k, v in weights.items() if v is not None}
     return _dc_replace(config, **overrides) if overrides else config
+
+
+def _resolve_context(ctx: "ProjectContext", context_names: list[str]) -> tuple:
+    """Return (context_text, config) with context weights applied.
+
+    Used by scoring routes that need both the formatted context block for the
+    LLM prompt and a config with any context-level score-weight overrides applied.
+    """
+    contexts = load_contexts(ctx.project_dir)
+    context_text = format_context_block(contexts, context_names)
+    config = _config_with_context_weights(ctx.config, contexts, context_names)
+    return context_text, config
 
 
 def _sse_response(generator) -> StreamingResponse:

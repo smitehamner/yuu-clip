@@ -330,13 +330,16 @@ function rescoreClip(clipId) {
   if (btn) { btn.disabled = true; btn.textContent = 'Scoring…'; }
   if (_activeES) { _activeES.close(); _activeES = null; }
   openLog();
+  startJobUI(SCORE_STEPS, 'Re-scoring clip');
   const es = new EventSource(`/api/clips/${clipId}/rescore`);
   _activeES = es;
   es.onmessage = async e => {
     const msg = JSON.parse(e.data);
+    updateJobUI(typeof msg === 'string' ? msg : JSON.stringify(msg));
     if (msg?.type === '__DONE__') {
       if (_activeES === es) _activeES = null;
       es.close();
+      endJobUI();
       if (btn) { btn.disabled = false; btn.textContent = 'Re-score'; }
       const clip = await fetch(`/api/clips/${clipId}`).then(r => r.json()).catch(() => null);
       const descNew     = msg.description_new;
@@ -363,6 +366,7 @@ function rescoreClip(clipId) {
   es.onerror = () => {
     if (_activeES === es) _activeES = null;
     es.close();
+    endJobUI();
     if (btn) { btn.disabled = false; btn.textContent = 'Re-score'; }
     showToast('Re-score failed — see log', 'error');
   };

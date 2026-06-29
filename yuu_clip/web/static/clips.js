@@ -222,7 +222,7 @@ function renderDetail(clip) {
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
           <div class="section-title">Related Clips</div>
           ${clip.related_clips_stale ? `<span style="font-size:11px;color:var(--amber);font-style:italic">stale — re-score updated</span>` : ''}
-          <span style="font-size:11px;color:var(--muted);margin-left:auto">${_fmtAgo(clip.related_clips_at)}</span>
+          <span style="font-size:11px;color:var(--muted);margin-left:auto">${clip.related_clips_at ? _fmtAgo(clip.related_clips_at) : ''}</span>
         </div>
         ${clip.related_clips.length ? clip.related_clips.map(r => `
           <div style="display:flex;gap:8px;align-items:baseline;padding:4px 0;border-bottom:1px solid var(--border)">
@@ -272,21 +272,28 @@ function _replaceClipInList(updated) {
   if (idx !== -1) _clips[idx] = updated;
 }
 
-async function openScoreOverride(clipId) {
+function openScoreOverride(clipId) {
   const clip = _clips.find(c => c.id === clipId);
   const current = clip?.score_overall ?? 0;
-  const val = prompt(`Set manual overall score (0.00 – 1.00). Current LLM score: ${current.toFixed(2)}`, current.toFixed(2));
-  if (val === null) return;
-  const num = parseFloat(val);
-  if (isNaN(num)) { showToast('Invalid score value', 'error'); return; }
-  const res = await fetch(`/api/clips/${clipId}/score-override`, {
-    method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({score_overall_user: num}),
-  });
-  if (!res.ok) { showToast('Failed to set score override', 'error'); return; }
-  const updated = await res.json();
-  _replaceClipInList(updated);
-  renderDetail(updated);
+  openFieldEditModal(
+    `Set score override (0.00 – 1.00) — current LLM score: ${current.toFixed(2)}`,
+    current.toFixed(2),
+    async val => {
+      const num = parseFloat(val);
+      if (isNaN(num) || num < 0 || num > 1) {
+        showToast('Score must be a number between 0 and 1', 'error');
+        return;
+      }
+      const res = await fetch(`/api/clips/${clipId}/score-override`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({score_overall_user: num}),
+      });
+      if (!res.ok) { showToast('Failed to set score override', 'error'); return; }
+      const updated = await res.json();
+      _replaceClipInList(updated);
+      renderDetail(updated);
+    },
+  );
 }
 
 async function clearScoreOverride(clipId) {

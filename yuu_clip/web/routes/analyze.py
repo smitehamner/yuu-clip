@@ -181,6 +181,9 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             "analyze_running": analyze_running,
             "active_jobs": ctx.active_jobs,
             "version": _VERSION_DISPLAY,
+            "project_dir": str(ctx.project_dir),
+            "export_dir":  str(ctx.export_dir),
+            "db_path":     str(ctx.db_path),
         }
 
     @router.get("/api/prereqs")

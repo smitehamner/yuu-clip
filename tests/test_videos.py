@@ -442,6 +442,38 @@ class TestEditableVideoFields:
         r = client.patch("/api/videos/99999/fields", json={"action": "revert", "field": "title"})
         assert r.status_code == 404
 
+    def test_accept_new_title_null_returns_400(self, client, project_dir):
+        self._seed_title_summary(project_dir)
+        vid_id = self._vid_id(client)
+        r = client.patch(f"/api/videos/{vid_id}/fields", json={
+            "action": "accept_new", "field": "title", "new_title": None,
+        })
+        assert r.status_code == 400
+
+    def test_accept_edit_title_null_returns_400(self, client, project_dir):
+        self._seed_title_summary(project_dir)
+        vid_id = self._vid_id(client)
+        r = client.patch(f"/api/videos/{vid_id}/fields", json={
+            "action": "accept_edit", "field": "title", "new_title": None,
+        })
+        assert r.status_code == 400
+
+    def test_accept_new_summary_null_returns_400(self, client, project_dir):
+        self._seed_title_summary(project_dir)
+        vid_id = self._vid_id(client)
+        r = client.patch(f"/api/videos/{vid_id}/fields", json={
+            "action": "accept_new", "field": "summary", "new_summary": None,
+        })
+        assert r.status_code == 400
+
+    def test_accept_edit_summary_null_returns_400(self, client, project_dir):
+        self._seed_title_summary(project_dir)
+        vid_id = self._vid_id(client)
+        r = client.patch(f"/api/videos/{vid_id}/fields", json={
+            "action": "accept_edit", "field": "summary", "new_summary": None,
+        })
+        assert r.status_code == 400
+
 
 class TestEditableClipFields:
     """PATCH /api/clips/{id}/fields — accept_new, accept_edit, revert."""
@@ -507,6 +539,34 @@ class TestEditableClipFields:
         clip_id = self._first_clip_id(client)
         r = client.patch(f"/api/clips/{clip_id}/fields", json={
             "action": "zap", "field": "description",
+        })
+        assert r.status_code == 400
+
+    def test_accept_new_description_null_returns_400(self, client):
+        clip_id = self._first_clip_id(client)
+        r = client.patch(f"/api/clips/{clip_id}/fields", json={
+            "action": "accept_new", "field": "description", "new_description": None,
+        })
+        assert r.status_code == 400
+
+    def test_accept_edit_description_null_returns_400(self, client):
+        clip_id = self._first_clip_id(client)
+        r = client.patch(f"/api/clips/{clip_id}/fields", json={
+            "action": "accept_edit", "field": "description", "new_description": None,
+        })
+        assert r.status_code == 400
+
+    def test_accept_new_description_long_null_returns_400(self, client):
+        clip_id = self._first_clip_id(client)
+        r = client.patch(f"/api/clips/{clip_id}/fields", json={
+            "action": "accept_new", "field": "description_long", "new_description_long": None,
+        })
+        assert r.status_code == 400
+
+    def test_accept_edit_description_long_null_returns_400(self, client):
+        clip_id = self._first_clip_id(client)
+        r = client.patch(f"/api/clips/{clip_id}/fields", json={
+            "action": "accept_edit", "field": "description_long", "new_description_long": None,
         })
         assert r.status_code == 400
 

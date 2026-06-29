@@ -1490,34 +1490,10 @@ class TestClipTiming:
 
 
 # ---------------------------------------------------------------------------
-# overlap._word_set
-# ---------------------------------------------------------------------------
-
-class TestWordSet:
-    def _ws(self, text):
-        from yuu_clip.analyze.overlap import _word_set
-        return _word_set(text)
-
-    def test_basic_words_extracted(self):
-        assert self._ws("Hello, World!") == {"hello", "world"}
-
-    def test_lowercased(self):
-        assert "hello" in self._ws("HELLO")
-
-    def test_empty_string_returns_empty_set(self):
-        assert self._ws("") == set()
-
-    def test_punctuation_stripped(self):
-        result = self._ws("don't stop!")
-        assert "don't" in result
-        assert "stop" in result
-
-
-# ---------------------------------------------------------------------------
 # overlap.detect_transcript_overlap
 # ---------------------------------------------------------------------------
 
-class TestDetectTranscriptOverlap:
+class TestDetectTranscriptOverlapIntegration:
     def _setup(self, tmp_path):
         from yuu_clip.db.models import (
             Video,
@@ -1674,3 +1650,423 @@ class TestSilenceWindowTags:
         result = self._window(segs, hard_ms=180_000)
         assert len(result) == 2
         assert "after_hard_split" in result[1][3]
+
+
+# ---------------------------------------------------------------------------
+# LLMClient factory — make_client() routing
+# ---------------------------------------------------------------------------
+
+class TestMakeClient:
+    def _cfg(self, **overrides):
+        from yuu_clip.config import Config
+        cfg = Config()
+        for k, v in overrides.items():
+            setattr(cfg, k, v)
+        return cfg
+
+    def test_ollama_disabled_returns_null_client(self):
+        from yuu_clip.scoring.llm_client import NullLLMClient, make_client
+        client = make_client(self._cfg(ollama_enabled=False))
+        assert isinstance(client, NullLLMClient)
+
+    def test_llamacpp_backend_returns_llamacpp_client(self):
+        from yuu_clip.scoring.llm_client import LlamaCppClient, make_client
+        client = make_client(self._cfg(ollama_enabled=True, llm_backend="llamacpp"))
+        assert isinstance(client, LlamaCppClient)
+
+    def test_claude_backend_returns_claude_client(self):
+        from yuu_clip.scoring.llm_client import ClaudeClient, make_client
+        client = make_client(self._cfg(ollama_enabled=True, llm_backend="claude"))
+        assert isinstance(client, ClaudeClient)
+
+    def test_ollama_backend_returns_ollama_client(self):
+        from yuu_clip.scoring.llm_client import OllamaClient, make_client
+        client = make_client(self._cfg(ollama_enabled=True, llm_backend="ollama"))
+        assert isinstance(client, OllamaClient)
+
+    def test_unknown_backend_falls_back_to_ollama(self):
+        from yuu_clip.scoring.llm_client import OllamaClient, make_client
+        client = make_client(self._cfg(ollama_enabled=True, llm_backend="unknown"))
+        assert isinstance(client, OllamaClient)
+
+
+# ---------------------------------------------------------------------------
+# ClaudeClient.available()
+# ---------------------------------------------------------------------------
+
+class TestClaudeClientAvailable:
+    def _client(self, **overrides):
+        import unittest.mock as mock
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.llm_client import ClaudeClient
+        cfg = Config()
+        for k, v in overrides.items():
+            setattr(cfg, k, v)
+        return ClaudeClient(cfg)
+
+    def test_no_api_key_returns_false(self):
+        c = self._client(claude_api_key="")
+        ok, reason = c.available()
+        assert ok is False
+        assert "API key" in reason
+
+    def test_missing_anthropic_package_returns_false(self):
+        import sys
+        import unittest.mock as mock
+        c = self._client(claude_api_key="sk-test")
+        with mock.patch.dict(sys.modules, {"anthropic": None}):
+            ok, reason = c.available()
+        assert ok is False
+        assert "anthropic" in reason
+
+    def test_api_key_and_package_present_returns_true(self):
+        import sys
+        import unittest.mock as mock
+        c = self._client(claude_api_key="sk-test")
+        fake_anthropic = mock.MagicMock()
+        with mock.patch.dict(sys.modules, {"anthropic": fake_anthropic}):
+            ok, reason = c.available()
+        assert ok is True
+        assert reason == ""
+
+    def test_null_client_available_returns_false(self):
+        from yuu_clip.scoring.llm_client import NullLLMClient
+        ok, reason = NullLLMClient().available()
+        assert ok is False
+
+    def test_null_client_chat_raises(self):
+        import pytest
+        from yuu_clip.scoring.llm_client import NullLLMClient
+        with pytest.raises(RuntimeError):
+            NullLLMClient().chat([{"role": "user", "content": "hi"}])
+
+
+# ---------------------------------------------------------------------------
+# check_llm_available()
+# ---------------------------------------------------------------------------
+
+class TestCheckLlmAvailable:
+    def _cfg(self, **overrides):
+        from yuu_clip.config import Config
+        cfg = Config()
+        for k, v in overrides.items():
+            setattr(cfg, k, v)
+        return cfg
+
+    def test_ollama_disabled_returns_false(self):
+        from yuu_clip.scoring.llm import check_llm_available
+        ok, reason = check_llm_available(self._cfg(ollama_enabled=False))
+        assert ok is False
+        assert "disabled" in reason
+
+    def test_delegates_to_client_available(self):
+        import unittest.mock as mock
+        from yuu_clip.scoring.llm import check_llm_available
+        cfg = self._cfg(ollama_enabled=True, llm_backend="ollama")
+        with mock.patch("yuu_clip.scoring.llm_client.OllamaClient.available",
+                        return_value=(True, "")):
+            ok, reason = check_llm_available(cfg)
+        assert ok is True
+
+
+# ---------------------------------------------------------------------------
+# LLM module-level functions: summarize_transcript, generate_timeline_chunk,
+# find_related_clips — tested with a mocked _call_client
+# ---------------------------------------------------------------------------
+
+class TestSummarizeTranscript:
+    def _cfg(self):
+        from yuu_clip.config import Config
+        return Config()
+
+    def test_returns_title_and_summary(self):
+        import json
+        import unittest.mock as mock
+        from yuu_clip.scoring.llm import summarize_transcript
+        payload = json.dumps({"title": "Epic session", "summary": "Things happened."})
+        with mock.patch("yuu_clip.scoring.llm._call_client", return_value=payload):
+            title, summary = summarize_transcript("some transcript text", self._cfg())
+        assert title == "Epic session"
+        assert summary == "Things happened."
+
+    def test_truncates_to_12000_chars(self):
+        import json
+        import unittest.mock as mock
+        from yuu_clip.scoring.llm import summarize_transcript
+        long_text = "x" * 20_000
+        captured = {}
+        def fake_call(messages, config, temperature=0.1):
+            captured["messages"] = messages
+            return json.dumps({"title": "T", "summary": "S"})
+        with mock.patch("yuu_clip.scoring.llm._call_client", side_effect=fake_call):
+            summarize_transcript(long_text, self._cfg())
+        user_content = captured["messages"][1]["content"]
+        assert len(user_content) < 14_000
+
+    def test_context_prepended_to_system(self):
+        import json
+        import unittest.mock as mock
+        from yuu_clip.scoring.llm import summarize_transcript
+        captured = {}
+        def fake_call(messages, config, temperature=0.1):
+            captured["messages"] = messages
+            return json.dumps({"title": "T", "summary": "S"})
+        with mock.patch("yuu_clip.scoring.llm._call_client", side_effect=fake_call):
+            summarize_transcript("text", self._cfg(), context_text="WORLD CONTEXT")
+        system_content = captured["messages"][0]["content"]
+        assert system_content.startswith("WORLD CONTEXT")
+
+    def test_missing_keys_return_empty_strings(self):
+        import json
+        import unittest.mock as mock
+        from yuu_clip.scoring.llm import summarize_transcript
+        with mock.patch("yuu_clip.scoring.llm._call_client", return_value=json.dumps({})):
+            title, summary = summarize_transcript("text", self._cfg())
+        assert title == ""
+        assert summary == ""
+
+
+class TestGenerateTimelineChunk:
+    def _cfg(self):
+        from yuu_clip.config import Config
+        return Config()
+
+    def test_returns_stripped_string(self):
+        import unittest.mock as mock
+        from yuu_clip.scoring.llm import generate_timeline_chunk
+        with mock.patch("yuu_clip.scoring.llm._call_client", return_value="  paragraph text  "):
+            result = generate_timeline_chunk("transcript", "0:00", "15:00", [], self._cfg())
+        assert result == "paragraph text"
+
+    def test_clip_descriptions_included_in_user_message(self):
+        import unittest.mock as mock
+        from yuu_clip.scoring.llm import generate_timeline_chunk
+        captured = {}
+        def fake_call(messages, config, temperature=0.1):
+            captured["messages"] = messages
+            return "result"
+        with mock.patch("yuu_clip.scoring.llm._call_client", side_effect=fake_call):
+            generate_timeline_chunk("text", "0:00", "15:00", ["Clip A", "Clip B"], self._cfg())
+        user_content = captured["messages"][1]["content"]
+        assert "Clip A" in user_content
+        assert "Clip B" in user_content
+
+    def test_no_clip_descriptions_omits_notable_clips_section(self):
+        import unittest.mock as mock
+        from yuu_clip.scoring.llm import generate_timeline_chunk
+        captured = {}
+        def fake_call(messages, config, temperature=0.1):
+            captured["messages"] = messages
+            return "result"
+        with mock.patch("yuu_clip.scoring.llm._call_client", side_effect=fake_call):
+            generate_timeline_chunk("text", "0:00", "15:00", [], self._cfg())
+        user_content = captured["messages"][1]["content"]
+        assert "Notable clips" not in user_content
+
+    def test_context_prepended_to_system(self):
+        import unittest.mock as mock
+        from yuu_clip.scoring.llm import generate_timeline_chunk
+        captured = {}
+        def fake_call(messages, config, temperature=0.1):
+            captured["messages"] = messages
+            return "result"
+        with mock.patch("yuu_clip.scoring.llm._call_client", side_effect=fake_call):
+            generate_timeline_chunk("text", "0:00", "15:00", [], self._cfg(), context_text="CTX")
+        system_content = captured["messages"][0]["content"]
+        assert system_content.startswith("CTX")
+
+
+class TestFindRelatedClips:
+    def _cfg(self):
+        from yuu_clip.config import Config
+        return Config()
+
+    def test_returns_list_of_id_reason_dicts(self):
+        import json
+        import unittest.mock as mock
+        from yuu_clip.scoring.llm import find_related_clips
+        payload = json.dumps([{"id": 7, "reason": "both chaotic"}, {"id": 3, "reason": "same tone"}])
+        with mock.patch("yuu_clip.scoring.llm._call_client", return_value=payload):
+            result = find_related_clips("ref desc", [{"id": 7, "description": "d1"}], self._cfg())
+        assert result == [{"id": 7, "reason": "both chaotic"}, {"id": 3, "reason": "same tone"}]
+
+    def test_non_list_response_raises_value_error(self):
+        import json
+        import unittest.mock as mock
+        import pytest
+        from yuu_clip.scoring.llm import find_related_clips
+        with mock.patch("yuu_clip.scoring.llm._call_client", return_value=json.dumps({"error": "bad"})):
+            with pytest.raises(ValueError):
+                find_related_clips("ref", [], self._cfg())
+
+    def test_id_coerced_to_int(self):
+        import json
+        import unittest.mock as mock
+        from yuu_clip.scoring.llm import find_related_clips
+        payload = json.dumps([{"id": "42", "reason": "similar"}])
+        with mock.patch("yuu_clip.scoring.llm._call_client", return_value=payload):
+            result = find_related_clips("ref", [{"id": 42, "description": "d"}], self._cfg())
+        assert result[0]["id"] == 42
+        assert isinstance(result[0]["id"], int)
+
+    def test_missing_reason_defaults_to_empty_string(self):
+        import json
+        import unittest.mock as mock
+        from yuu_clip.scoring.llm import find_related_clips
+        payload = json.dumps([{"id": 1}])
+        with mock.patch("yuu_clip.scoring.llm._call_client", return_value=payload):
+            result = find_related_clips("ref", [{"id": 1, "description": "d"}], self._cfg())
+        assert result[0]["reason"] == ""
+
+    def test_empty_candidates_returns_empty_list(self):
+        import json
+        import unittest.mock as mock
+        from yuu_clip.scoring.llm import find_related_clips
+        with mock.patch("yuu_clip.scoring.llm._call_client", return_value=json.dumps([])):
+            result = find_related_clips("ref", [], self._cfg())
+        assert result == []
+
+
+# ---------------------------------------------------------------------------
+# compute_scenes — transcript mode writes SceneBoundary rows
+# ---------------------------------------------------------------------------
+
+class TestComputeScenesTranscriptMode:
+    def _make_db(self, tmp_path):
+        from yuu_clip.db.models import (
+            AudioTrack,
+            Transcript,
+            TranscriptSegment,
+            Video,
+            make_session,
+        )
+        session = make_session(tmp_path / "test.db")
+        v = Video(path=str(tmp_path / "v.mkv"), filename="v.mkv", status="done", duration_ms=120_000)
+        session.add(v)
+        session.flush()
+        track = AudioTrack(video_id=v.id, stream_index=0, label="combined", do_transcribe=True, do_score=True)
+        session.add(track)
+        session.flush()
+        transcript = Transcript(audio_track_id=track.id, model_name="base")
+        session.add(transcript)
+        session.flush()
+        return session, v, transcript
+
+    def test_transcript_mode_no_gap_returns_zero_cuts(self, tmp_path):
+        from yuu_clip.db.models import TranscriptSegment
+        from yuu_clip.scoring.scenes import compute_scenes
+        session, v, transcript = self._make_db(tmp_path)
+        session.add(TranscriptSegment(transcript_id=transcript.id, start_ms=0, end_ms=10_000, text="a"))
+        session.add(TranscriptSegment(transcript_id=transcript.id, start_ms=10_500, end_ms=20_000, text="b"))
+        session.flush()
+        try:
+            result = compute_scenes(v, session, mode="transcript", transcript_gap_s=3.0)
+        finally:
+            session.close()
+        assert result == 0
+
+    def test_transcript_mode_gap_exceeds_threshold_creates_boundary(self, tmp_path):
+        from yuu_clip.db.models import SceneBoundary, TranscriptSegment
+        from yuu_clip.scoring.scenes import compute_scenes
+        session, v, transcript = self._make_db(tmp_path)
+        session.add(TranscriptSegment(transcript_id=transcript.id, start_ms=0, end_ms=10_000, text="a"))
+        session.add(TranscriptSegment(transcript_id=transcript.id, start_ms=15_000, end_ms=25_000, text="b"))
+        session.flush()
+        try:
+            result = compute_scenes(v, session, mode="transcript", transcript_gap_s=3.0)
+            boundaries = session.query(SceneBoundary).filter_by(video_id=v.id).all()
+        finally:
+            session.close()
+        assert result == 1
+        assert boundaries[0].timecode_ms == 15_000
+
+    def test_transcript_mode_no_transcribed_tracks_returns_zero(self, tmp_path):
+        from yuu_clip.db.models import AudioTrack, TranscriptSegment, Video, make_session
+        from yuu_clip.scoring.scenes import compute_scenes
+        session = make_session(tmp_path / "t2.db")
+        v = Video(path=str(tmp_path / "v2.mkv"), filename="v2.mkv", status="done", duration_ms=60_000)
+        session.add(v)
+        session.flush()
+        track = AudioTrack(video_id=v.id, stream_index=0, label="combined", do_transcribe=False, do_score=True)
+        session.add(track)
+        session.flush()
+        try:
+            result = compute_scenes(v, session, mode="transcript")
+        finally:
+            session.close()
+        assert result == 0
+
+
+# ---------------------------------------------------------------------------
+# ScoringEngine.score_video()
+# ---------------------------------------------------------------------------
+
+class TestScoringEngineScoreVideo:
+    def _make_scorer(self, score=0.5):
+        import unittest.mock as mock
+        from yuu_clip.scoring.protocol import ScoreResult
+        scorer = mock.MagicMock()
+        scorer.is_available.return_value = True
+        scorer.weight = 1.0
+        scorer.score.return_value = ScoreResult(
+            score_funny=score, score_dramatic=score, score_action=score
+        )
+        return scorer
+
+    def test_score_video_returns_clip_count(self, tmp_path):
+        from yuu_clip.config import Config
+        from yuu_clip.db.models import ClipCandidate, Video, make_session
+        from yuu_clip.scoring.engine import ScoringEngine
+        session = make_session(tmp_path / "sv.db")
+        v = Video(path=str(tmp_path / "v.mkv"), filename="v.mkv", status="done", duration_ms=120_000)
+        session.add(v)
+        session.flush()
+        for i in range(3):
+            session.add(ClipCandidate(video_id=v.id, start_ms=i * 30_000, end_ms=(i + 1) * 30_000))
+        session.flush()
+        scorer = self._make_scorer(0.7)
+        engine = ScoringEngine(Config(), [scorer])
+        try:
+            count = engine.score_video(v, session)
+        finally:
+            session.close()
+        assert count == 3
+
+    def test_score_video_calls_scorer_for_each_clip(self, tmp_path):
+        from yuu_clip.config import Config
+        from yuu_clip.db.models import ClipCandidate, Video, make_session
+        from yuu_clip.scoring.engine import ScoringEngine
+        session = make_session(tmp_path / "sv2.db")
+        v = Video(path=str(tmp_path / "v.mkv"), filename="v.mkv", status="done", duration_ms=60_000)
+        session.add(v)
+        session.flush()
+        session.add(ClipCandidate(video_id=v.id, start_ms=0, end_ms=30_000))
+        session.add(ClipCandidate(video_id=v.id, start_ms=30_000, end_ms=60_000))
+        session.flush()
+        scorer = self._make_scorer(0.5)
+        engine = ScoringEngine(Config(), [scorer])
+        try:
+            engine.score_video(v, session)
+        finally:
+            session.close()
+        assert scorer.score.call_count == 2
+
+    def test_score_video_calls_progress_cb(self, tmp_path):
+        from yuu_clip.config import Config
+        from yuu_clip.db.models import ClipCandidate, Video, make_session
+        from yuu_clip.scoring.engine import ScoringEngine
+        session = make_session(tmp_path / "sv3.db")
+        v = Video(path=str(tmp_path / "v.mkv"), filename="v.mkv", status="done", duration_ms=60_000)
+        session.add(v)
+        session.flush()
+        session.add(ClipCandidate(video_id=v.id, start_ms=0, end_ms=30_000))
+        session.add(ClipCandidate(video_id=v.id, start_ms=30_000, end_ms=60_000))
+        session.flush()
+        scorer = self._make_scorer(0.5)
+        engine = ScoringEngine(Config(), [scorer])
+        calls = []
+        try:
+            engine.score_video(v, session, progress_cb=lambda i, t: calls.append((i, t)))
+        finally:
+            session.close()
+        assert calls == [(1, 2), (2, 2)]

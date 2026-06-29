@@ -161,10 +161,10 @@ function _renderSubtitleSourcePicker(info) {
   if (hasStream) {
     for (const s of info.subtitle_streams) {
       const label = s.title || s.language || `stream ${s.index}`;
-      opts.push(`<option value="stream:${s.index}">Use embedded subtitles: ${escHtml(label)}</option>`);
+      opts.push(`<option value="stream:${s.index}">Use embedded captions: ${escHtml(label)}</option>`);
     }
   }
-  el.innerHTML = `<label for="analyze-subtitle-source">Subtitles</label>
+  el.innerHTML = `<label for="analyze-subtitle-source">Captions</label>
     <select id="analyze-subtitle-source" onchange="runEstimate()">${opts.join('')}</select>`;
 }
 

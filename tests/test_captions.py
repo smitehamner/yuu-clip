@@ -722,15 +722,15 @@ class TestGuessLabelIndex:
 # analyze/overlap.py — detect_transcript_overlap (unit, no DB)
 # ---------------------------------------------------------------------------
 
-class TestDetectTranscriptOverlap:
+class TestDetectTranscriptOverlapUnit:
     _next_id = 100
 
     def _make_track(self, label, do_score, words):
         """Build a minimal track-like object whose transcript returns *words*."""
         import types
-        TestDetectTranscriptOverlap._next_id += 1
+        TestDetectTranscriptOverlapUnit._next_id += 1
         return types.SimpleNamespace(
-            id=TestDetectTranscriptOverlap._next_id,
+            id=TestDetectTranscriptOverlapUnit._next_id,
             label=label,
             do_score=do_score,
             relevance_weight=1.0,

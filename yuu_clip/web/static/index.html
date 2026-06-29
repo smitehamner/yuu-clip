@@ -583,9 +583,10 @@
 <!-- Progress log -->
 <div class="log-panel" id="log-panel">
   <div class="resize-handle resize-handle-v" id="log-resize-handle" title="Drag to resize log"></div>
-  <button class="log-header" onclick="toggleLog()" aria-expanded="true" aria-controls="log-body">
+  <button class="log-header" onclick="toggleLog()" aria-expanded="false" aria-controls="log-body">
     <span class="log-title">Log</span>
     <span class="log-toggle" id="log-toggle">&#9660;</span>
+    <button class="btn ghost" id="btn-clear-log" onclick="event.stopPropagation();clearLog()" aria-label="Clear log" style="font-size:11px;padding:2px 8px;margin-left:auto">Clear</button>
   </button>
   <div class="log-body" id="log-body">
     <div id="log-lines"></div>
@@ -607,7 +608,7 @@
 
     <div class="section-title" style="margin-bottom:6px">Your workflow</div>
     <ol style="margin:0 0 16px;padding-left:20px;font-size:13px;line-height:1.9;color:var(--text)">
-      <li><strong>Analyze</strong> — click <em>+ Analyze</em> and select a recording. yuu-clip transcribes the audio, detects scene changes, and scores every clip candidate.</li>
+      <li><strong>Analyze</strong> — click <em>+ Analyze</em> and select a recording. yuu-clip transcribes the audio, detects scene changes, and scores every clip.</li>
       <li><strong>Review</strong> — step through the clip list. Watch the preview, read the description, and press <kbd>A</kbd> to approve or <kbd>R</kbd> to reject.</li>
       <li><strong>Export</strong> — click <em>Export</em> on any clip to extract it. Quick export is a stream copy (seconds); Precise re-encodes for frame-accurate cuts.</li>
       <li><strong>Build a reel</strong> — click <em>Build Reel</em> to compile approved clips into a single highlight reel with title cards and transitions.</li>
@@ -813,7 +814,7 @@
       <label for="batch-captions" style="font-size:13px;color:var(--muted);min-width:110px">Captions</label>
       <select id="batch-captions" style="flex:1;padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px" onchange="_onBatchCaptionsChange(this.value)">
         <option value="none">None</option>
-        <option value="softsub">Embed subtitle track (softsub, fast)</option>
+        <option value="softsub">Embed captions track (softsub, fast)</option>
         <option value="hardsub">Burn in captions (hardsub, re-encode)</option>
       </select>
     </div>
@@ -1000,7 +1001,7 @@
         <label for="export-captions" style="font-size:13px;color:var(--muted);min-width:110px">Captions</label>
         <select id="export-captions" style="flex:1;padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px" onchange="_onExportCaptionsChange(this.value)">
           <option value="none">None</option>
-          <option value="softsub">Embed subtitle track (softsub, fast)</option>
+          <option value="softsub">Embed captions track (softsub, fast)</option>
           <option value="hardsub">Burn in captions (hardsub, re-encode)</option>
         </select>
       </div>

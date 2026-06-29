@@ -174,6 +174,14 @@ def check_llm_available(config: "Config") -> tuple[bool, str]:
     return make_client(config).available()
 
 
+def _active_model_id(config: "Config") -> str | None:
+    if config.llm_backend == "claude":
+        return config.claude_model
+    if config.llm_backend == "llamacpp":
+        return config.llm_model_path
+    return config.ollama_model
+
+
 class LLMScorer:
     name = "llm"
 
@@ -206,10 +214,6 @@ class LLMScorer:
             log.warning("LLM scoring failed for clip %d: %s", clip.id, exc, exc_info=True)
             return ScoreResult(tags=["llm_error"])
 
-        model_id = self._config.claude_model if self._config.llm_backend == "claude" else (
-            self._config.llm_model_path if self._config.llm_backend == "llamacpp"
-            else self._config.ollama_model
-        )
         return ScoreResult(
             score_funny      = float(data.get("score_funny",      0.0)),
             score_dramatic   = float(data.get("score_dramatic",   0.0)),
@@ -217,7 +221,7 @@ class LLMScorer:
             description      = str(data.get("description",        "")),
             description_long = str(data.get("description_long",   "")),
             tags=["llm_scored"],
-            notes={"model": model_id},
+            notes={"model": _active_model_id(self._config)},
         )
 
     def _call_llm(self, excerpt: str) -> str:

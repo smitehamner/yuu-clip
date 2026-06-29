@@ -927,6 +927,19 @@ def _apply_title_card(clip_path: Path, cand, output: Path) -> Path:
     return output
 
 
+def _write_subtitle_tmp(cand, lines_to_srt_fn, merged_srt_lines_fn, label: str) -> Optional[Path]:
+    """Write merged SRT to a temp file; return its path, or None when no transcript data exists."""
+    import tempfile
+    merged = merged_srt_lines_fn(cand)
+    if not merged:
+        console.print(f"  [yellow]{label}: no transcript data found, skipping[/yellow]")
+        return None
+    tmp = tempfile.NamedTemporaryFile(suffix=".srt", delete=False, mode="w", encoding="utf-8")
+    tmp.write(lines_to_srt_fn(merged))
+    tmp.close()
+    return Path(tmp.name)
+
+
 @app.command()
 def export(
     clip_id: int = typer.Argument(..., help="Clip candidate ID to export"),
@@ -942,8 +955,6 @@ def export(
     title_card: bool = typer.Option(False, "--title-card", help="Prepend a title card with the clip description"),
 ):
     """Export a clip to a video file."""
-    import tempfile
-
     from yuu_clip.analyze.extract import export_clip
     from yuu_clip.config import project_exports_dir, validate_whisper_model
     from yuu_clip.db.models import AudioTrack, ClipCandidate
@@ -999,23 +1010,9 @@ def export(
     subtitle_path: Optional[Path] = None
     subtitle_track_path: Optional[Path] = None
     if bake_captions:
-        merged = merged_srt_lines(cand)
-        if merged:
-            tmp = tempfile.NamedTemporaryFile(suffix=".srt", delete=False, mode="w", encoding="utf-8")
-            tmp.write(lines_to_srt(merged))
-            tmp.close()
-            subtitle_path = Path(tmp.name)
-        else:
-            console.print("  [yellow]--bake-captions: no transcript data found, skipping burn-in[/yellow]")
+        subtitle_path = _write_subtitle_tmp(cand, lines_to_srt, merged_srt_lines, "--bake-captions")
     elif embed_subs:
-        merged = merged_srt_lines(cand)
-        if merged:
-            tmp = tempfile.NamedTemporaryFile(suffix=".srt", delete=False, mode="w", encoding="utf-8")
-            tmp.write(lines_to_srt(merged))
-            tmp.close()
-            subtitle_track_path = Path(tmp.name)
-        else:
-            console.print("  [yellow]--embed-subs: no transcript data found, skipping subtitle track[/yellow]")
+        subtitle_track_path = _write_subtitle_tmp(cand, lines_to_srt, merged_srt_lines, "--embed-subs")
 
     try:
         clip_dest = output if not title_card else output.with_suffix(".clip_tmp" + output.suffix)

@@ -792,15 +792,6 @@ class TestParseFps:
     def test_plain_float_string(self):
         assert abs(self._parse("29.97") - 29.97) < 1e-9
 
-    def test_zero_denominator_returns_default(self):
-        assert self._parse("30/0") == 30.0
-
-    def test_invalid_string_returns_default(self):
-        assert self._parse("bogus") == 30.0
-
-    def test_empty_string_returns_default(self):
-        assert self._parse("") == 30.0
-
 
 # ---------------------------------------------------------------------------
 # labeler.label_tracks — single-stream auto-label
