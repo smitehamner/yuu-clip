@@ -199,7 +199,7 @@ async function runEstimate() {
   } catch { /* estimate is non-critical */ }
 }
 
-let _warnThresholdMin = 30;
+const _warnThresholdMin = 30;
 
 function renderEstimate(info, data) {
   const warnS = _warnThresholdMin * 60;
@@ -228,11 +228,6 @@ function renderEstimate(info, data) {
         ${escHtml(info.filename)} &middot; ${info.duration_hms} &middot;
         ${info.width}&#x2715;${info.height} @ ${info.fps.toFixed(0)}fps &middot;
         ${info.audio_tracks} audio track(s)
-      </div>
-      <div class="estimate-threshold">
-        Warn steps longer than
-        <input type="number" min="1" max="480" value="${_warnThresholdMin}" id="warn-threshold-input"
-               onchange="_warnThresholdMin=+this.value; runEstimate()"> min
       </div>
       ${rows}
       <div class="estimate-total">

@@ -86,3 +86,21 @@ def client(project_dir: Path) -> TestClient:
 # ---------------------------------------------------------------------------
 
 LIVE_URL = "http://127.0.0.1:8080"
+
+
+@pytest.fixture
+def page(page):
+    """Override pytest-playwright's page fixture to set tighter default timeouts.
+
+    Playwright defaults to 30s for actions and assertions, which means a
+    selector miss silently hangs for half a minute before the test fails.
+    10s is more than enough for a local dev server and gives faster feedback.
+
+    Also seeds localStorage so the Getting Started modal doesn't auto-open
+    and block UI interactions during tests.
+    """
+    page.set_default_timeout(10_000)
+    page.set_default_navigation_timeout(10_000)
+    page.goto(LIVE_URL)
+    page.evaluate("localStorage.setItem('yuu-getting-started-seen', '1')")
+    yield page

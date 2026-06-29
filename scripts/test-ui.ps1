@@ -6,7 +6,7 @@ Write-Host "UI tests require a live server at http://127.0.0.1:8080 (run scripts
 
 Push-Location $RepoRoot
 try {
-    & $Python -m pytest tests/test_ui.py -v @args
+    & $Python -m pytest tests/test_ui.py -v --tb=short --no-header -p no:warnings --screenshot=only-on-failure @args
 } finally {
     Pop-Location
 }

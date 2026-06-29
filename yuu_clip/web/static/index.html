@@ -102,7 +102,7 @@
       </div>
       <label class="settings-checkbox">
         <input type="checkbox" id="s-ollama-enabled">
-        <span style="font-size:13px">Enabled</span>
+        <span style="font-size:13px">On</span>
       </label>
     </div>
     <div class="settings-row">
@@ -562,15 +562,15 @@
     <div id="split-action-options" style="display:flex;flex-direction:column;gap:6px;font-size:13px">
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
         <input type="radio" name="split-action" value="partition" checked>
-        Partition only — redistribute existing clips by start time, no reanalysis
+        Split only — keep all existing clips, just divide them between segments
       </label>
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
         <input type="radio" name="split-action" value="reanalyze-all">
-        Reanalyze — replace all clips (deletes existing clips and reruns analysis)
+        Re-analyze — delete all clips and run analysis fresh on each segment
       </label>
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
         <input type="radio" name="split-action" value="reanalyze-keep">
-        Reanalyze — keep exported clips (preserves exported clips, reruns analysis)
+        Re-analyze — same as above, but keep any already-exported clips
       </label>
     </div>
     <div style="display:flex;gap:10px">
@@ -1148,6 +1148,30 @@
     <div class="modal-actions">
       <button class="btn" onclick="closeSimilarClipsModal()">Cancel</button>
       <button class="btn primary" id="btn-find-similar-go" onclick="startFindSimilar()">Find Similar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Score Override Modal -->
+<div class="modal-bg" id="score-override-modal" onclick="if(event.target===this)closeScoreOverrideModal()">
+  <div class="modal" style="width:320px">
+    <h3 style="margin-top:0">Set Score Override</h3>
+    <div style="margin:12px 0">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <label for="score-override-slider" style="font-size:13px;color:var(--muted)">Score</label>
+        <span id="score-override-display" style="font-size:24px;font-weight:700;color:var(--text);font-family:monospace">0.50</span>
+      </div>
+      <input type="range" id="score-override-slider" min="0" max="1" step="0.01" value="0.5"
+             style="width:100%;accent-color:var(--accent)"
+             oninput="document.getElementById('score-override-display').textContent=parseFloat(this.value).toFixed(2)">
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:2px">
+        <span>0.00</span><span>1.00</span>
+      </div>
+      <div id="score-override-llm-note" style="font-size:12px;color:var(--muted);margin-top:8px"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeScoreOverrideModal()">Cancel</button>
+      <button class="btn primary" onclick="_scoreOverrideSave()">Set Override</button>
     </div>
   </div>
 </div>

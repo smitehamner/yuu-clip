@@ -52,7 +52,7 @@ function _sortScore(clip) {
 // ── format utils ──────────────────────────────────────────────────────────────
 const _VIDEO_STATUS_DISPLAY = {
   pending: 'Not analyzed', probed: 'Inspected', labeled: 'Tracks assigned',
-  extracting: 'Extracting', transcribing: 'Transcribing', segmented: 'Segmented', done: 'Analyzed',
+  extracting: 'Extracting', transcribing: 'Transcribing', segmented: 'Clips generated', done: 'Analyzed',
 };
 function _fmtVideoStatus(s) { return _VIDEO_STATUS_DISPLAY[s] || s; }
 
@@ -82,12 +82,6 @@ function stripRichMarkup(text) {
     .replace(/\[\/?\w+\]/g, '');             // Rich markup tags
 }
 
-function miniBar(abbr, fullName, val, color) {
-  return `<div class="mini-bar-wrap" title="${fullName}: ${(val * 100).toFixed(0)}%">
-    <span class="mini-bar-label">${abbr}</span>
-    <div class="mini-bar-bg"><div class="mini-bar" style="width:${(val*100).toFixed(1)}%;background:${color}"></div></div>
-  </div>`;
-}
 
 function _fmtDate(iso) {
   if (!iso) return 'never';
@@ -267,23 +261,43 @@ function appendLog(raw) {
   const isErr   = raw.includes('FAIL') || raw.includes('Error') || raw.includes('[red]') || raw.includes('error');
   const isWarn  = raw.includes('[yellow]') || raw.includes('WARNING') || raw.includes('overlap');
   div.className = 'log-line' + (isOk ? ' ok' : isErr ? ' err' : isWarn ? ' warn' : '');
-  div.textContent = text;
+  div.style.display = 'flex';
+  div.style.gap = '6px';
+  const ts = document.createElement('span');
+  ts.style.cssText = 'color:var(--muted);font-size:10px;flex-shrink:0;opacity:.7';
+  ts.textContent = new Date().toLocaleTimeString(undefined, {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+  div.appendChild(ts);
+  div.appendChild(document.createTextNode(text));
   document.getElementById('log-lines').appendChild(div);
   const body = document.getElementById('log-body');
   body.scrollTop = body.scrollHeight;
 }
 
 // ── toast notifications ───────────────────────────────────────────────────────
-function showToast(message, type = 'success', durationMs = 4000) {
+function showToast(message, type = 'success', durationMs) {
+  const ms = durationMs ?? (type === 'error' ? 8000 : 4000);
   const container = document.getElementById('toast-container');
   container.setAttribute('aria-live', type === 'error' ? 'assertive' : 'polite');
   const toast = document.createElement('div');
   toast.className = `toast ${type}`;
-  toast.textContent = message;
+  if (type === 'error') {
+    toast.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:10px';
+    const msg = document.createElement('span');
+    msg.textContent = message;
+    const close = document.createElement('button');
+    close.textContent = '×';
+    close.setAttribute('aria-label', 'Dismiss');
+    close.style.cssText = 'background:none;border:none;color:inherit;cursor:pointer;font-size:18px;line-height:1;padding:0;flex-shrink:0;opacity:.8';
+    close.onclick = () => toast.remove();
+    toast.appendChild(msg);
+    toast.appendChild(close);
+  } else {
+    toast.textContent = message;
+  }
   container.appendChild(toast);
   setTimeout(() => {
     toast.style.transition = 'opacity .3s';
     toast.style.opacity = '0';
     setTimeout(() => toast.remove(), 300);
-  }, durationMs);
+  }, ms);
 }

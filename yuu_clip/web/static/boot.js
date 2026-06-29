@@ -37,3 +37,5 @@ const _savedSort = localStorage.getItem('clips-sort');
 if (_savedSort) document.getElementById('clips-sort').value = _savedSort;
 document.getElementById('log-panel').classList.add('visible', 'minimized');
 document.getElementById('log-toggle').textContent = '▼';
+
+if (!localStorage.getItem('yuu-getting-started-seen')) openGettingStartedModal();

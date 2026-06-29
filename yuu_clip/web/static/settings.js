@@ -279,7 +279,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // ── getting started modal ─────────────────────────────────────────────────────
 function openGettingStartedModal()  { document.getElementById('getting-started-modal').classList.add('visible'); }
-function closeGettingStartedModal() { document.getElementById('getting-started-modal').classList.remove('visible'); }
+function closeGettingStartedModal() {
+  document.getElementById('getting-started-modal').classList.remove('visible');
+  localStorage.setItem('yuu-getting-started-seen', '1');
+}
 
 // ── about modal ───────────────────────────────────────────────────────────────
 function openAboutModal()  { document.getElementById('about-modal').classList.add('visible'); }
@@ -381,8 +384,9 @@ document.addEventListener('keydown', e => {
     closeGlossaryModal();
     _confirmCancel();
     closeFieldEditModal();
+    closeScoreOverrideModal();
     _diffDiscard();
-    if (_isNewRecordingPanelOpen()) _doCloseNewRecordingPanel();
+    if (_isNewRecordingPanelOpen() && !_panelDirty) _doCloseNewRecordingPanel();
     closeProfileManager();
     closeDemoModal();
     closeReelsModal();

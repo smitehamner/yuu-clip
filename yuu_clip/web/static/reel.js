@@ -203,6 +203,9 @@ function _onBatchCaptionsChange(val) {
 
 function openBatchExportModal(videoId) {
   _batchExportVideoId = videoId;
+  const video = _videos.find(v => v.id === videoId);
+  const modalTitle = document.querySelector('#batch-export-modal h3');
+  if (modalTitle) modalTitle.textContent = video ? `Export Approved — ${video.filename}` : 'Export Approved Clips';
   document.getElementById('batch-min-score').value = 0;
   document.getElementById('batch-min-score-val').textContent = '0.00';
   document.getElementById('batch-skip-exported').checked = true;

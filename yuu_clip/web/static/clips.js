@@ -13,6 +13,22 @@ function _applyFilters() {
   return result;
 }
 
+function _clearClipFilters() {
+  _clipFilter = 'all';
+  _clipSearch = '';
+  _clipScoreMin = 0;
+  document.querySelectorAll('.clip-tab').forEach(t => {
+    const active = t.dataset.filter === 'all';
+    t.classList.toggle('active', active);
+    t.setAttribute('aria-selected', active ? 'true' : 'false');
+  });
+  const searchEl = document.getElementById('clip-search-input');
+  if (searchEl) searchEl.value = '';
+  const scoreEl = document.getElementById('clip-score-min');
+  if (scoreEl) scoreEl.value = '0';
+  renderClipList(_clips);
+}
+
 function setClipSearch(q) {
   _clipSearch = q.trim();
   renderClipList(_applyFilters());
@@ -30,7 +46,7 @@ function renderClipList(clips) {
     const _statusLabel = {pending: 'Unreviewed', approved: 'Approved', rejected: 'Rejected'};
     const hasActiveFilter = _clipFilter !== 'all' || _clipSearch || _clipScoreMin > 0;
     const filterMsg = hasActiveFilter
-      ? 'No clips match the current filters'
+      ? `No clips match the current filters — <a href="#" style="color:var(--accent);text-decoration:underline" onclick="event.preventDefault();_clearClipFilters()">Clear filters</a>`
       : `No clips found — <a href="#" style="color:var(--muted);text-decoration:underline" onclick="event.preventDefault();openNewRecordingPanel()">Analyze another recording</a>`;
     list.innerHTML = `<li style="padding:10px 14px;color:var(--muted)">${filterMsg}</li>`;
     return;
@@ -70,6 +86,7 @@ function renderClipList(clips) {
 async function selectClip(id) {
   activeClipId = id;
   localStorage.setItem('yuuclip-view', JSON.stringify({videoId: activeVideoId, clipId: id}));
+  document.getElementById('detail').innerHTML = '<div class="detail-empty" style="color:var(--muted)">Loading…</div>';
   try {
     const [clipRes, mediaRes] = await Promise.all([
       fetch(`/api/clips/${id}`),
@@ -262,8 +279,8 @@ function _mergeButtonsHtml(clip) {
   const next = idx >= 0 && idx < byTime.length - 1 ? byTime[idx + 1] : null;
   if (!prev && !next) return '';
   return `<div class="op-actions">
-    ${prev ? `<button class="btn" onclick="mergeClips(${clip.id},${prev.id},'prev')" title="Merge with previous clip (${prev.start_hms})">Merge ↑ prev</button>` : ''}
-    ${next ? `<button class="btn" onclick="mergeClips(${clip.id},${next.id},'next')" title="Merge with next clip (${next.start_hms})">Merge ↓ next</button>` : ''}
+    ${prev ? `<button class="btn" onclick="mergeClips(${clip.id},${prev.id},'prev')" title="Merge with previous clip (${prev.start_hms})">← Merge previous</button>` : ''}
+    ${next ? `<button class="btn" onclick="mergeClips(${clip.id},${next.id},'next')" title="Merge with next clip (${next.start_hms})">Merge next →</button>` : ''}
   </div>`;
 }
 
@@ -272,28 +289,36 @@ function _replaceClipInList(updated) {
   if (idx !== -1) _clips[idx] = updated;
 }
 
+let _scoreOverrideClipId = null;
+
 function openScoreOverride(clipId) {
   const clip = _clips.find(c => c.id === clipId);
-  const current = clip?.score_overall ?? 0;
-  openFieldEditModal(
-    `Set score override (0.00 – 1.00) — current LLM score: ${current.toFixed(2)}`,
-    current.toFixed(2),
-    async val => {
-      const num = parseFloat(val);
-      if (isNaN(num) || num < 0 || num > 1) {
-        showToast('Score must be a number between 0 and 1', 'error');
-        return;
-      }
-      const res = await fetch(`/api/clips/${clipId}/score-override`, {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({score_overall_user: num}),
-      });
-      if (!res.ok) { showToast('Failed to set score override', 'error'); return; }
-      const updated = await res.json();
-      _replaceClipInList(updated);
-      renderDetail(updated);
-    },
-  );
+  const current = clip?.score_overall ?? 0.5;
+  _scoreOverrideClipId = clipId;
+  const slider = document.getElementById('score-override-slider');
+  slider.value = current;
+  document.getElementById('score-override-display').textContent = current.toFixed(2);
+  document.getElementById('score-override-llm-note').textContent = `LLM score: ${current.toFixed(2)}`;
+  document.getElementById('score-override-modal').classList.add('visible');
+}
+
+function closeScoreOverrideModal() {
+  document.getElementById('score-override-modal').classList.remove('visible');
+  _scoreOverrideClipId = null;
+}
+
+async function _scoreOverrideSave() {
+  const clipId = _scoreOverrideClipId;
+  const num = parseFloat(document.getElementById('score-override-slider').value);
+  closeScoreOverrideModal();
+  const res = await fetch(`/api/clips/${clipId}/score-override`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({score_overall_user: num}),
+  });
+  if (!res.ok) { showToast('Failed to set score override', 'error'); return; }
+  const updated = await res.json();
+  _replaceClipInList(updated);
+  renderDetail(updated);
 }
 
 async function clearScoreOverride(clipId) {
@@ -392,7 +417,7 @@ async function _patchClipField(clipId, action, field, newDesc, newDescLong) {
 function clearDetail() {
   document.getElementById('player-area').innerHTML = `
     <div class="no-export-msg"><div style="color:var(--muted)">Select a clip to review</div></div>`;
-  document.getElementById('detail').innerHTML = '<div class="detail-empty">Select a clip from the sidebar</div>';
+  document.getElementById('detail').innerHTML = '<div class="detail-empty">Select a clip from the sidebar<div style="color:var(--muted);font-size:12px;margin-top:6px">Use ← → to navigate between clips</div></div>';
 }
 
 // ── filter tabs ───────────────────────────────────────────────────────────────
@@ -574,7 +599,7 @@ async function _doExportVideoTranscript(id, btn, overwrite) {
   } catch (err) {
     showToast(`Export failed: ${err.message}`, 'error');
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = 'Export Captions to File'; }
+    if (btn) { btn.disabled = false; btn.textContent = 'Save Captions to SRT'; }
   }
 }
 

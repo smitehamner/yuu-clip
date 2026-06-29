@@ -7,6 +7,7 @@ function showConfirm(title, body, okLabel, onOk, danger = false) {
   ok.className = danger ? 'btn reject' : 'btn primary';
   _confirmCallback = onOk;
   document.getElementById('confirm-modal').classList.add('visible');
+  setTimeout(() => document.querySelector('#confirm-modal .btn:not(.reject):not(.primary)').focus(), 50);
 }
 function _confirmOk() {
   document.getElementById('confirm-modal').classList.remove('visible');

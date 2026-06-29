@@ -34,9 +34,9 @@ async function loadVideos() {
       ? `<div class="meta">Scores: ${v.score_min.toFixed(2)} – ${v.score_max.toFixed(2)}</div>`
       : '';
     const procBadges = [
-      v.summarized_at   ? '' : '<span style="font-size:10px;color:var(--muted)" title="No summary yet">∅ summary</span>',
-      v.clips_scored_at ? '' : '<span style="font-size:10px;color:var(--muted)" title="Not scored yet">∅ scored</span>',
-      v.has_timeline    ? '' : '<span style="font-size:10px;color:var(--muted)" title="No timeline yet">∅ timeline</span>',
+      v.summarized_at   ? '' : '<span style="font-size:10px;color:var(--muted)" title="No summary yet">– no summary</span>',
+      v.clips_scored_at ? '' : '<span style="font-size:10px;color:var(--muted)" title="Not scored yet">– unscored</span>',
+      v.has_timeline    ? '' : '<span style="font-size:10px;color:var(--muted)" title="No timeline yet">– no timeline</span>',
     ].filter(Boolean).join(' &middot; ');
     const segmentMeta = (v.segment_start_s != null && v.segment_end_s != null)
       ? `<div class="meta" style="color:var(--accent2)">${_msToHms(v.segment_start_s * 1000)} – ${_msToHms(v.segment_end_s * 1000)}</div>`
@@ -187,12 +187,13 @@ function renderVideoDetail(video, savedTimeline) {
 
     <div class="actions">
       <button class="btn" id="btn-summarize-video" onclick="summarizeVideo(${video.id}, this)">${video.summary ? 'Regenerate Summary' : 'Generate Summary'}</button>
-      ${video.summary ? `<button class="btn" id="btn-regen-summary" onclick="regenSummaryAuto(${video.id}, this)" title="Regenerate summary and auto-save without review">Regenerate (auto-save)</button>` : ''}
       <button class="btn" id="btn-generate-timeline" onclick="generateTimeline(${video.id})">${video.has_timeline ? 'Regenerate Timeline' : 'Generate Timeline'}</button>
+      <button class="btn" id="btn-rescore-all" onclick="rescoreAllClips(${video.id}, this)">Re-score All Clips</button>
+      <button class="btn" id="btn-redescribe-all" onclick="redescribeAllClips(${video.id}, this)">Re-describe All Clips</button>
       <button class="btn" onclick="openAutoApproveModal(${video.id})">Approve Above Score</button>
       <button class="btn" onclick="openBatchExportModal(${video.id})">Export Approved</button>
       <button class="btn" onclick="openSplitEditor(${video.id})">Split Recording</button>
-      <button class="btn" onclick="exportVideoTranscript(${video.id}, this)" title="Write captions as an SRT file next to the source recording, for reuse on reimport">Export Captions to File</button>
+      <button class="btn" onclick="exportVideoTranscript(${video.id}, this)" title="Write captions as an SRT file next to the source recording, for reuse on reimport">Save Captions to SRT</button>
       <div class="danger-actions">
         <button class="btn danger" onclick="resetApprovals(${video.id})">Reset Approvals</button>
         <button class="btn danger" onclick="deleteVideo(${video.id})" title="Remove from yuu-clip (source file is NOT deleted)">Remove Recording</button>
@@ -449,8 +450,7 @@ function regenSummaryAuto(id, btn) {
 function _doRegenSummaryAuto(id, btn) {
   const actionBtn = document.getElementById('btn-regen-summary') || btn;
   if (actionBtn && actionBtn.disabled) return;
-  actionBtn.disabled = true;
-  actionBtn.textContent = 'Regenerating…';
+  if (actionBtn) { actionBtn.disabled = true; actionBtn.textContent = 'Regenerating…'; }
   openLog();
   if (_activeES) { _activeES.close(); _activeES = null; }
   const es = new EventSource(`/api/videos/${id}/regenerate-summary`);
@@ -460,8 +460,7 @@ function _doRegenSummaryAuto(id, btn) {
     if (data === '__DONE__') {
       es.close();
       if (_activeES === es) _activeES = null;
-      actionBtn.disabled = false;
-      actionBtn.textContent = 'Regenerate (auto-save)';
+      if (actionBtn) { actionBtn.disabled = false; actionBtn.textContent = 'Regenerate (auto-save)'; }
       loadVideos().then(() => {
         const video = _videos.find(v => v.id === id);
         if (video && activeVideoId === id) renderVideoDetail(video, null);
@@ -474,8 +473,7 @@ function _doRegenSummaryAuto(id, btn) {
   es.onerror = () => {
     es.close();
     if (_activeES === es) _activeES = null;
-    actionBtn.disabled = false;
-    actionBtn.textContent = 'Regenerate (auto-save)';
+    if (actionBtn) { actionBtn.disabled = false; actionBtn.textContent = 'Regenerate (auto-save)'; }
     showToast('Summary regeneration failed — see log', 'error');
   };
 }
@@ -516,6 +514,7 @@ function _openVideoFieldKebab(videoId, btn, field) {
     });
   }
   items.push(null, { label: 'Regenerate', action: () => summarizeVideo(videoId, null) });
+  if (!isTitle) items.push({ label: 'Regenerate (auto-save)', action: () => regenSummaryAuto(videoId, null) });
   showKebab(btn, items);
 }
 

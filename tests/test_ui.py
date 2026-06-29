@@ -171,11 +171,11 @@ class TestProfileManager:
         # Fill in name
         page.fill("#pe-name", "ui_test_profile")
         page.fill("#pe-numtracks", "1")
-        page.wait_for_timeout(300)  # let renderTrackRows fire
+        page.wait_for_selector("#pe-tracks div", state="visible", timeout=2000)
 
         # Save
         page.click("#profile-editor button:has-text('Save')")
-        page.wait_for_timeout(500)
+        page.wait_for_selector("#profile-list :has-text('ui_test_profile')", timeout=3000)
 
         # Should now appear in list
         expect(page.locator("#profile-list")).to_contain_text("ui_test_profile")
@@ -184,7 +184,10 @@ class TestProfileManager:
         page.locator("button[data-delete-profile='ui_test_profile']").click()
         page.locator("#confirm-ok-btn").wait_for(state="visible", timeout=2000)
         page.click("#confirm-ok-btn")
-        page.wait_for_timeout(500)
+        page.wait_for_function(
+            "!document.querySelector('#profile-list').textContent.includes('ui_test_profile')",
+            timeout=3000,
+        )
         expect(page.locator("#profile-list")).not_to_contain_text("ui_test_profile")
 
 
@@ -215,12 +218,12 @@ class TestClipReview:
 
     def test_approve_button_exists(self, page: Page):
         self._select_first_video_and_clip(page)
-        page.wait_for_selector(".actions", timeout=3000)
+        page.wait_for_selector(".clip-actions", timeout=5000)
         expect(page.locator("button.approve")).to_be_visible()
 
     def test_reject_button_exists(self, page: Page):
         self._select_first_video_and_clip(page)
-        page.wait_for_selector(".actions", timeout=3000)
+        page.wait_for_selector(".clip-actions", timeout=5000)
         expect(page.locator("button.reject")).to_be_visible()
 
     def test_retranscribe_button_exists(self, page: Page):
@@ -413,7 +416,7 @@ class TestEstimateDisplay:
 
 @skip_no_server
 class TestScoreOverrideModal:
-    """Score override opens the shared field-edit modal (not window.prompt)."""
+    """Score override opens a dedicated slider modal."""
 
     def _select_first_video_and_clip(self, page: Page) -> None:
         page.goto(LIVE_URL)
@@ -426,44 +429,42 @@ class TestScoreOverrideModal:
         clip_id = page.evaluate("() => _clips?.[0]?.id")
         assert clip_id is not None, "No clips loaded on the live server"
         page.evaluate(f"() => openScoreOverride({clip_id})")
-        page.wait_for_selector("#field-edit-modal.visible", timeout=2000)
+        page.wait_for_selector("#score-override-modal.visible", timeout=2000)
 
-    def test_opens_field_edit_modal(self, page: Page):
+    def test_opens_score_override_modal(self, page: Page):
         self._select_first_video_and_clip(page)
         page.wait_for_selector(".scores", timeout=3000)
         self._open_score_override(page)
-        expect(page.locator("#field-edit-modal")).to_be_visible()
+        expect(page.locator("#score-override-modal")).to_be_visible()
 
     def test_title_mentions_score_override(self, page: Page):
         self._select_first_video_and_clip(page)
         page.wait_for_selector(".scores", timeout=3000)
         self._open_score_override(page)
-        expect(page.locator("#field-edit-title")).to_contain_text("score override")
+        expect(page.locator("#score-override-modal h3")).to_contain_text("Score Override")
 
     def test_prefills_current_score(self, page: Page):
         self._select_first_video_and_clip(page)
         page.wait_for_selector(".scores", timeout=3000)
         clip_score = page.evaluate("() => _clips?.[0]?.score_overall ?? 0")
         self._open_score_override(page)
-        val = float(page.locator("#field-edit-text").input_value())
+        val = float(page.locator("#score-override-slider").input_value())
         assert abs(val - clip_score) < 0.01
 
     def test_cancel_closes_modal(self, page: Page):
         self._select_first_video_and_clip(page)
         page.wait_for_selector(".scores", timeout=3000)
         self._open_score_override(page)
-        page.click("#field-edit-modal button:has-text('Cancel')")
-        expect(page.locator("#field-edit-modal")).not_to_be_visible()
+        page.click("#score-override-modal button:has-text('Cancel')")
+        expect(page.locator("#score-override-modal")).not_to_be_visible()
 
-    def test_invalid_range_shows_error_toast(self, page: Page):
+    def test_display_updates_with_slider(self, page: Page):
         self._select_first_video_and_clip(page)
         page.wait_for_selector(".scores", timeout=3000)
         self._open_score_override(page)
-        page.fill("#field-edit-text", "1.5")
-        page.click("#field-edit-modal .btn.primary")
-        # Save closes the modal first, then the callback validates and shows the toast
-        expect(page.locator("#field-edit-modal")).not_to_be_visible()
-        expect(page.locator("#toast-container")).to_contain_text("between 0 and 1")
+        page.locator("#score-override-slider").fill("0.75")
+        page.locator("#score-override-slider").dispatch_event("input")
+        expect(page.locator("#score-override-display")).to_contain_text("0.75")
 
 
 # ---------------------------------------------------------------------------
