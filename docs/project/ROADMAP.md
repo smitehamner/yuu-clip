@@ -87,6 +87,12 @@ regular users.
 - [ ] **Multi-session grouping** — treat multiple OBS files from one play session as a single
   project with a unified timeline
 
+- [ ] **Frontend JS maintainability pass** — reduce reliance on the global namespace across the
+  static JS modules (`analyze`, `clips`, `contexts`, `reel`, `settings`, `split`, `ui`, `utils`):
+  audit functions/state hung off `window`, scope or namespace them, and tighten cross-module
+  dependencies. Goal is clearer module boundaries and easier-to-maintain code without introducing
+  a build step. *(Tech debt: no behavior change)*
+
 ---
 
 ## Phase 6 — Advanced features (Pending)
