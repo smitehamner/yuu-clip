@@ -101,7 +101,7 @@ class TestSceneCutScorer:
             result = scorer.score(clip, session)
         finally:
             session.close()
-        assert result.score_action == 0.0
+        assert result.score_action is None   # zero duration → no opinion, not a real zero
         assert result.tags == []
 
     def test_score_no_scene_boundaries_returns_zero(self, tmp_path):
@@ -327,6 +327,41 @@ class TestScoringEngine:
         # Weighted: (1.0*2 + 0.0*1) / (2+1) = 2/3
         assert abs(clip.score_action - (2.0 / 3.0)) < 1e-6
 
+    def _make_partial_scorer(self, weight=1.0, **dims):
+        """Scorer that emits ONLY the named dimensions (others stay None — no opinion)."""
+        from unittest.mock import MagicMock
+
+        from yuu_clip.scoring.protocol import ScoreResult
+        mock = MagicMock()
+        mock.is_available.return_value = True
+        mock.weight = weight
+        mock.score.return_value = ScoreResult(**dims)
+        return mock
+
+    def test_dimension_not_diluted_by_scorer_that_does_not_emit_it(self):
+        # An action-only scorer must not drag down funny, and vice-versa.
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.engine import ScoringEngine
+        action_only = self._make_partial_scorer(score_action=1.0, weight=1.0)
+        funny_only  = self._make_partial_scorer(score_funny=1.0,  weight=1.0)
+        engine = ScoringEngine(Config(), [action_only, funny_only])
+        clip = self._make_clip()
+        engine.score_clip(clip, None)
+        assert abs(clip.score_funny - 1.0) < 1e-6   # not 0.5
+        assert abs(clip.score_action - 1.0) < 1e-6  # not 0.5
+        assert clip.score_dramatic == 0.0           # nobody emitted it
+
+    def test_no_opinion_scorer_does_not_dilute(self):
+        # A scorer returning an empty ScoreResult (no data) contributes nothing.
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.engine import ScoringEngine
+        real  = self._make_partial_scorer(score_action=1.0, weight=1.0)
+        empty = self._make_partial_scorer(weight=3.0)  # emits no dimensions
+        engine = ScoringEngine(Config(), [real, empty])
+        clip = self._make_clip()
+        engine.score_clip(clip, None)
+        assert abs(clip.score_action - 1.0) < 1e-6  # empty's weight excluded
+
 
 # ---------------------------------------------------------------------------
 # AudioEnergyScorer — no-scorable-tracks path
@@ -497,6 +532,63 @@ class TestAudioEnergyScorerHappyPath:
 
         # Score should be 0.0 (below baseline) — quiet clip in a loud video
         assert result.score_action == 0.0
+
+
+# ---------------------------------------------------------------------------
+# AudioEnergy — weighted per-second series and baseline
+# ---------------------------------------------------------------------------
+
+class TestEnergyWeightedSeries:
+    """_weighted_second_series collapses tracks per second using relevance_weight."""
+
+    def _row(self, track_id, second_offset, rms_db):
+        from unittest.mock import MagicMock
+        row = MagicMock()
+        row.audio_track_id = track_id
+        row.second_offset = second_offset
+        row.rms_db = rms_db
+        return row
+
+    def _track(self, track_id, weight):
+        from unittest.mock import MagicMock
+        track = MagicMock()
+        track.id = track_id
+        track.relevance_weight = weight
+        return track
+
+    def test_weighted_average_per_second(self):
+        from yuu_clip.scoring.energy import _weighted_second_series
+        track_map = {1: self._track(1, 2.0), 2: self._track(2, 0.5)}
+        rows = [self._row(1, 0, 10.0), self._row(2, 0, -10.0)]
+        series = _weighted_second_series(rows, track_map)
+        # (2.0*10 + 0.5*-10) / 2.5 = 15 / 2.5 = 6.0
+        assert series == [6.0]
+
+    def test_one_value_per_second_regardless_of_track_count(self):
+        from yuu_clip.scoring.energy import _weighted_second_series
+        track_map = {1: self._track(1, 1.0), 2: self._track(2, 1.0)}
+        rows = [self._row(1, 0, 4.0), self._row(2, 0, 8.0), self._row(1, 1, 2.0)]
+        series = _weighted_second_series(rows, track_map)
+        assert series == [6.0, 2.0]   # second 0 averaged, second 1 single track
+
+    def test_unknown_track_defaults_to_weight_one(self):
+        from yuu_clip.scoring.energy import _weighted_second_series
+        rows = [self._row(99, 0, 5.0)]
+        assert _weighted_second_series(rows, {}) == [5.0]
+
+
+class TestEnergyBaseline:
+    def test_baseline_is_mean_plus_std(self):
+        from yuu_clip.scoring.energy import _compute_baseline
+        assert _compute_baseline([0.0, 0.0, 2.0, 2.0]) == (1.0, 2.0)
+
+    def test_baseline_none_for_constant_series(self):
+        from yuu_clip.scoring.energy import _compute_baseline
+        assert _compute_baseline([3.0, 3.0, 3.0]) is None
+
+    def test_baseline_none_for_under_two_values(self):
+        from yuu_clip.scoring.energy import _compute_baseline
+        assert _compute_baseline([5.0]) is None
 
 
 # ---------------------------------------------------------------------------
@@ -952,7 +1044,7 @@ class TestLLMScorerScore:
         clip = self._make_clip(excerpt="")
         result = scorer.score(clip, None)
         assert "llm_no_transcript" in result.tags
-        assert result.score_funny == 0.0
+        assert result.score_funny is None   # no transcript → no opinion, not a real zero
 
     def test_none_transcript_returns_llm_no_transcript_tag(self):
         scorer = self._make_scorer()
@@ -970,7 +1062,7 @@ class TestLLMScorerScore:
         clip = self._make_clip(excerpt="some transcript text")
         result = scorer.score(clip, None)
         assert "llm_error" in result.tags
-        assert result.score_funny == 0.0
+        assert result.score_funny is None   # backend error → no opinion, not a real zero
 
     def test_invalid_json_returns_llm_error_tag(self):
         scorer = self._make_scorer(backend_response="not json {{{{")

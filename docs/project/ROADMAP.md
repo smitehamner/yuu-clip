@@ -288,6 +288,7 @@ Items wanted long-term but not yet assigned to a phase.
 - **Sidebar video list keyboard support** — `<li>` items in `#video-list` are mouse-only; no `tabindex` or `onkeydown` handler. Clip navigation works via A/R/←/→ shortcuts, but selecting a video requires a mouse. Fix: add `tabindex="0"` and Enter/Space handler to each `<li>`, or put a `<button>` inside.
 - **Clip filter tabs ARIA roles** — `.clip-tab` buttons have no `role="tab"`, no `role="tablist"` on the container, and no `aria-selected`. Adding these enables arrow-key tab switching and correct screen reader announcement.
 - **Preview cache test isolation** — the module-level `_preview_cache` dict in `routes/videos.py` is shared across all `create_app()` calls in tests. Not a bug today, but if any test directly manipulates cache state the lack of isolation will cause ordering-dependent failures.
+- **`analyze/overlap.py:_pearson` flat-curve correlation** — when both RMS curves are perfectly constant (`da == db == 0`, e.g. two tracks silent over the first 30 s) the function returns `1.0`, which reads as "identical" and disables the specialized track. The asymmetric cases (one flat, one not) correctly return `0.0`, so a false positive needs *both* tracks fully silent for 30 s — unlikely. Deferred from the 2026-06-29 scoring bug-hunt; revisit if tracks are ever wrongly suppressed. A spread/variance floor or an explicit "undetermined" return would be the proper fix.
 
 ---
 

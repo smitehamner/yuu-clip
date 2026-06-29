@@ -49,40 +49,54 @@ class ScoringEngine:
             return
 
         clip.tags = [t for t in clip.tags if t not in self._SCORER_TAGS]
+        clip.score_funny = clip.score_dramatic = clip.score_action = 0.0
         clip.score_overall = 0.0
 
-        funny_num = dramatic_num = action_num = weight_sum = 0.0
+        # Per dimension: numerator (Σ value·weight) and the weight total of the
+        # scorers that actually emitted that dimension. A scorer that returns
+        # None for a dimension is excluded from its denominator entirely.
+        num    = {"funny": 0.0, "dramatic": 0.0, "action": 0.0}
+        weight = {"funny": 0.0, "dramatic": 0.0, "action": 0.0}
 
         for scorer in self._scorers:
             result: ScoreResult = scorer.score(clip, session)
-            w = scorer.weight
-            funny_num    += result.score_funny    * w
-            dramatic_num += result.score_dramatic * w
-            action_num   += result.score_action   * w
-            weight_sum   += w
+            for dim, value in (
+                ("funny",    result.score_funny),
+                ("dramatic", result.score_dramatic),
+                ("action",   result.score_action),
+            ):
+                if value is not None:
+                    num[dim]    += value * scorer.weight
+                    weight[dim] += scorer.weight
+            self._apply_descriptions(clip, result)
+            self._merge_tags(clip, result.tags)
 
-            if result.description:
-                clip.description = result.description
-            if result.description_long:
-                clip.description_long = result.description_long
-
-            for tag in result.tags:
-                if tag not in clip.tags:
-                    # Full reassignment — SQLAlchemy JSON column needs a new list
-                    # object to detect the mutation; in-place .append() is invisible.
-                    clip.tags = clip.tags + [tag]
-
-        if weight_sum == 0:
-            _log.warning("score_clip: all scorer weights are 0 — clip %s will not be scored", getattr(clip, "id", "?"))
+        if not any(weight.values()):
+            _log.warning("score_clip: no scorer contributed a weighted dimension — clip %s not scored", getattr(clip, "id", "?"))
             return
 
-        clip.score_funny    = funny_num    / weight_sum
-        clip.score_dramatic = dramatic_num / weight_sum
-        clip.score_action   = action_num   / weight_sum
+        clip.score_funny    = num["funny"]    / weight["funny"]    if weight["funny"]    else 0.0
+        clip.score_dramatic = num["dramatic"] / weight["dramatic"] if weight["dramatic"] else 0.0
+        clip.score_action   = num["action"]   / weight["action"]   if weight["action"]   else 0.0
 
         overall = _compute_overall(self._config, clip.score_funny, clip.score_dramatic, clip.score_action)
         if overall is not None:
             clip.score_overall = overall
+
+    @staticmethod
+    def _apply_descriptions(clip: "ClipCandidate", result: ScoreResult) -> None:
+        if result.description:
+            clip.description = result.description
+        if result.description_long:
+            clip.description_long = result.description_long
+
+    @staticmethod
+    def _merge_tags(clip: "ClipCandidate", tags: list[str]) -> None:
+        for tag in tags:
+            if tag not in clip.tags:
+                # Full reassignment — SQLAlchemy JSON column needs a new list
+                # object to detect the mutation; in-place .append() is invisible.
+                clip.tags = clip.tags + [tag]
 
     def score_video(self, video: "Video", session: "Session", progress_cb=None) -> int:
         """Score all ClipCandidates for *video*.  Returns count scored."""

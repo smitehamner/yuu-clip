@@ -127,37 +127,40 @@ def _read_rms_per_second(wav_path: Path, downsample_factor: int = 1) -> list[flo
     return rms_db.tolist()
 
 
-def _weighted_mean_db(rows: list, track_map: dict) -> float | None:
-    """Return track-relevance-weighted mean dB across *rows*, or None if total weight is 0."""
-    track_sums:   defaultdict[int, float] = defaultdict(float)
-    track_counts: defaultdict[int, int]   = defaultdict(int)
-    for row in rows:
-        track_sums[row.audio_track_id]   += row.rms_db
-        track_counts[row.audio_track_id] += 1
+def _weighted_second_series(rows: list, track_map: dict) -> list[float]:
+    """Collapse per-track rows into one relevance-weighted dB value per second.
 
-    weighted_sum = weight_total = 0.0
-    for tid, total in track_sums.items():
-        mean_db = total / track_counts[tid]
-        w = track_map[tid].relevance_weight if tid in track_map else 1.0
-        weighted_sum += mean_db * w
-        weight_total += w
-
-    return weighted_sum / weight_total if weight_total else None
-
-
-def _compute_baseline(all_rows: list) -> tuple[float, float] | None:
-    """Return (global_mean_db, baseline_db) for normalising clip scores, or None.
-
-    Returns None when there are fewer than 2 rows (can't estimate spread) or when
-    std == 0 (all rows identical — no meaningful spread to normalise against).
-    baseline_db = mean + std; a clip at or above baseline scores 1.0.
+    Each second contributes exactly one value regardless of how many tracks
+    cover it, so a track with more rows can't bias the distribution. The clip
+    mean and the session baseline are both derived from this series, keeping
+    them on the same weighted footing.
     """
-    if len(all_rows) < 2:
+    by_second: defaultdict[int, list[tuple[float, float]]] = defaultdict(list)
+    for row in rows:
+        weight = track_map[row.audio_track_id].relevance_weight if row.audio_track_id in track_map else 1.0
+        by_second[row.second_offset].append((row.rms_db, weight))
+
+    series: list[float] = []
+    for second in sorted(by_second):
+        pairs = by_second[second]
+        weight_total = sum(weight for _, weight in pairs)
+        if weight_total:
+            series.append(sum(rms_db * weight for rms_db, weight in pairs) / weight_total)
+    return series
+
+
+def _compute_baseline(series: list[float]) -> tuple[float, float] | None:
+    """Return (mean_db, baseline_db) for normalising clip scores, or None.
+
+    Returns None when there are fewer than 2 values (can't estimate spread) or
+    when std == 0 (all values identical — no meaningful spread to normalise
+    against). baseline_db = mean + std; a clip at or above baseline scores 1.0.
+    """
+    if len(series) < 2:
         return None
-    all_db = [r.rms_db for r in all_rows]
-    n = len(all_db)
-    mean_all = sum(all_db) / n
-    std_all  = math.sqrt(sum((x - mean_all) ** 2 for x in all_db) / n)
+    n = len(series)
+    mean_all = sum(series) / n
+    std_all  = math.sqrt(sum((x - mean_all) ** 2 for x in series) / n)
     baseline = mean_all + std_all
     return None if baseline <= mean_all else (mean_all, baseline)
 
@@ -200,17 +203,18 @@ class AudioEnergyScorer:
         if not clip_rows:
             return ScoreResult(tags=["energy_no_data"])
 
-        track_map    = {t.id: t for t in clip.video.audio_tracks}
-        clip_mean_db = _weighted_mean_db(clip_rows, track_map)
-        if clip_mean_db is None:
+        track_map   = {t.id: t for t in clip.video.audio_tracks}
+        clip_series = _weighted_second_series(clip_rows, track_map)
+        if not clip_series:
             return ScoreResult()
+        clip_mean_db = sum(clip_series) / len(clip_series)
 
         all_rows = (
             session.query(AudioEnergy)
             .filter(AudioEnergy.audio_track_id.in_(scorable_track_ids))
             .all()
         )
-        baseline_pair = _compute_baseline(all_rows)
+        baseline_pair = _compute_baseline(_weighted_second_series(all_rows, track_map))
         if baseline_pair is None:
             return ScoreResult()
 

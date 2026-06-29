@@ -2,7 +2,7 @@
 Clip candidate generation from transcript segments.
 
 Strategy: group TranscriptSegments by natural silence gaps.
-A gap longer than `silence_threshold_ms` marks a boundary between
+A gap of at least `silence_threshold_ms` marks a boundary between
 clip candidates.  Candidates shorter than `min_clip_ms` are dropped;
 those longer than `hard_split_ms` are force-split regardless of silence.
 
