@@ -602,12 +602,19 @@ function spawnBackend(port) {
     logSetup(`[backend] ${d.toString().trimEnd()}`);
   });
   pyProc.on('exit', code => {
-    if (code !== 0 && mainWindow) {
+    if (isQuitting) return;
+    const msg = code !== null && code !== 0
+      ? `The Python backend exited with code ${code}.`
+      : 'The Python backend stopped unexpectedly.';
+    if (mainWindow && !mainWindow.isDestroyed()) {
       dialog.showMessageBox(mainWindow, {
-        type: 'error', title: 'Backend exited unexpectedly',
-        message: `The Python backend exited with code ${code}.\n\nCheck the log at:\n${projectDir}\\.yuu-clip\\yuu-clip.log`,
-        buttons: ['OK'],
-      });
+        type: 'error', title: 'Backend stopped',
+        message: `${msg}\n\nCheck the log at:\n${projectDir}\\.yuu-clip\\yuu-clip.log`,
+        buttons: ['Quit'],
+      }).then(() => { isQuitting = true; app.quit(); });
+    } else {
+      isQuitting = true;
+      app.quit();
     }
   });
 }
