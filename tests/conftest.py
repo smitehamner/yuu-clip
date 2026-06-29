@@ -3,6 +3,7 @@ Shared fixtures for yuu-clip tests.
 """
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
@@ -88,17 +89,34 @@ def client(project_dir: Path) -> TestClient:
 LIVE_URL = "http://127.0.0.1:8080"
 
 
-def pytest_sessionfinish(session, exitstatus):
-    """Bypass playwright's hanging asyncio event loop teardown on Windows.
+_had_failure = False
 
-    After all tests complete, playwright's sync API event loop gets stuck in
-    GetQueuedCompletionStatus waiting for a handle that never closes. os._exit()
-    here skips fixture teardown entirely — the summary is already written, and
-    the PowerShell finally block (tada.wav) still runs because the process exits.
-    """
-    import os
+
+def pytest_runtest_logreport(report: pytest.TestReport) -> None:
+    global _had_failure
+    if report.when == "call" and report.failed:
+        _had_failure = True
+
+
+def pytest_runtest_teardown(item, nextitem) -> None:
+    # Watchdog for Playwright session teardown hang on Windows (IOCP / ProactorEventLoop).
+    # pytest_sessionfinish never fires when the hang occurs, so we force-exit here.
+    # Summary line is not printed; all individual results are visible in -v output.
+    if nextitem is not None:
+        return
+    import threading
+    import time
+
+    def _watchdog() -> None:
+        time.sleep(8)
+        os._exit(1 if _had_failure else 0)
+
+    threading.Thread(target=_watchdog, daemon=True).start()
+
+
+def pytest_sessionfinish(session, exitstatus) -> None:
+    # Fires only if session teardown doesn't hang — skip redundant cleanup.
     os._exit(int(exitstatus))
-
 
 
 @pytest.fixture
