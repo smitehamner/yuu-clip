@@ -19,22 +19,21 @@
   <div class="header-spacer" id="header-spacer"></div>
   <span id="llm-remote-badge" title="LLM scoring is using a remote API — requests are billed per token" style="display:none;font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;background:var(--warn,#f59e0b);color:#1a1a1a;cursor:default">&#9729; Remote LLM</span>
   <button class="btn primary" id="btn-analyze" onclick="openNewRecordingPanel()">+ Analyze</button>
-  <button class="btn" id="btn-demo" onclick="openDemoModal()">Build Reel</button>
+  <button class="btn" id="btn-highlight-reels" onclick="openHighlightReelsModal('build')">Highlight Reels</button>
+  <button class="btn ghost" id="btn-settings-header" onclick="openSettings()" title="Settings" aria-label="Settings" style="font-size:15px;padding:5px 10px">&#9881;</button>
   <div class="hamburger-wrap" id="hamburger-wrap">
     <button class="btn ghost" id="btn-hamburger" onclick="toggleHamburger()" title="More options" aria-label="More options" aria-haspopup="true" aria-expanded="false" style="font-size:17px;padding:5px 11px;line-height:1">&#9776;</button>
     <div class="hamburger-menu" id="hamburger-menu">
       <button class="hamburger-item" onclick="openGettingStartedModal();closeHamburger()">&#128640; Getting Started</button>
-      <div class="hamburger-divider"></div>
-      <button class="hamburger-item" onclick="openReelsModal();closeHamburger()">&#127916; View Highlight Reels</button>
+      <button class="hamburger-item" onclick="openControlsModal();closeHamburger()">&#9000; Controls</button>
       <div class="hamburger-divider"></div>
       <button class="hamburger-item" onclick="openContextManager();closeHamburger()">&#127917; World Contexts</button>
       <button class="hamburger-item" onclick="openGlossaryModal();closeHamburger()">&#128218; Terminology</button>
-      <button class="hamburger-item" onclick="openControlsModal();closeHamburger()">&#9000; Controls</button>
-      <button class="hamburger-item" onclick="openAboutModal();closeHamburger()">&#9432; About</button>
       <div class="hamburger-divider"></div>
-      <button class="hamburger-item" id="btn-setup-wizard" onclick="window.electronAPI.runSetupWizard();closeHamburger()" style="display:none">&#9965; Re-run Setup Wizard</button>
-      <a class="hamburger-item" href="/api/logs/export" download="yuu-clip.log" onclick="closeHamburger()">&#8595; Download Log</a>
       <button class="hamburger-item" onclick="openSettings();closeHamburger()">&#9881; Settings</button>
+      <a class="hamburger-item" href="/api/logs/export" download="yuu-clip.log" onclick="closeHamburger()">&#8595; Download Log</a>
+      <button class="hamburger-item" onclick="openAboutModal();closeHamburger()">&#9432; About</button>
+      <button class="hamburger-item" id="btn-setup-wizard" onclick="window.electronAPI.runSetupWizard();closeHamburger()" style="display:none">&#9965; Re-run Setup Wizard</button>
     </div>
   </div>
 </header>
@@ -379,7 +378,7 @@
       <div class="sidebar-section">Videos</div>
       <ul class="sidebar-list" id="video-list"></ul>
     </div>
-    <div class="resize-handle resize-handle-v" id="videos-clips-resize-handle" title="Drag to resize Videos / Clips panels"></div>
+    <div class="resize-handle resize-handle-v" id="videos-clips-resize-handle" title="Drag to resize Videos / Clips panels" role="separator" aria-orientation="horizontal" aria-label="Resize Videos / Clips panels" tabindex="0"></div>
     <div class="sidebar-group clips-group">
       <div class="clips-section-header">
         <span>Clips</span>
@@ -415,12 +414,12 @@
     </div>
   </div>
 
-  <div class="resize-handle resize-handle-h" id="sidebar-resize-handle" title="Drag to resize sidebar"></div>
+  <div class="resize-handle resize-handle-h" id="sidebar-resize-handle" title="Drag to resize sidebar" role="separator" aria-orientation="vertical" aria-label="Resize sidebar" tabindex="0"></div>
 
   <!-- Main panel -->
   <div class="main">
     <div class="player-area" id="player-area"></div>
-    <div class="resize-handle resize-handle-v" id="player-resize-handle" title="Drag to resize player"></div>
+    <div class="resize-handle resize-handle-v" id="player-resize-handle" title="Drag to resize player" role="separator" aria-orientation="horizontal" aria-label="Resize player" tabindex="0"></div>
     <div class="detail" id="detail">
       <div class="detail-empty">Select a clip from the sidebar</div>
     </div>
@@ -582,7 +581,7 @@
 
 <!-- Progress log -->
 <div class="log-panel" id="log-panel">
-  <div class="resize-handle resize-handle-v" id="log-resize-handle" title="Drag to resize log"></div>
+  <div class="resize-handle resize-handle-v" id="log-resize-handle" title="Drag to resize log" role="separator" aria-orientation="horizontal" aria-label="Resize log panel" tabindex="0"></div>
   <button class="log-header" onclick="toggleLog()" aria-expanded="false" aria-controls="log-body">
     <span class="log-title">Log</span>
     <span class="log-toggle" id="log-toggle">&#9660;</span>
@@ -713,63 +712,85 @@
   </div>
 </div>
 
-<!-- Reel Builder Modal -->
-<div class="modal-bg" id="demo-modal" onclick="if(event.target===this)closeDemoModal()">
-  <div class="modal reel-builder-modal">
-    <h3 style="margin-top:0;margin-bottom:14px">Build Highlight Reel</h3>
-
-    <div class="field" style="margin-bottom:10px">
-      <label for="demo-video-id">Clips from</label>
-      <select id="demo-video-id" onchange="loadReelClips()">
-        <option value="">All approved clips</option>
-      </select>
+<!-- Highlight Reels Modal (Build + View tabs) -->
+<div class="modal-bg" id="highlight-reels-modal" onclick="if(event.target===this)closeHighlightReelsModal()">
+  <div class="modal highlight-reels-modal">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <div style="display:flex;align-items:center;gap:12px">
+        <h3 style="margin:0">Highlight Reels</h3>
+        <div class="reel-tab-bar">
+          <button class="reel-tab-btn active" id="reel-tab-btn-build" onclick="switchReelTab('build')">Build</button>
+          <button class="reel-tab-btn" id="reel-tab-btn-view" onclick="switchReelTab('view')">View</button>
+        </div>
+      </div>
+      <button class="btn ghost" style="padding:4px 8px" onclick="closeHighlightReelsModal()" aria-label="Close">&#x2715;</button>
     </div>
 
-    <div style="margin-bottom:10px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-        <label style="font-size:12px;color:var(--muted)">Clip order <span style="font-size:10px">(check to include · ↑↓ to reorder)</span></label>
-        <button class="btn ghost" style="font-size:11px;padding:2px 8px" onclick="loadReelClips()">&#8635; Refresh</button>
-      </div>
-      <div class="reel-clip-list" id="reel-clip-list">
-        <div style="padding:16px;text-align:center;color:var(--muted);font-size:12px">Loading clips…</div>
-      </div>
-    </div>
-
-    <div style="display:flex;gap:12px;margin-bottom:10px">
-      <div class="field" style="flex:1;margin:0">
-        <label for="demo-transition">Transition</label>
-        <select id="demo-transition" onchange="updateReelEstimate()">
-          <option value="fade" selected>Fade</option>
-          <option value="dissolve">Dissolve</option>
-          <option value="wipeleft">Wipe left</option>
-          <option value="wiperight">Wipe right</option>
-          <option value="slideleft">Slide left</option>
-          <option value="slideright">Slide right</option>
-          <option value="random">Random (different each cut)</option>
-          <option value="none">None (hard cut)</option>
+    <!-- Build tab -->
+    <div id="reel-tab-build">
+      <div class="field" style="margin-bottom:10px">
+        <label for="demo-video-id">Clips from</label>
+        <select id="demo-video-id" onchange="loadReelClips()">
+          <option value="">All approved clips</option>
         </select>
       </div>
-      <div class="field" style="flex:1;margin:0">
-        <label for="demo-trans-dur">Transition duration (s)</label>
-        <input type="number" id="demo-trans-dur" value="0.5" min="0.1" max="2.0" step="0.1" onchange="updateReelEstimate()">
+
+      <div style="margin-bottom:10px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <label style="font-size:12px;color:var(--muted)">Clip order <span style="font-size:10px">(check to include · ↑↓ to reorder)</span></label>
+          <button class="btn ghost" style="font-size:11px;padding:2px 8px" onclick="loadReelClips()">&#8635; Refresh</button>
+        </div>
+        <div class="reel-clip-list" id="reel-clip-list">
+          <div style="padding:16px;text-align:center;color:var(--muted);font-size:12px">Loading clips…</div>
+        </div>
       </div>
-      <div class="field" style="flex:1;margin:0">
-        <label for="demo-title-dur">Title card duration (s)</label>
-        <input type="number" id="demo-title-dur" value="3.0" min="1.0" max="10.0" step="0.5" onchange="updateReelEstimate()">
+
+      <div style="display:flex;gap:12px;margin-bottom:10px">
+        <div class="field" style="flex:1;margin:0">
+          <label for="demo-transition">Transition</label>
+          <select id="demo-transition" onchange="updateReelEstimate()">
+            <option value="fade" selected>Fade</option>
+            <option value="dissolve">Dissolve</option>
+            <option value="wipeleft">Wipe left</option>
+            <option value="wiperight">Wipe right</option>
+            <option value="slideleft">Slide left</option>
+            <option value="slideright">Slide right</option>
+            <option value="random">Random (different each cut)</option>
+            <option value="none">None (hard cut)</option>
+          </select>
+        </div>
+        <div class="field" style="flex:1;margin:0">
+          <label for="demo-trans-dur">Transition duration (s)</label>
+          <input type="number" id="demo-trans-dur" value="0.5" min="0.1" max="2.0" step="0.1" onchange="updateReelEstimate()">
+        </div>
+        <div class="field" style="flex:1;margin:0">
+          <label for="demo-title-dur">Title card duration (s)</label>
+          <input type="number" id="demo-title-dur" value="3.0" min="1.0" max="10.0" step="0.5" onchange="updateReelEstimate()">
+        </div>
+      </div>
+
+      <div class="field" style="margin-bottom:12px">
+        <label for="demo-output-name">Output filename</label>
+        <input type="text" id="demo-output-name" placeholder="highlights_YYYYMMDD_HHMMSS.mkv (auto)">
+      </div>
+
+      <div id="demo-status" style="font-size:12px;color:var(--muted);margin-bottom:6px"></div>
+      <div id="reel-estimate" class="reel-estimate" style="margin-bottom:10px">Loading estimate…</div>
+      <div class="modal-actions">
+        <button class="btn" onclick="closeHighlightReelsModal()">Cancel</button>
+        <button class="btn" onclick="previewReelPlaylist()" title="Play exported clips in sequence">&#9654; Preview</button>
+        <button class="btn primary" onclick="startDemo()">Build</button>
       </div>
     </div>
 
-    <div class="field" style="margin-bottom:12px">
-      <label for="demo-output-name">Output filename</label>
-      <input type="text" id="demo-output-name" placeholder="highlights_YYYYMMDD_HHMMSS.mkv (auto)">
-    </div>
-
-    <div id="demo-status" style="font-size:12px;color:var(--muted);margin-bottom:6px"></div>
-    <div id="reel-estimate" class="reel-estimate" style="margin-bottom:10px">Loading estimate…</div>
-    <div class="modal-actions">
-      <button class="btn" onclick="closeDemoModal()">Cancel</button>
-      <button class="btn" onclick="previewReelPlaylist()" title="Play exported clips in sequence">&#9654; Preview</button>
-      <button class="btn primary" onclick="startDemo()">Build</button>
+    <!-- View tab -->
+    <div id="reel-tab-view" style="display:none">
+      <div class="reels-layout" id="reels-layout">
+        <div class="reels-empty">Loading&#x2026;</div>
+      </div>
+      <div class="modal-actions" style="margin-top:12px">
+        <button class="btn" onclick="closeHighlightReelsModal()">Close</button>
+      </div>
     </div>
   </div>
 </div>
@@ -842,21 +863,6 @@
   </div>
 </div>
 
-<!-- Demo Reels Viewer Modal -->
-<div class="modal-bg" id="reels-modal" onclick="if(event.target===this)closeReelsModal()">
-  <div class="modal reels-modal">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
-      <h3>Highlight Reels</h3>
-      <button class="btn ghost" style="padding:4px 8px" onclick="closeReelsModal()" aria-label="Close">&#x2715;</button>
-    </div>
-    <div class="reels-layout" id="reels-layout">
-      <div class="reels-empty">Loading&#x2026;</div>
-    </div>
-    <div class="modal-actions">
-      <button class="btn" onclick="closeReelsModal()">Close</button>
-    </div>
-  </div>
-</div>
 
 <!-- Retranscribe Modal -->
 <div class="modal-bg" id="retranscribe-modal" onclick="if(event.target===this)closeRetranscribeModal()">
@@ -954,8 +960,8 @@
     <div id="diff-fields"></div>
     <div class="modal-actions">
       <button class="btn" id="diff-discard-btn" onclick="_diffDiscard()">Discard</button>
-      <button class="btn" id="diff-accept-edit-btn" onclick="_diffAcceptEdit()" title="Save the new text and mark it as manually edited">Save as manual edit</button>
-      <button class="btn primary" id="diff-accept-new-btn" onclick="_diffAcceptNew()">Accept</button>
+      <button class="btn" id="diff-accept-edit-btn" onclick="_diffAcceptEdit()" title="Save your version and mark it as manually edited">Save as my edit</button>
+      <button class="btn primary" id="diff-accept-new-btn" onclick="_diffAcceptNew()">Accept (AI version)</button>
     </div>
   </div>
 </div>
@@ -989,7 +995,7 @@
     <h3 id="confirm-title"></h3>
     <p id="confirm-body" style="color:var(--muted);font-size:13px;line-height:1.6;margin-top:-4px"></p>
     <div class="modal-actions">
-      <button class="btn" onclick="_confirmCancel()">Cancel</button>
+      <button class="btn" id="confirm-cancel-btn" onclick="_confirmCancel()">Cancel</button>
       <button class="btn" id="confirm-ok-btn" onclick="_confirmOk()">Confirm</button>
     </div>
   </div>

@@ -43,7 +43,7 @@ class TestPageLoad:
     def test_header_buttons_visible(self, page: Page):
         page.goto(LIVE_URL)
         expect(page.locator("button#btn-analyze")).to_be_visible()
-        expect(page.locator("button#btn-demo")).to_be_visible()
+        expect(page.locator("button#btn-highlight-reels")).to_be_visible()
 
     def test_sidebar_has_videos(self, page: Page):
         page.goto(LIVE_URL)
@@ -288,16 +288,16 @@ class TestClipSort:
 @skip_no_server
 class TestDemoModal:
     def _open_modal(self, page: Page) -> None:
-        # openDemoModal() returns early if there are no approved clips; open directly
-        page.evaluate("document.getElementById('demo-modal').classList.add('visible')")
-        page.locator("#demo-modal").wait_for(state="visible")
+        # openHighlightReelsModal() returns early if there are no approved clips; open directly
+        page.evaluate("document.getElementById('highlight-reels-modal').classList.add('visible')")
+        page.locator("#highlight-reels-modal").wait_for(state="visible")
 
     def test_opens_and_closes(self, page: Page):
         page.goto(LIVE_URL)
         self._open_modal(page)
-        expect(page.locator("#demo-modal")).to_be_visible()
-        page.click("#demo-modal button:has-text('Cancel')")
-        expect(page.locator("#demo-modal")).not_to_be_visible()
+        expect(page.locator("#highlight-reels-modal")).to_be_visible()
+        page.click("#highlight-reels-modal button:has-text('Cancel')")
+        expect(page.locator("#highlight-reels-modal")).not_to_be_visible()
 
     def test_has_transition_options(self, page: Page):
         page.goto(LIVE_URL)

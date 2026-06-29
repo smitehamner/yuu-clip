@@ -175,7 +175,7 @@ function renderDetail(clip) {
     <div class="detail-card">
       <div class="detail-card-header">
         <span class="detail-card-title">Description${eb(clip.description_is_edited)}</span>
-        <button class="kebab-btn" title="Edit or regenerate description" aria-label="Edit or regenerate description" onclick="openDescKebab(${clip.id}, this)">&#8943;</button>
+        <button class="kebab-btn" title="Edit or regenerate description" aria-label="Edit or regenerate description" onclick="openDescKebab(${clip.id}, this)">&#8942;</button>
       </div>
       <div class="description">${clip.description ? `"${escHtml(clip.description)}"` : `<span style="color:var(--muted);font-size:13px">No description yet — Re-score to generate</span>`}</div>
     </div>
@@ -184,7 +184,7 @@ function renderDetail(clip) {
       <div class="detail-card">
         <div class="detail-card-header">
           <span class="detail-card-title">Full Description${eb(clip.description_long_is_edited)}</span>
-          <button class="kebab-btn" title="Edit or regenerate long description" aria-label="Edit or regenerate long description" onclick="openDescLongKebab(${clip.id}, this)">&#8943;</button>
+          <button class="kebab-btn" title="Edit or regenerate long description" aria-label="Edit or regenerate long description" onclick="openDescLongKebab(${clip.id}, this)">&#8942;</button>
         </div>
         <div class="description-long">${escHtml(clip.description_long)}</div>
       </div>` : ''}
@@ -211,7 +211,7 @@ function renderDetail(clip) {
           <div class="review-actions">
             <button class="btn approve ${clip.status==='approved'?'active':''}" onclick="setStatus(${clip.id},'approved')">Approve</button>
             <button class="btn reject  ${clip.status==='rejected'?'active':''}" onclick="setStatus(${clip.id},'rejected')">Reject</button>
-            <button class="btn         ${clip.status==='pending' ?'active':''}" onclick="setStatus(${clip.id},'pending')" title="Mark as Unreviewed">Unreviewed</button>
+            <button class="btn         ${clip.status==='pending' ?'active':''}" onclick="setStatus(${clip.id},'pending')" title="Clear review status">Mark Unreviewed</button>
           </div>
           <div class="op-actions">
             <button class="btn" id="btn-rescore-clip" onclick="rescoreClip(${clip.id})">Re-score</button>
@@ -219,17 +219,18 @@ function renderDetail(clip) {
             ${clip.description_long || clip.description ? `<button class="btn" id="btn-find-similar" onclick="openSimilarClipsModal(${clip.id})">Find Similar</button>` : ''}
             <button class="btn" onclick="exportClip(${clip.id})">${clip.has_export ? 'Re-export' : 'Export'}</button>
             ${clip.has_export && _activeMediaFilename
-              ? `<a class="btn" href="/media/exports/${escHtml(_activeMediaFilename)}" download="${escHtml(_activeMediaFilename)}" title="Save exported clip to disk">Save As</a>`
+              ? `<a class="btn" href="/media/exports/${escHtml(_activeMediaFilename)}" download="${escHtml(_activeMediaFilename)}" title="Download the already-exported file to disk">Download Export</a>`
               : ''}
           </div>
           ${_mergeButtonsHtml(clip)}
-          <div class="danger-actions">
-            ${clip.has_export ? `<button class="btn danger" onclick="deleteExport(${clip.id})" title="Delete exported file but keep clip record">Delete Export</button>` : ''}
-            <button class="btn danger" onclick="deleteClip(${clip.id})" title="Delete clip record and exported file">Delete Clip</button>
-          </div>
           ${trimExportHtml}
         </div>
       </div>
+    </div>
+
+    <div class="clip-danger-zone">
+      ${clip.has_export ? `<button class="btn danger" onclick="deleteExport(${clip.id})" title="Delete exported file but keep clip record">Delete Export</button>` : ''}
+      <button class="btn danger" onclick="deleteClip(${clip.id})" title="Delete clip record and exported file">Delete Clip</button>
     </div>
 
     ${clip.tags.length ? `<div class="tags">${clip.tags.map(t=>`<span class="tag">${escHtml(t)}</span>`).join('')}</div>` : ''}

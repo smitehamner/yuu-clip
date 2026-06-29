@@ -90,11 +90,12 @@ function _showEmptyState() {
       <h2>Welcome to yuu-clip</h2>
       <p>Analyze a recording to start reviewing and exporting your best gaming moments.</p>
       <button class="btn primary" onclick="openNewRecordingPanel()">+ Analyze your first recording</button>
+      <button class="btn ghost" onclick="openGettingStartedModal()" style="margin-top:8px">Getting Started Guide</button>
     </div>`;
 }
 
 function _updateDemoButton(approvedCount) {
-  const btn = document.getElementById('btn-demo');
+  const btn = document.getElementById('btn-highlight-reels');
   btn.disabled = approvedCount === 0;
   btn.title = approvedCount === 0
     ? 'Approve some clips first to build a highlight reel'
@@ -171,7 +172,7 @@ function renderVideoDetail(video, savedTimeline) {
     <div class="detail-card">
       <div class="detail-card-header">
         <h2 style="margin:0;font-size:17px;font-weight:700">${escHtml(video.title || video.filename)}${eb(video.title_is_edited)}</h2>
-        ${video.title ? `<button class="kebab-btn" title="Edit or regenerate title" aria-label="Edit or regenerate title" onclick="openVideoTitleKebab(${video.id}, this)">&#8943;</button>` : ''}
+        ${video.title ? `<button class="kebab-btn" title="Edit or regenerate title" aria-label="Edit or regenerate title" onclick="openVideoTitleKebab(${video.id}, this)">&#8942;</button>` : ''}
       </div>
       ${_renderContextSection(video)}
     </div>
@@ -180,20 +181,28 @@ function renderVideoDetail(video, savedTimeline) {
       <div class="detail-card">
         <div class="detail-card-header">
           <span class="detail-card-title">Session Summary${eb(video.summary_is_edited)}</span>
-          <button class="kebab-btn" title="Edit or regenerate summary" aria-label="Edit or regenerate summary" onclick="openVideoSummaryKebab(${video.id}, this)">&#8943;</button>
+          <button class="kebab-btn" title="Edit or regenerate summary" aria-label="Edit or regenerate summary" onclick="openVideoSummaryKebab(${video.id}, this)">&#8942;</button>
         </div>
         <div class="description-long">${escHtml(video.summary)}</div>
       </div>` : ''}
 
-    <div class="actions">
-      <button class="btn" id="btn-summarize-video" onclick="summarizeVideo(${video.id}, this)">${video.summary ? 'Regenerate Summary' : 'Generate Summary'}</button>
-      <button class="btn" id="btn-generate-timeline" onclick="generateTimeline(${video.id})">${video.has_timeline ? 'Regenerate Timeline' : 'Generate Timeline'}</button>
-      <button class="btn" id="btn-rescore-all" onclick="rescoreAllClips(${video.id}, this)">Re-score All Clips</button>
-      <button class="btn" id="btn-redescribe-all" onclick="redescribeAllClips(${video.id}, this)">Re-describe All Clips</button>
-      <button class="btn" onclick="openAutoApproveModal(${video.id})">Approve Above Score</button>
-      <button class="btn" onclick="openBatchExportModal(${video.id})">Export Approved</button>
-      <button class="btn" onclick="openSplitEditor(${video.id})">Split Recording</button>
-      <button class="btn" onclick="exportVideoTranscript(${video.id}, this)" title="Write captions as an SRT file next to the source recording, for reuse on reimport">Save Captions to SRT</button>
+    <div class="vid-actions">
+      <div class="vid-actions-row">
+        <button class="btn" id="btn-summarize-video" onclick="summarizeVideo(${video.id}, this)">${video.summary ? 'Regenerate Summary' : 'Generate Summary'}</button>
+        <button class="btn" id="btn-generate-timeline" onclick="generateTimeline(${video.id})">${video.has_timeline ? 'Regenerate Timeline' : 'Generate Timeline'}</button>
+      </div>
+      <div class="vid-actions-row">
+        <button class="btn" id="btn-rescore-all" onclick="rescoreAllClips(${video.id}, this)" title="Regenerate scores and descriptions for all clips">Re-score All Clips</button>
+        <button class="btn" id="btn-redescribe-all" onclick="redescribeAllClips(${video.id}, this)" title="Regenerate descriptions only — scores unchanged">Re-describe All Clips</button>
+      </div>
+      <div class="vid-actions-row">
+        <button class="btn" onclick="openAutoApproveModal(${video.id})">Approve Above Score</button>
+        <button class="btn" onclick="openBatchExportModal(${video.id})">Export Approved</button>
+      </div>
+      <div class="vid-actions-row" style="opacity:.7">
+        <button class="btn" onclick="openSplitEditor(${video.id})" title="Split this recording into segments for independent analysis">Split Recording</button>
+        <button class="btn" onclick="exportVideoTranscript(${video.id}, this)" title="Write captions as an SRT file next to the source recording">Save Captions to SRT</button>
+      </div>
       <div class="danger-actions">
         <button class="btn danger" onclick="resetApprovals(${video.id})">Reset Approvals</button>
         <button class="btn danger" onclick="deleteVideo(${video.id})" title="Remove from yuu-clip (source file is NOT deleted)">Remove Recording</button>

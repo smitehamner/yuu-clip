@@ -88,6 +88,19 @@ def client(project_dir: Path) -> TestClient:
 LIVE_URL = "http://127.0.0.1:8080"
 
 
+def pytest_sessionfinish(session, exitstatus):
+    """Bypass playwright's hanging asyncio event loop teardown on Windows.
+
+    After all tests complete, playwright's sync API event loop gets stuck in
+    GetQueuedCompletionStatus waiting for a handle that never closes. os._exit()
+    here skips fixture teardown entirely — the summary is already written, and
+    the PowerShell finally block (tada.wav) still runs because the process exits.
+    """
+    import os
+    os._exit(int(exitstatus))
+
+
+
 @pytest.fixture
 def page(page):
     """Override pytest-playwright's page fixture to set tighter default timeouts.
@@ -104,3 +117,15 @@ def page(page):
     page.goto(LIVE_URL)
     page.evaluate("localStorage.setItem('yuu-getting-started-seen', '1')")
     yield page
+    try:
+        page.evaluate("if (window._activeES) { window._activeES.close(); window._activeES = null; }")
+    except Exception:
+        pass
+    try:
+        page.unroute("**")
+    except Exception:
+        pass
+    try:
+        page.goto("about:blank", timeout=2000)
+    except Exception:
+        pass

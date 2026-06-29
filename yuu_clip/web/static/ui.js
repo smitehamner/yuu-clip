@@ -18,7 +18,7 @@ function showConfirm(title, body, okLabel, onOk, danger = false) {
   ok.className = danger ? 'btn reject' : 'btn primary';
   _confirmCallback = onOk;
   document.getElementById('confirm-modal').classList.add('visible');
-  setTimeout(() => document.querySelector('#confirm-modal .btn:not(.reject):not(.primary)').focus(), 50);
+  setTimeout(() => document.getElementById('confirm-cancel-btn').focus(), 50);
 }
 function _confirmOk() {
   document.getElementById('confirm-modal').classList.remove('visible');
@@ -81,7 +81,7 @@ function openDiffModal(title, fields, onCommit, opts = {}) {
     </div>`).join('');
   document.getElementById('diff-discard-btn').textContent   = revert ? 'Keep My Edit' : 'Discard';
   document.getElementById('diff-accept-edit-btn').style.display = revert ? 'none' : '';
-  document.getElementById('diff-accept-new-btn').textContent = revert ? 'Revert to Original' : 'Accept New';
+  document.getElementById('diff-accept-new-btn').textContent = revert ? 'Revert to Original' : 'Accept (AI version)';
   document.getElementById('diff-modal').classList.add('visible');
 }
 

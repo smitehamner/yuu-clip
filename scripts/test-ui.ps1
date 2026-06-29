@@ -6,8 +6,11 @@ Write-Host "UI tests require a live server at http://127.0.0.1:8080 (run scripts
 
 Push-Location $RepoRoot
 try {
-    & $Python -m pytest tests/test_ui.py -v --tb=short --no-header -p no:warnings --screenshot=only-on-failure @args
+    $env:PYTHONUNBUFFERED = "1"
+    & $Python -u -m pytest tests/test_ui.py -v --tb=short --no-header -p no:warnings --timeout=60 @args
 } finally {
     Pop-Location
-    (New-Object Media.SoundPlayer 'C:\Windows\Media\tada.wav').PlaySync()
+    $player = New-Object Media.SoundPlayer 'C:\Windows\Media\tada.wav'
+    $player.Play()
+    Start-Sleep -Milliseconds 2000
 }

@@ -1,24 +1,64 @@
-// ── demo reel ─────────────────────────────────────────────────────────────────
+// ── highlight reels (combined Build + View modal) ──────────────────────────────
 let _reelClips = [];
 
-async function openDemoModal() {
-  const totalApproved = _videos.reduce((n, v) => n + v.approved, 0);
-  if (totalApproved === 0) {
-    showToast('No approved clips yet — approve some clips first to build a reel', 'info');
-    return;
+async function openHighlightReelsModal(tab) {
+  document.getElementById('highlight-reels-modal').classList.add('visible');
+  await switchReelTab(tab || 'build');
+}
+
+async function switchReelTab(tab) {
+  document.getElementById('reel-tab-build').style.display = tab === 'build' ? '' : 'none';
+  document.getElementById('reel-tab-view').style.display  = tab === 'view'  ? '' : 'none';
+  document.getElementById('reel-tab-btn-build').classList.toggle('active', tab === 'build');
+  document.getElementById('reel-tab-btn-view').classList.toggle('active',  tab === 'view');
+
+  if (tab === 'build') {
+    const totalApproved = _videos.reduce((n, v) => n + v.approved, 0);
+    if (totalApproved === 0) {
+      showToast('No approved clips yet — approve some clips first to build a reel', 'info');
+      return;
+    }
+    document.getElementById('demo-status').textContent = '';
+    const sel = document.getElementById('demo-video-id');
+    sel.innerHTML = '<option value="">All approved clips</option>';
+    for (const v of _videos) {
+      if (!v.approved) continue;
+      const opt = document.createElement('option');
+      opt.value = v.id;
+      opt.textContent = `${v.filename} (${v.approved} approved)`;
+      sel.appendChild(opt);
+    }
+    await loadReelClips();
+  } else {
+    const layout = document.getElementById('reels-layout');
+    layout.innerHTML = '<div class="reels-empty">Loading&#x2026;</div>';
+    const reels = await fetch('/api/demo/list').then(r => r.json()).catch(() => []);
+    if (!reels.length) {
+      layout.innerHTML = '<div class="reels-empty">No highlight reels yet — build one first.</div>';
+      return;
+    }
+    layout.innerHTML = `
+      <div class="reels-list" id="reels-list"></div>
+      <div class="reels-player-area">
+        <video controls id="reels-video"></video>
+      </div>
+    `;
+    const list = document.getElementById('reels-list');
+    reels.forEach((reel, i) => {
+      const item = document.createElement('div');
+      item.className = 'reel-item' + (i === 0 ? ' active' : '');
+      item.innerHTML = `<div class="reel-name">${escHtml(reel.filename)}</div><div class="reel-meta">${escHtml(reel.date)} &middot; ${reel.size_mb} MB</div>`;
+      item.onclick = () => _playReel(reel, item);
+      list.appendChild(item);
+    });
+    _playReel(reels[0], list.firstChild);
   }
-  document.getElementById('demo-modal').classList.add('visible');
-  document.getElementById('demo-status').textContent = '';
-  const sel = document.getElementById('demo-video-id');
-  sel.innerHTML = '<option value="">All approved clips</option>';
-  for (const v of _videos) {
-    if (!v.approved) continue;
-    const opt = document.createElement('option');
-    opt.value = v.id;
-    opt.textContent = `${v.filename} (${v.approved} approved)`;
-    sel.appendChild(opt);
-  }
-  await loadReelClips();
+}
+
+function closeHighlightReelsModal() {
+  const vid = document.getElementById('reels-video');
+  if (vid) { vid.pause(); vid.src = ''; }
+  document.getElementById('highlight-reels-modal').classList.remove('visible');
 }
 
 async function loadReelClips() {
@@ -106,9 +146,7 @@ function updateReelEstimate() {
     (unexported ? `<div class="reel-no-export-warn">⚠ ${unexported} clip(s) not yet exported — export them first or they will be skipped</div>` : '');
 }
 
-function closeDemoModal() {
-  document.getElementById('demo-modal').classList.remove('visible');
-}
+function closeDemoModal() { closeHighlightReelsModal(); }
 
 async function previewReelPlaylist() {
   const included = _reelClips.filter(c => c.included && c.has_export);
@@ -188,7 +226,7 @@ async function startDemo() {
   openLog();
   streamSSE(
     '/api/demo/events',
-    () => { loadVideos(); showToast('Highlight reel complete!'); openReelsModal(); },
+    () => { loadVideos(); showToast('Highlight reel complete!'); openHighlightReelsModal('view'); },
     [{label: 'Building', patterns: ['Generating title', 'Encoding', 'OK']}],
     'Reel',
   );
@@ -260,38 +298,8 @@ async function confirmBatchExport() {
   );
 }
 
-// ── demo reels viewer ─────────────────────────────────────────────────────────
-async function openReelsModal() {
-  document.getElementById('reels-modal').classList.add('visible');
-  const layout = document.getElementById('reels-layout');
-  layout.innerHTML = '<div class="reels-empty">Loading&#x2026;</div>';
-  const reels = await fetch('/api/demo/list').then(r => r.json()).catch(() => []);
-  if (!reels.length) {
-    layout.innerHTML = '<div class="reels-empty">No highlight reels yet — build one with "Highlight Reel".</div>';
-    return;
-  }
-  layout.innerHTML = `
-    <div class="reels-list" id="reels-list"></div>
-    <div class="reels-player-area">
-      <video controls id="reels-video"></video>
-    </div>
-  `;
-  const list = document.getElementById('reels-list');
-  reels.forEach((reel, i) => {
-    const item = document.createElement('div');
-    item.className = 'reel-item' + (i === 0 ? ' active' : '');
-    item.innerHTML = `<div class="reel-name">${escHtml(reel.filename)}</div><div class="reel-meta">${escHtml(reel.date)} &middot; ${reel.size_mb} MB</div>`;
-    item.onclick = () => _playReel(reel, item);
-    list.appendChild(item);
-  });
-  _playReel(reels[0], list.firstChild);
-}
-
-function closeReelsModal() {
-  const vid = document.getElementById('reels-video');
-  if (vid) vid.pause();
-  document.getElementById('reels-modal').classList.remove('visible');
-}
+function openReelsModal()  { openHighlightReelsModal('view'); }
+function closeReelsModal() { closeHighlightReelsModal(); }
 
 function _playReel(reel, itemEl) {
   document.querySelectorAll('#reels-list .reel-item').forEach(el => el.classList.remove('active'));

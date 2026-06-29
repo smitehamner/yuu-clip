@@ -4,7 +4,8 @@ $Python   = Join-Path $RepoRoot ".venv\Scripts\python.exe"
 
 Push-Location $RepoRoot
 try {
-    & $Python -m pytest tests/ --ignore=tests/test_ui.py -v @args
+    $env:PYTHONUNBUFFERED = "1"
+    & $Python -u -m pytest tests/ --ignore=tests/test_ui.py -v @args
 } finally {
     Pop-Location
 }
