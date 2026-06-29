@@ -398,3 +398,157 @@ class TestEstimateDisplay:
         _inject_estimate(page, pct=96.0)
         expect(page.locator(".estimate-pct")).to_contain_text("96.0%")
         expect(page.locator(".estimate-pct")).to_contain_text("of video")
+
+
+# ---------------------------------------------------------------------------
+# Score override via field-edit modal
+# ---------------------------------------------------------------------------
+
+@skip_no_server
+class TestScoreOverrideModal:
+    """Score override opens the shared field-edit modal (not window.prompt)."""
+
+    def _select_first_video_and_clip(self, page: Page) -> None:
+        page.goto(LIVE_URL)
+        page.wait_for_selector("#video-list li", timeout=5000)
+        page.locator("#video-list li").first.click()
+        page.wait_for_selector("#clip-list li", timeout=5000)
+        page.locator("#clip-list li").first.click()
+
+    def _open_score_override(self, page: Page) -> None:
+        clip_id = page.evaluate("() => _clips?.[0]?.id")
+        assert clip_id is not None, "No clips loaded on the live server"
+        page.evaluate(f"() => openScoreOverride({clip_id})")
+        page.wait_for_selector("#field-edit-modal.visible", timeout=2000)
+
+    def test_opens_field_edit_modal(self, page: Page):
+        self._select_first_video_and_clip(page)
+        page.wait_for_selector(".scores", timeout=3000)
+        self._open_score_override(page)
+        expect(page.locator("#field-edit-modal")).to_be_visible()
+
+    def test_title_mentions_score_override(self, page: Page):
+        self._select_first_video_and_clip(page)
+        page.wait_for_selector(".scores", timeout=3000)
+        self._open_score_override(page)
+        expect(page.locator("#field-edit-title")).to_contain_text("score override")
+
+    def test_prefills_current_score(self, page: Page):
+        self._select_first_video_and_clip(page)
+        page.wait_for_selector(".scores", timeout=3000)
+        clip_score = page.evaluate("() => _clips?.[0]?.score_overall ?? 0")
+        self._open_score_override(page)
+        val = float(page.locator("#field-edit-text").input_value())
+        assert abs(val - clip_score) < 0.01
+
+    def test_cancel_closes_modal(self, page: Page):
+        self._select_first_video_and_clip(page)
+        page.wait_for_selector(".scores", timeout=3000)
+        self._open_score_override(page)
+        page.click("#field-edit-modal button:has-text('Cancel')")
+        expect(page.locator("#field-edit-modal")).not_to_be_visible()
+
+    def test_invalid_range_shows_error_toast(self, page: Page):
+        self._select_first_video_and_clip(page)
+        page.wait_for_selector(".scores", timeout=3000)
+        self._open_score_override(page)
+        page.fill("#field-edit-text", "1.5")
+        page.click("#field-edit-modal .btn.primary")
+        # Save closes the modal first, then the callback validates and shows the toast
+        expect(page.locator("#field-edit-modal")).not_to_be_visible()
+        expect(page.locator("#toast-container")).to_contain_text("between 0 and 1")
+
+
+# ---------------------------------------------------------------------------
+# Per-clip rescore — header progress pill
+# ---------------------------------------------------------------------------
+
+@skip_no_server
+class TestRescoreClipProgressPill:
+    """Clicking Re-score on a clip shows the header progress pill (startJobUI / endJobUI)."""
+
+    def _select_first_video_and_clip(self, page: Page) -> None:
+        page.goto(LIVE_URL)
+        page.wait_for_selector("#video-list li", timeout=5000)
+        page.locator("#video-list li").first.click()
+        page.wait_for_selector("#clip-list li", timeout=5000)
+        page.locator("#clip-list li").first.click()
+
+    def test_progress_pill_appears_on_rescore(self, page: Page):
+        self._select_first_video_and_clip(page)
+        page.wait_for_selector("#btn-rescore-clip", timeout=3000)
+        page.click("#btn-rescore-clip")
+        # startJobUI is synchronous — pill must be visible before the SSE completes
+        expect(page.locator("#job-status")).to_be_visible()
+
+    def test_progress_pill_shows_rescore_label(self, page: Page):
+        self._select_first_video_and_clip(page)
+        page.wait_for_selector("#btn-rescore-clip", timeout=3000)
+        page.click("#btn-rescore-clip")
+        page.wait_for_selector("#job-status.visible", timeout=2000)
+        expect(page.locator("#job-steps")).to_contain_text("Re-scoring clip")
+
+    def test_progress_pill_disappears_after_job(self, page: Page):
+        self._select_first_video_and_clip(page)
+        page.wait_for_selector("#btn-rescore-clip", timeout=3000)
+        # Drive startJobUI/endJobUI directly — don't depend on real LLM job duration
+        page.evaluate("() => startJobUI(SCORE_STEPS, 'Re-scoring clip')")
+        expect(page.locator("#job-status")).to_be_visible()
+        page.evaluate("() => endJobUI()")
+        # endJobUI removes .visible after a 2 s setTimeout
+        page.wait_for_selector("#job-status.visible", state="hidden", timeout=5000)
+        expect(page.locator("#job-status")).not_to_be_visible()
+
+
+# ---------------------------------------------------------------------------
+# regenSummaryAuto — confirmation dialog
+# ---------------------------------------------------------------------------
+
+@skip_no_server
+class TestRegenSummaryAutoConfirm:
+    """regenSummaryAuto shows a confirm modal before running the SSE regen stream."""
+
+    def _open_regen_confirm(self, page: Page) -> None:
+        """Navigate to the app and invoke regenSummaryAuto via JS so the confirm modal appears."""
+        page.goto(LIVE_URL)
+        page.wait_for_selector("#video-list li", timeout=5000)
+        video_id = page.evaluate("() => _videos?.[0]?.id ?? 1")
+        # Pass a detached button so _doRegenSummaryAuto has a non-null actionBtn
+        page.evaluate(f"() => regenSummaryAuto({video_id}, document.createElement('button'))")
+        page.wait_for_selector("#confirm-modal.visible", timeout=2000)
+
+    def test_confirm_modal_appears(self, page: Page):
+        self._open_regen_confirm(page)
+        expect(page.locator("#confirm-modal")).to_be_visible()
+
+    def test_confirm_title_mentions_regenerate(self, page: Page):
+        self._open_regen_confirm(page)
+        expect(page.locator("#confirm-title")).to_contain_text("Regenerate")
+
+    def test_confirm_body_warns_about_auto_save(self, page: Page):
+        self._open_regen_confirm(page)
+        expect(page.locator("#confirm-body")).to_contain_text("replaced without a review step")
+
+    def test_cancel_closes_modal(self, page: Page):
+        self._open_regen_confirm(page)
+        page.click("#confirm-modal button:has-text('Cancel')")
+        expect(page.locator("#confirm-modal")).not_to_be_visible()
+
+    def test_cancel_does_not_trigger_regen_request(self, page: Page):
+        self._open_regen_confirm(page)
+        regen_requests: list = []
+        page.on("request", lambda r: regen_requests.append(r) if "regenerate-summary" in r.url else None)
+        page.click("#confirm-modal button:has-text('Cancel')")
+        page.wait_for_timeout(500)
+        assert not regen_requests, "Cancelling should not POST to regenerate-summary"
+
+    def test_confirm_triggers_regen_sse_request(self, page: Page):
+        page.goto(LIVE_URL)
+        page.wait_for_selector("#video-list li", timeout=5000)
+        video_id = page.evaluate("() => _videos?.[0]?.id ?? 1")
+        # Abort the actual SSE stream so the test doesn't trigger real LLM work
+        page.route("**/regenerate-summary", lambda route: route.abort())
+        page.evaluate(f"() => regenSummaryAuto({video_id}, document.createElement('button'))")
+        page.wait_for_selector("#confirm-modal.visible", timeout=2000)
+        with page.expect_request(lambda r: "regenerate-summary" in r.url, timeout=3000):
+            page.click("#confirm-ok-btn")

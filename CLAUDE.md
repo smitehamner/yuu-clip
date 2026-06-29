@@ -43,6 +43,20 @@ should still be confirmed.
 
 HTML/JS edits to `yuu_clip/web/static/index.html` do **not** need a server restart.
 
+## MANDATORY: after any static file change (*.js, *.html, *.css)
+
+No server restart needed. But before reporting a UI fix as complete:
+
+1. Confirm the fix works in the browser
+2. If the server is running, run `.\scripts\test-ui.ps1` to catch regressions
+
+The UI test suite is the only safety net against visual/interaction regressions —
+it is not run automatically on every edit (tests take ~3 min and require a live
+server). Run it any time you change JS, HTML, or CSS.
+
+Also run `test-ui.ps1` during any UX/UI review pass (`/code-review` or
+`shqr-ux-ui-review`) as the final verification step.
+
 ## Project layout
 
 ```
