@@ -586,11 +586,11 @@
 <!-- Progress log -->
 <div class="log-panel" id="log-panel">
   <div class="resize-handle resize-handle-v" id="log-resize-handle" title="Drag to resize log" role="separator" aria-orientation="horizontal" aria-label="Resize log panel" tabindex="0"></div>
-  <button class="log-header" onclick="toggleLog()" aria-expanded="false" aria-controls="log-body">
+  <div class="log-header" onclick="toggleLog()" role="button" tabindex="0" aria-expanded="false" aria-controls="log-body" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleLog()}">
     <span class="log-title">Log</span>
     <span class="log-toggle" id="log-toggle">&#9660;</span>
     <button class="btn ghost" id="btn-clear-log" onclick="event.stopPropagation();clearLog()" aria-label="Clear log" style="font-size:11px;padding:2px 8px;margin-left:auto">Clear</button>
-  </button>
+  </div>
   <div class="log-body" id="log-body">
     <div id="log-lines"></div>
   </div>
@@ -657,12 +657,11 @@
       Built by <strong>smitehamner</strong>. Provided as-is with absolutely no warranty.<br>
       Licencing: <em>unlicensed — all rights reserved</em> until a licence is chosen.
     </p>
-    <div class="section-title" style="margin-bottom:4px">Required dependencies</div>
+    <div class="section-title" style="margin-bottom:4px">Included with yuu-clip</div>
     <table style="width:100%;font-size:12px;border-collapse:collapse;color:var(--muted);margin-bottom:12px">
       <thead><tr style="color:var(--text)"><th scope="col" style="text-align:left;padding:3px 0">Package</th><th scope="col" style="text-align:left;padding:3px 0">Purpose</th><th scope="col" style="text-align:left;padding:3px 0">Licence</th></tr></thead>
       <tbody>
         <tr><td>faster-whisper</td><td>GPU-accelerated transcription</td><td>MIT</td></tr>
-        <tr><td>FFmpeg</td><td>Audio/video extraction &amp; export</td><td>LGPL/GPL</td></tr>
         <tr><td>FastAPI</td><td>Web server API</td><td>MIT</td></tr>
         <tr><td>SQLAlchemy</td><td>Database ORM</td><td>MIT</td></tr>
         <tr><td>PyAV (av)</td><td>Audio frame decoding</td><td>BSD-3</td></tr>
@@ -672,11 +671,18 @@
         <tr><td>platformdirs</td><td>Cross-platform config paths</td><td>MIT</td></tr>
       </tbody>
     </table>
-    <div class="section-title" style="margin-bottom:4px">Optional dependencies</div>
+    <div class="section-title" style="margin-bottom:4px">External tools <span style="font-size:11px;font-weight:400;color:var(--muted)">(install separately — set up via the wizard)</span></div>
+    <table style="width:100%;font-size:12px;border-collapse:collapse;color:var(--muted);margin-bottom:12px">
+      <thead><tr style="color:var(--text)"><th scope="col" style="text-align:left;padding:3px 0">Tool</th><th scope="col" style="text-align:left;padding:3px 0">Purpose</th><th scope="col" style="text-align:left;padding:3px 0">Licence</th></tr></thead>
+      <tbody>
+        <tr><td>FFmpeg</td><td>Audio/video extraction &amp; export — required</td><td>LGPL/GPL</td></tr>
+        <tr><td>Ollama</td><td>Local LLM server — optional, improves clip scoring</td><td>MIT</td></tr>
+      </tbody>
+    </table>
+    <div class="section-title" style="margin-bottom:4px">Optional add-ons <span style="font-size:11px;font-weight:400;color:var(--muted)">(install from Settings)</span></div>
     <table style="width:100%;font-size:12px;border-collapse:collapse;color:var(--muted)">
       <thead><tr style="color:var(--text)"><th scope="col" style="text-align:left;padding:3px 0">Package</th><th scope="col" style="text-align:left;padding:3px 0">Purpose</th><th scope="col" style="text-align:left;padding:3px 0">Licence</th></tr></thead>
       <tbody>
-        <tr><td>ollama</td><td>Ollama LLM backend</td><td>MIT</td></tr>
         <tr><td>llama-cpp-python</td><td>Local LLM via .gguf model files</td><td>MIT</td></tr>
         <tr><td>anthropic</td><td>Claude API LLM backend</td><td>MIT</td></tr>
         <tr><td>pyannote.audio</td><td>Speaker diarization</td><td>MIT (model: HF gated)</td></tr>

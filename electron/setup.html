@@ -200,6 +200,7 @@ footer {
     <select id="llm-backend-sel" onchange="_onLlmBackendChange(this.value)">
       <option value="ollama">Ollama</option>
       <option value="llamacpp">Local model file</option>
+      <option value="claude">Claude API ⚠ Remote</option>
     </select>
   </div>
   <div id="llm-llamacpp-fields" style="display:none">
@@ -213,6 +214,22 @@ footer {
     <div class="cfg-row">
       <span class="cfg-label">Ollama model</span>
       <input type="text" id="ollama-model-input" style="flex:1;max-width:200px">
+    </div>
+  </div>
+  <div id="llm-claude-fields" style="display:none">
+    <div style="font-size:11px;color:#d4902a;padding:2px 0 4px 113px">
+      ⚠ Transcript data is sent to Anthropic and billed per token.
+    </div>
+    <div class="cfg-row">
+      <span class="cfg-label">API key</span>
+      <input type="password" id="claude-api-key" placeholder="sk-ant-..." style="flex:1">
+    </div>
+    <div class="cfg-row">
+      <span class="cfg-label">Model</span>
+      <select id="claude-model-sel" style="flex:1">
+        <option value="claude-haiku-4-5-20251001">claude-haiku-4-5 (fast, cheap)</option>
+        <option value="claude-sonnet-4-6">claude-sonnet-4-6 (smarter)</option>
+      </select>
     </div>
   </div>
   <div id="llm-warn" style="display:none;font-size:11px;color:#d4902a;padding:2px 0 4px 113px">
@@ -350,6 +367,8 @@ function renderStatus(s) {
   document.getElementById('llm-backend-sel').value = s.llmBackend;
   document.getElementById('llm-model-path').value  = s.llmModelPath || '';
   document.getElementById('ollama-model-input').value = s.ollamaModel;
+  document.getElementById('claude-api-key').value   = s.claudeApiKey || '';
+  document.getElementById('claude-model-sel').value = s.claudeModel  || 'claude-haiku-4-5-20251001';
   _onLlmBackendChange(s.llmBackend);
 
   document.getElementById('config').style.display = '';
@@ -379,6 +398,7 @@ function row(id, cls, icon, title, descHtml, actionHtml = '') {
 function _onLlmBackendChange(val) {
   document.getElementById('llm-llamacpp-fields').style.display = val === 'llamacpp' ? '' : 'none';
   document.getElementById('llm-ollama-fields').style.display   = val === 'ollama'   ? '' : 'none';
+  document.getElementById('llm-claude-fields').style.display   = val === 'claude'   ? '' : 'none';
   _updateLlmWarn();
 }
 
@@ -461,6 +481,8 @@ function collectConfig() {
     llmBackend:   document.getElementById('llm-backend-sel').value,
     llmModelPath: (document.getElementById('llm-model-path').value || '').trim(),
     ollamaModel:  (document.getElementById('ollama-model-input').value || '').trim() || 'llama3.2',
+    claudeApiKey: (document.getElementById('claude-api-key').value || '').trim(),
+    claudeModel:  document.getElementById('claude-model-sel').value,
   };
 }
 

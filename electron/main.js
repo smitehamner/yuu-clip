@@ -314,6 +314,8 @@ function registerWizardIPC(wizardWin) {
       projectDir: pDir,
       llmBackend:    defaultBackend,
       llmModelPath:  existingModelPath,
+      claudeApiKey:  projCfg.claude_api_key  || '',
+      claudeModel:   projCfg.claude_model    || 'claude-haiku-4-5-20251001',
     };
   });
 
@@ -396,6 +398,9 @@ function showSetupWizard({ rerun = false } = {}) {
       const pyCfg = { whisper_model: cfg.whisperModel, llm_backend: cfg.llmBackend };
       if (cfg.llmBackend === 'llamacpp') {
         pyCfg.llm_model_path = cfg.llmModelPath || '';
+      } else if (cfg.llmBackend === 'claude') {
+        pyCfg.claude_api_key = cfg.claudeApiKey || '';
+        pyCfg.claude_model   = cfg.claudeModel  || 'claude-haiku-4-5-20251001';
       } else {
         pyCfg.ollama_model = cfg.ollamaModel || 'llama3.2';
       }
