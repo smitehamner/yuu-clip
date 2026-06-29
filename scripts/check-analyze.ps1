@@ -5,9 +5,9 @@ try {
         Write-Warning "An analysis is currently running. Wait for it to finish or cancel it before restarting."
         exit 1
     }
-    Write-Host "No analysis running — safe to restart." -ForegroundColor Green
+    Write-Host "No analysis running - safe to restart." -ForegroundColor Green
     exit 0
 } catch {
-    Write-Host "Server not reachable — safe to start." -ForegroundColor Yellow
+    Write-Host "Server not reachable - safe to start." -ForegroundColor Yellow
     exit 0
 }

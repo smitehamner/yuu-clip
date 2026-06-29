@@ -110,7 +110,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                 if p <= 0 or p >= duration_s:
                     raise HTTPException(
                         400,
-                        f"Split point {p}s is outside the recording range (0–{duration_s:.1f}s)",
+                        f"Split point {p}s is outside the recording range (0-{duration_s:.1f}s)",
                     )
 
             # Idempotent: remove existing segments (and their dependents) before recreating.

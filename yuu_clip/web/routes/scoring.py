@@ -188,7 +188,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                             generate_timeline_chunk, chunk_text, start_hms, end_hms, window_clips, config, context_text
                         )
                     except Exception as exc:
-                        _log.error("timeline chunk %s–%s failed for video %d: %s", start_hms, end_hms, video_id, exc, exc_info=True)
+                        _log.error("timeline chunk %s-%s failed for video %d: %s", start_hms, end_hms, video_id, exc, exc_info=True)
                         entry_text = f"[Error generating entry: {exc}]"
 
                     entry = {"start_hms": start_hms, "end_hms": end_hms, "text": entry_text}

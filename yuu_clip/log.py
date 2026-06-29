@@ -24,7 +24,7 @@ _BUFFER_LINES  = 2_000            # recent lines kept in memory
 
 _memory_buffer: deque[str] = deque(maxlen=_BUFFER_LINES)
 
-_FORMAT      = "%(asctime)s %(levelname)-8s %(name)s — %(message)s"
+_FORMAT      = "%(asctime)s %(levelname)-8s %(name)s - %(message)s"
 _DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
 

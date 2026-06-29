@@ -579,7 +579,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                 if _cached:
                     _cached.unlink(missing_ok=True)
 
-            _log.info("Merged clip %d into clip %d (new range %d–%d ms)", body.clip_b_id, clip_id, start_ms, end_ms)
+            _log.info("Merged clip %d into clip %d (new range %d-%d ms)", body.clip_b_id, clip_id, start_ms, end_ms)
             return _clip_dict(clip_a, full=True, export_dir=ctx.export_dir, video=video)
         finally:
             db.close()

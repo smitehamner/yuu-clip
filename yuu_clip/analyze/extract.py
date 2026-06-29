@@ -55,7 +55,7 @@ def extract_audio_track(
     _log.debug(
         "Extracting audio: %s stream %d → %s%s",
         video_path.name, stream_index, output_path.name,
-        f" [{start_s}s–{end_s}s]" if start_s is not None or end_s is not None else "",
+        f" [{start_s}s-{end_s}s]" if start_s is not None or end_s is not None else "",
     )
     cmd = [ffmpeg, "-y"]
     if start_s is not None:
