@@ -9,4 +9,5 @@ try {
     & $Python -m pytest tests/test_ui.py -v --tb=short --no-header -p no:warnings --screenshot=only-on-failure @args
 } finally {
     Pop-Location
+    (New-Object Media.SoundPlayer 'C:\Windows\Media\tada.wav').PlaySync()
 }
