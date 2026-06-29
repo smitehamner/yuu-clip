@@ -22,7 +22,7 @@ from yuu_clip._build_info import BUILD_DATE as _BUILD_DATE
 from yuu_clip.contexts import seed_builtin_contexts
 from yuu_clip.log import configure_logging, get_logger
 from yuu_clip.web.deps import ProjectContext
-from yuu_clip.web.routes import analyze, contexts, logs, profiles, reel, videos
+from yuu_clip.web.routes import analyze, clips, config, contexts, logs, profiles, reel, scoring, videos
 
 _HERE = Path(__file__).parent
 _log  = get_logger(__name__)
@@ -39,7 +39,7 @@ if _BUILD_DATE == "dev":
 else:
     _VERSION_DISPLAY = f"{_PKG_VERSION} · {_BUILD_DATE}"
 
-_ROUTE_MODULES = (videos, analyze, profiles, reel, logs, contexts)
+_ROUTE_MODULES = (videos, clips, analyze, profiles, reel, logs, contexts, config, scoring)
 
 
 def _reload_factory() -> FastAPI:

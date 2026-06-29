@@ -1521,7 +1521,7 @@ class TestMergeClipsPreviewCleanup:
     """merge_clips must unlink the cached preview files for both clips."""
 
     def test_merge_removes_clip_b_preview_file(self, client, project_dir):
-        from yuu_clip.web.routes import videos as _videos_module
+        from yuu_clip.web.routes import clips as _clips_module
 
         vid_id = client.get("/api/videos").json()[0]["id"]
         clips = client.get(f"/api/videos/{vid_id}/clips?sort=timeline").json()
@@ -1535,8 +1535,8 @@ class TestMergeClipsPreviewCleanup:
         file_b = preview_dir / f"clip_{clip_b_id}_preview.mp4"
         file_a.write_bytes(b"fake a")
         file_b.write_bytes(b"fake b")
-        _videos_module._preview_cache[clip_a_id] = file_a
-        _videos_module._preview_cache[clip_b_id] = file_b
+        _clips_module._preview_cache[clip_a_id] = file_a
+        _clips_module._preview_cache[clip_b_id] = file_b
 
         r = client.post(f"/api/clips/{clip_a_id}/merge", json={"clip_b_id": clip_b_id})
         assert r.status_code == 200
@@ -1544,5 +1544,5 @@ class TestMergeClipsPreviewCleanup:
         # Both preview files must be removed from disk
         assert not file_a.exists(), "clip_a preview should be deleted after merge"
         assert not file_b.exists(), "clip_b preview should be deleted after merge"
-        assert clip_a_id not in _videos_module._preview_cache
-        assert clip_b_id not in _videos_module._preview_cache
+        assert clip_a_id not in _clips_module._preview_cache
+        assert clip_b_id not in _clips_module._preview_cache

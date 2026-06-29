@@ -8,7 +8,7 @@ class TestMsToHms:
     """_ms_to_hms converts milliseconds to h:mm:ss or m:ss."""
 
     def _convert(self, ms):
-        from yuu_clip.web.routes.videos import _ms_to_hms
+        from yuu_clip.web.routes.scoring import _ms_to_hms
         return _ms_to_hms(ms)
 
     def test_seconds_only(self):
@@ -225,7 +225,7 @@ class TestPreviewCacheInvalidation:
     def test_timing_update_evicts_preview_cache(self, client, project_dir):
         """After PATCH /timing, the in-memory cache entry for that clip must be
         removed so a stale preview is never served."""
-        from yuu_clip.web.routes import videos as videos_mod
+        from yuu_clip.web.routes import clips as clips_mod
 
         clip_id = self._first_clip_id(client)
 
@@ -235,14 +235,14 @@ class TestPreviewCacheInvalidation:
         preview_dir.mkdir(parents=True, exist_ok=True)
         fake_preview = preview_dir / f"clip_{clip_id}_preview.mp4"
         fake_preview.write_bytes(b"old preview content")
-        videos_mod._preview_cache[clip_id] = fake_preview
+        clips_mod._preview_cache[clip_id] = fake_preview
 
         # Update clip timing — this must evict the cache entry and delete the file.
         r = client.patch(f"/api/clips/{clip_id}/timing",
                          json={"start_offset": 2.0, "end_offset": -1.0})
         assert r.status_code == 200
 
-        assert clip_id not in videos_mod._preview_cache, (
+        assert clip_id not in clips_mod._preview_cache, (
             "Cache entry was not evicted after timing update"
         )
         assert not fake_preview.exists(), (
