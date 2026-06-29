@@ -219,7 +219,7 @@ function renderEstimate(info, data) {
   const totalWarn  = data.total_seconds >= warnS;
   const totalBadge = totalWarn ? `<span class="total-warn-badge">&#9888; Long job</span>` : '';
   const pctLine    = data.pct_of_video != null
-    ? `<div class="estimate-pct">&#8776; ${data.pct_of_video}% of video duration</div>`
+    ? `<div class="estimate-pct">&#8776; ${data.pct_of_video.toFixed(1)}% of video duration</div>`
     : '';
 
   document.getElementById('estimate-area').innerHTML = `

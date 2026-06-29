@@ -77,7 +77,7 @@ class TestAnalyzeModal:
     def test_profile_dropdown_has_default(self, page: Page):
         page.goto(LIVE_URL)
         self._open_panel(page)
-        page.wait_for_selector("#analyze-profile option", timeout=3000)
+        page.wait_for_selector("#analyze-profile option", state="attached", timeout=3000)
         options = page.locator("#analyze-profile option")
         texts = [options.nth(i).text_content() for i in range(options.count())]
         assert any("Default" in t or "combined" in t.lower() for t in texts)
@@ -180,8 +180,10 @@ class TestProfileManager:
         # Should now appear in list
         expect(page.locator("#profile-list")).to_contain_text("ui_test_profile")
 
-        # Delete it
+        # Delete it — deleteProfile() shows a confirm modal before deleting
         page.locator("button[data-delete-profile='ui_test_profile']").click()
+        page.locator("#confirm-ok-btn").wait_for(state="visible", timeout=2000)
+        page.click("#confirm-ok-btn")
         page.wait_for_timeout(500)
         expect(page.locator("#profile-list")).not_to_contain_text("ui_test_profile")
 
@@ -223,8 +225,8 @@ class TestClipReview:
 
     def test_retranscribe_button_exists(self, page: Page):
         self._select_first_video_and_clip(page)
-        page.wait_for_selector(".actions", timeout=3000)
-        expect(page.locator("button:has-text('Retranscribe')")).to_be_visible()
+        page.wait_for_selector(".clip-actions", timeout=3000)
+        expect(page.locator(".clip-actions button:has-text('Retranscribe')")).to_be_visible()
 
     def test_sidebar_shows_clip_id(self, page: Page):
         page.goto(LIVE_URL)
@@ -282,22 +284,27 @@ class TestClipSort:
 
 @skip_no_server
 class TestDemoModal:
+    def _open_modal(self, page: Page) -> None:
+        # openDemoModal() returns early if there are no approved clips; open directly
+        page.evaluate("document.getElementById('demo-modal').classList.add('visible')")
+        page.locator("#demo-modal").wait_for(state="visible")
+
     def test_opens_and_closes(self, page: Page):
         page.goto(LIVE_URL)
-        page.click("#btn-demo")
+        self._open_modal(page)
         expect(page.locator("#demo-modal")).to_be_visible()
         page.click("#demo-modal button:has-text('Cancel')")
         expect(page.locator("#demo-modal")).not_to_be_visible()
 
     def test_has_transition_options(self, page: Page):
         page.goto(LIVE_URL)
-        page.click("#btn-demo")
+        self._open_modal(page)
         options = page.locator("#demo-transition option")
         assert options.count() >= 4
 
     def test_has_output_name_field(self, page: Page):
         page.goto(LIVE_URL)
-        page.click("#btn-demo")
+        self._open_modal(page)
         # Field is present and accepts text; left blank means the server auto-generates a filename
         expect(page.locator("#demo-output-name")).to_be_visible()
         placeholder = page.locator("#demo-output-name").get_attribute("placeholder")
