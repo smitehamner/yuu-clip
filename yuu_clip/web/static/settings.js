@@ -61,6 +61,21 @@ async function openSettings() {
 
 function closeSettings() {
   if (!document.getElementById('settings-panel').classList.contains('visible')) return;
+  const saveBtn = document.getElementById('btn-settings-save');
+  if (saveBtn && !saveBtn.disabled) {
+    showConfirm(
+      'Discard settings changes?',
+      'You have unsaved changes. Close without saving?',
+      'Discard',
+      _doCloseSettings,
+      true,
+    );
+    return;
+  }
+  _doCloseSettings();
+}
+
+function _doCloseSettings() {
   document.getElementById('settings-panel').classList.remove('visible');
   document.getElementById('main-layout').style.display = '';
 }
@@ -387,7 +402,7 @@ document.addEventListener('keydown', e => {
     closeFieldEditModal();
     closeScoreOverrideModal();
     _diffDiscard();
-    if (_isNewRecordingPanelOpen() && !_panelDirty) _doCloseNewRecordingPanel();
+    if (_isNewRecordingPanelOpen()) { closeNewRecordingPanel(); return; }
     closeProfileManager();
     closeDemoModal();
     closeReelsModal();

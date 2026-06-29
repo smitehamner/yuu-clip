@@ -198,7 +198,7 @@ function renderVideoDetail(video, savedTimeline) {
         <button class="btn" onclick="openAutoApproveModal(${video.id})">Approve Above Score</button>
         <button class="btn" onclick="openBatchExportModal(${video.id})">Export Approved</button>
       </div>
-      <div class="vid-actions-row" style="opacity:.7">
+      <div class="vid-actions-row">
         <button class="btn" onclick="openSplitEditor(${video.id})" title="Split this recording into segments for independent analysis">Split Recording</button>
         <button class="btn" onclick="exportVideoTranscript(${video.id}, this)" title="Write captions as an SRT file next to the source recording">Save Captions to SRT</button>
       </div>

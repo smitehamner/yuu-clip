@@ -211,9 +211,9 @@ function renderDetail(clip) {
           <div class="review-actions">
             <button class="btn approve ${clip.status==='approved'?'active':''}" onclick="setStatus(${clip.id},'approved')">Approve</button>
             <button class="btn reject  ${clip.status==='rejected'?'active':''}" onclick="setStatus(${clip.id},'rejected')">Reject</button>
-            <button class="btn         ${clip.status==='pending' ?'active':''}" onclick="setStatus(${clip.id},'pending')" title="Clear review status">Mark Unreviewed</button>
           </div>
           <div class="op-actions">
+            ${clip.status !== 'pending' ? `<button class="btn ghost" style="font-size:12px" onclick="setStatus(${clip.id},'pending')" title="Clear review status">Mark Unreviewed</button>` : ''}
             <button class="btn" id="btn-rescore-clip" onclick="rescoreClip(${clip.id})">Re-score</button>
             <button class="btn" onclick="openRetranscribeModal(${clip.id})">Retranscribe</button>
             ${clip.description_long || clip.description ? `<button class="btn" id="btn-find-similar" onclick="openSimilarClipsModal(${clip.id})">Find Similar</button>` : ''}
@@ -299,7 +299,7 @@ function openScoreOverride(clipId) {
   const slider = document.getElementById('score-override-slider');
   slider.value = current;
   document.getElementById('score-override-display').textContent = current.toFixed(2);
-  document.getElementById('score-override-llm-note').textContent = `LLM score: ${current.toFixed(2)}`;
+  document.getElementById('score-override-llm-note').textContent = `Current auto score: ${current.toFixed(2)}`;
   document.getElementById('score-override-modal').classList.add('visible');
 }
 

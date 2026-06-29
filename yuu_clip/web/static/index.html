@@ -28,7 +28,7 @@
       <button class="hamburger-item" onclick="openControlsModal();closeHamburger()">&#9000; Controls</button>
       <div class="hamburger-divider"></div>
       <button class="hamburger-item" onclick="openContextManager();closeHamburger()">&#127917; World Contexts</button>
-      <button class="hamburger-item" onclick="openGlossaryModal();closeHamburger()">&#128218; Terminology</button>
+      <button class="hamburger-item" onclick="openGlossaryModal();closeHamburger()">&#128218; Terminology Glossary</button>
       <div class="hamburger-divider"></div>
       <button class="hamburger-item" onclick="openSettings();closeHamburger()">&#9881; Settings</button>
       <a class="hamburger-item" href="/api/logs/export" download="yuu-clip.log" onclick="closeHamburger()">&#8595; Download Log</a>
@@ -597,7 +597,9 @@
 </div>
 
 <!-- Toast container -->
-<div class="toast-container" id="toast-container" aria-live="polite" aria-atomic="true"></div>
+<div id="sr-live-polite" aria-live="polite" aria-atomic="true" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)"></div>
+<div id="sr-live-assertive" aria-live="assertive" aria-atomic="true" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)"></div>
+<div class="toast-container" id="toast-container"></div>
 
 <!-- App footer bar -->
 <footer class="app-footer">
@@ -953,8 +955,8 @@
         </div>
         <div style="display:flex;gap:8px;padding-top:4px">
           <button class="btn primary" onclick="saveContext()">Save</button>
-          <button class="btn danger" id="btn-delete-context" onclick="deleteContext()">Delete</button>
           <button class="btn" style="margin-left:auto" onclick="cancelContextEdit()">Cancel</button>
+          <button class="btn danger" id="btn-delete-context" onclick="deleteContext()">Delete</button>
         </div>
       </div>
     </div>

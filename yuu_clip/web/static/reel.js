@@ -15,7 +15,10 @@ async function switchReelTab(tab) {
   if (tab === 'build') {
     const totalApproved = _videos.reduce((n, v) => n + v.approved, 0);
     if (totalApproved === 0) {
-      showToast('No approved clips yet — approve some clips first to build a reel', 'info');
+      document.getElementById('demo-status').textContent = '';
+      document.getElementById('reel-clip-list').innerHTML =
+        '<div style="padding:24px;text-align:center;color:var(--muted);font-size:12px">No approved clips yet — approve clips from the sidebar, then come back.</div>';
+      document.getElementById('reel-estimate').textContent = '';
       return;
     }
     document.getElementById('demo-status').textContent = '';

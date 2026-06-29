@@ -316,23 +316,20 @@ function appendLog(raw) {
 function showToast(message, type = 'success', durationMs) {
   const ms = durationMs ?? (type === 'error' ? 8000 : 4000);
   const container = document.getElementById('toast-container');
-  container.setAttribute('aria-live', type === 'error' ? 'assertive' : 'polite');
+  const liveRegion = document.getElementById(type === 'error' ? 'sr-live-assertive' : 'sr-live-polite');
+  if (liveRegion) { liveRegion.textContent = ''; setTimeout(() => { liveRegion.textContent = message; }, 10); }
   const toast = document.createElement('div');
   toast.className = `toast ${type}`;
-  if (type === 'error') {
-    toast.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:10px';
-    const msg = document.createElement('span');
-    msg.textContent = message;
-    const close = document.createElement('button');
-    close.textContent = '×';
-    close.setAttribute('aria-label', 'Dismiss');
-    close.style.cssText = 'background:none;border:none;color:inherit;cursor:pointer;font-size:18px;line-height:1;padding:0;flex-shrink:0;opacity:.8';
-    close.onclick = () => toast.remove();
-    toast.appendChild(msg);
-    toast.appendChild(close);
-  } else {
-    toast.textContent = message;
-  }
+  toast.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:10px';
+  const msg = document.createElement('span');
+  msg.textContent = message;
+  const close = document.createElement('button');
+  close.textContent = '×';
+  close.setAttribute('aria-label', 'Dismiss');
+  close.style.cssText = `background:none;border:none;color:inherit;cursor:pointer;font-size:18px;line-height:1;padding:0;flex-shrink:0;opacity:${type === 'error' ? '.8' : '.5'}`;
+  close.onclick = () => toast.remove();
+  toast.appendChild(msg);
+  toast.appendChild(close);
   container.appendChild(toast);
   setTimeout(() => {
     toast.style.transition = 'opacity .3s';

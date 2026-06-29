@@ -436,7 +436,7 @@ async function _refreshProfileList() {
   }
   el.innerHTML = _allProfiles.map(p => `
     <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border)">
-      <span style="flex:1;font-size:13px">${p.builtin ? '&#128274; ' : ''}${escHtml(p.display_name)}</span>
+      <span style="flex:1;font-size:13px">${p.builtin ? '<span title="Built-in layout — cannot be edited or deleted">&#128274;</span> ' : ''}${escHtml(p.display_name)}</span>
       <span style="color:var(--muted);font-size:12px">${p.num_tracks} track${p.num_tracks !== 1 ? 's' : ''}</span>
       ${!p.builtin ? `
         <button class="btn" style="padding:4px 10px;font-size:12px" data-edit-profile="${escHtml(p.name)}">Edit</button>
@@ -480,7 +480,7 @@ function renderTrackRows(existingAssignments) {
     ).join('');
     rows.push(`
       <div style="display:flex;align-items:center;gap:8px;padding:5px 0;font-size:13px">
-        <span style="color:var(--muted);width:60px;flex-shrink:0">Track ${i}</span>
+        <span style="color:var(--muted);width:60px;flex-shrink:0">Track ${i + 1}</span>
         <select id="pe-label-${i}" onchange="onLabelChange(${i})"
                 style="flex:1;padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:12px">${opts}</select>
         <label style="display:flex;align-items:center;gap:4px;font-size:12px;white-space:nowrap">
