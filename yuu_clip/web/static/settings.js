@@ -221,7 +221,13 @@ async function saveSettings() {
   const getNum = (id, parse) => { const v = getVal(id); return v !== null ? parse(v) : null; };
 
   const tlUnit = getVal('s-timeline-unit');
-  const tlSec  = _parseIntervalS(getVal('s-timeline-interval'), tlUnit);
+  const tlRaw  = getVal('s-timeline-interval');
+  const tlSec  = _parseIntervalS(tlRaw, tlUnit);
+  if (tlRaw !== null && tlRaw.trim() !== '' && tlSec === null) {
+    showToast('Timeline interval must be at least 10 seconds.', 'error');
+    document.getElementById('s-timeline-interval')?.focus();
+    return;
+  }
 
   const payload = {
     whisper_model:              getVal('s-whisper-model'),

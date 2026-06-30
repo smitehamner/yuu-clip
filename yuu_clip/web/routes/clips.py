@@ -484,7 +484,7 @@ def _register_batch_export_route(router: APIRouter, ctx: ProjectContext) -> None
                             msg = out.decode(errors="replace").strip().splitlines()
                             last = msg[-1] if msg else "unknown error"
                             _log.error("batch_export: clip %d export failed for video %d (rc=%d): %s", cid, video_id, proc.returncode, last)
-                            yield f"data: {json_lib.dumps(f'[Error clip {cid}: {last}]')}\n\n"
+                            yield f"data: {json_lib.dumps(f'[Error clip {cid} (exit {proc.returncode}): {last}]')}\n\n"
                     except Exception as exc:
                         _log.error("batch_export: clip %d subprocess failed for video %d: %s", cid, video_id, exc, exc_info=True)
                         yield f"data: {json_lib.dumps(f'[Error clip {cid}: {exc}]')}\n\n"
