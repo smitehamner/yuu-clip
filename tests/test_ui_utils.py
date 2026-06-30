@@ -392,6 +392,45 @@ class TestComputeSuggestionPins:
         )
         assert pins == sorted(pins)
 
+    def test_empty_energy_is_a_noop(self, page: Page):
+        # Guard: with no energy data the function returns early and leaves any
+        # existing pins untouched (rather than clearing them).
+        pins = page.evaluate(
+            "() => {"
+            "  _splitDurationS = 200; _splitEnergyFlat = [];"
+            "  _suggestionPins = [42]; _computeSuggestionPins();"
+            "  return _suggestionPins;"
+            "}"
+        )
+        assert pins == [42]
+
+    def test_zero_duration_is_a_noop(self, page: Page):
+        # A zero-length clip has no interior seconds — early return, pins untouched.
+        pins = page.evaluate(
+            "() => {"
+            "  _splitDurationS = 0;"
+            "  _splitEnergyFlat = [{second: 1, rms_db: -10}];"
+            "  _suggestionPins = [7]; _computeSuggestionPins();"
+            "  return _suggestionPins;"
+            "}"
+        )
+        assert pins == [7]
+
+    def test_all_equal_energy_still_picks_spaced_in_bounds_pins(self, page: Page):
+        # Every second has identical energy: the dB range collapses to 0 and must
+        # fall back to 1 (no divide-by-zero / NaN). All scores tie, so the greedy
+        # pass just fills spaced, interior slots up to the cap.
+        pins = self._run(
+            page,
+            "_splitDurationS = 300;"
+            "_splitEnergyFlat = Array.from({length: 300}, (_, i) => ({"
+            "  second: i, rms_db: -10}));",
+        )
+        assert pins, "expected at least one suggestion for a non-trivial duration"
+        assert all(0 < p < 300 for p in pins)
+        assert all(b - a >= 30 for a, b in zip(pins, pins[1:]))
+        assert len(pins) <= 8
+
 
 # ---------------------------------------------------------------------------
 # Active-stream supersede contract (utils.js)
@@ -446,3 +485,166 @@ class TestActiveStreamSupersede:
             "}"
         )
         assert count == 1
+
+
+# ---------------------------------------------------------------------------
+# _fmtElapsed (utils.js) — short job-timer label
+# ---------------------------------------------------------------------------
+
+@skip_no_server
+class TestFmtElapsed:
+    def test_under_a_minute_is_seconds_only(self, page: Page):
+        result = page.evaluate(
+            "() => [_fmtElapsed(0), _fmtElapsed(5000), _fmtElapsed(59000)]"
+        )
+        assert result == ["0s", "5s", "59s"]
+
+    def test_minute_boundary_and_no_zero_pad(self, page: Page):
+        # Unlike _msToHms, the seconds part is NOT zero-padded: 65s → "1m 5s".
+        result = page.evaluate("() => [_fmtElapsed(60000), _fmtElapsed(65000)]")
+        assert result == ["1m 0s", "1m 5s"]
+
+    def test_no_hour_rollover(self, page: Page):
+        # _fmtElapsed has no hour unit (it labels short job timers); 61 min stays
+        # "61m 1s" rather than rolling into "1h ...".
+        assert page.evaluate("() => _fmtElapsed(3661000)") == "61m 1s"
+
+
+# ---------------------------------------------------------------------------
+# _fmtVideoStatus (utils.js) — status-map with raw fallback
+# ---------------------------------------------------------------------------
+
+@skip_no_server
+class TestFmtVideoStatus:
+    def test_known_status_maps_to_display_label(self, page: Page):
+        result = page.evaluate(
+            "() => [_fmtVideoStatus('done'), _fmtVideoStatus('pending')]"
+        )
+        assert result == ["Analyzed", "Not analyzed"]
+
+    def test_unknown_status_falls_through_to_raw(self, page: Page):
+        # Defensive fallback: an unmapped status renders verbatim, never blank.
+        assert page.evaluate("() => _fmtVideoStatus('frobnicate')") == "frobnicate"
+
+
+# ---------------------------------------------------------------------------
+# _sortScore (utils.js) — score dimension picked from the sort dropdown
+# ---------------------------------------------------------------------------
+
+@skip_no_server
+class TestSortScore:
+    _CLIP = (
+        "{score_overall: 0.5, score_funny: 0.9, "
+        "score_dramatic: 0.4, score_action: 0.3}"
+    )
+
+    def _sort_by(self, page: Page, sort_value: str):
+        return page.evaluate(
+            "(v) => { document.getElementById('clips-sort').value = v;"
+            f"  return _sortScore({self._CLIP}); }}",
+            sort_value,
+        )
+
+    def test_dimension_selects_matching_field(self, page: Page):
+        assert self._sort_by(page, "funny") == 0.9
+        assert self._sort_by(page, "dramatic") == 0.4
+        assert self._sort_by(page, "action") == 0.3
+
+    def test_score_uses_overall(self, page: Page):
+        assert self._sort_by(page, "score") == 0.5
+
+    def test_non_dimension_sort_falls_back_to_overall(self, page: Page):
+        # 'timeline' is a valid sort but not a score dimension — rank by overall.
+        assert self._sort_by(page, "timeline") == 0.5
+
+
+# ---------------------------------------------------------------------------
+# _fmtDate (utils.js) — timezone-independent assertions only
+# ---------------------------------------------------------------------------
+
+@skip_no_server
+class TestFmtDate:
+    def test_missing_is_never(self, page: Page):
+        result = page.evaluate("() => [_fmtDate(null), _fmtDate('')]")
+        assert result == ["never", "never"]
+
+    def test_valid_date_uses_at_separator(self, page: Page):
+        # The literal ' at ' joiner is hard-coded, so this holds in any timezone;
+        # the surrounding date/time text is locale-formatted and not asserted.
+        out = page.evaluate("() => _fmtDate('2026-06-29T12:00:00')")
+        assert " at " in out
+
+    def test_distinct_inputs_format_distinctly(self, page: Page):
+        # Two timestamps six months apart must not collapse to the same label
+        # regardless of the viewer's timezone offset.
+        differ = page.evaluate(
+            "() => _fmtDate('2026-06-29T12:00:00') "
+            "    !== _fmtDate('2026-01-02T08:30:00')"
+        )
+        assert differ is True
+
+
+# ---------------------------------------------------------------------------
+# updateJobUI (utils.js) — step advancement marks prior done, current active
+# ---------------------------------------------------------------------------
+
+@skip_no_server
+class TestUpdateJobUI:
+    # SCORE_STEPS = [Energy, Scenes, Scoring]. updateJobUI matches a log line to a
+    # step, marks every earlier step done, and marks the matched step active.
+    def _classes_after(self, page: Page, line: str):
+        return page.evaluate(
+            "(line) => {"
+            "  startJobUI(SCORE_STEPS, 'Re-scoring clip');"
+            "  updateJobUI(line);"
+            "  const cls = i => document.getElementById('step-' + i).className;"
+            "  const out = [cls(0), cls(1), cls(2)];"
+            "  endJobUI();"  # clear the interval timer started by startJobUI
+            "  return out;"
+            "}",
+            line,
+        )
+
+    def test_middle_step_marks_prior_done_and_self_active(self, page: Page):
+        # A 'Detecting scene' line is step 1: step 0 done, step 1 active, step 2
+        # still pending.
+        assert self._classes_after(page, "Detecting scene changes") == [
+            "step done", "step active", "step",
+        ]
+
+    def test_final_step_marks_all_prior_done(self, page: Page):
+        assert self._classes_after(page, "Scoring clips now") == [
+            "step done", "step done", "step active",
+        ]
+
+
+# ---------------------------------------------------------------------------
+# _parseWeight (contexts.js) — input parse with NaN→null and negative clamp
+# ---------------------------------------------------------------------------
+
+@skip_no_server
+class TestParseWeight:
+    def _weight(self, page: Page, raw: str):
+        return page.evaluate(
+            "(raw) => {"
+            "  let el = document.getElementById('__test_weight');"
+            "  if (!el) { el = document.createElement('input');"
+            "    el.id = '__test_weight'; document.body.appendChild(el); }"
+            "  el.value = raw;"
+            "  const out = _parseWeight('__test_weight');"
+            "  el.remove();"
+            "  return out;"
+            "}",
+            raw,
+        )
+
+    def test_parses_positive_value(self, page: Page):
+        assert self._weight(page, "2.5") == 2.5
+
+    def test_blank_or_nonnumeric_is_null(self, page: Page):
+        assert self._weight(page, "") is None
+        assert self._weight(page, "abc") is None
+
+    def test_negative_is_clamped_to_zero(self, page: Page):
+        # A relevance weight must never go below 0 even if the field holds one.
+        assert self._weight(page, "-5") == 0
