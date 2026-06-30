@@ -11,18 +11,26 @@ class DiarizationError(RuntimeError):
     """A diarization failure the user can act on (e.g. accept model terms)."""
 
 
-# pyannote/speaker-diarization-3.1 pulls in pyannote/segmentation-3.0; both are
-# gated. A token that hasn't accepted *both* sets of conditions can't download
-# the weights — pyannote returns None from from_pretrained (or raises a 401/403)
-# rather than a readable error, so we translate it into something actionable.
+# pyannote.audio 4.x's recommended pipeline. Unlike speaker-diarization-3.1 (which
+# chained in segmentation-3.0 plus a PLDA from community-1), this one is
+# self-contained: accepting the single repo's user conditions is enough. We still
+# don't assume the failing repo when access is denied — HF's own error names the
+# exact repo and accept URL, so we pass that text through and append the account /
+# token guidance. The None branch covers older pyannote returning None instead of
+# raising.
+_PIPELINE_ID = "pyannote/speaker-diarization-community-1"
+
+_ACCEPT_TERMS_HINT = (
+    "To fix: sign in to HuggingFace with the SAME account as your token, open "
+    "the gated model page named above, and accept its user conditions. The "
+    "token also needs 'Read' access — create one at https://hf.co/settings/tokens"
+)
+
 _ACCEPT_TERMS_HELP = (
-    "Speaker labels need access to two gated HuggingFace models. Sign in to "
-    "HuggingFace with the same account as your token, accept the user "
-    "conditions on BOTH pages, then run again:\n"
-    "  - https://hf.co/pyannote/speaker-diarization-3.1\n"
-    "  - https://hf.co/pyannote/segmentation-3.0\n"
-    "The token also needs 'Read' access to gated repos — create one at "
-    "https://hf.co/settings/tokens"
+    "Speaker labels need access to a gated HuggingFace model. While signed in "
+    "with your token's account, accept the user conditions at:\n"
+    f"  - https://hf.co/{_PIPELINE_ID}\n"
+    + _ACCEPT_TERMS_HINT
 )
 
 
@@ -32,7 +40,7 @@ def _looks_like_access_error(exc: Exception) -> bool:
         needle in text
         for needle in (
             "401", "403", "gated", "unauthorized", "forbidden",
-            "authenticate", "access", "awaiting", "permission",
+            "authenticate", "restricted", "awaiting", "permission",
         )
     )
 
@@ -77,12 +85,12 @@ class PyannoteDiarizationClient(DiarizationClient):
         from pyannote.audio import Pipeline
         try:
             pipeline = Pipeline.from_pretrained(
-                "pyannote/speaker-diarization-3.1",
+                _PIPELINE_ID,
                 token=self._config.huggingface_token,
             )
         except Exception as exc:
             if _looks_like_access_error(exc):
-                raise DiarizationError(_ACCEPT_TERMS_HELP) from exc
+                raise DiarizationError(f"{exc}\n\n{_ACCEPT_TERMS_HINT}") from exc
             raise
         if pipeline is None:
             raise DiarizationError(_ACCEPT_TERMS_HELP)

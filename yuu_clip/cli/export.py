@@ -27,7 +27,7 @@ def _maybe_diarize_segment(session, config, transcript_id: int, segment_wav: Pat
     absolute video timestamps, so the diarization turns are shifted by *offset_s* before
     matching. A no-op when no diarization backend / HuggingFace token is configured.
     """
-    from yuu_clip.transcribe.diarization_client import make_diarization_client
+    from yuu_clip.transcribe.diarization_client import DiarizationError, make_diarization_client
     from yuu_clip.transcribe.whisper_runner import _assign_speakers
 
     client = make_diarization_client(config)
@@ -43,6 +43,10 @@ def _maybe_diarize_segment(session, config, transcript_id: int, segment_wav: Pat
         shifted = [(start + offset_s, end + offset_s, label) for start, end, label in turns]
         _assign_speakers(session, transcript_id, shifted)
         console.print(f"  [green]  OK[/green] [{track_label}]  {len(turns)} speaker turn(s)")
+    except DiarizationError as exc:
+        log.warning("Diarization failed during retranscribe (tx %d): %s", transcript_id, exc)
+        console.print("  [yellow]  Speaker labels skipped:[/yellow]")
+        console.print(str(exc), markup=False, highlight=False)
     except Exception as exc:
         log.warning("Diarization failed during retranscribe (tx %d): %s", transcript_id, exc, exc_info=True)
         console.print(f"  [yellow]  Speaker labels skipped: {exc}[/yellow]")

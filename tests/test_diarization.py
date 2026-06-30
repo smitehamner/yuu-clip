@@ -78,6 +78,55 @@ class TestPyannoteDiarize:
         assert kwargs.get("token") == "hf_abc"
         assert "use_auth_token" not in kwargs
 
+    # pyannote returns None from from_pretrained (rather than raising) when the
+    # token can't access the gated repos / hasn't accepted the model terms. The
+    # old code then crashed with 'NoneType' object is not callable, buried in
+    # the log. It must instead surface an actionable error.
+    def test_none_pipeline_raises_actionable_error(self, monkeypatch):
+        import pyannote.audio
+
+        monkeypatch.setattr(
+            pyannote.audio.Pipeline, "from_pretrained", MagicMock(return_value=None)
+        )
+        cfg = Config(diarization_backend="pyannote", huggingface_token="hf_abc")
+        with pytest.raises(DiarizationError) as excinfo:
+            PyannoteDiarizationClient(cfg).diarize("/tmp/clip.wav")
+        message = str(excinfo.value)
+        assert "hf.co/pyannote/speaker-diarization-3.1" in message
+        assert "hf.co/pyannote/segmentation-3.0" in message
+
+    # A real pyannote 4.x access error names a repo our static list might not
+    # know about (speaker-diarization-community-1). The translated error must
+    # preserve that exact repo name and append the account/token guidance.
+    def test_access_error_preserves_repo_and_adds_hint(self, monkeypatch):
+        import pyannote.audio
+
+        def _raise_gated(*args, **kwargs):
+            raise RuntimeError(
+                "403 Client Error. Access to model "
+                "pyannote/speaker-diarization-community-1 is restricted. "
+                "Visit https://hf.co/pyannote/speaker-diarization-community-1"
+            )
+
+        monkeypatch.setattr(pyannote.audio.Pipeline, "from_pretrained", _raise_gated)
+        cfg = Config(diarization_backend="pyannote", huggingface_token="hf_abc")
+        with pytest.raises(DiarizationError) as excinfo:
+            PyannoteDiarizationClient(cfg).diarize("/tmp/clip.wav")
+        message = str(excinfo.value)
+        assert "speaker-diarization-community-1" in message
+        assert "hf.co/settings/tokens" in message
+
+    def test_unrelated_error_is_not_masked(self, monkeypatch):
+        import pyannote.audio
+
+        def _raise_disk(*args, **kwargs):
+            raise OSError("No space left on device")
+
+        monkeypatch.setattr(pyannote.audio.Pipeline, "from_pretrained", _raise_disk)
+        cfg = Config(diarization_backend="pyannote", huggingface_token="hf_abc")
+        with pytest.raises(OSError):
+            PyannoteDiarizationClient(cfg).diarize("/tmp/clip.wav")
+
 
 # ---------------------------------------------------------------------------
 # Retranscribe diarization — clip-window turns must be shifted to absolute time
