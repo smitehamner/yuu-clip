@@ -32,10 +32,6 @@ def _json_list(s: Optional[str]) -> list:
     return json_lib.loads(s) if s else []
 
 
-def _user_or_default(user_val: Optional[str], stored_val: Optional[str]) -> str:
-    return user_val if user_val is not None else (stored_val or "")
-
-
 def _require_clip(db, clip_id: int) -> ClipCandidate:
     clip = db.get(ClipCandidate, clip_id)
     if not clip:

@@ -261,7 +261,7 @@ class TestCollectTranscriptSegments:
 
 
 # ---------------------------------------------------------------------------
-# _shared.py — _json_list and _user_or_default
+# _shared.py — _json_list
 # ---------------------------------------------------------------------------
 
 class TestJsonList:
@@ -282,28 +282,6 @@ class TestJsonList:
     def test_encoded_empty_list(self):
         import json
         assert self._fn(json.dumps([])) == []
-
-
-class TestUserOrDefault:
-    def _fn(self, user_val, stored_val):
-        from yuu_clip.web.routes._shared import _user_or_default
-        return _user_or_default(user_val, stored_val)
-
-    def test_user_val_wins_when_set(self):
-        assert self._fn("User edit", "LLM version") == "User edit"
-
-    def test_stored_val_used_when_no_user(self):
-        assert self._fn(None, "LLM version") == "LLM version"
-
-    def test_empty_string_user_val_wins(self):
-        # Empty string is a deliberate blank, not "unset" — so it wins over stored
-        assert self._fn("", "LLM version") == ""
-
-    def test_both_none_returns_empty_string(self):
-        assert self._fn(None, None) == ""
-
-    def test_stored_none_with_no_user_returns_empty(self):
-        assert self._fn(None, None) == ""
 
 
 # ---------------------------------------------------------------------------

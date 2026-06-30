@@ -18,7 +18,6 @@ from yuu_clip.web.routes._shared import (
     _json_list,
     _require_clip,
     _sse_response,
-    _user_or_default,
 )
 
 _log = get_logger(__name__)
@@ -266,8 +265,8 @@ def _register_summary_routes(router: APIRouter, ctx: ProjectContext) -> None:
             if not full_text:
                 raise HTTPException(400, "No transcript available — analyze the recording first")
 
-            title_current   = _user_or_default(video.title_user, video.title)
-            summary_current = _user_or_default(video.summary_user, video.summary)
+            title_current   = video.effective_title
+            summary_current = video.effective_summary
 
             context_text = format_context_block(load_contexts(ctx.project_dir), context_names)
             try:
