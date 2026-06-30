@@ -3,7 +3,10 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 from yuu_clip.config import Config
+import pytest
+
 from yuu_clip.transcribe.diarization_client import (
+    DiarizationError,
     NullDiarizationClient,
     PyannoteDiarizationClient,
     make_diarization_client,
@@ -74,6 +77,61 @@ class TestPyannoteDiarize:
         _, kwargs = from_pretrained.call_args
         assert kwargs.get("token") == "hf_abc"
         assert "use_auth_token" not in kwargs
+
+
+# ---------------------------------------------------------------------------
+# Retranscribe diarization — clip-window turns must be shifted to absolute time
+# ---------------------------------------------------------------------------
+
+class TestRetranscribeDiarization:
+    def test_shifts_turns_by_clip_offset(self, monkeypatch):
+        from pathlib import Path
+
+        from yuu_clip.cli import export as export_cli
+
+        class FakeClient:
+            def available(self):
+                return True, ""
+
+            def diarize(self, path):
+                return [(1.0, 2.0, "SPEAKER_00"), (3.0, 4.0, "SPEAKER_01")]
+
+        monkeypatch.setattr(
+            "yuu_clip.transcribe.diarization_client.make_diarization_client",
+            lambda config: FakeClient(),
+        )
+        captured = {}
+        monkeypatch.setattr(
+            "yuu_clip.transcribe.whisper_runner._assign_speakers",
+            lambda session, transcript_id, turns: captured.update(turns=turns, tx=transcript_id),
+        )
+
+        cfg = Config(diarization_backend="pyannote", huggingface_token="hf_abc")
+        export_cli._maybe_diarize_segment(
+            session=None, config=cfg, transcript_id=7,
+            segment_wav=Path("seg.wav"), offset_s=86.7, track_label="combined",
+        )
+        assert captured["tx"] == 7
+        assert captured["turns"] == [(87.7, 88.7, "SPEAKER_00"), (89.7, 90.7, "SPEAKER_01")]
+
+    def test_noop_when_diarization_unavailable(self, monkeypatch):
+        from pathlib import Path
+
+        from yuu_clip.cli import export as export_cli
+
+        class FakeClient:
+            def available(self):
+                return False, "no token"
+
+            def diarize(self, path):
+                raise AssertionError("diarize must not run when unavailable")
+
+        monkeypatch.setattr(
+            "yuu_clip.transcribe.diarization_client.make_diarization_client",
+            lambda config: FakeClient(),
+        )
+        cfg = Config(diarization_backend="pyannote", huggingface_token="")
+        export_cli._maybe_diarize_segment(None, cfg, 7, Path("seg.wav"), 0.0, "combined")
 
 
 # ---------------------------------------------------------------------------

@@ -89,6 +89,43 @@ function stripRichMarkup(text) {
     .replace(/\[\/?\w+\]/g, '');             // Rich markup tags
 }
 
+// ── speaker labels (diarization) readiness ────────────────────────────────────
+// Speaker labels need BOTH the pyannote package installed AND a HuggingFace
+// token. The per-run checkboxes in the analyze and export panels both gate on
+// this single check; the configured backend only sets the default, since the
+// CLI --diarize flag overrides the backend for that run. Centralized here so the
+// three surfaces (Settings, analyze, export) can't drift to different rules.
+function _diarizationReason(installed, hasToken) {
+  if (!installed) return 'Install pyannote.audio';
+  if (!hasToken)  return 'Requires a HuggingFace token';
+  return '';
+}
+
+async function _diarizationReadiness() {
+  const [cfg, install] = await Promise.all([
+    fetch('/api/config').then(r => r.json()).catch(() => ({})),
+    fetch('/api/install/pyannote').then(r => r.json()).catch(() => ({installed: false})),
+  ]);
+  const installed = !!install.installed;
+  const hasToken  = !!(cfg.huggingface_token && cfg.huggingface_token.trim());
+  return {
+    installed,
+    hasToken,
+    backend: cfg.diarization_backend || 'null',
+    ready:   installed && hasToken,
+    reason:  _diarizationReason(installed, hasToken),
+  };
+}
+
+// Note shown on a disabled speaker-labels control: the blocking reason plus a
+// button that jumps to Settings. settingsOnclick closes the host surface first
+// (the analyze panel or export modal) so Settings isn't opened behind it.
+function _diarizationNoteHtml(reason, settingsOnclick) {
+  return escHtml(reason) + ' — set up in ' +
+    '<button class="btn ghost" style="font-size:11px;padding:0 4px;color:var(--accent);' +
+    `display:inline-flex" onclick="${escHtml(settingsOnclick)}">Settings</button>`;
+}
+
 
 // Server timestamps are naive UTC (SQLite DateTime → isoformat() with no zone).
 // Treat a zone-less string as UTC so it isn't parsed as the viewer's local time.

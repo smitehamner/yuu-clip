@@ -112,6 +112,41 @@ class TestFormatApiError:
 
 
 # ---------------------------------------------------------------------------
+# Speaker-labels (diarization) readiness (utils.js)
+# ---------------------------------------------------------------------------
+
+@skip_no_server
+class TestDiarizationReason:
+    # The three speaker-labels surfaces (Settings, analyze, export) all gate on
+    # this single rule. Missing package is reported before missing token because
+    # installing is the first setup step; an empty string means fully ready.
+    def test_missing_package_takes_priority(self, page: Page):
+        out = page.evaluate("() => _diarizationReason(false, false)")
+        assert out == "Install pyannote.audio"
+
+    def test_missing_package_even_with_token(self, page: Page):
+        out = page.evaluate("() => _diarizationReason(false, true)")
+        assert out == "Install pyannote.audio"
+
+    def test_installed_but_no_token(self, page: Page):
+        out = page.evaluate("() => _diarizationReason(true, false)")
+        assert out == "Requires a HuggingFace token"
+
+    def test_ready_returns_empty_reason(self, page: Page):
+        out = page.evaluate("() => _diarizationReason(true, true)")
+        assert out == ""
+
+    def test_note_html_escapes_onclick_and_includes_settings_button(self, page: Page):
+        # The onclick is interpolated into an attribute, so it must be escaped to
+        # keep a stray quote from breaking out of the attribute.
+        out = page.evaluate(
+            "() => _diarizationNoteHtml('Requires a HuggingFace token', 'foo();bar()')"
+        )
+        assert ">Settings</button>" in out
+        assert 'onclick="foo();bar()"' in out
+
+
+# ---------------------------------------------------------------------------
 # stripRichMarkup (utils.js)
 # ---------------------------------------------------------------------------
 

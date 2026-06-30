@@ -29,7 +29,7 @@ from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeEl
 from yuu_clip.config import Config, validate_whisper_language, validate_whisper_model
 from yuu_clip.db.models import AudioTrack, Transcript, TranscriptSegment
 from yuu_clip.log import get_logger
-from yuu_clip.transcribe.diarization_client import make_diarization_client
+from yuu_clip.transcribe.diarization_client import DiarizationError, make_diarization_client
 
 _log = get_logger(__name__)
 
@@ -226,6 +226,7 @@ def _maybe_diarize(
     if not ok:
         if config.diarization_backend != "null":
             _log.warning("Diarization skipped for track %d [%s]: %s", track.id, track.label, reason)
+            console.print(f"[yellow]Speaker labels skipped for [{track.label}]: {reason}[/yellow]")
         return
 
     _log.info("Running diarization for track %d [%s]…", track.id, track.label)
@@ -233,8 +234,15 @@ def _maybe_diarize(
         turns = diar_client.diarize(str(audio_path))
         _assign_speakers(session, transcript.id, turns)
         _log.info("Diarization complete: %d turns for track %d", len(turns), track.id)
+    except DiarizationError as exc:
+        _log.warning("Diarization failed for track %d [%s]: %s", track.id, track.label, exc)
+        console.print(f"[yellow]Speaker labels skipped for [{track.label}]:[/yellow]")
+        console.print(str(exc), markup=False, highlight=False)
     except Exception as exc:
         _log.warning(
             "Diarization failed for track %d [%s], speaker labels skipped: %s",
             track.id, track.label, exc, exc_info=True,
+        )
+        console.print(
+            f"[yellow]Speaker labels skipped for [{track.label}] (unexpected error): {exc}[/yellow]"
         )

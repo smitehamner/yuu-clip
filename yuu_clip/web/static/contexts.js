@@ -431,9 +431,23 @@ async function doAutoApprove() {
 let _retranscribeClipId = null;
 let _retranscribeOpener = null;
 
+async function _loadRetranscribeSpeakerDefault() {
+  const box  = document.getElementById('retranscribe-speaker-labels');
+  const note = document.getElementById('retranscribe-speaker-note');
+  const readiness = await _diarizationReadiness();
+  box.disabled = !readiness.ready;
+  box.checked  = readiness.ready;  // on by default when fully set up
+  if (!readiness.ready) {
+    note.innerHTML = _diarizationNoteHtml(readiness.reason, 'closeRetranscribeModal();openSettings()');
+  } else {
+    note.textContent = '';
+  }
+}
+
 function openRetranscribeModal(clipId) {
   _retranscribeOpener = document.activeElement;
   _retranscribeClipId = clipId;
+  _loadRetranscribeSpeakerDefault();
   document.getElementById('retranscribe-modal').classList.add('visible');
   setTimeout(() => document.getElementById('retranscribe-model')?.focus(), 50);
 }
@@ -448,10 +462,11 @@ function closeRetranscribeModal() {
 function startRetranscribe() {
   if (!_retranscribeClipId) return;
   const model = document.getElementById('retranscribe-model').value;
+  const speakerLabels = document.getElementById('retranscribe-speaker-labels').checked;
   closeRetranscribeModal();
   openLog();
   streamSSE(
-    `/api/clips/${_retranscribeClipId}/retranscribe?model=${encodeURIComponent(model)}`,
+    `/api/clips/${_retranscribeClipId}/retranscribe?model=${encodeURIComponent(model)}&speaker_labels=${speakerLabels}`,
     () => { selectClip(_retranscribeClipId); showToast('Retranscription complete'); },
     [{label: 'Transcribe', patterns: ['Retranscribing', 'OK']}],
     'Retranscribing',

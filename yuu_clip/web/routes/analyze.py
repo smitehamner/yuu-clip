@@ -270,6 +270,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         container: Optional[str] = Query(None),
         retranscribe: bool = Query(False),
         retranscribe_model: str = Query("large-v3"),
+        speaker_labels: bool = Query(True),
         title_card: bool = Query(False),
     ):
         """Export a clip to a video file and stream ffmpeg progress as SSE."""
@@ -293,12 +294,14 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             cmd.extend(["--container", container])
         if retranscribe:
             cmd.extend(["--retranscribe", "--retranscribe-model", retranscribe_model])
+            cmd.append("--speaker-labels" if speaker_labels else "--no-speaker-labels")
         if title_card:
             cmd.append("--title-card")
         return await subprocess_sse(cmd, ctx.project_dir, ctx)
 
     @router.get("/api/clips/{clip_id}/retranscribe")
-    async def retranscribe_clip(clip_id: int, model: str = Query("large-v3")):
+    async def retranscribe_clip(clip_id: int, model: str = Query("large-v3"),
+                                speaker_labels: bool = Query(True)):
         """Re-transcribe a clip's time window with the given Whisper model."""
         try:
             validate_whisper_model(model)
@@ -307,6 +310,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         cmd = [
             sys.executable, "-m", "yuu_clip.cli", "retranscribe", str(clip_id),
             "--model", model, "--no-rescore", "--project", str(ctx.project_dir),
+            "--speaker-labels" if speaker_labels else "--no-speaker-labels",
         ]
         return await subprocess_sse(cmd, ctx.project_dir, ctx)
 

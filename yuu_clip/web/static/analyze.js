@@ -95,16 +95,14 @@ async function _loadDiarizationDefault() {
   const note = document.getElementById('analyze-diarize-note');
   if (!box || !note) return;
   try {
-    const cfg = await fetch('/api/config').then(r => r.json());
-    const enabledByDefault = cfg.diarization_backend && cfg.diarization_backend !== 'null';
-    const hasToken = !!(cfg.huggingface_token && cfg.huggingface_token.trim());
-    if (!hasToken) {
+    const readiness = await _diarizationReadiness();
+    if (!readiness.ready) {
       box.checked = false;
       box.disabled = true;
-      note.innerHTML = 'Requires a HuggingFace token — set up in ' +
-        '<button class="btn ghost" style="font-size:11px;padding:0 4px;color:var(--accent);display:inline-flex" ' +
-        'onclick="closeNewRecordingPanel();openSettings()">Settings</button>';
+      note.innerHTML = _diarizationNoteHtml(
+        readiness.reason, 'closeNewRecordingPanel();openSettings()');
     } else {
+      const enabledByDefault = readiness.backend !== 'null';
       box.disabled = false;
       box.checked = enabledByDefault;
       note.textContent = enabledByDefault ? 'On by default (from Settings)' : 'Off by default (from Settings)';

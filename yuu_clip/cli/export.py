@@ -19,7 +19,37 @@ from yuu_clip.cli._base import (
 )
 
 
-def _run_retranscribe(cand, session, config, language: Optional[str] = None) -> None:
+def _maybe_diarize_segment(session, config, transcript_id: int, segment_wav: Path,
+                           offset_s: float, track_label: str) -> None:
+    """Assign speaker labels to a retranscribed clip's segments, if diarization is available.
+
+    The segment WAV is clip-relative (starts at 0), but the stored TranscriptSegments use
+    absolute video timestamps, so the diarization turns are shifted by *offset_s* before
+    matching. A no-op when no diarization backend / HuggingFace token is configured.
+    """
+    from yuu_clip.transcribe.diarization_client import make_diarization_client
+    from yuu_clip.transcribe.whisper_runner import _assign_speakers
+
+    client = make_diarization_client(config)
+    ok, reason = client.available()
+    if not ok:
+        if config.diarization_backend != "null":
+            console.print(f"  [yellow]  Speaker labels skipped: {reason}[/yellow]")
+        return
+
+    console.print(f"  [dim]  Diarizing [{track_label}]...[/dim]")
+    try:
+        turns = client.diarize(str(segment_wav))
+        shifted = [(start + offset_s, end + offset_s, label) for start, end, label in turns]
+        _assign_speakers(session, transcript_id, shifted)
+        console.print(f"  [green]  OK[/green] [{track_label}]  {len(turns)} speaker turn(s)")
+    except Exception as exc:
+        log.warning("Diarization failed during retranscribe (tx %d): %s", transcript_id, exc, exc_info=True)
+        console.print(f"  [yellow]  Speaker labels skipped: {exc}[/yellow]")
+
+
+def _run_retranscribe(cand, session, config, language: Optional[str] = None,
+                      speaker_labels: bool = False) -> None:
     """Retranscribe a clip's time window and store a clip-scoped Transcript row.
 
     Does not rescore. Caller is responsible for session.commit() afterward.
@@ -79,6 +109,10 @@ def _run_retranscribe(cand, session, config, language: Optional[str] = None) -> 
 
             session.flush()
             console.print(f"  [green]  OK[/green] [{track.label}]  {seg_count} segments")
+
+            if speaker_labels:
+                _maybe_diarize_segment(session, config, tx.id, segment_wav,
+                                       effective_start_s, track.label)
 
     _update_clip_excerpt(cand, session, new_tx_ids)
 
@@ -246,6 +280,7 @@ def export(
     container: Optional[str] = typer.Option(None, "--container", help="Output container override: mkv or mp4. Defaults to source format."),
     retranscribe: bool = typer.Option(False, "--retranscribe", help="Re-transcribe the clip window before exporting"),
     retranscribe_model: str = typer.Option("large-v3", "--retranscribe-model", help="Whisper model for retranscription: tiny|base|small|medium|large-v3"),
+    speaker_labels: bool = typer.Option(True, "--speaker-labels/--no-speaker-labels", help="Add speaker labels during retranscription (no-op without a diarization backend)"),
     title_card: bool = typer.Option(False, "--title-card", help="Prepend a title card with the clip description"),
 ):
     """Export a clip to a video file."""
@@ -276,7 +311,7 @@ def export(
         console.print(
             f"  Retranscribing clip [bold]{clip_id}[/bold] with model [cyan]{retranscribe_model}[/cyan] before export..."
         )
-        _run_retranscribe(cand, session, retx_config)
+        _run_retranscribe(cand, session, retx_config, speaker_labels=speaker_labels)
         session.commit()
 
     video_path = Path(cand.video.path)
@@ -309,6 +344,7 @@ def retranscribe(
     model: str = typer.Option("large-v3", "--model", "-m"),
     language: Optional[str] = typer.Option(None, "--language"),
     no_rescore: bool = typer.Option(False, "--no-rescore"),
+    speaker_labels: bool = typer.Option(True, "--speaker-labels/--no-speaker-labels", help="Add speaker labels (no-op without a diarization backend)"),
 ) -> None:
     """Re-transcribe just the time window of a clip, then re-score it."""
     from yuu_clip.config import validate_whisper_model
@@ -332,7 +368,7 @@ def retranscribe(
         f"{cand.start_hms}  ({cand.duration_hms})  (model: {model})"
     )
 
-    _run_retranscribe(cand, session, config, language=language)
+    _run_retranscribe(cand, session, config, language=language, speaker_labels=speaker_labels)
     session.commit()
 
     if not no_rescore:

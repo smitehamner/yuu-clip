@@ -958,6 +958,41 @@ class TestExportValidation:
         assert r.status_code == 400
 
 
+class TestExportSpeakerLabelsFlag:
+    """The export route forwards the speaker-labels choice to the CLI, only with retranscribe."""
+
+    def _capture_cmd(self, client, monkeypatch, query):
+        from starlette.responses import PlainTextResponse
+
+        from yuu_clip.web.routes import analyze
+
+        captured = {}
+
+        async def fake_sse(cmd, *args, **kwargs):
+            captured["cmd"] = cmd
+            return PlainTextResponse("ok")
+
+        monkeypatch.setattr(analyze, "subprocess_sse", fake_sse)
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        clip_id = client.get(f"/api/videos/{vid_id}/clips").json()[0]["id"]
+        assert client.get(f"/api/clips/{clip_id}/export?{query}").status_code == 200
+        return captured["cmd"]
+
+    def test_speaker_labels_flag_on_retranscribe(self, client, monkeypatch):
+        cmd = self._capture_cmd(client, monkeypatch, "retranscribe=true&speaker_labels=true")
+        assert "--speaker-labels" in cmd
+        assert "--no-speaker-labels" not in cmd
+
+    def test_no_speaker_labels_flag_when_disabled(self, client, monkeypatch):
+        cmd = self._capture_cmd(client, monkeypatch, "retranscribe=true&speaker_labels=false")
+        assert "--no-speaker-labels" in cmd
+
+    def test_no_speaker_flag_without_retranscribe(self, client, monkeypatch):
+        cmd = self._capture_cmd(client, monkeypatch, "retranscribe=false&speaker_labels=true")
+        assert "--speaker-labels" not in cmd
+        assert "--no-speaker-labels" not in cmd
+
+
 # ---------------------------------------------------------------------------
 # Retranscribe validation
 # ---------------------------------------------------------------------------
@@ -971,6 +1006,31 @@ class TestRetranscribeValidation:
         clip_id = clips[0]["id"]
         r = client.get(f"/api/clips/{clip_id}/retranscribe?model=gpt-4o")
         assert r.status_code == 400
+
+    def _capture_cmd(self, client, monkeypatch, query):
+        from starlette.responses import PlainTextResponse
+
+        from yuu_clip.web.routes import analyze
+
+        captured = {}
+
+        async def fake_sse(cmd, *args, **kwargs):
+            captured["cmd"] = cmd
+            return PlainTextResponse("ok")
+
+        monkeypatch.setattr(analyze, "subprocess_sse", fake_sse)
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        clip_id = client.get(f"/api/videos/{vid_id}/clips").json()[0]["id"]
+        assert client.get(f"/api/clips/{clip_id}/retranscribe?{query}").status_code == 200
+        return captured["cmd"]
+
+    def test_speaker_labels_default_on(self, client, monkeypatch):
+        cmd = self._capture_cmd(client, monkeypatch, "model=medium")
+        assert "--speaker-labels" in cmd
+
+    def test_speaker_labels_can_be_disabled(self, client, monkeypatch):
+        cmd = self._capture_cmd(client, monkeypatch, "model=medium&speaker_labels=false")
+        assert "--no-speaker-labels" in cmd
 
 
 # ---------------------------------------------------------------------------

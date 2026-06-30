@@ -111,6 +111,7 @@ function _applySettingsToUI(cfg) {
   setVal('s-diarization-backend', diarBackend);
   _onDiarizationBackendChange(diarBackend);
   setVal('s-hf-token', cfg.huggingface_token || '');
+  _onHfTokenInput();
   const ew  = (cfg.scorer_energy_weight  ?? 1.0).toFixed(1);
   const sw  = (cfg.scorer_scene_weight   ?? 0.5).toFixed(1);
   const lw  = (cfg.scorer_llm_weight     ?? 2.0).toFixed(1);
@@ -162,6 +163,56 @@ function _onLlmBackendChange(backend) {
 function _onDiarizationBackendChange(backend) {
   const pyannoteEl = document.getElementById('s-pyannote-fields');
   if (pyannoteEl) pyannoteEl.style.display = backend === 'pyannote' ? '' : 'none';
+  _updateDiarizationStatus();
+}
+
+function _toggleHfTokenVisibility() {
+  const input = document.getElementById('s-hf-token');
+  const btn   = document.getElementById('btn-toggle-hf-token');
+  const reveal = input.type === 'password';
+  input.type = reveal ? 'text' : 'password';
+  btn.textContent = reveal ? 'Hide' : 'Show';
+  btn.setAttribute('aria-label', reveal ? 'Hide token' : 'Show token');
+}
+
+function _onHfTokenInput() {
+  const fb = document.getElementById('s-hf-token-feedback');
+  if (fb) {
+    const val = document.getElementById('s-hf-token').value.trim();
+    if (!val) {
+      fb.textContent = '';
+    } else if (!val.startsWith('hf_')) {
+      fb.textContent = '⚠ HuggingFace tokens normally start with "hf_" — double-check this value';
+      fb.style.color = 'var(--yellow, #f0c060)';
+    } else {
+      fb.textContent = '✓ Looks like a valid token format';
+      fb.style.color = 'var(--green, #22c55e)';
+    }
+  }
+  _updateDiarizationStatus();
+}
+
+// Summarize the two hard prerequisites (package installed + token set) so the
+// user can see at a glance whether speaker labels will actually run, rather than
+// discovering it only when an analyze run fails. Reads the live token input (may
+// be unsaved) and the server for install state.
+async function _updateDiarizationStatus() {
+  const el = document.getElementById('s-diarization-status');
+  if (!el) return;
+  if (document.getElementById('s-diarization-backend').value !== 'pyannote') {
+    el.style.display = 'none';
+    return;
+  }
+  el.style.display = '';
+  const tokenSet = !!document.getElementById('s-hf-token').value.trim();
+  let installed = false;
+  try {
+    installed = !!(await fetch('/api/install/pyannote').then(r => r.json())).installed;
+  } catch { /* treat unknown as not installed */ }
+  el.innerHTML =
+    `<span style="margin-right:14px">${installed ? '✓' : '○'} pyannote.audio installed</span>` +
+    `<span>${tokenSet ? '✓' : '○'} HuggingFace token set</span>`;
+  el.style.color = installed && tokenSet ? 'var(--green, #22c55e)' : 'var(--muted, #888)';
 }
 
 function _onLaughModeChange(mode) {
@@ -214,6 +265,7 @@ async function installPackage(slug) {
           status.style.color = 'var(--green, #22c55e)';
           btn.textContent = 'Reinstall';
           btn.disabled = false;
+          if (slug === 'pyannote') _updateDiarizationStatus();
           return;
         }
         log.textContent += msg + '\n';
@@ -525,6 +577,7 @@ Object.assign(window, {
   openGettingStartedModal, closeGettingStartedModal,
   openGlossaryModal, closeGlossaryModal,
   _onLlmBackendChange, _onDiarizationBackendChange, _onLaughModeChange,
+  _toggleHfTokenVisibility, _onHfTokenInput, _updateDiarizationStatus,
   _updateLlmRemoteIndicator,
 });
 })();

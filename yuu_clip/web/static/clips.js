@@ -536,9 +536,39 @@ function showUndoToast(message, undoFn) {
 
 let _exportClipId = null;
 let _exportOpener = null;
+let _exportDiarReady  = false;
+let _exportDiarReason = '';
 
 function _onExportCaptionsChange(val) {
   document.getElementById('export-hardsub-warn').style.display = val === 'hardsub' ? '' : 'none';
+}
+
+// Speaker labels only apply to a retranscribe pass and need diarization fully
+// set up (pyannote installed + token), so the checkbox is enabled only when both
+// conditions hold.
+function _onExportRetranscribeChange(checked) {
+  document.getElementById('export-retranscribe-model').disabled = !checked;
+  const row  = document.getElementById('export-speaker-row');
+  const box  = document.getElementById('export-speaker-labels');
+  const note = document.getElementById('export-speaker-note');
+  row.style.opacity = checked ? '1' : '.5';
+  box.disabled = !checked || !_exportDiarReady;
+  // Only surface the prerequisite note when retranscribe is on; when it's off the
+  // row is dimmed for that reason and a token/install note would be ambiguous.
+  if (checked && !_exportDiarReady) {
+    note.innerHTML = _diarizationNoteHtml(_exportDiarReason, 'closeExportModal();openSettings()');
+  } else {
+    note.textContent = '';
+  }
+}
+
+async function _loadExportSpeakerDefault() {
+  const box = document.getElementById('export-speaker-labels');
+  const readiness = await _diarizationReadiness();
+  _exportDiarReady  = readiness.ready;
+  _exportDiarReason = readiness.reason;
+  box.checked = readiness.ready;  // on by default when fully set up
+  _onExportRetranscribeChange(document.getElementById('export-retranscribe').checked);
 }
 
 function exportClip(id) {
@@ -553,6 +583,7 @@ function exportClip(id) {
   retx.checked = false;
   document.getElementById('export-retranscribe-model').disabled = true;
   document.getElementById('export-title-card').checked = false;
+  _loadExportSpeakerDefault();
   document.getElementById('export-settings-modal').classList.add('visible');
   setTimeout(() => document.getElementById('export-captions')?.focus(), 50);
 }
@@ -574,6 +605,7 @@ async function confirmExport() {
   const trimEnd   = _parseTimingOffset(document.getElementById('export-trim-end').value);
   const retx      = document.getElementById('export-retranscribe').checked;
   const retxModel = document.getElementById('export-retranscribe-model').value;
+  const speakerLabels = document.getElementById('export-speaker-labels').checked;
   const titleCard = document.getElementById('export-title-card').checked;
   closeExportModal();
 
@@ -592,7 +624,11 @@ async function confirmExport() {
   if (burnSubs)   params.set('burn_subs', 'true');
   if (embedSubs)  params.set('embed_subs', 'true');
   if (container)  params.set('container', container);
-  if (retx)       { params.set('retranscribe', 'true'); params.set('retranscribe_model', retxModel); }
+  if (retx)       {
+    params.set('retranscribe', 'true');
+    params.set('retranscribe_model', retxModel);
+    params.set('speaker_labels', speakerLabels ? 'true' : 'false');
+  }
   if (titleCard)  params.set('title_card', 'true');
   const qs = params.toString() ? `?${params}` : '';
 
@@ -841,7 +877,7 @@ Object.assign(window, {
   _applyFilters, _renderClips, _parseTimingOffset,
   deleteClip, deleteVideo, deleteExport, mergeClips,
   exportClip, exportVideoTranscript, confirmExport, closeExportModal,
-  _onExportCaptionsChange,
+  _onExportCaptionsChange, _onExportRetranscribeChange,
   openScoreOverride, closeScoreOverrideModal, _scoreOverrideSave, clearScoreOverride,
   openDescKebab, openDescLongKebab,
   startFindSimilar, openSimilarClipsModal, closeSimilarClipsModal,
