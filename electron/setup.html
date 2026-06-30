@@ -48,8 +48,9 @@ header p  { color: #666; margin-top: 3px; font-size: 12px; }
 }
 .body  { flex: 1; min-width: 0; }
 .title { font-weight: 500; color: #b8b8d0; margin-bottom: 2px; }
-.desc  { color: #666; line-height: 1.45; font-size: 12px; }
-.desc code { font-family: 'Consolas', monospace; background: #1e1e2e; padding: 1px 4px; border-radius: 3px; font-size: 11px; }
+.desc  { color: #666; line-height: 1.45; font-size: 12px; user-select: text; }
+.desc code { font-family: 'Consolas', monospace; background: #1e1e2e; padding: 1px 4px; border-radius: 3px; font-size: 11px; user-select: text; }
+input { user-select: text; }
 .desc a    { color: #5b8ef0; cursor: pointer; text-decoration: none; }
 .desc a:hover { text-decoration: underline; }
 .action { margin-top: 6px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -288,7 +289,10 @@ function renderStatus(s) {
       '3. Under <em>System variables</em>, select <em>Path</em> → click <em>Edit</em><br>' +
       '4. Click <em>New</em> → paste the full path to the <code>bin\\</code> folder (e.g. <code>C:\\ffmpeg\\bin</code>)<br>' +
       '5. Click OK on all dialogs, then relaunch yuu-clip.',
-      `<code style="display:block;margin-bottom:6px">winget install Gyan.FFmpeg</code>` +
+      `<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">` +
+        `<code style="flex:1">winget install Gyan.FFmpeg</code>` +
+        `<button class="sm" data-copy="winget install Gyan.FFmpeg">Copy</button>` +
+      `</div>` +
       `<button class="sm" onclick="api.openURL('https://www.gyan.dev/ffmpeg/builds/')">Download from gyan.dev</button>`
     ));
   }
@@ -344,7 +348,8 @@ function renderStatus(s) {
       `You don't need to open or do anything inside the Ollama app.<br><br>` +
       `Once installed, open a terminal and run:<br>` +
       `<code>ollama pull ${esc(s.ollamaModel)}</code><br><br>` +
-      `Then relaunch yuu-clip — the model pull button will appear here to finish setup.`
+      `Then relaunch yuu-clip — the model pull button will appear here to finish setup.`,
+      `<button class="sm" data-copy="ollama pull ${esc(s.ollamaModel)}">Copy: ollama pull ${esc(s.ollamaModel)}</button>`
     ));
   }
 
@@ -455,6 +460,16 @@ function startPull() {
 }
 
 // ── UI events ──────────────────────────────────────────────────────────────
+
+// Copy buttons (delegated — checklist rows are rendered dynamically).
+document.addEventListener('click', e => {
+  const btn = e.target.closest('[data-copy]');
+  if (!btn) return;
+  api.copyText(btn.dataset.copy);
+  const original = btn.textContent;
+  btn.textContent = 'Copied!';
+  setTimeout(() => { btn.textContent = original; }, 1200);
+});
 
 document.getElementById('browse-btn').addEventListener('click', async () => {
   const dir = await api.pickFolder();

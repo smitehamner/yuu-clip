@@ -63,28 +63,29 @@ async function openSettings() {
   }
 }
 
-function closeSettings() {
-  if (!document.getElementById('settings-panel').classList.contains('visible')) return;
+function closeSettings(onClosed) {
+  if (!document.getElementById('settings-panel').classList.contains('visible')) { onClosed?.(); return; }
   const saveBtn = document.getElementById('btn-settings-save');
   if (saveBtn && !saveBtn.disabled) {
     showConfirm(
       'Discard settings changes?',
       'You have unsaved changes. Close without saving?',
       'Discard',
-      _doCloseSettings,
+      () => _doCloseSettings(onClosed),
       true,
     );
     return;
   }
-  _doCloseSettings();
+  _doCloseSettings(onClosed);
 }
 
-function _doCloseSettings() {
+function _doCloseSettings(onClosed) {
   document.getElementById('settings-panel').classList.remove('visible');
   document.getElementById('main-layout').style.display = '';
   const opener = _settingsOpener;
   _settingsOpener = null;
   if (opener?.focus) opener.focus();
+  onClosed?.();
 }
 
 function _applySettingsToUI(cfg) {
@@ -144,6 +145,7 @@ function _applySettingsToUI(cfg) {
   setChk('s-autoplay', localStorage.getItem('yuuclip-autoplay') === 'true');
   _snapshotSettings();
   _checkSettingsDirty();
+  ['pyannote', 'llamacpp', 'anthropic', 'laugh-deps'].forEach(_refreshInstallStatus);
 }
 
 function _onLlmBackendChange(backend) {
@@ -165,6 +167,22 @@ function _onDiarizationBackendChange(backend) {
 function _onLaughModeChange(mode) {
   const modelEl = document.getElementById('s-laugh-model-fields');
   if (modelEl) modelEl.style.display = mode === 'model' ? '' : 'none';
+}
+
+async function _refreshInstallStatus(slug) {
+  const btn    = document.getElementById(`btn-install-${slug}`);
+  const status = document.getElementById(`install-status-${slug}`);
+  if (!btn || !status) return;
+  try {
+    const resp = await fetch(`/api/install/${slug}`);
+    if (!resp.ok) return;
+    const { installed } = await resp.json();
+    if (installed) {
+      status.textContent = '✓ Installed';
+      status.style.color = 'var(--green, #22c55e)';
+      btn.textContent = 'Reinstall';
+    }
+  } catch { /* leave default "Install" label on network error */ }
 }
 
 async function installPackage(slug) {

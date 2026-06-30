@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('setupAPI', {
   pullModel:       (model)    => ipcRenderer.send('setup:pull-model', model),
   onPullProgress:  (cb)       => ipcRenderer.on('setup:pull-progress', (_, data) => cb(data)),
   openURL:         (url)      => ipcRenderer.send('setup:open-url', url),
+  copyText:        (text)     => ipcRenderer.send('setup:copy-text', text),
   pickFolder:      ()         => ipcRenderer.invoke('setup:pick-folder'),
   pickFile:        (opts)     => ipcRenderer.invoke('setup:pick-file', opts),
   complete:        (config)   => ipcRenderer.send('setup:complete', config),

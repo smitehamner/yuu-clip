@@ -78,7 +78,9 @@ function formatApiError(err) {
   if (!err) return 'Unknown error';
   if (typeof err.detail === 'string') return err.detail;
   if (Array.isArray(err.detail)) return err.detail.map(e => e.msg || JSON.stringify(e)).join('; ');
-  return err.message || JSON.stringify(err);
+  if (err.message) return err.message;
+  const stringified = JSON.stringify(err);
+  return (!stringified || stringified === '{}') ? 'Unknown error (no details from server)' : stringified;
 }
 
 function stripRichMarkup(text) {

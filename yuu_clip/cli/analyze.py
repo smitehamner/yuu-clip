@@ -77,6 +77,7 @@ def analyze(
     language: Optional[str] = typer.Option(None, "--language", "-l", help="Force speech-to-text language (e.g. en)"),
     energy_mode: str = typer.Option("fast", "--energy-mode", help="Audio energy analysis: none|fast|full"),
     scene_mode: str = typer.Option("fast", "--scene-mode", help="Scene detection: transcript|fast|full"),
+    diarize: Optional[bool] = typer.Option(None, "--diarize/--no-diarize", help="Override speaker diarization for this run (default: use config)"),
     no_interact: bool = typer.Option(False, "--no-interact", help="Never prompt interactively — use defaults or fail cleanly (set automatically by the web UI)"),
     context: list[str] = typer.Option([], "--context", help="World context IDs to apply (can repeat)"),
     subtitle_source: Optional[str] = typer.Option(None, "--subtitle-source", help="Use existing subtitles instead of Whisper: path/to/file.srt or stream:<index>"),
@@ -96,6 +97,10 @@ def analyze(
     config.whisper_model        = model
     config.whisper_device       = device
     config.scene_detection_mode = scene_mode
+    if diarize is True:
+        config.diarization_backend = "pyannote"
+    elif diarize is False:
+        config.diarization_backend = "null"
 
     context_text = format_context_block(load_contexts(proj_dir), context) if context else ""
 

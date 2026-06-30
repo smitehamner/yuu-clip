@@ -10,6 +10,10 @@ function _isNewRecordingPanelOpen() {
 async function openNewRecordingPanel() {
   if (_isNewRecordingPanelOpen()) return;
   if (document.getElementById('btn-analyze').disabled) return;
+  if (document.getElementById('settings-panel').classList.contains('visible')) {
+    closeSettings(openNewRecordingPanel);
+    return;
+  }
   document.getElementById('player-area').style.display = 'none';
   document.getElementById('player-resize-handle').style.display = 'none';
   document.getElementById('detail').style.display = 'none';
@@ -26,6 +30,7 @@ async function openNewRecordingPanel() {
   hidePreSplitSection();
   await _loadProfileDropdown();
   await _loadIngestContextPicker();
+  await _loadDiarizationDefault();
   document.getElementById('analyze-path').focus();
 }
 
@@ -83,6 +88,28 @@ function _toggleCtxPill(btn) {
 
 function _selectedContextIds() {
   return Array.from(document.querySelectorAll('.ctx-pill.selected')).map(b => b.dataset.ctxId);
+}
+
+async function _loadDiarizationDefault() {
+  const box  = document.getElementById('analyze-diarize');
+  const note = document.getElementById('analyze-diarize-note');
+  if (!box || !note) return;
+  try {
+    const cfg = await fetch('/api/config').then(r => r.json());
+    const enabledByDefault = cfg.diarization_backend && cfg.diarization_backend !== 'null';
+    const hasToken = !!(cfg.huggingface_token && cfg.huggingface_token.trim());
+    if (!hasToken) {
+      box.checked = false;
+      box.disabled = true;
+      note.innerHTML = 'Requires a HuggingFace token — set up in ' +
+        '<button class="btn ghost" style="font-size:11px;padding:0 4px;color:var(--accent);display:inline-flex" ' +
+        'onclick="closeNewRecordingPanel();openSettings()">Settings</button>';
+    } else {
+      box.disabled = false;
+      box.checked = enabledByDefault;
+      note.textContent = enabledByDefault ? 'On by default (from Settings)' : 'Off by default (from Settings)';
+    }
+  } catch { /* leave the checkbox at its default state on error */ }
 }
 
 async function _loadProfileDropdown() {
@@ -192,6 +219,7 @@ async function runEstimate() {
         has_gpu:           true,
         scene_mode:        document.getElementById('analyze-scene-mode').value,
         energy_mode:       document.getElementById('analyze-energy-mode').value,
+        diarize:           !!document.getElementById('analyze-diarize')?.checked,
       }),
     });
     if (!res.ok) return;
@@ -250,6 +278,8 @@ async function startAnalyze() {
 
   const energyMode    = document.getElementById('analyze-energy-mode').value;
   const sceneMode     = document.getElementById('analyze-scene-mode').value;
+  const diarizeEl     = document.getElementById('analyze-diarize');
+  const diarize       = diarizeEl && !diarizeEl.disabled ? diarizeEl.checked : null;
   const contextNames  = _selectedContextIds();
   const externalSrt    = document.getElementById('analyze-external-srt').value.trim();
   const subtitleSrcEl  = document.getElementById('analyze-subtitle-source');
@@ -265,7 +295,7 @@ async function startAnalyze() {
     _doCloseNewRecordingPanel();
     openLog();
     _analyzeSegmentsSequentially(
-      path, model, profile, energyMode, sceneMode, contextNames, subtitleSource, segments, 0,
+      path, model, profile, energyMode, sceneMode, contextNames, subtitleSource, diarize, segments, 0,
     );
     return;
   }
@@ -277,7 +307,7 @@ async function startAnalyze() {
   const startRes = await fetch('/api/analyze/start', {
     method:  'POST',
     headers: {'Content-Type': 'application/json'},
-    body:    JSON.stringify({path, model, profile, energy_mode: energyMode, scene_mode: sceneMode, context_names: contextNames, subtitle_source: subtitleSource}),
+    body:    JSON.stringify({path, model, profile, energy_mode: energyMode, scene_mode: sceneMode, diarize, context_names: contextNames, subtitle_source: subtitleSource}),
   });
 
   if (!startRes.ok) {
@@ -309,7 +339,7 @@ async function startAnalyze() {
 }
 
 function _analyzeSegmentsSequentially(
-  path, model, profile, energyMode, sceneMode, contextNames, subtitleSource, segments, index,
+  path, model, profile, energyMode, sceneMode, contextNames, subtitleSource, diarize, segments, index,
 ) {
   if (index >= segments.length) {
     loadVideos().then(() =>
@@ -328,6 +358,7 @@ function _analyzeSegmentsSequentially(
       profile,
       energy_mode:      energyMode,
       scene_mode:       sceneMode,
+      diarize,
       context_names:    contextNames,
       subtitle_source:  subtitleSource,
       segment_start_s:  seg.start_s,
@@ -343,7 +374,7 @@ function _analyzeSegmentsSequentially(
     streamSSE(
       '/api/analyze/events',
       () => _analyzeSegmentsSequentially(
-        path, model, profile, energyMode, sceneMode, contextNames, subtitleSource, segments, index + 1,
+        path, model, profile, energyMode, sceneMode, contextNames, subtitleSource, diarize, segments, index + 1,
       ),
       INGEST_STEPS,
       `Segment ${index + 1}/${segments.length}`,

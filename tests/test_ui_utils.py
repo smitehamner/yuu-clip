@@ -105,6 +105,11 @@ class TestFormatApiError:
         out = page.evaluate("() => formatApiError({status: 500})")
         assert out == '{"status":500}'
 
+    def test_empty_object_returns_readable_fallback(self, page: Page):
+        # A body-less server error (.json().catch(() => ({}))) must not render as "{}".
+        out = page.evaluate("() => formatApiError({})")
+        assert out == "Unknown error (no details from server)"
+
 
 # ---------------------------------------------------------------------------
 # stripRichMarkup (utils.js)

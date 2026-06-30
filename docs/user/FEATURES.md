@@ -344,10 +344,12 @@ When enabled, yuu-clip runs speaker diarization after transcription and labels e
 | Pyannote | — | HuggingFace account + `pip install pyannote.audio` (one-click install button in Settings) |
 
 To enable Pyannote:
-1. Create a free account at [HuggingFace](https://huggingface.co) and accept the [speaker-diarization-3.1](https://huggingface.co/pyannote/speaker-diarization-3.1) model terms
-2. Generate a token at HuggingFace → Settings → Access Tokens
+1. Create a free account at [HuggingFace](https://huggingface.co) and, while signed in, accept the gated model terms for both [speaker-diarization-3.1](https://huggingface.co/pyannote/speaker-diarization-3.1) and [segmentation-3.0](https://huggingface.co/pyannote/segmentation-3.0) (the diarization pipeline pulls the segmentation model as a dependency)
+2. Generate a token at HuggingFace → Settings → Access Tokens with **Read** access (a classic Read token, or a fine-grained token with "Read access to contents of all public gated repos you can access")
 3. Open Settings → Speaker labels in the app; paste the token and click **Install pyannote.audio**
 4. Change the backend to **Pyannote** and save
+
+The Settings value is the default. You can override it per analysis: the **New Recording → Advanced options** panel has a **Speaker labels** checkbox (pre-set from your default) so you can turn diarization on or off for a single run. When enabled, the time estimate includes a **Speaker labels** step. The checkbox is disabled until a HuggingFace token is saved in Settings.
 
 Diarization adds extra processing time after transcription (roughly 2–4× real-time on CPU, faster with CUDA). Speaker labels are re-used on retranscription; re-running diarization requires a full re-analysis.
 

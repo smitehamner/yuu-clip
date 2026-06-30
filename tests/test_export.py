@@ -1,6 +1,202 @@
 from __future__ import annotations
 
+import os
+from pathlib import Path
+
 import pytest
+from fastapi import HTTPException
+
+# ---------------------------------------------------------------------------
+# export_clip FFmpeg command shape — the -t duration flag must land after every
+# -i input so FFmpeg treats it as an output limit. An earlier bug placed -t
+# between the two inputs of the softsub branch, where it bound to the subtitle
+# input and left the video uncut — exporting the entire multi-hour source.
+# ---------------------------------------------------------------------------
+
+class TestExportClipCmd:
+    def _cmd(self, **overrides):
+        from yuu_clip.analyze.extract import _build_clip_cmd
+        args = dict(
+            ffmpeg="ffmpeg",
+            video_path=Path("in.mkv"),
+            start_s=10.0,
+            duration_s=30.0,
+            output_path=Path("out.mkv"),
+            reencode=False,
+            subtitle_path=None,
+            subtitle_track_path=None,
+            audio_stream_index=None,
+        )
+        args.update(overrides)
+        return _build_clip_cmd(**args)
+
+    def _assert_t_after_all_inputs(self, cmd):
+        last_input = max(i for i, a in enumerate(cmd) if a == "-i")
+        t_positions = [i for i, a in enumerate(cmd) if a == "-t"]
+        assert t_positions, "export command must limit duration with -t"
+        assert all(i > last_input for i in t_positions), \
+            "-t must come after every -i or FFmpeg ignores it as an output limit"
+
+    def test_stream_copy_limits_output(self):
+        self._assert_t_after_all_inputs(self._cmd())
+
+    def test_reencode_limits_output(self):
+        self._assert_t_after_all_inputs(self._cmd(reencode=True))
+
+    def test_burn_in_limits_output(self):
+        self._assert_t_after_all_inputs(self._cmd(subtitle_path=Path("subs.srt")))
+
+    def test_softsub_limits_output(self):
+        self._assert_t_after_all_inputs(self._cmd(subtitle_track_path=Path("subs.srt")))
+
+    def test_softsub_duration_is_clip_length(self):
+        cmd = self._cmd(subtitle_track_path=Path("subs.srt"), duration_s=42.0)
+        assert cmd[cmd.index("-t") + 1] == "42.0"
+
+
+class TestVerifyExportDuration:
+    def test_raises_when_output_is_full_source(self, monkeypatch):
+        from yuu_clip.analyze import extract
+        monkeypatch.setattr(extract, "_probe_duration_s", lambda ffprobe, path: 10800.0)
+        with pytest.raises(RuntimeError, match="trim was not applied"):
+            extract._verify_export_duration("ffprobe", Path("out.mkv"), expected_s=30.0)
+
+    def test_passes_within_tolerance(self, monkeypatch):
+        from yuu_clip.analyze import extract
+        monkeypatch.setattr(extract, "_probe_duration_s", lambda ffprobe, path: 31.5)
+        extract._verify_export_duration("ffprobe", Path("out.mkv"), expected_s=30.0)
+
+    def test_unprobeable_output_is_lenient(self, monkeypatch):
+        from yuu_clip.analyze import extract
+        monkeypatch.setattr(extract, "_probe_duration_s", lambda ffprobe, path: None)
+        extract._verify_export_duration("ffprobe", Path("out.mkv"), expected_s=30.0)
+
+
+class TestShareDeleteMediaServing:
+    """Exports must be deletable while still being streamed (the WinError 32 fix)."""
+
+    def test_open_shared_allows_deletion_while_open(self, tmp_path):
+        from yuu_clip.web.media import _open_shared
+        target = tmp_path / "clip.mkv"
+        target.write_bytes(b"payload" * 1000)
+        handle = _open_shared(target)
+        try:
+            os.unlink(target)  # must not raise even with the read handle open
+            assert not target.exists()
+        finally:
+            handle.close()
+
+    def test_resolve_within_rejects_traversal(self, tmp_path):
+        from yuu_clip.web.media import resolve_within
+        with pytest.raises(HTTPException):
+            resolve_within(tmp_path, "../escape.txt")
+
+    def test_serves_full_file(self, client, project_dir):
+        body = b"abcdefgh" * 100
+        (project_dir / ".yuu-clip" / "exports" / "sample.mkv").write_bytes(body)
+        r = client.get("/media/exports/sample.mkv")
+        assert r.status_code == 200
+        assert r.content == body
+        assert r.headers["accept-ranges"] == "bytes"
+
+    def test_serves_single_range(self, client, project_dir):
+        body = bytes(range(256)) * 10  # 2560 bytes
+        (project_dir / ".yuu-clip" / "exports" / "sample.mkv").write_bytes(body)
+        r = client.get("/media/exports/sample.mkv", headers={"Range": "bytes=10-19"})
+        assert r.status_code == 206
+        assert r.headers["content-range"] == "bytes 10-19/2560"
+        assert r.content == body[10:20]
+
+    def test_unsatisfiable_range_returns_416(self, client, project_dir):
+        (project_dir / ".yuu-clip" / "exports" / "sample.mkv").write_bytes(b"x" * 10)
+        r = client.get("/media/exports/sample.mkv", headers={"Range": "bytes=999-1099"})
+        assert r.status_code == 416
+
+    def test_missing_export_returns_404(self, client):
+        assert client.get("/media/exports/nope.mkv").status_code == 404
+
+
+class TestUnlinkWithRetry:
+    """Deleting a just-closed export retries through the brief handle-release window."""
+
+    def test_succeeds_after_transient_lock(self, tmp_path, monkeypatch):
+        from yuu_clip.web.routes import _shared
+        target = tmp_path / "clip.mkv"
+        target.write_bytes(b"x")
+        real_unlink = Path.unlink
+        attempts = {"n": 0}
+
+        def flaky_unlink(self, *args, **kwargs):
+            attempts["n"] += 1
+            if attempts["n"] < 3:
+                raise PermissionError("WinError 32")
+            return real_unlink(self, *args, **kwargs)
+
+        monkeypatch.setattr(Path, "unlink", flaky_unlink)
+        monkeypatch.setattr(_shared.time, "sleep", lambda _s: None)
+        _shared._unlink_with_retry(target, attempts=5, delay_s=0)
+        assert attempts["n"] == 3
+        assert not target.exists()
+
+    def test_raises_after_exhausting_attempts(self, tmp_path, monkeypatch):
+        from yuu_clip.web.routes import _shared
+        target = tmp_path / "clip.mkv"
+        target.write_bytes(b"x")
+
+        def always_locked(self, *args, **kwargs):
+            raise PermissionError("WinError 32")
+
+        monkeypatch.setattr(Path, "unlink", always_locked)
+        monkeypatch.setattr(_shared.time, "sleep", lambda _s: None)
+        with pytest.raises(OSError):
+            _shared._unlink_with_retry(target, attempts=3, delay_s=0)
+
+    def test_missing_file_is_noop(self, tmp_path):
+        from yuu_clip.web.routes import _shared
+        _shared._unlink_with_retry(tmp_path / "gone.mkv")
+
+    def test_delete_files_reports_locked_paths(self, tmp_path, monkeypatch):
+        from yuu_clip.web.routes import _shared
+        ok = tmp_path / "ok.mkv"; ok.write_bytes(b"x")
+        stuck = tmp_path / "stuck.mkv"; stuck.write_bytes(b"x")
+
+        real_unlink = Path.unlink
+
+        def selective(self, *args, **kwargs):
+            if self.name == "stuck.mkv":
+                raise PermissionError("WinError 32")
+            return real_unlink(self, *args, **kwargs)
+
+        monkeypatch.setattr(Path, "unlink", selective)
+        monkeypatch.setattr(_shared, "_unlink_with_retry",
+                            lambda p: _shared.Path.unlink(p))  # single attempt, no retry/sleep
+        locked = _shared._delete_files([ok, stuck])
+        assert [p.name for p in locked] == ["stuck.mkv"]
+        assert not ok.exists()
+
+
+class TestLockedFilesError:
+    """The 409 names the holding process when the Restart Manager can identify it."""
+
+    def test_names_holding_process(self, tmp_path, monkeypatch):
+        from yuu_clip.web.routes import _shared
+        monkeypatch.setattr(_shared, "_locking_processes", lambda path: ["Acme Backup"])
+        exc = _shared._locked_files_error([tmp_path / "clip.mkv"])
+        assert exc.status_code == 409
+        assert "open in: Acme Backup" in exc.detail
+
+    def test_falls_back_when_holder_unknown(self, tmp_path, monkeypatch):
+        from yuu_clip.web.routes import _shared
+        monkeypatch.setattr(_shared, "_locking_processes", lambda path: [])
+        exc = _shared._locked_files_error([tmp_path / "clip.mkv"])
+        assert exc.status_code == 409
+        assert "another program" in exc.detail
+
+    def test_locking_processes_empty_off_windows(self, monkeypatch):
+        from yuu_clip.web.routes import _shared
+        monkeypatch.setattr(_shared.sys, "platform", "linux")
+        assert _shared._locking_processes(Path("/tmp/x.mkv")) == []
+
 
 # ---------------------------------------------------------------------------
 # Demo reel start + list
@@ -362,6 +558,7 @@ class TestExportClipCommand:
             return r
 
         with patch("yuu_clip.analyze.extract.subprocess.run", side_effect=fake_run), \
+             patch("yuu_clip.analyze.extract._verify_export_duration"), \
              patch("yuu_clip.analyze.extract.find_ffmpeg", return_value=("ffmpeg", None)):
             export_clip(
                 video, start_ms=5_000, end_ms=15_000, output_path=output,

@@ -50,6 +50,24 @@ class TestEstimate:
             energy_step = next(s for s in d["steps"] if "energy" in s["name"].lower())
             assert mode in energy_step["name"]
 
+    def test_estimate_omits_speaker_labels_by_default(self, client):
+        d = client.post("/api/estimate", json=self._BASE).json()
+        assert not any("Speaker labels" in s["name"] for s in d["steps"])
+
+    def test_estimate_includes_speaker_labels_when_diarize(self, client):
+        d = client.post("/api/estimate", json={**self._BASE, "diarize": True}).json()
+        assert any("Speaker labels" in s["name"] for s in d["steps"])
+
+    def test_estimate_speaker_labels_increase_total(self, client):
+        off = client.post("/api/estimate", json=self._BASE).json()["total_seconds"]
+        on  = client.post("/api/estimate", json={**self._BASE, "diarize": True}).json()["total_seconds"]
+        assert on > off
+
+    def test_estimate_no_speaker_labels_without_transcription(self, client):
+        # External captions => 0 transcribed tracks => nothing to attach speakers to.
+        d = client.post("/api/estimate", json={**self._BASE, "diarize": True, "transcribe_tracks": 0}).json()
+        assert not any("Speaker labels" in s["name"] for s in d["steps"])
+
 
 # ---------------------------------------------------------------------------
 # Ingest start
@@ -144,6 +162,44 @@ class TestIngestStart:
         r = client.post("/api/analyze/start", json={"path": "", "model": "medium"})
         assert r.status_code == 400
 
+    def test_diarize_true_adds_flag(self, project_dir, video_path):
+        from fastapi.testclient import TestClient
+
+        from yuu_clip.web.app import create_app
+        app = create_app(project_dir)
+        with TestClient(app) as tc:
+            tc.post("/api/analyze/start", json={
+                "path": str(video_path), "model": "medium", "diarize": True,
+            })
+            cmd = app.state.ctx.analyze_cmd
+            assert "--diarize" in cmd
+            assert "--no-diarize" not in cmd
+
+    def test_diarize_false_adds_no_diarize_flag(self, project_dir, video_path):
+        from fastapi.testclient import TestClient
+
+        from yuu_clip.web.app import create_app
+        app = create_app(project_dir)
+        with TestClient(app) as tc:
+            tc.post("/api/analyze/start", json={
+                "path": str(video_path), "model": "medium", "diarize": False,
+            })
+            cmd = app.state.ctx.analyze_cmd
+            assert "--no-diarize" in cmd
+
+    def test_diarize_omitted_adds_no_flag(self, project_dir, video_path):
+        from fastapi.testclient import TestClient
+
+        from yuu_clip.web.app import create_app
+        app = create_app(project_dir)
+        with TestClient(app) as tc:
+            tc.post("/api/analyze/start", json={
+                "path": str(video_path), "model": "medium",
+            })
+            cmd = app.state.ctx.analyze_cmd
+            assert "--diarize" not in cmd
+            assert "--no-diarize" not in cmd
+
 
 # ---------------------------------------------------------------------------
 # Logs
@@ -165,6 +221,64 @@ class TestLogs:
         r = client.get("/api/logs/export")
         assert r.status_code == 200
         assert "text" in r.headers.get("content-type", "")
+
+
+# ---------------------------------------------------------------------------
+# Optional-package install status
+# ---------------------------------------------------------------------------
+
+class TestInstallStatus:
+    def test_unknown_slug_returns_400(self, client):
+        r = client.get("/api/install/not-a-package")
+        assert r.status_code == 400
+
+    def test_reports_installed_for_present_package(self, client):
+        # 'anthropic' detects the importable 'anthropic' module; patch find_spec
+        # so the test does not depend on whether the dep is actually installed.
+        from unittest.mock import patch
+
+        with patch("yuu_clip.web.routes.analyze.importlib.util.find_spec", return_value=object()):
+            r = client.get("/api/install/anthropic")
+        assert r.status_code == 200
+        assert r.json() == {"installed": True}
+
+    def test_reports_not_installed_when_module_absent(self, client):
+        from unittest.mock import patch
+
+        with patch("yuu_clip.web.routes.analyze.importlib.util.find_spec", return_value=None):
+            r = client.get("/api/install/pyannote")
+        assert r.status_code == 200
+        assert r.json() == {"installed": False}
+
+    def test_multi_module_slug_requires_all_present(self, client):
+        # laugh-deps needs four modules; a single missing one means not installed.
+        from unittest.mock import patch
+
+        def only_torch_missing(module):
+            return None if module == "torch" else object()
+
+        with patch("yuu_clip.web.routes.analyze.importlib.util.find_spec", side_effect=only_torch_missing):
+            r = client.get("/api/install/laugh-deps")
+        assert r.json() == {"installed": False}
+
+
+# ---------------------------------------------------------------------------
+# Glossary
+# ---------------------------------------------------------------------------
+
+class TestGlossary:
+    def test_glossary_served_from_bundled_static(self, client):
+        # The bundled copy must load (the dev docs/ tree is not in the wheel).
+        r = client.get("/api/glossary")
+        assert r.status_code == 200
+        assert "text" in r.headers.get("content-type", "")
+        assert "### Recording" in r.text
+
+    def test_glossary_has_no_dev_only_content(self, client):
+        # The user-facing copy must not leak the dev glossary's scaffolding.
+        body = client.get("/api/glossary").text
+        for dev_marker in ("**Code:**", "Do not call it:", "Internal / Dev-Only Terms"):
+            assert dev_marker not in body
 
 
 # ---------------------------------------------------------------------------
@@ -529,6 +643,59 @@ class TestRescoreClipsSSE:
     def test_rescore_clips_404_for_missing_video(self, client):
         r = client.get("/api/videos/99999/rescore-clips")
         assert r.status_code == 404
+
+    def test_rescore_failed_clips_404_for_missing_video(self, client):
+        r = client.get("/api/videos/99999/rescore-failed-clips")
+        assert r.status_code == 404
+
+
+def _add_failed_clip(project_dir, video_id: int) -> int:
+    """Seed one extra clip carrying the llm_error tag and return its id."""
+    from yuu_clip.db.models import ClipCandidate, make_session
+
+    session = make_session(project_dir / ".yuu-clip" / "project.db")
+    clip = ClipCandidate(
+        video_id=video_id, start_ms=500_000, end_ms=560_000,
+        score_overall=0.0, description="failed clip",
+    )
+    clip.tags = ["llm_error"]
+    session.add(clip)
+    session.commit()
+    clip_id = clip.id
+    session.close()
+    return clip_id
+
+
+class TestLLMErrorBadge:
+    """Derived clips_llm_error count surfaces failed-scoring clips per video."""
+
+    def test_count_zero_when_no_failures(self, client):
+        videos = client.get("/api/videos").json()
+        assert videos[0]["clips_llm_error"] == 0
+
+    def test_count_reflects_tagged_clips(self, client, project_dir):
+        video_id = client.get("/api/videos").json()[0]["id"]
+        _add_failed_clip(project_dir, video_id)
+        _add_failed_clip(project_dir, video_id)
+        video = next(v for v in client.get("/api/videos").json() if v["id"] == video_id)
+        assert video["clips_llm_error"] == 2
+
+
+class TestRescoreFailedSelection:
+    """rescore-failed-clips scores only the clips tagged llm_error."""
+
+    def test_targets_only_failed_clips(self, client, project_dir, monkeypatch):
+        from yuu_clip.scoring.engine import ScoringEngine
+
+        monkeypatch.setattr(ScoringEngine, "score_clip", lambda self, clip, session: None)
+
+        video_id = client.get("/api/videos").json()[0]["id"]
+        _add_failed_clip(project_dir, video_id)  # 1 failed clip among 4 total
+
+        body = client.get(f"/api/videos/{video_id}/rescore-failed-clips").text
+        assert "Starting LLM scoring for 1 clip" in body
+        assert "Scored 1/1 clips" in body
+        assert "__DONE__" in body
 
 
 # ---------------------------------------------------------------------------

@@ -51,6 +51,32 @@ class TestPyannoteAvailable:
 
 
 # ---------------------------------------------------------------------------
+# PyannoteDiarizationClient.diarize() — regression guard for the from_pretrained
+# keyword. pyannote.audio 4.x renamed `use_auth_token` to `token`; passing the
+# old name raised TypeError and silently disabled speaker labels for every run.
+# ---------------------------------------------------------------------------
+
+class TestPyannoteDiarize:
+    def test_uses_token_kwarg_not_use_auth_token(self, monkeypatch):
+        import pyannote.audio
+
+        turn = MagicMock(start=0.0, end=1.5)
+        diar_result = MagicMock()
+        diar_result.itertracks.return_value = [(turn, None, "SPEAKER_00")]
+        pipeline_obj = MagicMock(return_value=diar_result)
+        from_pretrained = MagicMock(return_value=pipeline_obj)
+        monkeypatch.setattr(pyannote.audio.Pipeline, "from_pretrained", from_pretrained)
+
+        cfg = Config(diarization_backend="pyannote", huggingface_token="hf_abc")
+        turns = PyannoteDiarizationClient(cfg).diarize("/tmp/clip.wav")
+
+        assert turns == [(0.0, 1.5, "SPEAKER_00")]
+        _, kwargs = from_pretrained.call_args
+        assert kwargs.get("token") == "hf_abc"
+        assert "use_auth_token" not in kwargs
+
+
+# ---------------------------------------------------------------------------
 # make_diarization_client factory
 # ---------------------------------------------------------------------------
 

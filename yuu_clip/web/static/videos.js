@@ -42,6 +42,10 @@ async function loadVideos() {
     const segmentMeta = (v.segment_start_s != null && v.segment_end_s != null)
       ? `<div class="meta" style="color:var(--accent2)">${_msToHms(v.segment_start_s * 1000)} – ${_msToHms(v.segment_end_s * 1000)}</div>`
       : '';
+    const errCount = v.clips_llm_error || 0;
+    const errBadge = errCount > 0
+      ? `<div class="meta" style="margin-top:2px;color:var(--amber)" title="LLM scoring failed for ${errCount} clip${errCount !== 1 ? 's' : ''} — re-score to retry">&#9888; ${errCount} scoring error${errCount !== 1 ? 's' : ''}</div>`
+      : '';
     li.innerHTML = `
       <div class="name" title="${v.title ? escHtml(v.filename) : ''}">${escHtml(v.title || v.filename)}</div>
       ${v.title ? `<div class="video-title">${escHtml(v.filename)}</div>` : ''}
@@ -49,6 +53,7 @@ async function loadVideos() {
       <div class="meta">${v.duration_hms} &middot; ${v.clip_count} clips &middot; ${_msToHms(v.total_clip_ms)} clipped${clipsPct}</div>
       <div class="meta">${v.approved} approved &middot; ${v.exported} exported &middot; ${_fmtVideoStatus(v.status)}</div>
       ${procBadges ? `<div class="meta" style="margin-top:2px">${procBadges}</div>` : ''}
+      ${errBadge}
       ${scoreBar}`;
     list.appendChild(li);
   }
@@ -268,6 +273,11 @@ function _renderContextSection(video) {
     ? `<button class="btn" style="font-size:12px;padding:4px 12px" onclick="rescoreClips(${video.id}, this)">Score clips with context</button>`
     : '';
 
+  const errCount = video.clips_llm_error || 0;
+  const failedBtn = errCount > 0
+    ? `<button class="btn" style="font-size:12px;padding:4px 12px;border-color:var(--amber);color:var(--amber)" onclick="rescoreFailedClips(${video.id}, this)" title="Re-run LLM scoring only for the ${errCount} clip${errCount !== 1 ? 's' : ''} that failed last time">&#9888; Re-score ${errCount} failed clip${errCount !== 1 ? 's' : ''}</button>`
+    : '';
+
   return `
     <div>
       <div class="section-title" style="margin-bottom:6px">World Contexts</div>
@@ -275,7 +285,7 @@ function _renderContextSection(video) {
         ${chips.join('')}${emptyMsg}${addSelect ? '&nbsp;' + addSelect : ''}
       </div>
       ${provLines.length ? `<div class="provenance-note">${provLines.join('<br>')}</div>` : ''}
-      ${rescoreBtn ? `<div style="margin-top:6px">${rescoreBtn}</div>` : ''}
+      ${(rescoreBtn || failedBtn) ? `<div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap">${rescoreBtn}${failedBtn}</div>` : ''}
     </div>`;
 }
 

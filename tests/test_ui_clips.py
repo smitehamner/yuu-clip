@@ -170,6 +170,20 @@ class TestRescoreClipProgressPill:
         page.evaluate("() => startJobUI(SCORE_STEPS, 'Re-scoring clip')")
         expect(page.locator("#job-status")).to_be_visible()
         page.evaluate("() => endJobUI()")
+
+
+# ---------------------------------------------------------------------------
+# Export modal — caption default
+# ---------------------------------------------------------------------------
+
+@skip_no_server
+class TestExportModalDefaults:
+    def test_captions_default_is_softsub(self, page: Page):
+        select_first_video_and_clip(page)
+        page.wait_for_selector("#detail .clip-badge", timeout=3000)
+        page.evaluate("() => exportClip(AppState.activeClipId)")
+        page.wait_for_selector("#export-settings-modal.visible", timeout=3000)
+        assert page.eval_on_selector("#export-captions", "el => el.value") == "softsub"
         # endJobUI removes .visible after a 2 s setTimeout
         page.wait_for_selector("#job-status.visible", state="hidden", timeout=5000)
         expect(page.locator("#job-status")).not_to_be_visible()

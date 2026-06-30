@@ -200,7 +200,19 @@ function rescoreClips(videoId, btn) {
   );
 }
 
-function _doRescoreClips(videoId, btn) {
+function rescoreFailedClips(videoId, btn) {
+  const video = AppState.videos.find(v => v.id === videoId);
+  const count = video ? (video.clips_llm_error || 0) : 0;
+  showConfirm(
+    'Re-score failed clips?',
+    `This will re-run LLM scoring only on the <strong>${count} clip${count !== 1 ? 's' : ''}</strong> ` +
+    `that failed last time. Successfully scored clips are left untouched.`,
+    'Re-score',
+    () => _doRescoreClips(videoId, btn, 'rescore-failed-clips'),
+  );
+}
+
+function _doRescoreClips(videoId, btn, endpoint = 'rescore-clips') {
   const orig = btn.textContent;
   btn.disabled = true;
   btn.textContent = 'Re-scoring…';
@@ -209,7 +221,7 @@ function _doRescoreClips(videoId, btn) {
   const resetBtn = () => { btn.disabled = false; btn.textContent = orig; };
   let errorCount = 0;
   const handle = _openSSE(
-    `/api/videos/${videoId}/rescore-clips`,
+    `/api/videos/${videoId}/${endpoint}`,
     data => {
       if (typeof data === 'string' && data.startsWith('[Error')) errorCount++;
       appendLog(String(data));
@@ -516,6 +528,6 @@ Object.assign(window, {
   addVideoContext,
   openAutoApproveModal, closeAutoApproveModal, doAutoApprove, updateAutoApprovePreview,
   openRetranscribeModal, closeRetranscribeModal, startRetranscribe,
-  rescoreClip, rescoreClips, rescoreAllClips, redescribeAllClips, resetApprovals,
+  rescoreClip, rescoreClips, rescoreFailedClips, rescoreAllClips, redescribeAllClips, resetApprovals,
 });
 })();

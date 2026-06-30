@@ -232,7 +232,7 @@
       <div class="settings-row">
         <div class="settings-col">
           <label class="settings-label" for="s-hf-token">HuggingFace token</label>
-          <div class="settings-note">Required to download the diarization model. <a href="https://huggingface.co/settings/tokens" target="_blank" style="color:var(--accent)">Get a token</a>, then accept the <a href="https://huggingface.co/pyannote/speaker-diarization-3.1" target="_blank" style="color:var(--accent)">pyannote model terms</a></div>
+          <div class="settings-note">Required to download the diarization model. Create a <a href="https://huggingface.co/settings/tokens" target="_blank" style="color:var(--accent)">token</a> with <strong>Read</strong> access, then accept the gated model terms for both <a href="https://huggingface.co/pyannote/speaker-diarization-3.1" target="_blank" style="color:var(--accent)">speaker-diarization-3.1</a> and <a href="https://huggingface.co/pyannote/segmentation-3.0" target="_blank" style="color:var(--accent)">segmentation-3.0</a> while signed in.</div>
         </div>
         <input class="settings-input" id="s-hf-token" type="password" placeholder="hf_..." style="max-width:280px">
       </div>
@@ -494,6 +494,13 @@
               <option value="fast" selected>Fast — 4 kHz numpy (recommended)</option>
               <option value="full">Full — 16 kHz numpy (most accurate)</option>
             </select>
+          </div>
+          <div class="field" id="analyze-diarize-field">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600">
+              <input type="checkbox" id="analyze-diarize" onchange="runEstimate()">
+              Speaker labels <span style="color:var(--muted);font-weight:400">(identifies who is speaking)</span>
+            </label>
+            <div id="analyze-diarize-note" style="font-size:11px;color:var(--muted);margin-top:4px"></div>
           </div>
           <div class="field">
             <label for="analyze-external-srt">External captions file <span style="color:var(--muted);font-weight:400">(optional — skips Whisper)</span></label>
@@ -1041,7 +1048,7 @@
         <label for="export-captions" style="font-size:13px;color:var(--muted);min-width:110px">Captions</label>
         <select id="export-captions" style="flex:1;padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px" onchange="_onExportCaptionsChange(this.value)">
           <option value="none">None</option>
-          <option value="softsub">Embed captions track (softsub, fast)</option>
+          <option value="softsub" selected>Embed captions track (softsub, fast)</option>
           <option value="hardsub">Burn in captions (hardsub, re-encode)</option>
         </select>
       </div>

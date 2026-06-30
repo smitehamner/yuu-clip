@@ -85,10 +85,104 @@ def extract_audio_track(
 
 # export_clip has three distinct FFmpeg command shapes (reencode, softsub, stream-copy).
 # Each branch is short on its own but shares the path and duration setup that precedes it.
-# Splitting into three helper functions would require passing those shared values as params
-# and would send readers jumping across three call sites to understand the full switch logic.
-# Left in one function; the branch comments ('Frame-accurate', 'Softsub', 'Fast stream copy')
-# serve as in-place section headers.
+# Building the arg list is split out into _build_clip_cmd so the ordering of -ss/-t
+# relative to each -i can be unit-tested: an earlier bug placed -t between the two
+# inputs in the softsub branch, where FFmpeg treats it as an input option for the
+# subtitle file instead of an output duration limit — which copied the entire source.
+def _build_clip_cmd(
+    ffmpeg: str,
+    video_path: Path,
+    start_s: float,
+    duration_s: float,
+    output_path: Path,
+    reencode: bool,
+    subtitle_path: Optional[Path],
+    subtitle_track_path: Optional[Path],
+    audio_stream_index: Optional[int],
+) -> list[str]:
+    if subtitle_path is not None or reencode:
+        # Frame-accurate: seek after -i (slow but exact)
+        cmd = [
+            ffmpeg, "-y",
+            "-i",  _ffmpeg_path(video_path),
+            "-ss", str(start_s),
+            "-t",  str(duration_s),
+        ]
+        if audio_stream_index is not None:
+            cmd += ["-map", "0:v:0", "-map", f"0:{audio_stream_index}"]
+        cmd += [
+            "-c:v", "libx264", "-crf", "18", "-preset", "fast",
+            "-c:a", "aac",     "-b:a", "192k",
+        ]
+        if subtitle_path is not None:
+            # FFmpeg filtergraph uses ':' as option separator; Windows drive-letter
+            # colons (C:/) must be escaped as C\:/ within the filter string.
+            escaped = subtitle_path.as_posix().replace(":", "\\:")
+            cmd += ["-vf", f"subtitles={escaped}"]
+        cmd.append(_ffmpeg_path(output_path))
+        return cmd
+
+    if subtitle_track_path is not None:
+        # Softsub: stream-copy video+audio, add SRT as a subtitle track (no re-encode).
+        # -t must come AFTER both inputs so it is an output option that limits the clip
+        # length; placing it between the inputs binds it to the subtitle input instead
+        # and leaves the video uncut (the full-source export bug).
+        sub_codec = "mov_text" if output_path.suffix.lower() == ".mp4" else "srt"
+        return [
+            ffmpeg, "-y",
+            "-ss", str(start_s),
+            "-i",  _ffmpeg_path(video_path),
+            "-i",  _ffmpeg_path(subtitle_track_path),
+            "-map", "0", "-map", "1:s",
+            "-t",  str(duration_s),
+            "-c:v", "copy", "-c:a", "copy", "-c:s", sub_codec,
+            _ffmpeg_path(output_path),
+        ]
+
+    # Fast stream copy: seek before -i (keyframe-aligned)
+    cmd = [
+        ffmpeg, "-y",
+        "-ss", str(start_s),
+        "-i",  _ffmpeg_path(video_path),
+        "-t",  str(duration_s),
+    ]
+    if audio_stream_index is not None:
+        cmd += ["-map", "0:v:0", "-map", f"0:{audio_stream_index}"]
+    cmd += ["-c", "copy", _ffmpeg_path(output_path)]
+    return cmd
+
+
+def _probe_duration_s(ffprobe: str, path: Path) -> Optional[float]:
+    """Return the container duration of *path* in seconds, or None if unprobeable."""
+    result = subprocess.run(
+        [ffprobe, "-v", "error", "-show_entries", "format=duration",
+         "-of", "default=noprint_wrappers=1:nokey=1", _ffmpeg_path(path)],
+        capture_output=True, text=True,
+    )
+    try:
+        return float(result.stdout.strip())
+    except (ValueError, AttributeError, TypeError):
+        return None
+
+
+def _verify_export_duration(ffprobe: str, output_path: Path, expected_s: float) -> None:
+    """Guard against the 'whole source got exported' class of bug.
+
+    Stream-copy keyframe seeking can overshoot the requested length slightly, so we
+    allow generous slack. A result far longer than requested means the trim arguments
+    were not applied — fail loudly rather than hand back a multi-hour file.
+    """
+    actual_s = _probe_duration_s(ffprobe, output_path)
+    if actual_s is None:
+        return
+    tolerance_s = max(5.0, expected_s * 0.5)
+    if actual_s > expected_s + tolerance_s:
+        raise RuntimeError(
+            f"Exported clip is {actual_s:.0f}s but the requested window was "
+            f"{expected_s:.0f}s — the trim was not applied. Output left at {output_path}."
+        )
+
+
 def export_clip(
     video_path: Path,
     start_ms: int,
@@ -118,56 +212,16 @@ def export_clip(
     The output container format is inferred from output_path's suffix.
     Use .mp4 for broadest compatibility on both Windows and Linux.
     """
-    ffmpeg, _ = find_ffmpeg()
+    ffmpeg, ffprobe = find_ffmpeg()
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     start_s    = start_ms / 1000.0
     duration_s = (end_ms - start_ms) / 1000.0
 
-    if subtitle_path is not None or reencode:
-        # Frame-accurate: seek after -i (slow but exact)
-        cmd = [
-            ffmpeg, "-y",
-            "-i",  _ffmpeg_path(video_path),
-            "-ss", str(start_s),
-            "-t",  str(duration_s),
-        ]
-        if audio_stream_index is not None:
-            cmd += ["-map", "0:v:0", "-map", f"0:{audio_stream_index}"]
-        cmd += [
-            "-c:v", "libx264", "-crf", "18", "-preset", "fast",
-            "-c:a", "aac",     "-b:a", "192k",
-        ]
-        if subtitle_path is not None:
-            # FFmpeg filtergraph uses ':' as option separator; Windows drive-letter
-            # colons (C:/) must be escaped as C\:/ within the filter string.
-            escaped = subtitle_path.as_posix().replace(":", "\\:")
-            cmd += ["-vf", f"subtitles={escaped}"]
-        cmd.append(_ffmpeg_path(output_path))
-    elif subtitle_track_path is not None:
-        # Softsub: stream-copy video+audio, add SRT as a subtitle track (no re-encode)
-        sub_codec = "mov_text" if output_path.suffix.lower() == ".mp4" else "srt"
-        cmd = [
-            ffmpeg, "-y",
-            "-ss", str(start_s),
-            "-i",  _ffmpeg_path(video_path),
-            "-t",  str(duration_s),
-            "-i",  _ffmpeg_path(subtitle_track_path),
-            "-map", "0", "-map", "1:s",
-            "-c:v", "copy", "-c:a", "copy", "-c:s", sub_codec,
-            _ffmpeg_path(output_path),
-        ]
-    else:
-        # Fast stream copy: seek before -i (keyframe-aligned)
-        cmd = [
-            ffmpeg, "-y",
-            "-ss", str(start_s),
-            "-i",  _ffmpeg_path(video_path),
-            "-t",  str(duration_s),
-        ]
-        if audio_stream_index is not None:
-            cmd += ["-map", "0:v:0", "-map", f"0:{audio_stream_index}"]
-        cmd += ["-c", "copy", _ffmpeg_path(output_path)]
+    cmd = _build_clip_cmd(
+        ffmpeg, video_path, start_s, duration_s, output_path,
+        reencode, subtitle_path, subtitle_track_path, audio_stream_index,
+    )
 
     result = subprocess.run(cmd, capture_output=True, text=True)
 
@@ -175,5 +229,7 @@ def export_clip(
         raise RuntimeError(
             f"FFmpeg clip export failed:\n{result.stderr.strip()}"
         )
+
+    _verify_export_duration(ffprobe, output_path, duration_s)
 
     return output_path

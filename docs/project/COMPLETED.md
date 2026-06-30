@@ -250,11 +250,21 @@ Archive of shipped items. For pending work see [ROADMAP.md](ROADMAP.md).
   selector, HF token field, one-click `pip install pyannote.audio` button with live log.
   Roadmap backends: SpeechBrain (Apache 2.0, no HF gating), NeMo TitaNet (Apache 2.0, no token).
 
+- **Per-analysis speaker-labels toggle** — the New Recording → Advanced options panel has a
+  Speaker labels checkbox, pre-set from the global `diarization_backend` default and disabled
+  until a HF token is saved. Plumbed through a `--diarize/--no-diarize` CLI override (overrides
+  `config.diarization_backend` for the run), `IngestRequest.diarize` (tri-state), and
+  `_build_analyze_cmd`. The time estimate gains a "Speaker labels" step (inserted after
+  Transcribe) sized by `_DIARIZATION_RT_SPEED` × transcribed tracks when diarization is on.
+
 - **One-click optional dependency install** — generic `POST /api/install/{slug}` endpoint with
   allowlist (`pyannote`, `llamacpp`, `anthropic`); runs pip in a subprocess and streams output via
   SSE using `fetch` + `ReadableStream` (EventSource only supports GET). Install buttons added to:
   speaker labels section (pyannote.audio), llamacpp LLM section, Claude API section. About modal
-  dependency table split into Required and Optional sections.
+  dependency table split into Required and Optional sections. A paired `GET /api/install/{slug}`
+  reports current install state via `importlib.util.find_spec` (import names mapped separately
+  from pip names); Settings refreshes each button to "✓ Installed / Reinstall" on load so an
+  already-installed package no longer reverts to "Install" on refresh.
 
 - **Laugh detection scorer** — `LaughScorer` with three configurable modes:
   - `transcript` (default): regex-matches Whisper non-verbal markers (`[laughs]`, `[laughter]`,
@@ -288,4 +298,7 @@ Archive of shipped items. For pending work see [ROADMAP.md](ROADMAP.md).
 - **Bundled llama.cpp inference backend** — `llama-cpp-python` bundled in the wheel; `scoring/llm.py` supports both `llamacpp` (`.gguf` model file) and `ollama` backends; `llm_backend` / `llm_model_path` config fields; wizard LLM picker with `.gguf` file browser and Ollama model pull with progress bar. Ollama is now optional.
 - **Disabled UI linking to wizard** — `/api/prereqs` endpoint checks FFmpeg and LLM config at boot; if FFmpeg is missing, a banner appears in the recording panel with a "Re-run Setup Wizard" link and the analyze button stays disabled; "Re-run Setup Wizard" hamburger button now shown whenever running inside Electron
 - **Whisper model licence in wizard** — MIT licence note added to the wizard's Whisper checklist row
+- **Live install progress** — venv setup window streams pip output (via `--progress-bar raw`) as a running status line during the long "Install yuu-clip" step, plus a "this can take a few minutes" note, so users see activity instead of a silent spinner
+- **Working clipboard** — Edit menu (cut/copy/paste/select-all) added so keyboard shortcuts work in the main app; setup wizard allows selecting command text and adds "Copy" buttons for the `winget` / `ollama pull` commands
+- **Glossary ships in releases** — the in-app Terminology Glossary previously read `docs/dev/GLOSSARY.md`, which isn't in the wheel, so it 404'd in built installs. Now a hand-written creator-facing `web/static/glossary.md` (no code names / dev sections) is bundled and served from `/api/glossary`; the dev glossary stays authoritative with a sync note
 - Shipped versions: 0.1.1 → 0.1.8

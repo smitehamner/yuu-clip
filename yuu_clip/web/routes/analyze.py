@@ -16,6 +16,7 @@ streams that command's stdout as SSE.
 """
 from __future__ import annotations
 
+import importlib.util
 import sys
 from pathlib import Path
 from typing import Optional
@@ -29,6 +30,22 @@ from yuu_clip.web.deps import ProjectContext
 from yuu_clip.web.sse import subprocess_sse, terminate_process_tree
 
 _log = get_logger(__name__)
+
+# Optional packages installable from Settings. _INSTALLABLE maps a UI slug to its
+# pip package name(s); _IMPORT_NAMES maps the slug to the import module name(s)
+# used to detect whether it is already present (pip name ≠ import name for some).
+_INSTALLABLE: dict[str, str | list[str]] = {
+    "pyannote":    "pyannote.audio",
+    "llamacpp":    "llama-cpp-python",
+    "anthropic":   "anthropic",
+    "laugh-deps":  ["transformers", "torch", "torchaudio", "soundfile"],
+}
+_IMPORT_NAMES: dict[str, list[str]] = {
+    "pyannote":    ["pyannote.audio"],
+    "llamacpp":    ["llama_cpp"],
+    "anthropic":   ["anthropic"],
+    "laugh-deps":  ["transformers", "torch", "torchaudio", "soundfile"],
+}
 
 # ── Whisper real-time speed ratios ──────────────────────────────────────────
 # Seconds of video processed per second of wall-clock time.
@@ -57,6 +74,11 @@ _ENERGY_MODE: dict[str, tuple[float, str]] = {
     "full": (0.005, "16 kHz numpy"),
 }
 
+# Speaker diarization (pyannote): seconds of audio processed per second of
+# wall-clock, per transcribed track. CPU reflects the FEATURES-documented
+# ~2–4× real-time floor; GPU is roughly 4× faster.
+_DIARIZATION_RT_SPEED = {"gpu": 12.0, "cpu": 3.0}
+
 
 class ProbeRequest(BaseModel):
     path: str
@@ -70,6 +92,7 @@ class EstimateRequest(BaseModel):
     has_gpu: bool = True
     scene_mode: str = "fast"
     energy_mode: str = "fast"
+    diarize: bool = False
 
 
 class IngestRequest(BaseModel):
@@ -79,6 +102,8 @@ class IngestRequest(BaseModel):
     no_score: bool = False
     energy_mode: str = "fast"
     scene_mode: str = "fast"
+    # None = use config default; True/False = force on/off for this run.
+    diarize: Optional[bool] = None
     context_names: list[str] = []
     # Path to an SRT file or "stream:<index>" to import existing subtitles instead of
     # running Whisper.  None = use Whisper (default).
@@ -285,15 +310,20 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         ]
         return await subprocess_sse(cmd, ctx.project_dir, ctx)
 
+    @router.get("/api/install/{slug}")
+    async def install_status(slug: str):
+        """Report whether an optional package's import modules are present."""
+        if slug not in _INSTALLABLE:
+            raise HTTPException(400, f"Unknown package slug '{slug}' — allowed: {sorted(_INSTALLABLE)}")
+        installed = all(
+            importlib.util.find_spec(module) is not None
+            for module in _IMPORT_NAMES[slug]
+        )
+        return {"installed": installed}
+
     @router.post("/api/install/{slug}")
     async def install_package(slug: str):
         """Install an optional pip package into the current Python environment."""
-        _INSTALLABLE: dict[str, str | list[str]] = {
-            "pyannote":    "pyannote.audio",
-            "llamacpp":    "llama-cpp-python",
-            "anthropic":   "anthropic",
-            "laugh-deps":  ["transformers", "torch", "torchaudio", "soundfile"],
-        }
         if slug not in _INSTALLABLE:
             raise HTTPException(400, f"Unknown package slug '{slug}' — allowed: {sorted(_INSTALLABLE)}")
         pkgs = _INSTALLABLE[slug]
@@ -339,6 +369,10 @@ def _build_analyze_cmd(req: IngestRequest, video_path: str, project_dir: Path) -
     if req.no_score:
         cmd += ["--no-score"]
     cmd += ["--energy-mode", req.energy_mode, "--scene-mode", req.scene_mode]
+    if req.diarize is True:
+        cmd += ["--diarize"]
+    elif req.diarize is False:
+        cmd += ["--no-diarize"]
     for context_id in req.context_names:
         cmd += ["--context", context_id]
     if req.subtitle_source:
@@ -408,6 +442,13 @@ def _compute_time_estimate(req: EstimateRequest) -> dict:
             "note":    f"~{int(duration_s / 180)} clips estimated",
         },
     ]
+    if req.diarize and transcribe_tracks > 0:
+        diar_speed = _DIARIZATION_RT_SPEED["gpu" if req.has_gpu else "cpu"]
+        steps.insert(2, {
+            "name":    "Speaker labels",
+            "seconds": duration_s * transcribe_tracks / diar_speed,
+            "note":    f"{transcribe_tracks} track(s), pyannote",
+        })
     total = sum(s["seconds"] for s in steps)
     for step in steps:
         step["hms"] = _format_duration(step["seconds"])

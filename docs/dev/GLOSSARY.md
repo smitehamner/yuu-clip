@@ -2,6 +2,8 @@
 
 This file defines the authoritative term for every concept in yuu-clip. Use these terms consistently in code, UI labels, docs, and conversation. When a term here conflicts with what is currently in the code or UI, the code/UI should eventually be updated — not this file.
 
+> **Keep the user-facing copy in sync.** The in-app "Terminology Glossary" modal is served from `yuu_clip/web/static/glossary.md` — a hand-written, creator-facing subset of this file (no `Code:`, no dev-only sections). When you add or rename a user-facing term here, update that file too.
+
 Two design principles drove the choices below:
 - **Creator-first naming** — terminology should make sense to a content creator, not require a developer background.
 - **One term per concept** — when the codebase uses multiple names for the same thing, only one of them is correct.

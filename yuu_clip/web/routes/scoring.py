@@ -95,70 +95,80 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     return router
 
 
+def _rescore_video_clips(ctx: ProjectContext, video_id: int, failed_only: bool):
+    db = ctx.get_db()
+    try:
+        video = db.get(Video, video_id)
+        if not video:
+            raise HTTPException(404, "Video not found")
+        context_names = _json_list(video.context_names_json)
+        query = (
+            db.query(ClipCandidate)
+            .filter_by(video_id=video_id)
+            .order_by(ClipCandidate.start_ms)
+        )
+        if failed_only:
+            query = query.filter(ClipCandidate.tags_json.like('%"llm_error"%'))
+        clip_ids = [c.id for c in query.all()]
+    finally:
+        db.close()
+
+    context_text, config = _resolve_context(ctx, context_names)
+
+    async def event_stream():
+        from yuu_clip.scoring.engine import ScoringEngine
+        from yuu_clip.scoring.llm import LLMScorer
+
+        async with _active_job(ctx):
+            total = len(clip_ids)
+            plural = "s" if total != 1 else ""
+            yield f"data: {json_lib.dumps(f'[Starting LLM scoring for {total} clip{plural}…]')}\n\n"
+            engine = ScoringEngine(config, [LLMScorer(config, context_text=context_text)])
+
+            for i, clip_id in enumerate(clip_ids, 1):
+                score_db = ctx.get_db()
+                error = None
+                try:
+                    clip = score_db.get(ClipCandidate, clip_id)
+                    if clip:
+                        await asyncio.to_thread(engine.score_clip, clip, score_db)
+                        score_db.commit()
+                except Exception as exc:
+                    score_db.rollback()
+                    error = str(exc)
+                    _log.error("rescore_clips: clip %d failed for video %d: %s", clip_id, video_id, exc, exc_info=True)
+                finally:
+                    score_db.close()
+                if error:
+                    yield f"data: {json_lib.dumps(f'[Error scoring clip {clip_id}: {error}]')}\n\n"
+                else:
+                    yield f"data: {json_lib.dumps(f'Scored {i}/{total} clips')}\n\n"
+
+            prov_db = ctx.get_db()
+            try:
+                v = prov_db.get(Video, video_id)
+                if v:
+                    v.clips_scored_at = datetime.now(timezone.utc)
+                    v.clips_scored_context_json = json_lib.dumps(context_names)
+                    prov_db.commit()
+            finally:
+                prov_db.close()
+
+            yield f"data: {json_lib.dumps('__DONE__')}\n\n"
+
+    return _sse_response(event_stream())
+
+
 def _register_rescore_routes(router: APIRouter, ctx: ProjectContext) -> None:
     @router.get("/api/videos/{video_id}/rescore-clips")
     async def rescore_clips(video_id: int):
         """Re-run LLM scoring for all clips using the video's current context. Streams progress as SSE."""
-        db = ctx.get_db()
-        try:
-            video = db.get(Video, video_id)
-            if not video:
-                raise HTTPException(404, "Video not found")
-            context_names = _json_list(video.context_names_json)
-            clips = (
-                db.query(ClipCandidate)
-                .filter_by(video_id=video_id)
-                .order_by(ClipCandidate.start_ms)
-                .all()
-            )
-            clip_ids = [c.id for c in clips]
-        finally:
-            db.close()
+        return _rescore_video_clips(ctx, video_id, failed_only=False)
 
-        context_text, config = _resolve_context(ctx, context_names)
-
-        async def event_stream():
-            from yuu_clip.scoring.engine import ScoringEngine
-            from yuu_clip.scoring.llm import LLMScorer
-
-            async with _active_job(ctx):
-                total = len(clip_ids)
-                plural = "s" if total != 1 else ""
-                yield f"data: {json_lib.dumps(f'[Starting LLM scoring for {total} clip{plural}…]')}\n\n"
-                engine = ScoringEngine(config, [LLMScorer(config, context_text=context_text)])
-
-                for i, clip_id in enumerate(clip_ids, 1):
-                    score_db = ctx.get_db()
-                    error = None
-                    try:
-                        clip = score_db.get(ClipCandidate, clip_id)
-                        if clip:
-                            await asyncio.to_thread(engine.score_clip, clip, score_db)
-                            score_db.commit()
-                    except Exception as exc:
-                        score_db.rollback()
-                        error = str(exc)
-                        _log.error("rescore_clips: clip %d failed for video %d: %s", clip_id, video_id, exc, exc_info=True)
-                    finally:
-                        score_db.close()
-                    if error:
-                        yield f"data: {json_lib.dumps(f'[Error scoring clip {clip_id}: {error}]')}\n\n"
-                    else:
-                        yield f"data: {json_lib.dumps(f'Scored {i}/{total} clips')}\n\n"
-
-                prov_db = ctx.get_db()
-                try:
-                    v = prov_db.get(Video, video_id)
-                    if v:
-                        v.clips_scored_at = datetime.now(timezone.utc)
-                        v.clips_scored_context_json = json_lib.dumps(context_names)
-                        prov_db.commit()
-                finally:
-                    prov_db.close()
-
-                yield f"data: {json_lib.dumps('__DONE__')}\n\n"
-
-        return _sse_response(event_stream())
+    @router.get("/api/videos/{video_id}/rescore-failed-clips")
+    async def rescore_failed_clips(video_id: int):
+        """Re-run LLM scoring only for clips whose last scoring failed (tagged llm_error). Streams progress as SSE."""
+        return _rescore_video_clips(ctx, video_id, failed_only=True)
 
     @router.get("/api/videos/{video_id}/timeline")
     async def stream_timeline(video_id: int, interval_s: Optional[int] = Query(None)):

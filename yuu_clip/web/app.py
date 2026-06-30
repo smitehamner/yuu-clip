@@ -14,7 +14,7 @@ from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _pkg_version
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -22,6 +22,7 @@ from yuu_clip._build_info import BUILD_DATE as _BUILD_DATE
 from yuu_clip.contexts import seed_builtin_contexts
 from yuu_clip.log import configure_logging, get_logger
 from yuu_clip.web.deps import ProjectContext
+from yuu_clip.web.media import media_file_response, resolve_within
 from yuu_clip.web.routes import analyze, clips, config, contexts, logs, profiles, reel, scoring, videos
 from yuu_clip.web.sse import terminate_process_tree
 
@@ -93,16 +94,17 @@ def create_app(project_dir: Path) -> FastAPI:
         StaticFiles(directory=str(_HERE / "static")),
         name="static",
     )
-    app.mount(
-        "/media/exports",
-        StaticFiles(directory=str(ctx.export_dir), html=False),
-        name="exports",
-    )
-    app.mount(
-        "/media/reels",
-        StaticFiles(directory=str(ctx.reels_dir), html=False),
-        name="reels",
-    )
+
+    # Exports and reels are served with a share-delete handle (see web/media.py) so
+    # the file can be deleted while a <video> is still streaming it. StaticFiles holds
+    # a plain read handle for the whole response and would lock the file on Windows.
+    @app.get("/media/exports/{filename:path}")
+    def serve_export(filename: str, request: Request):
+        return media_file_response(resolve_within(ctx.export_dir, filename), request)
+
+    @app.get("/media/reels/{filename:path}")
+    def serve_reel(filename: str, request: Request):
+        return media_file_response(resolve_within(ctx.reels_dir, filename), request)
 
     for module in _ROUTE_MODULES:
         app.include_router(module.make_router(ctx))

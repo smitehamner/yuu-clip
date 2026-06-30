@@ -146,6 +146,29 @@ function renderPlayer(url, captionsUrl, clipId) {
   }
 }
 
+// Fully tear down any <video> in the player so the browser aborts its streaming
+// connection to /media/exports/*. Until that connection closes, the server's
+// StaticFiles handle on the file stays open and Windows refuses to delete it.
+// Removing the element alone is not enough — the media resource must be released
+// via pause + clear src + load() before the connection actually closes.
+function _releasePlayerMedia() {
+  const area = document.getElementById('player-area');
+  area.querySelectorAll('video').forEach(vid => {
+    try { vid.pause(); } catch (_) {}
+    vid.removeAttribute('src');
+    vid.load();
+  });
+  area.innerHTML = '';
+}
+
+// Call before any delete that removes a file the player may be streaming. Releases
+// the <video>, then waits so the browser can finish aborting the transfer and the
+// server can close its file handle before the delete request arrives.
+async function _releasePlayerBeforeDelete() {
+  _releasePlayerMedia();
+  await new Promise(resolve => setTimeout(resolve, 400));
+}
+
 // ── detail ────────────────────────────────────────────────────────────────────
 function renderDetail(clip) {
   const eb = (isEdited) => isEdited ? `<span class="edited-badge">edited</span>` : '';
@@ -521,7 +544,7 @@ function _onExportCaptionsChange(val) {
 function exportClip(id) {
   _exportOpener = document.activeElement;
   _exportClipId = id;
-  document.getElementById('export-captions').value = 'none';
+  document.getElementById('export-captions').value = 'softsub';
   document.getElementById('export-hardsub-warn').style.display = 'none';
   document.getElementById('export-container').value = '';
   document.getElementById('export-trim-start').value = _fmtOffset(AppState.activeClipData?.start_offset);
@@ -643,10 +666,13 @@ function deleteVideo(id) {
 }
 
 async function _doDeleteVideo(id, name) {
+  // Release the player so its backing export/preview file isn't locked during delete.
+  if (AppState.activeVideoId === id) await _releasePlayerBeforeDelete();
   const delRes = await fetch(`/api/videos/${id}`, {method: 'DELETE'});
   if (!delRes.ok) {
     const err = await delRes.json().catch(() => ({}));
     showToast(`Failed to remove video: ${formatApiError(err)}`, 'error');
+    if (AppState.activeClipId) selectClip(AppState.activeClipId);
     return;
   }
   if (AppState.activeVideoId === id) {
@@ -665,10 +691,14 @@ function deleteExport(id) {
     'The exported video file will be removed from disk. The clip record stays — you can re-export any time.',
     'Delete Export',
     async () => {
+      // Release the streaming connection first — on Windows the server's StaticFiles
+      // handle stays open while the <video> is connected, blocking the delete.
+      await _releasePlayerBeforeDelete();
       const res = await fetch(`/api/clips/${id}/export`, {method: 'DELETE'});
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         showToast(`Failed to delete export: ${formatApiError(err)}`, 'error');
+        selectClip(id);  // restore the player/detail we cleared above
         return;
       }
       AppState.activeClipData.has_export = false;
@@ -695,10 +725,13 @@ function deleteClip(id) {
 
 async function _doDeleteClip(id) {
   const videoId = AppState.activeVideoId;
+  // Release the player so its backing export/preview file isn't locked during delete.
+  if (AppState.activeClipId === id) await _releasePlayerBeforeDelete();
   const delRes = await fetch(`/api/clips/${id}`, {method: 'DELETE'});
   if (!delRes.ok) {
     const err = await delRes.json().catch(() => ({}));
     showToast(`Failed to delete clip: ${formatApiError(err)}`, 'error');
+    if (AppState.activeClipId === id) selectClip(id);
     return;
   }
   AppState.activeClipId = null;

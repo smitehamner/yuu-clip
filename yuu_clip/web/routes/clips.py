@@ -9,8 +9,8 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query
-from fastapi.responses import FileResponse, PlainTextResponse
+from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 from sqlalchemy import case
 
@@ -21,11 +21,14 @@ from yuu_clip.web.deps import ProjectContext
 from yuu_clip.web.routes._shared import (
     _active_job,
     _all_sidecar_paths,
+    _delete_files,
     _export_paths,
+    _locked_files_error,
     _require_clip,
     _srt_path,
     _sse_response,
 )
+from yuu_clip.web.media import media_file_response
 
 _log = get_logger(__name__)
 
@@ -317,12 +320,12 @@ def _register_clip_routes(router: APIRouter, ctx: ProjectContext) -> None:
             db.close()
 
     @router.get("/api/clips/{clip_id}/preview")
-    def clip_preview(clip_id: int):
+    def clip_preview(clip_id: int, request: Request):
         """Generate a seekable MP4 preview of a clip from the source video (cached on disk)."""
         cached = ctx.preview_cache.get(clip_id)
         if cached and cached.exists():
             ctx.preview_cache.move_to_end(clip_id)
-            return FileResponse(str(cached), media_type="video/mp4")
+            return media_file_response(cached, request, media_type="video/mp4")
 
         db = ctx.get_db()
         try:
@@ -368,7 +371,7 @@ def _register_clip_routes(router: APIRouter, ctx: ProjectContext) -> None:
             _, old = ctx.preview_cache.popitem(last=False)
             old.unlink(missing_ok=True)
 
-        return FileResponse(str(out_path), media_type="video/mp4")
+        return media_file_response(out_path, request, media_type="video/mp4")
 
 
 def _register_delete_routes(router: APIRouter, ctx: ProjectContext) -> None:
@@ -379,11 +382,12 @@ def _register_delete_routes(router: APIRouter, ctx: ProjectContext) -> None:
         try:
             clip = _require_clip(db, clip_id)
             video = db.get(Video, clip.video_id)
-            deleted = [p for p in _all_sidecar_paths(clip, video, ctx.export_dir) if p.exists()]
-            for p in deleted:
-                p.unlink()
-            _log.info("Cleared export for clip %d (%d file(s))", clip_id, len(deleted))
-            return {"clip_id": clip_id, "files_deleted": len(deleted)}
+            targets = [p for p in _all_sidecar_paths(clip, video, ctx.export_dir) if p.exists()]
+            locked = _delete_files(targets)
+            if locked:
+                raise _locked_files_error(locked)
+            _log.info("Cleared export for clip %d (%d file(s))", clip_id, len(targets))
+            return {"clip_id": clip_id, "files_deleted": len(targets)}
         finally:
             db.close()
 
@@ -396,8 +400,9 @@ def _register_delete_routes(router: APIRouter, ctx: ProjectContext) -> None:
             video = db.get(Video, clip.video_id)
             video_id = clip.video_id
 
-            for p in _all_sidecar_paths(clip, video, ctx.export_dir):
-                p.unlink(missing_ok=True)
+            locked = _delete_files(_all_sidecar_paths(clip, video, ctx.export_dir))
+            if locked:
+                raise _locked_files_error(locked)
 
             db.delete(clip)
             db.commit()
@@ -583,10 +588,8 @@ def _register_clip_edit_routes(router: APIRouter, ctx: ProjectContext) -> None:
             clip_a.exported_burn_subs = None
 
             video = db.get(Video, clip_a.video_id)
-            for p in _all_sidecar_paths(clip_b, video, ctx.export_dir):
-                p.unlink(missing_ok=True)
-            for p in _all_sidecar_paths(clip_a, video, ctx.export_dir):
-                p.unlink(missing_ok=True)
+            _delete_files(_all_sidecar_paths(clip_b, video, ctx.export_dir))
+            _delete_files(_all_sidecar_paths(clip_a, video, ctx.export_dir))
             db.delete(clip_b)
             db.commit()
 

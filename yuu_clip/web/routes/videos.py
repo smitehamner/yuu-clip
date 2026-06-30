@@ -18,7 +18,9 @@ from yuu_clip.web.deps import ProjectContext
 from yuu_clip.web.routes._shared import (
     _active_job,
     _all_sidecar_paths,
+    _delete_files,
     _json_list,
+    _locked_files_error,
     _sse_response,
 )
 
@@ -27,6 +29,7 @@ _log = get_logger(__name__)
 _EMPTY_STATS = {
     "clip_count": 0, "approved": 0, "exported": 0,
     "total_clip_ms": 0, "score_min": None, "score_max": None,
+    "llm_error_count": 0,
 }
 
 
@@ -425,9 +428,11 @@ def _register_video_data_routes(router: APIRouter, ctx: ProjectContext) -> None:
 
             # Delete exported clip files from disk before removing DB records
             clips = db.query(ClipCandidate).filter_by(video_id=video_id).all()
+            locked: list[Path] = []
             for clip in clips:
-                for p in _all_sidecar_paths(clip, video, ctx.export_dir):
-                    p.unlink(missing_ok=True)
+                locked += _delete_files(_all_sidecar_paths(clip, video, ctx.export_dir))
+            if locked:
+                raise _locked_files_error(locked)
 
             # AudioEnergy and SceneBoundary have no Python-level cascade; delete explicitly
             track_ids = [t.id for t in video.audio_tracks]
@@ -550,6 +555,7 @@ def _bulk_clip_stats(db, video_ids: list[int]) -> dict[int, dict]:
             func.sum(ClipCandidate.end_ms - ClipCandidate.start_ms).label("total_clip_ms"),
             func.min(ClipCandidate.score_overall).label("score_min"),
             func.max(ClipCandidate.score_overall).label("score_max"),
+            func.sum(case((ClipCandidate.tags_json.like('%"llm_error"%'), 1), else_=0)).label("llm_error_count"),
         )
         .filter(ClipCandidate.video_id.in_(video_ids))
         .group_by(ClipCandidate.video_id)
@@ -563,6 +569,7 @@ def _bulk_clip_stats(db, video_ids: list[int]) -> dict[int, dict]:
             "total_clip_ms": row.total_clip_ms or 0,
             "score_min":     row.score_min,
             "score_max":     row.score_max,
+            "llm_error_count": row.llm_error_count or 0,
         }
         for row in rows
     }
@@ -581,6 +588,7 @@ def _video_dict(video: Video, stats: dict) -> dict:
         "total_clip_ms": stats["total_clip_ms"],
         "score_min": stats["score_min"],
         "score_max": stats["score_max"],
+        "clips_llm_error": stats["llm_error_count"],
         "title": video.effective_title,
         "title_original": video.title or "",
         "title_is_edited": video.title_user is not None,

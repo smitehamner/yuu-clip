@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, BrowserWindow, Menu, MenuItem, dialog, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, Menu, MenuItem, clipboard, dialog, ipcMain, shell } = require('electron');
 const { execFileSync, spawn } = require('child_process');
 const fs   = require('fs');
 const http = require('http');
@@ -89,12 +89,20 @@ function logSetup(msg) {
 // Async command runner — keeps the event loop free during long pip installs
 // ---------------------------------------------------------------------------
 
-function runCmd(cmd, args) {
+function runCmd(cmd, args, onLine = null) {
   return new Promise((resolve, reject) => {
     const proc = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
     let stdout = '', stderr = '';
-    proc.stdout.on('data', d => { stdout += d; });
-    proc.stderr.on('data', d => { stderr += d; });
+    const feed = (text, isErr) => {
+      if (isErr) stderr += text; else stdout += text;
+      if (!onLine) return;
+      for (const piece of text.split(/[\r\n]+/)) {
+        const line = piece.trim();
+        if (line) onLine(line);
+      }
+    };
+    proc.stdout.on('data', d => feed(d.toString(), false));
+    proc.stderr.on('data', d => feed(d.toString(), true));
     proc.on('close', code => {
       if (code === 0) { resolve({ stdout, stderr }); return; }
       const err = new Error(`Exited with code ${code}: ${cmd} ${args.join(' ')}`);
@@ -104,6 +112,22 @@ function runCmd(cmd, args) {
     });
     proc.on('error', reject);
   });
+}
+
+// Condense a raw pip output line into a short, human-readable status, or null
+// for noise. `--progress-bar raw` emits "Progress <done> of <total>" lines even
+// when stdout is not a TTY, which is what gives us a live percentage.
+function formatPipLine(line) {
+  const prog = line.match(/^Progress\s+(\d+)\s+of\s+(\d+)/i);
+  if (prog) {
+    const total = parseInt(prog[2]);
+    if (total > 0) return `Downloading… ${Math.round((parseInt(prog[1]) / total) * 100)}%`;
+    return null;
+  }
+  if (/^(Collecting|Downloading|Using cached|Building wheel|Preparing metadata|Installing collected)/i.test(line)) {
+    return line.length > 60 ? line.slice(0, 59) + '…' : line;
+  }
+  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -340,6 +364,8 @@ function registerWizardIPC(wizardWin) {
 
   ipcMain.on('setup:open-url', (_, url) => shell.openExternal(url));
 
+  ipcMain.on('setup:copy-text', (_, text) => clipboard.writeText(String(text || '')));
+
   // Stream an Ollama model pull back to the wizard as progress events.
   ipcMain.on('setup:pull-model', (event, modelName) => {
     const req = http.request({
@@ -437,7 +463,7 @@ function showSetupWizard({ rerun = false } = {}) {
 
 function showVenvSetupWindow() {
   const win = new BrowserWindow({
-    width: 440, height: 200,
+    width: 440, height: 240,
     resizable: false, frame: false, alwaysOnTop: true,
     webPreferences: {
       nodeIntegration: false, contextIsolation: true,
@@ -456,6 +482,8 @@ function showVenvSetupWindow() {
     .steps li::before{content:'·';position:absolute;left:4px}
     .steps li.done::before{content:'✓';color:#4caf7d}
     .steps li.active::before{content:'›';color:#5b8ef0}
+    .status{font-size:11px;color:#5b8ef0;margin-top:14px;min-height:14px;padding:0 16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .note{font-size:11px;color:#555;margin-top:4px}
   </style></head><body><div>
     <div class="spin"></div>
     <h3>Setting up yuu-clip</h3>
@@ -464,6 +492,8 @@ function showVenvSetupWindow() {
       <li id="s1">Upgrade pip</li>
       <li id="s2">Install yuu-clip</li>
     </ul>
+    <div class="status" id="status"></div>
+    <div class="note">This can take a few minutes — please don't close this window.</div>
   </div><script>
     if(window.venvAPI) window.venvAPI.onProgress(function(msg){
       var steps=['s0','s1','s2'];
@@ -471,6 +501,9 @@ function showVenvSetupWindow() {
       if(idx<0)return;
       if(msg.state==='active'){document.getElementById(msg.id).className='active';}
       else if(msg.state==='done'){document.getElementById(msg.id).className='done';}
+    });
+    if(window.venvAPI&&window.venvAPI.onStatus) window.venvAPI.onStatus(function(text){
+      document.getElementById('status').textContent=text;
     });
   </script></body></html>`;
   win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
@@ -544,7 +577,18 @@ async function ensureVenv() {
     }
     progress('s2', 'active');
     logSetup('Installing wheel…');
-    await runCmd(VENV_PIP, ['install', '--force-reinstall', wheelPath]);
+    let lastStatus = '';
+    await runCmd(
+      VENV_PIP,
+      ['install', '--force-reinstall', '--progress-bar', 'raw', wheelPath],
+      line => {
+        const statusText = formatPipLine(line);
+        if (statusText && statusText !== lastStatus) {
+          lastStatus = statusText;
+          try { setupWin.webContents.send('venv:status', statusText); } catch (_) {}
+        }
+      }
+    );
     progress('s2', 'done');
     logSetup('Wheel installed');
     if (bundledVersion) fs.writeFileSync(WHEEL_MARKER, bundledVersion);
@@ -671,6 +715,18 @@ function buildMenu() {
         },
         { type: 'separator' },
         { role: 'quit' },
+      ],
+    },
+    {
+      label: 'Edit',
+      submenu: [
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        { role: 'selectAll' },
       ],
     },
     {

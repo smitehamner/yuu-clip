@@ -36,8 +36,13 @@ def make_router(ctx: ProjectContext) -> APIRouter:
 
     @router.get("/api/glossary")
     def get_glossary():
-        """Return the terminology glossary as plain text markdown."""
-        glossary = Path(__file__).parent.parent.parent.parent / "docs" / "dev" / "GLOSSARY.md"
+        """Return the user-facing terminology glossary as plain-text markdown.
+
+        Served from the bundled static dir (shipped in the wheel) rather than
+        docs/dev/GLOSSARY.md, which is dev-only and not packaged. The dev
+        glossary stays the authoritative source; this is its creator-facing copy.
+        """
+        glossary = Path(__file__).parent.parent / "static" / "glossary.md"
         if not glossary.exists():
             raise HTTPException(404, "Glossary not found")
         return PlainTextResponse(glossary.read_text(encoding="utf-8"))

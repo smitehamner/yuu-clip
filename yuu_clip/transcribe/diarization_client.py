@@ -47,7 +47,7 @@ class PyannoteDiarizationClient(DiarizationClient):
         from pyannote.audio import Pipeline
         pipeline = Pipeline.from_pretrained(
             "pyannote/speaker-diarization-3.1",
-            use_auth_token=self._config.huggingface_token,
+            token=self._config.huggingface_token,
         )
         diarization = pipeline(audio_path)
         return [
