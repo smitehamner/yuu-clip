@@ -74,7 +74,8 @@ class TestPyannoteDiarize:
         turns = PyannoteDiarizationClient(cfg).diarize("/tmp/clip.wav")
 
         assert turns == [(0.0, 1.5, "SPEAKER_00")]
-        _, kwargs = from_pretrained.call_args
+        args, kwargs = from_pretrained.call_args
+        assert args[0] == "pyannote/speaker-diarization-community-1"
         assert kwargs.get("token") == "hf_abc"
         assert "use_auth_token" not in kwargs
 
@@ -92,8 +93,8 @@ class TestPyannoteDiarize:
         with pytest.raises(DiarizationError) as excinfo:
             PyannoteDiarizationClient(cfg).diarize("/tmp/clip.wav")
         message = str(excinfo.value)
-        assert "hf.co/pyannote/speaker-diarization-3.1" in message
-        assert "hf.co/pyannote/segmentation-3.0" in message
+        assert "hf.co/pyannote/speaker-diarization-community-1" in message
+        assert "hf.co/settings/tokens" in message
 
     # A real pyannote 4.x access error names a repo our static list might not
     # know about (speaker-diarization-community-1). The translated error must

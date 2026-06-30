@@ -344,7 +344,7 @@ When enabled, yuu-clip runs speaker diarization after transcription and labels e
 | Pyannote | — | HuggingFace account + `pip install pyannote.audio` (one-click install button in Settings) |
 
 To enable Pyannote:
-1. Create a free account at [HuggingFace](https://huggingface.co) and, while signed in, accept the gated model terms for both [speaker-diarization-3.1](https://huggingface.co/pyannote/speaker-diarization-3.1) and [segmentation-3.0](https://huggingface.co/pyannote/segmentation-3.0) (the diarization pipeline pulls the segmentation model as a dependency)
+1. Create a free account at [HuggingFace](https://huggingface.co) and, while signed in, accept the gated model terms for [speaker-diarization-community-1](https://huggingface.co/pyannote/speaker-diarization-community-1)
 2. Generate a token at HuggingFace → Settings → Access Tokens with **Read** access (a classic Read token, or a fine-grained token with "Read access to contents of all public gated repos you can access")
 3. Open Settings → Speaker labels in the app; paste the token and click **Install pyannote.audio**
 4. Change the backend to **Pyannote** and save

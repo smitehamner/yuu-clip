@@ -232,7 +232,7 @@
       <div class="settings-row">
         <div class="settings-col">
           <label class="settings-label" for="s-hf-token">HuggingFace token</label>
-          <div class="settings-note">Required to download the diarization model. Create a <a href="https://huggingface.co/settings/tokens" target="_blank" style="color:var(--accent)">token</a> with <strong>Read</strong> access, then — signed in with that account — accept the gated model terms for <a href="https://huggingface.co/pyannote/speaker-diarization-3.1" target="_blank" style="color:var(--accent)">speaker-diarization-3.1</a>, <a href="https://huggingface.co/pyannote/segmentation-3.0" target="_blank" style="color:var(--accent)">segmentation-3.0</a>, and <a href="https://huggingface.co/pyannote/speaker-diarization-community-1" target="_blank" style="color:var(--accent)">speaker-diarization-community-1</a> (the last is required by pyannote.audio 4.x).</div>
+          <div class="settings-note">Required to download the diarization model. Create a <a href="https://huggingface.co/settings/tokens" target="_blank" style="color:var(--accent)">token</a> with <strong>Read</strong> access, then — signed in with that account — accept the gated model terms for <a href="https://huggingface.co/pyannote/speaker-diarization-community-1" target="_blank" style="color:var(--accent)">speaker-diarization-community-1</a>.</div>
         </div>
         <div style="display:flex;flex-direction:column;gap:4px;max-width:280px">
           <div style="display:flex;gap:6px;align-items:center">
@@ -486,6 +486,14 @@
               <option value="large-v3">large-v3 — best quality (~3 GB VRAM)</option>
             </select>
           </div>
+          <div class="field" id="analyze-diarize-field">
+            <label>Speaker labels</label>
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:var(--text);margin:0">
+              <input type="checkbox" id="analyze-diarize" onchange="runEstimate()" style="width:auto">
+              <span>Identifies who is speaking</span>
+            </label>
+            <div id="analyze-diarize-note" style="font-size:11px;color:var(--muted);margin-top:4px"></div>
+          </div>
           <div class="field">
             <label for="analyze-scene-mode">Scene detection</label>
             <select id="analyze-scene-mode" onchange="runEstimate()">
@@ -501,13 +509,6 @@
               <option value="fast" selected>Fast — 4 kHz numpy (recommended)</option>
               <option value="full">Full — 16 kHz numpy (most accurate)</option>
             </select>
-          </div>
-          <div class="field" id="analyze-diarize-field">
-            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600">
-              <input type="checkbox" id="analyze-diarize" onchange="runEstimate()">
-              Speaker labels <span style="color:var(--muted);font-weight:400">(identifies who is speaking)</span>
-            </label>
-            <div id="analyze-diarize-note" style="font-size:11px;color:var(--muted);margin-top:4px"></div>
           </div>
           <div class="field">
             <label for="analyze-external-srt">External captions file <span style="color:var(--muted);font-weight:400">(optional — skips Whisper)</span></label>
@@ -915,12 +916,12 @@
         <option value="large-v3">large-v3 (best quality)</option>
       </select>
     </div>
-    <div class="field" style="display:flex;align-items:center;gap:10px">
-      <label style="display:flex;align-items:center;gap:10px;cursor:pointer;flex:1;margin:0">
-        <input type="checkbox" id="retranscribe-speaker-labels" disabled>
-        <span style="font-size:13px">Speaker labels</span>
+    <div class="field">
+      <label style="display:flex;align-items:center;gap:10px;cursor:pointer;margin:0">
+        <input type="checkbox" id="retranscribe-speaker-labels" disabled style="width:auto">
+        <span style="font-size:13px">Speaker labels <span style="color:var(--muted)">(identifies who is speaking)</span></span>
       </label>
-      <span id="retranscribe-speaker-note" style="font-size:11px;color:var(--muted)"></span>
+      <div id="retranscribe-speaker-note" style="font-size:11px;color:var(--muted);margin-top:4px"></div>
     </div>
     <div style="font-size:12px;color:var(--muted)">
       Transcribes only this clip's time window with the selected model, then re-scores.
