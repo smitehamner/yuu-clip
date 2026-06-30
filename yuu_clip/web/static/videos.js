@@ -1,3 +1,4 @@
+(function () {
 // ── videos ────────────────────────────────────────────────────────────────────
 async function loadVideos() {
   let videos;
@@ -10,7 +11,7 @@ async function loadVideos() {
       `<li style="padding:10px 14px;color:var(--red)">Failed to load videos: ${escHtml(String(err.message || err))}</li>`;
     return;
   }
-  _videos = videos;
+  AppState.videos = videos;
 
   const list = document.getElementById('video-list');
   list.innerHTML = '';
@@ -24,7 +25,7 @@ async function loadVideos() {
 
   for (const v of videos) {
     const li = document.createElement('li');
-    li.className = 'video-item' + (v.id === activeVideoId ? ' active' : '');
+    li.className = 'video-item' + (v.id === AppState.activeVideoId ? ' active' : '');
     li.dataset.videoId = v.id;
     li.tabIndex = 0;
     const clipsPct = v.duration_ms > 0
@@ -65,8 +66,8 @@ async function loadVideos() {
   const totalApproved = videos.reduce((n, v) => n + v.approved, 0);
   _updateDemoButton(totalApproved);
 
-  if (!_bootRestoreDone) {
-    _bootRestoreDone = true;
+  if (!AppState.bootRestoreDone) {
+    AppState.bootRestoreDone = true;
     _restoreView();
   }
 }
@@ -75,9 +76,9 @@ async function _restoreView() {
   try {
     const saved = JSON.parse(localStorage.getItem('yuuclip-view') || 'null');
     if (!saved?.videoId) return;
-    if (!_videos.find(v => v.id === saved.videoId)) return;
+    if (!AppState.videos.find(v => v.id === saved.videoId)) return;
     await selectVideo(saved.videoId);
-    if (saved.clipId && _clips.find(c => c.id === saved.clipId)) {
+    if (saved.clipId && AppState.clips.find(c => c.id === saved.clipId)) {
       await selectClip(saved.clipId);
     }
   } catch {}
@@ -139,12 +140,12 @@ async function selectVideo(id) {
     return;
   }
   if (_isNewRecordingPanelOpen()) _doCloseNewRecordingPanel();
-  activeVideoId = id;
-  activeClipId  = null;
+  AppState.activeVideoId = id;
+  AppState.activeClipId  = null;
   localStorage.setItem('yuuclip-view', JSON.stringify({videoId: id, clipId: null}));
-  _clipFilter  = 'all';
-  _clipSearch  = '';
-  _clipScoreMin = 0;
+  AppState.clipFilter  = 'all';
+  AppState.clipSearch  = '';
+  AppState.clipScoreMin = 0;
   document.querySelectorAll('.clip-tab').forEach(t => {
     const active = t.dataset.filter === 'all';
     t.classList.toggle('active', active);
@@ -154,15 +155,15 @@ async function selectVideo(id) {
   if (_searchEl) _searchEl.value = '';
   const _scoreEl = document.getElementById('clip-score-min');
   if (_scoreEl) _scoreEl.value = '0';
-  _clips = await fetch(`/api/videos/${id}/clips?sort=${_clipsSortParam()}`).then(r => r.json());
-  renderClipList(_clips);
-  const video = _videos.find(v => v.id === id);
+  AppState.clips = await fetch(`/api/videos/${id}/clips?sort=${_clipsSortParam()}`).then(r => r.json());
+  _renderClips();
+  const video = AppState.videos.find(v => v.id === id);
   if (video) renderVideoDetail(video, null);
   else clearDetail();
 }
 
 function renderVideoDetail(video, savedTimeline) {
-  _activeVideoData = video;
+  AppState.activeVideoData = video;
   const eb = (isEdited) => isEdited ? `<span class="edited-badge">edited</span>` : '';
   document.getElementById('player-area').innerHTML =
     `<video controls preload="metadata" src="/api/videos/${video.id}/source" aria-label="Recording preview" style="display:block;width:100%;max-height:var(--player-max-height, 42vh);object-fit:contain;background:#000"></video>`;
@@ -233,12 +234,12 @@ function renderVideoDetail(video, savedTimeline) {
 function _renderContextSection(video) {
   const assigned = video.context_names || [];
   const chips = assigned.map(context_id => {
-    const ctx = _contexts.find(c => c.context_id === context_id);
+    const ctx = AppState.contexts.find(c => c.context_id === context_id);
     const name = ctx ? ctx.display_name : context_id;
     return `<span class="context-chip">${escHtml(name)}<button class="chip-x" data-rmctx="${escHtml(context_id)}" title="Remove" aria-label="Remove ${escHtml(name)}">×</button></span>`;
   });
 
-  const available = _contexts.filter(c => !assigned.includes(c.context_id));
+  const available = AppState.contexts.filter(c => !assigned.includes(c.context_id));
   const addSelect = available.length
     ? `<select style="font-size:11px;padding:3px 7px;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--muted);cursor:pointer"
               onchange="addVideoContext(${video.id}, this.value); this.value=''">
@@ -251,12 +252,12 @@ function _renderContextSection(video) {
     const scoredCtx = video.clips_scored_context || [];
     const stale = JSON.stringify([...assigned].sort()) !== JSON.stringify([...scoredCtx].sort());
     const when = _fmtDate(video.clips_scored_at);
-    const ctxNames = scoredCtx.map(s => { const c = _contexts.find(x => x.context_id === s); return c ? c.display_name : s; });
+    const ctxNames = scoredCtx.map(s => { const c = AppState.contexts.find(x => x.context_id === s); return c ? c.display_name : s; });
     const ctxStr = ctxNames.length ? ' · ' + ctxNames.map(escHtml).join(', ') : ' · no context';
     provLines.push(`<span class="${stale ? 'provenance-stale' : ''}">Clips scored ${escHtml(when)}${ctxStr}${stale ? ' — ⚠ contexts changed since last score' : ''}</span>`);
   }
 
-  const noContextsDefined = _contexts.length === 0;
+  const noContextsDefined = AppState.contexts.length === 0;
   const emptyMsg = noContextsDefined
     ? `<span style="color:var(--muted);font-size:12px">No contexts defined — <button class="btn ghost" style="padding:0;display:inline;font-size:12px" onclick="openContextManager()">create one</button></span>`
     : (!assigned.length ? `<span style="color:var(--muted);font-size:12px">None assigned</span>` : '');
@@ -299,7 +300,7 @@ let _timelineIntervalOpener = null;
 function generateTimeline(id) {
   _timelineIntervalOpener = document.activeElement;
   _timelineVideoId = id;
-  const video = _videos.find(v => v.id === id);
+  const video = AppState.videos.find(v => v.id === id);
   _loadTimelineIntervalConfig().then(() => {
     updateTimelineIntervalHint(video);
     document.getElementById('timeline-interval-modal').classList.add('visible');
@@ -332,7 +333,7 @@ async function _loadTimelineIntervalConfig() {
 }
 
 function updateTimelineIntervalHint(video) {
-  video = video || _videos.find(v => v.id === _timelineVideoId);
+  video = video || AppState.videos.find(v => v.id === _timelineVideoId);
   const val = parseInt(document.getElementById('timeline-interval-value').value, 10) || 1;
   const unit = document.getElementById('timeline-interval-unit').value;
   const intervalS = unit === 'minutes' ? val * 60 : val;
@@ -361,10 +362,10 @@ function updateTimelineIntervalHint(video) {
 }
 
 async function confirmGenerateTimeline() {
-  const val = parseInt(document.getElementById('timeline-interval-value').value, 10) || 15;
   const unit = document.getElementById('timeline-interval-unit').value;
-  const intervalS = unit === 'minutes' ? val * 60 : val;
-  if (intervalS < 10) return;
+  const n = parseInt(document.getElementById('timeline-interval-value').value, 10);
+  const intervalS = _parseIntervalS(n || 15, unit);
+  if (intervalS === null) return;
 
   fetch('/api/config', {
     method: 'PATCH',
@@ -407,7 +408,7 @@ function _startGenerateTimeline(id, intervalS) {
     () => {
       _clearActiveStream(handle);
       resetBtn();
-      const video = _videos.find(v => v.id === id);
+      const video = AppState.videos.find(v => v.id === id);
       if (video) video.has_timeline = true;
       showToast('Timeline generated');
     },
@@ -444,7 +445,7 @@ async function summarizeVideo(id, btn) {
       });
       if (!patch.ok) { showToast('Save failed', 'error'); return; }
       await loadVideos();
-      const video = _videos.find(v => v.id === id);
+      const video = AppState.videos.find(v => v.id === id);
       if (video) renderVideoDetail(video, null);
       showToast(action === 'accept_new' ? 'Summary accepted' : 'Summary saved as edit');
     });
@@ -487,8 +488,8 @@ function _doRegenSummaryAuto(id, btn) {
         return;
       }
       loadVideos().then(() => {
-        const video = _videos.find(v => v.id === id);
-        if (video && activeVideoId === id) renderVideoDetail(video, null);
+        const video = AppState.videos.find(v => v.id === id);
+        if (video && AppState.activeVideoId === id) renderVideoDetail(video, null);
       });
       showToast('Summary regenerated');
     },
@@ -503,12 +504,12 @@ function _doRegenSummaryAuto(id, btn) {
 
 async function _refreshVideoDetail(videoId) {
   await loadVideos();
-  const updated = _videos.find(x => x.id === videoId);
+  const updated = AppState.videos.find(x => x.id === videoId);
   if (updated) renderVideoDetail(updated, null);
 }
 
 function _openVideoFieldKebab(videoId, btn, field) {
-  const video      = _activeVideoData;
+  const video      = AppState.activeVideoData;
   const isTitle    = field === 'title';
   const editTitle  = isTitle ? 'Edit Title'   : 'Edit Summary';
   const revertTitle = isTitle ? 'Revert Title' : 'Revert Summary';
@@ -553,10 +554,23 @@ async function _patchVideoField(videoId, action, field, newTitle, newSummary) {
 }
 
 async function onClipsSortChange() {
-  if (!activeVideoId) return;
+  if (!AppState.activeVideoId) return;
   localStorage.setItem('clips-sort', _clipsSortParam());
   try {
-    _clips = await fetch(`/api/videos/${activeVideoId}/clips?sort=${_clipsSortParam()}`).then(r => r.json());
+    AppState.clips = await fetch(`/api/videos/${AppState.activeVideoId}/clips?sort=${_clipsSortParam()}`).then(r => r.json());
   } catch { return; }
-  renderClipList(_applyFilters());
+  _renderClips();
 }
+
+// Public API — symbols referenced cross-module, by an inline handler, or by a
+// test. Internal helpers above stay private to this module's closure.
+Object.assign(window, {
+  loadVideos, selectVideo, renderVideoDetail,
+  onClipsSortChange, _clipsSortParam,
+  summarizeVideo, regenSummaryAuto, _doRegenSummaryAuto,
+  openVideoSummaryKebab, openVideoTitleKebab,
+  generateTimeline, confirmGenerateTimeline, closeTimelineIntervalModal,
+  updateTimelineIntervalHint,
+  _updateDemoButton, _updateStartIngestButton,
+});
+})();

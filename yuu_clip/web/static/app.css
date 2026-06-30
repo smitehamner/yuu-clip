@@ -373,3 +373,6 @@ details summary:focus-visible { outline: 2px solid var(--accent); outline-offset
 
 /* ── clip danger zone (outside action card) ── */
 .clip-danger-zone { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding: 10px 14px; border: 1px solid rgba(224,92,92,.25); border-radius: 8px; background: rgba(224,92,92,.04); }
+
+/* left-aligned column header for the info tables (optional deps, etc.) */
+.col-head { text-align: left; padding: 3px 0; }

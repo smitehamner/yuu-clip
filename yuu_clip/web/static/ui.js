@@ -23,14 +23,14 @@ function showConfirm(title, body, okLabel, onOk, danger = false) {
   const ok = document.getElementById('confirm-ok-btn');
   ok.textContent = okLabel;
   ok.className = danger ? 'btn danger' : 'btn primary';
-  _confirmCallback = onOk;
+  AppState.confirmCallback = onOk;
   document.getElementById('confirm-modal').classList.add('visible');
   setTimeout(() => document.getElementById('confirm-cancel-btn').focus(), 50);
 }
 function _confirmOk() {
   document.getElementById('confirm-modal').classList.remove('visible');
-  const cb = _confirmCallback;
-  _confirmCallback = null;
+  const cb = AppState.confirmCallback;
+  AppState.confirmCallback = null;
   const opener = _confirmOpener;
   _confirmOpener = null;
   if (cb) cb();
@@ -38,7 +38,7 @@ function _confirmOk() {
 }
 function _confirmCancel() {
   document.getElementById('confirm-modal').classList.remove('visible');
-  _confirmCallback = null;
+  AppState.confirmCallback = null;
   const opener = _confirmOpener;
   _confirmOpener = null;
   if (opener?.focus) opener.focus();

@@ -1,3 +1,4 @@
+(function () {
 // ── highlight reels (combined Build + View modal) ──────────────────────────────
 let _reelClips = [];
 let _reelsOpener = null;
@@ -16,7 +17,7 @@ async function switchReelTab(tab) {
   document.getElementById('reel-tab-btn-view').classList.toggle('active',  tab === 'view');
 
   if (tab === 'build') {
-    const totalApproved = _videos.reduce((n, v) => n + v.approved, 0);
+    const totalApproved = AppState.videos.reduce((n, v) => n + v.approved, 0);
     if (totalApproved === 0) {
       document.getElementById('demo-status').textContent = '';
       document.getElementById('reel-clip-list').innerHTML =
@@ -27,7 +28,7 @@ async function switchReelTab(tab) {
     document.getElementById('demo-status').textContent = '';
     const sel = document.getElementById('demo-video-id');
     sel.innerHTML = '<option value="">All approved clips</option>';
-    for (const v of _videos) {
+    for (const v of AppState.videos) {
       if (!v.approved) continue;
       const opt = document.createElement('option');
       opt.value = v.id;
@@ -259,7 +260,7 @@ function _onBatchCaptionsChange(val) {
 function openBatchExportModal(videoId) {
   _batchExportOpener = document.activeElement;
   _batchExportVideoId = videoId;
-  const video = _videos.find(v => v.id === videoId);
+  const video = AppState.videos.find(v => v.id === videoId);
   const modalTitle = document.querySelector('#batch-export-modal h3');
   if (modalTitle) modalTitle.textContent = video ? `Export Approved — ${video.filename}` : 'Export Approved Clips';
   document.getElementById('batch-min-score').value = 0;
@@ -285,11 +286,11 @@ function closeBatchExportModal() {
 
 function updateBatchEstimate() {
   const minScore = parseFloat(document.getElementById('batch-min-score').value);
-  const video = _videos.find(v => v.id === _batchExportVideoId);
+  const video = AppState.videos.find(v => v.id === _batchExportVideoId);
   if (!video) return;
   const el = document.getElementById('batch-estimate-line');
-  const eligible = _clips
-    ? _clips.filter(c => c.status === 'approved' && c.score_overall >= minScore).length
+  const eligible = AppState.clips
+    ? AppState.clips.filter(c => c.status === 'approved' && c.score_overall >= minScore).length
     : video.approved;
   el.textContent = `${eligible} clip(s) match`;
 }
@@ -330,3 +331,16 @@ function _playReel(reel, itemEl) {
   vid.src = reel.url;
   vid.load();
 }
+
+// Public API — symbols referenced cross-module, by an inline handler, or by a
+// test. Internal helpers above stay private to this module's closure.
+Object.assign(window, {
+  openHighlightReelsModal, closeHighlightReelsModal, switchReelTab,
+  loadReelClips, _reelMove, _reelToggle,
+  startDemo, closeDemoModal, updateReelEstimate,
+  previewReelPlaylist, closeReelPreview,
+  openBatchExportModal, closeBatchExportModal, confirmBatchExport,
+  updateBatchEstimate, _onBatchCaptionsChange,
+  closeReelsModal,
+});
+})();

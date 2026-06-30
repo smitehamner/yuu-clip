@@ -118,7 +118,7 @@ class TestScoreOverrideModal:
         page.locator("#clip-list li").first.click()
 
     def _open_score_override(self, page: Page) -> None:
-        clip_id = page.evaluate("() => _clips?.[0]?.id")
+        clip_id = page.evaluate("() => AppState.clips?.[0]?.id")
         assert clip_id is not None, "No clips loaded on the live server"
         page.evaluate(f"() => openScoreOverride({clip_id})")
         page.wait_for_selector("#score-override-modal.visible", timeout=2000)
@@ -138,7 +138,7 @@ class TestScoreOverrideModal:
     def test_prefills_current_score(self, page: Page):
         self._select_first_video_and_clip(page)
         page.wait_for_selector(".scores", timeout=3000)
-        clip_score = page.evaluate("() => _clips?.[0]?.score_overall ?? 0")
+        clip_score = page.evaluate("() => AppState.clips?.[0]?.score_overall ?? 0")
         self._open_score_override(page)
         val = float(page.locator("#score-override-slider").input_value())
         assert abs(val - clip_score) < 0.01

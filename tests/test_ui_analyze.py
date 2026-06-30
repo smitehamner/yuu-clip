@@ -7,9 +7,27 @@ helpers.
 """
 from __future__ import annotations
 
+import urllib.request
+
+import pytest
 from playwright.sync_api import Page, expect
 
 from conftest import LIVE_URL, skip_no_server
+
+
+@pytest.fixture
+def track_layout_cleanup():
+    """Guarantee created track layouts are deleted even if the test fails
+    mid-way. Tests append the layout name to the yielded list; teardown DELETEs
+    each one regardless of test outcome so no debris leaks into later runs."""
+    created: list[str] = []
+    yield created
+    for name in created:
+        req = urllib.request.Request(f"{LIVE_URL}/api/profiles/{name}", method="DELETE")
+        try:
+            urllib.request.urlopen(req, timeout=5)
+        except Exception:
+            pass
 
 
 # ---------------------------------------------------------------------------
@@ -112,7 +130,8 @@ class TestProfileManager:
         profile_list = page.locator("#profile-list")
         expect(profile_list).to_contain_text("Default")
 
-    def test_create_and_delete_profile(self, page: Page):
+    def test_create_and_delete_profile(self, page: Page, track_layout_cleanup):
+        name = "ui_test_profile"
         page.goto(LIVE_URL)
         page.click("#btn-analyze")
         page.locator("#new-recording-panel").wait_for(state="visible")
@@ -124,26 +143,27 @@ class TestProfileManager:
         page.wait_for_selector("#profile-editor", timeout=2000)
 
         # Fill in name
-        page.fill("#pe-name", "ui_test_profile")
+        page.fill("#pe-name", name)
         page.fill("#pe-numtracks", "1")
         page.wait_for_selector("#pe-tracks div", state="visible", timeout=2000)
 
-        # Save
+        # Save — register for teardown before asserting so a mid-test failure
+        # still cleans up the created layout.
         page.click("#profile-editor button:has-text('Save')")
-        page.wait_for_selector("#profile-list :has-text('ui_test_profile')", timeout=3000)
+        track_layout_cleanup.append(name)
+        delete_btn = f"button[data-delete-profile='{name}']"
+        page.wait_for_selector(delete_btn, timeout=3000)
 
-        # Should now appear in list
-        expect(page.locator("#profile-list")).to_contain_text("ui_test_profile")
-
-        # Delete it — deleteProfile() shows a confirm modal before deleting
-        page.locator("button[data-delete-profile='ui_test_profile']").click()
+        # Delete it — deleteProfile() shows a confirm modal before deleting.
+        # Match the delete button by exact name attribute (not a substring of
+        # the list text) so a superstring layout can't mask removal.
+        page.locator(delete_btn).click()
         page.locator("#confirm-ok-btn").wait_for(state="visible", timeout=2000)
         page.click("#confirm-ok-btn")
         page.wait_for_function(
-            "!document.querySelector('#profile-list').textContent.includes('ui_test_profile')",
+            f"!document.querySelector(\"{delete_btn}\")",
             timeout=3000,
         )
-        expect(page.locator("#profile-list")).not_to_contain_text("ui_test_profile")
 
 
 # ---------------------------------------------------------------------------

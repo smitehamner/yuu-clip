@@ -26,7 +26,7 @@ function isSplitEditorOpen() {
 }
 
 async function openSplitEditor(videoId) {
-  const video = _videos.find(v => v.id === videoId);
+  const video = AppState.videos.find(v => v.id === videoId);
   if (!video) return;
 
   _splitVideoId   = videoId;
@@ -354,7 +354,7 @@ function splitTimelineClick(e) {
 
 function _rebuildSplitNames() {
   if (!_splitVideoId) return;
-  const video = _videos.find(v => v.id === _splitVideoId);
+  const video = AppState.videos.find(v => v.id === _splitVideoId);
   const stem  = video ? video.filename.replace(/\.[^.]+$/, '') : 'Recording';
   const count = _splitPoints.length + 1;
   _splitNames = Array.from({length: count}, (_, i) => `${stem} — Part ${i + 1}`);

@@ -182,7 +182,7 @@ class TestScoreBorderColor:
 @skip_no_server
 class TestParseTimingOffset:
     def _set_clip_start(self, page: Page, start_ms) -> None:
-        page.evaluate(f"() => {{ _activeClipData = {{start_ms: {start_ms}}}; }}")
+        page.evaluate(f"() => {{ AppState.activeClipData = {{start_ms: {start_ms}}}; }}")
 
     def test_empty_string_is_zero(self, page: Page):
         assert page.evaluate("() => _parseTimingOffset('')") == 0.0
@@ -248,14 +248,14 @@ class TestSplitTime:
 @skip_no_server
 class TestApplyFilters:
     _SEED = """() => {
-      _clips = [
+      AppState.clips = [
         {id: 1, status: 'pending',  score_overall: 0,   description: 'alpha funny'},
         {id: 2, status: 'approved', score_overall: 0.8, description: 'beta',
          description_long: 'longer beta text'},
         {id: 3, status: 'rejected', score_overall: 0.3, description: 'gamma',
          transcript_excerpt: 'spoken keyword here'},
       ];
-      _clipFilter = 'all'; _clipScoreMin = 0; _clipSearch = '';
+      AppState.clipFilter = 'all'; AppState.clipScoreMin = 0; AppState.clipSearch = '';
     }"""
 
     def test_no_filters_returns_all_including_score_zero(self, page: Page):
@@ -268,7 +268,7 @@ class TestApplyFilters:
 
     def test_status_filter_selects_one(self, page: Page):
         ids = page.evaluate(
-            f"() => {{ ({self._SEED})(); _clipFilter = 'approved';"
+            f"() => {{ ({self._SEED})(); AppState.clipFilter = 'approved';"
             "  return _applyFilters().map(c => c.id); }"
         )
         assert ids == [2]
@@ -276,33 +276,33 @@ class TestApplyFilters:
     def test_score_min_excludes_zero_and_below_threshold(self, page: Page):
         # min 0.5 keeps only the 0.8 clip; score 0 and 0.3 are excluded.
         ids = page.evaluate(
-            f"() => {{ ({self._SEED})(); _clipScoreMin = 0.5;"
+            f"() => {{ ({self._SEED})(); AppState.clipScoreMin = 0.5;"
             "  return _applyFilters().map(c => c.id); }"
         )
         assert ids == [2]
 
     def test_score_min_zero_does_not_filter(self, page: Page):
-        # _clipScoreMin must use a > 0 gate so a min of 0 keeps the score-0 clip.
+        # AppState.clipScoreMin must use a > 0 gate so a min of 0 keeps the score-0 clip.
         ids = page.evaluate(
-            f"() => {{ ({self._SEED})(); _clipScoreMin = 0;"
+            f"() => {{ ({self._SEED})(); AppState.clipScoreMin = 0;"
             "  return _applyFilters().map(c => c.id); }"
         )
         assert ids == [1, 2, 3]
 
     def test_search_matches_description(self, page: Page):
         ids = page.evaluate(
-            f"() => {{ ({self._SEED})(); _clipSearch = 'alpha';"
+            f"() => {{ ({self._SEED})(); AppState.clipSearch = 'alpha';"
             "  return _applyFilters().map(c => c.id); }"
         )
         assert ids == [1]
 
     def test_search_matches_long_description_and_transcript(self, page: Page):
         long_ids = page.evaluate(
-            f"() => {{ ({self._SEED})(); _clipSearch = 'longer';"
+            f"() => {{ ({self._SEED})(); AppState.clipSearch = 'longer';"
             "  return _applyFilters().map(c => c.id); }"
         )
         transcript_ids = page.evaluate(
-            f"() => {{ ({self._SEED})(); _clipSearch = 'spoken';"
+            f"() => {{ ({self._SEED})(); AppState.clipSearch = 'spoken';"
             "  return _applyFilters().map(c => c.id); }"
         )
         assert long_ids == [2]
@@ -310,7 +310,7 @@ class TestApplyFilters:
 
     def test_search_is_case_insensitive(self, page: Page):
         ids = page.evaluate(
-            f"() => {{ ({self._SEED})(); _clipSearch = 'GAMMA';"
+            f"() => {{ ({self._SEED})(); AppState.clipSearch = 'GAMMA';"
             "  return _applyFilters().map(c => c.id); }"
         )
         assert ids == [3]

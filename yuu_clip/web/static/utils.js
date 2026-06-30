@@ -1,21 +1,26 @@
-// ── state ─────────────────────────────────────────────────────────────────────
-let activeVideoId      = null;
-let activeClipId       = null;
-let _videos            = [];
-let _clips             = [];
-let _analyzeProfiles   = [];
-let _contexts          = [];
-let _analyzeFilename   = null;
-let _editingContextId  = null;
-let _clipFilter        = 'all';
-let _clipSearch        = '';
-let _clipScoreMin      = 0;
-let _lastStatusChange  = null; // {clipId, fromStatus, timer}
-let _confirmCallback   = null;
-let _activeClipData    = null;
-let _activeMediaFilename = null;
-let _activeVideoData   = null;
-let _bootRestoreDone   = false;
+// ── shared application state ──────────────────────────────────────────────────
+// Mutable state shared across feature modules. Centralized in one explicit object
+// so cross-module reads/writes are greppable and obviously shared, rather than
+// scattered bare globals that look like module locals at the call site.
+const AppState = {
+  activeVideoId:       null,
+  activeClipId:        null,
+  videos:              [],
+  clips:               [],
+  analyzeProfiles:     [],
+  contexts:            [],
+  analyzeFilename:     null,
+  editingContextId:    null,
+  clipFilter:          'all',
+  clipSearch:          '',
+  clipScoreMin:        0,
+  lastStatusChange:    null, // {clipId, fromStatus, timer}
+  confirmCallback:     null,
+  activeClipData:      null,
+  activeMediaFilename: null,
+  activeVideoData:     null,
+  bootRestoreDone:     false,
+};
 
 // ── score utils ───────────────────────────────────────────────────────────────
 function _scoreIcon(score) {
@@ -116,6 +121,19 @@ function _fmtElapsed(ms) {
   return m > 0 ? `${m}m ${s % 60}s` : `${s}s`;
 }
 
+// ── timeline interval ─────────────────────────────────────────────────────────
+const _TIMELINE_MIN_INTERVAL_S = 10;
+
+// Convert a timeline interval (value, unit) into seconds; null if non-numeric or
+// below the minimum. Shared by the Settings save path and the per-video timeline
+// generator so their validation can't drift apart.
+function _parseIntervalS(value, unit) {
+  const n = parseInt(value, 10);
+  if (isNaN(n)) return null;
+  const seconds = unit === 'minutes' ? n * 60 : n;
+  return seconds >= _TIMELINE_MIN_INTERVAL_S ? seconds : null;
+}
+
 // ── progress indicator ────────────────────────────────────────────────────────
 const INGEST_STEPS = [
   {label: 'Extract',        patterns: ['Extracting audio']},
@@ -192,7 +210,7 @@ function endJobUI() {
     document.querySelectorAll('#btn-analyze,#btn-score').forEach(b => b.disabled = false);
     const analyzeBtn = document.getElementById('btn-analyze');
     if (analyzeBtn) analyzeBtn.title = '';
-    const totalApproved = (_videos || []).reduce((n, v) => n + v.approved, 0);
+    const totalApproved = (AppState.videos || []).reduce((n, v) => n + v.approved, 0);
     _updateDemoButton(totalApproved);
   }, 2000);
 }

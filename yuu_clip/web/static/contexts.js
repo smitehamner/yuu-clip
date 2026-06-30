@@ -1,10 +1,11 @@
+(function () {
 // ── context manager ───────────────────────────────────────────────────────────
 function _parseWeight(id) {
   const v = parseFloat(document.getElementById(id).value);
   return isNaN(v) ? null : Math.max(0, v);
 }
 async function _loadContexts() {
-  _contexts = await fetch('/api/contexts').then(r => r.json()).catch(() => []);
+  AppState.contexts = await fetch('/api/contexts').then(r => r.json()).catch(() => []);
 }
 
 let _contextEditorDirty = false;
@@ -42,13 +43,13 @@ function _doCloseContextManager() {
 }
 
 async function _refreshContextList() {
-  _contexts = await fetch('/api/contexts').then(r => r.json()).catch(() => []);
+  AppState.contexts = await fetch('/api/contexts').then(r => r.json()).catch(() => []);
   const el = document.getElementById('context-list-items');
-  if (!_contexts.length) {
+  if (!AppState.contexts.length) {
     el.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:4px 0">No contexts yet — create one.</div>';
     return;
   }
-  el.innerHTML = _contexts.map(c => `
+  el.innerHTML = AppState.contexts.map(c => `
     <div style="display:flex;align-items:center;gap:6px;padding:7px 10px;border:1px solid var(--border);border-radius:6px;cursor:pointer"
          data-edit-ctx="${escHtml(c.context_id)}">
       <span style="font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${escHtml(c.display_name || c.context_id)}</span>
@@ -61,7 +62,7 @@ async function _refreshContextList() {
 }
 
 function openNewContext() {
-  _editingContextId = null;
+  AppState.editingContextId = null;
   _contextEditorDirty = false;
   ['ce-context-id','ce-display-name','ce-setting','ce-your-chars','ce-other-chars','ce-notes',
    'ce-weight-funny','ce-weight-dramatic','ce-weight-action'].forEach(id => {
@@ -74,9 +75,9 @@ function openNewContext() {
 }
 
 function editContext(context_id) {
-  const ctx = _contexts.find(c => c.context_id === context_id);
+  const ctx = AppState.contexts.find(c => c.context_id === context_id);
   if (!ctx) return;
-  _editingContextId = context_id;
+  AppState.editingContextId = context_id;
   _contextEditorDirty = false;
   document.getElementById('ce-context-id').value            = ctx.context_id;
   document.getElementById('ce-context-id').disabled         = true;
@@ -98,7 +99,7 @@ function cancelContextEdit() {
 }
 
 async function saveContext() {
-  const context_id  = _editingContextId || document.getElementById('ce-context-id').value.trim();
+  const context_id  = AppState.editingContextId || document.getElementById('ce-context-id').value.trim();
   const displayName = document.getElementById('ce-display-name').value.trim();
   if (!context_id)  { showToast('ID is required', 'error'); return; }
   if (!displayName) { showToast('Display name is required', 'error'); return; }
@@ -127,9 +128,9 @@ async function saveContext() {
 }
 
 function deleteContext() {
-  if (!_editingContextId) return;
-  const ctx  = _contexts.find(c => c.context_id === _editingContextId);
-  const name = ctx ? ctx.display_name : _editingContextId;
+  if (!AppState.editingContextId) return;
+  const ctx  = AppState.contexts.find(c => c.context_id === AppState.editingContextId);
+  const name = ctx ? ctx.display_name : AppState.editingContextId;
   showConfirm(
     'Delete context?',
     `Delete context <strong>${escHtml(name)}</strong>?<br><br>` +
@@ -141,7 +142,7 @@ function deleteContext() {
 }
 
 async function _doDeleteContext(name) {
-  const res = await fetch(`/api/contexts/${encodeURIComponent(_editingContextId)}`, {method: 'DELETE'});
+  const res = await fetch(`/api/contexts/${encodeURIComponent(AppState.editingContextId)}`, {method: 'DELETE'});
   if (!res.ok) {
     const e = await res.json().catch(() => ({}));
     showToast(formatApiError(e) || 'Delete failed', 'error');
@@ -155,14 +156,14 @@ async function _doDeleteContext(name) {
 // ── video context assignment ──────────────────────────────────────────────────
 async function addVideoContext(videoId, context_id) {
   if (!context_id) return;
-  const video   = _videos.find(v => v.id === videoId);
+  const video   = AppState.videos.find(v => v.id === videoId);
   const current = video ? [...(video.context_names || [])] : [];
   if (!current.includes(context_id)) current.push(context_id);
   await _saveVideoContexts(videoId, current);
 }
 
 async function removeVideoContext(videoId, context_id) {
-  const video   = _videos.find(v => v.id === videoId);
+  const video   = AppState.videos.find(v => v.id === videoId);
   const current = (video ? video.context_names || [] : []).filter(s => s !== context_id);
   await _saveVideoContexts(videoId, current);
 }
@@ -173,22 +174,22 @@ async function _saveVideoContexts(videoId, context_ids) {
     body: JSON.stringify({context_names: context_ids}),
   });
   if (!res.ok) { showToast('Failed to update contexts', 'error'); return; }
-  const video = _videos.find(v => v.id === videoId);
+  const video = AppState.videos.find(v => v.id === videoId);
   if (video) {
     video.context_names = context_ids;
-    if (activeVideoId === videoId) renderVideoDetail(video, null);
+    if (AppState.activeVideoId === videoId) renderVideoDetail(video, null);
   }
 }
 
 // Global delegation for chip × buttons in the detail panel
 document.addEventListener('click', e => {
   const rmBtn = e.target.closest('[data-rmctx]');
-  if (rmBtn && activeVideoId) removeVideoContext(activeVideoId, rmBtn.dataset.rmctx);
+  if (rmBtn && AppState.activeVideoId) removeVideoContext(AppState.activeVideoId, rmBtn.dataset.rmctx);
 });
 
 // ── re-score clips with context ───────────────────────────────────────────────
 function rescoreClips(videoId, btn) {
-  const video = _videos.find(v => v.id === videoId);
+  const video = AppState.videos.find(v => v.id === videoId);
   const count = video ? video.clip_count : 0;
   showConfirm(
     'Re-score clips with context?',
@@ -222,11 +223,11 @@ function _doRescoreClips(videoId, btn) {
         showToast('Re-scoring complete');
       }
       loadVideos().then(() => {
-        if (activeVideoId === videoId) {
-          const v = _videos.find(v => v.id === videoId);
+        if (AppState.activeVideoId === videoId) {
+          const v = AppState.videos.find(v => v.id === videoId);
           if (v) renderVideoDetail(v, null);
           fetch(`/api/videos/${videoId}/clips?sort=${_clipsSortParam()}`).then(r => r.json()).then(clips => {
-            _clips = clips; renderClipList(_applyFilters());
+            AppState.clips = clips; _renderClips();
           });
         }
       });
@@ -241,7 +242,7 @@ function _doRescoreClips(videoId, btn) {
 }
 
 function rescoreAllClips(videoId, btn) {
-  const video = _videos.find(v => v.id === videoId);
+  const video = AppState.videos.find(v => v.id === videoId);
   const count = video ? video.clip_count : 0;
   const hasContext = video && video.context_names && video.context_names.length > 0;
   const contextWarn = hasContext ? '' :
@@ -260,7 +261,7 @@ function rescoreAllClips(videoId, btn) {
 }
 
 function redescribeAllClips(videoId, btn) {
-  const video = _videos.find(v => v.id === videoId);
+  const video = AppState.videos.find(v => v.id === videoId);
   const count = video ? video.clip_count : 0;
   const hasContext = video && video.context_names && video.context_names.length > 0;
   const contextWarn = hasContext ? '' :
@@ -300,13 +301,13 @@ function _doRedescribeClips(videoId, btn) {
       } else {
         showToast('Descriptions regenerated');
       }
-      if (activeVideoId === videoId) {
+      if (AppState.activeVideoId === videoId) {
         fetch(`/api/videos/${videoId}/clips?sort=${_clipsSortParam()}`)
           .then(r => r.json())
           .then(clips => {
-            _clips = clips;
-            renderClipList(_applyFilters());
-            if (activeClipId) selectClip(activeClipId);
+            AppState.clips = clips;
+            _renderClips();
+            if (AppState.activeClipId) selectClip(AppState.activeClipId);
           });
       }
     },
@@ -321,7 +322,7 @@ function _doRedescribeClips(videoId, btn) {
 
 // ── reset approvals ───────────────────────────────────────────────────────────
 function resetApprovals(videoId) {
-  const nonPending = _clips.filter(c => c.status !== 'pending').length;
+  const nonPending = AppState.clips.filter(c => c.status !== 'pending').length;
   if (!nonPending) { showToast('All clips are already Unreviewed', 'info'); return; }
   showConfirm(
     'Reset all approvals?',
@@ -340,8 +341,8 @@ async function _doResetApprovals(videoId) {
     return;
   }
   const data = await res.json();
-  _clips = await fetch(`/api/videos/${videoId}/clips?sort=${_clipsSortParam()}`).then(r => r.json());
-  renderClipList(_applyFilters());
+  AppState.clips = await fetch(`/api/videos/${videoId}/clips?sort=${_clipsSortParam()}`).then(r => r.json());
+  _renderClips();
   showToast(`Reset ${data.reset} clip${data.reset !== 1 ? 's' : ''} to Unreviewed`);
 }
 
@@ -378,7 +379,7 @@ function updateAutoApprovePreview() {
   const field = document.getElementById('auto-approve-field').value;
   document.getElementById('auto-approve-threshold-label').textContent = Math.round(threshold*100) + '%';
   const scoreKey = _AUTO_APPROVE_FIELD_MAP[field] || 'score_overall';
-  const pending = _clips.filter(c => c.status === 'pending');
+  const pending = AppState.clips.filter(c => c.status === 'pending');
   const eligible = pending.filter(c => (c[scoreKey] || 0) >= threshold);
   const el = document.getElementById('auto-approve-preview');
   if (pending.length === 0) {
@@ -409,8 +410,8 @@ async function doAutoApprove() {
     return;
   }
   const data = await res.json();
-  _clips = await fetch(`/api/videos/${videoId}/clips?sort=${_clipsSortParam()}`).then(r => r.json());
-  renderClipList(_applyFilters());
+  AppState.clips = await fetch(`/api/videos/${videoId}/clips?sort=${_clipsSortParam()}`).then(r => r.json());
+  _renderClips();
   showToast(`Approved ${data.approved} clip${data.approved !== 1 ? 's' : ''}`);
 }
 
@@ -505,3 +506,16 @@ document.addEventListener('DOMContentLoaded', () => {
     editor.addEventListener('change', () => { _contextEditorDirty = true; });
   }
 });
+
+// Public API — symbols referenced cross-module, by an inline handler, or by a
+// test. Internal helpers above stay private to this module's closure.
+Object.assign(window, {
+  _loadContexts, _parseWeight,
+  openContextManager, closeContextManager, openNewContext,
+  saveContext, deleteContext, cancelContextEdit,
+  addVideoContext,
+  openAutoApproveModal, closeAutoApproveModal, doAutoApprove, updateAutoApprovePreview,
+  openRetranscribeModal, closeRetranscribeModal, startRetranscribe,
+  rescoreClip, rescoreClips, rescoreAllClips, redescribeAllClips, resetApprovals,
+});
+})();

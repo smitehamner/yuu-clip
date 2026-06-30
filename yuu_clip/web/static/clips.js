@@ -1,9 +1,10 @@
+(function () {
 // ── clips ─────────────────────────────────────────────────────────────────────
 function _applyFilters() {
-  let result = _clipFilter === 'all' ? _clips : _clips.filter(c => c.status === _clipFilter);
-  if (_clipScoreMin > 0) result = result.filter(c => c.score_overall >= _clipScoreMin);
-  if (_clipSearch) {
-    const q = _clipSearch.toLowerCase();
+  let result = AppState.clipFilter === 'all' ? AppState.clips : AppState.clips.filter(c => c.status === AppState.clipFilter);
+  if (AppState.clipScoreMin > 0) result = result.filter(c => c.score_overall >= AppState.clipScoreMin);
+  if (AppState.clipSearch) {
+    const q = AppState.clipSearch.toLowerCase();
     result = result.filter(c =>
       (c.description || '').toLowerCase().includes(q) ||
       (c.description_long || '').toLowerCase().includes(q) ||
@@ -13,10 +14,17 @@ function _applyFilters() {
   return result;
 }
 
+// Canonical clip re-render entry point. Always routes through _applyFilters()
+// so a re-render can't accidentally bypass the active search/status/score
+// filters. Call this — never _renderClipItems directly — after mutating AppState.clips.
+function _renderClips() {
+  _renderClipItems(_applyFilters());
+}
+
 function _clearClipFilters() {
-  _clipFilter = 'all';
-  _clipSearch = '';
-  _clipScoreMin = 0;
+  AppState.clipFilter = 'all';
+  AppState.clipSearch = '';
+  AppState.clipScoreMin = 0;
   document.querySelectorAll('.clip-tab').forEach(t => {
     const active = t.dataset.filter === 'all';
     t.classList.toggle('active', active);
@@ -26,25 +34,25 @@ function _clearClipFilters() {
   if (searchEl) searchEl.value = '';
   const scoreEl = document.getElementById('clip-score-min');
   if (scoreEl) scoreEl.value = '0';
-  renderClipList(_clips);
+  _renderClips();
 }
 
 function setClipSearch(q) {
-  _clipSearch = q.trim();
-  renderClipList(_applyFilters());
+  AppState.clipSearch = q.trim();
+  _renderClips();
 }
 
 function setClipScoreMin(val) {
-  _clipScoreMin = parseFloat(val) || 0;
-  renderClipList(_applyFilters());
+  AppState.clipScoreMin = parseFloat(val) || 0;
+  _renderClips();
 }
 
-function renderClipList(clips) {
+function _renderClipItems(clips) {
   const list = document.getElementById('clip-list');
   list.innerHTML = '';
   if (!clips.length) {
     const _statusLabel = {pending: 'Unreviewed', approved: 'Approved', rejected: 'Rejected'};
-    const hasActiveFilter = _clipFilter !== 'all' || _clipSearch || _clipScoreMin > 0;
+    const hasActiveFilter = AppState.clipFilter !== 'all' || AppState.clipSearch || AppState.clipScoreMin > 0;
     const filterMsg = hasActiveFilter
       ? `No clips match the current filters — <a href="#" style="color:var(--accent);text-decoration:underline" onclick="event.preventDefault();_clearClipFilters()">Clear filters</a>`
       : `No clips found — <a href="#" style="color:var(--muted);text-decoration:underline" onclick="event.preventDefault();openNewRecordingPanel()">Analyze another recording</a>`;
@@ -53,7 +61,7 @@ function renderClipList(clips) {
   }
   for (const c of clips) {
     const li = document.createElement('li');
-    li.className = c.id === activeClipId ? 'active' : '';
+    li.className = c.id === AppState.activeClipId ? 'active' : '';
     li.style.borderLeftColor = _scoreBorderColor(_sortScore(c), c.status === 'rejected');
     li.tabIndex = 0;
     li.innerHTML = `
@@ -84,8 +92,8 @@ function renderClipList(clips) {
 }
 
 async function selectClip(id) {
-  activeClipId = id;
-  localStorage.setItem('yuuclip-view', JSON.stringify({videoId: activeVideoId, clipId: id}));
+  AppState.activeClipId = id;
+  localStorage.setItem('yuuclip-view', JSON.stringify({videoId: AppState.activeVideoId, clipId: id}));
   document.getElementById('detail').innerHTML = '<div class="detail-empty" style="color:var(--muted)">Loading…</div>';
   try {
     const [clipRes, mediaRes] = await Promise.all([
@@ -96,8 +104,8 @@ async function selectClip(id) {
     const clip  = await clipRes.json();
     const media = await mediaRes.json();
     const captionsUrl = media.has_captions ? `/api/clips/${id}/captions.vtt` : null;
-    _activeClipData = clip;
-    _activeMediaFilename = media.filename;
+    AppState.activeClipData = clip;
+    AppState.activeMediaFilename = media.filename;
     renderPlayer(media.url, captionsUrl, id);
     renderDetail(clip);
   } catch (err) {
@@ -218,8 +226,8 @@ function renderDetail(clip) {
             <button class="btn" onclick="openRetranscribeModal(${clip.id})">Retranscribe</button>
             ${clip.description_long || clip.description ? `<button class="btn" id="btn-find-similar" onclick="openSimilarClipsModal(${clip.id})">Find Similar</button>` : ''}
             <button class="btn" onclick="exportClip(${clip.id})">${clip.has_export ? 'Re-export' : 'Export'}</button>
-            ${clip.has_export && _activeMediaFilename
-              ? `<a class="btn" href="/media/exports/${escHtml(_activeMediaFilename)}" download="${escHtml(_activeMediaFilename)}" title="Download the already-exported file to disk">Download Export</a>`
+            ${clip.has_export && AppState.activeMediaFilename
+              ? `<a class="btn" href="/media/exports/${escHtml(AppState.activeMediaFilename)}" download="${escHtml(AppState.activeMediaFilename)}" title="Download the already-exported file to disk">Download Export</a>`
               : ''}
           </div>
           ${_mergeButtonsHtml(clip)}
@@ -274,7 +282,7 @@ function scoreRowOverride(label, llmVal, userVal, cls) {
 }
 
 function _mergeButtonsHtml(clip) {
-  const byTime = [..._clips].sort((a, b) => a.start_ms - b.start_ms);
+  const byTime = [...AppState.clips].sort((a, b) => a.start_ms - b.start_ms);
   const idx = byTime.findIndex(c => c.id === clip.id);
   const prev = idx > 0 ? byTime[idx - 1] : null;
   const next = idx >= 0 && idx < byTime.length - 1 ? byTime[idx + 1] : null;
@@ -287,13 +295,13 @@ function _mergeButtonsHtml(clip) {
 
 async function _reloadClipList(videoId) {
   if (!videoId) return;
-  _clips = await fetch(`/api/videos/${videoId}/clips?sort=${_clipsSortParam()}`).then(r => r.json());
-  renderClipList(_applyFilters());
+  AppState.clips = await fetch(`/api/videos/${videoId}/clips?sort=${_clipsSortParam()}`).then(r => r.json());
+  _renderClips();
 }
 
 function _replaceClipInList(updated) {
-  const idx = _clips.findIndex(c => c.id === updated.id);
-  if (idx !== -1) _clips[idx] = updated;
+  const idx = AppState.clips.findIndex(c => c.id === updated.id);
+  if (idx !== -1) AppState.clips[idx] = updated;
 }
 
 let _scoreOverrideClipId = null;
@@ -301,7 +309,7 @@ let _scoreOverrideOpener = null;
 
 function openScoreOverride(clipId) {
   _scoreOverrideOpener = document.activeElement;
-  const clip = _clips.find(c => c.id === clipId);
+  const clip = AppState.clips.find(c => c.id === clipId);
   const current = clip?.score_overall ?? 0.5;
   _scoreOverrideClipId = clipId;
   const slider = document.getElementById('score-override-slider');
@@ -363,10 +371,10 @@ async function _doMergeClips(clipAId, clipBId) {
   });
   if (!res.ok) { const e = await res.json().catch(()=>({})); showToast(e.detail || 'Merge failed', 'error'); return; }
   const updated = await res.json();
-  _clips = _clips.filter(c => c.id !== clipBId);
+  AppState.clips = AppState.clips.filter(c => c.id !== clipBId);
   _replaceClipInList(updated);
-  activeClipId = clipAId;
-  renderClipList(_applyFilters());
+  AppState.activeClipId = clipAId;
+  _renderClips();
   renderDetail(updated);
   showToast('Clips merged');
 }
@@ -378,14 +386,14 @@ function _parseTimingOffset(str) {
   if (/^\d+:\d+(\.\d+)?$/.test(s)) {
     const [m, sec] = s.split(':');
     const absSec = parseInt(m) * 60 + parseFloat(sec);
-    const clipStartSec = _activeClipData?.start_ms ? _activeClipData.start_ms / 1000 : 0;
+    const clipStartSec = AppState.activeClipData?.start_ms ? AppState.activeClipData.start_ms / 1000 : 0;
     return absSec - clipStartSec;
   }
   return parseFloat(s);
 }
 
 function _openClipDescKebab(clipId, btn, field) {
-  const clip    = _activeClipData;
+  const clip    = AppState.activeClipData;
   const isLong  = field === 'description_long';
   const editTitle   = isLong ? 'Edit Long Description'   : 'Edit Description';
   const revertTitle = isLong ? 'Revert Long Description' : 'Revert Description';
@@ -435,18 +443,18 @@ function clearDetail() {
 
 // ── filter tabs ───────────────────────────────────────────────────────────────
 function setClipFilter(filter) {
-  _clipFilter = filter;
+  AppState.clipFilter = filter;
   document.querySelectorAll('.clip-tab').forEach(t => {
     const active = t.dataset.filter === filter;
     t.classList.toggle('active', active);
     t.setAttribute('aria-selected', active ? 'true' : 'false');
   });
-  renderClipList(_applyFilters());
+  _renderClips();
 }
 
 // ── clip actions ──────────────────────────────────────────────────────────────
 async function setStatus(id, status) {
-  const clip = _clips.find(c => c.id === id);
+  const clip = AppState.clips.find(c => c.id === id);
   const fromStatus = clip?.status;
   const res = await fetch(`/api/clips/${id}/status`, {
     method:  'POST',
@@ -458,30 +466,30 @@ async function setStatus(id, status) {
     showToast(`Failed to update status: ${formatApiError(err)}`, 'error');
     return;
   }
-  activeClipId = id;
+  AppState.activeClipId = id;
   const [clipsData, clipDetail] = await Promise.all([
-    fetch(`/api/videos/${activeVideoId}/clips?sort=${_clipsSortParam()}`).then(r => r.json()),
+    fetch(`/api/videos/${AppState.activeVideoId}/clips?sort=${_clipsSortParam()}`).then(r => r.json()),
     fetch(`/api/clips/${id}`).then(r => r.json()),
   ]);
-  _clips = clipsData;
-  renderClipList(_applyFilters());
+  AppState.clips = clipsData;
+  _renderClips();
   renderDetail(clipDetail);
   loadVideos();
 
   if (fromStatus && fromStatus !== status) {
-    if (_lastStatusChange?.timer) clearTimeout(_lastStatusChange.timer);
+    if (AppState.lastStatusChange?.timer) clearTimeout(AppState.lastStatusChange.timer);
     const label = {approved:'Approved', rejected:'Rejected', pending:'Marked as Unreviewed'}[status] || status;
-    _lastStatusChange = {clipId: id, fromStatus};
-    _lastStatusChange.timer = setTimeout(() => { _lastStatusChange = null; }, 5000);
+    AppState.lastStatusChange = {clipId: id, fromStatus};
+    AppState.lastStatusChange.timer = setTimeout(() => { AppState.lastStatusChange = null; }, 5000);
     showUndoToast(`Clip ${label}`, undoLastStatus);
   }
 }
 
 function undoLastStatus() {
-  if (!_lastStatusChange) return;
-  const {clipId, fromStatus} = _lastStatusChange;
-  clearTimeout(_lastStatusChange.timer);
-  _lastStatusChange = null;
+  if (!AppState.lastStatusChange) return;
+  const {clipId, fromStatus} = AppState.lastStatusChange;
+  clearTimeout(AppState.lastStatusChange.timer);
+  AppState.lastStatusChange = null;
   setStatus(clipId, fromStatus);
 }
 
@@ -516,8 +524,8 @@ function exportClip(id) {
   document.getElementById('export-captions').value = 'none';
   document.getElementById('export-hardsub-warn').style.display = 'none';
   document.getElementById('export-container').value = '';
-  document.getElementById('export-trim-start').value = _fmtOffset(_activeClipData?.start_offset);
-  document.getElementById('export-trim-end').value   = _fmtOffset(_activeClipData?.end_offset);
+  document.getElementById('export-trim-start').value = _fmtOffset(AppState.activeClipData?.start_offset);
+  document.getElementById('export-trim-end').value   = _fmtOffset(AppState.activeClipData?.end_offset);
   const retx = document.getElementById('export-retranscribe');
   retx.checked = false;
   document.getElementById('export-retranscribe-model').disabled = true;
@@ -576,12 +584,12 @@ async function confirmExport() {
         fetch(`/api/clips/${id}`).then(r => r.json()),
         fetch(`/api/clips/${id}/media_url`).then(r => r.json()),
       ]);
-      _activeClipData = clip;
-      _activeMediaFilename = media.filename;
+      AppState.activeClipData = clip;
+      AppState.activeMediaFilename = media.filename;
       const captionsUrl = media.has_captions ? `/api/clips/${id}/captions.vtt` : null;
       renderPlayer(media.url, captionsUrl, id);
       renderDetail(clip);
-      await _reloadClipList(activeVideoId);
+      await _reloadClipList(AppState.activeVideoId);
       loadVideos();
       showToast('Clip exported successfully');
     },
@@ -621,7 +629,7 @@ async function _doExportVideoTranscript(id, btn, overwrite) {
 
 // ── delete ────────────────────────────────────────────────────────────────────
 function deleteVideo(id) {
-  const video = _videos.find(v => v.id === id);
+  const video = AppState.videos.find(v => v.id === id);
   const name  = video ? video.filename : `video ${id}`;
   showConfirm(
     'Remove video?',
@@ -641,9 +649,9 @@ async function _doDeleteVideo(id, name) {
     showToast(`Failed to remove video: ${formatApiError(err)}`, 'error');
     return;
   }
-  if (activeVideoId === id) {
-    activeVideoId = null;
-    activeClipId  = null;
+  if (AppState.activeVideoId === id) {
+    AppState.activeVideoId = null;
+    AppState.activeClipId  = null;
     document.getElementById('clip-list').innerHTML = '';
     clearDetail();
   }
@@ -663,11 +671,11 @@ function deleteExport(id) {
         showToast(`Failed to delete export: ${formatApiError(err)}`, 'error');
         return;
       }
-      _activeClipData.has_export = false;
-      _activeMediaFilename = null;
+      AppState.activeClipData.has_export = false;
+      AppState.activeMediaFilename = null;
       renderPlayer(null, null, id);
-      renderDetail(_activeClipData);
-      await _reloadClipList(activeVideoId);
+      renderDetail(AppState.activeClipData);
+      await _reloadClipList(AppState.activeVideoId);
       showToast('Exported file deleted');
     },
     true,
@@ -686,14 +694,14 @@ function deleteClip(id) {
 }
 
 async function _doDeleteClip(id) {
-  const videoId = activeVideoId;
+  const videoId = AppState.activeVideoId;
   const delRes = await fetch(`/api/clips/${id}`, {method: 'DELETE'});
   if (!delRes.ok) {
     const err = await delRes.json().catch(() => ({}));
     showToast(`Failed to delete clip: ${formatApiError(err)}`, 'error');
     return;
   }
-  activeClipId = null;
+  AppState.activeClipId = null;
   clearDetail();
   await _reloadClipList(videoId);
   await loadVideos();
@@ -707,8 +715,8 @@ let _similarClipsOpener = null;
 function openSimilarClipsModal(clipId) {
   _similarClipsOpener = document.activeElement;
   _similarClipsClipId = clipId;
-  const currentVideo = _videos.find(v => v.id === activeVideoId);
-  const otherVideos = _videos.filter(v => v.id !== activeVideoId && v.status === 'done');
+  const currentVideo = AppState.videos.find(v => v.id === AppState.activeVideoId);
+  const otherVideos = AppState.videos.filter(v => v.id !== AppState.activeVideoId && v.status === 'done');
 
   const scope = document.getElementById('similar-clips-scope');
   scope.innerHTML = '';
@@ -764,7 +772,7 @@ function startFindSimilar() {
       _clearActiveStream(handle);
       resetBtn();
       const clip = await fetch(`/api/clips/${clipId}`).then(r => r.json()).catch(() => null);
-      if (clip) { _activeClipData = clip; renderDetail(clip); }
+      if (clip) { AppState.activeClipData = clip; renderDetail(clip); }
       const count = msg.results?.length ?? 0;
       showToast(count ? `Found ${count} similar clip${count !== 1 ? 's' : ''}` : 'No similar clips found');
     },
@@ -784,10 +792,25 @@ function scoreAll() {
     '/api/score',
     () => {
       loadVideos();
-      _reloadClipList(activeVideoId);
+      _reloadClipList(AppState.activeVideoId);
       showToast('Scoring complete');
     },
     SCORE_STEPS,
     'Scoring',
   );
 }
+
+// Public API — symbols referenced cross-module, by an inline handler, or by a
+// test. Internal helpers above stay private to this module's closure.
+Object.assign(window, {
+  selectClip, setStatus, undoLastStatus, renderDetail, clearDetail,
+  setClipFilter, setClipSearch, setClipScoreMin, _clearClipFilters,
+  _applyFilters, _renderClips, _parseTimingOffset,
+  deleteClip, deleteVideo, deleteExport, mergeClips,
+  exportClip, exportVideoTranscript, confirmExport, closeExportModal,
+  _onExportCaptionsChange,
+  openScoreOverride, closeScoreOverrideModal, _scoreOverrideSave, clearScoreOverride,
+  openDescKebab, openDescLongKebab,
+  startFindSimilar, openSimilarClipsModal, closeSimilarClipsModal,
+});
+})();

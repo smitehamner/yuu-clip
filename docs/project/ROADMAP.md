@@ -87,11 +87,17 @@ regular users.
 - [ ] **Multi-session grouping** — treat multiple OBS files from one play session as a single
   project with a unified timeline
 
-- [ ] **Frontend JS maintainability pass** — reduce reliance on the global namespace across the
-  static JS modules (`analyze`, `clips`, `contexts`, `reel`, `settings`, `split`, `ui`, `utils`):
-  audit functions/state hung off `window`, scope or namespace them, and tighten cross-module
-  dependencies. Goal is clearer module boundaries and easier-to-maintain code without introducing
-  a build step. *(Tech debt: no behavior change)*
+- [x] **Frontend JS maintainability pass** *(2026-06-29; mostly done — 2 modules deferred)* —
+  reduced reliance on the global namespace across the static JS modules without a build step.
+  Shipped: shared mutable state moved off bare globals into one `AppState` object; the five
+  function-only feature modules (`clips`, `contexts`, `reel`, `settings`, `videos`) IIFE-wrapped
+  so internal helpers are private-by-default (~67 functions removed from the global surface),
+  exposing only an explicit, exhaustively-computed public API; `tests/test_ui_globals.py` added
+  as a deterministic net that fails immediately if an inline-handler function stops being global.
+  `utils`/`ui` kept as the intentional shared global foundation. **Deferred:** `analyze` and
+  `split` export cross-module *mutable* state and need a per-variable state-ownership decision
+  (promote to `AppState` vs. keep private + adjust tests) before they can be cleanly wrapped —
+  see `docs/dev/REVIEW_DECISIONS.md`. *(Tech debt: no behavior change)*
 
 ---
 
@@ -227,13 +233,15 @@ Complex, specialized, or AI-heavy features that are valuable but don't need to b
 
 Items wanted long-term but not yet assigned to a phase.
 
-- [ ] **JS code quality refactor** — the single-file SPA (`index.html` + separate `.js` modules,
-  currently ~1800+ lines across all files) has grown to where global constants, implicit shared
-  state, and inline styles are accumulating debt. Future pass: eliminate global constants in favour
-  of module-scoped values, audit shared mutable state (`_clips`, `activeVideoId`, etc.) for
-  encapsulation, extract inline style strings to CSS classes, and apply consistent naming
-  conventions. Pre-condition: the UI must be stable enough that a refactor won't chase moving
-  targets; defer until Phase 4 or later.
+- [ ] **JS code quality refactor** *(partially done 2026-06-29)* — the no-build SPA accumulated
+  debt from global constants, implicit shared state, and inline styles. **Shipped:** shared
+  mutable state (`_clips`, `activeVideoId`, etc.) encapsulated into `AppState`; module-private
+  helpers in 5 feature modules now scoped via IIFE (see "Frontend JS maintainability pass" above).
+  **Remaining:** finish module-scoping the deferred `analyze`/`split` modules and their global
+  constants; extract the remaining inline style strings to CSS classes (only the static
+  `.col-head` table-header case was done — the bulk is `display`-toggling styles that can't move
+  to a class without a behavior change, plus class-merge cases; a proper utility/token layer
+  belongs with the Themes / CSS-variable-layer work below). See `docs/dev/REVIEW_DECISIONS.md`.
 
 - [ ] **Themes** — the app ships with a single dark theme. Future options:
   - **Light mode** — full light-background theme matching the dark palette's contrast ratios

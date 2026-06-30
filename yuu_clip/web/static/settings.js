@@ -1,3 +1,4 @@
+(function () {
 // ── settings panel ────────────────────────────────────────────────────────────
 const _settingsFieldIds = [
   's-whisper-model','s-whisper-device','s-whisper-compute',
@@ -220,10 +221,7 @@ async function saveSettings() {
   const getNum = (id, parse) => { const v = getVal(id); return v !== null ? parse(v) : null; };
 
   const tlUnit = getVal('s-timeline-unit');
-  const tlVal  = parseInt(getVal('s-timeline-interval'));
-  const tlSec  = !isNaN(tlVal) && tlVal >= 1
-    ? (tlUnit === 'minutes' ? tlVal * 60 : tlVal)
-    : null;
+  const tlSec  = _parseIntervalS(getVal('s-timeline-interval'), tlUnit);
 
   const payload = {
     whisper_model:              getVal('s-whisper-model'),
@@ -252,7 +250,7 @@ async function saveSettings() {
     scene_detection_mode:       getVal('s-scene-mode'),
     silence_threshold_ms:       getNum('s-silence-ms', parseInt),
     min_clip_ms:                getNum('s-min-clip-ms', parseInt),
-    ...(tlSec && tlSec >= 10 ? {ui_timeline_interval_seconds: tlSec, ui_timeline_interval_unit: tlUnit} : {}),
+    ...(tlSec ? {ui_timeline_interval_seconds: tlSec, ui_timeline_interval_unit: tlUnit} : {}),
   };
 
   localStorage.setItem('yuuclip-autoplay', getChk('s-autoplay'));
@@ -461,18 +459,18 @@ document.addEventListener('keydown', e => {
   }
 
   if (_anyModalOpen()) return;
-  if (!activeClipId) return;
+  if (!AppState.activeClipId) return;
 
-  const idx = _clips.findIndex(c => c.id === activeClipId);
+  const idx = AppState.clips.findIndex(c => c.id === AppState.activeClipId);
 
   switch (e.key) {
     case 'a': case 'A':
       e.preventDefault();
-      setStatus(activeClipId, 'approved');
+      setStatus(AppState.activeClipId, 'approved');
       break;
     case 'r': case 'R':
       e.preventDefault();
-      setStatus(activeClipId, 'rejected');
+      setStatus(AppState.activeClipId, 'rejected');
       break;
     case ' ':
       e.preventDefault();
@@ -480,17 +478,29 @@ document.addEventListener('keydown', e => {
       break;
     case 'e': case 'E':
       e.preventDefault();
-      exportClip(activeClipId);
+      exportClip(AppState.activeClipId);
       break;
     case 'ArrowLeft':
     case 'ArrowUp':
       e.preventDefault();
-      if (idx > 0) selectClip(_clips[idx - 1].id);
+      if (idx > 0) selectClip(AppState.clips[idx - 1].id);
       break;
     case 'ArrowRight':
     case 'ArrowDown':
       e.preventDefault();
-      if (idx !== -1 && idx < _clips.length - 1) selectClip(_clips[idx + 1].id);
+      if (idx !== -1 && idx < AppState.clips.length - 1) selectClip(AppState.clips[idx + 1].id);
       break;
   }
 });
+
+// Public API — symbols referenced cross-module, by an inline handler, or by a
+// test. Internal helpers above stay private to this module's closure.
+Object.assign(window, {
+  openSettings, closeSettings, saveSettings, installPackage,
+  openAboutModal, closeAboutModal,
+  openGettingStartedModal, closeGettingStartedModal,
+  openGlossaryModal, closeGlossaryModal,
+  _onLlmBackendChange, _onDiarizationBackendChange, _onLaughModeChange,
+  _updateLlmRemoteIndicator,
+});
+})();

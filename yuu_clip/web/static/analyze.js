@@ -55,9 +55,9 @@ function _doCloseNewRecordingPanel() {
 }
 
 async function _loadIngestContextPicker() {
-  _contexts = await fetch('/api/contexts').then(r => r.json()).catch(() => []);
+  AppState.contexts = await fetch('/api/contexts').then(r => r.json()).catch(() => []);
   const list = document.getElementById('analyze-context-list');
-  if (!_contexts.length) {
+  if (!AppState.contexts.length) {
     list.innerHTML = `<div style="font-size:12px;color:var(--muted)">
       No World Contexts set up — clip descriptions will be generic.
       <button class="btn ghost" style="font-size:11px;padding:0 6px;color:var(--accent);display:inline-flex"
@@ -67,7 +67,7 @@ async function _loadIngestContextPicker() {
   }
   list.innerHTML =
     `<div class="ctx-picker" id="ctx-picker">` +
-    _contexts.map(c =>
+    AppState.contexts.map(c =>
       `<button type="button" class="ctx-pill" data-ctx-id="${escHtml(c.context_id)}"
                onclick="_toggleCtxPill(this)">${escHtml(c.display_name || c.context_id)}</button>`
     ).join('') +
@@ -88,11 +88,11 @@ function _selectedContextIds() {
 async function _loadProfileDropdown() {
   const sel = document.getElementById('analyze-profile');
   try {
-    _analyzeProfiles = await fetch('/api/profiles').then(r => r.json());
-    sel.innerHTML = _analyzeProfiles.map(p =>
+    AppState.analyzeProfiles = await fetch('/api/profiles').then(r => r.json());
+    sel.innerHTML = AppState.analyzeProfiles.map(p =>
       `<option value="${escHtml(p.name)}">${escHtml(p.display_name)}</option>`
     ).join('');
-  } catch { _analyzeProfiles = []; }
+  } catch { AppState.analyzeProfiles = []; }
 }
 
 function scheduleProbe() {
@@ -171,7 +171,7 @@ function _renderSubtitleSourcePicker(info) {
 async function runEstimate() {
   if (!_probedInfo) return;
   const profileName = document.getElementById('analyze-profile').value;
-  const profile     = _analyzeProfiles.find(p => p.name === profileName);
+  const profile     = AppState.analyzeProfiles.find(p => p.name === profileName);
   const transcribeTracks = profile
     ? profile.assignments.filter(a => a.do_transcribe).length
     : undefined;
@@ -289,7 +289,7 @@ async function startAnalyze() {
   }
 
   const filename = path.split(/[\\/]/).pop();
-  _analyzeFilename = filename;
+  AppState.analyzeFilename = filename;
   _panelDirty = false;
   _doCloseNewRecordingPanel();
   openLog();
@@ -298,8 +298,8 @@ async function startAnalyze() {
     '/api/analyze/events',
     async () => {
       await loadVideos();
-      const v = _videos.find(v => v.filename === _analyzeFilename);
-      _analyzeFilename = null;
+      const v = AppState.videos.find(v => v.filename === AppState.analyzeFilename);
+      AppState.analyzeFilename = null;
       _showAnalysisToast(v);
     },
     INGEST_STEPS,
@@ -363,7 +363,7 @@ function _showAnalysisToast(video) {
   ));
   const actions = document.createElement('div');
   actions.style.cssText = 'display:flex;gap:6px;align-items:center;flex-shrink:0';
-  if (video && activeVideoId !== video.id) {
+  if (video && AppState.activeVideoId !== video.id) {
     const link = document.createElement('button');
     link.className = 'btn ghost';
     link.style.cssText = 'font-size:11px;padding:2px 8px';

@@ -19,7 +19,7 @@ class TestRegenSummaryAutoConfirm:
         """Navigate to the app and invoke regenSummaryAuto via JS so the confirm modal appears."""
         page.goto(LIVE_URL)
         page.wait_for_selector("#video-list li", timeout=5000)
-        video_id = page.evaluate("() => _videos?.[0]?.id ?? 1")
+        video_id = page.evaluate("() => AppState.videos?.[0]?.id ?? 1")
         # Pass a detached button so _doRegenSummaryAuto has a non-null actionBtn
         page.evaluate(f"() => regenSummaryAuto({video_id}, document.createElement('button'))")
         page.wait_for_selector("#confirm-modal.visible", timeout=2000)
@@ -52,7 +52,7 @@ class TestRegenSummaryAutoConfirm:
     def test_confirm_triggers_regen_sse_request(self, page: Page):
         page.goto(LIVE_URL)
         page.wait_for_selector("#video-list li", timeout=5000)
-        video_id = page.evaluate("() => _videos?.[0]?.id ?? 1")
+        video_id = page.evaluate("() => AppState.videos?.[0]?.id ?? 1")
         # Abort the actual SSE stream so the test doesn't trigger real LLM work
         page.route("**/regenerate-summary", lambda route: route.abort())
         page.evaluate(f"() => regenSummaryAuto({video_id}, document.createElement('button'))")
