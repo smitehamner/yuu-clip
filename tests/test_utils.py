@@ -225,24 +225,24 @@ class TestPreviewCacheInvalidation:
     def test_timing_update_evicts_preview_cache(self, client, project_dir):
         """After PATCH /timing, the in-memory cache entry for that clip must be
         removed so a stale preview is never served."""
-        from yuu_clip.web.routes import clips as clips_mod
+        preview_cache = client.app.state.ctx.preview_cache
 
         clip_id = self._first_clip_id(client)
 
-        # Manually plant a fake preview file in the module-level cache to simulate
+        # Manually plant a fake preview file in the per-context cache to simulate
         # a previously generated preview.
         preview_dir = project_dir / ".yuu-clip" / "preview_cache"
         preview_dir.mkdir(parents=True, exist_ok=True)
         fake_preview = preview_dir / f"clip_{clip_id}_preview.mp4"
         fake_preview.write_bytes(b"old preview content")
-        clips_mod._preview_cache[clip_id] = fake_preview
+        preview_cache[clip_id] = fake_preview
 
         # Update clip timing — this must evict the cache entry and delete the file.
         r = client.patch(f"/api/clips/{clip_id}/timing",
                          json={"start_offset": 2.0, "end_offset": -1.0})
         assert r.status_code == 200
 
-        assert clip_id not in clips_mod._preview_cache, (
+        assert clip_id not in preview_cache, (
             "Cache entry was not evicted after timing update"
         )
         assert not fake_preview.exists(), (

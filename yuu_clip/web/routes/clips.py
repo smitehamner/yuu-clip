@@ -6,7 +6,6 @@ import json as json_lib
 import re
 import subprocess as _subprocess
 import sys
-from collections import OrderedDict
 from pathlib import Path
 from typing import Optional
 
@@ -26,7 +25,6 @@ from yuu_clip.web.routes._shared import (
     _require_clip,
     _srt_path,
     _sse_response,
-    _user_or_default,
 )
 
 _log = get_logger(__name__)
@@ -40,8 +38,8 @@ _AUTO_APPROVE_FIELDS = {
     "action":   ClipCandidate.score_action,
 }
 
-# LRU cache of preview temp files keyed by clip_id. Evicts oldest when full.
-_preview_cache: OrderedDict[int, Path] = OrderedDict()
+# Per-context LRU cache of preview temp files lives on ProjectContext.preview_cache;
+# this is the eviction bound. Evicts oldest when full.
 _PREVIEW_CACHE_MAX = 10
 
 
@@ -118,10 +116,10 @@ def _clip_dict(
         "score_dramatic": round(clip.score_dramatic, 3),
         "score_action": round(clip.score_action, 3),
         "score_overall_user": round(clip.score_overall_user, 3) if clip.score_overall_user is not None else None,
-        "description": _user_or_default(clip.description_user, clip.description),
+        "description": clip.effective_description,
         "description_original": clip.description or "",
         "description_is_edited": clip.description_user is not None,
-        "description_long": _user_or_default(clip.description_long_user, clip.description_long),
+        "description_long": clip.effective_description_long,
         "description_long_original": clip.description_long or "",
         "description_long_is_edited": clip.description_long_user is not None,
         "start_offset": clip.start_offset,
@@ -321,9 +319,9 @@ def _register_clip_routes(router: APIRouter, ctx: ProjectContext) -> None:
     @router.get("/api/clips/{clip_id}/preview")
     def clip_preview(clip_id: int):
         """Generate a seekable MP4 preview of a clip from the source video (cached on disk)."""
-        cached = _preview_cache.get(clip_id)
+        cached = ctx.preview_cache.get(clip_id)
         if cached and cached.exists():
-            _preview_cache.move_to_end(clip_id)
+            ctx.preview_cache.move_to_end(clip_id)
             return FileResponse(str(cached), media_type="video/mp4")
 
         db = ctx.get_db()
@@ -364,10 +362,10 @@ def _register_clip_routes(router: APIRouter, ctx: ProjectContext) -> None:
             _log.error("Preview generation failed for clip %d (rc=%d, src=%s)", clip_id, result.returncode, src.name)
             raise HTTPException(500, "Preview generation failed")
 
-        _preview_cache[clip_id] = out_path
-        _preview_cache.move_to_end(clip_id)
-        if len(_preview_cache) > _PREVIEW_CACHE_MAX:
-            _, old = _preview_cache.popitem(last=False)
+        ctx.preview_cache[clip_id] = out_path
+        ctx.preview_cache.move_to_end(clip_id)
+        if len(ctx.preview_cache) > _PREVIEW_CACHE_MAX:
+            _, old = ctx.preview_cache.popitem(last=False)
             old.unlink(missing_ok=True)
 
         return FileResponse(str(out_path), media_type="video/mp4")
@@ -593,7 +591,7 @@ def _register_clip_edit_routes(router: APIRouter, ctx: ProjectContext) -> None:
             db.commit()
 
             for _cid in (clip_id, body.clip_b_id):
-                _cached = _preview_cache.pop(_cid, None)
+                _cached = ctx.preview_cache.pop(_cid, None)
                 if _cached:
                     _cached.unlink(missing_ok=True)
 
@@ -612,7 +610,7 @@ def _register_clip_edit_routes(router: APIRouter, ctx: ProjectContext) -> None:
             clip.end_offset   = body.end_offset
             db.commit()
             # Invalidate the cached preview so the next request reflects the new timing.
-            cached = _preview_cache.pop(clip_id, None)
+            cached = ctx.preview_cache.pop(clip_id, None)
             if cached:
                 cached.unlink(missing_ok=True)
             return {"start_offset": clip.start_offset, "end_offset": clip.end_offset}

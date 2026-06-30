@@ -260,6 +260,15 @@ class Video(Base):
             return "unknown"
         return _format_ms_hms(self.duration_ms)
 
+    @property
+    def effective_title(self) -> str:
+        """User override if present, else the LLM-generated value, else empty."""
+        return self.title_user if self.title_user is not None else (self.title or "")
+
+    @property
+    def effective_summary(self) -> str:
+        return self.summary_user if self.summary_user is not None else (self.summary or "")
+
 
 class AudioTrack(Base):
     __tablename__ = "audio_tracks"
@@ -408,6 +417,19 @@ class ClipCandidate(Base):
         h, rem = divmod(s, 3600)
         m, sec = divmod(rem, 60)
         return f"{h}:{m:02d}:{sec:02d}" if h else f"{m}:{sec:02d}"
+
+    @property
+    def effective_description(self) -> str:
+        """User override if present, else the LLM-generated value, else empty."""
+        return self.description_user if self.description_user is not None else (self.description or "")
+
+    @property
+    def effective_description_long(self) -> str:
+        return (
+            self.description_long_user
+            if self.description_long_user is not None
+            else (self.description_long or "")
+        )
 
 
 class AudioEnergy(Base):

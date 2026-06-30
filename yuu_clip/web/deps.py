@@ -7,6 +7,7 @@ session factory, so individual route modules never need to recompute paths.
 """
 from __future__ import annotations
 
+from collections import OrderedDict
 from pathlib import Path
 
 from sqlalchemy.orm import Session, sessionmaker
@@ -41,6 +42,10 @@ class ProjectContext:
         self.analyze_cancelled: bool             = False
         # Count of in-process SSE jobs currently streaming (rescore, timeline, summarize).
         self.active_jobs:      int              = 0
+
+        # LRU cache of on-disk clip preview files keyed by clip_id. Scoped to this
+        # context so concurrent create_app() instances (e.g. in tests) never share state.
+        self.preview_cache: OrderedDict[int, Path] = OrderedDict()
 
     def get_db(self) -> Session:
         """Open a new SQLAlchemy session against this project's database."""

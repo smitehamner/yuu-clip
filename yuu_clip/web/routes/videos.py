@@ -20,7 +20,6 @@ from yuu_clip.web.routes._shared import (
     _all_sidecar_paths,
     _json_list,
     _sse_response,
-    _user_or_default,
 )
 
 _log = get_logger(__name__)
@@ -582,10 +581,10 @@ def _video_dict(video: Video, stats: dict) -> dict:
         "total_clip_ms": stats["total_clip_ms"],
         "score_min": stats["score_min"],
         "score_max": stats["score_max"],
-        "title": _user_or_default(video.title_user, video.title),
+        "title": video.effective_title,
         "title_original": video.title or "",
         "title_is_edited": video.title_user is not None,
-        "summary": _user_or_default(video.summary_user, video.summary),
+        "summary": video.effective_summary,
         "summary_original": video.summary or "",
         "summary_is_edited": video.summary_user is not None,
         "has_timeline": bool(video.timeline_json),
