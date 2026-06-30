@@ -279,18 +279,21 @@ Items wanted long-term but not yet assigned to a phase.
   via volume). electron-builder supports both via `CSC_LINK` / `CSC_KEY_PASSWORD` env vars; remove
   the `CSC_IDENTITY_AUTO_DISCOVERY=false` override in `build-release.ps1` when a cert is in place.
 
+- [ ] **Modal keyboard trap** — Escape closes all open modals simultaneously instead of only the
+  topmost one. Fixing properly requires a modal stack so Escape pops one layer at a time. Low UX
+  impact for a single-user tool; look into later when modal nesting becomes common.
+
 ---
 
 ## Known issues (code quality)
 
-- **JS in `index.html` (~1800 lines)** — no-build-step SPA; consider ES modules if it grows further
+- ~~**JS in `index.html` (~1800 lines)**~~ — *Resolved:* all JS now lives in per-feature module files (`utils/ui/videos/clips/analyze/reel/contexts/settings/split/boot.js`) loaded via `<script src>`; `index.html` is a 1231-line HTML/CSS shell with **zero** inline JS. The frontend maintainability pass also wrapped the feature modules in IIFEs and centralized shared globals in `AppState`.
 - ~~**No integration test for `reel_events` SSE**~~ — *Resolved:* `tests/test_reel_sse.py` drives the `demo_events` route end-to-end, asserting the SSE stream completes with `__DONE__` and that the `ctx`-passing path clears `demo_cmd` and resets `analyze_proc`.
 - ~~**No Playwright coverage for SSE happy paths**~~ — *Resolved:* `tests/test_ui_sse.py` drives the real `streamSSE → startJobUI → endJobUI` lifecycle against a mocked SSE stream, asserting the job pill shows, the completion callback fires, steps mark done, and the UI returns to idle (buttons re-enabled, pill hidden) after `__DONE__` — the exact teardown the Phase 3 stuck-job-UI bug skipped.
-- **Filter-override pattern after clip-list mutations** — clip-list re-renders must go through `_applyFilters()`, not raw `_clips`; calling `renderClipList(_clips)` bypasses the active search/status/score filters. This appeared in 6 places across `contexts.js` and `videos.js` (fixed in the Phase 3 UX pass). Worth enforcing as a convention — a `_renderClips()` wrapper that always calls `_applyFilters()` internally would prevent it from creeping back.
+- ~~**Filter-override pattern after clip-list mutations**~~ — *Resolved:* `_renderClips()` (`clips.js`) is now the canonical re-render entry point — it always routes through `_applyFilters()` before calling the private `_renderClipItems()`, so no caller can bypass the active search/status/score filters. Every clip-list mutation site in `clips.js`, `contexts.js`, and `videos.js` calls `_renderClips()`; the only direct `_renderClipItems()` call is inside the wrapper itself.
 - ~~**SSE batch export error reporting**~~ — *Resolved:* the per-clip failure message in `batch_export` (`routes/clips.py`) now includes the subprocess exit code alongside the last stderr line (`[Error clip N (exit C): …]`), so export failures are diagnosable from the stream without opening the log.
 - ~~**Timeline interval minimum validation**~~ — *Resolved:* `saveSettings` (Settings panel) now shows a `'Timeline interval must be at least 10 seconds.'` error toast and re-focuses the field instead of silently dropping the value when `_parseIntervalS` rejects it. The per-video timeline-interval modal already surfaces the constraint inline.
-- **`saveTimelineInterval` / `confirmGenerateTimeline` validation drift** — both paths send `ui_timeline_interval_seconds` to the API but have separate validation logic. If the minimum ever changes, both must be updated. Extracting a shared `_parseIntervalS(value, unit)` validator would prevent drift.
-- **Modal keyboard trap** — Escape closes all open modals simultaneously instead of only the topmost one. Fixing properly requires a modal stack. Low UX impact for a single-user tool; deferred.
+- ~~**`saveTimelineInterval` / `confirmGenerateTimeline` validation drift**~~ — *Resolved:* both paths now call the shared `_parseIntervalS(value, unit)` validator (`utils.js`), which owns the `_TIMELINE_MIN_INTERVAL_S = 10` minimum in one place. `saveSettings` (`settings.js`) and the per-video timeline generator (`videos.js`) can no longer drift apart.
 - ~~**Modal focus management**~~ — *Resolved:* every modal open-function now moves focus into the modal on open (first input or primary button via `setTimeout(… .focus(), 50)`) and restores focus to the opener on close. Verified across `ui.js`, `settings.js`, `reel.js`, `contexts.js`, `clips.js`, `analyze.js`, and the timeline-interval modal.
 - ~~**Sidebar video list keyboard support**~~ — *Resolved:* `#video-list` `<li>` items now get `tabIndex = 0` and the list has an `onkeydown` handler that activates the focused item on Enter/Space (`videos.js`), mirroring the clip-list keyboard handler.
 - ~~**Clip filter tabs ARIA roles**~~ — *Resolved:* the `.clip-filter-tabs` container has `role="tablist"` and each `.clip-tab` has `role="tab"` + `aria-selected`, kept in sync by `setClipFilter` / `_clearClipFilters` / the video-load reset (`index.html`, `clips.js`, `videos.js`).
