@@ -60,24 +60,90 @@ class TestPyannoteAvailable:
 # ---------------------------------------------------------------------------
 
 class TestPyannoteDiarize:
-    def test_uses_token_kwarg_not_use_auth_token(self, monkeypatch):
+    def _write_wav(self, path, sample_rate=16000, n_frames=1600):
+        import struct
+        import wave
+
+        with wave.open(str(path), "wb") as wav:
+            wav.setnchannels(1)
+            wav.setsampwidth(2)
+            wav.setframerate(sample_rate)
+            wav.writeframes(struct.pack("<" + "h" * n_frames, *([0] * n_frames)))
+
+    def test_uses_token_kwarg_not_use_auth_token(self, monkeypatch, tmp_path):
         import pyannote.audio
 
         turn = MagicMock(start=0.0, end=1.5)
         diar_result = MagicMock()
-        diar_result.itertracks.return_value = [(turn, None, "SPEAKER_00")]
+        diar_result.speaker_diarization.itertracks.return_value = [(turn, None, "SPEAKER_00")]
         pipeline_obj = MagicMock(return_value=diar_result)
         from_pretrained = MagicMock(return_value=pipeline_obj)
         monkeypatch.setattr(pyannote.audio.Pipeline, "from_pretrained", from_pretrained)
 
+        wav_path = tmp_path / "clip.wav"
+        self._write_wav(wav_path)
         cfg = Config(diarization_backend="pyannote", huggingface_token="hf_abc")
-        turns = PyannoteDiarizationClient(cfg).diarize("/tmp/clip.wav")
+        turns = PyannoteDiarizationClient(cfg).diarize(str(wav_path))
 
         assert turns == [(0.0, 1.5, "SPEAKER_00")]
         args, kwargs = from_pretrained.call_args
         assert args[0] == "pyannote/speaker-diarization-community-1"
         assert kwargs.get("token") == "hf_abc"
         assert "use_auth_token" not in kwargs
+
+    # The pipeline must receive an in-memory {waveform, sample_rate} dict, not the
+    # file path: passing the path makes pyannote 4.x decode via torchcodec, which
+    # fails on machines without FFmpeg shared libraries ("torchcodec is not
+    # available") and silently disables speaker labels.
+    def test_passes_waveform_dict_not_path(self, monkeypatch, tmp_path):
+        import pyannote.audio
+        import torch
+
+        diar_result = MagicMock()
+        diar_result.speaker_diarization.itertracks.return_value = []
+        pipeline_obj = MagicMock(return_value=diar_result)
+        monkeypatch.setattr(
+            pyannote.audio.Pipeline, "from_pretrained",
+            MagicMock(return_value=pipeline_obj),
+        )
+
+        wav_path = tmp_path / "clip.wav"
+        self._write_wav(wav_path, sample_rate=16000, n_frames=1600)
+        cfg = Config(diarization_backend="pyannote", huggingface_token="hf_abc")
+        PyannoteDiarizationClient(cfg).diarize(str(wav_path))
+
+        (passed,), _ = pipeline_obj.call_args
+        assert isinstance(passed, dict)
+        assert passed["sample_rate"] == 16000
+        assert isinstance(passed["waveform"], torch.Tensor)
+        assert passed["waveform"].shape == (1, 1600)
+
+    # community-1's pipeline returns a DiarizeOutput dataclass whose Annotation lives
+    # under `.speaker_diarization`; calling `.itertracks` on the wrapper itself raises
+    # "'DiarizeOutput' object has no attribute 'itertracks'". diarize() must unwrap it.
+    def test_unwraps_diarizeoutput_speaker_diarization(self, monkeypatch, tmp_path):
+        import pyannote.audio
+
+        class FakeAnnotation:
+            def itertracks(self, yield_label=False):
+                turn = MagicMock(start=2.0, end=3.0)
+                return [(turn, None, "SPEAKER_01")]
+
+        class FakeDiarizeOutput:
+            speaker_diarization = FakeAnnotation()
+
+        pipeline_obj = MagicMock(return_value=FakeDiarizeOutput())
+        monkeypatch.setattr(
+            pyannote.audio.Pipeline, "from_pretrained",
+            MagicMock(return_value=pipeline_obj),
+        )
+
+        wav_path = tmp_path / "clip.wav"
+        self._write_wav(wav_path)
+        cfg = Config(diarization_backend="pyannote", huggingface_token="hf_abc")
+        turns = PyannoteDiarizationClient(cfg).diarize(str(wav_path))
+
+        assert turns == [(2.0, 3.0, "SPEAKER_01")]
 
     # pyannote returns None from from_pretrained (rather than raising) when the
     # token can't access the gated repos / hasn't accepted the model terms. The

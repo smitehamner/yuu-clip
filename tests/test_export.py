@@ -855,3 +855,52 @@ class TestResolveClipFiles:
              mock.patch("yuu_clip.reel._probe_duration", return_value=10.0):
             _, _, fps = _resolve_clip_files([clip], {10: video}, tmp_path)
         assert fps == 30.0
+
+
+class TestRefreshCaptionSidecars:
+    """retranscribe --refresh-captions regenerates an existing SRT sidecar in place,
+    but does nothing for a clip that was never exported (no sidecar to refresh)."""
+
+    def _make_clip(self, speaker_label):
+        import datetime
+        import types
+        seg = types.SimpleNamespace(
+            start_ms=1_000, end_ms=2_000, text="updated text", speaker_label=speaker_label
+        )
+        tx = types.SimpleNamespace(
+            audio_track_id=1, created_at=datetime.datetime(2024, 6, 1), segments=[seg]
+        )
+        track = types.SimpleNamespace(
+            id=1, label="combined", do_transcribe=True, transcripts=[tx]
+        )
+        return types.SimpleNamespace(
+            id=7, start_ms=0, end_ms=10_000, start_offset=0.0, end_offset=0.0,
+            start_hms="00:00:00", clip_transcripts=[tx],
+            video=types.SimpleNamespace(filename="session.mkv", audio_tracks=[track]),
+        )
+
+    def _exports_dir(self, proj_dir):
+        exports = proj_dir / ".yuu-clip" / "exports"
+        exports.mkdir(parents=True, exist_ok=True)
+        return exports
+
+    def test_refreshes_existing_sidecar(self, tmp_path):
+        from yuu_clip.cli.export import _refresh_caption_sidecars
+        exports = self._exports_dir(tmp_path)
+        srt = exports / "session_clip7_00-00-00.srt"
+        srt.write_text("1\n00:00:00,000 --> 00:00:01,000\nstale\n\n", encoding="utf-8")
+
+        _refresh_caption_sidecars(self._make_clip("SPEAKER_00"), tmp_path)
+
+        content = srt.read_text(encoding="utf-8")
+        assert "updated text" in content
+        assert "[Speaker 00]" in content
+        assert "stale" not in content
+
+    def test_noop_when_no_sidecar_exists(self, tmp_path):
+        from yuu_clip.cli.export import _refresh_caption_sidecars
+        exports = self._exports_dir(tmp_path)
+
+        _refresh_caption_sidecars(self._make_clip("SPEAKER_00"), tmp_path)
+
+        assert list(exports.glob("*.srt")) == []

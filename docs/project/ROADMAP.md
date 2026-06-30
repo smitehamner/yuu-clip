@@ -52,6 +52,17 @@ All Phase 4 items shipped. See [COMPLETED.md](COMPLETED.md).
 Smaller improvements and UX debt that don't block initial distribution but are high-value for
 regular users.
 
+- [ ] **Map and end-to-end test expected user paths** — enumerate the journeys a non-technical user
+  actually takes (analyze → review → edit/retranscribe → export → re-export; diarize → captions; merge/split
+  → export; reel build) and verify each does the *expected* thing without a hidden second step. Motivating
+  example: **retranscribe doesn't refresh an already-exported caption sidecar by default-of-discovery** — a
+  `--refresh-captions` flag (default on) now regenerates the SRT *if one exists*, but the broader question is
+  which downstream artifacts (caption sidecars, the exported clip itself, the highlight reel, the clip
+  excerpt/description) should auto-update when an upstream transcript/edit changes, vs. require an explicit
+  re-export, vs. show a "stale, re-export to update" indicator. Decide the policy per artifact, then add
+  Playwright/UI end-to-end coverage for each path so regressions surface. Until then, individual gaps are
+  patched ad hoc (see the retranscribe caption refresh and the `_update_clip_excerpt` speaker-grouping fix).
+
 - [ ] **Panel navigation UX direction** — multi-step flows take over the main detail panel (not modals); `← Back` breadcrumb; discard prompt on unsaved changes; tabs only for within-view navigation. Migrate incrementally starting with Split Editor.
 
 - [ ] **Pause / resume analysis** — pause a running analysis job between videos (finish the video currently in progress, then hold before starting the next). Two trigger modes: **manual** ("Pause" button in the job header) and **automatic** (triggered by hardware health thermal threshold). On resume, the queue continues from the next unprocessed video. Pause state is in-memory and does not survive a server restart (acceptable for now). Applies to both single-video and batch analysis. Long-term possibilities: mid-video pause (hard; would require restarting that video from scratch), durable pause state across restarts.
@@ -143,8 +154,15 @@ Complex, specialized, or AI-heavy features that are valuable but don't need to b
   transcript view both benefit automatically. Settings UI: backend selector, HF token field,
   one-click `pip install pyannote.audio` button with live pip log.
 
+  Speaker labels also surface in exports: each `TranscriptSegment.speaker_label` becomes a
+  `[Speaker NN]` prefix in the SRT sidecars and the in-player VTT captions (`subtitles.py`),
+  taking precedence over the track-label prefix; the track label stays the fallback for unlabeled
+  segments. Retranscribe's `_update_clip_excerpt` reuses `_build_excerpt`, so a re-diarized clip's
+  transcript view keeps the `SPEAKER_XX:` grouping (previously it was flattened to a plain join).
+
   Remaining downstream features (still pending below): transcript editing, per-speaker subtitle
-  styles, score boost per named character, transcript name correction.
+  *styling* (colour/font — the text labels now ship), score boost per named character, transcript
+  name correction.
 
   **Roadmap backends** (not yet built): SpeechBrain (Apache 2.0, no HF gating — ECAPA-TDNN
   embeddings + sklearn clustering), NeMo TitaNet (Apache 2.0, no token, heavier install).
@@ -161,6 +179,8 @@ Complex, specialized, or AI-heavy features that are valuable but don't need to b
 
 - [ ] **Subtitle style options** — font, size, colour, position for burned-in subtitles. With
   speaker diarization: per-speaker colour/style so different characters are visually distinct.
+  (Per-speaker text labels — `[Speaker NN]` prefixes — already ship; this item is the visual
+  styling layer on top.)
 
 ### Export and delivery
 
@@ -298,6 +318,7 @@ Items wanted long-term but not yet assigned to a phase.
 - ~~**Sidebar video list keyboard support**~~ — *Resolved:* `#video-list` `<li>` items now get `tabIndex = 0` and the list has an `onkeydown` handler that activates the focused item on Enter/Space (`videos.js`), mirroring the clip-list keyboard handler.
 - ~~**Clip filter tabs ARIA roles**~~ — *Resolved:* the `.clip-filter-tabs` container has `role="tablist"` and each `.clip-tab` has `role="tab"` + `aria-selected`, kept in sync by `setClipFilter` / `_clearClipFilters` / the video-load reset (`index.html`, `clips.js`, `videos.js`).
 - **`analyze/overlap.py:_pearson` flat-curve correlation** — when both RMS curves are perfectly constant (`da == db == 0`, e.g. two tracks silent over the first 30 s) the function returns `1.0`, which reads as "identical" and disables the specialized track. The asymmetric cases (one flat, one not) correctly return `0.0`, so a false positive needs *both* tracks fully silent for 30 s — unlikely. Deferred from the 2026-06-29 scoring bug-hunt; revisit if tracks are ever wrongly suppressed. A spread/variance floor or an explicit "undetermined" return would be the proper fix.
+- **Noisy torchcodec load traceback during diarization** — importing `pyannote.audio` pulls in torchcodec, which logs a multi-line "Could not load libtorchcodec" traceback (FFmpeg version 4–8) whenever FFmpeg's shared libraries aren't on the system PATH — the default on Windows. It is cosmetic: `diarization_client._load_waveform` decodes our 16 kHz mono WAVs with the stdlib `wave` module and hands pyannote an in-memory `{waveform, sample_rate}` dict, so torchcodec is never used for decoding (the original "torchcodec is not available" failure that silently dropped speaker labels is fixed). An `_log.info` breadcrumb is emitted just before the import so the traceback reads as expected. Follow-up: suppress the specific torchcodec import warning (narrowly — don't blanket-filter warnings) so the log stays clean.
 - **Analyze pipeline is not idempotent on a no-`--force` re-run** — `transcribe_track` (`whisper_runner.py`) always creates a *new* `Transcript`, and `generate_candidates` (`segments/windower.py`) always *appends* new `ClipCandidate` rows; neither skips or replaces existing output. Today nothing duplicates because the `status == "done"` skip in `_pipeline._resolve_existing_video` short-circuits any completed video on re-run. Not a bug today, but it's a latent trap: any future change that loosens that skip (e.g. stage-level resume, or marking `"done"` only after scoring) would silently duplicate transcripts and clips. Proper fix when stage-level resume is wanted: make transcription and clip-generation skip-if-already-present (gated on `not force`). Surfaced in the 2026-06-29 ingest/analyze bug-hunt while fixing the crashed-scoring case (which was instead fixed by isolating scoring, leaving this untouched).
 
 ---

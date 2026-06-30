@@ -37,15 +37,26 @@ def _label_display(label: str) -> str:
     return _LABEL_DISPLAY.get(label, label.replace("_", " ").title())
 
 
+def _segment_speaker(seg) -> str:
+    """Display name for a segment's diarization speaker, or "" when unlabeled."""
+    label = getattr(seg, "speaker_label", None)
+    return _label_display(label) if label else ""
+
+
 def _merge_with_speakers(groups: dict[str, list[SubLine]]) -> list[SubLine]:
     """Flatten *groups* into a single list, tagging each line with its speaker label.
 
-    The speaker label is later rendered as a ``[Speaker]`` prefix by ``lines_to_srt``.
+    A per-segment diarization speaker (already on the SubLine) wins; the track-label
+    display is the fallback for unlabeled lines. The result is rendered as a
+    ``[Speaker]`` prefix by ``lines_to_srt``.
     """
     all_lines: list[SubLine] = []
     for label, lines in groups.items():
-        speaker = _label_display(label)
-        all_lines.extend(SubLine(sub.start_ms, sub.end_ms, sub.text, speaker) for sub in lines)
+        track_speaker = _label_display(label)
+        all_lines.extend(
+            SubLine(sub.start_ms, sub.end_ms, sub.text, sub.speaker or track_speaker)
+            for sub in lines
+        )
     return all_lines
 
 
@@ -99,7 +110,7 @@ def collect_clip_subtitles(clip) -> dict[str, list[SubLine]]:
             start = max(seg.start_ms, clip_start) - clip_start
             end   = min(seg.end_ms,   clip_end)   - clip_start
             if end > start:
-                lines.append(SubLine(start_ms=start, end_ms=end, text=seg.text))
+                lines.append(SubLine(start, end, seg.text, _segment_speaker(seg)))
 
         if lines:
             result[track.label] = lines
@@ -131,8 +142,11 @@ def export_srt_sidecars(clip, output_dir: Path, base_stem: str) -> list[Path]:
         written.append(path)
     else:
         for label, lines in groups.items():
-            speaker = _label_display(label)
-            labeled = [SubLine(sub.start_ms, sub.end_ms, sub.text, speaker) for sub in lines]
+            track_speaker = _label_display(label)
+            labeled = [
+                SubLine(sub.start_ms, sub.end_ms, sub.text, sub.speaker or track_speaker)
+                for sub in lines
+            ]
             path = output_dir / f"{base_stem}.{label}.srt"
             path.write_text(lines_to_srt(labeled), encoding="utf-8")
             written.append(path)
@@ -166,7 +180,10 @@ def export_video_transcript_srt(video, output_path: Path) -> Path:
         if not track.transcripts:
             continue
         transcript = max(track.transcripts, key=lambda t: t.created_at)
-        lines = [SubLine(seg.start_ms, seg.end_ms, seg.text) for seg in transcript.segments]
+        lines = [
+            SubLine(seg.start_ms, seg.end_ms, seg.text, _segment_speaker(seg))
+            for seg in transcript.segments
+        ]
         if lines:
             groups[track.label] = lines
 

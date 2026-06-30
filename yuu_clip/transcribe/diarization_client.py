@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import logging
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from yuu_clip.config import Config
+
+_log = logging.getLogger(__name__)
 
 
 class DiarizationError(RuntimeError):
@@ -32,6 +35,40 @@ _ACCEPT_TERMS_HELP = (
     f"  - https://hf.co/{_PIPELINE_ID}\n"
     + _ACCEPT_TERMS_HINT
 )
+
+
+def _load_waveform(audio_path: str) -> dict:
+    """Decode a PCM WAV into pyannote's in-memory input dict.
+
+    pyannote 4.x's community-1 pipeline decodes file paths through torchcodec, which
+    needs the FFmpeg shared libraries on the system PATH — frequently absent on
+    Windows, where it fails with "torchcodec is not available". We always feed it our
+    own 16 kHz mono PCM WAVs, so we decode them with the stdlib `wave` module and hand
+    pyannote a {waveform, sample_rate} dict, sidestepping torchcodec entirely.
+    """
+    import wave
+
+    import numpy as np
+    import torch
+
+    with wave.open(audio_path, "rb") as wav:
+        sample_rate = wav.getframerate()
+        n_channels = wav.getnchannels()
+        sample_width = wav.getsampwidth()
+        frames = wav.readframes(wav.getnframes())
+
+    dtype = {1: np.uint8, 2: np.int16, 4: np.int32}.get(sample_width)
+    if dtype is None:
+        raise DiarizationError(
+            f"Unsupported WAV sample width ({sample_width} bytes) for {audio_path}"
+        )
+    samples = np.frombuffer(frames, dtype=dtype).astype(np.float32)
+    if dtype is np.uint8:  # 8-bit PCM is unsigned, centred at 128
+        samples = (samples - 128.0) / 128.0
+    else:
+        samples /= float(np.iinfo(dtype).max + 1)
+    waveform = torch.from_numpy(samples.reshape(-1, n_channels).T.copy())
+    return {"waveform": waveform, "sample_rate": sample_rate}
 
 
 def _looks_like_access_error(exc: Exception) -> bool:
@@ -82,6 +119,12 @@ class PyannoteDiarizationClient(DiarizationClient):
         return True, ""
 
     def diarize(self, audio_path: str) -> list[tuple[float, float, str]]:
+        # Importing pyannote pulls in torchcodec, which logs a noisy "Could not load
+        # libtorchcodec" traceback when FFmpeg's shared libs aren't on PATH (common on
+        # Windows). It's expected and harmless here: we decode the WAV ourselves in
+        # _load_waveform and never use torchcodec. Tracked as a ROADMAP follow-up to
+        # silence the warning. If diarization itself fails, that surfaces separately below.
+        _log.info("Loading diarization pipeline (any torchcodec load warning below is expected)")
         from pyannote.audio import Pipeline
         try:
             pipeline = Pipeline.from_pretrained(
@@ -94,10 +137,13 @@ class PyannoteDiarizationClient(DiarizationClient):
             raise
         if pipeline is None:
             raise DiarizationError(_ACCEPT_TERMS_HELP)
-        diarization = pipeline(audio_path)
+        result = pipeline(_load_waveform(audio_path))
+        # community-1 returns a DiarizeOutput dataclass whose `speaker_diarization`
+        # field holds the Annotation; older pipelines return the Annotation directly.
+        annotation = getattr(result, "speaker_diarization", result)
         return [
             (turn.start, turn.end, speaker)
-            for turn, _, speaker in diarization.itertracks(yield_label=True)
+            for turn, _, speaker in annotation.itertracks(yield_label=True)
         ]
 
 

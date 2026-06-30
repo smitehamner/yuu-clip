@@ -133,7 +133,8 @@ def _update_clip_excerpt(cand, session, tx_ids: list[int]) -> None:
         .all()
     )
     if new_segs:
-        cand.transcript_excerpt = " ".join(s.text.strip() for s in new_segs)
+        from yuu_clip.segments.windower import _build_excerpt
+        cand.transcript_excerpt = _build_excerpt(new_segs)
 
 
 def _build_export_path(
@@ -272,6 +273,24 @@ def _emit_caption_sidecars(cand, output: Path, base: str) -> None:
         console.print("  [dim]No transcript data — captions skipped[/dim]")
 
 
+def _refresh_caption_sidecars(cand, proj_dir: Path) -> None:
+    """Regenerate an already-exported clip's SRT caption sidecars from its current transcript.
+
+    No-op when the clip has no existing sidecar in the exports dir: retranscribe should
+    refresh captions the user already has, not create new export artifacts for a clip
+    that was never exported.
+    """
+    from yuu_clip.config import project_exports_dir
+    from yuu_clip.subtitles import export_srt_sidecars
+
+    exports = project_exports_dir(proj_dir)
+    base = f"{Path(cand.video.filename).stem}_clip{cand.id}_{cand.start_hms.replace(':', '-')}"
+    if not any(exports.glob(f"{base}*.srt")):
+        return
+    for srt in export_srt_sidecars(cand, exports, base):
+        console.print(f"  [green]  OK[/green] Captions refreshed  [cyan]{srt.name}[/cyan]")
+
+
 @app.command()
 def export(
     clip_id: int = typer.Argument(..., help="Clip candidate ID to export"),
@@ -349,6 +368,7 @@ def retranscribe(
     language: Optional[str] = typer.Option(None, "--language"),
     no_rescore: bool = typer.Option(False, "--no-rescore"),
     speaker_labels: bool = typer.Option(True, "--speaker-labels/--no-speaker-labels", help="Add speaker labels (no-op without a diarization backend)"),
+    refresh_captions: bool = typer.Option(True, "--refresh-captions/--no-refresh-captions", help="Regenerate this clip's SRT caption sidecar if it was already exported (no-op otherwise)"),
 ) -> None:
     """Re-transcribe just the time window of a clip, then re-score it."""
     from yuu_clip.config import validate_whisper_model
@@ -389,5 +409,8 @@ def retranscribe(
         engine.score_clip(cand, session)
         session.commit()
         console.print("  [green]  OK[/green]")
+
+    if refresh_captions:
+        _refresh_caption_sidecars(cand, proj_dir)
 
     console.print("  [green]Done.[/green]")

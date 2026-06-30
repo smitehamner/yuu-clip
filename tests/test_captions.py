@@ -595,6 +595,79 @@ class TestCollectClipSubtitlesClipTranscripts:
 
 
 # ---------------------------------------------------------------------------
+# subtitles.py — per-speaker (diarization) subtitle display
+# ---------------------------------------------------------------------------
+
+class TestDiarizationSubtitles:
+    """Diarization speaker_label on a segment becomes the [Speaker] subtitle prefix,
+    taking precedence over the track-label prefix. The track label remains the
+    fallback for segments without a diarization label (and for non-diarized clips)."""
+
+    def _seg(self, start_ms, end_ms, text, speaker_label=None):
+        import types
+        return types.SimpleNamespace(
+            start_ms=start_ms, end_ms=end_ms, text=text, speaker_label=speaker_label
+        )
+
+    def _clip(self, track_data, start_ms=0, end_ms=10_000):
+        """track_data: list of (label, do_transcribe, [seg, ...])."""
+        import datetime
+        import types
+        tracks = []
+        for track_id, (label, do_transcribe, segs) in enumerate(track_data, start=1):
+            tx = types.SimpleNamespace(
+                audio_track_id=track_id,
+                created_at=datetime.datetime(2024, 1, 1),
+                segments=segs,
+            )
+            tracks.append(types.SimpleNamespace(
+                id=track_id, label=label, do_transcribe=do_transcribe, transcripts=[tx]
+            ))
+        return types.SimpleNamespace(
+            start_ms=start_ms, end_ms=end_ms, start_offset=0.0, end_offset=0.0,
+            clip_transcripts=[], video=types.SimpleNamespace(audio_tracks=tracks),
+        )
+
+    def test_collect_sets_speaker_from_label(self):
+        from yuu_clip.subtitles import collect_clip_subtitles
+        clip = self._clip([("combined", True, [
+            self._seg(1_000, 2_000, "hi", "SPEAKER_00"),
+            self._seg(2_000, 3_000, "yo", "SPEAKER_01"),
+        ])])
+        lines = collect_clip_subtitles(clip)["combined"]
+        assert lines[0].speaker == "Speaker 00"
+        assert lines[1].speaker == "Speaker 01"
+
+    def test_collect_no_label_leaves_speaker_blank(self):
+        from yuu_clip.subtitles import collect_clip_subtitles
+        clip = self._clip([("combined", True, [self._seg(1_000, 2_000, "hi")])])
+        assert collect_clip_subtitles(clip)["combined"][0].speaker == ""
+
+    def test_single_track_diarized_srt_has_speaker_prefix(self, tmp_path):
+        from yuu_clip.subtitles import export_srt_sidecars
+        clip = self._clip([("combined", True, [
+            self._seg(1_000, 2_000, "first", "SPEAKER_00"),
+            self._seg(2_000, 3_000, "second", "SPEAKER_01"),
+        ])])
+        written = export_srt_sidecars(clip, tmp_path, "clip")
+        assert len(written) == 1  # still one file for a single track
+        srt = written[0].read_text(encoding="utf-8")
+        assert "[Speaker 00] first" in srt
+        assert "[Speaker 01] second" in srt
+
+    def test_diarization_speaker_wins_over_track_label(self, tmp_path):
+        from yuu_clip.subtitles import export_srt_sidecars
+        clip = self._clip([
+            ("player_voice", True, [self._seg(1_000, 2_000, "mine", "SPEAKER_00")]),
+            ("ingame_voicechat", True, [self._seg(3_000, 4_000, "theirs")]),
+        ])
+        export_srt_sidecars(clip, tmp_path, "clip")
+        merged = (tmp_path / "clip.srt").read_text(encoding="utf-8")
+        assert "[Speaker 00] mine" in merged     # diarization label, not [Player]
+        assert "[Voice Chat] theirs" in merged   # track-label fallback when unlabeled
+
+
+# ---------------------------------------------------------------------------
 # analyze/labeler.py — label_tracks single-track auto-label
 # ---------------------------------------------------------------------------
 
