@@ -104,6 +104,35 @@ skip_no_server = pytest.mark.skipif(
 )
 
 
+def select_video_with_clips(page) -> None:
+    """Select the first sidebar video that actually has clips and wait for its
+    clip list to render.
+
+    Iterating instead of clicking ``#video-list li.first`` keeps the clip tests
+    independent of sidebar ordering — a 0-clip video at the top of the list would
+    otherwise leave the clip list showing only its empty-state row and time out
+    every clip test. Real clip rows carry a ``.clip-num`` badge; the empty-state
+    ``<li>`` does not, which is what we wait on.
+    """
+    page.goto(LIVE_URL)
+    page.wait_for_selector("#video-list li[data-video-id]", timeout=5000)
+    videos = page.locator("#video-list li[data-video-id]")
+    for i in range(videos.count()):
+        videos.nth(i).click()
+        try:
+            page.wait_for_selector("#clip-list li .clip-num", timeout=3000)
+            return
+        except Exception:
+            continue
+    raise AssertionError("No sidebar video has clips on the live server")
+
+
+def select_first_video_and_clip(page) -> None:
+    """Select a video that has clips, then open the first real clip's detail."""
+    select_video_with_clips(page)
+    page.locator("#clip-list li:has(.clip-num)").first.click()
+
+
 _had_failure = False
 _is_ui_session = False
 
