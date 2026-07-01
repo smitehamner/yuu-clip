@@ -235,10 +235,19 @@ Complex, specialized, or AI-heavy features that are valuable but don't need to b
   per-speaker) is still Phase 6.
 
 - [ ] **Clip export editor** — in-browser editor launched before final export. Full scope:
-  trim handles (adjust clip start/end), drag-to-position 9:16 crop box for Shorts/TikTok
-  framing, and a live preview of burned-in captions if caption export is enabled.
-  Reference UX: Twitch clip editor. Natural dependency order: Vertical crop and Auto captions
-  should land first, then the editor ties them together.
+  transcript-driven trim handles (click a transcript line to set the clip's start/end — the clip's
+  own transcript plus ~30s of the neighboring clip's transcript shown as *extendable* context, so
+  the boundary can be dragged past the original window into that region; resulting overlap between
+  adjacent ClipCandidates is allowed, same as sliding-window generation already produces today),
+  drag-to-position 9:16 crop box for Shorts/TikTok framing, and a live preview of burned-in
+  captions if caption export is enabled. Reference UX: Twitch clip editor. Natural dependency
+  order: Vertical crop and Auto captions should land first, then the editor ties them together.
+
+- [ ] **Manual clip creation** — create a new `ClipCandidate` from scratch by picking start/end
+  timestamps directly from a video's transcript, for moments the automatic pipeline missed. Shares
+  the transcript-driven timestamp-picking UI with the Clip export editor above. The resulting clip
+  goes through the normal scoring/review pipeline (LLM scoring, description, approve/reject) like
+  any pipeline-generated clip — no separate "manual, unscored" path.
 
 - [ ] **Vertical crop / Shorts export** — 9:16 output for TikTok / YouTube Shorts; requires
   face/webcam tracking (YOLO or MediaPipe) to auto-frame the crop region.
@@ -306,10 +315,18 @@ Items wanted long-term but not yet assigned to a phase.
 - [ ] **Themes** — the app ships with a single dark theme. Future options:
   - **Light mode** — full light-background theme matching the dark palette's contrast ratios
   - **Colour variants** — alternative accent colours for both light and dark themes (e.g.
-    blue-accent vs current amber/green)
+    blue-accent vs current amber/green), picked via the custom colour picker component below
   - Theme picker in Settings (persisted to localStorage); system `prefers-color-scheme` as the
     default when no preference is saved. Design the CSS variable layer first so themes are pure
     token swaps.
+
+- [ ] **Custom colour picker component** — replace the native `<input type="color">` (currently
+  used for per-speaker subtitle colours in `speakers.js`) with a JS-built picker that supports
+  direct hex-code entry. Build it as a shared, reusable component from the start — not
+  speaker-specific — so the Themes accent-colour picker above and any future colour selection can
+  reuse it without rework. Saves two things: an automatic recently-used strip, and a user-curated
+  named palette (add/remove/name swatches, e.g. per speaker or per project). Decide palette
+  persistence (localStorage vs. per-project DB) as part of the design.
 
 - [ ] **Clips vs Scenes** — introduce a second candidate type: "Scenes" are longer contextual
   moments (1–5 min, may include pauses and story arc) vs. "clips" (15–90 s punchy bits). Design
