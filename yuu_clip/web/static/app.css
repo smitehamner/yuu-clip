@@ -203,6 +203,9 @@ header h1 { font-size: 16px; font-weight: 700; letter-spacing: .5px; color: var(
 .speaker-tag { flex-shrink: 0; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); min-width: 72px; }
 .speaker-name-input { flex: 0 0 160px; padding: 5px 9px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 13px; }
 .speaker-name-input:focus { outline: none; border-color: var(--accent); }
+.speaker-color-input { flex-shrink: 0; width: 26px; height: 26px; padding: 0; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); cursor: pointer; }
+.speaker-color-input::-webkit-color-swatch-wrapper { padding: 2px; }
+.speaker-color-input::-webkit-color-swatch { border: none; border-radius: 4px; }
 .speaker-sample { flex: 1 1 120px; min-width: 0; color: var(--muted); font-size: 12px; font-style: italic; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .speaker-hint { margin-top: 8px; font-size: 11px; color: var(--muted); }
 .speaker-suggestion { flex: 1 1 100%; display: inline-flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-left: 82px; font-size: 12px; color: var(--muted); }

@@ -393,7 +393,8 @@ class Speaker(Base):
     source: Mapped[str] = mapped_column(String, default="manual")
     # Inferred names start unconfirmed until the creator accepts them.
     confirmed: Mapped[bool] = mapped_column(Boolean, default=True)
-    # Reserved for future per-speaker caption styling (subtitle colour).
+    # User-picked subtitle colour ("#RRGGBB"). NULL until the user overrides the
+    # auto-assigned default — see display_color.
     color: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
@@ -409,6 +410,29 @@ class Speaker(Base):
         captions, excerpts, or exports — only the Speakers card shows it.
         """
         return self.name if (self.name and self.confirmed) else f"Speaker {self.display_index}"
+
+    @property
+    def display_color(self) -> str:
+        """User-picked colour if set, else a default cycled from SPEAKER_COLOR_PALETTE.
+
+        The fallback is keyed on display_index (not id) so it is stable and
+        readable immediately, before the user has picked anything.
+        """
+        return self.color or SPEAKER_COLOR_PALETTE[(self.display_index - 1) % len(SPEAKER_COLOR_PALETTE)]
+
+
+# Default per-speaker subtitle colours, cycled by Speaker.display_index. Chosen for
+# readability on both light and dark video backgrounds.
+SPEAKER_COLOR_PALETTE: list[str] = [
+    "#4fc3f7",  # blue
+    "#f0c060",  # yellow
+    "#4caf7d",  # green
+    "#f7a85a",  # orange
+    "#b06af7",  # purple
+    "#e05c5c",  # red
+    "#7cf7d3",  # teal
+    "#f77ab0",  # pink
+]
 
 
 class ClipCandidate(Base):

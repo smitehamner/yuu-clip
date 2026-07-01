@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import json as json_lib
+import re
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException
@@ -29,8 +30,12 @@ from yuu_clip.web.routes._shared import _active_job, _json_list, _sse_response
 _log = get_logger(__name__)
 
 
+_HEX_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
+
+
 class SpeakerRename(BaseModel):
     name: Optional[str] = None  # None or "" clears the name back to "Speaker N"
+    color: Optional[str] = None  # "#RRGGBB"; None or "" clears back to the palette default
 
 
 def make_router(ctx: ProjectContext) -> APIRouter:
@@ -129,16 +134,25 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             if not speaker:
                 raise HTTPException(404, "Speaker not found")
 
-            name = (body.name or "").strip()
-            speaker.name = name or None
-            speaker.confirmed = True
-            db.flush()
+            fields_set = body.model_fields_set
+            refreshed = 0
+            if "name" in fields_set:
+                name = (body.name or "").strip()
+                speaker.name = name or None
+                speaker.confirmed = True
+                db.flush()
+                refreshed = _rebuild_video_excerpts(db, speaker.video_id)
 
-            refreshed = _rebuild_video_excerpts(db, speaker.video_id)
+            if "color" in fields_set:
+                color = (body.color or "").strip()
+                if color and not _HEX_COLOR_RE.match(color):
+                    raise HTTPException(400, "Color must be a hex value like #4fc3f7")
+                speaker.color = color or None
+
             db.commit()
             _log.info(
-                "Renamed speaker %d (video %d) → %r; refreshed %d clip excerpt(s)",
-                speaker_id, speaker.video_id, speaker.name, refreshed,
+                "Updated speaker %d (video %d): name=%r color=%r; refreshed %d clip excerpt(s)",
+                speaker_id, speaker.video_id, speaker.name, speaker.color, refreshed,
             )
             samples = _speaker_samples(db, [speaker.id])
             return _speaker_dict(speaker, samples.get(speaker.id))
@@ -158,6 +172,7 @@ def _speaker_dict(speaker: Speaker, sample: Optional[dict]) -> dict:
         "is_named": speaker.name is not None,
         "source": speaker.source,
         "confirmed": speaker.confirmed,
+        "color": speaker.display_color,
         "sample_text": sample["text"] if sample else "",
         "sample_start_ms": sample["start_ms"] if sample else None,
         "sample_end_ms": sample["end_ms"] if sample else None,

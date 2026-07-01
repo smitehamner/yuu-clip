@@ -37,7 +37,10 @@ function renderTranscriptLines(lines, opts) {
   const rows = lines.map(line => {
     const showSpeaker = line.speaker && line.speaker !== prevSpeaker;
     prevSpeaker = line.speaker;
-    const speaker = showSpeaker ? `<div class="tline-speaker">${escHtml(line.speaker)}</div>` : '';
+    const colorAttr = line.color ? ` style="color:${escHtml(line.color)}"` : '';
+    const speaker = showSpeaker
+      ? `<div class="tline-speaker"${colorAttr}>${escHtml(line.speaker)}</div>`
+      : '';
     const clock = _clock(line.start_ms);
     const seekS = (line.start_ms || 0) / 1000 + offsetS;
     const editable = line.seg_id != null;

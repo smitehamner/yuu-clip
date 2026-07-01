@@ -18,6 +18,9 @@ class SubLine(NamedTuple):
     # Source TranscriptSegment id — carried only for the editable on-screen view;
     # ignored by the SRT/caption path.
     seg_id: int | None = None
+    # Diarized speaker's subtitle colour ("#RRGGBB"), or "" for track-label-only
+    # lines (no durable Speaker attached). Renders as a <font> tag in SRT output.
+    color: str = ""
 
 
 _LABEL_DISPLAY = {
@@ -53,12 +56,24 @@ def _segment_speaker(seg) -> str:
     return _label_display(label) if label else ""
 
 
+def _segment_speaker_color(seg) -> str:
+    """Subtitle colour for a segment's durable Speaker, or "" when none is attached.
+
+    Unlike _segment_speaker, there is no raw-label fallback — colour is a Speaker
+    attribute, not something a diarization cluster label alone can carry.
+    """
+    speaker = getattr(seg, "speaker", None)
+    if getattr(seg, "speaker_id", None) is not None and speaker is not None:
+        return speaker.display_color
+    return ""
+
+
 def _labeled_lines(lines: list[SubLine], track_label: str) -> list[SubLine]:
     """Fill each line's speaker: the per-segment diarization speaker wins, else the
     track-label display. Rendered as a ``[Speaker]`` prefix by ``lines_to_srt``."""
     track_speaker = _label_display(track_label)
     return [
-        SubLine(sub.start_ms, sub.end_ms, sub.text, sub.speaker or track_speaker)
+        SubLine(sub.start_ms, sub.end_ms, sub.text, sub.speaker or track_speaker, sub.seg_id, sub.color)
         for sub in lines
     ]
 
@@ -72,15 +87,23 @@ def _merge_with_speakers(groups: dict[str, list[SubLine]]) -> list[SubLine]:
 
 
 def lines_to_srt(lines: Iterable[SubLine]) -> str:
-    """Render SubLine objects as an SRT-format string."""
+    """Render SubLine objects as an SRT-format string.
+
+    A line with a speaker colour is wrapped in a <font color="#RRGGBB"> tag —
+    libass (ffmpeg's `subtitles=` burn-in filter) and most SRT players support
+    this basic HTML subset.
+    """
     sorted_lines = sorted(lines, key=lambda sub: sub.start_ms)
     blocks = []
     for i, line in enumerate(sorted_lines, start=1):
         prefix = f"[{line.speaker}] " if line.speaker else ""
+        body = f"{prefix}{line.text.strip()}"
+        if line.color:
+            body = f'<font color="{line.color}">{body}</font>'
         blocks.append(
             f"{i}\n"
             f"{_ms_to_srt_time(line.start_ms)} --> {_ms_to_srt_time(line.end_ms)}\n"
-            f"{prefix}{line.text.strip()}"
+            f"{body}"
         )
     return "\n\n".join(blocks) + "\n" if blocks else ""
 
@@ -121,7 +144,10 @@ def collect_clip_subtitles(clip) -> dict[str, list[SubLine]]:
             start = max(seg.start_ms, clip_start) - clip_start
             end   = min(seg.end_ms,   clip_end)   - clip_start
             if end > start:
-                lines.append(SubLine(start, end, seg.text, _segment_speaker(seg), getattr(seg, "id", None)))
+                lines.append(SubLine(
+                    start, end, seg.text, _segment_speaker(seg), getattr(seg, "id", None),
+                    _segment_speaker_color(seg),
+                ))
 
         if lines:
             result[track.label] = lines
@@ -224,6 +250,7 @@ def _lines_to_view(sublines: Iterable[SubLine]) -> list[dict]:
             "start_ms": sub.start_ms,
             "end_ms": sub.end_ms,
             "speaker": sub.speaker or None,
+            "color": sub.color or None,
             "text": sub.text.strip(),
             "seg_id": sub.seg_id,
         }
@@ -248,7 +275,10 @@ def video_transcript_lines(video) -> list[dict]:
             continue
         transcript = max(track.transcripts, key=lambda t: t.created_at)
         lines.extend(
-            SubLine(seg.start_ms, seg.end_ms, seg.text, _segment_speaker(seg), getattr(seg, "id", None))
+            SubLine(
+                seg.start_ms, seg.end_ms, seg.text, _segment_speaker(seg), getattr(seg, "id", None),
+                _segment_speaker_color(seg),
+            )
             for seg in transcript.segments
         )
     lines.sort(key=lambda sub: sub.start_ms)

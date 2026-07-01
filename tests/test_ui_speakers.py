@@ -21,6 +21,7 @@ _SPEAKER = {
     "is_named": False,
     "source": "manual",
     "confirmed": True,
+    "color": "#4fc3f7",
     "sample_text": "let's go go go",
     "sample_start_ms": 0,
     "sample_end_ms": 3000,
@@ -67,6 +68,33 @@ class TestSpeakerNaming:
 
         expect(page.locator("#toast-container")).to_contain_text("Yuu")
         assert any("Yuu" in body for body in put_bodies), put_bodies
+
+    def test_color_input_prefilled_and_change_sends_put(self, page: Page):
+        page.route(
+            "**/api/videos/*/speakers",
+            lambda route: route.fulfill(
+                status=200, content_type="application/json", body=json.dumps([_SPEAKER])
+            ),
+        )
+        put_bodies: list[str] = []
+
+        def _handle_put(route):
+            put_bodies.append(route.request.post_data or "")
+            route.fulfill(
+                status=200, content_type="application/json",
+                body=json.dumps({**_SPEAKER, "color": "#abcdef"}),
+            )
+
+        page.route("**/api/speakers/*", _handle_put)
+        self._select_first_video(page)
+
+        color_input = page.locator(".speaker-color-input")
+        expect(color_input).to_have_value("#4fc3f7")
+
+        color_input.fill("#abcdef")
+        color_input.dispatch_event("change")
+
+        assert any("abcdef" in body for body in put_bodies), put_bodies
 
     def test_card_absent_when_no_speakers(self, page: Page):
         page.route(

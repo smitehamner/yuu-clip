@@ -655,6 +655,20 @@ class TestDiarizationSubtitles:
         assert "[Speaker 00] first" in srt
         assert "[Speaker 01] second" in srt
 
+    def test_collect_sets_color_from_attached_speaker(self):
+        import types
+
+        from yuu_clip.subtitles import collect_clip_subtitles
+        speaker = types.SimpleNamespace(display_name="Yuu", display_color="#abcdef")
+        seg = types.SimpleNamespace(
+            start_ms=1_000, end_ms=2_000, text="hi",
+            speaker_label="SPEAKER_00", speaker_id=1, speaker=speaker,
+        )
+        clip = self._clip([("combined", True, [seg])])
+        line = collect_clip_subtitles(clip)["combined"][0]
+        assert line.speaker == "Yuu"
+        assert line.color == "#abcdef"
+
     def test_diarization_speaker_wins_over_track_label(self, tmp_path):
         from yuu_clip.subtitles import export_srt_sidecars
         clip = self._clip([
@@ -702,6 +716,85 @@ class TestSegmentSpeaker:
         from yuu_clip.subtitles import _segment_speaker
         seg = self._seg(speaker_id=5, speaker=None, speaker_label="SPEAKER_01")
         assert _segment_speaker(seg) == "Speaker 01"
+
+
+# ---------------------------------------------------------------------------
+# subtitles.py — _segment_speaker_color (per-speaker subtitle colour)
+# ---------------------------------------------------------------------------
+
+class TestSegmentSpeakerColor:
+    def _seg(self, speaker_id=None, speaker=None, speaker_label=None):
+        import types
+        return types.SimpleNamespace(
+            speaker_id=speaker_id, speaker=speaker, speaker_label=speaker_label
+        )
+
+    def test_returns_attached_speaker_display_color(self):
+        import types
+
+        from yuu_clip.subtitles import _segment_speaker_color
+        speaker = types.SimpleNamespace(display_color="#abcdef")
+        seg = self._seg(speaker_id=1, speaker=speaker)
+        assert _segment_speaker_color(seg) == "#abcdef"
+
+    def test_blank_when_no_speaker_attached(self):
+        # Unlike _segment_speaker, there is no raw-label fallback for colour.
+        from yuu_clip.subtitles import _segment_speaker_color
+        seg = self._seg(speaker_label="SPEAKER_02")
+        assert _segment_speaker_color(seg) == ""
+
+    def test_blank_when_speaker_id_set_but_relation_missing(self):
+        from yuu_clip.subtitles import _segment_speaker_color
+        seg = self._seg(speaker_id=5, speaker=None)
+        assert _segment_speaker_color(seg) == ""
+
+
+# ---------------------------------------------------------------------------
+# subtitles.py — lines_to_srt: per-speaker colour rendering
+# ---------------------------------------------------------------------------
+
+class TestLinesToSrtColor:
+    def _srt(self, lines):
+        from yuu_clip.subtitles import lines_to_srt
+        return lines_to_srt(lines)
+
+    def test_colored_line_wrapped_in_font_tag(self):
+        from yuu_clip.subtitles import SubLine
+        line = SubLine(0, 1000, "Hi", "Player", None, "#4fc3f7")
+        result = self._srt([line])
+        assert '<font color="#4fc3f7">[Player] Hi</font>' in result
+
+    def test_line_without_color_has_no_font_tag(self):
+        from yuu_clip.subtitles import SubLine
+        result = self._srt([SubLine(0, 1000, "Hi", "Player")])
+        assert "<font" not in result
+        assert "[Player] Hi" in result
+
+    def test_colored_line_without_speaker_wraps_bare_text(self):
+        from yuu_clip.subtitles import SubLine
+        line = SubLine(0, 1000, "Hi", "", None, "#4fc3f7")
+        result = self._srt([line])
+        assert '<font color="#4fc3f7">Hi</font>' in result
+
+
+# ---------------------------------------------------------------------------
+# subtitles.py — _labeled_lines preserves colour when falling back to track label
+# ---------------------------------------------------------------------------
+
+class TestLabeledLinesPreservesColor:
+    def test_diarized_line_keeps_its_color(self):
+        from yuu_clip.subtitles import SubLine, _labeled_lines
+        line = SubLine(0, 1000, "hi", "Yuu", 7, "#abcdef")
+        result = _labeled_lines([line], "player_voice")
+        assert result[0].color == "#abcdef"
+        assert result[0].seg_id == 7
+
+    def test_track_fallback_line_has_no_color(self):
+        from yuu_clip.subtitles import SubLine, _labeled_lines
+        line = SubLine(0, 1000, "hi")  # no diarized speaker → track-label fallback
+        result = _labeled_lines([line], "player_voice")
+        assert result[0].speaker == "Player"
+        assert result[0].color == ""
 
 
 # ---------------------------------------------------------------------------

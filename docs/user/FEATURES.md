@@ -360,6 +360,8 @@ Diarization runs as its own **Detecting speakers** step (a "Speakers" pill in th
 
 Once a recording has been analyzed with speaker labels on, open it and use the **Speakers** card in the recording detail. Each detected voice starts as "Speaker 1", "Speaker 2", and so on, with a short sample of what they said and a ▶ button to hear a few seconds of that voice; type a real name (e.g. "Yuu") to label them. Names appear in that recording's clip transcripts and in exported captions, and they stick even if you re-analyze the recording. Names are per-recording — naming a voice in one recording doesn't carry over to others yet. Caption files and highlight reels you already exported keep their old labels until you export them again.
 
+Each speaker also gets a colour, auto-assigned from a fixed palette so voices are visually distinct right away — click the colour swatch next to a speaker's name to pick a different one. Colours show up in the timed transcript views and in burned-in captions (`--bake-captions`); caption files and reels you already exported keep their old colours until you export them again.
+
 The **Suggest names** button (top of the Speakers card) uses the LLM to guess names from how people address each other in the transcript ("Hey Yuu, watch out"). Each guess appears as a **Suggested: …** prompt next to the voice with **Accept** and **Dismiss** buttons — nothing is applied to your captions until you accept it, so a wrong guess never silently mislabels a speaker. The same name is never suggested for two different voices, and an existing name you already typed is never overwritten.
 
 **Timed transcript views**

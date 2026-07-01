@@ -47,6 +47,23 @@ class TestSpeakerModel:
                             source="inferred", confirmed=False)
         assert suggested.display_name == "Speaker 1"
 
+    def test_display_color_uses_explicit_color(self, tmp_path: Path):
+        speaker = Speaker(video_id=1, display_index=1, color="#123456")
+        assert speaker.display_color == "#123456"
+
+    def test_display_color_falls_back_to_palette_by_display_index(self, tmp_path: Path):
+        from yuu_clip.db.models import SPEAKER_COLOR_PALETTE
+        first = Speaker(video_id=1, display_index=1)
+        second = Speaker(video_id=1, display_index=2)
+        assert first.display_color == SPEAKER_COLOR_PALETTE[0]
+        assert second.display_color == SPEAKER_COLOR_PALETTE[1]
+        assert first.display_color != second.display_color
+
+    def test_display_color_palette_wraps_around(self, tmp_path: Path):
+        from yuu_clip.db.models import SPEAKER_COLOR_PALETTE
+        wrapped = Speaker(video_id=1, display_index=len(SPEAKER_COLOR_PALETTE) + 1)
+        assert wrapped.display_color == SPEAKER_COLOR_PALETTE[0]
+
     def test_segment_resolves_to_speaker(self, tmp_path: Path):
         session = make_session(tmp_path / "p.db")
         video = Video(path="x.mkv", filename="x.mkv", status="done")
@@ -313,6 +330,42 @@ class TestSpeakerRoutes:
     def test_rename_404_for_missing_speaker(self, client):
         assert client.put("/api/speakers/9999", json={"name": "X"}).status_code == 404
 
+    def test_list_returns_default_palette_color(self, client, project_dir):
+        video_id, _, _ = self._seed_speaker(project_dir)
+        data = client.get(f"/api/videos/{video_id}/speakers").json()
+        from yuu_clip.db.models import SPEAKER_COLOR_PALETTE
+        assert data[0]["color"] == SPEAKER_COLOR_PALETTE[0]  # display_index 1
+
+    def test_set_color_persists(self, client, project_dir):
+        _, speaker_id, _ = self._seed_speaker(project_dir)
+        updated = client.put(f"/api/speakers/{speaker_id}", json={"color": "#abcdef"}).json()
+        assert updated["color"] == "#abcdef"
+
+    def test_clear_color_reverts_to_palette_default(self, client, project_dir):
+        _, speaker_id, _ = self._seed_speaker(project_dir)
+        client.put(f"/api/speakers/{speaker_id}", json={"color": "#abcdef"})
+        cleared = client.put(f"/api/speakers/{speaker_id}", json={"color": ""}).json()
+        from yuu_clip.db.models import SPEAKER_COLOR_PALETTE
+        assert cleared["color"] == SPEAKER_COLOR_PALETTE[0]
+
+    def test_invalid_color_rejected(self, client, project_dir):
+        _, speaker_id, _ = self._seed_speaker(project_dir)
+        resp = client.put(f"/api/speakers/{speaker_id}", json={"color": "not-a-color"})
+        assert resp.status_code == 400
+
+    def test_color_only_update_does_not_clear_name(self, client, project_dir):
+        _, speaker_id, _ = self._seed_speaker(project_dir)
+        client.put(f"/api/speakers/{speaker_id}", json={"name": "Yuu"})
+        updated = client.put(f"/api/speakers/{speaker_id}", json={"color": "#abcdef"}).json()
+        assert updated["name"] == "Yuu"
+        assert updated["color"] == "#abcdef"
+
+    def test_name_only_update_does_not_touch_color(self, client, project_dir):
+        _, speaker_id, _ = self._seed_speaker(project_dir)
+        client.put(f"/api/speakers/{speaker_id}", json={"color": "#abcdef"})
+        updated = client.put(f"/api/speakers/{speaker_id}", json={"name": "Yuu"}).json()
+        assert updated["color"] == "#abcdef"
+
     def test_rename_rebuilds_clip_excerpt(self, client, project_dir):
         video_id, speaker_id, clip_id = self._seed_speaker(project_dir)
         client.put(f"/api/speakers/{speaker_id}", json={"name": "Yuu"})
@@ -342,6 +395,19 @@ class TestSpeakerRoutes:
 
     def test_video_transcript_404_for_missing_video(self, client):
         assert client.get("/api/videos/9999/transcript").status_code == 404
+
+    def test_clip_transcript_lines_include_speaker_color(self, client, project_dir):
+        _, speaker_id, clip_id = self._seed_speaker(project_dir)
+        client.put(f"/api/speakers/{speaker_id}", json={"color": "#abcdef"})
+
+        lines = client.get(f"/api/clips/{clip_id}/transcript").json()["lines"]
+        assert lines[0]["color"] == "#abcdef"
+
+    def test_video_transcript_lines_default_color_when_unset(self, client, project_dir):
+        video_id, _, _ = self._seed_speaker(project_dir)
+        lines = client.get(f"/api/videos/{video_id}/transcript").json()["lines"]
+        from yuu_clip.db.models import SPEAKER_COLOR_PALETTE
+        assert lines[0]["color"] == SPEAKER_COLOR_PALETTE[0]
 
 
 class TestApplyNameSuggestions:

@@ -53,6 +53,9 @@ function _renderSpeakersCard(speakers) {
       <div class="speaker-row">
         ${play}
         <span class="speaker-tag">Speaker ${s.display_index}</span>
+        <input class="speaker-color-input" type="color" data-speaker-id="${s.id}"
+               value="${escHtml(s.color)}" title="Subtitle color for this speaker"
+               aria-label="Subtitle color for Speaker ${s.display_index}">
         <input class="speaker-name-input" type="text" data-speaker-id="${s.id}"
                value="${inputValue}" placeholder="Add a name&hellip;"
                aria-label="Name for Speaker ${s.display_index}" maxlength="60">
@@ -154,6 +157,24 @@ async function _saveSpeakerName(speakerId, name) {
   }
 }
 
+async function _saveSpeakerColor(speakerId, color) {
+  try {
+    const res = await fetch(`/api/speakers/${speakerId}`, {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({color}),
+    });
+    if (!res.ok) {
+      showToast('Could not save speaker color', 'error');
+      return;
+    }
+    // Refresh the open clip's transcript so its speaker labels pick up the new color.
+    if (AppState.activeClipId) selectClip(AppState.activeClipId);
+  } catch (_) {
+    showToast('Could not save speaker color', 'error');
+  }
+}
+
 // Accept (name = the suggestion) or dismiss (name = "") an inferred suggestion.
 // Both confirm the speaker server-side, so the suggestion prompt clears on reload.
 async function _resolveSuggestion(speakerId, name) {
@@ -203,8 +224,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
   detail.addEventListener('change', e => {
-    const input = e.target.closest && e.target.closest('.speaker-name-input');
-    if (input) _saveSpeakerName(parseInt(input.dataset.speakerId, 10), input.value.trim());
+    const nameInput = e.target.closest && e.target.closest('.speaker-name-input');
+    if (nameInput) { _saveSpeakerName(parseInt(nameInput.dataset.speakerId, 10), nameInput.value.trim()); return; }
+    const colorInput = e.target.closest && e.target.closest('.speaker-color-input');
+    if (colorInput) _saveSpeakerColor(parseInt(colorInput.dataset.speakerId, 10), colorInput.value);
   });
   detail.addEventListener('keydown', e => {
     const input = e.target.closest && e.target.closest('.speaker-name-input');

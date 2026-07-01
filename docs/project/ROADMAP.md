@@ -217,10 +217,10 @@ Complex, specialized, or AI-heavy features that are valuable but don't need to b
   surfaced as a reviewable diff before committing. *Fed by* the speaker→name map from Speaker naming
   above (which provides the reliable speaker scoping) — not subsumed by it.
 
-- [ ] **Subtitle style options** — font, size, colour, position for burned-in subtitles. With
-  speaker diarization: per-speaker colour/style so different characters are visually distinct.
-  (Per-speaker text labels — `[Speaker NN]` prefixes — already ship; this item is the visual
-  styling layer on top.)
+- [ ] **Subtitle style options** — font, size, position for burned-in subtitles. Per-speaker
+  *colour* has shipped (`Speaker.display_color`, auto-assigned palette + user override, rendered
+  in burned captions via `<font color>` and in the on-screen transcript) — see COMPLETED.md. Font,
+  size, and position remain.
 
 ### Export and delivery
 
