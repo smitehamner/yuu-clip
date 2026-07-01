@@ -365,6 +365,19 @@ Archive of shipped items. For pending work see [ROADMAP.md](ROADMAP.md).
 - **Never silent.** `Speaker.display_name` now returns the "Speaker N" fallback unless the name is `confirmed`, so an unconfirmed suggestion never reaches captions, excerpts, or exports. The Speakers card (`static/speakers.js`) gains a **"Suggest names"** button (streams via `_openSSE`, log panel + progress like the summary regenerate) and renders each suggestion inline with **Accept** (PUT the name → confirms) / **Dismiss** (PUT empty → clears).
 - Covered by `tests/test_speakers.py` (`_apply_name_suggestions` dedupe/collision/no-overwrite/re-apply, `_labeled_transcript` grouping, infer SSE route 404/400/done-count/apply/accept, `display_name` unconfirmed gating) and `tests/test_diarization.py` (retranscribe forwards embeddings + threshold + video_id to `_attach_speakers`). Full API suite 921 passed; UI suite 134 green.
 
+### Per-step analysis progress percentage
+
+- **Incremental clip scoring** (`cli/_pipeline.py`, `scoring/engine.py`) — each clip's score now
+  commits to the DB as soon as it's computed instead of one transaction for the whole video, so
+  the web server can see scores land in real time. The Extract/Transcribe/Score pipeline log lines
+  gained `i/N` counts.
+- **Live percentage/ETA** (`static/utils.js`) — the header step pills and the in-detail live panel
+  parse those `i/N` counts into a completion percentage, an ETA, and a progress-fill pill within
+  each step *(closes the Goal-Gradient Effect UX debt item)*.
+- **Live clip list refresh** (`static/videos.js`) — the open clip list refreshes itself off the SSE
+  stream as scores commit, instead of staying empty until the whole analysis finishes.
+- Shipped in 521dc14.
+
 ### Per-speaker subtitle colours
 
 - **`Speaker.display_color`** (`db/models.py`) returns the user-picked `color` if set, else a default cycled from a new module-level `SPEAKER_COLOR_PALETTE` (8 colours) keyed on `display_index` — every speaker gets a distinct, stable colour immediately, with no migration needed for rows minted before this feature.

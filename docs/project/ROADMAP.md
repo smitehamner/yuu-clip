@@ -81,9 +81,6 @@ regular users.
   view showing active/queued/completed job counts; clicking expands per-job detail. Long-term: move
   the raw log view behind a "Developer" toggle.
 
-- [ ] **Per-step analysis progress percentage** — step chips in the header already advance through
-  stages; add a completion % within each step *(UX debt: Goal-Gradient Effect)*
-
 - [ ] **Detail panel chunking** — group the clip detail panel into cards: Summary → Actions →
   Transcript, rather than a flat list *(UX debt: Chunking)*
 
