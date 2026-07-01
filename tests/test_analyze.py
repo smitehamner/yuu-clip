@@ -406,6 +406,67 @@ class TestScoringIsolation:
         assert verify.query(ClipCandidate).filter_by(video_id=video_id).count() == 1  # clips preserved
         verify.close()
 
+    def test_clips_scored_before_mid_batch_failure_keep_their_committed_scores(self, tmp_path):
+        """ScoringEngine.score_video commits after every clip (engine.py), so a
+        scorer that raises partway through a batch does not roll back the clips
+        already scored — only video.clips_scored_at (the "fully scored" signal)
+        stays null. This is the real contract behind the comment in
+        _analyze_one's scoring except-block; see docs/dev/REVIEW_DECISIONS.md
+        Phase 3 (763a718..HEAD) for the corrected comment."""
+        from unittest.mock import patch
+
+        from yuu_clip.cli import _pipeline
+        from yuu_clip.cli._base import AnalyzeOptions
+        from yuu_clip.config import Config
+        from yuu_clip.db.models import ClipCandidate, Video, make_session
+        from yuu_clip.scoring.engine import ScoringEngine
+        from yuu_clip.scoring.protocol import ScoreResult
+
+        session = make_session(tmp_path / "project.db")
+        video = Video(path=str(tmp_path / "s.mkv"), filename="s.mkv", status="probed", duration_ms=60_000)
+        session.add(video)
+        session.flush()
+        clip_ok = ClipCandidate(video_id=video.id, start_ms=0, end_ms=10_000, status="pending")
+        clip_boom = ClipCandidate(video_id=video.id, start_ms=10_000, end_ms=20_000, status="pending")
+        session.add_all([clip_ok, clip_boom])
+        session.commit()
+        video_id = video.id
+        clip_ok_id = clip_ok.id
+
+        class _FlakyScorer:
+            name = "flaky"
+            weight = 1.0
+
+            def is_available(self):
+                return True
+
+            def score(self, clip, session):
+                if clip.id == clip_boom.id:
+                    raise RuntimeError("LLM endpoint unreachable")
+                return ScoreResult(score_funny=0.9, score_dramatic=0.5, score_action=0.5)
+
+        def run_real_scoring(video, track_objs, config, session, energy_mode="fast", context_text=""):
+            engine = ScoringEngine(config, [_FlakyScorer()])
+            engine.score_video(video, session)
+
+        with patch.object(_pipeline, "_resolve_existing_video", return_value=(tmp_path / "s.mkv", video)), \
+             patch.object(_pipeline, "_probe_video", return_value=object()), \
+             patch.object(_pipeline, "_upsert_video_and_tracks", return_value=(video, [])), \
+             patch.object(_pipeline, "_extract_audio_and_check_rms_overlap", return_value=None), \
+             patch.object(_pipeline, "_obtain_transcripts", return_value=[]), \
+             patch.object(_pipeline, "_generate_candidates", return_value=[clip_ok, clip_boom]), \
+             patch.object(_pipeline, "_summarize_video", return_value=None), \
+             patch.object(_pipeline, "_run_scoring", side_effect=run_real_scoring):
+            _pipeline._analyze_one(tmp_path / "s.mkv", session, Config(), tmp_path, AnalyzeOptions())
+
+        session.close()
+        verify = make_session(tmp_path / "project.db")
+        reloaded_video = verify.get(Video, video_id)
+        reloaded_clip_ok = verify.get(ClipCandidate, clip_ok_id)
+        assert reloaded_video.clips_scored_at is None       # batch never finished — UI still offers Rescore
+        assert reloaded_clip_ok.score_overall == pytest.approx((0.9 + 0.5 + 0.5) / 3)  # kept, not rolled back
+        verify.close()
+
 
 # ---------------------------------------------------------------------------
 # Extract/Transcribe stage progress logging — "Track i/N" lines drive the

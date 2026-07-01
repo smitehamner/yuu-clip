@@ -60,21 +60,22 @@ class AnalyzeJob:
 
     async def _pump(self) -> None:
         assert self.proc and self.proc.stdout
+        job_desc = f"pid={self.proc.pid} filename={self.filename!r} video_id={self.video_id}"
         try:
             async for raw_line in self.proc.stdout:
                 self._emit(raw_line.decode("utf-8", errors="replace").rstrip())
             await self.proc.wait()
             self.returncode = self.proc.returncode
             if self.cancelled:
-                _log.info("Analyze subprocess (pid %s) cancelled by user", self.proc.pid)
+                _log.info("Analyze subprocess cancelled by user (%s)", job_desc)
                 self._emit("[Analysis cancelled]")
             elif self.returncode != 0:
-                _log.error("Analyze subprocess exited with code %d", self.returncode)
+                _log.error("Analyze subprocess exited with code %d (%s)", self.returncode, job_desc)
                 self._emit(f"[Error: subprocess exited with code {self.returncode}]")
             else:
-                _log.info("Analyze subprocess (pid %s) completed successfully", self.proc.pid)
+                _log.info("Analyze subprocess completed successfully (%s)", job_desc)
         except Exception:
-            _log.exception("Analyze output pump failed")
+            _log.exception("Analyze output pump failed (%s)", job_desc)
             self._emit("[Error: analysis output stream failed]")
         finally:
             self.done = True

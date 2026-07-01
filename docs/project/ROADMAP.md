@@ -372,6 +372,16 @@ Items wanted long-term but not yet assigned to a phase.
   topmost one. Fixing properly requires a modal stack so Escape pops one layer at a time. Low UX
   impact for a single-user tool; look into later when modal nesting becomes common.
 
+- [ ] **Quality presets** *(on hold)* — named compute bundles (e.g. "Fast draft" / "Balanced" /
+  "Max quality") that pick a matched set of Whisper model, energy mode, scene mode, and scoring
+  weights in one choice instead of configuring each independently. Deferred — no clear preset
+  definitions yet.
+
+- [ ] **Export-time transcript upgrade** *(shelved)* — re-run a higher-quality Whisper pass at
+  export time (vs. the ingest-time transcript) so exported captions can use a bigger model without
+  slowing down the initial analyze pass. Shelved — the design wasn't fully thought through (unclear
+  how it interacts with retranscribe and caption sidecars that already exist).
+
 ---
 
 ## Known issues (code quality)

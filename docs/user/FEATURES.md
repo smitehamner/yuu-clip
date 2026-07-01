@@ -31,7 +31,7 @@
 
 Each clip detail view shows:
 
-- **Score bars** (0–1 scale): Overall, Funny, Dramatic, Action
+- **Score bars** (0–1 scale): Overall, Funny, Dramatic, Action — shown once the clip has been scored; a clip that hasn't been scored yet (e.g. a failed analysis run) shows "Not yet scored" instead of a misleading 0%
 - **One-liner description** and **long description** (paragraph)
 - **Tags**: auto-generated labels such as `llm_scored`, `energy_scored`, `long_silence_after`
 - **Transcript excerpt** in a monospace box
@@ -40,14 +40,23 @@ Each clip detail view shows:
 - **Clip search** — text input above the status tabs; searches description, long description, and transcript excerpt (case-insensitive). Composes with the status tab and score filter.
 - **Minimum score filter** — dropdown (Any / 0.3+ / 0.5+ / 0.7+ / 0.9+) that hides clips below the selected overall score threshold. Composes with the search and status tab filters.
 
-Actions available per clip:
+Actions available per clip: **Approve** / **Reject** and **Export** sit directly on the clip
+detail panel; everything else is grouped behind an **Additional Actions** button (Review /
+Regenerate / Files sections in the modal it opens):
 
-| Button | What it does |
+| Action | What it does |
 |--------|-------------|
 | Retranscribe | Re-runs Whisper on this clip's time window; shows model selector |
 | Re-score | Sends clip to Ollama with current context |
-| Export | Extracts the clip to MKV (shows options modal) |
-| Delete | Removes the clip record and any exported files |
+| Override / Remove Override Score | Manually set the overall score, or discard the override and go back to the generated score |
+| Find Similar | Searches other recordings for clips with a similar description |
+| Mark Unreviewed | Clears an Approve/Reject status (only shown once a clip has one) |
+| Merge previous / next | Combines this clip with an adjacent one (only shown when a neighbor exists) |
+| Download Export / Delete Export | Save the exported file, or delete it while keeping the clip record |
+| Delete Clip | Removes the clip record and any exported file |
+
+The same **Additional Actions** pattern is used on the video detail view for less-common actions
+like **Re-analyze (full)** and **Re-detect Speakers** (see "Re-analyzing a recording" below).
 
 **Bulk actions** — each clip row has a checkbox; checking any shows a toolbar above the list with Approve / Reject / Export / Delete buttons that act on every checked clip currently visible under the active search/status/score filter. Bulk delete asks for confirmation first. Bulk export warns if any selected clip's captions were edited since it was last scored, letting you re-score first or export anyway.
 
@@ -422,7 +431,7 @@ already been analyzed:
   clips, including your approvals and any edited descriptions, so it asks for
   confirmation first. Files you already exported stay on disk.
 
-**Voiceprint match threshold** (Settings → Speaker labels) controls how strict
+**Speaker match strictness** (Settings → Speaker labels) controls how strict
 Re-detect Speakers is when re-attaching a named speaker to a voice: higher is
 stricter (fewer wrong matches, but more voices re-listed as new "Speaker N" to
 re-confirm). The default 0.75 is safe; lower it if named speakers keep coming

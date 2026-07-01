@@ -100,7 +100,7 @@ function _renderClipItems(clips) {
   for (const c of clips) {
     const li = document.createElement('li');
     li.className = c.id === AppState.activeClipId ? 'active' : '';
-    li.style.borderLeftColor = _scoreBorderColor(_sortScore(c), c.status === 'rejected');
+    li.style.borderLeftColor = _scoreBorderColor(_sortScore(c), c.status === 'rejected' || !c.scored_at);
     li.tabIndex = 0;
     li.innerHTML = `
       <div class="clip-item-row1">
@@ -112,11 +112,13 @@ function _renderClipItems(clips) {
           : '<span class="export-pill not-exported" title="Not yet exported">Not exported</span>'}
         <span class="status-dot dot-${c.status}" title="${c.status === 'approved' ? 'Approved' : c.status === 'rejected' ? 'Rejected' : 'Unreviewed'}">${c.status === 'approved' ? '✓' : c.status === 'rejected' ? '✕' : ''}</span>
       </div>
-      <div class="clip-scores" aria-label="Scores: overall ${Math.round(c.score_overall*100)}%, funny ${Math.round(c.score_funny*100)}%, dramatic ${Math.round(c.score_dramatic*100)}%, action ${Math.round(c.score_action*100)}%">
+      <div class="clip-scores" aria-label="${c.scored_at ? `Scores: overall ${Math.round(c.score_overall*100)}%, funny ${Math.round(c.score_funny*100)}%, dramatic ${Math.round(c.score_dramatic*100)}%, action ${Math.round(c.score_action*100)}%` : 'Not yet scored'}">
+        ${c.scored_at ? `
         <span aria-hidden="true" title="Overall">${_scoreIcon(c.score_overall)} ${Math.round(c.score_overall*100)}%</span>
         <span aria-hidden="true" title="Funny"><span>😂</span> ${Math.round(c.score_funny*100)}%</span>
         <span aria-hidden="true" title="Dramatic"><span>🎭</span> ${Math.round(c.score_dramatic*100)}%</span>
         <span aria-hidden="true" title="Action"><span>⚔️</span> ${Math.round(c.score_action*100)}%</span>
+        ` : `<span style="color:var(--muted);font-size:12px" title="This clip has not been scored yet">Not yet scored</span>`}
       </div>
       ${c.description ? `<div class="clip-desc-preview" title="${escHtml(c.description)}">${escHtml(c.description)}</div>` : ''}`;
     const checkbox = li.querySelector('.clip-select-checkbox');
@@ -282,17 +284,20 @@ function renderDetail(clip) {
       <div class="detail-card" style="flex:1">
         <div class="detail-card-header">
           <span class="detail-card-title">Scoring</span>
-          ${clip.score_overall_user != null
+          ${clip.scored_at && clip.score_overall_user != null
             ? `<button class="btn ghost" style="font-size:11px;padding:2px 8px" onclick="clearScoreOverride(${clip.id})" title="Remove manual score override">Remove Override</button>`
-            : `<button class="btn ghost" style="font-size:11px;padding:2px 8px" onclick="openScoreOverride(${clip.id})">Override Score</button>`}
+            : clip.scored_at
+            ? `<button class="btn ghost" style="font-size:11px;padding:2px 8px" onclick="openScoreOverride(${clip.id})">Override Score</button>`
+            : ''}
         </div>
         <div class="scores">
-          ${clip.score_overall_user != null
+          ${!clip.scored_at ? `<span style="color:var(--muted);font-size:13px">Not yet scored — Re-score to generate</span>` :
+            clip.score_overall_user != null
             ? scoreRowOverride('Overall', clip.score_overall, clip.score_overall_user, 'overall')
             : scoreRow('Overall', clip.score_overall, 'overall')}
-          ${scoreRow('Funny',    clip.score_funny,    'funny')}
-          ${scoreRow('Dramatic', clip.score_dramatic, 'dramatic')}
-          ${scoreRow('Action',   clip.score_action,   'action')}
+          ${clip.scored_at ? scoreRow('Funny',    clip.score_funny,    'funny')    : ''}
+          ${clip.scored_at ? scoreRow('Dramatic', clip.score_dramatic, 'dramatic') : ''}
+          ${clip.scored_at ? scoreRow('Action',   clip.score_action,   'action')   : ''}
         </div>
       </div>
       <div class="detail-card" style="flex:1">

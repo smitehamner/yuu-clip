@@ -156,6 +156,25 @@ def _migrate(engine) -> None:
                 _log.info("Migration: adding clip_candidates.%s", col)
                 conn.execute(text(f"ALTER TABLE clip_candidates ADD COLUMN {col} {typedef}"))
 
+        if "scored_at" not in existing:
+            _log.info("Migration: adding clip_candidates.scored_at")
+            conn.execute(text("ALTER TABLE clip_candidates ADD COLUMN scored_at DATETIME"))
+            # Backfill: a video's clips_scored_at already means "every clip was
+            # scored as of this timestamp" (see Video.clips_scored_at docstring),
+            # so reuse it rather than leaving pre-existing clips looking unscored.
+            # Clips whose video was never fully scored (including any left with
+            # partial per-clip scores by a mid-batch failure) are intentionally
+            # left NULL — Re-score corrects them either way.
+            _log.info("Migration: backfilling clip_candidates.scored_at from parent video's clips_scored_at")
+            conn.execute(text(
+                "UPDATE clip_candidates SET scored_at = ("
+                "  SELECT clips_scored_at FROM videos WHERE videos.id = clip_candidates.video_id"
+                ") WHERE EXISTS ("
+                "  SELECT 1 FROM videos"
+                "  WHERE videos.id = clip_candidates.video_id AND videos.clips_scored_at IS NOT NULL"
+                ")"
+            ))
+
         # Drop the UNIQUE(path) constraint — segments share their parent's path, so a
         # per-path unique index breaks re-analysis after segments exist.
         # SQLite can't DROP CONSTRAINT; recreate the table without it.
@@ -477,6 +496,12 @@ class ClipCandidate(Base):
     # the video's clips_scored_at to flag a clip whose transcript changed since it
     # was last scored (same provenance pattern as related_clips_at).
     transcript_edited_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+
+    # Set the first time ScoringEngine.score_clip actually scores this clip. Null
+    # distinguishes "never scored" from the score_* fields' 0.0 default, which a
+    # mid-batch scoring failure can otherwise leave indistinguishable from a
+    # genuine zero score.
+    scored_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
 
     video: Mapped["Video"] = relationship(back_populates="clip_candidates")
     clip_transcripts: Mapped[List["Transcript"]] = relationship(

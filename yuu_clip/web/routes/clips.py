@@ -25,6 +25,7 @@ from yuu_clip.web.routes._shared import (
     _delete_files,
     _export_paths,
     _locked_files_error,
+    _missing_ids,
     _require_clip,
     _srt_path,
     _sse_response,
@@ -143,6 +144,7 @@ def _clip_dict(
         "score_dramatic": round(clip.score_dramatic, 3),
         "score_action": round(clip.score_action, 3),
         "score_overall_user": round(clip.score_overall_user, 3) if clip.score_overall_user is not None else None,
+        "scored_at": clip.scored_at.isoformat() if clip.scored_at else None,
         "description": clip.effective_description,
         "description_original": clip.description or "",
         "description_is_edited": clip.description_user is not None,
@@ -375,8 +377,11 @@ def _register_clip_routes(router: APIRouter, ctx: ProjectContext) -> None:
         if not src.exists():
             raise HTTPException(404, "Source video file not found on disk")
 
-        start_s = clip.start_ms / 1000 + (clip.start_offset or 0)
-        end_s = clip.end_ms / 1000 + (clip.end_offset or 0)
+        # clip.start_ms/end_ms are segment-relative for a split recording, but src is
+        # the untrimmed parent file — add segment_start_s to land on the right spot.
+        segment_offset_s = video.segment_start_s or 0
+        start_s = segment_offset_s + clip.start_ms / 1000 + (clip.start_offset or 0)
+        end_s = segment_offset_s + clip.end_ms / 1000 + (clip.end_offset or 0)
         duration_s = max(0.1, end_s - start_s)
 
         preview_dir = ctx.data_dir / "preview_cache"
@@ -570,8 +575,11 @@ def _register_bulk_routes(router: APIRouter, ctx: ProjectContext) -> None:
             for clip in clips:
                 clip.status = body.status
             db.commit()
-            missing = [cid for cid in body.clip_ids if cid not in found_ids]
-            _log.info("Bulk status update: %d clip(s) set to %s", len(clips), body.status)
+            missing = _missing_ids(body.clip_ids, found_ids)
+            _log.info(
+                "Bulk status update: %d clip(s) set to %s, %d missing",
+                len(clips), body.status, len(missing),
+            )
             return {"updated": sorted(found_ids), "status": body.status, "missing": missing}
         finally:
             db.close()
@@ -600,7 +608,7 @@ def _register_bulk_routes(router: APIRouter, ctx: ProjectContext) -> None:
                 db.delete(clip)
                 deleted.append(clip.id)
             db.commit()
-            missing = [cid for cid in body.clip_ids if cid not in found_ids]
+            missing = _missing_ids(body.clip_ids, found_ids)
             _log.info(
                 "Bulk delete: %d clip(s) deleted, %d locked, %d missing",
                 len(deleted), len(locked_ids), len(missing),
@@ -633,7 +641,7 @@ def _register_bulk_routes(router: APIRouter, ctx: ProjectContext) -> None:
             }
         finally:
             db.close()
-        missing = [cid for cid in ids if cid not in found_ids]
+        missing = _missing_ids(ids, found_ids)
         if missing:
             raise HTTPException(404, f"Clip(s) not found: {', '.join(map(str, missing))}")
 

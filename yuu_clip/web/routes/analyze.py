@@ -31,6 +31,17 @@ from yuu_clip.web.sse import subprocess_sse, terminate_process_tree
 
 _log = get_logger(__name__)
 
+
+def _analyze_running(ctx: ProjectContext) -> bool:
+    """Whether an analyze operation is currently in flight, across both the
+    reattachable AnalyzeJob (ctx.analyze_job) and the legacy bare-subprocess
+    tracking (ctx.analyze_proc) that other short jobs still use."""
+    job = ctx.analyze_job
+    job_running = job is not None and not job.done
+    proc = ctx.analyze_proc
+    proc_running = proc is not None and proc.returncode is None
+    return job_running or proc_running
+
 # Optional packages installable from Settings. _INSTALLABLE maps a UI slug to its
 # pip package name(s); _IMPORT_NAMES maps the slug to the import module name(s)
 # used to detect whether it is already present (pip name ≠ import name for some).
@@ -228,9 +239,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         from yuu_clip.web.app import _VERSION_DISPLAY
         job = ctx.analyze_job
         job_running = job is not None and not job.done
-        proc = ctx.analyze_proc
-        proc_running = proc is not None and proc.returncode is None
-        analyze_running = job_running or proc_running
+        analyze_running = _analyze_running(ctx)
         return {
             "any_running": analyze_running or ctx.active_jobs > 0,
             "analyze_running": analyze_running,
@@ -272,11 +281,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     @router.get("/api/analyze/status")
     def analyze_status():
         """Return whether an analyze subprocess is currently running."""
-        job = ctx.analyze_job
-        job_running = job is not None and not job.done
-        proc = ctx.analyze_proc
-        proc_running = proc is not None and proc.returncode is None
-        return {"running": job_running or proc_running}
+        return {"running": _analyze_running(ctx)}
 
     @router.post("/api/analyze/cancel")
     async def cancel_analyze():

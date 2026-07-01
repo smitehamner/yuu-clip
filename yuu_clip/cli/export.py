@@ -250,12 +250,19 @@ def _finalize_export(cand, session, video_path: Path, output: Path, *,
 
 
 def _compute_export_window(cand) -> tuple[int, int]:
-    """Apply the user's start/end offsets and clamp to the source duration."""
+    """Apply the user's start/end offsets and clamp to the source duration.
+
+    Returns ms relative to the source file passed to export_clip. For a split
+    segment, cand.start_ms/end_ms/video.duration_ms are all segment-relative, but
+    video.path always points at the untrimmed parent file — so segment_start_s is
+    added back in after clamping against the (segment-relative) duration.
+    """
     start_ms = max(0, cand.start_ms + int((cand.start_offset or 0.0) * 1000))
     end_ms   = cand.end_ms + int((cand.end_offset or 0.0) * 1000)
     if cand.video.duration_ms:
         end_ms = min(end_ms, cand.video.duration_ms)
-    return start_ms, end_ms
+    segment_offset_ms = int((cand.video.segment_start_s or 0.0) * 1000)
+    return start_ms + segment_offset_ms, end_ms + segment_offset_ms
 
 
 def _resolve_audio_stream_index(session, cand) -> Optional[int]:

@@ -64,6 +64,29 @@ class TestClipReview:
         expect(page.locator(".clip-scores").first).to_be_visible()
 
 
+@skip_no_server
+class TestNotYetScoredIndicator:
+    """A clip with scored_at=null (never reached by ScoringEngine, e.g. after a
+    mid-batch scoring failure) must read as unscored, not as a genuine 0% score."""
+
+    def test_sidebar_shows_not_yet_scored_instead_of_zero_percent(self, page: Page):
+        select_video_with_clips(page)
+        page.evaluate("() => { AppState.clips[0].scored_at = null; _renderClips(); }")
+        first_item = page.locator("#clip-list li:has(.clip-num)").first
+        expect(first_item.locator(".clip-scores")).to_contain_text("Not yet scored")
+
+    def test_detail_shows_not_yet_scored_instead_of_zero_percent(self, page: Page):
+        select_first_video_and_clip(page)
+        page.wait_for_selector(".scores", timeout=3000)
+        clip_id = page.evaluate("""() => {
+            AppState.activeClipData.scored_at = null;
+            renderDetail(AppState.activeClipData);
+            return AppState.activeClipData.id;
+        }""")
+        assert clip_id is not None
+        expect(page.locator(".scores")).to_contain_text("Not yet scored")
+
+
 # ---------------------------------------------------------------------------
 # Clip sort
 # ---------------------------------------------------------------------------
@@ -322,7 +345,7 @@ class TestBulkDelete:
         page.click(".clip-bulk-actions button:has-text('Delete')")
         page.wait_for_selector("#confirm-modal.visible", timeout=2000)
         page.click("#confirm-modal button:has-text('Cancel')")
-        page.wait_for_timeout(300)
+        page.wait_for_selector("#confirm-modal.visible", state="hidden", timeout=2000)
         assert not delete_requests
 
     def test_confirm_sends_bulk_delete_request(self, page: Page):
@@ -361,7 +384,7 @@ class TestBulkExportStaleWarning:
         page.click(".clip-bulk-actions button:has-text('Export')")
         page.wait_for_selector("#confirm-modal.visible", timeout=2000)
         page.click("#confirm-modal button:has-text('Cancel')")
-        page.wait_for_timeout(300)
+        page.wait_for_selector("#confirm-modal.visible", state="hidden", timeout=2000)
         assert not export_requests
 
     def test_non_stale_selection_exports_without_warning(self, page: Page):

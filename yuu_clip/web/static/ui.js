@@ -81,6 +81,7 @@ function openActionsModal(title, groups) {
     }
   });
   document.getElementById('actions-modal').classList.add('visible');
+  setTimeout(() => body.querySelector('.action-row:not(:disabled)')?.focus(), 50);
 }
 function closeActionsModal() {
   document.getElementById('actions-modal').classList.remove('visible');

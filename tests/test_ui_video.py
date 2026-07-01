@@ -1,6 +1,7 @@
 """
-Playwright UI tests — per-video summary regeneration confirm flow, and the
-run-timing provenance line in the World Contexts section.
+Playwright UI tests — per-video summary regeneration confirm flow, the
+run-timing provenance line in the World Contexts section, and the video-level
+Additional Actions modal.
 
 Run against the live dev server on port 8080. See tests/conftest.py for shared
 helpers.
@@ -9,7 +10,7 @@ from __future__ import annotations
 
 from playwright.sync_api import Page, expect
 
-from conftest import LIVE_URL, skip_no_server
+from conftest import LIVE_URL, select_video_with_clips, skip_no_server
 
 
 _MOCK_ANALYZE_RUN = {
@@ -109,3 +110,57 @@ class TestRegenSummaryAutoConfirm:
         page.wait_for_selector("#confirm-modal.visible", timeout=2000)
         with page.expect_request(lambda r: "regenerate-summary" in r.url, timeout=3000):
             page.click("#confirm-ok-btn")
+
+
+# ---------------------------------------------------------------------------
+# Video-level "Additional Actions" modal
+# ---------------------------------------------------------------------------
+
+@skip_no_server
+class TestVideoActionsModal:
+    def test_opens_with_expected_action_groups(self, page: Page):
+        select_video_with_clips(page)
+        page.click(".vid-actions button:has-text('Additional Actions')")
+        page.wait_for_selector("#actions-modal.visible", timeout=2000)
+        body = page.locator("#actions-modal-body")
+        expect(body.locator("button:has-text('Approve Above Score')")).to_be_visible()
+        expect(body.locator("button:has-text('Re-score All Clips')")).to_be_visible()
+        expect(body.locator("button:has-text('Re-detect Speakers')")).to_be_visible()
+        expect(body.locator("button:has-text('Split Recording')")).to_be_visible()
+        expect(body.locator("button:has-text('Re-analyze (full)')")).to_be_visible()
+
+    def test_title_includes_video_name(self, page: Page):
+        select_video_with_clips(page)
+        page.click(".vid-actions button:has-text('Additional Actions')")
+        page.wait_for_selector("#actions-modal.visible", timeout=2000)
+        expect(page.locator("#actions-modal-title")).to_contain_text("Additional Actions")
+
+    def test_danger_actions_render_with_danger_class(self, page: Page):
+        select_video_with_clips(page)
+        page.click(".vid-actions button:has-text('Additional Actions')")
+        page.wait_for_selector("#actions-modal.visible", timeout=2000)
+        danger_row = page.locator("#actions-modal-body .action-row.danger:has-text('Remove Recording')")
+        expect(danger_row).to_be_visible()
+
+    def test_closing_modal_does_not_trigger_any_action(self, page: Page):
+        # Clicking the close (X) button must dismiss the modal without invoking
+        # any row's action — only clicking a row itself should fire its action.
+        select_video_with_clips(page)
+        page.click(".vid-actions button:has-text('Additional Actions')")
+        page.wait_for_selector("#actions-modal.visible", timeout=2000)
+        requests: list = []
+        page.on("request", lambda r: requests.append(r.url))
+        page.click("#actions-modal button[aria-label='Close']")
+        expect(page.locator("#actions-modal")).not_to_be_visible()
+        assert not any("rescore" in u or "reanalyze" in u or "delete" in u for u in requests)
+
+    def test_selecting_a_row_closes_modal_and_invokes_action(self, page: Page):
+        # Split Recording opens the split editor panel — a safe, non-destructive
+        # action to verify the row's onclick actually fires (closeActionsModal()
+        # runs first, then row.action()).
+        select_video_with_clips(page)
+        page.click(".vid-actions button:has-text('Additional Actions')")
+        page.wait_for_selector("#actions-modal.visible", timeout=2000)
+        page.click("#actions-modal .action-row:has-text('Split Recording')")
+        expect(page.locator("#actions-modal")).not_to_be_visible()
+        expect(page.locator("#split-editor-panel")).to_be_visible(timeout=3000)

@@ -168,6 +168,11 @@ def _require_clip(db, clip_id: int) -> ClipCandidate:
     return clip
 
 
+def _missing_ids(requested: Iterable[int], found_ids: set[int]) -> list[int]:
+    """Requested IDs not present in *found_ids*, in the caller's original order."""
+    return [cid for cid in requested if cid not in found_ids]
+
+
 def _clip_stem(clip: ClipCandidate, video: Video) -> str:
     return f"{Path(video.filename).stem}_clip{clip.id}_{clip.start_hms.replace(':', '-')}"
 

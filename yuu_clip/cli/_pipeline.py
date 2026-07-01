@@ -138,8 +138,12 @@ def _analyze_one(
             with recorder.stage("Score"):
                 _run_scoring(video, track_objs, config, session, energy_mode=opts.energy_mode, context_text=opts.context_text)
         except Exception as exc:
-            # Clips are already committed; discard partial scoring writes and leave the
-            # video reviewable-but-unscored (clips_scored_at stays null → UI shows Rescore).
+            # ScoringEngine.score_video commits after every clip (so the web server can
+            # see scores as they land — see scoring/engine.py), so clips scored before
+            # the failure keep their committed scores; rollback only discards the
+            # in-flight clip's uncommitted work. video.clips_scored_at is set only after
+            # the whole batch succeeds, so it stays null here — that flag, not per-clip
+            # score presence, is the "fully scored" signal the UI's Rescore prompt uses.
             # Don't let one video's scoring failure abort the rest of the batch.
             session.rollback()
             console.print(f"  [yellow]Scoring failed — clips kept, unscored. Use Rescore to retry: {exc}[/yellow]")

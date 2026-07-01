@@ -17,7 +17,10 @@ from urllib.parse import quote
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse
 
+from yuu_clip.log import get_logger
 from yuu_clip.web.deps import ProjectContext
+
+_log = get_logger(__name__)
 
 # Curated Windows system sounds offered as defaults. Only those actually present
 # on this machine are returned, so the list degrades gracefully across editions.
@@ -111,6 +114,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             raise HTTPException(413, "Sound file too large (max 25 MB)")
         sounds_dir.mkdir(parents=True, exist_ok=True)
         (sounds_dir / safe).write_bytes(body)
+        _log.info("Uploaded notification sound %r (%d bytes)", safe, len(body))
         return {"name": safe, "url": _custom_url(safe)}
 
     @router.delete("/api/sounds/custom")
@@ -119,6 +123,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         path = sounds_dir / safe
         if path.is_file():
             path.unlink()
+            _log.info("Deleted notification sound %r", safe)
         return {"ok": True}
 
     return router

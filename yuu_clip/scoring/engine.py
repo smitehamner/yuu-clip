@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 from yuu_clip.log import get_logger
@@ -82,6 +83,8 @@ class ScoringEngine:
         overall = _compute_overall(self._config, clip.score_funny, clip.score_dramatic, clip.score_action)
         if overall is not None:
             clip.score_overall = overall
+
+        clip.scored_at = datetime.now(timezone.utc)
 
     @staticmethod
     def _apply_descriptions(clip: "ClipCandidate", result: ScoreResult) -> None:

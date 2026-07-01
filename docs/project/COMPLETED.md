@@ -292,6 +292,15 @@ Archive of shipped items. For pending work see [ROADMAP.md](ROADMAP.md).
   view's per-line ▶ now adds `seek_offset_s` (a split segment's `segment_start_s`) so seeks land on
   the correct spot of the untrimmed parent-file player.
 
+- **Icon/emoji UX review** *(2026-06-29)* — audited every emoji/icon choice across the UI for
+  semantic collisions and rendering issues. Changed: hamburger menu's Getting Started (🚀 → 📖,
+  rocket ≠ guide), World Contexts (🎭 → 🌍, collided with the Dramatic score icon), Re-run Setup
+  Wizard (⛭ → 🔧, the gear-without-hub glyph renders as a box on some systems); the clip type badge
+  (✂ → 🎞, scissors reads as a cut action rather than clip content); literal ⭐ characters in
+  `reel.js` and `utils.js`'s `_scoreIcon()` switched to the `&#11088;` entity for encoding
+  consistency. Kept as-is after review: 😂/🎭/⚔️ score icons, ⭐ Overall, ⚙ Settings, ☰ Hamburger,
+  🎬 Video badge, 🔊 Audio energy, 🧠 LLM score, 🔒 built-in layout lock.
+
 ---
 
 ## Phase 4 — Packaging + distribution (done)
@@ -355,7 +364,7 @@ Archive of shipped items. For pending work see [ROADMAP.md](ROADMAP.md).
 ### Configurable voiceprint match threshold
 
 - The re-attach threshold (previously the hardcoded `_VOICEPRINT_MATCH_THRESHOLD = 0.75` in `whisper_runner.py`) is now `Config.speaker_match_threshold` (default 0.75), threaded through `diarize_track → _attach_speakers → _best_voiceprint_match`. The constant remains as the default value / fallback.
-- Exposed in **Settings → Speaker labels → Voiceprint match threshold** (number input 0–1, shown only with pyannote on). Wired via `GET/PATCH /api/config` with a new `_range_validator(0.0, 1.0)`.
+- Exposed in **Settings → Speaker labels → Speaker match strictness** (number input 0–1, shown only with pyannote on) — labeled without "voiceprint" per the glossary's dev-only term rule. Wired via `GET/PATCH /api/config` with a new `_range_validator(0.0, 1.0)`.
 - Covered by `tests/test_config.py` (default, round-trip, out-of-range 400, bounds accepted) and `tests/test_diarization.py` (`_best_voiceprint_match` honours a custom threshold; `diarize_track` forwards `config.speaker_match_threshold`). Full API suite 897 passed; UI suite 133 green.
 
 ### Retranscribe voiceprint re-attach + speaker name inference
@@ -394,3 +403,34 @@ Archive of shipped items. For pending work see [ROADMAP.md](ROADMAP.md).
 - **Backend** (`web/routes/clips.py`): `POST /api/clips/bulk-status` (best-effort, skips/reports unknown IDs), `POST /api/clips/bulk-delete` (best-effort per clip — a locked export file is skipped and reported in `locked` rather than aborting the whole batch), `GET /api/clips/bulk-export` (SSE, explicit `clip_ids` list rather than a video-wide filter). The batch-export SSE loop was extracted out of the existing video-scoped `/api/videos/{id}/batch-export` into a shared `_clip_export_stream_response` so both routes drive the same per-clip subprocess loop. Bulk routes are registered before the generic `/api/clips/{clip_id}` route — otherwise FastAPI matches `bulk-export` as a `clip_id` path param and 422s.
 - **Stale-transcript warning on export.** Each selected clip's existing `transcript_stale` field (`_clip_dict`) is checked client-side before firing a bulk export; if any selected clip has captions edited since its last score, a confirm dialog warns how many and lets the user re-score first or export anyway — it never exports a stale clip silently.
 - Covered by `tests/test_videos.py` (`TestBulkClipStatus`, `TestBulkDeleteClips`, `TestBulkExportClips` — payload/missing-ID/validation/skip-already-exported) and `tests/test_ui_clips.py` (`TestBulkSelectCheckboxes`, `TestBulkToolbar`, `TestBulkSelectionRespectsFilter`, `TestBulkApproveReject`, `TestBulkDelete`, `TestBulkExportStaleWarning`). Full API suite 958 passed; UI suite green.
+
+### "Not yet scored" per-clip indicator
+
+- **New `ClipCandidate.scored_at`** (`db/models.py`) — set by `ScoringEngine.score_clip` the moment a
+  clip is actually scored. Distinguishes "never scored" from the `score_*` fields' `0.0` default,
+  which a mid-batch scoring failure (per-clip commits land in `score_video`'s loop; see the
+  `cli/_pipeline.py` comment fix in the same pass) could otherwise leave indistinguishable from a
+  genuine zero score. Auto-migration backfills existing clips from their parent video's
+  `clips_scored_at` (a video-level "every clip was scored as of this timestamp" signal already
+  existed); clips whose video was never fully scored are intentionally left `NULL`.
+- **Sidebar and detail view** (`static/clips.js`) — a clip with `scored_at == null` shows "Not yet
+  scored" instead of four `0%` score rows/pills, and its sidebar left-border color falls back to the
+  same muted treatment as a rejected clip instead of the lowest-score gradient color.
+- Covered by `tests/test_scoring.py` (`scored_at` set on success, left `null` on the no-scorer /
+  no-weight early-return paths), `tests/test_db_migrations.py` (backfill from a scored vs. unscored
+  video, idempotent re-run), and `tests/test_ui_clips.py::TestNotYetScoredIndicator` (sidebar +
+  detail rendering). Full API suite 963 passed; UI suite 173 green.
+
+### Fixed: split-segment clip preview/export used the wrong window of the parent file
+
+- `ClipCandidate.start_ms`/`end_ms` are segment-relative for a split recording (0 = the segment's
+  own start), but the segment's `Video.path` always points at the untrimmed parent file — so any
+  code that seeks into `video.path` using the raw `start_ms` grabs the wrong (too-early) window
+  once `segment_start_s > 0`. `_compute_export_window` (`cli/export.py`) and `clip_preview`
+  (`web/routes/clips.py`) both had this bug; both now add `video.segment_start_s` back in after
+  clamping against the segment-relative duration. (The full-transcript ▶ seek already handled this
+  correctly via `seek_offset_s`.)
+- Covered by `tests/test_export.py::TestComputeExportWindow` (non-segment unaffected, segment
+  offset added, clamp uses segment-relative duration before the shift) and
+  `tests/test_videos.py::TestClipPreviewSplitSegmentOffset` (route-level: asserts the ffmpeg `-ss`
+  argument for a clip on the second of two split segments). Full API suite 967 passed.

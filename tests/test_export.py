@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from fastapi import HTTPException
@@ -52,6 +53,40 @@ class TestExportClipCmd:
     def test_softsub_duration_is_clip_length(self):
         cmd = self._cmd(subtitle_track_path=Path("subs.srt"), duration_s=42.0)
         assert cmd[cmd.index("-t") + 1] == "42.0"
+
+
+class TestComputeExportWindow:
+    """cand.start_ms/end_ms/video.duration_ms are segment-relative for a split
+    recording, but video.path (the file export_clip actually opens) is always the
+    untrimmed parent — segment_start_s must be added back in after clamping."""
+
+    def _cand(self, start_ms, end_ms, *, start_offset=0.0, end_offset=0.0,
+              duration_ms=None, segment_start_s=None):
+        return SimpleNamespace(
+            start_ms=start_ms, end_ms=end_ms,
+            start_offset=start_offset, end_offset=end_offset,
+            video=SimpleNamespace(duration_ms=duration_ms, segment_start_s=segment_start_s),
+        )
+
+    def test_non_segment_video_unaffected(self):
+        from yuu_clip.cli.export import _compute_export_window
+        cand = self._cand(10_000, 20_000, duration_ms=600_000, segment_start_s=None)
+        assert _compute_export_window(cand) == (10_000, 20_000)
+
+    def test_split_segment_adds_segment_offset(self):
+        from yuu_clip.cli.export import _compute_export_window
+        # Segment starts at 300s into the parent; clip is 10-20s into the segment.
+        cand = self._cand(10_000, 20_000, duration_ms=120_000, segment_start_s=300.0)
+        assert _compute_export_window(cand) == (310_000, 320_000)
+
+    def test_split_segment_clamp_uses_segment_relative_duration(self):
+        from yuu_clip.cli.export import _compute_export_window
+        # end_ms would exceed the 120s segment before the offset is added; clamp
+        # against the segment-relative duration, then shift into parent coordinates.
+        cand = self._cand(100_000, 150_000, duration_ms=120_000, segment_start_s=300.0)
+        start_ms, end_ms = _compute_export_window(cand)
+        assert start_ms == 400_000
+        assert end_ms == 420_000  # clamped to 120_000 (segment end) + 300_000 offset
 
 
 class TestVerifyExportDuration:

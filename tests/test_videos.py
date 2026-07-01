@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from pathlib import Path
+from types import SimpleNamespace
+
 import pytest
 
 # ---------------------------------------------------------------------------
@@ -1522,6 +1525,53 @@ class TestEditableFieldsBothBranch:
         assert r.status_code == 400
 
 
+class TestClipPreviewSplitSegmentOffset:
+    """clip_preview seeks into video.path, which for a split segment is always the
+    untrimmed parent file — segment_start_s must be added to the segment-relative
+    clip.start_ms/end_ms or the preview grabs the wrong window of the parent."""
+
+    def test_ss_includes_segment_offset(self, client, project_dir, monkeypatch):
+        from yuu_clip.db.models import ClipCandidate, make_session
+
+        # The fixture video's path must exist on disk for clip_preview to proceed.
+        (project_dir / "session.mkv").write_bytes(b"fake video")
+
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        seg_ids = client.post(
+            f"/api/videos/{vid_id}/split", json={"split_points": [120.0]}
+        ).json()["segment_ids"]
+
+        db = make_session(project_dir / ".yuu-clip" / "project.db")
+        try:
+            clip = ClipCandidate(
+                video_id=seg_ids[1], start_ms=10_000, end_ms=20_000,
+                score_overall=0.5, score_funny=0.0, score_dramatic=0.0, score_action=0.0,
+                status="pending",
+            )
+            db.add(clip)
+            db.commit()
+            clip_id = clip.id
+        finally:
+            db.close()
+
+        captured_cmd = []
+
+        def fake_run(cmd, **kwargs):
+            captured_cmd.extend(cmd)
+            out_path = Path(cmd[cmd.index("-movflags") + 2])
+            out_path.write_bytes(b"fake preview")
+            return SimpleNamespace(returncode=0)
+
+        monkeypatch.setattr("yuu_clip.web.routes.clips._subprocess.run", fake_run)
+
+        r = client.get(f"/api/clips/{clip_id}/preview")
+        assert r.status_code == 200
+
+        # Segment 2 starts at 120s into the parent; clip is 10-20s into the segment.
+        ss_value = float(captured_cmd[captured_cmd.index("-ss") + 1])
+        assert ss_value == pytest.approx(130.0)
+
+
 class TestMergeClipsPreviewCleanup:
     """merge_clips must unlink the cached preview files for both clips."""
 
@@ -1641,6 +1691,39 @@ class TestBulkDeleteClips:
     def test_bulk_delete_empty_ids_400(self, client):
         r = client.post("/api/clips/bulk-delete", json={"clip_ids": []})
         assert r.status_code == 400
+
+    def test_bulk_delete_reports_locked_and_keeps_record(self, client, project_dir, monkeypatch):
+        # A clip whose export file is held open (e.g. by the in-page player) must
+        # be reported in `locked` and skipped, not deleted — the batch continues
+        # for the other clips rather than aborting.
+        from pathlib import Path
+        from yuu_clip.web.routes import _shared
+
+        ids = self._clip_ids(client)
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        clip = next(c for c in client.get(f"/api/videos/{vid_id}/clips").json() if c["id"] == ids[0])
+        export_dir = project_dir / ".yuu-clip" / "exports"
+        start_hms_dashes = clip["start_hms"].replace(":", "-")
+        export_file = export_dir / f"session_clip{clip['id']}_{start_hms_dashes}.mkv"
+        export_file.write_bytes(b"fake video")
+
+        def always_locked(self, *args, **kwargs):
+            raise PermissionError("WinError 32")
+
+        monkeypatch.setattr(Path, "unlink", always_locked)
+        monkeypatch.setattr(_shared.time, "sleep", lambda _s: None)
+
+        r = client.post("/api/clips/bulk-delete", json={"clip_ids": [ids[0], ids[1]]})
+        assert r.status_code == 200
+        d = r.json()
+        assert d["locked"] == [ids[0]]
+        assert d["deleted"] == [ids[1]]
+        assert export_file.exists()
+
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        remaining = [c["id"] for c in client.get(f"/api/videos/{vid_id}/clips").json()]
+        assert ids[0] in remaining
+        assert ids[1] not in remaining
 
 
 class TestBulkExportClips:

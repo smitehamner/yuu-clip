@@ -69,7 +69,10 @@ def _fail_interrupted_analyses(ctx: ProjectContext) -> None:
             video.status = "failed"
         if stuck:
             db.commit()
-            _log.warning("Marked %d interrupted analysis run(s) as failed", len(stuck))
+            _log.warning(
+                "Marked %d interrupted analysis run(s) as failed: video_ids=%s",
+                len(stuck), [v.id for v in stuck],
+            )
     finally:
         db.close()
 

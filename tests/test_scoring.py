@@ -220,6 +220,7 @@ class TestScoringEngine:
         clip.score_overall = 0.0
         clip.description = ""
         clip.description_long = ""
+        clip.scored_at = None
         return clip
 
     def test_no_scorers_returns_without_update(self):
@@ -231,6 +232,7 @@ class TestScoringEngine:
         clip.score_overall = 0.7   # sentinel: must be unchanged if no scorers run
         engine.score_clip(clip, None)
         assert clip.score_overall == 0.7
+        assert clip.scored_at is None
 
     def test_unavailable_scorer_filtered_out(self):
         from yuu_clip.config import Config
@@ -242,7 +244,18 @@ class TestScoringEngine:
         clip.score_overall = 0.7   # sentinel: must be unchanged if scorer never ran
         engine.score_clip(clip, None)
         assert clip.score_overall == 0.7
+        assert clip.scored_at is None
         unavailable.score.assert_not_called()
+
+    def test_score_clip_sets_scored_at_on_success(self):
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.engine import ScoringEngine
+        config = Config()
+        scorer = self._make_scorer(score_funny=0.8, score_dramatic=0.4, score_action=0.2)
+        engine = ScoringEngine(config, [scorer])
+        clip = self._make_clip()
+        engine.score_clip(clip, None)
+        assert clip.scored_at is not None
 
     def test_score_clip_writes_dimension_scores(self):
         from yuu_clip.config import Config

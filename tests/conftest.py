@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import os
 import socket
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -54,6 +55,7 @@ def project_dir(tmp_path: Path) -> Path:
     session.add(track)
     session.flush()
 
+    scored_at = datetime.now(timezone.utc)
     for i, (score, status) in enumerate([
         (0.85, "pending"),
         (0.60, "approved"),
@@ -69,6 +71,7 @@ def project_dir(tmp_path: Path) -> Path:
             score_action=score * 0.3,
             description=f"Test clip {i + 1}",
             status=status,
+            scored_at=scored_at,
         ))
 
     session.commit()
