@@ -213,12 +213,11 @@ function rescoreFailedClips(videoId, btn) {
 }
 
 function _doRescoreClips(videoId, btn, endpoint = 'rescore-clips') {
-  const orig = btn.textContent;
-  btn.disabled = true;
-  btn.textContent = 'Re-scoring…';
+  const orig = btn?.textContent;
+  if (btn) { btn.disabled = true; btn.textContent = 'Re-scoring…'; }
   openLog();
   _supersedeActiveStream();
-  const resetBtn = () => { btn.disabled = false; btn.textContent = orig; };
+  const resetBtn = () => { if (btn) { btn.disabled = false; btn.textContent = orig; } };
   let errorCount = 0;
   const handle = _openSSE(
     `/api/videos/${videoId}/${endpoint}`,
@@ -295,12 +294,11 @@ function redescribeAllClips(videoId, btn) {
 }
 
 function _doRedescribeClips(videoId, btn) {
-  const orig = btn.textContent;
-  btn.disabled = true;
-  btn.textContent = 'Re-describing…';
+  const orig = btn?.textContent;
+  if (btn) { btn.disabled = true; btn.textContent = 'Re-describing…'; }
   openLog();
   _supersedeActiveStream();
-  const resetBtn = () => { btn.disabled = false; btn.textContent = orig; };
+  const resetBtn = () => { if (btn) { btn.disabled = false; btn.textContent = orig; } };
   let errorCount = 0;
   const handle = _openSSE(
     `/api/videos/${videoId}/redescribe-clips`,

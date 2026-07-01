@@ -255,24 +255,12 @@ function renderDetail(clip) {
             <button class="btn reject  ${clip.status==='rejected'?'active':''}" onclick="setStatus(${clip.id},'rejected')" title="Reject (press R)">Reject</button>
           </div>
           <div class="op-actions">
-            ${clip.status !== 'pending' ? `<button class="btn ghost" style="font-size:12px" onclick="setStatus(${clip.id},'pending')" title="Clear review status">Mark Unreviewed</button>` : ''}
-            <button class="btn" id="btn-rescore-clip" onclick="rescoreClip(${clip.id})">Re-score</button>
-            <button class="btn" onclick="openRetranscribeModal(${clip.id})">Retranscribe</button>
-            ${clip.description_long || clip.description ? `<button class="btn" id="btn-find-similar" onclick="openSimilarClipsModal(${clip.id})">Find Similar</button>` : ''}
             <button class="btn" onclick="exportClip(${clip.id})">${clip.has_export ? 'Re-export' : 'Export'}</button>
-            ${clip.has_export && AppState.activeMediaFilename
-              ? `<a class="btn" href="/media/exports/${escHtml(AppState.activeMediaFilename)}" download="${escHtml(AppState.activeMediaFilename)}" title="Download the already-exported file to disk">Download Export</a>`
-              : ''}
+            <button class="btn ghost" onclick="openClipActionsModal(${clip.id})">Additional Actions</button>
           </div>
-          ${_mergeButtonsHtml(clip)}
           ${trimExportHtml}
         </div>
       </div>
-    </div>
-
-    <div class="clip-danger-zone">
-      ${clip.has_export ? `<button class="btn danger" onclick="deleteExport(${clip.id})" title="Delete exported file but keep clip record">Delete Export</button>` : ''}
-      <button class="btn danger" onclick="deleteClip(${clip.id})" title="Delete clip record and exported file">Delete Clip</button>
     </div>
 
     ${clip.tags.length ? `<div class="tags">${clip.tags.map(t=>`<span class="tag">${escHtml(t)}</span>`).join('')}</div>` : ''}
@@ -318,16 +306,68 @@ function scoreRowOverride(label, llmVal, userVal, cls) {
     <span class="score-val" style="color:var(--${cls})">${Math.round(userVal*100)}% <span style="color:var(--muted);font-size:10px">(LLM: ${Math.round(llmVal*100)}%)</span></span>`;
 }
 
-function _mergeButtonsHtml(clip) {
+function _mergeNeighbors(clip) {
   const byTime = [...AppState.clips].sort((a, b) => a.start_ms - b.start_ms);
   const idx = byTime.findIndex(c => c.id === clip.id);
-  const prev = idx > 0 ? byTime[idx - 1] : null;
-  const next = idx >= 0 && idx < byTime.length - 1 ? byTime[idx + 1] : null;
-  if (!prev && !next) return '';
-  return `<div class="op-actions">
-    ${prev ? `<button class="btn" onclick="mergeClips(${clip.id},${prev.id},'prev')" title="Merge with previous clip (${prev.start_hms})">← Merge previous</button>` : ''}
-    ${next ? `<button class="btn" onclick="mergeClips(${clip.id},${next.id},'next')" title="Merge with next clip (${next.start_hms})">Merge next →</button>` : ''}
-  </div>`;
+  return {
+    prev: idx > 0 ? byTime[idx - 1] : null,
+    next: idx >= 0 && idx < byTime.length - 1 ? byTime[idx + 1] : null,
+  };
+}
+
+function openClipActionsModal(clipId) {
+  const clip = AppState.activeClipData?.id === clipId ? AppState.activeClipData : AppState.clips.find(c => c.id === clipId);
+  if (!clip) return;
+  const { prev, next } = _mergeNeighbors(clip);
+
+  const groups = [];
+
+  if (clip.status !== 'pending') {
+    groups.push({ heading: 'Review', rows: [
+      { label: 'Mark Unreviewed', description: 'Clear the approve/reject status and return this clip to the unreviewed queue.', action: () => setStatus(clipId, 'pending') },
+    ]});
+  }
+
+  const regenRows = [
+    { label: 'Re-score', description: 'Re-run scoring and description generation for this clip.', action: () => rescoreClip(clipId) },
+    { label: 'Retranscribe', description: "Re-run transcription for just this clip's time range.", action: () => openRetranscribeModal(clipId) },
+  ];
+  if (clip.description_long || clip.description) {
+    regenRows.push({ label: 'Find Similar', description: 'Search other recordings for clips with a similar description.', action: () => openSimilarClipsModal(clipId) });
+  }
+  if (clip.score_overall_user != null) {
+    regenRows.push({ label: 'Remove Override', description: 'Discard the manual score and go back to the generated score.', action: () => clearScoreOverride(clipId) });
+  } else {
+    regenRows.push({ label: 'Override Score', description: 'Manually set the overall score instead of using the generated score.', action: () => openScoreOverride(clipId) });
+  }
+  groups.push({ heading: 'Regenerate', rows: regenRows });
+
+  if (clip.has_export) {
+    const fileRows = [];
+    if (AppState.activeMediaFilename) {
+      fileRows.push({ label: 'Download Export', description: 'Save the already-exported file to your downloads.', action: () => {
+        const a = document.createElement('a');
+        a.href = `/media/exports/${encodeURIComponent(AppState.activeMediaFilename)}`;
+        a.download = AppState.activeMediaFilename;
+        a.click();
+      }});
+    }
+    fileRows.push({ label: 'Delete Export', description: 'Delete the exported video file but keep the clip record.', danger: true, action: () => deleteExport(clipId) });
+    groups.push({ heading: 'Files', rows: fileRows });
+  }
+
+  if (prev || next) {
+    const mergeRows = [];
+    if (prev) mergeRows.push({ label: '← Merge previous', description: `Combine with clip #${prev.id} ("${prev.description || 'no description yet'}"), which starts at ${prev.start_hms}.`, action: () => mergeClips(clipId, prev.id, 'prev') });
+    if (next) mergeRows.push({ label: 'Merge next →', description: `Combine with clip #${next.id} ("${next.description || 'no description yet'}"), which starts at ${next.start_hms}.`, action: () => mergeClips(clipId, next.id, 'next') });
+    groups.push({ heading: 'Merge', rows: mergeRows });
+  }
+
+  groups.push({ heading: 'Danger Zone', rows: [
+    { label: 'Delete Clip', description: 'Permanently remove this clip record and its exported file.', danger: true, action: () => deleteClip(clipId) },
+  ]});
+
+  openActionsModal(`Clip #${clip.id} — Additional Actions`, groups);
 }
 
 async function _reloadClipList(videoId) {
@@ -896,5 +936,6 @@ Object.assign(window, {
   openScoreOverride, closeScoreOverrideModal, _scoreOverrideSave, clearScoreOverride,
   openDescKebab, openDescLongKebab,
   startFindSimilar, openSimilarClipsModal, closeSimilarClipsModal,
+  openClipActionsModal,
 });
 })();

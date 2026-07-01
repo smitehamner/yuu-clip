@@ -526,6 +526,7 @@ document.addEventListener('keydown', e => {
     closeTimelineIntervalModal();
     closeAutoApproveModal();
     closeSimilarClipsModal();
+    closeActionsModal();
     closeReelPreview();
     closeSettings();
     closeHamburger();

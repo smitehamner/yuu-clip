@@ -44,6 +44,51 @@ function _confirmCancel() {
   if (opener?.focus) opener.focus();
 }
 
+// ── additional actions modal ──────────────────────────────────────────────────
+let _actionsModalOpener = null;
+function openActionsModal(title, groups) {
+  _actionsModalOpener = document.activeElement;
+  document.getElementById('actions-modal-title').textContent = title;
+  const body = document.getElementById('actions-modal-body');
+  body.innerHTML = '';
+  groups.forEach((group, i) => {
+    if (i > 0) {
+      const divider = document.createElement('div');
+      divider.className = 'hamburger-divider';
+      body.appendChild(divider);
+    }
+    if (group.heading) {
+      const heading = document.createElement('div');
+      heading.className = 'section-title';
+      heading.style.cssText = 'margin:8px 0 2px 4px';
+      heading.textContent = group.heading;
+      body.appendChild(heading);
+    }
+    for (const row of group.rows) {
+      const el = document.createElement('button');
+      el.type = 'button';
+      el.className = 'action-row' + (row.danger ? ' danger' : '');
+      el.disabled = !!row.disabled;
+      const label = document.createElement('span');
+      label.className = 'action-row-label';
+      label.textContent = row.label;
+      const desc = document.createElement('span');
+      desc.className = 'action-row-desc';
+      desc.textContent = row.description;
+      el.append(label, desc);
+      el.onclick = () => { closeActionsModal(); row.action(); };
+      body.appendChild(el);
+    }
+  });
+  document.getElementById('actions-modal').classList.add('visible');
+}
+function closeActionsModal() {
+  document.getElementById('actions-modal').classList.remove('visible');
+  const opener = _actionsModalOpener;
+  _actionsModalOpener = null;
+  if (opener?.focus) opener.focus();
+}
+
 // ── hamburger menu ────────────────────────────────────────────────────────────
 function toggleHamburger() {
   const menu = document.getElementById('hamburger-menu');

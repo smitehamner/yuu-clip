@@ -48,7 +48,9 @@ class TestClipReview:
     def test_retranscribe_button_exists(self, page: Page):
         select_first_video_and_clip(page)
         page.wait_for_selector(".clip-actions", timeout=3000)
-        expect(page.locator(".clip-actions button:has-text('Retranscribe')")).to_be_visible()
+        page.click(".clip-actions button:has-text('Additional Actions')")
+        page.wait_for_selector("#actions-modal.visible", timeout=2000)
+        expect(page.locator("#actions-modal-body button:has-text('Retranscribe')")).to_be_visible()
 
     def test_sidebar_shows_clip_id(self, page: Page):
         select_video_with_clips(page)

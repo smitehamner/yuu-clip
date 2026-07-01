@@ -371,6 +371,14 @@ kbd { background: var(--surface); border: 1px solid var(--border); border-radius
 .hamburger-item:disabled { opacity: .4; cursor: not-allowed; }
 .hamburger-divider { height: 1px; background: var(--border); margin: 4px 0; }
 
+/* ── additional actions modal ── */
+.action-row { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: 6px; cursor: pointer; text-align: left; background: none; border: none; width: 100%; color: var(--text); transition: background .1s; }
+.action-row:hover:not(:disabled) { background: var(--border); }
+.action-row:disabled { opacity: .4; cursor: not-allowed; }
+.action-row-label { font-size: 13px; font-weight: 600; }
+.action-row-desc { font-size: 11px; color: var(--muted); }
+.action-row.danger .action-row-label { color: var(--red); }
+
 /* ── diff modal ── */
 .diff-modal { width: 860px; max-width: 95vw; }
 .diff-panels { display: flex; gap: 14px; }

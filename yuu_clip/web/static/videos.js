@@ -231,24 +231,8 @@ function renderVideoDetail(video, savedTimeline) {
         <button class="btn" id="btn-generate-timeline" onclick="generateTimeline(${video.id})">${video.has_timeline ? 'Regenerate Timeline' : 'Generate Timeline'}</button>
       </div>
       <div class="vid-actions-row">
-        <button class="btn" id="btn-rescore-all" onclick="rescoreAllClips(${video.id}, this)" title="Regenerate scores and descriptions for all clips">Re-score All Clips</button>
-        <button class="btn" id="btn-redescribe-all" onclick="redescribeAllClips(${video.id}, this)" title="Regenerate descriptions only — scores unchanged">Re-describe All Clips</button>
-      </div>
-      <div class="vid-actions-row">
-        <button class="btn" onclick="openAutoApproveModal(${video.id})">Approve Above Score</button>
         <button class="btn" onclick="openBatchExportModal(${video.id})">Export Approved</button>
-      </div>
-      <div class="vid-actions-row">
-        <button class="btn" onclick="openSplitEditor(${video.id})" title="Split this recording into segments for independent analysis">Split Recording</button>
-        <button class="btn" onclick="exportVideoTranscript(${video.id}, this)" title="Write captions as an SRT file next to the source recording">Save Captions to SRT</button>
-      </div>
-      <div class="vid-actions-row">
-        <button class="btn" onclick="rediarizeVideo(${video.id})" title="Re-run only speaker detection on the existing transcript — clips and scores are kept. Named speakers re-attach to matching voices.">Re-detect Speakers</button>
-        <button class="btn danger" onclick="reanalyzeVideo(${video.id})" title="Re-run the full pipeline from scratch — replaces all clips, scores, and speakers">Re-analyze (full)</button>
-      </div>
-      <div class="danger-actions">
-        <button class="btn danger" onclick="resetApprovals(${video.id})">Reset Approvals</button>
-        <button class="btn danger" onclick="deleteVideo(${video.id})" title="Remove from yuu-clip (source file is NOT deleted)">Remove Recording</button>
+        <button class="btn ghost" onclick="openVideoActionsModal(${video.id})">Additional Actions</button>
       </div>
     </div>
 
@@ -275,6 +259,33 @@ function renderVideoDetail(video, savedTimeline) {
       })
       .catch(() => {});
   }
+}
+
+function openVideoActionsModal(videoId) {
+  const video = AppState.activeVideoData?.id === videoId ? AppState.activeVideoData : AppState.videos.find(v => v.id === videoId);
+  if (!video) return;
+
+  const groups = [
+    { heading: 'Review', rows: [
+      { label: 'Approve Above Score', description: 'Automatically approve every clip in this recording above a score threshold you choose.', action: () => openAutoApproveModal(videoId) },
+    ]},
+    { heading: 'Regenerate', rows: [
+      { label: 'Re-score All Clips', description: 'Regenerate scores and descriptions for every clip in this recording.', action: () => rescoreAllClips(videoId, document.createElement('button')) },
+      { label: 'Re-describe All Clips', description: 'Regenerate descriptions only — scores are kept as-is.', action: () => redescribeAllClips(videoId, document.createElement('button')) },
+      { label: 'Re-detect Speakers', description: 'Re-run speaker detection on the existing transcript. Clips and scores are kept; named speakers re-attach to matching voices.', action: () => rediarizeVideo(videoId) },
+    ]},
+    { heading: 'Recording tools', rows: [
+      { label: 'Split Recording', description: 'Break this recording into segments that can be analyzed independently.', action: () => openSplitEditor(videoId) },
+      { label: 'Save Captions to SRT', description: 'Write the transcript as an SRT caption file next to the source recording.', action: () => exportVideoTranscript(videoId) },
+    ]},
+    { heading: 'Danger Zone', rows: [
+      { label: 'Re-analyze (full)', description: 'Re-run the entire pipeline from scratch. Replaces all clips, scores, and speakers for this recording.', danger: true, action: () => reanalyzeVideo(videoId) },
+      { label: 'Reset Approvals', description: 'Clear the approve/reject status on every clip in this recording.', danger: true, action: () => resetApprovals(videoId) },
+      { label: 'Remove Recording', description: 'Remove this recording from yuu-clip. The source file on disk is not deleted.', danger: true, action: () => deleteVideo(videoId) },
+    ]},
+  ];
+
+  openActionsModal(`${video.title || video.filename} — Additional Actions`, groups);
 }
 
 // ── live analysis progress (in-detail) ────────────────────────────────────────
@@ -791,5 +802,6 @@ Object.assign(window, {
   updateTimelineIntervalHint,
   _updateDemoButton, _updateStartIngestButton,
   _syncAnalysisLivePanel,
+  openVideoActionsModal,
 });
 })();

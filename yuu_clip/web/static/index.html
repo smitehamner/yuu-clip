@@ -1256,6 +1256,17 @@
   </div>
 </div>
 
+<!-- Additional Actions Modal -->
+<div class="modal-bg" id="actions-modal" onclick="if(event.target===this)closeActionsModal()">
+  <div class="modal" style="width:480px;max-height:85vh;overflow-y:auto">
+    <div style="display:flex;align-items:center;justify-content:space-between">
+      <h3 id="actions-modal-title" style="margin:0"></h3>
+      <button class="btn ghost" style="padding:4px 8px" onclick="closeActionsModal()" aria-label="Close">&#x2715;</button>
+    </div>
+    <div id="actions-modal-body" style="display:flex;flex-direction:column;gap:2px"></div>
+  </div>
+</div>
+
 <!-- Score Override Modal -->
 <div class="modal-bg" id="score-override-modal" onclick="if(event.target===this)closeScoreOverrideModal()">
   <div class="modal" style="width:320px">
