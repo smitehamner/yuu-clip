@@ -117,7 +117,10 @@ def select_video_with_clips(page) -> None:
     every clip test. Real clip rows carry a ``.clip-num`` badge; the empty-state
     ``<li>`` does not, which is what we wait on.
     """
-    page.goto(LIVE_URL)
+    # The page fixture already navigated to LIVE_URL; only navigate again if a
+    # test moved away, so the common path doesn't pay a second full page load.
+    if not page.url.startswith(LIVE_URL):
+        page.goto(LIVE_URL)
     page.wait_for_selector("#video-list li[data-video-id]", timeout=5000)
     videos = page.locator("#video-list li[data-video-id]")
     for i in range(videos.count()):
@@ -151,25 +154,37 @@ def pytest_runtest_logreport(report: pytest.TestReport) -> None:
         _had_failure = True
 
 
-def pytest_runtest_teardown(item, nextitem) -> None:
-    # Watchdog for Playwright session teardown hang on Windows (IOCP / ProactorEventLoop).
-    # Only active for UI test sessions — API tests let pytest print its summary normally.
-    if not _is_ui_session or nextitem is not None:
-        return
+def _force_exit_after(seconds: float, exit_code_fn) -> None:
     import threading
     import time
 
     def _watchdog() -> None:
-        time.sleep(8)
-        os._exit(1 if _had_failure else 0)
+        time.sleep(seconds)
+        os._exit(exit_code_fn())
 
     threading.Thread(target=_watchdog, daemon=True).start()
+
+
+def pytest_runtest_teardown(item, nextitem) -> None:
+    # Watchdog for Playwright session teardown hang on Windows (IOCP / ProactorEventLoop).
+    # Only active for UI test sessions — API tests let pytest print its summary normally.
+    # Skipped under xdist: nextitem is None between work units too, and killing an
+    # idle worker crashes the run. Workers get their own watchdog in sessionfinish.
+    if not _is_ui_session or nextitem is not None or os.environ.get("PYTEST_XDIST_WORKER"):
+        return
+    _force_exit_after(8, lambda: 1 if _had_failure else 0)
 
 
 def pytest_sessionfinish(session, exitstatus) -> None:
     # Only force-exit for UI sessions where teardown may hang.
     # API test sessions return normally so pytest can print its summary line.
     if not _is_ui_session:
+        return
+    if os.environ.get("PYTEST_XDIST_WORKER"):
+        # Worker results are already reported to the controller by now, so a
+        # normal shutdown is preferred (an abrupt exit reads as a crash). The
+        # grace-period exit only fires if Playwright teardown hangs the process.
+        _force_exit_after(10, lambda: int(exitstatus))
         return
     os._exit(int(exitstatus))
 

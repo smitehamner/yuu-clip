@@ -457,7 +457,10 @@ class TestScoringIsolation:
              patch.object(_pipeline, "_generate_candidates", return_value=[clip_ok, clip_boom]), \
              patch.object(_pipeline, "_summarize_video", return_value=None), \
              patch.object(_pipeline, "_run_scoring", side_effect=run_real_scoring):
-            _pipeline._analyze_one(tmp_path / "s.mkv", session, Config(), tmp_path, AnalyzeOptions())
+            # no_transcribe=True keeps run-metadata capture from resolving the
+            # whisper device, which imports ctranslate2 (~12 s). Transcription is
+            # fully patched out here, so the scoring contract under test is unchanged.
+            _pipeline._analyze_one(tmp_path / "s.mkv", session, Config(), tmp_path, AnalyzeOptions(no_transcribe=True))
 
         session.close()
         verify = make_session(tmp_path / "project.db")
