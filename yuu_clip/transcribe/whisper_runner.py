@@ -99,17 +99,20 @@ def _cosine_similarity(a: list[float], b: list[float]) -> float:
 
 
 def _best_voiceprint_match(vector, candidates, taken_ids):
-    """The most-similar unused candidate Speaker above the threshold, or None."""
+    """The most-similar unused candidate Speaker above the threshold, with its
+    cosine score, or (None, best-below-threshold-score) when nothing matches."""
     best_speaker = None
     best_score = _VOICEPRINT_MATCH_THRESHOLD
+    top_score = 0.0
     for speaker in candidates:
         if speaker.id in taken_ids or not speaker.voiceprint:
             continue
         score = _cosine_similarity(vector, _deserialize_voiceprint(speaker.voiceprint))
+        top_score = max(top_score, score)
         if score >= best_score:
             best_score = score
             best_speaker = speaker
-    return best_speaker
+    return best_speaker, (best_score if best_speaker is not None else top_score)
 
 
 def _attach_speakers(
@@ -147,15 +150,28 @@ def _attach_speakers(
     next_index = max((s.display_index for s in prior_speakers), default=0)
     taken_ids: set[int] = set()
     label_to_speaker_id: dict[str, int] = {}
+    matched = 0
+    minted = 0
+    without_voiceprint = 0
 
     for label in labels_in_order:
         vector = embeddings_by_label.get(label)
-        match = _best_voiceprint_match(vector, prior_speakers, taken_ids) if vector else None
+        if not vector:
+            without_voiceprint += 1
+        match, score = (
+            _best_voiceprint_match(vector, prior_speakers, taken_ids)
+            if vector else (None, 0.0)
+        )
         if match is not None:
             taken_ids.add(match.id)
             if not match.voiceprint:
                 match.voiceprint = _serialize_voiceprint(vector)
             label_to_speaker_id[label] = match.id
+            matched += 1
+            _log.debug(
+                "Voiceprint re-attach: cluster %s → speaker %d (video %d, cosine %.3f)",
+                label, match.id, video_id, score,
+            )
             continue
         next_index += 1
         speaker = Speaker(
@@ -167,11 +183,25 @@ def _attach_speakers(
         session.add(speaker)
         session.flush()
         label_to_speaker_id[label] = speaker.id
+        minted += 1
+        if vector:
+            _log.debug(
+                "Voiceprint no match: cluster %s minted speaker %d (video %d, "
+                "best cosine %.3f < threshold %.2f)",
+                label, speaker.id, video_id, score, _VOICEPRINT_MATCH_THRESHOLD,
+            )
 
     for seg in segs:
         if seg.speaker_label in label_to_speaker_id:
             seg.speaker_id = label_to_speaker_id[seg.speaker_label]
     session.flush()
+
+    _log.info(
+        "Speaker attribution (video %d): %d cluster(s) → %d re-attached, %d minted "
+        "(%d had no voiceprint), %d prior speaker(s)",
+        video_id, len(labels_in_order), matched, minted,
+        without_voiceprint, len(prior_speakers),
+    )
 
 
 def _resolve_device_and_compute(config: Config) -> tuple[str, str]:

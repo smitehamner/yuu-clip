@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-from yuu_clip.config import Config
 import pytest
 
+from yuu_clip.config import Config
 from yuu_clip.transcribe.diarization_client import (
     DiarizationError,
     NullDiarizationClient,
@@ -333,6 +333,156 @@ class TestRetranscribeDiarization:
         )
         cfg = Config(diarization_backend="pyannote", huggingface_token="")
         export_cli._maybe_diarize_segment(None, cfg, 7, Path("seg.wav"), 0.0, "combined")
+
+
+# ---------------------------------------------------------------------------
+# diarize_track — pipeline-stage orchestration + error paths
+# ---------------------------------------------------------------------------
+
+class TestDiarizeTrack:
+    def _wire(self, monkeypatch, client, *, available=(True, ""),
+              embeddings_result=None, diarize_side_effect=None):
+        """Patch make_diarization_client and capture _assign/_attach calls."""
+        from yuu_clip.transcribe import whisper_runner
+
+        class FakeClient:
+            def available(self_inner):
+                return available
+
+            def diarize_with_embeddings(self_inner, path):
+                if diarize_side_effect is not None:
+                    raise diarize_side_effect
+                return embeddings_result
+
+        monkeypatch.setattr(whisper_runner, "make_diarization_client", lambda config: FakeClient())
+        captured = {}
+        monkeypatch.setattr(
+            whisper_runner, "_assign_speakers",
+            lambda session, transcript_id, turns: captured.setdefault("assign", []).append((transcript_id, turns)),
+        )
+        monkeypatch.setattr(
+            whisper_runner, "_attach_speakers",
+            lambda session, video_id, transcript_id, embeddings: captured.setdefault("attach", []).append((video_id, transcript_id, embeddings)),
+        )
+        return captured
+
+    def _fake_track(self):
+        return MagicMock(id=3, label="combined", video_id=9, stream_index=1)
+
+    def _fake_transcript(self):
+        return MagicMock(id=7)
+
+    def test_assigns_and_attaches_on_success(self, monkeypatch):
+        from pathlib import Path
+
+        from yuu_clip.transcribe.whisper_runner import diarize_track
+
+        turns = [(0.0, 1.0, "SPEAKER_00")]
+        embeddings = {"SPEAKER_00": [1.0, 0.0]}
+        captured = self._wire(monkeypatch, None, embeddings_result=(turns, embeddings))
+
+        cfg = Config(diarization_backend="pyannote", huggingface_token="hf_abc")
+        diarize_track(cfg, None, self._fake_transcript(), Path("a.wav"), self._fake_track())
+
+        assert captured["assign"] == [(7, turns)]
+        assert captured["attach"] == [(9, 7, embeddings)]
+
+    def test_noop_when_backend_unavailable(self, monkeypatch):
+        from pathlib import Path
+
+        from yuu_clip.transcribe.whisper_runner import diarize_track
+
+        captured = self._wire(monkeypatch, None, available=(False, "no token"))
+        cfg = Config(diarization_backend="pyannote", huggingface_token="")
+        diarize_track(cfg, None, self._fake_transcript(), Path("a.wav"), self._fake_track())
+
+        assert "assign" not in captured
+        assert "attach" not in captured
+
+    def test_diarization_error_is_swallowed(self, monkeypatch):
+        from pathlib import Path
+
+        from yuu_clip.transcribe.whisper_runner import diarize_track
+
+        captured = self._wire(
+            monkeypatch, None,
+            diarize_side_effect=DiarizationError("accept model terms at hf.co/..."),
+        )
+        cfg = Config(diarization_backend="pyannote", huggingface_token="hf_abc")
+        # Must not raise — a diarization failure never aborts the run.
+        diarize_track(cfg, None, self._fake_transcript(), Path("a.wav"), self._fake_track())
+
+        assert "assign" not in captured  # failure occurred before assignment
+
+    def test_unexpected_error_is_swallowed(self, monkeypatch):
+        from pathlib import Path
+
+        from yuu_clip.transcribe.whisper_runner import diarize_track
+
+        captured = self._wire(
+            monkeypatch, None, diarize_side_effect=RuntimeError("gpu exploded"),
+        )
+        cfg = Config(diarization_backend="pyannote", huggingface_token="hf_abc")
+        diarize_track(cfg, None, self._fake_transcript(), Path("a.wav"), self._fake_track())
+
+        assert "assign" not in captured
+
+
+# ---------------------------------------------------------------------------
+# _cosine_similarity — voiceprint comparison edge cases
+# ---------------------------------------------------------------------------
+
+class TestCosineSimilarity:
+    def _cos(self, a, b):
+        from yuu_clip.transcribe.whisper_runner import _cosine_similarity
+        return _cosine_similarity(a, b)
+
+    def test_identical_vectors_is_one(self):
+        assert self._cos([1.0, 2.0, 3.0], [1.0, 2.0, 3.0]) == pytest.approx(1.0)
+
+    def test_orthogonal_vectors_is_zero(self):
+        assert self._cos([1.0, 0.0], [0.0, 1.0]) == pytest.approx(0.0)
+
+    def test_mismatched_lengths_returns_zero(self):
+        # A dimension mismatch (e.g. a stored voiceprint from a different model)
+        # must never raise or partially compare — it means "not the same voice".
+        assert self._cos([1.0, 0.0], [1.0, 0.0, 0.0]) == 0.0
+
+    def test_zero_vector_returns_zero(self):
+        # A zero-norm vector would divide by zero; guarded to return 0.0.
+        assert self._cos([0.0, 0.0], [1.0, 1.0]) == 0.0
+
+
+# ---------------------------------------------------------------------------
+# _best_voiceprint_match — threshold boundary + candidate filtering
+# ---------------------------------------------------------------------------
+
+class TestBestVoiceprintMatch:
+    def _speaker(self, sid, vector):
+        from yuu_clip.transcribe.whisper_runner import _serialize_voiceprint
+        return MagicMock(id=sid, voiceprint=_serialize_voiceprint(vector) if vector else None)
+
+    def test_returns_none_below_threshold(self):
+        from yuu_clip.transcribe.whisper_runner import _best_voiceprint_match
+        # Cosine of [1,0] vs [0.5, 0.87] ≈ 0.5 < 0.75 threshold.
+        cand = self._speaker(1, [0.5, 0.87])
+        assert _best_voiceprint_match([1.0, 0.0], [cand], set())[0] is None
+
+    def test_returns_best_above_threshold(self):
+        from yuu_clip.transcribe.whisper_runner import _best_voiceprint_match
+        near = self._speaker(1, [0.99, 0.01])
+        far = self._speaker(2, [0.5, 0.87])
+        assert _best_voiceprint_match([1.0, 0.0], [near, far], set())[0].id == 1
+
+    def test_skips_already_taken_candidate(self):
+        from yuu_clip.transcribe.whisper_runner import _best_voiceprint_match
+        exact = self._speaker(1, [1.0, 0.0])
+        assert _best_voiceprint_match([1.0, 0.0], [exact], {1})[0] is None
+
+    def test_skips_candidate_without_voiceprint(self):
+        from yuu_clip.transcribe.whisper_runner import _best_voiceprint_match
+        no_print = self._speaker(1, None)
+        assert _best_voiceprint_match([1.0, 0.0], [no_print], set())[0] is None
 
 
 # ---------------------------------------------------------------------------

@@ -668,6 +668,43 @@ class TestDiarizationSubtitles:
 
 
 # ---------------------------------------------------------------------------
+# subtitles.py — _segment_speaker (durable Speaker name vs raw-label fallback)
+# ---------------------------------------------------------------------------
+
+class TestSegmentSpeaker:
+    def _seg(self, speaker_id=None, speaker=None, speaker_label=None):
+        import types
+        return types.SimpleNamespace(
+            speaker_id=speaker_id, speaker=speaker, speaker_label=speaker_label
+        )
+
+    def test_prefers_attached_speaker_display_name(self):
+        import types
+
+        from yuu_clip.subtitles import _segment_speaker
+        speaker = types.SimpleNamespace(display_name="Yuu")
+        seg = self._seg(speaker_id=1, speaker=speaker, speaker_label="SPEAKER_00")
+        assert _segment_speaker(seg) == "Yuu"
+
+    def test_falls_back_to_prettified_raw_label(self):
+        # Segment diarized before a durable Speaker was attached (speaker_id None).
+        from yuu_clip.subtitles import _segment_speaker
+        seg = self._seg(speaker_label="SPEAKER_02")
+        assert _segment_speaker(seg) == "Speaker 02"
+
+    def test_blank_when_no_label(self):
+        from yuu_clip.subtitles import _segment_speaker
+        assert _segment_speaker(self._seg()) == ""
+
+    def test_falls_back_when_speaker_id_set_but_relation_missing(self):
+        # speaker_id present but the relation didn't load → raw-label fallback,
+        # never a crash on speaker.display_name.
+        from yuu_clip.subtitles import _segment_speaker
+        seg = self._seg(speaker_id=5, speaker=None, speaker_label="SPEAKER_01")
+        assert _segment_speaker(seg) == "Speaker 01"
+
+
+# ---------------------------------------------------------------------------
 # analyze/labeler.py — label_tracks single-track auto-label
 # ---------------------------------------------------------------------------
 

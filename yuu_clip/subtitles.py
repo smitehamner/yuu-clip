@@ -50,20 +50,21 @@ def _segment_speaker(seg) -> str:
     return _label_display(label) if label else ""
 
 
-def _merge_with_speakers(groups: dict[str, list[SubLine]]) -> list[SubLine]:
-    """Flatten *groups* into a single list, tagging each line with its speaker label.
+def _labeled_lines(lines: list[SubLine], track_label: str) -> list[SubLine]:
+    """Fill each line's speaker: the per-segment diarization speaker wins, else the
+    track-label display. Rendered as a ``[Speaker]`` prefix by ``lines_to_srt``."""
+    track_speaker = _label_display(track_label)
+    return [
+        SubLine(sub.start_ms, sub.end_ms, sub.text, sub.speaker or track_speaker)
+        for sub in lines
+    ]
 
-    A per-segment diarization speaker (already on the SubLine) wins; the track-label
-    display is the fallback for unlabeled lines. The result is rendered as a
-    ``[Speaker]`` prefix by ``lines_to_srt``.
-    """
+
+def _merge_with_speakers(groups: dict[str, list[SubLine]]) -> list[SubLine]:
+    """Flatten *groups* into a single list, tagging each line with its speaker label."""
     all_lines: list[SubLine] = []
     for label, lines in groups.items():
-        track_speaker = _label_display(label)
-        all_lines.extend(
-            SubLine(sub.start_ms, sub.end_ms, sub.text, sub.speaker or track_speaker)
-            for sub in lines
-        )
+        all_lines.extend(_labeled_lines(lines, label))
     return all_lines
 
 
@@ -149,11 +150,7 @@ def export_srt_sidecars(clip, output_dir: Path, base_stem: str) -> list[Path]:
         written.append(path)
     else:
         for label, lines in groups.items():
-            track_speaker = _label_display(label)
-            labeled = [
-                SubLine(sub.start_ms, sub.end_ms, sub.text, sub.speaker or track_speaker)
-                for sub in lines
-            ]
+            labeled = _labeled_lines(lines, label)
             path = output_dir / f"{base_stem}.{label}.srt"
             path.write_text(lines_to_srt(labeled), encoding="utf-8")
             written.append(path)

@@ -377,7 +377,8 @@ class Speaker(Base):
     # Stable 1-based ordering for the "Speaker N" display fallback when unnamed.
     display_index: Mapped[int] = mapped_column(Integer, nullable=False)
 
-    # Serialized voice embedding centroid (Phase 2). NULL until embeddings ship.
+    # Serialized voice embedding centroid, used to re-attach this Speaker across
+    # re-diarizations. NULL when the diarization backend produced no embedding.
     voiceprint: Mapped[Optional[bytes]] = mapped_column(LargeBinary, nullable=True)
 
     # "manual" (created from a diarization cluster) or "inferred" (name suggested).
