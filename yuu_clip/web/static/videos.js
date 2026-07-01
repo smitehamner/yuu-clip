@@ -202,8 +202,6 @@ function renderVideoDetail(video, savedTimeline) {
       </div>
     </div>
 
-    ${_isVideoBeingAnalyzed(video) ? _analysisLivePanelHTML() : ''}
-
     <div class="detail-card">
       <div class="detail-card-header">
         <h2 style="margin:0;font-size:17px;font-weight:700" title="${escHtml(video.title || video.filename)}">${escHtml(video.title || video.filename)}${eb(video.title_is_edited)}</h2>
@@ -221,8 +219,7 @@ function renderVideoDetail(video, savedTimeline) {
         <div class="description-long">${escHtml(video.summary)}</div>
       </div>` : ''}
 
-    <div id="speakers-section"></div>
-
+    ${_isVideoBeingAnalyzed(video) ? _analysisLivePanelHTML() : ''}
     ${_renderRunMetaCard(video)}
 
     <div class="vid-actions">
@@ -236,15 +233,17 @@ function renderVideoDetail(video, savedTimeline) {
       </div>
     </div>
 
-    <div id="timeline-section">
-      ${savedTimeline ? _renderTimelineHTML(savedTimeline) : ''}
-    </div>
+    <div id="speakers-section"></div>
 
     ${(video.clip_count > 0 || video.status === 'done') ? `
     <details id="video-transcript-details" class="transcript-details" data-video-id="${video.id}">
       <summary class="transcript-summary">Full transcript</summary>
       <div id="video-transcript-view" class="transcript"></div>
-    </details>` : ''}`;
+    </details>` : ''}
+
+    <div id="timeline-section">
+      ${savedTimeline ? _renderTimelineHTML(savedTimeline) : ''}
+    </div>`;
 
   if (window.loadSpeakers) loadSpeakers(video.id);
   _syncAnalysisLivePanel();
