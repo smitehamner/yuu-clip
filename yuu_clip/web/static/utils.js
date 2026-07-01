@@ -177,19 +177,22 @@ function _parseIntervalS(value, unit) {
 // ── progress indicator ────────────────────────────────────────────────────────
 // estMatch: substrings that map this pill to a step name from /api/estimate, so
 // the progress pill can show its pre-run time estimate as a hover tooltip.
+// progressPattern: regex with two capture groups (current, total) matched
+// against incoming log lines while this step is active, so the pill can show
+// "3/12 (25%)" and a live ETA instead of just elapsed time.
 const INGEST_STEPS = [
-  {label: 'Extract',        patterns: ['Extracting audio'],      estMatch: ['extract audio']},
-  {label: 'Transcribe',     patterns: ['Transcribing'],          estMatch: ['transcribe', 'load captions']},
+  {label: 'Extract',        patterns: ['Extracting audio'],      estMatch: ['extract audio'],  progressPattern: /Track (\d+)\/(\d+)/},
+  {label: 'Transcribe',     patterns: ['Transcribing'],          estMatch: ['transcribe', 'load captions'], progressPattern: /Track (\d+)\/(\d+)/},
   {label: 'Speakers',       patterns: ['Detecting speakers'],    estMatch: ['speaker labels']},
   {label: 'Generate Clips', patterns: ['Generating clip']},
   {label: 'Energy',         patterns: ['Computing audio energy'], estMatch: ['audio energy']},
   {label: 'Scenes',         patterns: ['Detecting scene'],       estMatch: ['scene detection']},
-  {label: 'Score',          patterns: ['Scoring clips'],         estMatch: ['llm scoring']},
+  {label: 'Score',          patterns: ['Scoring clips'],         estMatch: ['llm scoring'], progressPattern: /Scoring (\d+)\/(\d+)/},
 ];
 const SCORE_STEPS = [
   {label: 'Energy',  patterns: ['Computing audio energy']},
   {label: 'Scenes',  patterns: ['Detecting scene']},
-  {label: 'Scoring', patterns: ['Scoring clips']},
+  {label: 'Scoring', patterns: ['Scoring clips'], progressPattern: /Scoring (\d+)\/(\d+)/},
 ];
 
 let _jobStepDefs   = [];
@@ -199,6 +202,8 @@ let _jobStartTime  = 0;
 let _jobTimer      = null;
 let _jobHideTimer  = null;
 let _activeStepIdx = -1;
+let _stepStartTime = 0;
+let _stepProgress  = {}; // stepIdx -> {current, total}, cleared per job
 
 // Best-effort lookup of a pill's pre-run time estimate (from the last
 // /api/estimate call, saved by renderEstimate) for use as a hover tooltip.
@@ -215,6 +220,8 @@ function startJobUI(stepDefs, jobLabel, cancellable = false) {
   _jobStepDefs   = stepDefs;
   _activeStepIdx = -1;
   _jobStartTime  = Date.now();
+  _stepStartTime = Date.now();
+  _stepProgress  = {};
   if (_jobTimer) clearInterval(_jobTimer);
   _jobTimer = setInterval(_tickJobTimer, 1000);
   if (_jobHideTimer) { clearTimeout(_jobHideTimer); _jobHideTimer = null; }
@@ -239,15 +246,30 @@ function updateJobUI(line) {
     if (s.patterns.some(p => line.includes(p))) {
       for (let j = 0; j < i; j++) {
         const el = document.getElementById(`step-${j}`);
-        if (el) { el.className = 'step done'; el.textContent = _jobStepDefs[j].label; }
+        if (el) { el.className = 'step done'; el.style.backgroundImage = ''; el.textContent = _jobStepDefs[j].label; }
       }
       const el = document.getElementById(`step-${i}`);
       if (el) { el.className = 'step active'; _activeStepIdx = i; }
     }
   });
-  // When the pipeline advances a stage, refresh the sidebar so a newly-analyzing
-  // recording appears (replacing its placeholder) and its status stays current.
-  if (_activeStepIdx !== prevStepIdx) _debouncedSidebarRefresh();
+  if (_activeStepIdx !== prevStepIdx) {
+    _stepStartTime = Date.now();
+    // When the pipeline advances a stage, refresh the sidebar so a newly-analyzing
+    // recording appears (replacing its placeholder) and its status stays current.
+    _debouncedSidebarRefresh();
+    // Also refresh the open clip list — picks up the batch "Generate Clips" just
+    // committed, and clears any stale progress text from the stage just left.
+    _debouncedClipListRefresh();
+  }
+  const activeDef = _jobStepDefs[_activeStepIdx];
+  if (activeDef && activeDef.progressPattern) {
+    const m = line.match(activeDef.progressPattern);
+    if (m) {
+      _stepProgress[_activeStepIdx] = {current: parseInt(m[1], 10), total: parseInt(m[2], 10)};
+      _renderStepPill(_activeStepIdx);
+      _debouncedClipListRefresh();
+    }
+  }
   if (window._syncAnalysisLivePanel) _syncAnalysisLivePanel();
 }
 
@@ -257,13 +279,66 @@ function _debouncedSidebarRefresh() {
   _sidebarRefreshTimer = setTimeout(() => { _sidebarRefreshTimer = null; loadVideos(); }, 1200);
 }
 
+let _clipListRefreshTimer = null;
+// Same push-driven-but-debounced pattern as _debouncedSidebarRefresh above,
+// triggered off the SSE line stream rather than a polling timer. Only refreshes
+// when the video being analyzed is the one currently open, so newly-committed
+// clip scores (yuu_clip/scoring/engine.py now commits per clip) fill into the
+// visible list live instead of requiring a manual page refresh.
+function _debouncedClipListRefresh() {
+  if (_clipListRefreshTimer) return;
+  _clipListRefreshTimer = setTimeout(async () => {
+    _clipListRefreshTimer = null;
+    if (!AppState.activeVideoId || !AppState.analyzeFilename) return;
+    const analyzing = AppState.videos.find(v => v.filename === AppState.analyzeFilename);
+    if (!analyzing || analyzing.id !== AppState.activeVideoId) return;
+    AppState.clips = await fetch(`/api/videos/${AppState.activeVideoId}/clips?sort=${_clipsSortParam()}`).then(r => r.json());
+    _renderClips();
+  }, 1200);
+}
+
+// Builds the live label for a step pill: "Score · 3/12 (25%) · 0:42 (~2:06
+// left)" once per-item counts arrive from the subprocess log; elapsed-only
+// (falling back to the pre-run /api/estimate figure) before the first count.
+function _stepPillLabel(idx) {
+  const def = _jobStepDefs[idx];
+  if (!def) return {text: '', pct: null};
+  const elapsedMs = Date.now() - _stepStartTime;
+  const progress  = _stepProgress[idx];
+  if (!progress || !progress.current) {
+    const est = _estimateHmsFor(def);
+    return {
+      text: est ? `${def.label} · ${_fmtElapsed(elapsedMs)} (~${est})` : `${def.label} · ${_fmtElapsed(elapsedMs)}`,
+      pct: null,
+    };
+  }
+  const {current, total} = progress;
+  const pct    = Math.round(current / total * 100);
+  const etaMs  = elapsedMs / current * (total - current);
+  return {
+    text: `${def.label} · ${current}/${total} (${pct}%) · ${_fmtElapsed(elapsedMs)} (~${_fmtElapsed(etaMs)} left)`,
+    pct,
+  };
+}
+
+// Paints one step pill's text and, for an in-progress step with known counts,
+// a two-tone gradient fill standing in for a progress bar (done/pending pills
+// keep their flat CSS class color — no fill). Shared by the header pill row
+// and (via _syncAnalysisLivePanel) the in-detail mirror panel.
+function _renderStepPill(idx) {
+  const el = document.getElementById(`step-${idx}`);
+  if (!el || !el.classList.contains('active')) return;
+  const {text, pct} = _stepPillLabel(idx);
+  el.textContent = text;
+  el.style.backgroundImage = pct != null
+    ? `linear-gradient(to right, var(--green) ${pct}%, var(--accent) ${pct}%)`
+    : '';
+}
+
 function _tickJobTimer() {
   if (window._syncAnalysisLivePanel) _syncAnalysisLivePanel();
   if (_activeStepIdx < 0) return;
-  const el  = document.getElementById(`step-${_activeStepIdx}`);
-  const def = _jobStepDefs[_activeStepIdx];
-  if (!el || !def || !el.classList.contains('active')) return;
-  el.textContent = `${def.label} · ${_fmtElapsed(Date.now() - _jobStartTime)}`;
+  _renderStepPill(_activeStepIdx);
 }
 
 function endJobUI() {

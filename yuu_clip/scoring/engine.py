@@ -110,6 +110,10 @@ class ScoringEngine:
         _log.info("Scoring %d clip(s) for video %d using %d scorer(s)", total, video.id, len(self._scorers))
         for i, clip in enumerate(candidates, 1):
             self.score_clip(clip, session)
+            # Commit per clip (not just flush) so the web server — a separate
+            # process/connection — can see each score as soon as it's ready,
+            # instead of only after the whole video finishes scoring.
+            session.commit()
             if progress_cb:
                 progress_cb(i, total)
         _log.info("Scoring complete for video %d: %d clip(s) scored", video.id, total)

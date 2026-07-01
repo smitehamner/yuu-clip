@@ -317,8 +317,9 @@ function _syncAnalysisLivePanel() {
   const stepsEl = document.getElementById('analysis-live-steps');
   if (!stepsEl) return;
   stepsEl.innerHTML = _jobStepDefs.map((step, i) => {
-    const cls = i < _activeStepIdx ? 'done' : i === _activeStepIdx ? 'active' : '';
-    return `<span class="step ${cls}">${escHtml(step.label)}</span>`;
+    const cls  = i < _activeStepIdx ? 'done' : i === _activeStepIdx ? 'active' : '';
+    const text = i === _activeStepIdx ? _stepPillLabel(i).text : step.label;
+    return `<span class="step ${cls}">${escHtml(text)}</span>`;
   }).join('');
 
   const elapsedEl = document.getElementById('analysis-live-elapsed');

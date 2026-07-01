@@ -318,12 +318,13 @@ def _extract_audio_and_check_rms_overlap(
     from yuu_clip.analyze.overlap import detect_and_apply_overlap_fallback
 
     console.print("  [bold]Extracting audio...[/bold]")
-    for track in track_objs:
+    total_tracks = len(track_objs)
+    for idx, track in enumerate(track_objs, 1):
         if not track.do_transcribe and not track.do_score:
-            console.print(f"  [dim]  Track {track.stream_index} [{track.label}] — skipped (not transcribed or scored)[/dim]")
+            console.print(f"  [dim]  Track {idx}/{total_tracks} [{track.label}] — skipped (not transcribed or scored)[/dim]")
             continue
         if track.extracted_path and Path(track.extracted_path).exists() and not force:
-            console.print(f"  [dim]  Track {track.stream_index} already extracted[/dim]")
+            console.print(f"  [dim]  Track {idx}/{total_tracks} already extracted[/dim]")
             continue
         seg_suffix = f"_seg{int(segment_start_s * 1000)}" if segment_start_s is not None else ""
         out_path = audio_dir / f"{Path(video.filename).stem}_stream{track.stream_index}{seg_suffix}.wav"
@@ -363,16 +364,17 @@ def _transcribe_and_check_overlap(track_objs, config, session, video, language) 
 
     console.print(f"  [bold]Transcribing (model: {config.whisper_model})...[/bold]")
     transcripts = []
-    for track in track_objs:
+    total_tracks = len(track_objs)
+    for idx, track in enumerate(track_objs, 1):
         if not track.do_transcribe:
             console.print(
-                f"  [dim]  Track {track.stream_index} [{track.label}] — skipped (not marked for transcription)[/dim]"
+                f"  [dim]  Track {idx}/{total_tracks} [{track.label}] — skipped (not marked for transcription)[/dim]"
             )
             continue
         if not track.extracted_path:
-            console.print(f"  [yellow]  Track {track.stream_index} — no extracted audio, skipping[/yellow]")
+            console.print(f"  [yellow]  Track {idx}/{total_tracks} — no extracted audio, skipping[/yellow]")
             continue
-        console.print(f"  [dim]  Track {track.stream_index} [{track.label}]...[/dim]")
+        console.print(f"  [dim]  Track {idx}/{total_tracks} [{track.label}]...[/dim]")
         try:
             transcript = transcribe_track(track, config, session, language=language)
             console.print(
