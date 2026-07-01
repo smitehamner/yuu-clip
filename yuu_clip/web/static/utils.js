@@ -57,7 +57,8 @@ function _sortScore(clip) {
 // ── format utils ──────────────────────────────────────────────────────────────
 const _VIDEO_STATUS_DISPLAY = {
   pending: 'Not analyzed', probed: 'Inspected', labeled: 'Tracks assigned',
-  extracting: 'Extracting', transcribing: 'Transcribing', segmented: 'Clips generated', done: 'Analyzed',
+  extracting: 'Extracting', transcribing: 'Transcribing', segmented: 'Clips generated',
+  done: 'Analyzed', failed: 'Analysis interrupted',
 };
 function _fmtVideoStatus(s) { return _VIDEO_STATUS_DISPLAY[s] || s; }
 
@@ -174,14 +175,16 @@ function _parseIntervalS(value, unit) {
 }
 
 // ── progress indicator ────────────────────────────────────────────────────────
+// estMatch: substrings that map this pill to a step name from /api/estimate, so
+// the progress pill can show its pre-run time estimate as a hover tooltip.
 const INGEST_STEPS = [
-  {label: 'Extract',        patterns: ['Extracting audio']},
-  {label: 'Transcribe',     patterns: ['Transcribing']},
-  {label: 'Speakers',       patterns: ['Detecting speakers']},
+  {label: 'Extract',        patterns: ['Extracting audio'],      estMatch: ['extract audio']},
+  {label: 'Transcribe',     patterns: ['Transcribing'],          estMatch: ['transcribe', 'load captions']},
+  {label: 'Speakers',       patterns: ['Detecting speakers'],    estMatch: ['speaker labels']},
   {label: 'Generate Clips', patterns: ['Generating clip']},
-  {label: 'Energy',         patterns: ['Computing audio energy']},
-  {label: 'Scenes',         patterns: ['Detecting scene']},
-  {label: 'Score',          patterns: ['Scoring clips']},
+  {label: 'Energy',         patterns: ['Computing audio energy'], estMatch: ['audio energy']},
+  {label: 'Scenes',         patterns: ['Detecting scene'],       estMatch: ['scene detection']},
+  {label: 'Score',          patterns: ['Scoring clips'],         estMatch: ['llm scoring']},
 ];
 const SCORE_STEPS = [
   {label: 'Energy',  patterns: ['Computing audio energy']},
@@ -197,6 +200,17 @@ let _jobTimer      = null;
 let _jobHideTimer  = null;
 let _activeStepIdx = -1;
 
+// Best-effort lookup of a pill's pre-run time estimate (from the last
+// /api/estimate call, saved by renderEstimate) for use as a hover tooltip.
+function _estimateHmsFor(stepDef) {
+  const steps = AppState.lastEstimateSteps;
+  if (!steps || !stepDef.estMatch) return null;
+  const match = steps.find(es =>
+    stepDef.estMatch.some(key => (es.name || '').toLowerCase().includes(key))
+  );
+  return match ? match.hms : null;
+}
+
 function startJobUI(stepDefs, jobLabel, cancellable = false) {
   _jobStepDefs   = stepDefs;
   _activeStepIdx = -1;
@@ -206,7 +220,11 @@ function startJobUI(stepDefs, jobLabel, cancellable = false) {
   if (_jobHideTimer) { clearTimeout(_jobHideTimer); _jobHideTimer = null; }
   document.getElementById('job-steps').innerHTML =
     `<span style="color:var(--muted);margin-right:4px">${escHtml(jobLabel)}</span>` +
-    stepDefs.map((s, i) => `<span class="step" id="step-${i}">${s.label}</span>`).join('');
+    stepDefs.map((s, i) => {
+      const est = _estimateHmsFor(s);
+      const title = est ? ` title="Estimated: ${escHtml(est)}"` : '';
+      return `<span class="step" id="step-${i}"${title}>${s.label}</span>`;
+    }).join('');
   document.getElementById('job-status').classList.add('visible');
   document.getElementById('header-spacer').style.display = 'none';
   document.querySelectorAll('#btn-analyze,#btn-score').forEach(b => b.disabled = true);
@@ -216,6 +234,7 @@ function startJobUI(stepDefs, jobLabel, cancellable = false) {
 }
 
 function updateJobUI(line) {
+  const prevStepIdx = _activeStepIdx;
   _jobStepDefs.forEach((s, i) => {
     if (s.patterns.some(p => line.includes(p))) {
       for (let j = 0; j < i; j++) {
@@ -226,9 +245,20 @@ function updateJobUI(line) {
       if (el) { el.className = 'step active'; _activeStepIdx = i; }
     }
   });
+  // When the pipeline advances a stage, refresh the sidebar so a newly-analyzing
+  // recording appears (replacing its placeholder) and its status stays current.
+  if (_activeStepIdx !== prevStepIdx) _debouncedSidebarRefresh();
+  if (window._syncAnalysisLivePanel) _syncAnalysisLivePanel();
+}
+
+let _sidebarRefreshTimer = null;
+function _debouncedSidebarRefresh() {
+  if (_sidebarRefreshTimer) return;
+  _sidebarRefreshTimer = setTimeout(() => { _sidebarRefreshTimer = null; loadVideos(); }, 1200);
 }
 
 function _tickJobTimer() {
+  if (window._syncAnalysisLivePanel) _syncAnalysisLivePanel();
   if (_activeStepIdx < 0) return;
   const el  = document.getElementById(`step-${_activeStepIdx}`);
   const def = _jobStepDefs[_activeStepIdx];
@@ -336,6 +366,7 @@ function streamSSE(url, onDone, stepDefs, jobLabel, cancellable = false) {
       _clearActiveStream(handle);
       appendLog(`[${errMsg}]`);
       showToast(errMsg, 'error');
+      SoundFx.play('error');
       if (stepDefs) endJobUI();
       loadVideos();
     },

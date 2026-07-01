@@ -231,8 +231,10 @@ function _doRescoreClips(videoId, btn, endpoint = 'rescore-clips') {
       resetBtn();
       if (errorCount > 0) {
         showToast(`Re-scoring finished — ${errorCount} clip${errorCount !== 1 ? 's' : ''} failed (check log)`, 'error');
+        SoundFx.play('error');
       } else {
         showToast('Re-scoring complete');
+        SoundFx.play('rescore');
       }
       loadVideos().then(() => {
         if (AppState.activeVideoId === videoId) {
@@ -248,6 +250,7 @@ function _doRescoreClips(videoId, btn, endpoint = 'rescore-clips') {
       _clearActiveStream(handle);
       resetBtn();
       showToast(`Re-scoring failed — ${errMsg}`, 'error');
+      SoundFx.play('error');
     },
   );
   _setActiveStream(handle, resetBtn);
@@ -495,6 +498,7 @@ function rescoreClip(clipId) {
       teardown();
       if (hadError) {
         showToast('Re-score failed — check log for details', 'error');
+        SoundFx.play('error');
         selectClip(clipId);
         return;
       }
@@ -516,11 +520,13 @@ function rescoreClip(clipId) {
         selectClip(clipId);
       }
       showToast('Clip re-scored');
+      SoundFx.play('rescore');
     },
     errMsg => {
       _clearActiveStream(handle);
       teardown();
       showToast(`Re-score failed — ${errMsg}`, 'error');
+      SoundFx.play('error');
     },
   );
   _setActiveStream(handle, teardown);

@@ -382,6 +382,33 @@
     </div>
   </div>
 
+  <!-- Notification sounds -->
+  <div class="settings-section">
+    <div class="settings-section-title">Notification sounds <span style="font-size:11px;font-weight:400;color:var(--muted)">(off by default — changes apply immediately)</span></div>
+    <div class="settings-note" style="margin-bottom:8px">Play a sound when a long-running action finishes so you can step away. Use <strong>Preview</strong> to hear each one. A <strong>Stop sound</strong> button appears while a sound plays.</div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <label class="settings-label" for="s-sound-volume">Volume</label>
+        <div class="settings-note">Applies to all notification sounds</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="range" id="s-sound-volume" min="0" max="100" step="1" style="width:140px">
+        <span id="s-sound-volume-val" style="font-size:12px;color:var(--muted);min-width:34px;text-align:right">70%</span>
+      </div>
+    </div>
+    <div id="s-sound-rows"></div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <div class="settings-label">Use your own sound</div>
+        <div class="settings-note">Add an audio file (wav, mp3, ogg…) to the dropdowns above. For a full song, use the Stop button to silence it.</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">
+        <input type="file" id="s-sound-upload" accept="audio/*" onchange="_onSoundUpload(this)" style="font-size:12px;max-width:220px">
+        <span id="s-sound-upload-status" style="font-size:11px;color:var(--muted)"></span>
+      </div>
+    </div>
+  </div>
+
   <!-- Paths section (read-only for now) -->
   <div class="settings-section">
     <div class="settings-section-title">Paths <span style="font-size:11px;font-weight:400;color:var(--muted)">(read-only — set via --project flag)</span></div>
@@ -1254,6 +1281,7 @@
 <script src="/static/reel.js"></script>
 <script src="/static/contexts.js"></script>
 <script src="/static/settings.js"></script>
+<script src="/static/sounds.js"></script>
 <script src="/static/split.js"></script>
 <script src="/static/speakers.js"></script>
 <script src="/static/transcript.js"></script>

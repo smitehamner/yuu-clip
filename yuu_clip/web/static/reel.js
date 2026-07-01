@@ -243,7 +243,7 @@ async function startDemo() {
   openLog();
   streamSSE(
     '/api/demo/events',
-    () => { loadVideos(); showToast('Highlight reel complete!'); openHighlightReelsModal('view'); },
+    () => { loadVideos(); showToast('Highlight reel complete!'); openHighlightReelsModal('view'); SoundFx.play('reel'); },
     [{label: 'Building', patterns: ['Generating title', 'Encoding', 'OK']}],
     'Reel',
   );
@@ -315,7 +315,7 @@ async function confirmBatchExport() {
   openLog();
   streamSSE(
     `/api/videos/${id}/batch-export?${params}`,
-    () => { loadVideos(); showToast('Batch export complete'); },
+    () => { loadVideos(); showToast('Batch export complete'); SoundFx.play('export'); },
     [{label: 'Exporting', patterns: ['Exporting clip', 'OK clip', 'Skipping']}],
     'Batch Export',
   );

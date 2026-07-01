@@ -16,16 +16,27 @@ async function loadVideos() {
   const list = document.getElementById('video-list');
   list.innerHTML = '';
 
-  if (!videos.length) {
+  // While a brand-new recording is analyzing, show it in the sidebar right away —
+  // before its DB row exists — so the user gets immediate feedback. Suppressed
+  // once the real row appears (matched by filename).
+  const analyzingName = AppState.analyzeFilename;
+  const showPlaceholder = analyzingName && !videos.some(v => v.filename === analyzingName);
+
+  if (!videos.length && !showPlaceholder) {
     list.innerHTML = '<li style="padding:10px 14px;color:var(--muted)">No videos yet</li>';
     _showEmptyState();
     _updateDemoButton(0);
     return;
   }
 
+  if (showPlaceholder) list.appendChild(_analyzingPlaceholderLi(analyzingName));
+
   for (const v of videos) {
+    const isAnalyzing = v.filename === analyzingName && v.status !== 'done';
     const li = document.createElement('li');
-    li.className = 'video-item' + (v.id === AppState.activeVideoId ? ' active' : '');
+    li.className = 'video-item'
+      + (v.id === AppState.activeVideoId ? ' active' : '')
+      + (isAnalyzing ? ' analyzing' : '');
     li.dataset.videoId = v.id;
     li.tabIndex = 0;
     const clipsPct = v.duration_ms > 0
@@ -51,7 +62,9 @@ async function loadVideos() {
       ${v.title ? `<div class="video-title">${escHtml(v.filename)}</div>` : ''}
       ${segmentMeta}
       <div class="meta">${v.duration_hms} &middot; ${v.clip_count} clips &middot; ${_msToHms(v.total_clip_ms)} clipped${clipsPct}</div>
-      <div class="meta">${v.approved} approved &middot; ${v.exported} exported &middot; ${_fmtVideoStatus(v.status)}</div>
+      <div class="meta">${isAnalyzing
+        ? `<span class="spinner" style="display:inline-block;vertical-align:middle"></span> <span style="color:var(--accent)">${escHtml(_fmtVideoStatus(v.status))}…</span>`
+        : `${v.approved} approved &middot; ${v.exported} exported &middot; ${_fmtVideoStatus(v.status)}`}</div>
       ${procBadges ? `<div class="meta" style="margin-top:2px">${procBadges}</div>` : ''}
       ${errBadge}
       ${scoreBar}`;
@@ -87,6 +100,15 @@ async function _restoreView() {
       await selectClip(saved.clipId);
     }
   } catch {}
+}
+
+function _analyzingPlaceholderLi(filename) {
+  const li = document.createElement('li');
+  li.className = 'video-item analyzing-placeholder';
+  li.innerHTML = `
+    <div class="name" style="display:flex;align-items:center;gap:8px"><span class="spinner"></span>${escHtml(filename)}</div>
+    <div class="meta" style="color:var(--accent)">Analyzing…</div>`;
+  return li;
 }
 
 function _showEmptyState() {
@@ -180,6 +202,8 @@ function renderVideoDetail(video, savedTimeline) {
       </div>
     </div>
 
+    ${_isVideoBeingAnalyzed(video) ? _analysisLivePanelHTML() : ''}
+
     <div class="detail-card">
       <div class="detail-card-header">
         <h2 style="margin:0;font-size:17px;font-weight:700" title="${escHtml(video.title || video.filename)}">${escHtml(video.title || video.filename)}${eb(video.title_is_edited)}</h2>
@@ -198,6 +222,8 @@ function renderVideoDetail(video, savedTimeline) {
       </div>` : ''}
 
     <div id="speakers-section"></div>
+
+    ${_renderRunMetaCard(video)}
 
     <div class="vid-actions">
       <div class="vid-actions-row">
@@ -233,6 +259,7 @@ function renderVideoDetail(video, savedTimeline) {
     </details>` : ''}`;
 
   if (window.loadSpeakers) loadSpeakers(video.id);
+  _syncAnalysisLivePanel();
 
   if (!savedTimeline && video.has_timeline) {
     fetch(`/api/videos/${video.id}`)
@@ -243,6 +270,48 @@ function renderVideoDetail(video, savedTimeline) {
         }
       })
       .catch(() => {});
+  }
+}
+
+// ── live analysis progress (in-detail) ────────────────────────────────────────
+// A recording is "being analyzed" when it matches the filename of the active
+// analyze job (AppState.analyzeFilename, set on start/reattach) and hasn't yet
+// reached 'done'. Same rule the sidebar uses for its spinner.
+function _isVideoBeingAnalyzed(video) {
+  return !!AppState.analyzeFilename
+    && video.filename === AppState.analyzeFilename
+    && video.status !== 'done';
+}
+
+function _analysisLivePanelHTML() {
+  return `
+    <div class="detail-card analysis-live" id="analysis-live-panel">
+      <div class="detail-card-header">
+        <span class="detail-card-title"><span class="spinner"></span> Analysis in progress</span>
+        <span class="muted" id="analysis-live-elapsed" style="font-size:12px"></span>
+      </div>
+      <div id="analysis-live-steps" class="job-steps-detail"></div>
+      <div class="muted" style="font-size:11px;margin-top:8px">Runs in the background — you can leave or refresh this page without interrupting it.</div>
+    </div>`;
+}
+
+// Mirror the header progress bar's step state into the in-detail panel. Driven by
+// the analyze SSE stream (updateJobUI / _tickJobTimer in utils.js). Reads the
+// shared job-step globals; elapsed uses the server-side analyze_started_at so it
+// stays accurate across a refresh (unlike the header pill, which restarts at 0).
+function _syncAnalysisLivePanel() {
+  const stepsEl = document.getElementById('analysis-live-steps');
+  if (!stepsEl) return;
+  stepsEl.innerHTML = _jobStepDefs.map((step, i) => {
+    const cls = i < _activeStepIdx ? 'done' : i === _activeStepIdx ? 'active' : '';
+    return `<span class="step ${cls}">${escHtml(step.label)}</span>`;
+  }).join('');
+
+  const elapsedEl = document.getElementById('analysis-live-elapsed');
+  if (elapsedEl) {
+    const startIso = AppState.activeVideoData && AppState.activeVideoData.analyze_started_at;
+    const startMs  = startIso ? _parseServerDate(startIso).getTime() : _jobStartTime;
+    elapsedEl.textContent = _fmtElapsed(Date.now() - startMs);
   }
 }
 
@@ -582,6 +651,64 @@ async function onClipsSortChange() {
   _renderClips();
 }
 
+// ── analysis run metadata card ────────────────────────────────────────────────
+// Renders the stored record of the last analyze run (per-stage timing, effective
+// settings, and CPU/GPU device) so the creator can answer "how long did this
+// take, what settings, and did it use my GPU?".
+function _renderRunMetaCard(video) {
+  const run = video.analyze_run;
+  if (!run) return '';
+  const totalHms = _msToHms(run.elapsed_ms || 0);
+  const dev = run.device || {};
+  const deviceBadge = dev.has_gpu
+    ? '<span class="run-meta-badge gpu" title="Used the GPU">GPU</span>'
+    : '<span class="run-meta-badge cpu" title="Ran on CPU">CPU</span>';
+  const when = run.finished_at ? ` &middot; ${escHtml(_fmtAgo(run.finished_at))}` : '';
+  return `
+    <details class="detail-card run-meta-card">
+      <summary class="run-meta-summary">Last analysis &middot; <strong>${totalHms}</strong> ${deviceBadge}${when}</summary>
+      <div class="run-meta-body">
+        ${_runSettingsRows(run.settings || {}, dev)}
+        ${_runStageBars(run.stages || [])}
+      </div>
+    </details>`;
+}
+
+function _runSettingsRows(s, dev) {
+  const yesNo = (v) => v ? 'On' : 'Off';
+  const rows = [
+    ['Whisper model',  s.model],
+    ['Track layout',   s.track_layout],
+    ['Captions',       s.captions_source],
+    ['Speaker labels', s.speaker_labels === undefined ? null : yesNo(s.speaker_labels)],
+    ['Energy mode',    s.energy_mode],
+    ['Scene mode',     s.scene_mode],
+    ['LLM scoring',    s.scoring === undefined ? null : yesNo(s.scoring)],
+    ['World contexts', (s.contexts && s.contexts.length) ? s.contexts.join(', ') : 'none'],
+    ['Transcribe device', dev.transcribe],
+    ['Diarization device', dev.diarization],
+  ].filter(([, v]) => v !== null && v !== undefined && v !== '');
+  return `<div class="run-meta-grid">${rows.map(([k, v]) =>
+    `<div class="run-meta-key">${escHtml(k)}</div><div class="run-meta-val">${escHtml(String(v))}</div>`
+  ).join('')}</div>`;
+}
+
+function _runStageBars(stages) {
+  if (!stages.length) return '';
+  const maxS = Math.max(...stages.map(st => st.seconds || 0), 0.001);
+  const bars = stages.map(st => {
+    const secs = st.seconds || 0;
+    const pct = Math.max(2, Math.round(secs / maxS * 100));
+    return `
+      <div class="run-stage-row">
+        <span class="run-stage-name">${escHtml(st.name)}</span>
+        <span class="run-stage-track"><span class="run-stage-fill" style="width:${pct}%"></span></span>
+        <span class="run-stage-time">${_msToHms(secs * 1000)}</span>
+      </div>`;
+  }).join('');
+  return `<div class="run-stage-bars"><div class="run-meta-subtitle">Stage timing</div>${bars}</div>`;
+}
+
 // Public API — symbols referenced cross-module, by an inline handler, or by a
 // test. Internal helpers above stay private to this module's closure.
 Object.assign(window, {
@@ -592,5 +719,6 @@ Object.assign(window, {
   generateTimeline, confirmGenerateTimeline, closeTimelineIntervalModal,
   updateTimelineIntervalHint,
   _updateDemoButton, _updateStartIngestButton,
+  _syncAnalysisLivePanel,
 });
 })();

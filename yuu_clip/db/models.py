@@ -115,6 +115,8 @@ def _migrate(engine) -> None:
             ("timeline_context_json",     "TEXT"),
             ("title_user",   "TEXT"),
             ("summary_user", "TEXT"),
+            ("analyze_started_at", "DATETIME"),
+            ("analyze_run_json",   "TEXT"),
         ]
         for col, typedef in _video_migrations:
             if col not in existing:
@@ -227,6 +229,11 @@ class Video(Base):
     status: Mapped[str] = mapped_column(String, default="pending")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
     processed_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+
+    # When the most recent analyze run began, and a JSON record of that run
+    # (per-stage timings, effective settings, and CPU/GPU device) for later review.
+    analyze_started_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    analyze_run_json: Mapped[Optional[str]] = mapped_column(Text)
 
     parent_video_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("videos.id"), nullable=True)
     segment_start_s: Mapped[Optional[float]] = mapped_column(Float, nullable=True)

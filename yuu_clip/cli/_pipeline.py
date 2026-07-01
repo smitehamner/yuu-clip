@@ -17,6 +17,7 @@ from yuu_clip.cli._base import (
     console,
     log,
 )
+from yuu_clip.cli._run_meta import StageRecorder, build_run_json
 
 
 def _resolve_existing_video(session, video_path: Path, opts: AnalyzeOptions):
@@ -75,7 +76,11 @@ def _analyze_one(
     console.print(f"Analyzing: {video_path.name}")
     console.rule(f"[bold]{video_path.name}[/bold]")
 
-    info = _probe_video(video_path)
+    started_at = datetime.now(timezone.utc)
+    recorder = StageRecorder()
+
+    with recorder.stage("Inspect"):
+        info = _probe_video(video_path)
     if info is None:
         return
 
@@ -89,6 +94,7 @@ def _analyze_one(
         segment_start_s=seg_start_for_upsert,
         segment_end_s=seg_end_for_upsert,
     )
+    video.analyze_started_at = started_at
     if opts.context_names:
         video.context_names_json = json.dumps(opts.context_names)
 
@@ -100,28 +106,37 @@ def _analyze_one(
 
     session.commit()
 
-    _extract_audio_and_check_rms_overlap(
-        video_path, video, track_objs, config, audio_dir, session, opts.force,
-        segment_start_s=seg_start, segment_end_s=seg_end,
-    )
+    with recorder.stage("Extract audio"):
+        _extract_audio_and_check_rms_overlap(
+            video_path, video, track_objs, config, audio_dir, session, opts.force,
+            segment_start_s=seg_start, segment_end_s=seg_end,
+        )
     session.commit()
 
-    transcripts = _obtain_transcripts(opts, video_path, track_objs, session, video, config)
+    with recorder.stage("Import captions" if opts.subtitle_source else "Transcribe"):
+        transcripts = _obtain_transcripts(opts, video_path, track_objs, session, video, config)
     session.commit()
 
-    _run_speaker_diarization(config, session, transcripts)
-    session.commit()
+    transcribed = not opts.subtitle_source and not opts.no_transcribe
+    diarized = bool(transcripts) and config.diarization_backend != "null"
+    if diarized:
+        with recorder.stage("Speakers"):
+            _run_speaker_diarization(config, session, transcripts)
+        session.commit()
 
-    candidates = _generate_candidates(video, transcripts, config, session, opts.no_segment, opts.no_transcribe, opts.force)
+    with recorder.stage("Generate clips"):
+        candidates = _generate_candidates(video, transcripts, config, session, opts.no_segment, opts.no_transcribe, opts.force)
     session.commit()
 
     if not opts.no_score and transcripts:
-        _summarize_video(video, transcripts, config, session, context_text=opts.context_text)
+        with recorder.stage("Summarize"):
+            _summarize_video(video, transcripts, config, session, context_text=opts.context_text)
         session.commit()
 
     if not opts.no_score and candidates:
         try:
-            _run_scoring(video, track_objs, config, session, energy_mode=opts.energy_mode, context_text=opts.context_text)
+            with recorder.stage("Score"):
+                _run_scoring(video, track_objs, config, session, energy_mode=opts.energy_mode, context_text=opts.context_text)
         except Exception as exc:
             # Clips are already committed; discard partial scoring writes and leave the
             # video reviewable-but-unscored (clips_scored_at stays null → UI shows Rescore).
@@ -131,6 +146,14 @@ def _analyze_one(
             log.exception("Scoring failed: video_id=%s", video.id)
 
     video.processed_at = datetime.now(timezone.utc)
+    # Run metadata is informational only — never let recording it abort the run.
+    try:
+        video.analyze_run_json = build_run_json(
+            recorder, config, opts, started_at,
+            transcribed=transcribed, diarized=diarized,
+        )
+    except Exception:
+        log.exception("Failed to record analyze run metadata (non-fatal): video_id=%s", video.id)
     session.commit()
 
 

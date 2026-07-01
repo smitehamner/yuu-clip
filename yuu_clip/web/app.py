@@ -23,7 +23,7 @@ from yuu_clip.contexts import seed_builtin_contexts
 from yuu_clip.log import configure_logging, get_logger
 from yuu_clip.web.deps import ProjectContext
 from yuu_clip.web.media import media_file_response, resolve_within
-from yuu_clip.web.routes import analyze, clips, config, contexts, logs, profiles, reel, scoring, speakers, videos
+from yuu_clip.web.routes import analyze, clips, config, contexts, logs, profiles, reel, scoring, sounds, speakers, videos
 from yuu_clip.web.sse import terminate_process_tree
 
 _HERE = Path(__file__).parent
@@ -41,13 +41,37 @@ if _BUILD_DATE == "dev":
 else:
     _VERSION_DISPLAY = f"{_PKG_VERSION} · {_BUILD_DATE}"
 
-_ROUTE_MODULES = (videos, clips, analyze, profiles, reel, logs, contexts, config, scoring, speakers)
+_ROUTE_MODULES = (videos, clips, analyze, profiles, reel, logs, contexts, config, scoring, sounds, speakers)
 
 
 def _reload_factory() -> FastAPI:
     """App factory for uvicorn --reload mode. Reads project dir from env."""
     proj_dir = Path(os.environ.get("YUU_CLIP_PROJECT", ".")).resolve()
     return create_app(proj_dir)
+
+
+def _fail_interrupted_analyses(ctx: ProjectContext) -> None:
+    """Mark videos left mid-analysis by a previous server as failed.
+
+    A running analyze subprocess sets status='extracting' for the long
+    extract→transcribe phase. If the server (and its subprocess) died there —
+    a crash, a kill, or a restart — the row is stuck in that transient state
+    with no job to advance it. On startup no analysis is running yet, so any
+    such row is a leftover: flip it to 'failed' so the UI stops showing an
+    eternal spinner and the user can re-run it.
+    """
+    from yuu_clip.db.models import Video
+
+    db = ctx.get_db()
+    try:
+        stuck = db.query(Video).filter(Video.status == "extracting").all()
+        for video in stuck:
+            video.status = "failed"
+        if stuck:
+            db.commit()
+            _log.warning("Marked %d interrupted analysis run(s) as failed", len(stuck))
+    finally:
+        db.close()
 
 
 def create_app(project_dir: Path) -> FastAPI:
@@ -63,13 +87,21 @@ def create_app(project_dir: Path) -> FastAPI:
     ctx.export_dir.mkdir(parents=True, exist_ok=True)
     ctx.reels_dir.mkdir(parents=True, exist_ok=True)
     seed_builtin_contexts(project_dir)
+    _fail_interrupted_analyses(ctx)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         yield
-        proc = ctx.analyze_proc
-        if proc is not None and proc.returncode is None:
-            _log.info("Server shutting down — terminating analyze subprocess (pid %s)", proc.pid)
+        procs = []
+        job = ctx.analyze_job
+        if job is not None and getattr(job, "proc", None) is not None:
+            procs.append(job.proc)
+        if ctx.analyze_proc is not None:
+            procs.append(ctx.analyze_proc)
+        for proc in procs:
+            if proc.returncode is not None:
+                continue
+            _log.info("Server shutting down — terminating subprocess (pid %s)", proc.pid)
             terminate_process_tree(proc)
             try:
                 await asyncio.wait_for(proc.wait(), timeout=5.0)

@@ -621,4 +621,6 @@ def _video_dict(video: Video, stats: dict) -> dict:
         "summary_context": _json_list(video.summary_context_json),
         "timeline_generated_at": video.timeline_generated_at.isoformat() if video.timeline_generated_at else None,
         "timeline_context": _json_list(video.timeline_context_json),
+        "analyze_started_at": video.analyze_started_at.isoformat() if video.analyze_started_at else None,
+        "analyze_run": json_lib.loads(video.analyze_run_json) if video.analyze_run_json else None,
     }

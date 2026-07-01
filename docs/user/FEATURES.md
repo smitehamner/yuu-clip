@@ -366,3 +366,37 @@ Both a clip and a whole recording have a timed transcript you can click through.
 ### Optional dependency install
 
 Settings sections for llamacpp, Claude API, and speaker labels each include an **Install** button that runs `pip install <package>` in a subprocess and streams the pip output live. If an install fails, the full log is shown inline.
+
+### Notification sounds
+
+A **Notification sounds** section in Settings plays a short sound when a long-running action finishes, so you can step away during a slow analysis and be called back when it's done. Every event is **off by default** — opt in per event.
+
+Events: **Analysis complete**, **Re-score complete**, **Highlight reel ready**, **Export complete**, and **Any job failed** (a distinct error cue).
+
+Each event has its own **On** toggle and a sound dropdown, plus a **Preview ▶** button to hear it. Sound choices:
+
+- **Built-in Windows sounds** (Notify, Ding, Tada, Chimes, Error, and more) — taken from your Windows system sounds; only ones present on your machine are listed.
+- **Your own audio file** — use **Use your own sound** to add a `wav`, `mp3`, `ogg`, `m4a`, etc. (up to 25 MB). It's copied into the project so the choice sticks across reloads, and it appears in every dropdown.
+
+A global **Volume** slider applies to all cues. Whenever a sound is playing, a floating **⏹ Stop sound** button appears in the corner so you can silence a long clip or full song at any time. Settings apply immediately.
+
+### Pipeline progress feedback
+
+While a recording is being analyzed, the app surfaces progress in several places:
+
+- **Stage tooltips** — each stage pill in the job progress bar shows its pre-run time estimate on hover (e.g. "Estimated: 4m 30s"), taken from the estimate computed in the New Recording panel.
+- **Immediate sidebar entry** — a new recording appears in the sidebar as soon as you start analyzing it (as an "Analyzing…" row before its record exists), then shows its live stage (Extracting, Transcribing, …) with a spinner until it's done.
+- **In-detail progress panel** — opening the recording that's currently analyzing shows an "Analysis in progress" card with the live stage steps and elapsed time.
+- **Survives a page refresh** — analysis runs in the background, independent of the browser. You can refresh the page, close and reopen the tab, or open the app in another window: it reconnects to the running analysis and the progress picks up where it left off. Only pressing **Cancel** (or shutting down the server) stops a run.
+- **Interrupted runs are marked** — if the app is shut down or crashes while a recording is mid-analysis, that recording is shown as "Analysis interrupted" the next time the server starts (instead of spinning forever), so you can simply analyze it again.
+
+### Analysis run history
+
+After a recording finishes analyzing, its detail panel shows a collapsible **Last analysis** card recording that run for future reference:
+
+- **Total time** and how long ago it ran.
+- **Device** — a **GPU** or **CPU** badge, plus which device transcription and speaker diarization actually used (e.g. `cuda (float16)`).
+- **Settings used** — Whisper model, track layout, captions source, speaker labels on/off, energy/scene modes, LLM scoring on/off, and world contexts.
+- **Stage timing** — a per-stage breakdown (Inspect, Extract audio, Transcribe, Speakers, Generate clips, Summarize, Score) as labeled bars.
+
+This answers "how long did this one take, what settings did I use, and did it run on my GPU?" without re-running anything.

@@ -653,6 +653,7 @@ async function confirmExport() {
       await _reloadClipList(AppState.activeVideoId);
       loadVideos();
       showToast('Clip exported successfully');
+      SoundFx.play('export');
     },
     steps,
     retx ? 'Retranscribing' : 'Exporting',

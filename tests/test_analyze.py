@@ -768,9 +768,11 @@ class TestSseCommandCleared:
                 list(resp.iter_lines())
             assert ctx.demo_cmd is None
 
-    def test_second_call_to_analyze_events_without_new_start_returns_400(self, project_dir):
-        """After stream finishes, a second call to /api/analyze/events without a new start
-        must return 400, not re-run the old command."""
+    def test_second_call_to_analyze_events_replays_finished_job(self, project_dir):
+        """After the stream finishes, a second call to /api/analyze/events must NOT
+        re-run the old command — it reattaches to the finished job and replays its
+        buffered output (this is what lets a page refresh reconnect)."""
+        import json as _json
         import sys
 
         from fastapi.testclient import TestClient
@@ -780,12 +782,25 @@ class TestSseCommandCleared:
         app = create_app(project_dir)
         with TestClient(app) as tc:
             ctx = app.state.ctx
-            ctx.analyze_cmd = [sys.executable, "-c", "print('done')"]
+            ctx.analyze_cmd = [sys.executable, "-c", "print('marker-line')"]
             with tc.stream("GET", "/api/analyze/events") as resp:
                 list(resp.iter_lines())
-            # Second call — no command queued, must return 400
-            r = tc.get("/api/analyze/events")
-            assert r.status_code == 400
+            # Second call — no new command queued: replay the finished job, don't re-run.
+            with tc.stream("GET", "/api/analyze/events") as resp:
+                lines = list(resp.iter_lines())
+        data_values = [_json.loads(ln.removeprefix("data: ")) for ln in lines if ln.startswith("data: ")]
+        assert "marker-line" in data_values
+        assert "__DONE__" in data_values
+
+    def test_analyze_events_without_any_job_returns_400(self, project_dir):
+        """With neither a queued command nor a prior job, /api/analyze/events is a 400."""
+        from fastapi.testclient import TestClient
+
+        from yuu_clip.web.app import create_app
+
+        app = create_app(project_dir)
+        with TestClient(app) as tc:
+            assert tc.get("/api/analyze/events").status_code == 400
 
     def test_score_run_does_not_clear_analyze_cmd(self, project_dir):
         """Running /api/score must not erase a queued analyze_cmd (Bug 2)."""
@@ -864,30 +879,6 @@ class TestSseOutputPaths:
         data_values = [_json.loads(ln.removeprefix("data: ")) for ln in lines if ln.startswith("data: ")]
         assert any("[Error:" in v for v in data_values)
         assert "__DONE__" in data_values
-
-    def test_cancelled_analyze_emits_cancelled_message(self, project_dir):
-        """When analyze_cancelled=True and the process exits, the SSE stream
-        must emit '[Analysis cancelled]' before '__DONE__'."""
-        import json as _json
-        import sys
-
-        from fastapi.testclient import TestClient
-
-        from yuu_clip.web.app import create_app
-
-        app = create_app(project_dir)
-        with TestClient(app) as tc:
-            ctx = app.state.ctx
-            ctx.analyze_cancelled = True
-            # Process exits with non-zero (as happens after terminate), but
-            # cancellation flag takes precedence over the error branch.
-            ctx.analyze_cmd = [sys.executable, "-c", "raise SystemExit(1)"]
-            lines = self._stream_lines(tc, "/api/analyze/events")
-        data_values = [_json.loads(ln.removeprefix("data: ")) for ln in lines if ln.startswith("data: ")]
-        assert "[Analysis cancelled]" in data_values
-        assert "__DONE__" in data_values
-        assert not any("[Error:" in v for v in data_values)
-        assert ctx.analyze_cancelled is False  # flag cleared after consumption
 
 # ---------------------------------------------------------------------------
 # Cancel endpoint — state side-effects

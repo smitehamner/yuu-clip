@@ -40,6 +40,17 @@ class ProjectContext:
         self.demo_cmd:          list[str] | None = None
         self.analyze_proc:      object | None    = None  # asyncio.subprocess.Process
         self.analyze_cancelled: bool             = False
+
+        # /api/analyze/start records the file/target for the queued command so
+        # /api/analyze/events can attach that identity to the AnalyzeJob it launches
+        # (used by /api/status to tell a reconnecting page which recording is running).
+        self.analyze_pending_filename: str | None = None
+        self.analyze_pending_video_id: int | None = None
+
+        # The live (or most-recently-finished) reattachable analyze job. Unlike the
+        # short subprocess_sse jobs, its lifecycle is decoupled from any HTTP stream
+        # so a browser refresh can reconnect mid-analysis. See web/analyze_job.py.
+        self.analyze_job: object | None = None  # AnalyzeJob
         # Count of in-process SSE jobs currently streaming (rescore, timeline, summarize).
         self.active_jobs:      int              = 0
 

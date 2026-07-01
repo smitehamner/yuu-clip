@@ -18,6 +18,9 @@ _loadContexts();
 loadVideos();
 fetch('/api/status').then(r => r.json()).then(d => {
   if (d.version) document.getElementById('version-tag').textContent = d.version;
+  // Reconnect to an analysis that was already running when this page loaded
+  // (e.g. after a refresh) — the subprocess survives independently of the stream.
+  if (d.analyze_filename) reattachAnalysis(d.analyze_filename);
 }).catch(() => {});
 
 if (window.electronAPI) {

@@ -9,7 +9,7 @@ import json
 
 from playwright.sync_api import Page, expect
 
-from conftest import LIVE_URL, select_first_video_and_clip, skip_no_server
+from conftest import select_first_video_and_clip, select_video_with_clips, skip_no_server
 
 _CLIP_LINES = {
     "lines": [
@@ -44,9 +44,9 @@ class TestClipTranscript:
 @skip_no_server
 class TestVideoTranscript:
     def _select_first_video(self, page: Page) -> None:
-        page.goto(LIVE_URL)
-        page.wait_for_selector("#video-list li[data-video-id]", timeout=5000)
-        page.locator("#video-list li[data-video-id]").first.click()
+        # Select a video that actually has a transcript section (clips > 0 or done)
+        # so the test doesn't depend on the newest row being a completed analysis.
+        select_video_with_clips(page)
 
     def test_full_transcript_is_collapsed_then_loads_on_expand(self, page: Page):
         page.route(

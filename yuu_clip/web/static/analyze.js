@@ -228,6 +228,7 @@ async function runEstimate() {
 const _warnThresholdMin = 30;
 
 function renderEstimate(info, data) {
+  AppState.lastEstimateSteps = data.steps;
   const warnS = _warnThresholdMin * 60;
   const tClass = s => s >= warnS ? 't-warn' : s >= warnS / 3 ? 't-medium' : 't-fast';
 
@@ -320,20 +321,50 @@ async function startAnalyze() {
   AppState.analyzeFilename = filename;
   _panelDirty = false;
   _doCloseNewRecordingPanel();
+  loadVideos();  // surface the recording in the sidebar immediately (placeholder until its row exists)
   openLog();
   appendLog(`Analyzing: ${filename}`);
+  _streamAnalyzeEvents(filename);
+}
+
+// Attach the header progress bar + in-detail panel to the analyze SSE stream.
+// Shared by a fresh start and by reattachAnalysis() after a page refresh — the
+// stream replays everything so far, so both paths render the same live UI.
+function _streamAnalyzeEvents(filename) {
   streamSSE(
     '/api/analyze/events',
     async () => {
       await loadVideos();
-      const v = AppState.videos.find(v => v.filename === AppState.analyzeFilename);
+      const v = AppState.videos.find(x => x.filename === filename);
       AppState.analyzeFilename = null;
+      _rerenderActiveVideoDetail();
       _showAnalysisToast(v);
+      SoundFx.play('analysis');
     },
     INGEST_STEPS,
     `Analyzing ${filename}`,
     true,
   );
+}
+
+// On page load, reconnect to an analysis that was already running server-side
+// (detected via /api/status). The subprocess kept going through the refresh; we
+// rebuild the sidebar row, header progress bar, and in-detail progress panel by
+// replaying the job's buffered output.
+async function reattachAnalysis(filename) {
+  if (!filename || AppState.analyzeFilename === filename) return;
+  AppState.analyzeFilename = filename;
+  openLog();
+  appendLog(`Reconnected to analysis in progress: ${filename}`);
+  await loadVideos();
+  _rerenderActiveVideoDetail();
+  _streamAnalyzeEvents(filename);
+}
+
+function _rerenderActiveVideoDetail() {
+  if (AppState.activeVideoId == null) return;
+  const active = AppState.videos.find(x => x.id === AppState.activeVideoId);
+  if (active) renderVideoDetail(active, null);
 }
 
 function _analyzeSegmentsSequentially(
@@ -343,6 +374,7 @@ function _analyzeSegmentsSequentially(
     loadVideos().then(() =>
       showToast(`Analysis complete — ${segments.length} segment(s)`)
     );
+    SoundFx.play('analysis');
     return;
   }
   const seg = segments[index];

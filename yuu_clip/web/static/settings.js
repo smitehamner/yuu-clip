@@ -46,6 +46,7 @@ async function openSettings() {
   try {
     const cfg = await fetch('/api/config').then(r => r.json());
     _applySettingsToUI(cfg);
+    initSoundSettings();
     setTimeout(() => document.getElementById('s-whisper-model')?.focus(), 50);
   } catch (e) {
     showToast('Failed to load settings', 'error');

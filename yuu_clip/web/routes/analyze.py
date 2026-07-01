@@ -181,6 +181,8 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         except ValueError as e:
             raise HTTPException(400, str(e))
         ctx.analyze_cmd = _build_analyze_cmd(req, video_path, ctx.project_dir)
+        ctx.analyze_pending_filename = Path(video_path).name
+        ctx.analyze_pending_video_id = req.video_id
         _log.info(
             "Analyze queued: %s (video_id=%s, model=%s, energy=%s, scene=%s)",
             video_path, req.video_id, req.model, req.energy_mode, req.scene_mode,
@@ -189,21 +191,50 @@ def make_router(ctx: ProjectContext) -> APIRouter:
 
     @router.get("/api/analyze/events")
     async def analyze_events():
-        """Stream the queued analyze subprocess output as SSE. Call /api/analyze/start first."""
-        if not ctx.analyze_cmd:
-            raise HTTPException(400, "No analyze command queued. Call /api/analyze/start first.")
-        return await subprocess_sse(ctx.analyze_cmd, ctx.project_dir, ctx, is_analyze=True, clear_cmd_attr="analyze_cmd")
+        """Stream the analyze subprocess output as SSE.
+
+        Launches the queued command (from /api/analyze/start) on first connect;
+        a later connect (e.g. after a page refresh) reattaches to the still-running
+        job, replaying everything emitted so far before continuing live. The
+        subprocess is not killed when this stream disconnects.
+        """
+        from yuu_clip.web.analyze_job import AnalyzeJob
+
+        if ctx.analyze_cmd:
+            job = AnalyzeJob(
+                ctx.analyze_cmd, ctx.project_dir,
+                filename=ctx.analyze_pending_filename,
+                video_id=ctx.analyze_pending_video_id,
+            )
+            ctx.analyze_job = job
+            ctx.analyze_cmd = None
+            ctx.analyze_pending_filename = None
+            ctx.analyze_pending_video_id = None
+            await job.start()
+            return job.sse_response()
+
+        if ctx.analyze_job is not None:
+            return ctx.analyze_job.sse_response()
+
+        raise HTTPException(400, "No analysis running. Call /api/analyze/start first.")
 
     @router.get("/api/status")
     def server_status():
         """Return whether any processing is currently active (analysis, scoring, timeline, etc.)."""
         # Lazy import: analyze.py is loaded by app.py, so a top-level import would be circular.
         from yuu_clip.web.app import _VERSION_DISPLAY
+        job = ctx.analyze_job
+        job_running = job is not None and not job.done
         proc = ctx.analyze_proc
-        analyze_running = proc is not None and proc.returncode is None
+        proc_running = proc is not None and proc.returncode is None
+        analyze_running = job_running or proc_running
         return {
             "any_running": analyze_running or ctx.active_jobs > 0,
             "analyze_running": analyze_running,
+            # Identity of the reattachable analyze job, so a freshly loaded page can
+            # reconnect to an analysis already in progress. Null for score/export jobs.
+            "analyze_filename": job.filename if job_running else None,
+            "analyze_video_id": job.video_id if job_running else None,
             "active_jobs": ctx.active_jobs,
             "version": _VERSION_DISPLAY,
             "project_dir": str(ctx.project_dir),
@@ -238,19 +269,27 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     @router.get("/api/analyze/status")
     def analyze_status():
         """Return whether an analyze subprocess is currently running."""
+        job = ctx.analyze_job
+        job_running = job is not None and not job.done
         proc = ctx.analyze_proc
-        running = proc is not None and proc.returncode is None
-        return {"running": running}
+        proc_running = proc is not None and proc.returncode is None
+        return {"running": job_running or proc_running}
 
     @router.post("/api/analyze/cancel")
     async def cancel_analyze():
         """Terminate the currently running analyze subprocess, if any."""
+        job = ctx.analyze_job
+        if job is not None and not job.done:
+            _log.warning("Analysis cancelled by user")
+            await job.cancel()
+        # Also cover the pre-1.x subprocess path and any queued-but-unlaunched command.
         proc = ctx.analyze_proc
         if proc is not None and proc.returncode is None:
-            _log.warning("Analysis cancelled by user (pid %s)", proc.pid)
             ctx.analyze_cancelled = True
             terminate_process_tree(proc)
         ctx.analyze_cmd = None
+        ctx.analyze_pending_filename = None
+        ctx.analyze_pending_video_id = None
         return {"status": "cancelled"}
 
     @router.post("/api/score")
