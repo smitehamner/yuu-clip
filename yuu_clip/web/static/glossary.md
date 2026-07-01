@@ -66,6 +66,9 @@ The local model that turns audio into text. yuu-clip uses Whisper, which downloa
 ### Captions
 On-screen text showing what was said, taken from the transcript. You can export captions as a separate file alongside the clip, or bake them directly into the video.
 
+### Speaker
+A distinct voice yuu-clip detects in a recording. Each one starts off as "Speaker 1", "Speaker 2", and so on. Open a recording's **Speakers** card to give them real names — the names then show up in clip transcripts and captions. Names stick even if you re-analyze the recording.
+
 ---
 
 ## Clips

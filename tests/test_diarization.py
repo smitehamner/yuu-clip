@@ -332,10 +332,18 @@ class TestAssignSpeakers:
 # ---------------------------------------------------------------------------
 
 class TestBuildExcerpt:
-    def _seg(self, text: str, speaker: str | None = None) -> MagicMock:
+    def _seg(self, text: str, speaker: str | None = None, display_name: str | None = None) -> MagicMock:
+        """A segment stub. *speaker* is the raw label; pass *display_name* to
+        simulate a durable Speaker attached (via speaker_id/speaker)."""
         s = MagicMock()
         s.text = text
         s.speaker_label = speaker
+        if display_name is not None:
+            s.speaker_id = 1
+            s.speaker.display_name = display_name
+        else:
+            s.speaker_id = None
+            s.speaker = None
         return s
 
     def test_no_labels_plain_join(self):
@@ -363,3 +371,15 @@ class TestBuildExcerpt:
         result = _build_excerpt(segs)
         # Some segments labelled → speaker-prefix format
         assert "SPEAKER_00:" in result
+
+    def test_resolves_attached_speaker_name(self):
+        from yuu_clip.segments.windower import _build_excerpt
+        segs = [
+            self._seg("hey", "SPEAKER_00", display_name="Yuu"),
+            self._seg("there", "SPEAKER_00", display_name="Yuu"),
+            self._seg("hi", "SPEAKER_01", display_name="Speaker 2"),
+        ]
+        result = _build_excerpt(segs)
+        assert "Yuu: hey there" in result
+        assert "Speaker 2: hi" in result
+        assert "SPEAKER_00" not in result  # raw label never leaks once attached

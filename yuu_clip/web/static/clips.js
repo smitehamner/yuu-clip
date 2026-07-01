@@ -283,9 +283,11 @@ function renderDetail(clip) {
     ${clip.transcript_excerpt ? `
       <div>
         <div class="section-title" style="margin-bottom:6px">Transcript</div>
-        <div class="transcript">${escHtml(clip.transcript_excerpt)}</div>
+        <div id="clip-transcript-view" class="transcript">${escHtml(clip.transcript_excerpt)}</div>
       </div>` : ''}
   `;
+
+  if (clip.transcript_excerpt && window.loadClipTranscript) loadClipTranscript(clip.id);
 }
 
 function scoreRow(label, val, cls) {

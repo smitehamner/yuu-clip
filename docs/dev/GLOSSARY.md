@@ -106,11 +106,13 @@ One step in the ingest process. Displayed as step pills in the UI (gray → blue
 | 2 | **Assign Tracks** | Set the role of each audio track |
 | 3 | **Extract** | Convert tracks to WAV for analysis (internal) |
 | 4 | **Transcribe** | Run speech-to-text on eligible tracks |
-| 5 | **Generate Clips** | Create candidate clip windows from the transcript |
-| 6 | **Score** | Evaluate all clip candidates |
+| 5 | **Detect Speakers** | Diarize each transcript into speakers *(only when speaker labels are enabled)* |
+| 6 | **Generate Clips** | Create candidate clip windows from the transcript |
+| 7 | **Score** | Evaluate all clip candidates |
 
 - **Code:** `step` (in SSE progress messages)
-- **UI label:** step pill text — matches stage names above (Extract / Transcribe / Generate Clips / Energy / Scenes / Score)
+- **UI label:** step pill text — matches stage names above (Extract / Transcribe / Speakers / Generate Clips / Energy / Scenes / Score)
+- **Notes:** **Detect Speakers** is its own stage (a distinct "Speakers" step pill), split out of Transcribe so the slow diarization pass doesn't look like a hung transcription. It is skipped entirely when the diarization backend is `null`.
 
 ---
 
@@ -186,6 +188,38 @@ A short timed unit of transcribed text — one phrase with start time, end time,
 - **Also called in codebase:** "Whisper segment", "segment"
 - **Do not call it:** just "segment" — overloaded; see [Disambiguation](#disambiguation)
 - **Notes:** Internal; drives subtitle/caption timing during export.
+
+---
+
+### Speaker
+
+A distinct voice detected in a recording by speaker diarization.
+
+- **Code:** `Speaker` (durable per-recording row); raw cluster id on `TranscriptSegment.speaker_label` (e.g. `SPEAKER_00`), resolved to a `Speaker` via `TranscriptSegment.speaker_id`
+- **Also called in codebase:** "diarization speaker", "speaker cluster"
+- **Do not call it:** `SPEAKER_00` / "Speaker 00" in user-facing text — show the **Speaker name** if set, else **"Speaker 1", "Speaker 2"…** (1-indexed `display_index`)
+- **Do not confuse with:** **Character** (a world-context lore entity) — a speaker is a voice in one recording; a character is context the scorer reads
+- **UI label:** "Speakers" card in the recording detail view
+- **Notes:** Durable per-recording — survives re-diarization so an assigned name is not lost or mis-remapped. Cross-recording identity ("this voice everywhere") is deferred.
+
+---
+
+### Speaker Name
+
+The name a creator assigns to a detected **Speaker** (e.g. "Yuu").
+
+- **Code:** `Speaker.name`
+- **UI label:** name input in the Speakers card; rendered in place of "Speaker N" in clip transcripts and captions
+- **Notes:** Free text in v1. Renaming auto-updates live views (clip transcript, in-app labels); scored clips and exported files are marked stale to rescore / re-export.
+
+---
+
+### Voiceprint
+
+The internal voice embedding that lets a **Speaker** be re-identified across diarization runs.
+
+- **Code:** `Speaker.voiceprint`
+- **Notes:** Dev-only — never shown or named in the UI. Its effect is described to creators in plain language ("names stick even if you re-analyze").
 
 ---
 
@@ -497,6 +531,7 @@ These terms are used with multiple meanings in the codebase or everyday speech. 
 | **Score** | A numeric rating (noun) | To evaluate a clip (verb) | Both valid; rely on context |
 | **Timeline** | Video-editing timeline (common meaning) | Session timeline (AI 15-min chunk descriptions) | Always say **"session timeline"** for the AI feature; avoid bare "timeline" in UI labels |
 | **Context** | World context (RP game info) | Python/FastAPI execution context | Use **"world context"** in user-facing text; reserve bare "context" for code |
+| **Speaker** | A diarized voice in a recording | — | A **Speaker** is a voice; a **Character** is a world-context lore entity. Don't use them interchangeably; never expose the raw `SPEAKER_00` label |
 | **Export** | Save a single clip to a file | Build a highlight reel | Use **"export clip"** for the single-clip action; **"build reel"** for compilations |
 | **Profile** | Track layout (saved audio assignments) | User/app profile (does not exist here) | Always say **"track layout"**; retire bare "profile" from the UI |
 | **Model** | Speech-to-text model (Whisper) | AI scoring model (Ollama) | Qualify as **"speech-to-text model"** / **"AI model"**; never bare "model" in user-facing text |
@@ -528,6 +563,8 @@ These appear in code but should not appear in the UI or creator-facing documenta
 | `pending` (clip status) | Unreviewed |
 | `context_slug`, "slug" | Context ID *(show display name in UI instead)* |
 | `provenance`, "scoring provenance" | Last scored with |
+| `speaker_label`, `SPEAKER_00` | Speaker *(show the Speaker name, or "Speaker N")* |
+| `voiceprint` (embedding) | *(internal — never user-facing)* |
 | `RMS`, `rms_db`, `baseline_db` | *(internal)* |
 | `score_funny`, `score_dramatic`, `score_action` | Funny / Dramatic / Action score |
 | `description_user`, `description_long_user` | *(internal storage detail — just "description")* |

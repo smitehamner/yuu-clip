@@ -622,6 +622,21 @@ def _register_clip_edit_routes(router: APIRouter, ctx: ProjectContext) -> None:
 
 
 def _register_caption_routes(router: APIRouter, ctx: ProjectContext) -> None:
+    @router.get("/api/clips/{clip_id}/transcript")
+    def clip_transcript(clip_id: int):
+        """Timed transcript lines for the clip, clip-relative (0 = clip start).
+
+        Each line carries start/end ms, the diarized speaker name (or null), and
+        text — drives the per-line play-to-seek transcript view.
+        """
+        from yuu_clip.subtitles import clip_transcript_lines
+        db = ctx.get_db()
+        try:
+            clip = _require_clip(db, clip_id)
+            return {"lines": clip_transcript_lines(clip)}
+        finally:
+            db.close()
+
     @router.get("/api/clips/{clip_id}/captions.vtt")
     def clip_captions_vtt(clip_id: int):
         """Convert the exported SRT sidecar to WebVTT and return it for browser <track> use."""

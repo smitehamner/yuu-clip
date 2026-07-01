@@ -24,6 +24,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    LargeBinary,
     String,
     Text,
     create_engine,
@@ -124,6 +125,13 @@ def _migrate(engine) -> None:
         if "clip_id" not in existing:
             _log.info("Migration: adding transcripts.clip_id")
             conn.execute(text("ALTER TABLE transcripts ADD COLUMN clip_id INTEGER REFERENCES clip_candidates(id)"))
+
+        existing = {row[1] for row in conn.execute(text("PRAGMA table_info(transcript_segments)"))}
+        if "speaker_id" not in existing:
+            _log.info("Migration: adding transcript_segments.speaker_id")
+            conn.execute(text(
+                "ALTER TABLE transcript_segments ADD COLUMN speaker_id INTEGER REFERENCES speakers(id)"
+            ))
 
         existing = {row[1] for row in conn.execute(text("PRAGMA table_info(clip_candidates)"))}
         _clip_migrations = [
@@ -253,6 +261,9 @@ class Video(Base):
     clip_candidates: Mapped[List["ClipCandidate"]] = relationship(
         back_populates="video", cascade="all, delete-orphan"
     )
+    speakers: Mapped[List["Speaker"]] = relationship(
+        back_populates="video", cascade="all, delete-orphan"
+    )
 
     @property
     def duration_hms(self) -> str:
@@ -335,11 +346,55 @@ class TranscriptSegment(Base):
     text: Mapped[str] = mapped_column(Text, nullable=False)
     confidence: Mapped[Optional[float]] = mapped_column(Float)
 
-    # Speaker diarization label, e.g. "SPEAKER_00". Set by whisper_runner when
-    # diarization is enabled; None otherwise. Not yet surfaced in the UI.
+    # Raw pyannote cluster id, e.g. "SPEAKER_00". Set by whisper_runner when
+    # diarization is enabled; None otherwise. NOT stable across runs — kept only
+    # as provenance and as the fallback display when speaker_id is unset.
     speaker_label: Mapped[Optional[str]] = mapped_column(String)
+    # Durable per-recording Speaker this segment was attributed to. Carries the
+    # user-assigned name and survives re-diarization. None until diarized.
+    speaker_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("speakers.id", ondelete="SET NULL"), nullable=True
+    )
 
     transcript: Mapped["Transcript"] = relationship(back_populates="segments")
+    speaker: Mapped[Optional["Speaker"]] = relationship()
+
+
+class Speaker(Base):
+    """A durable, per-recording voice identity that segments are attributed to.
+
+    Diarization assigns raw, run-unstable cluster ids (SPEAKER_00…); this row is
+    the stable thing a creator names. ``voiceprint`` (a serialized embedding
+    centroid) lets a re-diarization re-attach the same Speaker so the name is not
+    lost. Per-recording scope in v1; cross-recording identity is deferred.
+    """
+    __tablename__ = "speakers"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    video_id: Mapped[int] = mapped_column(Integer, ForeignKey("videos.id"))
+
+    name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    # Stable 1-based ordering for the "Speaker N" display fallback when unnamed.
+    display_index: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    # Serialized voice embedding centroid (Phase 2). NULL until embeddings ship.
+    voiceprint: Mapped[Optional[bytes]] = mapped_column(LargeBinary, nullable=True)
+
+    # "manual" (created from a diarization cluster) or "inferred" (name suggested).
+    source: Mapped[str] = mapped_column(String, default="manual")
+    # Inferred names start unconfirmed until the creator accepts them.
+    confirmed: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Reserved for future per-speaker caption styling (subtitle colour).
+    color: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    video: Mapped["Video"] = relationship(back_populates="speakers")
+
+    @property
+    def display_name(self) -> str:
+        """User name if set, else the 'Speaker N' fallback."""
+        return self.name if self.name else f"Speaker {self.display_index}"
 
 
 class ClipCandidate(Base):

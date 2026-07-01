@@ -384,6 +384,21 @@ def _register_video_data_routes(router: APIRouter, ctx: ProjectContext) -> None:
         finally:
             db.close()
 
+    @router.get("/api/videos/{video_id}/transcript")
+    def get_video_transcript(video_id: int):
+        """Timed full-recording transcript lines (absolute time), for the
+        collapsible full-transcript view. Each line has start/end ms, the
+        diarized speaker name (or null), and text."""
+        from yuu_clip.subtitles import video_transcript_lines
+        db = ctx.get_db()
+        try:
+            video = db.get(Video, video_id)
+            if not video:
+                raise HTTPException(404, "Video not found")
+            return {"lines": video_transcript_lines(video)}
+        finally:
+            db.close()
+
     @router.post("/api/videos/{video_id}/export-transcript")
     def export_video_transcript(video_id: int, overwrite: bool = Query(False)):
         """Write a full-video SRT file next to the source recording file.

@@ -109,6 +109,9 @@ def _analyze_one(
     transcripts = _obtain_transcripts(opts, video_path, track_objs, session, video, config)
     session.commit()
 
+    _run_speaker_diarization(config, session, transcripts)
+    session.commit()
+
     candidates = _generate_candidates(video, transcripts, config, session, opts.no_segment, opts.no_transcribe, opts.force)
     session.commit()
 
@@ -369,6 +372,29 @@ def _transcribe_and_check_overlap(track_objs, config, session, video, language) 
         session.flush()
 
     return transcripts
+
+
+def _run_speaker_diarization(config, session, transcripts) -> None:
+    """Detect speakers on each transcribed track — a distinct pipeline stage.
+
+    Split out of transcription so the slow diarization pass (pipeline load +
+    inference, often minutes) shows as its own "Detecting speakers" step instead
+    of masquerading as a hung "Transcribing" step. Silent no-op when the feature
+    is off (``diarization_backend == "null"``).
+    """
+    if not transcripts or config.diarization_backend == "null":
+        return
+    from yuu_clip.transcribe.whisper_runner import diarize_track
+
+    console.print("  [bold]Detecting speakers...[/bold]")
+    for transcript in transcripts:
+        track = transcript.audio_track
+        if not track.extracted_path or not Path(track.extracted_path).exists():
+            console.print(f"  [dim]  Track {track.stream_index} [{track.label}] — no audio, skipping[/dim]")
+            continue
+        console.print(f"  [dim]  Track {track.stream_index} [{track.label}]...[/dim]")
+        diarize_track(config, session, transcript, Path(track.extracted_path), track)
+    session.flush()
 
 
 def _generate_candidates(video, transcripts, config, session, no_segment, no_transcribe, force) -> list:

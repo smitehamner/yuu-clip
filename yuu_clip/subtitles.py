@@ -38,7 +38,14 @@ def _label_display(label: str) -> str:
 
 
 def _segment_speaker(seg) -> str:
-    """Display name for a segment's diarization speaker, or "" when unlabeled."""
+    """Display name for a segment's diarization speaker, or "" when unlabeled.
+
+    Prefers the durable Speaker's name (user name or "Speaker N"); falls back to
+    the prettified raw label for segments diarized before a Speaker was attached.
+    """
+    speaker = getattr(seg, "speaker", None)
+    if getattr(seg, "speaker_id", None) is not None and speaker is not None:
+        return speaker.display_name
     label = getattr(seg, "speaker_label", None)
     return _label_display(label) if label else ""
 
@@ -203,3 +210,45 @@ def export_video_transcript_srt(video, output_path: Path) -> Path:
 def merged_srt_lines(clip) -> list[SubLine]:
     """Return all subtitle lines for *clip* merged and sorted, with speaker prefixes."""
     return sorted(_merge_with_speakers(collect_clip_subtitles(clip)), key=lambda sub: sub.start_ms)
+
+
+def _lines_to_view(sublines: Iterable[SubLine]) -> list[dict]:
+    """JSON-friendly transcript lines for the on-screen transcript view.
+
+    Unlike the SRT/caption path, this keeps ``speaker`` as the diarized display
+    name only (or None) — no track-label fallback, since the view is not a
+    caption file and a lone "Combined:" on every line would be noise.
+    """
+    return [
+        {
+            "start_ms": sub.start_ms,
+            "end_ms": sub.end_ms,
+            "speaker": sub.speaker or None,
+            "text": sub.text.strip(),
+        }
+        for sub in sublines
+    ]
+
+
+def clip_transcript_lines(clip) -> list[dict]:
+    """Per-segment transcript lines for a clip, clip-relative timing (0 = clip start)."""
+    merged = sorted(
+        (sub for subs in collect_clip_subtitles(clip).values() for sub in subs),
+        key=lambda sub: sub.start_ms,
+    )
+    return _lines_to_view(merged)
+
+
+def video_transcript_lines(video) -> list[dict]:
+    """Per-segment transcript lines for a whole recording, absolute timing."""
+    lines: list[SubLine] = []
+    for track in video.audio_tracks:
+        if not track.do_transcribe or track.label == "game_sounds" or not track.transcripts:
+            continue
+        transcript = max(track.transcripts, key=lambda t: t.created_at)
+        lines.extend(
+            SubLine(seg.start_ms, seg.end_ms, seg.text, _segment_speaker(seg))
+            for seg in transcript.segments
+        )
+    lines.sort(key=lambda sub: sub.start_ms)
+    return _lines_to_view(lines)

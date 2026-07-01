@@ -177,6 +177,7 @@ function _parseIntervalS(value, unit) {
 const INGEST_STEPS = [
   {label: 'Extract',        patterns: ['Extracting audio']},
   {label: 'Transcribe',     patterns: ['Transcribing']},
+  {label: 'Speakers',       patterns: ['Detecting speakers']},
   {label: 'Generate Clips', patterns: ['Generating clip']},
   {label: 'Energy',         patterns: ['Computing audio energy']},
   {label: 'Scenes',         patterns: ['Detecting scene']},

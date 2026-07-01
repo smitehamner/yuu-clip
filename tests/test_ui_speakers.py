@@ -1,0 +1,80 @@
+"""Playwright UI test — the Speakers card in the recording detail view.
+
+The /api/speakers endpoints are mocked via route interception so the test is
+deterministic and needs no diarized data on the live server, but it drives the
+real loadSpeakers → render → rename flow in speakers.js.
+"""
+from __future__ import annotations
+
+import json
+
+from playwright.sync_api import Page, expect
+
+from conftest import LIVE_URL, skip_no_server
+
+_SPEAKER = {
+    "id": 90001,
+    "video_id": 1,
+    "display_index": 1,
+    "name": None,
+    "display_name": "Speaker 1",
+    "is_named": False,
+    "source": "manual",
+    "confirmed": True,
+    "sample_text": "let's go go go",
+    "sample_start_ms": 0,
+    "sample_end_ms": 3000,
+}
+
+
+@skip_no_server
+class TestSpeakerNaming:
+    def _select_first_video(self, page: Page) -> None:
+        page.goto(LIVE_URL)
+        page.wait_for_selector("#video-list li[data-video-id]", timeout=5000)
+        page.locator("#video-list li[data-video-id]").first.click()
+
+    def test_card_renders_and_rename_sends_put(self, page: Page):
+        page.route(
+            "**/api/videos/*/speakers",
+            lambda route: route.fulfill(
+                status=200, content_type="application/json", body=json.dumps([_SPEAKER])
+            ),
+        )
+        put_bodies: list[str] = []
+
+        def _handle_put(route):
+            put_bodies.append(route.request.post_data or "")
+            route.fulfill(
+                status=200,
+                content_type="application/json",
+                body=json.dumps({**_SPEAKER, "name": "Yuu", "display_name": "Yuu", "is_named": True}),
+            )
+
+        page.route("**/api/speakers/*", _handle_put)
+
+        self._select_first_video(page)
+
+        # Card renders with the "Speaker N" tag, a play button, and the sample snippet.
+        expect(page.locator("#speakers-section .speaker-tag")).to_have_text("Speaker 1")
+        expect(page.locator("#speakers-section .speaker-play")).to_have_count(1)
+        expect(page.locator("#speakers-section .speaker-sample")).to_contain_text("let's go go go")
+
+        # Typing a name and blurring sends a PUT with the name and toasts success.
+        name_input = page.locator(".speaker-name-input")
+        name_input.fill("Yuu")
+        name_input.blur()
+
+        expect(page.locator("#toast-container")).to_contain_text("Yuu")
+        assert any("Yuu" in body for body in put_bodies), put_bodies
+
+    def test_card_absent_when_no_speakers(self, page: Page):
+        page.route(
+            "**/api/videos/*/speakers",
+            lambda route: route.fulfill(
+                status=200, content_type="application/json", body="[]"
+            ),
+        )
+        self._select_first_video(page)
+        # #speakers-section stays present but empty — no card rendered.
+        expect(page.locator("#speakers-section .detail-card")).to_have_count(0)

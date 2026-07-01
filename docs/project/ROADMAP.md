@@ -168,6 +168,31 @@ Complex, specialized, or AI-heavy features that are valuable but don't need to b
   embeddings + sklearn clustering), NeMo TitaNet (Apache 2.0, no token, heavier install).
   Adding a new backend = add a `DiarizationClient` subclass + allowlist entry in `install_package`.
 
+- [~] **Speaker naming (Phase 1 — manual, per-recording)** — a durable `Speaker` row per recording
+  (`db/models.py`) that segments point at via `TranscriptSegment.speaker_id`; created at diarize time
+  by `_attach_speakers` (`whisper_runner.py`). A "Speakers" card in the recording detail
+  (`speakers.js`, `GET/PUT /api/speakers`) lets the user name each detected voice; names resolve into
+  clip excerpts (`_build_excerpt`) and captions (`subtitles.py`), and renaming rebuilds affected clip
+  excerpts. Default display is "Speaker N" (`display_index`); raw `SPEAKER_00` never reaches the UI.
+  **Still pending:**
+  - *Phase 2 — voiceprint re-attach:* capture per-cluster embeddings (`Speaker.voiceprint`, column
+    reserved) and match new diarization clusters to existing named Speakers by cosine similarity so a
+    name survives re-diarization. Until then durability is degraded: a re-diarize creates fresh
+    Speakers and leaves prior named ones as orphans to re-confirm. **Feasibility gate:** confirm
+    pyannote community-1 can emit embeddings before committing the design.
+  - *Phase 3 — sample playback:* a ▶ button to hear a few seconds of each voice (reuse the FFmpeg
+    clip-preview infra in `routes/clips.py`).
+  - *Phase 4 — name inference (optional, last):* suggest names from vocative/direct-address in the
+    full-video transcript (LLM-assisted), surfaced as unconfirmed suggestions the user confirms —
+    never silent. Feeds "Transcript name correction" below.
+  - *Deferred alternatives (weighed, not chosen for v1):* **project-wide speaker identity** — promote
+    per-recording Speakers to a project-level voice by matching voiceprints across all recordings so a
+    name applies everywhere (needs a merge/split UX, higher threshold, handles voice drift; hook: a
+    nullable `global_voice_id` / `ProjectVoice` table). **Link name → world-context character** —
+    replace free text with a reference to a context character (`Speaker.character_id`) to feed "score
+    boost per named character" and per-speaker lore in scoring; deferred to avoid coupling naming to
+    the contexts model in v1.
+
 - [ ] **Transcript editing** — inline editable text area for `TranscriptSegment.text`; lets the user
   fix character names, misspellings, and game-specific jargon before re-scoring. Now unblocked by
   speaker diarization; speaker-grouped display is the target UX.
@@ -175,7 +200,8 @@ Complex, specialized, or AI-heavy features that are valuable but don't need to b
 - [ ] **Transcript name correction** — after speaker diarization maps clusters to character names,
   auto-suggest replacements for mis-transcribed names that *other* speakers say (e.g. Whisper
   hears "You" when someone is saying the name "Yuu"). Must be speaker-scoped and confidence-gated;
-  surfaced as a reviewable diff before committing.
+  surfaced as a reviewable diff before committing. *Fed by* the speaker→name map from Speaker naming
+  above (which provides the reliable speaker scoping) — not subsumed by it.
 
 - [ ] **Subtitle style options** — font, size, colour, position for burned-in subtitles. With
   speaker diarization: per-speaker colour/style so different characters are visually distinct.

@@ -26,8 +26,10 @@ from typing import TYPE_CHECKING, Optional
 from rich.console import Console
 from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 
+from sqlalchemy import func
+
 from yuu_clip.config import Config, validate_whisper_language, validate_whisper_model
-from yuu_clip.db.models import AudioTrack, Transcript, TranscriptSegment
+from yuu_clip.db.models import AudioTrack, Speaker, Transcript, TranscriptSegment
 from yuu_clip.log import get_logger
 from yuu_clip.transcribe.diarization_client import DiarizationError, make_diarization_client
 
@@ -66,6 +68,46 @@ def _assign_speakers(
                 best_overlap = overlap
                 best_label   = label
         seg.speaker_label = best_label
+    session.flush()
+
+
+def _attach_speakers(session: "Session", video_id: int, transcript_id: int) -> None:
+    """Create a durable per-recording Speaker for each distinct raw label in this
+    transcript run and point its segments at it.
+
+    Phase 1 has no voiceprint match, so every diarization run produces fresh
+    Speakers; any previously named Speakers are left intact (orphaned) rather than
+    silently remapped onto a voice we can't verify. display_index continues from
+    the recording's current max so "Speaker N" numbering never collides.
+    """
+    segs = (
+        session.query(TranscriptSegment)
+        .filter_by(transcript_id=transcript_id)
+        .order_by(TranscriptSegment.start_ms)
+        .all()
+    )
+    labels_in_order: list[str] = []
+    for seg in segs:
+        if seg.speaker_label and seg.speaker_label not in labels_in_order:
+            labels_in_order.append(seg.speaker_label)
+    if not labels_in_order:
+        return
+
+    next_index = (
+        session.query(func.max(Speaker.display_index)).filter_by(video_id=video_id).scalar()
+        or 0
+    )
+    label_to_speaker_id: dict[str, int] = {}
+    for label in labels_in_order:
+        next_index += 1
+        speaker = Speaker(video_id=video_id, display_index=next_index, source="manual")
+        session.add(speaker)
+        session.flush()
+        label_to_speaker_id[label] = speaker.id
+
+    for seg in segs:
+        if seg.speaker_label in label_to_speaker_id:
+            seg.speaker_id = label_to_speaker_id[seg.speaker_label]
     session.flush()
 
 
@@ -208,19 +250,22 @@ def transcribe_track(
         track.id, track.label, seg_count, transcript.language or "auto",
     )
 
-    _maybe_diarize(config, session, transcript, audio_path, track)
-
     return transcript
 
 
-def _maybe_diarize(
+def diarize_track(
     config: Config,
     session: "Session",
     transcript: Transcript,
     audio_path: Path,
     track: AudioTrack,
 ) -> None:
-    """Run diarization and assign speaker labels, if a backend is available."""
+    """Run diarization and assign speaker labels, if a backend is available.
+
+    Called as its own pipeline stage (see ``_pipeline._run_speaker_diarization``),
+    not from ``transcribe_track`` — diarization is slow enough that it needs its
+    own visible step rather than hiding inside transcription.
+    """
     diar_client = make_diarization_client(config)
     ok, reason = diar_client.available()
     if not ok:
@@ -233,6 +278,7 @@ def _maybe_diarize(
     try:
         turns = diar_client.diarize(str(audio_path))
         _assign_speakers(session, transcript.id, turns)
+        _attach_speakers(session, track.video_id, transcript.id)
         _log.info("Diarization complete: %d turns for track %d", len(turns), track.id)
     except DiarizationError as exc:
         _log.warning("Diarization failed for track %d [%s]: %s", track.id, track.label, exc)

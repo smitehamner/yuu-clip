@@ -80,8 +80,22 @@ def generate_candidates(
     return candidates
 
 
+def _segment_speaker_display(seg: TranscriptSegment) -> str | None:
+    """The name to show for a segment's speaker: the durable Speaker's display
+    name (user name or "Speaker N") when attached, else the raw label as a
+    last-resort fallback. Raw ``SPEAKER_00`` should never reach the user, but is
+    kept as a safety net for segments diarized before a Speaker was attached."""
+    if seg.speaker_id is not None and seg.speaker is not None:
+        return seg.speaker.display_name
+    return seg.speaker_label
+
+
 def _build_excerpt(segs: list[TranscriptSegment]) -> str:
-    """Join segment texts, adding speaker prefixes when any segment has a label."""
+    """Join segment texts, grouping by speaker with a name prefix when diarized.
+
+    The prefix resolves to the current Speaker name at the moment the excerpt is
+    (re)built, so renaming a speaker and rebuilding refreshes the excerpt.
+    """
     if not any(s.speaker_label for s in segs):
         return " ".join(s.text.strip() for s in segs)
 
@@ -96,9 +110,10 @@ def _build_excerpt(segs: list[TranscriptSegment]) -> str:
         lines.append(prefix + " ".join(current_texts))
 
     for seg in segs:
-        if seg.speaker_label != current_speaker:
+        display = _segment_speaker_display(seg)
+        if display != current_speaker:
             _flush_speaker()
-            current_speaker = seg.speaker_label
+            current_speaker = display
             current_texts = [seg.text.strip()]
         else:
             current_texts.append(seg.text.strip())

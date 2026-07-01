@@ -353,6 +353,16 @@ The Settings value is the default. You can override it per analysis: the **New R
 
 Diarization adds extra processing time after transcription (roughly 2–4× real-time on CPU, faster with CUDA). Speaker labels are re-used on retranscription; re-running diarization requires a full re-analysis.
 
+Diarization runs as its own **Detecting speakers** step (a "Speakers" pill in the job header), separate from Transcribe — so a long diarization pass reads as its own stage rather than a stuck transcription.
+
+**Naming speakers**
+
+Once a recording has been analyzed with speaker labels on, open it and use the **Speakers** card in the recording detail. Each detected voice starts as "Speaker 1", "Speaker 2", and so on, with a short sample of what they said and a ▶ button to hear a few seconds of that voice; type a real name (e.g. "Yuu") to label them. Names appear in that recording's clip transcripts and in exported captions, and they stick even if you re-analyze the recording. Names are per-recording — naming a voice in one recording doesn't carry over to others yet. Caption files and highlight reels you already exported keep their old labels until you export them again.
+
+**Timed transcript views**
+
+Both a clip and a whole recording have a timed transcript you can click through. In the clip detail, the **Transcript** section shows each line with a timestamp and a ▶ that jumps the player to that moment; when the recording is diarized, lines are grouped by speaker name. The recording detail has a **Full transcript** section (collapsed by default) with the same per-line playback across the whole session. Both work with or without speaker labels — without diarization, each caption line simply plays from its own timestamp.
+
 ### Optional dependency install
 
 Settings sections for llamacpp, Claude API, and speaker labels each include an **Install** button that runs `pip install <package>` in a subprocess and streams the pip output live. If an install fails, the full log is shown inline.

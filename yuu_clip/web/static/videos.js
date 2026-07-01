@@ -197,6 +197,8 @@ function renderVideoDetail(video, savedTimeline) {
         <div class="description-long">${escHtml(video.summary)}</div>
       </div>` : ''}
 
+    <div id="speakers-section"></div>
+
     <div class="vid-actions">
       <div class="vid-actions-row">
         <button class="btn" id="btn-summarize-video" onclick="summarizeVideo(${video.id}, this)">${video.summary ? 'Regenerate Summary' : 'Generate Summary'}</button>
@@ -222,7 +224,15 @@ function renderVideoDetail(video, savedTimeline) {
 
     <div id="timeline-section">
       ${savedTimeline ? _renderTimelineHTML(savedTimeline) : ''}
-    </div>`;
+    </div>
+
+    ${(video.clip_count > 0 || video.status === 'done') ? `
+    <details id="video-transcript-details" class="transcript-details" data-video-id="${video.id}">
+      <summary class="transcript-summary">Full transcript</summary>
+      <div id="video-transcript-view" class="transcript"></div>
+    </details>` : ''}`;
+
+  if (window.loadSpeakers) loadSpeakers(video.id);
 
   if (!savedTimeline && video.has_timeline) {
     fetch(`/api/videos/${video.id}`)
