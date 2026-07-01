@@ -6,6 +6,8 @@ already on disk are not rewritten (re-export to pick up the new name).
 """
 from __future__ import annotations
 
+import asyncio
+import json as json_lib
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException
@@ -22,7 +24,7 @@ from yuu_clip.db.models import (
 from yuu_clip.log import get_logger
 from yuu_clip.segments.windower import _build_excerpt
 from yuu_clip.web.deps import ProjectContext
-from yuu_clip.web.routes._shared import _json_list
+from yuu_clip.web.routes._shared import _active_job, _json_list, _sse_response
 
 _log = get_logger(__name__)
 
@@ -52,14 +54,15 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         finally:
             db.close()
 
-    @router.post("/api/videos/{video_id}/infer-speaker-names")
-    def infer_names(video_id: int):
+    @router.get("/api/videos/{video_id}/infer-speaker-names")
+    async def infer_names(video_id: int):
         """Suggest speaker names from direct address in the transcript (LLM-assisted).
 
+        Streams progress as SSE — the LLM pass over the whole transcript can be slow.
         Writes each suggestion as an unconfirmed inferred name (source='inferred',
         confirmed=False) so it surfaces in the Speakers card for the user to accept —
         it never silently reaches captions or excerpts (see Speaker.display_name).
-        Returns the refreshed speaker list plus how many suggestions were applied.
+        The done sentinel carries the number of suggestions applied.
         """
         from yuu_clip.scoring.llm import check_llm_available, infer_speaker_names
 
@@ -68,40 +71,55 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             video = db.get(Video, video_id)
             if not video:
                 raise HTTPException(404, "Video not found")
-
             speakers = db.query(Speaker).filter_by(video_id=video_id).all()
             if not speakers:
                 raise HTTPException(400, "No speakers detected — detect speakers first")
-
             labeled = _labeled_transcript(db, video_id, {s.id: s for s in speakers})
-            if not labeled:
-                raise HTTPException(400, "No speaker-attributed transcript available")
-
-            ok, reason = check_llm_available(ctx.config)
-            if not ok:
-                raise HTTPException(400, reason)
-
             context_names = _json_list(video.context_names_json)
-            context_text = format_context_block(load_contexts(ctx.project_dir), context_names)
-            try:
-                raw = infer_speaker_names(labeled, ctx.config, context_text=context_text)
-            except Exception as exc:
-                _log.warning("Name inference failed for video %d: %s", video_id, exc, exc_info=True)
-                raise HTTPException(502, f"LLM error: {exc}")
-
-            applied = _apply_name_suggestions(speakers, raw)
-            db.commit()
-            _log.info(
-                "Name inference (video %d): LLM suggested %d, applied %d after dedupe",
-                video_id, len(raw), applied,
-            )
-            samples = _speaker_samples(db, [s.id for s in speakers])
-            return {
-                "suggested": applied,
-                "speakers": [_speaker_dict(s, samples.get(s.id)) for s in speakers],
-            }
         finally:
             db.close()
+
+        if not labeled:
+            raise HTTPException(400, "No speaker-attributed transcript available")
+        ok, reason = check_llm_available(ctx.config)
+        if not ok:
+            raise HTTPException(400, reason)
+
+        context_text = format_context_block(load_contexts(ctx.project_dir), context_names)
+
+        async def event_stream():
+            async with _active_job(ctx):
+                yield f"data: {json_lib.dumps('[Suggesting speaker names…]')}\n\n"
+                try:
+                    raw = await asyncio.to_thread(
+                        infer_speaker_names, labeled, ctx.config, context_text=context_text
+                    )
+                except Exception as exc:
+                    _log.warning("Name inference failed for video %d: %s", video_id, exc, exc_info=True)
+                    yield f"data: {json_lib.dumps(f'[Error: {exc}]')}\n\n"
+                    yield f"data: {json_lib.dumps('__DONE__')}\n\n"
+                    return
+
+                save_db = ctx.get_db()
+                try:
+                    speakers = save_db.query(Speaker).filter_by(video_id=video_id).all()
+                    applied = _apply_name_suggestions(speakers, raw)
+                    save_db.commit()
+                finally:
+                    save_db.close()
+
+                _log.info(
+                    "Name inference (video %d): LLM suggested %d, applied %d after dedupe",
+                    video_id, len(raw), applied,
+                )
+                summary = (
+                    f"[{applied} name suggestion(s) — review and accept]" if applied
+                    else "[No names could be inferred from the transcript]"
+                )
+                yield f"data: {json_lib.dumps(summary)}\n\n"
+                yield f"data: {json_lib.dumps({'type': '__DONE__', 'suggested': applied})}\n\n"
+
+        return _sse_response(event_stream())
 
     @router.put("/api/speakers/{speaker_id}")
     def rename_speaker(speaker_id: int, body: SpeakerRename):

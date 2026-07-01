@@ -72,27 +72,44 @@ function _renderSpeakersCard(speakers) {
     </div>`;
 }
 
-async function _suggestSpeakerNames() {
+// Streams the LLM inference job as SSE (the transcript pass can be slow). Mirrors
+// _doRegenSummaryAuto: log lines while it runs, then reload the card so the fresh
+// suggestions render. The __DONE__ sentinel carries how many were applied.
+function _suggestSpeakerNames() {
   if (!_currentVideoId) return;
+  const videoId = _currentVideoId;
   const btn = document.querySelector('.speaker-suggest-btn');
+  if (btn && btn.disabled) return;
   if (btn) { btn.disabled = true; btn.textContent = 'Suggesting…'; }
-  try {
-    const res = await fetch(`/api/videos/${_currentVideoId}/infer-speaker-names`, {method: 'POST'});
-    if (!res.ok) {
-      const detail = await res.json().catch(() => ({}));
-      showToast(detail.detail || 'Could not suggest names', 'error');
-      return;
-    }
-    const data = await res.json();
-    showToast(data.suggested > 0
-      ? `${data.suggested} name suggestion${data.suggested === 1 ? '' : 's'} — review and accept`
-      : 'No names could be inferred from the transcript');
-    await loadSpeakers(_currentVideoId);
-  } catch (_) {
-    showToast('Could not suggest names', 'error');
-  } finally {
+  openLog();
+  _supersedeActiveStream();
+  const resetBtn = () => {
     if (btn && document.body.contains(btn)) { btn.disabled = false; btn.textContent = 'Suggest names'; }
-  }
+  };
+  let hadError = false;
+  const handle = _openSSE(
+    `/api/videos/${videoId}/infer-speaker-names`,
+    data => {
+      if (typeof data === 'string' && data.startsWith('[Error')) hadError = true;
+      appendLog(String(data));
+    },
+    async msg => {
+      _clearActiveStream(handle);
+      resetBtn();
+      if (hadError) { showToast('Name suggestion failed — check log for details', 'error'); return; }
+      const n = (msg && typeof msg === 'object' && msg.suggested) || 0;
+      showToast(n > 0
+        ? `${n} name suggestion${n === 1 ? '' : 's'} — review and accept`
+        : 'No names could be inferred from the transcript');
+      await loadSpeakers(videoId);
+    },
+    errMsg => {
+      _clearActiveStream(handle);
+      resetBtn();
+      showToast(`Name suggestion failed — ${errMsg}`, 'error');
+    },
+  );
+  _setActiveStream(handle, resetBtn);
 }
 
 function _truncate(text, max) {

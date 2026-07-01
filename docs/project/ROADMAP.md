@@ -192,8 +192,8 @@ Complex, specialized, or AI-heavy features that are valuable but don't need to b
   - *Phase 3 — sample playback:* a ▶ button to hear a few seconds of each voice (reuse the FFmpeg
     clip-preview infra in `routes/clips.py`).
   - *Phase 4 — name inference: SHIPPED (2026-07-01).* `infer_speaker_names` (`scoring/llm.py`) reads
-    the speaker-labeled transcript and suggests names from direct address; `POST
-    /api/videos/{id}/infer-speaker-names` writes each as an unconfirmed inferred name
+    the speaker-labeled transcript and suggests names from direct address; `GET
+    /api/videos/{id}/infer-speaker-names` (SSE) writes each as an unconfirmed inferred name
     (`source='inferred'`, `confirmed=False`), guarding against two speakers sharing a name and never
     overwriting a confirmed name. `Speaker.display_name` hides unconfirmed names so nothing reaches
     captions/excerpts until the user accepts it in the Speakers card ("Suggest names" button +

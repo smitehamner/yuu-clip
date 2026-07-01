@@ -1,6 +1,7 @@
 """Speaker model + migration tests (Phase 1 of speaker naming)."""
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from sqlalchemy import text
@@ -453,28 +454,43 @@ class TestInferNamesRoute:
         monkeypatch.setattr(llm, "infer_speaker_names",
                             lambda labeled, config, context_text="": suggestions)
 
+    def _drain(self, client, video_id):
+        """Consume the SSE stream, returning the list of decoded data messages."""
+        messages = []
+        with client.stream("GET", f"/api/videos/{video_id}/infer-speaker-names") as resp:
+            assert resp.status_code == 200
+            assert resp.headers["content-type"].startswith("text/event-stream")
+            for raw in resp.iter_lines():
+                if raw.startswith("data: "):
+                    messages.append(json.loads(raw[len("data: "):]))
+        return messages
+
     def test_404_for_missing_video(self, client):
-        assert client.post("/api/videos/9999/infer-speaker-names").status_code == 404
+        assert client.get("/api/videos/9999/infer-speaker-names").status_code == 404
 
     def test_400_when_no_speakers(self, client):
-        assert client.post("/api/videos/1/infer-speaker-names").status_code == 400
+        assert client.get("/api/videos/1/infer-speaker-names").status_code == 400
 
     def test_400_when_llm_unavailable(self, client, project_dir, monkeypatch):
         video_id = self._seed(project_dir)
         import yuu_clip.scoring.llm as llm
         monkeypatch.setattr(llm, "check_llm_available", lambda config: (False, "LLM off"))
-        resp = client.post(f"/api/videos/{video_id}/infer-speaker-names")
+        resp = client.get(f"/api/videos/{video_id}/infer-speaker-names")
         assert resp.status_code == 400
         assert resp.json()["detail"] == "LLM off"
+
+    def test_streams_done_with_applied_count(self, client, project_dir, monkeypatch):
+        video_id = self._seed(project_dir)
+        self._patch_llm(monkeypatch, {"1": "Yuu"})
+        messages = self._drain(client, video_id)
+        assert messages[-1] == {"type": "__DONE__", "suggested": 1}
 
     def test_applies_suggestion_as_unconfirmed(self, client, project_dir, monkeypatch):
         video_id = self._seed(project_dir)
         self._patch_llm(monkeypatch, {"1": "Yuu"})
-        resp = client.post(f"/api/videos/{video_id}/infer-speaker-names")
-        assert resp.status_code == 200
-        body = resp.json()
-        assert body["suggested"] == 1
-        speaker = body["speakers"][0]
+        self._drain(client, video_id)
+
+        speaker = client.get(f"/api/videos/{video_id}/speakers").json()[0]
         assert speaker["name"] == "Yuu"
         assert speaker["source"] == "inferred"
         assert speaker["confirmed"] is False
@@ -484,7 +500,8 @@ class TestInferNamesRoute:
     def test_accepting_suggestion_confirms_name(self, client, project_dir, monkeypatch):
         video_id = self._seed(project_dir)
         self._patch_llm(monkeypatch, {"1": "Yuu"})
-        speaker_id = client.post(f"/api/videos/{video_id}/infer-speaker-names").json()["speakers"][0]["id"]
+        self._drain(client, video_id)
+        speaker_id = client.get(f"/api/videos/{video_id}/speakers").json()[0]["id"]
 
         accepted = client.put(f"/api/speakers/{speaker_id}", json={"name": "Yuu"}).json()
         assert accepted["display_name"] == "Yuu"
