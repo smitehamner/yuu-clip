@@ -355,6 +355,7 @@ function _renderContextSection(video) {
     const ctxStr = ctxNames.length ? ' · ' + ctxNames.map(escHtml).join(', ') : ' · no context';
     provLines.push(`<span class="${stale ? 'provenance-stale' : ''}">Clips scored ${escHtml(when)}${ctxStr}${stale ? ' — ⚠ contexts changed since last score' : ''}</span>`);
   }
+  if (video.analyze_run) provLines.push(`<span>${escHtml(_runTimingLine(video.analyze_run))}</span>`);
 
   const noContextsDefined = AppState.contexts.length === 0;
   const emptyMsg = noContextsDefined
@@ -736,6 +737,13 @@ async function onClipsSortChange() {
 // Renders the stored record of the last analyze run (per-stage timing, effective
 // settings, and CPU/GPU device) so the creator can answer "how long did this
 // take, what settings, and did it use my GPU?".
+function _runTimingLine(run) {
+  const totalHms = _msToHms(run.elapsed_ms || 0);
+  const stages = run.stages || [];
+  const stageStr = stages.map(st => `${st.name} ${_msToHms((st.seconds || 0) * 1000)}`).join(' · ');
+  return `Last run: ${totalHms} total${stageStr ? ` (${stageStr})` : ''}`;
+}
+
 function _renderRunMetaCard(video) {
   const run = video.analyze_run;
   if (!run) return '';

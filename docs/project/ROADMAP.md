@@ -65,6 +65,15 @@ regular users.
 
 - [ ] **Panel navigation UX direction** — multi-step flows take over the main detail panel (not modals); `← Back` breadcrumb; discard prompt on unsaved changes; tabs only for within-view navigation. Migrate incrementally starting with Split Editor.
 
+- [ ] **Validate the voiceprint re-attach threshold** — `Config.speaker_match_threshold` (default
+  0.75) shipped as an untuned conservative guess (see `7fb9155`), and every speaker-naming feature
+  built since — voiceprint re-attach, name inference, per-speaker colors — inherits its
+  correctness. Decide the validation method first (a one-off manual QA pass re-analyzing a few
+  recordings with previously-named speakers and checking matches/no-matches by hand, vs. a small
+  labeled benchmark of known-good/known-bad voice pairs wired into a regression test), then run it
+  and adjust the default if warranted. See the "Speaker naming" entry in Phase 6 for the full
+  re-attach mechanism this threshold gates.
+
 - [ ] **Pause / resume analysis** — pause a running analysis job between videos (finish the video currently in progress, then hold before starting the next). Two trigger modes: **manual** ("Pause" button in the job header) and **automatic** (triggered by hardware health thermal threshold). On resume, the queue continues from the next unprocessed video. Pause state is in-memory and does not survive a server restart (acceptable for now). Applies to both single-video and batch analysis. Long-term possibilities: mid-video pause (hard; would require restarting that video from scratch), durable pause state across restarts.
 
 - [ ] **Hardware health monitoring** — two-part protective feature for laptop users during long analysis runs:
@@ -179,13 +188,11 @@ Complex, specialized, or AI-heavy features that are valuable but don't need to b
     clusters against Speakers from prior runs — above `_VOICEPRINT_MATCH_THRESHOLD` the segments
     re-attach to the existing (named) Speaker, so a name survives re-diarization; below it a fresh
     "Speaker N" is minted. Matches are only against pre-run Speakers, and each prior Speaker matches
-    at most one current cluster (no collapse). **Caveat: the 0.75 threshold is an untuned
-    conservative guess** — biased toward minting a new speaker over a wrong merge (per the "never
-    mis-remap" requirement). Validate/tune against a real re-diarization (e.g. re-analyze a recording
-    whose speakers are already named) before trusting it broadly. The threshold is now configurable
-    (`Config.speaker_match_threshold`, Settings → Speaker labels), and the clip-scoped retranscribe
-    path re-attaches voiceprints too (`_maybe_diarize_segment` → `diarize_with_embeddings` +
-    `_attach_speakers`, SHIPPED 2026-07-01). *Not yet done:* a borderline-match confirmation band in the UI.
+    at most one current cluster (no collapse). The threshold is configurable
+    (`Config.speaker_match_threshold`, Settings → Speaker labels, default 0.75 — **untuned;
+    validation tracked in Phase 5**), and the clip-scoped retranscribe path re-attaches voiceprints
+    too (`_maybe_diarize_segment` → `diarize_with_embeddings` + `_attach_speakers`, SHIPPED
+    2026-07-01). *Not yet done:* a borderline-match confirmation band in the UI.
   - *Phase 3 — sample playback:* a ▶ button to hear a few seconds of each voice (reuse the FFmpeg
     clip-preview infra in `routes/clips.py`).
   - *Phase 4 — name inference: SHIPPED (2026-07-01).* `infer_speaker_names` (`scoring/llm.py`) reads
@@ -343,6 +350,14 @@ Items wanted long-term but not yet assigned to a phase.
 - [ ] **AMD / Intel GPU support** — evaluate ROCm (AMD) and OpenVINO (Intel) in CTranslate2; the wizard already detects both and surfaces informational messages. Actual accelerated inference requires library support that doesn't exist on Windows for these vendors yet.
 
 - [ ] **Linux compatibility** — verify the full pipeline on Linux; audit Windows-only assumptions in path handling (`LOCALAPPDATA`/`APPDATA`), `wmic` GPU detection, file pickers, and process management. Electron wrapper is Windows-only; would need a separate packaging path.
+
+- [ ] **Project backup / restore** — there is no way today to back up or move a project short of
+  manually copying the right folders and hoping the paths are correct. As distribution moves
+  beyond solo use, a corrupted DB or a reinstalled machine with no recovery path is a bad first
+  impression for a new user. Scope: a "Backup project" action that archives the SQLite DB plus
+  configured media roots (source videos likely excluded by default — too large; exports/audio
+  cache included) into a single file, and a "Restore from backup" path in the setup wizard.
+  Depends on the Project switcher (Phase 5) settling how project directories are addressed.
 
 - [ ] **Distribution licence** — the preview `LICENSE` (all rights reserved, no redistribution) is intentionally restrictive. Before any public distribution, decide on a looser licence (MIT, GPL-3, source-available, or BSL). Update `LICENSE`, `pyproject.toml`, and the About modal.
 

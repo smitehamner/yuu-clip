@@ -71,6 +71,15 @@ class ClipMergeRequest(BaseModel):
     clip_b_id: int
 
 
+class BulkStatusUpdate(BaseModel):
+    clip_ids: list[int]
+    status: str  # approved | rejected | pending
+
+
+class BulkClipIds(BaseModel):
+    clip_ids: list[int]
+
+
 class CaptionSegmentUpdate(BaseModel):
     text: str
 
@@ -159,17 +168,24 @@ def _clip_dict(
     return d
 
 
-def _clip_has_export_file(ctx: "ProjectContext", clip_id: int, video_id: int) -> bool:
+def _clip_has_export_file(ctx: "ProjectContext", clip_id: int) -> bool:
     """Check whether a clip already has an exported file on disk. Opens and closes its own DB session."""
     db = ctx.get_db()
     try:
         clip = db.get(ClipCandidate, clip_id)
-        vid  = db.get(Video, video_id) if clip else None
+        vid  = db.get(Video, clip.video_id) if clip else None
         if clip and vid:
             return any(p.exists() for p in _export_paths(clip, vid, ctx.export_dir))
         return False
     finally:
         db.close()
+
+
+def _parse_clip_ids(raw: str) -> list[int]:
+    try:
+        return [int(x.strip()) for x in raw.split(",") if x.strip()]
+    except ValueError:
+        raise HTTPException(400, "clip_ids must be a comma-separated list of integers")
 
 
 def _build_export_cmd(
@@ -200,6 +216,9 @@ def _build_export_cmd(
 def make_router(ctx: ProjectContext) -> APIRouter:
     router = APIRouter()
     _register_approval_routes(router, ctx)
+    # Bulk routes use static paths like /api/clips/bulk-export — must be registered
+    # before /api/clips/{clip_id} or FastAPI matches "bulk-export" as a clip_id.
+    _register_bulk_routes(router, ctx)
     _register_clip_routes(router, ctx)
     _register_delete_routes(router, ctx)
     _register_batch_export_route(router, ctx)
@@ -428,6 +447,63 @@ def _register_delete_routes(router: APIRouter, ctx: ProjectContext) -> None:
             db.close()
 
 
+def _clip_export_stream_response(
+    ctx: ProjectContext,
+    clip_ids: list[int],
+    *,
+    skip_exported: bool,
+    burn_subs: bool,
+    embed_subs: bool,
+    container: Optional[str],
+    retranscribe: bool,
+    retranscribe_model: str,
+):
+    """Stream sequential per-clip exports as SSE. Shared by the video-scoped batch
+    export (filtered by approval/score) and the explicit-selection bulk export."""
+    async def event_stream():
+        async with _active_job(ctx):
+            total = len(clip_ids)
+            exported = 0
+            skipped  = 0
+            for i, cid in enumerate(clip_ids, 1):
+                if skip_exported and _clip_has_export_file(ctx, cid):
+                    skipped += 1
+                    yield f"data: {json_lib.dumps(f'Skipping clip {cid} (already exported) [{i}/{total}]')}\n\n"
+                    continue
+
+                yield f"data: {json_lib.dumps(f'Exporting clip {cid} [{i}/{total}]...')}\n\n"
+                cmd = _build_export_cmd(
+                    ctx, cid,
+                    burn_subs=burn_subs, embed_subs=embed_subs,
+                    container=container,
+                    retranscribe=retranscribe, retranscribe_model=retranscribe_model,
+                )
+                try:
+                    proc = await asyncio.create_subprocess_exec(
+                        *cmd,
+                        stdout=_subprocess.PIPE,
+                        stderr=_subprocess.STDOUT,
+                        cwd=str(ctx.project_dir),
+                    )
+                    out, _ = await proc.communicate()
+                    if proc.returncode == 0:
+                        exported += 1
+                        yield f"data: {json_lib.dumps(f'OK clip {cid} [{i}/{total}]')}\n\n"
+                    else:
+                        msg = out.decode(errors="replace").strip().splitlines()
+                        last = msg[-1] if msg else "unknown error"
+                        _log.error("clip export failed for clip %d (rc=%d): %s", cid, proc.returncode, last)
+                        yield f"data: {json_lib.dumps(f'[Error clip {cid} (exit {proc.returncode}): {last}]')}\n\n"
+                except Exception as exc:
+                    _log.error("clip export subprocess failed for clip %d: %s", cid, exc, exc_info=True)
+                    yield f"data: {json_lib.dumps(f'[Error clip {cid}: {exc}]')}\n\n"
+
+            yield f"data: {json_lib.dumps(f'Export complete: {exported} exported, {skipped} skipped')}\n\n"
+            yield f"data: {json_lib.dumps('__DONE__')}\n\n"
+
+    return _sse_response(event_stream())
+
+
 def _register_batch_export_route(router: APIRouter, ctx: ProjectContext) -> None:
     @router.get("/api/videos/{video_id}/batch-export")
     async def batch_export(
@@ -472,48 +548,100 @@ def _register_batch_export_route(router: APIRouter, ctx: ProjectContext) -> None
         if not clip_ids:
             raise HTTPException(400, "No approved clips match the filter")
 
-        async def event_stream():
-            async with _active_job(ctx):
-                total = len(clip_ids)
-                exported = 0
-                skipped  = 0
-                for i, cid in enumerate(clip_ids, 1):
-                    if skip_exported and _clip_has_export_file(ctx, cid, video_id):
-                        skipped += 1
-                        yield f"data: {json_lib.dumps(f'Skipping clip {cid} (already exported) [{i}/{total}]')}\n\n"
-                        continue
+        return _clip_export_stream_response(
+            ctx, clip_ids,
+            skip_exported=skip_exported, burn_subs=burn_subs, embed_subs=embed_subs,
+            container=container, retranscribe=retranscribe, retranscribe_model=retranscribe_model,
+        )
 
-                    yield f"data: {json_lib.dumps(f'Exporting clip {cid} [{i}/{total}]...')}\n\n"
-                    cmd = _build_export_cmd(
-                        ctx, cid,
-                        burn_subs=burn_subs, embed_subs=embed_subs,
-                        container=container,
-                        retranscribe=retranscribe, retranscribe_model=retranscribe_model,
-                    )
-                    try:
-                        proc = await asyncio.create_subprocess_exec(
-                            *cmd,
-                            stdout=_subprocess.PIPE,
-                            stderr=_subprocess.STDOUT,
-                            cwd=str(ctx.project_dir),
-                        )
-                        out, _ = await proc.communicate()
-                        if proc.returncode == 0:
-                            exported += 1
-                            yield f"data: {json_lib.dumps(f'OK clip {cid} [{i}/{total}]')}\n\n"
-                        else:
-                            msg = out.decode(errors="replace").strip().splitlines()
-                            last = msg[-1] if msg else "unknown error"
-                            _log.error("batch_export: clip %d export failed for video %d (rc=%d): %s", cid, video_id, proc.returncode, last)
-                            yield f"data: {json_lib.dumps(f'[Error clip {cid} (exit {proc.returncode}): {last}]')}\n\n"
-                    except Exception as exc:
-                        _log.error("batch_export: clip %d subprocess failed for video %d: %s", cid, video_id, exc, exc_info=True)
-                        yield f"data: {json_lib.dumps(f'[Error clip {cid}: {exc}]')}\n\n"
 
-                yield f"data: {json_lib.dumps(f'Batch export complete: {exported} exported, {skipped} skipped')}\n\n"
-                yield f"data: {json_lib.dumps('__DONE__')}\n\n"
+def _register_bulk_routes(router: APIRouter, ctx: ProjectContext) -> None:
+    @router.post("/api/clips/bulk-status")
+    def bulk_set_clip_status(body: BulkStatusUpdate):
+        """Set status on multiple clips at once. Unknown IDs are skipped, not an error."""
+        if body.status not in _VALID_STATUSES:
+            raise HTTPException(400, f"status must be one of: {' | '.join(_VALID_STATUSES)}")
+        if not body.clip_ids:
+            raise HTTPException(400, "clip_ids must not be empty")
+        db = ctx.get_db()
+        try:
+            clips = db.query(ClipCandidate).filter(ClipCandidate.id.in_(body.clip_ids)).all()
+            found_ids = {c.id for c in clips}
+            for clip in clips:
+                clip.status = body.status
+            db.commit()
+            missing = [cid for cid in body.clip_ids if cid not in found_ids]
+            _log.info("Bulk status update: %d clip(s) set to %s", len(clips), body.status)
+            return {"updated": sorted(found_ids), "status": body.status, "missing": missing}
+        finally:
+            db.close()
 
-        return _sse_response(event_stream())
+    @router.post("/api/clips/bulk-delete")
+    def bulk_delete_clips(body: BulkClipIds):
+        """Delete multiple clip records and their exported files.
+
+        Best-effort per clip: a clip whose export file is locked is left in place
+        (reported in ``locked``) rather than aborting the whole batch.
+        """
+        if not body.clip_ids:
+            raise HTTPException(400, "clip_ids must not be empty")
+        db = ctx.get_db()
+        try:
+            clips = db.query(ClipCandidate).filter(ClipCandidate.id.in_(body.clip_ids)).all()
+            found_ids = {c.id for c in clips}
+            deleted: list[int] = []
+            locked_ids: list[int] = []
+            for clip in clips:
+                video = db.get(Video, clip.video_id)
+                locked = _delete_files(_all_sidecar_paths(clip, video, ctx.export_dir))
+                if locked:
+                    locked_ids.append(clip.id)
+                    continue
+                db.delete(clip)
+                deleted.append(clip.id)
+            db.commit()
+            missing = [cid for cid in body.clip_ids if cid not in found_ids]
+            _log.info(
+                "Bulk delete: %d clip(s) deleted, %d locked, %d missing",
+                len(deleted), len(locked_ids), len(missing),
+            )
+            return {"deleted": deleted, "missing": missing, "locked": locked_ids}
+        finally:
+            db.close()
+
+    @router.get("/api/clips/bulk-export")
+    async def bulk_export_clips(
+        clip_ids: str = Query(..., description="Comma-separated clip IDs"),
+        skip_exported: bool = Query(True),
+        burn_subs: bool = Query(False),
+        embed_subs: bool = Query(False),
+        container: Optional[str] = Query(None),
+    ):
+        """Export a specific set of clips (an explicit selection, not a video-wide
+        filter), streaming per-clip progress as SSE."""
+        ids = _parse_clip_ids(clip_ids)
+        if not ids:
+            raise HTTPException(400, "clip_ids must contain at least one ID")
+        allowed_containers = {"mkv", "mp4"}
+        if container is not None and container not in allowed_containers:
+            raise HTTPException(400, f"container must be one of {sorted(allowed_containers)}")
+
+        db = ctx.get_db()
+        try:
+            found_ids = {
+                c.id for c in db.query(ClipCandidate.id).filter(ClipCandidate.id.in_(ids)).all()
+            }
+        finally:
+            db.close()
+        missing = [cid for cid in ids if cid not in found_ids]
+        if missing:
+            raise HTTPException(404, f"Clip(s) not found: {', '.join(map(str, missing))}")
+
+        return _clip_export_stream_response(
+            ctx, ids,
+            skip_exported=skip_exported, burn_subs=burn_subs, embed_subs=embed_subs,
+            container=container, retranscribe=False, retranscribe_model="large-v3",
+        )
 
 
 def _register_clip_edit_routes(router: APIRouter, ctx: ProjectContext) -> None:

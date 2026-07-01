@@ -408,6 +408,86 @@ class TestScoringIsolation:
 
 
 # ---------------------------------------------------------------------------
+# Extract/Transcribe stage progress logging — "Track i/N" lines drive the
+# web UI's live progress pill (yuu_clip/web/static/utils.js progressPattern).
+# ---------------------------------------------------------------------------
+
+class TestPipelineTrackProgressLogging:
+    def _make_video_and_tracks(self, tmp_path, n_tracks):
+        from yuu_clip.db.models import AudioTrack, Video, make_session
+        session = make_session(tmp_path / "project.db")
+        video = Video(path=str(tmp_path / "s.mkv"), filename="s.mkv", status="probed", duration_ms=60_000)
+        session.add(video)
+        session.flush()
+        tracks = [
+            AudioTrack(
+                video_id=video.id, stream_index=i, label=f"track{i}",
+                do_transcribe=True, do_score=True,
+            )
+            for i in range(n_tracks)
+        ]
+        session.add_all(tracks)
+        session.flush()
+        return session, video, tracks
+
+    def test_extract_audio_logs_track_i_of_n(self, tmp_path, capsys):
+        # The "already extracted" skip path is the one that prints "Track i/N"
+        # (the success/OK path only prints the label, no index).
+        import unittest.mock as mock
+
+        from yuu_clip.cli import _pipeline
+        from yuu_clip.config import Config
+
+        session, video, tracks = self._make_video_and_tracks(tmp_path, 3)
+        audio_dir = tmp_path / "audio"
+        audio_dir.mkdir()
+        for i, track in enumerate(tracks):
+            wav_path = audio_dir / f"t{i}.wav"
+            wav_path.write_bytes(b"\x00")
+            track.extracted_path = str(wav_path)
+        session.flush()
+
+        try:
+            with mock.patch("yuu_clip.analyze.overlap.detect_and_apply_overlap_fallback", return_value=False):
+                _pipeline._extract_audio_and_check_rms_overlap(
+                    tmp_path / "s.mkv", video, tracks, Config(), audio_dir, session, force=False,
+                )
+        finally:
+            session.close()
+
+        out = capsys.readouterr().out
+        assert "Track 1/3" in out
+        assert "Track 2/3" in out
+        assert "Track 3/3" in out
+
+    def test_transcribe_logs_track_i_of_n(self, tmp_path, capsys):
+        import unittest.mock as mock
+
+        from yuu_clip.cli import _pipeline
+        from yuu_clip.config import Config
+
+        session, video, tracks = self._make_video_and_tracks(tmp_path, 2)
+        for i, track in enumerate(tracks):
+            track.extracted_path = str(tmp_path / f"t{i}.wav")
+        session.flush()
+
+        fake_transcript = mock.MagicMock()
+        fake_transcript.segments = []
+        fake_transcript.language = "en"
+
+        try:
+            with mock.patch("yuu_clip.transcribe.whisper_runner.transcribe_track", return_value=fake_transcript), \
+                 mock.patch("yuu_clip.analyze.overlap.detect_transcript_overlap", return_value=False):
+                _pipeline._transcribe_and_check_overlap(tracks, Config(), session, video, language=None)
+        finally:
+            session.close()
+
+        out = capsys.readouterr().out
+        assert "Track 1/2" in out
+        assert "Track 2/2" in out
+
+
+# ---------------------------------------------------------------------------
 # Process-tree termination — cancel must kill ffmpeg grandchildren, not orphan them
 # ---------------------------------------------------------------------------
 

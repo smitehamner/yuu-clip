@@ -1,5 +1,6 @@
 """
-Playwright UI tests — per-video summary regeneration confirm flow.
+Playwright UI tests — per-video summary regeneration confirm flow, and the
+run-timing provenance line in the World Contexts section.
 
 Run against the live dev server on port 8080. See tests/conftest.py for shared
 helpers.
@@ -9,6 +10,55 @@ from __future__ import annotations
 from playwright.sync_api import Page, expect
 
 from conftest import LIVE_URL, skip_no_server
+
+
+_MOCK_ANALYZE_RUN = {
+    "started_at": "2026-06-01T00:00:00+00:00",
+    "finished_at": "2026-06-01T00:04:12+00:00",
+    "elapsed_ms": 252000,
+    "device": {"has_gpu": False},
+    "settings": {},
+    "stages": [
+        {"name": "extract", "seconds": 12},
+        {"name": "transcribe", "seconds": 181},
+        {"name": "speakers", "seconds": 38},
+        {"name": "score", "seconds": 41},
+    ],
+}
+
+
+def _render_video_with_analyze_run(page: Page, analyze_run) -> None:
+    """Render the first sidebar video's detail with `analyze_run` overridden.
+
+    renderVideoDetail() is called directly (bypassing selectVideo's fetch) so
+    the test controls analyze_run without depending on real analyze history
+    on the live server's videos.
+    """
+    page.goto(LIVE_URL)
+    page.wait_for_selector("#video-list li[data-video-id]", timeout=5000)
+    page.evaluate(
+        """(analyzeRun) => {
+          const video = Object.assign({}, AppState.videos[0], {analyze_run: analyzeRun});
+          renderVideoDetail(video, null);
+        }""",
+        analyze_run,
+    )
+
+
+@skip_no_server
+class TestRunTimingProvenanceLine:
+    """The World Contexts section shows a 'Last run: ... total (...)' line built
+    from Video.analyze_run when present, and omits it otherwise."""
+
+    def test_shows_total_and_per_stage_timing(self, page: Page):
+        _render_video_with_analyze_run(page, _MOCK_ANALYZE_RUN)
+        expect(page.locator("#detail")).to_contain_text(
+            "Last run: 4m 12s total (extract 12s · transcribe 3m 01s · speakers 38s · score 41s)"
+        )
+
+    def test_absent_when_analyze_run_is_null(self, page: Page):
+        _render_video_with_analyze_run(page, None)
+        expect(page.locator("#detail")).not_to_contain_text("Last run:")
 
 
 @skip_no_server

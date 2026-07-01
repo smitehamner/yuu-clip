@@ -1551,3 +1551,133 @@ class TestMergeClipsPreviewCleanup:
         assert not file_b.exists(), "clip_b preview should be deleted after merge"
         assert clip_a_id not in preview_cache
         assert clip_b_id not in preview_cache
+
+
+# ---------------------------------------------------------------------------
+# Bulk clip actions — multi-select approve/reject/export/delete
+# ---------------------------------------------------------------------------
+
+class TestBulkClipStatus:
+    def _clip_ids(self, client) -> list[int]:
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        return [c["id"] for c in client.get(f"/api/videos/{vid_id}/clips").json()]
+
+    def test_bulk_approve_updates_all_given_clips(self, client):
+        ids = self._clip_ids(client)
+        r = client.post("/api/clips/bulk-status", json={"clip_ids": ids, "status": "approved"})
+        assert r.status_code == 200
+        d = r.json()
+        assert sorted(d["updated"]) == sorted(ids)
+        assert d["missing"] == []
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        clips = client.get(f"/api/videos/{vid_id}/clips").json()
+        assert all(c["status"] == "approved" for c in clips)
+
+    def test_bulk_update_only_touches_given_ids(self, client):
+        ids = self._clip_ids(client)
+        r = client.post("/api/clips/bulk-status", json={"clip_ids": ids[:1], "status": "rejected"})
+        assert r.status_code == 200
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        clips = {c["id"]: c for c in client.get(f"/api/videos/{vid_id}/clips").json()}
+        assert clips[ids[0]]["status"] == "rejected"
+        assert clips[ids[1]]["status"] != "rejected"
+
+    def test_bulk_status_reports_missing_ids(self, client):
+        ids = self._clip_ids(client)
+        r = client.post("/api/clips/bulk-status", json={"clip_ids": [*ids, 99999], "status": "approved"})
+        assert r.status_code == 200
+        assert r.json()["missing"] == [99999]
+
+    def test_bulk_status_invalid_status_400(self, client):
+        ids = self._clip_ids(client)
+        r = client.post("/api/clips/bulk-status", json={"clip_ids": ids, "status": "maybe"})
+        assert r.status_code == 400
+
+    def test_bulk_status_empty_ids_400(self, client):
+        r = client.post("/api/clips/bulk-status", json={"clip_ids": [], "status": "approved"})
+        assert r.status_code == 400
+
+
+class TestBulkDeleteClips:
+    def _clip_ids(self, client) -> list[int]:
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        return [c["id"] for c in client.get(f"/api/videos/{vid_id}/clips").json()]
+
+    def test_bulk_delete_removes_records(self, client):
+        ids = self._clip_ids(client)
+        r = client.post("/api/clips/bulk-delete", json={"clip_ids": ids[:2]})
+        assert r.status_code == 200
+        d = r.json()
+        assert sorted(d["deleted"]) == sorted(ids[:2])
+        assert d["missing"] == []
+        assert d["locked"] == []
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        remaining = [c["id"] for c in client.get(f"/api/videos/{vid_id}/clips").json()]
+        assert ids[0] not in remaining
+        assert ids[1] not in remaining
+        assert ids[2] in remaining
+
+    def test_bulk_delete_removes_export_files(self, client, project_dir):
+        ids = self._clip_ids(client)
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        clip = next(c for c in client.get(f"/api/videos/{vid_id}/clips").json() if c["id"] == ids[0])
+        export_dir = project_dir / ".yuu-clip" / "exports"
+        start_hms_dashes = clip["start_hms"].replace(":", "-")
+        export_file = export_dir / f"session_clip{clip['id']}_{start_hms_dashes}.mkv"
+        export_file.write_bytes(b"fake video")
+
+        r = client.post("/api/clips/bulk-delete", json={"clip_ids": [ids[0]]})
+        assert r.status_code == 200
+        assert not export_file.exists()
+
+    def test_bulk_delete_reports_missing_ids(self, client):
+        ids = self._clip_ids(client)
+        r = client.post("/api/clips/bulk-delete", json={"clip_ids": [ids[0], 99999]})
+        assert r.status_code == 200
+        d = r.json()
+        assert d["deleted"] == [ids[0]]
+        assert d["missing"] == [99999]
+
+    def test_bulk_delete_empty_ids_400(self, client):
+        r = client.post("/api/clips/bulk-delete", json={"clip_ids": []})
+        assert r.status_code == 400
+
+
+class TestBulkExportClips:
+    def _clip_ids(self, client) -> list[int]:
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        return [c["id"] for c in client.get(f"/api/videos/{vid_id}/clips").json()]
+
+    def test_bulk_export_empty_clip_ids_400(self, client):
+        r = client.get("/api/clips/bulk-export?clip_ids=")
+        assert r.status_code == 400
+
+    def test_bulk_export_non_integer_clip_ids_400(self, client):
+        r = client.get("/api/clips/bulk-export?clip_ids=1,abc")
+        assert r.status_code == 400
+
+    def test_bulk_export_unknown_clip_id_404(self, client):
+        r = client.get("/api/clips/bulk-export?clip_ids=99999")
+        assert r.status_code == 404
+
+    def test_bulk_export_invalid_container_400(self, client):
+        ids = self._clip_ids(client)
+        r = client.get(f"/api/clips/bulk-export?clip_ids={ids[0]}&container=avi")
+        assert r.status_code == 400
+
+    def test_bulk_export_skips_already_exported(self, client, project_dir):
+        ids = self._clip_ids(client)
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        clips = client.get(f"/api/videos/{vid_id}/clips").json()
+        export_dir = project_dir / ".yuu-clip" / "exports"
+        for c in clips:
+            start_hms_dashes = c["start_hms"].replace(":", "-")
+            (export_dir / f"session_clip{c['id']}_{start_hms_dashes}.mkv").write_bytes(b"fake video")
+
+        qs = f"clip_ids={','.join(map(str, ids))}&skip_exported=true"
+        r = client.get(f"/api/clips/bulk-export?{qs}")
+        assert r.status_code == 200
+        assert r.headers["content-type"].startswith("text/event-stream")
+        assert "Skipping clip" in r.text
+        assert "0 exported" in r.text
+        assert f"{len(ids)} skipped" in r.text

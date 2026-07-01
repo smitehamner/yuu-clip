@@ -18,7 +18,44 @@ function _applyFilters() {
 // so a re-render can't accidentally bypass the active search/status/score
 // filters. Call this — never _renderClipItems directly — after mutating AppState.clips.
 function _renderClips() {
+  _pruneClipSelection();
   _renderClipItems(_applyFilters());
+}
+
+// ── multi-select bulk actions ────────────────────────────────────────────────
+// Drops selected IDs for clips that no longer exist (e.g. after a delete).
+// Deliberately does NOT drop IDs just because a filter hides them — switching
+// filter tabs shouldn't silently lose the user's selection.
+function _pruneClipSelection() {
+  const existingIds = new Set(AppState.clips.map(c => c.id));
+  for (const id of AppState.selectedClipIds) {
+    if (!existingIds.has(id)) AppState.selectedClipIds.delete(id);
+  }
+}
+
+// The set of currently-selected clips that also pass the active filters — the
+// only clips a bulk action may touch, so a hidden-but-checked clip from before
+// a filter change is never silently included.
+function _visibleSelectedClips() {
+  return _applyFilters().filter(c => AppState.selectedClipIds.has(c.id));
+}
+
+function _toggleClipSelection(id, checked) {
+  if (checked) AppState.selectedClipIds.add(id);
+  else AppState.selectedClipIds.delete(id);
+  _updateBulkToolbar();
+}
+
+function _clearClipSelection() {
+  AppState.selectedClipIds.clear();
+  _renderClips();
+}
+
+function _updateBulkToolbar() {
+  const toolbar = document.getElementById('clip-bulk-toolbar');
+  const count = _visibleSelectedClips().length;
+  toolbar.style.display = count ? 'flex' : 'none';
+  document.getElementById('clip-bulk-count').textContent = `${count} selected`;
 }
 
 function _clearClipFilters() {
@@ -57,6 +94,7 @@ function _renderClipItems(clips) {
       ? `No clips match the current filters — <a href="#" style="color:var(--accent);text-decoration:underline" onclick="event.preventDefault();_clearClipFilters()">Clear filters</a>`
       : `No clips found — <a href="#" style="color:var(--muted);text-decoration:underline" onclick="event.preventDefault();openNewRecordingPanel()">Analyze another recording</a>`;
     list.innerHTML = `<li style="padding:10px 14px;color:var(--muted)">${filterMsg}</li>`;
+    _updateBulkToolbar();
     return;
   }
   for (const c of clips) {
@@ -66,6 +104,7 @@ function _renderClipItems(clips) {
     li.tabIndex = 0;
     li.innerHTML = `
       <div class="clip-item-row1">
+        <input type="checkbox" class="clip-select-checkbox" aria-label="Select clip #${c.id}">
         <span class="clip-num" title="Clip #${c.id}">#${c.id}</span>
         <span class="clip-time">${c.start_hms} &middot; ${c.duration_hms}</span>
         ${c.has_export
@@ -80,15 +119,23 @@ function _renderClipItems(clips) {
         <span aria-hidden="true" title="Action"><span>⚔️</span> ${Math.round(c.score_action*100)}%</span>
       </div>
       ${c.description ? `<div class="clip-desc-preview" title="${escHtml(c.description)}">${escHtml(c.description)}</div>` : ''}`;
+    const checkbox = li.querySelector('.clip-select-checkbox');
+    checkbox.checked = AppState.selectedClipIds.has(c.id);
+    checkbox.onclick = e => e.stopPropagation();
+    checkbox.onchange = () => _toggleClipSelection(c.id, checkbox.checked);
     const _activateClip = () => {
       document.querySelectorAll('#clip-list li').forEach(l => l.classList.remove('active'));
       li.classList.add('active');
       selectClip(c.id);
     };
     li.onclick = _activateClip;
-    li.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); _activateClip(); } };
+    li.onkeydown = e => {
+      if (e.target !== li) return;  // don't hijack Space on the checkbox
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); _activateClip(); }
+    };
     list.appendChild(li);
   }
+  _updateBulkToolbar();
 }
 
 async function selectClip(id) {
@@ -832,6 +879,110 @@ async function _doDeleteClip(id) {
   showToast('Clip deleted');
 }
 
+// ── bulk clip actions ────────────────────────────────────────────────────────
+async function bulkSetClipStatus(status) {
+  const ids = _visibleSelectedClips().map(c => c.id);
+  if (!ids.length) return;
+  const res = await fetch('/api/clips/bulk-status', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({clip_ids: ids, status}),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    showToast(`Bulk update failed: ${formatApiError(err)}`, 'error');
+    return;
+  }
+  const label = {approved: 'Approved', rejected: 'Rejected', pending: 'Marked as Unreviewed'}[status] || status;
+  AppState.selectedClipIds.clear();
+  await _reloadClipList(AppState.activeVideoId);
+  if (AppState.activeClipId && ids.includes(AppState.activeClipId)) {
+    const clip = await fetch(`/api/clips/${AppState.activeClipId}`).then(r => r.json());
+    AppState.activeClipData = clip;
+    renderDetail(clip);
+  }
+  loadVideos();
+  showToast(`${label}: ${ids.length} clip${ids.length !== 1 ? 's' : ''}`);
+}
+
+function bulkDeleteClips() {
+  const ids = _visibleSelectedClips().map(c => c.id);
+  if (!ids.length) return;
+  showConfirm(
+    'Delete selected clips?',
+    `${ids.length} clip record${ids.length !== 1 ? 's' : ''} will be removed from the database. ` +
+    `Any exported video files will also be deleted from the exports folder.`,
+    'Delete',
+    () => _doBulkDeleteClips(ids),
+    true,
+  );
+}
+
+async function _doBulkDeleteClips(ids) {
+  if (AppState.activeClipId && ids.includes(AppState.activeClipId)) {
+    await _releasePlayerBeforeDelete();
+  }
+  const res = await fetch('/api/clips/bulk-delete', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({clip_ids: ids}),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    showToast(`Bulk delete failed: ${formatApiError(err)}`, 'error');
+    if (AppState.activeClipId && ids.includes(AppState.activeClipId)) selectClip(AppState.activeClipId);
+    return;
+  }
+  const data = await res.json();
+  AppState.selectedClipIds.clear();
+  if (AppState.activeClipId && ids.includes(AppState.activeClipId)) {
+    AppState.activeClipId = null;
+    clearDetail();
+  }
+  await _reloadClipList(AppState.activeVideoId);
+  await loadVideos();
+  const n = data.deleted.length;
+  if (data.locked.length) {
+    showToast(`Deleted ${n} clip${n !== 1 ? 's' : ''} — ${data.locked.length} could not be deleted (file in use)`, 'error');
+  } else {
+    showToast(`Deleted ${n} clip${n !== 1 ? 's' : ''}`);
+  }
+}
+
+function bulkExportClips() {
+  const clips = _visibleSelectedClips();
+  if (!clips.length) return;
+  const staleCount = clips.filter(c => c.transcript_stale).length;
+  if (staleCount) {
+    showConfirm(
+      'Export clips with outdated captions?',
+      `${staleCount} of the ${clips.length} selected clips have captions edited since they were ` +
+      `last scored, so their description/score won't reflect the latest transcript. ` +
+      `Re-score them first, or export anyway?`,
+      'Export Anyway',
+      () => _doBulkExportClips(clips.map(c => c.id)),
+      true,
+    );
+    return;
+  }
+  _doBulkExportClips(clips.map(c => c.id));
+}
+
+function _doBulkExportClips(ids) {
+  const qs = new URLSearchParams({clip_ids: ids.join(',')});
+  AppState.selectedClipIds.clear();
+  openLog();
+  streamSSE(
+    `/api/clips/bulk-export?${qs}`,
+    async () => {
+      await _reloadClipList(AppState.activeVideoId);
+      loadVideos();
+      showToast(`Exported ${ids.length} clip${ids.length !== 1 ? 's' : ''}`);
+      SoundFx.play('export');
+    },
+    [{label: 'Export', patterns: ['Exporting', 'OK', 'Skipping']}],
+    'Bulk Exporting',
+  );
+}
+
 // ── find similar ──────────────────────────────────────────────────────────────
 let _similarClipsClipId = null;
 let _similarClipsOpener = null;
@@ -932,6 +1083,7 @@ Object.assign(window, {
   _applyFilters, _renderClips, _parseTimingOffset,
   deleteClip, deleteVideo, deleteExport, mergeClips,
   exportClip, exportVideoTranscript, confirmExport, closeExportModal,
+  bulkSetClipStatus, bulkDeleteClips, bulkExportClips, _clearClipSelection,
   _onExportCaptionsChange, _onExportRetranscribeChange,
   openScoreOverride, closeScoreOverrideModal, _scoreOverrideSave, clearScoreOverride,
   openDescKebab, openDescLongKebab,

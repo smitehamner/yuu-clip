@@ -476,13 +476,10 @@ function startRetranscribe() {
 
 // ── re-score individual clip ──────────────────────────────────────────────────
 function rescoreClip(clipId) {
-  const btn = document.getElementById('btn-rescore-clip');
-  if (btn && btn.disabled) return;
-  if (btn) { btn.disabled = true; btn.textContent = 'Scoring…'; }
   _supersedeActiveStream();
   openLog();
   startJobUI(SCORE_STEPS, 'Re-scoring clip');
-  const teardown = () => { endJobUI(); if (btn) { btn.disabled = false; btn.textContent = 'Re-score'; } };
+  const teardown = () => endJobUI();
   let hadError = false;
   const handle = _openSSE(
     `/api/clips/${clipId}/rescore`,

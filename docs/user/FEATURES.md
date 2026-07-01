@@ -49,6 +49,8 @@ Actions available per clip:
 | Export | Extracts the clip to MKV (shows options modal) |
 | Delete | Removes the clip record and any exported files |
 
+**Bulk actions** — each clip row has a checkbox; checking any shows a toolbar above the list with Approve / Reject / Export / Delete buttons that act on every checked clip currently visible under the active search/status/score filter. Bulk delete asks for confirmation first. Bulk export warns if any selected clip's captions were edited since it was last scored, letting you re-score first or export anyway.
+
 ### Video player
 
 Embedded HTML5 player shown in the clip detail panel. Before export, the player streams a preview directly from the source file via FFmpeg (seekable; LRU-cached temp files). After export it plays the exported file and shows WebVTT subtitles if an SRT sidecar exists. Auto-plays on clip selection.

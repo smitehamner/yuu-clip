@@ -659,6 +659,45 @@ class TestUpdateJobUI:
 
 
 # ---------------------------------------------------------------------------
+# _stepPillLabel / _renderStepPill (utils.js) — live "i/N (pct%)" + ETA text
+# ---------------------------------------------------------------------------
+
+@skip_no_server
+class TestStepPillProgress:
+    def test_track_progress_line_renders_fraction_percent_and_eta(self, page: Page):
+        # INGEST_STEPS[0] (Extract) has progressPattern /Track (\d+)\/(\d+)/.
+        # First activate the step via its name pattern, then feed a "Track 3/12"
+        # count line the way the subprocess log actually emits it.
+        text = page.evaluate(
+            "() => {"
+            "  startJobUI(INGEST_STEPS, 'Analyzing');"
+            "  updateJobUI('Extracting audio...');"
+            "  updateJobUI('  Track 3/12 [combined]...');"
+            "  const t = document.getElementById('step-0').textContent;"
+            "  endJobUI();"
+            "  return t;"
+            "}"
+        )
+        assert "3/12 (25%)" in text
+        assert "left)" in text
+
+    def test_scoring_progress_line_renders_fraction_percent_and_eta(self, page: Page):
+        # SCORE_STEPS[2] (Scoring) has progressPattern /Scoring (\d+)\/(\d+)/.
+        text = page.evaluate(
+            "() => {"
+            "  startJobUI(SCORE_STEPS, 'Re-scoring clips');"
+            "  updateJobUI('Scoring clips now');"
+            "  updateJobUI('Scoring 3/12');"
+            "  const t = document.getElementById('step-2').textContent;"
+            "  endJobUI();"
+            "  return t;"
+            "}"
+        )
+        assert "3/12 (25%)" in text
+        assert "left)" in text
+
+
+# ---------------------------------------------------------------------------
 # _parseWeight (contexts.js) — input parse with NaN→null and negative clamp
 # ---------------------------------------------------------------------------
 

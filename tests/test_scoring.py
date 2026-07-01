@@ -2180,3 +2180,27 @@ class TestScoringEngineScoreVideo:
         finally:
             session.close()
         assert calls == [(1, 2), (2, 2)]
+
+    def test_score_video_commits_once_per_clip(self, tmp_path):
+        # Commits must land per-clip (not once for the whole batch) so the web
+        # server — a separate process/connection — can see scores as they finish.
+        import unittest.mock as mock
+
+        from yuu_clip.config import Config
+        from yuu_clip.db.models import ClipCandidate, Video, make_session
+        from yuu_clip.scoring.engine import ScoringEngine
+        session = make_session(tmp_path / "sv4.db")
+        v = Video(path=str(tmp_path / "v.mkv"), filename="v.mkv", status="done", duration_ms=90_000)
+        session.add(v)
+        session.flush()
+        for i in range(3):
+            session.add(ClipCandidate(video_id=v.id, start_ms=i * 30_000, end_ms=(i + 1) * 30_000))
+        session.flush()
+        scorer = self._make_scorer(0.5)
+        engine = ScoringEngine(Config(), [scorer])
+        try:
+            with mock.patch.object(session, "commit", wraps=session.commit) as commit_spy:
+                engine.score_video(v, session)
+        finally:
+            session.close()
+        assert commit_spy.call_count == 3

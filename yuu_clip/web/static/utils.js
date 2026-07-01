@@ -14,6 +14,7 @@ const AppState = {
   clipFilter:          'all',
   clipSearch:          '',
   clipScoreMin:        0,
+  selectedClipIds:     new Set(),
   lastStatusChange:    null, // {clipId, fromStatus, timer}
   confirmCallback:     null,
   activeClipData:      null,
