@@ -242,6 +242,13 @@
           <div id="s-hf-token-feedback" style="font-size:11px;min-height:14px" aria-live="polite"></div>
         </div>
       </div>
+      <div class="settings-row">
+        <div class="settings-col">
+          <label class="settings-label" for="s-speaker-match-threshold">Voiceprint match threshold</label>
+          <div class="settings-note">How similar a voice must be to re-attach to an already-named speaker on <strong>Re-detect Speakers</strong>. Higher is stricter — fewer wrong matches, but more voices re-listed as new "Speaker N" to re-confirm. 0.75 is a safe default; lower it if named speakers keep coming back unnamed.</div>
+        </div>
+        <input class="settings-input" id="s-speaker-match-threshold" type="number" min="0" max="1" step="0.05" style="max-width:100px">
+      </div>
       <div id="s-diarization-status" style="font-size:12px;color:var(--muted);margin-top:4px" aria-live="polite"></div>
     </div>
   </div>

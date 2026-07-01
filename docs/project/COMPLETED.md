@@ -332,3 +332,18 @@ Archive of shipped items. For pending work see [ROADMAP.md](ROADMAP.md).
 - **In-detail live panel** — `renderVideoDetail` shows an `analysis-live` card while a recording is being analyzed (`_isVideoBeingAnalyzed`), mirroring the header stage pills and showing elapsed time from the server's `analyze_started_at` (so it stays accurate across a refresh). Kept in sync from `updateJobUI` / `_tickJobTimer` via `_syncAnalysisLivePanel`.
 - **Interrupted-run reconciliation** — on server start, `_fail_interrupted_analyses` flips any `Video` stuck at `status='extracting'` (a subprocess killed mid extract/transcribe) to `failed`, so the UI stops showing an eternal spinner and the user can re-run. New `failed` → "Analysis interrupted" status label.
 - Covered by `tests/test_reattach.py` (AnalyzeJob broadcast/replay/concurrent-subscribers/cancel, `/api/status` identity, startup fail-reconciliation) plus updated `test_analyze.py` reattach/replay cases. Full API suite 886 passed; UI suite 133 green.
+
+---
+
+## Re-analyze from the recording detail view
+
+- **Two re-analysis actions** added to `renderVideoDetail`'s `vid-actions` (`static/videos.js`):
+  - **Re-analyze (full)** — `reanalyzeVideo` → confirm dialog → `_doReanalyzeVideo` posts to `/api/analyze/start` with `{video_id, force: true, model, context_names}`, reusing the recording's last-run model (from `analyze_run.settings.model`) and world contexts, then streams via the normal `_streamAnalyzeEvents` path. `IngestRequest.force` now threads through `_build_analyze_cmd` as the CLI `--force`, so `_resolve_existing_video` re-processes a `status='done'` video instead of skipping it. Destructive (replaces clips/scores/approvals) — hence the confirm, which also notes exported files stay on disk.
+  - **Re-detect Speakers** — `rediarizeVideo` streams `GET /api/videos/{id}/rediarize`, a non-destructive re-run of only the diarization stage. Backend: new `rediarize` CLI command (`cli/analyze.py`) → `_rediarize_video` (`cli/_pipeline.py`) reuses each transcribed track's latest track-level transcript and re-runs `_run_speaker_diarization` (→ `diarize_track` → `_assign_speakers` + `_attach_speakers`). Clips, scores, and transcript text are untouched; named speakers re-attach to matching voices by voiceprint (cosine ≥ `_VOICEPRINT_MATCH_THRESHOLD`). This is the primary way to validate Phase 2 voiceprint re-attach and tune the threshold. The command forces `diarization_backend='pyannote'` since re-detecting speakers is its whole purpose.
+- Covered by `tests/test_analyze.py` (`--force` cmd threading, rediarize endpoint 404 + CLI-command build) and `tests/test_diarization.py::TestRediarizeVideo` (latest-transcript selection, skips non-transcribed tracks, no-transcript no-op). Full API suite 892 passed; UI suite 133 green.
+
+### Configurable voiceprint match threshold
+
+- The re-attach threshold (previously the hardcoded `_VOICEPRINT_MATCH_THRESHOLD = 0.75` in `whisper_runner.py`) is now `Config.speaker_match_threshold` (default 0.75), threaded through `diarize_track → _attach_speakers → _best_voiceprint_match`. The constant remains as the default value / fallback.
+- Exposed in **Settings → Speaker labels → Voiceprint match threshold** (number input 0–1, shown only with pyannote on). Wired via `GET/PATCH /api/config` with a new `_range_validator(0.0, 1.0)`.
+- Covered by `tests/test_config.py` (default, round-trip, out-of-range 400, bounds accepted) and `tests/test_diarization.py` (`_best_voiceprint_match` honours a custom threshold; `diarize_track` forwards `config.speaker_match_threshold`). Full API suite 897 passed; UI suite 133 green.

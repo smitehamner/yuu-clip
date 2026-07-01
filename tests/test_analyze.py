@@ -200,6 +200,28 @@ class TestIngestStart:
             assert "--diarize" not in cmd
             assert "--no-diarize" not in cmd
 
+    def test_force_flag_added_when_requested(self, project_dir, video_path):
+        from fastapi.testclient import TestClient
+
+        from yuu_clip.web.app import create_app
+        app = create_app(project_dir)
+        with TestClient(app) as tc:
+            tc.post("/api/analyze/start", json={
+                "path": str(video_path), "model": "medium", "force": True,
+            })
+            assert "--force" in app.state.ctx.analyze_cmd
+
+    def test_force_omitted_by_default(self, project_dir, video_path):
+        from fastapi.testclient import TestClient
+
+        from yuu_clip.web.app import create_app
+        app = create_app(project_dir)
+        with TestClient(app) as tc:
+            tc.post("/api/analyze/start", json={
+                "path": str(video_path), "model": "medium",
+            })
+            assert "--force" not in app.state.ctx.analyze_cmd
+
 
 # ---------------------------------------------------------------------------
 # Logs
@@ -1022,6 +1044,34 @@ class TestRetranscribeValidation:
     def test_speaker_labels_can_be_disabled(self, client, monkeypatch):
         cmd = self._capture_cmd(client, monkeypatch, "model=medium&speaker_labels=false")
         assert "--no-speaker-labels" in cmd
+
+
+# ---------------------------------------------------------------------------
+# Re-detect speakers (rediarize) endpoint
+# ---------------------------------------------------------------------------
+
+class TestRediarizeEndpoint:
+    def test_rediarize_404_for_missing_video(self, client):
+        r = client.get("/api/videos/99999/rediarize")
+        assert r.status_code == 404
+
+    def test_rediarize_builds_cli_command(self, client, monkeypatch):
+        from starlette.responses import PlainTextResponse
+
+        from yuu_clip.web.routes import analyze
+
+        captured = {}
+
+        async def fake_sse(cmd, *args, **kwargs):
+            captured["cmd"] = cmd
+            return PlainTextResponse("ok")
+
+        monkeypatch.setattr(analyze, "subprocess_sse", fake_sse)
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        assert client.get(f"/api/videos/{vid_id}/rediarize").status_code == 200
+        cmd = captured["cmd"]
+        assert "rediarize" in cmd
+        assert str(vid_id) in cmd
 
 
 # ---------------------------------------------------------------------------

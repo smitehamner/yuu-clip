@@ -420,6 +420,29 @@ def _run_speaker_diarization(config, session, transcripts) -> None:
     session.flush()
 
 
+def _rediarize_video(session, config, video) -> int:
+    """Re-run only the diarization stage on a video's existing transcripts.
+
+    Non-destructive: reuses each transcribed track's latest track-level transcript
+    and re-runs the speaker stage (_assign_speakers + _attach_speakers via
+    diarize_track). Clips, scores, and transcript text are left untouched. Named
+    Speakers re-attach to matching voices by voiceprint. Returns the track count.
+    """
+    transcripts = []
+    for track in video.audio_tracks:
+        if not track.do_transcribe or not track.transcripts:
+            continue
+        transcripts.append(max(track.transcripts, key=lambda t: t.id))
+
+    if not transcripts:
+        console.print("[yellow]No transcripts found — analyze the recording first.[/yellow]")
+        return 0
+
+    _run_speaker_diarization(config, session, transcripts)
+    session.commit()
+    return len(transcripts)
+
+
 def _generate_candidates(video, transcripts, config, session, no_segment, no_transcribe, force) -> list:
     """Generate sliding-window clip candidates from the transcripts, if conditions are met."""
     from yuu_clip.segments.windower import generate_candidates

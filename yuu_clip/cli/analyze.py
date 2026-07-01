@@ -17,7 +17,7 @@ from yuu_clip.cli._base import (
     app,
     console,
 )
-from yuu_clip.cli._pipeline import _analyze_one, _run_scoring
+from yuu_clip.cli._pipeline import _analyze_one, _rediarize_video, _run_scoring
 
 
 @app.command()
@@ -128,6 +128,34 @@ def analyze(
         _analyze_one(video_path, session, config, audio_dir, opts)
 
     console.print("\n[bold green]Done![/bold green]  Run [cyan]yuuclip status[/cyan] to review your clips.\n")
+
+
+@app.command()
+def rediarize(
+    video_id: int = typer.Argument(..., help="Video ID to re-run speaker diarization on"),
+    project: Optional[Path] = typer.Option(None, "--project", "-p", help="Project directory (default: cwd)"),
+):
+    """Re-detect speakers only: re-run diarization on an existing recording's transcripts.
+
+    Non-destructive — clips, scores, and transcript text are untouched. Named speakers
+    re-attach to matching voices by voiceprint, so this is how voiceprint re-attach is
+    validated after naming speakers.
+    """
+    from yuu_clip.db.models import Video
+
+    proj_dir, session, config = _load_project(project)
+    # The whole point of this command is to diarize, so force the backend on even
+    # when the project config has it disabled.
+    config.diarization_backend = "pyannote"
+
+    video = session.get(Video, video_id)
+    if not video:
+        console.print(f"[red]No video with ID {video_id}[/red]")
+        raise typer.Exit(1)
+
+    console.rule(f"[bold]{video.filename}[/bold]")
+    n = _rediarize_video(session, config, video)
+    console.print(f"\n[bold green]Re-detection complete[/bold green] — {n} track(s) re-diarized.\n")
 
 
 @app.command()

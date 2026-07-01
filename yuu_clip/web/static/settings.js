@@ -5,7 +5,7 @@ const _settingsFieldIds = [
   's-ollama-enabled','s-llm-backend','s-llm-model-path',
   's-ollama-model','s-ollama-host','s-ollama-timeout',
   's-claude-api-key','s-claude-model','s-claude-timeout',
-  's-diarization-backend','s-hf-token',
+  's-diarization-backend','s-hf-token','s-speaker-match-threshold',
   's-energy-weight','s-scene-weight','s-llm-weight',
   's-laugh-weight','s-laugh-mode','s-laugh-model-id',
   's-funny-weight','s-dramatic-weight','s-action-weight',
@@ -112,6 +112,7 @@ function _applySettingsToUI(cfg) {
   setVal('s-diarization-backend', diarBackend);
   _onDiarizationBackendChange(diarBackend);
   setVal('s-hf-token', cfg.huggingface_token || '');
+  setVal('s-speaker-match-threshold', (cfg.speaker_match_threshold ?? 0.75).toFixed(2));
   _onHfTokenInput();
   const ew  = (cfg.scorer_energy_weight  ?? 1.0).toFixed(1);
   const sw  = (cfg.scorer_scene_weight   ?? 0.5).toFixed(1);
@@ -324,6 +325,7 @@ async function saveSettings() {
     score_action_weight:        getNum('s-action-weight', parseFloat),
     diarization_backend:        getVal('s-diarization-backend'),
     huggingface_token:          getVal('s-hf-token'),
+    speaker_match_threshold:    getNum('s-speaker-match-threshold', parseFloat),
     scene_detection_mode:       getVal('s-scene-mode'),
     silence_threshold_ms:       getNum('s-silence-ms', parseInt),
     min_clip_ms:                getNum('s-min-clip-ms', parseInt),

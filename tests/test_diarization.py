@@ -362,7 +362,7 @@ class TestDiarizeTrack:
         )
         monkeypatch.setattr(
             whisper_runner, "_attach_speakers",
-            lambda session, video_id, transcript_id, embeddings: captured.setdefault("attach", []).append((video_id, transcript_id, embeddings)),
+            lambda session, video_id, transcript_id, embeddings, threshold=None: captured.setdefault("attach", []).append((video_id, transcript_id, embeddings, threshold)),
         )
         return captured
 
@@ -381,11 +381,13 @@ class TestDiarizeTrack:
         embeddings = {"SPEAKER_00": [1.0, 0.0]}
         captured = self._wire(monkeypatch, None, embeddings_result=(turns, embeddings))
 
-        cfg = Config(diarization_backend="pyannote", huggingface_token="hf_abc")
+        cfg = Config(diarization_backend="pyannote", huggingface_token="hf_abc",
+                     speaker_match_threshold=0.6)
         diarize_track(cfg, None, self._fake_transcript(), Path("a.wav"), self._fake_track())
 
         assert captured["assign"] == [(7, turns)]
-        assert captured["attach"] == [(9, 7, embeddings)]
+        # The configured threshold must be forwarded to _attach_speakers.
+        assert captured["attach"] == [(9, 7, embeddings, 0.6)]
 
     def test_noop_when_backend_unavailable(self, monkeypatch):
         from pathlib import Path
@@ -426,6 +428,78 @@ class TestDiarizeTrack:
         diarize_track(cfg, None, self._fake_transcript(), Path("a.wav"), self._fake_track())
 
         assert "assign" not in captured
+
+
+# ---------------------------------------------------------------------------
+# _rediarize_video — non-destructive re-run of the diarization stage
+# ---------------------------------------------------------------------------
+
+class TestRediarizeVideo:
+    def _project(self, tmp_path):
+        from yuu_clip.db.models import Video, make_session
+        session = make_session(tmp_path / "project.db")
+        video = Video(path=str(tmp_path / "s.mkv"), filename="s.mkv", status="done", duration_ms=60_000)
+        session.add(video)
+        session.flush()
+        return session, video
+
+    def _add_track(self, session, video, stream_index, *, do_transcribe, extracted_path):
+        from yuu_clip.db.models import AudioTrack
+        track = AudioTrack(
+            video_id=video.id, stream_index=stream_index,
+            do_transcribe=do_transcribe, extracted_path=extracted_path,
+        )
+        session.add(track)
+        session.flush()
+        return track
+
+    def _add_transcript(self, session, track):
+        from yuu_clip.db.models import Transcript
+        tx = Transcript(audio_track_id=track.id, model_name="m")
+        session.add(tx)
+        session.flush()
+        return tx
+
+    def test_rediarizes_latest_transcript_and_skips_non_transcribed(self, tmp_path, monkeypatch):
+        from yuu_clip.cli._pipeline import _rediarize_video
+        from yuu_clip.transcribe import whisper_runner
+
+        wav = tmp_path / "t.wav"
+        wav.write_bytes(b"x")
+        session, video = self._project(tmp_path)
+        track = self._add_track(session, video, 1, do_transcribe=True, extracted_path=str(wav))
+        self._add_transcript(session, track)            # older transcript
+        latest = self._add_transcript(session, track)   # newer — must win
+        self._add_track(session, video, 2, do_transcribe=False, extracted_path=str(wav))  # must be skipped
+        session.commit()
+
+        diarized = []
+        monkeypatch.setattr(
+            whisper_runner, "diarize_track",
+            lambda config, session, transcript, audio_path, track: diarized.append(transcript.id),
+        )
+        n = _rediarize_video(session, Config(diarization_backend="pyannote"), video)
+
+        assert n == 1
+        assert diarized == [latest.id]
+        session.close()
+
+    def test_rediarize_no_transcripts_returns_zero(self, tmp_path, monkeypatch):
+        from yuu_clip.cli._pipeline import _rediarize_video
+        from yuu_clip.transcribe import whisper_runner
+
+        wav = tmp_path / "t.wav"
+        wav.write_bytes(b"x")
+        session, video = self._project(tmp_path)
+        self._add_track(session, video, 1, do_transcribe=True, extracted_path=str(wav))  # no transcript
+        session.commit()
+
+        monkeypatch.setattr(
+            whisper_runner, "diarize_track",
+            lambda *a, **k: (_ for _ in ()).throw(AssertionError("must not diarize without transcripts")),
+        )
+        assert _rediarize_video(session, Config(diarization_backend="pyannote"), video) == 0
+        session.close()
 
 
 # ---------------------------------------------------------------------------
@@ -483,6 +557,14 @@ class TestBestVoiceprintMatch:
         from yuu_clip.transcribe.whisper_runner import _best_voiceprint_match
         no_print = self._speaker(1, None)
         assert _best_voiceprint_match([1.0, 0.0], [no_print], set())[0] is None
+
+    def test_lower_threshold_matches_what_default_rejects(self):
+        from yuu_clip.transcribe.whisper_runner import _best_voiceprint_match
+        # Cosine of [1,0] vs [0.5, 0.87] ≈ 0.5: rejected at the 0.75 default,
+        # accepted once the threshold is lowered below it.
+        cand = self._speaker(1, [0.5, 0.87])
+        assert _best_voiceprint_match([1.0, 0.0], [cand], set())[0] is None
+        assert _best_voiceprint_match([1.0, 0.0], [cand], set(), threshold=0.4)[0].id == 1
 
 
 # ---------------------------------------------------------------------------

@@ -49,6 +49,7 @@ class ConfigPatch(BaseModel):
     # Speaker labels
     diarization_backend:          Optional[str]   = None
     huggingface_token:            Optional[str]   = None
+    speaker_match_threshold:      Optional[float] = None
 
 
 _CONFIG_FIELDS = (
@@ -61,7 +62,7 @@ _CONFIG_FIELDS = (
     "scorer_laugh_weight", "scorer_laugh_mode", "scorer_laugh_model_id",
     "score_funny_weight", "score_dramatic_weight", "score_action_weight",
     "scene_detection_mode", "silence_threshold_ms", "min_clip_ms",
-    "diarization_backend", "huggingface_token",
+    "diarization_backend", "huggingface_token", "speaker_match_threshold",
 )
 
 
@@ -77,6 +78,14 @@ def _min_validator(minimum, label: str):
     def _v(v):
         if v < minimum:
             raise HTTPException(400, f"{label} must be >= {minimum}")
+        return v
+    return _v
+
+
+def _range_validator(minimum, maximum, label: str):
+    def _v(v):
+        if v < minimum or v > maximum:
+            raise HTTPException(400, f"{label} must be between {minimum} and {maximum}")
         return v
     return _v
 
@@ -119,6 +128,7 @@ _CONFIG_PATCH_RULES: list[tuple[str, object]] = [
     ("min_clip_ms",                  _min_validator(1000, "min_clip_ms")),
     ("diarization_backend",          _enum_validator({"null", "pyannote"}, "diarization_backend")),
     ("huggingface_token",            lambda v: v.strip()),
+    ("speaker_match_threshold",      _range_validator(0.0, 1.0, "speaker_match_threshold")),
 ]
 
 

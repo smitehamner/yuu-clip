@@ -242,6 +242,10 @@ function renderVideoDetail(video, savedTimeline) {
         <button class="btn" onclick="openSplitEditor(${video.id})" title="Split this recording into segments for independent analysis">Split Recording</button>
         <button class="btn" onclick="exportVideoTranscript(${video.id}, this)" title="Write captions as an SRT file next to the source recording">Save Captions to SRT</button>
       </div>
+      <div class="vid-actions-row">
+        <button class="btn" onclick="rediarizeVideo(${video.id})" title="Re-run only speaker detection on the existing transcript — clips and scores are kept. Named speakers re-attach to matching voices.">Re-detect Speakers</button>
+        <button class="btn danger" onclick="reanalyzeVideo(${video.id})" title="Re-run the full pipeline from scratch — replaces all clips, scores, and speakers">Re-analyze (full)</button>
+      </div>
       <div class="danger-actions">
         <button class="btn danger" onclick="resetApprovals(${video.id})">Reset Approvals</button>
         <button class="btn danger" onclick="deleteVideo(${video.id})" title="Remove from yuu-clip (source file is NOT deleted)">Remove Recording</button>
@@ -597,6 +601,72 @@ async function _refreshVideoDetail(videoId) {
   if (updated) renderVideoDetail(updated, null);
 }
 
+// ── re-analysis ───────────────────────────────────────────────────────────────
+// Two ways to re-run analysis on an already-analyzed recording:
+//   reanalyzeVideo  — full pipeline with --force (destructive: replaces clips/scores).
+//   rediarizeVideo  — speaker detection only (non-destructive: keeps clips/scores).
+function reanalyzeVideo(id) {
+  const video = AppState.videos.find(v => v.id === id);
+  const exportedNote = (video && video.exported > 0)
+    ? ` Files you already exported for this recording stay on disk, but the ${video.exported} exported clip(s) will be regenerated.`
+    : '';
+  showConfirm(
+    'Re-analyze this recording?',
+    `This re-runs the full pipeline — re-transcribe, re-detect speakers, regenerate clips, and re-score. All current clips, including your approvals and any edited descriptions, will be replaced.${exportedNote}`,
+    'Re-analyze',
+    () => _doReanalyzeVideo(video || {id}),
+    true,
+  );
+}
+
+async function _doReanalyzeVideo(video) {
+  const model = (video.analyze_run && video.analyze_run.settings && video.analyze_run.settings.model) || 'medium';
+  let res;
+  try {
+    res = await fetch('/api/analyze/start', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        video_id: video.id, force: true, model,
+        context_names: video.context_names || [],
+      }),
+    });
+  } catch (err) {
+    showToast(`Network error: ${err.message}`, 'error');
+    return;
+  }
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    showToast(formatApiError(err) || 'Failed to start re-analysis', 'error');
+    return;
+  }
+  AppState.analyzeFilename = video.filename || null;
+  loadVideos();  // surface the spinner on the recording immediately
+  openLog();
+  appendLog(`Re-analyzing: ${video.filename || video.id}`);
+  _streamAnalyzeEvents(video.filename || '');
+}
+
+function rediarizeVideo(id) {
+  const video = AppState.videos.find(v => v.id === id);
+  const name = video ? video.filename : id;
+  openLog();
+  appendLog(`Re-detecting speakers: ${name}`);
+  streamSSE(
+    `/api/videos/${id}/rediarize`,
+    async () => {
+      await loadVideos();
+      const v = AppState.videos.find(x => x.id === id);
+      if (v && AppState.activeVideoId === id) renderVideoDetail(v, null);
+      if (window.loadSpeakers) loadSpeakers(id);
+      showToast('Speaker detection complete');
+      SoundFx.play('analysis');
+    },
+    [{label: 'Speakers', patterns: ['Detecting speakers']}],
+    'Re-detecting speakers',
+    false,
+  );
+}
+
 function _openVideoFieldKebab(videoId, btn, field) {
   const video      = AppState.activeVideoData;
   const isTitle    = field === 'title';
@@ -715,6 +785,7 @@ Object.assign(window, {
   loadVideos, selectVideo, renderVideoDetail,
   onClipsSortChange, _clipsSortParam,
   summarizeVideo, regenSummaryAuto, _doRegenSummaryAuto,
+  reanalyzeVideo, rediarizeVideo,
   openVideoSummaryKebab, openVideoTitleKebab,
   generateTimeline, confirmGenerateTimeline, closeTimelineIntervalModal,
   updateTimelineIntervalHint,

@@ -73,11 +73,11 @@ def _assign_speakers(
     session.flush()
 
 
-# Cosine similarity above which a new diarization cluster is treated as the same
-# voice as an existing named Speaker and re-attached to it. Deliberately high: the
-# user's requirement is to never mis-remap a name, so when unsure we would rather
+# Default cosine similarity above which a new diarization cluster is treated as the
+# same voice as an existing named Speaker and re-attached to it. Deliberately high:
+# the user's requirement is to never mis-remap a name, so when unsure we would rather
 # mint a fresh "Speaker N" to re-confirm than attach a name to the wrong voice.
-# Tune against real re-diarizations before lowering.
+# Overridable per-project via Config.speaker_match_threshold (Settings → Speaker labels).
 _VOICEPRINT_MATCH_THRESHOLD = 0.75
 
 
@@ -98,11 +98,11 @@ def _cosine_similarity(a: list[float], b: list[float]) -> float:
     return dot / (norm_a * norm_b) if norm_a and norm_b else 0.0
 
 
-def _best_voiceprint_match(vector, candidates, taken_ids):
-    """The most-similar unused candidate Speaker above the threshold, with its
+def _best_voiceprint_match(vector, candidates, taken_ids, threshold=_VOICEPRINT_MATCH_THRESHOLD):
+    """The most-similar unused candidate Speaker at or above *threshold*, with its
     cosine score, or (None, best-below-threshold-score) when nothing matches."""
     best_speaker = None
-    best_score = _VOICEPRINT_MATCH_THRESHOLD
+    best_score = threshold
     top_score = 0.0
     for speaker in candidates:
         if speaker.id in taken_ids or not speaker.voiceprint:
@@ -120,6 +120,7 @@ def _attach_speakers(
     video_id: int,
     transcript_id: int,
     embeddings_by_label: dict[str, list[float]] | None = None,
+    threshold: float = _VOICEPRINT_MATCH_THRESHOLD,
 ) -> None:
     """Attribute this run's segments to durable per-recording Speakers.
 
@@ -159,7 +160,7 @@ def _attach_speakers(
         if not vector:
             without_voiceprint += 1
         match, score = (
-            _best_voiceprint_match(vector, prior_speakers, taken_ids)
+            _best_voiceprint_match(vector, prior_speakers, taken_ids, threshold)
             if vector else (None, 0.0)
         )
         if match is not None:
@@ -188,7 +189,7 @@ def _attach_speakers(
             _log.debug(
                 "Voiceprint no match: cluster %s minted speaker %d (video %d, "
                 "best cosine %.3f < threshold %.2f)",
-                label, speaker.id, video_id, score, _VOICEPRINT_MATCH_THRESHOLD,
+                label, speaker.id, video_id, score, threshold,
             )
 
     for seg in segs:
@@ -371,7 +372,10 @@ def diarize_track(
     try:
         turns, embeddings = diar_client.diarize_with_embeddings(str(audio_path))
         _assign_speakers(session, transcript.id, turns)
-        _attach_speakers(session, track.video_id, transcript.id, embeddings)
+        _attach_speakers(
+            session, track.video_id, transcript.id, embeddings,
+            threshold=config.speaker_match_threshold,
+        )
         _log.info(
             "Diarization complete: %d turns, %d voiceprint(s) for track %d",
             len(turns), len(embeddings), track.id,

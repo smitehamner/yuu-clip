@@ -400,3 +400,23 @@ After a recording finishes analyzing, its detail panel shows a collapsible **Las
 - **Stage timing** — a per-stage breakdown (Inspect, Extract audio, Transcribe, Speakers, Generate clips, Summarize, Score) as labeled bars.
 
 This answers "how long did this one take, what settings did I use, and did it run on my GPU?" without re-running anything.
+
+### Re-analyzing a recording
+
+The recording detail panel has two ways to re-run analysis on a recording that's
+already been analyzed:
+
+- **Re-detect Speakers** — re-runs *only* speaker detection on the existing
+  transcript. Clips, scores, approvals, and descriptions are untouched. Names you
+  assigned to speakers re-attach to the matching voices automatically. Use this
+  after naming speakers to confirm they re-attach correctly.
+- **Re-analyze (full)** — re-runs the whole pipeline from scratch (re-transcribe,
+  re-detect speakers, regenerate clips, re-score). This **replaces** all existing
+  clips, including your approvals and any edited descriptions, so it asks for
+  confirmation first. Files you already exported stay on disk.
+
+**Voiceprint match threshold** (Settings → Speaker labels) controls how strict
+Re-detect Speakers is when re-attaching a named speaker to a voice: higher is
+stricter (fewer wrong matches, but more voices re-listed as new "Speaker N" to
+re-confirm). The default 0.75 is safe; lower it if named speakers keep coming
+back unnamed after re-detection.

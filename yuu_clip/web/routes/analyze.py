@@ -104,6 +104,9 @@ class IngestRequest(BaseModel):
     scene_mode: str = "fast"
     # None = use config default; True/False = force on/off for this run.
     diarize: Optional[bool] = None
+    # Re-process a recording that is already "done" (drops existing clips and re-runs
+    # the whole pipeline). Passed through to the CLI's --force.
+    force: bool = False
     context_names: list[str] = []
     # Path to an SRT file or "stream:<index>" to import existing subtitles instead of
     # running Whisper.  None = use Whisper (default).
@@ -353,6 +356,27 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         ]
         return await subprocess_sse(cmd, ctx.project_dir, ctx)
 
+    @router.get("/api/videos/{video_id}/rediarize")
+    async def rediarize_video(video_id: int):
+        """Re-run only speaker diarization on a recording's existing transcripts.
+
+        Non-destructive: clips, scores, and transcript text are untouched. Re-runs
+        _assign_speakers + _attach_speakers so named speakers re-attach to matching
+        voices (the way voiceprint re-attach is validated). Streams progress as SSE.
+        """
+        from yuu_clip.db.models import Video
+        db = ctx.get_db()
+        try:
+            if not db.get(Video, video_id):
+                raise HTTPException(404, "Video not found")
+        finally:
+            db.close()
+        cmd = [
+            sys.executable, "-m", "yuu_clip.cli", "rediarize", str(video_id),
+            "--project", str(ctx.project_dir),
+        ]
+        return await subprocess_sse(cmd, ctx.project_dir, ctx)
+
     @router.get("/api/install/{slug}")
     async def install_status(slug: str):
         """Report whether an optional package's import modules are present."""
@@ -409,6 +433,8 @@ def _build_analyze_cmd(req: IngestRequest, video_path: str, project_dir: Path) -
         cmd += ["--segment-end", str(req.segment_end_s)]
     if req.profile:
         cmd += ["--track-layout", req.profile]
+    if req.force:
+        cmd += ["--force"]
     if req.no_score:
         cmd += ["--no-score"]
     cmd += ["--energy-mode", req.energy_mode, "--scene-mode", req.scene_mode]

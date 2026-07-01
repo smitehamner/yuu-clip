@@ -127,6 +127,22 @@ class TestUiConfig:
         r = client.patch("/api/config", json={"ui_timeline_interval_unit": "hours"})
         assert r.status_code == 400
 
+    def test_get_config_includes_speaker_match_threshold_default(self, client):
+        assert client.get("/api/config").json()["speaker_match_threshold"] == 0.75
+
+    def test_patch_config_updates_speaker_match_threshold(self, client):
+        r = client.patch("/api/config", json={"speaker_match_threshold": 0.6})
+        assert r.status_code == 200
+        assert r.json()["speaker_match_threshold"] == 0.6
+
+    def test_patch_config_speaker_threshold_out_of_range_returns_400(self, client):
+        assert client.patch("/api/config", json={"speaker_match_threshold": 1.5}).status_code == 400
+        assert client.patch("/api/config", json={"speaker_match_threshold": -0.1}).status_code == 400
+
+    def test_patch_config_speaker_threshold_bounds_accepted(self, client):
+        assert client.patch("/api/config", json={"speaker_match_threshold": 0.0}).status_code == 200
+        assert client.patch("/api/config", json={"speaker_match_threshold": 1.0}).status_code == 200
+
 
 # ---------------------------------------------------------------------------
 # Config — new llm_backend / llm_model_path defaults

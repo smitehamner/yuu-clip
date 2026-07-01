@@ -179,6 +179,11 @@ class Config:
     # Speaker diarization — identifies who is speaking within a track
     diarization_backend: str = "null"  # "null" | "pyannote"
     huggingface_token: str = ""        # required for pyannote backend
+    # Cosine similarity above which a re-diarization cluster is treated as the same
+    # voice as an existing named Speaker and re-attached to it (preserving the name).
+    # Higher = stricter (fewer wrong re-attaches, more speakers re-minted for
+    # re-confirmation); lower = looser. See whisper_runner._attach_speakers.
+    speaker_match_threshold: float = 0.75
 
     scorer_energy_enabled: bool = True
     scorer_scenes_enabled: bool = True
