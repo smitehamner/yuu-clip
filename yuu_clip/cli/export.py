@@ -19,16 +19,19 @@ from yuu_clip.cli._base import (
 )
 
 
-def _maybe_diarize_segment(session, config, transcript_id: int, segment_wav: Path,
+def _maybe_diarize_segment(session, config, video_id: int, transcript_id: int, segment_wav: Path,
                            offset_s: float, track_label: str) -> None:
     """Assign speaker labels to a retranscribed clip's segments, if diarization is available.
 
     The segment WAV is clip-relative (starts at 0), but the stored TranscriptSegments use
     absolute video timestamps, so the diarization turns are shifted by *offset_s* before
-    matching. A no-op when no diarization backend / HuggingFace token is configured.
+    matching. Voiceprints from this clip are matched against the recording's existing
+    Speakers via _attach_speakers, so a named voice re-attaches its name here too — the
+    per-clip re-diarize is otherwise identical to the full-recording pass. A no-op when
+    no diarization backend / HuggingFace token is configured.
     """
     from yuu_clip.transcribe.diarization_client import DiarizationError, make_diarization_client
-    from yuu_clip.transcribe.whisper_runner import _assign_speakers
+    from yuu_clip.transcribe.whisper_runner import _assign_speakers, _attach_speakers
 
     client = make_diarization_client(config)
     ok, reason = client.available()
@@ -39,9 +42,11 @@ def _maybe_diarize_segment(session, config, transcript_id: int, segment_wav: Pat
 
     console.print(f"  [dim]  Diarizing [{track_label}]...[/dim]")
     try:
-        turns = client.diarize(str(segment_wav))
+        turns, embeddings = client.diarize_with_embeddings(str(segment_wav))
         shifted = [(start + offset_s, end + offset_s, label) for start, end, label in turns]
         _assign_speakers(session, transcript_id, shifted)
+        _attach_speakers(session, video_id, transcript_id, embeddings,
+                         threshold=config.speaker_match_threshold)
         console.print(f"  [green]  OK[/green] [{track_label}]  {len(turns)} speaker turn(s)")
     except DiarizationError as exc:
         log.warning("Diarization failed during retranscribe (tx %d): %s", transcript_id, exc)
@@ -115,7 +120,7 @@ def _run_retranscribe(cand, session, config, language: Optional[str] = None,
             console.print(f"  [green]  OK[/green] [{track.label}]  {seg_count} segments")
 
             if speaker_labels:
-                _maybe_diarize_segment(session, config, tx.id, segment_wav,
+                _maybe_diarize_segment(session, config, cand.video_id, tx.id, segment_wav,
                                        effective_start_s, track.label)
 
     _update_clip_excerpt(cand, session, new_tx_ids)

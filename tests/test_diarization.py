@@ -285,6 +285,26 @@ class TestPyannoteDiarize:
 # ---------------------------------------------------------------------------
 
 class TestRetranscribeDiarization:
+    def _patch(self, monkeypatch, client):
+        """Patch the diarization client and capture _assign/_attach calls."""
+        from yuu_clip.transcribe import whisper_runner
+
+        monkeypatch.setattr(
+            "yuu_clip.transcribe.diarization_client.make_diarization_client",
+            lambda config: client,
+        )
+        captured = {}
+        monkeypatch.setattr(
+            whisper_runner, "_assign_speakers",
+            lambda session, transcript_id, turns: captured.update(turns=turns, tx=transcript_id),
+        )
+        monkeypatch.setattr(
+            whisper_runner, "_attach_speakers",
+            lambda session, video_id, transcript_id, embeddings, threshold=None:
+                captured.update(attach=(video_id, transcript_id, embeddings, threshold)),
+        )
+        return captured
+
     def test_shifts_turns_by_clip_offset(self, monkeypatch):
         from pathlib import Path
 
@@ -294,26 +314,42 @@ class TestRetranscribeDiarization:
             def available(self):
                 return True, ""
 
-            def diarize(self, path):
-                return [(1.0, 2.0, "SPEAKER_00"), (3.0, 4.0, "SPEAKER_01")]
+            def diarize_with_embeddings(self, path):
+                return [(1.0, 2.0, "SPEAKER_00"), (3.0, 4.0, "SPEAKER_01")], {}
 
-        monkeypatch.setattr(
-            "yuu_clip.transcribe.diarization_client.make_diarization_client",
-            lambda config: FakeClient(),
-        )
-        captured = {}
-        monkeypatch.setattr(
-            "yuu_clip.transcribe.whisper_runner._assign_speakers",
-            lambda session, transcript_id, turns: captured.update(turns=turns, tx=transcript_id),
-        )
-
+        captured = self._patch(monkeypatch, FakeClient())
         cfg = Config(diarization_backend="pyannote", huggingface_token="hf_abc")
         export_cli._maybe_diarize_segment(
-            session=None, config=cfg, transcript_id=7,
+            session=None, config=cfg, video_id=4, transcript_id=7,
             segment_wav=Path("seg.wav"), offset_s=86.7, track_label="combined",
         )
         assert captured["tx"] == 7
         assert captured["turns"] == [(87.7, 88.7, "SPEAKER_00"), (89.7, 90.7, "SPEAKER_01")]
+
+    def test_attaches_voiceprints_with_configured_threshold(self, monkeypatch):
+        from pathlib import Path
+
+        from yuu_clip.cli import export as export_cli
+
+        embeddings = {"SPEAKER_00": [1.0, 0.0]}
+
+        class FakeClient:
+            def available(self):
+                return True, ""
+
+            def diarize_with_embeddings(self, path):
+                return [(1.0, 2.0, "SPEAKER_00")], embeddings
+
+        captured = self._patch(monkeypatch, FakeClient())
+        cfg = Config(diarization_backend="pyannote", huggingface_token="hf_abc",
+                     speaker_match_threshold=0.62)
+        export_cli._maybe_diarize_segment(
+            session=None, config=cfg, video_id=4, transcript_id=7,
+            segment_wav=Path("seg.wav"), offset_s=0.0, track_label="combined",
+        )
+        # video_id and the configured threshold must reach _attach_speakers so a
+        # named voice re-attaches during a per-clip retranscribe.
+        assert captured["attach"] == (4, 7, embeddings, 0.62)
 
     def test_noop_when_diarization_unavailable(self, monkeypatch):
         from pathlib import Path
@@ -324,15 +360,13 @@ class TestRetranscribeDiarization:
             def available(self):
                 return False, "no token"
 
-            def diarize(self, path):
+            def diarize_with_embeddings(self, path):
                 raise AssertionError("diarize must not run when unavailable")
 
-        monkeypatch.setattr(
-            "yuu_clip.transcribe.diarization_client.make_diarization_client",
-            lambda config: FakeClient(),
-        )
+        captured = self._patch(monkeypatch, FakeClient())
         cfg = Config(diarization_backend="pyannote", huggingface_token="")
-        export_cli._maybe_diarize_segment(None, cfg, 7, Path("seg.wav"), 0.0, "combined")
+        export_cli._maybe_diarize_segment(None, cfg, 4, 7, Path("seg.wav"), 0.0, "combined")
+        assert captured == {}
 
 
 # ---------------------------------------------------------------------------

@@ -35,10 +35,16 @@ class TestSchema:
 
 class TestSpeakerModel:
     def test_display_name_uses_name_then_fallback(self, tmp_path: Path):
-        named = Speaker(video_id=1, name="Yuu", display_index=1)
-        unnamed = Speaker(video_id=1, name=None, display_index=2)
+        named = Speaker(video_id=1, name="Yuu", display_index=1, confirmed=True)
+        unnamed = Speaker(video_id=1, name=None, display_index=2, confirmed=True)
         assert named.display_name == "Yuu"
         assert unnamed.display_name == "Speaker 2"
+
+    def test_display_name_hides_unconfirmed_suggestion(self, tmp_path: Path):
+        # An inferred name the user has not accepted must not surface as the display name.
+        suggested = Speaker(video_id=1, name="Yuu", display_index=1,
+                            source="inferred", confirmed=False)
+        assert suggested.display_name == "Speaker 1"
 
     def test_segment_resolves_to_speaker(self, tmp_path: Path):
         session = make_session(tmp_path / "p.db")
@@ -335,6 +341,154 @@ class TestSpeakerRoutes:
 
     def test_video_transcript_404_for_missing_video(self, client):
         assert client.get("/api/videos/9999/transcript").status_code == 404
+
+
+class TestApplyNameSuggestions:
+    def _speaker(self, display_index, name=None, confirmed=True, source="manual"):
+        return Speaker(video_id=1, display_index=display_index, name=name,
+                       confirmed=confirmed, source=source)
+
+    def test_applies_suggestion_to_unnamed_speaker_unconfirmed(self):
+        from yuu_clip.web.routes.speakers import _apply_name_suggestions
+
+        speakers = [self._speaker(1)]
+        applied = _apply_name_suggestions(speakers, {"1": "Yuu"})
+        assert applied == 1
+        assert speakers[0].name == "Yuu"
+        assert speakers[0].source == "inferred"
+        assert speakers[0].confirmed is False
+        # Not confirmed → must not surface as a real name yet.
+        assert speakers[0].display_name == "Speaker 1"
+
+    def test_never_overwrites_confirmed_manual_name(self):
+        from yuu_clip.web.routes.speakers import _apply_name_suggestions
+
+        speakers = [self._speaker(1, name="Alex", confirmed=True)]
+        applied = _apply_name_suggestions(speakers, {"1": "Yuu"})
+        assert applied == 0
+        assert speakers[0].name == "Alex"
+
+    def test_drops_name_suggested_for_two_speakers(self):
+        from yuu_clip.web.routes.speakers import _apply_name_suggestions
+
+        speakers = [self._speaker(1), self._speaker(2)]
+        applied = _apply_name_suggestions(speakers, {"1": "Yuu", "2": "yuu"})
+        assert applied == 0
+        assert all(s.name is None for s in speakers)
+
+    def test_skips_name_colliding_with_confirmed_speaker(self):
+        from yuu_clip.web.routes.speakers import _apply_name_suggestions
+
+        speakers = [self._speaker(1, name="Yuu", confirmed=True), self._speaker(2)]
+        applied = _apply_name_suggestions(speakers, {"2": "yuu"})
+        assert applied == 0
+        assert speakers[1].name is None
+
+    def test_reapplies_over_prior_unconfirmed_suggestion(self):
+        from yuu_clip.web.routes.speakers import _apply_name_suggestions
+
+        speakers = [self._speaker(1, name="Old", confirmed=False, source="inferred")]
+        applied = _apply_name_suggestions(speakers, {"1": "New"})
+        assert applied == 1
+        assert speakers[0].name == "New"
+
+
+class TestLabeledTranscript:
+    def test_groups_consecutive_segments_and_drops_unattributed(self, tmp_path: Path):
+        from yuu_clip.web.routes.speakers import _labeled_transcript
+
+        session = make_session(tmp_path / "lt.db")
+        video = Video(path="x.mkv", filename="x.mkv", status="done")
+        session.add(video)
+        session.flush()
+        track = AudioTrack(video_id=video.id, stream_index=1, label="combined", do_transcribe=True)
+        session.add(track)
+        session.flush()
+        tx = Transcript(audio_track_id=track.id, model_name="base")
+        session.add(tx)
+        session.flush()
+        sp1 = Speaker(video_id=video.id, display_index=1)
+        sp2 = Speaker(video_id=video.id, display_index=2)
+        session.add_all([sp1, sp2])
+        session.flush()
+        session.add_all([
+            TranscriptSegment(transcript_id=tx.id, start_ms=0, end_ms=1000, text="hey", speaker_id=sp1.id),
+            TranscriptSegment(transcript_id=tx.id, start_ms=1000, end_ms=2000, text="yuu", speaker_id=sp1.id),
+            TranscriptSegment(transcript_id=tx.id, start_ms=2000, end_ms=3000, text="what", speaker_id=sp2.id),
+            TranscriptSegment(transcript_id=tx.id, start_ms=3000, end_ms=4000, text="ignored", speaker_id=None),
+        ])
+        session.commit()
+
+        labeled = _labeled_transcript(session, video.id, {sp1.id: sp1, sp2.id: sp2})
+        session.close()
+        assert labeled == "Speaker 1: hey yuu\nSpeaker 2: what"
+
+
+class TestInferNamesRoute:
+    def _db(self, project_dir: Path):
+        return make_session(project_dir / ".yuu-clip" / "project.db")
+
+    def _seed(self, project_dir: Path) -> int:
+        db = self._db(project_dir)
+        video = db.query(Video).first()
+        track = db.query(AudioTrack).filter_by(video_id=video.id).first()
+        tx = Transcript(audio_track_id=track.id, model_name="base")
+        db.add(tx)
+        db.flush()
+        speaker = Speaker(video_id=video.id, display_index=1)
+        db.add(speaker)
+        db.flush()
+        db.add(TranscriptSegment(
+            transcript_id=tx.id, start_ms=0, end_ms=3000,
+            text="hey yuu nice one", speaker_id=speaker.id,
+        ))
+        db.commit()
+        video_id = video.id
+        db.close()
+        return video_id
+
+    def _patch_llm(self, monkeypatch, suggestions):
+        import yuu_clip.scoring.llm as llm
+        monkeypatch.setattr(llm, "check_llm_available", lambda config: (True, ""))
+        monkeypatch.setattr(llm, "infer_speaker_names",
+                            lambda labeled, config, context_text="": suggestions)
+
+    def test_404_for_missing_video(self, client):
+        assert client.post("/api/videos/9999/infer-speaker-names").status_code == 404
+
+    def test_400_when_no_speakers(self, client):
+        assert client.post("/api/videos/1/infer-speaker-names").status_code == 400
+
+    def test_400_when_llm_unavailable(self, client, project_dir, monkeypatch):
+        video_id = self._seed(project_dir)
+        import yuu_clip.scoring.llm as llm
+        monkeypatch.setattr(llm, "check_llm_available", lambda config: (False, "LLM off"))
+        resp = client.post(f"/api/videos/{video_id}/infer-speaker-names")
+        assert resp.status_code == 400
+        assert resp.json()["detail"] == "LLM off"
+
+    def test_applies_suggestion_as_unconfirmed(self, client, project_dir, monkeypatch):
+        video_id = self._seed(project_dir)
+        self._patch_llm(monkeypatch, {"1": "Yuu"})
+        resp = client.post(f"/api/videos/{video_id}/infer-speaker-names")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["suggested"] == 1
+        speaker = body["speakers"][0]
+        assert speaker["name"] == "Yuu"
+        assert speaker["source"] == "inferred"
+        assert speaker["confirmed"] is False
+        # Unconfirmed suggestion must not become the display name until accepted.
+        assert speaker["display_name"] == "Speaker 1"
+
+    def test_accepting_suggestion_confirms_name(self, client, project_dir, monkeypatch):
+        video_id = self._seed(project_dir)
+        self._patch_llm(monkeypatch, {"1": "Yuu"})
+        speaker_id = client.post(f"/api/videos/{video_id}/infer-speaker-names").json()["speakers"][0]["id"]
+
+        accepted = client.put(f"/api/speakers/{speaker_id}", json={"name": "Yuu"}).json()
+        assert accepted["display_name"] == "Yuu"
+        assert accepted["confirmed"] is True
 
 
 class TestCascade:

@@ -167,6 +167,46 @@ def find_related_clips(
     return [{"id": int(r["id"]), "reason": str(r.get("reason", ""))} for r in results]
 
 
+_SPEAKER_NAME_SYSTEM = """\
+You identify who each anonymous speaker is in a transcript, using only how people
+address each other by name.
+
+The transcript is labeled with anonymous numbers (Speaker 1, Speaker 2, …). Speakers
+often address one another directly ("Hey Yuu, watch out", "Nice shot, Alex") or
+identify themselves ("I'm Alex"). Infer each speaker's real name from that evidence.
+
+Rules:
+- Suggest a name only when the evidence is clear. Omit any speaker you cannot identify —
+  never guess or invent a name.
+- A name spoken TO someone is usually the name of a DIFFERENT speaker, not the talker.
+- Never assign the same name to two different speaker numbers.
+
+Return ONLY valid JSON: an object mapping the speaker number (as a string) to the
+inferred name, e.g. {"1": "Yuu", "3": "Alex"}. Return {} when nothing is clear.
+No markdown, no extra text.\
+"""
+
+
+def infer_speaker_names(
+    labeled_transcript: str, config: "Config", context_text: str = ""
+) -> dict[str, str]:
+    """Suggest real names for anonymous speakers from direct address in the transcript.
+
+    *labeled_transcript* is the recording's transcript with each line prefixed by its
+    "Speaker N" label. Returns {display_index_str: name}, empty when nothing is clear.
+    Truncates to 12 000 chars to stay within the model's context window. Raises on failure.
+    """
+    system = _prepend_context(_SPEAKER_NAME_SYSTEM, context_text)
+    messages = [
+        {"role": "system", "content": system},
+        {"role": "user",   "content": f"Transcript:\n\"\"\"\n{labeled_transcript[:12000]}\n\"\"\"\nJSON:"},
+    ]
+    data = json.loads(_call_client(messages, config, temperature=0.1))
+    if not isinstance(data, dict):
+        raise ValueError(f"Expected a JSON object, got {type(data)}")
+    return {str(k): str(v).strip() for k, v in data.items() if str(v).strip()}
+
+
 def describe_clip(transcript: str, config: "Config", context_text: str = "") -> tuple[str, str]:
     """Generate description and description_long for a clip transcript.
 

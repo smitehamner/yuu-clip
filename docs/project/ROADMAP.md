@@ -185,14 +185,19 @@ Complex, specialized, or AI-heavy features that are valuable but don't need to b
     at most one current cluster (no collapse). **Caveat: the 0.75 threshold is an untuned
     conservative guess** — biased toward minting a new speaker over a wrong merge (per the "never
     mis-remap" requirement). Validate/tune against a real re-diarization (e.g. re-analyze a recording
-    whose speakers are already named) before trusting it broadly. *Not yet done:* the retranscribe
-    (clip-scoped) diarization path still stores no voiceprint; a borderline-match confirmation band in
-    the UI; making the threshold configurable.
+    whose speakers are already named) before trusting it broadly. The threshold is now configurable
+    (`Config.speaker_match_threshold`, Settings → Speaker labels), and the clip-scoped retranscribe
+    path re-attaches voiceprints too (`_maybe_diarize_segment` → `diarize_with_embeddings` +
+    `_attach_speakers`, SHIPPED 2026-07-01). *Not yet done:* a borderline-match confirmation band in the UI.
   - *Phase 3 — sample playback:* a ▶ button to hear a few seconds of each voice (reuse the FFmpeg
     clip-preview infra in `routes/clips.py`).
-  - *Phase 4 — name inference (optional, last):* suggest names from vocative/direct-address in the
-    full-video transcript (LLM-assisted), surfaced as unconfirmed suggestions the user confirms —
-    never silent. Feeds "Transcript name correction" below.
+  - *Phase 4 — name inference: SHIPPED (2026-07-01).* `infer_speaker_names` (`scoring/llm.py`) reads
+    the speaker-labeled transcript and suggests names from direct address; `POST
+    /api/videos/{id}/infer-speaker-names` writes each as an unconfirmed inferred name
+    (`source='inferred'`, `confirmed=False`), guarding against two speakers sharing a name and never
+    overwriting a confirmed name. `Speaker.display_name` hides unconfirmed names so nothing reaches
+    captions/excerpts until the user accepts it in the Speakers card ("Suggest names" button +
+    Accept/Dismiss). Feeds "Transcript name correction" below.
   - *Deferred alternatives (weighed, not chosen for v1):* **project-wide speaker identity** — promote
     per-recording Speakers to a project-level voice by matching voiceprints across all recordings so a
     name applies everywhere (needs a merge/split UX, higher threshold, handles voice drift; hook: a

@@ -212,6 +212,15 @@ The name a creator assigns to a detected **Speaker** (e.g. "Yuu").
 - **UI label:** name input in the Speakers card; rendered in place of "Speaker N" in clip transcripts and captions
 - **Notes:** Free text in v1. Renaming auto-updates live views (clip transcript, in-app labels); scored clips and exported files are marked stale to rescore / re-export.
 
+#### Suggested (inferred) speaker name
+
+An LLM-proposed **Speaker Name** the creator has **not accepted yet** — surfaced by the Speakers card's **"Suggest names"** action, inferred from direct address in the transcript.
+
+- **Code:** `Speaker.name` with `Speaker.source='inferred'` and `Speaker.confirmed=False`; `infer_speaker_names` (`scoring/llm.py`), `POST /api/videos/{id}/infer-speaker-names`
+- **UI label:** "Suggested: …" with **Accept** / **Dismiss** in the Speakers card
+- **Do not call it:** a "Speaker name" without qualification in UI text until accepted — it is a *suggestion*
+- **Notes:** Never silent. `Speaker.display_name` returns the "Speaker N" fallback while unconfirmed, so a suggestion never reaches captions/excerpts/exports until the creator accepts it (which sets `confirmed=True`).
+
 ---
 
 ### Voiceprint

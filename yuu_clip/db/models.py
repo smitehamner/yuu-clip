@@ -402,8 +402,13 @@ class Speaker(Base):
 
     @property
     def display_name(self) -> str:
-        """User name if set, else the 'Speaker N' fallback."""
-        return self.name if self.name else f"Speaker {self.display_index}"
+        """Confirmed name if set, else the 'Speaker N' fallback.
+
+        An unconfirmed inferred name (source='inferred', confirmed=False) is a
+        suggestion the user has not accepted yet, so it must not surface in
+        captions, excerpts, or exports — only the Speakers card shows it.
+        """
+        return self.name if (self.name and self.confirmed) else f"Speaker {self.display_index}"
 
 
 class ClipCandidate(Base):
