@@ -263,6 +263,80 @@ class TestValidateWhisperLanguage:
 
 
 # ---------------------------------------------------------------------------
+# whisper_language — config field, API, and pipeline resolution
+# ---------------------------------------------------------------------------
+
+class TestWhisperLanguageConfig:
+    def test_default_is_empty_string_meaning_auto(self):
+        from yuu_clip.config import Config
+        assert Config().whisper_language == ""
+
+    def test_roundtrips_through_config_load(self, tmp_path, monkeypatch):
+        import json
+
+        import yuu_clip.config as cfg_mod
+        from yuu_clip.config import Config
+        monkeypatch.setattr(cfg_mod, "_global_config_dir", lambda: tmp_path / "global_cfg")
+        project_dir = tmp_path / "proj"
+        project_dir.mkdir()
+        cfg_dir = project_dir / ".yuu-clip"
+        cfg_dir.mkdir()
+        (cfg_dir / "config.json").write_text(
+            json.dumps({"whisper_language": "de"}), encoding="utf-8"
+        )
+        assert Config.load(project_dir).whisper_language == "de"
+
+
+class TestWhisperLanguageApi:
+    def test_get_config_includes_whisper_language(self, client):
+        d = client.get("/api/config").json()
+        assert d["whisper_language"] == ""
+
+    def test_patch_valid_code_stored_lowercase(self, client):
+        r = client.patch("/api/config", json={"whisper_language": "EN"})
+        assert r.status_code == 200
+        assert r.json()["whisper_language"] == "en"
+
+    def test_patch_auto_stored_as_empty_string(self, client):
+        client.patch("/api/config", json={"whisper_language": "fr"})
+        r = client.patch("/api/config", json={"whisper_language": "auto"})
+        assert r.status_code == 200
+        assert r.json()["whisper_language"] == ""
+
+    def test_patch_invalid_code_returns_400(self, client):
+        assert client.patch("/api/config", json={"whisper_language": "klingon"}).status_code == 400
+
+    def test_whisper_languages_endpoint_lists_codes(self, client):
+        r = client.get("/api/config/whisper-languages")
+        assert r.status_code == 200
+        langs = r.json()["languages"]
+        assert "en" in langs
+        assert "fr" in langs
+        assert langs == sorted(langs)
+
+
+class TestResolveTranscriptionLanguage:
+    def _resolve(self, explicit, config_lang):
+        from yuu_clip.config import Config
+        from yuu_clip.transcribe.whisper_runner import resolve_transcription_language
+        return resolve_transcription_language(explicit, Config(whisper_language=config_lang))
+
+    def test_explicit_language_wins_over_config(self):
+        assert self._resolve("fr", "de") == "fr"
+
+    def test_config_language_used_when_no_explicit(self):
+        assert self._resolve(None, "de") == "de"
+
+    def test_auto_everywhere_resolves_to_none(self):
+        assert self._resolve(None, "") is None
+
+    def test_invalid_config_value_raises(self):
+        import pytest
+        with pytest.raises(ValueError, match="Unrecognised language code"):
+            self._resolve(None, "klingon")
+
+
+# ---------------------------------------------------------------------------
 # Track-layout profile CRUD
 # ---------------------------------------------------------------------------
 

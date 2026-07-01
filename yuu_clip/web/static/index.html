@@ -68,6 +68,15 @@
     </div>
     <div class="settings-row">
       <div class="settings-col">
+        <label class="settings-label" for="s-whisper-language">Transcription language</label>
+        <div class="settings-note">Auto-detect works for most recordings; set a language if detection gets it wrong. Takes effect on next analysis</div>
+      </div>
+      <select class="settings-select" id="s-whisper-language">
+        <option value="">Auto-detect (recommended)</option>
+      </select>
+    </div>
+    <div class="settings-row">
+      <div class="settings-col">
         <label class="settings-label" for="s-whisper-device">Compute device</label>
         <div class="settings-note">auto = CUDA if available, else CPU</div>
       </div>

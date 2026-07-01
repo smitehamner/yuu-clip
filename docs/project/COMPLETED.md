@@ -434,3 +434,45 @@ Archive of shipped items. For pending work see [ROADMAP.md](ROADMAP.md).
   offset added, clamp uses segment-relative duration before the shift) and
   `tests/test_videos.py::TestClipPreviewSplitSegmentOffset` (route-level: asserts the ffmpeg `-ss`
   argument for a clip on the second of two split segments). Full API suite 967 passed.
+
+---
+
+## Setup wizard revamp + transcription language (2026-07-01)
+
+- **Wizard restructured into Required / LLM scoring (choose one) / Optional / Basics** — dependencies
+  are grouped and ordered by necessity instead of a flat checklist. Ollama status now lives inside the
+  Ollama backend panel, so picking "Local model file" or "Claude API" no longer shows a misleading
+  "Ollama not running" warning. Static form skeleton + dynamic status slots, so re-checking never
+  wipes typed input.
+- **Local model file path is fully guided** — the llamacpp panel now installs `llama-cpp-python`
+  from the wizard (it's an optional extra, previously only installable from Settings after launch)
+  and links a recommended `.gguf` download (Llama 3.2 3B Instruct Q4_K_M, ~2 GB) with plain-English
+  steps. Previously choosing this backend gave a bare path input and LLM scoring silently no-oped.
+- **Speaker labels setup in the wizard (optional section)** — enable checkbox, HuggingFace token
+  input (with format feedback + show/hide), create-token / accept-model-terms links, and a one-click
+  `pyannote.audio` install with streamed pip progress, mirroring the Settings flow. Written to
+  project config as `diarization_backend` + `huggingface_token` on completion.
+- **"Check again" + "Restart app"** — a re-check bar replaces "quit and relaunch" instructions. The
+  main process re-reads `Path` from the registry (HKLM + HKCU) before each status check, so a
+  just-installed FFmpeg is detected without restarting; "Restart app" (`app.relaunch()`, with PATH
+  refreshed first) covers driver/service installs like CUDA.
+- **Conditional re-show after updates** — `SETUP_SCHEMA_VERSION` in `main.js` is stored on wizard
+  completion; if a new app version bumps it (i.e. setup gained new options), the wizard shows once
+  with a "This update added new setup options" subtitle. "Skip for now" (or closing the window)
+  launches with existing config and acknowledges the version. Routine updates stay silent.
+- **Rerun-mode Close no longer silently saves** — Close now discards (new `setup:close` IPC);
+  only "Apply & Close" writes config. Ollama pull and package installs are retryable after an
+  error (button re-enabled; progress listeners registered once).
+- **Transcription language (end-to-end)** — new `whisper_language` config field (`""` = auto),
+  resolved by `resolve_transcription_language` in `whisper_runner` (explicit per-run `--language`
+  still wins) and applied to both full transcription and clip retranscribe. Exposed in Settings
+  (Whisper section) and the wizard Basics section; option lists are rendered from the ISO codes via
+  `Intl.DisplayNames`, Settings fetches codes from the new `GET /api/config/whisper-languages`
+  endpoint (single-sourced from `ALLOWED_WHISPER_LANGUAGES`). UI localization (translating the
+  interface itself) is a separate Phase 6 roadmap item.
+- Covered by `tests/test_config.py` (`TestWhisperLanguageConfig`, `TestWhisperLanguageApi`,
+  `TestResolveTranscriptionLanguage`), `tests/test_ui_settings.py` (Settings language select,
+  read-only against the live server), and `tests/test_ui_wizard.py` (wizard renderer over
+  file:// with a mocked `setupAPI`: section order, FFmpeg gating, backend panels + warnings,
+  install/pull error retry, speaker-labels fields, per-mode footers, collected config shape).
+  Full API suite 978 passed; UI suite 193 green.

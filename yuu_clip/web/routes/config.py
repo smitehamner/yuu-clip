@@ -20,6 +20,7 @@ class ConfigPatch(BaseModel):
     whisper_model:                Optional[str]   = None
     whisper_device:               Optional[str]   = None
     whisper_compute_type:         Optional[str]   = None
+    whisper_language:             Optional[str]   = None
     # LLM backend
     llm_backend:                  Optional[str]   = None
     llm_model_path:               Optional[str]   = None
@@ -54,7 +55,7 @@ class ConfigPatch(BaseModel):
 
 _CONFIG_FIELDS = (
     "ui_timeline_interval_seconds", "ui_timeline_interval_unit",
-    "whisper_model", "whisper_device", "whisper_compute_type",
+    "whisper_model", "whisper_device", "whisper_compute_type", "whisper_language",
     "llm_backend", "llm_model_path",
     "ollama_host", "ollama_model", "ollama_timeout_s", "ollama_enabled",
     "claude_api_key", "claude_model", "claude_timeout_s",
@@ -99,12 +100,22 @@ def _whisper_model_validator(v: str) -> str:
     return v
 
 
+def _whisper_language_validator(v: str) -> str:
+    from yuu_clip.config import validate_whisper_language
+    try:
+        # None means auto-detect; the config field stores that as "".
+        return validate_whisper_language(v) or ""
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
 _CONFIG_PATCH_RULES: list[tuple[str, object]] = [
     ("ui_timeline_interval_seconds", _min_validator(10,   "interval")),
     ("ui_timeline_interval_unit",    _enum_validator({"seconds", "minutes"}, "unit")),
     ("whisper_model",                _whisper_model_validator),
     ("whisper_device",               _enum_validator({"cpu", "cuda", "auto"}, "whisper_device")),
     ("whisper_compute_type",         _enum_validator({"int8", "float16", "float32", "int8_float16"}, "whisper_compute_type")),
+    ("whisper_language",             _whisper_language_validator),
     ("llm_backend",                  _enum_validator({"llamacpp", "ollama", "claude"}, "llm_backend")),
     ("llm_model_path",               lambda v: v),
     ("ollama_host",                  lambda v: v.strip()),
@@ -139,6 +150,11 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     def get_config():
         c = ctx.config
         return {k: getattr(c, k) for k in _CONFIG_FIELDS}
+
+    @router.get("/api/config/whisper-languages")
+    def whisper_languages():
+        from yuu_clip.config import ALLOWED_WHISPER_LANGUAGES
+        return {"languages": sorted(ALLOWED_WHISPER_LANGUAGES)}
 
     @router.patch("/api/config")
     def patch_config(body: ConfigPatch):

@@ -180,6 +180,18 @@ The local AI model that converts audio to text. yuu-clip uses Whisper.
 
 ---
 
+### Transcription Language
+
+The spoken language Whisper transcribes. Auto-detect by default; a creator can force
+a specific language when detection gets it wrong (e.g. mixed-language audio).
+
+- **Code:** `whisper_language` (config, `""` = auto), `language` (per-run CLI flag / `Transcript.language`)
+- **UI label:** "Transcription language" (Settings and setup wizard)
+- **Do not confuse with:** UI localization — this controls what Whisper hears, not what
+  the interface displays (that's a Phase 6 roadmap item)
+
+---
+
 ### Caption Segment
 
 A short timed unit of transcribed text — one phrase with start time, end time, and text.

@@ -351,6 +351,13 @@ Items wanted long-term but not yet assigned to a phase.
 
 - [ ] **Linux compatibility** — verify the full pipeline on Linux; audit Windows-only assumptions in path handling (`LOCALAPPDATA`/`APPDATA`), `wmic` GPU detection, file pickers, and process management. Electron wrapper is Windows-only; would need a separate packaging path.
 
+- [ ] **UI localization (i18n)** — translate the web UI and setup wizard themselves into other
+  languages. Distinct from the shipped *transcription language* setting (which controls what
+  Whisper transcribes, not what the UI displays). Requires externalizing the hardcoded UI strings
+  in `index.html` / the JS modules / `setup.html` into a string table first — expensive to
+  retrofit, so batch it with any larger frontend rework. English-only is fine while the user base
+  is friends/trusted users.
+
 - [ ] **Project backup / restore** — there is no way today to back up or move a project short of
   manually copying the right folders and hoping the paths are correct. As distribution moves
   beyond solo use, a corrupted DB or a reinstalled machine with no recovery path is a bad first

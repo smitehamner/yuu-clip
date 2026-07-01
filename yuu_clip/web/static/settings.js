@@ -1,7 +1,7 @@
 (function () {
 // ── settings panel ────────────────────────────────────────────────────────────
 const _settingsFieldIds = [
-  's-whisper-model','s-whisper-device','s-whisper-compute',
+  's-whisper-model','s-whisper-device','s-whisper-compute','s-whisper-language',
   's-ollama-enabled','s-llm-backend','s-llm-model-path',
   's-ollama-model','s-ollama-host','s-ollama-timeout',
   's-claude-api-key','s-claude-model','s-claude-timeout',
@@ -45,6 +45,7 @@ async function openSettings() {
   document.getElementById('settings-panel').classList.add('visible');
   try {
     const cfg = await fetch('/api/config').then(r => r.json());
+    await _ensureWhisperLanguageOptions();
     _applySettingsToUI(cfg);
     initSoundSettings();
     setTimeout(() => document.getElementById('s-whisper-model')?.focus(), 50);
@@ -89,6 +90,30 @@ function _doCloseSettings(onClosed) {
   onClosed?.();
 }
 
+// Populate the transcription-language select from the server's allowlist once,
+// rendering English display names via Intl so the codes stay single-sourced in
+// config.py. Falls back to the markup's Auto-detect-only option on fetch failure.
+let _whisperLangsLoaded = false;
+async function _ensureWhisperLanguageOptions() {
+  if (_whisperLangsLoaded) return;
+  const sel = document.getElementById('s-whisper-language');
+  if (!sel) return;
+  try {
+    const { languages } = await fetch('/api/config/whisper-languages').then(r => r.json());
+    let nameOf = code => code;
+    try {
+      const dn = new Intl.DisplayNames(['en'], { type: 'language' });
+      nameOf = code => { try { return dn.of(code) || code; } catch { return code; } };
+    } catch { /* Intl.DisplayNames unavailable — show raw codes */ }
+    const named = languages
+      .map(code => ({ code, name: nameOf(code) }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    sel.innerHTML = '<option value="">Auto-detect (recommended)</option>' +
+      named.map(o => `<option value="${escHtml(o.code)}">${escHtml(o.name)}</option>`).join('');
+    _whisperLangsLoaded = true;
+  } catch { /* keep Auto-detect-only fallback */ }
+}
+
 function _applySettingsToUI(cfg) {
   const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
   const setChk = (id, val) => { const el = document.getElementById(id); if (el) el.checked = val; };
@@ -96,6 +121,7 @@ function _applySettingsToUI(cfg) {
   setVal('s-whisper-model',  cfg.whisper_model   || 'base');
   setVal('s-whisper-device', cfg.whisper_device  || 'auto');
   setVal('s-whisper-compute',cfg.whisper_compute_type || 'int8');
+  setVal('s-whisper-language', cfg.whisper_language || '');
   setChk('s-ollama-enabled',  cfg.ollama_enabled   !== false);
   const backend = cfg.llm_backend || 'llamacpp';
   setVal('s-llm-backend',    backend);
@@ -305,6 +331,7 @@ async function saveSettings() {
     whisper_model:              getVal('s-whisper-model'),
     whisper_device:             getVal('s-whisper-device'),
     whisper_compute_type:       getVal('s-whisper-compute'),
+    whisper_language:           getVal('s-whisper-language'),
     ollama_enabled:             getChk('s-ollama-enabled'),
     llm_backend:                getVal('s-llm-backend'),
     llm_model_path:             getVal('s-llm-model-path'),

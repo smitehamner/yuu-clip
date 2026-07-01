@@ -22,6 +22,12 @@ const ELECTRON_CONFIG_PATH  = path.join(process.env.APPDATA, 'yuu-clip', 'electr
 const DEFAULT_PROJECT_DIR = path.join(process.env.USERPROFILE, 'Videos', 'yuu-clip');
 const BASE_PORT = 8080;
 
+// Bump ONLY when the setup wizard gains new settings or steps. A completed
+// setup stores this number; an older stored number re-shows the wizard once
+// after updating, so existing users discover the new options. Routine app
+// updates that don't change setup stay silent.
+const SETUP_SCHEMA_VERSION = 2;
+
 let projectDir      = DEFAULT_PROJECT_DIR;
 let pyProc          = null;
 let mainWindow      = null;
@@ -227,6 +233,45 @@ function checkFFmpeg() {
   }
 }
 
+// A running process never sees PATH entries added after it started (installers
+// like winget write the registry, not our environment). Re-reading the registry
+// lets the wizard's "Check again" detect a just-installed FFmpeg without a full
+// app restart, and makes a relaunch inherit the fresh PATH.
+function refreshPathFromRegistry() {
+  const readRegPath = (key) => {
+    try {
+      const out = execFileSync('reg', ['query', key, '/v', 'Path'],
+        { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+      const m = out.match(/Path\s+REG(?:_EXPAND)?_SZ\s+(.+)/i);
+      return m ? m[1].trim() : '';
+    } catch (_) { return ''; }
+  };
+  const machine = readRegPath('HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment');
+  const user    = readRegPath('HKCU\\Environment');
+  if (!machine && !user) return;
+  const expand = s => s.replace(/%([^%]+)%/g, (_, name) => process.env[name] || `%${name}%`);
+  process.env.PATH = [expand(machine), expand(user)].filter(Boolean).join(';');
+}
+
+// Optional packages the wizard can install into the venv. The backend exposes
+// the same installs via /api/install/{slug}, but it isn't running yet during
+// first-run setup, so the wizard drives pip directly.
+const WIZARD_INSTALLABLE = {
+  pyannote: { packages: ['pyannote.audio'],     importName: 'pyannote.audio' },
+  llamacpp: { packages: ['llama-cpp-python'],   importName: 'llama_cpp' },
+};
+
+function checkVenvModule(importName) {
+  const code =
+    'import importlib.util, sys\n' +
+    'try:\n' +
+    `    found = importlib.util.find_spec(${JSON.stringify(importName)}) is not None\n` +
+    'except ModuleNotFoundError:\n' +
+    '    found = False\n' +
+    'sys.exit(0 if found else 1)\n';
+  return runCmd(VENV_PYTHON, ['-c', code]).then(() => true).catch(() => false);
+}
+
 async function checkOllama() {
   try { await httpGet('http://localhost:11434/api/tags', 2000); return true; }
   catch (_) { return false; }
@@ -311,8 +356,11 @@ function registerWizardIPC(wizardWin) {
   }
   ipcMain.removeAllListeners('setup:pull-model');
   ipcMain.removeAllListeners('setup:open-url');
+  ipcMain.removeAllListeners('setup:install-package');
+  ipcMain.removeAllListeners('setup:restart-app');
 
   ipcMain.handle('setup:get-status', async () => {
+    refreshPathFromRegistry();
     const eCfg = loadElectronConfig();
     const pDir = eCfg.projectDir || DEFAULT_PROJECT_DIR;
 
@@ -322,25 +370,66 @@ function registerWizardIPC(wizardWin) {
     const ollamaModel   = projCfg.ollama_model || 'llama3.2';
     const gpu           = detectGPU();
     const cuda          = detectCUDA();
-    const ollamaRunning = await checkOllama();
+    const [ollamaRunning, llamacppInstalled, pyannoteInstalled] = await Promise.all([
+      checkOllama(),
+      checkVenvModule(WIZARD_INSTALLABLE.llamacpp.importName),
+      checkVenvModule(WIZARD_INSTALLABLE.pyannote.importName),
+    ]);
     const ollamaModelPulled = ollamaRunning ? await checkOllamaModel(ollamaModel) : false;
 
     const existingBackend   = projCfg.llm_backend;
     const existingModelPath = projCfg.llm_model_path || '';
     const defaultBackend    = existingBackend || (ollamaRunning ? 'ollama' : 'llamacpp');
 
-    logSetup(`Status check — FFmpeg:${checkFFmpeg()} GPU:${gpu.name} CUDA:${cuda.available} Ollama:${ollamaRunning} Model:${ollamaModelPulled}`);
+    logSetup(`Status check — FFmpeg:${checkFFmpeg()} GPU:${gpu.name} CUDA:${cuda.available} Ollama:${ollamaRunning} Model:${ollamaModelPulled} llamacpp:${llamacppInstalled} pyannote:${pyannoteInstalled}`);
     return {
       ffmpegOk: checkFFmpeg(),
       gpu, cuda,
       ollamaRunning, ollamaModel, ollamaModelPulled,
+      llamacppInstalled, pyannoteInstalled,
       recommendedWhisper: recommendWhisperModel(gpu.vramMB),
       projectDir: pDir,
       llmBackend:    defaultBackend,
       llmModelPath:  existingModelPath,
       claudeApiKey:  projCfg.claude_api_key  || '',
       claudeModel:   projCfg.claude_model    || 'claude-haiku-4-5-20251001',
+      whisperLanguage:    projCfg.whisper_language || '',
+      diarizationEnabled: projCfg.diarization_backend === 'pyannote',
+      hfToken:            projCfg.huggingface_token || '',
     };
+  });
+
+  // Install an optional pip package into the venv, streaming condensed pip
+  // output back as progress events keyed by slug.
+  ipcMain.on('setup:install-package', async (event, slug) => {
+    const spec = WIZARD_INSTALLABLE[slug];
+    const send = (payload) => {
+      try { event.sender.send('setup:install-progress', { slug, ...payload }); } catch (_) {}
+    };
+    if (!spec) { send({ error: `Unknown package '${slug}'` }); return; }
+    logSetup(`Wizard install starting: ${spec.packages.join(' ')}`);
+    try {
+      let lastStatus = '';
+      await runCmd(VENV_PIP, ['install', '--progress-bar', 'raw', ...spec.packages], line => {
+        const statusText = formatPipLine(line);
+        if (statusText && statusText !== lastStatus) {
+          lastStatus = statusText;
+          send({ status: statusText });
+        }
+      });
+      logSetup(`Wizard install complete: ${slug}`);
+      send({ done: true });
+    } catch (err) {
+      logSetup(`Wizard install failed: ${slug} — ${err.message}`);
+      send({ error: err.message });
+    }
+  });
+
+  ipcMain.on('setup:restart-app', () => {
+    logSetup('Restart requested from setup wizard');
+    refreshPathFromRegistry();
+    app.relaunch();
+    app.exit(0);
   });
 
   ipcMain.handle('setup:pick-folder', async () => {
@@ -393,14 +482,24 @@ function registerWizardIPC(wizardWin) {
   });
 }
 
-// Opens the setup wizard.  In initial mode, returns a promise that resolves
-// with { projectDir, whisperModel } when the user clicks Launch.  In rerun
-// mode the caller doesn't await; the wizard just saves config and closes.
-function showSetupWizard({ rerun = false } = {}) {
+// Swap the wizard window to a "Starting yuu-clip…" screen while the backend
+// boots; app lifecycle closes it once the main window is ready.
+function showWizardLoadingScreen(win) {
+  const loadingHtml = `<!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;margin:0;display:flex;align-items:center;justify-content:center;height:100vh;background:#12121e;color:#d8d8e8;text-align:center"><style>@keyframes spin{to{transform:rotate(360deg)}}</style><div><div style="width:32px;height:32px;border:3px solid #1e1e30;border-top-color:#5b8ef0;border-radius:50%;animation:spin 0.65s linear infinite;margin:0 auto 14px"></div><h3 style="margin:0 0 6px;font-size:14px;color:#e8e8f8">Starting yuu-clip…</h3><p style="margin:0;color:#666;font-size:12px">Waiting for backend</p></div></body></html>`;
+  win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(loadingHtml)}`);
+  wizardWin = win;
+}
+
+// Opens the setup wizard.  In initial/update mode, returns a promise that
+// resolves with the collected config when the user clicks Launch.  In rerun
+// mode the caller doesn't await; the wizard saves config on Apply & Close, or
+// discards on Close.
+function showSetupWizard({ rerun = false, updated = false } = {}) {
   return new Promise((resolve, reject) => {
     const win = new BrowserWindow({
-      width: 580, height: 680,
-      resizable: false,
+      width: 620, height: 780,
+      minWidth: 560, minHeight: 600,
+      resizable: true,
       title: 'yuu-clip Setup',
       icon: path.join(__dirname, 'assets', 'icon.png'),
       webPreferences: {
@@ -410,18 +509,27 @@ function showSetupWizard({ rerun = false } = {}) {
       },
     });
 
+    const mode = rerun ? 'rerun' : updated ? 'update' : 'initial';
     win.loadFile(path.join(__dirname, 'setup.html'),
-      rerun ? { query: { mode: 'rerun' } } : {}
+      mode === 'initial' ? {} : { query: { mode } }
     );
 
     registerWizardIPC(win);
 
     ipcMain.removeAllListeners('setup:complete');
     ipcMain.removeAllListeners('setup:quit');
+    ipcMain.removeAllListeners('setup:close');
+    ipcMain.removeAllListeners('setup:skip');
 
     ipcMain.once('setup:complete', (_, cfg) => {
-      saveElectronConfig({ projectDir: cfg.projectDir });
-      const pyCfg = { whisper_model: cfg.whisperModel, llm_backend: cfg.llmBackend };
+      saveElectronConfig({ projectDir: cfg.projectDir, setupSchemaVersion: SETUP_SCHEMA_VERSION });
+      const pyCfg = {
+        whisper_model:    cfg.whisperModel,
+        whisper_language: cfg.whisperLanguage || '',
+        llm_backend:      cfg.llmBackend,
+        diarization_backend: cfg.diarizationEnabled ? 'pyannote' : 'null',
+      };
+      if (cfg.diarizationEnabled) pyCfg.huggingface_token = cfg.hfToken || '';
       if (cfg.llmBackend === 'llamacpp') {
         pyCfg.llm_model_path = cfg.llmModelPath || '';
       } else if (cfg.llmBackend === 'claude') {
@@ -431,13 +539,11 @@ function showSetupWizard({ rerun = false } = {}) {
         pyCfg.ollama_model = cfg.ollamaModel || 'llama3.2';
       }
       writeProjectConfig(cfg.projectDir, pyCfg);
-      logSetup(`Setup complete — projectDir:${cfg.projectDir} whisperModel:${cfg.whisperModel} llmBackend:${cfg.llmBackend}`);
+      logSetup(`Setup complete — projectDir:${cfg.projectDir} whisperModel:${cfg.whisperModel} llmBackend:${cfg.llmBackend} diarization:${pyCfg.diarization_backend}`);
       fs.mkdirSync(path.dirname(SETUP_COMPLETE_MARKER), { recursive: true });
       fs.writeFileSync(SETUP_COMPLETE_MARKER, new Date().toISOString());
       if (!rerun) {
-        const loadingHtml = `<!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;margin:0;display:flex;align-items:center;justify-content:center;height:100vh;background:#12121e;color:#d8d8e8;text-align:center"><style>@keyframes spin{to{transform:rotate(360deg)}}</style><div><div style="width:32px;height:32px;border:3px solid #1e1e30;border-top-color:#5b8ef0;border-radius:50%;animation:spin 0.65s linear infinite;margin:0 auto 14px"></div><h3 style="margin:0 0 6px;font-size:14px;color:#e8e8f8">Starting yuu-clip…</h3><p style="margin:0;color:#666;font-size:12px">Waiting for backend</p></div></body></html>`;
-        win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(loadingHtml)}`);
-        wizardWin = win;
+        showWizardLoadingScreen(win);
       } else {
         win.close();
       }
@@ -449,9 +555,31 @@ function showSetupWizard({ rerun = false } = {}) {
       reject(new Error('User quit setup'));
     });
 
+    // Rerun mode only: close the wizard without saving anything.
+    ipcMain.once('setup:close', () => {
+      win.close();
+      reject(new Error('Setup window closed'));
+    });
+
+    // Update mode only: launch with existing config. The schema version is
+    // still stored — the user saw the new options once and chose to move on;
+    // re-showing every launch would be nagging. Re-run remains in the menu.
+    const skipUpdateWizard = () => {
+      saveElectronConfig({ setupSchemaVersion: SETUP_SCHEMA_VERSION });
+      logSetup('Update-mode setup skipped — launching with existing config');
+      resolve({ projectDir: loadElectronConfig().projectDir || DEFAULT_PROJECT_DIR });
+      showWizardLoadingScreen(win);
+    };
+    ipcMain.once('setup:skip', skipUpdateWizard);
+
     win.on('closed', () => {
-      // If closed by the OS (Alt+F4) without completing, treat as quit.
-      // resolve/reject are no-ops if already called.
+      // Closed by the OS (Alt+F4) without completing: in update mode that
+      // means "skip", otherwise treat as quit. resolve/reject are no-ops if
+      // already called.
+      if (mode === 'update') {
+        saveElectronConfig({ setupSchemaVersion: SETUP_SCHEMA_VERSION });
+        resolve({ projectDir: loadElectronConfig().projectDir || DEFAULT_PROJECT_DIR });
+      }
       reject(new Error('Setup window closed'));
     });
   });
@@ -791,10 +919,15 @@ app.whenReady().then(async () => {
     await ensureVenv();
 
     const firstRun = !fs.existsSync(SETUP_COMPLETE_MARKER);
+    refreshPathFromRegistry();
     const ffmpegOk = checkFFmpeg();
+    // Setups completed before schema versioning existed count as version 1.
+    const storedSchema  = loadElectronConfig().setupSchemaVersion || 1;
+    const setupOutdated = !firstRun && storedSchema < SETUP_SCHEMA_VERSION;
 
-    if (firstRun || !ffmpegOk) {
-      const cfg = await showSetupWizard({ rerun: false });
+    if (firstRun || !ffmpegOk || setupOutdated) {
+      if (setupOutdated) logSetup(`Setup schema ${storedSchema} < ${SETUP_SCHEMA_VERSION} — showing wizard with new options`);
+      const cfg = await showSetupWizard({ rerun: false, updated: setupOutdated && ffmpegOk && !firstRun });
       projectDir = cfg.projectDir;
     } else {
       projectDir = loadElectronConfig().projectDir || DEFAULT_PROJECT_DIR;

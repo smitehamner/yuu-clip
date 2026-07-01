@@ -138,6 +138,9 @@ class Config:
     whisper_device: str = "auto"
     # int8 is fast and fine for base/small; use float16 on GPU for large models
     whisper_compute_type: str = "int8"
+    # ISO 639-1 code forced for all transcription; "" = auto-detect per recording.
+    # A per-run --language CLI flag still overrides this.
+    whisper_language: str = ""
 
     # HuggingFace model revision (git commit SHA) for reproducible model downloads.
     # When None, HuggingFace downloads the latest "main" branch — fine for development

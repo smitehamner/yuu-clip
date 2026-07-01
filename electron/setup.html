@@ -25,12 +25,26 @@ header {
 header h1 { font-size: 15px; font-weight: 600; color: #e8e8f8; }
 header p  { color: #666; margin-top: 3px; font-size: 12px; }
 
-/* ── checklist ── */
-#checklist {
+/* ── scrollable content ── */
+#content {
   flex: 1;
   overflow-y: auto;
-  padding: 4px 20px;
+  padding: 4px 20px 12px;
 }
+section { padding: 8px 0 4px; }
+.sec-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #7a7a9a;
+  margin: 10px 0 2px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #1e1e30;
+}
+.sec-title .tag { font-weight: 400; text-transform: none; letter-spacing: 0; color: #555; }
+.sec-note { color: #666; font-size: 12px; line-height: 1.45; margin: 4px 0 6px; }
+
 .item {
   display: flex;
   align-items: flex-start;
@@ -49,10 +63,10 @@ header p  { color: #666; margin-top: 3px; font-size: 12px; }
 .body  { flex: 1; min-width: 0; }
 .title { font-weight: 500; color: #b8b8d0; margin-bottom: 2px; }
 .desc  { color: #666; line-height: 1.45; font-size: 12px; user-select: text; }
-.desc code { font-family: 'Consolas', monospace; background: #1e1e2e; padding: 1px 4px; border-radius: 3px; font-size: 11px; user-select: text; }
-input { user-select: text; }
-.desc a    { color: #5b8ef0; cursor: pointer; text-decoration: none; }
-.desc a:hover { text-decoration: underline; }
+.desc code, .sec-note code { font-family: 'Consolas', monospace; background: #1e1e2e; padding: 1px 4px; border-radius: 3px; font-size: 11px; user-select: text; }
+input, textarea { user-select: text; }
+.desc a, .sec-note a { color: #5b8ef0; cursor: pointer; text-decoration: none; }
+.desc a:hover, .sec-note a:hover { text-decoration: underline; }
 .action { margin-top: 6px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
 .ok   .title { color: #4caf7d; }
@@ -60,7 +74,11 @@ input { user-select: text; }
 .err  .title { color: #cf5050; }
 .info .title { color: #5b8ef0; }
 
-/* ── buttons inside checklist ── */
+details { margin-top: 6px; }
+details summary { color: #5b8ef0; font-size: 12px; cursor: pointer; }
+details[open] summary { margin-bottom: 4px; }
+
+/* ── buttons ── */
 button.sm {
   font-size: 12px;
   padding: 3px 10px;
@@ -74,24 +92,20 @@ button.sm {
 button.sm:hover:not(:disabled)  { background: #20203a; }
 button.sm:disabled { opacity: 0.4; cursor: not-allowed; }
 
-/* ── pull progress ── */
+/* ── progress ── */
 .pull-bar  { height: 4px; background: #1e1e30; border-radius: 2px; overflow: hidden; }
 .pull-fill { height: 100%; background: #3a7bd5; width: 0%; transition: width 0.15s; }
 .pull-msg  { color: #555; font-size: 11px; margin-top: 3px; }
 
-/* ── config section ── */
-#config {
-  padding: 10px 20px 6px;
-  border-top: 1px solid #1e1e30;
-}
+/* ── config rows ── */
 .cfg-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 7px;
+  margin: 7px 0;
 }
-.cfg-label { color: #666; width: 105px; flex-shrink: 0; font-size: 12px; }
-.cfg-row input[type=text] {
+.cfg-label { color: #666; width: 130px; flex-shrink: 0; font-size: 12px; }
+.cfg-row input[type=text], .cfg-row input[type=password] {
   flex: 1;
   background: #0e0e1c;
   border: 1px solid #252535;
@@ -110,24 +124,38 @@ button.sm:disabled { opacity: 0.4; cursor: not-allowed; }
   font-size: 12px;
 }
 .rec { font-size: 11px; color: #4caf7d; white-space: nowrap; }
+.inline-warn { font-size: 11px; color: #d4902a; padding: 2px 0 4px 138px; }
+.inline-note { font-size: 11px; color: #555;    padding: 2px 0 4px 138px; }
+.field-note  { font-size: 11px; color: #555; }
+.status-line { font-size: 12px; margin-top: 4px; }
+.status-line .on  { color: #4caf7d; }
+.status-line .off { color: #888; }
 
-/* ── rerun note ── */
-#rerun-note {
-  font-size: 11px;
-  color: #555;
-  padding: 0 20px 8px;
+.chk-row { display: flex; align-items: flex-start; gap: 8px; padding: 6px 0 2px; }
+.chk-row input[type=checkbox] { margin-top: 2px; }
+.chk-row .chk-title { font-weight: 500; color: #b8b8d0; cursor: pointer; }
+
+/* ── re-check bar ── */
+#recheck-bar {
+  padding: 8px 20px;
   border-top: 1px solid #1e1e30;
-  padding-top: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #666;
 }
+#recheck-bar span { flex: 1; }
 
 /* ── footer ── */
 footer {
   padding: 10px 20px;
   border-top: 1px solid #1e1e30;
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
   gap: 8px;
 }
+#launch-hint { flex: 1; font-size: 11px; color: #d4902a; }
 #quit-btn {
   padding: 6px 16px;
   border-radius: 5px;
@@ -171,89 +199,202 @@ footer {
   <p id="subtitle">Checking your system…</p>
 </header>
 
-<div id="checklist">
+<div id="content">
   <div class="item info" id="item-init">
     <div class="icon"><span class="spin"></span></div>
     <div class="body"><div class="title">Checking system…</div></div>
   </div>
+
+  <div id="sections" style="display:none">
+
+    <!-- ═══ Required ═══ -->
+    <section>
+      <div class="sec-title">Required</div>
+      <div id="ffmpeg-slot"></div>
+    </section>
+
+    <!-- ═══ LLM scoring — choose one ═══ -->
+    <section>
+      <div class="sec-title">LLM scoring <span class="tag">— choose one</span></div>
+      <div class="sec-note">
+        An AI model reads the transcript to rate how funny, dramatic, or action-packed each
+        clip is, and writes descriptions. Without it, clips are still found using audio
+        energy and scene detection — but they won't get quality scores or descriptions.
+        Not ready to decide? You can set this up any time in Settings (⚙).
+      </div>
+      <div class="cfg-row">
+        <span class="cfg-label">How to run it</span>
+        <select id="llm-backend-sel">
+          <option value="ollama">Ollama — easiest, runs locally (recommended)</option>
+          <option value="llamacpp">Local model file — no extra app, runs locally</option>
+          <option value="claude">Claude API — remote, paid, no download</option>
+        </select>
+      </div>
+
+      <div id="llm-ollama-fields">
+        <div id="ollama-status"></div>
+        <div class="cfg-row">
+          <span class="cfg-label">Ollama model</span>
+          <input type="text" id="ollama-model-input" style="flex:1;max-width:200px">
+        </div>
+      </div>
+
+      <div id="llm-llamacpp-fields" style="display:none">
+        <div class="desc" style="margin:4px 0 2px"><strong style="color:#8888aa">Step 1 — install the LLM engine</strong> (one-time)</div>
+        <div id="llamacpp-pkg-slot"></div>
+        <div class="desc" style="margin:8px 0 2px"><strong style="color:#8888aa">Step 2 — download a model file (.gguf)</strong></div>
+        <div class="desc">
+          A <code>.gguf</code> file is the AI model itself. Recommended:
+          <strong>Llama 3.2 3B Instruct</strong> — on the download page pick the file named
+          <code>Llama-3.2-3B-Instruct-Q4_K_M.gguf</code> (~2 GB), a good balance of quality
+          and speed. Save it somewhere permanent, then choose it below.
+        </div>
+        <div class="action">
+          <button class="sm" onclick="api.openURL('https://huggingface.co/bartowski/Llama-3.2-3B-Instruct-GGUF/tree/main')">Open download page</button>
+        </div>
+        <div class="cfg-row" style="margin-top:8px">
+          <span class="cfg-label">Model file (.gguf)</span>
+          <input type="text" id="llm-model-path" placeholder="C:\models\Llama-3.2-3B-Instruct-Q4_K_M.gguf">
+          <button class="sm" id="llm-browse-btn">Browse…</button>
+        </div>
+        <div id="llm-warn" style="display:none" class="inline-warn">
+          ⚠ No model file chosen — LLM scoring will be skipped until one is set.
+        </div>
+      </div>
+
+      <div id="llm-claude-fields" style="display:none">
+        <div class="inline-warn" style="display:block">
+          ⚠ Transcript data is sent to Anthropic and billed per token.
+        </div>
+        <div class="cfg-row">
+          <span class="cfg-label">API key</span>
+          <input type="password" id="claude-api-key" placeholder="sk-ant-...">
+          <button class="sm" id="claude-key-toggle" type="button">Show</button>
+        </div>
+        <div id="claude-warn" style="display:none" class="inline-warn">
+          ⚠ No API key entered — LLM scoring will be skipped until one is set.
+        </div>
+        <div class="cfg-row">
+          <span class="cfg-label">Model</span>
+          <select id="claude-model-sel">
+            <option value="claude-haiku-4-5-20251001">claude-haiku-4-5 (fast, cheap)</option>
+            <option value="claude-sonnet-4-6">claude-sonnet-4-6 (smarter)</option>
+          </select>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ Optional ═══ -->
+    <section>
+      <div class="sec-title">Optional</div>
+
+      <div class="chk-row">
+        <input type="checkbox" id="diar-enabled">
+        <div style="flex:1">
+          <label class="chk-title" for="diar-enabled">Speaker labels</label>
+          <div class="desc">
+            Detects who is speaking, so transcripts and captions can show names
+            ("Yuu: nice shot!"). Uses a free model that needs a HuggingFace account.
+            You can also set this up later in Settings (⚙).
+          </div>
+          <div id="diar-fields" style="display:none;margin-top:6px">
+            <div class="desc">
+              1. Create a free HuggingFace token with <strong>Read</strong> access.<br>
+              2. While signed in with that account, accept the model's terms.<br>
+              3. Paste the token below and install speaker detection.
+            </div>
+            <div class="action">
+              <button class="sm" onclick="api.openURL('https://huggingface.co/settings/tokens')">Create token</button>
+              <button class="sm" onclick="api.openURL('https://huggingface.co/pyannote/speaker-diarization-community-1')">Accept model terms</button>
+            </div>
+            <div class="cfg-row" style="margin-top:6px">
+              <span class="cfg-label" style="width:110px">HuggingFace token</span>
+              <input type="password" id="hf-token" placeholder="hf_...">
+              <button class="sm" id="hf-token-toggle" type="button">Show</button>
+            </div>
+            <div class="field-note" id="hf-token-feedback" style="padding-left:118px"></div>
+            <div id="pyannote-slot" style="margin-top:6px"></div>
+            <div class="status-line" id="diar-status"></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="cuda-slot"></div>
+    </section>
+
+    <!-- ═══ Basics ═══ -->
+    <section>
+      <div class="sec-title">Basics</div>
+      <div class="sec-note" id="gpu-line"></div>
+      <div class="cfg-row">
+        <span class="cfg-label">Project folder</span>
+        <input type="text" id="project-dir" readonly>
+        <button class="sm" id="browse-btn">Browse…</button>
+      </div>
+      <div class="cfg-row">
+        <span class="cfg-label">Speech-to-text model</span>
+        <select id="whisper-sel">
+          <option value="tiny">tiny — fastest, lowest accuracy (~75 MB)</option>
+          <option value="base">base — fast, decent accuracy (~145 MB)</option>
+          <option value="small">small — balanced (~465 MB)</option>
+          <option value="medium">medium — good quality (~1.5 GB, 5 GB+ VRAM)</option>
+          <option value="large-v3">large-v3 — best quality (~3 GB, 10 GB+ VRAM)</option>
+        </select>
+        <span class="rec" id="rec-tag"></span>
+      </div>
+      <div class="inline-note">
+        Downloads automatically on first analysis. OpenAI Whisper — MIT licence (commercial use permitted).
+      </div>
+      <div class="cfg-row">
+        <span class="cfg-label">Transcription language</span>
+        <select id="whisper-lang-sel"></select>
+      </div>
+      <div class="inline-note">
+        Auto-detect works for most recordings; set a language if detection gets it wrong.
+      </div>
+    </section>
+
+  </div>
 </div>
 
-<div id="config" style="display:none">
-  <div class="cfg-row">
-    <span class="cfg-label">Project folder</span>
-    <input type="text" id="project-dir" readonly>
-    <button class="sm" id="browse-btn">Browse…</button>
-  </div>
-  <div class="cfg-row">
-    <span class="cfg-label">Whisper model</span>
-    <select id="whisper-sel">
-      <option value="tiny">tiny — fastest, lowest accuracy (~75 MB)</option>
-      <option value="base">base — fast, decent accuracy (~145 MB)</option>
-      <option value="small">small — balanced (~465 MB)</option>
-      <option value="medium">medium — good quality (~1.5 GB, 5 GB+ VRAM)</option>
-      <option value="large-v3">large-v3 — best quality (~3 GB, 10 GB+ VRAM)</option>
-    </select>
-    <span class="rec" id="rec-tag"></span>
-  </div>
-
-  <div class="cfg-row" style="margin-top:10px">
-    <span class="cfg-label">LLM backend</span>
-    <select id="llm-backend-sel" onchange="_onLlmBackendChange(this.value)">
-      <option value="ollama">Ollama</option>
-      <option value="llamacpp">Local model file</option>
-      <option value="claude">Claude API ⚠ Remote</option>
-    </select>
-  </div>
-  <div id="llm-llamacpp-fields" style="display:none">
-    <div class="cfg-row">
-      <span class="cfg-label">Model file (.gguf)</span>
-      <input type="text" id="llm-model-path" placeholder="C:\models\llama3.gguf" style="flex:1">
-      <button class="sm" id="llm-browse-btn">Browse…</button>
-    </div>
-  </div>
-  <div id="llm-ollama-fields">
-    <div class="cfg-row">
-      <span class="cfg-label">Ollama model</span>
-      <input type="text" id="ollama-model-input" style="flex:1;max-width:200px">
-    </div>
-  </div>
-  <div id="llm-claude-fields" style="display:none">
-    <div style="font-size:11px;color:#d4902a;padding:2px 0 4px 113px">
-      ⚠ Transcript data is sent to Anthropic and billed per token.
-    </div>
-    <div class="cfg-row">
-      <span class="cfg-label">API key</span>
-      <input type="password" id="claude-api-key" placeholder="sk-ant-..." style="flex:1">
-    </div>
-    <div class="cfg-row">
-      <span class="cfg-label">Model</span>
-      <select id="claude-model-sel" style="flex:1">
-        <option value="claude-haiku-4-5-20251001">claude-haiku-4-5 (fast, cheap)</option>
-        <option value="claude-sonnet-4-6">claude-sonnet-4-6 (smarter)</option>
-      </select>
-    </div>
-  </div>
-  <div id="llm-warn" style="display:none;font-size:11px;color:#d4902a;padding:2px 0 4px 113px">
-    ⚠ No model file set — LLM scoring will be skipped. You can configure this later in Settings (⚙).
-  </div>
+<div id="recheck-bar" style="display:none">
+  <span>Installed something outside this window?</span>
+  <button class="sm" id="recheck-btn">Check again</button>
+  <button class="sm" id="restart-btn" title="Restarts yuu-clip — needed for driver or service installs (e.g. CUDA)">Restart app</button>
 </div>
 
-<div id="rerun-note" style="display:none">
+<div id="rerun-note" style="display:none;font-size:11px;color:#555;padding:6px 20px 0">
   Project folder changes take effect on next restart.
 </div>
 
 <footer>
+  <span id="launch-hint"></span>
   <button id="quit-btn">Quit</button>
   <button id="launch-btn" disabled>Launch</button>
 </footer>
 
 <script>
-const api = window.setupAPI;
-const params   = new URLSearchParams(window.location.search);
-const rerunMode = params.get('mode') === 'rerun';
+const api    = window.setupAPI;
+const params = new URLSearchParams(window.location.search);
+const mode   = params.get('mode') || 'initial';   // 'initial' | 'rerun' | 'update'
+const rerunMode = mode === 'rerun';
 
-let status = null;
+// Keep in sync with ALLOWED_WHISPER_LANGUAGES in yuu_clip/config.py.
+const WHISPER_LANGUAGES = [
+  'af','am','ar','as','az','ba','be','bg','bn','bo','br','bs','ca','cs',
+  'cy','da','de','el','en','es','et','eu','fa','fi','fo','fr','gl','gu',
+  'ha','haw','he','hi','hr','ht','hu','hy','id','is','it','ja','jw','ka',
+  'kk','km','kn','ko','la','lb','ln','lo','lt','lv','mg','mi','mk','ml',
+  'mn','mr','ms','mt','my','ne','nl','nn','no','oc','pa','pl','ps','pt',
+  'ro','ru','sa','sd','si','sk','sl','sn','so','sq','sr','su','sv','sw',
+  'ta','te','tg','th','tk','tl','tr','tt','uk','ur','uz','vi','yi','yo',
+  'zh',
+];
+
+let status  = null;
 let pulling = false;
+let installing = { llamacpp: false, pyannote: false };
+let defaultsApplied = false;
 
 // ── helpers ────────────────────────────────────────────────────────────────
 
@@ -263,128 +404,22 @@ function esc(s) {
     .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+function anyInstalling() { return installing.llamacpp || installing.pyannote; }
+
 function updateLaunchBtn() {
-  const btn = document.getElementById('launch-btn');
-  btn.disabled = !status || !status.ffmpegOk || pulling;
+  const btn  = document.getElementById('launch-btn');
+  const hint = document.getElementById('launch-hint');
+  const blockedByFfmpeg  = !status || !status.ffmpegOk;
+  const blockedByWork    = pulling || anyInstalling();
+  btn.disabled = blockedByFfmpeg || blockedByWork;
   btn.textContent = rerunMode ? 'Apply & Close' : 'Launch';
-}
-
-// ── render status ──────────────────────────────────────────────────────────
-
-function renderStatus(s) {
-  status = s;
-  const rows = [];
-
-  // FFmpeg
-  if (s.ffmpegOk) {
-    rows.push(row('ffmpeg', 'ok', '✓', 'FFmpeg', 'Found on PATH.'));
-  } else {
-    rows.push(row('ffmpeg', 'err', '✗', 'FFmpeg not found',
-      '<strong>Option 1 — winget</strong> (Windows 11 / updated Win 10): run the command below in a terminal. FFmpeg is installed and added to PATH automatically.<br><br>' +
-      '<strong>Option 2 — manual download:</strong> open gyan.dev, download the <em>ffmpeg-release-essentials.zip</em> (no GPU) or a <em>CUDA</em> build (NVIDIA GPU). ' +
-      'Extract the zip to a permanent folder (e.g. <code>C:\\ffmpeg</code>). ' +
-      'Then add the <code>bin\\</code> subfolder to your PATH:<br>' +
-      '1. Open Start → search <em>Edit the system environment variables</em> → click it<br>' +
-      '2. Click <em>Environment Variables</em><br>' +
-      '3. Under <em>System variables</em>, select <em>Path</em> → click <em>Edit</em><br>' +
-      '4. Click <em>New</em> → paste the full path to the <code>bin\\</code> folder (e.g. <code>C:\\ffmpeg\\bin</code>)<br>' +
-      '5. Click OK on all dialogs, then relaunch yuu-clip.',
-      `<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">` +
-        `<code style="flex:1">winget install Gyan.FFmpeg</code>` +
-        `<button class="sm" data-copy="winget install Gyan.FFmpeg">Copy</button>` +
-      `</div>` +
-      `<button class="sm" onclick="api.openURL('https://www.gyan.dev/ffmpeg/builds/')">Download from gyan.dev</button>`
-    ));
-  }
-
-  // GPU / CUDA
-  if (s.gpu.vendor === 'nvidia') {
-    if (s.cuda.available) {
-      rows.push(row('gpu', 'ok', '✓',
-        `GPU: ${s.gpu.name}`,
-        `${s.gpu.vramMB.toLocaleString()} MB VRAM &nbsp;·&nbsp; CUDA ${esc(s.cuda.version)} — GPU acceleration active.`
-      ));
-    } else {
-      rows.push(row('gpu', 'warn', '⚠',
-        `GPU: ${s.gpu.name}`,
-        `${s.gpu.vramMB.toLocaleString()} MB VRAM &nbsp;·&nbsp; CUDA not found — Whisper and Ollama will run on CPU (much slower).`,
-        `<button class="sm" onclick="api.openURL('https://developer.nvidia.com/cuda-downloads')">Get CUDA Toolkit</button>
-         <span style="color:#555;font-size:11px">Install CUDA, then reinstall Ollama so it picks up GPU support.</span>`
-      ));
-    }
-  } else if (s.gpu.vendor === 'amd') {
-    rows.push(row('gpu', 'info', 'ℹ',
-      `GPU: ${s.gpu.name}`,
-      `${s.gpu.vramMB.toLocaleString()} MB VRAM &nbsp;·&nbsp; AMD GPU detected. Whisper will use CPU — ROCm is not supported on Windows.`
-    ));
-  } else {
-    rows.push(row('gpu', 'info', 'ℹ',
-      s.gpu.name !== 'Unknown' ? `GPU: ${s.gpu.name}` : 'No discrete GPU detected',
-      'Whisper and Ollama will run on CPU. Expect slower analysis times.'
-    ));
-  }
-
-  // Ollama + model
-  if (s.ollamaRunning) {
-    if (s.ollamaModelPulled) {
-      rows.push(row('ollama', 'ok', '✓',
-        `Ollama — ${esc(s.ollamaModel)} ready`,
-        'LLM scoring is fully configured.'
-      ));
-    } else {
-      rows.push(row('ollama', 'warn', '⚠',
-        `Ollama running — ${esc(s.ollamaModel)} not downloaded`,
-        `The model needs to be pulled before LLM scoring will work.`,
-        `<button class="sm" id="pull-btn" onclick="startPull()">Pull ${esc(s.ollamaModel)}</button>
-         <div class="pull-bar" id="pull-bar" style="display:none;width:100%;margin-top:5px"><div class="pull-fill" id="pull-fill"></div></div>
-         <div class="pull-msg" id="pull-msg"></div>`
-      ));
-    }
-  } else {
-    rows.push(row('ollama', 'warn', '⚠',
-      'Ollama not running',
-      `LLM scoring is optional but improves clip quality. ` +
-      `<a onclick="api.openURL('https://ollama.com/download')">Install Ollama</a> — after installing, it starts automatically and runs silently in the system tray. ` +
-      `You don't need to open or do anything inside the Ollama app.<br><br>` +
-      `Once installed, open a terminal and run:<br>` +
-      `<code>ollama pull ${esc(s.ollamaModel)}</code><br><br>` +
-      `Then relaunch yuu-clip — the model pull button will appear here to finish setup.`,
-      `<button class="sm" data-copy="ollama pull ${esc(s.ollamaModel)}">Copy: ollama pull ${esc(s.ollamaModel)}</button>`
-    ));
-  }
-
-  // Whisper (informational)
-  rows.push(row('whisper', 'info', 'ℹ',
-    'Whisper transcription',
-    `Model weights download automatically on first analysis — choose the size below based on your hardware.<br>` +
-    `<span style="color:#555;font-size:11px">Download sizes: tiny ~75 MB &nbsp;·&nbsp; base ~145 MB &nbsp;·&nbsp; small ~465 MB &nbsp;·&nbsp; medium ~1.5 GB &nbsp;·&nbsp; large-v3 ~3 GB</span><br>` +
-    `<span style="color:#555;font-size:11px">All models: OpenAI Whisper — MIT licence (commercial use permitted).</span>`
-  ));
-
-  document.getElementById('checklist').innerHTML = rows.join('');
-
-  // Config section
-  document.getElementById('project-dir').value = s.projectDir;
-  const sel = document.getElementById('whisper-sel');
-  sel.value = s.recommendedWhisper.model;
-  document.getElementById('rec-tag').textContent = `← recommended (${s.recommendedWhisper.reason})`;
-
-  document.getElementById('llm-backend-sel').value = s.llmBackend;
-  document.getElementById('llm-model-path').value  = s.llmModelPath || '';
-  document.getElementById('ollama-model-input').value = s.ollamaModel;
-  document.getElementById('claude-api-key').value   = s.claudeApiKey || '';
-  document.getElementById('claude-model-sel').value = s.claudeModel  || 'claude-haiku-4-5-20251001';
-  _onLlmBackendChange(s.llmBackend);
-
-  document.getElementById('config').style.display = '';
-  if (rerunMode) document.getElementById('rerun-note').style.display = '';
-
-  document.getElementById('subtitle').textContent = s.ffmpegOk
-    ? 'System check complete.'
-    : 'Action required before you can launch.';
-
-  document.getElementById('quit-btn').textContent = rerunMode ? 'Close' : 'Quit';
-  updateLaunchBtn();
+  hint.textContent = blockedByFfmpeg && status ? 'FFmpeg is required before you can launch'
+    : blockedByWork ? 'Waiting for the download to finish…'
+    : '';
+  const recheck = document.getElementById('recheck-btn');
+  const restart = document.getElementById('restart-btn');
+  if (recheck) recheck.disabled = blockedByWork;
+  if (restart) restart.disabled = blockedByWork;
 }
 
 function row(id, cls, icon, title, descHtml, actionHtml = '') {
@@ -398,70 +433,301 @@ function row(id, cls, icon, title, descHtml, actionHtml = '') {
   </div>`;
 }
 
-// ── LLM backend toggle ────────────────────────────────────────────────────
+// ── dynamic status slots (inputs live outside these, so a re-check never
+//    wipes anything the user typed) ─────────────────────────────────────────
 
-function _onLlmBackendChange(val) {
-  document.getElementById('llm-llamacpp-fields').style.display = val === 'llamacpp' ? '' : 'none';
-  document.getElementById('llm-ollama-fields').style.display   = val === 'ollama'   ? '' : 'none';
-  document.getElementById('llm-claude-fields').style.display   = val === 'claude'   ? '' : 'none';
-  _updateLlmWarn();
+function renderFfmpegSlot(s) {
+  const el = document.getElementById('ffmpeg-slot');
+  if (s.ffmpegOk) {
+    el.innerHTML = row('ffmpeg', 'ok', '✓', 'FFmpeg', 'Found on PATH. Used to read and cut video files.');
+    return;
+  }
+  el.innerHTML = row('ffmpeg', 'err', '✗', 'FFmpeg not found',
+    'yuu-clip needs FFmpeg to read and cut video files.<br>' +
+    '<strong>Easiest:</strong> run this command in a terminal (Start → type <em>terminal</em>), ' +
+    'then click <em>Check again</em> below — no need to close this window.' +
+    '<details><summary>Can\'t use winget? Manual install steps</summary>' +
+    'Open gyan.dev (button below), download <em>ffmpeg-release-essentials.zip</em> (or a <em>CUDA</em> build for NVIDIA GPUs). ' +
+    'Extract the zip to a permanent folder (e.g. <code>C:\\ffmpeg</code>), then add its <code>bin\\</code> subfolder to PATH:<br>' +
+    '1. Open Start → search <em>Edit the system environment variables</em> → click it<br>' +
+    '2. Click <em>Environment Variables</em><br>' +
+    '3. Under <em>System variables</em>, select <em>Path</em> → click <em>Edit</em><br>' +
+    '4. Click <em>New</em> → paste the full path to the <code>bin\\</code> folder (e.g. <code>C:\\ffmpeg\\bin</code>)<br>' +
+    '5. Click OK on all dialogs, then click <em>Check again</em> below.' +
+    '</details>',
+    `<div style="display:flex;gap:6px;align-items:center;width:100%">` +
+      `<code style="flex:1">winget install Gyan.FFmpeg</code>` +
+      `<button class="sm" data-copy="winget install Gyan.FFmpeg">Copy</button>` +
+      `<button class="sm" onclick="api.openURL('https://www.gyan.dev/ffmpeg/builds/')">Open gyan.dev</button>` +
+    `</div>`
+  );
 }
 
-function _updateLlmWarn() {
+function renderGpuLine(s) {
+  const el = document.getElementById('gpu-line');
+  if (s.gpu.vendor === 'nvidia') {
+    el.textContent = s.cuda.available
+      ? `Detected GPU: ${s.gpu.name} (${s.gpu.vramMB.toLocaleString()} MB VRAM) — CUDA ${s.cuda.version}, GPU acceleration active.`
+      : `Detected GPU: ${s.gpu.name} (${s.gpu.vramMB.toLocaleString()} MB VRAM) — CUDA not found, running on CPU.`;
+  } else if (s.gpu.name !== 'Unknown') {
+    el.textContent = `Detected GPU: ${s.gpu.name} (${s.gpu.vramMB.toLocaleString()} MB VRAM) — transcription runs on CPU.`;
+  } else {
+    el.textContent = 'No discrete GPU detected — transcription runs on CPU (slower, but works).';
+  }
+}
+
+function renderCudaSlot(s) {
+  const el = document.getElementById('cuda-slot');
+  if (s.gpu.vendor !== 'nvidia' || s.cuda.available) { el.innerHTML = ''; return; }
+  el.innerHTML = row('cuda', 'warn', '⚠', 'GPU acceleration (CUDA)',
+    `Your NVIDIA GPU can make transcription much faster, but the CUDA Toolkit isn't installed. ` +
+    `Install it, then use <em>Restart app</em> below so it's picked up. ` +
+    `If you use Ollama, reinstall Ollama afterwards so it also gains GPU support.`,
+    `<button class="sm" onclick="api.openURL('https://developer.nvidia.com/cuda-downloads')">Get CUDA Toolkit</button>`
+  );
+}
+
+function renderOllamaStatus(s) {
+  const el = document.getElementById('ollama-status');
+  if (s.ollamaRunning && s.ollamaModelPulled) {
+    el.innerHTML = row('ollama', 'ok', '✓', `Ollama — ${esc(s.ollamaModel)} ready`,
+      'LLM scoring is fully configured.');
+  } else if (s.ollamaRunning) {
+    el.innerHTML = row('ollama', 'warn', '⚠', `Ollama running — ${esc(s.ollamaModel)} not downloaded`,
+      'One more step: download the model (a few GB, one-time).',
+      `<button class="sm" id="pull-btn" onclick="startPull()">Download ${esc(s.ollamaModel)}</button>
+       <div class="pull-bar" id="pull-bar" style="display:none;width:100%;margin-top:5px"><div class="pull-fill" id="pull-fill"></div></div>
+       <div class="pull-msg" id="pull-msg"></div>`);
+  } else {
+    el.innerHTML = row('ollama', 'warn', '⚠', 'Ollama not installed or not running',
+      `<a onclick="api.openURL('https://ollama.com/download')">Install Ollama</a> — after installing, it runs ` +
+      `silently in the background; you don't need to open it or do anything inside it. ` +
+      `Then click <em>Check again</em> below — a model download button will appear here.`);
+  }
+}
+
+function renderLlamacppPkgSlot(s) {
+  const el = document.getElementById('llamacpp-pkg-slot');
+  if (s.llamacppInstalled) {
+    el.innerHTML = row('llamacpp-pkg', 'ok', '✓', 'LLM engine installed', 'llama-cpp-python is ready.');
+  } else {
+    el.innerHTML = row('llamacpp-pkg', 'warn', '○', 'LLM engine not installed',
+      'One-time install of the local inference engine (llama-cpp-python).',
+      `<button class="sm" id="install-btn-llamacpp" onclick="startInstall('llamacpp')">Install</button>
+       <div class="pull-msg" id="install-msg-llamacpp"></div>`);
+  }
+}
+
+function renderPyannoteSlot(s) {
+  const el = document.getElementById('pyannote-slot');
+  if (s.pyannoteInstalled) {
+    el.innerHTML = row('pyannote', 'ok', '✓', 'Speaker detection installed', 'pyannote.audio is ready.');
+  } else {
+    el.innerHTML = row('pyannote', 'warn', '○', 'Speaker detection not installed',
+      'One-time install, ~2–3 GB download (includes PyTorch). You can keep using this window while it runs.',
+      `<button class="sm" id="install-btn-pyannote" onclick="startInstall('pyannote')">Install (~2–3 GB)</button>
+       <div class="pull-msg" id="install-msg-pyannote"></div>`);
+  }
+}
+
+function renderSlots(s) {
+  status = s;
+  renderFfmpegSlot(s);
+  renderGpuLine(s);
+  renderCudaSlot(s);
+  renderOllamaStatus(s);
+  renderLlamacppPkgSlot(s);
+  renderPyannoteSlot(s);
+  updateDiarStatus();
+  document.getElementById('subtitle').textContent =
+    mode === 'update' ? 'This update added new setup options — review, then launch.'
+    : s.ffmpegOk ? 'System check complete.'
+    : 'Action required before you can launch.';
+  updateLaunchBtn();
+}
+
+// First render only: fill the form from saved config / detected defaults.
+function applyDefaults(s) {
+  if (defaultsApplied) return;
+  defaultsApplied = true;
+
+  document.getElementById('project-dir').value = s.projectDir;
+  document.getElementById('whisper-sel').value = s.recommendedWhisper.model;
+  document.getElementById('rec-tag').textContent = `← recommended (${s.recommendedWhisper.reason})`;
+
+  const langSel = document.getElementById('whisper-lang-sel');
+  let nameOf = code => code;
+  try {
+    const dn = new Intl.DisplayNames(['en'], { type: 'language' });
+    nameOf = code => { try { return dn.of(code) || code; } catch { return code; } };
+  } catch (_) {}
+  const named = WHISPER_LANGUAGES.map(code => ({ code, name: nameOf(code) }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  langSel.innerHTML = '<option value="">Auto-detect (recommended)</option>' +
+    named.map(o => `<option value="${esc(o.code)}">${esc(o.name)}</option>`).join('');
+  langSel.value = WHISPER_LANGUAGES.includes(s.whisperLanguage) ? s.whisperLanguage : '';
+
+  document.getElementById('llm-backend-sel').value = s.llmBackend;
+  document.getElementById('llm-model-path').value  = s.llmModelPath || '';
+  document.getElementById('ollama-model-input').value = s.ollamaModel;
+  document.getElementById('claude-api-key').value   = s.claudeApiKey || '';
+  document.getElementById('claude-model-sel').value = s.claudeModel  || 'claude-haiku-4-5-20251001';
+  document.getElementById('diar-enabled').checked   = !!s.diarizationEnabled;
+  document.getElementById('hf-token').value         = s.hfToken || '';
+
+  onLlmBackendChange(document.getElementById('llm-backend-sel').value);
+  onDiarToggle();
+  onHfTokenInput();
+
+  document.getElementById('item-init').style.display = 'none';
+  document.getElementById('sections').style.display  = '';
+  document.getElementById('recheck-bar').style.display = '';
+  if (rerunMode) document.getElementById('rerun-note').style.display = '';
+  document.getElementById('quit-btn').textContent =
+    rerunMode ? 'Close' : mode === 'update' ? 'Skip for now' : 'Quit';
+}
+
+// ── LLM backend ────────────────────────────────────────────────────────────
+
+function onLlmBackendChange(val) {
+  document.getElementById('llm-ollama-fields').style.display   = val === 'ollama'   ? '' : 'none';
+  document.getElementById('llm-llamacpp-fields').style.display = val === 'llamacpp' ? '' : 'none';
+  document.getElementById('llm-claude-fields').style.display   = val === 'claude'   ? '' : 'none';
+  updateLlmWarn();
+  updateClaudeWarn();
+}
+
+function updateLlmWarn() {
   const backend  = document.getElementById('llm-backend-sel').value;
   const filePath = (document.getElementById('llm-model-path').value || '').trim();
-  const warn     = document.getElementById('llm-warn');
-  if (warn) warn.style.display = (backend === 'llamacpp' && !filePath) ? '' : 'none';
+  document.getElementById('llm-warn').style.display =
+    (backend === 'llamacpp' && !filePath) ? 'block' : 'none';
+}
+
+function updateClaudeWarn() {
+  const backend = document.getElementById('llm-backend-sel').value;
+  const key     = (document.getElementById('claude-api-key').value || '').trim();
+  document.getElementById('claude-warn').style.display =
+    (backend === 'claude' && !key) ? 'block' : 'none';
+}
+
+// ── Speaker labels ─────────────────────────────────────────────────────────
+
+function onDiarToggle() {
+  const enabled = document.getElementById('diar-enabled').checked;
+  document.getElementById('diar-fields').style.display = enabled ? '' : 'none';
+  updateDiarStatus();
+}
+
+function onHfTokenInput() {
+  const val = (document.getElementById('hf-token').value || '').trim();
+  const fb  = document.getElementById('hf-token-feedback');
+  if (!val) {
+    fb.textContent = '';
+  } else if (!val.startsWith('hf_')) {
+    fb.textContent = '⚠ HuggingFace tokens normally start with "hf_" — double-check this value';
+    fb.style.color = '#d4902a';
+  } else {
+    fb.textContent = '✓ Looks like a valid token format';
+    fb.style.color = '#4caf7d';
+  }
+  updateDiarStatus();
+}
+
+function updateDiarStatus() {
+  const el = document.getElementById('diar-status');
+  if (!el || !status) return;
+  if (!document.getElementById('diar-enabled').checked) { el.innerHTML = ''; return; }
+  const tokenSet  = !!(document.getElementById('hf-token').value || '').trim();
+  const installed = !!status.pyannoteInstalled;
+  el.innerHTML =
+    `<span class="${installed ? 'on' : 'off'}" style="margin-right:14px">${installed ? '✓' : '○'} speaker detection installed</span>` +
+    `<span class="${tokenSet ? 'on' : 'off'}">${tokenSet ? '✓' : '○'} token set</span>`;
 }
 
 // ── Ollama model pull ──────────────────────────────────────────────────────
 
 function startPull() {
-  const btn  = document.getElementById('pull-btn');
-  const bar  = document.getElementById('pull-bar');
-  const fill = document.getElementById('pull-fill');
-  const msg  = document.getElementById('pull-msg');
-  if (btn)  btn.disabled = true;
-  if (bar)  bar.style.display = '';
+  const btn = document.getElementById('pull-btn');
+  const bar = document.getElementById('pull-bar');
+  if (btn) btn.disabled = true;
+  if (bar) bar.style.display = '';
   pulling = true;
   updateLaunchBtn();
-
-  api.onPullProgress(data => {
-    if (data.status === 'success') {
-      if (fill) fill.style.width = '100%';
-      if (msg)  msg.textContent  = 'Done!';
-      pulling = false;
-      status.ollamaModelPulled = true;
-      // Swap the item to green
-      const item = document.getElementById('item-ollama');
-      if (item) {
-        item.className = 'item ok';
-        item.querySelector('.icon').textContent   = '✓';
-        item.querySelector('.title').textContent  = `Ollama — ${status.ollamaModel} ready`;
-        item.querySelector('.desc').textContent   = 'LLM scoring is fully configured.';
-        const act = item.querySelector('.action');
-        if (act) act.remove();
-      }
-      updateLaunchBtn();
-    } else if (data.error) {
-      if (msg) msg.textContent = `Error: ${data.error}`;
-      pulling = false;
-      updateLaunchBtn();
-    } else if (data.total) {
-      const pct = Math.round((data.completed / data.total) * 100);
-      if (fill) fill.style.width = pct + '%';
-      if (msg)  msg.textContent  = `${esc(data.status)} — ${pct}%`;
-    } else if (data.status) {
-      if (msg) msg.textContent = data.status;
-    }
-  });
-
   api.pullModel(status.ollamaModel);
+}
+
+function onPullProgress(data) {
+  const btn  = document.getElementById('pull-btn');
+  const fill = document.getElementById('pull-fill');
+  const msg  = document.getElementById('pull-msg');
+  if (data.status === 'success') {
+    pulling = false;
+    status.ollamaModelPulled = true;
+    renderOllamaStatus(status);
+    updateLaunchBtn();
+  } else if (data.error) {
+    if (msg) msg.textContent = `Download failed: ${data.error} — check that Ollama is still running, then try again.`;
+    if (btn) btn.disabled = false;
+    pulling = false;
+    updateLaunchBtn();
+  } else if (data.total) {
+    const pct = Math.round((data.completed / data.total) * 100);
+    if (fill) fill.style.width = pct + '%';
+    if (msg)  msg.textContent  = `${data.status} — ${pct}%`;
+  } else if (data.status) {
+    if (msg) msg.textContent = data.status;
+  }
+}
+
+// ── optional package installs (pip into the venv) ──────────────────────────
+
+function startInstall(slug) {
+  const btn = document.getElementById(`install-btn-${slug}`);
+  const msg = document.getElementById(`install-msg-${slug}`);
+  if (btn) btn.disabled = true;
+  if (msg) msg.textContent = 'Starting…';
+  installing[slug] = true;
+  updateLaunchBtn();
+  api.installPackage(slug);
+}
+
+function onInstallProgress(data) {
+  const btn = document.getElementById(`install-btn-${data.slug}`);
+  const msg = document.getElementById(`install-msg-${data.slug}`);
+  if (data.done) {
+    installing[data.slug] = false;
+    if (data.slug === 'llamacpp') { status.llamacppInstalled = true; renderLlamacppPkgSlot(status); }
+    if (data.slug === 'pyannote') { status.pyannoteInstalled = true; renderPyannoteSlot(status); updateDiarStatus(); }
+    updateLaunchBtn();
+  } else if (data.error) {
+    installing[data.slug] = false;
+    if (msg) msg.textContent = `Install failed: ${data.error} — check your internet connection, then try again.`;
+    if (btn) btn.disabled = false;
+    updateLaunchBtn();
+  } else if (data.status) {
+    if (msg) msg.textContent = data.status;
+  }
+}
+
+// ── re-check / restart ─────────────────────────────────────────────────────
+
+async function recheck() {
+  const btn = document.getElementById('recheck-btn');
+  btn.disabled = true;
+  const original = btn.textContent;
+  btn.textContent = 'Checking…';
+  try {
+    renderSlots(await api.getStatus());
+  } finally {
+    btn.textContent = original;
+    btn.disabled = false;
+    updateLaunchBtn();
+  }
 }
 
 // ── UI events ──────────────────────────────────────────────────────────────
 
-// Copy buttons (delegated — checklist rows are rendered dynamically).
 document.addEventListener('click', e => {
   const btn = e.target.closest('[data-copy]');
   if (!btn) return;
@@ -483,51 +749,83 @@ document.getElementById('llm-browse-btn').addEventListener('click', async () => 
   });
   if (file) {
     document.getElementById('llm-model-path').value = file;
-    _updateLlmWarn();
+    updateLlmWarn();
   }
 });
 
-document.getElementById('llm-model-path').addEventListener('input', _updateLlmWarn);
+document.getElementById('llm-backend-sel').addEventListener('change', e => onLlmBackendChange(e.target.value));
+document.getElementById('llm-model-path').addEventListener('input', updateLlmWarn);
+document.getElementById('claude-api-key').addEventListener('input', updateClaudeWarn);
+document.getElementById('diar-enabled').addEventListener('change', onDiarToggle);
+document.getElementById('hf-token').addEventListener('input', onHfTokenInput);
+
+function wireVisibilityToggle(btnId, inputId) {
+  document.getElementById(btnId).addEventListener('click', () => {
+    const input = document.getElementById(inputId);
+    const show  = input.type === 'password';
+    input.type = show ? 'text' : 'password';
+    document.getElementById(btnId).textContent = show ? 'Hide' : 'Show';
+  });
+}
+wireVisibilityToggle('claude-key-toggle', 'claude-api-key');
+wireVisibilityToggle('hf-token-toggle', 'hf-token');
+
+document.getElementById('recheck-btn').addEventListener('click', recheck);
+document.getElementById('restart-btn').addEventListener('click', () => {
+  const btn = document.getElementById('restart-btn');
+  btn.disabled = true;
+  btn.textContent = 'Restarting…';
+  api.restartApp();
+});
 
 function collectConfig() {
   return {
-    projectDir:   document.getElementById('project-dir').value,
-    whisperModel: document.getElementById('whisper-sel').value,
-    llmBackend:   document.getElementById('llm-backend-sel').value,
-    llmModelPath: (document.getElementById('llm-model-path').value || '').trim(),
-    ollamaModel:  (document.getElementById('ollama-model-input').value || '').trim() || 'llama3.2',
-    claudeApiKey: (document.getElementById('claude-api-key').value || '').trim(),
-    claudeModel:  document.getElementById('claude-model-sel').value,
+    projectDir:      document.getElementById('project-dir').value,
+    whisperModel:    document.getElementById('whisper-sel').value,
+    whisperLanguage: document.getElementById('whisper-lang-sel').value,
+    llmBackend:      document.getElementById('llm-backend-sel').value,
+    llmModelPath:    (document.getElementById('llm-model-path').value || '').trim(),
+    ollamaModel:     (document.getElementById('ollama-model-input').value || '').trim() || 'llama3.2',
+    claudeApiKey:    (document.getElementById('claude-api-key').value || '').trim(),
+    claudeModel:     document.getElementById('claude-model-sel').value,
+    diarizationEnabled: document.getElementById('diar-enabled').checked,
+    hfToken:         (document.getElementById('hf-token').value || '').trim(),
   };
 }
 
 document.getElementById('quit-btn').addEventListener('click', () => {
-  if (rerunMode) api.complete(collectConfig());
+  if (rerunMode) api.close();          // discard changes, keep app running
+  else if (mode === 'update') api.skip(); // launch with existing config
   else api.quit();
 });
 
 document.getElementById('launch-btn').addEventListener('click', () => {
   const btn = document.getElementById('launch-btn');
   btn.disabled = true;
-  btn.textContent = 'Starting…';
+  btn.textContent = rerunMode ? 'Saving…' : 'Starting…';
   api.complete(collectConfig());
 });
 
 // ── boot ──────────────────────────────────────────────────────────────────
 
+api.onPullProgress(onPullProgress);
+api.onInstallProgress(onInstallProgress);
+
 (async () => {
   try {
     const s = await api.getStatus();
-    renderStatus(s);
+    applyDefaults(s);
+    renderSlots(s);
   } catch (e) {
-    document.getElementById('checklist').innerHTML =
+    document.getElementById('item-init').outerHTML =
       `<div class="item err">
          <div class="icon">✗</div>
          <div class="body">
            <div class="title">Setup check failed</div>
-           <div class="desc">${esc(String(e))}</div>
+           <div class="desc">${esc(String(e))}<br>Try <em>Restart app</em> below, or quit and relaunch.</div>
          </div>
        </div>`;
+    document.getElementById('recheck-bar').style.display = '';
     document.getElementById('subtitle').textContent = 'Something went wrong.';
   }
 })();

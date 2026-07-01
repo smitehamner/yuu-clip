@@ -66,7 +66,9 @@ def _run_retranscribe(cand, session, config, language: Optional[str] = None,
     import tempfile
 
     from yuu_clip.db.models import AudioTrack, Transcript, TranscriptSegment
-    from yuu_clip.transcribe.whisper_runner import _get_model
+    from yuu_clip.transcribe.whisper_runner import _get_model, resolve_transcription_language
+
+    language = resolve_transcription_language(language, config)
 
     tracks = session.query(AudioTrack).filter_by(video_id=cand.video_id, do_transcribe=True).all()
     if not tracks:

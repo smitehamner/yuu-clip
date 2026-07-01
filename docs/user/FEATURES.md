@@ -379,6 +379,16 @@ The **Suggest names** button (top of the Speakers card) uses the LLM to guess na
 
 Both a clip and a whole recording have a timed transcript you can click through. In the clip detail, the **Transcript** section shows each line with a timestamp and a ▶ that jumps the player to that moment; when the recording is diarized, lines are grouped by speaker name. The recording detail has a **Full transcript** section (collapsed by default) with the same per-line playback across the whole session. Both work with or without speaker labels — without diarization, each caption line simply plays from its own timestamp.
 
+### Transcription language
+
+By default the speech-to-text model auto-detects the spoken language per recording, which works well for most audio. If detection gets it wrong (accents, mixed-language voice chat, quiet mics), set **Transcription language** in Settings → Whisper to force a specific language. It takes effect on the next analysis or retranscribe. The same setting is offered in the setup wizard under **Basics**.
+
+This controls what Whisper *hears* — the app interface itself stays in English (interface translation is a future roadmap item).
+
+### Setup wizard
+
+The first-run setup wizard groups everything by how necessary it is: **Required** (FFmpeg), **LLM scoring — choose one** (Ollama, a local `.gguf` model file with a guided download, or the Claude API), **Optional** (speaker labels, GPU acceleration), and **Basics** (project folder, speech-to-text model, transcription language). After installing something outside the app, click **Check again** to re-detect it without closing the wizard — or **Restart app** for driver-level installs like CUDA. The wizard re-appears once after an update only when it gained new options; you can always reopen it from the hamburger menu (**Re-run Setup Wizard**).
+
 ### Optional dependency install
 
 Settings sections for llamacpp, Claude API, and speaker labels each include an **Install** button that runs `pip install <package>` in a subprocess and streams the pip output live. If an install fails, the full log is shown inline.

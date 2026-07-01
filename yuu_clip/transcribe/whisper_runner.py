@@ -45,6 +45,11 @@ console = Console()
 _model_cache: dict[tuple, object] = {}  # avoids re-loading the same model between tracks
 
 
+def resolve_transcription_language(explicit: Optional[str], config: Config) -> Optional[str]:
+    """Per-run explicit language wins over the configured default; None = auto-detect."""
+    return validate_whisper_language(explicit or config.whisper_language)
+
+
 def _assign_speakers(
     session: "Session",
     transcript_id: int,
@@ -274,7 +279,7 @@ def transcribe_track(
     if not audio_path.exists():
         raise FileNotFoundError(f"Extracted audio not found: {audio_path}")
 
-    language = validate_whisper_language(language)
+    language = resolve_transcription_language(language, config)
 
     model = _get_model(config)
     _log.info(
