@@ -230,6 +230,44 @@ class TestPyannoteDiarize:
         assert turns == [(2.0, 3.0, "SPEAKER_00")]
         assert embeddings == {}
 
+    def test_moves_pipeline_to_cuda_when_available(self, monkeypatch, tmp_path):
+        import pyannote.audio
+        import torch
+
+        monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
+        diar_result = MagicMock()
+        diar_result.speaker_diarization.itertracks.return_value = []
+        pipeline_obj = MagicMock(return_value=diar_result)
+        monkeypatch.setattr(
+            pyannote.audio.Pipeline, "from_pretrained", MagicMock(return_value=pipeline_obj)
+        )
+        wav_path = tmp_path / "clip.wav"
+        self._write_wav(wav_path)
+        cfg = Config(diarization_backend="pyannote", huggingface_token="hf_abc")
+        PyannoteDiarizationClient(cfg).diarize(str(wav_path))
+
+        assert pipeline_obj.to.called
+        (device,), _ = pipeline_obj.to.call_args
+        assert device.type == "cuda"
+
+    def test_stays_on_cpu_when_cuda_unavailable(self, monkeypatch, tmp_path):
+        import pyannote.audio
+        import torch
+
+        monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
+        diar_result = MagicMock()
+        diar_result.speaker_diarization.itertracks.return_value = []
+        pipeline_obj = MagicMock(return_value=diar_result)
+        monkeypatch.setattr(
+            pyannote.audio.Pipeline, "from_pretrained", MagicMock(return_value=pipeline_obj)
+        )
+        wav_path = tmp_path / "clip.wav"
+        self._write_wav(wav_path)
+        cfg = Config(diarization_backend="pyannote", huggingface_token="hf_abc")
+        PyannoteDiarizationClient(cfg).diarize(str(wav_path))
+
+        assert not pipeline_obj.to.called
+
     def test_unrelated_error_is_not_masked(self, monkeypatch):
         import pyannote.audio
 

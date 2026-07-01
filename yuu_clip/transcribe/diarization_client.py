@@ -71,6 +71,25 @@ def _load_waveform(audio_path: str) -> dict:
     return {"waveform": waveform, "sample_rate": sample_rate}
 
 
+def _move_pipeline_to_gpu_if_available(pipeline) -> None:
+    """Move the diarization pipeline onto CUDA when a GPU-enabled torch is present.
+
+    pyannote pipelines stay on CPU unless explicitly moved. This only helps when
+    the installed torch is a CUDA build (``torch.cuda.is_available()``); the CPU
+    build reports no CUDA and we stay on CPU. Any failure degrades to CPU rather
+    than aborting diarization.
+    """
+    import torch
+
+    if not torch.cuda.is_available():
+        return
+    try:
+        pipeline.to(torch.device("cuda"))
+        _log.info("Diarization pipeline moved to CUDA")
+    except Exception as exc:
+        _log.warning("Could not move diarization pipeline to CUDA (%s); using CPU", exc)
+
+
 def _looks_like_access_error(exc: Exception) -> bool:
     text = f"{type(exc).__name__} {exc}".lower()
     return any(
@@ -153,6 +172,7 @@ class PyannoteDiarizationClient(DiarizationClient):
             raise
         if pipeline is None:
             raise DiarizationError(_ACCEPT_TERMS_HELP)
+        _move_pipeline_to_gpu_if_available(pipeline)
         result = pipeline(_load_waveform(audio_path))
         # community-1 returns a DiarizeOutput dataclass whose `speaker_diarization`
         # field holds the Annotation; older pipelines return the Annotation directly.
