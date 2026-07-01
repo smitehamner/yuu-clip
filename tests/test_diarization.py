@@ -183,6 +183,53 @@ class TestPyannoteDiarize:
         assert "speaker-diarization-community-1" in message
         assert "hf.co/settings/tokens" in message
 
+    def test_diarize_with_embeddings_maps_labels_to_centroids(self, monkeypatch, tmp_path):
+        import pyannote.audio
+
+        turn_a = MagicMock(start=0.0, end=1.0)
+        turn_b = MagicMock(start=1.0, end=2.0)
+        diar_result = MagicMock()
+        diar_result.speaker_diarization.itertracks.return_value = [
+            (turn_a, None, "SPEAKER_00"), (turn_b, None, "SPEAKER_01"),
+        ]
+        diar_result.speaker_diarization.labels.return_value = ["SPEAKER_00", "SPEAKER_01"]
+        diar_result.speaker_embeddings = [[0.1, 0.2], [0.3, 0.4]]
+        pipeline_obj = MagicMock(return_value=diar_result)
+        monkeypatch.setattr(
+            pyannote.audio.Pipeline, "from_pretrained", MagicMock(return_value=pipeline_obj)
+        )
+
+        wav_path = tmp_path / "clip.wav"
+        self._write_wav(wav_path)
+        cfg = Config(diarization_backend="pyannote", huggingface_token="hf_abc")
+        turns, embeddings = PyannoteDiarizationClient(cfg).diarize_with_embeddings(str(wav_path))
+
+        assert turns == [(0.0, 1.0, "SPEAKER_00"), (1.0, 2.0, "SPEAKER_01")]
+        assert embeddings == {"SPEAKER_00": [0.1, 0.2], "SPEAKER_01": [0.3, 0.4]}
+
+    def test_diarize_with_embeddings_tolerates_no_embeddings(self, monkeypatch, tmp_path):
+        import pyannote.audio
+
+        # A bare Annotation (older pipeline): result is the annotation itself,
+        # so there is no separate speaker_embeddings attribute to read.
+        class FakeAnnotation:
+            def itertracks(self, yield_label=False):
+                return [(MagicMock(start=2.0, end=3.0), None, "SPEAKER_00")]
+            def labels(self):
+                return ["SPEAKER_00"]
+
+        pipeline_obj = MagicMock(return_value=FakeAnnotation())
+        monkeypatch.setattr(
+            pyannote.audio.Pipeline, "from_pretrained", MagicMock(return_value=pipeline_obj)
+        )
+        wav_path = tmp_path / "clip.wav"
+        self._write_wav(wav_path)
+        cfg = Config(diarization_backend="pyannote", huggingface_token="hf_abc")
+        turns, embeddings = PyannoteDiarizationClient(cfg).diarize_with_embeddings(str(wav_path))
+
+        assert turns == [(2.0, 3.0, "SPEAKER_00")]
+        assert embeddings == {}
+
     def test_unrelated_error_is_not_masked(self, monkeypatch):
         import pyannote.audio
 

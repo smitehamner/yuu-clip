@@ -135,6 +135,116 @@ class TestAttachSpeakers:
         session.close()
 
 
+class TestVoiceprintMatch:
+    def _seed_transcript(self, session, video_id, label: str):
+        track = AudioTrack(video_id=video_id, stream_index=1, label="combined")
+        session.add(track)
+        session.flush()
+        tx = Transcript(audio_track_id=track.id, model_name="base")
+        session.add(tx)
+        session.flush()
+        session.add(TranscriptSegment(
+            transcript_id=tx.id, start_ms=0, end_ms=1000, text="hi", speaker_label=label,
+        ))
+        session.flush()
+        return tx
+
+    def test_new_cluster_stores_voiceprint(self, tmp_path: Path):
+        from yuu_clip.transcribe.whisper_runner import _attach_speakers, _deserialize_voiceprint
+
+        session = make_session(tmp_path / "v.db")
+        video = Video(path="x.mkv", filename="x.mkv", status="done")
+        session.add(video)
+        session.flush()
+        tx = self._seed_transcript(session, video.id, "SPEAKER_00")
+
+        _attach_speakers(session, video.id, tx.id, {"SPEAKER_00": [1.0, 0.0, 0.0]})
+
+        speaker = session.query(Speaker).one()
+        assert _deserialize_voiceprint(speaker.voiceprint) == [1.0, 0.0, 0.0]
+        session.close()
+
+    def test_rediarize_reattaches_named_speaker_by_voiceprint(self, tmp_path: Path):
+        from yuu_clip.transcribe.whisper_runner import _attach_speakers
+
+        session = make_session(tmp_path / "v.db")
+        video = Video(path="x.mkv", filename="x.mkv", status="done")
+        session.add(video)
+        session.flush()
+
+        tx1 = self._seed_transcript(session, video.id, "SPEAKER_00")
+        _attach_speakers(session, video.id, tx1.id, {"SPEAKER_00": [1.0, 0.0, 0.0]})
+        speaker = session.query(Speaker).one()
+        speaker.name = "Yuu"
+        session.flush()
+
+        # Re-diarize: same voice (near-identical embedding), unrelated raw label.
+        tx2 = self._seed_transcript(session, video.id, "SPEAKER_00")
+        _attach_speakers(session, video.id, tx2.id, {"SPEAKER_00": [0.99, 0.02, 0.0]})
+
+        speakers = session.query(Speaker).all()
+        assert len(speakers) == 1  # no new speaker minted
+        assert speakers[0].name == "Yuu"
+        seg2 = session.query(TranscriptSegment).filter_by(transcript_id=tx2.id).one()
+        assert seg2.speaker_id == speakers[0].id  # name survived re-diarization
+        session.close()
+
+    def test_distinct_voice_mints_new_speaker(self, tmp_path: Path):
+        from yuu_clip.transcribe.whisper_runner import _attach_speakers
+
+        session = make_session(tmp_path / "v.db")
+        video = Video(path="x.mkv", filename="x.mkv", status="done")
+        session.add(video)
+        session.flush()
+
+        tx1 = self._seed_transcript(session, video.id, "SPEAKER_00")
+        _attach_speakers(session, video.id, tx1.id, {"SPEAKER_00": [1.0, 0.0, 0.0]})
+        session.query(Speaker).one().name = "Yuu"
+        session.flush()
+
+        # Re-diarize: a clearly different voice (orthogonal embedding).
+        tx2 = self._seed_transcript(session, video.id, "SPEAKER_00")
+        _attach_speakers(session, video.id, tx2.id, {"SPEAKER_00": [0.0, 1.0, 0.0]})
+
+        speakers = session.query(Speaker).order_by(Speaker.display_index).all()
+        assert len(speakers) == 2  # not merged onto "Yuu"
+        assert speakers[1].name is None and speakers[1].display_index == 2
+        session.close()
+
+    def test_two_clusters_do_not_collapse_onto_one_prior(self, tmp_path: Path):
+        from yuu_clip.transcribe.whisper_runner import _attach_speakers
+
+        session = make_session(tmp_path / "v.db")
+        video = Video(path="x.mkv", filename="x.mkv", status="done")
+        session.add(video)
+        session.flush()
+
+        # Prior run: one named speaker with a voiceprint.
+        tx1 = self._seed_transcript(session, video.id, "SPEAKER_00")
+        _attach_speakers(session, video.id, tx1.id, {"SPEAKER_00": [1.0, 0.0, 0.0]})
+        session.query(Speaker).one().name = "Yuu"
+        session.flush()
+
+        # New run with two clusters both similar to Yuu — only one may re-attach.
+        track = AudioTrack(video_id=video.id, stream_index=2, label="combined")
+        session.add(track)
+        session.flush()
+        tx2 = Transcript(audio_track_id=track.id, model_name="base")
+        session.add(tx2)
+        session.flush()
+        session.add(TranscriptSegment(transcript_id=tx2.id, start_ms=0, end_ms=1000, text="a", speaker_label="SPEAKER_00"))
+        session.add(TranscriptSegment(transcript_id=tx2.id, start_ms=1000, end_ms=2000, text="b", speaker_label="SPEAKER_01"))
+        session.flush()
+        _attach_speakers(session, video.id, tx2.id, {
+            "SPEAKER_00": [1.0, 0.0, 0.0],
+            "SPEAKER_01": [0.98, 0.01, 0.0],
+        })
+
+        speakers = session.query(Speaker).all()
+        assert len(speakers) == 2  # one re-attached to Yuu, the other minted fresh
+        session.close()
+
+
 class TestSpeakerRoutes:
     def _db(self, project_dir: Path):
         return make_session(project_dir / ".yuu-clip" / "project.db")

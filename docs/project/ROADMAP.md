@@ -175,11 +175,19 @@ Complex, specialized, or AI-heavy features that are valuable but don't need to b
   clip excerpts (`_build_excerpt`) and captions (`subtitles.py`), and renaming rebuilds affected clip
   excerpts. Default display is "Speaker N" (`display_index`); raw `SPEAKER_00` never reaches the UI.
   **Still pending:**
-  - *Phase 2 — voiceprint re-attach:* capture per-cluster embeddings (`Speaker.voiceprint`, column
-    reserved) and match new diarization clusters to existing named Speakers by cosine similarity so a
-    name survives re-diarization. Until then durability is degraded: a re-diarize creates fresh
-    Speakers and leaves prior named ones as orphans to re-confirm. **Feasibility gate:** confirm
-    pyannote community-1 can emit embeddings before committing the design.
+  - *Phase 2 — voiceprint re-attach: SHIPPED (2026-06-30).* pyannote.audio 4.0.7's community-1
+    pipeline returns per-speaker centroids on `DiarizeOutput.speaker_embeddings` (rows aligned with
+    `annotation.labels()`); `PyannoteDiarizationClient.diarize_with_embeddings` surfaces them,
+    `_attach_speakers` stores each centroid on `Speaker.voiceprint` (JSON) and cosine-matches new
+    clusters against Speakers from prior runs — above `_VOICEPRINT_MATCH_THRESHOLD` the segments
+    re-attach to the existing (named) Speaker, so a name survives re-diarization; below it a fresh
+    "Speaker N" is minted. Matches are only against pre-run Speakers, and each prior Speaker matches
+    at most one current cluster (no collapse). **Caveat: the 0.75 threshold is an untuned
+    conservative guess** — biased toward minting a new speaker over a wrong merge (per the "never
+    mis-remap" requirement). Validate/tune against a real re-diarization (e.g. re-analyze a recording
+    whose speakers are already named) before trusting it broadly. *Not yet done:* the retranscribe
+    (clip-scoped) diarization path still stores no voiceprint; a borderline-match confirmation band in
+    the UI; making the threshold configurable.
   - *Phase 3 — sample playback:* a ▶ button to hear a few seconds of each voice (reuse the FFmpeg
     clip-preview infra in `routes/clips.py`).
   - *Phase 4 — name inference (optional, last):* suggest names from vocative/direct-address in the

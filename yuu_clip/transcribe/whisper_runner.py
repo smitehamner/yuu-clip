@@ -20,6 +20,8 @@ Approximate VRAM / RAM usage:
 """
 from __future__ import annotations
 
+import json
+import math
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
@@ -71,15 +73,63 @@ def _assign_speakers(
     session.flush()
 
 
-def _attach_speakers(session: "Session", video_id: int, transcript_id: int) -> None:
-    """Create a durable per-recording Speaker for each distinct raw label in this
-    transcript run and point its segments at it.
+# Cosine similarity above which a new diarization cluster is treated as the same
+# voice as an existing named Speaker and re-attached to it. Deliberately high: the
+# user's requirement is to never mis-remap a name, so when unsure we would rather
+# mint a fresh "Speaker N" to re-confirm than attach a name to the wrong voice.
+# Tune against real re-diarizations before lowering.
+_VOICEPRINT_MATCH_THRESHOLD = 0.75
 
-    Phase 1 has no voiceprint match, so every diarization run produces fresh
-    Speakers; any previously named Speakers are left intact (orphaned) rather than
-    silently remapped onto a voice we can't verify. display_index continues from
-    the recording's current max so "Speaker N" numbering never collides.
+
+def _serialize_voiceprint(vector: list[float]) -> bytes:
+    return json.dumps([float(x) for x in vector]).encode("utf-8")
+
+
+def _deserialize_voiceprint(blob: bytes) -> list[float]:
+    return json.loads(blob.decode("utf-8"))
+
+
+def _cosine_similarity(a: list[float], b: list[float]) -> float:
+    if len(a) != len(b):
+        return 0.0
+    dot = sum(x * y for x, y in zip(a, b))
+    norm_a = math.sqrt(sum(x * x for x in a))
+    norm_b = math.sqrt(sum(y * y for y in b))
+    return dot / (norm_a * norm_b) if norm_a and norm_b else 0.0
+
+
+def _best_voiceprint_match(vector, candidates, taken_ids):
+    """The most-similar unused candidate Speaker above the threshold, or None."""
+    best_speaker = None
+    best_score = _VOICEPRINT_MATCH_THRESHOLD
+    for speaker in candidates:
+        if speaker.id in taken_ids or not speaker.voiceprint:
+            continue
+        score = _cosine_similarity(vector, _deserialize_voiceprint(speaker.voiceprint))
+        if score >= best_score:
+            best_score = score
+            best_speaker = speaker
+    return best_speaker
+
+
+def _attach_speakers(
+    session: "Session",
+    video_id: int,
+    transcript_id: int,
+    embeddings_by_label: dict[str, list[float]] | None = None,
+) -> None:
+    """Attribute this run's segments to durable per-recording Speakers.
+
+    When a raw cluster carries a voiceprint that matches an existing Speaker
+    (cosine ≥ threshold), the segments re-attach to that Speaker so its name
+    survives re-diarization. Otherwise a fresh Speaker is minted (storing the
+    voiceprint when available). Matches are only made against Speakers that
+    existed *before* this run, and each prior Speaker matches at most one current
+    cluster — pyannote already separated the current clusters, so two of them must
+    not collapse onto one identity. display_index continues from the recording's
+    current max so "Speaker N" numbering never collides.
     """
+    embeddings_by_label = embeddings_by_label or {}
     segs = (
         session.query(TranscriptSegment)
         .filter_by(transcript_id=transcript_id)
@@ -93,14 +143,27 @@ def _attach_speakers(session: "Session", video_id: int, transcript_id: int) -> N
     if not labels_in_order:
         return
 
-    next_index = (
-        session.query(func.max(Speaker.display_index)).filter_by(video_id=video_id).scalar()
-        or 0
-    )
+    prior_speakers = session.query(Speaker).filter_by(video_id=video_id).all()
+    next_index = max((s.display_index for s in prior_speakers), default=0)
+    taken_ids: set[int] = set()
     label_to_speaker_id: dict[str, int] = {}
+
     for label in labels_in_order:
+        vector = embeddings_by_label.get(label)
+        match = _best_voiceprint_match(vector, prior_speakers, taken_ids) if vector else None
+        if match is not None:
+            taken_ids.add(match.id)
+            if not match.voiceprint:
+                match.voiceprint = _serialize_voiceprint(vector)
+            label_to_speaker_id[label] = match.id
+            continue
         next_index += 1
-        speaker = Speaker(video_id=video_id, display_index=next_index, source="manual")
+        speaker = Speaker(
+            video_id=video_id,
+            display_index=next_index,
+            source="manual",
+            voiceprint=_serialize_voiceprint(vector) if vector else None,
+        )
         session.add(speaker)
         session.flush()
         label_to_speaker_id[label] = speaker.id
@@ -276,10 +339,13 @@ def diarize_track(
 
     _log.info("Running diarization for track %d [%s]…", track.id, track.label)
     try:
-        turns = diar_client.diarize(str(audio_path))
+        turns, embeddings = diar_client.diarize_with_embeddings(str(audio_path))
         _assign_speakers(session, transcript.id, turns)
-        _attach_speakers(session, track.video_id, transcript.id)
-        _log.info("Diarization complete: %d turns for track %d", len(turns), track.id)
+        _attach_speakers(session, track.video_id, transcript.id, embeddings)
+        _log.info(
+            "Diarization complete: %d turns, %d voiceprint(s) for track %d",
+            len(turns), len(embeddings), track.id,
+        )
     except DiarizationError as exc:
         _log.warning("Diarization failed for track %d [%s]: %s", track.id, track.label, exc)
         console.print(f"[yellow]Speaker labels skipped for [{track.label}]:[/yellow]")

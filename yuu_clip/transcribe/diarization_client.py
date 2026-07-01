@@ -88,6 +88,17 @@ class DiarizationClient(ABC):
         """Return (start_s, end_s, speaker_label) speaker turns for *audio_path*."""
         ...
 
+    def diarize_with_embeddings(
+        self, audio_path: str
+    ) -> tuple[list[tuple[float, float, str]], dict[str, list[float]]]:
+        """Return turns plus a per-speaker voiceprint centroid keyed by raw label.
+
+        Default: turns with no embeddings. Backends that can produce speaker
+        embeddings (Pyannote) override this so a name can be re-attached to the
+        same voice across diarization runs.
+        """
+        return self.diarize(audio_path), {}
+
     @abstractmethod
     def available(self) -> tuple[bool, str]: ...
 
@@ -118,7 +129,12 @@ class PyannoteDiarizationClient(DiarizationClient):
             return False, "pyannote.audio is not installed (pip install pyannote.audio)"
         return True, ""
 
-    def diarize(self, audio_path: str) -> list[tuple[float, float, str]]:
+    def _run_pipeline(self, audio_path: str):
+        """Load and run the diarization pipeline; return (annotation, raw_result).
+
+        Shared by ``diarize`` and ``diarize_with_embeddings`` so the pipeline load
+        + error translation lives in one place.
+        """
         # Importing pyannote pulls in torchcodec, which logs a noisy "Could not load
         # libtorchcodec" traceback when FFmpeg's shared libs aren't on PATH (common on
         # Windows). It's expected and harmless here: we decode the WAV ourselves in
@@ -141,10 +157,37 @@ class PyannoteDiarizationClient(DiarizationClient):
         # community-1 returns a DiarizeOutput dataclass whose `speaker_diarization`
         # field holds the Annotation; older pipelines return the Annotation directly.
         annotation = getattr(result, "speaker_diarization", result)
+        return annotation, result
+
+    @staticmethod
+    def _turns(annotation) -> list[tuple[float, float, str]]:
         return [
             (turn.start, turn.end, speaker)
             for turn, _, speaker in annotation.itertracks(yield_label=True)
         ]
+
+    def diarize(self, audio_path: str) -> list[tuple[float, float, str]]:
+        annotation, _ = self._run_pipeline(audio_path)
+        return self._turns(annotation)
+
+    def diarize_with_embeddings(
+        self, audio_path: str
+    ) -> tuple[list[tuple[float, float, str]], dict[str, list[float]]]:
+        annotation, result = self._run_pipeline(audio_path)
+        turns = self._turns(annotation)
+        # community-1's DiarizeOutput exposes one centroid per speaker on
+        # `speaker_embeddings`, a (num_speakers, dim) array whose rows align with
+        # annotation.labels(). Older pipelines return a bare Annotation with no
+        # embeddings — degrade to turns-only.
+        embeddings: dict[str, list[float]] = {}
+        raw = getattr(result, "speaker_embeddings", None)
+        if raw is not None and raw is not result:
+            for index, label in enumerate(annotation.labels()):
+                try:
+                    embeddings[label] = [float(x) for x in raw[index]]
+                except (IndexError, TypeError, ValueError):
+                    continue
+        return turns, embeddings
 
 
 def make_diarization_client(config: Config) -> DiarizationClient:
