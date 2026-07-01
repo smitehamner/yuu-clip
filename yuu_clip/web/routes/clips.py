@@ -6,6 +6,7 @@ import json as json_lib
 import re
 import subprocess as _subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -15,7 +16,7 @@ from pydantic import BaseModel
 from sqlalchemy import case
 
 from yuu_clip.config import validate_whisper_model
-from yuu_clip.db.models import ClipCandidate, Video
+from yuu_clip.db.models import ClipCandidate, TranscriptSegment, Video
 from yuu_clip.log import get_logger
 from yuu_clip.web.deps import ProjectContext
 from yuu_clip.web.routes._shared import (
@@ -70,6 +71,10 @@ class ClipMergeRequest(BaseModel):
     clip_b_id: int
 
 
+class CaptionSegmentUpdate(BaseModel):
+    text: str
+
+
 class AutoApproveBody(BaseModel):
     threshold: float
     score_field: str = "overall"
@@ -94,6 +99,16 @@ def _related_clips_stale(clip: ClipCandidate, video: Optional[Video]) -> bool:
     if video and video.clips_scored_at and clip.related_clips_at < video.clips_scored_at:
         return True
     return False
+
+
+def _transcript_stale(clip: ClipCandidate, video: Optional[Video]) -> bool:
+    """True when a caption overlapping this clip was edited after it was last scored,
+    so its scores/descriptions no longer match the transcript."""
+    if not clip.transcript_edited_at:
+        return False
+    return bool(
+        video and video.clips_scored_at and clip.transcript_edited_at > video.clips_scored_at
+    )
 
 
 def _clip_dict(
@@ -137,6 +152,7 @@ def _clip_dict(
         "related_clips": json_lib.loads(clip.related_clips_json) if clip.related_clips_json else None,
         "related_clips_at": clip.related_clips_at.isoformat() if clip.related_clips_at else None,
         "related_clips_stale": _related_clips_stale(clip, video),
+        "transcript_stale": _transcript_stale(clip, video),
     }
     if full:
         d["transcript_excerpt"] = clip.transcript_excerpt or ""
@@ -634,6 +650,50 @@ def _register_caption_routes(router: APIRouter, ctx: ProjectContext) -> None:
         try:
             clip = _require_clip(db, clip_id)
             return {"lines": clip_transcript_lines(clip)}
+        finally:
+            db.close()
+
+    @router.put("/api/caption-segments/{seg_id}")
+    def update_caption_segment(seg_id: int, body: CaptionSegmentUpdate):
+        """Edit a caption segment's text, then rebuild the excerpt of every clip that
+        overlaps it and flag those clips as needing a re-score.
+
+        Preserves the segment's speaker and timing — only the text changes.
+        """
+        from yuu_clip.segments.windower import rebuild_clip_excerpt
+        new_text = body.text.strip()
+        if not new_text:
+            raise HTTPException(400, "Caption text cannot be empty")
+        db = ctx.get_db()
+        try:
+            seg = db.get(TranscriptSegment, seg_id)
+            if not seg:
+                raise HTTPException(404, "Caption segment not found")
+            seg.text = new_text
+            video_id = seg.transcript.audio_track.video_id
+            affected = (
+                db.query(ClipCandidate)
+                .filter(
+                    ClipCandidate.video_id == video_id,
+                    ClipCandidate.start_ms < seg.end_ms,
+                    ClipCandidate.end_ms > seg.start_ms,
+                )
+                .all()
+            )
+            edited_at = datetime.now(timezone.utc)
+            for clip in affected:
+                rebuild_clip_excerpt(clip)
+                clip.transcript_edited_at = edited_at
+            db.commit()
+            _log.info(
+                "Edited caption segment %d (video %d) — rebuilt %d clip excerpt(s)",
+                seg_id, video_id, len(affected),
+            )
+            return {
+                "seg_id": seg_id,
+                "text": seg.text,
+                "affected_clip_ids": [c.id for c in affected],
+            }
         finally:
             db.close()
 

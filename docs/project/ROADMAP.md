@@ -201,9 +201,10 @@ Complex, specialized, or AI-heavy features that are valuable but don't need to b
     boost per named character" and per-speaker lore in scoring; deferred to avoid coupling naming to
     the contexts model in v1.
 
-- [ ] **Transcript editing** — inline editable text area for `TranscriptSegment.text`; lets the user
-  fix character names, misspellings, and game-specific jargon before re-scoring. Now unblocked by
-  speaker diarization; speaker-grouped display is the target UX.
+- [x] **Transcript editing** — inline editable caption text for `TranscriptSegment.text`; lets the
+  user fix character names, misspellings, and game-specific jargon before re-scoring. Speaker-grouped
+  timed view, click-to-edit per line, excerpt rebuild + re-score staleness flag. Shipped — see
+  COMPLETED.md.
 
 - [ ] **Transcript name correction** — after speaker diarization maps clusters to character names,
   auto-suggest replacements for mis-transcribed names that *other* speakers say (e.g. Whisper

@@ -122,6 +122,36 @@ def _build_excerpt(segs: list[TranscriptSegment]) -> str:
     return "\n".join(lines)
 
 
+def _clip_window_segments(video: Video, start_ms: int, end_ms: int) -> list[TranscriptSegment]:
+    """Segments from the video's transcribable tracks that overlap [start_ms, end_ms).
+
+    Uses the newest transcript per track — the same source generate_candidates
+    built the excerpt from — so a rebuild reproduces the original grouping.
+    """
+    segs: list[TranscriptSegment] = []
+    for track in video.audio_tracks:
+        if not track.do_transcribe or not track.transcripts:
+            continue
+        transcript = max(track.transcripts, key=lambda t: t.created_at)
+        segs.extend(
+            seg for seg in transcript.segments
+            if seg.start_ms < end_ms and seg.end_ms > start_ms
+        )
+    segs.sort(key=lambda s: s.start_ms)
+    return segs
+
+
+def rebuild_clip_excerpt(clip: ClipCandidate) -> None:
+    """Recompute ``clip.transcript_excerpt`` from the current segments in its window.
+
+    Call after a caption edit or speaker rename so the excerpt — and any re-score
+    that reads it — reflects the change. Mirrors the excerpt build in
+    generate_candidates so an untouched clip's excerpt is unchanged.
+    """
+    segs = _clip_window_segments(clip.video, clip.start_ms, clip.end_ms)
+    clip.transcript_excerpt = _build_excerpt(segs)
+
+
 def _silence_window(
     segments: list[TranscriptSegment],
     silence_threshold_ms: int,

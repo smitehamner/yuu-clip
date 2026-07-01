@@ -13,8 +13,8 @@ from conftest import select_first_video_and_clip, select_video_with_clips, skip_
 
 _CLIP_LINES = {
     "lines": [
-        {"start_ms": 0, "end_ms": 2000, "speaker": "Yuu", "text": "let's go go go"},
-        {"start_ms": 2000, "end_ms": 4000, "speaker": "Mara", "text": "behind you"},
+        {"start_ms": 0, "end_ms": 2000, "speaker": "Yuu", "text": "let's go go go", "seg_id": 11},
+        {"start_ms": 2000, "end_ms": 4000, "speaker": "Mara", "text": "behind you", "seg_id": 12},
     ]
 }
 _VIDEO_LINES = {
@@ -39,6 +39,36 @@ class TestClipTranscript:
         expect(page.locator("#clip-transcript-view .tline")).to_have_count(2)
         expect(page.locator("#clip-transcript-view .tline-play")).to_have_count(2)
         expect(page.locator("#clip-transcript-view .tline-speaker").first).to_have_text("Yuu")
+
+    def test_click_line_edits_and_saves_caption(self, page: Page):
+        page.route(
+            "**/api/clips/*/transcript",
+            lambda route: route.fulfill(
+                status=200, content_type="application/json", body=json.dumps(_CLIP_LINES)
+            ),
+        )
+        put_bodies = []
+
+        def _handle_put(route):
+            put_bodies.append(route.request.post_data_json)
+            route.fulfill(
+                status=200,
+                content_type="application/json",
+                body=json.dumps({"seg_id": 11, "text": "let's GO", "affected_clip_ids": []}),
+            )
+
+        page.route("**/api/caption-segments/11", _handle_put)
+        select_first_video_and_clip(page)
+
+        first = page.locator("#clip-transcript-view .tline-text.editable").first
+        first.click()
+        editor = page.locator("#clip-transcript-view .tline-text.editing .tline-edit-input")
+        expect(editor).to_be_visible()
+        editor.fill("let's GO")
+        page.locator("#clip-transcript-view .tline-text.editing .btn.primary").click()
+
+        expect(page.locator("#clip-transcript-view .tline-text").first).to_have_text("let's GO")
+        assert put_bodies and put_bodies[0]["text"] == "let's GO"
 
 
 @skip_no_server

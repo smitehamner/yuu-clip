@@ -213,6 +213,15 @@ header h1 { font-size: 16px; font-weight: 700; letter-spacing: .5px; color: var(
 .tline-play:hover { background: var(--border); }
 .tline-time { flex-shrink: 0; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; min-width: 40px; }
 .tline-text { font-size: 13px; line-height: 1.45; }
+.tline-text.editable { cursor: text; border-radius: 4px; padding: 0 3px; transition: background .12s; }
+.tline-text.editable:hover { background: var(--border); }
+.tline-text.editing { flex: 1; cursor: default; padding: 0; background: none; }
+.tline-text.editing:hover { background: none; }
+.tline-edit-input { width: 100%; font-size: 13px; line-height: 1.45; font-family: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--accent); border-radius: 4px; padding: 4px 6px; resize: vertical; box-sizing: border-box; }
+.tline-edit-input:focus { outline: none; box-shadow: 0 0 0 2px rgba(124,106,247,.35); }
+.tline-edit-actions { display: flex; gap: 6px; margin-top: 4px; }
+.tline-edit-actions .btn { font-size: 11px; padding: 2px 10px; }
+.transcript-stale-note { font-size: 12px; color: var(--yellow); background: rgba(240,192,96,.08); border: 1px solid rgba(240,192,96,.3); border-radius: 6px; padding: 6px 10px; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .transcript-empty { font-size: 12px; color: var(--muted); padding: 4px 0; }
 .transcript-details { margin-top: 4px; border-top: 1px solid var(--border); padding-top: 8px; }
 .transcript-summary { cursor: pointer; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); list-style: revert; }

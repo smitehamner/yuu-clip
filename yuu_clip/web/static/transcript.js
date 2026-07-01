@@ -3,7 +3,8 @@
 // Per-line transcript for a clip (clip-relative time) and for a whole recording
 // (absolute time), each line with a ▶ that seeks the visible player. Works for
 // diarized transcripts (speaker name shown when it changes) and plain ones
-// (each caption segment becomes its own line).
+// (each caption segment becomes its own line). Each line's text is click-to-edit
+// so mis-heard names/jargon can be fixed before re-scoring.
 
 function seekPlayerTo(seconds) {
   const video = document.querySelector('#player-area video');
@@ -23,7 +24,12 @@ function _clock(ms) {
   return h ? `${h}:${mm}:${ss}` : `${m}:${ss}`;
 }
 
-function renderTranscriptLines(lines) {
+// opts.seekOffsetS is added to each line's play target — 0 for a clip (its player
+// is trimmed to the clip) and the segment start for a split recording (whose player
+// streams the untrimmed parent file).
+function renderTranscriptLines(lines, opts) {
+  opts = opts || {};
+  const offsetS = opts.seekOffsetS || 0;
   if (!Array.isArray(lines) || !lines.length) {
     return '<div class="transcript-empty">No transcript available.</div>';
   }
@@ -33,11 +39,16 @@ function renderTranscriptLines(lines) {
     prevSpeaker = line.speaker;
     const speaker = showSpeaker ? `<div class="tline-speaker">${escHtml(line.speaker)}</div>` : '';
     const clock = _clock(line.start_ms);
+    const seekS = (line.start_ms || 0) / 1000 + offsetS;
+    const editable = line.seg_id != null;
+    const editAttrs = editable
+      ? ` data-seg-id="${line.seg_id}" role="button" tabindex="0" title="Click to edit caption"`
+      : '';
     return `${speaker}<div class="tline">
-      <button class="tline-play" data-seek-s="${(line.start_ms || 0) / 1000}"
+      <button class="tline-play" data-seek-s="${seekS}"
               title="Jump to ${clock}" aria-label="Play from ${clock}">&#9654;</button>
       <span class="tline-time">${clock}</span>
-      <span class="tline-text">${escHtml(line.text)}</span>
+      <span class="tline-text${editable ? ' editable' : ''}"${editAttrs}>${escHtml(line.text)}</span>
     </div>`;
   }).join('');
   return `<div class="transcript-lines">${rows}</div>`;
@@ -63,19 +74,94 @@ async function loadVideoTranscript(videoId) {
   el.innerHTML = '<div class="transcript-empty">Loading…</div>';
   try {
     const data = await fetch(`/api/videos/${videoId}/transcript`).then(r => r.json());
-    el.innerHTML = renderTranscriptLines(data.lines);
+    el.innerHTML = renderTranscriptLines(data.lines, {seekOffsetS: data.seek_offset_s || 0});
     _videoTranscriptLoadedFor = videoId;
   } catch (_) {
     el.innerHTML = '<div class="transcript-empty">Could not load transcript.</div>';
   }
 }
 
+// ── inline caption editing ────────────────────────────────────────────────────
+function startEditCaption(span) {
+  if (span.classList.contains('editing')) return;
+  const segId = span.dataset.segId;
+  const original = span.textContent;
+  span.classList.add('editing');
+  span.innerHTML = '';
+
+  const input = document.createElement('textarea');
+  input.className = 'tline-edit-input';
+  input.value = original;
+  input.rows = Math.min(4, Math.max(1, Math.ceil(original.length / 48)));
+
+  const actions = document.createElement('div');
+  actions.className = 'tline-edit-actions';
+  const save = document.createElement('button');
+  save.className = 'btn primary';
+  save.textContent = 'Save';
+  const cancel = document.createElement('button');
+  cancel.className = 'btn ghost';
+  cancel.textContent = 'Cancel';
+  actions.append(save, cancel);
+  span.append(input, actions);
+  input.focus();
+  input.setSelectionRange(original.length, original.length);
+
+  const restore = (text) => { span.classList.remove('editing'); span.textContent = text; };
+
+  cancel.onclick = () => restore(original);
+  input.onkeydown = ev => {
+    if (ev.key === 'Escape') { ev.preventDefault(); restore(original); }
+    else if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); save.click(); }
+  };
+  save.onclick = async () => {
+    const text = input.value.trim();
+    if (!text) { showToast('Caption cannot be empty', 'error'); return; }
+    if (text === original) { restore(original); return; }
+    save.disabled = cancel.disabled = true;
+    try {
+      const res = await fetch(`/api/caption-segments/${segId}`, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({text}),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(formatApiError(err));
+      }
+      const data = await res.json();
+      restore(data.text);
+      _onCaptionEdited(data);
+    } catch (err) {
+      save.disabled = cancel.disabled = false;
+      showToast(`Could not save caption: ${err.message}`, 'error');
+    }
+  };
+}
+
+function _onCaptionEdited(data) {
+  const affected = data.affected_clip_ids || [];
+  showToast(affected.length
+    ? `Caption updated — ${affected.length} clip${affected.length !== 1 ? 's' : ''} affected; re-score to refresh`
+    : 'Caption updated');
+  // Refresh the open clip's detail so its excerpt and the re-score notice update.
+  const openId = AppState.activeClipId;
+  if (openId && affected.includes(openId) && window.refreshClipDetail) refreshClipDetail(openId);
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   const detail = document.getElementById('detail');
   if (!detail) return;
   detail.addEventListener('click', e => {
+    const text = e.target.closest && e.target.closest('.tline-text.editable');
+    if (text) { startEditCaption(text); return; }
     const btn = e.target.closest && e.target.closest('.tline-play');
     if (btn) seekPlayerTo(parseFloat(btn.dataset.seekS));
+  });
+  detail.addEventListener('keydown', e => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const text = e.target.closest && e.target.closest('.tline-text.editable');
+    if (text && !text.classList.contains('editing')) { e.preventDefault(); startEditCaption(text); }
   });
   // 'toggle' does not bubble — listen in the capture phase to catch it on the
   // <details> element, and lazy-load the full-video transcript on first expand.
@@ -87,5 +173,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }, true);
 });
 
-Object.assign(window, { loadClipTranscript, loadVideoTranscript, renderTranscriptLines, seekPlayerTo });
+Object.assign(window, {
+  loadClipTranscript, loadVideoTranscript, renderTranscriptLines, seekPlayerTo, startEditCaption,
+});
 })();

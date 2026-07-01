@@ -395,7 +395,12 @@ def _register_video_data_routes(router: APIRouter, ctx: ProjectContext) -> None:
             video = db.get(Video, video_id)
             if not video:
                 raise HTTPException(404, "Video not found")
-            return {"lines": video_transcript_lines(video)}
+            # A split segment's transcript is timed from 0, but its player streams the
+            # full parent file; seek_offset_s shifts the ▶ back onto the parent timeline.
+            return {
+                "lines": video_transcript_lines(video),
+                "seek_offset_s": video.segment_start_s or 0.0,
+            }
         finally:
             db.close()
 

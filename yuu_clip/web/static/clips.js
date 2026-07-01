@@ -113,6 +113,17 @@ async function selectClip(id) {
   }
 }
 
+// Re-render the open clip's detail pane (excerpt, stale notice) without touching
+// the player. Used after an inline caption edit changes the clip's transcript.
+async function refreshClipDetail(id) {
+  if (AppState.activeClipId !== id) return;
+  try {
+    const clip = await fetch(`/api/clips/${id}`).then(r => r.json());
+    AppState.activeClipData = clip;
+    renderDetail(clip);
+  } catch (_) { /* leave the stale detail in place on error */ }
+}
+
 // ── player ────────────────────────────────────────────────────────────────────
 function renderPlayer(url, captionsUrl, clipId) {
   const area = document.getElementById('player-area');
@@ -283,6 +294,7 @@ function renderDetail(clip) {
     ${clip.transcript_excerpt ? `
       <div>
         <div class="section-title" style="margin-bottom:6px">Transcript</div>
+        ${clip.transcript_stale ? `<div class="transcript-stale-note">&#9888; Captions edited since last scoring — <button class="btn ghost" style="font-size:11px;padding:2px 8px" onclick="rescoreClip(${clip.id})">Re-score</button> to refresh.</div>` : ''}
         <div id="clip-transcript-view" class="transcript">${escHtml(clip.transcript_excerpt)}</div>
       </div>` : ''}
   `;
@@ -875,7 +887,7 @@ function scoreAll() {
 // Public API — symbols referenced cross-module, by an inline handler, or by a
 // test. Internal helpers above stay private to this module's closure.
 Object.assign(window, {
-  selectClip, setStatus, undoLastStatus, renderDetail, clearDetail,
+  selectClip, setStatus, undoLastStatus, renderDetail, clearDetail, refreshClipDetail,
   setClipFilter, setClipSearch, setClipScoreMin, _clearClipFilters,
   _applyFilters, _renderClips, _parseTimingOffset,
   deleteClip, deleteVideo, deleteExport, mergeClips,

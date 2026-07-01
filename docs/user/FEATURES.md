@@ -35,6 +35,7 @@ Each clip detail view shows:
 - **One-liner description** and **long description** (paragraph)
 - **Tags**: auto-generated labels such as `llm_scored`, `energy_scored`, `long_silence_after`
 - **Transcript excerpt** in a monospace box
+- **Timed transcript** — a per-line view (grouped by speaker when diarized) where each line has a ▶ to jump the player to that moment. Click any line to **edit its caption text** in place — fix a mis-heard character name or piece of jargon, press Save (Enter), and the change is written back to the caption segment. Editing a caption rebuilds the excerpt of every clip that overlaps it; clips that were already scored show a **"Captions edited since last scoring"** notice with a Re-score shortcut so their scores and descriptions can be refreshed against the corrected text. The same editable view appears under **Full transcript** on the recording detail.
 - **Status buttons**: Approve / Reject / Reset (unreviewed)
 - **Clip search** — text input above the status tabs; searches description, long description, and transcript excerpt (case-insensitive). Composes with the status tab and score filter.
 - **Minimum score filter** — dropdown (Any / 0.3+ / 0.5+ / 0.7+ / 0.9+) that hides clips below the selected overall score threshold. Composes with the search and status tab filters.

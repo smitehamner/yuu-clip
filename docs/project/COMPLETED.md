@@ -282,6 +282,16 @@ Archive of shipped items. For pending work see [ROADMAP.md](ROADMAP.md).
     `scorer_laugh_weight`. Tags: `laugh_transcript`, `laugh_audio`, `laugh_model`,
     `laugh_no_transcript`, `laugh_no_wav`.
 
+- **Inline transcript editing** — click any line in the timed transcript view (clip or full
+  recording) to edit its caption text; `PUT /api/caption-segments/{id}` updates
+  `TranscriptSegment.text`, preserving speaker and timing. On edit, `rebuild_clip_excerpt`
+  (`windower.py`) recomputes `transcript_excerpt` for every clip overlapping the segment, and each
+  affected clip's new `transcript_edited_at` is stamped. `_transcript_stale` compares it against the
+  video's `clips_scored_at` (same provenance pattern as `related_clips_at`) so a clip scored before
+  the edit shows a "Captions edited since last scoring" notice with a Re-score shortcut. The timed
+  view's per-line ▶ now adds `seek_offset_s` (a split segment's `segment_start_s`) so seeks land on
+  the correct spot of the untrimmed parent-file player.
+
 ---
 
 ## Phase 4 — Packaging + distribution (done)

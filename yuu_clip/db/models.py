@@ -149,6 +149,7 @@ def _migrate(engine) -> None:
             ("exported_burn_subs",  "BOOLEAN"),
             ("related_clips_json",  "TEXT"),
             ("related_clips_at",    "DATETIME"),
+            ("transcript_edited_at", "DATETIME"),
         ]
         for col, typedef in _clip_migrations:
             if col not in existing:
@@ -442,6 +443,11 @@ class ClipCandidate(Base):
 
     related_clips_json: Mapped[Optional[str]] = mapped_column(Text)
     related_clips_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+
+    # Set when a caption segment overlapping this clip is edited. Compared against
+    # the video's clips_scored_at to flag a clip whose transcript changed since it
+    # was last scored (same provenance pattern as related_clips_at).
+    transcript_edited_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
 
     video: Mapped["Video"] = relationship(back_populates="clip_candidates")
     clip_transcripts: Mapped[List["Transcript"]] = relationship(

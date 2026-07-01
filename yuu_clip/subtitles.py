@@ -15,6 +15,9 @@ class SubLine(NamedTuple):
     end_ms: int
     text: str
     speaker: str = ""
+    # Source TranscriptSegment id — carried only for the editable on-screen view;
+    # ignored by the SRT/caption path.
+    seg_id: int | None = None
 
 
 _LABEL_DISPLAY = {
@@ -118,7 +121,7 @@ def collect_clip_subtitles(clip) -> dict[str, list[SubLine]]:
             start = max(seg.start_ms, clip_start) - clip_start
             end   = min(seg.end_ms,   clip_end)   - clip_start
             if end > start:
-                lines.append(SubLine(start, end, seg.text, _segment_speaker(seg)))
+                lines.append(SubLine(start, end, seg.text, _segment_speaker(seg), getattr(seg, "id", None)))
 
         if lines:
             result[track.label] = lines
@@ -222,6 +225,7 @@ def _lines_to_view(sublines: Iterable[SubLine]) -> list[dict]:
             "end_ms": sub.end_ms,
             "speaker": sub.speaker or None,
             "text": sub.text.strip(),
+            "seg_id": sub.seg_id,
         }
         for sub in sublines
     ]
@@ -244,7 +248,7 @@ def video_transcript_lines(video) -> list[dict]:
             continue
         transcript = max(track.transcripts, key=lambda t: t.created_at)
         lines.extend(
-            SubLine(seg.start_ms, seg.end_ms, seg.text, _segment_speaker(seg))
+            SubLine(seg.start_ms, seg.end_ms, seg.text, _segment_speaker(seg), getattr(seg, "id", None))
             for seg in transcript.segments
         )
     lines.sort(key=lambda sub: sub.start_ms)
