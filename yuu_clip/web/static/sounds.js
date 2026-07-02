@@ -97,6 +97,11 @@ function _hideStopPill() {
 }
 
 // ── settings panel wiring ─────────────────────────────────────────────────────
+// Sound choices follow the panel's standard dirty/Save model: interacting with
+// the rows only changes the DOM; localStorage is written by
+// commitSoundSettings(), called from saveSettings() on a successful save.
+// Preview (▶) is the exception — it plays the pending UI selection immediately,
+// since it's an inspection, not a setting.
 async function initSoundSettings() {
   const state = _loadState();
   const volEl = document.getElementById('s-sound-volume');
@@ -104,12 +109,7 @@ async function initSoundSettings() {
   if (volEl) {
     volEl.value = Math.round(state.volume * 100);
     if (volVal) volVal.textContent = `${volEl.value}%`;
-    volEl.oninput = () => {
-      const s = _loadState();
-      s.volume = (parseInt(volEl.value, 10) || 0) / 100;
-      _saveState(s);
-      if (volVal) volVal.textContent = `${volEl.value}%`;
-    };
+    volEl.oninput = () => { if (volVal) volVal.textContent = `${volEl.value}%`; };
   }
   if (!_sounds) {
     try {
@@ -118,7 +118,52 @@ async function initSoundSettings() {
       _sounds = {builtin: [], custom: []};
     }
   }
-  _renderSoundRows();
+  _renderSoundRows(state);
+}
+
+// Saved state overlaid with the current DOM values, or null before the rows
+// have rendered (settings.js runs its dirty check during panel open).
+function _uiSoundState() {
+  const host = document.getElementById('s-sound-rows');
+  if (!host || !host.querySelector('.settings-row')) return null;
+  const state = _loadState();
+  const volEl = document.getElementById('s-sound-volume');
+  if (volEl) state.volume = (parseInt(volEl.value, 10) || 0) / 100;
+  for (const e of EVENTS) {
+    const enabledEl = host.querySelector(`.s-sound-enabled[data-key="${e.key}"]`);
+    const selectEl  = host.querySelector(`.s-sound-select[data-key="${e.key}"]`);
+    if (!enabledEl || !selectEl) continue;
+    const [kind, ...rest] = selectEl.value.split(':');
+    state.events[e.key] = {enabled: enabledEl.checked, kind, name: rest.join(':')};
+  }
+  return state;
+}
+
+// Called from settings.js _checkSettingsDirty — also maintains the per-row
+// dirty markers, mirroring what _checkSettingsDirty does for its own fields.
+function _soundSettingsDirty() {
+  const ui = _uiSoundState();
+  if (!ui) return false;
+  const saved = _loadState();
+  let anyDirty = false;
+  const volumeDirty = ui.volume !== saved.volume;
+  if (volumeDirty) anyDirty = true;
+  document.getElementById('s-sound-volume')?.closest('.settings-row')
+    ?.classList.toggle('dirty', volumeDirty);
+  const host = document.getElementById('s-sound-rows');
+  for (const e of EVENTS) {
+    const a = ui.events[e.key], b = saved.events[e.key];
+    const dirty = a.enabled !== b.enabled || a.kind !== b.kind || a.name !== b.name;
+    if (dirty) anyDirty = true;
+    host.querySelector(`.s-sound-enabled[data-key="${e.key}"]`)
+      ?.closest('.settings-row')?.classList.toggle('dirty', dirty);
+  }
+  return anyDirty;
+}
+
+function commitSoundSettings() {
+  const ui = _uiSoundState();
+  if (ui) _saveState(ui);
 }
 
 function _optionsHtml(selected) {
@@ -138,10 +183,9 @@ function _optionsHtml(selected) {
   return html;
 }
 
-function _renderSoundRows() {
+function _renderSoundRows(state) {
   const host = document.getElementById('s-sound-rows');
   if (!host) return;
-  const state = _loadState();
   host.innerHTML = EVENTS.map(e => {
     const choice = state.events[e.key];
     return `
@@ -165,24 +209,13 @@ function _renderSoundRows() {
 
   host.querySelectorAll('.s-sound-enabled').forEach(el => {
     el.onchange = () => {
-      const s = _loadState();
-      s.events[el.dataset.key].enabled = el.checked;
-      _saveState(s);
       const sel = host.querySelector(`.s-sound-select[data-key="${el.dataset.key}"]`);
       if (sel) sel.disabled = !el.checked;
     };
   });
-  host.querySelectorAll('.s-sound-select').forEach(el => {
-    el.onchange = () => {
-      const [kind, ...rest] = el.value.split(':');
-      const s = _loadState();
-      s.events[el.dataset.key] = {...s.events[el.dataset.key], kind, name: rest.join(':')};
-      _saveState(s);
-    };
-  });
   host.querySelectorAll('.s-sound-preview').forEach(el => {
     el.onclick = () => {
-      const s = _loadState();
+      const s = _uiSoundState() || _loadState();
       _play(_urlFor(s.events[el.dataset.key]), s.volume);
     };
   });
@@ -199,8 +232,9 @@ async function _onSoundUpload(input) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.detail || `Upload failed (${res.status})`);
     }
+    const pending = _uiSoundState() || _loadState();
     _sounds = await fetch('/api/sounds').then(r => r.json());
-    _renderSoundRows();
+    _renderSoundRows(pending);
     if (status) { status.textContent = `✓ Added "${file.name}" — pick it in a dropdown above`; status.style.color = 'var(--green, #22c55e)'; }
   } catch (e) {
     if (status) { status.textContent = `✗ ${e.message}`; status.style.color = 'var(--red, #ef4444)'; }
@@ -211,6 +245,6 @@ async function _onSoundUpload(input) {
 
 Object.assign(window, {
   SoundFx: {play: playActionSound, stop: stopActionSound},
-  initSoundSettings, _onSoundUpload,
+  initSoundSettings, _onSoundUpload, _soundSettingsDirty, commitSoundSettings,
 });
 })();

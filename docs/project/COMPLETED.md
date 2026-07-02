@@ -5,6 +5,41 @@ Phases 1–3 have been moved to [COMPLETED-archive.md](COMPLETED-archive.md).
 
 ---
 
+## UX review Settings panel pass — M7-1–M7-5, L7-1/2/4 (done, 2026-07-02)
+
+Prompt 11 of the 2026-07 UX review plan (`UX_REVIEW_PLAN.md`): the Settings
+panel's header, navigation, and save model.
+
+- **M7-1 — sticky header**: title, Save / ✓ Saved / ✕ live in a
+  `.settings-header` that sticks to the top of the scrolling panel, so the
+  Save affordance (and its enabled/dirty state) stays visible while editing.
+- **M7-2 — section jump links**: a chip row in the sticky header jumps to each
+  of the eight sections (`_scrollToSettingsSection`, header-height offset,
+  respects prefers-reduced-motion).
+- **M7-3 — Scoring weights reset + scale note**: "Reset to defaults" button
+  restores the seven weight sliders (shared `_weightFields` table also drives
+  `_applySettingsToUI`); note explains "0 turns a signal off; higher = more
+  influence". Reset marks dirty; Save applies.
+- **M7-4 — LLM master toggle dims its section**: with "Enable LLM scoring"
+  off, `#s-llm-body` (backend selector + per-backend fields) is dimmed and
+  `inert`; values are preserved for the save payload.
+- **M7-5 — notification sounds join the dirty/Save model** *(user-reported)*:
+  sound rows and volume no longer write localStorage on change — they get
+  per-row dirty markers, enable Save, and persist via `commitSoundSettings()`
+  when Save succeeds. Preview (▶) still plays the pending UI selection
+  immediately; discard-on-close now covers sound edits too.
+- **L7-1 — Claude API key Show/Hide** via shared `_toggleSecretVisibility`
+  (also replaces the HF-token-specific toggle).
+- **L7-2 — "Speech-to-text (Whisper)"** section title (plain term first).
+- **L7-4 — install-log markup unified**: all four logs are
+  `<div class="settings-install-log">`.
+
+Tests: `TestSettingsPanelChrome` (test_ui_settings.py) covers sticky header,
+jump links, reset, dim, and the key toggle; test_ui_sounds.py rewritten for
+the deferred-persist model.
+
+---
+
 ## UX review Split Editor pass — H6-1, H6-2, M6-1/2/3/4, L6-1/2/3/4 (done, 2026-07-02)
 
 Prompt 10 of the 2026-07 UX review plan (`UX_REVIEW_PLAN.md`): the Split

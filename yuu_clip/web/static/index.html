@@ -47,19 +47,31 @@
 
 <!-- Settings panel (replaces main layout when active) -->
 <div class="settings-panel" id="settings-panel">
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;max-width:720px;margin-left:auto;margin-right:auto">
-    <h2 style="font-size:16px;font-weight:700">Settings</h2>
-    <div style="display:flex;align-items:center;gap:10px">
-      <span class="settings-save-badge" id="settings-saved-badge">&#10003; Saved</span>
-      <button class="btn primary" id="btn-settings-save" onclick="saveSettings()" disabled>Save</button>
-      <button class="btn ghost" onclick="closeSettings()" aria-label="Close" style="font-size:16px">&#x2715;</button>
+  <div class="settings-header">
+    <div class="settings-header-top">
+      <h2 style="font-size:16px;font-weight:700">Settings</h2>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="settings-save-badge" id="settings-saved-badge">&#10003; Saved</span>
+        <button class="btn primary" id="btn-settings-save" onclick="saveSettings()" disabled>Save</button>
+        <button class="btn ghost" onclick="closeSettings()" aria-label="Close" style="font-size:16px">&#x2715;</button>
+      </div>
     </div>
+    <nav class="settings-jump-row" aria-label="Jump to settings section">
+      <button type="button" class="settings-jump-link" onclick="_scrollToSettingsSection('settings-sec-stt')">Speech-to-text</button>
+      <button type="button" class="settings-jump-link" onclick="_scrollToSettingsSection('settings-sec-llm')">LLM scoring</button>
+      <button type="button" class="settings-jump-link" onclick="_scrollToSettingsSection('settings-sec-speakers')">Speaker labels</button>
+      <button type="button" class="settings-jump-link" onclick="_scrollToSettingsSection('settings-sec-weights')">Scoring weights</button>
+      <button type="button" class="settings-jump-link" onclick="_scrollToSettingsSection('settings-sec-analysis')">Analysis defaults</button>
+      <button type="button" class="settings-jump-link" onclick="_scrollToSettingsSection('settings-sec-ui')">UI</button>
+      <button type="button" class="settings-jump-link" onclick="_scrollToSettingsSection('settings-sec-sounds')">Sounds</button>
+      <button type="button" class="settings-jump-link" onclick="_scrollToSettingsSection('settings-sec-paths')">Paths</button>
+    </nav>
   </div>
 <div class="settings-inner">
 
   <!-- Whisper section -->
-  <div class="settings-section">
-    <div class="settings-section-title">Whisper (Speech-to-text)</div>
+  <div class="settings-section" id="settings-sec-stt">
+    <div class="settings-section-title">Speech-to-text (Whisper)</div>
     <div class="settings-row">
       <div class="settings-col">
         <label class="settings-label" for="s-whisper-model">Model</label>
@@ -108,7 +120,7 @@
   </div>
 
   <!-- LLM scoring section -->
-  <div class="settings-section">
+  <div class="settings-section" id="settings-sec-llm">
     <div class="settings-section-title">LLM scoring</div>
     <div class="settings-row">
       <div class="settings-col">
@@ -116,10 +128,11 @@
         <div class="settings-note">Disabling skips description + sub-score generation</div>
       </div>
       <label class="settings-checkbox">
-        <input type="checkbox" id="s-ollama-enabled" aria-labelledby="lbl-ollama-enabled">
+        <input type="checkbox" id="s-ollama-enabled" aria-labelledby="lbl-ollama-enabled" onchange="_onLlmEnabledChange(this.checked)">
         <span style="font-size:13px" aria-hidden="true">On</span>
       </label>
     </div>
+    <div id="s-llm-body">
     <div class="settings-row">
       <div class="settings-col">
         <label class="settings-label" for="s-llm-backend">LLM backend</label>
@@ -146,7 +159,7 @@
           <span id="install-status-llamacpp" style="font-size:12px"></span>
         </div>
       </div>
-      <div id="install-log-llamacpp" style="display:none;margin:0 0 8px;padding:8px;background:var(--bg-deep,#0d0d0d);border:1px solid var(--border);border-radius:4px;max-height:140px;overflow-y:auto;font-family:monospace;font-size:11px;white-space:pre-wrap;color:var(--muted)"></div>
+      <div id="install-log-llamacpp" class="settings-install-log"></div>
       <div class="settings-row">
         <div class="settings-col">
           <label class="settings-label" for="s-llm-model-path">Model file path</label>
@@ -191,13 +204,16 @@
           <span id="install-status-anthropic" style="font-size:12px"></span>
         </div>
       </div>
-      <div id="install-log-anthropic" style="display:none;margin:0 0 8px;padding:8px;background:var(--bg-deep,#0d0d0d);border:1px solid var(--border);border-radius:4px;max-height:140px;overflow-y:auto;font-family:monospace;font-size:11px;white-space:pre-wrap;color:var(--muted)"></div>
+      <div id="install-log-anthropic" class="settings-install-log"></div>
       <div class="settings-row">
         <div class="settings-col">
           <label class="settings-label" for="s-claude-api-key">Anthropic API key</label>
           <div class="settings-note">Stored in project config; keep this file private</div>
         </div>
-        <input class="settings-input" id="s-claude-api-key" type="password" placeholder="sk-ant-..." style="max-width:280px">
+        <div style="display:flex;gap:6px;align-items:center;width:280px">
+          <input class="settings-input" id="s-claude-api-key" type="password" placeholder="sk-ant-..." style="flex:1">
+          <button type="button" class="btn-secondary" id="btn-toggle-claude-key" onclick="_toggleSecretVisibility('s-claude-api-key', this)" aria-label="Show key" style="font-size:11px;padding:4px 8px">Show</button>
+        </div>
       </div>
       <div class="settings-row">
         <div class="settings-col">
@@ -217,10 +233,11 @@
         <input class="settings-input" id="s-claude-timeout" type="number" min="5" max="300" step="5" style="max-width:100px">
       </div>
     </div>
+    </div><!-- /#s-llm-body -->
   </div>
 
   <!-- Speaker labels section -->
-  <div class="settings-section">
+  <div class="settings-section" id="settings-sec-speakers">
     <div class="settings-section-title">Speaker labels</div>
     <div class="settings-row">
       <div class="settings-col">
@@ -244,7 +261,7 @@
           <span id="install-status-pyannote" style="font-size:12px"></span>
         </div>
       </div>
-      <div id="install-log-pyannote" style="display:none;margin:0 0 8px;padding:8px;background:var(--bg-deep,#0d0d0d);border:1px solid var(--border);border-radius:4px;max-height:140px;overflow-y:auto;font-family:monospace;font-size:11px;white-space:pre-wrap;color:var(--muted)"></div>
+      <div id="install-log-pyannote" class="settings-install-log"></div>
       <div class="settings-row">
         <div class="settings-col">
           <label class="settings-label" for="s-hf-token">HuggingFace token</label>
@@ -253,7 +270,7 @@
         <div style="display:flex;flex-direction:column;gap:4px;max-width:280px">
           <div style="display:flex;gap:6px;align-items:center">
             <input class="settings-input" id="s-hf-token" type="password" placeholder="hf_..." style="flex:1" oninput="_onHfTokenInput()">
-            <button type="button" class="btn-secondary" id="btn-toggle-hf-token" onclick="_toggleHfTokenVisibility()" aria-label="Show token" style="font-size:11px;padding:4px 8px">Show</button>
+            <button type="button" class="btn-secondary" id="btn-toggle-hf-token" onclick="_toggleSecretVisibility('s-hf-token', this)" aria-label="Show token" style="font-size:11px;padding:4px 8px">Show</button>
           </div>
           <div id="s-hf-token-feedback" style="font-size:11px;min-height:14px" aria-live="polite"></div>
         </div>
@@ -270,8 +287,12 @@
   </div>
 
   <!-- Scoring weights section -->
-  <div class="settings-section">
-    <div class="settings-section-title">Scoring weights <span style="font-size:11px;font-weight:400;color:var(--muted)">(takes effect on next re-score)</span></div>
+  <div class="settings-section" id="settings-sec-weights">
+    <div class="settings-section-title" style="display:flex;align-items:baseline;gap:8px">
+      <span>Scoring weights <span style="font-size:11px;font-weight:400;color:var(--muted)">(takes effect on next re-score)</span></span>
+      <button type="button" class="btn-secondary" id="btn-reset-weights" onclick="_resetScoringWeights()" style="margin-left:auto;font-size:11px;padding:3px 8px;text-transform:none;letter-spacing:normal;font-weight:400">Reset to defaults</button>
+    </div>
+    <div class="settings-note" style="margin:-8px 0 12px">0 turns a signal off; higher = more influence on the overall score.</div>
     <div style="font-size:12px;color:var(--muted);margin-bottom:8px;font-weight:600">Signal weights</div>
     <div class="settings-weight-row">
       <span class="settings-weight-label">&#128266; Audio energy</span>
@@ -316,7 +337,7 @@
         <button class="btn-secondary" id="btn-install-laugh-deps" onclick="installPackage('laugh-deps')">Install deps</button>
         <span id="install-status-laugh-deps" style="font-size:12px"></span>
       </div>
-      <pre id="install-log-laugh-deps" style="display:none;font-size:11px;background:var(--bg);padding:6px 8px;border-radius:4px;max-height:120px;overflow-y:auto;margin-top:6px;white-space:pre-wrap"></pre>
+      <div id="install-log-laugh-deps" class="settings-install-log" style="margin-top:6px"></div>
     </div>
     <div style="margin-bottom:16px" id="s-laugh-model-fields-spacer"></div>
     <div style="font-size:12px;color:var(--muted);margin-bottom:8px;font-weight:600">Sub-score weights</div>
@@ -341,7 +362,7 @@
   </div>
 
   <!-- Analysis defaults section -->
-  <div class="settings-section">
+  <div class="settings-section" id="settings-sec-analysis">
     <div class="settings-section-title">Analysis defaults <span style="font-size:11px;font-weight:400;color:var(--muted)">(pre-filled in Analyze modal)</span></div>
     <div class="settings-row">
       <div class="settings-col">
@@ -388,7 +409,7 @@
   </div>
 
   <!-- UI section -->
-  <div class="settings-section">
+  <div class="settings-section" id="settings-sec-ui">
     <div class="settings-section-title">UI</div>
     <div class="settings-row">
       <div class="settings-col">
@@ -416,8 +437,8 @@
   </div>
 
   <!-- Notification sounds -->
-  <div class="settings-section">
-    <div class="settings-section-title">Notification sounds <span style="font-size:11px;font-weight:400;color:var(--muted)">(off by default — changes apply immediately)</span></div>
+  <div class="settings-section" id="settings-sec-sounds">
+    <div class="settings-section-title">Notification sounds <span style="font-size:11px;font-weight:400;color:var(--muted)">(off by default)</span></div>
     <div class="settings-note" style="margin-bottom:8px">Play a sound when a long-running action finishes so you can step away. Use <strong>Preview</strong> to hear each one. A <strong>Stop sound</strong> button appears while a sound plays.</div>
     <div class="settings-row">
       <div class="settings-col">
@@ -443,7 +464,7 @@
   </div>
 
   <!-- Paths section (read-only for now) -->
-  <div class="settings-section">
+  <div class="settings-section" id="settings-sec-paths">
     <div class="settings-section-title">Paths <span style="font-size:11px;font-weight:400;color:var(--muted)">(read-only — set via --project flag)</span></div>
     <div id="s-paths-display" style="font-size:12px;color:var(--muted);line-height:2"></div>
   </div>

@@ -12,6 +12,16 @@ const _settingsFieldIds = [
   's-scene-mode','s-energy-mode','s-silence-ms','s-min-clip-ms',
   's-timeline-interval','s-timeline-unit','s-autoplay',
 ];
+// [element id, config key, default] — single source for apply + Reset to defaults.
+const _weightFields = [
+  ['s-energy-weight',   'scorer_energy_weight',   1.0],
+  ['s-scene-weight',    'scorer_scene_weight',    0.5],
+  ['s-llm-weight',      'scorer_llm_weight',      2.0],
+  ['s-laugh-weight',    'scorer_laugh_weight',    1.5],
+  ['s-funny-weight',    'score_funny_weight',     1.0],
+  ['s-dramatic-weight', 'score_dramatic_weight',  1.0],
+  ['s-action-weight',   'score_action_weight',    1.0],
+];
 let _settingsOriginal = {};
 let _settingsOpener = null;
 
@@ -34,8 +44,18 @@ function _checkSettingsDirty() {
     const row = el.closest('.settings-row') || el.closest('.settings-weight-row');
     if (row) row.classList.toggle('dirty', dirty);
   }
+  if (window._soundSettingsDirty?.()) anyDirty = true;
   const btn = document.getElementById('btn-settings-save');
   if (btn) btn.disabled = !anyDirty;
+}
+
+function _scrollToSettingsSection(sectionId) {
+  const panel = document.getElementById('settings-panel');
+  const section = document.getElementById(sectionId);
+  if (!section) return;
+  const headerHeight = panel.querySelector('.settings-header')?.offsetHeight ?? 0;
+  const smooth = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  panel.scrollTo({ top: section.offsetTop - headerHeight - 10, behavior: smooth ? 'smooth' : 'auto' });
 }
 
 async function openSettings() {
@@ -50,8 +70,10 @@ async function openSettings() {
   try {
     const cfg = await fetch('/api/config').then(r => r.json());
     await _ensureWhisperLanguageOptions();
+    // Sound rows must be rendered (from saved state) before _applySettingsToUI
+    // runs the dirty check, or a discarded prior edit would re-enable Save.
+    await initSoundSettings();
     _applySettingsToUI(cfg);
-    initSoundSettings();
     setTimeout(() => document.getElementById('s-whisper-model')?.focus(), 50);
   } catch (e) {
     showToast('Failed to load settings', 'error');
@@ -126,6 +148,7 @@ function _applySettingsToUI(cfg) {
   setVal('s-whisper-compute',cfg.whisper_compute_type || 'int8');
   setVal('s-whisper-language', cfg.whisper_language || '');
   setChk('s-ollama-enabled',  cfg.ollama_enabled   !== false);
+  _onLlmEnabledChange(cfg.ollama_enabled !== false);
   const backend = cfg.llm_backend || 'llamacpp';
   setVal('s-llm-backend',    backend);
   _onLlmBackendChange(backend);
@@ -143,23 +166,14 @@ function _applySettingsToUI(cfg) {
   setVal('s-hf-token', cfg.huggingface_token || '');
   setVal('s-speaker-match-threshold', (cfg.speaker_match_threshold ?? 0.75).toFixed(2));
   _onHfTokenInput();
-  const ew  = (cfg.scorer_energy_weight  ?? 1.0).toFixed(1);
-  const sw  = (cfg.scorer_scene_weight   ?? 0.5).toFixed(1);
-  const lw  = (cfg.scorer_llm_weight     ?? 2.0).toFixed(1);
-  const law = (cfg.scorer_laugh_weight   ?? 1.5).toFixed(1);
-  const fw  = (cfg.score_funny_weight    ?? 1.0).toFixed(1);
-  const dw  = (cfg.score_dramatic_weight ?? 1.0).toFixed(1);
-  const aw  = (cfg.score_action_weight   ?? 1.0).toFixed(1);
-  setVal('s-energy-weight', ew);    setTxt('s-energy-weight-val', ew);
-  setVal('s-scene-weight',  sw);    setTxt('s-scene-weight-val',  sw);
-  setVal('s-llm-weight',    lw);    setTxt('s-llm-weight-val',    lw);
-  setVal('s-laugh-weight',  law);   setTxt('s-laugh-weight-val',  law);
+  for (const [id, key, def] of _weightFields) {
+    const weight = (cfg[key] ?? def).toFixed(1);
+    setVal(id, weight);
+    setTxt(`${id}-val`, weight);
+  }
   setVal('s-laugh-mode',    cfg.scorer_laugh_mode     || 'transcript');
   setVal('s-laugh-model-id',cfg.scorer_laugh_model_id || 'MIT/ast-finetuned-audioset-10-10-0.4593');
   _onLaughModeChange(cfg.scorer_laugh_mode || 'transcript');
-  setVal('s-funny-weight',  fw);    setTxt('s-funny-weight-val',  fw);
-  setVal('s-dramatic-weight',dw);   setTxt('s-dramatic-weight-val',dw);
-  setVal('s-action-weight', aw);    setTxt('s-action-weight-val', aw);
   setVal('s-scene-mode',    cfg.scene_detection_mode || 'fast');
   setVal('s-energy-mode',   cfg.energy_mode          || 'fast');
   setVal('s-silence-ms',    cfg.silence_threshold_ms ?? 3000);
@@ -181,6 +195,26 @@ function _applySettingsToUI(cfg) {
   ['pyannote', 'llamacpp', 'anthropic', 'laugh-deps'].forEach(_refreshInstallStatus);
 }
 
+// Everything below the master toggle is inert while LLM scoring is off —
+// inert (not disabled) so the fields keep their values for the save payload.
+function _onLlmEnabledChange(enabled) {
+  const body = document.getElementById('s-llm-body');
+  if (!body) return;
+  body.classList.toggle('settings-dimmed', !enabled);
+  body.inert = !enabled;
+}
+
+function _resetScoringWeights() {
+  for (const [id, , def] of _weightFields) {
+    const el = document.getElementById(id);
+    const valEl = document.getElementById(`${id}-val`);
+    if (!el || !valEl) continue;
+    el.value = def.toFixed(1);
+    valEl.textContent = def.toFixed(1);
+  }
+  _checkSettingsDirty();
+}
+
 function _onLlmBackendChange(backend) {
   const llamacppEl = document.getElementById('s-llamacpp-fields');
   const ollamaEl   = document.getElementById('s-ollama-fields');
@@ -198,13 +232,13 @@ function _onDiarizationBackendChange(backend) {
   _updateDiarizationStatus();
 }
 
-function _toggleHfTokenVisibility() {
-  const input = document.getElementById('s-hf-token');
-  const btn   = document.getElementById('btn-toggle-hf-token');
+function _toggleSecretVisibility(inputId, btn) {
+  const input = document.getElementById(inputId);
   const reveal = input.type === 'password';
   input.type = reveal ? 'text' : 'password';
   btn.textContent = reveal ? 'Hide' : 'Show';
-  btn.setAttribute('aria-label', reveal ? 'Hide token' : 'Show token');
+  const label = btn.getAttribute('aria-label') || '';
+  btn.setAttribute('aria-label', label.replace(/^(Show|Hide)/, reveal ? 'Hide' : 'Show'));
 }
 
 function _onHfTokenInput() {
@@ -276,7 +310,7 @@ async function installPackage(slug) {
   btn.textContent = 'Installing…';
   status.textContent = '';
   log.textContent = '';
-  log.style.display = '';
+  log.style.display = 'block';
   try {
     const resp = await fetch(`/api/install/${slug}`, { method: 'POST' });
     if (!resp.ok) { throw new Error(await resp.text()); }
@@ -379,6 +413,7 @@ async function saveSettings() {
       if (btn) { btn.disabled = false; btn.textContent = 'Save'; }
       return;
     }
+    window.commitSoundSettings?.();
     _flashSettingsSaved();
     _snapshotSettings();
     _checkSettingsDirty();
@@ -669,8 +704,8 @@ Object.assign(window, {
   openAboutModal, closeAboutModal,
   openGettingStartedModal, closeGettingStartedModal,
   openGlossaryModal, closeGlossaryModal,
-  _onLlmBackendChange, _onDiarizationBackendChange, _onLaughModeChange,
-  _toggleHfTokenVisibility, _onHfTokenInput, _updateDiarizationStatus,
-  _updateLlmRemoteIndicator,
+  _onLlmBackendChange, _onLlmEnabledChange, _onDiarizationBackendChange, _onLaughModeChange,
+  _toggleSecretVisibility, _onHfTokenInput, _updateDiarizationStatus,
+  _updateLlmRemoteIndicator, _scrollToSettingsSection, _resetScoringWeights,
 });
 })();

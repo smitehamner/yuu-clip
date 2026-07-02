@@ -2,12 +2,19 @@
 Playwright UI tests — notification sound picker (sounds.js).
 
 Exercises the public surface only: `SoundFx.play`/`SoundFx.stop`, the Settings
-panel wiring (`initSoundSettings`), and the `yuuclip-sounds` localStorage
-contract those two talk through (the persistence format is effectively part
-of the public contract — it's how settings survive a reload). sounds.js is an
-IIFE that intentionally does not export its internal `_loadState`/`_saveState`
-helpers, matching the "wrapped feature module" convention documented for the
-rest of the frontend.
+panel wiring (`initSoundSettings` + the dirty/Save model via
+`_soundSettingsDirty`/`commitSoundSettings`), and the `yuuclip-sounds`
+localStorage contract those talk through (the persistence format is
+effectively part of the public contract — it's how settings survive a
+reload). sounds.js is an IIFE that intentionally does not export its internal
+`_loadState`/`_saveState` helpers, matching the "wrapped feature module"
+convention documented for the rest of the frontend.
+
+Sound choices participate in the standard settings dirty/Save model: row
+interactions only change the DOM; localStorage is written when Save runs
+(`saveSettings` → `commitSoundSettings`). Tests invoke `commitSoundSettings()`
+directly rather than clicking Save, because clicking Save would PATCH the live
+project's real config.json (same reason test_ui_settings.py never saves).
 
 Playback itself (HTMLAudioElement.play()) is not asserted beyond "a src got
 set" — autoplay policies make actual playback flaky in a headless browser,
@@ -141,29 +148,39 @@ class TestSoundSettingsPanel:
         select = page.locator(".s-sound-select[data-key='analysis']")
         expect(select).to_be_disabled()
 
-    def test_checking_box_enables_select_and_persists(self, page: Page):
+    def test_checking_box_enables_select_and_marks_dirty_without_saving(self, page: Page):
         page.evaluate("() => localStorage.removeItem('yuuclip-sounds')")
         self._open_settings(page)
         page.check(".s-sound-enabled[data-key='reel']")
         select = page.locator(".s-sound-select[data-key='reel']")
         expect(select).to_be_enabled()
-        saved = page.evaluate(
-            "() => JSON.parse(localStorage.getItem('yuuclip-sounds')).events.reel.enabled"
+        # Dirty model: Save enables and the row gets a dirty marker, but
+        # nothing is persisted until Save runs.
+        expect(page.locator("#btn-settings-save")).to_be_enabled()
+        expect(
+            page.locator(".s-sound-enabled[data-key='reel']")
+        ).to_have_js_property("checked", True)
+        row_dirty = page.evaluate(
+            "() => document.querySelector(\".s-sound-enabled[data-key='reel']\")"
+            "  .closest('.settings-row').classList.contains('dirty')"
         )
-        assert saved is True
+        assert row_dirty is True
+        assert page.evaluate("() => localStorage.getItem('yuuclip-sounds')") is None
 
-    def test_volume_slider_persists_and_updates_label(self, page: Page):
+    def test_volume_slider_updates_label_but_defers_persist(self, page: Page):
         page.evaluate("() => localStorage.removeItem('yuuclip-sounds')")
         self._open_settings(page)
         page.locator("#s-sound-volume").fill("40")
         page.locator("#s-sound-volume").dispatch_event("input")
         expect(page.locator("#s-sound-volume-val")).to_have_text("40%")
+        assert page.evaluate("() => localStorage.getItem('yuuclip-sounds')") is None
+        page.evaluate("() => commitSoundSettings()")
         saved = page.evaluate(
             "() => JSON.parse(localStorage.getItem('yuuclip-sounds')).volume"
         )
         assert saved == 0.4
 
-    def test_changing_select_persists_choice(self, page: Page):
+    def test_commit_persists_checkbox_and_select_choice(self, page: Page):
         page.evaluate("() => localStorage.removeItem('yuuclip-sounds')")
         self._open_settings(page)
         page.check(".s-sound-enabled[data-key='error']")
@@ -172,20 +189,43 @@ class TestSoundSettingsPanel:
             "() => document.querySelector(\".s-sound-select[data-key='error']\").options[0].value"
         )
         select.select_option(value)
+        page.evaluate("() => commitSoundSettings()")
         saved = page.evaluate(
             "() => JSON.parse(localStorage.getItem('yuuclip-sounds')).events.error"
         )
         expected_kind, expected_name = value.split(":", 1)
+        assert saved["enabled"] is True
         assert saved["kind"] == expected_kind
         assert saved["name"] == expected_name
 
-    def test_reopening_settings_keeps_prior_choices(self, page: Page):
-        # initSoundSettings must reload from localStorage on every open, not
-        # just once per page load — otherwise a save in one session wouldn't
-        # show up the next time Settings is opened without a full refresh.
+    def test_closing_with_pending_sound_changes_asks_to_discard(self, page: Page):
+        page.evaluate("() => localStorage.removeItem('yuuclip-sounds')")
+        self._open_settings(page)
+        page.check(".s-sound-enabled[data-key='analysis']")
+        page.click("#settings-panel button[aria-label='Close']")
+        expect(page.locator("#confirm-modal")).to_be_visible()
+        page.click("#confirm-ok-btn")
+        expect(page.locator("#settings-panel")).to_be_hidden()
+        assert page.evaluate("() => localStorage.getItem('yuuclip-sounds')") is None
+
+    def test_reopening_shows_saved_state_and_drops_pending_edits(self, page: Page):
+        # initSoundSettings must re-render from localStorage on every open:
+        # committed choices survive, discarded ones don't.
         page.evaluate("() => localStorage.removeItem('yuuclip-sounds')")
         self._open_settings(page)
         page.check(".s-sound-enabled[data-key='export']")
-        page.click("#settings-panel button[aria-label='Close']")
-        self._open_settings(page)
+        page.evaluate("() => commitSoundSettings()")
+        page.check(".s-sound-enabled[data-key='rescore']")  # pending, never saved
+        self._open_settings(page)  # re-navigates: pending edit is gone
         expect(page.locator(".s-sound-enabled[data-key='export']")).to_be_checked()
+        expect(page.locator(".s-sound-enabled[data-key='rescore']")).not_to_be_checked()
+        expect(page.locator("#btn-settings-save")).to_be_disabled()
+
+    def test_preview_plays_pending_unsaved_selection(self, page: Page):
+        # Preview is an inspection — it must reflect the pending UI choice
+        # immediately, even though nothing has been saved yet.
+        page.evaluate("() => localStorage.removeItem('yuuclip-sounds')")
+        self._open_settings(page)
+        page.click(".s-sound-preview[data-key='analysis']")
+        expect(page.locator(".sound-stop-pill")).to_be_attached(timeout=3000)
+        assert page.evaluate("() => localStorage.getItem('yuuclip-sounds')") is None
