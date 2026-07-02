@@ -55,6 +55,7 @@ def generate_candidates(
         silence_threshold_ms=config.silence_threshold_ms,
         min_clip_ms=config.min_clip_ms,
         hard_split_ms=config.hard_split_ms,
+        min_speech_cps=config.min_clip_speech_cps,
     )
 
     candidates: list[ClipCandidate] = []
@@ -157,17 +158,24 @@ def _silence_window(
     silence_threshold_ms: int,
     min_clip_ms: int,
     hard_split_ms: int,
+    min_speech_cps: float = 0.0,
 ) -> list[tuple[int, int, list[TranscriptSegment], list[str]]]:
     """
     Return a list of (start_ms, end_ms, segs, tags) windows.
 
     tags is a list of string descriptors that hint at why a boundary
     was placed here (e.g. "hard_split", "long_silence_before").
+
+    Windows whose transcript text is sparser than *min_speech_cps* characters
+    per second are dropped as mostly-silence (0 disables the check). This is what
+    keeps a Whisper runaway-timestamp segment — one hallucinated line stamped
+    across many minutes — from becoming a long, near-empty clip.
     """
     if not segments:
         return []
 
     results: list[tuple[int, int, list[TranscriptSegment], list[str]]] = []
+    dropped_low_speech = 0
 
     win_start = segments[0].start_ms
     win_end   = segments[0].end_ms
@@ -175,10 +183,16 @@ def _silence_window(
     win_tags: list[str] = []
 
     def _flush(tags_extra: list[str]) -> None:
-        nonlocal win_start, win_end, win_segs, win_tags
+        nonlocal win_start, win_end, win_segs, win_tags, dropped_low_speech
         duration = win_end - win_start
-        if duration >= min_clip_ms:
-            results.append((win_start, win_end, list(win_segs), win_tags + tags_extra))
+        if duration < min_clip_ms:
+            return
+        if min_speech_cps > 0:
+            chars = sum(len((s.text or "").strip()) for s in win_segs)
+            if chars / (duration / 1000) < min_speech_cps:
+                dropped_low_speech += 1
+                return
+        results.append((win_start, win_end, list(win_segs), win_tags + tags_extra))
 
     for seg in segments[1:]:
         gap_ms    = seg.start_ms - win_end
@@ -208,4 +222,9 @@ def _silence_window(
 
     _flush([])
 
+    if dropped_low_speech:
+        _log.info(
+            "_silence_window: dropped %d mostly-silence window(s) (< %.2f chars/s)",
+            dropped_low_speech, min_speech_cps,
+        )
     return results

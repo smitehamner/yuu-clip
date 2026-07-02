@@ -78,6 +78,20 @@ Correctness fixes around cancelling/running analyses, plus the settings/log layo
 
 ---
 
+## Usage-feedback cleanup — batch 4: clip-generation quality (done, 2026-07-02)
+
+- **No more long, mostly-silent single-line clips** — the windower now drops
+  candidates whose transcript text is sparser than `min_clip_speech_cps`
+  characters per second (default 0.2; set 0 to disable). This targets the real
+  cause of "30-min clips that are one line and silence": a Whisper
+  runaway-timestamp segment (one hallucinated line like "Thanks for watching"
+  stamped across many minutes reads as ~0.03 cps, while real speech is ~10+ cps).
+  A segment-duration ratio wouldn't catch it — the bogus segment claims to span
+  the whole window — but measuring by text density does. On by default, since
+  these clips are pure noise in the review list.
+
+---
+
 ## Phase 4 — Packaging + distribution (done)
 
 - **Electron wrapper** — app runs in its own Chromium window; Python backend launched as a child process

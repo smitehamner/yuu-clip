@@ -86,6 +86,19 @@ class TestSilenceWindow:
         assert "hello" in seg_texts
         assert "world" in seg_texts
 
+    def test_low_speech_density_window_dropped(self):
+        # One hallucinated line ("Thanks for watching") stamped across 5 min is
+        # ~0.06 chars/s — kept with the floor off, dropped with a 0.2 cps floor.
+        from yuu_clip.segments.windower import _silence_window
+        segs = [self._seg(0, 300_000, "Thanks for watching")]
+        assert len(_silence_window(segs, 3000, 5000, 180_000, 0.0)) == 1
+        assert _silence_window(segs, 3000, 5000, 180_000, 0.2) == []
+
+    def test_dense_window_kept_under_speech_floor(self):
+        from yuu_clip.segments.windower import _silence_window
+        segs = [self._seg(0, 10_000, "this is a normal spoken line with plenty of words")]
+        assert len(_silence_window(segs, 3000, 5000, 180_000, 0.2)) == 1
+
     def test_overlapping_segment_does_not_shrink_win_end(self):
         # Segment B overlaps and ends before segment A — win_end must not go backwards.
         # Without the fix, win_end drops to 4000 and the subsequent gap becomes
@@ -216,6 +229,20 @@ class TestGenerateCandidates:
         assert len(result) == 2
         assert result[0].end_ms < result[1].start_ms
 
+    def test_runaway_timestamp_segment_dropped_as_silence(self, tmp_path):
+        from yuu_clip.config import Config
+        from yuu_clip.segments.windower import generate_candidates
+        session, v, tx = self._setup_db(tmp_path)
+        # A single hallucinated line stamped across 10 min (~0.03 chars/s) must not
+        # become a 10-minute clip — the default speech-density floor drops it.
+        self._add_seg(session, tx.id, 0, 600_000, "Thanks for watching")
+        session.flush()
+        try:
+            result = generate_candidates(v, [tx.audio_track.transcripts[0]], Config(), session)
+        finally:
+            session.close()
+        assert result == []
+
     def test_transcript_excerpt_joins_segment_texts(self, tmp_path):
         from yuu_clip.config import Config
         from yuu_clip.segments.windower import generate_candidates
@@ -239,7 +266,7 @@ class TestGenerateCandidates:
         from yuu_clip.db.models import ClipCandidate
         from yuu_clip.segments.windower import generate_candidates
         session, v, tx = self._setup_db(tmp_path)
-        self._add_seg(session, tx.id, 0, 30_000, "content")
+        self._add_seg(session, tx.id, 0, 30_000, "this clip has plenty of spoken content in it")
         session.flush()
         config = Config()
         try:

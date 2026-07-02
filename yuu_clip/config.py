@@ -164,6 +164,12 @@ class Config:
     silence_threshold_ms: int = 3_000   # gap that marks a clip boundary
     min_clip_ms: int = 15_000           # shortest candidate kept (15 s)
     hard_split_ms: int = 180_000        # force-split continuous speech (3 min)
+    # Drop candidates whose transcript text is too sparse for their length —
+    # mostly-silence windows (e.g. a Whisper runaway-timestamp segment stamping
+    # one hallucinated line across many minutes). Measured in characters of
+    # transcript text per second of clip. Real speech is ~10+ cps; 0.2 only
+    # removes near-silent windows. Set 0 to keep every window (disable).
+    min_clip_speech_cps: float = 0.2
 
     # LOCAL backends — inference runs on your machine, no API costs
     llm_backend: str = "llamacpp"    # "llamacpp" | "ollama" | "claude"
