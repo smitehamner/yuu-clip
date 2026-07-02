@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json as json_lib
+import re
 import sys
 import time
 from contextlib import asynccontextmanager
@@ -177,6 +178,12 @@ async def _active_job(ctx):
 
 def _sse_response(generator) -> StreamingResponse:
     return StreamingResponse(generator, media_type="text/event-stream", headers=_SSE_HEADERS)
+
+
+def _srt_to_vtt(srt: str) -> str:
+    """Convert SRT text to WebVTT (comma→dot in timestamps, WEBVTT header) for
+    <track> use in the browser."""
+    return "WEBVTT\n\n" + re.sub(r"(\d{2}:\d{2}:\d{2}),(\d{3})", r"\1.\2", srt)
 
 
 def _json_list(s: Optional[str]) -> list:

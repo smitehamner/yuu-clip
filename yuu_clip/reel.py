@@ -9,6 +9,7 @@ Requires ffmpeg on PATH.
 """
 from __future__ import annotations
 
+import json
 import logging
 import subprocess
 import tempfile
@@ -16,6 +17,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
+    from sqlalchemy.orm import Session
+
     from yuu_clip.db.models import ClipCandidate, Video
 
 _log = logging.getLogger(__name__)
@@ -393,3 +396,94 @@ def compile_demo(
     except Exception as exc:
         _log.error("Reel compilation failed for %s: %s", output.name, exc, exc_info=True)
         raise
+
+    _write_reel_composition(output, clips, clip_durations, transition, trans_dur, title_dur)
+
+
+def reel_composition_path(reel_path: Path) -> Path:
+    """Sidecar recording a reel's clip order + timing, so captions can be
+    (re)generated later without re-probing or storing DB composition state."""
+    return reel_path.with_suffix(".reel.json")
+
+
+def reel_caption_path(reel_path: Path) -> Path:
+    return reel_path.with_suffix(".srt")
+
+
+def _write_reel_composition(
+    reel_path: Path,
+    clips: list["ClipCandidate"],
+    clip_durations: list[float],
+    transition: str,
+    trans_dur: float,
+    title_dur: float,
+) -> None:
+    data = {
+        "version": 1,
+        "transition": transition,
+        "trans_dur": trans_dur,
+        "title_dur": title_dur,
+        "clips": [
+            {"id": clip.id, "duration_s": duration}
+            for clip, duration in zip(clips, clip_durations)
+        ],
+    }
+    reel_composition_path(reel_path).write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+
+def _segment_start_times(durations: list[float], trans_dur: float) -> list[float]:
+    """Start time (s) of each reel segment on the output timeline.
+
+    Segments alternate [title, clip, title, clip, …]. With an xfade transition
+    each cut overlaps the previous segment by *trans_dur*, so every segment after
+    the first starts *trans_dur* earlier than a plain concat would place it —
+    matching the offsets _build_xfade_cmd feeds ffmpeg.
+    """
+    starts = [0.0]
+    for i in range(len(durations) - 1):
+        starts.append(max(0.0, starts[-1] + durations[i] - trans_dur))
+    return starts
+
+
+def build_reel_caption_srt(session: "Session", reel_path: Path) -> Optional[Path]:
+    """Stitch each reel clip's transcript into one SRT on the reel timeline.
+
+    Reads the composition sidecar written at build time, offsets every clip's
+    lines by its segment start, and writes ``<reel>.srt``. Returns the SRT path,
+    or None when the reel has no composition sidecar (built before captions
+    existed — it must be rebuilt to enable them).
+    """
+    from yuu_clip.db.models import ClipCandidate
+    from yuu_clip.subtitles import lines_to_srt, merged_srt_lines
+
+    comp_path = reel_composition_path(reel_path)
+    if not comp_path.exists():
+        return None
+    comp = json.loads(comp_path.read_text(encoding="utf-8"))
+
+    title_dur = float(comp.get("title_dur", _DEFAULT_TITLE_DUR))
+    trans_dur = float(comp.get("trans_dur", _DEFAULT_TRANS_DUR))
+    effective_trans = 0.0 if comp.get("transition") == "none" else trans_dur
+
+    clip_entries = comp.get("clips", [])
+    segment_durations: list[float] = []
+    for entry in clip_entries:
+        segment_durations.append(title_dur)
+        segment_durations.append(float(entry.get("duration_s", 0.0)))
+    starts = _segment_start_times(segment_durations, effective_trans)
+
+    stitched = []
+    for idx, entry in enumerate(clip_entries):
+        clip = session.get(ClipCandidate, entry["id"])
+        if clip is None:
+            continue
+        offset_ms = int(round(starts[2 * idx + 1] * 1000))
+        for line in merged_srt_lines(clip):
+            stitched.append(line._replace(
+                start_ms=line.start_ms + offset_ms,
+                end_ms=line.end_ms + offset_ms,
+            ))
+
+    srt_path = reel_caption_path(reel_path)
+    srt_path.write_text(lines_to_srt(stitched), encoding="utf-8")
+    return srt_path

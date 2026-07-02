@@ -206,6 +206,7 @@ class _RunningJob:
 class TestRejectWhileAnalyzing:
     def test_reject_helper_only_fires_while_in_flight(self):
         from fastapi import HTTPException
+
         from yuu_clip.web.routes._shared import _reject_if_analyzing
 
         class _Ctx:

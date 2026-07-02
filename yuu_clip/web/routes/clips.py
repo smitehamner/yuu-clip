@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import asyncio
 import json as json_lib
-import re
 import subprocess as _subprocess
 import sys
 from datetime import datetime, timezone
@@ -30,6 +29,7 @@ from yuu_clip.web.routes._shared import (
     _require_clip,
     _srt_path,
     _srt_sidecar_paths,
+    _srt_to_vtt,
     _sse_response,
 )
 
@@ -89,11 +89,6 @@ class CaptionSegmentUpdate(BaseModel):
 class AutoApproveBody(BaseModel):
     threshold: float
     score_field: str = "overall"
-
-
-def _srt_to_vtt(srt: str) -> str:
-    vtt = re.sub(r"(\d{2}:\d{2}:\d{2}),(\d{3})", r"\1.\2", srt)
-    return f"WEBVTT\n\n{vtt}"
 
 
 def _subtitle_status(clip: ClipCandidate, video: Optional[Video], export_dir: Optional[Path]) -> str:

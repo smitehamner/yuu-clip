@@ -54,7 +54,18 @@ async function switchReelTab(tab) {
     reels.forEach((reel, i) => {
       const item = document.createElement('div');
       item.className = 'reel-item' + (i === 0 ? ' active' : '');
-      item.innerHTML = `<div class="reel-name">${escHtml(reel.filename)}</div><div class="reel-meta">${escHtml(reel.date)} &middot; ${reel.size_mb} MB</div>`;
+      const capBadge = reel.has_captions ? ' &middot; <span style="color:var(--green)" title="Captions available">CC</span>' : '';
+      item.innerHTML =
+        `<div class="reel-name">${escHtml(reel.filename)}</div>` +
+        `<div class="reel-meta">${escHtml(reel.date)} &middot; ${reel.size_mb} MB${capBadge}</div>`;
+      if (reel.can_caption) {
+        const capBtn = document.createElement('button');
+        capBtn.className = 'btn ghost';
+        capBtn.style.cssText = 'font-size:10px;padding:2px 6px;margin-top:4px';
+        capBtn.textContent = reel.has_captions ? '↻ Regenerate captions' : '+ Generate captions';
+        capBtn.onclick = e => { e.stopPropagation(); _regenReelCaptions(reel, capBtn); };
+        item.appendChild(capBtn);
+      }
       item.onclick = () => _playReel(reel, item);
       list.appendChild(item);
     });
@@ -144,6 +155,11 @@ function updateReelEstimate() {
   }
 
   const unexported = included.filter(c => !c.has_export).length;
+  const exportBtn = document.getElementById('reel-export-btn');
+  if (exportBtn) {
+    exportBtn.style.display = unexported > 0 ? '' : 'none';
+    exportBtn.textContent = `⬇ Export ${unexported} clip(s)`;
+  }
   const el = document.getElementById('reel-estimate');
   if (!el) return;
   if (!n) {
@@ -154,6 +170,45 @@ function updateReelEstimate() {
   el.innerHTML =
     `${n} clip(s) · ${fmtS(totalFootageS)} footage · encode ~${fmtS(encodeEtaS)}` +
     (unexported ? `<div class="reel-no-export-warn">⚠ ${unexported} clip(s) not yet exported — export them first or they will be skipped</div>` : '');
+}
+
+async function exportUnexportedReelClips() {
+  if (_blockedByAnalyze('export clips')) return;
+  const toExport = _reelClips.filter(c => c.included && !c.has_export);
+  if (!toExport.length) {
+    showToast('All selected clips are already exported', 'info');
+    return;
+  }
+  const ids = toExport.map(c => c.id).join(',');
+  const statusEl = document.getElementById('demo-status');
+  statusEl.style.color = 'var(--muted)';
+  statusEl.textContent = `Exporting ${toExport.length} clip(s)…`;
+  openLog();
+  streamSSE(
+    `/api/clips/bulk-export?clip_ids=${encodeURIComponent(ids)}`,
+    () => {
+      statusEl.textContent = '';
+      showToast('Clips exported');
+      SoundFx.play('export');
+      _refreshReelExportStatus();
+      loadVideos();
+    },
+    [{label: 'Exporting', patterns: ['Exporting clip', 'OK clip', 'Skipping']}],
+    'Export',
+  );
+}
+
+// Refresh has_export on the current clip list without discarding the user's
+// order/inclusion choices (loadReelClips() would reset both).
+async function _refreshReelExportStatus() {
+  const videoIdVal = document.getElementById('demo-video-id').value;
+  const qs = videoIdVal ? `?video_id=${videoIdVal}` : '';
+  const fresh = await fetch(`/api/demo/approved-clips${qs}`).then(r => r.json()).catch(() => null);
+  if (!fresh) return;
+  const exportById = new Map(fresh.map(c => [c.id, c.has_export]));
+  _reelClips.forEach(c => { if (exportById.has(c.id)) c.has_export = exportById.get(c.id); });
+  renderReelClipList();
+  updateReelEstimate();
 }
 
 function closeDemoModal() { closeHighlightReelsModal(); }
@@ -221,6 +276,7 @@ async function startDemo() {
     trans_dur:   parseFloat(document.getElementById('demo-trans-dur').value),
     title_dur:   parseFloat(document.getElementById('demo-title-dur').value),
     output_name: document.getElementById('demo-output-name').value.trim(),
+    captions:    document.getElementById('demo-captions').checked,
   };
 
   const statusEl = document.getElementById('demo-status');
@@ -328,8 +384,41 @@ function _playReel(reel, itemEl) {
   document.querySelectorAll('#reels-list .reel-item').forEach(el => el.classList.remove('active'));
   itemEl.classList.add('active');
   const vid = document.getElementById('reels-video');
+  vid.innerHTML = '';
   vid.src = reel.url;
+  if (reel.has_captions) {
+    const track = document.createElement('track');
+    track.kind = 'captions';
+    track.label = 'Captions';
+    track.srclang = 'en';
+    track.default = true;
+    track.src = `/api/demo/${encodeURIComponent(reel.filename)}/captions.vtt`;
+    vid.appendChild(track);
+  }
   vid.load();
+}
+
+async function _regenReelCaptions(reel, btn) {
+  if (_blockedByAnalyze('generate captions')) return;
+  const original = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Generating…';
+  try {
+    const res = await fetch(`/api/demo/${encodeURIComponent(reel.filename)}/captions`, {method: 'POST'});
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      showToast(e.detail || 'Could not generate captions', 'error');
+      btn.textContent = original;
+      btn.disabled = false;
+      return;
+    }
+    showToast('Captions generated');
+    switchReelTab('view');  // refresh badge + player track
+  } catch {
+    showToast('Could not generate captions', 'error');
+    btn.textContent = original;
+    btn.disabled = false;
+  }
 }
 
 // Public API — symbols referenced cross-module, by an inline handler, or by a
@@ -337,7 +426,7 @@ function _playReel(reel, itemEl) {
 Object.assign(window, {
   openHighlightReelsModal, closeHighlightReelsModal, switchReelTab,
   loadReelClips, _reelMove, _reelToggle,
-  startDemo, closeDemoModal, updateReelEstimate,
+  startDemo, closeDemoModal, updateReelEstimate, exportUnexportedReelClips,
   previewReelPlaylist, closeReelPreview,
   openBatchExportModal, closeBatchExportModal, confirmBatchExport,
   updateBatchEstimate, _onBatchCaptionsChange,

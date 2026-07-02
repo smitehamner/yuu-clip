@@ -37,3 +37,15 @@ class TestDemoModal:
         expect(page.locator("#demo-output-name")).to_be_visible()
         placeholder = page.locator("#demo-output-name").get_attribute("placeholder")
         assert placeholder is not None and ".mkv" in placeholder
+
+    def test_has_captions_checkbox(self, page: Page):
+        page.goto(LIVE_URL)
+        self._open_modal(page)
+        expect(page.locator("#demo-captions")).to_be_visible()
+
+    def test_export_button_hidden_until_unexported_clips(self, page: Page):
+        page.goto(LIVE_URL)
+        self._open_modal(page)
+        # The "Export N clips" button only appears once updateReelEstimate finds
+        # included clips lacking an export; with no clips loaded it stays hidden.
+        expect(page.locator("#reel-export-btn")).to_be_hidden()

@@ -104,6 +104,8 @@ A recording can be split into independent segments before or after analysis.
 
 Accessible from the header. Choose a video filter (all approved clips or a specific video), transition type and duration (including "random"), title card duration, and output filename. Ordered clip list lets you check/uncheck clips and reorder them before building. Saved reels go to `.yuu-clip/reels/` with a timestamp in the filename.
 
+A reel is built from your **exported** clips, so any selected clip that hasn't been exported is skipped — the builder shows an **Export N clips** button to export the missing ones first. Tick **Generate captions** to also write an SRT alongside the reel (each clip's transcript stitched onto the reel timeline). In the **View** tab you can generate or regenerate captions for an existing reel, and the built-in player shows them.
+
 ### World contexts manager
 
 Accessible from the header. Create and edit named context bundles:
@@ -228,6 +230,7 @@ Compiles a highlight reel from approved clips with title cards and transitions.
 | `--trans-dur S` | 0.5 | Overlap in seconds |
 | `--title-dur S` | 3.0 | Title card display time |
 | `--output PATH` | auto | Default: `.yuu-clip/reels/reel_<timestamp>.mkv` |
+| `--captions` | off | Also write a stitched `<reel>.srt` caption sidecar |
 
 ### `yuuclip serve [options]`
 Starts the web server and opens the browser. Options: `--host`, `--port` (default 8080), `--open`/`--no-open`, `--reload`. Preferred entry point for day-to-day use.

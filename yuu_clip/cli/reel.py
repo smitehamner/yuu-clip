@@ -26,6 +26,7 @@ def reel(
     title_dur:  float           = typer.Option(3.0,  "--title-dur",  help="Title card display duration in seconds"),
     output:     Optional[Path]  = typer.Option(None, "-o", "--output",
                                      help="Output file path (default: .yuu-clip/reels/reel_<timestamp>.mkv)"),
+    captions:   bool            = typer.Option(False, "--captions", help="Also write a stitched <reel>.srt caption sidecar"),
 ) -> None:
     """Compile a highlight reel from approved clips with title cards and transitions."""
     from yuu_clip.db.models import Video
@@ -54,6 +55,12 @@ def reel(
 
     _print_reel_plan(all_clips, video_map, output, transition)
     _compile_reel(all_clips, video_map, export_dir, output, transition, trans_dur, title_dur)
+
+    if captions:
+        from yuu_clip.reel import build_reel_caption_srt
+        srt_path = build_reel_caption_srt(session, output)
+        if srt_path:
+            console.print(f"  [green]OK[/green] captions {srt_path.name}")
 
 
 def _select_reel_clips(session, clip_ids, video_ids, video_id, status_filter, min_score, top) -> list:

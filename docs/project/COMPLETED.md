@@ -133,6 +133,30 @@ Correctness fixes around cancelling/running analyses, plus the settings/log layo
 
 ---
 
+## Usage-feedback cleanup — batch 6: highlight reels (done, 2026-07-02)
+
+- **Export unexported clips from the reel builder** — reels are compiled from
+  exported clip files and silently skip any clip without one. The build tab now
+  shows an "⬇ Export N clip(s)" button whenever the selected clips include
+  unexported ones; it runs the existing `GET /api/clips/bulk-export` and refreshes
+  each clip's export state in place (preserving the user's order + inclusion,
+  which a full reload would discard).
+- **Reel captions** — an opt-in "Generate captions" checkbox on the build tab
+  writes a stitched `<reel>.srt` sidecar: each clip's transcript is offset onto
+  the reel timeline (title-card + clip durations, xfade-overlap aware — see
+  `_segment_start_times`, matching the ffmpeg xfade offsets). Every build also
+  writes a `<reel>.reel.json` composition sidecar recording clip order + timing.
+- **Regenerate captions on existing reels** — the View tab shows a captions
+  badge and a "Generate / Regenerate captions" button per reel;
+  `POST /api/demo/{filename}/captions` re-stitches from the clips' current
+  transcripts (409 with a rebuild hint for reels built before this feature, which
+  lack the composition sidecar). The reel player loads captions via a `<track>`
+  fed by `GET /api/demo/{filename}/captions.vtt`.
+- `_srt_to_vtt` moved from `routes/clips.py` to `routes/_shared.py` (now shared by
+  the clip and reel VTT endpoints).
+
+---
+
 ## Phase 4 — Packaging + distribution (done)
 
 - **Electron wrapper** — app runs in its own Chromium window; Python backend launched as a child process

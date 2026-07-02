@@ -223,3 +223,171 @@ class TestListReels:
         r = client.get("/api/demo/list")
         assert r.status_code == 200
         assert r.json() == []
+
+    def test_caption_flags_default_false(self, client, project_dir):
+        reels_dir = project_dir / ".yuu-clip" / "reels"
+        reels_dir.mkdir(parents=True, exist_ok=True)
+        (reels_dir / "r.mkv").write_bytes(b"x")
+        entry = client.get("/api/demo/list").json()[0]
+        assert entry["has_captions"] is False
+        assert entry["can_caption"] is False
+
+
+# ---------------------------------------------------------------------------
+# Reel caption stitching (yuu_clip/reel.py) + regenerate/vtt routes
+# ---------------------------------------------------------------------------
+
+class TestSegmentStartTimes:
+    def _starts(self, durations, trans_dur):
+        from yuu_clip.reel import _segment_start_times
+        return _segment_start_times(durations, trans_dur)
+
+    def test_concat_offsets_are_cumulative(self):
+        assert self._starts([3.0, 5.0, 3.0, 4.0], 0.0) == [0.0, 3.0, 8.0, 11.0]
+
+    def test_xfade_overlap_pulls_each_segment_earlier(self):
+        assert self._starts([3.0, 5.0], 0.5) == [0.0, 2.5]
+
+    def test_single_segment(self):
+        assert self._starts([3.0], 0.5) == [0.0]
+
+    def test_never_negative(self):
+        assert self._starts([0.2, 0.2], 0.5) == [0.0, 0.0]
+
+
+def _seed_transcribed_project(tmp_path):
+    """A project DB with one approved clip carrying one transcript segment.
+
+    Returns (open session, clip_id). Caller closes the session.
+    """
+    from yuu_clip.db.models import (
+        AudioTrack,
+        ClipCandidate,
+        Transcript,
+        TranscriptSegment,
+        Video,
+        make_session,
+    )
+    data = tmp_path / ".yuu-clip"
+    data.mkdir(exist_ok=True)
+    (data / "reels").mkdir(exist_ok=True)
+    session = make_session(data / "project.db")
+    video = Video(path=str(tmp_path / "s.mkv"), filename="s.mkv", status="done", duration_ms=600_000)
+    session.add(video)
+    session.flush()
+    track = AudioTrack(video_id=video.id, stream_index=1, label="combined",
+                       do_transcribe=True, do_score=True, relevance_weight=1.0)
+    session.add(track)
+    session.flush()
+    tx = Transcript(audio_track_id=track.id, model_name="tiny", language="en")
+    session.add(tx)
+    session.flush()
+    session.add(TranscriptSegment(transcript_id=tx.id, start_ms=1000, end_ms=2000, text="hello world"))
+    clip = ClipCandidate(video_id=video.id, start_ms=0, end_ms=5000,
+                         score_overall=0.6, status="approved", description="c1")
+    session.add(clip)
+    session.commit()
+    return session, clip.id
+
+
+class TestBuildReelCaptionSrt:
+    def test_stitches_and_offsets_lines_by_segment_start(self, tmp_path):
+        import json
+
+        from yuu_clip.reel import build_reel_caption_srt, reel_caption_path, reel_composition_path
+        session, clip_id = _seed_transcribed_project(tmp_path)
+        reel = tmp_path / ".yuu-clip" / "reels" / "reel_x.mkv"
+        reel.write_bytes(b"fake")
+        reel_composition_path(reel).write_text(json.dumps({
+            "version": 1, "transition": "none", "trans_dur": 0.5, "title_dur": 3.0,
+            "clips": [{"id": clip_id, "duration_s": 5.0}],
+        }), encoding="utf-8")
+
+        out = build_reel_caption_srt(session, reel)
+        session.close()
+
+        assert out == reel_caption_path(reel)
+        srt = out.read_text(encoding="utf-8")
+        # concat (transition none): clip segment starts at title_dur=3.0s; the
+        # clip-relative line at 1.0-2.0s lands at 4.0-5.0s on the reel timeline.
+        assert "00:00:04,000 --> 00:00:05,000" in srt
+        assert "hello world" in srt
+
+    def test_missing_composition_returns_none(self, tmp_path):
+        from yuu_clip.reel import build_reel_caption_srt
+        session, _ = _seed_transcribed_project(tmp_path)
+        reel = tmp_path / ".yuu-clip" / "reels" / "noconfig.mkv"
+        reel.write_bytes(b"x")
+        assert build_reel_caption_srt(session, reel) is None
+        session.close()
+
+
+class TestReelCaptionRoutes:
+    def _approved_clip_id(self, client) -> int:
+        vid = client.get("/api/videos").json()[0]["id"]
+        clips = client.get(f"/api/videos/{vid}/clips").json()
+        return next(c["id"] for c in clips if c["status"] == "approved")
+
+    def _make_reel(self, project_dir, name="reel_x.mkv", composition=None):
+        import json
+        reels_dir = project_dir / ".yuu-clip" / "reels"
+        reels_dir.mkdir(parents=True, exist_ok=True)
+        reel = reels_dir / name
+        reel.write_bytes(b"fake")
+        if composition is not None:
+            reel.with_suffix(".reel.json").write_text(json.dumps(composition), encoding="utf-8")
+        return reel
+
+    def test_start_passes_captions_flag(self, client):
+        vid = client.get("/api/videos").json()[0]["id"]
+        r = client.post("/api/demo/start", json={"video_id": vid, "transition": "fade", "captions": True})
+        assert r.status_code == 200
+        assert "--captions" in client.app.state.ctx.demo_cmd
+
+    def test_start_omits_captions_flag_by_default(self, client):
+        vid = client.get("/api/videos").json()[0]["id"]
+        r = client.post("/api/demo/start", json={"video_id": vid, "transition": "fade"})
+        assert r.status_code == 200
+        assert "--captions" not in client.app.state.ctx.demo_cmd
+
+    def test_regenerate_without_composition_409(self, client, project_dir):
+        self._make_reel(project_dir)
+        r = client.post("/api/demo/reel_x.mkv/captions")
+        assert r.status_code == 409
+        assert "rebuild" in r.json()["detail"].lower()
+
+    def test_regenerate_missing_reel_404(self, client):
+        r = client.post("/api/demo/nope.mkv/captions")
+        assert r.status_code == 404
+
+    def test_regenerate_with_composition_reports_captions(self, client, project_dir):
+        cid = self._approved_clip_id(client)
+        self._make_reel(project_dir, composition={
+            "version": 1, "transition": "none", "trans_dur": 0.5, "title_dur": 3.0,
+            "clips": [{"id": cid, "duration_s": 5.0}],
+        })
+        r = client.post("/api/demo/reel_x.mkv/captions")
+        assert r.status_code == 200
+        assert r.json()["has_captions"] is True
+        entry = next(x for x in client.get("/api/demo/list").json() if x["filename"] == "reel_x.mkv")
+        assert entry["has_captions"] is True
+        assert entry["can_caption"] is True
+
+    def test_vtt_without_srt_404(self, client, project_dir):
+        self._make_reel(project_dir, composition={
+            "version": 1, "transition": "none", "trans_dur": 0.5, "title_dur": 3.0, "clips": [],
+        })
+        r = client.get("/api/demo/reel_x.mkv/captions.vtt")
+        assert r.status_code == 404
+
+    def test_vtt_served_after_regenerate(self, client, project_dir):
+        cid = self._approved_clip_id(client)
+        self._make_reel(project_dir, composition={
+            "version": 1, "transition": "none", "trans_dur": 0.5, "title_dur": 3.0,
+            "clips": [{"id": cid, "duration_s": 5.0}],
+        })
+        client.post("/api/demo/reel_x.mkv/captions")
+        r = client.get("/api/demo/reel_x.mkv/captions.vtt")
+        assert r.status_code == 200
+        assert r.headers["content-type"].startswith("text/vtt")
+        assert r.text.startswith("WEBVTT")

@@ -13,11 +13,13 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 
 from yuu_clip.db.models import ClipCandidate
 from yuu_clip.log import get_logger
 from yuu_clip.web.deps import ProjectContext
+from yuu_clip.web.routes._shared import _srt_to_vtt
 from yuu_clip.web.sse import subprocess_sse
 
 _log = get_logger(__name__)
@@ -30,6 +32,7 @@ class DemoRequest(BaseModel):
     trans_dur:   float = 0.5
     title_dur:   float = 3.0
     output_name: str   = ""
+    captions:    bool  = False
 
 
 def _safe_filename(name: str, default: str = "highlights.mkv") -> str:
@@ -91,6 +94,8 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             "--title-dur",  str(req.title_dur),
             "--output",     str(output_path),
         ]
+        if req.captions:
+            cmd += ["--captions"]
         if req.clip_ids:
             for cid in req.clip_ids:
                 cmd += ["--clip-id", str(cid)]
@@ -160,6 +165,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     @router.get("/api/demo/list")
     def list_reels():
         """Return highlight reel files from the reels directory, newest first."""
+        from yuu_clip.reel import reel_caption_path, reel_composition_path
         if not ctx.reels_dir.exists():
             return []
         reels = []
@@ -173,10 +179,55 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                 "size_mb": round(st.st_size / 1_048_576, 1),
                 "date": datetime.fromtimestamp(st.st_mtime).strftime("%Y-%m-%d %H:%M"),
                 "mtime": st.st_mtime,
+                "has_captions": reel_caption_path(f).exists(),
+                "can_caption": reel_composition_path(f).exists(),
             })
         reels.sort(key=lambda r: r["mtime"], reverse=True)
         for r in reels:
             del r["mtime"]
         return reels
+
+    def _resolve_reel(filename: str) -> Path:
+        """Return the reel path for a name, rejecting traversal and missing files."""
+        safe = _safe_filename(filename)
+        reel_path = ctx.reels_dir / safe
+        if safe != filename or not reel_path.is_file():
+            raise HTTPException(404, "Reel not found")
+        return reel_path
+
+    @router.post("/api/demo/{filename}/captions")
+    def regenerate_reel_captions(filename: str):
+        """Rebuild a reel's stitched SRT sidecar from its clips' current transcripts.
+
+        Requires the composition sidecar written at build time; reels built before
+        captions existed return 409 with a rebuild hint."""
+        from yuu_clip.reel import build_reel_caption_srt, reel_composition_path
+        reel_path = _resolve_reel(filename)
+        if not reel_composition_path(reel_path).exists():
+            raise HTTPException(
+                409,
+                "This reel was built before captions were supported — rebuild it "
+                "with captions enabled to generate them.",
+            )
+        db = ctx.get_db()
+        try:
+            srt_path = build_reel_caption_srt(db, reel_path)
+        finally:
+            db.close()
+        _log.info("Regenerated captions for reel %s", reel_path.name)
+        return {"filename": reel_path.name, "has_captions": srt_path is not None}
+
+    @router.get("/api/demo/{filename}/captions.vtt")
+    def reel_captions_vtt(filename: str):
+        """Serve a reel's SRT sidecar as WebVTT for <track> use in the reel player."""
+        from yuu_clip.reel import reel_caption_path
+        reel_path = _resolve_reel(filename)
+        srt_path = reel_caption_path(reel_path)
+        if not srt_path.exists():
+            raise HTTPException(404, "No captions for this reel")
+        return PlainTextResponse(
+            _srt_to_vtt(srt_path.read_text(encoding="utf-8", errors="replace")),
+            media_type="text/vtt",
+        )
 
     return router
