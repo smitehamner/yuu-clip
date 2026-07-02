@@ -311,7 +311,10 @@ function _analysisLivePanelHTML() {
     <div class="detail-card analysis-live" id="analysis-live-panel">
       <div class="detail-card-header">
         <span class="detail-card-title"><span class="spinner"></span> Analysis in progress</span>
-        <span class="muted" id="analysis-live-elapsed" style="font-size:12px"></span>
+        <span style="display:flex;align-items:center;gap:10px">
+          <span class="muted" id="analysis-live-elapsed" style="font-size:12px"></span>
+          <button class="btn ghost" onclick="cancelJob()" style="font-size:12px;padding:2px 10px">Cancel</button>
+        </span>
       </div>
       <div id="analysis-live-steps" class="job-steps-detail"></div>
       <div class="muted" style="font-size:11px;margin-top:8px">Runs in the background — you can leave or refresh this page without interrupting it.</div>
@@ -326,9 +329,14 @@ function _syncAnalysisLivePanel() {
   const stepsEl = document.getElementById('analysis-live-steps');
   if (!stepsEl) return;
   stepsEl.innerHTML = _jobStepDefs.map((step, i) => {
-    const cls  = i < _activeStepIdx ? 'done' : i === _activeStepIdx ? 'active' : '';
-    const text = i === _activeStepIdx ? _stepPillLabel(i).text : step.label;
-    return `<span class="step ${cls}">${escHtml(text)}</span>`;
+    const cls = i < _activeStepIdx ? 'done' : i === _activeStepIdx ? 'active' : '';
+    if (i !== _activeStepIdx) return `<span class="step ${cls}">${escHtml(step.label)}</span>`;
+    // Active step mirrors the header pill: live label + the same two-tone fill.
+    const {text, pct} = _stepPillLabel(i);
+    const fill = pct != null
+      ? ` style="background-image:linear-gradient(to right, var(--green) ${pct}%, var(--accent) ${pct}%)"`
+      : '';
+    return `<span class="step ${cls}"${fill}>${escHtml(text)}</span>`;
   }).join('');
 
   const elapsedEl = document.getElementById('analysis-live-elapsed');
@@ -749,10 +757,20 @@ async function onClipsSortChange() {
 // Renders the stored record of the last analyze run (per-stage timing, effective
 // settings, and CPU/GPU device) so the creator can answer "how long did this
 // take, what settings, and did it use my GPU?".
+// Display finished-run stage names with the same labels as the live progress
+// bubbles (INGEST_STEPS), so the "Last analysis" card reads consistently with
+// what the user watched during analysis. Covers names stored by older runs.
+const _STAGE_LABEL = {
+  'Extract audio':   'Extract',
+  'Generate clips':  'Generate Clips',
+  'Import captions': 'Transcribe',
+};
+function _stageLabel(name) { return _STAGE_LABEL[name] || name; }
+
 function _runTimingLine(run) {
   const totalHms = _msToHms(run.elapsed_ms || 0);
   const stages = run.stages || [];
-  const stageStr = stages.map(st => `${st.name} ${_msToHms((st.seconds || 0) * 1000)}`).join(' · ');
+  const stageStr = stages.map(st => `${_stageLabel(st.name)} ${_msToHms((st.seconds || 0) * 1000)}`).join(' · ');
   return `Last run: ${totalHms} total${stageStr ? ` (${stageStr})` : ''}`;
 }
 
@@ -802,7 +820,7 @@ function _runStageBars(stages) {
     const pct = Math.max(2, Math.round(secs / maxS * 100));
     return `
       <div class="run-stage-row">
-        <span class="run-stage-name">${escHtml(st.name)}</span>
+        <span class="run-stage-name">${escHtml(_stageLabel(st.name))}</span>
         <span class="run-stage-track"><span class="run-stage-fill" style="width:${pct}%"></span></span>
         <span class="run-stage-time">${_msToHms(secs * 1000)}</span>
       </div>`;
@@ -821,7 +839,7 @@ Object.assign(window, {
   generateTimeline, confirmGenerateTimeline, closeTimelineIntervalModal,
   updateTimelineIntervalHint,
   _updateDemoButton, _updateStartIngestButton,
-  _syncAnalysisLivePanel,
+  _analysisLivePanelHTML, _syncAnalysisLivePanel,
   openVideoActionsModal,
 });
 })();

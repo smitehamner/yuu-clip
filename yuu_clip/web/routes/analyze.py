@@ -56,11 +56,13 @@ _IMPORT_NAMES: dict[str, list[str]] = {
 }
 
 # ── Whisper real-time speed ratios ──────────────────────────────────────────
-# Seconds of video processed per second of wall-clock time.
-# Calibrated against observed runs (2h10m video, RTX-class GPU).
+# Seconds of video processed per second of wall-clock time. Recalibrated against
+# real analyze_run_json timings across 0.5h–7.9h recordings on this GPU (single
+# transcribed track, cuda float16): base ≈20×, medium ≈9–29× (wide, speech-density
+# dependent — kept conservative), large-v3 ≈4× (one short overhead-heavy sample).
 _WHISPER_GPU_SPEED: dict[str, float] = {
-    "large-v3": 6, "large-v2": 6, "large": 6,
-    "medium": 18, "small": 30, "base": 50, "tiny": 80,
+    "large-v3": 5, "large-v2": 5, "large": 5,
+    "medium": 15, "small": 17, "base": 20, "tiny": 35,
 }
 _WHISPER_CPU_SPEED = 0.4  # large-v3 on CPU; other models scale similarly
 
@@ -83,9 +85,11 @@ _ENERGY_MODE: dict[str, tuple[float, str]] = {
 }
 
 # Speaker diarization (pyannote): seconds of audio processed per second of
-# wall-clock, per transcribed track. CPU reflects the FEATURES-documented
-# ~2–4× real-time floor; GPU is roughly 4× faster.
-_DIARIZATION_RT_SPEED = {"gpu": 12.0, "cpu": 3.0}
+# wall-clock, per transcribed track. GPU recalibrated to ~20× from real runs
+# (~4.9% of video duration on long recordings); kept slightly conservative at 18
+# since short recordings pay a fixed model-load overhead this linear model omits.
+# CPU reflects the FEATURES-documented ~2–4× real-time floor.
+_DIARIZATION_RT_SPEED = {"gpu": 18.0, "cpu": 3.0}
 
 
 class ProbeRequest(BaseModel):
@@ -512,10 +516,13 @@ def _compute_time_estimate(req: EstimateRequest) -> dict:
     )
     energy_cost, energy_label = _ENERGY_MODE.get(req.energy_mode, (0.002, ""))
 
+    est_clips = int(duration_s / 180)
     steps = [
         {
-            "name":    "Extract audio",
-            "seconds": duration_s * n_tracks * 0.05,
+            "name":    "Extract",
+            # ffmpeg reads the source once; real runs land ~0.0017×duration
+            # regardless of track count (the old 0.05×tracks was ~30× too high).
+            "seconds": duration_s * n_tracks * 0.002,
             "note":    f"{n_tracks} track(s)",
         },
         _whisper_step(req.model, req.has_gpu, duration_s, transcribe_tracks),
@@ -530,9 +537,16 @@ def _compute_time_estimate(req: EstimateRequest) -> dict:
             "note":    _SCENE_MODE_LABELS.get(req.scene_mode, ""),
         },
         {
+            "name":    "Summarize",
+            "seconds": max(15.0, duration_s * 0.0015),
+            "note":    "one LLM pass over the transcript",
+        },
+        {
             "name":    "LLM scoring",
-            "seconds": (duration_s / 180) * 4,
-            "note":    f"~{int(duration_s / 180)} clips estimated",
+            # ~12s/clip observed (cold model + per-clip prompt); the old 4s
+            # under-estimated real scoring by 2–4×.
+            "seconds": est_clips * 12,
+            "note":    f"~{est_clips} clips estimated",
         },
     ]
     if req.diarize and transcribe_tracks > 0:

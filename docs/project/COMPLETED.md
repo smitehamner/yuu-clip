@@ -54,6 +54,30 @@ Correctness fixes around cancelling/running analyses, plus the settings/log layo
 
 ---
 
+## Usage-feedback cleanup — batch 3: progress & estimation (done, 2026-07-02)
+
+- **No more runaway per-step ETA** — the "77 min left" that vanished when a step
+  finished came from extrapolating off a slow cold first item
+  (`elapsed/current × remaining`). The ETA now anchors its rate at the first
+  observed count and measures throughput after it, so a cold first item can't
+  project an absurd figure (and no ETA shows until a second count arrives).
+- **Estimate coefficients recalibrated from real run data** — mined
+  `analyze_run_json` across 0.5h–7.9h recordings: audio extraction was
+  `duration×tracks×0.05` (~30× the real ~0.0017 — the "way off" report), now
+  `×0.002`; Whisper `base` 50→20× and `large-v3` 6→5× (real ~4–20×); diarization
+  12→18×; LLM scoring 4→12s per clip (was a 2–4× under-estimate). Added the
+  previously-missing **Summarize** step.
+- **Finished-run stage labels match the live bubbles** — the "Last analysis"
+  card normalizes stored names ("Extract audio"→"Extract", "Generate
+  clips"→"Generate Clips") and new runs record the aligned names directly.
+- **In-detail analysis panel gained a Cancel button and the progress-bar fill**
+  the header bar has, so you can cancel without scrolling to the header and see
+  the same live per-step progress. *Deferred: sub-progress for diarization
+  (pyannote emits none per-segment) and splitting energy/scene timing out of the
+  Score stage.*
+
+---
+
 ## Phase 4 — Packaging + distribution (done)
 
 - **Electron wrapper** — app runs in its own Chromium window; Python backend launched as a child process

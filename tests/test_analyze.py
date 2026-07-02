@@ -21,6 +21,30 @@ class TestEstimate:
             assert "seconds" in step
             assert "hms" in step
 
+    def test_estimate_extract_step_is_small_fraction(self, client):
+        # Regression: extract was duration*tracks*0.05 (~30x the real ~0.0017);
+        # now duration*tracks*0.002.
+        d = client.post("/api/estimate", json={**self._BASE, "audio_tracks": 2, "duration_s": 3600}).json()
+        extract = next(s for s in d["steps"] if s["name"] == "Extract")
+        assert extract["seconds"] == pytest.approx(3600 * 2 * 0.002)
+
+    def test_estimate_includes_summarize_step(self, client):
+        d = client.post("/api/estimate", json=self._BASE).json()
+        assert any(s["name"] == "Summarize" for s in d["steps"])
+
+    def test_estimate_score_step_scales_per_clip(self, client):
+        # ~12s/clip (was 4s, a 2-4x underestimate).
+        d = client.post("/api/estimate", json={**self._BASE, "duration_s": 3600}).json()
+        score = next(s for s in d["steps"] if s["name"] == "LLM scoring")
+        assert score["seconds"] == pytest.approx((3600 // 180) * 12)
+
+    def test_estimate_base_model_faster_than_medium(self, client):
+        base = client.post("/api/estimate", json={**self._BASE, "model": "base"}).json()
+        med = client.post("/api/estimate", json={**self._BASE, "model": "medium"}).json()
+        b = next(s for s in base["steps"] if s["name"].startswith("Transcribe"))
+        m = next(s for s in med["steps"] if s["name"].startswith("Transcribe"))
+        assert b["seconds"] < m["seconds"]
+
     def test_estimate_gpu_faster_than_cpu(self, client):
         payload = dict(duration_s=3600, model="large-v3", audio_tracks=1, scene_mode="fast")
         gpu = client.post("/api/estimate", json={**payload, "has_gpu": True}).json()

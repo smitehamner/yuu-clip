@@ -205,6 +205,7 @@ let _jobHideTimer  = null;
 let _activeStepIdx = -1;
 let _stepStartTime = 0;
 let _stepProgress  = {}; // stepIdx -> {current, total}, cleared per job
+let _stepRateAnchor = {}; // stepIdx -> {t, current} at first observed count, cleared per job
 
 // Best-effort lookup of a pill's pre-run time estimate (from the last
 // /api/estimate call, saved by renderEstimate) for use as a hover tooltip.
@@ -223,6 +224,7 @@ function startJobUI(stepDefs, jobLabel, cancellable = false) {
   _jobStartTime  = Date.now();
   _stepStartTime = Date.now();
   _stepProgress  = {};
+  _stepRateAnchor = {};
   if (_jobTimer) clearInterval(_jobTimer);
   _jobTimer = setInterval(_tickJobTimer, 1000);
   if (_jobHideTimer) { clearTimeout(_jobHideTimer); _jobHideTimer = null; }
@@ -266,7 +268,11 @@ function updateJobUI(line) {
   if (activeDef && activeDef.progressPattern) {
     const m = line.match(activeDef.progressPattern);
     if (m) {
-      _stepProgress[_activeStepIdx] = {current: parseInt(m[1], 10), total: parseInt(m[2], 10)};
+      const current = parseInt(m[1], 10);
+      _stepProgress[_activeStepIdx] = {current, total: parseInt(m[2], 10)};
+      // Anchor the rate at the first observed count so the cold first item
+      // (model load, warmup) is excluded from the ETA extrapolation.
+      if (!_stepRateAnchor[_activeStepIdx]) _stepRateAnchor[_activeStepIdx] = {t: Date.now(), current};
       _renderStepPill(_activeStepIdx);
       _debouncedClipListRefresh();
     }
@@ -315,9 +321,18 @@ function _stepPillLabel(idx) {
   }
   const {current, total} = progress;
   const pct    = Math.round(current / total * 100);
-  const etaMs  = elapsedMs / current * (total - current);
+  // ETA from throughput since the rate anchor (first observed count), not from
+  // elapsed/current — the latter let a slow cold first item project absurd
+  // figures (e.g. "77 min left" that vanished when the step finished seconds later).
+  const anchor = _stepRateAnchor[idx];
+  let eta = '';
+  if (anchor && current > anchor.current) {
+    const msPerItem = (Date.now() - anchor.t) / (current - anchor.current);
+    const remainingMs = msPerItem * (total - current);
+    if (isFinite(remainingMs) && remainingMs >= 0) eta = ` (~${_fmtElapsed(remainingMs)} left)`;
+  }
   return {
-    text: `${def.label} · ${current}/${total} (${pct}%) · ${_fmtElapsed(elapsedMs)} (~${_fmtElapsed(etaMs)} left)`,
+    text: `${def.label} · ${current}/${total} (${pct}%) · ${_fmtElapsed(elapsedMs)}${eta}`,
     pct,
   };
 }

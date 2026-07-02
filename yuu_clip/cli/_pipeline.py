@@ -106,7 +106,7 @@ def _analyze_one(
 
     session.commit()
 
-    with recorder.stage("Extract audio"):
+    with recorder.stage("Extract"):
         _extract_audio_and_check_rms_overlap(
             video_path, video, track_objs, config, audio_dir, session, opts.force,
             segment_start_s=seg_start, segment_end_s=seg_end,
@@ -124,7 +124,7 @@ def _analyze_one(
             _run_speaker_diarization(config, session, transcripts)
         session.commit()
 
-    with recorder.stage("Generate clips"):
+    with recorder.stage("Generate Clips"):
         candidates = _generate_candidates(video, transcripts, config, session, opts.no_segment, opts.no_transcribe, opts.force)
     session.commit()
 

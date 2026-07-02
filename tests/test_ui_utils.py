@@ -664,19 +664,20 @@ class TestUpdateJobUI:
 class TestStepPillProgress:
     def test_track_progress_line_renders_fraction_percent_and_eta(self, page: Page):
         # INGEST_STEPS[0] (Extract) has progressPattern /Track (\d+)\/(\d+)/.
-        # First activate the step via its name pattern, then feed a "Track 3/12"
-        # count line the way the subprocess log actually emits it.
+        # The ETA appears only after a second count arrives — the first count just
+        # anchors the rate (so a slow cold first item can't project an absurd ETA).
         text = page.evaluate(
             "() => {"
             "  startJobUI(INGEST_STEPS, 'Analyzing');"
             "  updateJobUI('Extracting audio...');"
             "  updateJobUI('  Track 3/12 [combined]...');"
+            "  updateJobUI('  Track 6/12 [combined]...');"
             "  const t = document.getElementById('step-0').textContent;"
             "  endJobUI();"
             "  return t;"
             "}"
         )
-        assert "3/12 (25%)" in text
+        assert "6/12 (50%)" in text
         assert "left)" in text
 
     def test_scoring_progress_line_renders_fraction_percent_and_eta(self, page: Page):
@@ -686,12 +687,13 @@ class TestStepPillProgress:
             "  startJobUI(SCORE_STEPS, 'Re-scoring clips');"
             "  updateJobUI('Scoring clips now');"
             "  updateJobUI('Scoring 3/12');"
+            "  updateJobUI('Scoring 6/12');"
             "  const t = document.getElementById('step-2').textContent;"
             "  endJobUI();"
             "  return t;"
             "}"
         )
-        assert "3/12 (25%)" in text
+        assert "6/12 (50%)" in text
         assert "left)" in text
 
 
@@ -725,3 +727,36 @@ class TestParseWeight:
     def test_negative_is_clamped_to_zero(self, page: Page):
         # A relevance weight must never go below 0 even if the field holds one.
         assert self._weight(page, "-5") == 0
+
+
+@skip_no_server
+class TestStepEtaHeuristic:
+    """_stepPillLabel's per-step ETA (utils.js). Regression: a slow cold first
+    item projected absurd figures ('~77 min left' that vanished seconds later)."""
+
+    def test_eta_hidden_at_first_observed_count(self, page: Page):
+        text = page.evaluate(
+            """() => {
+              _jobStepDefs = [{label: 'Score'}];
+              _activeStepIdx = 0;
+              _stepStartTime = Date.now() - 15000;
+              _stepProgress = {0: {current: 1, total: 300}};
+              _stepRateAnchor = {0: {t: Date.now() - 15000, current: 1}};
+              return _stepPillLabel(0).text;
+            }"""
+        )
+        assert "1/300" in text
+        assert "left" not in text  # old code extrapolated ~74 min here
+
+    def test_eta_shown_after_warmup(self, page: Page):
+        text = page.evaluate(
+            """() => {
+              _jobStepDefs = [{label: 'Score'}];
+              _activeStepIdx = 0;
+              _stepStartTime = Date.now() - 5000;
+              _stepProgress = {0: {current: 3, total: 103}};
+              _stepRateAnchor = {0: {t: Date.now() - 4000, current: 1}};  // 2 items / 4s
+              return _stepPillLabel(0).text;
+            }"""
+        )
+        assert "left" in text

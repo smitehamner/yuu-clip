@@ -61,6 +61,38 @@ class TestRunTimingProvenanceLine:
 
 
 @skip_no_server
+class TestAnalysisLivePanel:
+    """The in-detail live panel mirrors the header bar — it has a Cancel button
+    and shows the same per-step progress fill."""
+
+    def test_panel_has_cancel_button(self, page: Page):
+        page.goto(LIVE_URL)
+        page.wait_for_selector("#video-list li", timeout=5000)
+        page.evaluate("document.getElementById('detail').innerHTML = _analysisLivePanelHTML()")
+        btn = page.locator("#analysis-live-panel button", has_text="Cancel")
+        expect(btn).to_have_count(1)
+        assert "cancelJob" in (btn.get_attribute("onclick") or "")
+
+    def test_active_step_shows_progress_fill(self, page: Page):
+        page.goto(LIVE_URL)
+        page.wait_for_selector("#video-list li", timeout=5000)
+        page.evaluate(
+            """() => {
+              document.getElementById('detail').innerHTML = _analysisLivePanelHTML();
+              _jobStepDefs = [{label: 'Score'}, {label: 'Done'}];
+              _activeStepIdx = 0;
+              _stepStartTime = Date.now() - 1000;
+              _stepProgress = {0: {current: 5, total: 10}};
+              _stepRateAnchor = {0: {t: Date.now() - 1000, current: 1}};
+              _syncAnalysisLivePanel();
+            }"""
+        )
+        active = page.locator("#analysis-live-steps .step.active")
+        expect(active).to_have_count(1)
+        assert "linear-gradient" in (active.get_attribute("style") or "")
+
+
+@skip_no_server
 class TestContextsSelfHeal:
     """Opening a recording refetches world contexts if the boot-time load left the
     list empty (transient failure / race), so the context section never renders
