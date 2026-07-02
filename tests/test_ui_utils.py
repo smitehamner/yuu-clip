@@ -11,10 +11,8 @@ helpers.
 """
 from __future__ import annotations
 
-from playwright.sync_api import Page
-
 from conftest import skip_no_server
-
+from playwright.sync_api import Page
 
 # ---------------------------------------------------------------------------
 # Format / date helpers (utils.js)

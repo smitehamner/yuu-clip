@@ -8,15 +8,13 @@ helpers.
 from __future__ import annotations
 
 import pytest
-from playwright.sync_api import Page, expect
-
 from conftest import (
     LIVE_URL,
     select_first_video_and_clip,
     select_video_with_clips,
     skip_no_server,
 )
-
+from playwright.sync_api import Page, expect
 
 # ---------------------------------------------------------------------------
 # Clip review workflow
@@ -399,3 +397,105 @@ class TestBulkExportStaleWarning:
             page.click(".clip-bulk-actions button:has-text('Export')")
         assert f"clip_ids={clip_id}" in req_info.value.url
         expect(page.locator("#confirm-modal")).not_to_be_visible()
+
+
+# ---------------------------------------------------------------------------
+# Global keyboard shortcut guard (settings.js keydown handler)
+# ---------------------------------------------------------------------------
+
+@skip_no_server
+class TestGlobalKeyboardGuard:
+    """The global keydown handler must: close a modal on Escape even when focus
+    sits on a button inside it (where every modal places focus on open), leave
+    typing surfaces alone, and skip events a list item already handled."""
+
+    def test_escape_closes_confirm_modal_when_cancel_button_focused(self, page: Page):
+        select_video_with_clips(page)
+        _first_row(page).locator(".clip-select-checkbox").check()
+        delete_requests: list = []
+        page.on("request", lambda r: delete_requests.append(r) if "bulk-delete" in r.url else None)
+        page.click(".clip-bulk-actions button:has-text('Delete')")
+        page.wait_for_selector("#confirm-modal.visible", timeout=2000)
+        # showConfirm moves focus onto the Cancel <button> ~50ms after opening —
+        # exactly where a keyboard user is when they press Escape.
+        page.wait_for_function(
+            "document.activeElement === document.getElementById('confirm-cancel-btn')",
+            timeout=2000,
+        )
+        page.keyboard.press("Escape")
+        page.wait_for_selector("#confirm-modal.visible", state="hidden", timeout=2000)
+        assert not delete_requests
+
+    def test_handled_keydown_does_not_also_fire_global_shortcut(self, page: Page):
+        # A clip/video <li> handles Enter/Space itself and calls preventDefault;
+        # the global handler must not ALSO act on the same event (regression:
+        # Space both activated the list item and toggled video play/pause).
+        select_first_video_and_clip(page)
+        page.wait_for_selector(".clip-actions", timeout=5000)
+        if page.evaluate("() => AppState.clips.length") < 2:
+            pytest.skip("needs at least 2 clips to observe arrow-key navigation")
+        unchanged = page.evaluate("""() => {
+            const before = AppState.activeClipId;
+            const ev = new KeyboardEvent('keydown', {key: 'ArrowRight', cancelable: true, bubbles: true});
+            ev.preventDefault();  // simulate a focused list item having handled the key
+            document.body.dispatchEvent(ev);
+            return AppState.activeClipId === before;
+        }""")
+        assert unchanged
+
+    def test_shortcut_acts_on_focused_clip_row_not_active_clip(self, page: Page):
+        # 'A' pressed while keyboard focus sits on a different clip row must
+        # act on the focused row — not silently mutate the active clip.
+        select_first_video_and_clip(page)
+        page.wait_for_selector(".clip-actions", timeout=5000)
+        if page.evaluate("() => AppState.clips.length") < 2:
+            pytest.skip("needs at least 2 clips to observe the focused-vs-active split")
+        active_id, focused_id = page.evaluate("""() => {
+            const rows = document.querySelectorAll('#clip-list li[data-clip-id]');
+            const other = [...rows].find(r => Number(r.dataset.clipId) !== AppState.activeClipId);
+            other.focus();
+            return [AppState.activeClipId, Number(other.dataset.clipId)];
+        }""")
+        assert focused_id != active_id
+        page.route("**/api/clips/*/status", lambda route: route.abort())
+        with page.expect_request(
+            lambda r: r.method == "POST" and r.url.endswith("/status")
+        ) as req_info:
+            page.keyboard.press("a")
+        assert f"/api/clips/{focused_id}/status" in req_info.value.url
+
+    def test_arrow_navigation_moves_focus_with_active_clip(self, page: Page):
+        # Focus ring and active highlight must stay on the same row after
+        # arrow-key navigation, so A/R/E can never target a stale row.
+        select_first_video_and_clip(page)
+        page.wait_for_selector(".clip-actions", timeout=5000)
+        if page.evaluate("() => AppState.clips.length") < 2:
+            pytest.skip("needs at least 2 clips to observe arrow-key navigation")
+        page.evaluate("() => selectClip(AppState.clips[0].id)")
+        page.locator("#clip-list li[data-clip-id]").first.focus()
+        page.keyboard.press("ArrowDown")
+        page.wait_for_function("""() => {
+            const focused = document.activeElement;
+            return focused?.dataset?.clipId
+                && Number(focused.dataset.clipId) === AppState.activeClipId
+                && focused.classList.contains('active')
+                && AppState.activeClipId === AppState.clips[1].id;
+        }""", timeout=2000)
+
+    def test_escape_in_text_field_does_not_close_modal(self, page: Page):
+        # The field-edit modal focuses its textarea on open; Escape there must be
+        # left to the field (and the modal's own dirty-check), not the global
+        # close cascade.
+        select_first_video_and_clip(page)
+        page.wait_for_selector(".detail-card .kebab-btn", timeout=3000)
+        page.click(".detail-card .kebab-btn")
+        page.click(".hamburger-menu.open button:has-text('Edit')")
+        page.wait_for_selector("#field-edit-modal.visible", timeout=2000)
+        page.wait_for_function(
+            "document.activeElement === document.getElementById('field-edit-text')",
+            timeout=2000,
+        )
+        page.keyboard.press("Escape")
+        expect(page.locator("#field-edit-modal")).to_be_visible()
+        page.click("#field-edit-modal button:has-text('Cancel')")
+        page.wait_for_selector("#field-edit-modal.visible", state="hidden", timeout=2000)

@@ -6,9 +6,8 @@ server is not reachable. See tests/conftest.py for the shared helpers.
 """
 from __future__ import annotations
 
-from playwright.sync_api import Page, expect
-
 from conftest import LIVE_URL, skip_no_server
+from playwright.sync_api import Page, expect
 
 
 @skip_no_server
@@ -32,3 +31,49 @@ class TestPageLoad:
     def test_sidebar_has_no_clip_selected_message(self, page: Page):
         page.goto(LIVE_URL)
         expect(page.locator("#no-clip-selected, .detail-empty")).to_be_visible()
+
+
+@skip_no_server
+class TestDiffModalUnsavedEdits:
+    """The diff modal's Discard/Escape must not silently throw away textarea
+    edits — same dirty-check confirm the field-edit modal already has."""
+
+    def _open_diff(self, page: Page):
+        page.goto(LIVE_URL)
+        page.evaluate("""() => {
+            window._diffCommitted = null;
+            openDiffModal('Review Generated Content',
+                [{label: 'Description', current: 'old text', proposed: 'proposed text'}],
+                (action, edited) => { window._diffCommitted = action; });
+        }""")
+        page.wait_for_selector("#diff-modal.visible", timeout=2000)
+
+    def test_untouched_discard_closes_without_confirm(self, page: Page):
+        self._open_diff(page)
+        page.click("#diff-discard-btn")
+        page.wait_for_selector("#diff-modal.visible", state="hidden", timeout=2000)
+        expect(page.locator("#confirm-modal")).not_to_be_visible()
+
+    def test_edited_discard_asks_before_losing_the_edit(self, page: Page):
+        self._open_diff(page)
+        page.fill("#diff-new-0", "my careful edit")
+        page.click("#diff-discard-btn")
+        page.wait_for_selector("#confirm-modal.visible", timeout=2000)
+        expect(page.locator("#confirm-title")).to_contain_text("Discard edit?")
+        expect(page.locator("#diff-modal")).to_be_visible()
+        page.click("#confirm-modal button:has-text('Cancel')")
+        page.wait_for_selector("#confirm-modal.visible", state="hidden", timeout=2000)
+        expect(page.locator("#diff-modal")).to_be_visible()
+        assert page.input_value("#diff-new-0") == "my careful edit"
+
+    def test_edited_escape_asks_then_confirm_discards(self, page: Page):
+        self._open_diff(page)
+        page.fill("#diff-new-0", "my careful edit")
+        # Escape from a button (where modal focus normally sits), not the
+        # textarea — typing surfaces keep Escape to themselves.
+        page.locator("#diff-discard-btn").focus()
+        page.keyboard.press("Escape")
+        page.wait_for_selector("#confirm-modal.visible", timeout=2000)
+        page.click("#confirm-ok-btn")
+        page.wait_for_selector("#diff-modal.visible", state="hidden", timeout=2000)
+        assert page.evaluate("() => window._diffCommitted") is None

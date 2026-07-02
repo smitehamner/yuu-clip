@@ -14,16 +14,15 @@ helpers.
 """
 from __future__ import annotations
 
-from playwright.sync_api import Page, expect
-
 from conftest import LIVE_URL, skip_no_server
+from playwright.sync_api import Page, expect
 
 
 @skip_no_server
 class TestTranscriptionLanguageSelect:
     def _open_settings(self, page: Page) -> None:
-        # Re-navigate so the Getting Started modal check re-runs after the
-        # seen-flag is seeded (same rationale as TestSoundSettingsPanel).
+        # Re-navigate so each test starts from a fresh page load (the fixture's
+        # init script keeps the Getting Started modal from auto-opening).
         page.goto(LIVE_URL)
         page.wait_for_selector("#video-list li[data-video-id]", timeout=5000)
         page.click("#btn-settings-header")

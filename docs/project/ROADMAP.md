@@ -90,6 +90,11 @@ regular users.
   view showing active/queued/completed job counts; clicking expands per-job detail. Long-term: move
   the raw log view behind a "Developer" toggle.
 
+- [ ] **Undo for bulk Approve/Reject** — single-clip status changes show an undo toast, but the
+  bulk toolbar's Approve/Reject have no undo. Needs a per-clip status snapshot before the bulk
+  write so one undo restores each clip's *previous* status (they may differ). Deliberately not a
+  confirm dialog — approve/reject is frequent and recoverable, so friction would be worse than undo.
+
 - [ ] **Detail panel chunking** — group the clip detail panel into cards: Summary → Actions →
   Transcript, rather than a flat list *(UX debt: Chunking)*
 
@@ -378,6 +383,9 @@ Items wanted long-term but not yet assigned to a phase.
 - [ ] **Modal keyboard trap** — Escape closes all open modals simultaneously instead of only the
   topmost one. Fixing properly requires a modal stack so Escape pops one layer at a time. Low UX
   impact for a single-user tool; look into later when modal nesting becomes common.
+  *(Partially addressed 2026-07-01: the confirm modal — the only layer that actually stacks on
+  other modals today — is now popped alone by Escape; the flat close-all cascade remains for the
+  rest, and the dirty-editor modals now confirm before discarding.)*
 
 - [ ] **Quality presets** *(on hold)* — named compute bundles (e.g. "Fast draft" / "Balanced" /
   "Max quality") that pick a matched set of Whisper model, energy mode, scene mode, and scoring

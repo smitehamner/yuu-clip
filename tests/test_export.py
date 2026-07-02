@@ -192,8 +192,10 @@ class TestUnlinkWithRetry:
 
     def test_delete_files_reports_locked_paths(self, tmp_path, monkeypatch):
         from yuu_clip.web.routes import _shared
-        ok = tmp_path / "ok.mkv"; ok.write_bytes(b"x")
-        stuck = tmp_path / "stuck.mkv"; stuck.write_bytes(b"x")
+        ok = tmp_path / "ok.mkv"
+        ok.write_bytes(b"x")
+        stuck = tmp_path / "stuck.mkv"
+        stuck.write_bytes(b"x")
 
         real_unlink = Path.unlink
 
@@ -291,14 +293,17 @@ class TestDemoListFiltering:
         assert "thumbnail.png" not in names
 
     def test_reels_sorted_newest_first(self, client, project_dir):
-        import time
+        import os
         reels_dir = project_dir / ".yuu-clip" / "reels"
         reels_dir.mkdir(parents=True, exist_ok=True)
         older = reels_dir / "old_20260101.mkv"
         older.write_bytes(b"old")
-        time.sleep(0.05)
         newer = reels_dir / "new_20260102.mkv"
         newer.write_bytes(b"new")
+        # Set mtimes explicitly — sleeping between writes made ordering depend
+        # on filesystem timestamp resolution.
+        now = os.path.getmtime(newer)
+        os.utime(older, (now - 60, now - 60))
         r = client.get("/api/demo/list")
         reels = r.json()
         assert len(reels) == 2

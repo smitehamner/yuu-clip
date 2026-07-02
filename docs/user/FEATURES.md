@@ -132,10 +132,10 @@ Dependency versions table and licensing notes. Open from the hamburger menu → 
 
 | Key | Action |
 |-----|--------|
-| `A` | Approve current clip |
-| `R` | Reject current clip |
+| `A` | Approve the current clip (or the clip row your keyboard focus is on) |
+| `R` | Reject the current clip (or the focused clip row) |
 | `Space` | Play / pause video |
-| `E` | Export current clip |
+| `E` | Export the current clip (or the focused clip row) |
 | `←` / `↑` | Previous clip |
 | `→` / `↓` | Next clip |
 | `?` | Open about panel |

@@ -19,6 +19,7 @@ from yuu_clip.config import validate_whisper_model
 from yuu_clip.db.models import ClipCandidate, TranscriptSegment, Video
 from yuu_clip.log import get_logger
 from yuu_clip.web.deps import ProjectContext
+from yuu_clip.web.media import media_file_response
 from yuu_clip.web.routes._shared import (
     _active_job,
     _all_sidecar_paths,
@@ -30,7 +31,6 @@ from yuu_clip.web.routes._shared import (
     _srt_path,
     _sse_response,
 )
-from yuu_clip.web.media import media_file_response
 
 _log = get_logger(__name__)
 

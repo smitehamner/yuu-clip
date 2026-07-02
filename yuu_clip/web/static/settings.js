@@ -522,7 +522,20 @@ function _renderGlossaryMd(md) {
 
 // ── keyboard shortcuts ────────────────────────────────────────────────────────
 document.addEventListener('keydown', e => {
-  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'BUTTON' || e.target.tagName === 'SELECT' || e.target.tagName === 'A' || e.target.isContentEditable) return;
+  // A focused list item (clip/video <li>) handles Enter/Space itself and calls
+  // preventDefault — don't ALSO run the global shortcut (e.g. Space toggling
+  // play/pause while the li activation is selecting a clip).
+  if (e.defaultPrevented) return;
+
+  const isTyping = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable;
+
+  // Escape must work with focus on a button/select/link — that's where every
+  // modal places focus on open. Only typing surfaces keep Escape to themselves
+  // (their own handlers, e.g. the inline caption editor, use it to cancel).
+  if (e.key === 'Escape' && isTyping) return;
+
+  if (e.key !== 'Escape' &&
+      (isTyping || e.target.tagName === 'BUTTON' || e.target.tagName === 'SELECT' || e.target.tagName === 'A')) return;
 
   const _anyModalOpen = () => document.querySelector('.modal-bg.visible') !== null;
 
@@ -533,12 +546,19 @@ document.addEventListener('keydown', e => {
     return;
   }
   if (e.key === 'Escape') {
+    // The confirm modal is always the topmost layer (it can sit on top of another
+    // modal, e.g. "Discard edit?" over the field editor). Cancel only it and stop —
+    // running the full cascade would close it and let a still-dirty editor
+    // immediately re-open it.
+    if (document.getElementById('confirm-modal').classList.contains('visible')) {
+      _confirmCancel();
+      return;
+    }
     closeGettingStartedModal();
     closeAboutModal();
     closeControlsModal();
     closeGlossaryModal();
     closeAlertModal();
-    _confirmCancel();
     closeFieldEditModal();
     closeScoreOverrideModal();
     _diffDiscard();
@@ -566,18 +586,37 @@ document.addEventListener('keydown', e => {
   }
 
   if (_anyModalOpen()) return;
-  if (!AppState.activeClipId) return;
 
-  const idx = AppState.clips.findIndex(c => c.id === AppState.activeClipId);
+  // A/R/E must act on the clip the user is pointing at: when keyboard focus
+  // sits on a clip list row (Tab), that row is the subject — not the active
+  // clip, which can be a different row (focused-vs-active mismatch).
+  const focusedRow = e.target instanceof Element ? e.target.closest('#clip-list li[data-clip-id]') : null;
+  const subjectClipId = focusedRow ? Number(focusedRow.dataset.clipId) : AppState.activeClipId;
+  if (!subjectClipId) return;
+
+  // Activate the subject first so the detail pane and player show the clip
+  // the shortcut is acting on before the action lands.
+  const _actOnSubject = action => {
+    if (subjectClipId !== AppState.activeClipId) selectClip(subjectClipId).then(() => action(subjectClipId));
+    else action(subjectClipId);
+  };
+  // Arrow navigation moves keyboard focus along with the active clip so the
+  // focus ring and the active highlight can never point at different rows.
+  const _navigateTo = id => {
+    selectClip(id);
+    document.querySelector(`#clip-list li[data-clip-id="${id}"]`)?.focus();
+  };
+
+  const idx = AppState.clips.findIndex(c => c.id === subjectClipId);
 
   switch (e.key) {
     case 'a': case 'A':
       e.preventDefault();
-      setStatus(AppState.activeClipId, 'approved');
+      _actOnSubject(id => setStatus(id, 'approved'));
       break;
     case 'r': case 'R':
       e.preventDefault();
-      setStatus(AppState.activeClipId, 'rejected');
+      _actOnSubject(id => setStatus(id, 'rejected'));
       break;
     case ' ':
       e.preventDefault();
@@ -585,17 +624,17 @@ document.addEventListener('keydown', e => {
       break;
     case 'e': case 'E':
       e.preventDefault();
-      exportClip(AppState.activeClipId);
+      _actOnSubject(exportClip);
       break;
     case 'ArrowLeft':
     case 'ArrowUp':
       e.preventDefault();
-      if (idx > 0) selectClip(AppState.clips[idx - 1].id);
+      if (idx > 0) _navigateTo(AppState.clips[idx - 1].id);
       break;
     case 'ArrowRight':
     case 'ArrowDown':
       e.preventDefault();
-      if (idx !== -1 && idx < AppState.clips.length - 1) selectClip(AppState.clips[idx + 1].id);
+      if (idx !== -1 && idx < AppState.clips.length - 1) _navigateTo(AppState.clips[idx + 1].id);
       break;
   }
 });

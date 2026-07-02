@@ -235,6 +235,46 @@ class TestDelete:
         assert r.status_code == 404
 
 
+class TestDeleteVideoDuringAnalysis:
+    """Removing a recording while it is being analyzed must 409 — the ingest
+    subprocess would otherwise keep writing rows for a deleted video."""
+
+    def _vid_id(self, client) -> int:
+        return client.get("/api/videos").json()[0]["id"]
+
+    def _set_job(self, client, *, done=False, filename=None, video_id=None):
+        client.app.state.ctx.analyze_job = SimpleNamespace(
+            done=done, filename=filename, video_id=video_id,
+        )
+
+    def test_delete_blocked_when_job_targets_video_id(self, client):
+        vid_id = self._vid_id(client)
+        self._set_job(client, video_id=vid_id)
+        r = client.delete(f"/api/videos/{vid_id}")
+        assert r.status_code == 409
+        assert any(v["id"] == vid_id for v in client.get("/api/videos").json())
+
+    def test_delete_blocked_when_job_matches_filename(self, client):
+        # Fresh analyses have no video_id until the subprocess creates the row —
+        # the guard falls back to the job's source filename.
+        vid_id = self._vid_id(client)
+        self._set_job(client, filename="session.mkv")
+        r = client.delete(f"/api/videos/{vid_id}")
+        assert r.status_code == 409
+
+    def test_delete_allowed_when_job_is_for_other_recording(self, client):
+        vid_id = self._vid_id(client)
+        self._set_job(client, filename="other.mkv", video_id=vid_id + 1)
+        r = client.delete(f"/api/videos/{vid_id}")
+        assert r.status_code == 200
+
+    def test_delete_allowed_when_job_finished(self, client):
+        vid_id = self._vid_id(client)
+        self._set_job(client, done=True, filename="session.mkv", video_id=vid_id)
+        r = client.delete(f"/api/videos/{vid_id}")
+        assert r.status_code == 200
+
+
 class TestDeleteSrtCleanup:
     """Deleting a clip or video also removes SRT sidecars."""
 
@@ -1697,6 +1737,7 @@ class TestBulkDeleteClips:
         # be reported in `locked` and skipped, not deleted — the batch continues
         # for the other clips rather than aborting.
         from pathlib import Path
+
         from yuu_clip.web.routes import _shared
 
         ids = self._clip_ids(client)
@@ -1764,3 +1805,43 @@ class TestBulkExportClips:
         assert "Skipping clip" in r.text
         assert "0 exported" in r.text
         assert f"{len(ids)} skipped" in r.text
+
+
+# ---------------------------------------------------------------------------
+# Video source file streaming
+# ---------------------------------------------------------------------------
+
+class TestVideoSourceFile:
+    def test_unknown_video_404(self, client):
+        r = client.get("/api/videos/99999/source")
+        assert r.status_code == 404
+
+    def test_missing_file_on_disk_404(self, client):
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        r = client.get(f"/api/videos/{vid_id}/source")
+        assert r.status_code == 404
+        assert r.json()["detail"] == "Source video file not found on disk"
+
+    def test_serves_source_with_mkv_media_type(self, client, project_dir):
+        (project_dir / "session.mkv").write_bytes(b"fake mkv bytes")
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        r = client.get(f"/api/videos/{vid_id}/source")
+        assert r.status_code == 200
+        assert r.headers["content-type"] == "video/x-matroska"
+        assert r.content == b"fake mkv bytes"
+
+
+# ---------------------------------------------------------------------------
+# Compute-waveform guards (SSE happy path needs real ffmpeg — not exercised here)
+# ---------------------------------------------------------------------------
+
+class TestComputeWaveformGuards:
+    def test_unknown_video_404(self, client):
+        r = client.get("/api/videos/99999/compute-waveform")
+        assert r.status_code == 404
+
+    def test_missing_source_file_404(self, client):
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        r = client.get(f"/api/videos/{vid_id}/compute-waveform")
+        assert r.status_code == 404
+        assert r.json()["detail"] == "Source video file not found on disk"

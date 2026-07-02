@@ -22,6 +22,9 @@ const ELECTRON_CONFIG_PATH  = path.join(process.env.APPDATA, 'yuu-clip', 'electr
 const DEFAULT_PROJECT_DIR = path.join(process.env.USERPROFILE, 'Videos', 'yuu-clip');
 const BASE_PORT = 8080;
 
+const DEFAULT_OLLAMA_MODEL = 'llama3.2';
+const DEFAULT_CLAUDE_MODEL = 'claude-haiku-4-5-20251001';
+
 // Bump ONLY when the setup wizard gains new settings or steps. A completed
 // setup stores this number; an older stored number re-shows the wizard once
 // after updating, so existing users discover the new options. Routine app
@@ -118,6 +121,19 @@ function runCmd(cmd, args, onLine = null) {
     });
     proc.on('error', reject);
   });
+}
+
+// Wraps an onStatus callback so a pip run only reports each condensed status
+// line once (raw pip repeats download-progress lines many times per second).
+function pipStatusReporter(onStatus) {
+  let lastStatus = '';
+  return line => {
+    const statusText = formatPipLine(line);
+    if (statusText && statusText !== lastStatus) {
+      lastStatus = statusText;
+      onStatus(statusText);
+    }
+  };
 }
 
 // Condense a raw pip output line into a short, human-readable status, or null
@@ -367,7 +383,8 @@ function registerWizardIPC(wizardWin) {
     let projCfg = {};
     try { projCfg = JSON.parse(fs.readFileSync(path.join(pDir, '.yuu-clip', 'config.json'), 'utf8')); } catch (_) {}
 
-    const ollamaModel   = projCfg.ollama_model || 'llama3.2';
+    const ollamaModel   = projCfg.ollama_model || DEFAULT_OLLAMA_MODEL;
+    const ffmpegOk      = checkFFmpeg();
     const gpu           = detectGPU();
     const cuda          = detectCUDA();
     const [ollamaRunning, llamacppInstalled, pyannoteInstalled] = await Promise.all([
@@ -381,9 +398,9 @@ function registerWizardIPC(wizardWin) {
     const existingModelPath = projCfg.llm_model_path || '';
     const defaultBackend    = existingBackend || (ollamaRunning ? 'ollama' : 'llamacpp');
 
-    logSetup(`Status check — FFmpeg:${checkFFmpeg()} GPU:${gpu.name} CUDA:${cuda.available} Ollama:${ollamaRunning} Model:${ollamaModelPulled} llamacpp:${llamacppInstalled} pyannote:${pyannoteInstalled}`);
+    logSetup(`Status check — FFmpeg:${ffmpegOk} GPU:${gpu.name} CUDA:${cuda.available} Ollama:${ollamaRunning} Model:${ollamaModelPulled} llamacpp:${llamacppInstalled} pyannote:${pyannoteInstalled}`);
     return {
-      ffmpegOk: checkFFmpeg(),
+      ffmpegOk,
       gpu, cuda,
       ollamaRunning, ollamaModel, ollamaModelPulled,
       llamacppInstalled, pyannoteInstalled,
@@ -392,7 +409,7 @@ function registerWizardIPC(wizardWin) {
       llmBackend:    defaultBackend,
       llmModelPath:  existingModelPath,
       claudeApiKey:  projCfg.claude_api_key  || '',
-      claudeModel:   projCfg.claude_model    || 'claude-haiku-4-5-20251001',
+      claudeModel:   projCfg.claude_model    || DEFAULT_CLAUDE_MODEL,
       whisperLanguage:    projCfg.whisper_language || '',
       diarizationEnabled: projCfg.diarization_backend === 'pyannote',
       hfToken:            projCfg.huggingface_token || '',
@@ -409,14 +426,8 @@ function registerWizardIPC(wizardWin) {
     if (!spec) { send({ error: `Unknown package '${slug}'` }); return; }
     logSetup(`Wizard install starting: ${spec.packages.join(' ')}`);
     try {
-      let lastStatus = '';
-      await runCmd(VENV_PIP, ['install', '--progress-bar', 'raw', ...spec.packages], line => {
-        const statusText = formatPipLine(line);
-        if (statusText && statusText !== lastStatus) {
-          lastStatus = statusText;
-          send({ status: statusText });
-        }
-      });
+      await runCmd(VENV_PIP, ['install', '--progress-bar', 'raw', ...spec.packages],
+        pipStatusReporter(statusText => send({ status: statusText })));
       logSetup(`Wizard install complete: ${slug}`);
       send({ done: true });
     } catch (err) {
@@ -457,6 +468,7 @@ function registerWizardIPC(wizardWin) {
 
   // Stream an Ollama model pull back to the wizard as progress events.
   ipcMain.on('setup:pull-model', (event, modelName) => {
+    logSetup(`Ollama model pull starting: ${modelName}`);
     const req = http.request({
       hostname: 'localhost', port: 11434, path: '/api/pull', method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -474,9 +486,10 @@ function registerWizardIPC(wizardWin) {
       });
       res.on('end', () => event.sender.send('setup:pull-progress', { status: 'success' }));
     });
-    req.on('error', err =>
-      event.sender.send('setup:pull-progress', { status: 'error', error: err.message })
-    );
+    req.on('error', err => {
+      logSetup(`Ollama model pull failed: ${modelName} — ${err.message}`);
+      event.sender.send('setup:pull-progress', { status: 'error', error: err.message });
+    });
     req.write(JSON.stringify({ name: modelName }));
     req.end();
   });
@@ -534,9 +547,9 @@ function showSetupWizard({ rerun = false, updated = false } = {}) {
         pyCfg.llm_model_path = cfg.llmModelPath || '';
       } else if (cfg.llmBackend === 'claude') {
         pyCfg.claude_api_key = cfg.claudeApiKey || '';
-        pyCfg.claude_model   = cfg.claudeModel  || 'claude-haiku-4-5-20251001';
+        pyCfg.claude_model   = cfg.claudeModel  || DEFAULT_CLAUDE_MODEL;
       } else {
-        pyCfg.ollama_model = cfg.ollamaModel || 'llama3.2';
+        pyCfg.ollama_model = cfg.ollamaModel || DEFAULT_OLLAMA_MODEL;
       }
       writeProjectConfig(cfg.projectDir, pyCfg);
       logSetup(`Setup complete — projectDir:${cfg.projectDir} whisperModel:${cfg.whisperModel} llmBackend:${cfg.llmBackend} diarization:${pyCfg.diarization_backend}`);
@@ -705,17 +718,12 @@ async function ensureVenv() {
     }
     progress('s2', 'active');
     logSetup('Installing wheel…');
-    let lastStatus = '';
     await runCmd(
       VENV_PIP,
       ['install', '--force-reinstall', '--progress-bar', 'raw', wheelPath],
-      line => {
-        const statusText = formatPipLine(line);
-        if (statusText && statusText !== lastStatus) {
-          lastStatus = statusText;
-          try { setupWin.webContents.send('venv:status', statusText); } catch (_) {}
-        }
-      }
+      pipStatusReporter(statusText => {
+        try { setupWin.webContents.send('venv:status', statusText); } catch (_) {}
+      })
     );
     progress('s2', 'done');
     logSetup('Wheel installed');
@@ -775,6 +783,7 @@ function spawnBackend(port) {
   });
   pyProc.on('exit', code => {
     if (isQuitting) return;
+    logSetup(`Backend exited unexpectedly (code ${code})`);
     const msg = code !== null && code !== 0
       ? `The Python backend exited with code ${code}.`
       : 'The Python backend stopped unexpectedly.';
@@ -943,9 +952,10 @@ app.whenReady().then(async () => {
     if (wizardWin && !wizardWin.isDestroyed()) { wizardWin.close(); wizardWin = null; }
   } catch (err) {
     if (!knownQuits.includes(err.message)) {
+      logSetup(`Startup error: ${err.stack || err.message}`);
       dialog.showErrorBox('Startup error', String(err));
     }
-    if (!app.isQuitting()) app.quit();
+    if (!isQuitting) app.quit();
   }
 });
 

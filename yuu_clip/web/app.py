@@ -23,7 +23,19 @@ from yuu_clip.contexts import seed_builtin_contexts
 from yuu_clip.log import configure_logging, get_logger
 from yuu_clip.web.deps import ProjectContext
 from yuu_clip.web.media import media_file_response, resolve_within
-from yuu_clip.web.routes import analyze, clips, config, contexts, logs, profiles, reel, scoring, sounds, speakers, videos
+from yuu_clip.web.routes import (
+    analyze,
+    clips,
+    config,
+    contexts,
+    logs,
+    profiles,
+    reel,
+    scoring,
+    sounds,
+    speakers,
+    videos,
+)
 from yuu_clip.web.sse import terminate_process_tree
 
 _HERE = Path(__file__).parent

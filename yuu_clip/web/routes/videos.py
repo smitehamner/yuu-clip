@@ -446,6 +446,26 @@ def _register_video_data_routes(router: APIRouter, ctx: ProjectContext) -> None:
             if not video:
                 raise HTTPException(404, "Video not found")
 
+            # Deleting a recording mid-analysis would leave the ingest subprocess
+            # writing rows for a video that no longer exists. Match by id (reanalyze)
+            # or filename (fresh analysis — no video_id until the subprocess creates
+            # the row). Split segments share the parent's filename, so a sibling
+            # segment's delete is also blocked while one is analyzing — fail-closed.
+            job = ctx.analyze_job
+            if job is not None and not job.done and (
+                job.video_id == video_id
+                or (job.filename is not None and job.filename == video.filename)
+            ):
+                _log.warning(
+                    "Delete rejected for video %d (%s) — analysis in progress (job video_id=%s)",
+                    video_id, video.filename, job.video_id,
+                )
+                raise HTTPException(
+                    409,
+                    "This recording is currently being analyzed — cancel the "
+                    "analysis before removing it.",
+                )
+
             # Delete exported clip files from disk before removing DB records
             clips = db.query(ClipCandidate).filter_by(video_id=video_id).all()
             locked: list[Path] = []

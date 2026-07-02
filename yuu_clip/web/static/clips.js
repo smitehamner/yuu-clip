@@ -102,6 +102,7 @@ function _renderClipItems(clips) {
     li.className = c.id === AppState.activeClipId ? 'active' : '';
     li.style.borderLeftColor = _scoreBorderColor(_sortScore(c), c.status === 'rejected' || !c.scored_at);
     li.tabIndex = 0;
+    li.dataset.clipId = c.id;
     li.innerHTML = `
       <div class="clip-item-row1">
         <input type="checkbox" class="clip-select-checkbox" aria-label="Select clip #${c.id}">
@@ -125,11 +126,7 @@ function _renderClipItems(clips) {
     checkbox.checked = AppState.selectedClipIds.has(c.id);
     checkbox.onclick = e => e.stopPropagation();
     checkbox.onchange = () => _toggleClipSelection(c.id, checkbox.checked);
-    const _activateClip = () => {
-      document.querySelectorAll('#clip-list li').forEach(l => l.classList.remove('active'));
-      li.classList.add('active');
-      selectClip(c.id);
-    };
+    const _activateClip = () => selectClip(c.id);
     li.onclick = _activateClip;
     li.onkeydown = e => {
       if (e.target !== li) return;  // don't hijack Space on the checkbox
@@ -142,6 +139,11 @@ function _renderClipItems(clips) {
 
 async function selectClip(id) {
   AppState.activeClipId = id;
+  // Sync the sidebar highlight here so every caller — row click, arrow-key
+  // navigation, related-clip links, post-retranscribe restore — moves it.
+  document.querySelectorAll('#clip-list li[data-clip-id]').forEach(l =>
+    l.classList.toggle('active', Number(l.dataset.clipId) === id));
+  document.querySelector('#clip-list li.active')?.scrollIntoView({block: 'nearest'});
   localStorage.setItem('yuuclip-view', JSON.stringify({videoId: AppState.activeVideoId, clipId: id}));
   document.getElementById('detail').innerHTML = '<div class="detail-empty" style="color:var(--muted)">Loading…</div>';
   try {

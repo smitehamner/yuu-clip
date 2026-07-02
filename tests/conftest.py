@@ -197,13 +197,18 @@ def page(page):
     selector miss silently hangs for half a minute before the test fails.
     10s is more than enough for a local dev server and gives faster feedback.
 
-    Also seeds localStorage so the Getting Started modal doesn't auto-open
-    and block UI interactions during tests.
+    Also seeds the Getting Started seen-flag via an init script so the modal
+    never auto-opens — the script runs before boot.js on *every* navigation,
+    including the fixture's own first load. (Seeding with page.evaluate after
+    goto is not enough: boot.js has already opened the modal by then, and the
+    overlay intercepts all clicks until a test happens to re-navigate.)
     """
     page.set_default_timeout(10_000)
     page.set_default_navigation_timeout(10_000)
+    page.add_init_script(
+        "try { localStorage.setItem('yuu-getting-started-seen', '1'); } catch (e) {}"
+    )
     page.goto(LIVE_URL)
-    page.evaluate("localStorage.setItem('yuu-getting-started-seen', '1')")
     yield page
     try:
         page.evaluate("if (window._activeES) { window._activeES.close(); window._activeES = null; }")

@@ -8,9 +8,8 @@ from __future__ import annotations
 
 import json
 
-from playwright.sync_api import Page, expect
-
 from conftest import LIVE_URL, skip_no_server
+from playwright.sync_api import Page, expect
 
 _SPEAKER = {
     "id": 90001,

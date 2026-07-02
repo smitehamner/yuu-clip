@@ -224,6 +224,53 @@ class TestIngestStart:
 
 
 # ---------------------------------------------------------------------------
+# Ingest start — rejected while another job is running (double-submit guard)
+# ---------------------------------------------------------------------------
+
+class TestIngestStartWhileRunning:
+    """A second /api/analyze/start while a job is in flight must 409 — otherwise
+    /api/analyze/events overwrites ctx.analyze_job and orphans the running
+    subprocess (cancel and shutdown can no longer reach it)."""
+
+    @pytest.fixture()
+    def video_path(self, project_dir):
+        p = project_dir / "session.mkv"
+        p.write_bytes(b"fake")
+        return p
+
+    class _RunningJob:
+        done = False
+        filename = "other.mkv"
+        video_id = None
+
+    class _FinishedJob:
+        done = True
+        filename = "other.mkv"
+        video_id = None
+
+    def _start(self, tc, video_path):
+        return tc.post("/api/analyze/start", json={"path": str(video_path), "model": "medium"})
+
+    def test_start_rejected_while_analyze_job_running(self, client, video_path):
+        client.app.state.ctx.analyze_job = self._RunningJob()
+        r = self._start(client, video_path)
+        assert r.status_code == 409
+        assert client.app.state.ctx.analyze_cmd is None  # nothing queued
+
+    def test_start_rejected_while_legacy_subprocess_running(self, client, video_path):
+        from types import SimpleNamespace
+        client.app.state.ctx.analyze_proc = SimpleNamespace(returncode=None)
+        r = self._start(client, video_path)
+        assert r.status_code == 409
+
+    def test_start_allowed_after_job_finished(self, client, video_path):
+        client.app.state.ctx.analyze_job = self._FinishedJob()
+        r = self._start(client, video_path)
+        assert r.status_code == 200
+        assert r.json()["status"] == "started"
+
+
+# ---------------------------------------------------------------------------
 # Logs
 # ---------------------------------------------------------------------------
 
@@ -1528,3 +1575,37 @@ class TestGuessLabelIndex:
 
     def test_none_title_labels_as_unlabeled(self):
         assert self._guess_label(None) == "unlabeled"
+
+
+# ---------------------------------------------------------------------------
+# GET /api/prereqs
+# ---------------------------------------------------------------------------
+
+class TestPrereqs:
+    def test_reports_ffmpeg_missing(self, client, monkeypatch):
+        def _no_ffmpeg():
+            raise FileNotFoundError("ffmpeg not found")
+        monkeypatch.setattr("yuu_clip.config.find_ffmpeg", _no_ffmpeg)
+        r = client.get("/api/prereqs")
+        assert r.status_code == 200
+        assert r.json()["ffmpeg_ok"] is False
+
+    def test_reports_ffmpeg_present(self, client, monkeypatch):
+        monkeypatch.setattr("yuu_clip.config.find_ffmpeg", lambda: ("ffmpeg", "ffprobe"))
+        assert client.get("/api/prereqs").json()["ffmpeg_ok"] is True
+
+    def test_llm_not_ok_without_model_path(self, client):
+        # Default config: llamacpp backend with an empty llm_model_path.
+        assert client.get("/api/prereqs").json()["llm_ok"] is False
+
+    def test_llm_ok_when_model_file_exists(self, client, project_dir):
+        model_file = project_dir / "model.gguf"
+        model_file.write_bytes(b"gguf")
+        r = client.patch("/api/config", json={"llm_model_path": str(model_file)})
+        assert r.status_code == 200
+        assert client.get("/api/prereqs").json()["llm_ok"] is True
+
+    def test_response_has_boolean_flags(self, client):
+        body = client.get("/api/prereqs").json()
+        assert isinstance(body["ffmpeg_ok"], bool)
+        assert isinstance(body["llm_ok"], bool)

@@ -10,9 +10,8 @@ from __future__ import annotations
 import urllib.request
 
 import pytest
-from playwright.sync_api import Page, expect
-
 from conftest import LIVE_URL, skip_no_server
+from playwright.sync_api import Page, expect
 
 
 @pytest.fixture

@@ -8,10 +8,8 @@ helpers.
 """
 from __future__ import annotations
 
-from playwright.sync_api import Page, expect
-
 from conftest import LIVE_URL, select_video_with_clips, skip_no_server
-
+from playwright.sync_api import Page, expect
 
 _MOCK_ANALYZE_RUN = {
     "started_at": "2026-06-01T00:00:00+00:00",
@@ -109,6 +107,60 @@ class TestRegenSummaryAutoConfirm:
         page.evaluate(f"() => regenSummaryAuto({video_id}, document.createElement('button'))")
         page.wait_for_selector("#confirm-modal.visible", timeout=2000)
         with page.expect_request(lambda r: "regenerate-summary" in r.url, timeout=3000):
+            page.click("#confirm-ok-btn")
+
+
+@skip_no_server
+class TestDeleteVideoConfirm:
+    """deleteVideo shows a confirm modal; only OK sends the DELETE request.
+
+    The DELETE is intercepted and aborted so the live server's video is never
+    actually removed.
+    """
+
+    def _open_delete_confirm(self, page: Page) -> int:
+        page.goto(LIVE_URL)
+        page.wait_for_selector("#video-list li[data-video-id]", timeout=5000)
+        video_id = page.evaluate("() => AppState.videos[0].id")
+        page.route(
+            "**/api/videos/*",
+            lambda route: route.abort()
+            if route.request.method == "DELETE"
+            else route.continue_(),
+        )
+        page.evaluate(f"() => deleteVideo({video_id})")
+        page.wait_for_selector("#confirm-modal.visible", timeout=2000)
+        return video_id
+
+    def test_confirm_modal_has_remove_title(self, page: Page):
+        self._open_delete_confirm(page)
+        expect(page.locator("#confirm-title")).to_contain_text("Remove video?")
+
+    def test_body_says_source_file_is_kept(self, page: Page):
+        self._open_delete_confirm(page)
+        expect(page.locator("#confirm-body")).to_contain_text(
+            "Your source recording file is not deleted."
+        )
+
+    def test_cancel_sends_no_delete_request(self, page: Page):
+        self._open_delete_confirm(page)
+        delete_requests: list = []
+        page.on(
+            "request",
+            lambda r: delete_requests.append(r)
+            if r.method == "DELETE" and "/api/videos/" in r.url
+            else None,
+        )
+        page.click("#confirm-modal button:has-text('Cancel')")
+        page.wait_for_timeout(500)
+        assert not delete_requests, "Cancelling must not DELETE the video"
+
+    def test_confirm_sends_delete_for_that_video(self, page: Page):
+        video_id = self._open_delete_confirm(page)
+        with page.expect_request(
+            lambda r: r.method == "DELETE" and r.url.endswith(f"/api/videos/{video_id}"),
+            timeout=3000,
+        ):
             page.click("#confirm-ok-btn")
 
 

@@ -18,9 +18,8 @@ helpers.
 """
 from __future__ import annotations
 
-from playwright.sync_api import Page, expect
-
 from conftest import LIVE_URL, skip_no_server
+from playwright.sync_api import Page, expect
 
 _STORE_KEY = "yuuclip-sounds"
 
@@ -102,10 +101,9 @@ class TestSoundFxPlay:
 @skip_no_server
 class TestSoundSettingsPanel:
     def _open_settings(self, page: Page) -> None:
-        # Re-navigate so boot.js's Getting Started modal check re-runs after the
-        # `yuu-getting-started-seen` flag is seeded (the `page` fixture sets the
-        # flag only after its own initial goto, so that first load still opens
-        # the modal and would intercept the settings-button click).
+        # Re-navigate so each test starts from a fresh page load (localStorage
+        # sound state is read at boot; the fixture's init script keeps the
+        # Getting Started modal from auto-opening on any load).
         page.goto(LIVE_URL)
         page.wait_for_selector("#video-list li[data-video-id]", timeout=5000)
         page.click("#btn-settings-header")

@@ -476,3 +476,62 @@ Archive of shipped items. For pending work see [ROADMAP.md](ROADMAP.md).
   file:// with a mocked `setupAPI`: section order, FFmpeg gating, backend panels + warnings,
   install/pull error retry, speaker-labels fields, per-mode footers, collected config shape).
   Full API suite 978 passed; UI suite 193 green.
+
+---
+
+## 2026-07-01 — Bug-hunt pass: accidental-input hardening
+
+- **Analyze start double-submit guard** — `POST /api/analyze/start` now returns 409 while a job is
+  running. Previously a second start (page-refresh race, second tab) let `/api/analyze/events`
+  overwrite `ctx.analyze_job`, orphaning the still-running subprocess (cancel/shutdown could no
+  longer reach it) with two writers on the SQLite DB.
+- **Delete-while-analyzing guard** — `DELETE /api/videos/{id}` returns 409 when the running analyze
+  job targets that recording (matched by video_id, or filename for fresh analyses), instead of
+  deleting the rows out from under the ingest subprocess.
+- **Global keyboard guard fixed (settings.js)** — (a) events a list item already handled
+  (`defaultPrevented`) no longer ALSO fire global shortcuts (Space both activated a clip/video row
+  and toggled video play/pause); (b) Escape now closes modals when focus is on a button/select
+  inside them — where every modal places focus on open — previously the guard bailed on those
+  targets and Escape did nothing; (c) with a confirm modal open, Escape cancels only it instead of
+  running the full close cascade (which re-opened the "Discard edit?" confirm from a dirty editor).
+- **Cancel-analysis failure no longer silent** — `_doCancelJob` previously swallowed a failed
+  cancel request yet logged "[Analysis cancelled]" and tore down the job UI while the subprocess
+  kept running. It now cancels server-side first and keeps the stream/UI attached with an error
+  toast if the request fails.
+- Locked in by `tests/test_analyze.py::TestIngestStartWhileRunning`,
+  `tests/test_videos.py::TestDeleteVideoDuringAnalysis`, and
+  `tests/test_ui_clips.py::TestGlobalKeyboardGuard`. API suite 985 passed; UI suite 196 green.
+
+---
+
+## 2026-07-01 — Full code-quality pass (test integrity → coverage → refactor → logging → docs → UX)
+
+- **UI suite red baseline fixed at the root** — the API-perf commit (fd1f470) had skipped a
+  re-navigation that was masking the Getting Started modal; the `page` fixture now seeds the
+  seen-flag via `page.add_init_script` (runs before boot.js on every load), removing the whole
+  "must re-goto before clicking" class of fragility. Reel-sort test made deterministic via
+  `os.utime` instead of a 50 ms sleep.
+- **+19 coverage tests** — sound upload/delete path-traversal and oversize guards, delete
+  idempotency; previously untested `GET /api/videos/{id}/source` and `/api/prereqs` routes;
+  compute-waveform 404 guards; the single-video "Remove video?" confirm flow (route-intercepted).
+- **Electron wizard cleanups** — `setup:get-status` no longer runs the ffmpeg probe twice per
+  check; default model names single-sourced (`DEFAULT_OLLAMA_MODEL`/`DEFAULT_CLAUDE_MODEL`);
+  pip status-dedupe callback extracted (`pipStatusReporter`).
+- **Startup-catch bug fixed** — `app.isQuitting()` (not an Electron API, threw inside the catch and
+  was rescued only by the `uncaughtException` handler) now reads the module-level `isQuitting` flag.
+- **Logging** — both new 409 guards log WARNING with job/recording context (uvicorn access logs
+  never reach yuu-clip.log); Electron setup log now records Ollama pull start/failure, unexpected
+  backend exit codes, and startup errors before the dialog.
+- **Docs** — CLAUDE.md project layout and pitfall sections corrected (cli/ package, analyze_job
+  cancellation flow, escHtml location); glossary gained "Speaker Labels" (the feature) and
+  "Speaker Detection" (the action) entries documenting the deliberate term split.
+- **UX hardening (accidental-input lens)** — A/R/E shortcuts act on the keyboard-focused clip row
+  (activating it first) instead of silently hitting a different active clip; arrow-key navigation
+  moves focus with the active row; sidebar active-highlight sync centralized in `selectClip`
+  (fixes stale highlight on arrow/related-clip/post-retranscribe selection); diff modal
+  Discard/Escape now dirty-checks like the field editor; `beforeunload` warns when a dirty editor
+  modal is open. +5 UI tests.
+- **Lint clean** — `scripts\lint.ps1` went from 22 errors (pre-existing import-order/unused-import
+  drift plus two semicolon statements) to green; 20 auto-fixed, 2 hand-fixed.
+- API suite 1000 passed (re-run after lint fixes). UI suite 205 green as of the Phase 7
+  checkpoint; final post-lint UI run deferred (analysis job was in progress on the live server).

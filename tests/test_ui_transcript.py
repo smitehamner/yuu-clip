@@ -7,9 +7,8 @@ from __future__ import annotations
 
 import json
 
-from playwright.sync_api import Page, expect
-
 from conftest import select_first_video_and_clip, select_video_with_clips, skip_no_server
+from playwright.sync_api import Page, expect
 
 _CLIP_LINES = {
     "lines": [

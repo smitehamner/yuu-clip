@@ -18,9 +18,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from playwright.sync_api import Page, expect
-
 from conftest import skip_no_server
+from playwright.sync_api import Page, expect
 
 WIZARD_URI = (Path(__file__).resolve().parent.parent / "electron" / "setup.html").as_uri()
 

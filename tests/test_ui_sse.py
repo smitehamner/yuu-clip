@@ -13,9 +13,8 @@ from __future__ import annotations
 
 import re
 
-from playwright.sync_api import Page, expect
-
 from conftest import LIVE_URL, skip_no_server
+from playwright.sync_api import Page, expect
 
 _SSE_URL = "/api/__test_sse__"
 

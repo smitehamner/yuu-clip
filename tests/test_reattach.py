@@ -11,7 +11,6 @@ import asyncio
 import json
 import sys
 
-import pytest
 from fastapi.testclient import TestClient
 
 from yuu_clip.web.analyze_job import AnalyzeJob

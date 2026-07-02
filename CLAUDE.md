@@ -74,25 +74,30 @@ Also run `test-ui.ps1` during any UX/UI review pass (`/code-review` or
 
 ```
 yuu_clip/
-  cli.py                   # Typer CLI — ingest / serve / score / export / demo
+  cli/                     # Typer CLI package — analyze, export, reel, review, serve (+ _pipeline, _run_meta, _base)
   config.py                # Config + profile management
   db/models.py             # SQLAlchemy ORM (SQLite, NullPool)
   analyze/                 # probe, labeler, extract, overlap
-  scoring/                 # energy, scene, llm, engine
+  scoring/                 # energy, scenes, llm, llm_client, laugh, engine
   segments/                # windower (sliding-window clip generation)
-  transcribe/              # whisper_runner
+  transcribe/              # whisper_runner, diarization_client
+  subtitles.py             # caption (SRT) generation
+  contexts.py              # world-context storage + prompt formatting
   web/
     app.py                 # FastAPI factory + lifespan (graceful shutdown)
     deps.py                # ProjectContext — shared server state
     sse.py                 # subprocess → SSE streaming helper
-    routes/                # videos, analyze, profiles, reel, contexts, logs
+    analyze_job.py         # in-process analyze job tracking (AnalyzeJob)
+    media.py               # video/media file streaming helpers
+    routes/                # videos, clips, analyze, scoring, speakers, sounds, profiles, reel, contexts, config, logs, _shared
     static/index.html      # Single-page UI shell (vanilla JS, no build step)
-    static/*.js            # Feature modules: analyze, clips, contexts, reel, settings, split, ui, utils
+    static/*.js            # Feature modules: analyze, boot, clips, contexts, reel, settings, sounds, speakers, split, transcript, ui, utils, videos
     static/app.css         # Stylesheet
+electron/                  # Desktop wrapper: main.js, preload.js, setup wizard (setup.html + setup-preload.js)
 tests/
-  conftest.py              # project_dir + client fixtures
-  test_api.py              # API unit tests (TestClient, no live server)
-  test_ui.py               # UI tests (Playwright against live server on :8080)
+  conftest.py              # project_dir + client fixtures; UI test session helpers
+  test_*.py                # API unit tests (TestClient, no live server)
+  test_ui_*.py             # UI tests (Playwright against live server on :8080)
 ```
 
 ## Running tests
@@ -181,8 +186,8 @@ Use these glossary terms in **conversation** too, not just in code. If discussin
 - SQLAlchemy sessions must be explicitly closed in route handlers — always use `try/finally: db.close()`
 - All SQLite engines use `NullPool` (set in `make_engine`) — never change this; pooled connections block the ingest subprocess
 - Ingest subprocess is always launched with `--no-interact` from the web UI
-- `ctx.analyze_proc` tracks the running subprocess for cancellation and shutdown
-- The FastAPI `lifespan` in `app.py` terminates `analyze_proc` on server exit (5 s grace then kill)
+- `ctx.analyze_job` (an `AnalyzeJob`, `web/analyze_job.py`) tracks the running analyze subprocess for cancellation, reconnection, and shutdown; `ctx.analyze_proc` remains as the legacy subprocess handle
+- The FastAPI `lifespan` in `app.py` terminates the `analyze_job` subprocess (and any `analyze_proc`) on server exit (5 s grace then kill)
 - For new route handlers that read the DB: follow the existing pattern in `routes/videos.py`
 
 ### JavaScript / frontend
@@ -213,10 +218,11 @@ command always receives `--no-interact`; this causes `_label_non_interactive()` 
 use track 0 as combined and mark the rest unlabeled without prompting.
 
 ### Subprocess cancellation
-`POST /api/analyze/cancel` sets `ctx.ingest_cancelled = True` and calls
-`proc.terminate()`. The SSE generator checks the flag after the process exits and
-yields a `[Analysis cancelled]` message before the `__DONE__` sentinel.
+`POST /api/analyze/cancel` calls `job.cancel()` on `ctx.analyze_job`, which sets
+`job.cancelled = True` and terminates the process tree; the job's pump emits a
+`[Analysis cancelled]` message to SSE subscribers after the process exits. The
+legacy `ctx.analyze_proc` path (flag: `ctx.analyze_cancelled`) is also covered.
 
 ### HTML safety
-`escHtml` in `index.html` escapes `& < > "`. Always run track layout names, context
+`escHtml` in `utils.js` escapes `& < > "`. Always run track layout names, context
 names, and filenames through it before embedding in HTML attributes.

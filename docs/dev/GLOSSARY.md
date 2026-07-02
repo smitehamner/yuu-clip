@@ -235,6 +235,29 @@ An LLM-proposed **Speaker Name** the creator has **not accepted yet** — surfac
 
 ---
 
+### Speaker Labels
+
+The user-facing **feature**: transcripts and captions show who is speaking.
+
+- **Code:** `diarization_backend` config (`'pyannote'` = enabled), `speaker_labels` flag in analyze options/status
+- **Also called in codebase:** "diarization" (the technique), `diar-*` element ids
+- **Do not call it:** "diarization" in user-facing text — say "Speaker labels"
+- **UI label:** "Speaker labels" (Settings section, analyze modal checkbox, setup wizard checkbox — usually with the gloss "(identifies who is speaking)")
+- **Do not confuse with:** **Speaker detection** — the *action/prerequisite* that powers this feature
+
+---
+
+### Speaker Detection
+
+The **action** of running (or installing the prerequisites for) speaker diarization on a recording.
+
+- **Code:** `rediarizeVideo` (JS), pyannote install flow in the setup wizard
+- **Also called in codebase:** "rediarize", "pyannote"
+- **UI label:** "Re-detect Speakers" (recording actions), "speaker detection installed" / "install speaker detection" (setup wizard, Settings readiness)
+- **Do not confuse with:** **Speaker labels** — the resulting feature. The split is deliberate: the checkbox that *enables the feature* says "Speaker labels"; the operations that *run or install it* say "speaker detection".
+
+---
+
 ### Voiceprint
 
 The internal voice embedding that lets a **Speaker** be re-identified across diarization runs.

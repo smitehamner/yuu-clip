@@ -189,6 +189,20 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     @router.post("/api/analyze/start")
     async def start_analyze(req: IngestRequest):
         """Validate the video path, build the analyze CLI command, and queue it for the SSE stream."""
+        # Starting while a job is running would let /api/analyze/events overwrite
+        # ctx.analyze_job, orphaning the still-running subprocess (cancel and
+        # shutdown could no longer reach it) with two writers on the same DB.
+        if _analyze_running(ctx):
+            running = ctx.analyze_job.filename if ctx.analyze_job else ctx.analyze_pending_filename
+            _log.warning(
+                "Analyze start rejected — job already running (running=%s, requested=%s)",
+                running, req.path or req.video_id,
+            )
+            raise HTTPException(
+                409,
+                "Another job is still running — wait for it to finish or cancel it "
+                "before starting a new analysis.",
+            )
         video_path = _resolve_video_path(req, ctx)
         try:
             validate_whisper_model(req.model)

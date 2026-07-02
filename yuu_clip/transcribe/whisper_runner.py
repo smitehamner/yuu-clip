@@ -28,8 +28,6 @@ from typing import TYPE_CHECKING, Optional
 from rich.console import Console
 from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 
-from sqlalchemy import func
-
 from yuu_clip.config import Config, validate_whisper_language, validate_whisper_model
 from yuu_clip.db.models import AudioTrack, Speaker, Transcript, TranscriptSegment
 from yuu_clip.log import get_logger

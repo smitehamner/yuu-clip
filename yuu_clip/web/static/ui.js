@@ -192,7 +192,29 @@ function _diffAcceptEdit() {
   if (cb) cb('accept_edit', edited);
 }
 
+function _diffDirty() {
+  return (_diffState?.fields || []).some((f, i) => {
+    const ta = document.getElementById(`diff-new-${i}`);
+    return ta && ta.value !== (f.proposed || '');
+  });
+}
+
 function _diffDiscard() {
+  if (!document.getElementById('diff-modal').classList.contains('visible')) return;
+  if (_diffDirty()) {
+    showConfirm(
+      'Discard edit?',
+      'You have unsaved changes. Close without saving?',
+      'Discard',
+      _doDiffDiscard,
+      true,
+    );
+    return;
+  }
+  _doDiffDiscard();
+}
+
+function _doDiffDiscard() {
   document.getElementById('diff-modal').classList.remove('visible');
   _diffState = null;
   _diffCloseDone();
@@ -243,6 +265,20 @@ function _fieldEditSave() {
   _doCloseFieldEditModal();
   if (cb) cb(val);
 }
+
+// Refresh/close with a dirty editor open would silently lose the edit — the
+// same protection closeFieldEditModal/_diffDiscard give Escape and Discard.
+window.addEventListener('beforeunload', e => {
+  const fieldEditDirty =
+    document.getElementById('field-edit-modal').classList.contains('visible') &&
+    document.getElementById('field-edit-text').value !== _fieldEditOriginalValue;
+  const diffDirty =
+    document.getElementById('diff-modal').classList.contains('visible') && _diffDirty();
+  if (fieldEditDirty || diffDirty) {
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
 
 // ── kebab menus ───────────────────────────────────────────────────────────────
 let _activeKebab = null;

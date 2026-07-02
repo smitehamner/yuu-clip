@@ -17,9 +17,8 @@ from __future__ import annotations
 import re
 import urllib.request
 
-from playwright.sync_api import Page
-
 from conftest import LIVE_URL, skip_no_server
+from playwright.sync_api import Page
 
 _JS_MODULES = [
     "utils.js", "ui.js", "videos.js", "clips.js", "analyze.js",

@@ -461,8 +461,16 @@ function cancelJob() {
 }
 
 async function _doCancelJob() {
+  // Cancel on the server FIRST — if it fails, the analysis is still running, so
+  // keep the stream attached and the job UI up instead of pretending it stopped.
+  try {
+    const res = await fetch('/api/analyze/cancel', {method: 'POST'});
+    if (!res.ok) throw new Error(`Server error ${res.status}`);
+  } catch (err) {
+    showToast(`Could not cancel — ${err.message}`, 'error');
+    return;
+  }
   _supersedeActiveStream();
-  try { await fetch('/api/analyze/cancel', {method: 'POST'}); } catch {}
   appendLog('[Analysis cancelled]');
   endJobUI();
   loadVideos();
