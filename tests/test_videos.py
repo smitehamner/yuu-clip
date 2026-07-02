@@ -60,6 +60,37 @@ class TestClips:
         r = client.get("/api/clips/99999")
         assert r.status_code == 404
 
+    def test_clip_detail_includes_user_tags(self, client):
+        clip_id = self._first_clip_id(client)
+        d = client.get(f"/api/clips/{clip_id}").json()
+        assert d["user_tags"] == []
+
+    def test_set_tags_normalizes_and_dedupes(self, client):
+        clip_id = self._first_clip_id(client)
+        r = client.put(f"/api/clips/{clip_id}/tags",
+                       json={"tags": ["  Funny ", "funny", "", "clutch"]})
+        assert r.status_code == 200
+        # trimmed, empty dropped, case-insensitive dedupe keeps first casing
+        assert r.json()["user_tags"] == ["Funny", "clutch"]
+        assert client.get(f"/api/clips/{clip_id}").json()["user_tags"] == ["Funny", "clutch"]
+
+    def test_set_tags_caps_length_and_count(self, client):
+        clip_id = self._first_clip_id(client)
+        long_tag = "x" * 60
+        many = [f"t{i}" for i in range(40)]
+        out = client.put(f"/api/clips/{clip_id}/tags",
+                         json={"tags": [long_tag, *many]}).json()["user_tags"]
+        assert len(out[0]) == 40          # length-capped
+        assert len(out) == 25             # count-capped
+
+    def test_tags_endpoint_returns_distinct_across_clips(self, client):
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        clips = client.get(f"/api/videos/{vid_id}/clips").json()
+        client.put(f"/api/clips/{clips[0]['id']}/tags", json={"tags": ["Alpha", "beta"]})
+        client.put(f"/api/clips/{clips[1]['id']}/tags", json={"tags": ["beta", "gamma"]})
+        tags = client.get("/api/tags").json()["tags"]
+        assert tags == ["Alpha", "beta", "gamma"]  # distinct, sorted case-insensitively
+
     def test_set_clip_status_approve(self, client):
         clip_id = self._first_clip_id(client)
         r = client.post(f"/api/clips/{clip_id}/status", json={"status": "approved"})

@@ -317,6 +317,14 @@ function renderDetail(clip) {
       </div>
     </div>
 
+    <div class="detail-card">
+      <div class="detail-card-header"><span class="detail-card-title">Tags</span></div>
+      <div class="clip-tags" id="clip-user-tags">${_clipTagPillsHTML(clip.user_tags)}</div>
+      <input list="clip-tags-datalist" id="clip-tag-input" class="tag-input"
+             placeholder="Add a tag…" maxlength="40" autocomplete="off" aria-label="Add a tag">
+      <datalist id="clip-tags-datalist"></datalist>
+    </div>
+
     ${clip.tags.length ? `<div class="tags">${clip.tags.map(t=>`<span class="tag">${escHtml(t)}</span>`).join('')}</div>` : ''}
 
     ${clip.related_clips ? `
@@ -342,7 +350,90 @@ function renderDetail(clip) {
   `;
 
   if (clip.transcript_excerpt && window.loadClipTranscript) loadClipTranscript(clip.id);
+  _renderTagDatalist();
+  _loadTagSuggestions().then(_renderTagDatalist);
 }
+
+// ── user tags ───────────────────────────────────────────────────────────────
+// Tag values can contain quotes/spaces, so the remove buttons use data-* +
+// event delegation (see the #detail listener below), never inline onclick.
+function _clipTagPillsHTML(tags) {
+  if (!tags || !tags.length) return '<span class="tags-empty">No tags yet</span>';
+  return tags.map(t =>
+    `<span class="user-tag">${escHtml(t)}<button class="user-tag-x" data-remove-tag="${escHtml(t)}"
+       title="Remove tag" aria-label="Remove tag ${escHtml(t)}">&times;</button></span>`
+  ).join('');
+}
+
+async function _loadTagSuggestions() {
+  try {
+    const data = await fetch('/api/tags').then(r => r.json());
+    AppState.allTags = Array.isArray(data.tags) ? data.tags : [];
+  } catch (_) { AppState.allTags = AppState.allTags || []; }
+}
+
+function _renderTagDatalist() {
+  const dl = document.getElementById('clip-tags-datalist');
+  if (!dl) return;
+  dl.innerHTML = (AppState.allTags || []).map(t => `<option value="${escHtml(t)}">`).join('');
+}
+
+async function _saveClipTags(clipId, tags) {
+  const res = await fetch(`/api/clips/${clipId}/tags`, {
+    method: 'PUT', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({tags}),
+  });
+  if (!res.ok) { showToast('Could not save tags', 'error'); return null; }
+  const data = await res.json();
+  if (AppState.activeClipData && AppState.activeClipData.id === clipId) {
+    AppState.activeClipData.user_tags = data.user_tags;
+  }
+  await _loadTagSuggestions();
+  _renderTagDatalist();
+  return data.user_tags;
+}
+
+function _currentClipTags() {
+  return (AppState.activeClipData && AppState.activeClipData.user_tags) || [];
+}
+
+async function _addClipTag(clipId, raw) {
+  const tag = (raw || '').trim();
+  if (!tag) return;
+  const cur = _currentClipTags();
+  if (cur.some(t => t.toLowerCase() === tag.toLowerCase())) return;  // dedupe client-side
+  const updated = await _saveClipTags(clipId, [...cur, tag]);
+  if (updated) _rerenderClipTags(updated);
+}
+
+async function _removeClipTag(clipId, tag) {
+  const updated = await _saveClipTags(clipId, _currentClipTags().filter(t => t !== tag));
+  if (updated) _rerenderClipTags(updated);
+}
+
+function _rerenderClipTags(tags) {
+  const el = document.getElementById('clip-user-tags');
+  if (el) el.innerHTML = _clipTagPillsHTML(tags);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const detail = document.getElementById('detail');
+  if (!detail) return;
+  detail.addEventListener('click', e => {
+    const rm = e.target.closest && e.target.closest('[data-remove-tag]');
+    if (rm && AppState.activeClipId) _removeClipTag(AppState.activeClipId, rm.dataset.removeTag);
+  });
+  detail.addEventListener('keydown', e => {
+    const input = e.target.closest && e.target.closest('#clip-tag-input');
+    if (!input) return;
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      const value = input.value;
+      input.value = '';
+      if (AppState.activeClipId) _addClipTag(AppState.activeClipId, value);
+    }
+  });
+});
 
 function scoreRow(label, val, cls) {
   return `

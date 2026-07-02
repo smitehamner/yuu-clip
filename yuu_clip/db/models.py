@@ -150,6 +150,7 @@ def _migrate(engine) -> None:
             ("related_clips_json",  "TEXT"),
             ("related_clips_at",    "DATETIME"),
             ("transcript_edited_at", "DATETIME"),
+            ("user_tags_json",      "TEXT"),
         ]
         for col, typedef in _clip_migrations:
             if col not in existing:
@@ -470,7 +471,8 @@ class ClipCandidate(Base):
     score_overall_user: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
 
     reasons_json: Mapped[Optional[str]] = mapped_column(Text)   # JSON list of strings
-    tags_json: Mapped[Optional[str]] = mapped_column(Text)       # JSON list of strings
+    tags_json: Mapped[Optional[str]] = mapped_column(Text)       # JSON list — system tags (llm_error, silence_Ns, …)
+    user_tags_json: Mapped[Optional[str]] = mapped_column(Text)  # JSON list — user-defined tags
 
     transcript_excerpt: Mapped[Optional[str]] = mapped_column(Text)
     description: Mapped[Optional[str]] = mapped_column(Text)
@@ -525,6 +527,14 @@ class ClipCandidate(Base):
     @tags.setter
     def tags(self, value: list[str]) -> None:
         self.tags_json = json.dumps(value)
+
+    @property
+    def user_tags(self) -> list[str]:
+        return _decode_json_list(self.user_tags_json)
+
+    @user_tags.setter
+    def user_tags(self, value: list[str]) -> None:
+        self.user_tags_json = json.dumps(value)
 
     @property
     def duration_ms(self) -> int:

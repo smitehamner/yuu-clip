@@ -155,6 +155,7 @@ def _clip_dict(
         "end_offset": clip.end_offset,
         "status": clip.status,
         "tags": clip.tags,
+        "user_tags": clip.user_tags,
         "has_export": has_export,
         "exported_at": clip.exported_at.isoformat() if clip.exported_at else None,
         "exported_container": clip.exported_container or None,
@@ -188,6 +189,33 @@ def _parse_clip_ids(raw: str) -> list[int]:
         return [int(x.strip()) for x in raw.split(",") if x.strip()]
     except ValueError:
         raise HTTPException(400, "clip_ids must be a comma-separated list of integers")
+
+
+_MAX_TAG_LEN = 40
+_MAX_TAGS = 25
+
+
+def _normalize_tags(raw: list[str]) -> list[str]:
+    """Trim, length-cap, de-dupe (case-insensitively, keeping first casing), and
+    cap the count. Empty entries are dropped; order is preserved."""
+    seen: set[str] = set()
+    out: list[str] = []
+    for item in raw:
+        tag = (item or "").strip()[:_MAX_TAG_LEN].strip()
+        if not tag:
+            continue
+        key = tag.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(tag)
+        if len(out) >= _MAX_TAGS:
+            break
+    return out
+
+
+class TagsBody(BaseModel):
+    tags: list[str] = []
 
 
 def _build_export_cmd(
@@ -323,6 +351,41 @@ def _register_clip_routes(router: APIRouter, ctx: ProjectContext) -> None:
             clip = _require_clip(db, clip_id)
             video = db.get(Video, clip.video_id)
             return _clip_dict(clip, full=True, export_dir=ctx.export_dir, video=video)
+        finally:
+            db.close()
+
+    @router.get("/api/tags")
+    def list_all_tags():
+        """Distinct user tags across all clips, for add-a-tag autocomplete."""
+        db = ctx.get_db()
+        try:
+            by_key: dict[str, str] = {}
+            rows = (
+                db.query(ClipCandidate.user_tags_json)
+                .filter(ClipCandidate.user_tags_json.isnot(None))
+                .all()
+            )
+            for (raw,) in rows:
+                try:
+                    for tag in json_lib.loads(raw) or []:
+                        tag = str(tag).strip()
+                        if tag:
+                            by_key.setdefault(tag.lower(), tag)
+                except (ValueError, TypeError):
+                    continue
+            return {"tags": sorted(by_key.values(), key=str.lower)}
+        finally:
+            db.close()
+
+    @router.put("/api/clips/{clip_id}/tags")
+    def set_clip_tags(clip_id: int, body: TagsBody):
+        db = ctx.get_db()
+        try:
+            clip = _require_clip(db, clip_id)
+            clip.user_tags = _normalize_tags(body.tags)
+            db.commit()
+            _log.info("Clip %d user tags set: %s", clip_id, clip.user_tags)
+            return {"id": clip.id, "user_tags": clip.user_tags}
         finally:
             db.close()
 

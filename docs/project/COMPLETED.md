@@ -92,6 +92,18 @@ Correctness fixes around cancelling/running analyses, plus the settings/log layo
 
 ---
 
+## Usage-feedback cleanup — batch 5a: user tags (done, 2026-07-02)
+
+- **User tags on clips** — a Tags card in the clip detail lets you add free-form
+  tags (Enter or comma to commit, × to remove) with autocomplete suggested from
+  tags you've already used (`<datalist>` fed by `GET /api/tags`). Stored in a new
+  `ClipCandidate.user_tags_json` column; `PUT /api/clips/{id}/tags` normalizes
+  (trim, case-insensitive de-dupe keeping first casing, 40-char / 25-tag caps).
+  Kept distinct from the existing system tags (llm_error, silence_Ns). Tag-aware
+  search lands in batch 5b.
+
+---
+
 ## Phase 4 — Packaging + distribution (done)
 
 - **Electron wrapper** — app runs in its own Chromium window; Python backend launched as a child process

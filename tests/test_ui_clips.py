@@ -499,3 +499,58 @@ class TestGlobalKeyboardGuard:
         expect(page.locator("#field-edit-modal")).to_be_visible()
         page.click("#field-edit-modal button:has-text('Cancel')")
         page.wait_for_selector("#field-edit-modal.visible", state="hidden", timeout=2000)
+
+
+@skip_no_server
+class TestClipTags:
+    """User-tag card in clip detail: add via Enter, remove via ×, autocomplete
+    datalist populated from GET /api/tags."""
+
+    def _route_tags(self, page: Page, suggestions=("existing-tag",)):
+        import json
+        page.route(
+            "**/api/tags",
+            lambda route: route.fulfill(
+                status=200, content_type="application/json",
+                body=json.dumps({"tags": list(suggestions)}),
+            ),
+        )
+
+        def _put(route):
+            body = route.request.post_data_json or {}
+            tags = [t.strip() for t in body.get("tags", []) if t.strip()]
+            route.fulfill(status=200, content_type="application/json",
+                          body=json.dumps({"id": 1, "user_tags": tags}))
+
+        page.route("**/api/clips/*/tags", _put)
+
+    def test_tags_card_and_datalist_render(self, page: Page):
+        self._route_tags(page, suggestions=("clutch", "funny"))
+        select_first_video_and_clip(page)
+        expect(page.locator("#clip-tag-input")).to_be_visible()
+        # Datalist is populated from GET /api/tags.
+        page.wait_for_function(
+            "document.querySelectorAll('#clip-tags-datalist option').length === 2",
+            timeout=3000,
+        )
+
+    def test_add_tag_via_enter_renders_pill(self, page: Page):
+        self._route_tags(page)
+        select_first_video_and_clip(page)
+        page.fill("#clip-tag-input", "clutch")
+        page.press("#clip-tag-input", "Enter")
+        expect(page.locator("#clip-user-tags .user-tag")).to_have_count(1)
+        expect(page.locator("#clip-user-tags .user-tag").first).to_contain_text("clutch")
+
+    def test_remove_tag_sends_filtered_put(self, page: Page):
+        self._route_tags(page)
+        select_first_video_and_clip(page)
+        page.fill("#clip-tag-input", "keep")
+        page.press("#clip-tag-input", "Enter")
+        page.fill("#clip-tag-input", "drop")
+        page.press("#clip-tag-input", "Enter")
+        expect(page.locator("#clip-user-tags .user-tag")).to_have_count(2)
+        # Remove "drop" → only "keep" remains.
+        page.click("#clip-user-tags .user-tag:has-text('drop') .user-tag-x")
+        expect(page.locator("#clip-user-tags .user-tag")).to_have_count(1)
+        expect(page.locator("#clip-user-tags .user-tag").first).to_contain_text("keep")
