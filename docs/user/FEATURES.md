@@ -96,6 +96,9 @@ A recording can be split into independent segments before or after analysis.
 
 - **Before analysis**: toggle in New Recording panel after probe; place markers on the waveform; analysis runs sequentially on each segment
 - **After analysis**: "Split Recording" button opens the full-panel split editor; existing clips shown as dots on the waveform; confirm redistributes clips by start time and creates separate `Video` rows
+- Markers are dragged to move and removed with the × button that appears on hover; in the full editor, clicking a marker jumps the preview there
+- A legend under the timeline names the overlays (split points, suggested splits, scene cuts, existing clips, segments)
+- Re-analyze choices confirm their consequence first ("deletes N clips…") and reuse the original run's analysis settings (model, track layout, scene/energy mode, speaker labels, world contexts) — falling back to Settings defaults
 - Waveform is generated on demand from per-second RMS energy data
 - Segments appear in the sidebar as normal video entries; the parent is hidden once split
 - Each segment has its own clips, contexts, title, summary, and timeline

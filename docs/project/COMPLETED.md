@@ -5,6 +5,46 @@ Phases 1–3 have been moved to [COMPLETED-archive.md](COMPLETED-archive.md).
 
 ---
 
+## UX review Split Editor pass — H6-1, H6-2, M6-1/2/3/4, L6-1/2/3/4 (done, 2026-07-02)
+
+Prompt 10 of the 2026-07 UX review plan (`UX_REVIEW_PLAN.md`): the Split
+Editor panel and the pre-split mini-editor in the New Recording panel.
+
+- **H6-1 — explicit × on markers**: each split marker (both editors) shows a
+  `.split-marker-x` remove button on hover/focus; instruction copy corrected
+  (the old "click a marker to remove it" was wrong — clicking seeks the
+  preview, which is kept and documented). Bar clicks near an existing marker
+  are now a no-op instead of a hidden remove zone.
+- **H6-2 — re-analyze keeps the original run's parameters**: shared
+  `_reanalyzeParams(video)` in videos.js (exported from its IIFE) rebuilds
+  model / track layout / scene mode / energy mode / speaker labels / contexts
+  from `Video.analyze_run.settings`, falling back to `/api/config` defaults.
+  Used by split re-analyze (previously hardcoded `model: 'medium'` only) and
+  Re-analyze (full).
+- **M6-1 — overlay legend**: `#split-legend` row under the timeline bar names
+  all five overlay vocabularies (split points, suggested splits, scene cuts,
+  existing clips, segment bands).
+- **M6-2 — destructive treatment for re-analyze**: selecting a re-analyze
+  radio styles Confirm as danger; Confirm then shows a consequence dialog
+  ("This deletes all N existing clips and runs analysis fresh on M
+  segments."); option 3 reworded standalone ("Re-analyze but keep exported
+  clips — deletes only clips that were never exported…"); the action resets
+  to "Split only" on each open.
+- **M6-3 — Back dirty guard**: verified already routed through
+  `requestCloseSplitEditor`'s discard confirm; regression test added.
+- **M6-4 — timeline bars no longer collapse** *(user-reported)*:
+  `flex-shrink:0` on both bars.
+- **L6-1 — invalid time feedback**: bad `h:mm:ss` entries and out-of-range
+  times toast an explanation instead of silently reverting.
+- **L6-2 — Confirm disabled with zero split points** (tooltip explains why).
+- **L6-3 — one instruction string** (`SPLIT_BAR_INSTRUCTIONS`) reused by both
+  editors.
+- **L6-4 — radio group labeled**: `role="radiogroup"` +
+  `aria-label="What to do after splitting"`.
+
+Covered by the new `tests/test_ui_split.py` (17 tests, all non-destructive —
+no split is ever confirmed against the live server).
+
 ## UX review New Recording + Track Layouts pass — H5-1, M5-1/2/3, L5-2, L5-4 (done, 2026-07-02)
 
 Prompt 9 of the 2026-07 UX review plan (`UX_REVIEW_PLAN.md`): the New

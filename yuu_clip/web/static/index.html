@@ -616,9 +616,9 @@
             Split before analyzing
           </label>
           <div id="pre-split-editor" style="display:none;flex-direction:column;gap:8px;margin-top:6px">
-            <div style="font-size:12px;color:var(--muted)">Click the bar to place split points. Click a marker to remove it.</div>
+            <div id="pre-split-instructions" style="font-size:12px;color:var(--muted)"></div>
             <div id="pre-split-timeline-bar"
-                 style="position:relative;height:48px;background:var(--surface);border:1px solid var(--border);border-radius:6px;cursor:crosshair;overflow:hidden"
+                 style="position:relative;height:48px;flex-shrink:0;background:var(--surface);border:1px solid var(--border);border-radius:6px;cursor:crosshair;overflow:hidden"
                  onclick="preSplitTimelineClick(event)">
               <div id="pre-split-segments-layer" style="display:flex;height:100%;pointer-events:none"></div>
               <div id="pre-split-markers-layer" style="position:absolute;inset:0;pointer-events:none"></div>
@@ -665,19 +665,24 @@
          style="display:none;width:100%;max-height:38vh;object-fit:contain;background:#000;border-radius:6px"
          aria-label="Recording preview"></video>
 
-  <div style="font-size:12px;color:var(--muted)">
-    Click the timeline bar to place a split point. Click a marker to remove it.
-    Each segment can be analyzed independently after confirming.
-  </div>
+  <div id="split-instructions" style="font-size:12px;color:var(--muted)"></div>
 
   <!-- Timeline bar -->
-  <div style="position:relative;height:60px;background:var(--surface);border:1px solid var(--border);border-radius:6px;cursor:crosshair;user-select:none" id="split-timeline-bar" onclick="splitTimelineClick(event)">
+  <div style="position:relative;height:60px;flex-shrink:0;background:var(--surface);border:1px solid var(--border);border-radius:6px;cursor:crosshair;user-select:none" id="split-timeline-bar" onclick="splitTimelineClick(event)">
     <canvas id="split-waveform-canvas" style="position:absolute;inset:0;width:100%;height:100%;border-radius:6px;pointer-events:none"></canvas>
     <div id="split-scene-layer"    style="position:absolute;inset:0;pointer-events:none"></div>
     <div id="split-suggestion-layer" style="position:absolute;inset:0;pointer-events:none"></div>
     <div id="split-clips-layer"    style="position:absolute;inset:0;pointer-events:none"></div>
     <div id="split-segments-layer" style="position:absolute;inset:0;pointer-events:none;display:flex"></div>
     <div id="split-markers-layer"  style="position:absolute;inset:0;pointer-events:none"></div>
+  </div>
+  <!-- Overlay legend (M6-1) -->
+  <div id="split-legend" style="display:flex;flex-wrap:wrap;gap:14px;align-items:center;font-size:11px;color:var(--muted)">
+    <span style="display:inline-flex;align-items:center;gap:5px"><span style="width:2px;height:12px;background:var(--accent);border-radius:1px"></span>Split point (yours)</span>
+    <span style="display:inline-flex;align-items:center;gap:5px"><span style="width:0;height:12px;border-left:1.5px dashed rgba(255,255,255,0.45)"></span>Suggested split — click to place</span>
+    <span style="display:inline-flex;align-items:center;gap:5px"><span style="width:1px;height:12px;background:rgba(255,255,255,0.4)"></span>Scene cut</span>
+    <span style="display:inline-flex;align-items:center;gap:5px"><span style="width:16px;height:4px;background:rgba(255,255,255,0.35);border-radius:2px"></span>Existing clip</span>
+    <span style="display:inline-flex;align-items:center;gap:5px"><span style="width:16px;height:12px;background:var(--accent);opacity:0.25;border-radius:2px;border-right:2px solid var(--accent)"></span>Segment</span>
   </div>
   <!-- Waveform notice (shown when no energy data and not computing) -->
   <div id="split-waveform-notice" style="display:none;font-size:12px;color:var(--muted);align-items:center;gap:10px">
@@ -692,7 +697,8 @@
   </div>
 
   <div style="display:flex;flex-direction:column;gap:10px;padding-top:4px">
-    <div id="split-action-options" style="display:flex;flex-direction:column;gap:6px;font-size:13px">
+    <div id="split-action-options" role="radiogroup" aria-label="What to do after splitting"
+         onchange="_updateSplitConfirmState()" style="display:flex;flex-direction:column;gap:6px;font-size:13px">
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
         <input type="radio" name="split-action" value="partition" checked>
         Split only — keep all existing clips, just divide them between segments
@@ -703,7 +709,7 @@
       </label>
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
         <input type="radio" name="split-action" value="reanalyze-keep">
-        Re-analyze — same as above, but keep any already-exported clips
+        Re-analyze but keep exported clips — deletes only clips that were never exported, then runs analysis fresh on each segment
       </label>
     </div>
     <div style="display:flex;gap:10px">

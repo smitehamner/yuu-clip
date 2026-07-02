@@ -727,16 +727,42 @@ function reanalyzeVideo(id) {
   );
 }
 
+// Rebuild an analyze request the way the recording was originally analyzed
+// (Video.analyze_run.settings), falling back to the Settings-managed config
+// defaults when no run was recorded. Shared by re-analyze (full) here and the
+// split re-analyze flow in split.js.
+async function _reanalyzeParams(video) {
+  const currentContexts = (video && video.context_names) || [];
+  const recorded = video && video.analyze_run && video.analyze_run.settings;
+  if (recorded && recorded.model) {
+    return {
+      model:         recorded.model,
+      profile:       recorded.track_layout && recorded.track_layout !== 'default' ? recorded.track_layout : null,
+      energy_mode:   recorded.energy_mode || 'fast',
+      scene_mode:    recorded.scene_mode || 'fast',
+      diarize:       typeof recorded.speaker_labels === 'boolean' ? recorded.speaker_labels : null,
+      context_names: currentContexts.length ? currentContexts : (recorded.contexts || []),
+    };
+  }
+  let cfg = {};
+  try { cfg = await fetch('/api/config').then(r => r.json()); } catch { /* keep static fallbacks */ }
+  return {
+    model:         cfg.whisper_model || 'medium',
+    profile:       null,
+    energy_mode:   cfg.energy_mode || 'fast',
+    scene_mode:    cfg.scene_detection_mode || 'fast',
+    diarize:       null,
+    context_names: currentContexts,
+  };
+}
+
 async function _doReanalyzeVideo(video) {
-  const model = (video.analyze_run && video.analyze_run.settings && video.analyze_run.settings.model) || 'medium';
+  const params = await _reanalyzeParams(video);
   let res;
   try {
     res = await fetch('/api/analyze/start', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        video_id: video.id, force: true, model,
-        context_names: video.context_names || [],
-      }),
+      body: JSON.stringify({video_id: video.id, force: true, ...params}),
     });
   } catch (err) {
     showToast(`Network error: ${err.message}`, 'error');
@@ -911,7 +937,7 @@ Object.assign(window, {
   loadVideos, selectVideo, renderVideoDetail,
   onClipsSortChange, _clipsSortParam,
   summarizeVideo, regenSummaryAuto, _doRegenSummaryAuto,
-  reanalyzeVideo, rediarizeVideo,
+  reanalyzeVideo, rediarizeVideo, _reanalyzeParams,
   openVideoSummaryKebab, openVideoTitleKebab,
   generateTimeline, confirmGenerateTimeline, closeTimelineIntervalModal,
   updateTimelineIntervalHint,

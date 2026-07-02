@@ -21,6 +21,14 @@ let _suggestionPins = [];    // [sec, …]
 const _SUGGESTION_MIN_GAP_S = 30;
 const _SUGGESTION_COUNT     = 8;
 
+// One instruction string for both editors (L6-3); the main editor appends its
+// extra affordances. Scripts load at the end of <body>, so the elements exist.
+const SPLIT_BAR_INSTRUCTIONS =
+  'Click the bar to place a split point. Drag a marker to move it; hover over it and click its × to remove it.';
+document.getElementById('pre-split-instructions').textContent = SPLIT_BAR_INSTRUCTIONS;
+document.getElementById('split-instructions').textContent =
+  `${SPLIT_BAR_INSTRUCTIONS} Click a marker to jump the preview there. Each segment can be analyzed independently after confirming.`;
+
 function isSplitEditorOpen() {
   return _splitVideoId !== null;
 }
@@ -52,6 +60,9 @@ async function openSplitEditor(videoId) {
   const panel = document.getElementById('split-editor-panel');
   panel.style.display = 'flex';
   document.querySelector('.main').style.overflowY = 'auto';
+
+  // A destructive re-analyze choice must not persist into the next session.
+  document.querySelector('input[name="split-action"][value="partition"]').checked = true;
 
   _renderSplitEditor();
 
@@ -352,16 +363,28 @@ function splitTimelineClick(e) {
 
   if (sec <= 0 || sec >= _splitDurationS) return;
 
+  // Too close to an existing marker — ignore rather than stack a near-duplicate
+  // (removal is via the marker's × button).
   const threshold = _splitDurationS * 0.005;
-  const nearIdx = _splitPoints.findIndex(p => Math.abs(p - sec) <= threshold);
-  if (nearIdx !== -1) {
-    _splitPoints.splice(nearIdx, 1);
-  } else {
-    _splitPoints.push(sec);
-    _splitPoints.sort((a, b) => a - b);
-  }
+  if (_splitPoints.some(p => Math.abs(p - sec) <= threshold)) return;
+
+  _splitPoints.push(sec);
+  _splitPoints.sort((a, b) => a - b);
   _rebuildSplitNames();
   _renderSplitEditor();
+}
+
+function _removeSplitPoint(sec, isPreSplit) {
+  const idx = _splitPoints.indexOf(sec);
+  if (idx === -1) return;
+  _splitPoints.splice(idx, 1);
+  if (isPreSplit) {
+    _rebuildPreSplitNames();
+    _renderPreSplitEditor();
+  } else {
+    _rebuildSplitNames();
+    _renderSplitEditor();
+  }
 }
 
 // ── render ───────────────────────────────────────────────────────────────────
@@ -377,6 +400,17 @@ function _rebuildSplitNames() {
 function _renderSplitEditor() {
   _renderSplitTimeline();
   _renderSplitSegmentList();
+  _updateSplitConfirmState();
+}
+
+function _updateSplitConfirmState() {
+  const btn = document.getElementById('btn-split-confirm');
+  const action = document.querySelector('input[name="split-action"]:checked')?.value || 'partition';
+  btn.classList.toggle('danger', action !== 'partition');
+  btn.classList.toggle('primary', action === 'partition');
+  const noPoints = _splitPoints.length === 0;
+  btn.disabled = noPoints;
+  btn.title = noPoints ? 'Place at least one split point first' : '';
 }
 
 function _renderSplitTimeline() {
@@ -405,10 +439,15 @@ function _renderSplitTimeline() {
   // User-placed markers with drag handles
   markers.innerHTML = _splitPoints.map(p => {
     const pct = (p / _splitDurationS * 100).toFixed(3);
-    return `<div style="position:absolute;left:${pct}%;top:0;bottom:0;width:10px;transform:translateX(-50%);cursor:ew-resize;pointer-events:auto;display:flex;align-items:stretch;justify-content:center"
-                 title="${_fmtSplitTime(p)} — drag to move, click bar edge to remove"
+    const timeLabel = _fmtSplitTime(p);
+    return `<div class="split-marker" style="position:absolute;left:${pct}%;top:0;bottom:0;width:10px;transform:translateX(-50%);cursor:ew-resize;pointer-events:auto;display:flex;align-items:stretch;justify-content:center"
+                 title="${timeLabel} — drag to move, click to preview from here"
                  onpointerdown="event.stopPropagation();_splitMarkerPointerDown(event,${p})">
                <div style="width:2px;background:var(--accent);border-radius:1px"></div>
+               <button type="button" class="split-marker-x" title="Remove split point"
+                       aria-label="Remove split point at ${timeLabel}"
+                       onpointerdown="event.stopPropagation()"
+                       onclick="event.stopPropagation();_removeSplitPoint(${p},false)">&#215;</button>
              </div>`;
   }).join('');
 }
@@ -424,7 +463,16 @@ function _parseSplitTime(str) {
 
 function _updateSplitPoint(idx, timeStr, onRerender) {
   const sec = _parseSplitTime(timeStr);
-  if (sec === null || sec <= 0 || sec >= _splitDurationS) { onRerender(); return; }
+  if (sec === null) {
+    showToast(`Couldn't read "${timeStr}" — use h:mm:ss or m:ss`, 'error');
+    onRerender();
+    return;
+  }
+  if (sec <= 0 || sec >= _splitDurationS) {
+    showToast(`Split point must be between 0:00 and ${_fmtSplitTime(_splitDurationS)}`, 'error');
+    onRerender();
+    return;
+  }
   _splitPoints[idx] = sec;
   _splitPoints.sort((a, b) => a - b);
   if (_splitVideoId) _rebuildSplitNames(); else _rebuildPreSplitNames();
@@ -503,11 +551,23 @@ function confirmSplit() {
   const action = document.querySelector('input[name="split-action"]:checked')?.value || 'partition';
   if (action === 'partition') {
     _doSplitPartitionOnly();
-  } else if (action === 'reanalyze-all') {
-    _doSplitAndReanalyze(false);
-  } else {
-    _doSplitAndReanalyze(true);
+    return;
   }
+  const keepExported     = action === 'reanalyze-keep';
+  const video            = AppState.videos.find(v => v.id === _splitVideoId);
+  const clipCount        = video?.clip_count ?? _splitClipRanges.length;
+  const exportedCount    = video?.exported ?? 0;
+  const analyzedSegments = _splitPoints.length + 1 - _splitIgnored.size;
+  const consequence = keepExported
+    ? `This deletes ${plural(Math.max(0, clipCount - exportedCount), 'unexported clip')} (keeping ${plural(exportedCount, 'exported clip')}) and runs analysis fresh on ${plural(analyzedSegments, 'segment')}.`
+    : `This deletes all ${plural(clipCount, 'existing clip')} and runs analysis fresh on ${plural(analyzedSegments, 'segment')}.`;
+  showConfirm(
+    'Delete clips and re-analyze?',
+    consequence,
+    'Delete & Re-analyze',
+    () => _doSplitAndReanalyze(keepExported),
+    true,
+  );
 }
 
 async function _doSplitPartitionOnly() {
@@ -541,6 +601,9 @@ async function _doSplitPartitionOnly() {
 
 async function _doSplitAndReanalyze(keepExported) {
   if (!_splitVideoId) return;
+
+  const parentVideo     = AppState.videos.find(v => v.id === _splitVideoId);
+  const reanalyzeParams = await _reanalyzeParams(parentVideo);
 
   const btn = document.getElementById('btn-split-confirm');
   btn.disabled = true;
@@ -585,10 +648,10 @@ async function _doSplitAndReanalyze(keepExported) {
 
   closeSplitEditor();
   openLog();
-  _reanalyzeSegmentsSequentially(activeIds, 0);
+  _reanalyzeSegmentsSequentially(activeIds, 0, reanalyzeParams);
 }
 
-function _reanalyzeSegmentsSequentially(segmentIds, index) {
+function _reanalyzeSegmentsSequentially(segmentIds, index, params) {
   if (index >= segmentIds.length) {
     loadVideos().then(() =>
       showToast(`Reanalysis complete — ${plural(segmentIds.length, 'segment')}`)
@@ -599,7 +662,7 @@ function _reanalyzeSegmentsSequentially(segmentIds, index) {
   fetch('/api/analyze/start', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({video_id: segId, model: 'medium'}),
+    body: JSON.stringify({video_id: segId, ...params}),
   }).then(res => {
     if (!res.ok) {
       res.json().catch(() => ({})).then(err => {
@@ -610,7 +673,7 @@ function _reanalyzeSegmentsSequentially(segmentIds, index) {
     appendLog(`Analyzing segment ${index + 1}/${segmentIds.length}…`);
     streamSSE(
       '/api/analyze/events',
-      () => { loadVideos(); _reanalyzeSegmentsSequentially(segmentIds, index + 1); },
+      () => { loadVideos(); _reanalyzeSegmentsSequentially(segmentIds, index + 1, params); },
       INGEST_STEPS,
       `Segment ${index + 1}/${segmentIds.length}`,
       false,
@@ -688,10 +751,15 @@ function _renderPreSplitTimeline() {
 
   markers.innerHTML = _splitPoints.map(p => {
     const pct = (p / _splitDurationS * 100).toFixed(3);
-    return `<div style="position:absolute;left:${pct}%;top:0;bottom:0;width:10px;transform:translateX(-50%);cursor:ew-resize;pointer-events:auto;display:flex;align-items:stretch;justify-content:center"
-                 title="${_fmtSplitTime(p)} — drag to move"
+    const timeLabel = _fmtSplitTime(p);
+    return `<div class="split-marker" style="position:absolute;left:${pct}%;top:0;bottom:0;width:10px;transform:translateX(-50%);cursor:ew-resize;pointer-events:auto;display:flex;align-items:stretch;justify-content:center"
+                 title="${timeLabel} — drag to move"
                  onpointerdown="event.stopPropagation();_preSplitMarkerPointerDown(event,${p})">
                <div style="width:2px;background:var(--accent);border-radius:1px"></div>
+               <button type="button" class="split-marker-x" title="Remove split point"
+                       aria-label="Remove split point at ${timeLabel}"
+                       onpointerdown="event.stopPropagation()"
+                       onclick="event.stopPropagation();_removeSplitPoint(${p},true)">&#215;</button>
              </div>`;
   }).join('');
 }
@@ -710,13 +778,10 @@ function preSplitTimelineClick(e) {
   if (sec <= 0 || sec >= _splitDurationS) return;
 
   const threshold = _splitDurationS * 0.005;
-  const nearIdx   = _splitPoints.findIndex(p => Math.abs(p - sec) <= threshold);
-  if (nearIdx !== -1) {
-    _splitPoints.splice(nearIdx, 1);
-  } else {
-    _splitPoints.push(sec);
-    _splitPoints.sort((a, b) => a - b);
-  }
+  if (_splitPoints.some(p => Math.abs(p - sec) <= threshold)) return;
+
+  _splitPoints.push(sec);
+  _splitPoints.sort((a, b) => a - b);
   _rebuildPreSplitNames();
   _renderPreSplitEditor();
 }
