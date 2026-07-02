@@ -5,6 +5,29 @@ Phases 1–3 have been moved to [COMPLETED-archive.md](COMPLETED-archive.md).
 
 ---
 
+## UX review CC-5 + L8-1 — toast standards (done, 2026-07-02)
+
+Prompt 3 of the 2026-07 UX review plan (`UX_REVIEW_PLAN.md`):
+
+- **`showToast(message, type, opts)`** — third parameter is now an options
+  object: `durationMs`, and `action: {label, onClick}` for an inline action
+  button. The hand-rolled analysis-complete toast (`_showAnalysisToast` with
+  its Review jump) now delegates to the standard helper.
+- **`warning` type** — amber left border (`--warning`) for guard/guidance
+  messages; `error` is reserved for actual failures.
+- **Error toasts persist until dismissed** — no auto-timeout; other types keep
+  auto-dismiss (warning 6 s, success/info 4 s).
+- **Stack capped at 4** — oldest toast is evicted when a fifth arrives.
+- **Call-site audit** — `_blockedByAnalyze` guard, form validation ("Layout
+  name is required", "Caption cannot be empty", …) and nothing-selected guards
+  are now `warning`; "Downloading N files" is `info`; failures stay `error`.
+- **L8-1** — building a highlight reel now echoes "— N unexported clip(s)
+  skipped" in the Build status line and the completion toast, plus a log line.
+
+Covered by `tests/test_ui_toasts.py` (8 tests).
+
+---
+
 ## UX review CC-2/CC-3/CC-4 — keyboard, focus & Escape (done, 2026-07-02)
 
 Prompt 2 of the 2026-07 UX review plan (`UX_REVIEW_PLAN.md`):

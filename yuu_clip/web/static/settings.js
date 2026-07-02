@@ -325,7 +325,7 @@ async function saveSettings() {
   const tlRaw  = getVal('s-timeline-interval');
   const tlSec  = _parseIntervalS(tlRaw, tlUnit);
   if (tlRaw !== null && tlRaw.trim() !== '' && tlSec === null) {
-    showToast('Timeline interval must be at least 10 seconds.', 'error');
+    showToast('Timeline interval must be at least 10 seconds.', 'warning');
     document.getElementById('s-timeline-interval')?.focus();
     return;
   }

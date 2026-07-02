@@ -110,8 +110,8 @@ function cancelContextEdit() {
 async function saveContext() {
   const context_id  = AppState.editingContextId || document.getElementById('ce-context-id').value.trim();
   const displayName = document.getElementById('ce-display-name').value.trim();
-  if (!context_id)  { showToast('ID is required', 'error'); return; }
-  if (!displayName) { showToast('Display name is required', 'error'); return; }
+  if (!context_id)  { showToast('ID is required', 'warning'); return; }
+  if (!displayName) { showToast('Display name is required', 'warning'); return; }
   const res = await fetch('/api/contexts', {
     method: 'POST', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({

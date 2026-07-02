@@ -276,7 +276,7 @@ function startEditCaption(span) {
   };
   save.onclick = async () => {
     const text = input.value.trim();
-    if (!text) { showToast('Caption cannot be empty', 'error'); return; }
+    if (!text) { showToast('Caption cannot be empty', 'warning'); return; }
     if (text === original) { restore(original); return; }
     save.disabled = cancel.disabled = true;
     try {

@@ -452,7 +452,7 @@ function _supersedeActiveStream() {
 // before any side effects.
 function _blockedByAnalyze(actionLabel) {
   if (!AppState.analyzeFilename) return false;
-  showToast(`Wait for the current analysis to finish before you ${actionLabel}.`, 'error');
+  showToast(`Wait for the current analysis to finish before you ${actionLabel}.`, 'warning');
   return true;
 }
 
@@ -549,24 +549,42 @@ function appendLog(raw) {
 }
 
 // ── toast notifications ───────────────────────────────────────────────────────
-function showToast(message, type = 'success', durationMs) {
-  const ms = durationMs ?? (type === 'error' ? 8000 : 4000);
+// Types: success | info | warning (guard/guidance) | error (actual failures).
+// Error toasts persist until dismissed — durationMs is ignored for them.
+// opts: { durationMs, action: {label, onClick} }
+const TOAST_STACK_MAX = 4;
+
+function showToast(message, type = 'success', opts = {}) {
   const container = document.getElementById('toast-container');
   const liveRegion = document.getElementById(type === 'error' ? 'sr-live-assertive' : 'sr-live-polite');
   if (liveRegion) { liveRegion.textContent = ''; setTimeout(() => { liveRegion.textContent = message; }, 10); }
+  while (container.children.length >= TOAST_STACK_MAX) container.firstElementChild.remove();
   const toast = document.createElement('div');
   toast.className = `toast ${type}`;
   toast.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:10px';
   const msg = document.createElement('span');
   msg.textContent = message;
+  toast.appendChild(msg);
+  const buttons = document.createElement('div');
+  buttons.style.cssText = 'display:flex;gap:6px;align-items:center;flex-shrink:0';
+  if (opts.action) {
+    const actionBtn = document.createElement('button');
+    actionBtn.className = 'btn ghost';
+    actionBtn.style.cssText = 'font-size:11px;padding:2px 8px';
+    actionBtn.textContent = opts.action.label;
+    actionBtn.onclick = () => { toast.remove(); opts.action.onClick(); };
+    buttons.appendChild(actionBtn);
+  }
   const close = document.createElement('button');
   close.textContent = '×';
   close.setAttribute('aria-label', 'Dismiss');
   close.style.cssText = `background:none;border:none;color:inherit;cursor:pointer;font-size:18px;line-height:1;padding:0;flex-shrink:0;opacity:${type === 'error' ? '.8' : '.5'}`;
   close.onclick = () => toast.remove();
-  toast.appendChild(msg);
-  toast.appendChild(close);
+  buttons.appendChild(close);
+  toast.appendChild(buttons);
   container.appendChild(toast);
+  if (type === 'error') return;
+  const ms = opts.durationMs ?? (type === 'warning' ? 6000 : 4000);
   setTimeout(() => {
     toast.style.transition = 'opacity .3s';
     toast.style.opacity = '0';

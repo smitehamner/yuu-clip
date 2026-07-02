@@ -218,7 +218,7 @@ let _reelPreviewOpener = null;
 async function previewReelPlaylist() {
   const included = _reelClips.filter(c => c.included && c.has_export);
   if (!included.length) {
-    showToast('No exported clips selected — export clips first to preview them', 'info');
+    showToast('No exported clips selected — export clips first to preview them', 'warning');
     return;
   }
   _reelPreviewOpener = document.activeElement;
@@ -261,12 +261,12 @@ function closeReelPreview() {
 async function startDemo() {
   const included = _reelClips.filter(c => c.included);
   if (!included.length) {
-    showToast('No clips selected', 'info');
+    showToast('No clips selected', 'warning');
     return;
   }
   const unexported = included.filter(c => !c.has_export);
   if (unexported.length > 0 && included.length === unexported.length) {
-    showToast('None of the selected clips have been exported — export them first', 'error');
+    showToast('None of the selected clips have been exported — export them first', 'warning');
     return;
   }
 
@@ -294,12 +294,19 @@ async function startDemo() {
     return;
   }
   const data = await res.json();
-  statusEl.textContent = `Building reel from ${data.clip_count} clip(s)…`;
+  const skipNote = unexported.length ? ` — ${unexported.length} unexported clip(s) skipped` : '';
+  statusEl.textContent = `Building reel from ${data.clip_count} clip(s)…${skipNote}`;
   closeDemoModal();
   openLog();
+  if (unexported.length) appendLog(`[Skipping ${unexported.length} clip(s) that have not been exported]`);
   streamSSE(
     '/api/demo/events',
-    () => { loadVideos(); showToast('Highlight reel complete!'); openHighlightReelsModal('view'); SoundFx.play('reel'); },
+    () => {
+      loadVideos();
+      showToast(`Highlight reel complete!${skipNote}`, 'success');
+      openHighlightReelsModal('view');
+      SoundFx.play('reel');
+    },
     [{label: 'Building', patterns: ['Generating title', 'Encoding', 'OK']}],
     'Reel',
   );

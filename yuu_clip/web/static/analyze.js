@@ -414,38 +414,12 @@ function _analyzeSegmentsSequentially(
 }
 
 function _showAnalysisToast(video) {
-  const container = document.getElementById('toast-container');
-  const toast = document.createElement('div');
-  toast.className = 'toast success';
-  toast.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:12px';
   const count = video ? video.clip_count : 0;
-  toast.appendChild(document.createTextNode(
-    `Analysis complete — ${count} clip${count !== 1 ? 's' : ''} found`
-  ));
-  const actions = document.createElement('div');
-  actions.style.cssText = 'display:flex;gap:6px;align-items:center;flex-shrink:0';
-  if (video && AppState.activeVideoId !== video.id) {
-    const link = document.createElement('button');
-    link.className = 'btn ghost';
-    link.style.cssText = 'font-size:11px;padding:2px 8px';
-    link.textContent = 'Review';
-    link.onclick = () => { selectVideo(video.id); toast.remove(); };
-    actions.appendChild(link);
-  }
-  const close = document.createElement('button');
-  close.className = 'btn ghost';
-  close.style.cssText = 'font-size:14px;padding:0 4px';
-  close.setAttribute('aria-label', 'Dismiss');
-  close.textContent = '×';
-  close.onclick = () => toast.remove();
-  actions.appendChild(close);
-  toast.appendChild(actions);
-  container.appendChild(toast);
-  setTimeout(() => {
-    toast.style.transition = 'opacity .3s';
-    toast.style.opacity = '0';
-    setTimeout(() => toast.remove(), 300);
-  }, 8000);
+  const canJump = video && AppState.activeVideoId !== video.id;
+  showToast(`Analysis complete — ${count} clip${count !== 1 ? 's' : ''} found`, 'success', {
+    durationMs: 8000,
+    ...(canJump ? {action: {label: 'Review', onClick: () => selectVideo(video.id)}} : {}),
+  });
 }
 
 // ── native file picker ────────────────────────────────────────────────────────
@@ -589,8 +563,8 @@ function onLabelChange(i) {
 
 async function saveProfile() {
   const name = document.getElementById('pe-name').value.trim();
-  if (!name)                { showToast('Layout name is required', 'error'); return; }
-  if (name.startsWith('__')) { showToast('Layout name cannot start with __', 'error'); return; }
+  if (!name)                { showToast('Layout name is required', 'warning'); return; }
+  if (name.startsWith('__')) { showToast('Layout name cannot start with __', 'warning'); return; }
   const n = parseInt(document.getElementById('pe-numtracks').value) || 1;
   const assignments = Array.from({length: n}, (_, i) => ({
     stream_position: i,

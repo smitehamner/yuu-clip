@@ -561,10 +561,10 @@ async function _downloadClipExport(clipId) {
     files = (data && data.files) || [];
   } catch (_) { /* fall back to the single known media file below */ }
   if (!files.length && AppState.activeMediaFilename) files = [AppState.activeMediaFilename];
-  if (!files.length) { showToast('No exported files found', 'error'); return; }
+  if (!files.length) { showToast('No exported files found', 'warning'); return; }
   // Stagger so the browser doesn't collapse rapid sequential downloads into one.
   files.forEach((fn, i) => setTimeout(() => _downloadFile(fn), i * 200));
-  if (files.length > 1) showToast(`Downloading ${files.length} files (video + captions)`);
+  if (files.length > 1) showToast(`Downloading ${files.length} files (video + captions)`, 'info');
 }
 
 async function _reloadClipList(videoId) {
