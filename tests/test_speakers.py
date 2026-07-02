@@ -26,7 +26,9 @@ def _column_names(engine, table: str) -> set[str]:
 class TestSchema:
     def test_speakers_table_and_speaker_id_column_exist(self, tmp_path: Path):
         engine = make_engine(tmp_path / "fresh.db")
-        assert "speaker_id" in _column_names(engine, "transcript_segments")
+        cols = _column_names(engine, "transcript_segments")
+        assert "speaker_id" in cols
+        assert "speaker_edited" in cols
         with engine.connect() as conn:
             tables = {row[0] for row in conn.execute(
                 text("SELECT name FROM sqlite_master WHERE type='table'")
@@ -385,6 +387,12 @@ class TestSpeakerRoutes:
         assert lines[0]["text"] == "let's go go go"
         assert lines[0]["start_ms"] == 0  # clip-relative (clip starts at 0)
 
+    def test_clip_transcript_lines_expose_speaker_id_unedited_by_default(self, client, project_dir):
+        _, speaker_id, clip_id = self._seed_speaker(project_dir)
+        lines = client.get(f"/api/clips/{clip_id}/transcript").json()["lines"]
+        assert lines[0]["speaker_id"] == speaker_id
+        assert lines[0]["speaker_edited"] is False
+
     def test_video_transcript_lines_fallback_name_and_absolute_time(self, client, project_dir):
         video_id, _, _ = self._seed_speaker(project_dir)
         lines = client.get(f"/api/videos/{video_id}/transcript").json()["lines"]
@@ -408,6 +416,86 @@ class TestSpeakerRoutes:
         lines = client.get(f"/api/videos/{video_id}/transcript").json()["lines"]
         from yuu_clip.db.models import SPEAKER_COLOR_PALETTE
         assert lines[0]["color"] == SPEAKER_COLOR_PALETTE[0]
+
+
+class TestReassignSegmentSpeaker:
+    def _db(self, project_dir: Path):
+        return make_session(project_dir / ".yuu-clip" / "project.db")
+
+    def _seed(self, project_dir: Path) -> tuple[int, int, int, int, int, int]:
+        """Seed a segment attributed to sp1, a second speaker (sp2), a clip that
+        overlaps the segment, and a speaker on a *different* video.
+
+        Returns (video_id, sp1_id, sp2_id, seg_id, clip_id, other_video_speaker_id).
+        """
+        db = self._db(project_dir)
+        video = db.query(Video).first()
+        track = db.query(AudioTrack).filter_by(video_id=video.id).first()
+        tx = Transcript(audio_track_id=track.id, model_name="base")
+        db.add(tx)
+        db.flush()
+        sp1 = Speaker(video_id=video.id, display_index=1)
+        sp2 = Speaker(video_id=video.id, name="Mara", display_index=2, confirmed=True)
+        db.add_all([sp1, sp2])
+        db.flush()
+        seg = TranscriptSegment(
+            transcript_id=tx.id, start_ms=0, end_ms=3000,
+            text="let's go go go", speaker_label="SPEAKER_00", speaker_id=sp1.id,
+        )
+        db.add(seg)
+        db.flush()
+        other_video = Video(path="o.mkv", filename="o.mkv", status="done")
+        db.add(other_video)
+        db.flush()
+        other_sp = Speaker(video_id=other_video.id, display_index=1)
+        db.add(other_sp)
+        db.flush()
+        clip = db.query(ClipCandidate).filter_by(video_id=video.id).order_by(ClipCandidate.start_ms).first()
+        db.commit()
+        ids = (video.id, sp1.id, sp2.id, seg.id, clip.id, other_sp.id)
+        db.close()
+        return ids
+
+    def test_reassign_sets_speaker_and_marks_edited(self, client, project_dir):
+        _, _, sp2, seg_id, clip_id, _ = self._seed(project_dir)
+        resp = client.put(f"/api/transcript-segments/{seg_id}/speaker", json={"speaker_id": sp2})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["speaker_id"] == sp2
+        assert data["speaker"] == "Mara"
+        assert data["speaker_edited"] is True
+        assert clip_id in data["affected_clip_ids"]
+
+    def test_reassign_rebuilds_excerpt_with_new_speaker(self, client, project_dir):
+        _, _, sp2, seg_id, clip_id, _ = self._seed(project_dir)
+        client.put(f"/api/transcript-segments/{seg_id}/speaker", json={"speaker_id": sp2})
+        db = self._db(project_dir)
+        excerpt = db.get(ClipCandidate, clip_id).transcript_excerpt
+        db.close()
+        assert excerpt == "Mara: let's go go go"
+
+    def test_detach_clears_speaker(self, client, project_dir):
+        _, _, _, seg_id, _, _ = self._seed(project_dir)
+        data = client.put(f"/api/transcript-segments/{seg_id}/speaker", json={"speaker_id": None}).json()
+        assert data["speaker_id"] is None
+        assert data["speaker"] is None
+        assert data["speaker_edited"] is True
+
+    def test_404_for_missing_segment(self, client):
+        resp = client.put("/api/transcript-segments/9999/speaker", json={"speaker_id": None})
+        assert resp.status_code == 404
+
+    def test_400_for_speaker_from_other_video(self, client, project_dir):
+        _, _, _, seg_id, _, other_sp = self._seed(project_dir)
+        resp = client.put(f"/api/transcript-segments/{seg_id}/speaker", json={"speaker_id": other_sp})
+        assert resp.status_code == 400
+
+    def test_transcript_lines_expose_speaker_id_and_edited(self, client, project_dir):
+        _, _, sp2, seg_id, clip_id, _ = self._seed(project_dir)
+        client.put(f"/api/transcript-segments/{seg_id}/speaker", json={"speaker_id": sp2})
+        lines = client.get(f"/api/clips/{clip_id}/transcript").json()["lines"]
+        assert lines[0]["speaker_id"] == sp2
+        assert lines[0]["speaker_edited"] is True
 
 
 class TestApplyNameSuggestions:

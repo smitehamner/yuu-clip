@@ -231,6 +231,22 @@ header h1 { font-size: 16px; font-weight: 700; letter-spacing: .5px; color: var(
 .tline-play { flex-shrink: 0; width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; padding: 0; font-size: 8px; border-radius: 50%; border: 1px solid var(--border); background: var(--surface); color: var(--accent); cursor: pointer; align-self: center; transition: background .12s; }
 .tline-play:hover { background: var(--border); }
 .tline-time { flex-shrink: 0; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; min-width: 40px; }
+.tline-spk { flex-shrink: 0; width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; padding: 0; border-radius: 50%; border: 1px solid var(--border); background: var(--surface); cursor: pointer; align-self: center; position: relative; }
+.tline-spk:hover { border-color: var(--accent); }
+.tline-spk-dot { width: 9px; height: 9px; border-radius: 50%; display: block; }
+.tline-spk.edited { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.tline-spk.edited::after { content: "\270E"; position: absolute; top: -6px; right: -6px; font-size: 9px; color: var(--accent); }
+.spk-menu { position: fixed; z-index: 5000; min-width: 200px; max-width: 260px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.35); padding: 6px; font-size: 13px; }
+.spk-menu-head { font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); padding: 4px 6px 2px; }
+.spk-menu-item { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 6px; border: none; border-radius: 5px; background: none; color: var(--text); cursor: pointer; font-size: 13px; }
+.spk-menu-item:hover { background: var(--border); }
+.spk-menu-item.active { color: var(--accent); font-weight: 600; }
+.spk-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.spk-menu-sep { height: 1px; background: var(--border); margin: 6px 0; }
+.spk-menu-rename { display: flex; gap: 6px; padding: 2px 6px 4px; }
+.spk-menu-name { flex: 1; min-width: 0; font-size: 12px; font-family: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: 5px; padding: 4px 6px; }
+.spk-menu-name:focus { outline: none; border-color: var(--accent); }
+.spk-menu-save { font-size: 11px; padding: 2px 10px; }
 .tline-text { font-size: 13px; line-height: 1.45; }
 .tline-text.editable { cursor: text; border-radius: 4px; padding: 0 3px; transition: background .12s; }
 .tline-text.editable:hover { background: var(--border); }

@@ -6,6 +6,7 @@ the real render + lazy-load flow in transcript.js.
 from __future__ import annotations
 
 import json
+import re
 
 from conftest import select_first_video_and_clip, select_video_with_clips, skip_no_server
 from playwright.sync_api import Page, expect
@@ -68,6 +69,51 @@ class TestClipTranscript:
 
         expect(page.locator("#clip-transcript-view .tline-text").first).to_have_text("let's GO")
         assert put_bodies and put_bodies[0]["text"] == "let's GO"
+
+
+@skip_no_server
+class TestClipTranscriptSpeakerMenu:
+    _LINES = {
+        "lines": [
+            {"start_ms": 0, "end_ms": 2000, "speaker": "Yuu", "speaker_id": 1,
+             "speaker_edited": False, "color": "#4fc3f7", "text": "let's go", "seg_id": 11},
+            {"start_ms": 2000, "end_ms": 4000, "speaker": "Mara", "speaker_id": 2,
+             "speaker_edited": True, "color": "#f0c060", "text": "behind you", "seg_id": 12},
+        ]
+    }
+    _SPEAKERS = [
+        {"id": 1, "video_id": 1, "display_index": 1, "name": "Yuu", "display_name": "Yuu",
+         "is_named": True, "source": "manual", "confirmed": True, "color": "#4fc3f7",
+         "sample_text": "", "sample_start_ms": None, "sample_end_ms": None},
+        {"id": 2, "video_id": 1, "display_index": 2, "name": "Mara", "display_name": "Mara",
+         "is_named": True, "source": "manual", "confirmed": True, "color": "#f0c060",
+         "sample_text": "", "sample_start_ms": None, "sample_end_ms": None},
+    ]
+
+    def _route(self, page: Page) -> None:
+        page.route("**/api/clips/*/transcript", lambda route: route.fulfill(
+            status=200, content_type="application/json", body=json.dumps(self._LINES)))
+        page.route("**/api/videos/*/speakers", lambda route: route.fulfill(
+            status=200, content_type="application/json", body=json.dumps(self._SPEAKERS)))
+
+    def test_speaker_chips_render_with_edited_marker(self, page: Page):
+        self._route(page)
+        select_first_video_and_clip(page)
+        chips = page.locator("#clip-transcript-view .tline-spk")
+        expect(chips).to_have_count(2)
+        # The second line was hand-reassigned → carries the edited marker class.
+        expect(chips.nth(1)).to_have_class(re.compile(r"\bedited\b"))
+        expect(chips.nth(0)).not_to_have_class(re.compile(r"\bedited\b"))
+
+    def test_clicking_chip_opens_speaker_menu(self, page: Page):
+        self._route(page)
+        select_first_video_and_clip(page)
+        page.locator("#clip-transcript-view .tline-spk").first.click()
+        menu = page.locator(".spk-menu")
+        expect(menu).to_be_visible()
+        # Two speakers plus the "Unassigned" option, and the inline rename field.
+        expect(menu.locator(".spk-menu-item")).to_have_count(3)
+        expect(menu.locator(".spk-menu-name")).to_be_visible()
 
 
 @skip_no_server

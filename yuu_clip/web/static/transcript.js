@@ -26,10 +26,12 @@ function _clock(ms) {
 
 // opts.seekOffsetS is added to each line's play target — 0 for a clip (its player
 // is trimmed to the clip) and the segment start for a split recording (whose player
-// streams the untrimmed parent file).
+// streams the untrimmed parent file). opts.videoId enables the per-line speaker
+// control (rename / reassign); omit it to render a read-only transcript.
 function renderTranscriptLines(lines, opts) {
   opts = opts || {};
   const offsetS = opts.seekOffsetS || 0;
+  const videoId = opts.videoId;
   if (!Array.isArray(lines) || !lines.length) {
     return '<div class="transcript-empty">No transcript available.</div>';
   }
@@ -47,10 +49,18 @@ function renderTranscriptLines(lines, opts) {
     const editAttrs = editable
       ? ` data-seg-id="${line.seg_id}" role="button" tabindex="0" title="Click to edit caption"`
       : '';
+    const spk = (videoId != null && line.speaker_id != null)
+      ? `<button class="tline-spk${line.speaker_edited ? ' edited' : ''}"
+                 data-seg-id="${line.seg_id}" data-speaker-id="${line.speaker_id}" data-video-id="${videoId}"
+                 title="${line.speaker_edited ? 'Reassigned by you — c' : 'C'}hange or name this speaker"
+                 aria-label="Change speaker">
+           <span class="tline-spk-dot" style="background:${escHtml(line.color || '#888')}"></span></button>`
+      : '';
     return `${speaker}<div class="tline">
       <button class="tline-play" data-seek-s="${seekS}"
               title="Jump to ${clock}" aria-label="Play from ${clock}">&#9654;</button>
       <span class="tline-time">${clock}</span>
+      ${spk}
       <span class="tline-text${editable ? ' editable' : ''}"${editAttrs}>${escHtml(line.text)}</span>
     </div>`;
   }).join('');
@@ -62,7 +72,9 @@ async function loadClipTranscript(clipId) {
   if (!el) return;
   try {
     const data = await fetch(`/api/clips/${clipId}/transcript`).then(r => r.json());
-    if (data.lines && data.lines.length) el.innerHTML = renderTranscriptLines(data.lines);
+    if (data.lines && data.lines.length) {
+      el.innerHTML = renderTranscriptLines(data.lines, {videoId: AppState.activeVideoId});
+    }
     // else: keep the plain excerpt already rendered as a fallback.
   } catch (_) {
     // Leave the excerpt fallback in place on error.
@@ -81,7 +93,7 @@ async function loadVideoTranscript(videoId) {
   el.innerHTML = '<div class="transcript-empty">Loading…</div>';
   try {
     const data = await fetch(`/api/videos/${videoId}/transcript`).then(r => r.json());
-    el.innerHTML = renderTranscriptLines(data.lines, {seekOffsetS: data.seek_offset_s || 0});
+    el.innerHTML = renderTranscriptLines(data.lines, {seekOffsetS: data.seek_offset_s || 0, videoId});
     _videoTranscriptLoadedFor = videoId;
   } catch (_) {
     el.innerHTML = '<div class="transcript-empty">Could not load transcript.</div>';
@@ -95,6 +107,138 @@ function reloadVideoTranscriptIfOpen(videoId) {
   _videoTranscriptLoadedFor = null;
   const details = document.getElementById('video-transcript-details');
   if (details && details.open) loadVideoTranscript(videoId);
+}
+
+// ── per-line speaker control (rename + reassign) ───────────────────────────────
+// A transcript line's speaker dot opens a menu to reattribute that one line to a
+// different speaker (or detach it) and to name the line's current speaker without
+// leaving the transcript. Speaker lists are cached per video and invalidated on any
+// change so a fresh menu always reflects renames.
+const _videoSpeakersCache = {};
+
+async function _getVideoSpeakers(videoId) {
+  if (_videoSpeakersCache[videoId]) return _videoSpeakersCache[videoId];
+  const list = await fetch(`/api/videos/${videoId}/speakers`).then(r => r.json()).catch(() => []);
+  _videoSpeakersCache[videoId] = Array.isArray(list) ? list : [];
+  return _videoSpeakersCache[videoId];
+}
+
+let _openSpkMenu = null;
+
+function _closeSpeakerMenu() {
+  if (_openSpkMenu) { _openSpkMenu.remove(); _openSpkMenu = null; }
+  document.removeEventListener('click', _onDocClickSpkMenu, true);
+  document.removeEventListener('keydown', _onKeydownSpkMenu, true);
+}
+
+function _onDocClickSpkMenu(e) {
+  if (_openSpkMenu && !_openSpkMenu.contains(e.target)) _closeSpeakerMenu();
+}
+
+function _onKeydownSpkMenu(e) {
+  if (e.key === 'Escape') { e.preventDefault(); _closeSpeakerMenu(); }
+}
+
+async function _openSpeakerMenu(chip) {
+  _closeSpeakerMenu();
+  const segId = parseInt(chip.dataset.segId, 10);
+  const curId = chip.dataset.speakerId ? parseInt(chip.dataset.speakerId, 10) : null;
+  const videoId = parseInt(chip.dataset.videoId, 10);
+  if (!videoId) return;
+  const speakers = await _getVideoSpeakers(videoId);
+  const cur = speakers.find(s => s.id === curId);
+
+  const items = speakers.map(s =>
+    `<button class="spk-menu-item${s.id === curId ? ' active' : ''}" data-reassign="${s.id}">
+       <span class="spk-dot" style="background:${escHtml(s.color)}"></span>${escHtml(s.display_name)}</button>`
+  ).join('');
+
+  const menu = document.createElement('div');
+  menu.className = 'spk-menu';
+  menu.innerHTML = `
+    <div class="spk-menu-head">Attribute this line to</div>
+    ${items}
+    <button class="spk-menu-item" data-reassign="">Unassigned</button>
+    <div class="spk-menu-sep"></div>
+    <div class="spk-menu-head">Name ${escHtml(cur ? cur.display_name : 'this speaker')}</div>
+    <div class="spk-menu-rename">
+      <input type="text" class="spk-menu-name" maxlength="60" placeholder="Add a name&hellip;"
+             value="${escHtml(cur && cur.name ? cur.name : '')}">
+      <button class="btn primary spk-menu-save">Save</button>
+    </div>`;
+  document.body.appendChild(menu);
+
+  const rect = chip.getBoundingClientRect();
+  const left = Math.max(8, Math.min(rect.left, window.innerWidth - menu.offsetWidth - 12));
+  const top = Math.min(rect.bottom + 4, window.innerHeight - menu.offsetHeight - 8);
+  menu.style.left = `${left}px`;
+  menu.style.top = `${Math.max(8, top)}px`;
+  _openSpkMenu = menu;
+
+  menu.addEventListener('click', e => {
+    const reassign = e.target.closest('[data-reassign]');
+    if (reassign) {
+      const val = reassign.dataset.reassign;
+      _reassignLine(segId, val === '' ? null : parseInt(val, 10), videoId);
+      return;
+    }
+    if (e.target.closest('.spk-menu-save') && curId != null) {
+      _renameSpeakerFromLine(curId, menu.querySelector('.spk-menu-name').value.trim(), videoId);
+    }
+  });
+  menu.querySelector('.spk-menu-name')?.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); menu.querySelector('.spk-menu-save').click(); }
+  });
+
+  // Defer wiring the dismiss handlers so the click that opened the menu doesn't close it.
+  setTimeout(() => {
+    document.addEventListener('click', _onDocClickSpkMenu, true);
+    document.addEventListener('keydown', _onKeydownSpkMenu, true);
+  }, 0);
+}
+
+async function _reassignLine(segId, speakerId, videoId) {
+  try {
+    const res = await fetch(`/api/transcript-segments/${segId}/speaker`, {
+      method: 'PUT', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({speaker_id: speakerId}),
+    });
+    if (!res.ok) throw new Error(formatApiError(await res.json().catch(() => ({}))));
+    const data = await res.json();
+    _closeSpeakerMenu();
+    const n = (data.affected_clip_ids || []).length;
+    showToast(n ? `Speaker reassigned — ${n} clip${n === 1 ? '' : 's'} affected; re-score to refresh` : 'Speaker reassigned');
+    _refreshAfterSpeakerChange(videoId, data.affected_clip_ids);
+  } catch (err) {
+    showToast(`Could not reassign speaker: ${err.message}`, 'error');
+  }
+}
+
+async function _renameSpeakerFromLine(speakerId, name, videoId) {
+  try {
+    const res = await fetch(`/api/speakers/${speakerId}`, {
+      method: 'PUT', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({name}),
+    });
+    if (!res.ok) throw new Error('save failed');
+    const updated = await res.json();
+    _closeSpeakerMenu();
+    showToast(updated.is_named ? `Speaker named ${updated.display_name}` : 'Name cleared');
+    _refreshAfterSpeakerChange(videoId, null);
+  } catch (_) {
+    showToast('Could not save speaker name', 'error');
+  }
+}
+
+function _refreshAfterSpeakerChange(videoId, affectedClipIds) {
+  delete _videoSpeakersCache[videoId];
+  if (window.loadSpeakers) loadSpeakers(videoId);
+  reloadVideoTranscriptIfOpen(videoId);
+  const openClip = AppState.activeClipId;
+  if (openClip != null && (affectedClipIds == null || affectedClipIds.includes(openClip))
+      && window.refreshClipDetail) {
+    refreshClipDetail(openClip);
+  }
 }
 
 // ── inline caption editing ────────────────────────────────────────────────────
@@ -169,6 +313,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const detail = document.getElementById('detail');
   if (!detail) return;
   detail.addEventListener('click', e => {
+    const spk = e.target.closest && e.target.closest('.tline-spk');
+    if (spk) { e.stopPropagation(); _openSpeakerMenu(spk); return; }
     const text = e.target.closest && e.target.closest('.tline-text.editable');
     if (text) { startEditCaption(text); return; }
     const btn = e.target.closest && e.target.closest('.tline-play');

@@ -157,6 +157,27 @@ Correctness fixes around cancelling/running analyses, plus the settings/log layo
 
 ---
 
+## Usage-feedback cleanup — batch 7: speaker power features (done, 2026-07-02)
+
+- **Name a speaker from a transcript line** — each diarized transcript line now
+  carries a small speaker "dot". Clicking it opens a menu with an inline rename
+  field for that line's current speaker (reuses `PUT /api/speakers/{id}`), so a
+  voice can be named without leaving the transcript.
+- **Reattribute a line to a different speaker** — the same menu lists every speaker
+  in the recording plus "Unassigned"; picking one calls the new
+  `PUT /api/transcript-segments/{seg_id}/speaker` (validates the speaker belongs to
+  the recording, rebuilds the excerpt of every overlapping clip, and flags them for
+  re-score — mirrors the caption-edit path).
+- **Auto-vs-manual indicator** — `TranscriptSegment.speaker_edited` (new column +
+  guarded migration) is set when a line is hand-reassigned; those lines render with
+  a distinct marker (`.tline-spk.edited`) so auto-diarized lines are visually
+  distinguished from ones the user corrected. Transcript line dicts now expose
+  `speaker_id` + `speaker_edited` (added to `SubLine` and `_lines_to_view`).
+- Deferred (out of scope, noted): project-level cross-recording voice library
+  (`ROADMAP.md` — new `ProjectVoice` table, merge/split UX).
+
+---
+
 ## Phase 4 — Packaging + distribution (done)
 
 - **Electron wrapper** — app runs in its own Chromium window; Python backend launched as a child process

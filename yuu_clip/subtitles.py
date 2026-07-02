@@ -21,6 +21,10 @@ class SubLine(NamedTuple):
     # Diarized speaker's subtitle colour ("#RRGGBB"), or "" for track-label-only
     # lines (no durable Speaker attached). Renders as a <font> tag in SRT output.
     color: str = ""
+    # Durable Speaker id this line is attributed to (None when unattributed) and
+    # whether a user hand-reassigned it — carried only for the editable view.
+    speaker_id: int | None = None
+    speaker_edited: bool = False
 
 
 _LABEL_DISPLAY = {
@@ -147,6 +151,8 @@ def collect_clip_subtitles(clip) -> dict[str, list[SubLine]]:
                 lines.append(SubLine(
                     start, end, seg.text, _segment_speaker(seg), getattr(seg, "id", None),
                     _segment_speaker_color(seg),
+                    speaker_id=getattr(seg, "speaker_id", None),
+                    speaker_edited=bool(getattr(seg, "speaker_edited", False)),
                 ))
 
         if lines:
@@ -250,6 +256,8 @@ def _lines_to_view(sublines: Iterable[SubLine]) -> list[dict]:
             "start_ms": sub.start_ms,
             "end_ms": sub.end_ms,
             "speaker": sub.speaker or None,
+            "speaker_id": sub.speaker_id,
+            "speaker_edited": sub.speaker_edited,
             "color": sub.color or None,
             "text": sub.text.strip(),
             "seg_id": sub.seg_id,
@@ -278,6 +286,8 @@ def video_transcript_lines(video) -> list[dict]:
             SubLine(
                 seg.start_ms, seg.end_ms, seg.text, _segment_speaker(seg), getattr(seg, "id", None),
                 _segment_speaker_color(seg),
+                speaker_id=getattr(seg, "speaker_id", None),
+                speaker_edited=bool(getattr(seg, "speaker_edited", False)),
             )
             for seg in transcript.segments
         )

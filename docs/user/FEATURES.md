@@ -378,6 +378,15 @@ Each speaker also gets a colour, auto-assigned from a fixed palette so voices ar
 
 The **Suggest names** button (top of the Speakers card) uses the LLM to guess names from how people address each other in the transcript ("Hey Yuu, watch out"). Each guess appears as a **Suggested: …** prompt next to the voice with **Accept** and **Dismiss** buttons — nothing is applied to your captions until you accept it, so a wrong guess never silently mislabels a speaker. The same name is never suggested for two different voices, and an existing name you already typed is never overwritten.
 
+**Fixing speakers from the transcript**
+
+You don't have to go to the Speakers card to fix a mislabelled line. In any timed transcript, each line shows a small coloured **speaker dot**. Click it to open a menu where you can:
+
+- **Reattribute that one line** to a different speaker (or mark it Unassigned) — useful when diarization split or merged a voice on a single line.
+- **Name that line's speaker** inline, without scrolling back to the Speakers card.
+
+Lines you reassign by hand get a small ✎ marker on their dot, so you can tell which lines were auto-detected and which you corrected. Reassigning a line rebuilds the affected clips' excerpts (re-score to refresh their scores). Speaker identities are still per-recording — a project-wide voice library that carries names across recordings is planned but not shipped.
+
 **Timed transcript views**
 
 Both a clip and a whole recording have a timed transcript you can click through. In the clip detail, the **Transcript** section shows each line with a timestamp and a ▶ that jumps the player to that moment; when the recording is diarized, lines are grouped by speaker name. The recording detail has a **Full transcript** section (collapsed by default) with the same per-line playback across the whole session. Both work with or without speaker labels — without diarization, each caption line simply plays from its own timestamp.

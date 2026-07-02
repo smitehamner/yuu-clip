@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import json as json_lib
 import re
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException
@@ -23,7 +24,7 @@ from yuu_clip.db.models import (
     Video,
 )
 from yuu_clip.log import get_logger
-from yuu_clip.segments.windower import _build_excerpt
+from yuu_clip.segments.windower import _build_excerpt, rebuild_clip_excerpt
 from yuu_clip.web.deps import ProjectContext
 from yuu_clip.web.routes._shared import _active_job, _json_list, _sse_response
 
@@ -36,6 +37,10 @@ _HEX_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 class SpeakerRename(BaseModel):
     name: Optional[str] = None  # None or "" clears the name back to "Speaker N"
     color: Optional[str] = None  # "#RRGGBB"; None or "" clears back to the palette default
+
+
+class SegmentSpeaker(BaseModel):
+    speaker_id: Optional[int] = None  # None detaches the segment (back to unattributed)
 
 
 def make_router(ctx: ProjectContext) -> APIRouter:
@@ -156,6 +161,60 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             )
             samples = _speaker_samples(db, [speaker.id])
             return _speaker_dict(speaker, samples.get(speaker.id))
+        finally:
+            db.close()
+
+    @router.put("/api/transcript-segments/{seg_id}/speaker")
+    def reassign_segment_speaker(seg_id: int, body: SegmentSpeaker):
+        """Reattribute one transcript line to a different speaker (or detach it).
+
+        Marks the segment as user-edited, rebuilds the excerpt of every clip that
+        overlaps it (the excerpt groups by speaker), and flags those clips for
+        re-score — mirrors the caption-edit route.
+        """
+        db = ctx.get_db()
+        try:
+            seg = db.get(TranscriptSegment, seg_id)
+            if not seg:
+                raise HTTPException(404, "Transcript segment not found")
+            video_id = seg.transcript.audio_track.video_id
+
+            if body.speaker_id is not None:
+                speaker = db.get(Speaker, body.speaker_id)
+                if not speaker or speaker.video_id != video_id:
+                    raise HTTPException(400, "Speaker does not belong to this recording")
+
+            seg.speaker_id = body.speaker_id
+            seg.speaker_edited = True
+
+            affected = (
+                db.query(ClipCandidate)
+                .filter(
+                    ClipCandidate.video_id == video_id,
+                    ClipCandidate.start_ms < seg.end_ms,
+                    ClipCandidate.end_ms > seg.start_ms,
+                )
+                .all()
+            )
+            edited_at = datetime.now(timezone.utc)
+            for clip in affected:
+                rebuild_clip_excerpt(clip)
+                clip.transcript_edited_at = edited_at
+            db.commit()
+
+            speaker = db.get(Speaker, seg.speaker_id) if seg.speaker_id is not None else None
+            _log.info(
+                "Reassigned segment %d (video %d) to speaker %s — rebuilt %d clip excerpt(s)",
+                seg_id, video_id, seg.speaker_id, len(affected),
+            )
+            return {
+                "seg_id": seg_id,
+                "speaker_id": seg.speaker_id,
+                "speaker": speaker.display_name if speaker else None,
+                "color": speaker.display_color if speaker else None,
+                "speaker_edited": True,
+                "affected_clip_ids": [c.id for c in affected],
+            }
         finally:
             db.close()
 

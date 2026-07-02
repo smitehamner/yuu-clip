@@ -134,6 +134,11 @@ def _migrate(engine) -> None:
             conn.execute(text(
                 "ALTER TABLE transcript_segments ADD COLUMN speaker_id INTEGER REFERENCES speakers(id)"
             ))
+        if "speaker_edited" not in existing:
+            _log.info("Migration: adding transcript_segments.speaker_edited")
+            conn.execute(text(
+                "ALTER TABLE transcript_segments ADD COLUMN speaker_edited BOOLEAN NOT NULL DEFAULT 0"
+            ))
 
         existing = {row[1] for row in conn.execute(text("PRAGMA table_info(clip_candidates)"))}
         _clip_migrations = [
@@ -383,6 +388,9 @@ class TranscriptSegment(Base):
     speaker_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("speakers.id", ondelete="SET NULL"), nullable=True
     )
+    # True once a user hand-reassigns this segment's speaker, so the transcript can
+    # distinguish auto-diarized lines from ones the user corrected.
+    speaker_edited: Mapped[bool] = mapped_column(Boolean, default=False)
 
     transcript: Mapped["Transcript"] = relationship(back_populates="segments")
     speaker: Mapped[Optional["Speaker"]] = relationship()
