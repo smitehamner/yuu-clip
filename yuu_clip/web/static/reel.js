@@ -377,9 +377,6 @@ async function confirmBatchExport() {
   );
 }
 
-function openReelsModal()  { openHighlightReelsModal('view'); }
-function closeReelsModal() { closeHighlightReelsModal(); }
-
 function _playReel(reel, itemEl) {
   document.querySelectorAll('#reels-list .reel-item').forEach(el => el.classList.remove('active'));
   itemEl.classList.add('active');
@@ -430,6 +427,5 @@ Object.assign(window, {
   previewReelPlaylist, closeReelPreview,
   openBatchExportModal, closeBatchExportModal, confirmBatchExport,
   updateBatchEstimate, _onBatchCaptionsChange,
-  closeReelsModal,
 });
 })();

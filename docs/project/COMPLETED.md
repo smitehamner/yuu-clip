@@ -5,6 +5,29 @@ Phases 1–3 have been moved to [COMPLETED-archive.md](COMPLETED-archive.md).
 
 ---
 
+## UX review CC-2/CC-3/CC-4 — keyboard, focus & Escape (done, 2026-07-02)
+
+Prompt 2 of the 2026-07 UX review plan (`UX_REVIEW_PLAN.md`):
+
+- **Escape peels the topmost layer only** — the global handler's
+  close-everything list is now an ordered cascade (`_closeTopmostLayer` in
+  `settings.js`): kebab menu → hamburger → topmost visible modal → settings
+  panel → Split Editor → New Recording panel, one layer per press. The Split
+  Editor joined the cascade with a new dirty guard (`requestCloseSplitEditor`,
+  confirm when split points are placed) that its Back/Cancel buttons also use.
+- **Modals trap Tab** — one document-level handler in `ui.js` wraps focus
+  inside the topmost visible modal (`topmostVisibleModal()`), covering all
+  `.modal-bg` modals with no per-modal wiring.
+- **Menu keyboard pattern** — hamburger and kebab menus focus their first item
+  on open, traverse with ArrowUp/Down (wrapping), and return focus to their
+  trigger on Escape and on item activation; menu-opened modals record the
+  trigger as their return-focus target.
+- Controls modal copy: "Esc — Close the topmost window", `?` or `/` alias row.
+
+Covered by `tests/test_ui_keyboard.py` (19 tests).
+
+---
+
 ## Fix: video streams outlive their viewer — server degraded to 140% idle CPU (done, 2026-07-02)
 
 `/api/videos/{id}/source` served recordings via starlette `FileResponse`, which

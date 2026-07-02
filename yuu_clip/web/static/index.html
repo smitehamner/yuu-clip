@@ -28,16 +28,19 @@
   <div class="hamburger-wrap" id="hamburger-wrap">
     <button class="btn ghost" id="btn-hamburger" onclick="toggleHamburger()" title="More options" aria-label="More options" aria-haspopup="true" aria-expanded="false" style="font-size:17px;padding:5px 11px;line-height:1">&#9776;</button>
     <div class="hamburger-menu" id="hamburger-menu">
-      <button class="hamburger-item" onclick="openGettingStartedModal();closeHamburger()">&#128214; Getting Started</button>
-      <button class="hamburger-item" onclick="openControlsModal();closeHamburger()">&#9000; Controls</button>
+      <!-- closeHamburger() runs first: it hands focus back to the trigger, so
+           the modal being opened records the trigger as its return-focus target
+           instead of a menu item that is about to be display:none'd. -->
+      <button class="hamburger-item" onclick="closeHamburger();openGettingStartedModal()">&#128214; Getting Started</button>
+      <button class="hamburger-item" onclick="closeHamburger();openControlsModal()">&#9000; Controls</button>
       <div class="hamburger-divider"></div>
-      <button class="hamburger-item" onclick="openContextManager();closeHamburger()">&#127757; World Contexts</button>
-      <button class="hamburger-item" onclick="openGlossaryModal();closeHamburger()">&#128218; Terminology Glossary</button>
+      <button class="hamburger-item" onclick="closeHamburger();openContextManager()">&#127757; World Contexts</button>
+      <button class="hamburger-item" onclick="closeHamburger();openGlossaryModal()">&#128218; Terminology Glossary</button>
       <div class="hamburger-divider"></div>
-      <button class="hamburger-item" onclick="openSettings();closeHamburger()">&#9881; Settings</button>
+      <button class="hamburger-item" onclick="closeHamburger();openSettings()">&#9881; Settings</button>
       <a class="hamburger-item" href="/api/logs/export" download="yuu-clip.log" onclick="closeHamburger()">&#8595; Download Log</a>
-      <button class="hamburger-item" onclick="openAboutModal();closeHamburger()">&#9432; About</button>
-      <button class="hamburger-item" id="btn-setup-wizard" onclick="window.electronAPI.runSetupWizard();closeHamburger()" style="display:none">&#128295; Re-run Setup Wizard</button>
+      <button class="hamburger-item" onclick="closeHamburger();openAboutModal()">&#9432; About</button>
+      <button class="hamburger-item" id="btn-setup-wizard" onclick="closeHamburger();window.electronAPI.runSetupWizard()" style="display:none">&#128295; Re-run Setup Wizard</button>
     </div>
   </div>
 </header>
@@ -646,7 +649,7 @@
 <!-- Split Editor panel (full-panel overlay, replaces main content) -->
 <div id="split-editor-panel" style="display:none;position:absolute;inset:0;min-height:480px;background:var(--bg);z-index:10;flex-direction:column;padding:20px 24px;gap:16px;overflow-y:auto">
   <div style="display:flex;align-items:center;gap:10px">
-    <button class="btn ghost" style="padding:4px 10px;font-size:13px" onclick="closeSplitEditor()">&#8592; Back</button>
+    <button class="btn ghost" style="padding:4px 10px;font-size:13px" onclick="requestCloseSplitEditor()">&#8592; Back</button>
     <span style="font-size:14px;font-weight:600" id="split-editor-title">Recording Segments</span>
   </div>
 
@@ -698,7 +701,7 @@
     </div>
     <div style="display:flex;gap:10px">
       <button class="btn primary" id="btn-split-confirm" onclick="confirmSplit()">Confirm</button>
-      <button class="btn" onclick="closeSplitEditor()">Cancel</button>
+      <button class="btn" onclick="requestCloseSplitEditor()">Cancel</button>
     </div>
   </div>
 </div>
@@ -1284,8 +1287,8 @@
         <tr><td><kbd>&#8592; &#8593;</kbd></td><td>Previous clip</td></tr>
         <tr><td><kbd>&#8594; &#8595;</kbd></td><td>Next clip</td></tr>
         <tr><td><kbd>Ctrl+Z</kbd></td><td>Undo last status change</td></tr>
-        <tr><td><kbd>?</kbd></td><td>Open this panel</td></tr>
-        <tr><td><kbd>Esc</kbd></td><td>Close any open modal</td></tr>
+        <tr><td><kbd>?</kbd> or <kbd>/</kbd></td><td>Open this panel</td></tr>
+        <tr><td><kbd>Esc</kbd></td><td>Close the topmost window</td></tr>
       </tbody>
     </table>
     <div class="modal-actions" style="margin-top:16px">

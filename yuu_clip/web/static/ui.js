@@ -90,16 +90,83 @@ function closeActionsModal() {
   if (opener?.focus) opener.focus();
 }
 
+// ── modal layering + focus trap ───────────────────────────────────────────────
+// Confirm and alert are the only modals that stack on top of other modals, so
+// they take priority; otherwise all .modal-bg share z-index 200 and the last
+// visible one in DOM order is the one painted on top.
+function topmostVisibleModal() {
+  for (const id of ['confirm-modal', 'alert-modal']) {
+    const el = document.getElementById(id);
+    if (el.classList.contains('visible')) return el;
+  }
+  const visible = document.querySelectorAll('.modal-bg.visible');
+  return visible.length ? visible[visible.length - 1] : null;
+}
+
+const _FOCUSABLE_SELECTOR =
+  'a[href], button:not(:disabled), input:not(:disabled), select:not(:disabled), ' +
+  'textarea:not(:disabled), [tabindex]:not([tabindex="-1"])';
+
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Tab') return;
+  const modal = topmostVisibleModal();
+  if (!modal) return;
+  const focusables = [...modal.querySelectorAll(_FOCUSABLE_SELECTOR)]
+    .filter(el => el.getClientRects().length > 0);
+  if (!focusables.length) return;
+  const first = focusables[0];
+  const last  = focusables[focusables.length - 1];
+  if (!modal.contains(document.activeElement)) {
+    e.preventDefault();
+    (e.shiftKey ? last : first).focus();
+  } else if (!e.shiftKey && document.activeElement === last) {
+    e.preventDefault();
+    first.focus();
+  } else if (e.shiftKey && document.activeElement === first) {
+    e.preventDefault();
+    last.focus();
+  }
+});
+
+// ── menu keyboard pattern (hamburger + kebab) ─────────────────────────────────
+function _menuFocusableItems(menu) {
+  return [...menu.querySelectorAll('.hamburger-item')]
+    .filter(el => !el.disabled && el.getClientRects().length > 0);
+}
+
+function _menuArrowKeydown(menu, e) {
+  if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+  const items = _menuFocusableItems(menu);
+  if (!items.length) return;
+  e.preventDefault();
+  const idx  = items.indexOf(document.activeElement);
+  const step = e.key === 'ArrowDown' ? 1 : -1;
+  items[(idx + step + items.length) % items.length].focus();
+}
+
 // ── hamburger menu ────────────────────────────────────────────────────────────
+function isHamburgerOpen() {
+  return document.getElementById('hamburger-menu').classList.contains('open');
+}
 function toggleHamburger() {
   const menu = document.getElementById('hamburger-menu');
   menu.classList.toggle('open');
   document.getElementById('btn-hamburger').setAttribute('aria-expanded', menu.classList.contains('open'));
+  if (menu.classList.contains('open')) _menuFocusableItems(menu)[0]?.focus();
 }
-function closeHamburger() {
-  document.getElementById('hamburger-menu').classList.remove('open');
+function closeHamburger(refocusTrigger = false) {
+  const menu = document.getElementById('hamburger-menu');
+  // Focus sitting on an item about to be display:none'd would silently fall to
+  // <body>; hand it to the trigger first so it has somewhere real to go.
+  if (refocusTrigger || menu.contains(document.activeElement)) {
+    document.getElementById('btn-hamburger').focus();
+  }
+  menu.classList.remove('open');
   document.getElementById('btn-hamburger').setAttribute('aria-expanded', 'false');
 }
+document.getElementById('hamburger-menu').addEventListener('keydown', e => {
+  _menuArrowKeydown(document.getElementById('hamburger-menu'), e);
+});
 document.addEventListener('click', e => {
   if (!document.getElementById('hamburger-wrap').contains(e.target)) {
     closeHamburger();
@@ -282,9 +349,22 @@ window.addEventListener('beforeunload', e => {
 
 // ── kebab menus ───────────────────────────────────────────────────────────────
 let _activeKebab = null;
+let _activeKebabAnchor = null;
+let _kebabDismiss = null;
+
+function closeKebab(refocusAnchor = false) {
+  if (!_activeKebab) return false;
+  _activeKebab.remove();
+  _activeKebab = null;
+  if (_kebabDismiss) { document.removeEventListener('click', _kebabDismiss); _kebabDismiss = null; }
+  const anchor = _activeKebabAnchor;
+  _activeKebabAnchor = null;
+  if (refocusAnchor && anchor?.focus) anchor.focus();
+  return true;
+}
 
 function showKebab(anchorEl, items) {
-  if (_activeKebab) { _activeKebab.remove(); _activeKebab = null; }
+  closeKebab();
   const menu = document.createElement('div');
   menu.className = 'hamburger-menu open';
   menu.style.cssText = 'position:fixed;z-index:500;min-width:160px';
@@ -299,11 +379,15 @@ function showKebab(anchorEl, items) {
     btn.className = 'hamburger-item';
     btn.textContent = item.label;
     if (item.disabled) btn.disabled = true;
-    btn.onclick = () => { menu.remove(); _activeKebab = null; item.action(); };
+    // Refocus the anchor before the action runs so anything the action opens
+    // records the anchor — not a removed menu item — as its return-focus target.
+    btn.onclick = () => { closeKebab(true); item.action(); };
     menu.appendChild(btn);
   }
+  menu.addEventListener('keydown', e => _menuArrowKeydown(menu, e));
   document.body.appendChild(menu);
   _activeKebab = menu;
+  _activeKebabAnchor = anchorEl;
 
   const rect = anchorEl.getBoundingClientRect();
   let top  = rect.bottom + 4;
@@ -314,10 +398,15 @@ function showKebab(anchorEl, items) {
   menu.style.top  = top  + 'px';
   menu.style.left = left + 'px';
 
+  _menuFocusableItems(menu)[0]?.focus();
+
   setTimeout(() => {
+    if (_activeKebab !== menu) return;  // already closed (e.g. immediate Escape)
     const dismiss = e => {
-      if (!menu.contains(e.target)) { menu.remove(); _activeKebab = null; document.removeEventListener('click', dismiss); }
+      if (menu.contains(e.target)) return;
+      closeKebab();
     };
+    _kebabDismiss = dismiss;
     document.addEventListener('click', dismiss);
   }, 0);
 }

@@ -524,6 +524,48 @@ function _renderGlossaryMd(md) {
 }
 
 // ── keyboard shortcuts ────────────────────────────────────────────────────────
+
+// Escape peels one layer per press, topmost first: floating menus (kebab z:500,
+// hamburger z:300) sit above modals (z:200), which sit above the settings panel
+// and the full-panel editors. topmostVisibleModal (ui.js) resolves modal
+// stacking — confirm/alert take priority, so a "Discard?" confirm cancels
+// without also closing the still-dirty editor underneath it.
+const _modalEscapeClosers = {
+  'confirm-modal':           () => _confirmCancel(),
+  'alert-modal':             () => closeAlertModal(),
+  'getting-started-modal':   () => closeGettingStartedModal(),
+  'about-modal':             () => closeAboutModal(),
+  'controls-modal':          () => closeControlsModal(),
+  'glossary-modal':          () => closeGlossaryModal(),
+  'field-edit-modal':        () => closeFieldEditModal(),
+  'diff-modal':              () => _diffDiscard(),
+  'score-override-modal':    () => closeScoreOverrideModal(),
+  'profile-modal':           () => closeProfileManager(),
+  'highlight-reels-modal':   () => closeHighlightReelsModal(),
+  'reel-preview-modal':      () => closeReelPreview(),
+  'retranscribe-modal':      () => closeRetranscribeModal(),
+  'context-modal':           () => closeContextManager(),
+  'batch-export-modal':      () => closeBatchExportModal(),
+  'export-settings-modal':   () => closeExportModal(),
+  'timeline-interval-modal': () => closeTimelineIntervalModal(),
+  'auto-approve-modal':      () => closeAutoApproveModal(),
+  'similar-clips-modal':     () => closeSimilarClipsModal(),
+  'actions-modal':           () => closeActionsModal(),
+};
+
+function _closeTopmostLayer() {
+  if (closeKebab(true)) return;
+  if (isHamburgerOpen()) { closeHamburger(true); return; }
+  const topModal = topmostVisibleModal();
+  if (topModal) {
+    (_modalEscapeClosers[topModal.id] || (() => topModal.classList.remove('visible')))();
+    return;
+  }
+  if (document.getElementById('settings-panel').classList.contains('visible')) { closeSettings(); return; }
+  if (isSplitEditorOpen()) { requestCloseSplitEditor(); return; }
+  if (_isNewRecordingPanelOpen()) closeNewRecordingPanel();
+}
+
 document.addEventListener('keydown', e => {
   // A focused list item (clip/video <li>) handles Enter/Space itself and calls
   // preventDefault — don't ALSO run the global shortcut (e.g. Space toggling
@@ -560,37 +602,7 @@ document.addEventListener('keydown', e => {
     return;
   }
   if (e.key === 'Escape') {
-    // The confirm modal is always the topmost layer (it can sit on top of another
-    // modal, e.g. "Discard edit?" over the field editor). Cancel only it and stop —
-    // running the full cascade would close it and let a still-dirty editor
-    // immediately re-open it.
-    if (document.getElementById('confirm-modal').classList.contains('visible')) {
-      _confirmCancel();
-      return;
-    }
-    closeGettingStartedModal();
-    closeAboutModal();
-    closeControlsModal();
-    closeGlossaryModal();
-    closeAlertModal();
-    closeFieldEditModal();
-    closeScoreOverrideModal();
-    _diffDiscard();
-    if (_isNewRecordingPanelOpen()) { closeNewRecordingPanel(); return; }
-    closeProfileManager();
-    closeDemoModal();
-    closeReelsModal();
-    closeRetranscribeModal();
-    closeContextManager();
-    closeBatchExportModal();
-    closeExportModal();
-    closeTimelineIntervalModal();
-    closeAutoApproveModal();
-    closeSimilarClipsModal();
-    closeActionsModal();
-    closeReelPreview();
-    closeSettings();
-    closeHamburger();
+    _closeTopmostLayer();
     return;
   }
 

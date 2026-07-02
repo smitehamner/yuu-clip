@@ -101,6 +101,20 @@ async function openSplitEditor(videoId) {
   _renderSuggestionLayer();
 }
 
+function requestCloseSplitEditor() {
+  if (_splitPoints.length > 0) {
+    showConfirm(
+      'Discard split points?',
+      'The split points you placed will be lost. Close without splitting?',
+      'Discard',
+      closeSplitEditor,
+      true,
+    );
+    return;
+  }
+  closeSplitEditor();
+}
+
 function closeSplitEditor() {
   const previewEl = document.getElementById('split-preview-video');
   previewEl.pause();
