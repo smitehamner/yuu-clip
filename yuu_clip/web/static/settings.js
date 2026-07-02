@@ -540,6 +540,17 @@ document.addEventListener('keydown', e => {
   if (e.key !== 'Escape' &&
       (isTyping || e.target.tagName === 'BUTTON' || e.target.tagName === 'SELECT' || e.target.tagName === 'A')) return;
 
+  // Ctrl/Cmd+Z (undo) is the only binding that intentionally uses a modifier.
+  // Every other shortcut is a bare key, so let modifier chords fall through to
+  // the browser/OS (Ctrl+R refresh, Cmd+A select-all, etc.) instead of hijacking
+  // them — running a bare-key handler here would also preventDefault the chord.
+  if (e.key === 'z' && (e.ctrlKey || e.metaKey)) {
+    e.preventDefault();
+    undoLastStatus();
+    return;
+  }
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+
   const _anyModalOpen = () => document.querySelector('.modal-bg.visible') !== null;
 
   if (e.key === '?' || e.key === '/') {
@@ -580,11 +591,6 @@ document.addEventListener('keydown', e => {
     closeReelPreview();
     closeSettings();
     closeHamburger();
-    return;
-  }
-  if (e.key === 'z' && (e.ctrlKey || e.metaKey)) {
-    e.preventDefault();
-    undoLastStatus();
     return;
   }
 
