@@ -5,6 +5,32 @@ Phases 1–3 have been moved to [COMPLETED-archive.md](COMPLETED-archive.md).
 
 ---
 
+## UX review CC-6/CC-8/CC-10 — terminology & display conventions (done, 2026-07-02)
+
+Prompt 4 of the 2026-07 UX review plan (`UX_REVIEW_PLAN.md`):
+
+- **CC-6 — scores always percentages**: the recording sidebar range now reads
+  "Scores: 12% – 87%" (was raw 0.12 – 0.87), and the Score Override slider end
+  labels are 0% / 100% (was 0.00 / 1.00).
+- **CC-8 — "Recording(s)" everywhere in user-facing text**: sidebar heading,
+  sort/search labels and placeholder, filter labels, resize-handle labels,
+  detail type badge ("🎬 Recording"), both start-button tooltip variants
+  (L5-3), empty/error list states, remove-recording dialog, timeline-interval
+  hint, estimate "% of recording duration", and stray "video/Videos" in
+  contexts and Find Similar scopes. Code identifiers stay `video`.
+  GLOSSARY.md updated: Recording/Session UI-label notes and the panel entry
+  renamed to "Recordings Panel".
+- **CC-10 — `plural(n, word[, pluralForm])` helper** in `utils.js` replaces
+  every "(s)" string and all ad-hoc `${n} clip${n !== 1 ? 's' : ''}` ternaries
+  across analyze, clips, contexts, reel, speakers, split, transcript, and
+  videos modules.
+
+Covered by `tests/test_ui_terminology.py` (18 tests: static-file contract for
+the "(s)" pattern, Videos→Recordings labels, percentage slider labels, plus
+live `plural()` behavior).
+
+---
+
 ## UX review CC-5 + L8-1 — toast standards (done, 2026-07-02)
 
 Prompt 3 of the 2026-07 UX review plan (`UX_REVIEW_PLAN.md`):

@@ -143,7 +143,7 @@ function deleteContext() {
   showConfirm(
     'Delete context?',
     `Delete context <strong>${escHtml(name)}</strong>?<br><br>` +
-    `Videos already assigned to it will keep the Context ID — you can re-create the context to restore it.`,
+    `Recordings already assigned to it will keep the Context ID — you can re-create the context to restore it.`,
     'Delete',
     () => _doDeleteContext(name),
     true,
@@ -202,7 +202,7 @@ function rescoreClips(videoId, btn) {
   const count = video ? video.clip_count : 0;
   showConfirm(
     'Re-score clips with context?',
-    `This will run LLM scoring on <strong>${count} clip${count !== 1 ? 's' : ''}</strong>.<br>` +
+    `This will run LLM scoring on <strong>${plural(count, 'clip')}</strong>.<br>` +
     `GPU time varies with clip count — this may take several minutes.`,
     'Re-score',
     () => _doRescoreClips(videoId, btn),
@@ -214,7 +214,7 @@ function rescoreFailedClips(videoId, btn) {
   const count = video ? (video.clips_llm_error || 0) : 0;
   showConfirm(
     'Re-score failed clips?',
-    `This will re-run LLM scoring only on the <strong>${count} clip${count !== 1 ? 's' : ''}</strong> ` +
+    `This will re-run LLM scoring only on the <strong>${plural(count, 'clip')}</strong> ` +
     `that failed last time. Successfully scored clips are left untouched.`,
     'Re-score',
     () => _doRescoreClips(videoId, btn, 'rescore-failed-clips'),
@@ -239,7 +239,7 @@ function _doRescoreClips(videoId, btn, endpoint = 'rescore-clips') {
       _clearActiveStream(handle);
       resetBtn();
       if (errorCount > 0) {
-        showToast(`Re-scoring finished — ${errorCount} clip${errorCount !== 1 ? 's' : ''} failed (check log)`, 'error');
+        showToast(`Re-scoring finished — ${plural(errorCount, 'clip')} failed (check log)`, 'error');
         SoundFx.play('error');
       } else {
         showToast('Re-scoring complete');
@@ -274,7 +274,7 @@ function rescoreAllClips(videoId, btn) {
     `No world context assigned — descriptions will be generic.</div>`;
   showConfirm(
     'Re-score all clips?',
-    `Re-run LLM scoring on all <strong>${count} clip${count !== 1 ? 's' : ''}</strong>. ` +
+    `Re-run LLM scoring on all <strong>${plural(count, 'clip')}</strong>. ` +
     `Scores and descriptions will be overwritten. This cannot be undone.` +
     contextWarn +
     `<div style="margin-top:8px;font-size:12px;color:var(--muted)">This may take several minutes.</div>`,
@@ -293,7 +293,7 @@ function redescribeAllClips(videoId, btn) {
     `No world context assigned — descriptions will be generic.</div>`;
   showConfirm(
     'Re-describe all clips?',
-    `Regenerate LLM descriptions for all <strong>${count} clip${count !== 1 ? 's' : ''}</strong>. ` +
+    `Regenerate LLM descriptions for all <strong>${plural(count, 'clip')}</strong>. ` +
     `Scores will not change. Manually edited descriptions are preserved.` +
     contextWarn +
     `<div style="margin-top:8px;font-size:12px;color:var(--muted)">This may take several minutes.</div>`,
@@ -321,7 +321,7 @@ function _doRedescribeClips(videoId, btn) {
       _clearActiveStream(handle);
       resetBtn();
       if (errorCount > 0) {
-        showToast(`Re-describe finished — ${errorCount} clip${errorCount !== 1 ? 's' : ''} failed (check log)`, 'error');
+        showToast(`Re-describe finished — ${plural(errorCount, 'clip')} failed (check log)`, 'error');
       } else {
         showToast('Descriptions regenerated');
       }
@@ -350,7 +350,7 @@ function resetApprovals(videoId) {
   if (!nonPending) { showToast('All clips are already Unreviewed', 'info'); return; }
   showConfirm(
     'Reset all approvals?',
-    `Reset <strong>${nonPending} clip${nonPending !== 1 ? 's' : ''}</strong> back to Unreviewed for this video. This cannot be undone.`,
+    `Reset <strong>${plural(nonPending, 'clip')}</strong> back to Unreviewed for this recording. This cannot be undone.`,
     'Reset',
     () => _doResetApprovals(videoId),
     true,
@@ -367,7 +367,7 @@ async function _doResetApprovals(videoId) {
   const data = await res.json();
   AppState.clips = await fetch(`/api/videos/${videoId}/clips?sort=${_clipsSortParam()}`).then(r => r.json());
   _renderClips();
-  showToast(`Reset ${data.reset} clip${data.reset !== 1 ? 's' : ''} to Unreviewed`);
+  showToast(`Reset ${plural(data.reset, 'clip')} to Unreviewed`);
 }
 
 // ── auto-approve ──────────────────────────────────────────────────────────────
@@ -413,7 +413,7 @@ function updateAutoApprovePreview() {
     el.textContent = `No unreviewed clips meet this threshold (${pending.length} unreviewed total).`;
     document.getElementById('auto-approve-ok').disabled = true;
   } else {
-    el.textContent = `${eligible.length} of ${pending.length} unreviewed clip${eligible.length !== 1 ? 's' : ''} will be approved.`;
+    el.textContent = `${eligible.length} of ${plural(pending.length, 'unreviewed clip')} will be approved.`;
     document.getElementById('auto-approve-ok').disabled = false;
   }
 }
@@ -436,7 +436,7 @@ async function doAutoApprove() {
   const data = await res.json();
   AppState.clips = await fetch(`/api/videos/${videoId}/clips?sort=${_clipsSortParam()}`).then(r => r.json());
   _renderClips();
-  showToast(`Approved ${data.approved} clip${data.approved !== 1 ? 's' : ''}`);
+  showToast(`Approved ${plural(data.approved, 'clip')}`);
 }
 
 // ── retranscribe ──────────────────────────────────────────────────────────────

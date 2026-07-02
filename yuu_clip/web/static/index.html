@@ -132,7 +132,7 @@
       </select>
     </div>
     <div id="s-backend-remote-warning" style="display:none;margin:0 0 8px;padding:8px 12px;border-radius:6px;background:rgba(240,192,96,.12);border:1px solid rgba(240,192,96,.4);font-size:12px;color:var(--warning)">
-      &#x26A0; <strong>Remote backend</strong> — transcript data is sent to an external API and <strong>billed per token</strong>. Every analyze run, re-score, timeline, and video summary will incur costs.
+      &#x26A0; <strong>Remote backend</strong> — transcript data is sent to an external API and <strong>billed per token</strong>. Every analyze run, re-score, timeline, and session summary will incur costs.
     </div>
     <!-- llamacpp fields -->
     <div id="s-llamacpp-fields">
@@ -445,10 +445,10 @@
   <div class="sidebar">
     <div class="sidebar-group videos-group">
       <div class="clips-section-header">
-        <span>Videos</span>
+        <span>Recordings</span>
         <div style="display:flex;align-items:center;gap:4px">
           <span style="font-size:10px;color:var(--muted)">&#x1F53D; Sort</span>
-          <select id="videos-sort" class="clips-sort-select" aria-label="Sort videos by" onchange="setVideoSort(this.value)">
+          <select id="videos-sort" class="clips-sort-select" aria-label="Sort recordings by" onchange="setVideoSort(this.value)">
             <option value="recent">Recent</option>
             <option value="title">Title</option>
             <option value="length">Length</option>
@@ -457,17 +457,17 @@
         </div>
       </div>
       <div class="clip-search-row">
-        <input type="search" id="video-search-input" placeholder="Search videos…" oninput="setVideoSearch(this.value)" aria-label="Search videos">
+        <input type="search" id="video-search-input" placeholder="Search recordings…" oninput="setVideoSearch(this.value)" aria-label="Search recordings">
       </div>
-      <div class="clip-filter-tabs" aria-label="Video filters">
+      <div class="clip-filter-tabs" aria-label="Recording filters">
         <button class="clip-chip active" aria-pressed="true"  data-vfilter="all"       onclick="toggleVideoFilter('all')">All</button>
         <button class="clip-chip"        aria-pressed="false" data-vfilter="has-clips" onclick="toggleVideoFilter('has-clips')">Has clips</button>
         <button class="clip-chip"        aria-pressed="false" data-vfilter="unscored"  onclick="toggleVideoFilter('unscored')">Unscored</button>
-        <button class="clip-chip"        aria-pressed="false" data-vfilter="errors"    onclick="toggleVideoFilter('errors')" title="Videos with clip scoring errors">&#9888; Errors</button>
+        <button class="clip-chip"        aria-pressed="false" data-vfilter="errors"    onclick="toggleVideoFilter('errors')" title="Recordings with clip scoring errors">&#9888; Errors</button>
       </div>
       <ul class="sidebar-list" id="video-list"></ul>
     </div>
-    <div class="resize-handle resize-handle-v" id="videos-clips-resize-handle" title="Drag to resize Videos / Clips panels" role="separator" aria-orientation="horizontal" aria-label="Resize Videos / Clips panels"></div>
+    <div class="resize-handle resize-handle-v" id="videos-clips-resize-handle" title="Drag to resize Recordings / Clips panels" role="separator" aria-orientation="horizontal" aria-label="Resize Recordings / Clips panels"></div>
     <div class="sidebar-group clips-group">
       <div class="clips-section-header">
         <span>Clips</span>
@@ -1048,7 +1048,7 @@
           <textarea class="ctx-textarea" id="ce-setting" rows="2" placeholder="Tactical FPS — squad-based competitive matches. Win by eliminating the enemy team or completing objectives."></textarea>
         </div>
         <div class="field">
-          <label for="ce-your-chars">Your player(s)</label>
+          <label for="ce-your-chars">Your players</label>
           <textarea class="ctx-textarea" id="ce-your-chars" rows="2" placeholder="You play as [username], duelist role, usually calling strats for the squad."></textarea>
         </div>
         <div class="field">
@@ -1337,7 +1337,7 @@
              style="width:100%;accent-color:var(--accent)"
              oninput="document.getElementById('score-override-display').textContent=Math.round(parseFloat(this.value)*100)+'%'">
       <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:2px">
-        <span>0.00</span><span>1.00</span>
+        <span>0%</span><span>100%</span>
       </div>
       <div id="score-override-llm-note" style="font-size:12px;color:var(--muted);margin-top:8px"></div>
     </div>

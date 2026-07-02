@@ -246,7 +246,7 @@ function renderEstimate(info, data) {
   const totalWarn  = data.total_seconds >= warnS;
   const totalBadge = totalWarn ? `<span class="total-warn-badge">&#9888; Long job</span>` : '';
   const pctLine    = data.pct_of_video != null
-    ? `<div class="estimate-pct">&#8776; ${data.pct_of_video.toFixed(1)}% of video duration</div>`
+    ? `<div class="estimate-pct">&#8776; ${data.pct_of_video.toFixed(1)}% of recording duration</div>`
     : '';
 
   document.getElementById('estimate-area').innerHTML = `
@@ -254,7 +254,7 @@ function renderEstimate(info, data) {
       <div class="probe-info">
         ${escHtml(info.filename)} &middot; ${info.duration_hms} &middot;
         ${info.width}&#x2715;${info.height} @ ${info.fps.toFixed(0)}fps &middot;
-        ${info.audio_tracks} audio track(s)
+        ${plural(info.audio_tracks, 'audio track')}
       </div>
       ${rows}
       <div class="estimate-total">
@@ -372,7 +372,7 @@ function _analyzeSegmentsSequentially(
 ) {
   if (index >= segments.length) {
     loadVideos().then(() =>
-      showToast(`Analysis complete — ${segments.length} segment(s)`)
+      showToast(`Analysis complete — ${plural(segments.length, 'segment')}`)
     );
     SoundFx.play('analysis');
     return;
@@ -416,7 +416,7 @@ function _analyzeSegmentsSequentially(
 function _showAnalysisToast(video) {
   const count = video ? video.clip_count : 0;
   const canJump = video && AppState.activeVideoId !== video.id;
-  showToast(`Analysis complete — ${count} clip${count !== 1 ? 's' : ''} found`, 'success', {
+  showToast(`Analysis complete — ${plural(count, 'clip')} found`, 'success', {
     durationMs: 8000,
     ...(canJump ? {action: {label: 'Review', onClick: () => selectVideo(video.id)}} : {}),
   });
@@ -495,7 +495,7 @@ async function _refreshProfileList() {
   el.innerHTML = _allProfiles.map(p => `
     <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border)">
       <span style="flex:1;font-size:13px">${p.builtin ? '<span title="Built-in layout — cannot be edited or deleted">&#128274;</span> ' : ''}${escHtml(p.display_name)}</span>
-      <span style="color:var(--muted);font-size:12px">${p.num_tracks} track${p.num_tracks !== 1 ? 's' : ''}</span>
+      <span style="color:var(--muted);font-size:12px">${plural(p.num_tracks, 'track')}</span>
       ${!p.builtin ? `
         <button class="btn" style="padding:4px 10px;font-size:12px" data-edit-profile="${escHtml(p.name)}">Edit</button>
         <button class="btn danger" style="padding:4px 10px;font-size:12px" data-delete-profile="${escHtml(p.name)}">Delete</button>

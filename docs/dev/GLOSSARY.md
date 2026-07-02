@@ -72,8 +72,8 @@ A video file containing a gaming session — the primary input to yuu-clip.
 
 - **Code:** `video`, `video_path`
 - **Also called in codebase:** "video", "source file"
-- **Do not call it:** "session" (that's the gameplay period, not the file)
-- **UI label:** listed in the Sessions panel
+- **Do not call it:** "session" (that's the gameplay period, not the file); "video" in user-facing text
+- **UI label:** "Recordings" (sidebar panel heading); "🎬 Recording" detail type badge; "recording" in sort/search labels and messages
 
 ---
 
@@ -83,7 +83,7 @@ The gameplay period captured in a recording — e.g., "last night's FiveM sessio
 
 - **Also called:** gaming session, gameplay session
 - **Do not confuse with:** SQLAlchemy `Session` object (dev-only; never user-facing) — see [Disambiguation](#disambiguation)
-- **UI label:** "Sessions" (sidebar panel heading)
+- **UI label:** appears only in "Session Summary" and "Session Timeline" — the sidebar panel heading is "Recordings" (see [Recording](#recording))
 
 ---
 
@@ -567,11 +567,12 @@ A brief text overlay that appears between clips in a highlight reel, identifying
 
 ## UI & Review Concepts
 
-### Sessions Panel
+### Recordings Panel
 
 The top section of the left sidebar listing all ingested recordings.
 
-- **UI label:** top half of left sidebar
+- **UI label:** "Recordings" (top half of left sidebar)
+- **Do not call it:** "Sessions panel" (pre-2026-07 name), "Videos panel"
 
 ---
 

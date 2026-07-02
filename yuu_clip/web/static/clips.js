@@ -930,9 +930,9 @@ async function _doExportVideoTranscript(id, btn, overwrite) {
 // ── delete ────────────────────────────────────────────────────────────────────
 function deleteVideo(id) {
   const video = AppState.videos.find(v => v.id === id);
-  const name  = video ? video.filename : `video ${id}`;
+  const name  = video ? video.filename : `recording ${id}`;
   showConfirm(
-    'Remove video?',
+    'Remove recording?',
     `Remove <strong>${escHtml(name)}</strong> from yuu-clip?<br><br>` +
     `All clips, transcripts, and extracted audio are removed from the database. ` +
     `Your source recording file is <strong>not</strong> deleted.`,
@@ -948,7 +948,7 @@ async function _doDeleteVideo(id, name) {
   const delRes = await fetch(`/api/videos/${id}`, {method: 'DELETE'});
   if (!delRes.ok) {
     const err = await delRes.json().catch(() => ({}));
-    showToast(`Failed to remove video: ${formatApiError(err)}`, 'error');
+    showToast(`Failed to remove recording: ${formatApiError(err)}`, 'error');
     if (AppState.activeClipId) selectClip(AppState.activeClipId);
     return;
   }
@@ -1040,7 +1040,7 @@ async function bulkSetClipStatus(status) {
     renderDetail(clip);
   }
   loadVideos();
-  showToast(`${label}: ${ids.length} clip${ids.length !== 1 ? 's' : ''}`);
+  showToast(`${label}: ${plural(ids.length, 'clip')}`);
 }
 
 function bulkDeleteClips() {
@@ -1048,7 +1048,7 @@ function bulkDeleteClips() {
   if (!ids.length) return;
   showConfirm(
     'Delete selected clips?',
-    `${ids.length} clip record${ids.length !== 1 ? 's' : ''} will be removed from the database. ` +
+    `${plural(ids.length, 'clip record')} will be removed from the database. ` +
     `Any exported video files will also be deleted from the exports folder.`,
     'Delete',
     () => _doBulkDeleteClips(ids),
@@ -1080,9 +1080,9 @@ async function _doBulkDeleteClips(ids) {
   await loadVideos();
   const n = data.deleted.length;
   if (data.locked.length) {
-    showToast(`Deleted ${n} clip${n !== 1 ? 's' : ''} — ${data.locked.length} could not be deleted (file in use)`, 'error');
+    showToast(`Deleted ${plural(n, 'clip')} — ${data.locked.length} could not be deleted (file in use)`, 'error');
   } else {
-    showToast(`Deleted ${n} clip${n !== 1 ? 's' : ''}`);
+    showToast(`Deleted ${plural(n, 'clip')}`);
   }
 }
 
@@ -1114,7 +1114,7 @@ function _doBulkExportClips(ids) {
     async () => {
       await _reloadClipList(AppState.activeVideoId);
       loadVideos();
-      showToast(`Exported ${ids.length} clip${ids.length !== 1 ? 's' : ''}`);
+      showToast(`Exported ${plural(ids.length, 'clip')}`);
       SoundFx.play('export');
     },
     [{label: 'Export', patterns: ['Exporting', 'OK', 'Skipping']}],
@@ -1142,10 +1142,10 @@ function openSimilarClipsModal(clipId) {
     scope.appendChild(row);
   };
 
-  if (currentVideo) addCheck(currentVideo.id, `${currentVideo.title || currentVideo.filename} (this video)`, true);
+  if (currentVideo) addCheck(currentVideo.id, `${currentVideo.title || currentVideo.filename} (this recording)`, true);
   for (const v of otherVideos) addCheck(v.id, v.title || v.filename, false);
   if (!currentVideo && !otherVideos.length) {
-    scope.innerHTML = '<div style="font-size:12px;color:var(--muted)">No processed videos available</div>';
+    scope.innerHTML = '<div style="font-size:12px;color:var(--muted)">No processed recordings available</div>';
   }
 
   document.getElementById('similar-clips-modal').classList.add('visible');
@@ -1189,7 +1189,7 @@ function startFindSimilar() {
       const clip = await fetch(`/api/clips/${clipId}`).then(r => r.json()).catch(() => null);
       if (clip) { AppState.activeClipData = clip; renderDetail(clip); }
       const count = msg.results?.length ?? 0;
-      showToast(count ? `Found ${count} similar clip${count !== 1 ? 's' : ''}` : 'No similar clips found');
+      showToast(count ? `Found ${plural(count, 'similar clip')}` : 'No similar clips found');
     },
     errMsg => {
       _clearActiveStream(handle);

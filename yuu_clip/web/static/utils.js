@@ -75,6 +75,10 @@ function _msToHms(ms) {
   return `${h}h ${String(min).padStart(2, '0')}m`;
 }
 
+function plural(count, singular, pluralForm) {
+  return `${count} ${count === 1 ? singular : (pluralForm || singular + 's')}`;
+}
+
 function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }

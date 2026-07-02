@@ -207,7 +207,7 @@ async function _reassignLine(segId, speakerId, videoId) {
     const data = await res.json();
     _closeSpeakerMenu();
     const n = (data.affected_clip_ids || []).length;
-    showToast(n ? `Speaker reassigned — ${n} clip${n === 1 ? '' : 's'} affected; re-score to refresh` : 'Speaker reassigned');
+    showToast(n ? `Speaker reassigned — ${plural(n, 'clip')} affected; re-score to refresh` : 'Speaker reassigned');
     _refreshAfterSpeakerChange(videoId, data.affected_clip_ids);
   } catch (err) {
     showToast(`Could not reassign speaker: ${err.message}`, 'error');
@@ -302,7 +302,7 @@ function startEditCaption(span) {
 function _onCaptionEdited(data) {
   const affected = data.affected_clip_ids || [];
   showToast(affected.length
-    ? `Caption updated — ${affected.length} clip${affected.length !== 1 ? 's' : ''} affected; re-score to refresh`
+    ? `Caption updated — ${plural(affected.length, 'clip')} affected; re-score to refresh`
     : 'Caption updated');
   // Refresh the open clip's detail so its excerpt and the re-score notice update.
   const openId = AppState.activeClipId;

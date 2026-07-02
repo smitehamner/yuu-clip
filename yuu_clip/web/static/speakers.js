@@ -103,7 +103,7 @@ function _suggestSpeakerNames() {
       if (hadError) { showToast('Name suggestion failed — check log for details', 'error'); return; }
       const n = (msg && typeof msg === 'object' && msg.suggested) || 0;
       showToast(n > 0
-        ? `${n} name suggestion${n === 1 ? '' : 's'} — review and accept`
+        ? `${plural(n, 'name suggestion')} — review and accept`
         : 'No names could be inferred from the transcript');
       await loadSpeakers(videoId);
     },

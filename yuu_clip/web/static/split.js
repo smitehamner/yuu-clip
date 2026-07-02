@@ -528,7 +528,7 @@ async function _doSplitPartitionOnly() {
       throw new Error(formatApiError(err));
     }
     const data = await res.json();
-    showToast(`Recording split into ${data.segment_ids.length} segment(s)`);
+    showToast(`Recording split into ${plural(data.segment_ids.length, 'segment')}`);
     closeSplitEditor();
     await loadVideos();
   } catch (err) {
@@ -591,7 +591,7 @@ async function _doSplitAndReanalyze(keepExported) {
 function _reanalyzeSegmentsSequentially(segmentIds, index) {
   if (index >= segmentIds.length) {
     loadVideos().then(() =>
-      showToast(`Reanalysis complete — ${segmentIds.length} segment(s)`)
+      showToast(`Reanalysis complete — ${plural(segmentIds.length, 'segment')}`)
     );
     return;
   }

@@ -183,7 +183,7 @@ class TestDeleteVideoConfirm:
 
     def test_confirm_modal_has_remove_title(self, page: Page):
         self._open_delete_confirm(page)
-        expect(page.locator("#confirm-title")).to_contain_text("Remove video?")
+        expect(page.locator("#confirm-title")).to_contain_text("Remove recording?")
 
     def test_body_says_source_file_is_kept(self, page: Page):
         self._open_delete_confirm(page)

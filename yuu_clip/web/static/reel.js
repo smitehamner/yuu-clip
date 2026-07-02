@@ -158,7 +158,7 @@ function updateReelEstimate() {
   const exportBtn = document.getElementById('reel-export-btn');
   if (exportBtn) {
     exportBtn.style.display = unexported > 0 ? '' : 'none';
-    exportBtn.textContent = `⬇ Export ${unexported} clip(s)`;
+    exportBtn.textContent = `⬇ Export ${plural(unexported, 'clip')}`;
   }
   const el = document.getElementById('reel-estimate');
   if (!el) return;
@@ -168,8 +168,8 @@ function updateReelEstimate() {
   }
   const fmtS = s => s < 60 ? `${s.toFixed(0)}s` : `${Math.floor(s/60)}m ${(s%60).toFixed(0)}s`;
   el.innerHTML =
-    `${n} clip(s) · ${fmtS(totalFootageS)} footage · encode ~${fmtS(encodeEtaS)}` +
-    (unexported ? `<div class="reel-no-export-warn">⚠ ${unexported} clip(s) not yet exported — export them first or they will be skipped</div>` : '');
+    `${plural(n, 'clip')} · ${fmtS(totalFootageS)} footage · encode ~${fmtS(encodeEtaS)}` +
+    (unexported ? `<div class="reel-no-export-warn">⚠ ${plural(unexported, 'clip')} not yet exported — export them first or they will be skipped</div>` : '');
 }
 
 async function exportUnexportedReelClips() {
@@ -182,7 +182,7 @@ async function exportUnexportedReelClips() {
   const ids = toExport.map(c => c.id).join(',');
   const statusEl = document.getElementById('demo-status');
   statusEl.style.color = 'var(--muted)';
-  statusEl.textContent = `Exporting ${toExport.length} clip(s)…`;
+  statusEl.textContent = `Exporting ${plural(toExport.length, 'clip')}…`;
   openLog();
   streamSSE(
     `/api/clips/bulk-export?clip_ids=${encodeURIComponent(ids)}`,
@@ -294,11 +294,11 @@ async function startDemo() {
     return;
   }
   const data = await res.json();
-  const skipNote = unexported.length ? ` — ${unexported.length} unexported clip(s) skipped` : '';
-  statusEl.textContent = `Building reel from ${data.clip_count} clip(s)…${skipNote}`;
+  const skipNote = unexported.length ? ` — ${plural(unexported.length, 'unexported clip')} skipped` : '';
+  statusEl.textContent = `Building reel from ${plural(data.clip_count, 'clip')}…${skipNote}`;
   closeDemoModal();
   openLog();
-  if (unexported.length) appendLog(`[Skipping ${unexported.length} clip(s) that have not been exported]`);
+  if (unexported.length) appendLog(`[Skipping ${plural(unexported.length, 'clip')} not yet exported]`);
   streamSSE(
     '/api/demo/events',
     () => {
@@ -355,7 +355,7 @@ function updateBatchEstimate() {
   const eligible = AppState.clips
     ? AppState.clips.filter(c => c.status === 'approved' && c.score_overall >= minScore).length
     : video.approved;
-  el.textContent = `${eligible} clip(s) match`;
+  el.textContent = `${plural(eligible, 'clip')} ${eligible === 1 ? 'matches' : 'match'}`;
 }
 
 async function confirmBatchExport() {

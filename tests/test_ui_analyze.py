@@ -258,4 +258,4 @@ class TestEstimateDisplay:
         self._open_analyze(page)
         _inject_estimate(page, pct=96.0)
         expect(page.locator(".estimate-pct")).to_contain_text("96.0%")
-        expect(page.locator(".estimate-pct")).to_contain_text("of video")
+        expect(page.locator(".estimate-pct")).to_contain_text("of recording")

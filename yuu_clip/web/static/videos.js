@@ -8,7 +8,7 @@ async function loadVideos() {
     videos = await res.json();
   } catch (err) {
     document.getElementById('video-list').innerHTML =
-      `<li style="padding:10px 14px;color:var(--red)">Failed to load videos: ${escHtml(String(err.message || err))}</li>`;
+      `<li style="padding:10px 14px;color:var(--red)">Failed to load recordings: ${escHtml(String(err.message || err))}</li>`;
     return;
   }
   AppState.videos = videos;
@@ -21,7 +21,7 @@ async function loadVideos() {
 
   if (!videos.length && !showPlaceholder) {
     document.getElementById('video-list').innerHTML =
-      '<li style="padding:10px 14px;color:var(--muted)">No videos yet</li>';
+      '<li style="padding:10px 14px;color:var(--muted)">No recordings yet</li>';
     _showEmptyState();
     _updateDemoButton(0);
     return;
@@ -69,8 +69,8 @@ function _renderVideoList() {
   if (!shown.length && !showPlaceholder) {
     const hasFilter = AppState.videoSearch || (AppState.videoFilters && AppState.videoFilters.size);
     list.innerHTML = hasFilter
-      ? `<li style="padding:10px 14px;color:var(--muted)">No videos match — <a href="#" style="color:var(--accent);text-decoration:underline" onclick="event.preventDefault();_clearVideoFilters()">Clear filters</a></li>`
-      : '<li style="padding:10px 14px;color:var(--muted)">No videos yet</li>';
+      ? `<li style="padding:10px 14px;color:var(--muted)">No recordings match — <a href="#" style="color:var(--accent);text-decoration:underline" onclick="event.preventDefault();_clearVideoFilters()">Clear filters</a></li>`
+      : '<li style="padding:10px 14px;color:var(--muted)">No recordings yet</li>';
     return;
   }
 
@@ -86,7 +86,7 @@ function _renderVideoList() {
       ? ` (${Math.round(v.total_clip_ms / v.duration_ms * 100)}%)`
       : '';
     const scoreBar = (v.score_min !== null && v.score_max !== null && v.clip_count > 0)
-      ? `<div class="meta">Scores: ${v.score_min.toFixed(2)} – ${v.score_max.toFixed(2)}</div>`
+      ? `<div class="meta">Scores: ${Math.round(v.score_min * 100)}% – ${Math.round(v.score_max * 100)}%</div>`
       : '';
     const procBadges = [
       v.summarized_at   ? '' : '<span style="font-size:10px;color:var(--muted)" title="No summary yet">– no summary</span>',
@@ -98,7 +98,7 @@ function _renderVideoList() {
       : '';
     const errCount = v.clips_llm_error || 0;
     const errBadge = errCount > 0
-      ? `<div class="meta" style="margin-top:2px;color:var(--warning)" title="LLM scoring failed for ${errCount} clip${errCount !== 1 ? 's' : ''} — re-score to retry">&#9888; ${errCount} scoring error${errCount !== 1 ? 's' : ''}</div>`
+      ? `<div class="meta" style="margin-top:2px;color:var(--warning)" title="LLM scoring failed for ${plural(errCount, 'clip')} — re-score to retry">&#9888; ${plural(errCount, 'scoring error')}</div>`
       : '';
     li.innerHTML = `
       <div class="name" title="${v.title ? escHtml(v.filename) : ''}">${escHtml(v.title || v.filename)}</div>
@@ -193,7 +193,7 @@ function _updateDemoButton(approvedCount) {
   const btn = document.getElementById('btn-highlight-reels');
   btn.title = approvedCount === 0
     ? 'View existing reels or build one after approving some clips'
-    : `View or build a highlight reel from ${approvedCount} approved clip(s)`;
+    : `View or build a highlight reel from ${plural(approvedCount, 'approved clip')}`;
 }
 
 function _updateStartIngestButton() {
@@ -201,7 +201,7 @@ function _updateStartIngestButton() {
   if (!btn) return;
   if (window._prereqs && !window._prereqs.ffmpeg_ok) return;
   btn.disabled = !_probedInfo;
-  btn.title = _probedInfo ? '' : 'Select a valid video file first';
+  btn.title = _probedInfo ? '' : 'Select a valid recording file first';
 }
 
 function _clipsSortParam() {
@@ -268,7 +268,7 @@ function renderVideoDetail(video, savedTimeline) {
     `<video controls preload="metadata" src="/api/videos/${video.id}/source" aria-label="Recording preview" style="display:block;width:100%;max-height:var(--player-max-height, 42vh);object-fit:contain;background:#000"></video>`;
   document.getElementById('detail').innerHTML = `
     <div>
-      <div class="detail-type-badge video-badge" style="margin-bottom:8px">&#127916; Video</div>
+      <div class="detail-type-badge video-badge" style="margin-bottom:8px">&#127916; Recording</div>
       <div class="video-detail-header">
         <div style="color:var(--muted);font-size:13px;margin-top:4px">${video.duration_hms} &middot; ${video.clip_count} clips &middot; ${_msToHms(video.total_clip_ms)} clipped</div>
       </div>
@@ -450,7 +450,7 @@ function _renderContextSection(video) {
 
   const errCount = video.clips_llm_error || 0;
   const failedBtn = errCount > 0
-    ? `<button class="btn" style="font-size:12px;padding:4px 12px;border-color:var(--warning);color:var(--warning)" onclick="rescoreFailedClips(${video.id}, this)" title="Re-run LLM scoring only for the ${errCount} clip${errCount !== 1 ? 's' : ''} that failed last time">&#9888; Re-score ${errCount} failed clip${errCount !== 1 ? 's' : ''}</button>`
+    ? `<button class="btn" style="font-size:12px;padding:4px 12px;border-color:var(--warning);color:var(--warning)" onclick="rescoreFailedClips(${video.id}, this)" title="Re-run LLM scoring only for the ${plural(errCount, 'clip')} that failed last time">&#9888; Re-score ${plural(errCount, 'failed clip')}</button>`
     : '';
 
   return `
@@ -537,9 +537,9 @@ function updateTimelineIntervalHint(video) {
     const durMin = Math.round(dur / 60);
     const entries = Math.max(1, Math.ceil(dur / intervalS));
     if (intervalS >= dur) {
-      hint.textContent = `Video is ${durMin} min — this produces 1 entry covering the whole session.`;
+      hint.textContent = `Recording is ${durMin} min — this produces 1 entry covering the whole session.`;
     } else {
-      hint.textContent = `Video is ${durMin} min — produces ~${entries} entr${entries !== 1 ? 'ies' : 'y'}.`;
+      hint.textContent = `Recording is ${durMin} min — produces ~${plural(entries, 'entry', 'entries')}.`;
     }
   } else {
     hint.textContent = '';
@@ -702,7 +702,7 @@ async function _refreshVideoDetail(videoId) {
 function reanalyzeVideo(id) {
   const video = AppState.videos.find(v => v.id === id);
   const exportedNote = (video && video.exported > 0)
-    ? ` Files you already exported for this recording stay on disk, but the ${video.exported} exported clip(s) will be regenerated.`
+    ? ` Files you already exported for this recording stay on disk, but the ${plural(video.exported, 'exported clip')} will be regenerated.`
     : '';
   showConfirm(
     'Re-analyze this recording?',
