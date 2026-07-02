@@ -1,3 +1,8 @@
+"""Pure Python helpers and DB model properties.
+
+Not to be confused with test_ui_utils.py, which exercises the JS helpers in
+yuu_clip/web/static/*.js via Playwright.
+"""
 from __future__ import annotations
 
 # ---------------------------------------------------------------------------
@@ -208,6 +213,76 @@ class TestClipCandidateProperties:
         c = self._clip()
         c.tags = ["llm_scored", "energy_scored"]
         assert c.tags == ["llm_scored", "energy_scored"]
+
+
+class TestVideoEffectiveProperties:
+    def _video(self, **kwargs):
+        from yuu_clip.db.models import Video
+        return Video(path="x.mkv", filename="x.mkv", **kwargs)
+
+    def test_title_user_override_wins(self):
+        assert self._video(title="LLM title", title_user="My title").effective_title == "My title"
+
+    def test_title_falls_back_to_stored(self):
+        assert self._video(title="LLM title").effective_title == "LLM title"
+
+    def test_title_empty_user_override_wins(self):
+        assert self._video(title="LLM title", title_user="").effective_title == ""
+
+    def test_title_none_returns_empty_string(self):
+        assert self._video().effective_title == ""
+
+    def test_summary_user_override_wins(self):
+        assert self._video(summary="LLM", summary_user="Mine").effective_summary == "Mine"
+
+    def test_summary_none_returns_empty_string(self):
+        assert self._video().effective_summary == ""
+
+
+class TestClipEffectiveProperties:
+    def _clip(self, **kwargs):
+        from yuu_clip.db.models import ClipCandidate
+        return ClipCandidate(video_id=1, start_ms=0, end_ms=1000, **kwargs)
+
+    def test_description_user_override_wins(self):
+        assert self._clip(description="LLM", description_user="Mine").effective_description == "Mine"
+
+    def test_description_empty_user_override_wins(self):
+        assert self._clip(description="LLM", description_user="").effective_description == ""
+
+    def test_description_none_returns_empty_string(self):
+        assert self._clip().effective_description == ""
+
+    def test_description_long_user_override_wins(self):
+        clip = self._clip(description_long="LLM long", description_long_user="Mine long")
+        assert clip.effective_description_long == "Mine long"
+
+    def test_description_long_none_returns_empty_string(self):
+        assert self._clip().effective_description_long == ""
+
+
+# ---------------------------------------------------------------------------
+# _shared.py — _json_list
+# ---------------------------------------------------------------------------
+
+class TestJsonList:
+    def _fn(self, s):
+        from yuu_clip.web.routes._shared import _json_list
+        return _json_list(s)
+
+    def test_none_returns_empty(self):
+        assert self._fn(None) == []
+
+    def test_empty_string_returns_empty(self):
+        assert self._fn("") == []
+
+    def test_encoded_list_decoded(self):
+        import json
+        assert self._fn(json.dumps(["a", "b"])) == ["a", "b"]
+
+    def test_encoded_empty_list(self):
+        import json
+        assert self._fn(json.dumps([])) == []
 
 
 # ---------------------------------------------------------------------------

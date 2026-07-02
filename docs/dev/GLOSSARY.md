@@ -10,6 +10,60 @@ Two design principles drove the choices below:
 
 ---
 
+## Quick reference
+
+Most lookups only need this table: the authoritative user-facing term, the code name, and what it is. Full entries (with "do not call it", UI labels, and notes) follow below — read the full entry before renaming anything or introducing a new concept.
+
+| User-facing term | Code | What it is |
+|---|---|---|
+| Recording | `video`, `video_path` | A video file input — not "session" (that's the gameplay period) |
+| Session | — | The gameplay period captured in a recording |
+| Duration | `duration_ms`, `duration_hms` | Display as `1h 23m 45s`, never raw ms |
+| Track | `AudioTrack`, `stream_index` | One audio stream in a recording — not "stream" in UI |
+| Track role | `label` | Semantic function: Player Voice / Voice Chat / Game Sounds / Combined / Unlabeled |
+| Track layout | `profile` | Saved template mapping track positions to roles |
+| Analyze | `ingest`, `run_ingest()` | End-to-end pipeline run — never "ingest" in UI |
+| Pipeline stage | `step` | Inspect → Assign Tracks → Extract → Transcribe → Detect Speakers → Generate Clips → Score |
+| Inspect | `probe()` | Read recording metadata — never "probe" in UI |
+| Extract | `extract_audio()` | Track → WAV conversion (internal stage) |
+| Rescore | `score`, `/api/score` | Re-run scoring only |
+| Job | `ingest_proc` | The one active analysis/rescore operation |
+| Transcript | `Transcript`, `full_text` | Speech-to-text output, one per eligible track |
+| Speech-to-text model | `whisper_model` | Whisper — never bare "model" |
+| Transcription language | `whisper_language` | What Whisper hears (`""` = auto) — not UI localization |
+| Caption segment | `TranscriptSegment` | One timed phrase — never bare "segment" |
+| Speaker | `Speaker` | A diarized voice — show name or "Speaker N", never `SPEAKER_00` |
+| Speaker name | `Speaker.name` | Creator-assigned name for a speaker |
+| Suggested speaker name | `source='inferred'`, `confirmed=False` | LLM-proposed name awaiting Accept/Dismiss |
+| Speaker labels | `diarization_backend` | The feature: transcripts show who is speaking — not "diarization" in UI |
+| Speaker detection | `rediarizeVideo`, pyannote | The action/install that powers speaker labels |
+| Voiceprint | `Speaker.voiceprint` | Internal voice embedding — never user-facing |
+| Clip | `ClipCandidate` | A proposed highlight moment — never "clip candidate" in UI |
+| Clip status | `status` | `pending` → **Unreviewed**, `approved` → Approved, `rejected` → Rejected |
+| Clip window | `start_ms`, `end_ms` | The analyzed time range |
+| Trim | `start_offset_s`, `end_offset_s` | Creator offsets applied at export |
+| Clip generation | `generate_candidates()` | Transcript → candidate windows — not "segmentation" in UI |
+| Score | `score_overall`, `score_funny`, … | 0–1 rating per dimension |
+| Scoring dimension | `funny`, `dramatic`, `action` | The three axes |
+| LLM scoring | `LLMScorer` | Transcript-based scoring — not "AI scoring" |
+| Audio energy scoring | `EnergyScorer` | Loudness/activity-based scoring |
+| Scene scoring | `SceneScorer` | Scene-cut-frequency scoring |
+| Clip description | `description`, `description_long` | AI one-liner + paragraph; `*_user` overrides win |
+| Session summary | `Video.summary` | AI title + overview of a recording |
+| Session timeline | `Video.timeline` | AI 15-min chunk descriptions — always "session timeline" |
+| World context | `rp_context`, `Context` | Setting/characters/lore bundle for the scorer — not "RP context" in UI |
+| Context ID | `context_slug` | URL-safe identifier — not "slug" in UI |
+| Last scored with | `*_context_json` | Contexts active at last scoring — not "provenance" in UI |
+| Export | `export_clip()` | Save one clip to a file |
+| Quick export | `stream_copy=True` | Keyframe-aligned, no re-encode — not "stream copy" in UI |
+| Precise export | `reencode=True` | Frame-accurate re-encode; needed for baked-in captions |
+| Captions | `subtitles`, SRT/VTT | Sidecar or baked-in — not "subtitles" in UI |
+| Highlight reel | `demo_reel`, `build_reel()` | Compiled video from approved clips — not "demo reel" in UI |
+| Title card | `title_card` | Text overlay between reel clips |
+| Project folder | `project_dir` | The hidden `.yuu-clip/` directory |
+
+---
+
 ## Source Material
 
 ### Recording

@@ -1,0 +1,550 @@
+"""yuu_clip/scoring/llm.py + llm_client.py — LLM scorer, clients, summaries, timeline."""
+
+from __future__ import annotations
+
+# ---------------------------------------------------------------------------
+# LLMScorer — is_available() branches
+# ---------------------------------------------------------------------------
+
+class TestLLMScorerIsAvailable:
+    """LLMScorer.is_available() covers ollama_enabled gate, llamacpp checks, ollama checks."""
+
+    def _make_config(self, **overrides):
+        from yuu_clip.config import Config
+        cfg = Config()
+        for k, v in overrides.items():
+            setattr(cfg, k, v)
+        return cfg
+
+    def _scorer(self, **config_overrides):
+        from yuu_clip.scoring.llm import LLMScorer
+        return LLMScorer(self._make_config(**config_overrides))
+
+    def test_ollama_enabled_false_returns_false_immediately(self):
+        scorer = self._scorer(ollama_enabled=False, llm_backend="llamacpp")
+        assert scorer.is_available() is False
+
+    def test_llamacpp_empty_model_path_returns_false(self):
+        scorer = self._scorer(llm_backend="llamacpp", llm_model_path="")
+        assert scorer.is_available() is False
+
+    def test_llamacpp_nonexistent_path_returns_false(self, tmp_path):
+        scorer = self._scorer(
+            llm_backend="llamacpp",
+            llm_model_path=str(tmp_path / "nonexistent.gguf"),
+        )
+        assert scorer.is_available() is False
+
+    def test_llamacpp_path_exists_but_import_fails_returns_false(self, tmp_path):
+        gguf = tmp_path / "model.gguf"
+        gguf.write_bytes(b"fake")
+        scorer = self._scorer(llm_backend="llamacpp", llm_model_path=str(gguf))
+        import unittest.mock as mock
+        with mock.patch.dict("sys.modules", {"llama_cpp": None}):
+            assert scorer.is_available() is False
+
+    def test_llamacpp_all_checks_pass_returns_true(self, tmp_path):
+        import sys
+        import unittest.mock as mock
+        gguf = tmp_path / "model.gguf"
+        gguf.write_bytes(b"fake")
+        scorer = self._scorer(llm_backend="llamacpp", llm_model_path=str(gguf))
+        fake_module = mock.MagicMock()
+        with mock.patch.dict(sys.modules, {"llama_cpp": fake_module}):
+            scorer._available = None
+            result = scorer.is_available()
+        assert result is True
+
+    def test_ollama_backend_unreachable_returns_false(self):
+        import unittest.mock as mock
+        scorer = self._scorer(llm_backend="ollama")
+        with mock.patch("yuu_clip.scoring.llm_client.OllamaClient.available",
+                        return_value=(False, "connection refused")):
+            scorer._available = None
+            result = scorer.is_available()
+        assert result is False
+
+    def test_ollama_backend_reachable_returns_true(self):
+        import unittest.mock as mock
+        scorer = self._scorer(llm_backend="ollama")
+        with mock.patch("yuu_clip.scoring.llm_client.OllamaClient.available",
+                        return_value=(True, "")):
+            scorer._available = None
+            result = scorer.is_available()
+        assert result is True
+
+    def test_is_available_caches_result(self, tmp_path):
+        """Second call to is_available() must not redo the availability check."""
+        import unittest.mock as mock
+        scorer = self._scorer(llm_backend="ollama")
+        call_count = 0
+        def counting_list():
+            nonlocal call_count
+            call_count += 1
+            return []
+        with mock.patch("ollama.Client") as mock_client:
+            mock_client.return_value.list.side_effect = counting_list
+            scorer.is_available()
+            scorer.is_available()
+        assert call_count == 1
+
+# ---------------------------------------------------------------------------
+# LLMScorer — _parse() score clamping
+# ---------------------------------------------------------------------------
+
+class TestLLMScorerParse:
+    """_parse() clamps scores to [0, 1] and passes through other keys."""
+
+    def _parse(self, data: dict) -> dict:
+        import json
+
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.llm import LLMScorer
+        scorer = LLMScorer(Config())
+        return scorer._parse(json.dumps(data))
+
+    def test_scores_within_range_unchanged(self):
+        result = self._parse({"score_funny": 0.5, "score_dramatic": 0.3, "score_action": 0.8})
+        assert abs(result["score_funny"] - 0.5) < 1e-9
+        assert abs(result["score_dramatic"] - 0.3) < 1e-9
+        assert abs(result["score_action"] - 0.8) < 1e-9
+
+    def test_score_above_one_clamped_to_one(self):
+        result = self._parse({"score_funny": 1.5, "score_dramatic": 2.0, "score_action": 99.0})
+        assert result["score_funny"] == 1.0
+        assert result["score_dramatic"] == 1.0
+        assert result["score_action"] == 1.0
+
+    def test_score_below_zero_clamped_to_zero(self):
+        result = self._parse({"score_funny": -0.5, "score_dramatic": -1.0, "score_action": -99.0})
+        assert result["score_funny"] == 0.0
+        assert result["score_dramatic"] == 0.0
+        assert result["score_action"] == 0.0
+
+    def test_missing_score_keys_not_added(self):
+        result = self._parse({"description": "test"})
+        assert "score_funny" not in result
+        assert result["description"] == "test"
+
+    def test_description_keys_preserved(self):
+        result = self._parse({
+            "score_funny": 0.5, "score_dramatic": 0.5, "score_action": 0.5,
+            "description": "A moment", "description_long": "Longer text here",
+        })
+        assert result["description"] == "A moment"
+        assert result["description_long"] == "Longer text here"
+
+# ---------------------------------------------------------------------------
+# LLMScorer — score() result paths
+# ---------------------------------------------------------------------------
+
+class TestLLMScorerScore:
+    """score() — no-transcript, error, and success paths."""
+
+    def _make_scorer(self, backend_response=None):
+        import unittest.mock as mock
+
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.llm import LLMScorer
+        scorer = LLMScorer(Config())
+        if backend_response is not None:
+            scorer._call_llm = mock.MagicMock(return_value=backend_response)
+        return scorer
+
+    def _make_clip(self, excerpt=""):
+        import unittest.mock as mock
+        clip = mock.MagicMock()
+        clip.id = 1
+        clip.transcript_excerpt = excerpt
+        return clip
+
+    def test_no_transcript_returns_llm_no_transcript_tag(self):
+        scorer = self._make_scorer()
+        clip = self._make_clip(excerpt="")
+        result = scorer.score(clip, None)
+        assert "llm_no_transcript" in result.tags
+        assert result.score_funny is None   # no transcript → no opinion, not a real zero
+
+    def test_none_transcript_returns_llm_no_transcript_tag(self):
+        scorer = self._make_scorer()
+        clip = self._make_clip(excerpt=None)
+        result = scorer.score(clip, None)
+        assert "llm_no_transcript" in result.tags
+
+    def test_backend_exception_returns_llm_error_tag(self):
+        import unittest.mock as mock
+
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.llm import LLMScorer
+        scorer = LLMScorer(Config())
+        scorer._call_llm = mock.MagicMock(side_effect=RuntimeError("backend down"))
+        clip = self._make_clip(excerpt="some transcript text")
+        result = scorer.score(clip, None)
+        assert "llm_error" in result.tags
+        assert result.score_funny is None   # backend error → no opinion, not a real zero
+
+    def test_invalid_json_returns_llm_error_tag(self):
+        scorer = self._make_scorer(backend_response="not json {{{{")
+        clip = self._make_clip(excerpt="some transcript text")
+        result = scorer.score(clip, None)
+        assert "llm_error" in result.tags
+
+    def test_successful_score_populates_all_fields(self):
+        import json
+        payload = {
+            "score_funny": 0.7, "score_dramatic": 0.4, "score_action": 0.2,
+            "description": "A funny moment", "description_long": "Very detailed text",
+        }
+        scorer = self._make_scorer(backend_response=json.dumps(payload))
+        clip = self._make_clip(excerpt="transcript here")
+        result = scorer.score(clip, None)
+        assert "llm_scored" in result.tags
+        assert abs(result.score_funny - 0.7) < 1e-6
+        assert abs(result.score_dramatic - 0.4) < 1e-6
+        assert abs(result.score_action - 0.2) < 1e-6
+        assert result.description == "A funny moment"
+        assert result.description_long == "Very detailed text"
+
+    def test_out_of_range_scores_clamped(self):
+        import json
+        payload = {"score_funny": 2.0, "score_dramatic": -1.0, "score_action": 0.5}
+        scorer = self._make_scorer(backend_response=json.dumps(payload))
+        clip = self._make_clip(excerpt="transcript here")
+        result = scorer.score(clip, None)
+        assert result.score_funny == 1.0
+        assert result.score_dramatic == 0.0
+
+    def test_success_notes_include_model_id_for_llamacpp(self):
+        import json
+        import unittest.mock as mock
+
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.llm import LLMScorer
+        cfg = Config()
+        cfg.llm_backend = "llamacpp"
+        cfg.llm_model_path = "/models/llama3.gguf"
+        scorer = LLMScorer(cfg)
+        scorer._call_llm = mock.MagicMock(return_value=json.dumps({"score_funny": 0.5}))
+        clip = self._make_clip(excerpt="text")
+        result = scorer.score(clip, None)
+        assert result.notes.get("model") == "/models/llama3.gguf"
+
+    def test_success_notes_include_model_id_for_ollama(self):
+        import json
+        import unittest.mock as mock
+
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.llm import LLMScorer
+        cfg = Config()
+        cfg.llm_backend = "ollama"
+        cfg.ollama_model = "llama3.1:8b"
+        scorer = LLMScorer(cfg)
+        scorer._call_llm = mock.MagicMock(return_value=json.dumps({"score_funny": 0.5}))
+        clip = self._make_clip(excerpt="text")
+        result = scorer.score(clip, None)
+        assert result.notes.get("model") == "llama3.1:8b"
+
+# ---------------------------------------------------------------------------
+# Coverage gaps — pure-function and edge-case paths
+# ---------------------------------------------------------------------------
+
+class TestPrependContext:
+    def _pp(self, system, context):
+        from yuu_clip.scoring.llm import _prepend_context
+        return _prepend_context(system, context)
+
+    def test_with_context_prepends_and_separates(self):
+        result = self._pp("SYSTEM", "CONTEXT")
+        assert result == "CONTEXT\n\nSYSTEM"
+
+    def test_empty_context_returns_system_unchanged(self):
+        assert self._pp("SYSTEM", "") == "SYSTEM"
+
+    def test_none_context_not_prepended(self):
+        # context_text="" is the expected sentinel; None is not a valid call, but
+        # the falsy branch must still return just the system prompt.
+        assert self._pp("SYSTEM", None) == "SYSTEM"
+
+# ---------------------------------------------------------------------------
+# LLMClient factory — make_client() routing
+# ---------------------------------------------------------------------------
+
+class TestMakeClient:
+    def _cfg(self, **overrides):
+        from yuu_clip.config import Config
+        cfg = Config()
+        for k, v in overrides.items():
+            setattr(cfg, k, v)
+        return cfg
+
+    def test_ollama_disabled_returns_null_client(self):
+        from yuu_clip.scoring.llm_client import NullLLMClient, make_client
+        client = make_client(self._cfg(ollama_enabled=False))
+        assert isinstance(client, NullLLMClient)
+
+    def test_llamacpp_backend_returns_llamacpp_client(self):
+        from yuu_clip.scoring.llm_client import LlamaCppClient, make_client
+        client = make_client(self._cfg(ollama_enabled=True, llm_backend="llamacpp"))
+        assert isinstance(client, LlamaCppClient)
+
+    def test_claude_backend_returns_claude_client(self):
+        from yuu_clip.scoring.llm_client import ClaudeClient, make_client
+        client = make_client(self._cfg(ollama_enabled=True, llm_backend="claude"))
+        assert isinstance(client, ClaudeClient)
+
+    def test_ollama_backend_returns_ollama_client(self):
+        from yuu_clip.scoring.llm_client import OllamaClient, make_client
+        client = make_client(self._cfg(ollama_enabled=True, llm_backend="ollama"))
+        assert isinstance(client, OllamaClient)
+
+    def test_unknown_backend_falls_back_to_ollama(self):
+        from yuu_clip.scoring.llm_client import OllamaClient, make_client
+        client = make_client(self._cfg(ollama_enabled=True, llm_backend="unknown"))
+        assert isinstance(client, OllamaClient)
+
+# ---------------------------------------------------------------------------
+# ClaudeClient.available()
+# ---------------------------------------------------------------------------
+
+class TestClaudeClientAvailable:
+    def _client(self, **overrides):
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.llm_client import ClaudeClient
+        cfg = Config()
+        for k, v in overrides.items():
+            setattr(cfg, k, v)
+        return ClaudeClient(cfg)
+
+    def test_no_api_key_returns_false(self):
+        c = self._client(claude_api_key="")
+        ok, reason = c.available()
+        assert ok is False
+        assert "API key" in reason
+
+    def test_missing_anthropic_package_returns_false(self):
+        import sys
+        import unittest.mock as mock
+        c = self._client(claude_api_key="sk-test")
+        with mock.patch.dict(sys.modules, {"anthropic": None}):
+            ok, reason = c.available()
+        assert ok is False
+        assert "anthropic" in reason
+
+    def test_api_key_and_package_present_returns_true(self):
+        import sys
+        import unittest.mock as mock
+        c = self._client(claude_api_key="sk-test")
+        fake_anthropic = mock.MagicMock()
+        with mock.patch.dict(sys.modules, {"anthropic": fake_anthropic}):
+            ok, reason = c.available()
+        assert ok is True
+        assert reason == ""
+
+    def test_null_client_available_returns_false(self):
+        from yuu_clip.scoring.llm_client import NullLLMClient
+        ok, reason = NullLLMClient().available()
+        assert ok is False
+
+    def test_null_client_chat_raises(self):
+        import pytest
+
+        from yuu_clip.scoring.llm_client import NullLLMClient
+        with pytest.raises(RuntimeError):
+            NullLLMClient().chat([{"role": "user", "content": "hi"}])
+
+# ---------------------------------------------------------------------------
+# check_llm_available()
+# ---------------------------------------------------------------------------
+
+class TestCheckLlmAvailable:
+    def _cfg(self, **overrides):
+        from yuu_clip.config import Config
+        cfg = Config()
+        for k, v in overrides.items():
+            setattr(cfg, k, v)
+        return cfg
+
+    def test_ollama_disabled_returns_false(self):
+        from yuu_clip.scoring.llm import check_llm_available
+        ok, reason = check_llm_available(self._cfg(ollama_enabled=False))
+        assert ok is False
+        assert "disabled" in reason
+
+    def test_delegates_to_client_available(self):
+        import unittest.mock as mock
+
+        from yuu_clip.scoring.llm import check_llm_available
+        cfg = self._cfg(ollama_enabled=True, llm_backend="ollama")
+        with mock.patch("yuu_clip.scoring.llm_client.OllamaClient.available",
+                        return_value=(True, "")):
+            ok, reason = check_llm_available(cfg)
+        assert ok is True
+
+# ---------------------------------------------------------------------------
+# LLM module-level functions: summarize_transcript, generate_timeline_chunk,
+# find_related_clips — tested with a mocked _call_client
+# ---------------------------------------------------------------------------
+
+class TestSummarizeTranscript:
+    def _cfg(self):
+        from yuu_clip.config import Config
+        return Config()
+
+    def test_returns_title_and_summary(self):
+        import json
+        import unittest.mock as mock
+
+        from yuu_clip.scoring.llm import summarize_transcript
+        payload = json.dumps({"title": "Epic session", "summary": "Things happened."})
+        with mock.patch("yuu_clip.scoring.llm._call_client", return_value=payload):
+            title, summary = summarize_transcript("some transcript text", self._cfg())
+        assert title == "Epic session"
+        assert summary == "Things happened."
+
+    def test_truncates_to_12000_chars(self):
+        import json
+        import unittest.mock as mock
+
+        from yuu_clip.scoring.llm import summarize_transcript
+        long_text = "x" * 20_000
+        captured = {}
+        def fake_call(messages, config, temperature=0.1):
+            captured["messages"] = messages
+            return json.dumps({"title": "T", "summary": "S"})
+        with mock.patch("yuu_clip.scoring.llm._call_client", side_effect=fake_call):
+            summarize_transcript(long_text, self._cfg())
+        user_content = captured["messages"][1]["content"]
+        assert len(user_content) < 14_000
+
+    def test_context_prepended_to_system(self):
+        import json
+        import unittest.mock as mock
+
+        from yuu_clip.scoring.llm import summarize_transcript
+        captured = {}
+        def fake_call(messages, config, temperature=0.1):
+            captured["messages"] = messages
+            return json.dumps({"title": "T", "summary": "S"})
+        with mock.patch("yuu_clip.scoring.llm._call_client", side_effect=fake_call):
+            summarize_transcript("text", self._cfg(), context_text="WORLD CONTEXT")
+        system_content = captured["messages"][0]["content"]
+        assert system_content.startswith("WORLD CONTEXT")
+
+    def test_missing_keys_return_empty_strings(self):
+        import json
+        import unittest.mock as mock
+
+        from yuu_clip.scoring.llm import summarize_transcript
+        with mock.patch("yuu_clip.scoring.llm._call_client", return_value=json.dumps({})):
+            title, summary = summarize_transcript("text", self._cfg())
+        assert title == ""
+        assert summary == ""
+
+class TestGenerateTimelineChunk:
+    def _cfg(self):
+        from yuu_clip.config import Config
+        return Config()
+
+    def test_returns_stripped_string(self):
+        import unittest.mock as mock
+
+        from yuu_clip.scoring.llm import generate_timeline_chunk
+        with mock.patch("yuu_clip.scoring.llm._call_client", return_value="  paragraph text  "):
+            result = generate_timeline_chunk("transcript", "0:00", "15:00", [], self._cfg())
+        assert result == "paragraph text"
+
+    def test_clip_descriptions_included_in_user_message(self):
+        import unittest.mock as mock
+
+        from yuu_clip.scoring.llm import generate_timeline_chunk
+        captured = {}
+        def fake_call(messages, config, temperature=0.1):
+            captured["messages"] = messages
+            return "result"
+        with mock.patch("yuu_clip.scoring.llm._call_client", side_effect=fake_call):
+            generate_timeline_chunk("text", "0:00", "15:00", ["Clip A", "Clip B"], self._cfg())
+        user_content = captured["messages"][1]["content"]
+        assert "Clip A" in user_content
+        assert "Clip B" in user_content
+
+    def test_no_clip_descriptions_omits_notable_clips_section(self):
+        import unittest.mock as mock
+
+        from yuu_clip.scoring.llm import generate_timeline_chunk
+        captured = {}
+        def fake_call(messages, config, temperature=0.1):
+            captured["messages"] = messages
+            return "result"
+        with mock.patch("yuu_clip.scoring.llm._call_client", side_effect=fake_call):
+            generate_timeline_chunk("text", "0:00", "15:00", [], self._cfg())
+        user_content = captured["messages"][1]["content"]
+        assert "Notable clips" not in user_content
+
+    def test_context_prepended_to_system(self):
+        import unittest.mock as mock
+
+        from yuu_clip.scoring.llm import generate_timeline_chunk
+        captured = {}
+        def fake_call(messages, config, temperature=0.1):
+            captured["messages"] = messages
+            return "result"
+        with mock.patch("yuu_clip.scoring.llm._call_client", side_effect=fake_call):
+            generate_timeline_chunk("text", "0:00", "15:00", [], self._cfg(), context_text="CTX")
+        system_content = captured["messages"][0]["content"]
+        assert system_content.startswith("CTX")
+
+class TestFindRelatedClips:
+    def _cfg(self):
+        from yuu_clip.config import Config
+        return Config()
+
+    def test_returns_list_of_id_reason_dicts(self):
+        import json
+        import unittest.mock as mock
+
+        from yuu_clip.scoring.llm import find_related_clips
+        payload = json.dumps([{"id": 7, "reason": "both chaotic"}, {"id": 3, "reason": "same tone"}])
+        with mock.patch("yuu_clip.scoring.llm._call_client", return_value=payload):
+            result = find_related_clips("ref desc", [{"id": 7, "description": "d1"}], self._cfg())
+        assert result == [{"id": 7, "reason": "both chaotic"}, {"id": 3, "reason": "same tone"}]
+
+    def test_non_list_response_raises_value_error(self):
+        import json
+        import unittest.mock as mock
+
+        import pytest
+
+        from yuu_clip.scoring.llm import find_related_clips
+        with mock.patch("yuu_clip.scoring.llm._call_client", return_value=json.dumps({"error": "bad"})):
+            with pytest.raises(ValueError):
+                find_related_clips("ref", [], self._cfg())
+
+    def test_id_coerced_to_int(self):
+        import json
+        import unittest.mock as mock
+
+        from yuu_clip.scoring.llm import find_related_clips
+        payload = json.dumps([{"id": "42", "reason": "similar"}])
+        with mock.patch("yuu_clip.scoring.llm._call_client", return_value=payload):
+            result = find_related_clips("ref", [{"id": 42, "description": "d"}], self._cfg())
+        assert result[0]["id"] == 42
+        assert isinstance(result[0]["id"], int)
+
+    def test_missing_reason_defaults_to_empty_string(self):
+        import json
+        import unittest.mock as mock
+
+        from yuu_clip.scoring.llm import find_related_clips
+        payload = json.dumps([{"id": 1}])
+        with mock.patch("yuu_clip.scoring.llm._call_client", return_value=payload):
+            result = find_related_clips("ref", [{"id": 1, "description": "d"}], self._cfg())
+        assert result[0]["reason"] == ""
+
+    def test_empty_candidates_returns_empty_list(self):
+        import json
+        import unittest.mock as mock
+
+        from yuu_clip.scoring.llm import find_related_clips
+        with mock.patch("yuu_clip.scoring.llm._call_client", return_value=json.dumps([])):
+            result = find_related_clips("ref", [], self._cfg())
+        assert result == []

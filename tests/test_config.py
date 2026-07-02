@@ -389,3 +389,37 @@ class TestProfiles:
         profiles = load_profiles()
         assert "alpha" in profiles
         assert "beta" in profiles
+
+
+class TestConfigPatchWhisperModel:
+    def test_valid_whisper_model_accepted(self, client):
+        r = client.patch("/api/config", json={"whisper_model": "small"})
+        assert r.status_code == 200
+        assert r.json()["whisper_model"] == "small"
+
+    def test_invalid_whisper_model_returns_400(self, client):
+        r = client.patch("/api/config", json={"whisper_model": "gpt-4o"})
+        assert r.status_code == 400
+
+    def test_empty_whisper_model_returns_400(self, client):
+        r = client.patch("/api/config", json={"whisper_model": ""})
+        assert r.status_code == 400
+
+    def test_scene_detection_mode_valid(self, client):
+        r = client.patch("/api/config", json={"scene_detection_mode": "fast"})
+        assert r.status_code == 200
+        assert r.json()["scene_detection_mode"] == "fast"
+
+    def test_scene_detection_mode_invalid(self, client):
+        r = client.patch("/api/config", json={"scene_detection_mode": "magic"})
+        assert r.status_code == 400
+
+    def test_silence_threshold_below_min_returns_400(self, client):
+        r = client.patch("/api/config", json={"silence_threshold_ms": 50})
+        assert r.status_code == 400
+
+    def test_scorer_weight_negative_clamped_to_zero(self, client):
+        import pytest
+        r = client.patch("/api/config", json={"scorer_llm_weight": -2.0})
+        assert r.status_code == 200
+        assert r.json()["scorer_llm_weight"] == pytest.approx(0.0)

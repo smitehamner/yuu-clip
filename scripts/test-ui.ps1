@@ -1,11 +1,20 @@
+param(
+    [switch]$Detailed,
+    [Parameter(ValueFromRemainingArguments = $true)]$PytestArgs
+)
 $ErrorActionPreference = "Stop"
 & "$env:USERPROFILE\.claude\sound-cancel.ps1"
-$RepoRoot = Split-Path -Parent $PSScriptRoot
-$Python   = Join-Path $RepoRoot ".venv\Scripts\python.exe"
-$LogFile  = Join-Path $RepoRoot "test-ui-last.log"
+$RepoRoot    = Split-Path -Parent $PSScriptRoot
+$Python      = Join-Path $RepoRoot ".venv\Scripts\python.exe"
+$LogFile     = Join-Path $RepoRoot "test-ui-last.log"
+$SummaryFile = Join-Path $RepoRoot "test-ui-last-summary.log"
 
 Write-Host "UI tests require a live server at http://127.0.0.1:8080 (run scripts\serve.ps1 first)" -ForegroundColor Yellow
 Write-Host "Log: $LogFile" -ForegroundColor DarkGray
+
+# Default is quiet (dots + failures only) to keep the log small for automated
+# reads; pass -Detailed for the old per-test -v output.
+$Verbosity = if ($Detailed) { "-v" } else { "-q" }
 
 Push-Location $RepoRoot
 $testExitCode = 0
@@ -14,7 +23,7 @@ try {
     # PowerShell does not glob-expand args to native commands, so resolve the
     # test files here and pass explicit paths to pytest.
     $UiTests = Get-ChildItem -Path (Join-Path $RepoRoot "tests") -Filter "test_ui_*.py" | ForEach-Object { $_.FullName }
-    & $Python -u -m pytest $UiTests -v --tb=short --no-header -p no:warnings --timeout=60 -r fE @args 2>&1 |
+    & $Python -u -m pytest $UiTests $Verbosity --tb=short --no-header -p no:warnings --timeout=60 -r fE @PytestArgs 2>&1 |
         Tee-Object -FilePath $LogFile
     $testExitCode = $LASTEXITCODE
 } finally {
@@ -22,17 +31,27 @@ try {
 
     $lines = Get-Content $LogFile -ErrorAction SilentlyContinue
     if ($lines) {
+        # Summary file = everything from the first failure section onward
+        # (FAILURES + short test summary + result line). Falls back to the
+        # last 5 lines on an all-green run.
         $summaryStart = $null
-        for ($i = $lines.Length - 1; $i -ge 0; $i--) {
-            if ($lines[$i] -match 'short test summary info') { $summaryStart = $i; break }
+        for ($i = 0; $i -lt $lines.Length; $i++) {
+            if ($lines[$i] -match '^=+ (FAILURES|ERRORS) =+$') { $summaryStart = $i; break }
+        }
+        if ($null -eq $summaryStart) {
+            for ($i = $lines.Length - 1; $i -ge 0; $i--) {
+                if ($lines[$i] -match 'short test summary info') { $summaryStart = $i; break }
+            }
         }
         if ($null -eq $summaryStart) { $summaryStart = [Math]::Max(0, $lines.Length - 5) }
+        $summaryLines = $lines[$summaryStart..($lines.Length - 1)]
+        $summaryLines | Out-File -FilePath $SummaryFile -Encoding utf8
 
         Write-Host ""
         Write-Host "--- Summary ---" -ForegroundColor Cyan
-        $lines[$summaryStart..($lines.Length - 1)] | ForEach-Object { Write-Host $_ }
+        $summaryLines | Select-Object -Last 40 | ForEach-Object { Write-Host $_ }
         Write-Host ""
-        Write-Host "Full log: $LogFile" -ForegroundColor DarkGray
+        Write-Host "Full log: $LogFile  |  Summary: $SummaryFile" -ForegroundColor DarkGray
     }
 
     # Tada chime disabled now that the teardown hang is fixed. Kept here so we

@@ -36,9 +36,16 @@ API tests take ~1 minute. Run them selectively — not after every edit.
 
 Before reporting a backend fix complete, do:
 
-1. Run tests if the change qualifies above: `.\scripts\test-api.ps1`
-2. Restart the server: `.\scripts\serve.ps1`
-3. Confirm the fix works in the browser (or state explicitly that you cannot)
+1. Run the linter: `.\scripts\lint.ps1` (fast — run after every Python change, even cosmetic ones; fix or `--fix` anything it flags)
+2. Run tests if the change qualifies above: `.\scripts\test-api.ps1`
+3. Restart the server: `.\scripts\serve.ps1`
+4. Confirm the fix works in the browser (or state explicitly that you cannot)
+
+Test script output: both test scripts default to quiet output and write
+`test-api-last.log` / `test-ui-last.log` (full) plus `test-*-last-summary.log`
+(failures + summary only). Read the summary file after a run — only open the full
+log when a failure needs more context. Pass `-Detailed` for verbose per-test output
+on a manual run.
 
 ### Before restarting the server
 

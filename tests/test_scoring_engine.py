@@ -1,0 +1,391 @@
+"""yuu_clip/scoring/engine.py — scorer orchestration, weights, auto-approve."""
+
+from __future__ import annotations
+
+# ---------------------------------------------------------------------------
+# ScoringEngine unit tests
+# ---------------------------------------------------------------------------
+
+class TestScoringEngine:
+    """ScoringEngine.score_clip() and score_video() orchestration."""
+
+    def _make_scorer(self, score_funny=0.0, score_dramatic=0.0, score_action=0.0,
+                     description="", description_long="", tags=None, weight=1.0, available=True):
+        from unittest.mock import MagicMock
+
+        from yuu_clip.scoring.protocol import ScoreResult
+        mock = MagicMock()
+        mock.is_available.return_value = available
+        mock.weight = weight
+        mock.score.return_value = ScoreResult(
+            score_funny=score_funny,
+            score_dramatic=score_dramatic,
+            score_action=score_action,
+            description=description,
+            description_long=description_long,
+            tags=tags or [],
+        )
+        return mock
+
+    def _make_clip(self):
+        from unittest.mock import MagicMock
+        clip = MagicMock()
+        clip.tags = []
+        clip.score_funny = 0.0
+        clip.score_dramatic = 0.0
+        clip.score_action = 0.0
+        clip.score_overall = 0.0
+        clip.description = ""
+        clip.description_long = ""
+        clip.scored_at = None
+        return clip
+
+    def test_no_scorers_returns_without_update(self):
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.engine import ScoringEngine
+        config = Config()
+        engine = ScoringEngine(config, [])
+        clip = self._make_clip()
+        clip.score_overall = 0.7   # sentinel: must be unchanged if no scorers run
+        engine.score_clip(clip, None)
+        assert clip.score_overall == 0.7
+        assert clip.scored_at is None
+
+    def test_unavailable_scorer_filtered_out(self):
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.engine import ScoringEngine
+        config = Config()
+        unavailable = self._make_scorer(score_action=1.0, available=False)
+        engine = ScoringEngine(config, [unavailable])
+        clip = self._make_clip()
+        clip.score_overall = 0.7   # sentinel: must be unchanged if scorer never ran
+        engine.score_clip(clip, None)
+        assert clip.score_overall == 0.7
+        assert clip.scored_at is None
+        unavailable.score.assert_not_called()
+
+    def test_score_clip_sets_scored_at_on_success(self):
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.engine import ScoringEngine
+        config = Config()
+        scorer = self._make_scorer(score_funny=0.8, score_dramatic=0.4, score_action=0.2)
+        engine = ScoringEngine(config, [scorer])
+        clip = self._make_clip()
+        engine.score_clip(clip, None)
+        assert clip.scored_at is not None
+
+    def test_score_clip_writes_dimension_scores(self):
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.engine import ScoringEngine
+        config = Config()
+        scorer = self._make_scorer(score_funny=0.8, score_dramatic=0.4, score_action=0.2)
+        engine = ScoringEngine(config, [scorer])
+        clip = self._make_clip()
+        engine.score_clip(clip, None)
+        assert abs(clip.score_funny - 0.8) < 1e-6
+        assert abs(clip.score_dramatic - 0.4) < 1e-6
+        assert abs(clip.score_action - 0.2) < 1e-6
+
+    def test_score_clip_computes_overall_from_dim_weights(self):
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.engine import ScoringEngine
+        config = Config()
+        config.score_funny_weight = 2.0
+        config.score_dramatic_weight = 1.0
+        config.score_action_weight = 1.0
+        scorer = self._make_scorer(score_funny=1.0, score_dramatic=0.0, score_action=0.0)
+        engine = ScoringEngine(config, [scorer])
+        clip = self._make_clip()
+        engine.score_clip(clip, None)
+        # overall = (2*1 + 1*0 + 1*0) / 4 = 0.5
+        assert abs(clip.score_overall - 0.5) < 1e-6
+
+    def test_score_clip_description_set_by_scorer(self):
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.engine import ScoringEngine
+        config = Config()
+        scorer = self._make_scorer(description="A dramatic moment", description_long="Full text here")
+        engine = ScoringEngine(config, [scorer])
+        clip = self._make_clip()
+        engine.score_clip(clip, None)
+        assert clip.description == "A dramatic moment"
+        assert clip.description_long == "Full text here"
+
+    def test_score_clip_tags_accumulated(self):
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.engine import ScoringEngine
+        config = Config()
+        scorer = self._make_scorer(tags=["energy_scored"])
+        engine = ScoringEngine(config, [scorer])
+        clip = self._make_clip()
+        engine.score_clip(clip, None)
+        assert "energy_scored" in clip.tags
+
+    def test_score_clip_stale_scorer_tags_removed(self):
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.engine import ScoringEngine
+        config = Config()
+        scorer = self._make_scorer(tags=["energy_scored"])
+        engine = ScoringEngine(config, [scorer])
+        clip = self._make_clip()
+        clip.tags = ["energy_scored", "llm_error", "user_tag"]
+        engine.score_clip(clip, None)
+        assert "user_tag" in clip.tags           # non-scorer tag preserved
+        assert "llm_error" not in clip.tags      # stale scorer tag removed
+        assert clip.tags.count("energy_scored") == 1  # fresh tag re-added exactly once
+
+    def test_score_clip_tags_not_duplicated(self):
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.engine import ScoringEngine
+        config = Config()
+        scorer = self._make_scorer(tags=["energy_scored"])
+        engine = ScoringEngine(config, [scorer])
+        clip = self._make_clip()
+        engine.score_clip(clip, None)
+        engine.score_clip(clip, None)
+        assert clip.tags.count("energy_scored") == 1
+
+    def test_score_clip_weighted_average_of_two_scorers(self):
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.engine import ScoringEngine
+        config = Config()
+        s1 = self._make_scorer(score_action=1.0, weight=2.0)
+        s2 = self._make_scorer(score_action=0.0, weight=1.0)
+        engine = ScoringEngine(config, [s1, s2])
+        clip = self._make_clip()
+        engine.score_clip(clip, None)
+        # Weighted: (1.0*2 + 0.0*1) / (2+1) = 2/3
+        assert abs(clip.score_action - (2.0 / 3.0)) < 1e-6
+
+    def _make_partial_scorer(self, weight=1.0, **dims):
+        """Scorer that emits ONLY the named dimensions (others stay None — no opinion)."""
+        from unittest.mock import MagicMock
+
+        from yuu_clip.scoring.protocol import ScoreResult
+        mock = MagicMock()
+        mock.is_available.return_value = True
+        mock.weight = weight
+        mock.score.return_value = ScoreResult(**dims)
+        return mock
+
+    def test_dimension_not_diluted_by_scorer_that_does_not_emit_it(self):
+        # An action-only scorer must not drag down funny, and vice-versa.
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.engine import ScoringEngine
+        action_only = self._make_partial_scorer(score_action=1.0, weight=1.0)
+        funny_only  = self._make_partial_scorer(score_funny=1.0,  weight=1.0)
+        engine = ScoringEngine(Config(), [action_only, funny_only])
+        clip = self._make_clip()
+        engine.score_clip(clip, None)
+        assert abs(clip.score_funny - 1.0) < 1e-6   # not 0.5
+        assert abs(clip.score_action - 1.0) < 1e-6  # not 0.5
+        assert clip.score_dramatic == 0.0           # nobody emitted it
+
+    def test_no_opinion_scorer_does_not_dilute(self):
+        # A scorer returning an empty ScoreResult (no data) contributes nothing.
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.engine import ScoringEngine
+        real  = self._make_partial_scorer(score_action=1.0, weight=1.0)
+        empty = self._make_partial_scorer(weight=3.0)  # emits no dimensions
+        engine = ScoringEngine(Config(), [real, empty])
+        clip = self._make_clip()
+        engine.score_clip(clip, None)
+        assert abs(clip.score_action - 1.0) < 1e-6  # empty's weight excluded
+
+class TestScoringEngineWeightEdgeCases:
+    def _make_scorer(self, score_action=0.0, weight=1.0):
+        from unittest.mock import MagicMock
+
+        from yuu_clip.scoring.protocol import ScoreResult
+        mock = MagicMock()
+        mock.is_available.return_value = True
+        mock.weight = weight
+        mock.score.return_value = ScoreResult(score_action=score_action)
+        return mock
+
+    def _make_clip(self):
+        from unittest.mock import MagicMock
+        clip = MagicMock()
+        clip.tags = []
+        clip.score_funny = clip.score_dramatic = clip.score_action = 0.0
+        clip.score_overall = 0.5   # stale value to verify it is not changed
+        clip.description = clip.description_long = ""
+        return clip
+
+    def test_all_scorer_weights_zero_clears_overall(self):
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.engine import ScoringEngine
+        scorer = self._make_scorer(score_action=1.0, weight=0.0)
+        engine = ScoringEngine(Config(), [scorer])
+        clip = self._make_clip()
+        engine.score_clip(clip, None)
+        # weight_sum == 0 → scores can't be computed; overall is reset to 0.0
+        assert clip.score_overall == 0.0
+
+    def test_all_dim_weights_zero_clears_overall(self):
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.engine import ScoringEngine
+        cfg = Config()
+        cfg.score_funny_weight = 0.0
+        cfg.score_dramatic_weight = 0.0
+        cfg.score_action_weight = 0.0
+        scorer = self._make_scorer(score_action=1.0, weight=1.0)
+        engine = ScoringEngine(cfg, [scorer])
+        clip = self._make_clip()
+        engine.score_clip(clip, None)
+        # dim_total == 0 → overall can't be computed; must not leave stale value
+        assert clip.score_overall == 0.0
+
+# ---------------------------------------------------------------------------
+# Auto-approve endpoint
+# ---------------------------------------------------------------------------
+
+class TestAutoApprove:
+    def _vid_id(self, client):
+        return client.get("/api/videos").json()[0]["id"]
+
+    def test_approves_pending_clips_above_threshold(self, client):
+        vid_id = self._vid_id(client)
+        # conftest seeds one pending clip with score 0.85
+        r = client.post(f"/api/videos/{vid_id}/auto-approve", json={"threshold": 0.8})
+        assert r.status_code == 200
+        assert r.json()["approved"] == 1
+
+    def test_does_not_approve_below_threshold(self, client):
+        vid_id = self._vid_id(client)
+        r = client.post(f"/api/videos/{vid_id}/auto-approve", json={"threshold": 0.99})
+        assert r.status_code == 200
+        assert r.json()["approved"] == 0
+
+    def test_does_not_re_approve_already_approved(self, client):
+        vid_id = self._vid_id(client)
+        # conftest seeds one approved clip (score 0.60) — threshold 0.5 would match it
+        # but it's already approved, not pending, so it should be ignored
+        r = client.post(f"/api/videos/{vid_id}/auto-approve", json={"threshold": 0.5})
+        assert r.status_code == 200
+        # only the pending clip with score 0.85 qualifies; rejected/approved are skipped
+        assert r.json()["approved"] == 1
+
+    def test_invalid_threshold_above_one(self, client):
+        vid_id = self._vid_id(client)
+        r = client.post(f"/api/videos/{vid_id}/auto-approve", json={"threshold": 1.5})
+        assert r.status_code == 400
+
+    def test_invalid_threshold_below_zero(self, client):
+        vid_id = self._vid_id(client)
+        r = client.post(f"/api/videos/{vid_id}/auto-approve", json={"threshold": -0.1})
+        assert r.status_code == 400
+
+    def test_invalid_score_field(self, client):
+        vid_id = self._vid_id(client)
+        r = client.post(f"/api/videos/{vid_id}/auto-approve", json={"threshold": 0.5, "score_field": "nonexistent"})
+        assert r.status_code == 400
+
+    def test_valid_sub_score_fields(self, client):
+        vid_id = self._vid_id(client)
+        for field in ("funny", "dramatic", "action"):
+            r = client.post(f"/api/videos/{vid_id}/auto-approve", json={"threshold": 0.99, "score_field": field})
+            assert r.status_code == 200
+
+    def test_video_not_found(self, client):
+        r = client.post("/api/videos/99999/auto-approve", json={"threshold": 0.5})
+        assert r.status_code == 404
+
+# ---------------------------------------------------------------------------
+# ScoringEngine.score_video()
+# ---------------------------------------------------------------------------
+
+class TestScoringEngineScoreVideo:
+    def _make_scorer(self, score=0.5):
+        import unittest.mock as mock
+
+        from yuu_clip.scoring.protocol import ScoreResult
+        scorer = mock.MagicMock()
+        scorer.is_available.return_value = True
+        scorer.weight = 1.0
+        scorer.score.return_value = ScoreResult(
+            score_funny=score, score_dramatic=score, score_action=score
+        )
+        return scorer
+
+    def test_score_video_returns_clip_count(self, tmp_path):
+        from yuu_clip.config import Config
+        from yuu_clip.db.models import ClipCandidate, Video, make_session
+        from yuu_clip.scoring.engine import ScoringEngine
+        session = make_session(tmp_path / "sv.db")
+        v = Video(path=str(tmp_path / "v.mkv"), filename="v.mkv", status="done", duration_ms=120_000)
+        session.add(v)
+        session.flush()
+        for i in range(3):
+            session.add(ClipCandidate(video_id=v.id, start_ms=i * 30_000, end_ms=(i + 1) * 30_000))
+        session.flush()
+        scorer = self._make_scorer(0.7)
+        engine = ScoringEngine(Config(), [scorer])
+        try:
+            count = engine.score_video(v, session)
+        finally:
+            session.close()
+        assert count == 3
+
+    def test_score_video_calls_scorer_for_each_clip(self, tmp_path):
+        from yuu_clip.config import Config
+        from yuu_clip.db.models import ClipCandidate, Video, make_session
+        from yuu_clip.scoring.engine import ScoringEngine
+        session = make_session(tmp_path / "sv2.db")
+        v = Video(path=str(tmp_path / "v.mkv"), filename="v.mkv", status="done", duration_ms=60_000)
+        session.add(v)
+        session.flush()
+        session.add(ClipCandidate(video_id=v.id, start_ms=0, end_ms=30_000))
+        session.add(ClipCandidate(video_id=v.id, start_ms=30_000, end_ms=60_000))
+        session.flush()
+        scorer = self._make_scorer(0.5)
+        engine = ScoringEngine(Config(), [scorer])
+        try:
+            engine.score_video(v, session)
+        finally:
+            session.close()
+        assert scorer.score.call_count == 2
+
+    def test_score_video_calls_progress_cb(self, tmp_path):
+        from yuu_clip.config import Config
+        from yuu_clip.db.models import ClipCandidate, Video, make_session
+        from yuu_clip.scoring.engine import ScoringEngine
+        session = make_session(tmp_path / "sv3.db")
+        v = Video(path=str(tmp_path / "v.mkv"), filename="v.mkv", status="done", duration_ms=60_000)
+        session.add(v)
+        session.flush()
+        session.add(ClipCandidate(video_id=v.id, start_ms=0, end_ms=30_000))
+        session.add(ClipCandidate(video_id=v.id, start_ms=30_000, end_ms=60_000))
+        session.flush()
+        scorer = self._make_scorer(0.5)
+        engine = ScoringEngine(Config(), [scorer])
+        calls = []
+        try:
+            engine.score_video(v, session, progress_cb=lambda i, t: calls.append((i, t)))
+        finally:
+            session.close()
+        assert calls == [(1, 2), (2, 2)]
+
+    def test_score_video_commits_once_per_clip(self, tmp_path):
+        # Commits must land per-clip (not once for the whole batch) so the web
+        # server — a separate process/connection — can see scores as they finish.
+        import unittest.mock as mock
+
+        from yuu_clip.config import Config
+        from yuu_clip.db.models import ClipCandidate, Video, make_session
+        from yuu_clip.scoring.engine import ScoringEngine
+        session = make_session(tmp_path / "sv4.db")
+        v = Video(path=str(tmp_path / "v.mkv"), filename="v.mkv", status="done", duration_ms=90_000)
+        session.add(v)
+        session.flush()
+        for i in range(3):
+            session.add(ClipCandidate(video_id=v.id, start_ms=i * 30_000, end_ms=(i + 1) * 30_000))
+        session.flush()
+        scorer = self._make_scorer(0.5)
+        engine = ScoringEngine(Config(), [scorer])
+        try:
+            with mock.patch.object(session, "commit", wraps=session.commit) as commit_spy:
+                engine.score_video(v, session)
+        finally:
+            session.close()
+        assert commit_spy.call_count == 3

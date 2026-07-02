@@ -9,6 +9,8 @@ __pycache__/
 .claude
 /test-api-last.log
 /test-ui-last.log
+/test-api-last-summary.log
+/test-ui-last-summary.log
 
 # Build artifacts
 /build/

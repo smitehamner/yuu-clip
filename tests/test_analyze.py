@@ -1609,3 +1609,29 @@ class TestPrereqs:
         body = client.get("/api/prereqs").json()
         assert isinstance(body["ffmpeg_ok"], bool)
         assert isinstance(body["llm_ok"], bool)
+
+
+# ---------------------------------------------------------------------------
+# _whisper_step (zero transcribe_tracks path)
+# ---------------------------------------------------------------------------
+
+class TestWhisperStep:
+    def _step(self, model="base", has_gpu=True, duration_s=3600, transcribe_tracks=1):
+        from yuu_clip.web.routes.analyze import _whisper_step
+        return _whisper_step(model, has_gpu, duration_s, transcribe_tracks)
+
+    def test_zero_tracks_returns_load_captions(self):
+        result = self._step(transcribe_tracks=0)
+        assert result["name"] == "Load captions"
+        assert result["seconds"] == 2.0
+        assert result["note"] == "from file"
+
+    def test_gpu_faster_than_cpu(self):
+        gpu = self._step(model="large-v3", has_gpu=True)
+        cpu = self._step(model="large-v3", has_gpu=False)
+        assert gpu["seconds"] < cpu["seconds"]
+
+    def test_more_tracks_longer(self):
+        one = self._step(transcribe_tracks=1)
+        two = self._step(transcribe_tracks=2)
+        assert two["seconds"] > one["seconds"]
