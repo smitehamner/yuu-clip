@@ -114,11 +114,13 @@ tests/
 .\scripts\test-ui.ps1         # requires live server at http://127.0.0.1:8080
 ```
 
-`test-ui.ps1` runs 4 pytest-xdist workers by default (~3 min; sequential is
-~7.5 min). Pass `-Sequential` only when debugging suspected worker-parallelism
+`test-ui.ps1` runs 4 pytest-xdist workers by default (~1.5 min on a healthy
+server). Pass `-Sequential` only when debugging suspected worker-parallelism
 flakes. The session `browser` fixture override in `tests/conftest.py` guards
 the Playwright teardown hang — see the comment there before touching the
-teardown watchdogs.
+teardown watchdogs. If the suite (or the app) feels slow, check the server
+isn't degraded first: `curl` `/api/status` should answer in ~3ms, and the
+serve process should sit near 0% CPU when idle.
 
 Run at least `test-api.ps1` before reporting a backend fix as done.
 

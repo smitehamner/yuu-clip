@@ -7,14 +7,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
 from sqlalchemy import case, func, select
 
 from yuu_clip.db.models import AudioEnergy, AudioTrack, ClipCandidate, SceneBoundary, Video
 from yuu_clip.log import get_logger
 from yuu_clip.web.deps import ProjectContext
+from yuu_clip.web.media import media_file_response
 from yuu_clip.web.routes._shared import (
     _active_job,
     _all_sidecar_paths,
@@ -226,7 +226,7 @@ def _register_split_and_edit_routes(router: APIRouter, ctx: ProjectContext) -> N
 
 def _register_media_routes(router: APIRouter, ctx: ProjectContext) -> None:
     @router.get("/api/videos/{video_id}/source")
-    def video_source(video_id: int):
+    def video_source(video_id: int, request: Request):
         db = ctx.get_db()
         try:
             video = db.get(Video, video_id)
@@ -240,7 +240,12 @@ def _register_media_routes(router: APIRouter, ctx: ProjectContext) -> None:
         _EXT_TYPE = {'.mkv': 'video/x-matroska', '.mp4': 'video/mp4',
                      '.mov': 'video/quicktime', '.avi': 'video/x-msvideo', '.webm': 'video/webm'}
         media_type = _EXT_TYPE.get(src.suffix.lower(), 'video/mp4')
-        return FileResponse(str(src), media_type=media_type)
+        # media_file_response (StreamingResponse), never FileResponse: starlette
+        # cancels a StreamingResponse when the client disconnects, but streams a
+        # FileResponse to completion — an abandoned <video> element kept pumping
+        # the whole multi-GB recording into a dead socket at full CPU. Bonus:
+        # the share-delete handle lets Remove Video work mid-preview.
+        return media_file_response(src, request, media_type)
 
     @router.get("/api/videos/{video_id}/energy")
     def get_video_energy(video_id: int):

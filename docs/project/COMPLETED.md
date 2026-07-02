@@ -5,6 +5,21 @@ Phases 1–3 have been moved to [COMPLETED-archive.md](COMPLETED-archive.md).
 
 ---
 
+## Fix: video streams outlive their viewer — server degraded to 140% idle CPU (done, 2026-07-02)
+
+`/api/videos/{id}/source` served recordings via starlette `FileResponse`, which
+does not listen for client disconnects — when a `<video>` element vanished
+(closed tab, killed browser), the response kept pumping the multi-GB file into
+a dead socket through the threadpool. Zombie streams accumulated until the
+server burned 140% CPU while idle and every request (even `/api/status`) took
+~90–400ms instead of ~3ms; UI test wall time roughly doubled. Now served via
+`media_file_response` (StreamingResponse — starlette cancels it on disconnect;
+also gives range support consistency and a share-delete handle so Remove Video
+works mid-preview). With the healthy server the parallel UI suite dropped from
+169s to 83s.
+
+---
+
 ## UI test suite parallelized — 7.6 min → 2.8 min (done, 2026-07-02)
 
 `test-ui.ps1` now runs 4 pytest-xdist workers by default (`-Sequential` opts out).

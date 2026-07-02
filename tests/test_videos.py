@@ -1907,3 +1907,40 @@ class TestComputeWaveformGuards:
         r = client.get(f"/api/videos/{vid_id}/compute-waveform")
         assert r.status_code == 404
         assert r.json()["detail"] == "Source video file not found on disk"
+
+
+# ---------------------------------------------------------------------------
+
+class TestVideoSource:
+    """/api/videos/{id}/source streams the recording with HTTP range support.
+
+    Must stay on media_file_response (StreamingResponse), not FileResponse:
+    starlette cancels a StreamingResponse when the client disconnects, while
+    FileResponse streams to completion — an abandoned <video> element left it
+    pumping the whole multi-GB recording into a dead socket at full CPU.
+    """
+
+    def _write_source(self, project_dir):
+        payload = b"0123456789abcdef" * 64
+        (project_dir / "session.mkv").write_bytes(payload)
+        return payload
+
+    def test_serves_full_file_with_range_support(self, client, project_dir):
+        payload = self._write_source(project_dir)
+        resp = client.get("/api/videos/1/source")
+        assert resp.status_code == 200
+        assert resp.content == payload
+        assert resp.headers["accept-ranges"] == "bytes"
+        assert resp.headers["content-type"] == "video/x-matroska"
+
+    def test_range_request_returns_partial_content(self, client, project_dir):
+        payload = self._write_source(project_dir)
+        resp = client.get("/api/videos/1/source", headers={"Range": "bytes=4-9"})
+        assert resp.status_code == 206
+        assert resp.content == payload[4:10]
+        assert resp.headers["content-range"] == "bytes 4-9/" + str(len(payload))
+
+    def test_missing_file_is_404(self, client):
+        resp = client.get("/api/videos/1/source")
+        assert resp.status_code == 404
+        assert resp.json()["detail"] == "Source video file not found on disk"
