@@ -83,7 +83,7 @@ function _clearClipFilters() {
 // when no other filter is selected.
 function _syncFilterChips() {
   const f = AppState.clipFilters;
-  document.querySelectorAll('.clip-chip').forEach(chip => {
+  document.querySelectorAll('[data-filter]').forEach(chip => {
     const token = chip.dataset.filter;
     const active = token === 'all' ? f.size === 0 : f.has(token);
     chip.classList.toggle('active', active);
@@ -126,7 +126,7 @@ function _renderClipItems(clips) {
     const hasActiveFilter = AppState.clipFilters.size > 0 || AppState.clipSearch || AppState.clipScoreMin > 0;
     const filterMsg = hasActiveFilter
       ? `No clips match the current filters — <a href="#" style="color:var(--accent);text-decoration:underline" onclick="event.preventDefault();_clearClipFilters()">Clear filters</a>`
-      : `No clips found — <a href="#" style="color:var(--muted);text-decoration:underline" onclick="event.preventDefault();openNewRecordingPanel()">Analyze another recording</a>`;
+      : `No clips found — <a href="#" style="color:var(--accent);text-decoration:underline" onclick="event.preventDefault();openNewRecordingPanel()">Analyze another recording</a>`;
     list.innerHTML = `<li style="padding:10px 14px;color:var(--muted)">${filterMsg}</li>`;
     _updateBulkToolbar();
     return;

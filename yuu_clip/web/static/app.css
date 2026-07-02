@@ -99,9 +99,12 @@ header h1 { font-size: 16px; font-weight: 700; letter-spacing: .5px; color: var(
 .sidebar-list { list-style: none; overflow-y: auto; }
 .sidebar-list li { padding: 8px 14px; cursor: pointer; border-left: 3px solid transparent; transition: background .1s; }
 .sidebar-list li:hover { background: var(--border); }
-.sidebar-list li.active { background: #1f1f2a; }
+.sidebar-list li.active { background: #262640; }
 #video-list li.active { border-left-color: var(--accent); }
 #clip-list li { border-left-width: 4px; }
+/* Clip rows' left border encodes score color, so the active marker goes on the
+   right edge instead (M2-3). */
+#clip-list li.active { box-shadow: inset -3px 0 0 0 var(--accent); }
 .video-item .name { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .video-item .meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
 /* ── clip sidebar items ── */
@@ -114,10 +117,14 @@ header h1 { font-size: 16px; font-weight: 700; letter-spacing: .5px; color: var(
 .dot-rejected { background: var(--red); }
 .dot-pending  { background: var(--muted); }
 /* ── resize handles ── */
-.resize-handle { flex-shrink: 0; background: var(--border); transition: background .15s; }
+.resize-handle { flex-shrink: 0; background: var(--border); transition: background .15s; position: relative; }
 .resize-handle:hover, .resize-handle.dragging { background: var(--accent); }
 .resize-handle-v { height: 4px; cursor: ns-resize; }
 .resize-handle-h { width: 4px; cursor: ew-resize; }
+/* Invisible grab zone widens the 4px visual line to an 8px hit target (L2-3). */
+.resize-handle::after { content: ''; position: absolute; z-index: 4; }
+.resize-handle-v::after { top: -2px; bottom: -2px; left: 0; right: 0; }
+.resize-handle-h::after { left: -2px; right: -2px; top: 0; bottom: 0; }
 
 /* ── main panel ── */
 .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
@@ -382,8 +389,7 @@ kbd { background: var(--surface); border: 1px solid var(--border); border-radius
 .run-stage-time { flex: 0 0 auto; color: var(--text); min-width: 52px; text-align: right; font-variant-numeric: tabular-nums; }
 
 /* ── clip filter tabs ── */
-.clip-filter-tabs { display: flex; gap: 2px; padding: 2px 8px 4px; overflow-x: auto; scrollbar-width: none; }
-.clip-filter-tabs::-webkit-scrollbar { display: none; }
+.clip-filter-tabs { display: flex; flex-wrap: wrap; gap: 2px; padding: 2px 8px 4px; }
 .clip-tab { font-size: 10px; padding: 2px 8px; border-radius: 10px; border: none; background: none; color: var(--muted); cursor: pointer; }
 .clip-tab.active { background: var(--border); color: var(--text); }
 /* Multi-select filter chips (toggle, unlike the old single-select tabs). */

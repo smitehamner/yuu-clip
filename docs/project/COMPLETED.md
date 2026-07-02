@@ -5,6 +5,41 @@ Phases 1–3 have been moved to [COMPLETED-archive.md](COMPLETED-archive.md).
 
 ---
 
+## UX review sidebar pass — H2-1, M2-1, M2-3, M2-4, L2-1/2/3 (done, 2026-07-02)
+
+Prompt 6 of the 2026-07 UX review plan (`UX_REVIEW_PLAN.md`):
+
+- **H2-1 — filter chips wrap** (`flex-wrap: wrap`) instead of overflowing into
+  an invisible hidden-scrollbar region; every filter is now visible at any
+  sidebar width.
+- **M2-1 — "– no summary / – unscored / – no timeline" badges removed** from
+  recording rows; the detail view's action buttons remain the signifier.
+- **M2-3 — stronger active-row treatment**, decided once for both lists:
+  brighter accent-tinted background (`#262640`); recordings keep the accent
+  left border, clip rows get a right-edge accent bar (`box-shadow`) so the
+  score-color left border is untouched.
+- **M2-4 — panels mirror**: Recordings chip row gains the "Filter" prefix
+  label, the recordings sort options get emoji prefixes (🕒 Recent, 🔤 Title,
+  ⌚ Length, 🎞 Clips — matching the clips-panel convention), and the
+  recordings sort persists in localStorage (`videos-sort`) with restore in
+  `boot.js`.
+- **L2-1 — both empty-state links accent-colored** ("Analyze another
+  recording" was muted).
+- **L2-2 — clip search scope discoverable**: placeholder now reads "Search
+  descriptions, transcript, tags…" with a matching tooltip and aria-label.
+- **L2-3 — resize handles keep the 4px line but get an 8px hit area** via an
+  invisible `::after` grab zone.
+- **Bonus bug fix**: `_syncFilterChips()` (clips.js) matched every
+  `.clip-chip` including the recordings chips, so selecting a recording
+  stripped the active state off the recordings "All" chip; now scoped to
+  `[data-filter]`.
+
+Covered by four additions to `TestVideoSidebarControls` in
+`tests/test_ui_page.py` (sort persistence across reload, chip-sync scoping
+regression, chip-overflow geometry check).
+
+---
+
 ## UX review M1-1 + L1-4 — header job pill overflow & version tag (done, 2026-07-02)
 
 Prompt 5 of the 2026-07 UX review plan (`UX_REVIEW_PLAN.md`):

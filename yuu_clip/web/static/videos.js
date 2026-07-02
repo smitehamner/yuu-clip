@@ -88,11 +88,6 @@ function _renderVideoList() {
     const scoreBar = (v.score_min !== null && v.score_max !== null && v.clip_count > 0)
       ? `<div class="meta">Scores: ${Math.round(v.score_min * 100)}% – ${Math.round(v.score_max * 100)}%</div>`
       : '';
-    const procBadges = [
-      v.summarized_at   ? '' : '<span style="font-size:10px;color:var(--muted)" title="No summary yet">– no summary</span>',
-      v.clips_scored_at ? '' : '<span style="font-size:10px;color:var(--muted)" title="Not scored yet">– unscored</span>',
-      v.has_timeline    ? '' : '<span style="font-size:10px;color:var(--muted)" title="No timeline yet">– no timeline</span>',
-    ].filter(Boolean).join(' &middot; ');
     const segmentMeta = (v.segment_start_s != null && v.segment_end_s != null)
       ? `<div class="meta" style="color:var(--accent2)">${_msToHms(v.segment_start_s * 1000)} – ${_msToHms(v.segment_end_s * 1000)}</div>`
       : '';
@@ -108,7 +103,6 @@ function _renderVideoList() {
       <div class="meta">${isAnalyzing
         ? `<span class="spinner" style="display:inline-block;vertical-align:middle"></span> <span style="color:var(--accent)">${escHtml(_fmtVideoStatus(v.status))}…</span>`
         : `${v.approved} approved &middot; ${v.exported} exported &middot; ${_fmtVideoStatus(v.status)}`}</div>
-      ${procBadges ? `<div class="meta" style="margin-top:2px">${procBadges}</div>` : ''}
       ${errBadge}
       ${scoreBar}`;
     list.appendChild(li);
@@ -127,7 +121,11 @@ function _renderVideoList() {
 
 // ── video search / filter / sort controls ──────────────────────────────────
 function setVideoSearch(q) { AppState.videoSearch = q.trim(); _renderVideoList(); }
-function setVideoSort(sort) { AppState.videoSort = sort; _renderVideoList(); }
+function setVideoSort(sort) {
+  AppState.videoSort = sort;
+  localStorage.setItem('videos-sort', sort);
+  _renderVideoList();
+}
 
 function toggleVideoFilter(token) {
   const f = AppState.videoFilters;

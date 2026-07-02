@@ -39,6 +39,11 @@ fetch('/api/prereqs').then(r => r.json()).then(p => {
 }).catch(() => {});
 const _savedSort = localStorage.getItem('clips-sort');
 if (_savedSort) document.getElementById('clips-sort').value = _savedSort;
+const _savedVideoSort = localStorage.getItem('videos-sort');
+if (_savedVideoSort) {
+  AppState.videoSort = _savedVideoSort;
+  document.getElementById('videos-sort').value = _savedVideoSort;
+}
 document.getElementById('log-panel').classList.add('visible', 'minimized');
 document.getElementById('log-toggle').textContent = '▼';
 

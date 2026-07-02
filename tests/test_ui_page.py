@@ -158,3 +158,36 @@ class TestVideoSidebarControls:
         expect(all_chip).to_have_attribute("aria-pressed", "false")
         has_clips.click()
         expect(all_chip).to_have_attribute("aria-pressed", "true")
+
+    def test_video_sort_persists_and_restores(self, page: Page):
+        page.goto(LIVE_URL)
+        page.select_option("#videos-sort", "length")
+        assert page.evaluate("() => localStorage.getItem('videos-sort')") == "length"
+        page.reload()
+        assert page.input_value("#videos-sort") == "length"
+        assert page.evaluate("() => AppState.videoSort") == "length"
+
+    def test_clip_chip_sync_leaves_video_chips_alone(self, page: Page):
+        # Regression: _syncFilterChips (clips) used to match every .clip-chip,
+        # stripping the active state off the videos "All" chip on video select.
+        page.goto(LIVE_URL)
+        page.evaluate(
+            "() => { AppState.clipFilters = new Set(['approved']); _syncFilterChips(); }"
+        )
+        expect(page.locator("button[data-vfilter='all']")).to_have_attribute(
+            "aria-pressed", "true"
+        )
+
+    def test_filter_chips_wrap_within_sidebar(self, page: Page):
+        # H2-1: chips must wrap, never overflow horizontally out of view.
+        page.goto(LIVE_URL)
+        overflowing = page.evaluate(
+            """() => {
+              const tabs = document.querySelector('.clips-group .clip-filter-tabs');
+              const right = tabs.getBoundingClientRect().right;
+              return [...tabs.querySelectorAll('.clip-chip')]
+                .filter(chip => chip.getBoundingClientRect().right > right + 1)
+                .map(chip => chip.textContent.trim());
+            }"""
+        )
+        assert overflowing == []
