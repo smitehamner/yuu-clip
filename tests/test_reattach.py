@@ -11,6 +11,7 @@ import asyncio
 import json
 import sys
 
+import pytest
 from fastapi.testclient import TestClient
 
 from yuu_clip.web.analyze_job import AnalyzeJob
@@ -163,3 +164,78 @@ class TestFailInterruptedAnalyses:
             videos = {v["id"]: v["status"] for v in tc.get("/api/videos").json()}
         assert videos[done_id] == "done"
         assert videos[pending_id] == "pending"
+
+
+# ---------------------------------------------------------------------------
+# Cancel also cleans up the killed run's stuck 'extracting' row
+# ---------------------------------------------------------------------------
+
+class TestCancelCleansStuckRow:
+    def test_cancel_flips_extracting_row_to_failed(self, project_dir):
+        """A cancelled run's row shouldn't be left spinning at 'extracting' until
+        the next server restart — the cancel route runs the same cleanup."""
+        from yuu_clip.db.models import Video, make_session
+
+        app = create_app(project_dir)
+        with TestClient(app) as tc:
+            # Add the stuck row AFTER startup so it's the cancel route (not the
+            # startup reconciliation) that flips it.
+            session = make_session(project_dir / ".yuu-clip" / "project.db")
+            v = Video(path=str(project_dir / "stuck.mkv"), filename="stuck.mkv",
+                      status="extracting", duration_ms=1000)
+            session.add(v)
+            session.commit()
+            vid = v.id
+            session.close()
+
+            assert tc.post("/api/analyze/cancel").status_code == 200
+            row = next(x for x in tc.get("/api/videos").json() if x["id"] == vid)
+        assert row["status"] == "failed"
+
+
+# ---------------------------------------------------------------------------
+# Heavy DB/GPU jobs are refused while an analysis is in flight
+# ---------------------------------------------------------------------------
+
+class _RunningJob:
+    done = False
+    filename = "running.mkv"
+    video_id = 1
+
+
+class TestRejectWhileAnalyzing:
+    def test_reject_helper_only_fires_while_in_flight(self):
+        from fastapi import HTTPException
+        from yuu_clip.web.routes._shared import _reject_if_analyzing
+
+        class _Ctx:
+            analyze_job = None
+            analyze_proc = None
+
+        ctx = _Ctx()
+        _reject_if_analyzing(ctx)  # idle → no raise
+
+        ctx.analyze_job = _RunningJob()
+        with pytest.raises(HTTPException) as exc:
+            _reject_if_analyzing(ctx)
+        assert exc.value.status_code == 409
+
+    def test_score_all_rejected(self, project_dir):
+        app = create_app(project_dir)
+        with TestClient(app) as tc:
+            app.state.ctx.analyze_job = _RunningJob()
+            assert tc.post("/api/score").status_code == 409
+
+    def test_rescore_clips_rejected(self, project_dir):
+        app = create_app(project_dir)
+        with TestClient(app) as tc:
+            vid = tc.get("/api/videos").json()[0]["id"]
+            app.state.ctx.analyze_job = _RunningJob()
+            assert tc.get(f"/api/videos/{vid}/rescore-clips").status_code == 409
+
+    def test_rediarize_rejected(self, project_dir):
+        app = create_app(project_dir)
+        with TestClient(app) as tc:
+            vid = tc.get("/api/videos").json()[0]["id"]
+            app.state.ctx.analyze_job = _RunningJob()
+            assert tc.get(f"/api/videos/{vid}/rediarize").status_code == 409

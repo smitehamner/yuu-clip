@@ -40,9 +40,13 @@ function _checkSettingsDirty() {
 
 async function openSettings() {
   _settingsOpener = document.activeElement;
-  document.getElementById('main-layout').style.display = 'none';
-  document.getElementById('settings-panel').style.flex = '1';
-  document.getElementById('settings-panel').classList.add('visible');
+  // Close the new-recording panel so it isn't left open behind the overlay.
+  if (typeof _isNewRecordingPanelOpen === 'function' && _isNewRecordingPanelOpen()) {
+    _doCloseNewRecordingPanel();
+  }
+  const panel = document.getElementById('settings-panel');
+  panel.style.top = document.querySelector('header').offsetHeight + 'px';
+  panel.classList.add('visible');
   try {
     const cfg = await fetch('/api/config').then(r => r.json());
     await _ensureWhisperLanguageOptions();
@@ -83,7 +87,6 @@ function closeSettings(onClosed) {
 
 function _doCloseSettings(onClosed) {
   document.getElementById('settings-panel').classList.remove('visible');
-  document.getElementById('main-layout').style.display = '';
   const opener = _settingsOpener;
   _settingsOpener = null;
   if (opener?.focus) opener.focus();

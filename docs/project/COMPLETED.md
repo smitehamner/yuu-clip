@@ -25,8 +25,32 @@ Quick-win bugs and branding from the in-app feedback pass:
   (or failed transiently), opening a recording refetches contexts so the context
   section never renders from an empty list until a page refresh.
 - **Log panel aligned to the detail area** — the progress log no longer spans
-  under the sidebar; it tracks the (resizable) sidebar width and left-aligns with
-  the main panel.
+  under the sidebar (see batch 2 for the final placement).
+
+---
+
+## Usage-feedback cleanup — batch 2: analysis lifecycle (done, 2026-07-02)
+
+Correctness fixes around cancelling/running analyses, plus the settings/log layout:
+
+- **Cancel fully clears the analyzing state** — cancelling no longer leaves a
+  stuck, unclickable "Analyzing…" sidebar placeholder (the client marker is
+  cleared) and the killed run's DB row is flipped out of `extracting` → `failed`
+  immediately (same cleanup the server runs on startup), instead of spinning
+  until the next restart.
+- **No more wrong-video detail on rapid clicks** — `selectVideo` ignores a slower
+  earlier clips fetch that resolves after a newer selection.
+- **Interfering jobs are blocked while analyzing** — re-score / re-describe /
+  re-diarize / re-transcribe / timeline / summary / find-similar all refuse to
+  start during an analysis: the backend returns 409 (`_reject_if_analyzing`) and
+  the UI bails with a clear toast *before* tearing down the live analyze stream.
+- **Settings takes over the detail area, not the whole window** — the settings
+  panel is now a fixed overlay anchored past the (resizable) sidebar, so the
+  sidebar stays visible; opening the Analyze panel closes settings cleanly (no
+  "analysis opens underneath settings").
+- **Log panel moved inside the main column** — it now sits below the detail area
+  with the sidebar extending full height beside it (batch 1's `margin-left`
+  approach left a body-background bar under the sidebar).
 
 ---
 

@@ -143,6 +143,29 @@ def _locked_files_error(locked: list[Path]) -> HTTPException:
     return HTTPException(409, detail)
 
 
+def _analyze_in_flight(ctx) -> bool:
+    """Whether an analyze operation is currently running, across both the
+    reattachable AnalyzeJob (ctx.analyze_job) and the legacy bare-subprocess
+    tracking (ctx.analyze_proc)."""
+    job = ctx.analyze_job
+    if job is not None and not job.done:
+        return True
+    proc = ctx.analyze_proc
+    return proc is not None and proc.returncode is None
+
+
+def _reject_if_analyzing(ctx) -> None:
+    """Guard heavy DB-writing jobs (score/rescore/redescribe/rediarize) from
+    running while an analysis is in flight — two writers on the same SQLite file
+    would contend on the single-writer lock and stall each other."""
+    if _analyze_in_flight(ctx):
+        raise HTTPException(
+            409,
+            "An analysis is still running — wait for it to finish or cancel it "
+            "before starting another job.",
+        )
+
+
 @asynccontextmanager
 async def _active_job(ctx):
     ctx.active_jobs += 1

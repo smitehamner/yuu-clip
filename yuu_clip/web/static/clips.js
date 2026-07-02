@@ -1034,6 +1034,7 @@ function closeSimilarClipsModal() {
 function startFindSimilar() {
   const clipId = _similarClipsClipId;
   if (!clipId) return;
+  if (_blockedByAnalyze('find similar clips')) return;
 
   const checked = Array.from(document.querySelectorAll('#similar-clips-scope input[type=checkbox]:checked'));
   const videoIds = checked.map(el => el.dataset.videoId).join(',');

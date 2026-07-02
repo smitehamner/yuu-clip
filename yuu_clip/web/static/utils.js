@@ -427,6 +427,17 @@ function _supersedeActiveStream() {
   if (_activeJobCleanup) { const cleanup = _activeJobCleanup; _activeJobCleanup = null; cleanup(); }
 }
 
+// Guard for competing SSE jobs (re-score, timeline, summary, diarize, …). While
+// an analysis is running the backend 409s these anyway, but they call
+// _supersedeActiveStream() first, which would tear down the live analyze progress
+// UI before the rejection lands. Returns true (and toasts) so the caller can bail
+// before any side effects.
+function _blockedByAnalyze(actionLabel) {
+  if (!AppState.analyzeFilename) return false;
+  showToast(`Wait for the current analysis to finish before you ${actionLabel}.`, 'error');
+  return true;
+}
+
 function streamSSE(url, onDone, stepDefs, jobLabel, cancellable = false) {
   _supersedeActiveStream();
   if (stepDefs) startJobUI(stepDefs, jobLabel, cancellable);
@@ -473,6 +484,10 @@ async function _doCancelJob() {
   _supersedeActiveStream();
   appendLog('[Analysis cancelled]');
   endJobUI();
+  // Clear the analyzing marker so loadVideos() drops the sidebar placeholder /
+  // spinner. Left set, a cancelled run whose DB row never materialised would
+  // keep an unclickable "Analyzing…" placeholder until a manual page refresh.
+  AppState.analyzeFilename = null;
   loadVideos();
 }
 

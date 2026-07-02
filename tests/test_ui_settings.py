@@ -74,3 +74,30 @@ class TestTranscriptionLanguageSelect:
         # Restore so the panel isn't left dirty for later tests.
         page.select_option("#s-whisper-language", current)
         expect(page.locator("#btn-settings-save")).to_be_disabled()
+
+
+@skip_no_server
+class TestSettingsPanelLayout:
+    """Settings takes over the detail area as a fixed overlay but leaves the
+    sidebar visible, and opening the Analyze panel closes settings (no overlap)."""
+
+    def _open_settings(self, page: Page) -> None:
+        page.goto(LIVE_URL)
+        page.wait_for_selector("#video-list li[data-video-id]", timeout=5000)
+        page.click("#btn-settings-header")
+        page.wait_for_selector("#settings-panel.visible", timeout=3000)
+
+    def test_sidebar_stays_visible_when_settings_open(self, page: Page):
+        self._open_settings(page)
+        expect(page.locator(".sidebar")).to_be_visible()
+        # The main layout is no longer hidden — settings is an overlay, not fullscreen.
+        display = page.evaluate(
+            "getComputedStyle(document.getElementById('main-layout')).display"
+        )
+        assert display != "none"
+
+    def test_opening_analyze_closes_settings(self, page: Page):
+        self._open_settings(page)
+        page.click("#btn-analyze")
+        expect(page.locator("#settings-panel.visible")).to_have_count(0)
+        expect(page.locator("#new-recording-panel")).to_be_visible()

@@ -80,6 +80,7 @@ function _renderSpeakersCard(speakers) {
 // suggestions render. The __DONE__ sentinel carries how many were applied.
 function _suggestSpeakerNames() {
   if (!_currentVideoId) return;
+  if (_blockedByAnalyze('suggest speaker names')) return;
   const videoId = _currentVideoId;
   const btn = document.querySelector('.speaker-suggest-btn');
   if (btn && btn.disabled) return;

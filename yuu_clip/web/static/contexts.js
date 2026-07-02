@@ -222,6 +222,7 @@ function rescoreFailedClips(videoId, btn) {
 }
 
 function _doRescoreClips(videoId, btn, endpoint = 'rescore-clips') {
+  if (_blockedByAnalyze('re-score clips')) return;
   const orig = btn?.textContent;
   if (btn) { btn.disabled = true; btn.textContent = 'Re-scoring…'; }
   openLog();
@@ -303,6 +304,7 @@ function redescribeAllClips(videoId, btn) {
 }
 
 function _doRedescribeClips(videoId, btn) {
+  if (_blockedByAnalyze('re-describe clips')) return;
   const orig = btn?.textContent;
   if (btn) { btn.disabled = true; btn.textContent = 'Re-describing…'; }
   openLog();
@@ -485,6 +487,7 @@ function startRetranscribe() {
 
 // ── re-score individual clip ──────────────────────────────────────────────────
 function rescoreClip(clipId) {
+  if (_blockedByAnalyze('re-score a clip')) return;
   _supersedeActiveStream();
   openLog();
   startJobUI(SCORE_STEPS, 'Re-scoring clip');

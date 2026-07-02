@@ -27,6 +27,52 @@ class TestPageLoad:
         expect(logo).to_be_visible()
         assert logo.get_attribute("src").endswith("gamercat.png")
 
+
+@skip_no_server
+class TestJobGuardWhileAnalyzing:
+    """Competing SSE jobs bail with a toast while an analysis is running, so they
+    don't tear down the live analyze progress stream."""
+
+    def test_guard_blocks_and_toasts_while_analyzing(self, page: Page):
+        page.goto(LIVE_URL)
+        page.wait_for_selector("#video-list li", timeout=5000)
+        page.evaluate("AppState.analyzeFilename = 'busy.mkv'")
+        assert page.evaluate("_blockedByAnalyze('re-score clips')") is True
+        expect(page.locator("#toast-container")).to_contain_text("Wait for the current analysis")
+
+    def test_guard_allows_when_idle(self, page: Page):
+        page.goto(LIVE_URL)
+        page.wait_for_selector("#video-list li", timeout=5000)
+        page.evaluate("AppState.analyzeFilename = null")
+        assert page.evaluate("_blockedByAnalyze('re-score clips')") is False
+
+
+@skip_no_server
+class TestLogPanelPlacement:
+    """The log lives inside the main column so the sidebar extends full height
+    beside it — no full-width bar (or body-background gap) under the sidebar."""
+
+    def test_log_panel_is_inside_main(self, page: Page):
+        page.goto(LIVE_URL)
+        assert page.evaluate("!!document.querySelector('.main #log-panel')") is True
+
+    def test_log_left_aligns_with_main_and_clears_sidebar(self, page: Page):
+        page.goto(LIVE_URL)
+        page.wait_for_selector("#video-list li", timeout=5000)
+        page.evaluate(
+            "const p = document.getElementById('log-panel');"
+            "p.classList.add('visible'); p.classList.remove('minimized');"
+        )
+        r = page.evaluate(
+            "() => ({"
+            "  main: document.querySelector('.main').getBoundingClientRect().left,"
+            "  log:  document.getElementById('log-panel').getBoundingClientRect().left,"
+            "  sideR: document.querySelector('.sidebar').getBoundingClientRect().right,"
+            "})"
+        )
+        assert abs(r["log"] - r["main"]) < 2   # aligned with the detail column
+        assert r["log"] >= r["sideR"] - 1      # does not span under the sidebar
+
     def test_sidebar_has_videos(self, page: Page):
         page.goto(LIVE_URL)
         # Wait for video list to populate

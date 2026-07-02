@@ -16,6 +16,7 @@ from yuu_clip.web.deps import ProjectContext
 from yuu_clip.web.routes._shared import (
     _active_job,
     _json_list,
+    _reject_if_analyzing,
     _require_clip,
     _sse_response,
 )
@@ -96,6 +97,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
 
 
 def _rescore_video_clips(ctx: ProjectContext, video_id: int, failed_only: bool):
+    _reject_if_analyzing(ctx)
     db = ctx.get_db()
     try:
         video = db.get(Video, video_id)
@@ -301,6 +303,7 @@ def _register_summary_routes(router: APIRouter, ctx: ProjectContext) -> None:
         """Regenerate title + summary and auto-commit to DB. Streams one log line as SSE."""
         from yuu_clip.scoring.llm import summarize_transcript
 
+        _reject_if_analyzing(ctx)
         db = ctx.get_db()
         try:
             video = db.get(Video, video_id)
@@ -352,6 +355,7 @@ def _register_summary_routes(router: APIRouter, ctx: ProjectContext) -> None:
 def _register_clip_scoring_routes(router: APIRouter, ctx: ProjectContext) -> None:
     @router.get("/api/clips/{clip_id}/rescore")
     async def rescore_clip(clip_id: int):
+        _reject_if_analyzing(ctx)
         db = ctx.get_db()
         try:
             clip = _require_clip(db, clip_id)
@@ -412,6 +416,7 @@ def _register_clip_scoring_routes(router: APIRouter, ctx: ProjectContext) -> Non
         from yuu_clip.scoring.llm import check_llm_available
         from yuu_clip.scoring.llm import describe_clip as _describe_clip
 
+        _reject_if_analyzing(ctx)
         db = ctx.get_db()
         try:
             video = db.get(Video, video_id)

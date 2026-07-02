@@ -187,7 +187,11 @@ async function selectVideo(id) {
   // list on the first video opened after load.
   const clipsPromise = fetch(`/api/videos/${id}/clips?sort=${_clipsSortParam()}`).then(r => r.json());
   await ensureContexts();
-  AppState.clips = await clipsPromise;
+  const clips = await clipsPromise;
+  // Guard against a slower earlier fetch resolving after a newer selection —
+  // otherwise clicking B while A's clips are in flight renders A into B's detail.
+  if (AppState.activeVideoId !== id) return;
+  AppState.clips = clips;
   _renderClips();
   const video = AppState.videos.find(v => v.id === id);
   if (video) renderVideoDetail(video, null);
@@ -488,6 +492,7 @@ async function confirmGenerateTimeline() {
 }
 
 function _startGenerateTimeline(id, intervalS) {
+  if (_blockedByAnalyze('generate a timeline')) return;
   const section = document.getElementById('timeline-section');
   const intervalLabel = intervalS >= 60
     ? `${Math.round(intervalS / 60)}-minute`
@@ -577,6 +582,7 @@ function regenSummaryAuto(id, btn) {
 }
 
 function _doRegenSummaryAuto(id, btn) {
+  if (_blockedByAnalyze('regenerate the summary')) return;
   const actionBtn = document.getElementById('btn-regen-summary') || btn;
   if (actionBtn && actionBtn.disabled) return;
   if (actionBtn) { actionBtn.disabled = true; actionBtn.textContent = 'Regenerating…'; }
@@ -664,6 +670,7 @@ async function _doReanalyzeVideo(video) {
 }
 
 function rediarizeVideo(id) {
+  if (_blockedByAnalyze('re-detect speakers')) return;
   const video = AppState.videos.find(v => v.id === id);
   const name = video ? video.filename : id;
   openLog();
