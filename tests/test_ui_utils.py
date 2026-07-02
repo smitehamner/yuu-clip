@@ -705,6 +705,61 @@ class TestUpdateJobUI:
             "step done", "step done", "step active",
         ]
 
+    def test_done_steps_collapse_to_check_with_label_in_tooltip(self, page: Page):
+        # M1-1: done pills show a compact "✓" so a 7-step job can't push the
+        # header buttons off-screen; the full label moves to the tooltip.
+        text, title = page.evaluate(
+            "() => {"
+            "  startJobUI(SCORE_STEPS, 'Re-scoring clip');"
+            "  updateJobUI('Scoring clips now');"
+            "  const el = document.getElementById('step-0');"
+            "  const out = [el.textContent, el.title];"
+            "  endJobUI();"
+            "  return out;"
+            "}"
+        )
+        assert text == "✓"
+        assert title == "Energy"
+
+    def test_completion_collapses_every_step_to_check(self, page: Page):
+        texts = page.evaluate(
+            "() => {"
+            "  startJobUI(SCORE_STEPS, 'Re-scoring clip');"
+            "  endJobUI();"
+            "  return [0, 1, 2].map(i => document.getElementById('step-' + i).textContent);"
+            "}"
+        )
+        assert texts == ["✓", "✓", "✓"]
+
+
+# ---------------------------------------------------------------------------
+# M1-1 — job pill must never displace the header buttons, however long the
+# active-step live label grows (min-width:0 chain + active-pill ellipsis)
+# ---------------------------------------------------------------------------
+
+@skip_no_server
+class TestJobPillHeaderOverflow:
+    def test_header_buttons_stay_in_viewport_during_long_ingest(self, page: Page):
+        page.set_viewport_size({"width": 800, "height": 720})
+        page.evaluate(
+            "() => {"
+            "  startJobUI(INGEST_STEPS, 'Analyzing');"
+            "  ['Extracting audio', 'Transcribing', 'Detecting speakers',"
+            "   'Generating clip', 'Computing audio energy', 'Detecting scene',"
+            "   'Scoring clips'].forEach(updateJobUI);"
+            "  updateJobUI('Scoring 3/12');"
+            "  updateJobUI('Scoring 4/12');"
+            "}"
+        )
+        in_viewport = page.evaluate(
+            "() => ['btn-analyze', 'btn-highlight-reels', 'btn-hamburger'].every(id => {"
+            "  const r = document.getElementById(id).getBoundingClientRect();"
+            "  return r.right <= window.innerWidth && r.width > 0;"
+            "})"
+        )
+        page.evaluate("() => endJobUI()")
+        assert in_viewport is True
+
 
 # ---------------------------------------------------------------------------
 # _stepPillLabel / _renderStepPill (utils.js) — live "i/N (pct%)" + ETA text

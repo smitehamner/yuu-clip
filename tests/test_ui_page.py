@@ -6,6 +6,8 @@ server is not reachable. See tests/conftest.py for the shared helpers.
 """
 from __future__ import annotations
 
+import re
+
 from conftest import LIVE_URL, skip_no_server
 from playwright.sync_api import Page, expect
 
@@ -26,6 +28,10 @@ class TestPageLoad:
         logo = page.locator("header .brand .brand-logo")
         expect(logo).to_be_visible()
         assert logo.get_attribute("src").endswith("gamercat.png")
+
+    def test_footer_version_tag_has_v_prefix(self, page: Page):
+        page.goto(LIVE_URL)
+        expect(page.locator("#version-tag")).to_have_text(re.compile(r"^v\d"))
 
 
 @skip_no_server

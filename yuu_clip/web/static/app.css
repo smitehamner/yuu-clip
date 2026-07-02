@@ -31,11 +31,14 @@ header h1 { font-size: 16px; font-weight: 700; letter-spacing: .5px; color: var(
 .brand-logo { border-radius: 5px; object-fit: cover; flex-shrink: 0; }
 
 /* job status pill */
-.job-status { display: none; align-items: center; gap: 8px; background: #1e1e2a; border: 1px solid var(--border); border-radius: 20px; padding: 4px 12px 4px 8px; font-size: 12px; color: var(--text); margin-right: auto; }
+.job-status { display: none; align-items: center; gap: 8px; background: #1e1e2a; border: 1px solid var(--border); border-radius: 20px; padding: 4px 12px 4px 8px; font-size: 12px; color: var(--text); margin-right: auto; min-width: 0; }
 .job-status.visible { display: flex; }
 .spinner { width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; flex-shrink: 0; }
 @keyframes spin { to { transform: rotate(360deg); } }
-.job-steps { display: flex; gap: 6px; align-items: center; }
+.job-steps { display: flex; gap: 6px; align-items: center; min-width: 0; white-space: nowrap; }
+/* Only the active pill shrinks (min-width:0 overrides the flex min-width:auto
+   floor); done/pending pills and the job label keep their natural width. */
+.job-steps .step.active { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .step { font-size: 11px; padding: 2px 7px; border-radius: 10px; background: var(--border); color: var(--muted); transition: background .2s, color .2s; }
 .step.active { background: var(--accent); color: #fff; }
 .step.done   { background: var(--green);  color: var(--bg); }

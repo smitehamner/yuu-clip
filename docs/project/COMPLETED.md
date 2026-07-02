@@ -5,6 +5,26 @@ Phases 1–3 have been moved to [COMPLETED-archive.md](COMPLETED-archive.md).
 
 ---
 
+## UX review M1-1 + L1-4 — header job pill overflow & version tag (done, 2026-07-02)
+
+Prompt 5 of the 2026-07 UX review plan (`UX_REVIEW_PLAN.md`):
+
+- **M1-1 — job pill can no longer displace the header buttons**: done step
+  pills collapse to a compact "✓" (full label as tooltip), the active step's
+  live label ellipsizes instead of growing, and a `min-width:0` chain on
+  `.job-status`/`.job-steps` lets the pill shrink so `+ Analyze` / `Highlight
+  Reels` / gear / hamburger always stay in the viewport. The in-detail live
+  analysis panel keeps full step labels — it wraps, so it never overflowed.
+- **L1-4 — footer version tag reads `v0.1.10-dev …`** instead of a bare
+  number (prefix applied only when the version starts with a digit).
+
+Covered by `TestJobPillHeaderOverflow` + two `TestUpdateJobUI` additions in
+`tests/test_ui_utils.py` (800px-viewport geometry check during a simulated
+7-step analyze) and `test_footer_version_tag_has_v_prefix` in
+`tests/test_ui_page.py`.
+
+---
+
 ## UX review CC-6/CC-8/CC-10 — terminology & display conventions (done, 2026-07-02)
 
 Prompt 4 of the 2026-07 UX review plan (`UX_REVIEW_PLAN.md`):

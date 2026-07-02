@@ -256,7 +256,7 @@ function updateJobUI(line) {
     if (s.patterns.some(p => line.includes(p))) {
       for (let j = 0; j < i; j++) {
         const el = document.getElementById(`step-${j}`);
-        if (el) { el.className = 'step done'; el.style.backgroundImage = ''; el.textContent = _jobStepDefs[j].label; }
+        if (el) { el.className = 'step done'; el.style.backgroundImage = ''; el.textContent = '✓'; el.title = _jobStepDefs[j].label; }
       }
       const el = document.getElementById(`step-${i}`);
       if (el) { el.className = 'step active'; _activeStepIdx = i; }
@@ -368,7 +368,7 @@ function endJobUI() {
   if (_jobTimer) { clearInterval(_jobTimer); _jobTimer = null; }
   _jobStepDefs.forEach((s, i) => {
     const el = document.getElementById(`step-${i}`);
-    if (el) { el.className = 'step done'; el.textContent = s.label; }
+    if (el) { el.className = 'step done'; el.style.backgroundImage = ''; el.textContent = '✓'; el.title = s.label; }
   });
   document.getElementById('btn-cancel-job').style.display = 'none';
   _jobHideTimer = setTimeout(() => {
