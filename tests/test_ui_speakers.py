@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 
-from conftest import LIVE_URL, skip_no_server
+from conftest import LIVE_URL, select_video_with_clips, skip_no_server
 from playwright.sync_api import Page, expect
 
 _SPEAKER = {
@@ -94,6 +94,54 @@ class TestSpeakerNaming:
         color_input.dispatch_event("change")
 
         assert any("abcdef" in body for body in put_bodies), put_bodies
+
+    def test_rename_reloads_open_recording_transcript(self, page: Page):
+        """Renaming a speaker refreshes the expanded full-transcript in place.
+
+        Regression: the transcript's fetch-once cache kept the old "Speaker N"
+        label until a manual page refresh.
+        """
+        page.route(
+            "**/api/videos/*/speakers",
+            lambda route: route.fulfill(
+                status=200, content_type="application/json", body=json.dumps([_SPEAKER])
+            ),
+        )
+
+        calls = {"n": 0}
+
+        def _handle_transcript(route):
+            calls["n"] += 1
+            speaker = "Speaker 1" if calls["n"] == 1 else "Yuu"
+            route.fulfill(
+                status=200,
+                content_type="application/json",
+                body=json.dumps(
+                    {"lines": [{"start_ms": 0, "end_ms": 2000, "speaker": speaker, "text": "let's go go go"}]}
+                ),
+            )
+
+        page.route("**/api/videos/*/transcript", _handle_transcript)
+        page.route(
+            "**/api/speakers/*",
+            lambda route: route.fulfill(
+                status=200,
+                content_type="application/json",
+                body=json.dumps({**_SPEAKER, "name": "Yuu", "display_name": "Yuu", "is_named": True}),
+            ),
+        )
+
+        select_video_with_clips(page)
+
+        page.locator("#video-transcript-details summary").click()
+        expect(page.locator("#video-transcript-view .tline-speaker").first).to_have_text("Speaker 1")
+
+        name_input = page.locator(".speaker-name-input")
+        name_input.fill("Yuu")
+        name_input.blur()
+
+        # The open transcript reloads with the new name — no manual refresh.
+        expect(page.locator("#video-transcript-view .tline-speaker").first).to_have_text("Yuu")
 
     def test_card_absent_when_no_speakers(self, page: Page):
         page.route(

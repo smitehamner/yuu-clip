@@ -8,6 +8,15 @@ async function _loadContexts() {
   AppState.contexts = await fetch('/api/contexts').then(r => r.json()).catch(() => []);
 }
 
+// A successful load always returns at least the built-in contexts, so an empty
+// list means the boot-time fetch is still pending or failed transiently. Callers
+// that render contexts (e.g. the recording detail) await this so the list heals
+// itself instead of staying stuck empty until a manual page refresh.
+async function ensureContexts() {
+  if (Array.isArray(AppState.contexts) && AppState.contexts.length) return;
+  await _loadContexts();
+}
+
 let _contextEditorDirty = false;
 let _contextModalOpener = null;
 
@@ -538,7 +547,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // Public API — symbols referenced cross-module, by an inline handler, or by a
 // test. Internal helpers above stay private to this module's closure.
 Object.assign(window, {
-  _loadContexts, _parseWeight,
+  _loadContexts, ensureContexts, _parseWeight,
   openContextManager, closeContextManager, openNewContext,
   saveContext, deleteContext, cancelContextEdit,
   addVideoContext,

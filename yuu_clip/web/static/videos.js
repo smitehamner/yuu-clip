@@ -182,7 +182,12 @@ async function selectVideo(id) {
   if (_searchEl) _searchEl.value = '';
   const _scoreEl = document.getElementById('clip-score-min');
   if (_scoreEl) _scoreEl.value = '0';
-  AppState.clips = await fetch(`/api/videos/${id}/clips?sort=${_clipsSortParam()}`).then(r => r.json());
+  // Load clips and (if the boot fetch hasn't populated them yet) contexts in
+  // parallel, so the detail's context chips/dropdown never render from an empty
+  // list on the first video opened after load.
+  const clipsPromise = fetch(`/api/videos/${id}/clips?sort=${_clipsSortParam()}`).then(r => r.json());
+  await ensureContexts();
+  AppState.clips = await clipsPromise;
   _renderClips();
   const video = AppState.videos.find(v => v.id === id);
   if (video) renderVideoDetail(video, null);

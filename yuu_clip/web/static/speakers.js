@@ -150,8 +150,10 @@ async function _saveSpeakerName(speakerId, name) {
     const input = document.querySelector(`.speaker-name-input[data-speaker-id="${speakerId}"]`);
     if (input && !updated.is_named) input.value = '';
     showToast(updated.is_named ? `Speaker named ${updated.display_name}` : 'Name cleared');
-    // Refresh the open clip so its transcript reflects the new name.
+    // Refresh the open clip so its transcript reflects the new name, and the
+    // recording's full-transcript panel if it's expanded.
     if (AppState.activeClipId) selectClip(AppState.activeClipId);
+    if (_currentVideoId) reloadVideoTranscriptIfOpen(_currentVideoId);
   } catch (_) {
     showToast('Could not save speaker name', 'error');
   }
@@ -170,6 +172,7 @@ async function _saveSpeakerColor(speakerId, color) {
     }
     // Refresh the open clip's transcript so its speaker labels pick up the new color.
     if (AppState.activeClipId) selectClip(AppState.activeClipId);
+    if (_currentVideoId) reloadVideoTranscriptIfOpen(_currentVideoId);
   } catch (_) {
     showToast('Could not save speaker color', 'error');
   }
@@ -189,6 +192,7 @@ async function _resolveSuggestion(speakerId, name) {
     showToast(updated.is_named ? `Speaker named ${updated.display_name}` : 'Suggestion dismissed');
     if (_currentVideoId) await loadSpeakers(_currentVideoId);
     if (AppState.activeClipId) selectClip(AppState.activeClipId);
+    if (_currentVideoId) reloadVideoTranscriptIfOpen(_currentVideoId);
   } catch (_) {
     showToast('Could not update speaker', 'error');
   }

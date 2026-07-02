@@ -94,3 +94,26 @@ class TestVideoTranscript:
         # Expanding lazy-loads the lines.
         details.locator("summary").click()
         expect(page.locator("#video-transcript-view .tline")).to_have_count(2)
+
+    def test_reexpand_after_detail_rerender_reloads(self, page: Page):
+        """A detail re-render (e.g. after a re-score) wipes the panel; re-expanding
+        must reload it rather than leave it silently blank."""
+        page.route(
+            "**/api/videos/*/transcript",
+            lambda route: route.fulfill(
+                status=200, content_type="application/json", body=json.dumps(_VIDEO_LINES)
+            ),
+        )
+        self._select_first_video(page)
+
+        details = page.locator("#video-transcript-details")
+        details.locator("summary").click()
+        expect(page.locator("#video-transcript-view .tline")).to_have_count(2)
+
+        # renderVideoDetail rebuilds #detail, leaving a fresh empty transcript view
+        # (and collapsing the <details>) while the fetch-once cache still points here.
+        page.evaluate("renderVideoDetail(AppState.activeVideoData, null)")
+        expect(page.locator("#video-transcript-view .tline")).to_have_count(0)
+
+        page.locator("#video-transcript-details summary").click()
+        expect(page.locator("#video-transcript-view .tline")).to_have_count(2)

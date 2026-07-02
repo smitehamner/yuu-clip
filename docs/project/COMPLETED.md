@@ -5,6 +5,31 @@ Phases 1–3 have been moved to [COMPLETED-archive.md](COMPLETED-archive.md).
 
 ---
 
+## Usage-feedback cleanup — batch 1 (done, 2026-07-01)
+
+Quick-win bugs and branding from the in-app feedback pass:
+
+- **App icon + header logo** — replaced the placeholder teal-box icon with a
+  proper image (`gamercat.png`); wired as the browser favicon, a logo beside the
+  "yuu-clip" name in the header, and the Electron window / installer icon
+  (`electron/assets/icon.png` + multi-resolution `icon.ico`).
+- **Speaker rename now updates the open transcript** — renaming or recoloring a
+  speaker (or accepting/dismissing a name suggestion) reloads the recording's
+  expanded full-transcript in place instead of showing the stale "Speaker N"
+  label until a manual refresh.
+- **Full-transcript no longer goes blank on reopen** — a detail re-render (e.g.
+  after re-scoring) wiped the transcript panel while its fetch-once cache still
+  pointed at the recording, leaving it silently blank; it now reloads and shows
+  the "Loading…" state reliably.
+- **World contexts self-heal** — if the boot-time context load hadn't populated
+  (or failed transiently), opening a recording refetches contexts so the context
+  section never renders from an empty list until a page refresh.
+- **Log panel aligned to the detail area** — the progress log no longer spans
+  under the sidebar; it tracks the (resizable) sidebar width and left-aligns with
+  the main panel.
+
+---
+
 ## Phase 4 — Packaging + distribution (done)
 
 - **Electron wrapper** — app runs in its own Chromium window; Python backend launched as a child process

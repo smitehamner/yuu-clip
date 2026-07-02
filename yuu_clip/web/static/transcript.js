@@ -73,7 +73,11 @@ let _videoTranscriptLoadedFor = null;
 async function loadVideoTranscript(videoId) {
   const el = document.getElementById('video-transcript-view');
   if (!el) return;
-  if (_videoTranscriptLoadedFor === videoId) return;  // fetch once per open
+  // Skip the fetch only when this video's transcript is still rendered. A bare
+  // videoId match isn't enough: renderVideoDetail rebuilds #detail, leaving a
+  // fresh empty #video-transcript-view while the flag still points here — that
+  // combination is what left the panel silently blank on reopen.
+  if (_videoTranscriptLoadedFor === videoId && el.childElementCount > 0) return;
   el.innerHTML = '<div class="transcript-empty">Loading…</div>';
   try {
     const data = await fetch(`/api/videos/${videoId}/transcript`).then(r => r.json());
@@ -82,6 +86,15 @@ async function loadVideoTranscript(videoId) {
   } catch (_) {
     el.innerHTML = '<div class="transcript-empty">Could not load transcript.</div>';
   }
+}
+
+// Called after a speaker rename/recolor so the open recording transcript picks up
+// the new label without a manual refresh. Clears the fetch-once cache and, if the
+// full-transcript panel is expanded, reloads it in place.
+function reloadVideoTranscriptIfOpen(videoId) {
+  _videoTranscriptLoadedFor = null;
+  const details = document.getElementById('video-transcript-details');
+  if (details && details.open) loadVideoTranscript(videoId);
 }
 
 // ── inline caption editing ────────────────────────────────────────────────────
@@ -177,6 +190,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 Object.assign(window, {
-  loadClipTranscript, loadVideoTranscript, renderTranscriptLines, seekPlayerTo, startEditCaption,
+  loadClipTranscript, loadVideoTranscript, reloadVideoTranscriptIfOpen,
+  renderTranscriptLines, seekPlayerTo, startEditCaption,
 });
 })();

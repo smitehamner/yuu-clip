@@ -21,6 +21,12 @@ class TestPageLoad:
         expect(page.locator("button#btn-analyze")).to_be_visible()
         expect(page.locator("button#btn-highlight-reels")).to_be_visible()
 
+    def test_brand_logo_next_to_name(self, page: Page):
+        page.goto(LIVE_URL)
+        logo = page.locator("header .brand .brand-logo")
+        expect(logo).to_be_visible()
+        assert logo.get_attribute("src").endswith("gamercat.png")
+
     def test_sidebar_has_videos(self, page: Page):
         page.goto(LIVE_URL)
         # Wait for video list to populate

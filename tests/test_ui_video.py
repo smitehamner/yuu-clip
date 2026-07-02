@@ -61,6 +61,23 @@ class TestRunTimingProvenanceLine:
 
 
 @skip_no_server
+class TestContextsSelfHeal:
+    """Opening a recording refetches world contexts if the boot-time load left the
+    list empty (transient failure / race), so the context section never renders
+    from an empty list until a manual page refresh."""
+
+    def test_empty_context_list_reloads_on_select(self, page: Page):
+        page.goto(LIVE_URL)
+        page.wait_for_selector("#video-list li[data-video-id]", timeout=5000)
+        # Simulate the boot load not having populated (or having failed) yet.
+        page.evaluate("AppState.contexts = []")
+        video_id = page.evaluate("AppState.videos[0].id")
+        page.evaluate("(id) => selectVideo(id)", video_id)
+        # Built-in contexts guarantee a non-empty list once ensureContexts refetches.
+        page.wait_for_function("() => AppState.contexts.length > 0", timeout=5000)
+
+
+@skip_no_server
 class TestRegenSummaryAutoConfirm:
     """regenSummaryAuto shows a confirm modal before running the SSE regen stream."""
 
