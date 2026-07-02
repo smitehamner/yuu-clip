@@ -441,7 +441,27 @@
   <!-- Sidebar -->
   <div class="sidebar">
     <div class="sidebar-group videos-group">
-      <div class="sidebar-section">Videos</div>
+      <div class="clips-section-header">
+        <span>Videos</span>
+        <div style="display:flex;align-items:center;gap:4px">
+          <span style="font-size:10px;color:var(--muted)">&#x1F53D; Sort</span>
+          <select id="videos-sort" class="clips-sort-select" aria-label="Sort videos by" onchange="setVideoSort(this.value)">
+            <option value="recent">Recent</option>
+            <option value="title">Title</option>
+            <option value="length">Length</option>
+            <option value="clips">Clips</option>
+          </select>
+        </div>
+      </div>
+      <div class="clip-search-row">
+        <input type="search" id="video-search-input" placeholder="Search videos…" oninput="setVideoSearch(this.value)" aria-label="Search videos">
+      </div>
+      <div class="clip-filter-tabs" aria-label="Video filters">
+        <button class="clip-chip active" aria-pressed="true"  data-vfilter="all"       onclick="toggleVideoFilter('all')">All</button>
+        <button class="clip-chip"        aria-pressed="false" data-vfilter="has-clips" onclick="toggleVideoFilter('has-clips')">Has clips</button>
+        <button class="clip-chip"        aria-pressed="false" data-vfilter="unscored"  onclick="toggleVideoFilter('unscored')">Unscored</button>
+        <button class="clip-chip"        aria-pressed="false" data-vfilter="errors"    onclick="toggleVideoFilter('errors')" title="Videos with clip scoring errors">&#9888; Errors</button>
+      </div>
       <ul class="sidebar-list" id="video-list"></ul>
     </div>
     <div class="resize-handle resize-handle-v" id="videos-clips-resize-handle" title="Drag to resize Videos / Clips panels" role="separator" aria-orientation="horizontal" aria-label="Resize Videos / Clips panels"></div>

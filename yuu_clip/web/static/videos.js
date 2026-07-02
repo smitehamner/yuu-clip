@@ -13,9 +13,6 @@ async function loadVideos() {
   }
   AppState.videos = videos;
 
-  const list = document.getElementById('video-list');
-  list.innerHTML = '';
-
   // While a brand-new recording is analyzing, show it in the sidebar right away —
   // before its DB row exists — so the user gets immediate feedback. Suppressed
   // once the real row appears (matched by filename).
@@ -23,15 +20,61 @@ async function loadVideos() {
   const showPlaceholder = analyzingName && !videos.some(v => v.filename === analyzingName);
 
   if (!videos.length && !showPlaceholder) {
-    list.innerHTML = '<li style="padding:10px 14px;color:var(--muted)">No videos yet</li>';
+    document.getElementById('video-list').innerHTML =
+      '<li style="padding:10px 14px;color:var(--muted)">No videos yet</li>';
     _showEmptyState();
     _updateDemoButton(0);
     return;
   }
 
+  _renderVideoList();
+  _updateDemoButton(videos.reduce((n, v) => n + v.approved, 0));
+
+  if (!AppState.bootRestoreDone) {
+    AppState.bootRestoreDone = true;
+    _restoreView();
+  }
+}
+
+// Client-side search + filter + sort over AppState.videos for the sidebar list.
+function _applyVideoFilters(videos) {
+  let result = videos.slice();
+  const q = (AppState.videoSearch || '').toLowerCase();
+  if (q) result = result.filter(v =>
+    (v.title || '').toLowerCase().includes(q) || (v.filename || '').toLowerCase().includes(q));
+  const f = AppState.videoFilters;
+  if (f && f.size) {
+    if (f.has('has-clips')) result = result.filter(v => v.clip_count > 0);
+    if (f.has('unscored'))  result = result.filter(v => !v.clips_scored_at);
+    if (f.has('errors'))    result = result.filter(v => (v.clips_llm_error || 0) > 0);
+  }
+  const sort = AppState.videoSort || 'recent';
+  if (sort === 'title')       result.sort((a, b) => (a.title || a.filename || '').localeCompare(b.title || b.filename || ''));
+  else if (sort === 'length') result.sort((a, b) => (b.duration_ms || 0) - (a.duration_ms || 0));
+  else if (sort === 'clips')  result.sort((a, b) => (b.clip_count || 0) - (a.clip_count || 0));
+  // 'recent' keeps the server order (created_at desc).
+  return result;
+}
+
+// Rebuilds the sidebar video list from AppState.videos, applying the active
+// search/filter/sort. Called by loadVideos (after fetch) and by the controls.
+function _renderVideoList() {
+  const list = document.getElementById('video-list');
+  list.innerHTML = '';
+  const analyzingName = AppState.analyzeFilename;
+  const showPlaceholder = analyzingName && !AppState.videos.some(v => v.filename === analyzingName);
   if (showPlaceholder) list.appendChild(_analyzingPlaceholderLi(analyzingName));
 
-  for (const v of videos) {
+  const shown = _applyVideoFilters(AppState.videos);
+  if (!shown.length && !showPlaceholder) {
+    const hasFilter = AppState.videoSearch || (AppState.videoFilters && AppState.videoFilters.size);
+    list.innerHTML = hasFilter
+      ? `<li style="padding:10px 14px;color:var(--muted)">No videos match — <a href="#" style="color:var(--accent);text-decoration:underline" onclick="event.preventDefault();_clearVideoFilters()">Clear filters</a></li>`
+      : '<li style="padding:10px 14px;color:var(--muted)">No videos yet</li>';
+    return;
+  }
+
+  for (const v of shown) {
     const isAnalyzing = v.filename === analyzingName && v.status !== 'done';
     const li = document.createElement('li');
     li.className = 'video-item'
@@ -80,14 +123,38 @@ async function loadVideos() {
   };
   list.onclick = _handleVideoListActivate;
   list.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); _handleVideoListActivate(e); } };
+}
 
-  const totalApproved = videos.reduce((n, v) => n + v.approved, 0);
-  _updateDemoButton(totalApproved);
+// ── video search / filter / sort controls ──────────────────────────────────
+function setVideoSearch(q) { AppState.videoSearch = q.trim(); _renderVideoList(); }
+function setVideoSort(sort) { AppState.videoSort = sort; _renderVideoList(); }
 
-  if (!AppState.bootRestoreDone) {
-    AppState.bootRestoreDone = true;
-    _restoreView();
-  }
+function toggleVideoFilter(token) {
+  const f = AppState.videoFilters;
+  if (token === 'all') f.clear();
+  else if (f.has(token)) f.delete(token);
+  else f.add(token);
+  _syncVideoFilterChips();
+  _renderVideoList();
+}
+
+function _syncVideoFilterChips() {
+  const f = AppState.videoFilters;
+  document.querySelectorAll('[data-vfilter]').forEach(chip => {
+    const token = chip.dataset.vfilter;
+    const active = token === 'all' ? f.size === 0 : f.has(token);
+    chip.classList.toggle('active', active);
+    chip.setAttribute('aria-pressed', active ? 'true' : 'false');
+  });
+}
+
+function _clearVideoFilters() {
+  AppState.videoFilters.clear();
+  AppState.videoSearch = '';
+  const searchEl = document.getElementById('video-search-input');
+  if (searchEl) searchEl.value = '';
+  _syncVideoFilterChips();
+  _renderVideoList();
 }
 
 async function _restoreView() {
@@ -836,6 +903,8 @@ Object.assign(window, {
   updateTimelineIntervalHint,
   _updateDemoButton, _updateStartIngestButton,
   _analysisLivePanelHTML, _syncAnalysisLivePanel,
+  _applyVideoFilters, _renderVideoList,
+  setVideoSearch, setVideoSort, toggleVideoFilter, _syncVideoFilterChips, _clearVideoFilters,
   openVideoActionsModal,
 });
 })();

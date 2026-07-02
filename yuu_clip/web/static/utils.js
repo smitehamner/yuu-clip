@@ -14,6 +14,9 @@ const AppState = {
   clipFilters:         new Set(),  // active filter tokens; empty = show all
   clipSearch:          '',
   clipScoreMin:        0,
+  videoSearch:         '',
+  videoSort:           'recent',
+  videoFilters:        new Set(),  // active video filter tokens; empty = show all
   selectedClipIds:     new Set(),
   lastStatusChange:    null, // {clipId, fromStatus, timer}
   confirmCallback:     null,

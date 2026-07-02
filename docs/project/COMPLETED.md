@@ -104,6 +104,24 @@ Correctness fixes around cancelling/running analyses, plus the settings/log layo
 
 ---
 
+## Usage-feedback cleanup — batch 5b: sort / filter / search (done, 2026-07-02)
+
+- **Sort clips by length** — added a "Length" option (longest first; `list_clips`
+  `sort=length`) alongside the score/timeline sorts.
+- **Clip search now matches tags** — the clip search box searches user tags in
+  addition to the description, long description, and transcript.
+- **Multi-select clip filter** — the single-select status tabs became a chip row:
+  status chips (Unreviewed/Approved/Rejected) combine, plus Exported /
+  Not-exported (mutually exclusive) and a Score-error chip. "All" clears; no chip
+  = everything. (`AppState.clipFilters` set + `toggleClipFilter`.)
+- **Video sidebar search / sort / filter** — the video list gained a search box
+  (title/filename), a sort dropdown (Recent/Title/Length/Clips), and filter chips
+  (Has clips / Unscored / Errors). Client-side over the fetched list
+  (`_applyVideoFilters` / `_renderVideoList`). *Deferred (minor): scoping clip
+  search to specific fields (multi-select field types).*
+
+---
+
 ## Phase 4 — Packaging + distribution (done)
 
 - **Electron wrapper** — app runs in its own Chromium window; Python backend launched as a child process

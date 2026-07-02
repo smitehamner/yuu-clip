@@ -129,3 +129,26 @@ class TestDiffModalUnsavedEdits:
         page.click("#confirm-ok-btn")
         page.wait_for_selector("#diff-modal.visible", state="hidden", timeout=2000)
         assert page.evaluate("() => window._diffCommitted") is None
+
+
+@skip_no_server
+class TestVideoSidebarControls:
+    """Video sidebar search + sort + filter chips are present and the chips
+    toggle (with 'All' resetting)."""
+
+    def test_controls_present(self, page: Page):
+        page.goto(LIVE_URL)
+        expect(page.locator("#video-search-input")).to_be_visible()
+        expect(page.locator("#videos-sort")).to_be_visible()
+        expect(page.locator("button[data-vfilter='has-clips']")).to_be_visible()
+
+    def test_video_chip_toggles_and_all_resets(self, page: Page):
+        page.goto(LIVE_URL)
+        page.wait_for_selector("#video-list li", timeout=5000)
+        has_clips = page.locator("button[data-vfilter='has-clips']")
+        all_chip = page.locator("button[data-vfilter='all']")
+        has_clips.click()
+        expect(has_clips).to_have_attribute("aria-pressed", "true")
+        expect(all_chip).to_have_attribute("aria-pressed", "false")
+        has_clips.click()
+        expect(all_chip).to_have_attribute("aria-pressed", "true")

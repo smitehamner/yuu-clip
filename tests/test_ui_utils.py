@@ -810,3 +810,50 @@ class TestStepEtaHeuristic:
             }"""
         )
         assert "left" in text
+
+
+# ---------------------------------------------------------------------------
+# _applyVideoFilters (videos.js) — sidebar search / filter / sort
+# ---------------------------------------------------------------------------
+
+@skip_no_server
+class TestVideoFilters:
+    _SEED = """() => {
+      AppState.videos = [
+        {id: 1, title: 'Alpha', filename: 'a.mkv',    clip_count: 3, clips_scored_at: 'x',  clips_llm_error: 0, duration_ms: 100},
+        {id: 2, title: '',      filename: 'beta.mkv', clip_count: 0, clips_scored_at: null, clips_llm_error: 0, duration_ms: 300},
+        {id: 3, title: 'Gamma', filename: 'g.mkv',    clip_count: 5, clips_scored_at: null, clips_llm_error: 2, duration_ms: 200},
+      ];
+      AppState.videoSearch = ''; AppState.videoSort = 'recent'; AppState.videoFilters = new Set();
+    }"""
+
+    def _ids(self, page, setup):
+        return page.evaluate(
+            f"() => {{ ({self._SEED})(); {setup}"
+            "  return _applyVideoFilters(AppState.videos).map(v => v.id); }"
+        )
+
+    def test_recent_keeps_server_order(self, page: Page):
+        assert self._ids(page, "") == [1, 2, 3]
+
+    def test_search_matches_title_or_filename(self, page: Page):
+        assert self._ids(page, "AppState.videoSearch = 'beta';") == [2]
+        assert self._ids(page, "AppState.videoSearch = 'alpha';") == [1]
+
+    def test_filter_has_clips(self, page: Page):
+        assert self._ids(page, "AppState.videoFilters = new Set(['has-clips']);") == [1, 3]
+
+    def test_filter_unscored(self, page: Page):
+        assert self._ids(page, "AppState.videoFilters = new Set(['unscored']);") == [2, 3]
+
+    def test_filter_errors(self, page: Page):
+        assert self._ids(page, "AppState.videoFilters = new Set(['errors']);") == [3]
+
+    def test_sort_length_desc(self, page: Page):
+        assert self._ids(page, "AppState.videoSort = 'length';") == [2, 3, 1]
+
+    def test_sort_clips_desc(self, page: Page):
+        assert self._ids(page, "AppState.videoSort = 'clips';") == [3, 1, 2]
+
+    def test_sort_title(self, page: Page):
+        assert self._ids(page, "AppState.videoSort = 'title';") == [1, 2, 3]
