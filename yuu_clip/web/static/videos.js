@@ -170,14 +170,10 @@ async function selectVideo(id) {
   AppState.activeVideoId = id;
   AppState.activeClipId  = null;
   localStorage.setItem('yuuclip-view', JSON.stringify({videoId: id, clipId: null}));
-  AppState.clipFilter  = 'all';
+  AppState.clipFilters.clear();
   AppState.clipSearch  = '';
   AppState.clipScoreMin = 0;
-  document.querySelectorAll('.clip-tab').forEach(t => {
-    const active = t.dataset.filter === 'all';
-    t.classList.toggle('active', active);
-    t.setAttribute('aria-selected', active ? 'true' : 'false');
-  });
+  _syncFilterChips();
   const _searchEl = document.getElementById('clip-search-input');
   if (_searchEl) _searchEl.value = '';
   const _scoreEl = document.getElementById('clip-score-min');

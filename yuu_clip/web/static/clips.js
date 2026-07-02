@@ -1,7 +1,15 @@
 (function () {
 // ── clips ─────────────────────────────────────────────────────────────────────
 function _applyFilters() {
-  let result = AppState.clipFilter === 'all' ? AppState.clips : AppState.clips.filter(c => c.status === AppState.clipFilter);
+  const f = AppState.clipFilters;
+  let result = AppState.clips;
+  if (f && f.size) {
+    const statuses = ['pending', 'approved', 'rejected'].filter(s => f.has(s));
+    if (statuses.length) result = result.filter(c => statuses.includes(c.status));
+    if (f.has('exported') && !f.has('not-exported')) result = result.filter(c => c.has_export);
+    else if (f.has('not-exported') && !f.has('exported')) result = result.filter(c => !c.has_export);
+    if (f.has('error')) result = result.filter(c => (c.tags || []).includes('llm_error'));
+  }
   if (AppState.clipScoreMin > 0) result = result.filter(c => c.score_overall >= AppState.clipScoreMin);
   if (AppState.clipSearch) {
     const q = AppState.clipSearch.toLowerCase();
@@ -60,18 +68,43 @@ function _updateBulkToolbar() {
 }
 
 function _clearClipFilters() {
-  AppState.clipFilter = 'all';
+  AppState.clipFilters.clear();
   AppState.clipSearch = '';
   AppState.clipScoreMin = 0;
-  document.querySelectorAll('.clip-tab').forEach(t => {
-    const active = t.dataset.filter === 'all';
-    t.classList.toggle('active', active);
-    t.setAttribute('aria-selected', active ? 'true' : 'false');
-  });
+  _syncFilterChips();
   const searchEl = document.getElementById('clip-search-input');
   if (searchEl) searchEl.value = '';
   const scoreEl = document.getElementById('clip-score-min');
   if (scoreEl) scoreEl.value = '0';
+  _renderClips();
+}
+
+// Reflect AppState.clipFilters onto the chip row. The "All" chip is active only
+// when no other filter is selected.
+function _syncFilterChips() {
+  const f = AppState.clipFilters;
+  document.querySelectorAll('.clip-chip').forEach(chip => {
+    const token = chip.dataset.filter;
+    const active = token === 'all' ? f.size === 0 : f.has(token);
+    chip.classList.toggle('active', active);
+    chip.setAttribute('aria-pressed', active ? 'true' : 'false');
+  });
+}
+
+// Export (has-file) chips are mutually exclusive — "Exported" and "Not exported"
+// can't both hold. Everything else toggles independently; "All" clears the set.
+const _EXPORT_FILTER_TOKENS = ['exported', 'not-exported'];
+function toggleClipFilter(token) {
+  const f = AppState.clipFilters;
+  if (token === 'all') {
+    f.clear();
+  } else if (f.has(token)) {
+    f.delete(token);
+  } else {
+    if (_EXPORT_FILTER_TOKENS.includes(token)) _EXPORT_FILTER_TOKENS.forEach(t => f.delete(t));
+    f.add(token);
+  }
+  _syncFilterChips();
   _renderClips();
 }
 
@@ -90,7 +123,7 @@ function _renderClipItems(clips) {
   list.innerHTML = '';
   if (!clips.length) {
     const _statusLabel = {pending: 'Unreviewed', approved: 'Approved', rejected: 'Rejected'};
-    const hasActiveFilter = AppState.clipFilter !== 'all' || AppState.clipSearch || AppState.clipScoreMin > 0;
+    const hasActiveFilter = AppState.clipFilters.size > 0 || AppState.clipSearch || AppState.clipScoreMin > 0;
     const filterMsg = hasActiveFilter
       ? `No clips match the current filters — <a href="#" style="color:var(--accent);text-decoration:underline" onclick="event.preventDefault();_clearClipFilters()">Clear filters</a>`
       : `No clips found — <a href="#" style="color:var(--muted);text-decoration:underline" onclick="event.preventDefault();openNewRecordingPanel()">Analyze another recording</a>`;
@@ -664,17 +697,6 @@ function clearDetail() {
   document.getElementById('detail').innerHTML = '<div class="detail-empty">Select a clip from the sidebar<div style="color:var(--muted);font-size:12px;margin-top:6px">Use ← → to navigate between clips</div></div>';
 }
 
-// ── filter tabs ───────────────────────────────────────────────────────────────
-function setClipFilter(filter) {
-  AppState.clipFilter = filter;
-  document.querySelectorAll('.clip-tab').forEach(t => {
-    const active = t.dataset.filter === filter;
-    t.classList.toggle('active', active);
-    t.setAttribute('aria-selected', active ? 'true' : 'false');
-  });
-  _renderClips();
-}
-
 // ── clip actions ──────────────────────────────────────────────────────────────
 async function setStatus(id, status) {
   const clip = AppState.clips.find(c => c.id === id);
@@ -1179,7 +1201,7 @@ function scoreAll() {
 // test. Internal helpers above stay private to this module's closure.
 Object.assign(window, {
   selectClip, setStatus, undoLastStatus, renderDetail, clearDetail, refreshClipDetail,
-  setClipFilter, setClipSearch, setClipScoreMin, _clearClipFilters,
+  toggleClipFilter, _syncFilterChips, setClipSearch, setClipScoreMin, _clearClipFilters,
   _applyFilters, _renderClips, _parseTimingOffset,
   deleteClip, deleteVideo, deleteExport, mergeClips,
   exportClip, exportVideoTranscript, confirmExport, closeExportModal,

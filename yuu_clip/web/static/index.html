@@ -470,12 +470,16 @@
           <option value="0.9">90%+</option>
         </select>
       </div>
-      <div class="clip-filter-tabs" role="tablist" aria-label="Clip filter">
+      <div class="clip-filter-tabs" aria-label="Clip filters">
         <span style="font-size:10px;color:var(--muted);padding:2px 4px;line-height:1.8;flex-shrink:0" aria-hidden="true">Filter</span>
-        <button class="clip-tab active" role="tab" aria-selected="true"  data-filter="all"      onclick="setClipFilter('all')">All</button>
-        <button class="clip-tab"        role="tab" aria-selected="false" data-filter="pending"  onclick="setClipFilter('pending')">Unreviewed</button>
-        <button class="clip-tab"        role="tab" aria-selected="false" data-filter="approved" onclick="setClipFilter('approved')">Approved</button>
-        <button class="clip-tab"        role="tab" aria-selected="false" data-filter="rejected" onclick="setClipFilter('rejected')">Rejected</button>
+        <button class="clip-chip active" aria-pressed="true"  data-filter="all"          onclick="toggleClipFilter('all')">All</button>
+        <button class="clip-chip"        aria-pressed="false" data-filter="pending"      onclick="toggleClipFilter('pending')">Unreviewed</button>
+        <button class="clip-chip"        aria-pressed="false" data-filter="approved"     onclick="toggleClipFilter('approved')">Approved</button>
+        <button class="clip-chip"        aria-pressed="false" data-filter="rejected"     onclick="toggleClipFilter('rejected')">Rejected</button>
+        <span class="clip-chip-sep" aria-hidden="true"></span>
+        <button class="clip-chip"        aria-pressed="false" data-filter="exported"     onclick="toggleClipFilter('exported')">Exported</button>
+        <button class="clip-chip"        aria-pressed="false" data-filter="not-exported" onclick="toggleClipFilter('not-exported')">Not exported</button>
+        <button class="clip-chip"        aria-pressed="false" data-filter="error"        onclick="toggleClipFilter('error')" title="Clips whose LLM scoring failed">&#9888; Score error</button>
       </div>
       <div class="clip-bulk-toolbar" id="clip-bulk-toolbar" style="display:none">
         <span id="clip-bulk-count">0 selected</span>

@@ -11,7 +11,7 @@ const AppState = {
   contexts:            [],
   analyzeFilename:     null,
   editingContextId:    null,
-  clipFilter:          'all',
+  clipFilters:         new Set(),  // active filter tokens; empty = show all
   clipSearch:          '',
   clipScoreMin:        0,
   selectedClipIds:     new Set(),

@@ -294,10 +294,10 @@ class TestBulkSelectionRespectsFilter:
         _first_row(page).locator(".clip-select-checkbox").check()
         expect(page.locator("#clip-bulk-toolbar")).to_be_visible()
 
-        page.click(f"button.clip-tab[data-filter='{other_tab}']")
+        page.click(f"button.clip-chip[data-filter='{other_tab}']")
         expect(page.locator("#clip-bulk-toolbar")).to_be_hidden()
 
-        page.click("button.clip-tab[data-filter='all']")
+        page.click("button.clip-chip[data-filter='all']")
         expect(page.locator("#clip-bulk-toolbar")).to_be_visible()
 
 
@@ -554,3 +554,30 @@ class TestClipTags:
         page.click("#clip-user-tags .user-tag:has-text('drop') .user-tag-x")
         expect(page.locator("#clip-user-tags .user-tag")).to_have_count(1)
         expect(page.locator("#clip-user-tags .user-tag").first).to_contain_text("keep")
+
+
+@skip_no_server
+class TestClipFilterChips:
+    """The multi-select filter chip row: toggle on/off, All resets, and the
+    Exported/Not-exported pair is mutually exclusive."""
+
+    def test_chip_toggles_and_all_resets(self, page: Page):
+        select_video_with_clips(page)
+        approved = page.locator("button.clip-chip[data-filter='approved']")
+        all_chip = page.locator("button.clip-chip[data-filter='all']")
+        approved.click()
+        expect(approved).to_have_attribute("aria-pressed", "true")
+        expect(all_chip).to_have_attribute("aria-pressed", "false")
+        approved.click()  # toggle off → back to "All" active
+        expect(approved).to_have_attribute("aria-pressed", "false")
+        expect(all_chip).to_have_attribute("aria-pressed", "true")
+
+    def test_export_chips_mutually_exclusive(self, page: Page):
+        select_video_with_clips(page)
+        exported = page.locator("button.clip-chip[data-filter='exported']")
+        not_exported = page.locator("button.clip-chip[data-filter='not-exported']")
+        exported.click()
+        expect(exported).to_have_attribute("aria-pressed", "true")
+        not_exported.click()
+        expect(not_exported).to_have_attribute("aria-pressed", "true")
+        expect(exported).to_have_attribute("aria-pressed", "false")

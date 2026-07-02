@@ -287,13 +287,14 @@ class TestSplitTime:
 class TestApplyFilters:
     _SEED = """() => {
       AppState.clips = [
-        {id: 1, status: 'pending',  score_overall: 0,   description: 'alpha funny'},
+        {id: 1, status: 'pending',  score_overall: 0,   description: 'alpha funny',
+         has_export: true,  tags: []},
         {id: 2, status: 'approved', score_overall: 0.8, description: 'beta',
-         description_long: 'longer beta text'},
+         description_long: 'longer beta text', has_export: false, tags: ['llm_error']},
         {id: 3, status: 'rejected', score_overall: 0.3, description: 'gamma',
-         transcript_excerpt: 'spoken keyword here'},
+         transcript_excerpt: 'spoken keyword here', has_export: false, tags: []},
       ];
-      AppState.clipFilter = 'all'; AppState.clipScoreMin = 0; AppState.clipSearch = '';
+      AppState.clipFilters = new Set(); AppState.clipScoreMin = 0; AppState.clipSearch = '';
     }"""
 
     def test_no_filters_returns_all_including_score_zero(self, page: Page):
@@ -306,7 +307,43 @@ class TestApplyFilters:
 
     def test_status_filter_selects_one(self, page: Page):
         ids = page.evaluate(
-            f"() => {{ ({self._SEED})(); AppState.clipFilter = 'approved';"
+            f"() => {{ ({self._SEED})(); AppState.clipFilters = new Set(['approved']);"
+            "  return _applyFilters().map(c => c.id); }"
+        )
+        assert ids == [2]
+
+    def test_multiple_statuses_are_ored(self, page: Page):
+        ids = page.evaluate(
+            f"() => {{ ({self._SEED})(); AppState.clipFilters = new Set(['pending', 'rejected']);"
+            "  return _applyFilters().map(c => c.id); }"
+        )
+        assert ids == [1, 3]
+
+    def test_exported_filter(self, page: Page):
+        ids = page.evaluate(
+            f"() => {{ ({self._SEED})(); AppState.clipFilters = new Set(['exported']);"
+            "  return _applyFilters().map(c => c.id); }"
+        )
+        assert ids == [1]
+
+    def test_not_exported_filter(self, page: Page):
+        ids = page.evaluate(
+            f"() => {{ ({self._SEED})(); AppState.clipFilters = new Set(['not-exported']);"
+            "  return _applyFilters().map(c => c.id); }"
+        )
+        assert ids == [2, 3]
+
+    def test_score_error_filter(self, page: Page):
+        ids = page.evaluate(
+            f"() => {{ ({self._SEED})(); AppState.clipFilters = new Set(['error']);"
+            "  return _applyFilters().map(c => c.id); }"
+        )
+        assert ids == [2]
+
+    def test_status_and_export_combine(self, page: Page):
+        # approved AND not-exported → clip 2 only.
+        ids = page.evaluate(
+            f"() => {{ ({self._SEED})(); AppState.clipFilters = new Set(['approved', 'not-exported']);"
             "  return _applyFilters().map(c => c.id); }"
         )
         assert ids == [2]
@@ -360,7 +397,7 @@ class TestApplyFilters:
                 {id: 1, status: 'pending', score_overall: 0, description: 'a', user_tags: ['clutch']},
                 {id: 2, status: 'pending', score_overall: 0, description: 'b', user_tags: []},
               ];
-              AppState.clipFilter = 'all'; AppState.clipScoreMin = 0; AppState.clipSearch = 'clutch';
+              AppState.clipFilters = new Set(); AppState.clipScoreMin = 0; AppState.clipSearch = 'clutch';
               return _applyFilters().map(c => c.id);
             }"""
         )

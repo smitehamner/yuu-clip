@@ -365,6 +365,11 @@ kbd { background: var(--surface); border: 1px solid var(--border); border-radius
 .clip-filter-tabs::-webkit-scrollbar { display: none; }
 .clip-tab { font-size: 10px; padding: 2px 8px; border-radius: 10px; border: none; background: none; color: var(--muted); cursor: pointer; }
 .clip-tab.active { background: var(--border); color: var(--text); }
+/* Multi-select filter chips (toggle, unlike the old single-select tabs). */
+.clip-chip { font-size: 10px; padding: 2px 8px; border-radius: 10px; border: 1px solid transparent; background: none; color: var(--muted); cursor: pointer; white-space: nowrap; flex-shrink: 0; }
+.clip-chip:hover { color: var(--text); }
+.clip-chip.active { background: var(--accent); color: #fff; }
+.clip-chip-sep { width: 1px; align-self: stretch; margin: 2px 4px; background: var(--border); flex-shrink: 0; }
 .clip-search-row { display: flex; gap: 4px; padding: 4px 8px 2px; }
 .clip-search-row input[type="search"] { flex: 1; min-width: 0; font-size: 11px; padding: 3px 7px; border-radius: 4px; border: 1px solid var(--border); background: var(--surface); color: var(--text); }
 .clip-search-row input[type="search"]::placeholder { color: var(--muted); }
