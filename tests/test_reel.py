@@ -233,6 +233,44 @@ class TestListReels:
         assert entry["can_caption"] is False
 
 
+class TestDeleteReel:
+    def _make_reel(self, project_dir, name="del_me.mkv", with_sidecars=False):
+        reels_dir = project_dir / ".yuu-clip" / "reels"
+        reels_dir.mkdir(parents=True, exist_ok=True)
+        reel = reels_dir / name
+        reel.write_bytes(b"fake")
+        if with_sidecars:
+            reel.with_suffix(".srt").write_text("1\n", encoding="utf-8")
+            reel.with_suffix(".reel.json").write_text("{}", encoding="utf-8")
+        return reel
+
+    def test_delete_removes_file(self, client, project_dir):
+        reel = self._make_reel(project_dir)
+        r = client.delete("/api/demo/del_me.mkv")
+        assert r.status_code == 200
+        assert r.json()["deleted"] == "del_me.mkv"
+        assert not reel.exists()
+
+    def test_delete_removes_caption_and_composition_sidecars(self, client, project_dir):
+        reel = self._make_reel(project_dir, with_sidecars=True)
+        r = client.delete("/api/demo/del_me.mkv")
+        assert r.status_code == 200
+        assert not reel.exists()
+        assert not reel.with_suffix(".srt").exists()
+        assert not reel.with_suffix(".reel.json").exists()
+
+    def test_delete_missing_reel_404(self, client):
+        r = client.delete("/api/demo/nope.mkv")
+        assert r.status_code == 404
+
+    def test_deleted_reel_gone_from_list(self, client, project_dir):
+        self._make_reel(project_dir, name="keep.mkv")
+        self._make_reel(project_dir, name="gone.mkv")
+        client.delete("/api/demo/gone.mkv")
+        names = [x["filename"] for x in client.get("/api/demo/list").json()]
+        assert names == ["keep.mkv"]
+
+
 # ---------------------------------------------------------------------------
 # Reel caption stitching (yuu_clip/reel.py) + regenerate/vtt routes
 # ---------------------------------------------------------------------------

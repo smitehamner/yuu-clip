@@ -5,6 +5,37 @@ Phases 1–3 have been moved to [COMPLETED-archive.md](COMPLETED-archive.md).
 
 ---
 
+## UX review Highlight Reels pass — M8-1/2/3, L8-2 (done, 2026-07-02)
+
+Prompt 12 of the 2026-07 UX review plan (`UX_REVIEW_PLAN.md`): the Highlight
+Reels modal (Build + View tabs) and the Reel Preview popup.
+
+- **M8-1 — Build curation survives tab switches**: order + inclusion state is
+  kept for the life of the modal session (`_reelBuildLoaded` flag); the clip
+  list reloads only on modal reopen, source-select change, or when the
+  selected recording loses its approved clips (select value is preserved
+  across tab switches).
+- **M8-2 — reels can be deleted**: new `DELETE /api/demo/{filename}` removes
+  the reel plus its caption/composition sidecars (traversal-safe via
+  `_resolve_reel`, locked-file 409 via the shared `_delete_files` helpers);
+  danger-styled Delete button per reel in the View tab with a confirm dialog,
+  releasing the player's file handle before the request (Windows lock).
+  +4 API tests.
+- **M8-3 — reorder affordances**: ▲▼ disabled at list boundaries (with CSS
+  disabled state); drag handles added — rows are draggable only while the
+  grip is pressed so the checkbox/text still work, live DOM reorder on
+  dragover, order committed to `_reelClips` on dragend. Buttons remain the
+  keyboard path; hint copy now says "drag or ↑↓ to reorder".
+- **L8-2 — Reel Preview navigation**: ◀ Previous / Next ▶ buttons (disabled
+  at the ends) alongside the sequential auto-advance; "Playlist complete"
+  still allows stepping back to the last clip.
+- +7 UI tests (network-stubbed clip list so they don't depend on live DB
+  contents; drag path exercised via dispatched DragEvents; delete flow driven
+  end-to-end through the View tab against a throwaway reel file).
+- API suite 1033 green; UI suite 368 green pre-new-tests, new 7 green.
+
+---
+
 ## UX review Settings panel pass — M7-1–M7-5, L7-1/2/4 (done, 2026-07-02)
 
 Prompt 11 of the 2026-07 UX review plan (`UX_REVIEW_PLAN.md`): the Settings

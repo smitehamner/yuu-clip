@@ -2,9 +2,13 @@
 // ── highlight reels (combined Build + View modal) ──────────────────────────────
 let _reelClips = [];
 let _reelsOpener = null;
+// Curation (order + inclusion) lives for one modal session: tab switches keep
+// it; reopening the modal or changing the source select starts fresh.
+let _reelBuildLoaded = false;
 
 async function openHighlightReelsModal(tab) {
   _reelsOpener = _reelsOpener || document.activeElement;
+  _reelBuildLoaded = false;
   document.getElementById('highlight-reels-modal').classList.add('visible');
   await switchReelTab(tab || 'build');
   setTimeout(() => document.querySelector('#highlight-reels-modal .btn')?.focus(), 50);
@@ -19,6 +23,8 @@ async function switchReelTab(tab) {
   if (tab === 'build') {
     const totalApproved = AppState.videos.reduce((n, v) => n + v.approved, 0);
     if (totalApproved === 0) {
+      _reelClips = [];
+      _reelBuildLoaded = false;
       document.getElementById('demo-status').textContent = '';
       document.getElementById('reel-clip-list').innerHTML =
         '<div style="padding:24px;text-align:center;color:var(--muted);font-size:12px">No approved clips yet — approve clips from the sidebar, then come back.</div>';
@@ -27,6 +33,7 @@ async function switchReelTab(tab) {
     }
     document.getElementById('demo-status').textContent = '';
     const sel = document.getElementById('demo-video-id');
+    const prevSource = sel.value;
     sel.innerHTML = '<option value="">All approved clips</option>';
     for (const v of AppState.videos) {
       if (!v.approved) continue;
@@ -35,7 +42,13 @@ async function switchReelTab(tab) {
       opt.textContent = `${v.filename} (${v.approved} approved)`;
       sel.appendChild(opt);
     }
-    await loadReelClips();
+    sel.value = prevSource;
+    if (sel.value !== prevSource) {
+      // Selected recording lost its approved clips — fall back to all and reload
+      sel.value = '';
+      _reelBuildLoaded = false;
+    }
+    if (!_reelBuildLoaded) await loadReelClips();
   } else {
     const layout = document.getElementById('reels-layout');
     layout.innerHTML = '<div class="reels-empty">Loading&#x2026;</div>';
@@ -66,6 +79,12 @@ async function switchReelTab(tab) {
         capBtn.onclick = e => { e.stopPropagation(); _regenReelCaptions(reel, capBtn); };
         item.appendChild(capBtn);
       }
+      const delBtn = document.createElement('button');
+      delBtn.className = 'btn ghost danger';
+      delBtn.style.cssText = 'font-size:10px;padding:2px 6px;margin-top:4px';
+      delBtn.textContent = 'Delete';
+      delBtn.onclick = e => { e.stopPropagation(); _deleteReel(reel); };
+      item.appendChild(delBtn);
       item.onclick = () => _playReel(reel, item);
       list.appendChild(item);
     });
@@ -90,8 +109,10 @@ async function loadReelClips() {
   try {
     const clips = await fetch(`/api/demo/approved-clips${qs}`).then(r => r.json());
     _reelClips = clips.map(c => ({...c, included: true}));
+    _reelBuildLoaded = true;
   } catch {
     _reelClips = [];
+    _reelBuildLoaded = false;
   }
   renderReelClipList();
   updateReelEstimate();
@@ -104,13 +125,16 @@ function renderReelClipList() {
     return;
   }
   listEl.innerHTML = '';
+  listEl.ondragover = _reelListDragOver;
   _reelClips.forEach((c, i) => {
     const row = document.createElement('div');
     row.className = 'reel-clip-row' + (c.included ? '' : ' excluded');
+    row.dataset.clipId = c.id;
     row.innerHTML = `
+      <div class="reel-clip-drag" title="Drag to reorder">&#x2830;&#x2830;</div>
       <div class="reel-clip-move">
-        <button title="Move up" onclick="_reelMove(${i}, -1)">&#9650;</button>
-        <button title="Move down" onclick="_reelMove(${i}, 1)">&#9660;</button>
+        <button title="Move up" ${i === 0 ? 'disabled' : ''} onclick="_reelMove(${i}, -1)">&#9650;</button>
+        <button title="Move down" ${i === _reelClips.length - 1 ? 'disabled' : ''} onclick="_reelMove(${i}, 1)">&#9660;</button>
       </div>
       <input type="checkbox" ${c.included ? 'checked' : ''} onchange="_reelToggle(${i}, this.checked)" title="Include in reel">
       <div class="reel-clip-info">
@@ -119,8 +143,48 @@ function renderReelClipList() {
           ${c.has_export ? '' : ' · <span style="color:var(--warning)">not exported</span>'}
         </div>
       </div>`;
+    _wireReelRowDrag(row);
     listEl.appendChild(row);
   });
+}
+
+// Rows are draggable only while the grip is pressed, so text selection and the
+// checkbox keep working; the ▲▼ buttons remain the keyboard path.
+function _wireReelRowDrag(row) {
+  const handle = row.querySelector('.reel-clip-drag');
+  handle.addEventListener('mousedown', () => { row.draggable = true; });
+  row.addEventListener('dragstart', e => {
+    row.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', row.dataset.clipId);
+  });
+  row.addEventListener('dragend', () => {
+    row.classList.remove('dragging');
+    row.draggable = false;
+    _commitReelDomOrder();
+  });
+}
+
+function _reelListDragOver(e) {
+  const listEl = e.currentTarget;
+  const dragging = listEl.querySelector('.reel-clip-row.dragging');
+  if (!dragging) return;
+  e.preventDefault();
+  const rows = [...listEl.querySelectorAll('.reel-clip-row:not(.dragging)')];
+  const rowBelow = rows.find(el => {
+    const box = el.getBoundingClientRect();
+    return e.clientY < box.top + box.height / 2;
+  });
+  if (rowBelow) listEl.insertBefore(dragging, rowBelow);
+  else listEl.appendChild(dragging);
+}
+
+function _commitReelDomOrder() {
+  const listEl = document.getElementById('reel-clip-list');
+  const domOrder = [...listEl.querySelectorAll('.reel-clip-row')].map(el => Number(el.dataset.clipId));
+  _reelClips.sort((a, b) => domOrder.indexOf(a.id) - domOrder.indexOf(b.id));
+  renderReelClipList();
+  updateReelEstimate();
 }
 
 function _reelMove(i, dir) {
@@ -214,6 +278,8 @@ async function _refreshReelExportStatus() {
 function closeDemoModal() { closeHighlightReelsModal(); }
 
 let _reelPreviewOpener = null;
+let _reelPreviewList = [];
+let _reelPreviewIdx = 0;
 
 async function previewReelPlaylist() {
   const included = _reelClips.filter(c => c.included && c.has_export);
@@ -222,29 +288,48 @@ async function previewReelPlaylist() {
     return;
   }
   _reelPreviewOpener = document.activeElement;
-  const modal = document.getElementById('reel-preview-modal');
+  _reelPreviewList = included;
+  document.getElementById('reel-preview-modal').classList.add('visible');
+  setTimeout(() => document.querySelector('#reel-preview-modal .btn')?.focus(), 50);
+  await _reelPreviewPlay(0);
+}
+
+async function _reelPreviewPlay(idx) {
   const vid   = document.getElementById('reel-preview-video');
   const label = document.getElementById('reel-preview-label');
-  modal.classList.add('visible');
-  setTimeout(() => document.querySelector('#reel-preview-modal .btn')?.focus(), 50);
-  let idx = 0;
-  const playNext = async () => {
-    if (idx >= included.length) {
-      label.textContent = 'Playlist complete';
-      return;
-    }
-    const c = included[idx++];
-    label.textContent = `Clip ${idx} of ${included.length}`;
-    const media = await fetch(`/api/clips/${c.id}/media_url`).then(r => r.json()).catch(() => null);
-    if (media?.url) {
-      vid.src = media.url;
-      vid.onended = playNext;
-      vid.play().catch(() => {});
-    } else {
-      playNext();
-    }
-  };
-  await playNext();
+  if (idx >= _reelPreviewList.length) {
+    _reelPreviewIdx = _reelPreviewList.length;  // Previous from here returns to the last clip
+    label.textContent = 'Playlist complete';
+    vid.pause();
+    _updateReelPreviewNav();
+    return;
+  }
+  _reelPreviewIdx = idx;
+  label.textContent = `Clip ${idx + 1} of ${_reelPreviewList.length}`;
+  _updateReelPreviewNav();
+  const c = _reelPreviewList[idx];
+  const media = await fetch(`/api/clips/${c.id}/media_url`).then(r => r.json()).catch(() => null);
+  if (media?.url) {
+    vid.src = media.url;
+    vid.onended = () => _reelPreviewPlay(_reelPreviewIdx + 1);
+    vid.play().catch(() => {});
+  } else {
+    await _reelPreviewPlay(idx + 1);
+  }
+}
+
+function _reelPreviewStep(dir) {
+  const target = _reelPreviewIdx + dir;
+  if (target < 0 || target >= _reelPreviewList.length) return;
+  _reelPreviewPlay(target);
+}
+
+function _updateReelPreviewNav() {
+  const prev = document.getElementById('reel-preview-prev');
+  const next = document.getElementById('reel-preview-next');
+  if (!prev || !next) return;
+  prev.disabled = _reelPreviewIdx <= 0;
+  next.disabled = _reelPreviewIdx >= _reelPreviewList.length - 1;
 }
 
 function closeReelPreview() {
@@ -402,6 +487,30 @@ function _playReel(reel, itemEl) {
   vid.load();
 }
 
+function _deleteReel(reel) {
+  showConfirm(
+    'Delete highlight reel?',
+    `"${escHtml(reel.filename)}" will be permanently removed from disk, along with its captions. Your clips are not affected.`,
+    'Delete Reel',
+    async () => {
+      // Release the player's file handle first — on Windows the server keeps the
+      // reel open while the <video> is connected, blocking the delete.
+      const vid = document.getElementById('reels-video');
+      if (vid) { vid.pause(); vid.removeAttribute('src'); vid.load(); }
+      await new Promise(resolve => setTimeout(resolve, 400));
+      const res = await fetch(`/api/demo/${encodeURIComponent(reel.filename)}`, {method: 'DELETE'});
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        showToast(`Failed to delete reel: ${formatApiError(err)}`, 'error');
+      } else {
+        showToast('Highlight reel deleted');
+      }
+      switchReelTab('view');
+    },
+    true,
+  );
+}
+
 async function _regenReelCaptions(reel, btn) {
   if (_blockedByAnalyze('generate captions')) return;
   const original = btn.textContent;
@@ -431,7 +540,7 @@ Object.assign(window, {
   openHighlightReelsModal, closeHighlightReelsModal, switchReelTab,
   loadReelClips, _reelMove, _reelToggle,
   startDemo, closeDemoModal, updateReelEstimate, exportUnexportedReelClips,
-  previewReelPlaylist, closeReelPreview,
+  previewReelPlaylist, closeReelPreview, _reelPreviewStep,
   openBatchExportModal, closeBatchExportModal, confirmBatchExport,
   updateBatchEstimate, _onBatchCaptionsChange,
 });

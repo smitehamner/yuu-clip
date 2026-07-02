@@ -6,6 +6,9 @@ helpers.
 """
 from __future__ import annotations
 
+import time
+from pathlib import Path
+
 from conftest import LIVE_URL, skip_no_server
 from playwright.sync_api import Page, expect
 
@@ -49,3 +52,116 @@ class TestDemoModal:
         # The "Export N clips" button only appears once updateReelEstimate finds
         # included clips lacking an export; with no clips loaded it stays hidden.
         expect(page.locator("#reel-export-btn")).to_be_hidden()
+
+    def test_preview_modal_has_prev_next_buttons(self, page: Page):
+        page.goto(LIVE_URL)
+        assert page.locator("#reel-preview-prev").count() == 1
+        assert page.locator("#reel-preview-next").count() == 1
+
+
+_FAKE_REEL_CLIPS = [
+    {"id": 101, "video_id": 1, "video_name": "s.mkv", "start_hms": "0:00:01",
+     "duration_hms": "0:00:05", "duration_ms": 5000, "score_overall": 0.9,
+     "description": "first", "has_export": True},
+    {"id": 102, "video_id": 1, "video_name": "s.mkv", "start_hms": "0:00:10",
+     "duration_hms": "0:00:05", "duration_ms": 5000, "score_overall": 0.8,
+     "description": "second", "has_export": True},
+    {"id": 103, "video_id": 1, "video_name": "s.mkv", "start_hms": "0:00:20",
+     "duration_hms": "0:00:05", "duration_ms": 5000, "score_overall": 0.7,
+     "description": "third", "has_export": True},
+]
+
+
+@skip_no_server
+class TestReelBuilderCuration:
+    """Build-tab clip list: boundary buttons, drag handles, and state that
+    survives tab switches (M8-1/M8-3). Clip data is stubbed at the network
+    layer so the tests don't depend on the live project's DB contents."""
+
+    def _open_build(self, page: Page) -> None:
+        import json
+        page.route("**/api/demo/approved-clips*",
+                   lambda route: route.fulfill(content_type="application/json",
+                                               body=json.dumps(_FAKE_REEL_CLIPS)))
+        page.route("**/api/demo/list",
+                   lambda route: route.fulfill(content_type="application/json", body="[]"))
+        page.evaluate("AppState.videos = [{id: 1, filename: 's.mkv', approved: 3}]")
+        page.evaluate("openHighlightReelsModal('build')")
+        page.locator(".reel-clip-row").first.wait_for()
+
+    def _names(self, page: Page) -> list:
+        return page.locator(".reel-clip-name").all_inner_texts()
+
+    def test_move_buttons_disabled_at_boundaries(self, page: Page):
+        self._open_build(page)
+        rows = page.locator(".reel-clip-row")
+        expect(rows.first.locator("button[title='Move up']")).to_be_disabled()
+        expect(rows.first.locator("button[title='Move down']")).to_be_enabled()
+        expect(rows.last.locator("button[title='Move up']")).to_be_enabled()
+        expect(rows.last.locator("button[title='Move down']")).to_be_disabled()
+
+    def test_each_row_has_drag_handle(self, page: Page):
+        self._open_build(page)
+        assert page.locator(".reel-clip-row .reel-clip-drag").count() == len(_FAKE_REEL_CLIPS)
+
+    def test_curation_survives_tab_switch(self, page: Page):
+        self._open_build(page)
+        page.evaluate("_reelMove(0, 1)")       # order: second, first, third
+        page.evaluate("_reelToggle(2, false)")  # exclude "third"
+        page.evaluate("switchReelTab('view')")
+        page.evaluate("switchReelTab('build')")
+        page.locator(".reel-clip-row").first.wait_for()
+        assert self._names(page) == ["second", "first", "third"]
+        expect(page.locator(".reel-clip-row").last).to_have_class("reel-clip-row excluded")
+
+    def test_drag_reorders_and_commits(self, page: Page):
+        # Playwright's mouse API can't drive native HTML5 DnD, so dispatch the
+        # DragEvents directly: grab row 0 by its handle, hover past the last
+        # row, and drop — the row should land at the end and the order commit.
+        self._open_build(page)
+        page.evaluate("""() => {
+          const rows = [...document.querySelectorAll('.reel-clip-row')];
+          const list = document.getElementById('reel-clip-list');
+          const dt = new DataTransfer();
+          rows[0].querySelector('.reel-clip-drag')
+                 .dispatchEvent(new MouseEvent('mousedown', {bubbles: true}));
+          rows[0].dispatchEvent(new DragEvent('dragstart', {bubbles: true, dataTransfer: dt}));
+          const below = rows[rows.length - 1].getBoundingClientRect().bottom + 5;
+          list.dispatchEvent(new DragEvent('dragover', {bubbles: true, clientY: below, dataTransfer: dt}));
+          rows[0].dispatchEvent(new DragEvent('dragend', {bubbles: true}));
+        }""")
+        assert self._names(page) == ["second", "third", "first"]
+
+    def test_reopening_modal_resets_curation(self, page: Page):
+        self._open_build(page)
+        page.evaluate("_reelMove(0, 1)")
+        page.evaluate("_reelToggle(2, false)")
+        page.evaluate("closeHighlightReelsModal()")
+        page.evaluate("openHighlightReelsModal('build')")
+        page.locator(".reel-clip-row").first.wait_for()
+        assert self._names(page) == ["first", "second", "third"]
+        assert page.locator(".reel-clip-row.excluded").count() == 0
+
+
+@skip_no_server
+class TestReelDelete:
+    def test_delete_reel_from_view_tab(self, page: Page):
+        # End-to-end against the live server: a throwaway reel file on disk,
+        # deleted through the View tab's Delete button + confirm dialog.
+        reels_dir = Path(__file__).resolve().parent.parent / ".yuu-clip" / "reels"
+        reels_dir.mkdir(parents=True, exist_ok=True)
+        fake_reel = reels_dir / "uitest_delete_me.mkv"
+        fake_reel.write_bytes(b"fake")
+        try:
+            page.evaluate("openHighlightReelsModal('view')")
+            item = page.locator(".reel-item", has_text="uitest_delete_me.mkv")
+            item.wait_for()
+            item.get_by_role("button", name="Delete").click()
+            page.locator("#confirm-ok-btn").click()
+            expect(page.locator(".reel-item", has_text="uitest_delete_me.mkv")).to_have_count(0)
+            deadline = time.monotonic() + 5
+            while fake_reel.exists() and time.monotonic() < deadline:
+                time.sleep(0.1)
+            assert not fake_reel.exists()
+        finally:
+            fake_reel.unlink(missing_ok=True)

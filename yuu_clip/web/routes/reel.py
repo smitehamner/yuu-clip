@@ -19,7 +19,7 @@ from pydantic import BaseModel
 from yuu_clip.db.models import ClipCandidate
 from yuu_clip.log import get_logger
 from yuu_clip.web.deps import ProjectContext
-from yuu_clip.web.routes._shared import _srt_to_vtt
+from yuu_clip.web.routes._shared import _delete_files, _locked_files_error, _srt_to_vtt
 from yuu_clip.web.sse import subprocess_sse
 
 _log = get_logger(__name__)
@@ -194,6 +194,18 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         if safe != filename or not reel_path.is_file():
             raise HTTPException(404, "Reel not found")
         return reel_path
+
+    @router.delete("/api/demo/{filename}")
+    def delete_reel(filename: str):
+        """Delete a reel file and its caption/composition sidecars from disk."""
+        from yuu_clip.reel import reel_caption_path, reel_composition_path
+        reel_path = _resolve_reel(filename)
+        targets = [reel_path, reel_caption_path(reel_path), reel_composition_path(reel_path)]
+        locked = _delete_files(targets)
+        if locked:
+            raise _locked_files_error(locked)
+        _log.info("Deleted reel %s (with sidecars)", reel_path.name)
+        return {"deleted": reel_path.name}
 
     @router.post("/api/demo/{filename}/captions")
     def regenerate_reel_captions(filename: str):

@@ -105,9 +105,9 @@ A recording can be split into independent segments before or after analysis.
 
 ### Highlight reel builder
 
-Accessible from the header. Choose a video filter (all approved clips or a specific video), transition type and duration (including "random"), title card duration, and output filename. Ordered clip list lets you check/uncheck clips and reorder them before building. Saved reels go to `.yuu-clip/reels/` with a timestamp in the filename.
+Accessible from the header. Choose a video filter (all approved clips or a specific video), transition type and duration (including "random"), title card duration, and output filename. Ordered clip list lets you check/uncheck clips and reorder them — drag a row by its grip, or use the ▲▼ buttons. Your order and selections are kept while the window is open, even if you flip to the View tab and back. Saved reels go to `.yuu-clip/reels/` with a timestamp in the filename.
 
-A reel is built from your **exported** clips, so any selected clip that hasn't been exported is skipped — the builder shows an **Export N clips** button to export the missing ones first. Tick **Generate captions** to also write an SRT alongside the reel (each clip's transcript stitched onto the reel timeline). In the **View** tab you can generate or regenerate captions for an existing reel, and the built-in player shows them.
+A reel is built from your **exported** clips, so any selected clip that hasn't been exported is skipped — the builder shows an **Export N clips** button to export the missing ones first. **Preview** plays the selected clips in sequence with Previous/Next controls. Tick **Generate captions** to also write an SRT alongside the reel (each clip's transcript stitched onto the reel timeline). In the **View** tab you can generate or regenerate captions for an existing reel, play it with captions, and **Delete** reels you no longer need (removes the file and its captions from disk; your clips are untouched).
 
 ### World contexts manager
 

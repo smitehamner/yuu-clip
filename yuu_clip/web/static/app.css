@@ -537,9 +537,13 @@ details summary:focus-visible { outline: 2px solid var(--accent); outline-offset
 .reel-clip-list { display: flex; flex-direction: column; gap: 4px; max-height: 300px; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px; padding: 4px; background: var(--bg); }
 .reel-clip-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 4px; background: var(--surface); }
 .reel-clip-row.excluded { opacity: .4; }
+.reel-clip-row.dragging { opacity: .5; outline: 1px dashed var(--accent); }
+.reel-clip-drag { cursor: grab; color: var(--muted); font-size: 13px; padding: 6px 2px; user-select: none; letter-spacing: -2px; }
+.reel-clip-drag:active { cursor: grabbing; }
 .reel-clip-move { display: flex; flex-direction: column; gap: 1px; }
 .reel-clip-move button { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 13px; padding: 5px 8px; line-height: 1; border-radius: 4px; }
-.reel-clip-move button:hover { background: var(--border); color: var(--text); }
+.reel-clip-move button:hover:not(:disabled) { background: var(--border); color: var(--text); }
+.reel-clip-move button:disabled { opacity: .3; cursor: default; }
 .reel-clip-info { flex: 1; min-width: 0; }
 .reel-clip-name { font-size: 12px; font-weight: 500; }
 .reel-clip-meta { font-size: 11px; color: var(--muted); }
