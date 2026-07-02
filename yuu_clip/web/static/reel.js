@@ -116,7 +116,7 @@ function renderReelClipList() {
       <div class="reel-clip-info">
         <div class="reel-clip-name">${escHtml(c.description || `Clip ${c.id}`)}</div>
         <div class="reel-clip-meta">${escHtml(c.start_hms)} · ${escHtml(c.duration_hms)} · &#11088;${Math.round(c.score_overall*100)}%
-          ${c.has_export ? '' : ' · <span style="color:var(--yellow)">not exported</span>'}
+          ${c.has_export ? '' : ' · <span style="color:var(--warning)">not exported</span>'}
         </div>
       </div>`;
     listEl.appendChild(row);

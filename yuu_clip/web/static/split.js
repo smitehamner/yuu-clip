@@ -379,7 +379,7 @@ function _renderSplitTimeline() {
 
   // Segment colour bands
   const pts = [0, ..._splitPoints, _splitDurationS];
-  const palette = ['var(--accent)', 'var(--amber)', 'var(--green)', 'var(--red)'];
+  const palette = ['var(--accent)', 'var(--warning)', 'var(--green)', 'var(--red)'];
   segments.innerHTML = pts.slice(0, -1).map((start, i) => {
     const end      = pts[i + 1];
     const widthPct = ((end - start) / _splitDurationS * 100).toFixed(3);
@@ -664,7 +664,7 @@ function _renderPreSplitTimeline() {
   if (!markers || !_splitDurationS) return;
 
   const pts     = [0, ..._splitPoints, _splitDurationS];
-  const palette = ['var(--accent)', 'var(--amber)', 'var(--green)', 'var(--red)'];
+  const palette = ['var(--accent)', 'var(--warning)', 'var(--green)', 'var(--red)'];
   segments.innerHTML = pts.slice(0, -1).map((start, i) => {
     const end      = pts[i + 1];
     const widthPct = ((end - start) / _splitDurationS * 100).toFixed(3);

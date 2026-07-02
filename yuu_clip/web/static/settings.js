@@ -214,7 +214,7 @@ function _onHfTokenInput() {
       fb.textContent = '';
     } else if (!val.startsWith('hf_')) {
       fb.textContent = '⚠ HuggingFace tokens normally start with "hf_" — double-check this value';
-      fb.style.color = 'var(--yellow, #f0c060)';
+      fb.style.color = 'var(--warning)';
     } else {
       fb.textContent = '✓ Looks like a valid token format';
       fb.style.color = 'var(--green, #22c55e)';

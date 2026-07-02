@@ -98,7 +98,7 @@ function _renderVideoList() {
       : '';
     const errCount = v.clips_llm_error || 0;
     const errBadge = errCount > 0
-      ? `<div class="meta" style="margin-top:2px;color:var(--amber)" title="LLM scoring failed for ${errCount} clip${errCount !== 1 ? 's' : ''} — re-score to retry">&#9888; ${errCount} scoring error${errCount !== 1 ? 's' : ''}</div>`
+      ? `<div class="meta" style="margin-top:2px;color:var(--warning)" title="LLM scoring failed for ${errCount} clip${errCount !== 1 ? 's' : ''} — re-score to retry">&#9888; ${errCount} scoring error${errCount !== 1 ? 's' : ''}</div>`
       : '';
     li.innerHTML = `
       <div class="name" title="${v.title ? escHtml(v.filename) : ''}">${escHtml(v.title || v.filename)}</div>
@@ -450,7 +450,7 @@ function _renderContextSection(video) {
 
   const errCount = video.clips_llm_error || 0;
   const failedBtn = errCount > 0
-    ? `<button class="btn" style="font-size:12px;padding:4px 12px;border-color:var(--amber);color:var(--amber)" onclick="rescoreFailedClips(${video.id}, this)" title="Re-run LLM scoring only for the ${errCount} clip${errCount !== 1 ? 's' : ''} that failed last time">&#9888; Re-score ${errCount} failed clip${errCount !== 1 ? 's' : ''}</button>`
+    ? `<button class="btn" style="font-size:12px;padding:4px 12px;border-color:var(--warning);color:var(--warning)" onclick="rescoreFailedClips(${video.id}, this)" title="Re-run LLM scoring only for the ${errCount} clip${errCount !== 1 ? 's' : ''} that failed last time">&#9888; Re-score ${errCount} failed clip${errCount !== 1 ? 's' : ''}</button>`
     : '';
 
   return `

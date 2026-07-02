@@ -415,7 +415,7 @@ function initResize() {
 function _applyPrereqWarnings(prereqs) {
   const inElectron = !!window.electronAPI;
   const wizardLink = inElectron
-    ? ' <a href="#" onclick="window.electronAPI.runSetupWizard();return false" style="color:var(--amber)">Re-run Setup Wizard</a>'
+    ? ' <a href="#" onclick="window.electronAPI.runSetupWizard();return false" style="color:var(--warning)">Re-run Setup Wizard</a>'
     : '';
 
   const banner = document.getElementById('prereq-banner');

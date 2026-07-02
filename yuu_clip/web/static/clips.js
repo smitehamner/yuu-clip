@@ -365,7 +365,7 @@ function renderDetail(clip) {
       <div id="related-clips-section">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
           <div class="section-title">Related Clips</div>
-          ${clip.related_clips_stale ? `<span style="font-size:11px;color:var(--amber);font-style:italic">stale — re-score updated</span>` : ''}
+          ${clip.related_clips_stale ? `<span style="font-size:11px;color:var(--warning);font-style:italic">stale — re-score updated</span>` : ''}
           <span style="font-size:11px;color:var(--muted);margin-left:auto">${clip.related_clips_at ? _fmtAgo(clip.related_clips_at) : ''}</span>
         </div>
         ${clip.related_clips.length ? clip.related_clips.map(r => `
