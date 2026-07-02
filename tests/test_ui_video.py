@@ -26,21 +26,17 @@ _MOCK_ANALYZE_RUN = {
 }
 
 
-def _render_video_with_analyze_run(page: Page, analyze_run) -> None:
-    """Render the first sidebar video's detail with `analyze_run` overridden.
-
-    renderVideoDetail() is called directly (bypassing selectVideo's fetch) so
-    the test controls analyze_run without depending on real analyze history
-    on the live server's videos.
-    """
+def _render_video_with(page: Page, overrides: dict) -> None:
+    """Render the first sidebar video's detail with fields overridden, bypassing
+    selectVideo's fetch so the test controls exactly what the layout sees."""
     page.goto(LIVE_URL)
     page.wait_for_selector("#video-list li[data-video-id]", timeout=5000)
     page.evaluate(
-        """(analyzeRun) => {
-          const video = Object.assign({}, AppState.videos[0], {analyze_run: analyzeRun});
+        """(overrides) => {
+          const video = Object.assign({}, AppState.videos[0], overrides);
           renderVideoDetail(video, null);
         }""",
-        analyze_run,
+        overrides,
     )
 
 
@@ -50,13 +46,13 @@ class TestRunTimingProvenanceLine:
     from Video.analyze_run when present, and omits it otherwise."""
 
     def test_shows_total_and_per_stage_timing(self, page: Page):
-        _render_video_with_analyze_run(page, _MOCK_ANALYZE_RUN)
+        _render_video_with(page, {"analyze_run": _MOCK_ANALYZE_RUN})
         expect(page.locator("#detail")).to_contain_text(
             "Last run: 4m 12s total (extract 12s · transcribe 3m 01s · speakers 38s · score 41s)"
         )
 
     def test_absent_when_analyze_run_is_null(self, page: Page):
-        _render_video_with_analyze_run(page, None)
+        _render_video_with(page, {"analyze_run": None})
         expect(page.locator("#detail")).not_to_contain_text("Last run:")
 
 
@@ -211,6 +207,87 @@ class TestDeleteVideoConfirm:
             timeout=3000,
         ):
             page.click("#confirm-ok-btn")
+
+
+@skip_no_server
+class TestVideoDetailCardLayout:
+    """Every major section of the video detail is a .detail-card that owns its
+    own action (M3-1/M3-2/CC-9); title kebab always renders (M3-3); meta line
+    sits under the title (L3-1)."""
+
+    def test_summary_card_renders_with_generate_button_when_empty(self, page: Page):
+        _render_video_with(page, {"summary": None})
+        card = page.locator("#detail .detail-card", has_text="Session Summary")
+        expect(card).to_have_count(1)
+        expect(card.locator("#btn-summarize-video")).to_have_text("Generate Summary")
+
+    def test_summary_card_shows_content_and_kebab_when_present(self, page: Page):
+        _render_video_with(page, {"summary": "A great session happened."})
+        card = page.locator("#detail .detail-card", has_text="Session Summary")
+        expect(card).to_contain_text("A great session happened.")
+        expect(card.locator(".kebab-btn")).to_have_count(1)
+
+    def test_timeline_card_renders_with_generate_button_when_empty(self, page: Page):
+        _render_video_with(page, {"has_timeline": False})
+        card = page.locator("#detail .detail-card", has_text="Session Timeline")
+        expect(card).to_have_count(1)
+        expect(card.locator("#btn-generate-timeline")).to_have_text("Generate Timeline")
+
+    def test_timeline_card_button_says_regenerate_when_timeline_exists(self, page: Page):
+        _render_video_with(page, {"has_timeline": True})
+        card = page.locator("#detail .detail-card", has_text="Session Timeline")
+        expect(card.locator("#btn-generate-timeline")).to_have_text("Regenerate Timeline")
+
+    def test_world_contexts_is_its_own_card_outside_the_title_card(self, page: Page):
+        _render_video_with(page, {})
+        title_card = page.locator("#detail .detail-card").first
+        expect(title_card).not_to_contain_text("World Contexts")
+        ctx_card = page.locator(
+            "#detail .detail-card", has=page.locator(".context-chips")
+        )
+        expect(ctx_card).to_have_count(1)
+        expect(ctx_card.locator(".detail-card-title")).to_have_text("World Contexts")
+
+    def test_title_kebab_renders_when_no_title_exists(self, page: Page):
+        _render_video_with(page, {"title": None})
+        title_card = page.locator("#detail .detail-card").first
+        expect(title_card.locator(".kebab-btn")).to_have_count(1)
+
+    def test_meta_line_sits_under_the_title_inside_the_title_card(self, page: Page):
+        _render_video_with(page, {})
+        title_card = page.locator("#detail .detail-card").first
+        expect(title_card).to_contain_text("clipped")
+
+    def test_actions_row_keeps_only_export_and_additional_actions(self, page: Page):
+        _render_video_with(page, {})
+        buttons = page.locator("#detail .vid-actions button")
+        expect(buttons).to_have_count(2)
+        expect(buttons.nth(0)).to_have_text("Export Approved")
+        expect(buttons.nth(1)).to_have_text("Additional Actions")
+
+    def test_full_transcript_section_is_a_card(self, page: Page):
+        _render_video_with(page, {"clip_count": 3, "status": "done"})
+        expect(
+            page.locator("#detail .detail-card > #video-transcript-details")
+        ).to_have_count(1)
+
+
+@skip_no_server
+class TestTimelineModalUnitOrder:
+    """The Generate Timeline modal lists units in the same order as Settings'
+    timeline-interval control: seconds, then minutes (L3-2)."""
+
+    def test_unit_order_matches_settings(self, page: Page):
+        page.goto(LIVE_URL)
+        page.wait_for_selector("#video-list li", timeout=5000)
+        modal_units = page.locator("#timeline-interval-unit option").all_text_contents()
+        settings_units = page.locator("#s-timeline-unit option").all_text_contents()
+        assert modal_units == settings_units == ["seconds", "minutes"]
+
+    def test_default_unit_is_still_minutes(self, page: Page):
+        page.goto(LIVE_URL)
+        page.wait_for_selector("#video-list li", timeout=5000)
+        assert page.eval_on_selector("#timeline-interval-unit", "el => el.value") == "minutes"
 
 
 # ---------------------------------------------------------------------------

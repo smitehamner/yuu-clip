@@ -265,38 +265,34 @@ function renderVideoDetail(video, savedTimeline) {
   document.getElementById('player-area').innerHTML =
     `<video controls preload="metadata" src="/api/videos/${video.id}/source" aria-label="Recording preview" style="display:block;width:100%;max-height:var(--player-max-height, 42vh);object-fit:contain;background:#000"></video>`;
   document.getElementById('detail').innerHTML = `
-    <div>
-      <div class="detail-type-badge video-badge" style="margin-bottom:8px">&#127916; Recording</div>
-      <div class="video-detail-header">
-        <div style="color:var(--muted);font-size:13px;margin-top:4px">${video.duration_hms} &middot; ${video.clip_count} clips &middot; ${_msToHms(video.total_clip_ms)} clipped</div>
-      </div>
-    </div>
+    <div><div class="detail-type-badge video-badge">&#127916; Recording</div></div>
 
     <div class="detail-card">
       <div class="detail-card-header">
         <h2 style="margin:0;font-size:17px;font-weight:700" title="${escHtml(video.title || video.filename)}">${escHtml(video.title || video.filename)}${eb(video.title_is_edited)}</h2>
-        ${video.title ? `<button class="kebab-btn" title="Edit or regenerate title" aria-label="Edit or regenerate title" onclick="openVideoTitleKebab(${video.id}, this)">&#8942;</button>` : ''}
+        <button class="kebab-btn" title="Edit or regenerate title" aria-label="Edit or regenerate title" onclick="openVideoTitleKebab(${video.id}, this)">&#8942;</button>
       </div>
-      ${_renderContextSection(video)}
+      <div style="color:var(--muted);font-size:13px">${video.duration_hms} &middot; ${video.clip_count} clips &middot; ${_msToHms(video.total_clip_ms)} clipped</div>
     </div>
 
-    ${video.summary ? `
-      <div class="detail-card">
-        <div class="detail-card-header">
-          <span class="detail-card-title">Session Summary${eb(video.summary_is_edited)}</span>
-          <button class="kebab-btn" title="Edit or regenerate summary" aria-label="Edit or regenerate summary" onclick="openVideoSummaryKebab(${video.id}, this)">&#8942;</button>
-        </div>
-        <div class="description-long">${escHtml(video.summary)}</div>
-      </div>` : ''}
+    ${_renderContextSection(video)}
+
+    <div class="detail-card">
+      <div class="detail-card-header">
+        <span class="detail-card-title">Session Summary${eb(video.summary_is_edited)}</span>
+        ${video.summary
+          ? `<button class="kebab-btn" title="Edit or regenerate summary" aria-label="Edit or regenerate summary" onclick="openVideoSummaryKebab(${video.id}, this)">&#8942;</button>`
+          : `<button class="btn ghost" id="btn-summarize-video" onclick="summarizeVideo(${video.id}, this)">Generate Summary</button>`}
+      </div>
+      ${video.summary
+        ? `<div class="description-long">${escHtml(video.summary)}</div>`
+        : `<div style="color:var(--muted);font-size:12px">No summary yet — generate a title and summary from the transcript.</div>`}
+    </div>
 
     ${_isVideoBeingAnalyzed(video) ? _analysisLivePanelHTML() : ''}
     ${_renderRunMetaCard(video)}
 
     <div class="vid-actions">
-      <div class="vid-actions-row">
-        <button class="btn" id="btn-summarize-video" onclick="summarizeVideo(${video.id}, this)">${video.summary ? 'Regenerate Summary' : 'Generate Summary'}</button>
-        <button class="btn" id="btn-generate-timeline" onclick="generateTimeline(${video.id})">${video.has_timeline ? 'Regenerate Timeline' : 'Generate Timeline'}</button>
-      </div>
       <div class="vid-actions-row">
         <button class="btn" onclick="openBatchExportModal(${video.id})">Export Approved</button>
         <button class="btn ghost" onclick="openVideoActionsModal(${video.id})">Additional Actions</button>
@@ -306,13 +302,21 @@ function renderVideoDetail(video, savedTimeline) {
     <div id="speakers-section"></div>
 
     ${(video.clip_count > 0 || video.status === 'done') ? `
-    <details id="video-transcript-details" class="transcript-details" data-video-id="${video.id}">
-      <summary class="transcript-summary">Full transcript</summary>
-      <div id="video-transcript-view" class="transcript"></div>
-    </details>` : ''}
+    <div class="detail-card">
+      <details id="video-transcript-details" class="transcript-details" data-video-id="${video.id}">
+        <summary class="transcript-summary">Full transcript</summary>
+        <div id="video-transcript-view" class="transcript"></div>
+      </details>
+    </div>` : ''}
 
-    <div id="timeline-section">
-      ${savedTimeline ? _renderTimelineHTML(savedTimeline) : ''}
+    <div class="detail-card">
+      <div class="detail-card-header">
+        <span class="detail-card-title">Session Timeline</span>
+        <button class="btn ghost" id="btn-generate-timeline" onclick="generateTimeline(${video.id})">${video.has_timeline ? 'Regenerate Timeline' : 'Generate Timeline'}</button>
+      </div>
+      <div id="timeline-section">
+        ${savedTimeline ? _renderTimelineHTML(savedTimeline) : (video.has_timeline ? '' : _timelineEmptyNoteHTML())}
+      </div>
     </div>`;
 
   if (window.loadSpeakers) loadSpeakers(video.id);
@@ -452,8 +456,10 @@ function _renderContextSection(video) {
     : '';
 
   return `
-    <div>
-      <div class="section-title" style="margin-bottom:6px">World Contexts</div>
+    <div class="detail-card">
+      <div class="detail-card-header">
+        <span class="detail-card-title">World Contexts</span>
+      </div>
       <div class="context-chips">
         ${chips.join('')}${emptyMsg}${addSelect ? '&nbsp;' + addSelect : ''}
       </div>
@@ -470,10 +476,11 @@ function _renderTimelineHTML(entries) {
       <div class="timeline-text">${escHtml(e.text)}</div>
     </div>`
   ).join('');
-  return `<div>
-    <div class="section-title" style="margin-bottom:8px">Session Timeline</div>
-    <div class="timeline">${rows}</div>
-  </div>`;
+  return `<div class="timeline">${rows}</div>`;
+}
+
+function _timelineEmptyNoteHTML() {
+  return `<div style="color:var(--muted);font-size:12px">No timeline yet — generate a time-stamped outline of the session.</div>`;
 }
 
 // ── timeline generation ───────────────────────────────────────────────────────
@@ -572,14 +579,18 @@ function _startGenerateTimeline(id, intervalS) {
   btn.textContent = 'Generating Timeline…';
 
   _supersedeActiveStream();
-  const resetBtn = () => { btn.disabled = false; btn.textContent = 'Regenerate Timeline'; };
+  const resetBtn = () => {
+    const video = AppState.videos.find(v => v.id === id);
+    btn.disabled = false;
+    btn.textContent = video?.has_timeline ? 'Regenerate Timeline' : 'Generate Timeline';
+  };
   let firstEntry = true;
 
   const handle = _openSSE(
     `/api/videos/${id}/timeline?interval_s=${intervalS}`,
     data => {
       if (firstEntry) {
-        section.innerHTML = `<div class="section-title" style="margin-bottom:8px">Session Timeline</div><div class="timeline" id="timeline-list"></div>`;
+        section.innerHTML = `<div class="timeline" id="timeline-list"></div>`;
         firstEntry = false;
       }
       const row = document.createElement('div');
@@ -591,15 +602,20 @@ function _startGenerateTimeline(id, intervalS) {
     },
     () => {
       _clearActiveStream(handle);
-      resetBtn();
       const video = AppState.videos.find(v => v.id === id);
       if (video) video.has_timeline = true;
+      resetBtn();
       showToast('Timeline generated');
     },
     errMsg => {
       _clearActiveStream(handle);
       resetBtn();
-      if (firstEntry) section.innerHTML = '';
+      // A failed regenerate leaves the stored timeline intact server-side, so
+      // don't claim "No timeline yet" — leave the section blank instead.
+      if (firstEntry) {
+        const video = AppState.videos.find(v => v.id === id);
+        section.innerHTML = video?.has_timeline ? '' : _timelineEmptyNoteHTML();
+      }
       showToast(`Timeline generation failed — ${errMsg}`, 'error');
     },
   );

@@ -159,8 +159,6 @@ header h1 { font-size: 16px; font-weight: 700; letter-spacing: .5px; color: var(
 .clip-header { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
 .clip-header h2 { font-size: 17px; font-weight: 600; }
 .clip-header .time { color: var(--muted); font-size: 13px; }
-/* video detail header is a little larger than clip */
-.video-detail-header h2 { font-size: 19px; font-weight: 700; }
 .description { font-style: italic; color: var(--accent2); font-size: 14px; line-height: 1.5; }
 .description-long { font-size: 13px; line-height: 1.75; color: var(--text-secondary); background: var(--surface); padding: 10px 12px; border-radius: 6px; border: 1px solid var(--border); }
 .video-title { font-size: 12px; color: var(--accent2); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -271,6 +269,8 @@ header h1 { font-size: 16px; font-weight: 700; letter-spacing: .5px; color: var(
 .transcript-stale-note { font-size: 12px; color: var(--warning); background: rgba(240,192,96,.08); border: 1px solid rgba(240,192,96,.3); border-radius: 6px; padding: 6px 10px; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .transcript-empty { font-size: 12px; color: var(--muted); padding: 4px 0; }
 .transcript-details { margin-top: 4px; border-top: 1px solid var(--border); padding-top: 8px; }
+/* inside a .detail-card the card border replaces the separator */
+.detail-card > .transcript-details { margin-top: 0; border-top: none; padding-top: 0; }
 .transcript-summary { cursor: pointer; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); list-style: revert; }
 .transcript-summary:hover { color: var(--text); }
 .transcript-details[open] .transcript-summary { margin-bottom: 8px; }

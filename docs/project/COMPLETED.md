@@ -5,6 +5,34 @@ Phases 1–3 have been moved to [COMPLETED-archive.md](COMPLETED-archive.md).
 
 ---
 
+## UX review video-detail restructure — M3-1, M3-2, M3-3, L3-1, L3-2, CC-9 (done, 2026-07-02)
+
+Prompt 7 of the 2026-07 UX review plan (`UX_REVIEW_PLAN.md`): every major
+section of the video detail is a `.detail-card` that owns its own action.
+
+- **M3-1 — Summary and Timeline cards own their actions**: Session Summary and
+  Session Timeline cards always render; when empty, a ghost Generate button
+  sits in the card header next to the section title (with a one-line muted
+  empty note in the body), so the control and its effect share one container.
+  The standalone action row keeps only Export Approved + Additional Actions.
+- **M3-2 / CC-9 (video half) — cards everywhere**: World Contexts moved out of
+  the title card into its own card; Full transcript and Session Timeline
+  converted from bare `.section-title` sections to cards. Clip detail's
+  Related Clips / Transcript conversion lands with Prompt 8.
+- **M3-3 — title kebab always renders**, so a never-summarized recording can
+  be titled manually (Edit works on an empty title).
+- **L3-1 — meta line** (duration · clips · clipped) moved under the title,
+  inside the title card.
+- **L3-2 — Generate Timeline modal unit order** now matches Settings
+  (seconds, minutes); minutes remains the default.
+- Timeline generation failure now restores the empty-state note (or leaves the
+  section blank when a stored timeline exists) instead of a bare blank section,
+  and the button label falls back to "Generate Timeline" when nothing was
+  generated.
+
+Covered by `TestVideoDetailCardLayout` + `TestTimelineModalUnitOrder` in
+`tests/test_ui_video.py`.
+
 ## UX review sidebar pass — H2-1, M2-1, M2-3, M2-4, L2-1/2/3 (done, 2026-07-02)
 
 Prompt 6 of the 2026-07 UX review plan (`UX_REVIEW_PLAN.md`):
