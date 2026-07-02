@@ -215,6 +215,9 @@ class Config:
     # Minimum silence gap in seconds to register as a transcript-mode scene boundary
     scene_transcript_gap_s: float = 3.0
 
+    # Audio energy analysis mode: "none" | "fast" | "full" (pre-fills the Analyze panel)
+    energy_mode: str = "fast"
+
     scorer_energy_weight: float = 1.0
     scorer_scene_weight: float = 0.5
     scorer_llm_weight: float = 2.0

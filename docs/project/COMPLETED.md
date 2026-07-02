@@ -5,6 +5,39 @@ Phases 1–3 have been moved to [COMPLETED-archive.md](COMPLETED-archive.md).
 
 ---
 
+## UX review New Recording + Track Layouts pass — H5-1, M5-1/2/3, L5-2, L5-4 (done, 2026-07-02)
+
+Prompt 9 of the 2026-07 UX review plan (`UX_REVIEW_PLAN.md`): the New
+Recording panel and the track layout editor.
+
+- **H5-1 — panel reads Settings defaults**: `_loadAnalysisDefaults()` fetches
+  `/api/config` on panel open and pre-fills the Whisper model, scene mode, and
+  audio energy selects (still per-run overrides). Audio energy became a real
+  config field (`energy_mode`: none|fast|full, default fast) with its own
+  Settings row under Analysis defaults — Settings' "pre-filled in Analyze
+  modal" promise now holds for all three.
+- **M5-1 — Browse-first file row**: labeled "📁 Browse…" button leads; the
+  path input stays for power users ("or paste a file path"). Drag-and-drop
+  deferred — browsers don't expose dropped-file paths (Electron needs preload
+  `webUtils` work).
+- **M5-2 — one Captions control**: the Advanced "External captions file"
+  free-text field is gone. The Captions select always appears after inspect
+  and ends with "Choose SRT file…" which opens the native picker
+  (`/api/pick-file?kind=captions`); the pick becomes an "External SRT: name"
+  option, cancel restores the previous choice.
+- **M5-3 — natural-language layout names**: backend accepts free text (names
+  are JSON keys; only empty / `__`-prefixed rejected), so placeholder is now
+  "My OBS setup" and the reserved-name message drops slug talk.
+- **L5-2 — Transcribe/Score tooltips** on the track editor checkboxes.
+- **L5-4 — inline name validation**: `#pe-name-error` (role=alert) under the
+  field, cleared on input, replaces the validation toasts.
+
+Covered by the config-comparison and panel tests in
+`tests/test_ui_analyze.py` and the `energy_mode` patch tests in
+`tests/test_config.py`.
+
+---
+
 ## UX review clip-detail pass — M4-1, M3-4, L4-1/2/3, L5-1, CC-9 (done, 2026-07-02)
 
 Prompt 8 of the 2026-07 UX review plan (`UX_REVIEW_PLAN.md`): clip detail

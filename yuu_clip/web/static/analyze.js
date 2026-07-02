@@ -28,10 +28,28 @@ async function openNewRecordingPanel() {
   _panelDirty   = false;
   _updateStartIngestButton();
   hidePreSplitSection();
+  await _loadAnalysisDefaults();
   await _loadProfileDropdown();
   await _loadIngestContextPicker();
   await _loadDiarizationDefault();
   document.getElementById('analyze-path').focus();
+}
+
+// Pre-fill the panel's model/scene/energy selects from the Settings-managed
+// config defaults; the panel's values remain a per-run override.
+async function _loadAnalysisDefaults() {
+  try {
+    const cfg = await fetch('/api/config').then(r => r.json());
+    _setSelectIfPresent('analyze-model',       cfg.whisper_model);
+    _setSelectIfPresent('analyze-scene-mode',  cfg.scene_detection_mode);
+    _setSelectIfPresent('analyze-energy-mode', cfg.energy_mode);
+  } catch { /* config unreachable — keep the static defaults */ }
+}
+
+function _setSelectIfPresent(id, value) {
+  const sel = document.getElementById(id);
+  if (!sel || !value) return;
+  if (Array.from(sel.options).some(o => o.value === value)) sel.value = value;
 }
 
 function closeNewRecordingPanel() {
@@ -164,12 +182,6 @@ async function runProbe(path) {
 
 function _renderSubtitleSourcePicker(info) {
   let el = document.getElementById('subtitle-source-field');
-  const hasSrt    = !!info.srt_sidecar;
-  const hasStream = info.subtitle_streams && info.subtitle_streams.length > 0;
-  if (!hasSrt && !hasStream) {
-    if (el) el.style.display = 'none';
-    return;
-  }
   if (!el) {
     const anchor = document.getElementById('estimate-area');
     el = document.createElement('div');
@@ -179,18 +191,54 @@ function _renderSubtitleSourcePicker(info) {
   }
   el.style.display = '';
   const opts = [`<option value="">Transcribe with Whisper (default)</option>`];
-  if (hasSrt) {
+  if (info.srt_sidecar) {
     const name = info.srt_sidecar.split(/[\\/]/).pop();
     opts.push(`<option value="${escHtml(info.srt_sidecar)}">Use SRT sidecar: ${escHtml(name)}</option>`);
   }
-  if (hasStream) {
-    for (const s of info.subtitle_streams) {
-      const label = s.title || s.language || `stream ${s.index}`;
-      opts.push(`<option value="stream:${s.index}">Use embedded captions: ${escHtml(label)}</option>`);
-    }
+  for (const s of info.subtitle_streams || []) {
+    const label = s.title || s.language || `stream ${s.index}`;
+    opts.push(`<option value="stream:${s.index}">Use embedded captions: ${escHtml(label)}</option>`);
   }
+  opts.push(`<option value="__pick-srt__">Choose SRT file&#8230;</option>`);
   el.innerHTML = `<label for="analyze-subtitle-source">Captions</label>
-    <select id="analyze-subtitle-source" onchange="runEstimate()">${opts.join('')}</select>`;
+    <select id="analyze-subtitle-source" onchange="_onSubtitleSourceChange(this)">${opts.join('')}</select>`;
+}
+
+// "Choose SRT file…" opens the native picker; a successful pick becomes a
+// selectable "External SRT: name" option, cancel restores the previous choice.
+async function _onSubtitleSourceChange(sel) {
+  if (sel.value !== '__pick-srt__') {
+    sel.dataset.prev = sel.value;
+    runEstimate();
+    return;
+  }
+  const prev = sel.dataset.prev || '';
+  try {
+    const data = await fetch('/api/pick-file?kind=captions').then(r => r.json());
+    if (data.path) {
+      let ext = document.getElementById('subtitle-external-option');
+      if (!ext) {
+        ext = document.createElement('option');
+        ext.id = 'subtitle-external-option';
+        sel.insertBefore(ext, sel.querySelector('option[value="__pick-srt__"]'));
+      }
+      ext.value = data.path;
+      ext.textContent = `External SRT: ${data.path.split(/[\\/]/).pop()}`;
+      sel.value = data.path;
+      sel.dataset.prev = data.path;
+    } else {
+      sel.value = prev;
+    }
+  } catch {
+    sel.value = prev;
+  }
+  runEstimate();
+}
+
+function _selectedSubtitleSource() {
+  const sel = document.getElementById('analyze-subtitle-source');
+  if (!sel || !sel.value || sel.value === '__pick-srt__') return null;
+  return sel.value;
 }
 
 async function runEstimate() {
@@ -203,9 +251,7 @@ async function runEstimate() {
   const extractTracks = profile
     ? profile.assignments.filter(a => a.do_score || a.do_transcribe).length
     : _probedInfo.audio_tracks;
-  const externalSrt   = document.getElementById('analyze-external-srt').value.trim();
-  const subtitlePickEl = document.getElementById('analyze-subtitle-source');
-  const usingExternalCaptions = !!(externalSrt || (subtitlePickEl && subtitlePickEl.value));
+  const usingExternalCaptions = !!_selectedSubtitleSource();
   try {
     const res = await fetch('/api/estimate', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -280,9 +326,7 @@ async function startAnalyze() {
   const diarizeEl     = document.getElementById('analyze-diarize');
   const diarize       = diarizeEl && !diarizeEl.disabled ? diarizeEl.checked : null;
   const contextNames  = _selectedContextIds();
-  const externalSrt    = document.getElementById('analyze-external-srt').value.trim();
-  const subtitleSrcEl  = document.getElementById('analyze-subtitle-source');
-  const subtitleSource = externalSrt || (subtitleSrcEl ? subtitleSrcEl.value || null : null);
+  const subtitleSource = _selectedSubtitleSource();
 
   const preSplitToggle = document.getElementById('pre-split-toggle');
   if (preSplitToggle && preSplitToggle.checked && _splitPoints.length > 0 && _splitDurationS > 0) {
@@ -424,7 +468,7 @@ function _showAnalysisToast(video) {
 
 // ── native file picker ────────────────────────────────────────────────────────
 async function pickFile() {
-  const btn = document.querySelector('.path-row .btn');
+  const btn = document.getElementById('btn-browse-recording');
   const orig = btn.textContent;
   btn.textContent = '…';
   btn.disabled = true;
@@ -511,6 +555,7 @@ async function _refreshProfileList() {
 
 function openNewProfile() {
   _profileEditorDirty = false;
+  _clearPeNameError();
   document.getElementById('profile-editor').style.display = '';
   document.getElementById('pe-name').value = '';
   document.getElementById('pe-numtracks').value = 2;
@@ -522,6 +567,7 @@ function editProfile(name) {
   const p = _allProfiles.find(x => x.name === name);
   if (!p) return;
   _profileEditorDirty = false;
+  _clearPeNameError();
   document.getElementById('profile-editor').style.display = '';
   document.getElementById('pe-name').value     = p.name;
   document.getElementById('pe-numtracks').value = p.num_tracks;
@@ -544,10 +590,12 @@ function renderTrackRows(existingAssignments) {
         <span style="color:var(--muted);width:60px;flex-shrink:0">Track ${i + 1}</span>
         <select id="pe-label-${i}" onchange="onLabelChange(${i})"
                 style="flex:1;padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:12px">${opts}</select>
-        <label style="display:flex;align-items:center;gap:4px;font-size:12px;white-space:nowrap">
+        <label style="display:flex;align-items:center;gap:4px;font-size:12px;white-space:nowrap"
+               title="Transcribe this track's speech">
           <input type="checkbox" id="pe-tx-${i}" ${doTx ? 'checked' : ''}> Transcribe
         </label>
-        <label style="display:flex;align-items:center;gap:4px;font-size:12px;white-space:nowrap">
+        <label style="display:flex;align-items:center;gap:4px;font-size:12px;white-space:nowrap"
+               title="Use this track for scoring">
           <input type="checkbox" id="pe-sc-${i}" ${doSc ? 'checked' : ''}> Score
         </label>
       </div>`);
@@ -561,10 +609,22 @@ function onLabelChange(i) {
   document.getElementById(`pe-sc-${i}`).checked = !isGameSound;
 }
 
+function _peNameError(msg) {
+  const errEl = document.getElementById('pe-name-error');
+  errEl.textContent = msg;
+  errEl.style.display = '';
+  document.getElementById('pe-name').focus();
+}
+
+function _clearPeNameError() {
+  const errEl = document.getElementById('pe-name-error');
+  if (errEl) { errEl.textContent = ''; errEl.style.display = 'none'; }
+}
+
 async function saveProfile() {
   const name = document.getElementById('pe-name').value.trim();
-  if (!name)                { showToast('Layout name is required', 'warning'); return; }
-  if (name.startsWith('__')) { showToast('Layout name cannot start with __', 'warning'); return; }
+  if (!name)                 { _peNameError('Enter a name for this layout'); return; }
+  if (name.startsWith('__')) { _peNameError('Names starting with "__" are reserved for built-in layouts'); return; }
   const n = parseInt(document.getElementById('pe-numtracks').value) || 1;
   const assignments = Array.from({length: n}, (_, i) => ({
     stream_position: i,

@@ -414,6 +414,20 @@ class TestConfigPatchWhisperModel:
         r = client.patch("/api/config", json={"scene_detection_mode": "magic"})
         assert r.status_code == 400
 
+    def test_energy_mode_in_get_config(self, client):
+        r = client.get("/api/config")
+        assert r.status_code == 200
+        assert r.json()["energy_mode"] == "fast"
+
+    def test_energy_mode_valid(self, client):
+        r = client.patch("/api/config", json={"energy_mode": "full"})
+        assert r.status_code == 200
+        assert r.json()["energy_mode"] == "full"
+
+    def test_energy_mode_invalid(self, client):
+        r = client.patch("/api/config", json={"energy_mode": "turbo"})
+        assert r.status_code == 400
+
     def test_silence_threshold_below_min_returns_400(self, client):
         r = client.patch("/api/config", json={"silence_threshold_ms": 50})
         assert r.status_code == 400

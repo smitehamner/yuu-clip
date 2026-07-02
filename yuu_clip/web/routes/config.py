@@ -45,6 +45,7 @@ class ConfigPatch(BaseModel):
     score_action_weight:          Optional[float] = None
     # Analysis defaults
     scene_detection_mode:         Optional[str]   = None
+    energy_mode:                  Optional[str]   = None
     silence_threshold_ms:         Optional[int]   = None
     min_clip_ms:                  Optional[int]   = None
     # Speaker labels
@@ -62,7 +63,7 @@ _CONFIG_FIELDS = (
     "scorer_energy_weight", "scorer_scene_weight", "scorer_llm_weight",
     "scorer_laugh_weight", "scorer_laugh_mode", "scorer_laugh_model_id",
     "score_funny_weight", "score_dramatic_weight", "score_action_weight",
-    "scene_detection_mode", "silence_threshold_ms", "min_clip_ms",
+    "scene_detection_mode", "energy_mode", "silence_threshold_ms", "min_clip_ms",
     "diarization_backend", "huggingface_token", "speaker_match_threshold",
 )
 
@@ -135,6 +136,7 @@ _CONFIG_PATCH_RULES: list[tuple[str, object]] = [
     ("score_dramatic_weight",        lambda v: max(0.0, v)),
     ("score_action_weight",          lambda v: max(0.0, v)),
     ("scene_detection_mode",         _enum_validator({"transcript", "fast", "full"}, "scene_detection_mode")),
+    ("energy_mode",                  _enum_validator({"none", "fast", "full"}, "energy_mode")),
     ("silence_threshold_ms",         _min_validator(500,  "silence_threshold_ms")),
     ("min_clip_ms",                  _min_validator(1000, "min_clip_ms")),
     ("diarization_backend",          _enum_validator({"null", "pyannote"}, "diarization_backend")),

@@ -134,22 +134,30 @@ class IngestRequest(BaseModel):
 def make_router(ctx: ProjectContext) -> APIRouter:
     router = APIRouter()
 
+    _PICK_FILE_KINDS = {
+        "video": ("Select Recording File", [
+            ("Video files", "*.mkv *.mp4 *.mov *.avi *.webm *.flv *.ts"),
+            ("All files", "*.*"),
+        ]),
+        "captions": ("Select Captions File", [
+            ("SRT captions", "*.srt"),
+            ("All files", "*.*"),
+        ]),
+    }
+
     @router.get("/api/pick-file")
-    def pick_file():
+    def pick_file(kind: str = "video"):
         """Open the OS-native file dialog on the server machine and return the chosen path."""
+        if kind not in _PICK_FILE_KINDS:
+            raise HTTPException(400, f"kind must be one of: {sorted(_PICK_FILE_KINDS)}")
+        title, filetypes = _PICK_FILE_KINDS[kind]
         import tkinter as tk
         from tkinter import filedialog
         root = tk.Tk()
         root.withdraw()
         root.wm_attributes("-topmost", True)
         try:
-            path = filedialog.askopenfilename(
-                title="Select Video File",
-                filetypes=[
-                    ("Video files", "*.mkv *.mp4 *.mov *.avi *.webm *.flv *.ts"),
-                    ("All files", "*.*"),
-                ],
-            )
+            path = filedialog.askopenfilename(title=title, filetypes=filetypes)
         finally:
             root.destroy()
         return {"path": str(Path(path)) if path else None}

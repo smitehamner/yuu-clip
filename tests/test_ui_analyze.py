@@ -7,11 +7,17 @@ helpers.
 """
 from __future__ import annotations
 
+import json
 import urllib.request
 
 import pytest
 from conftest import LIVE_URL, skip_no_server
 from playwright.sync_api import Page, expect
+
+
+def _get_config() -> dict:
+    with urllib.request.urlopen(f"{LIVE_URL}/api/config", timeout=5) as r:
+        return json.loads(r.read())
 
 
 @pytest.fixture
@@ -54,15 +60,35 @@ class TestAnalyzeModal:
         texts = [options.nth(i).text_content() for i in range(options.count())]
         assert any("Default" in t or "combined" in t.lower() for t in texts)
 
-    def test_model_dropdown_default_is_medium(self, page: Page):
+    def test_model_dropdown_prefilled_from_config(self, page: Page):
+        cfg = _get_config()
         page.goto(LIVE_URL)
         self._open_panel(page)
-        assert page.locator("#analyze-model").input_value() == "medium"
+        assert page.locator("#analyze-model").input_value() == cfg["whisper_model"]
 
-    def test_scene_mode_default_is_fast(self, page: Page):
+    def test_scene_mode_prefilled_from_config(self, page: Page):
+        cfg = _get_config()
         page.goto(LIVE_URL)
         self._open_panel(page)
-        assert page.locator("#analyze-scene-mode").input_value() == "fast"
+        assert page.locator("#analyze-scene-mode").input_value() == cfg["scene_detection_mode"]
+
+    def test_browse_button_is_labeled(self, page: Page):
+        page.goto(LIVE_URL)
+        self._open_panel(page)
+        expect(page.locator("#btn-browse-recording")).to_contain_text("Browse")
+
+    def test_external_srt_free_text_field_removed(self, page: Page):
+        page.goto(LIVE_URL)
+        self._open_panel(page)
+        assert page.locator("#analyze-external-srt").count() == 0
+
+    def test_captions_select_offers_srt_picker(self, page: Page):
+        page.goto(LIVE_URL)
+        self._open_panel(page)
+        page.evaluate("_renderSubtitleSourcePicker({srt_sidecar: null, subtitle_streams: []})")
+        select = page.locator("#analyze-subtitle-source")
+        expect(select).to_be_visible()
+        expect(select.locator("option[value='__pick-srt__']")).to_have_text("Choose SRT file…")
 
     def test_start_analyze_button_disabled_on_open(self, page: Page):
         page.goto(LIVE_URL)
@@ -76,12 +102,13 @@ class TestAnalyzeModal:
         page.wait_for_selector("#analyze-energy-mode", timeout=2000)
         expect(page.locator("#analyze-energy-mode")).to_be_visible()
 
-    def test_energy_mode_default_is_fast(self, page: Page):
+    def test_energy_mode_prefilled_from_config(self, page: Page):
+        cfg = _get_config()
         page.goto(LIVE_URL)
         self._open_panel(page)
         page.locator("details.advanced summary").click()
         page.wait_for_selector("#analyze-energy-mode", timeout=2000)
-        assert page.locator("#analyze-energy-mode").input_value() == "fast"
+        assert page.locator("#analyze-energy-mode").input_value() == cfg["energy_mode"]
 
     def test_energy_mode_has_none_and_full_options(self, page: Page):
         page.goto(LIVE_URL)
@@ -128,6 +155,35 @@ class TestProfileManager:
         # Built-in profiles have a lock icon and no delete button
         profile_list = page.locator("#profile-list")
         expect(profile_list).to_contain_text("Default")
+
+    def test_layout_name_placeholder_is_natural_language(self, page: Page):
+        page.goto(LIVE_URL)
+        assert page.locator("#pe-name").get_attribute("placeholder") == "My OBS setup"
+
+    def test_empty_layout_name_shows_inline_error(self, page: Page):
+        page.goto(LIVE_URL)
+        page.click("#btn-analyze")
+        page.locator("#new-recording-panel").wait_for(state="visible")
+        page.click("button[title='Manage track layouts']")
+        page.click("text=+ New Track Layout")
+        page.wait_for_selector("#profile-editor", timeout=2000)
+        page.click("#profile-editor button:has-text('Save')")
+        error = page.locator("#pe-name-error")
+        expect(error).to_be_visible()
+        expect(error).to_contain_text("Enter a name")
+        # typing clears the error
+        page.fill("#pe-name", "a")
+        expect(error).not_to_be_visible()
+
+    def test_transcribe_and_score_checkboxes_have_tooltips(self, page: Page):
+        page.goto(LIVE_URL)
+        page.click("#btn-analyze")
+        page.locator("#new-recording-panel").wait_for(state="visible")
+        page.click("button[title='Manage track layouts']")
+        page.click("text=+ New Track Layout")
+        page.wait_for_selector("#pe-tracks div", state="visible", timeout=2000)
+        assert page.locator("#pe-tracks label[title=\"Transcribe this track's speech\"]").count() >= 1
+        assert page.locator('#pe-tracks label[title="Use this track for scoring"]').count() >= 1
 
     def test_create_and_delete_profile(self, page: Page, track_layout_cleanup):
         name = "ui_test_profile"

@@ -9,7 +9,7 @@ const _settingsFieldIds = [
   's-energy-weight','s-scene-weight','s-llm-weight',
   's-laugh-weight','s-laugh-mode','s-laugh-model-id',
   's-funny-weight','s-dramatic-weight','s-action-weight',
-  's-scene-mode','s-silence-ms','s-min-clip-ms',
+  's-scene-mode','s-energy-mode','s-silence-ms','s-min-clip-ms',
   's-timeline-interval','s-timeline-unit','s-autoplay',
 ];
 let _settingsOriginal = {};
@@ -161,6 +161,7 @@ function _applySettingsToUI(cfg) {
   setVal('s-dramatic-weight',dw);   setTxt('s-dramatic-weight-val',dw);
   setVal('s-action-weight', aw);    setTxt('s-action-weight-val', aw);
   setVal('s-scene-mode',    cfg.scene_detection_mode || 'fast');
+  setVal('s-energy-mode',   cfg.energy_mode          || 'fast');
   setVal('s-silence-ms',    cfg.silence_threshold_ms ?? 3000);
   setVal('s-min-clip-ms',   cfg.min_clip_ms          ?? 15000);
   const _silenceEl = document.getElementById('s-silence-ms');
@@ -357,6 +358,7 @@ async function saveSettings() {
     huggingface_token:          getVal('s-hf-token'),
     speaker_match_threshold:    getNum('s-speaker-match-threshold', parseFloat),
     scene_detection_mode:       getVal('s-scene-mode'),
+    energy_mode:                getVal('s-energy-mode'),
     silence_threshold_ms:       getNum('s-silence-ms', parseInt),
     min_clip_ms:                getNum('s-min-clip-ms', parseInt),
     ...(tlSec ? {ui_timeline_interval_seconds: tlSec, ui_timeline_interval_unit: tlUnit} : {}),

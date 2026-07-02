@@ -355,6 +355,16 @@
     </div>
     <div class="settings-row">
       <div class="settings-col">
+        <label class="settings-label" for="s-energy-mode">Audio energy mode</label>
+      </div>
+      <select class="settings-select" id="s-energy-mode">
+        <option value="none">None — skip (fastest)</option>
+        <option value="fast">Fast — 4 kHz numpy (recommended)</option>
+        <option value="full">Full — 16 kHz numpy (most accurate)</option>
+      </select>
+    </div>
+    <div class="settings-row">
+      <div class="settings-col">
         <label class="settings-label" for="s-silence-ms">Silence threshold (ms)</label>
         <div class="settings-note">Gap length that marks a clip boundary</div>
       </div>
@@ -541,8 +551,8 @@
         <div class="field">
           <label for="analyze-path">Recording file</label>
           <div class="path-row">
-            <input type="text" id="analyze-path" placeholder="D:\recordings\session.mkv" oninput="scheduleProbe()">
-            <button class="btn" onclick="pickFile()" title="Browse for file" aria-label="Browse for file">&#128193;</button>
+            <button class="btn" id="btn-browse-recording" onclick="pickFile()">&#128193; Browse&#8230;</button>
+            <input type="text" id="analyze-path" placeholder="or paste a file path" oninput="scheduleProbe()">
           </div>
         </div>
 
@@ -595,10 +605,6 @@
               <option value="fast" selected>Fast — 4 kHz numpy (recommended)</option>
               <option value="full">Full — 16 kHz numpy (most accurate)</option>
             </select>
-          </div>
-          <div class="field">
-            <label for="analyze-external-srt">External captions file <span style="color:var(--muted);font-weight:400">(optional — skips Whisper)</span></label>
-            <input type="text" id="analyze-external-srt" placeholder="C:\path\to\captions.srt" style="font-family:monospace;font-size:12px" oninput="runEstimate()">
           </div>
         </details>
 
@@ -821,7 +827,9 @@
     <div id="profile-editor" style="display:none;border-top:1px solid var(--border);margin-top:14px;padding-top:14px">
       <div class="field">
         <label for="pe-name">Layout name</label>
-        <input type="text" id="pe-name" placeholder="my_obs_setup">
+        <input type="text" id="pe-name" placeholder="My OBS setup" oninput="_clearPeNameError()"
+               aria-describedby="pe-name-error">
+        <div id="pe-name-error" role="alert" style="display:none;color:var(--red);font-size:11px;margin-top:4px"></div>
       </div>
       <div class="field">
         <label for="pe-numtracks">Number of tracks</label>

@@ -68,12 +68,12 @@ Embedded HTML5 player shown in the clip detail panel. Before export, the player 
 
 Open with the `+ Analyze` button in the header. Replaces the old modal with a full panel that keeps the sidebar live.
 
-1. Browse for a video file (native OS file picker); file is inspected immediately after selection — shows stream table and time estimate
+1. Click **Browse…** to pick a video file (native OS file picker), or paste a path; the file is inspected immediately — shows stream table and time estimate
 2. Optionally split the recording into segments before analysis (place markers on the waveform)
 3. Select a track layout (optional)
-4. If an SRT sidecar or embedded subtitle stream is detected, a `--subtitle-source` option appears to skip Whisper and import existing captions instead
+4. After inspection, a **Captions** select lets you skip Whisper: it lists any detected SRT sidecar or embedded caption stream, plus a "Choose SRT file…" option that opens the native picker for an external SRT
 5. Check world contexts to assign (optional)
-6. Expand **Advanced Options** to change Whisper model, scene mode, or energy mode
+6. Expand **Advanced Options** to change Whisper model, scene mode, or energy mode — all three are pre-filled from the Settings analysis defaults and act as per-run overrides
 7. **Start** button launches the analysis subprocess; progress appears in the header step pills
 
 Time estimate panel breaks down expected wall-clock cost per step and warns if any step exceeds 30 minutes. Clicking another video while the panel is open prompts to discard if a path has been entered.
