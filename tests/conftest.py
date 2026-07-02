@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import os
 import socket
+import subprocess
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -166,27 +168,75 @@ def _force_exit_after(seconds: float, exit_code_fn) -> None:
 
 
 def pytest_runtest_teardown(item, nextitem) -> None:
-    # Watchdog for Playwright session teardown hang on Windows (IOCP / ProactorEventLoop).
-    # Only active for UI test sessions — API tests let pytest print its summary normally.
+    # Fallback for the Playwright teardown hang (see _close_browser_unhang, which
+    # normally resolves it). Only fires if the process is still alive 20s after
+    # the last test's teardown started — i.e. the driver kill failed too.
     # Skipped under xdist: nextitem is None between work units too, and killing an
     # idle worker crashes the run. Workers get their own watchdog in sessionfinish.
     if not _is_ui_session or nextitem is not None or os.environ.get("PYTEST_XDIST_WORKER"):
         return
-    _force_exit_after(8, lambda: 1 if _had_failure else 0)
+    _force_exit_after(20, lambda: 1 if _had_failure else 0)
 
 
 def pytest_sessionfinish(session, exitstatus) -> None:
-    # Only force-exit for UI sessions where teardown may hang.
-    # API test sessions return normally so pytest can print its summary line.
+    # Teardown normally completes now that _close_browser_unhang guards the
+    # Playwright hang, so a normal exit (with pytest's summary line) is expected.
+    # The delayed force-exit only fires if something else wedges the interpreter.
     if not _is_ui_session:
         return
-    if os.environ.get("PYTEST_XDIST_WORKER"):
-        # Worker results are already reported to the controller by now, so a
-        # normal shutdown is preferred (an abrupt exit reads as a crash). The
-        # grace-period exit only fires if Playwright teardown hangs the process.
-        _force_exit_after(10, lambda: int(exitstatus))
-        return
-    os._exit(int(exitstatus))
+    _force_exit_after(10, lambda: int(exitstatus))
+
+
+def _playwright_driver_pid(browser) -> int | None:
+    # Private playwright internals (verified against 1.60): the sync Browser's
+    # connection transport holds the node.exe driver subprocess. If an upgrade
+    # breaks this path we return None and the force-exit fallbacks take over.
+    try:
+        return browser._impl_obj._connection._transport._proc.pid
+    except AttributeError:
+        return None
+
+
+def _close_browser_unhang(browser) -> None:
+    """Close the browser without hanging the process (Windows / Python 3.14).
+
+    Upstream bug (playwright-python #818 family): at session teardown Chromium
+    exits, but the driver's response to Browser.close is lost, leaving the sync
+    event loop parked in GetQueuedCompletionStatus forever. The old escape —
+    os._exit watchdogs — is not viable under xdist: a force-exited worker reads
+    as a crashed node and its last test is falsely marked failed.
+
+    Instead, give close() a few seconds, then kill the node driver: the broken
+    pipe wakes the event loop and close() raises 'Connection closed while
+    reading from the driver', which we swallow. Teardown then completes
+    normally, so workers shut down cleanly and pytest prints its real summary.
+    """
+    driver_pid = _playwright_driver_pid(browser)
+    close_finished = threading.Event()
+
+    def _kill_driver_if_stuck() -> None:
+        if close_finished.wait(5) or driver_pid is None:
+            return
+        subprocess.run(
+            ["taskkill", "/F", "/PID", str(driver_pid)],
+            capture_output=True, check=False, timeout=10,
+        )
+
+    threading.Thread(target=_kill_driver_if_stuck, daemon=True).start()
+    try:
+        browser.close()
+    except Exception:
+        pass
+    finally:
+        close_finished.set()
+
+
+@pytest.fixture(scope="session")
+def browser(launch_browser):
+    """Override pytest-playwright's browser fixture: same launch, guarded close."""
+    browser = launch_browser()
+    yield browser
+    _close_browser_unhang(browser)
 
 
 @pytest.fixture

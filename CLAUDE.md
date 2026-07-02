@@ -114,6 +114,12 @@ tests/
 .\scripts\test-ui.ps1         # requires live server at http://127.0.0.1:8080
 ```
 
+`test-ui.ps1` runs 4 pytest-xdist workers by default (~3 min; sequential is
+~7.5 min). Pass `-Sequential` only when debugging suspected worker-parallelism
+flakes. The session `browser` fixture override in `tests/conftest.py` guards
+the Playwright teardown hang — see the comment there before touching the
+teardown watchdogs.
+
 Run at least `test-api.ps1` before reporting a backend fix as done.
 
 ## Current focus

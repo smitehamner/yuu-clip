@@ -1,5 +1,6 @@
 param(
     [switch]$Detailed,
+    [switch]$Sequential,
     [Parameter(ValueFromRemainingArguments = $true)]$PytestArgs
 )
 $ErrorActionPreference = "Stop"
@@ -23,7 +24,12 @@ try {
     # PowerShell does not glob-expand args to native commands, so resolve the
     # test files here and pass explicit paths to pytest.
     $UiTests = Get-ChildItem -Path (Join-Path $RepoRoot "tests") -Filter "test_ui_*.py" | ForEach-Object { $_.FullName }
-    & $Python -u -m pytest $UiTests $Verbosity --tb=short --no-header -p no:warnings --timeout=60 -r fE @PytestArgs 2>&1 |
+    # 4 xdist workers (one Chromium each), whole files per worker: tests within a
+    # file share live-server state assumptions. Worker restarts are disabled so a
+    # genuine worker death fails fast instead of cascading into a scheduler crash.
+    $ParallelArgs = @()
+    if (-not $Sequential) { $ParallelArgs = @("-n", "4", "--dist", "loadfile", "--max-worker-restart", "0") }
+    & $Python -u -m pytest $UiTests $Verbosity --tb=short --no-header -p no:warnings --timeout=60 -r fE @ParallelArgs @PytestArgs 2>&1 |
         Tee-Object -FilePath $LogFile
     $testExitCode = $LASTEXITCODE
 } finally {

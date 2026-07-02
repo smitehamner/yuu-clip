@@ -5,6 +5,21 @@ Phases 1–3 have been moved to [COMPLETED-archive.md](COMPLETED-archive.md).
 
 ---
 
+## UI test suite parallelized — 7.6 min → 2.8 min (done, 2026-07-02)
+
+`test-ui.ps1` now runs 4 pytest-xdist workers by default (`-Sequential` opts out).
+The previous attempt crashed because every worker hung at Playwright session
+teardown (upstream playwright-python bug on Windows: Chromium exits but the
+driver's `Browser.close` response is lost) and the old `os._exit` watchdog made
+hung workers look like crashed nodes, falsely failing their last test. Fixed by
+overriding the session `browser` fixture in `tests/conftest.py`: if `close()`
+doesn't return within 5s, the node driver is killed and the resulting
+"Connection closed" error swallowed, so teardown completes normally. Bonus:
+sequential runs get their real pytest summary line back (the immediate
+`os._exit` used to eat it).
+
+---
+
 ## Usage-feedback cleanup — batch 1 (done, 2026-07-01)
 
 Quick-win bugs and branding from the in-app feedback pass:
