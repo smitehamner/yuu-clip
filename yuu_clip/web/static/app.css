@@ -356,7 +356,8 @@ kbd { background: var(--surface); border: 1px solid var(--border); border-radius
 .clip-scores { font-size: 11px; color: var(--muted); margin-top: 3px; display: flex; gap: 8px; white-space: nowrap; }
 
 /* ── detail cards ── */
-.detail-cards-row { display: flex; gap: 12px; align-items: flex-start; }
+.detail-cards-row { display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
+.detail-cards-row > .detail-card { flex: 1 1 240px; min-width: 0; }
 .detail-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
 .detail-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; min-width: 0; }
 .detail-card-header h2 { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

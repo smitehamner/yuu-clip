@@ -229,8 +229,14 @@ The full text of everything said during a recording, as produced by speech-to-te
 The local AI model that converts audio to text. yuu-clip uses Whisper.
 
 - **Code:** `whisper_model`
+- **UI label:** "Caption model" on the export/retranscribe surfaces
+  (Retranscribe Clip, Batch Export, Export Clip — decided 2026-07-02, M3-4);
+  "Whisper model" in the Analyze panel; "Model" in Settings under the
+  "Whisper (Speech-to-text)" section heading
 - **Also called:** "Whisper model", "transcription model"
 - **Do not call it:** just "model" — ambiguous with the AI scoring model
+- **Notes:** all five model selects share one canonical option-copy set
+  (guarded by `tests/test_ui_terminology.py`)
 
 ---
 

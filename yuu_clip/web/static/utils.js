@@ -79,6 +79,10 @@ function plural(count, singular, pluralForm) {
   return `${count} ${count === 1 ? singular : (pluralForm || singular + 's')}`;
 }
 
+function truncate(text, max) {
+  return text.length > max ? text.slice(0, max - 1) + '…' : text;
+}
+
 function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }

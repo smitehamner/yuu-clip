@@ -5,6 +5,41 @@ Phases 1–3 have been moved to [COMPLETED-archive.md](COMPLETED-archive.md).
 
 ---
 
+## UX review clip-detail pass — M4-1, M3-4, L4-1/2/3, L5-1, CC-9 (done, 2026-07-02)
+
+Prompt 8 of the 2026-07 UX review plan (`UX_REVIEW_PLAN.md`): clip detail
+cleanup — tags, cards, and the caption-model controls.
+
+- **M4-1 — one Tags card**: the raw system-tags row is gone. Generated
+  pipeline tags render inside the Tags card as read-only muted pills with
+  display names and explanatory tooltips (`llm_error` → "Score error",
+  `after_silence_12s` → "After 12 s silence", `after_hard_split` → "After
+  split", `long_silence_before` → "Long pause before", `energy_no_*` → "No
+  audio data", `llm_no_transcript` → "No speech to score"; unknown tokens fall
+  back to underscore-stripped text). Bookkeeping markers (`llm_scored`,
+  `energy_scored`, `scenes_scored`, `laugh_*`) are hidden — the Scoring card
+  and "Last scored with" already convey them. User tags stay editable above.
+- **CC-9 (clip half) — cards everywhere**: Related Clips and Transcript
+  converted from bare `.section-title` sections to `.detail-card`s.
+- **M3-4 / L5-1 — caption-model controls unified**: Retranscribe, Batch
+  Export, and Export Clip all use label "Caption model" with default
+  `large-v3` (Export Clip's previously unlabeled select moved to its own
+  labeled row). One canonical option-copy set ("tiny — fastest, lowest
+  quality" … "large-v3 — best quality (~3 GB VRAM)") across all five model
+  selects including Settings and the Analyze panel.
+- **L4-1 — Additional Actions regrouped**: "Regenerate" split into Scoring
+  (Re-score, Override/Remove Override), Transcript (Retranscribe), and
+  Discover (Find Similar).
+- **L4-2 — merge-row descriptions truncate at 60 chars**; `_truncate` promoted
+  from `speakers.js` to `truncate()` in `utils.js`.
+- **L4-3 — Scoring/Actions row wraps** (`flex-wrap: wrap`, cards `flex:1 1
+  240px`) instead of cramping on narrow windows.
+
+Covered by `TestGeneratedTags`, `TestClipDetailCards`,
+`TestClipActionsModalGroups`, and `test_detail_cards_row_wraps` in
+`tests/test_ui_clips.py`, plus the model-select contract tests in
+`tests/test_ui_terminology.py`.
+
 ## UX review video-detail restructure — M3-1, M3-2, M3-3, L3-1, L3-2, CC-9 (done, 2026-07-02)
 
 Prompt 7 of the 2026-07 UX review plan (`UX_REVIEW_PLAN.md`): every major

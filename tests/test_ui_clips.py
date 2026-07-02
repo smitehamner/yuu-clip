@@ -7,6 +7,9 @@ helpers.
 """
 from __future__ import annotations
 
+import re
+from pathlib import Path
+
 import pytest
 from conftest import (
     LIVE_URL,
@@ -554,6 +557,128 @@ class TestClipTags:
         page.click("#clip-user-tags .user-tag:has-text('drop') .user-tag-x")
         expect(page.locator("#clip-user-tags .user-tag")).to_have_count(1)
         expect(page.locator("#clip-user-tags .user-tag").first).to_contain_text("keep")
+
+
+def test_detail_cards_row_wraps():
+    """L4-3: the Scoring/Actions two-card row must wrap on narrow layouts."""
+    app_css = (
+        Path(__file__).resolve().parents[1] / "yuu_clip" / "web" / "static" / "app.css"
+    ).read_text(encoding="utf-8")
+    row_rule = re.search(r"\.detail-cards-row\s*\{([^}]*)\}", app_css)
+    assert row_rule and "flex-wrap: wrap" in row_rule.group(1)
+
+
+@skip_no_server
+class TestGeneratedTags:
+    """M4-1: generated (pipeline) tags render inside the Tags card as read-only
+    pills with display names — internal tokens never leak, and bookkeeping
+    tags (scorer-ran markers) are hidden entirely."""
+
+    def _render_with_tags(self, page: Page, tags: list):
+        select_first_video_and_clip(page)
+        page.wait_for_selector("#clip-tag-input", timeout=3000)
+        page.evaluate(
+            "(tags) => { AppState.activeClipData.tags = tags; renderDetail(AppState.activeClipData); }",
+            tags,
+        )
+
+    def test_llm_error_renders_as_score_error_pill(self, page: Page):
+        self._render_with_tags(page, ["llm_error"])
+        card = page.locator(".detail-card:has(#clip-user-tags)")
+        pill = card.locator(".tag", has_text="Score error")
+        expect(pill).to_be_visible()
+        expect(pill).to_have_attribute("title", re.compile(r"LLM scoring failed"))
+        expect(page.locator("#detail")).not_to_contain_text("llm_error")
+
+    def test_silence_tag_renders_readable_duration(self, page: Page):
+        self._render_with_tags(page, ["after_silence_12s"])
+        card = page.locator(".detail-card:has(#clip-user-tags)")
+        expect(card.locator(".tag", has_text="After 12 s silence")).to_be_visible()
+
+    def test_bookkeeping_tags_are_hidden(self, page: Page):
+        self._render_with_tags(page, ["llm_scored", "energy_scored", "scenes_scored"])
+        expect(page.locator(".detail-card:has(#clip-user-tags) .tag")).to_have_count(0)
+        expect(page.locator("#detail")).not_to_contain_text("llm_scored")
+
+    def test_no_bare_tags_row_outside_the_card(self, page: Page):
+        self._render_with_tags(page, ["llm_error"])
+        expect(page.locator("#detail > .tags")).to_have_count(0)
+
+
+@skip_no_server
+class TestClipDetailCards:
+    """CC-9: Related Clips and Transcript are .detail-cards like every other
+    major section of the clip detail view."""
+
+    def test_related_clips_is_a_card(self, page: Page):
+        select_first_video_and_clip(page)
+        page.wait_for_selector("#clip-tag-input", timeout=3000)
+        page.evaluate(
+            """() => {
+                AppState.activeClipData.related_clips = [{id: 2, reason: 'same fight'}];
+                renderDetail(AppState.activeClipData);
+            }"""
+        )
+        section = page.locator("#related-clips-section")
+        expect(section).to_have_class(re.compile(r"\bdetail-card\b"))
+        expect(section.locator(".detail-card-title")).to_have_text("Related Clips")
+
+    def test_transcript_is_a_card(self, page: Page):
+        select_first_video_and_clip(page)
+        page.wait_for_selector("#clip-tag-input", timeout=3000)
+        page.evaluate(
+            """() => {
+                AppState.activeClipData.transcript_excerpt = 'hello there';
+                renderDetail(AppState.activeClipData);
+            }"""
+        )
+        card = page.locator(".detail-card:has(#clip-transcript-view)")
+        expect(card).to_have_count(1)
+        expect(card.locator(".detail-card-title")).to_have_text("Transcript")
+
+
+@skip_no_server
+class TestClipActionsModalGroups:
+    """L4-1: the clip Additional Actions modal groups actions by what they do —
+    Scoring / Transcript / Discover — not under a catch-all "Regenerate"."""
+
+    def test_groups_are_scoring_transcript_discover(self, page: Page):
+        select_first_video_and_clip(page)
+        page.wait_for_selector("#clip-tag-input", timeout=3000)
+        page.evaluate(
+            """() => {
+                AppState.activeClipData.description = 'a described clip';
+                openClipActionsModal(AppState.activeClipData.id);
+            }"""
+        )
+        page.wait_for_selector("#actions-modal.visible", timeout=2000)
+        # text_content, not inner_text — .section-title is CSS-uppercased
+        headings = page.locator("#actions-modal-body .section-title").all_text_contents()
+        assert "Regenerate" not in headings
+        assert {"Scoring", "Transcript", "Discover"} <= set(headings)
+        page.keyboard.press("Escape")
+
+    def test_merge_row_description_is_truncated(self, page: Page):
+        select_first_video_and_clip(page)
+        page.wait_for_selector("#clip-tag-input", timeout=3000)
+        page.evaluate(
+            """() => {
+                const long = 'x'.repeat(200);
+                AppState.clips = [
+                    {id: 9001, start_ms: 0, start_hms: '0:00', description: long},
+                    {id: 9002, start_ms: 60000, start_hms: '1:00', description: 'short'},
+                ];
+                AppState.activeClipData = null;
+                openClipActionsModal(9002);
+            }"""
+        )
+        page.wait_for_selector("#actions-modal.visible", timeout=2000)
+        merge_desc = page.locator(
+            "#actions-modal-body .action-row:has-text('Merge previous') .action-row-desc"
+        ).inner_text()
+        assert "x" * 59 + "…" in merge_desc
+        assert "x" * 60 not in merge_desc
+        page.keyboard.press("Escape")
 
 
 @skip_no_server

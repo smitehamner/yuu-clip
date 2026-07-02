@@ -68,7 +68,7 @@
       <select class="settings-select" id="s-whisper-model">
         <option value="tiny">tiny — fastest, lowest quality</option>
         <option value="base">base — fast, lower quality</option>
-        <option value="small">small (~500 MB VRAM)</option>
+        <option value="small">small — fast, decent quality (~500 MB VRAM)</option>
         <option value="medium">medium — good balance (~1.5 GB VRAM)</option>
         <option value="large-v3">large-v3 — best quality (~3 GB VRAM)</option>
       </select>
@@ -566,8 +566,8 @@
             <label for="analyze-model">Whisper model</label>
             <select id="analyze-model" onchange="runEstimate()">
               <option value="tiny">tiny — fastest, lowest quality</option>
-              <option value="base">base — very fast, lower quality</option>
-              <option value="small">small — fast (~500 MB VRAM)</option>
+              <option value="base">base — fast, lower quality</option>
+              <option value="small">small — fast, decent quality (~500 MB VRAM)</option>
               <option value="medium" selected>medium — good balance (~1.5 GB VRAM)</option>
               <option value="large-v3">large-v3 — best quality (~3 GB VRAM)</option>
             </select>
@@ -979,11 +979,11 @@
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
       <label for="batch-retranscribe-model" style="font-size:13px;color:var(--muted);min-width:110px">Caption model</label>
       <select id="batch-retranscribe-model" disabled style="flex:1;padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px">
-        <option value="tiny">tiny</option>
-        <option value="base">base</option>
-        <option value="small">small</option>
-        <option value="medium">medium</option>
-        <option value="large-v3" selected>large-v3 (best quality)</option>
+        <option value="tiny">tiny — fastest, lowest quality</option>
+        <option value="base">base — fast, lower quality</option>
+        <option value="small">small — fast, decent quality (~500 MB VRAM)</option>
+        <option value="medium">medium — good balance (~1.5 GB VRAM)</option>
+        <option value="large-v3" selected>large-v3 — best quality (~3 GB VRAM)</option>
       </select>
     </div>
     <div class="modal-actions">
@@ -999,13 +999,13 @@
   <div class="modal" style="width:360px">
     <h3>Retranscribe Clip</h3>
     <div class="field">
-      <label for="retranscribe-model">Whisper model</label>
+      <label for="retranscribe-model">Caption model</label>
       <select id="retranscribe-model">
-        <option value="tiny">tiny</option>
-        <option value="base">base</option>
-        <option value="small">small</option>
-        <option value="medium" selected>medium</option>
-        <option value="large-v3">large-v3 (best quality)</option>
+        <option value="tiny">tiny — fastest, lowest quality</option>
+        <option value="base">base — fast, lower quality</option>
+        <option value="small">small — fast, decent quality (~500 MB VRAM)</option>
+        <option value="medium">medium — good balance (~1.5 GB VRAM)</option>
+        <option value="large-v3" selected>large-v3 — best quality (~3 GB VRAM)</option>
       </select>
     </div>
     <div class="field">
@@ -1167,12 +1167,15 @@
           <input type="checkbox" id="export-retranscribe" onchange="_onExportRetranscribeChange(this.checked)">
           <span style="font-size:13px">Retranscribe before export</span>
         </label>
-        <select id="export-retranscribe-model" disabled style="padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px">
-          <option value="tiny">tiny</option>
-          <option value="base">base</option>
-          <option value="small">small</option>
-          <option value="medium">medium</option>
-          <option value="large-v3" selected>large-v3</option>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <label for="export-retranscribe-model" style="font-size:13px;color:var(--muted);min-width:110px">Caption model</label>
+        <select id="export-retranscribe-model" disabled style="flex:1;padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px">
+          <option value="tiny">tiny — fastest, lowest quality</option>
+          <option value="base">base — fast, lower quality</option>
+          <option value="small">small — fast, decent quality (~500 MB VRAM)</option>
+          <option value="medium">medium — good balance (~1.5 GB VRAM)</option>
+          <option value="large-v3" selected>large-v3 — best quality (~3 GB VRAM)</option>
         </select>
       </div>
       <div id="export-speaker-row" style="display:flex;align-items:center;gap:10px;padding-left:28px;opacity:.5">

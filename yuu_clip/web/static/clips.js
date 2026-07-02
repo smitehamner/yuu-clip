@@ -317,7 +317,7 @@ function renderDetail(clip) {
       </div>` : ''}
 
     <div class="detail-cards-row">
-      <div class="detail-card" style="flex:1">
+      <div class="detail-card">
         <div class="detail-card-header">
           <span class="detail-card-title">Scoring</span>
           ${clip.scored_at && clip.score_overall_user != null
@@ -336,7 +336,7 @@ function renderDetail(clip) {
           ${clip.scored_at ? scoreRow('Action',   clip.score_action,   'action')   : ''}
         </div>
       </div>
-      <div class="detail-card" style="flex:1">
+      <div class="detail-card">
         <div class="clip-actions">
           <div class="review-actions">
             <button class="btn approve ${clip.status==='approved'?'active':''}" onclick="setStatus(${clip.id},'approved')" title="Approve (press A)">Approve</button>
@@ -357,14 +357,13 @@ function renderDetail(clip) {
       <input list="clip-tags-datalist" id="clip-tag-input" class="tag-input"
              placeholder="Add a tag…" maxlength="40" autocomplete="off" aria-label="Add a tag">
       <datalist id="clip-tags-datalist"></datalist>
+      ${_generatedTagPillsHTML(clip.tags)}
     </div>
 
-    ${clip.tags.length ? `<div class="tags">${clip.tags.map(t=>`<span class="tag">${escHtml(t)}</span>`).join('')}</div>` : ''}
-
     ${clip.related_clips ? `
-      <div id="related-clips-section">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-          <div class="section-title">Related Clips</div>
+      <div class="detail-card" id="related-clips-section">
+        <div class="detail-card-header" style="justify-content:flex-start;gap:8px">
+          <span class="detail-card-title">Related Clips</span>
           ${clip.related_clips_stale ? `<span style="font-size:11px;color:var(--warning);font-style:italic">stale — re-score updated</span>` : ''}
           <span style="font-size:11px;color:var(--muted);margin-left:auto">${clip.related_clips_at ? _fmtAgo(clip.related_clips_at) : ''}</span>
         </div>
@@ -376,8 +375,8 @@ function renderDetail(clip) {
       </div>` : ''}
 
     ${clip.transcript_excerpt ? `
-      <div>
-        <div class="section-title" style="margin-bottom:6px">Transcript</div>
+      <div class="detail-card">
+        <div class="detail-card-header"><span class="detail-card-title">Transcript</span></div>
         ${clip.transcript_stale ? `<div class="transcript-stale-note">&#9888; Captions edited since last scoring — <button class="btn ghost" style="font-size:11px;padding:2px 8px" onclick="rescoreClip(${clip.id})">Re-score</button> to refresh.</div>` : ''}
         <div id="clip-transcript-view" class="transcript">${escHtml(clip.transcript_excerpt)}</div>
       </div>` : ''}
@@ -386,6 +385,34 @@ function renderDetail(clip) {
   if (clip.transcript_excerpt && window.loadClipTranscript) loadClipTranscript(clip.id);
   _renderTagDatalist();
   _loadTagSuggestions().then(_renderTagDatalist);
+}
+
+// ── generated tags ──────────────────────────────────────────────────────────
+// Pipeline tags (clip.tags) are internal tokens; map them to display names
+// before rendering. null = bookkeeping marker, hidden from the UI (the Scoring
+// card and "Last scored with" already convey that a scorer ran).
+const _GENERATED_TAG_INFO = {
+  llm_error:           { name: 'Score error', tip: 'LLM scoring failed for this clip — Re-score to retry' },
+  llm_no_transcript:   { name: 'No speech to score', tip: "No transcript text in this clip's time range, so LLM scoring was skipped" },
+  energy_no_tracks:    { name: 'No audio data', tip: 'No audio track was available for energy scoring' },
+  energy_no_data:      { name: 'No audio data', tip: "The audio track had no data in this clip's time range" },
+  after_hard_split:    { name: 'After split', tip: 'This clip starts right after a split point' },
+  long_silence_before: { name: 'Long pause before', tip: 'A long quiet stretch comes right before this clip' },
+  llm_scored: null, energy_scored: null, scenes_scored: null,
+  laugh_transcript: null, laugh_audio: null, laugh_model: null,
+  laugh_no_transcript: null, laugh_no_wav: null,
+};
+
+function _generatedTagPillsHTML(tags) {
+  const pills = (tags || []).map(token => {
+    if (_GENERATED_TAG_INFO[token] === null) return '';
+    let info = _GENERATED_TAG_INFO[token];
+    const silence = /^after_silence_(\d+)s$/.exec(token);
+    if (silence) info = { name: `After ${silence[1]} s silence`, tip: `This clip starts after about ${silence[1]} seconds of silence` };
+    if (!info) info = { name: token.replace(/_/g, ' '), tip: 'Detected during analysis' };
+    return `<span class="tag" title="${escHtml(info.tip)}">${escHtml(info.name)}</span>`;
+  }).filter(Boolean);
+  return pills.length ? `<div class="tags" style="margin-top:8px">${pills.join('')}</div>` : '';
 }
 
 // ── user tags ───────────────────────────────────────────────────────────────
@@ -507,19 +534,25 @@ function openClipActionsModal(clipId) {
     ]});
   }
 
-  const regenRows = [
+  const scoringRows = [
     { label: 'Re-score', description: 'Re-run scoring and description generation for this clip.', action: () => rescoreClip(clipId) },
-    { label: 'Retranscribe', description: "Re-run transcription for just this clip's time range.", action: () => openRetranscribeModal(clipId) },
   ];
-  if (clip.description_long || clip.description) {
-    regenRows.push({ label: 'Find Similar', description: 'Search other recordings for clips with a similar description.', action: () => openSimilarClipsModal(clipId) });
-  }
   if (clip.score_overall_user != null) {
-    regenRows.push({ label: 'Remove Override', description: 'Discard the manual score and go back to the generated score.', action: () => clearScoreOverride(clipId) });
+    scoringRows.push({ label: 'Remove Override', description: 'Discard the manual score and go back to the generated score.', action: () => clearScoreOverride(clipId) });
   } else {
-    regenRows.push({ label: 'Override Score', description: 'Manually set the overall score instead of using the generated score.', action: () => openScoreOverride(clipId) });
+    scoringRows.push({ label: 'Override Score', description: 'Manually set the overall score instead of using the generated score.', action: () => openScoreOverride(clipId) });
   }
-  groups.push({ heading: 'Regenerate', rows: regenRows });
+  groups.push({ heading: 'Scoring', rows: scoringRows });
+
+  groups.push({ heading: 'Transcript', rows: [
+    { label: 'Retranscribe', description: "Re-run transcription for just this clip's time range.", action: () => openRetranscribeModal(clipId) },
+  ]});
+
+  if (clip.description_long || clip.description) {
+    groups.push({ heading: 'Discover', rows: [
+      { label: 'Find Similar', description: 'Search other recordings for clips with a similar description.', action: () => openSimilarClipsModal(clipId) },
+    ]});
+  }
 
   if (clip.has_export) {
     const fileRows = [];
@@ -532,8 +565,9 @@ function openClipActionsModal(clipId) {
 
   if (prev || next) {
     const mergeRows = [];
-    if (prev) mergeRows.push({ label: '← Merge previous', description: `Combine with clip #${prev.id} ("${prev.description || 'no description yet'}"), which starts at ${prev.start_hms}.`, action: () => mergeClips(clipId, prev.id, 'prev') });
-    if (next) mergeRows.push({ label: 'Merge next →', description: `Combine with clip #${next.id} ("${next.description || 'no description yet'}"), which starts at ${next.start_hms}.`, action: () => mergeClips(clipId, next.id, 'next') });
+    const mergeDesc = (neighbor) => truncate(neighbor.description || 'no description yet', 60);
+    if (prev) mergeRows.push({ label: '← Merge previous', description: `Combine with clip #${prev.id} ("${mergeDesc(prev)}"), which starts at ${prev.start_hms}.`, action: () => mergeClips(clipId, prev.id, 'prev') });
+    if (next) mergeRows.push({ label: 'Merge next →', description: `Combine with clip #${next.id} ("${mergeDesc(next)}"), which starts at ${next.start_hms}.`, action: () => mergeClips(clipId, next.id, 'next') });
     groups.push({ heading: 'Merge', rows: mergeRows });
   }
 

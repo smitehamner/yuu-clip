@@ -104,3 +104,59 @@ class TestPluralHelper:
 def test_sidebar_heading_reads_recordings(page: Page):
     heading = page.locator(".videos-group .clips-section-header > span").first
     expect(heading).to_have_text("Recordings")
+
+
+# ---------------------------------------------------------------------------
+# M3-4 / L5-1: the speech-to-text model select is one concept everywhere —
+# identical option copy across all five surfaces, "Caption model" label and
+# large-v3 default on the three export/retranscribe surfaces.
+# ---------------------------------------------------------------------------
+
+CANONICAL_MODEL_OPTIONS = {
+    "tiny": "tiny — fastest, lowest quality",
+    "base": "base — fast, lower quality",
+    "small": "small — fast, decent quality (~500 MB VRAM)",
+    "medium": "medium — good balance (~1.5 GB VRAM)",
+    "large-v3": "large-v3 — best quality (~3 GB VRAM)",
+}
+
+MODEL_SELECT_IDS = [
+    "s-whisper-model",            # Settings
+    "analyze-model",              # New Recording panel
+    "batch-retranscribe-model",   # Batch Export modal
+    "retranscribe-model",         # Retranscribe Clip modal
+    "export-retranscribe-model",  # Export Clip modal
+]
+
+
+def _select_options(select_id: str) -> list[tuple[str, str, str]]:
+    select = re.search(
+        rf'<select[^>]*id="{select_id}"[^>]*>(.*?)</select>', INDEX_HTML, re.DOTALL
+    )
+    assert select, f"select #{select_id} not found in index.html"
+    return re.findall(r'<option value="([^"]*)"([^>]*)>\s*([^<]*?)\s*</option>', select.group(1))
+
+
+@pytest.mark.parametrize("select_id", MODEL_SELECT_IDS)
+def test_model_select_option_copy_is_canonical(select_id: str):
+    options = {value: text for value, _, text in _select_options(select_id)}
+    assert options == CANONICAL_MODEL_OPTIONS
+
+
+@pytest.mark.parametrize(
+    "select_id",
+    ["batch-retranscribe-model", "retranscribe-model", "export-retranscribe-model"],
+)
+def test_export_surface_model_default_is_large_v3(select_id: str):
+    selected = [value for value, attrs, _ in _select_options(select_id) if "selected" in attrs]
+    assert selected == ["large-v3"]
+
+
+@pytest.mark.parametrize(
+    "select_id",
+    ["batch-retranscribe-model", "retranscribe-model", "export-retranscribe-model"],
+)
+def test_export_surface_model_label_is_caption_model(select_id: str):
+    label = re.search(rf'<label for="{select_id}"[^>]*>([^<]*)</label>', INDEX_HTML)
+    assert label, f"no <label for=\"{select_id}\"> in index.html"
+    assert label.group(1).strip() == "Caption model"

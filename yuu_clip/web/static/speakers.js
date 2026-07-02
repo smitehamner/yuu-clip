@@ -35,7 +35,7 @@ function _renderSpeakersCard(speakers) {
                  title="Play a sample of this voice" aria-label="Play a sample of Speaker ${s.display_index}">&#9654;</button>`
       : '';
     const sample = s.sample_text
-      ? `<span class="speaker-sample" title="${escHtml(s.sample_text)}">&ldquo;${escHtml(_truncate(s.sample_text, 60))}&rdquo;</span>`
+      ? `<span class="speaker-sample" title="${escHtml(s.sample_text)}">&ldquo;${escHtml(truncate(s.sample_text, 60))}&rdquo;</span>`
       : '';
     // An unconfirmed suggestion keeps the input empty (so it doesn't look accepted)
     // and shows an Accept/Dismiss prompt instead.
@@ -114,10 +114,6 @@ function _suggestSpeakerNames() {
     },
   );
   _setActiveStream(handle, resetBtn);
-}
-
-function _truncate(text, max) {
-  return text.length > max ? text.slice(0, max - 1) + '…' : text;
 }
 
 // Play a short sample of a speaker's voice by seeking the recording's own video
