@@ -524,12 +524,7 @@ function openClipActionsModal(clipId) {
   if (clip.has_export) {
     const fileRows = [];
     if (AppState.activeMediaFilename) {
-      fileRows.push({ label: 'Download Export', description: 'Save the already-exported file to your downloads.', action: () => {
-        const a = document.createElement('a');
-        a.href = `/media/exports/${encodeURIComponent(AppState.activeMediaFilename)}`;
-        a.download = AppState.activeMediaFilename;
-        a.click();
-      }});
+      fileRows.push({ label: 'Download Export', description: 'Save the exported file (and any caption sidecars) to your downloads.', action: () => _downloadClipExport(clipId) });
     }
     fileRows.push({ label: 'Delete Export', description: 'Delete the exported video file but keep the clip record.', danger: true, action: () => deleteExport(clipId) });
     groups.push({ heading: 'Files', rows: fileRows });
@@ -547,6 +542,29 @@ function openClipActionsModal(clipId) {
   ]});
 
   openActionsModal(`Clip #${clip.id} — Additional Actions`, groups);
+}
+
+function _downloadFile(filename) {
+  const a = document.createElement('a');
+  a.href = `/media/exports/${encodeURIComponent(filename)}`;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+// Download the clip's exported video plus any SRT caption sidecars on disk.
+async function _downloadClipExport(clipId) {
+  let files = [];
+  try {
+    const data = await fetch(`/api/clips/${clipId}/export-files`).then(r => r.json());
+    files = (data && data.files) || [];
+  } catch (_) { /* fall back to the single known media file below */ }
+  if (!files.length && AppState.activeMediaFilename) files = [AppState.activeMediaFilename];
+  if (!files.length) { showToast('No exported files found', 'error'); return; }
+  // Stagger so the browser doesn't collapse rapid sequential downloads into one.
+  files.forEach((fn, i) => setTimeout(() => _downloadFile(fn), i * 200));
+  if (files.length > 1) showToast(`Downloading ${files.length} files (video + captions)`);
 }
 
 async function _reloadClipList(videoId) {

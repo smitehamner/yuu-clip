@@ -29,6 +29,7 @@ from yuu_clip.web.routes._shared import (
     _missing_ids,
     _require_clip,
     _srt_path,
+    _srt_sidecar_paths,
     _sse_response,
 )
 
@@ -401,6 +402,27 @@ def _register_clip_routes(router: APIRouter, ctx: ProjectContext) -> None:
             clip.status = body.status
             db.commit()
             return {"id": clip_id, "status": body.status}
+        finally:
+            db.close()
+
+    @router.get("/api/clips/{clip_id}/export-files")
+    def clip_export_files(clip_id: int):
+        """Filenames the user should get when downloading this clip's export: the
+        video file plus any SRT caption sidecars on disk (all under /media/exports/)."""
+        db = ctx.get_db()
+        try:
+            clip = _require_clip(db, clip_id)
+            video = db.get(Video, clip.video_id)
+            if not video:
+                raise HTTPException(404, "Video not found")
+            files: list[str] = []
+            video_export = next(
+                (p for p in _export_paths(clip, video, ctx.export_dir) if p.exists()), None
+            )
+            if video_export:
+                files.append(video_export.name)
+            files.extend(p.name for p in _srt_sidecar_paths(clip, video, ctx.export_dir))
+            return {"files": files}
         finally:
             db.close()
 

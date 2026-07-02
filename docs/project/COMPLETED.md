@@ -122,6 +122,17 @@ Correctness fixes around cancelling/running analyses, plus the settings/log layo
 
 ---
 
+## Download Export includes SRT sidecars (done, 2026-07-02)
+
+- **"Download Export" now also saves the clip's caption sidecars** — new
+  `GET /api/clips/{id}/export-files` lists the exported video plus any SRT
+  sidecars on disk (merged `{stem}.srt` + per-label `{stem}.<label>.srt`); the
+  frontend downloads each (staggered so the browser doesn't collapse the
+  sequential downloads). Falls back to the single video file if the endpoint
+  fails.
+
+---
+
 ## Phase 4 — Packaging + distribution (done)
 
 - **Electron wrapper** — app runs in its own Chromium window; Python backend launched as a child process

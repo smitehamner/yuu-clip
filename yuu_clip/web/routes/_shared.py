@@ -211,6 +211,17 @@ def _srt_path(clip: ClipCandidate, video: Video, export_dir: Path) -> Optional[P
     return p if p.exists() else None
 
 
+def _srt_sidecar_paths(clip: ClipCandidate, video: Video, export_dir: Path) -> list[Path]:
+    """Existing SRT sidecars for a clip: per-label ({stem}.player_voice.srt) plus
+    the merged {stem}.srt. Video files are excluded — this is captions only."""
+    stem = _clip_stem(clip, video)
+    files = list(export_dir.glob(f"{stem}.*.srt"))
+    merged = export_dir / f"{stem}.srt"
+    if merged.exists():
+        files.append(merged)
+    return files
+
+
 def _all_sidecar_paths(clip: ClipCandidate, video: Video, export_dir: Path) -> list[Path]:
     """All on-disk sidecar paths for a clip: video exports + all SRT sidecars.
 

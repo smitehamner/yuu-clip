@@ -160,6 +160,24 @@ class TestClipsExtended:
         assert r.status_code == 200
         assert "has_export" in r.json()
 
+    def test_export_files_lists_video_and_srt_sidecars(self, client, project_dir):
+        vid_id = self._vid_id(client)
+        c = client.get(f"/api/videos/{vid_id}/clips").json()[0]
+        export_dir = project_dir / ".yuu-clip" / "exports"
+        stem = f"session_clip{c['id']}_{c['start_hms'].replace(':', '-')}"
+        (export_dir / f"{stem}.mkv").write_bytes(b"vid")
+        (export_dir / f"{stem}.srt").write_text("cap")
+        (export_dir / f"{stem}.player_voice.srt").write_text("cap")
+        files = client.get(f"/api/clips/{c['id']}/export-files").json()["files"]
+        assert f"{stem}.mkv" in files
+        assert f"{stem}.srt" in files
+        assert f"{stem}.player_voice.srt" in files
+
+    def test_export_files_empty_when_nothing_exported(self, client):
+        vid_id = self._vid_id(client)
+        cid = client.get(f"/api/videos/{vid_id}/clips").json()[0]["id"]
+        assert client.get(f"/api/clips/{cid}/export-files").json()["files"] == []
+
 
 # ---------------------------------------------------------------------------
 # Additional API route gap coverage
