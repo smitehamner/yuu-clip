@@ -193,6 +193,19 @@ class TestListClipsAdditional:
         scores = [c["score_action"] for c in clips]
         assert scores == sorted(scores, reverse=True)
 
+    def test_list_clips_sort_length(self, client, project_dir):
+        from yuu_clip.db.models import ClipCandidate, Video, make_session
+        session = make_session(project_dir / ".yuu-clip" / "project.db")
+        vid = session.query(Video).first()
+        session.add(ClipCandidate(video_id=vid.id, start_ms=0, end_ms=200_000, status="pending"))  # 200 s
+        session.add(ClipCandidate(video_id=vid.id, start_ms=0, end_ms=10_000, status="pending"))    # 10 s
+        session.commit()
+        vid_id = vid.id
+        session.close()
+        clips = client.get(f"/api/videos/{vid_id}/clips?sort=length").json()
+        durations = [c["end_ms"] - c["start_ms"] for c in clips]
+        assert durations == sorted(durations, reverse=True)  # longest first
+
     def test_list_clips_unknown_sort_falls_back_to_score(self, client):
         vid_id = self._vid_id(client)
         clips = client.get(f"/api/videos/{vid_id}/clips?sort=bogus").json()

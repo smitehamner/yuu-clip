@@ -8,7 +8,8 @@ function _applyFilters() {
     result = result.filter(c =>
       (c.description || '').toLowerCase().includes(q) ||
       (c.description_long || '').toLowerCase().includes(q) ||
-      (c.transcript_excerpt || '').toLowerCase().includes(q)
+      (c.transcript_excerpt || '').toLowerCase().includes(q) ||
+      (c.user_tags || []).some(t => t.toLowerCase().includes(q))
     );
   }
   return result;

@@ -353,6 +353,19 @@ class TestApplyFilters:
         )
         assert ids == [3]
 
+    def test_search_matches_user_tags(self, page: Page):
+        ids = page.evaluate(
+            """() => {
+              AppState.clips = [
+                {id: 1, status: 'pending', score_overall: 0, description: 'a', user_tags: ['clutch']},
+                {id: 2, status: 'pending', score_overall: 0, description: 'b', user_tags: []},
+              ];
+              AppState.clipFilter = 'all'; AppState.clipScoreMin = 0; AppState.clipSearch = 'clutch';
+              return _applyFilters().map(c => c.id);
+            }"""
+        )
+        assert ids == [1]
+
 
 # ---------------------------------------------------------------------------
 # _computeSuggestionPins (split.js)

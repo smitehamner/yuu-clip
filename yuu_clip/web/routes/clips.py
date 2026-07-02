@@ -331,6 +331,8 @@ def _register_clip_routes(router: APIRouter, ctx: ProjectContext) -> None:
             }
             if sort == "timeline":
                 order = ClipCandidate.start_ms.asc()
+            elif sort == "length":
+                order = (ClipCandidate.end_ms - ClipCandidate.start_ms).desc()
             elif sort in _sort_col:
                 order = _sort_col[sort].desc()
             else:
