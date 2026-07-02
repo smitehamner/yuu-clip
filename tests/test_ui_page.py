@@ -33,6 +33,15 @@ class TestPageLoad:
         page.goto(LIVE_URL)
         expect(page.locator("#version-tag")).to_have_text(re.compile(r"^v\d"))
 
+    def test_about_modal_shows_version(self, page: Page):
+        page.goto(LIVE_URL)
+        # Wait for the /api/status fetch that populates both version displays
+        expect(page.locator("#version-tag")).to_have_text(re.compile(r"^v\d"))
+        page.evaluate("openAboutModal()")
+        page.wait_for_selector("#about-modal.visible")
+        expect(page.locator("#about-version")).to_have_text(re.compile(r"^Version v\d"))
+        page.evaluate("closeAboutModal()")
+
 
 @skip_no_server
 class TestJobGuardWhileAnalyzing:

@@ -5,6 +5,43 @@ Phases 1–3 have been moved to [COMPLETED-archive.md](COMPLETED-archive.md).
 
 ---
 
+## UX review info/management modals pass — M9-1–M9-4, L9-1/2/3 (done, 2026-07-02)
+
+Prompt 13 of the 2026-07 UX review plan (`UX_REVIEW_PLAN.md`): Getting
+Started, About, Glossary, the Export modals, and the World Context manager.
+
+- **M9-1 — Quick/Precise export terms surfaced in the UI**: both export
+  modals now show an always-visible summary line — "Quick export — copies the
+  video without re-encoding (seconds)…" flipping to a warning-colored
+  "Precise export — re-encodes for burned-in captions / the title card
+  (slower)" — driven by the captions select, title-card checkbox, and
+  retranscribe checkbox (retranscribe is noted as an extra pass; per the
+  code it does not force a re-encode). Shared `_renderExportModeSummary`
+  helper (clips.js) reused by the batch modal (reel.js). Getting Started
+  step 3 and both glossaries aligned; "stream copy" kept out of UI copy.
+- **M9-2 — context list rows are real buttons**: keyboard-reachable, Enter
+  opens the editor.
+- **M9-3 — shipped contexts rebadged "Template"**: editable starter content
+  with a tooltip; editor hides Delete for templates (server 400s it, message
+  reworded) and adds "Use as base for new copy" (duplicates current editor
+  state into a new unsaved context) and "Reset to template" backed by new
+  `POST /api/contexts/{id}/reset` (restores shipped content, clears weight
+  overrides, 400 for non-templates). Track Layouts intentionally keep locked
+  "Built-in" entries; split documented in both glossaries.
+- **M9-4 — Context ID auto-derived**: Name field first (and focused);
+  Context ID demoted to a secondary field that follows the name until
+  hand-edited.
+- **L9-1** — Getting Started step 4 points at the visible *Highlight Reels*
+  header button. **L9-2** — About modal shows "Version vX.Y.Z". **L9-3** —
+  glossary filter input (per-term matching, sections collapse, no-matches
+  line, Escape clears then closes; renderer now wraps `##`/`###` blocks in
+  `.glossary-section`/`.glossary-term` divs).
+- +2 API tests (reset endpoint), +18 UI tests (export summary, context
+  manager — DOM-only so the live project's contexts.json is never mutated,
+  glossary filter, About version). API suite 1035 green; UI suite 393 green.
+
+---
+
 ## UX review Highlight Reels pass — M8-1/2/3, L8-2 (done, 2026-07-02)
 
 Prompt 12 of the 2026-07 UX review plan (`UX_REVIEW_PLAN.md`): the Highlight

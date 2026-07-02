@@ -231,6 +231,52 @@ class TestExportModalDefaults:
 
 
 # ---------------------------------------------------------------------------
+# Export modal — Quick/Precise mode summary (M9-1)
+# ---------------------------------------------------------------------------
+
+@skip_no_server
+class TestExportModeSummary:
+    def _open_export_modal(self, page: Page):
+        select_first_video_and_clip(page)
+        page.wait_for_selector("#detail .clip-badge", timeout=3000)
+        page.evaluate("() => exportClip(AppState.activeClipId)")
+        page.wait_for_selector("#export-settings-modal.visible", timeout=3000)
+
+    def test_default_is_quick_export(self, page: Page):
+        self._open_export_modal(page)
+        expect(page.locator("#export-mode-summary")).to_contain_text("Quick export")
+        page.evaluate("closeExportModal()")
+
+    def test_hardsub_flips_to_precise(self, page: Page):
+        self._open_export_modal(page)
+        page.select_option("#export-captions", "hardsub")
+        summary = page.locator("#export-mode-summary")
+        expect(summary).to_contain_text("Precise export")
+        expect(summary).to_contain_text("burned-in captions")
+        page.select_option("#export-captions", "softsub")
+        expect(summary).to_contain_text("Quick export")
+        page.evaluate("closeExportModal()")
+
+    def test_title_card_flips_to_precise(self, page: Page):
+        self._open_export_modal(page)
+        page.check("#export-title-card")
+        summary = page.locator("#export-mode-summary")
+        expect(summary).to_contain_text("Precise export")
+        expect(summary).to_contain_text("title card")
+        page.evaluate("closeExportModal()")
+
+    def test_batch_export_has_same_summary(self, page: Page):
+        select_video_with_clips(page)
+        page.evaluate("() => openBatchExportModal(AppState.activeVideoId)")
+        page.wait_for_selector("#batch-export-modal.visible", timeout=3000)
+        summary = page.locator("#batch-mode-summary")
+        expect(summary).to_contain_text("Quick export")
+        page.select_option("#batch-captions", "hardsub")
+        expect(summary).to_contain_text("Precise export")
+        page.evaluate("closeBatchExportModal()")
+
+
+# ---------------------------------------------------------------------------
 # Multi-select bulk clip actions
 # ---------------------------------------------------------------------------
 

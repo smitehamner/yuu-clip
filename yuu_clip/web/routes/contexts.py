@@ -1,9 +1,10 @@
 """
 World context CRUD routes.
 
-GET    /api/contexts                  — list all contexts
-POST   /api/contexts                  — create or update a context (upsert by context ID)
-DELETE /api/contexts/{context_id}     — delete a context
+GET    /api/contexts                    — list all contexts
+POST   /api/contexts                    — create or update a context (upsert by context ID)
+DELETE /api/contexts/{context_id}       — delete a context
+POST   /api/contexts/{context_id}/reset — restore a template context to its shipped content
 """
 from __future__ import annotations
 
@@ -12,7 +13,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from yuu_clip.contexts import BUILTIN_IDS, WEIGHT_FIELDS, load_contexts, save_contexts
+from yuu_clip.contexts import BUILTIN_CONTEXTS, BUILTIN_IDS, WEIGHT_FIELDS, load_contexts, save_contexts
 from yuu_clip.log import get_logger
 from yuu_clip.web.deps import ProjectContext
 
@@ -71,7 +72,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     @router.delete("/api/contexts/{context_id}")
     def delete_context(context_id: str):
         if context_id in BUILTIN_IDS:
-            raise HTTPException(400, "Built-in world contexts cannot be deleted")
+            raise HTTPException(400, "Template contexts cannot be deleted — reset them to the shipped version instead")
         contexts = load_contexts(ctx.project_dir)
         if context_id not in contexts:
             raise HTTPException(404, f"Context '{context_id}' not found")
@@ -79,6 +80,21 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         save_contexts(ctx.project_dir, contexts)
         _log.info("World context deleted: %s", context_id)
         return {"deleted": context_id}
+
+    @router.post("/api/contexts/{context_id}/reset")
+    def reset_context(context_id: str):
+        if context_id not in BUILTIN_IDS:
+            raise HTTPException(400, "Only template contexts can be reset to their shipped content")
+        contexts = load_contexts(ctx.project_dir)
+        existing = contexts.get(context_id, {})
+        contexts[context_id] = {
+            **BUILTIN_CONTEXTS[context_id],
+            "created_at": existing.get("created_at", datetime.now(timezone.utc).isoformat()),
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+        save_contexts(ctx.project_dir, contexts)
+        _log.info("World context reset to template: %s", context_id)
+        return {"context_id": context_id, "builtin": True, **_strip(contexts[context_id])}
 
     return router
 

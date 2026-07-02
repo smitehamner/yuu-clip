@@ -759,8 +759,8 @@
     <ol style="margin:0 0 16px;padding-left:20px;font-size:13px;line-height:1.9;color:var(--text)">
       <li><strong>Analyze</strong> — click <em>+ Analyze</em> and select a recording. yuu-clip transcribes the audio, detects scene changes, and scores every clip.</li>
       <li><strong>Review</strong> — step through the clip list. Watch the preview, read the description, and press <kbd>A</kbd> to approve or <kbd>R</kbd> to reject.</li>
-      <li><strong>Export</strong> — click <em>Export</em> on any clip to extract it. Quick export is a stream copy (seconds); Precise re-encodes for frame-accurate cuts.</li>
-      <li><strong>Build a reel</strong> — click <em>Build Reel</em> to compile approved clips into a single highlight reel with title cards and transitions.</li>
+      <li><strong>Export</strong> — click <em>Export</em> on any clip to extract it. Quick export copies the video out in seconds; Precise re-encodes for frame-accurate cuts. The export window tells you which one you'll get.</li>
+      <li><strong>Build a reel</strong> — click <em>Highlight Reels</em> in the header, then <em>Build Reel</em> to compile approved clips into a single highlight reel with title cards and transitions.</li>
     </ol>
 
     <div class="section-title" style="margin-bottom:6px">What the scores mean</div>
@@ -800,6 +800,7 @@
   <div class="modal" style="max-width:480px">
     <h3>About yuu-clip</h3>
     <p style="color:var(--muted);font-size:13px;margin:0 0 12px">
+      <span id="about-version">Version unknown</span><br>
       Built by <strong>smitehamner</strong>. Provided as-is with absolutely no warranty.<br>
       Licencing: <em>unlicensed — all rights reserved</em> until a licence is chosen.
     </p>
@@ -1008,14 +1009,11 @@
         <option value="hardsub">Burn in captions (hardsub, re-encode)</option>
       </select>
     </div>
-    <div id="batch-hardsub-warn" style="display:none;font-size:12px;color:var(--warning);margin-bottom:10px">
-      Re-encoding required — slower than stream copy.
-    </div>
     <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;margin-bottom:8px">
-      <input type="checkbox" id="batch-retranscribe" onchange="document.getElementById('batch-retranscribe-model').disabled=!this.checked">
+      <input type="checkbox" id="batch-retranscribe" onchange="_onBatchRetranscribeChange(this.checked)">
       Retranscribe before export
     </label>
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
       <label for="batch-retranscribe-model" style="font-size:13px;color:var(--muted);min-width:110px">Caption model</label>
       <select id="batch-retranscribe-model" disabled style="flex:1;padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px">
         <option value="tiny">tiny — fastest, lowest quality</option>
@@ -1025,6 +1023,7 @@
         <option value="large-v3" selected>large-v3 — best quality (~3 GB VRAM)</option>
       </select>
     </div>
+    <div id="batch-mode-summary" style="font-size:12px;border-top:1px solid var(--border);padding-top:10px;margin-bottom:14px"></div>
     <div class="modal-actions">
       <button class="btn" onclick="closeBatchExportModal()">Cancel</button>
       <button class="btn primary" onclick="confirmBatchExport()">Export</button>
@@ -1076,12 +1075,12 @@
       </div>
       <div id="context-editor" style="flex:1;display:none;flex-direction:column;gap:10px;overflow-y:auto">
         <div class="field">
-          <label for="ce-context-id">ID <span style="color:var(--muted);font-weight:400">(letters, digits, hyphens only)</span></label>
-          <input type="text" id="ce-context-id" placeholder="my-game">
+          <label for="ce-display-name">Name</label>
+          <input type="text" id="ce-display-name" placeholder="My Game">
         </div>
         <div class="field">
-          <label for="ce-display-name">Display name</label>
-          <input type="text" id="ce-display-name" placeholder="My Game">
+          <label for="ce-context-id" style="color:var(--muted)">Context ID <span style="font-weight:400">(auto-filled from the name — edit if you like)</span></label>
+          <input type="text" id="ce-context-id" placeholder="my-game" style="font-size:12px">
         </div>
         <div class="field">
           <label for="ce-setting">Setting</label>
@@ -1116,10 +1115,12 @@
             </div>
           </div>
         </div>
-        <div style="display:flex;gap:8px;padding-top:4px">
+        <div style="display:flex;gap:8px;padding-top:4px;flex-wrap:wrap">
           <button class="btn primary" onclick="saveContext()">Save</button>
+          <button class="btn" id="btn-duplicate-context" onclick="duplicateContext()" title="Start a new context pre-filled with this template's content">Use as base for new copy</button>
           <button class="btn" style="margin-left:auto" onclick="cancelContextEdit()">Cancel</button>
           <button class="btn danger" id="btn-delete-context" onclick="deleteContext()">Delete</button>
+          <button class="btn danger" id="btn-reset-context" onclick="resetContextToTemplate()" title="Replace your edits with the original shipped content">Reset to template</button>
         </div>
       </div>
     </div>
@@ -1198,9 +1199,6 @@
           <option value="hardsub">Burn in captions (hardsub, re-encode)</option>
         </select>
       </div>
-      <div id="export-hardsub-warn" style="display:none;font-size:12px;color:var(--warning);padding:2px 0">
-        Re-encoding required — slower than stream copy.
-      </div>
       <div style="display:flex;align-items:center;gap:10px">
         <label style="display:flex;align-items:center;gap:10px;cursor:pointer;flex:1">
           <input type="checkbox" id="export-retranscribe" onchange="_onExportRetranscribeChange(this.checked)">
@@ -1226,10 +1224,9 @@
       </div>
       <div style="display:flex;align-items:center;gap:10px">
         <label style="display:flex;align-items:center;gap:10px;cursor:pointer;flex:1">
-          <input type="checkbox" id="export-title-card">
+          <input type="checkbox" id="export-title-card" onchange="_updateExportModeSummary()">
           <span style="font-size:13px">Prepend title card</span>
         </label>
-        <span style="font-size:11px;color:var(--muted)">re-encode</span>
       </div>
       <div style="border-top:1px solid var(--border);padding-top:10px">
         <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Trim offsets (±seconds, or M:SS)</div>
@@ -1241,6 +1238,7 @@
         </div>
         <div style="font-size:11px;color:var(--muted);margin-top:4px">e.g. <code>-2.0</code> starts 2 s earlier · <code>1:30</code> sets absolute time</div>
       </div>
+      <div id="export-mode-summary" style="font-size:12px;border-top:1px solid var(--border);padding-top:10px"></div>
     </div>
     <div class="modal-actions">
       <button class="btn" onclick="closeExportModal()">Cancel</button>
@@ -1311,9 +1309,12 @@
       <h3 style="margin:0">Terminology Glossary</h3>
       <button class="btn ghost" style="padding:4px 8px" onclick="closeGlossaryModal()" aria-label="Close">&#x2715;</button>
     </div>
+    <input type="search" id="glossary-filter" placeholder="Filter terms&#x2026;" aria-label="Filter glossary terms" oninput="_filterGlossary(this.value)"
+           style="margin-bottom:10px;padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px">
     <div id="glossary-content" style="flex:1;overflow-y:auto;font-size:13px;line-height:1.7;padding-right:4px">
       <div style="color:var(--muted)">Loading&#x2026;</div>
     </div>
+    <div id="glossary-no-matches" style="display:none;color:var(--muted);font-size:13px;padding:8px 0">No terms match your filter.</div>
   </div>
 </div>
 

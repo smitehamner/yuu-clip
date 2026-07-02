@@ -446,6 +446,22 @@ document.addEventListener('DOMContentLoaded', () => {
     const btn = document.getElementById('btn-setup-wizard');
     if (btn) btn.style.display = '';
   }
+
+  // The global Escape handler leaves Escape to typing surfaces, so the glossary
+  // filter handles it itself: first press clears the filter, second closes.
+  const glossaryFilter = document.getElementById('glossary-filter');
+  if (glossaryFilter) {
+    glossaryFilter.addEventListener('keydown', e => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      if (glossaryFilter.value) {
+        glossaryFilter.value = '';
+        _filterGlossary('');
+      } else {
+        closeGlossaryModal();
+      }
+    });
+  }
 });
 
 // ── getting started modal ─────────────────────────────────────────────────────
@@ -482,9 +498,11 @@ let _glossaryOpener = null;
 async function openGlossaryModal() {
   _glossaryOpener = document.activeElement;
   document.getElementById('glossary-modal').classList.add('visible');
-  setTimeout(() => document.querySelector('#glossary-modal .btn')?.focus(), 50);
+  const filter = document.getElementById('glossary-filter');
+  filter.value = '';
+  setTimeout(() => filter.focus(), 50);
   const el = document.getElementById('glossary-content');
-  if (el.dataset.loaded) return;
+  if (el.dataset.loaded) { _filterGlossary(''); return; }
   try {
     const md = await fetch('/api/glossary').then(r => r.text());
     el.innerHTML = _renderGlossaryMd(md);
@@ -492,6 +510,23 @@ async function openGlossaryModal() {
   } catch (e) {
     el.innerHTML = '<div style="color:var(--red)">Failed to load glossary.</div>';
   }
+}
+
+function _filterGlossary(query) {
+  const q = query.trim().toLowerCase();
+  const content = document.getElementById('glossary-content');
+  let anyVisible = false;
+  content.querySelectorAll('.glossary-term').forEach(term => {
+    const show = !q || term.textContent.toLowerCase().includes(q);
+    term.style.display = show ? '' : 'none';
+    if (show) anyVisible = true;
+  });
+  content.querySelectorAll('.glossary-section').forEach(section => {
+    const terms = Array.from(section.querySelectorAll('.glossary-term'));
+    const show = !q || terms.some(t => t.style.display !== 'none');
+    section.style.display = show ? '' : 'none';
+  });
+  document.getElementById('glossary-no-matches').style.display = (q && !anyVisible) ? '' : 'none';
 }
 function closeGlossaryModal() {
   document.getElementById('glossary-modal').classList.remove('visible');
@@ -506,6 +541,8 @@ function _renderGlossaryMd(md) {
   let inList = false;
   let inTable = false;
   let tableHead = false;
+  let inSection = false;
+  let inTerm = false;
 
   const inline = s => s
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -515,19 +552,25 @@ function _renderGlossaryMd(md) {
 
   const closeList  = () => { if (inList)  { html += '</ul>';   inList  = false; } };
   const closeTable = () => { if (inTable) { html += '</tbody></table>'; inTable = false; tableHead = false; } };
+  // Section (##) and term (###) wrapper divs are the units the glossary filter
+  // shows/hides — every ### block must land inside exactly one .glossary-term.
+  const closeTerm    = () => { if (inTerm)    { html += '</div>'; inTerm    = false; } };
+  const closeSection = () => { closeTerm(); if (inSection) { html += '</div>'; inSection = false; } };
 
   for (let i = 0; i < lines.length; i++) {
     const raw = lines[i];
     const line = raw.trimEnd();
 
     if (line.startsWith('## ')) {
-      closeList(); closeTable();
-      html += `<h2 style="margin:20px 0 4px;font-size:15px;border-bottom:1px solid var(--border);padding-bottom:4px">${inline(line.slice(3))}</h2>`;
+      closeList(); closeTable(); closeSection();
+      html += `<div class="glossary-section"><h2 style="margin:20px 0 4px;font-size:15px;border-bottom:1px solid var(--border);padding-bottom:4px">${inline(line.slice(3))}</h2>`;
+      inSection = true;
     } else if (line.startsWith('### ')) {
-      closeList(); closeTable();
-      html += `<h3 style="margin:14px 0 2px;font-size:13px;color:var(--accent)">${inline(line.slice(4))}</h3>`;
+      closeList(); closeTable(); closeTerm();
+      html += `<div class="glossary-term"><h3 style="margin:14px 0 2px;font-size:13px;color:var(--accent)">${inline(line.slice(4))}</h3>`;
+      inTerm = true;
     } else if (line.startsWith('---')) {
-      closeList(); closeTable();
+      closeList(); closeTable(); closeTerm();
       html += '<hr style="border:none;border-top:1px solid var(--border);margin:14px 0">';
     } else if (/^\|/.test(line)) {
       closeList();
@@ -556,7 +599,7 @@ function _renderGlossaryMd(md) {
       html += `<p style="margin:3px 0">${inline(line)}</p>`;
     }
   }
-  closeList(); closeTable();
+  closeList(); closeTable(); closeSection();
   return html;
 }
 
@@ -703,7 +746,7 @@ Object.assign(window, {
   openSettings, closeSettings, saveSettings, installPackage,
   openAboutModal, closeAboutModal,
   openGettingStartedModal, closeGettingStartedModal,
-  openGlossaryModal, closeGlossaryModal,
+  openGlossaryModal, closeGlossaryModal, _filterGlossary,
   _onLlmBackendChange, _onLlmEnabledChange, _onDiarizationBackendChange, _onLaughModeChange,
   _toggleSecretVisibility, _onHfTokenInput, _updateDiarizationStatus,
   _updateLlmRemoteIndicator, _scrollToSettingsSection, _resetScoringWeights,

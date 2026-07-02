@@ -19,6 +19,9 @@ async function ensureContexts() {
 
 let _contextEditorDirty = false;
 let _contextModalOpener = null;
+// True once the user types in the Context ID field directly — from then on the
+// ID stops following the name so a hand-chosen ID is never overwritten.
+let _contextIdEdited = false;
 
 async function openContextManager() {
   _contextModalOpener = document.activeElement;
@@ -59,11 +62,11 @@ async function _refreshContextList() {
     return;
   }
   el.innerHTML = AppState.contexts.map(c => `
-    <div style="display:flex;align-items:center;gap:6px;padding:7px 10px;border:1px solid var(--border);border-radius:6px;cursor:pointer"
+    <button type="button" style="display:flex;align-items:center;gap:6px;padding:7px 10px;border:1px solid var(--border);border-radius:6px;cursor:pointer;background:none;color:var(--text);font:inherit;text-align:left;width:100%"
          data-edit-ctx="${escHtml(c.context_id)}">
       <span style="font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${escHtml(c.display_name || c.context_id)}</span>
-      ${c.builtin ? '<span style="font-size:10px;color:var(--muted);background:var(--border);border-radius:3px;padding:1px 5px;flex-shrink:0;pointer-events:none">Built-in</span>' : ''}
-    </div>`).join('');
+      ${c.builtin ? '<span style="font-size:10px;color:var(--muted);background:var(--border);border-radius:3px;padding:1px 5px;flex-shrink:0;pointer-events:none" title="Shipped starter content — edit it to fit your game, or use it as a base for a copy">Template</span>' : ''}
+    </button>`).join('');
   el.onclick = e => {
     const item = e.target.closest('[data-edit-ctx]');
     if (item) editContext(item.dataset.editCtx);
@@ -73,14 +76,17 @@ async function _refreshContextList() {
 function openNewContext() {
   AppState.editingContextId = null;
   _contextEditorDirty = false;
+  _contextIdEdited = false;
   ['ce-context-id','ce-display-name','ce-setting','ce-your-chars','ce-other-chars','ce-notes',
    'ce-weight-funny','ce-weight-dramatic','ce-weight-action'].forEach(id => {
     document.getElementById(id).value = '';
   });
   document.getElementById('ce-context-id').disabled = false;
   document.getElementById('btn-delete-context').style.display = 'none';
+  document.getElementById('btn-reset-context').style.display = 'none';
+  document.getElementById('btn-duplicate-context').style.display = 'none';
   document.getElementById('context-editor').style.display = 'flex';
-  document.getElementById('ce-context-id').focus();
+  document.getElementById('ce-display-name').focus();
 }
 
 function editContext(context_id) {
@@ -98,7 +104,11 @@ function editContext(context_id) {
   document.getElementById('ce-weight-funny').value    = ctx.score_funny_weight    != null ? ctx.score_funny_weight    : '';
   document.getElementById('ce-weight-dramatic').value = ctx.score_dramatic_weight != null ? ctx.score_dramatic_weight : '';
   document.getElementById('ce-weight-action').value   = ctx.score_action_weight   != null ? ctx.score_action_weight   : '';
-  document.getElementById('btn-delete-context').style.display = '';
+  // Templates are editable content, but only user-created contexts can be
+  // deleted; templates get restore-safe actions instead (reset + duplicate).
+  document.getElementById('btn-delete-context').style.display    = ctx.builtin ? 'none' : '';
+  document.getElementById('btn-reset-context').style.display     = ctx.builtin ? '' : 'none';
+  document.getElementById('btn-duplicate-context').style.display = ctx.builtin ? '' : 'none';
   document.getElementById('context-editor').style.display = 'flex';
 }
 
@@ -107,10 +117,57 @@ function cancelContextEdit() {
   document.getElementById('context-editor').style.display = 'none';
 }
 
+// Keeps whatever is currently in the editor (including unsaved edits) and turns
+// it into a new, unsaved context — the "tailor a template without losing it" path.
+function duplicateContext() {
+  const baseName = document.getElementById('ce-display-name').value.trim();
+  const copyName = baseName ? `${baseName} copy` : '';
+  AppState.editingContextId = null;
+  _contextIdEdited = false;
+  document.getElementById('ce-display-name').value  = copyName;
+  document.getElementById('ce-context-id').disabled = false;
+  document.getElementById('ce-context-id').value    = _deriveContextId(copyName);
+  document.getElementById('btn-delete-context').style.display    = 'none';
+  document.getElementById('btn-reset-context').style.display     = 'none';
+  document.getElementById('btn-duplicate-context').style.display = 'none';
+  _contextEditorDirty = true;
+  document.getElementById('ce-display-name').focus();
+}
+
+function resetContextToTemplate() {
+  if (!AppState.editingContextId) return;
+  const ctx  = AppState.contexts.find(c => c.context_id === AppState.editingContextId);
+  const name = ctx ? ctx.display_name : AppState.editingContextId;
+  showConfirm(
+    'Reset to template?',
+    `Replace <strong>${escHtml(name)}</strong> with the original shipped content? Your edits to it will be lost.`,
+    'Reset',
+    _doResetContext,
+    true,
+  );
+}
+
+async function _doResetContext() {
+  const res = await fetch(`/api/contexts/${encodeURIComponent(AppState.editingContextId)}/reset`, {method: 'POST'});
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({}));
+    showToast(formatApiError(e) || 'Reset failed', 'error');
+    return;
+  }
+  _contextEditorDirty = false;
+  await _refreshContextList();
+  editContext(AppState.editingContextId);
+  showToast('Template restored');
+}
+
+function _deriveContextId(name) {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60);
+}
+
 async function saveContext() {
   const context_id  = AppState.editingContextId || document.getElementById('ce-context-id').value.trim();
   const displayName = document.getElementById('ce-display-name').value.trim();
-  if (!context_id)  { showToast('ID is required', 'warning'); return; }
+  if (!context_id)  { showToast('Context ID is required', 'warning'); return; }
   if (!displayName) { showToast('Display name is required', 'warning'); return; }
   const res = await fetch('/api/contexts', {
     method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -545,6 +602,14 @@ document.addEventListener('DOMContentLoaded', () => {
     editor.addEventListener('input',  () => { _contextEditorDirty = true; });
     editor.addEventListener('change', () => { _contextEditorDirty = true; });
   }
+  const nameInput = document.getElementById('ce-display-name');
+  const idInput   = document.getElementById('ce-context-id');
+  if (nameInput && idInput) {
+    nameInput.addEventListener('input', () => {
+      if (!idInput.disabled && !_contextIdEdited) idInput.value = _deriveContextId(nameInput.value);
+    });
+    idInput.addEventListener('input', () => { _contextIdEdited = true; });
+  }
 });
 
 // Public API — symbols referenced cross-module, by an inline handler, or by a
@@ -553,6 +618,7 @@ Object.assign(window, {
   _loadContexts, ensureContexts, _parseWeight,
   openContextManager, closeContextManager, openNewContext,
   saveContext, deleteContext, cancelContextEdit,
+  duplicateContext, resetContextToTemplate, _deriveContextId,
   addVideoContext,
   openAutoApproveModal, closeAutoApproveModal, doAutoApprove, updateAutoApprovePreview,
   openRetranscribeModal, closeRetranscribeModal, startRetranscribe,

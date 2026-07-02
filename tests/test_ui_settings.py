@@ -190,3 +190,64 @@ class TestSettingsPanelChrome:
         expect(page.locator("#btn-toggle-claude-key")).to_have_text("Hide")
         page.click("#btn-toggle-claude-key")
         assert key_input.get_attribute("type") == "password"
+
+
+# ---------------------------------------------------------------------------
+# Glossary modal — filter input (L9-3)
+# ---------------------------------------------------------------------------
+
+@skip_no_server
+class TestGlossaryFilter:
+    def _open_glossary(self, page: Page) -> None:
+        page.evaluate("openGlossaryModal()")
+        page.wait_for_selector("#glossary-modal.visible")
+        page.wait_for_selector("#glossary-content .glossary-term", timeout=3000)
+
+    def test_filter_narrows_to_matching_terms(self, page: Page):
+        self._open_glossary(page)
+        page.fill("#glossary-filter", "highlight reel")
+        visible = page.eval_on_selector_all(
+            "#glossary-content .glossary-term",
+            "els => els.filter(e => e.style.display !== 'none').map(e => e.textContent)",
+        )
+        assert visible, "expected at least one matching term"
+        assert all("highlight reel" in t.lower() for t in visible)
+        hidden_sections = page.eval_on_selector_all(
+            "#glossary-content .glossary-section",
+            "els => els.filter(e => e.style.display === 'none').length",
+        )
+        assert hidden_sections > 0, "sections without matches should be hidden"
+        page.evaluate("closeGlossaryModal()")
+
+    def test_no_matches_message(self, page: Page):
+        self._open_glossary(page)
+        page.fill("#glossary-filter", "zzzz-no-such-term")
+        expect(page.locator("#glossary-no-matches")).to_be_visible()
+        page.fill("#glossary-filter", "")
+        expect(page.locator("#glossary-no-matches")).not_to_be_visible()
+        page.evaluate("closeGlossaryModal()")
+
+    def test_escape_clears_filter_then_closes(self, page: Page):
+        self._open_glossary(page)
+        filter_input = page.locator("#glossary-filter")
+        filter_input.focus()
+        filter_input.fill("clip")
+        page.keyboard.press("Escape")
+        assert filter_input.input_value() == ""
+        expect(page.locator("#glossary-modal")).to_be_visible()
+        page.keyboard.press("Escape")
+        page.wait_for_selector("#glossary-modal.visible", state="hidden")
+
+    def test_reopen_resets_filter(self, page: Page):
+        self._open_glossary(page)
+        page.fill("#glossary-filter", "clip")
+        page.evaluate("closeGlossaryModal()")
+        self._open_glossary(page)
+        assert page.locator("#glossary-filter").input_value() == ""
+        visible_terms = page.eval_on_selector_all(
+            "#glossary-content .glossary-term",
+            "els => els.filter(e => e.style.display !== 'none').length",
+        )
+        all_terms = page.eval_on_selector_all("#glossary-content .glossary-term", "els => els.length")
+        assert visible_terms == all_terms
+        page.evaluate("closeGlossaryModal()")

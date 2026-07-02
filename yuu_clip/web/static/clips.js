@@ -813,8 +813,42 @@ let _exportOpener = null;
 let _exportDiarReady  = false;
 let _exportDiarReason = '';
 
-function _onExportCaptionsChange(val) {
-  document.getElementById('export-hardsub-warn').style.display = val === 'hardsub' ? '' : 'none';
+// One always-visible line answering "will this be quick or slow, and why" —
+// the terms match the Getting Started guide and glossary (Quick/Precise export).
+function _exportModeSummary(hardsub, titleCard, retranscribe) {
+  const reencodeReasons = [];
+  if (hardsub)   reencodeReasons.push('burned-in captions');
+  if (titleCard) reencodeReasons.push('the title card');
+  const retxNote = retranscribe ? ' Retranscribing runs first and adds time.' : '';
+  if (reencodeReasons.length) {
+    return {
+      precise: true,
+      text: `Precise export — re-encodes for ${reencodeReasons.join(' and ')} (slower).${retxNote}`,
+    };
+  }
+  return {
+    precise: false,
+    text: `Quick export — copies the video without re-encoding (seconds). Cuts may land up to ~1 s off the exact mark.${retxNote}`,
+  };
+}
+
+function _renderExportModeSummary(el, hardsub, titleCard, retranscribe) {
+  const summary = _exportModeSummary(hardsub, titleCard, retranscribe);
+  el.textContent = summary.text;
+  el.style.color = summary.precise ? 'var(--warning)' : 'var(--muted)';
+}
+
+function _updateExportModeSummary() {
+  _renderExportModeSummary(
+    document.getElementById('export-mode-summary'),
+    document.getElementById('export-captions').value === 'hardsub',
+    document.getElementById('export-title-card').checked,
+    document.getElementById('export-retranscribe').checked,
+  );
+}
+
+function _onExportCaptionsChange() {
+  _updateExportModeSummary();
 }
 
 // Speaker labels only apply to a retranscribe pass and need diarization fully
@@ -834,6 +868,7 @@ function _onExportRetranscribeChange(checked) {
   } else {
     note.textContent = '';
   }
+  _updateExportModeSummary();
 }
 
 async function _loadExportSpeakerDefault() {
@@ -849,7 +884,6 @@ function exportClip(id) {
   _exportOpener = document.activeElement;
   _exportClipId = id;
   document.getElementById('export-captions').value = 'softsub';
-  document.getElementById('export-hardsub-warn').style.display = 'none';
   document.getElementById('export-container').value = '';
   document.getElementById('export-trim-start').value = _fmtOffset(AppState.activeClipData?.start_offset);
   document.getElementById('export-trim-end').value   = _fmtOffset(AppState.activeClipData?.end_offset);
@@ -857,6 +891,7 @@ function exportClip(id) {
   retx.checked = false;
   document.getElementById('export-retranscribe-model').disabled = true;
   document.getElementById('export-title-card').checked = false;
+  _updateExportModeSummary();
   _loadExportSpeakerDefault();
   document.getElementById('export-settings-modal').classList.add('visible');
   setTimeout(() => document.getElementById('export-captions')?.focus(), 50);
@@ -1259,6 +1294,7 @@ Object.assign(window, {
   exportClip, exportVideoTranscript, confirmExport, closeExportModal,
   bulkSetClipStatus, bulkDeleteClips, bulkExportClips, _clearClipSelection,
   _onExportCaptionsChange, _onExportRetranscribeChange,
+  _updateExportModeSummary, _renderExportModeSummary,
   openScoreOverride, closeScoreOverrideModal, _scoreOverrideSave, clearScoreOverride,
   openDescKebab, openDescLongKebab,
   startFindSimilar, openSimilarClipsModal, closeSimilarClipsModal,

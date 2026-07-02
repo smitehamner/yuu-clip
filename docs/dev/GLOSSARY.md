@@ -52,11 +52,12 @@ Most lookups only need this table: the authoritative user-facing term, the code 
 | Session summary | `Video.summary` | AI title + overview of a recording |
 | Session timeline | `Video.timeline` | AI 15-min chunk descriptions — always "session timeline" |
 | World context | `rp_context`, `Context` | Setting/characters/lore bundle for the scorer — not "RP context" in UI |
+| Template | `builtin` (contexts only) | Shipped world context: editable, resettable, duplicable, not deletable — not "Built-in" in UI (Track Layouts keep "Built-in": locked, not editable) |
 | Context ID | `context_slug` | URL-safe identifier — not "slug" in UI |
 | Last scored with | `*_context_json` | Contexts active at last scoring — not "provenance" in UI |
 | Export | `export_clip()` | Save one clip to a file |
 | Quick export | `stream_copy=True` | Keyframe-aligned, no re-encode — not "stream copy" in UI |
-| Precise export | `reencode=True` | Frame-accurate re-encode; needed for baked-in captions |
+| Precise export | `reencode=True` | Frame-accurate re-encode; needed for baked-in captions or a title card |
 | Captions | `subtitles`, SRT/VTT | Sidecar or baked-in — not "subtitles" in UI |
 | Highlight reel | `demo_reel`, `build_reel()` | Compiled video from approved clips — not "demo reel" in UI |
 | Title card | `title_card` | Text overlay between reel clips |

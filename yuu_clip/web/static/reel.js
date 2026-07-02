@@ -401,8 +401,22 @@ async function startDemo() {
 let _batchExportVideoId = null;
 let _batchExportOpener = null;
 
-function _onBatchCaptionsChange(val) {
-  document.getElementById('batch-hardsub-warn').style.display = val === 'hardsub' ? '' : 'none';
+function _updateBatchModeSummary() {
+  _renderExportModeSummary(
+    document.getElementById('batch-mode-summary'),
+    document.getElementById('batch-captions').value === 'hardsub',
+    false,
+    document.getElementById('batch-retranscribe').checked,
+  );
+}
+
+function _onBatchCaptionsChange() {
+  _updateBatchModeSummary();
+}
+
+function _onBatchRetranscribeChange(checked) {
+  document.getElementById('batch-retranscribe-model').disabled = !checked;
+  _updateBatchModeSummary();
 }
 
 function openBatchExportModal(videoId) {
@@ -416,10 +430,10 @@ function openBatchExportModal(videoId) {
   document.getElementById('batch-skip-exported').checked = true;
   document.getElementById('batch-container').value = '';
   document.getElementById('batch-captions').value = 'none';
-  document.getElementById('batch-hardsub-warn').style.display = 'none';
   const retx = document.getElementById('batch-retranscribe');
   retx.checked = false;
   document.getElementById('batch-retranscribe-model').disabled = true;
+  _updateBatchModeSummary();
   document.getElementById('batch-export-modal').classList.add('visible');
   updateBatchEstimate();
   setTimeout(() => document.getElementById('batch-min-score')?.focus(), 50);
@@ -542,6 +556,6 @@ Object.assign(window, {
   startDemo, closeDemoModal, updateReelEstimate, exportUnexportedReelClips,
   previewReelPlaylist, closeReelPreview, _reelPreviewStep,
   openBatchExportModal, closeBatchExportModal, confirmBatchExport,
-  updateBatchEstimate, _onBatchCaptionsChange,
+  updateBatchEstimate, _onBatchCaptionsChange, _onBatchRetranscribeChange,
 });
 })();

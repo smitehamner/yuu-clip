@@ -123,6 +123,9 @@ Short descriptions of what happened in each 15-minute chunk of a recording — h
 ### World context
 A named bundle of background information — the setting, your characters, other characters, and notes — that helps the scorer understand what's going on. You can attach more than one to a recording (for example, crossover sessions).
 
+### Template
+A world context that ships with yuu-clip as starter content, marked with a "Template" badge. Edit it to fit your game, use it as a base for a new copy, or reset it back to the original shipped content at any time. Templates can't be deleted.
+
 ### Stale scores
 A warning that a recording's contexts changed since it was last scored, summarized, or had its timeline built — so those results may be out of date. Rescore to refresh them.
 
@@ -131,13 +134,13 @@ A warning that a recording's contexts changed since it was last scored, summariz
 ## Export & Highlight Reels
 
 ### Export
-Saving a clip out to its own standalone video file.
+Saving a clip out to its own standalone video file. The export window's summary line tells you whether you'll get a quick or precise export.
 
 ### Quick export
 Fast export that copies the video without re-encoding. The clip may start or end up to about a second off the exact mark, which is fine for most uses.
 
 ### Precise export
-Slower export that re-encodes the video to cut at the exact frame. Required when baking captions into the video.
+Slower export that re-encodes the video to cut at the exact frame. Required when burning captions into the video or prepending a title card.
 
 ### Highlight reel
 A single video assembled from several approved clips, with optional transitions and title cards.

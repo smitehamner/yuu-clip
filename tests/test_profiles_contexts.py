@@ -119,6 +119,26 @@ class TestContexts:
         contexts = client.get("/api/contexts").json()
         assert any(c["context_id"] == "fantasy-rp" for c in contexts)
 
+    def test_reset_template_restores_shipped_content(self, client):
+        from yuu_clip.contexts import BUILTIN_CONTEXTS
+        client.post("/api/contexts", json={
+            "context_id": "fantasy-rp", "display_name": "My Edited RP",
+            "setting": "custom setting", "score_funny_weight": 2.0,
+        })
+        r = client.post("/api/contexts/fantasy-rp/reset")
+        assert r.status_code == 200
+        restored = r.json()
+        assert restored["display_name"] == BUILTIN_CONTEXTS["fantasy-rp"]["display_name"]
+        assert restored["setting"] == BUILTIN_CONTEXTS["fantasy-rp"]["setting"]
+        assert restored["score_funny_weight"] is None
+        listed = next(c for c in client.get("/api/contexts").json() if c["context_id"] == "fantasy-rp")
+        assert listed["setting"] == BUILTIN_CONTEXTS["fantasy-rp"]["setting"]
+
+    def test_reset_non_template_rejected(self, client):
+        client.post("/api/contexts", json={"context_id": "my-ctx", "display_name": "Mine"})
+        r = client.post("/api/contexts/my-ctx/reset")
+        assert r.status_code == 400
+
 
 # ---------------------------------------------------------------------------
 # Profile delete — nonexistent name is a no-op
