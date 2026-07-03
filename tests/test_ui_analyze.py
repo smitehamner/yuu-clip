@@ -20,19 +20,33 @@ def _get_config() -> dict:
         return json.loads(r.read())
 
 
+# Every layout name a test creates via track_layout_cleanup — including names
+# older test versions used. Setup deletes these too, so debris from a hard-killed
+# prior run (watchdog force-exit skips teardown) can't make the create step flake.
+_UI_TEST_LAYOUT_NAMES = ("ui_test_profile", "ui_test_profile1")
+
+
+def _delete_track_layout(name: str) -> None:
+    req = urllib.request.Request(f"{LIVE_URL}/api/profiles/{name}", method="DELETE")
+    try:
+        urllib.request.urlopen(req, timeout=5)
+    except Exception:
+        pass  # 404 for a layout that doesn't exist — nothing to clean
+
+
 @pytest.fixture
 def track_layout_cleanup():
     """Guarantee created track layouts are deleted even if the test fails
     mid-way. Tests append the layout name to the yielded list; teardown DELETEs
-    each one regardless of test outcome so no debris leaks into later runs."""
+    each one regardless of test outcome so no debris leaks into later runs.
+    Setup also deletes the known test-layout names in case a previous run was
+    killed before its teardown could run."""
+    for name in _UI_TEST_LAYOUT_NAMES:
+        _delete_track_layout(name)
     created: list[str] = []
     yield created
     for name in created:
-        req = urllib.request.Request(f"{LIVE_URL}/api/profiles/{name}", method="DELETE")
-        try:
-            urllib.request.urlopen(req, timeout=5)
-        except Exception:
-            pass
+        _delete_track_layout(name)
 
 
 # ---------------------------------------------------------------------------

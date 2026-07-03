@@ -1240,6 +1240,142 @@ class TestSplitVideoTranscriptMigration:
         assert seg_tracks == []  # segment copies cascade-deleted with the segments
 
 
+class TestSplitExportFileMigration:
+    """Export/sidecar filenames embed the clip's start time, so migrating a clip's
+    times on split/unsplit must rename its files or every export lookup misses them."""
+
+    def _video_id(self, client) -> int:
+        return client.get("/api/videos").json()[0]["id"]
+
+    def _seed_export_files(self, client, project_dir):
+        """Mark the [120-180s] seed clip exported and create its files on disk.
+
+        Returns (clip_id, export_dir, old_base) where old_base embeds the
+        pre-split start time 2:00 → '2-00'.
+        """
+        from datetime import datetime, timezone
+
+        from yuu_clip.db.models import ClipCandidate, make_session
+
+        vid_id = self._video_id(client)
+        clip = next(c for c in client.get(f"/api/videos/{vid_id}/clips").json()
+                    if c["start_ms"] == 120_000)
+        db = make_session(project_dir / ".yuu-clip" / "project.db")
+        try:
+            db.get(ClipCandidate, clip["id"]).exported_at = datetime.now(timezone.utc)
+            db.commit()
+        finally:
+            db.close()
+        export_dir = project_dir / ".yuu-clip" / "exports"
+        old_base = f"session_clip{clip['id']}_2-00"
+        (export_dir / f"{old_base}.mp4").write_bytes(b"fake video")
+        (export_dir / f"{old_base}.srt").write_text("1\n00:00:00,000 --> 00:00:01,000\nhi\n")
+        return clip["id"], export_dir, old_base
+
+    def test_split_renames_exported_clip_files(self, client, project_dir):
+        clip_id, export_dir, old_base = self._seed_export_files(client, project_dir)
+        vid_id = self._video_id(client)
+
+        r = client.post(
+            f"/api/videos/{vid_id}/split",
+            json={"split_points": [90.0], "migrate_clips": True},
+        )
+        seg1_id = r.json()["segment_ids"][1]
+
+        # The clip moved to segment 1 (starts 90s) at segment-relative 30s → '0-30'.
+        new_base = f"session_clip{clip_id}_0-30"
+        assert not (export_dir / f"{old_base}.mp4").exists()
+        assert not (export_dir / f"{old_base}.srt").exists()
+        assert (export_dir / f"{new_base}.mp4").read_bytes() == b"fake video"
+        assert (export_dir / f"{new_base}.srt").exists()
+
+        # The API still sees the clip as exported after the migration.
+        seg1_clip = next(c for c in client.get(f"/api/videos/{seg1_id}/clips").json()
+                         if c["id"] == clip_id)
+        assert seg1_clip["has_export"] is True
+
+    def test_unsplit_renames_files_back_to_original(self, client, project_dir):
+        clip_id, export_dir, old_base = self._seed_export_files(client, project_dir)
+        vid_id = self._video_id(client)
+
+        client.post(
+            f"/api/videos/{vid_id}/split",
+            json={"split_points": [90.0], "migrate_clips": True},
+        )
+        r = client.post(f"/api/videos/{vid_id}/unsplit")
+        assert r.status_code == 200
+
+        assert (export_dir / f"{old_base}.mp4").read_bytes() == b"fake video"
+        assert (export_dir / f"{old_base}.srt").exists()
+        parent_clip = next(c for c in client.get(f"/api/videos/{vid_id}/clips").json()
+                           if c["id"] == clip_id)
+        assert parent_clip["has_export"] is True
+
+    def test_split_leaves_unshifted_segment_zero_files_alone(self, client, project_dir):
+        """A clip in segment 0 shifts by 0ms — its files must not be touched."""
+        from datetime import datetime, timezone
+
+        from yuu_clip.db.models import ClipCandidate, make_session
+
+        vid_id = self._video_id(client)
+        clip = next(c for c in client.get(f"/api/videos/{vid_id}/clips").json()
+                    if c["start_ms"] == 0)
+        db = make_session(project_dir / ".yuu-clip" / "project.db")
+        try:
+            db.get(ClipCandidate, clip["id"]).exported_at = datetime.now(timezone.utc)
+            db.commit()
+        finally:
+            db.close()
+        export_dir = project_dir / ".yuu-clip" / "exports"
+        base = f"session_clip{clip['id']}_0-00"
+        (export_dir / f"{base}.mp4").write_bytes(b"seg0")
+
+        client.post(
+            f"/api/videos/{vid_id}/split",
+            json={"split_points": [90.0], "migrate_clips": True},
+        )
+        assert (export_dir / f"{base}.mp4").read_bytes() == b"seg0"
+
+
+class TestSplitDuringAnalysis:
+    """Splitting or unsplitting a recording mid-analysis must 409 — the ingest
+    subprocess would otherwise write rows onto a video that changed under it."""
+
+    def _vid_id(self, client) -> int:
+        return client.get("/api/videos").json()[0]["id"]
+
+    def _set_job(self, client, *, done=False, filename=None, video_id=None):
+        client.app.state.ctx.analyze_job = SimpleNamespace(
+            done=done, filename=filename, video_id=video_id,
+        )
+
+    def test_split_blocked_when_job_targets_video(self, client):
+        vid_id = self._vid_id(client)
+        self._set_job(client, video_id=vid_id)
+        r = client.post(f"/api/videos/{vid_id}/split", json={"split_points": [90.0]})
+        assert r.status_code == 409
+
+    def test_split_blocked_when_job_matches_filename(self, client):
+        vid_id = self._vid_id(client)
+        self._set_job(client, filename="session.mkv")
+        r = client.post(f"/api/videos/{vid_id}/split", json={"split_points": [90.0]})
+        assert r.status_code == 409
+
+    def test_split_allowed_when_job_is_for_other_recording(self, client):
+        vid_id = self._vid_id(client)
+        self._set_job(client, filename="other.mkv", video_id=vid_id + 1)
+        r = client.post(f"/api/videos/{vid_id}/split", json={"split_points": [90.0]})
+        assert r.status_code == 200
+
+    def test_unsplit_blocked_when_job_matches_filename(self, client):
+        vid_id = self._vid_id(client)
+        client.post(f"/api/videos/{vid_id}/split", json={"split_points": [90.0]})
+        # Segments share the parent's filename, so a segment reanalysis blocks unsplit.
+        self._set_job(client, filename="session.mkv")
+        r = client.post(f"/api/videos/{vid_id}/unsplit")
+        assert r.status_code == 409
+
+
 class TestUnsplitVideo:
     """POST /unsplit reverses a split: clips move back, segments are removed."""
 

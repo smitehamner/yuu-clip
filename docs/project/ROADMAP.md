@@ -17,7 +17,7 @@
 
 ffprobe probing, interactive track labeling, audio extraction, Whisper transcription (faster-whisper/CTranslate2, CUDA), sliding-window clip generation, SRT sidecars, baked captions. CLI: `yuuclip analyze / export / clips / status / probe`.
 
-See [COMPLETED.md](COMPLETED.md) for full details.
+See [COMPLETED-archive.md](COMPLETED-archive.md) for full details.
 
 ---
 
@@ -25,15 +25,15 @@ See [COMPLETED.md](COMPLETED.md) for full details.
 
 Audio energy (PyAV RMS), tiered scene detection (transcript gaps / keyframes / PySceneDetect), LLM scoring via Ollama (JSON-structured, funny/dramatic/action sub-scores + clip description), track overlap detection, weighted scoring engine. `yuuclip score` and `yuuclip reel` CLI commands.
 
-See [COMPLETED.md](COMPLETED.md) for full details.
+See [COMPLETED-archive.md](COMPLETED-archive.md) for full details.
 
 ---
 
 ## Phase 3 — Web UI (Done)
 
-Core review workflow, sidebar, export, analyze modal, track layout manager, reel builder, video summary + title, two-level clip descriptions, session timeline, World Contexts, settings panel, keyboard shortcuts, editable LLM fields with diff/compare, batch export, auto-approve, confirmation dialogs, prebuilt contexts, context nudge, post-analysis toast, elapsed timer on job steps, clip preview before export (seekable, LRU-cached temp files from source via FFmpeg), export status pills in sidebar, Save As button, Delete Export vs Delete Clip separation, export metadata display (container/captions/timestamp), and more. See [COMPLETED.md](COMPLETED.md) for the full shipped list.
+Core review workflow, sidebar, export, analyze modal, track layout manager, reel builder, video summary + title, two-level clip descriptions, session timeline, World Contexts, settings panel, keyboard shortcuts, editable LLM fields with diff/compare, batch export, auto-approve, confirmation dialogs, prebuilt contexts, context nudge, post-analysis toast, elapsed timer on job steps, clip preview before export (seekable, LRU-cached temp files from source via FFmpeg), export status pills in sidebar, Save As button, Delete Export vs Delete Clip separation, export metadata display (container/captions/timestamp), and more. See [COMPLETED-archive.md](COMPLETED-archive.md) for the full shipped list.
 
-All near-term and medium-term items shipped. See [COMPLETED.md](COMPLETED.md).
+All near-term and medium-term items shipped.
 
 ---
 
@@ -41,9 +41,9 @@ All near-term and medium-term items shipped. See [COMPLETED.md](COMPLETED.md).
 
 Goal: friends can install and use without knowing Python.
 
-Electron wrapper, NSIS installer, first-run setup wizard, venv setup, backend health check, rolling logs, version in footer, bundled `llama-cpp-python` inference backend, LLM backend picker + Ollama model pull in wizard — shipped. See [COMPLETED.md](COMPLETED.md).
+Electron wrapper, NSIS installer, first-run setup wizard, venv setup, backend health check, rolling logs, version in footer, bundled `llama-cpp-python` inference backend, LLM backend picker + Ollama model pull in wizard — shipped. See [COMPLETED-archive.md](COMPLETED-archive.md).
 
-All Phase 4 items shipped. See [COMPLETED.md](COMPLETED.md).
+All Phase 4 items shipped. See [COMPLETED-archive.md](COMPLETED-archive.md).
 
 ---
 
@@ -52,28 +52,11 @@ All Phase 4 items shipped. See [COMPLETED.md](COMPLETED.md).
 Smaller improvements and UX debt that don't block initial distribution but are high-value for
 regular users.
 
-- [x] **Preview proxy for fast multi-hour scrubbing** *(shipped 2026-07-02)* — full-video preview is unusably slow for
-  long recordings because the source is a multi-hour `.mkv` (not a browser-seekable container);
-  Chromium linear-scans to seek. Decision (2026-07-02): generate a **downscaled 720p H.264 NVENC
-  proxy** per recording, cache it, and point all in-app playback (split editor + clip preview) at
-  it. Generate opportunistically during the analyze pass and on-demand (with SSE progress) the
-  first time a recording without one is opened. Scope: ffmpeg NVENC command with CPU-x264 fallback
-  and a no-GPU path; a cache dir + DB field (proxy path / generated_at / source mtime for
-  invalidation); a generate-on-demand route with SSE; wire `split-preview-video` and the clip
-  preview `<video>` to prefer the proxy; hook into analyze. **Must** show a visible "Preview
-  quality (720p)" indicator whenever the proxy is playing (vs original) so the user knows they're
-  not seeing full quality — e.g. a badge on the player. The Python→Electron native-file-protocol
-  swap (drop the byte-pump in the packaged app) is a *secondary* follow-up; it helps startup but
-  not MKV seeking and doesn't help browser-dev mode. Interim shipped: media chunk 64KB→1MB.
-  **Shipped** (`analyze/proxy.py`): NVENC-first / libx264-fallback / no-GPU-graceful encoder;
-  `videos` DB columns (`proxy_path`, `proxy_generated_at`, `proxy_source_mtime/size` for
-  invalidation); `.yuu-clip/proxies/` cache keyed by source path (shared across split segments);
-  `GET /api/videos/{id}/proxy` (serve), `/proxy-status`, `/proxy/generate` (SSE progress);
-  opportunistic build at the end of `_analyze_one`; split editor auto-builds on open and shows the
-  badge; clip preview prefers the proxy. **Left on source:** the pre-analysis pre-split editor (New
-  Recording panel) — it has no `<video>` (waveform-only) and no Video row yet to key a proxy, and
-  the recording gets a proxy during the imminent analyze pass anyway. **Follow-up not done:** the
-  Electron native-file-protocol transport swap.
+- [ ] **Electron native-file-protocol transport swap** — the remaining follow-up from the
+  720p preview proxy work (shipped 2026-07-02, see COMPLETED.md): in the packaged app, serve
+  local media via Electron's native file protocol instead of the Python byte-pump. Helps
+  startup latency, not seeking (the proxy already solved that), and doesn't apply to
+  browser-dev mode.
 
 - [ ] **Map and end-to-end test expected user paths** — enumerate the journeys a non-technical user
   actually takes (analyze → review → edit/retranscribe → export → re-export; diarize → captions; merge/split
@@ -103,12 +86,6 @@ regular users.
   - *Pre-import estimate (low risk, high value)*: before analysis starts, calculate estimated GPU-hours from total video duration × per-minute benchmark; show a warning when the estimate is large; suggest batching as a mitigation.
   - *Live thermal monitoring*: poll GPU temp via `pynvml` (NVIDIA only initially); log temps; surface a warning in the UI when temp exceeds threshold for N consecutive samples; pause ingest between videos (finish current, then hold — ties into Pause / resume above); UI options: "Pause now" / "Continue anyway". Sensible defaults (85°C warn, 90°C pause); user-configurable thresholds TBD.
 
-- [x] **Search + filter** — text search across clip descriptions and transcripts; minimum score dropdown; both combine with the existing status tabs. Client-side; no backend changes. Regex and tag filter deferred.
-
-- [x] **Demo reel: random transition** *(shipped)* — "random" transition option in the demo reel
-  builder (`reel.py`). Reordering (drag-and-drop + ▲▼) and removing individual clips before
-  compiling also shipped as part of the reel builder's ordered clip list — see FEATURES.md.
-
 - [ ] **Demo reel: add clips from rejected/unrated pool** — the only remaining piece of the
   advanced clip list editor: today the reel builder can only select from a video's already-exported
   clips, so a rejected or unrated clip can't be pulled in without first approving and exporting it.
@@ -116,13 +93,6 @@ regular users.
 - [ ] **Batch processing status panel** — collapsible status summary bar at the top of the clips
   view showing active/queued/completed job counts; clicking expands per-job detail. Long-term: move
   the raw log view behind a "Developer" toggle.
-
-- [x] **Undo for bulk Approve/Reject** *(shipped 2026-07-03)* — the bulk toolbar's Approve/Reject
-  now show an undo toast, same as single-clip status changes. `bulk_set_clip_status`
-  (`web/routes/clips.py`) returns each clip's pre-update status; a new `POST
-  /api/clips/bulk-status-restore` reverts each clip to its own captured status (they may differ)
-  in one call. `Ctrl/Cmd+Z` dispatches to whichever of single/bulk undo is pending — setting one
-  clears the other so there's never ambiguity about which "last change" it refers to.
 
 - [ ] **Detail panel chunking** — group the clip detail panel into cards: Summary → Actions →
   Transcript, rather than a flat list *(UX debt: Chunking)*
@@ -132,23 +102,8 @@ regular users.
 
 - [ ] **Title card customization** — configurable title card for Quick Export: background color or image, font/color/size, content layout (description vs. timecode vs. both). Currently hardcoded style in the reel pipeline.
 
-- [x] **Built-in user manual** — "Getting Started" guide in the hamburger menu covers the four-step
-  workflow, score definitions, key concept definitions, and quick tips including search and keyboard navigation.
-
 - [ ] **Multi-session grouping** — treat multiple OBS files from one play session as a single
   project with a unified timeline
-
-- [x] **Frontend JS maintainability pass** *(2026-06-29; mostly done — 2 modules deferred)* —
-  reduced reliance on the global namespace across the static JS modules without a build step.
-  Shipped: shared mutable state moved off bare globals into one `AppState` object; the five
-  function-only feature modules (`clips`, `contexts`, `reel`, `settings`, `videos`) IIFE-wrapped
-  so internal helpers are private-by-default (~67 functions removed from the global surface),
-  exposing only an explicit, exhaustively-computed public API; `tests/test_ui_globals.py` added
-  as a deterministic net that fails immediately if an inline-handler function stops being global.
-  `utils`/`ui` kept as the intentional shared global foundation. **Deferred:** `analyze` and
-  `split` export cross-module *mutable* state and need a per-variable state-ownership decision
-  (promote to `AppState` vs. keep private + adjust tests) before they can be cleanly wrapped —
-  see `docs/dev/REVIEW_DECISIONS.md`. *(Tech debt: no behavior change)*
 
 ---
 
@@ -165,12 +120,8 @@ Complex, specialized, or AI-heavy features that are valuable but don't need to b
   Tags on sidebar card: pills if ≤3 matches, count pill `🔥 4` if more; full list in detail panel.
   Lives in Settings page under the `Hot-words` section.
 
-- [x] **Laugh detection scorer** — `LaughScorer` shipped with three modes: `transcript` (regex on
-  Whisper output, default), `audio` (spectral burst-rhythm via PyAV + numpy), and `model`
-  (HuggingFace `audio-classification` pipeline; optional `[laugh-model]` extras). Contributes to
-  `score_funny`. See [COMPLETED.md](COMPLETED.md).
-
-- [ ] **Laugh / non-speech sound detection: separate attribute** — follow-on to the shipped scorer.
+- [ ] **Laugh / non-speech sound detection: separate attribute** — follow-on to the shipped
+  `LaughScorer` (transcript/audio/model modes, contributes to `score_funny` — see COMPLETED-archive.md).
   Add a dedicated `score_laugh` column so laugh density can be sorted and filtered independently
   of the Funny sub-score; surface it in the sidebar score line and sort/filter dropdowns.
   Non-speech event detection (sound effects, reactions) also deferred to this item.
@@ -187,55 +138,17 @@ Complex, specialized, or AI-heavy features that are valuable but don't need to b
 
 ### Transcript and speaker features
 
-- [x] **Speaker diarization — infrastructure shipped** — `DiarizationClient` ABC with Null (default)
-  and Pyannote backends; config-driven factory mirrors `LLMClient`. Post-transcription pass in
-  `whisper_runner.py` populates `TranscriptSegment.speaker_label`; `_build_excerpt` in `windower.py`
-  formats `transcript_excerpt` with `SPEAKER_XX:` prefixes so downstream LLM scoring and the UI
-  transcript view both benefit automatically. Settings UI: backend selector, HF token field,
-  one-click `pip install pyannote.audio` button with live pip log.
+- [ ] **Additional diarization backends** — the shipped `DiarizationClient` infrastructure
+  (Null + Pyannote backends; speaker labels flow through excerpts, captions, and exports — see
+  COMPLETED-archive.md) was designed for more: **SpeechBrain** (Apache 2.0, no HF gating — ECAPA-TDNN
+  embeddings + sklearn clustering) and **NeMo TitaNet** (Apache 2.0, no token, heavier install).
+  Adding a new backend = a `DiarizationClient` subclass + allowlist entry in `install_package`.
 
-  Speaker labels also surface in exports: each `TranscriptSegment.speaker_label` becomes a
-  `[Speaker NN]` prefix in the SRT sidecars and the in-player VTT captions (`subtitles.py`),
-  taking precedence over the track-label prefix; the track label stays the fallback for unlabeled
-  segments. Retranscribe's `_update_clip_excerpt` reuses `_build_excerpt`, so a re-diarized clip's
-  transcript view keeps the `SPEAKER_XX:` grouping (previously it was flattened to a plain join).
-
-  Remaining downstream features (still pending below): transcript editing, per-speaker subtitle
-  *styling* (colour/font — the text labels now ship), score boost per named character, transcript
-  name correction.
-
-  **Roadmap backends** (not yet built): SpeechBrain (Apache 2.0, no HF gating — ECAPA-TDNN
-  embeddings + sklearn clustering), NeMo TitaNet (Apache 2.0, no token, heavier install).
-  Adding a new backend = add a `DiarizationClient` subclass + allowlist entry in `install_package`.
-
-- [~] **Speaker naming (Phase 1 — manual, per-recording)** — a durable `Speaker` row per recording
-  (`db/models.py`) that segments point at via `TranscriptSegment.speaker_id`; created at diarize time
-  by `_attach_speakers` (`whisper_runner.py`). A "Speakers" card in the recording detail
-  (`speakers.js`, `GET/PUT /api/speakers`) lets the user name each detected voice; names resolve into
-  clip excerpts (`_build_excerpt`) and captions (`subtitles.py`), and renaming rebuilds affected clip
-  excerpts. Default display is "Speaker N" (`display_index`); raw `SPEAKER_00` never reaches the UI.
-  **Still pending:**
-  - *Phase 2 — voiceprint re-attach: SHIPPED (2026-06-30).* pyannote.audio 4.0.7's community-1
-    pipeline returns per-speaker centroids on `DiarizeOutput.speaker_embeddings` (rows aligned with
-    `annotation.labels()`); `PyannoteDiarizationClient.diarize_with_embeddings` surfaces them,
-    `_attach_speakers` stores each centroid on `Speaker.voiceprint` (JSON) and cosine-matches new
-    clusters against Speakers from prior runs — above `_VOICEPRINT_MATCH_THRESHOLD` the segments
-    re-attach to the existing (named) Speaker, so a name survives re-diarization; below it a fresh
-    "Speaker N" is minted. Matches are only against pre-run Speakers, and each prior Speaker matches
-    at most one current cluster (no collapse). The threshold is configurable
-    (`Config.speaker_match_threshold`, Settings → Speaker labels, default 0.75 — **untuned;
-    validation tracked in Phase 5**), and the clip-scoped retranscribe path re-attaches voiceprints
-    too (`_maybe_diarize_segment` → `diarize_with_embeddings` + `_attach_speakers`, SHIPPED
-    2026-07-01). *Not yet done:* a borderline-match confirmation band in the UI.
-  - *Phase 3 — sample playback:* a ▶ button to hear a few seconds of each voice (reuse the FFmpeg
-    clip-preview infra in `routes/clips.py`).
-  - *Phase 4 — name inference: SHIPPED (2026-07-01).* `infer_speaker_names` (`scoring/llm.py`) reads
-    the speaker-labeled transcript and suggests names from direct address; `GET
-    /api/videos/{id}/infer-speaker-names` (SSE) writes each as an unconfirmed inferred name
-    (`source='inferred'`, `confirmed=False`), guarding against two speakers sharing a name and never
-    overwriting a confirmed name. `Speaker.display_name` hides unconfirmed names so nothing reaches
-    captions/excerpts until the user accepts it in the Speakers card ("Suggest names" button +
-    Accept/Dismiss). Feeds "Transcript name correction" below.
+- [ ] **Speaker naming — remaining pieces** — Phases 1–4 shipped (manual naming, voiceprint
+  re-attach, sample playback, LLM name inference — see COMPLETED-archive.md; the re-attach threshold's
+  validation is tracked in Phase 5). Still open:
+  - *Borderline-match confirmation band* — a near-threshold voiceprint match should ask the user
+    instead of silently re-attaching or minting a fresh "Speaker N".
   - *Deferred alternatives (weighed, not chosen for v1):* **project-wide speaker identity** — promote
     per-recording Speakers to a project-level voice by matching voiceprints across all recordings so a
     name applies everywhere (needs a merge/split UX, higher threshold, handles voice drift; hook: a
@@ -243,11 +156,6 @@ Complex, specialized, or AI-heavy features that are valuable but don't need to b
     replace free text with a reference to a context character (`Speaker.character_id`) to feed "score
     boost per named character" and per-speaker lore in scoring; deferred to avoid coupling naming to
     the contexts model in v1.
-
-- [x] **Transcript editing** — inline editable caption text for `TranscriptSegment.text`; lets the
-  user fix character names, misspellings, and game-specific jargon before re-scoring. Speaker-grouped
-  timed view, click-to-edit per line, excerpt rebuild + re-score staleness flag. Shipped — see
-  COMPLETED.md.
 
 - [ ] **Transcript name correction** — after speaker diarization maps clusters to character names,
   auto-suggest replacements for mis-transcribed names that *other* speakers say (e.g. Whisper
@@ -257,7 +165,7 @@ Complex, specialized, or AI-heavy features that are valuable but don't need to b
 
 - [ ] **Subtitle style options** — font, size, position for burned-in subtitles. Per-speaker
   *colour* has shipped (`Speaker.display_color`, auto-assigned palette + user override, rendered
-  in burned captions via `<font color>` and in the on-screen transcript) — see COMPLETED.md. Font,
+  in burned captions via `<font color>` and in the on-screen transcript) — see COMPLETED-archive.md. Font,
   size, and position remain.
 
 ### Export and delivery
@@ -430,19 +338,9 @@ Items wanted long-term but not yet assigned to a phase.
 
 ## Known issues (code quality)
 
-- ~~**JS in `index.html` (~1800 lines)**~~ — *Resolved:* all JS now lives in per-feature module files (`utils/ui/videos/clips/analyze/reel/contexts/settings/split/boot.js`) loaded via `<script src>`; `index.html` is a 1231-line HTML/CSS shell with **zero** inline JS. The frontend maintainability pass also wrapped the feature modules in IIFEs and centralized shared globals in `AppState`.
-- ~~**No integration test for `reel_events` SSE**~~ — *Resolved:* `tests/test_reel_sse.py` drives the `demo_events` route end-to-end, asserting the SSE stream completes with `__DONE__` and that the `ctx`-passing path clears `demo_cmd` and resets `analyze_proc`.
-- ~~**No Playwright coverage for SSE happy paths**~~ — *Resolved:* `tests/test_ui_sse.py` drives the real `streamSSE → startJobUI → endJobUI` lifecycle against a mocked SSE stream, asserting the job pill shows, the completion callback fires, steps mark done, and the UI returns to idle (buttons re-enabled, pill hidden) after `__DONE__` — the exact teardown the Phase 3 stuck-job-UI bug skipped.
-- ~~**Filter-override pattern after clip-list mutations**~~ — *Resolved:* `_renderClips()` (`clips.js`) is now the canonical re-render entry point — it always routes through `_applyFilters()` before calling the private `_renderClipItems()`, so no caller can bypass the active search/status/score filters. Every clip-list mutation site in `clips.js`, `contexts.js`, and `videos.js` calls `_renderClips()`; the only direct `_renderClipItems()` call is inside the wrapper itself.
-- ~~**SSE batch export error reporting**~~ — *Resolved:* the per-clip failure message in `batch_export` (`routes/clips.py`) now includes the subprocess exit code alongside the last stderr line (`[Error clip N (exit C): …]`), so export failures are diagnosable from the stream without opening the log.
-- ~~**Timeline interval minimum validation**~~ — *Resolved:* `saveSettings` (Settings panel) now shows a `'Timeline interval must be at least 10 seconds.'` error toast and re-focuses the field instead of silently dropping the value when `_parseIntervalS` rejects it. The per-video timeline-interval modal already surfaces the constraint inline.
-- ~~**`saveTimelineInterval` / `confirmGenerateTimeline` validation drift**~~ — *Resolved:* both paths now call the shared `_parseIntervalS(value, unit)` validator (`utils.js`), which owns the `_TIMELINE_MIN_INTERVAL_S = 10` minimum in one place. `saveSettings` (`settings.js`) and the per-video timeline generator (`videos.js`) can no longer drift apart.
-- ~~**Modal focus management**~~ — *Resolved:* every modal open-function now moves focus into the modal on open (first input or primary button via `setTimeout(… .focus(), 50)`) and restores focus to the opener on close. Verified across `ui.js`, `settings.js`, `reel.js`, `contexts.js`, `clips.js`, `analyze.js`, and the timeline-interval modal.
-- ~~**Sidebar video list keyboard support**~~ — *Resolved:* `#video-list` `<li>` items now get `tabIndex = 0` and the list has an `onkeydown` handler that activates the focused item on Enter/Space (`videos.js`), mirroring the clip-list keyboard handler.
-- ~~**Clip filter tabs ARIA roles**~~ — *Resolved:* the `.clip-filter-tabs` container has `role="tablist"` and each `.clip-tab` has `role="tab"` + `aria-selected`, kept in sync by `setClipFilter` / `_clearClipFilters` / the video-load reset (`index.html`, `clips.js`, `videos.js`).
-- **`analyze/overlap.py:_pearson` flat-curve correlation** — when both RMS curves are perfectly constant (`da == db == 0`, e.g. two tracks silent over the first 30 s) the function returns `1.0`, which reads as "identical" and disables the specialized track. The asymmetric cases (one flat, one not) correctly return `0.0`, so a false positive needs *both* tracks fully silent for 30 s — unlikely. Deferred from the 2026-06-29 scoring bug-hunt; revisit if tracks are ever wrongly suppressed. A spread/variance floor or an explicit "undetermined" return would be the proper fix.
-- **Noisy torchcodec load traceback during diarization** — importing `pyannote.audio` pulls in torchcodec, which logs a multi-line "Could not load libtorchcodec" traceback (FFmpeg version 4–8) whenever FFmpeg's shared libraries aren't on the system PATH — the default on Windows. It is cosmetic: `diarization_client._load_waveform` decodes our 16 kHz mono WAVs with the stdlib `wave` module and hands pyannote an in-memory `{waveform, sample_rate}` dict, so torchcodec is never used for decoding (the original "torchcodec is not available" failure that silently dropped speaker labels is fixed). An `_log.info` breadcrumb is emitted just before the import so the traceback reads as expected. Follow-up: suppress the specific torchcodec import warning (narrowly — don't blanket-filter warnings) so the log stays clean.
-- **UI-test harness hygiene** — two related issues surfaced during the 2026-07-02 feedback-cleanup batches. (1) The conftest UI-session watchdog calls `os._exit()` in `pytest_sessionfinish`, which truncates pytest's own end-of-run FAILURES/summary section — a failing UI run shows only the dot line, so you must re-run with `-Detailed` and grep `PASSED|FAILED` to see which test failed. Consider deferring the force-exit until after pytest flushes its report, or capturing the summary before exit. (2) `test_ui_analyze.py::TestProfileManager::test_create_and_delete_profile` isn't self-cleaning: an interrupted/truncated run leaves a `ui_test_profile1` track layout on the live server, which then makes the *next* run's create step flake (and it passes in isolation, masking the cause). Fix: have the test delete-if-exists in setup/teardown (fixture) rather than assuming a clean slate. Neither is a product bug; both are test-harness robustness.
+Resolved entries are removed once fixed (the fix is recorded in COMPLETED.md /
+COMPLETED-archive.md); only genuinely open issues live here.
+
 - **Analyze pipeline is not idempotent on a no-`--force` re-run** — `transcribe_track` (`whisper_runner.py`) always creates a *new* `Transcript`, and `generate_candidates` (`segments/windower.py`) always *appends* new `ClipCandidate` rows; neither skips or replaces existing output. Today nothing duplicates because the `status == "done"` skip in `_pipeline._resolve_existing_video` short-circuits any completed video on re-run. Not a bug today, but it's a latent trap: any future change that loosens that skip (e.g. stage-level resume, or marking `"done"` only after scoring) would silently duplicate transcripts and clips. Proper fix when stage-level resume is wanted: make transcription and clip-generation skip-if-already-present (gated on `not force`). Surfaced in the 2026-06-29 ingest/analyze bug-hunt while fixing the crashed-scoring case (which was instead fixed by isolating scoring, leaving this untouched).
 
 ---

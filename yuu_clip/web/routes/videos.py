@@ -26,6 +26,7 @@ from yuu_clip.web.media import media_file_response
 from yuu_clip.web.routes._shared import (
     _active_job,
     _all_sidecar_paths,
+    _clip_stem,
     _delete_files,
     _json_list,
     _locked_files_error,
@@ -129,6 +130,7 @@ def _register_split_and_edit_routes(router: APIRouter, ctx: ProjectContext) -> N
                 raise HTTPException(404, "Video not found")
             if video.parent_video_id is not None:
                 raise HTTPException(400, "Cannot split a segment — split the parent recording instead")
+            _reject_if_video_analyzing(ctx, video, "splitting it")
 
             duration_s = (video.duration_ms or 0) / 1000.0
             if duration_s <= 0:
@@ -145,7 +147,7 @@ def _register_split_and_edit_routes(router: APIRouter, ctx: ProjectContext) -> N
             migrated_clips = 0
             migrated_transcript_lines = 0
             if body.migrate_clips:
-                migrated_clips = _migrate_clips_to_segments(db, video_id, boundaries, segment_ids)
+                migrated_clips = _migrate_clips_to_segments(db, video, boundaries, segment_ids, ctx.export_dir)
                 migrated_transcript_lines = _migrate_transcript_to_segments(db, video_id, boundaries, segment_ids)
 
             db.commit()
@@ -174,6 +176,7 @@ def _register_split_and_edit_routes(router: APIRouter, ctx: ProjectContext) -> N
             if not video:
                 raise HTTPException(404, "Video not found")
             parent = db.get(Video, video.parent_video_id) if video.parent_video_id is not None else video
+            _reject_if_video_analyzing(ctx, parent, "merging its segments")
 
             segments = db.query(Video).filter_by(parent_video_id=parent.id).all()
             if not segments:
@@ -185,8 +188,7 @@ def _register_split_and_edit_routes(router: APIRouter, ctx: ProjectContext) -> N
                 clips = db.query(ClipCandidate).filter_by(video_id=seg.id).all()
                 for clip in clips:
                     clip.video_id = parent.id
-                    clip.start_ms += offset_ms
-                    clip.end_ms += offset_ms
+                    _shift_clip_times(clip, parent, offset_ms, ctx.export_dir)
                     merged_clips += 1
             db.flush()  # persist the clip re-parenting before segment cascade-delete
 
@@ -647,25 +649,7 @@ def _register_video_data_routes(router: APIRouter, ctx: ProjectContext) -> None:
             if not video:
                 raise HTTPException(404, "Video not found")
 
-            # Deleting a recording mid-analysis would leave the ingest subprocess
-            # writing rows for a video that no longer exists. Match by id (reanalyze)
-            # or filename (fresh analysis — no video_id until the subprocess creates
-            # the row). Split segments share the parent's filename, so a sibling
-            # segment's delete is also blocked while one is analyzing — fail-closed.
-            job = ctx.analyze_job
-            if job is not None and not job.done and (
-                job.video_id == video_id
-                or (job.filename is not None and job.filename == video.filename)
-            ):
-                _log.warning(
-                    "Delete rejected for video %d (%s) — analysis in progress (job video_id=%s)",
-                    video_id, video.filename, job.video_id,
-                )
-                raise HTTPException(
-                    409,
-                    "This recording is currently being analyzed — cancel the "
-                    "analysis before removing it.",
-                )
+            _reject_if_video_analyzing(ctx, video, "removing it")
 
             # Delete exported clip files from disk before removing DB records
             clips = db.query(ClipCandidate).filter_by(video_id=video_id).all()
@@ -711,6 +695,53 @@ def _delete_orphaned_proxy(db, ctx: ProjectContext, source_path: str) -> None:
         proxy_file.unlink(missing_ok=True)
     except OSError as exc:
         _log.warning("Could not delete orphaned proxy %s: %s", proxy_file, exc)
+
+
+def _reject_if_video_analyzing(ctx: ProjectContext, video: Video, action: str) -> None:
+    """Fail closed when *video* is mid-analysis: mutating or deleting it would leave
+    the ingest subprocess writing rows for a video that changed under it.
+
+    Match by id (reanalyze) or filename (fresh analysis — no video_id until the
+    subprocess creates the row). Split segments share the parent's filename, so a
+    sibling segment's mutation is also blocked while one is analyzing.
+    """
+    job = ctx.analyze_job
+    if job is None or job.done:
+        return
+    if job.video_id == video.id or (job.filename is not None and job.filename == video.filename):
+        _log.warning(
+            "Rejected %s: video %d (%s) — analysis in progress (job video_id=%s)",
+            action, video.id, video.filename, job.video_id,
+        )
+        raise HTTPException(
+            409,
+            "This recording is currently being analyzed — cancel the "
+            f"analysis before {action}.",
+        )
+
+
+def _shift_clip_times(clip: ClipCandidate, video: Video, delta_ms: int, export_dir: Path) -> None:
+    """Shift a clip's window by *delta_ms*, renaming its exported files to match.
+
+    Export/sidecar filenames embed the clip's start time (_clip_stem), so a clip
+    migrated between a recording and its segments must have its files renamed or
+    every export lookup (exported badge, download, delete) misses them.
+    A failed rename is logged, not fatal — the clip is then merely back to
+    "file not found", same as if the rename hadn't been attempted.
+    """
+    existing_files = [p for p in _all_sidecar_paths(clip, video, export_dir) if p.exists()]
+    old_stem = _clip_stem(clip, video)
+    clip.start_ms += delta_ms
+    clip.end_ms += delta_ms
+    new_stem = _clip_stem(clip, video)
+    if new_stem == old_stem:
+        return
+    for old_file in existing_files:
+        new_file = old_file.with_name(new_stem + old_file.name[len(old_stem):])
+        try:
+            old_file.rename(new_file)
+        except OSError as exc:
+            _log.warning("Could not rename export file %s -> %s: %s", old_file, new_file, exc)
 
 
 def _validate_split_points(pts: list[float], duration_s: float) -> None:
@@ -771,7 +802,7 @@ def _create_segments(db, video: Video, boundaries: list[float], segment_names: l
 
 
 def _migrate_clips_to_segments(
-    db, parent_video_id: int, boundaries: list[float], segment_ids: list[int],
+    db, parent: Video, boundaries: list[float], segment_ids: list[int], export_dir: Path,
 ) -> int:
     """Reassign each of the parent's clips to the segment containing its start time.
 
@@ -779,17 +810,15 @@ def _migrate_clips_to_segments(
     owned by the segment its start falls in — its end_ms may then run past that
     segment's own length, which is fine since segments share the parent's file.
     """
-    clips = db.query(ClipCandidate).filter_by(video_id=parent_video_id).all()
+    clips = db.query(ClipCandidate).filter_by(video_id=parent.id).all()
     for clip in clips:
         start_s = clip.start_ms / 1000.0
         seg_idx = next(
             (i for i in range(len(segment_ids)) if boundaries[i] <= start_s < boundaries[i + 1]),
             len(segment_ids) - 1,
         )
-        offset_ms = int(boundaries[seg_idx] * 1000)
         clip.video_id = segment_ids[seg_idx]
-        clip.start_ms -= offset_ms
-        clip.end_ms -= offset_ms
+        _shift_clip_times(clip, parent, -int(boundaries[seg_idx] * 1000), export_dir)
     db.flush()
     return len(clips)
 

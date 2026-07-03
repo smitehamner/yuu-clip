@@ -4,16 +4,16 @@
 
 ### Layout
 
-- **Sidebar left pane** — video list with per-video clip count, approved count, exported count, score range bar, clipped time, and processing status badges (∅ summary / ∅ scored / ∅ timeline)
-- **Sidebar right pane** — clip list for the selected video; sortable by score (highest first) or timeline (chronological)
+- **Sidebar left pane** — recordings list with per-recording clip count, approved count, exported count, score range bar, and clipped time. Has its own search box (title/filename), sort dropdown (Recent / Title / Filename / Length / Clips — persisted), and filter chips (Has clips / Unscored / Errors)
+- **Sidebar right pane** — clip list for the selected recording; sortable by Overall / Funny / Dramatic / Action score, Length, or Timeline (chronological)
 - **Main panel** — detail view for the selected video or clip, plus video player
 - **Header** — global action buttons and live job status (step pills + cancel button)
 - **Log panel** — collapsible; streams live job output; download button for the full log file
 
 ### Video management
 
-- **Select a video** — click in the sidebar to load its detail view
-- **Delete a video** — X button removes the database record; the source file is untouched
+- **Select a recording** — click in the sidebar to load its detail view
+- **Remove a recording** — Additional Actions → Remove Recording deletes the database record; the source file is untouched
 - **Video detail view** shows: title, duration, clip/approval counts, total clipped time, and assigned world contexts
 
 ### Contexts on a video
@@ -24,7 +24,7 @@
 
 ### Video-level LLM features
 
-- **Generate Summary** — sends the full transcript to Ollama; returns a title and a paragraph summary of the session
+- **Generate Summary** — sends the full transcript to the configured LLM; returns a title and a paragraph summary of the session
 - **Generate Timeline** — streams an LLM-generated timeline in 15-minute chunks, describing key events in each window
 
 ### Clip review
@@ -37,8 +37,9 @@ Each clip detail view shows:
 - **Transcript excerpt** in a monospace box
 - **Timed transcript** — a per-line view (grouped by speaker when diarized) where each line has a ▶ to jump the player to that moment. Click any line to **edit its caption text** in place — fix a mis-heard character name or piece of jargon, press Save (Enter), and the change is written back to the caption segment. Editing a caption rebuilds the excerpt of every clip that overlaps it; clips that were already scored show a **"Captions edited since last scoring"** notice with a Re-score shortcut so their scores and descriptions can be refreshed against the corrected text. The same editable view appears under **Full transcript** on the recording detail.
 - **Status buttons**: Approve / Reject / Reset (unreviewed)
-- **Clip search** — text input above the status tabs; searches description, long description, and transcript excerpt (case-insensitive). Composes with the status tab and score filter.
-- **Minimum score filter** — dropdown (Any / 0.3+ / 0.5+ / 0.7+ / 0.9+) that hides clips below the selected overall score threshold. Composes with the search and status tab filters.
+- **Clip search** — text input above the filter chips; searches description, long description, transcript excerpt, and your tags (case-insensitive). Composes with the chip and score filters.
+- **Filter chips** — multi-select chips that combine: status (Unreviewed / Approved / Rejected), Exported / Not exported (mutually exclusive), and Score error. "All" clears every chip.
+- **Minimum score filter** — dropdown (Any / 0.3+ / 0.5+ / 0.7+ / 0.9+) that hides clips below the selected overall score threshold. Composes with the search and chip filters.
 
 Actions available per clip: **Approve** / **Reject** and **Export** sit directly on the clip
 detail panel; everything else is grouped behind an **Additional Actions** button (Review /
@@ -151,7 +152,9 @@ Dependency versions table and licensing notes. Open from the hamburger menu → 
 | `E` | Export the current clip (or the focused clip row) |
 | `←` / `↑` | Previous clip |
 | `→` / `↓` | Next clip |
-| `?` | Open about panel |
+| `Ctrl`/`Cmd`+`Z` | Undo the most recent status change (single or bulk) |
+| `?` or `/` | Open the keyboard controls list |
+| `Esc` | Close the topmost window |
 
 ---
 
@@ -277,9 +280,11 @@ Three modes:
 
 Scene cuts are stored as database records and influence candidate boundaries.
 
-### LLM scorer (Ollama)
+### LLM scorer
 
-Sends each candidate's transcript excerpt to a locally running Ollama instance. When speaker labels
+Sends each candidate's transcript excerpt to the configured LLM backend — Ollama, a bundled
+local `.gguf` model (llama.cpp), or the Claude API, chosen in the setup wizard or Settings.
+When speaker labels
 are enabled (see Settings → Speaker labels), the excerpt is formatted with `SPEAKER_XX:` prefixes
 so the LLM understands who said what without any extra configuration. Returns a JSON object with:
 
@@ -291,9 +296,9 @@ so the LLM understands who said what without any extra configuration. Returns a 
 | `score_dramatic` | 0–1; confrontations, revelations, emotional beats |
 | `score_action` | 0–1; combat, chaos, high-stakes tension |
 
-World context text is injected into the system prompt so the LLM understands character relationships and setting. If Ollama is unreachable the ingest continues with zero scores and a warning in the log.
+World context text is injected into the system prompt so the LLM understands character relationships and setting. If the LLM backend is unreachable the analysis continues with zero scores and a warning in the log.
 
-LLM scoring speed depends entirely on your Ollama setup and model. Rough estimates at ~4 s/clip:
+LLM scoring speed depends entirely on your LLM backend and model. Rough estimates at ~4 s/clip:
 
 | Video length | Estimated clips | Time |
 |---|---|---|
@@ -337,11 +342,13 @@ All state is stored in `.yuu-clip/` next to your video files (or in the director
 
 ```
 .yuu-clip/
-  yuu-clip.db      # SQLite database
-  yuu-clip.log     # rolling log
+  project.db         # SQLite database
+  yuu-clip.log       # rolling log
   exports/           # exported clips
   reels/             # compiled highlight reels (timestamp-named MKVs)
   audio/             # extracted WAV files (temporary; reused across runs)
+  proxies/           # cached 720p preview copies (safe to delete; rebuilt on demand)
+  sounds/            # custom notification sounds you've added
 ```
 
 ### Track layouts
