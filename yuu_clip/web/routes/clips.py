@@ -255,6 +255,15 @@ class TagsBody(BaseModel):
     tags: list[str] = []
 
 
+class ManualClipCreate(BaseModel):
+    start_ms: int
+    end_ms: int
+
+
+_MANUAL_CLIP_MIN_MS = 1_000
+_MANUAL_CLIP_MAX_MS = 10 * 60 * 1_000
+
+
 def _build_export_cmd(
     ctx: ProjectContext,
     clip_id: int,
@@ -380,6 +389,47 @@ def _register_clip_routes(router: APIRouter, ctx: ProjectContext) -> None:
                 ).desc()
             clips = q.order_by(order).all()
             return [_clip_dict(c, export_dir=ctx.export_dir, video=video, name_template=ctx.config.export_name_template) for c in clips]
+        finally:
+            db.close()
+
+    @router.post("/api/videos/{video_id}/clips")
+    def create_manual_clip(video_id: int, body: ManualClipCreate):
+        """Create a clip from a creator-picked time window (the manual clip picker).
+
+        Scoring is not run here — an LLM call inside a request handler would block;
+        the UI chains the existing per-clip rescore SSE immediately after creation.
+        """
+        from yuu_clip.segments.windower import build_excerpt_for_window
+
+        db = ctx.get_db()
+        try:
+            video = db.get(Video, video_id)
+            if not video:
+                raise HTTPException(404, "Video not found")
+            if body.start_ms < 0:
+                raise HTTPException(400, "Clip start can't be before the beginning of the recording")
+            if body.end_ms <= body.start_ms:
+                raise HTTPException(400, "Clip end must be after the start")
+            duration_ms = body.end_ms - body.start_ms
+            if duration_ms < _MANUAL_CLIP_MIN_MS:
+                raise HTTPException(400, "Clip must be at least 1 second long")
+            if duration_ms > _MANUAL_CLIP_MAX_MS:
+                raise HTTPException(400, "Clip can't be longer than 10 minutes")
+            if video.duration_ms is not None and body.end_ms > video.duration_ms:
+                raise HTTPException(400, "Clip end is beyond the end of the recording")
+
+            clip = ClipCandidate(
+                video_id=video_id,
+                start_ms=body.start_ms,
+                end_ms=body.end_ms,
+                status="pending",
+                transcript_excerpt=build_excerpt_for_window(video, body.start_ms, body.end_ms),
+            )
+            clip.tags = ["manual"]
+            db.add(clip)
+            db.commit()
+            _log.info("Created manual clip %d for video %d (%d-%dms)", clip.id, video_id, body.start_ms, body.end_ms)
+            return _clip_dict(clip, full=True, export_dir=ctx.export_dir, video=video, name_template=ctx.config.export_name_template)
         finally:
             db.close()
 

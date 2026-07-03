@@ -149,8 +149,17 @@ def rebuild_clip_excerpt(clip: ClipCandidate) -> None:
     that reads it — reflects the change. Mirrors the excerpt build in
     generate_candidates so an untouched clip's excerpt is unchanged.
     """
-    segs = _clip_window_segments(clip.video, clip.start_ms, clip.end_ms)
-    clip.transcript_excerpt = _build_excerpt(segs)
+    clip.transcript_excerpt = build_excerpt_for_window(clip.video, clip.start_ms, clip.end_ms)
+
+
+def build_excerpt_for_window(video: Video, start_ms: int, end_ms: int) -> str:
+    """Build a transcript excerpt for an arbitrary [start_ms, end_ms) window on *video*.
+
+    Shared by rebuild_clip_excerpt (an existing clip's window) and manual clip
+    creation (a window with no ClipCandidate yet).
+    """
+    segs = _clip_window_segments(video, start_ms, end_ms)
+    return _build_excerpt(segs)
 
 
 def _silence_window(

@@ -613,7 +613,9 @@
     <div class="sidebar-group clips-group">
       <div class="clips-section-header">
         <span>Clips</span>
-        <div style="display:flex;align-items:center;gap:4px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <button class="btn ghost" id="btn-new-clip" style="font-size:11px;padding:3px 9px" title="Pick a time range to create a clip by hand"
+                  onclick="openClipCreatePicker(AppState.activeVideoId)">+ New clip</button>
           <span style="font-size:10px;color:var(--muted)">&#x1F53D; Sort</span>
           <select id="clips-sort" class="clips-sort-select" aria-label="Sort clips by" onchange="onClipsSortChange()">
             <option value="score">&#11088; Overall</option>
@@ -1556,6 +1558,7 @@
 <script src="/static/split.js"></script>
 <script src="/static/speakers.js"></script>
 <script src="/static/transcript.js"></script>
+<script src="/static/clipcreate.js"></script>
 <script src="/static/boot.js"></script>
 </body>
 </html>

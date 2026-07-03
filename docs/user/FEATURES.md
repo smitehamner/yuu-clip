@@ -27,6 +27,17 @@
 - **Generate Summary** — sends the full transcript to the configured LLM; returns a title and a paragraph summary of the session
 - **Generate Timeline** — streams an LLM-generated timeline in 15-minute chunks, describing key events in each window
 
+### Manual clip creation
+
+- **"+ New clip"** above the clip list, or **"Create clip"** on a recording's Full transcript
+  card — both open a picker panel over the detail view
+- Click a transcript line to set the clip's start, then a later line (or the same line again,
+  for a 1-line clip) to set the end; clicking an earlier line resets the start. `h:mm:ss` /
+  `m:ss` time inputs stay in sync and also cover recordings with no transcript yet
+- **Play selection** previews the picked range on the recording's own preview player
+- Confirming creates the clip, selects it, and immediately runs the same LLM scoring as any
+  other clip — there's no separate "manual, unscored" state
+
 ### Clip review
 
 Each clip detail view shows:

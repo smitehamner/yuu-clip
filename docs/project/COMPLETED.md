@@ -6,6 +6,45 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) — see the
 
 ---
 
+## Manual clip creation (done, 2026-07-03)
+
+Roadmap plan 05 (`docs/dev/plans/roadmap-2026-07/05-manual-clip-creation.md`), the second
+`PanelNav` consumer after the Split Editor:
+
+- **Backend** — `POST /api/videos/{video_id}/clips` (`routes/clips.py`) creates a
+  `ClipCandidate` from a creator-picked `{start_ms, end_ms}` window: validates the video
+  exists, `0 ≤ start < end`, duration between 1s and 10 minutes, and `end_ms` within the
+  recording's (segment-relative, for a split segment) duration. The new clip is tagged
+  `"manual"` and its excerpt is built from overlapping transcript segments via a new public
+  `build_excerpt_for_window()` in `segments/windower.py` (also now backing
+  `rebuild_clip_excerpt`, replacing its inline duplicate). Scoring is not run inline — the UI
+  chains the existing per-clip rescore SSE right after creation, same as any other clip.
+- **Frontend** — new `yuu_clip/web/static/clipcreate.js`: a `PanelNav` takeover panel with
+  two entry points ("+ New clip" above the clip list; "Create clip" on a recording's full
+  transcript card). Click a transcript line to set the start, click a later line (or the
+  same line again) to set the end; manual `h:mm:ss`/`m:ss` time inputs cover the no-transcript
+  fallback. The panel gets its **own** inline preview video (`setupRecordingPreview`, like
+  the Split Editor) rather than reusing `#player-area` — the `PanelNav` takeover visually
+  covers the whole app (see note below), so seeking a hidden player would give no feedback.
+  Confirm creates the clip, closes the panel, selects the new clip, and calls the existing
+  `rescoreClip()` — no separate manual/unscored code path. `renderTranscriptLines()` gained a
+  `readOnly` option (suppresses the click-to-edit-caption affordance) and each line now
+  carries `data-start-ms`/`data-end-ms` for the picker's click handling.
+- **Note on `PanelNav` coverage**: `#panelnav-root` is `position:absolute` but is a DOM
+  sibling of `#main-layout` (not a descendant of `.main`), so it resolves against the
+  viewport and visually covers the header and sidebar too, not just the detail pane — despite
+  `.main`'s `position:relative` and the Plan 04 changelog's claim otherwise. Confirmed by
+  measuring `#panelnav-root`'s live bounding box with the Split Editor open. Not fixed here
+  (pre-existing, cross-cutting, out of scope for this plan) — flagged for a future pass.
+- **Glossary** — added **Manual Clip** (`docs/dev/GLOSSARY.md`).
+- **Tests** — `tests/test_clip_create.py` (happy path/excerpt, validation, no-transcript,
+  segment-relative bounds, rescore accepts `scored_at IS NULL`); `tests/test_ui_clipcreate.py`
+  (both entry points, click-click range picking incl. reset/1-line edge cases, manual time
+  inputs, confirm → create → select → rescore, double-submit guard, Back dirty guard,
+  keyboard-shortcut suppression while open).
+
+---
+
 ## Panel navigation framework + Split Editor migration (done, 2026-07-03)
 
 Roadmap plan 04 (`docs/dev/plans/roadmap-2026-07/04-panel-navigation.md`):

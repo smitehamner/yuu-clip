@@ -538,6 +538,7 @@ function _hotwordDetailHTML(clip) {
 // before rendering. null = bookkeeping marker, hidden from the UI (the Scoring
 // card and "Last scored with" already convey that a scorer ran).
 const _GENERATED_TAG_INFO = {
+  manual:              { name: 'Manually created', tip: 'You created this clip by hand, not automatic clip generation' },
   llm_error:           { name: 'Score error', tip: 'LLM scoring failed for this clip — Re-score to retry' },
   llm_no_transcript:   { name: 'No speech to score', tip: "No transcript text in this clip's time range, so LLM scoring was skipped" },
   energy_no_tracks:    { name: 'No audio data', tip: 'No audio track was available for energy scoring' },
@@ -1517,7 +1518,7 @@ function scoreAll() {
 Object.assign(window, {
   selectClip, setStatus, undoLastStatus, renderDetail, clearDetail, refreshClipDetail,
   toggleClipFilter, _syncFilterChips, setClipSearch, setClipScoreMin, _clearClipFilters,
-  _applyFilters, _renderClips, _parseTimingOffset,
+  _applyFilters, _renderClips, _parseTimingOffset, _reloadClipList,
   _renderBatchStatusPanel, _toggleBatchStatusPanel,
   deleteClip, deleteVideo, deleteExport, mergeClips,
   exportClip, exportVideoTranscript, confirmExport, closeExportModal,

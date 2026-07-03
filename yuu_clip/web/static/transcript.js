@@ -27,11 +27,14 @@ function _clock(ms) {
 // opts.seekOffsetS is added to each line's play target — 0 for a clip (its player
 // is trimmed to the clip) and the segment start for a split recording (whose player
 // streams the untrimmed parent file). opts.videoId enables the per-line speaker
-// control (rename / reassign); omit it to render a read-only transcript.
+// control (rename / reassign); omit it to render a read-only transcript. opts.readOnly
+// suppresses the click-to-edit-caption affordance even when a line carries a seg_id —
+// used by the manual clip picker, where a line click selects a range instead.
 function renderTranscriptLines(lines, opts) {
   opts = opts || {};
   const offsetS = opts.seekOffsetS || 0;
   const videoId = opts.videoId;
+  const readOnly = !!opts.readOnly;
   if (!Array.isArray(lines) || !lines.length) {
     return '<div class="transcript-empty">No transcript available.</div>';
   }
@@ -45,7 +48,7 @@ function renderTranscriptLines(lines, opts) {
       : '';
     const clock = _clock(line.start_ms);
     const seekS = (line.start_ms || 0) / 1000 + offsetS;
-    const editable = line.seg_id != null;
+    const editable = !readOnly && line.seg_id != null;
     const editAttrs = editable
       ? ` data-seg-id="${line.seg_id}" role="button" tabindex="0" title="Click to edit caption"`
       : '';
@@ -56,7 +59,7 @@ function renderTranscriptLines(lines, opts) {
                  aria-label="Change speaker">
            <span class="tline-spk-dot" style="background:${escHtml(line.color || '#888')}"></span></button>`
       : '';
-    return `${speaker}<div class="tline">
+    return `${speaker}<div class="tline" data-start-ms="${line.start_ms || 0}" data-end-ms="${line.end_ms || 0}">
       <button class="tline-play" data-seek-s="${seekS}"
               title="Jump to ${clock}" aria-label="Play from ${clock}">&#9654;</button>
       <span class="tline-time">${clock}</span>

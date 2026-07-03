@@ -194,11 +194,7 @@ Complex, specialized, or AI-heavy features that are valuable but don't need to b
   captions if caption export is enabled. Reference UX: Twitch clip editor. Natural dependency
   order: Vertical crop and Auto captions should land first, then the editor ties them together.
 
-- [ ] **Manual clip creation** — create a new `ClipCandidate` from scratch by picking start/end
-  timestamps directly from a video's transcript, for moments the automatic pipeline missed. Shares
-  the transcript-driven timestamp-picking UI with the Clip export editor above. The resulting clip
-  goes through the normal scoring/review pipeline (LLM scoring, description, approve/reject) like
-  any pipeline-generated clip — no separate "manual, unscored" path.
+- [x] **Manual clip creation** — done, 2026-07-03. See [COMPLETED.md](COMPLETED.md).
 
 - [ ] **Vertical crop / Shorts export** — 9:16 output for TikTok / YouTube Shorts; requires
   face/webcam tracking (YOLO or MediaPipe) to auto-frame the crop region.

@@ -321,6 +321,10 @@ function renderVideoDetail(video, savedTimeline) {
 
     ${(video.clip_count > 0 || video.status === 'done') ? `
     <div class="detail-card">
+      <div style="display:flex;justify-content:flex-end;margin-bottom:4px">
+        <button class="btn ghost" style="font-size:11px;padding:3px 9px" title="Pick a time range to create a clip by hand"
+                onclick="openClipCreatePicker(${video.id})">Create clip</button>
+      </div>
       <details id="video-transcript-details" class="transcript-details" data-video-id="${video.id}">
         <summary class="transcript-summary">Full transcript</summary>
         <div id="video-transcript-view" class="transcript"></div>

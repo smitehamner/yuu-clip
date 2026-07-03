@@ -45,6 +45,7 @@ Most lookups only need this table: the authoritative user-facing term, the code 
 | Clip window | `start_ms`, `end_ms` | The analyzed time range |
 | Trim | `start_offset_s`, `end_offset_s` | Creator offsets applied at export |
 | Clip generation | `generate_candidates()` | Transcript → candidate windows — not "segmentation" in UI |
+| Manual clip | `"manual"` tag, `clipcreate.js` | A clip picked by hand from the transcript, instead of clip generation |
 | Score | `score_overall`, `score_funny`, … | 0–1 rating per dimension |
 | Scoring dimension | `funny`, `dramatic`, `action` | The three axes |
 | Hot-word | `hot_words`, `hotword_*` | A phrase that nudges a clip's score when it appears in the transcript |
@@ -418,6 +419,16 @@ The pipeline stage that produces clip candidates from the transcript by finding 
 - **Code:** `segment_candidates()`, `generate_candidates()`
 - **Also called in codebase:** "segmentation", "candidate generation", "windowing"
 - **Do not call it:** "segmentation" in user-facing text — too technical
+
+---
+
+### Manual Clip
+
+A clip the creator picks by hand from a recording's transcript or timeline, instead of one produced by clip generation.
+
+- **Code:** `"manual"` system tag (via `ClipCandidate.tags`), `clipcreate.js`
+- **UI label:** "New clip" (button above the clip list; button in the recording's transcript view), "Create clip" (confirm action in the picker panel)
+- **Notes:** Goes through the same scoring/review pipeline as a generated clip — LLM scoring runs right after creation, then approve/reject as normal. There is no separate "unscored, manual-only" clip state.
 
 ---
 

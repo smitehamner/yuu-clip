@@ -334,6 +334,10 @@ header h1 { font-size: 16px; font-weight: 700; letter-spacing: .5px; color: var(
 /* timed transcript view (clip + full recording) */
 .transcript-lines { display: flex; flex-direction: column; gap: 2px; }
 .tline { display: flex; align-items: baseline; gap: 8px; padding: 2px 0; }
+/* manual clip picker — highlights the transcript lines within the picked range */
+.tline.cc-selected { background: color-mix(in srgb, var(--accent) 16%, transparent); border-radius: 4px; }
+.tline.cc-pickable { cursor: pointer; }
+.tline.cc-pickable:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); border-radius: 4px; }
 .tline-speaker { margin-top: 8px; font-size: 11px; font-weight: 600; color: var(--accent-text); }
 .tline-play { flex-shrink: 0; width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; padding: 0; font-size: 8px; border-radius: 50%; border: 1px solid var(--border); background: var(--surface); color: var(--accent); cursor: pointer; align-self: center; transition: background .12s; }
 .tline-play:hover { background: var(--border); }
