@@ -165,3 +165,28 @@ class TestReelDelete:
             assert not fake_reel.exists()
         finally:
             fake_reel.unlink(missing_ok=True)
+
+
+@skip_no_server
+class TestReelShowInFolder:
+    def test_show_in_folder_posts_reveal_with_reel_path(self, page: Page):
+        reels_dir = Path(__file__).resolve().parent.parent / ".yuu-clip" / "reels"
+        reels_dir.mkdir(parents=True, exist_ok=True)
+        fake_reel = reels_dir / "uitest_show_in_folder.mkv"
+        fake_reel.write_bytes(b"fake")
+        try:
+            page.wait_for_function("() => AppState.canReveal === true", timeout=5000)
+            page.route(
+                "**/api/reveal",
+                lambda route: route.fulfill(
+                    status=200, content_type="application/json", body='{"status": "ok"}'
+                ),
+            )
+            page.evaluate("openHighlightReelsModal('view')")
+            item = page.locator(".reel-item", has_text="uitest_show_in_folder.mkv")
+            item.wait_for()
+            with page.expect_request("**/api/reveal") as req_info:
+                item.get_by_role("button", name="Show in Folder").click()
+            assert req_info.value.post_data_json["path"].endswith("uitest_show_in_folder.mkv")
+        finally:
+            fake_reel.unlink(missing_ok=True)

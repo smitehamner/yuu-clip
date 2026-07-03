@@ -954,3 +954,54 @@ class TestCopyToClipboard:
         assert page.evaluate("() => window.__copiedText") == (
             "D:\\exports\\clip_export.mkv\nD:\\exports\\clip_export.srt"
         )
+
+
+# ---------------------------------------------------------------------------
+# Quick-wins Stage 4 — show in folder (Explorer reveal)
+# ---------------------------------------------------------------------------
+
+@skip_no_server
+class TestClipShowInFolder:
+    def test_show_in_folder_posts_reveal_with_first_export_file(self, page: Page):
+        page.goto(LIVE_URL)
+        select_first_video_and_clip(page)
+        page.wait_for_selector(".detail", timeout=3000)
+        page.wait_for_function("() => AppState.canReveal === true", timeout=5000)
+        page.route(
+            "**/api/clips/*/export-files",
+            lambda route: route.fulfill(
+                status=200, content_type="application/json",
+                body='{"files": ["clip_export.mkv", "clip_export.srt"]}',
+            ),
+        )
+        page.route(
+            "**/api/reveal",
+            lambda route: route.fulfill(
+                status=200, content_type="application/json", body='{"status": "ok"}'
+            ),
+        )
+        page.evaluate(
+            """() => {
+                AppState.activeClipData.has_export = true;
+                AppState.exportDir = 'D:\\\\exports';
+                openClipActionsModal(AppState.activeClipData.id);
+            }"""
+        )
+        page.wait_for_selector("#actions-modal.visible", timeout=2000)
+        with page.expect_request("**/api/reveal") as req_info:
+            page.click("#actions-modal-body .action-row:has-text('Show in Folder')")
+        assert req_info.value.post_data_json["path"] == "D:\\exports\\clip_export.mkv"
+
+    def test_hidden_when_reveal_unavailable(self, page: Page):
+        page.goto(LIVE_URL)
+        select_first_video_and_clip(page)
+        page.wait_for_selector(".detail", timeout=3000)
+        page.evaluate(
+            """() => {
+                AppState.canReveal = false;
+                AppState.activeClipData.has_export = true;
+                openClipActionsModal(AppState.activeClipData.id);
+            }"""
+        )
+        page.wait_for_selector("#actions-modal.visible", timeout=2000)
+        expect(page.locator("#actions-modal-body .action-row:has-text('Show in Folder')")).to_have_count(0)

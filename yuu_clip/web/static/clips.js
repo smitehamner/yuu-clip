@@ -620,6 +620,9 @@ function openClipActionsModal(clipId) {
       fileRows.push({ label: 'Download Export', description: 'Save the exported file (and any caption sidecars) to your downloads.', action: () => _downloadClipExport(clipId) });
     }
     fileRows.push({ label: 'Copy File Path(s)', description: 'Copy the full path of the exported file (and any caption sidecars) to your clipboard.', action: () => _copyClipExportPaths(clipId) });
+    if (AppState.canReveal) {
+      fileRows.push({ label: 'Show in Folder', description: 'Open the exports folder with this file selected.', action: () => _revealClipExport(clipId) });
+    }
     fileRows.push({ label: 'Delete Export', description: 'Delete the exported video file but keep the clip record.', danger: true, action: () => deleteExport(clipId) });
     groups.push({ heading: 'Files', rows: fileRows });
   }
@@ -660,6 +663,18 @@ async function _downloadClipExport(clipId) {
   // Stagger so the browser doesn't collapse rapid sequential downloads into one.
   files.forEach((fn, i) => setTimeout(() => _downloadFile(fn), i * 200));
   if (files.length > 1) showToast(`Downloading ${files.length} files (video + captions)`, 'info');
+}
+
+async function _revealClipExport(clipId) {
+  let files = [];
+  try {
+    const data = await fetch(`/api/clips/${clipId}/export-files`).then(r => r.json());
+    files = (data && data.files) || [];
+  } catch (_) { /* fall back to the single known media file below */ }
+  if (!files.length && AppState.activeMediaFilename) files = [AppState.activeMediaFilename];
+  if (!files.length || !AppState.exportDir) { showToast('No exported files found', 'warning'); return; }
+  const sep = AppState.exportDir.includes('\\') ? '\\' : '/';
+  revealInFolder(`${AppState.exportDir}${sep}${files[0]}`);
 }
 
 async function _copyClipExportPaths(clipId) {

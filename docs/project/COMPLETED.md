@@ -6,6 +6,30 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) — see the
 
 ---
 
+## Quick wins Stage 4 — show in folder (done, 2026-07-03)
+
+New `POST /api/reveal` (`routes/reveal.py`, Windows-only — 501 elsewhere):
+resolves the given path, requires it inside a project-owned directory
+(exports, reels, proxies, or a tracked recording's own directory — 400
+otherwise), 404s if the file is missing, then launches
+`explorer /select,<path>` via `subprocess.Popen` (argument list, no shell).
+`/api/status` gained `can_reveal` (+ `reels_dir`, alongside the existing
+`export_dir`) so the frontend gates buttons on Windows only.
+
+"Show in Folder" buttons (`revealInFolder()` helper in `utils.js`), each
+gated on `AppState.canReveal`:
+
+- Clip detail → Additional Actions → Files group.
+- Highlight reel View tab, per reel row.
+- Recording detail, next to the duration/clip-count line (`video.path` is now
+  included in the video API response).
+
++7 tests: `test_reveal.py` (API — path allow/deny, 404, 501, `can_reveal`)
+and UI tests across `test_ui_clips.py`, `test_ui_video.py`, `test_ui_reel.py`
+(request interception, not real Explorer windows).
+
+---
+
 ## Quick wins Stage 3 — copy-to-clipboard (done, 2026-07-03)
 
 Shared `copyText(text, label)` helper (`utils.js`) wraps

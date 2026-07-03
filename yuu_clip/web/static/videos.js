@@ -287,7 +287,10 @@ function renderVideoDetail(video, savedTimeline) {
         <h2 style="margin:0;font-size:17px;font-weight:700" title="${escHtml(video.title || video.filename)}">${escHtml(video.title || video.filename)}${eb(video.title_is_edited)}</h2>
         <button class="kebab-btn" title="Edit or regenerate title" aria-label="Edit or regenerate title" onclick="openVideoTitleKebab(${video.id}, this)">&#8942;</button>
       </div>
-      <div style="color:var(--muted);font-size:13px">${video.duration_hms} &middot; ${video.clip_count} clips &middot; ${_msToHms(video.total_clip_ms)} clipped</div>
+      <div style="color:var(--muted);font-size:13px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span>${video.duration_hms} &middot; ${video.clip_count} clips &middot; ${_msToHms(video.total_clip_ms)} clipped</span>
+        ${AppState.canReveal ? `<button class="btn ghost" style="font-size:11px;padding:2px 8px" onclick="revealInFolder(AppState.activeVideoData.path)">Show in Folder</button>` : ''}
+      </div>
     </div>
 
     ${_renderContextSection(video)}

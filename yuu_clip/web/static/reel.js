@@ -79,6 +79,18 @@ async function switchReelTab(tab) {
         capBtn.onclick = e => { e.stopPropagation(); _regenReelCaptions(reel, capBtn); };
         item.appendChild(capBtn);
       }
+      if (AppState.canReveal) {
+        const revealBtn = document.createElement('button');
+        revealBtn.className = 'btn ghost';
+        revealBtn.style.cssText = 'font-size:10px;padding:2px 6px;margin-top:4px';
+        revealBtn.textContent = 'Show in Folder';
+        revealBtn.onclick = e => {
+          e.stopPropagation();
+          const sep = AppState.reelsDir && AppState.reelsDir.includes('\\') ? '\\' : '/';
+          revealInFolder(`${AppState.reelsDir}${sep}${reel.filename}`);
+        };
+        item.appendChild(revealBtn);
+      }
       const delBtn = document.createElement('button');
       delBtn.className = 'btn ghost danger';
       delBtn.style.cssText = 'font-size:10px;padding:2px 6px;margin-top:4px';

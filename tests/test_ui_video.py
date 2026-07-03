@@ -342,3 +342,30 @@ class TestVideoActionsModal:
         page.click("#actions-modal .action-row:has-text('Split Recording')")
         expect(page.locator("#actions-modal")).not_to_be_visible()
         expect(page.locator("#split-editor-panel")).to_be_visible(timeout=3000)
+
+
+@skip_no_server
+class TestVideoShowInFolder:
+    """Quick-wins Stage 4 — Explorer reveal button on the recording detail's
+    source-file row."""
+
+    def test_button_visible_and_posts_reveal_with_video_path(self, page: Page):
+        page.route(
+            "**/api/reveal",
+            lambda route: route.fulfill(
+                status=200, content_type="application/json", body='{"status": "ok"}'
+            ),
+        )
+        _render_video_with(page, {"path": "D:\\recordings\\uitest_source.mkv"})
+        page.wait_for_function("() => AppState.canReveal === true", timeout=5000)
+        page.evaluate("renderVideoDetail(AppState.activeVideoData, null)")
+        btn = page.locator("#detail button:has-text('Show in Folder')")
+        expect(btn).to_be_visible()
+        with page.expect_request("**/api/reveal") as req_info:
+            btn.click()
+        assert req_info.value.post_data_json["path"] == "D:\\recordings\\uitest_source.mkv"
+
+    def test_button_hidden_when_reveal_unavailable(self, page: Page):
+        _render_video_with(page, {})
+        page.evaluate("() => { AppState.canReveal = false; renderVideoDetail(AppState.activeVideoData, null); }")
+        expect(page.locator("#detail button:has-text('Show in Folder')")).to_have_count(0)

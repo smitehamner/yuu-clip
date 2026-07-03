@@ -274,7 +274,9 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             "version": _VERSION_DISPLAY,
             "project_dir": str(ctx.project_dir),
             "export_dir":  str(ctx.export_dir),
+            "reels_dir":   str(ctx.reels_dir),
             "db_path":     str(ctx.db_path),
+            "can_reveal":  sys.platform == "win32",
         }
 
     @router.get("/api/prereqs")

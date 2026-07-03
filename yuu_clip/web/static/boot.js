@@ -23,6 +23,8 @@ fetch('/api/status').then(r => r.json()).then(d => {
     document.getElementById('about-version').textContent = `Version ${versionLabel}`;
   }
   AppState.exportDir = d.export_dir || null;
+  AppState.reelsDir = d.reels_dir || null;
+  AppState.canReveal = !!d.can_reveal;
   // Reconnect to an analysis that was already running when this page loaded
   // (e.g. after a refresh) — the subprocess survives independently of the stream.
   if (d.analyze_filename) reattachAnalysis(d.analyze_filename);

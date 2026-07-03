@@ -31,6 +31,7 @@ from yuu_clip.web.routes import (
     logs,
     profiles,
     reel,
+    reveal,
     scoring,
     sounds,
     speakers,
@@ -53,7 +54,7 @@ if _BUILD_DATE == "dev":
 else:
     _VERSION_DISPLAY = f"{_PKG_VERSION} · {_BUILD_DATE}"
 
-_ROUTE_MODULES = (videos, clips, analyze, profiles, reel, logs, contexts, config, scoring, sounds, speakers)
+_ROUTE_MODULES = (videos, clips, analyze, profiles, reel, reveal, logs, contexts, config, scoring, sounds, speakers)
 
 
 def _reload_factory() -> FastAPI:

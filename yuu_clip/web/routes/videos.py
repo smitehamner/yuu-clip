@@ -967,6 +967,7 @@ def _video_dict(video: Video, stats: dict) -> dict:
     return {
         "id": video.id,
         "filename": video.filename,
+        "path": video.path,
         "status": video.status,
         "duration_hms": video.duration_hms,
         "duration_ms": video.duration_ms or 0,

@@ -26,6 +26,8 @@ const AppState = {
   activeVideoData:     null,
   bootRestoreDone:     false,
   exportDir:           null,
+  reelsDir:            null,
+  canReveal:           false,
 };
 
 // ── score utils ───────────────────────────────────────────────────────────────
@@ -711,6 +713,22 @@ function showToast(message, type = 'success', opts = {}) {
     toast.style.opacity = '0';
     setTimeout(() => toast.remove(), 300);
   }, ms);
+}
+
+// ── reveal in file explorer ──────────────────────────────────────────────────
+async function revealInFolder(path) {
+  try {
+    const res = await fetch('/api/reveal', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({path}),
+    });
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      showToast(`Could not show in folder: ${e.detail || 'failed'}`, 'error');
+    }
+  } catch (err) {
+    showToast(`Could not show in folder: ${err.message}`, 'error');
+  }
 }
 
 // ── clipboard ─────────────────────────────────────────────────────────────────
