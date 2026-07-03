@@ -13,7 +13,7 @@ from fastapi import HTTPException
 from fastapi.responses import StreamingResponse
 
 from yuu_clip.db.models import ClipCandidate, Video
-from yuu_clip.export_naming import DEFAULT_EXPORT_NAME_TEMPLATE, export_base_stem
+from yuu_clip.export_naming import DEFAULT_EXPORT_NAME_TEMPLATE, candidate_export_paths, export_base_stem
 from yuu_clip.log import get_logger
 
 _log = get_logger(__name__)
@@ -211,9 +211,9 @@ def _clip_stem(clip: ClipCandidate, video: Video, name_template: str = DEFAULT_E
 def _export_paths(
     clip: ClipCandidate, video: Video, export_dir: Path, name_template: str = DEFAULT_EXPORT_NAME_TEMPLATE,
 ) -> list[Path]:
-    """All candidate export file paths for a clip (any supported container extension)."""
+    """All candidate export file paths for a clip's *default* (presetless) export."""
     stem = _clip_stem(clip, video, name_template)
-    return [export_dir / f"{stem}{ext}" for ext in (".mkv", ".mp4", ".mov", ".avi", ".webm")]
+    return candidate_export_paths(export_dir, stem)
 
 
 def _srt_path(
@@ -234,6 +234,13 @@ def _srt_sidecar_paths(
     if merged.exists():
         files.append(merged)
     return files
+
+
+def _clip_export_row_files(clip: ClipCandidate) -> list[Path]:
+    """Existing on-disk files referenced by this clip's clip_exports rows (every
+    tracked Export preset format) — the per-format counterpart to _export_paths'
+    single-file, glob-based "default" lookup."""
+    return [p for p in (Path(row.path) for row in clip.exports) if p.exists()]
 
 
 def _all_sidecar_paths(

@@ -43,6 +43,8 @@ from sqlalchemy.orm import (
 )
 from sqlalchemy.pool import NullPool
 
+from yuu_clip.export_naming import DEFAULT_EXPORT_NAME_TEMPLATE, candidate_export_paths, export_base_stem
+
 
 class Base(DeclarativeBase):
     pass
@@ -78,6 +80,7 @@ def make_engine(db_path: Path):
 
     Base.metadata.create_all(engine)
     _migrate(engine)
+    _backfill_clip_exports(engine, db_path)
     return engine
 
 
@@ -243,6 +246,73 @@ def _migrate(engine) -> None:
 
         conn.commit()
         _log.info("DB migrations complete")
+
+
+def _backfill_clip_exports(engine, db_path: Path) -> None:
+    """One-time, idempotent backfill of clip_exports rows from legacy exports.
+
+    Before Plan 07, an export was tracked with a single set of exported_*
+    columns on the clip row. For every clip that already has exported_at set
+    but no "default" clip_exports row yet, locate its exported file on disk
+    (same stem/extension search every other export lookup uses) and record it.
+    A clip whose file was manually deleted from disk is skipped, matching the
+    existing "no badge when the export file is gone" behavior.
+    """
+    from yuu_clip.config import Config, project_exports_dir
+
+    project_dir = db_path.parent.parent
+    try:
+        name_template = Config.load(project_dir).export_name_template
+    except (OSError, ValueError):
+        name_template = DEFAULT_EXPORT_NAME_TEMPLATE
+    exports_dir = project_exports_dir(project_dir)
+
+    Session_ = sessionmaker(bind=engine)
+    session = Session_()
+    try:
+        already_backfilled = {
+            row[0] for row in session.execute(
+                text("SELECT clip_id FROM clip_exports WHERE preset_name = 'default'")
+            )
+        }
+        clips = (
+            session.query(ClipCandidate)
+            .filter(ClipCandidate.exported_at.isnot(None))
+            .all()
+        )
+        inserted = 0
+        for clip in clips:
+            if clip.id in already_backfilled:
+                continue
+            video = session.get(Video, clip.video_id)
+            if not video:
+                continue
+            stem = export_base_stem(clip, name_template, video_filename=video.filename)
+            found_path = next(
+                (p for p in candidate_export_paths(exports_dir, stem) if p.exists()), None
+            )
+            if found_path is None:
+                continue
+            settings = {
+                "burn_subs": bool(clip.exported_burn_subs),
+                "embed_subs": bool(clip.exported_embed_subs),
+                "title_card": bool(clip.exported_title_card),
+            }
+            session.add(ClipExport(
+                clip_id=clip.id,
+                preset_name="default",
+                path=str(found_path.resolve()),
+                container=clip.exported_container or found_path.suffix.lstrip("."),
+                created_at=clip.exported_at,
+                settings_json=json.dumps(settings),
+                size_bytes=found_path.stat().st_size,
+            ))
+            inserted += 1
+        if inserted:
+            session.commit()
+            _log.info("Migration: backfilled %d clip_exports row(s) from legacy exported_at", inserted)
+    finally:
+        session.close()
 
 
 def make_session(db_path: Path) -> Session:
@@ -563,6 +633,9 @@ class ClipCandidate(Base):
         primaryjoin="ClipCandidate.id == Transcript.clip_id",
         foreign_keys="Transcript.clip_id",
     )
+    exports: Mapped[List["ClipExport"]] = relationship(
+        back_populates="clip", cascade="all, delete-orphan", order_by="ClipExport.created_at",
+    )
 
     @property
     def reasons(self) -> list[str]:
@@ -639,6 +712,50 @@ class ClipCandidate(Base):
             if self.description_long_user is not None
             else (self.description_long or "")
         )
+
+
+class ClipExport(Base):
+    """One exported video file for a clip, one row per (clip, Export preset).
+
+    Before Plan 07 a clip could have only a single tracked export, recorded in
+    ClipCandidate.exported_at/exported_container/exported_burn_subs/etc. Those
+    columns stay in place and keep being written (the sidebar export pill and
+    aggregate "exported" counts still read them) — retiring them is a separate
+    follow-up. This table adds the richer, per-format tracking: re-exporting
+    the same preset_name replaces this row's path/settings/created_at in
+    place; a different preset_name adds a new row (see cli/export.py's
+    _record_clip_export).
+    """
+    __tablename__ = "clip_exports"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    clip_id: Mapped[int] = mapped_column(Integer, ForeignKey("clip_candidates.id"), nullable=False)
+
+    # "default" (no preset — original quality), a built-in preset id
+    # ("youtube-1080p", "discord-10mb"), or "custom:<name>" for a user preset.
+    preset_name: Mapped[str] = mapped_column(String, nullable=False, default="default")
+    path: Mapped[str] = mapped_column(Text, nullable=False)
+    container: Mapped[str] = mapped_column(String, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    # Whatever produced this file: burn_subs/embed_subs/title_card, and for a
+    # preset export, its resolved height/crf/target_size_mb/audio_kbps.
+    settings_json: Mapped[Optional[str]] = mapped_column(Text)
+    size_bytes: Mapped[Optional[int]] = mapped_column(Integer)
+
+    clip: Mapped["ClipCandidate"] = relationship(back_populates="exports")
+
+    __table_args__ = (
+        Index("ix_clip_exports_clip_id", "clip_id"),
+    )
+
+    @property
+    def settings(self) -> dict:
+        return json.loads(self.settings_json) if self.settings_json else {}
+
+    @settings.setter
+    def settings(self, value: dict) -> None:
+        self.settings_json = json.dumps(value)
 
 
 class AudioEnergy(Base):

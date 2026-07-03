@@ -15,7 +15,19 @@ from pathlib import Path
 from typing import Optional
 
 DEFAULT_EXPORT_NAME_TEMPLATE = "{video}_clip{clip_id}_{start}"
-EXPORT_NAME_PLACEHOLDERS: frozenset[str] = frozenset({"video", "clip_id", "start", "end", "score", "date"})
+EXPORT_NAME_PLACEHOLDERS: frozenset[str] = frozenset(
+    {"video", "clip_id", "start", "end", "score", "date", "preset"}
+)
+
+# Container extensions a clip's exported video file may have been written with —
+# shared by every caller that locates an already-exported file by its base stem
+# (web routes, the reel builder, the clip_exports backfill migration).
+EXPORT_VIDEO_EXTENSIONS: tuple[str, ...] = (".mkv", ".mp4", ".mov", ".avi", ".webm")
+
+
+def candidate_export_paths(export_dir: Path, stem: str) -> list[Path]:
+    """All candidate export file paths for a given base stem (any supported container)."""
+    return [export_dir / f"{stem}{ext}" for ext in EXPORT_VIDEO_EXTENSIONS]
 
 
 def validate_export_name_template(template: str) -> str:
@@ -46,12 +58,20 @@ def _default_stem(cand, video_filename: Optional[str]) -> str:
     return f"{video}_clip{cand.id}_{cand.start_hms.replace(':', '-')}"
 
 
-def export_base_stem(cand, template: str, *, video_filename: Optional[str] = None) -> str:
+def export_base_stem(
+    cand, template: str, *, video_filename: Optional[str] = None, preset: Optional[str] = None,
+) -> str:
     """Render *template* into a sanitized export filename stem for *cand*.
 
     video_filename overrides cand.video.filename — callers that already have the
     Video row in hand (the web routes locating already-exported files) pass it
     explicitly rather than relying on the ORM relationship lazy-loading it.
+
+    preset is the Export preset name ("default"/None for the original-quality
+    export). When the template doesn't reference {preset} itself, a non-default
+    preset name is appended as a "_{preset}" suffix so two formats of the same
+    clip never collide on disk — the default export's filename is unchanged
+    (back-compat with every pre-Plan-07 lookup and exported file).
 
     Only computes the placeholder values the template actually references, so a
     caller using the default (or any {video}/{clip_id}/{start}-only) template
@@ -77,10 +97,14 @@ def export_base_stem(cand, template: str, *, video_filename: Optional[str] = Non
         values["score"] = f"{cand.score_overall:.1f}" if cand.score_overall is not None else "no-score"
     if "date" in used:
         values["date"] = _date.today().isoformat()
+    if "preset" in used:
+        values["preset"] = preset or "default"
     try:
         stem = template.format(**values)
     except (KeyError, IndexError):
         stem = _default_stem(cand, video_filename)
+    if preset and preset != "default" and "preset" not in used:
+        stem = f"{stem}_{preset}"
     stem = re.sub(r'[\\/:*?"<>|]', "", stem)
     stem = re.sub(r"\s+", " ", stem).strip()
     return stem or _default_stem(cand, video_filename)

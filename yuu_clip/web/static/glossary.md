@@ -160,6 +160,12 @@ Fast export that copies the video without re-encoding. The clip may start or end
 ### Precise export
 Slower export that re-encodes the video to cut at the exact frame. Required when burning captions into the video or prepending a title card.
 
+### Export preset
+A named recipe for export — container, resolution, and bitrate — instead of exporting at original quality. Built-in presets include "YouTube 1080p" and "Discord (≤10 MB)"; you can also create your own in Settings → Export.
+
+### Format
+One of a clip's exported files. A clip can have more than one format at once (say, an original-quality export plus a Discord-sized one) — exporting with a new preset adds a format instead of replacing your existing one.
+
 ### Highlight reel
 A single video assembled from several approved clips, with optional transitions and title cards.
 

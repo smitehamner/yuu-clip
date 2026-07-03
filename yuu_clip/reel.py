@@ -16,7 +16,12 @@ import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
-from yuu_clip.export_naming import DEFAULT_EXPORT_NAME_TEMPLATE, export_base_stem
+from yuu_clip.export_naming import (
+    DEFAULT_EXPORT_NAME_TEMPLATE,
+    EXPORT_VIDEO_EXTENSIONS,
+    candidate_export_paths,
+    export_base_stem,
+)
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -271,6 +276,25 @@ def _compile_xfade_random(
     subprocess.run(_build_xfade_cmd(segments, durations, output, transitions, trans_dur), check=True)
 
 
+def _select_clip_export_file(clip, video, export_dir: Path, name_template: str) -> Optional[Path]:
+    """Pick one exported file for *clip* when several per-preset formats exist.
+
+    A clip can now have multiple exported formats (Export presets — Plan 07).
+    Prefers the default (presetless, original-quality) export so a reel always
+    uses that file when available; otherwise falls back to the most recently
+    modified preset format on disk. Deterministic so a reel build never
+    silently changes which format it uses between runs.
+    """
+    base = export_base_stem(clip, name_template, video_filename=video.filename)
+    default_file = next((p for p in candidate_export_paths(export_dir, base) if p.exists()), None)
+    if default_file is not None:
+        return default_file
+    preset_candidates = [p for p in export_dir.glob(f"{base}_*") if p.suffix in EXPORT_VIDEO_EXTENSIONS]
+    if not preset_candidates:
+        return None
+    return max(preset_candidates, key=lambda p: p.stat().st_mtime)
+
+
 def _resolve_clip_files(
     clips: list["ClipCandidate"],
     video_map: dict[int, "Video"],
@@ -287,13 +311,7 @@ def _resolve_clip_files(
     detected_fps: Optional[float] = None
     for clip in clips:
         video = video_map[clip.video_id]
-        base = export_base_stem(clip, name_template, video_filename=video.filename)
-        clip_file = next(
-            (export_dir / f"{base}{ext}"
-             for ext in (".mkv", ".mp4", ".mov", ".avi", ".webm")
-             if (export_dir / f"{base}{ext}").exists()),
-            None,
-        )
+        clip_file = _select_clip_export_file(clip, video, export_dir, name_template)
         if clip_file is None:
             raise FileNotFoundError(
                 f"Export not found for clip {clip.id} (tried .mkv/.mp4/.mov/.avi/.webm in {export_dir})\n"

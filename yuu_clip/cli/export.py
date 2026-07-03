@@ -150,19 +150,43 @@ def _update_clip_excerpt(cand, session, tx_ids: list[int]) -> None:
 
 def _build_export_path(
     cand, video_path: Path, container: Optional[str], exports_dir: Path, output: Optional[Path],
-    name_template: str = DEFAULT_EXPORT_NAME_TEMPLATE,
+    name_template: str = DEFAULT_EXPORT_NAME_TEMPLATE, preset_name: str = "default",
 ) -> tuple[str, Path]:
     """Return (base_stem, resolved_output_path) for an export clip.
 
     base_stem is used by the caller when writing SRT sidecars.
     output is the caller's --output override when provided; otherwise it is derived
-    from name_template and placed in exports_dir.
+    from name_template and placed in exports_dir. preset_name is "default" for a
+    plain export, else an Export preset id — see export_naming.export_base_stem
+    for how a non-default preset is folded into the filename.
     """
     suffix = f".{container.lstrip('.')}" if container else (video_path.suffix or ".mkv")
-    base   = export_base_stem(cand, name_template)
+    base   = export_base_stem(cand, name_template, preset=preset_name)
     if output is None:
         output = exports_dir / f"{base}{suffix}"
     return base, output
+
+
+def _record_clip_export(cand, session, preset_name: str, output_path: Path, settings: dict) -> None:
+    """Create or update this clip's clip_exports row for *preset_name*.
+
+    One row per (clip, preset_name): re-exporting the same preset updates the
+    existing row in place ("regenerate"); a different preset adds a new row.
+    Caller is responsible for session.commit() afterward.
+    """
+    from datetime import datetime, timezone
+
+    from yuu_clip.db.models import ClipExport
+
+    row = session.query(ClipExport).filter_by(clip_id=cand.id, preset_name=preset_name).first()
+    if row is None:
+        row = ClipExport(clip_id=cand.id, preset_name=preset_name)
+        session.add(row)
+    row.path = str(output_path.resolve())
+    row.container = output_path.suffix.lstrip(".")
+    row.created_at = datetime.now(timezone.utc)
+    row.settings = settings
+    row.size_bytes = output_path.stat().st_size if output_path.exists() else None
 
 
 def _apply_title_card(clip_path: Path, cand, output: Path) -> Path:
@@ -215,7 +239,7 @@ def _write_export_subs(cand, bake_captions: bool, embed_subs: bool, lines_to_srt
 def _finalize_export(cand, session, video_path: Path, output: Path, *,
                      precise: bool, title_card: bool, audio_stream_idx: Optional[int],
                      subtitle_path: Optional[Path], subtitle_track_path: Optional[Path],
-                     bake_captions: bool) -> None:
+                     bake_captions: bool, preset_name: str = "default") -> None:
     """Cut the clip, optionally prepend a title card, record the export on the clip row.
 
     Always deletes the temp subtitle files. Exits the CLI on ffmpeg failure.
@@ -246,6 +270,11 @@ def _finalize_export(cand, session, video_path: Path, output: Path, *,
         cand.exported_burn_subs = bake_captions
         cand.exported_embed_subs = subtitle_track_path is not None
         cand.exported_title_card = title_card
+        _record_clip_export(cand, session, preset_name, result, {
+            "burn_subs": bake_captions,
+            "embed_subs": subtitle_track_path is not None,
+            "title_card": title_card,
+        })
         session.commit()
     except RuntimeError as e:
         console.print(f"  [red]Export failed: {e}[/red]")

@@ -27,6 +27,7 @@ from yuu_clip.web.media import media_file_response
 from yuu_clip.web.routes._shared import (
     _active_job,
     _all_sidecar_paths,
+    _clip_export_row_files,
     _clip_stem,
     _delete_files,
     _json_list,
@@ -658,7 +659,10 @@ def _register_video_data_routes(router: APIRouter, ctx: ProjectContext) -> None:
             clips = db.query(ClipCandidate).filter_by(video_id=video_id).all()
             locked: list[Path] = []
             for clip in clips:
-                locked += _delete_files(_all_sidecar_paths(clip, video, ctx.export_dir, ctx.config.export_name_template))
+                locked += _delete_files([
+                    *_all_sidecar_paths(clip, video, ctx.export_dir, ctx.config.export_name_template),
+                    *_clip_export_row_files(clip),
+                ])
             if locked:
                 raise _locked_files_error(locked)
 

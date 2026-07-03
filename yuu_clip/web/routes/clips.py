@@ -15,7 +15,7 @@ from pydantic import BaseModel
 from sqlalchemy import case
 
 from yuu_clip.config import validate_whisper_model
-from yuu_clip.db.models import ClipCandidate, TranscriptSegment, Video
+from yuu_clip.db.models import ClipCandidate, ClipExport, TranscriptSegment, Video
 from yuu_clip.export_naming import DEFAULT_EXPORT_NAME_TEMPLATE
 from yuu_clip.log import get_logger
 from yuu_clip.web.deps import ProjectContext
@@ -23,6 +23,7 @@ from yuu_clip.web.media import media_file_response
 from yuu_clip.web.routes._shared import (
     _active_job,
     _all_sidecar_paths,
+    _clip_export_row_files,
     _delete_files,
     _export_paths,
     _locked_files_error,
@@ -150,6 +151,38 @@ def _export_stale(clip: ClipCandidate) -> tuple[bool, list[str]]:
     return bool(reasons), reasons
 
 
+def _row_export_stale(clip: ClipCandidate, row: ClipExport) -> tuple[bool, list[str]]:
+    """Per-format analogue of _export_stale, above: uses this row's own created_at
+    and recorded settings instead of the clip's single legacy exported_at/exported_*
+    snapshot, so each Export preset format gets its own independent stale flag."""
+    settings = row.settings
+    reasons: list[str] = []
+    if clip.trim_edited_at and clip.trim_edited_at > row.created_at:
+        reasons.append("clip window changed")
+    captions_in_file = bool(settings.get("burn_subs") or settings.get("embed_subs"))
+    if captions_in_file and clip.transcript_edited_at and clip.transcript_edited_at > row.created_at:
+        reasons.append("captions changed")
+    if settings.get("title_card") and clip.description_edited_at and clip.description_edited_at > row.created_at:
+        reasons.append("description changed")
+    return bool(reasons), reasons
+
+
+def _clip_export_row_dict(clip: ClipCandidate, row: ClipExport) -> dict:
+    stale, reasons = _row_export_stale(clip, row)
+    path = Path(row.path)
+    return {
+        "id": row.id,
+        "preset_name": row.preset_name,
+        "container": row.container,
+        "filename": path.name,
+        "created_at": row.created_at.isoformat() if row.created_at else None,
+        "size_bytes": row.size_bytes,
+        "exists": path.exists(),
+        "export_stale": stale,
+        "export_stale_reasons": reasons,
+    }
+
+
 def _clip_dict(
     clip: ClipCandidate,
     full: bool = False,
@@ -157,11 +190,12 @@ def _clip_dict(
     video: Optional[Video] = None,
     name_template: str = DEFAULT_EXPORT_NAME_TEMPLATE,
 ) -> dict:
+    export_rows = [_clip_export_row_dict(clip, row) for row in clip.exports]
     has_export = (
         export_dir is not None
         and video is not None
         and any(p.exists() for p in _export_paths(clip, video, export_dir, name_template))
-    )
+    ) or any(row["exists"] for row in export_rows)
     export_stale, export_stale_reasons = _export_stale(clip) if has_export else (False, [])
     d = {
         "id": clip.id,
@@ -203,6 +237,7 @@ def _clip_dict(
         "transcript_stale": _transcript_stale(clip, video),
         "export_stale": export_stale,
         "export_stale_reasons": export_stale_reasons,
+        "exports": export_rows,
     }
     if full:
         d["transcript_excerpt"] = clip.transcript_excerpt or ""
@@ -494,8 +529,11 @@ def _register_clip_routes(router: APIRouter, ctx: ProjectContext) -> None:
 
     @router.get("/api/clips/{clip_id}/export-files")
     def clip_export_files(clip_id: int):
-        """Filenames the user should get when downloading this clip's export: the
-        video file plus any SRT caption sidecars on disk (all under /media/exports/)."""
+        """Filenames the user should get when downloading this clip's export: every
+        clip_exports row's video file, plus any SRT caption sidecars on disk (all
+        under /media/exports/). Falls back to the legacy default-stem glob for a
+        file that exists on disk but has no clip_exports row yet (a project not
+        yet backfilled, or a row deleted without deleting its file)."""
         db = ctx.get_db()
         try:
             clip = _require_clip(db, clip_id)
@@ -503,11 +541,17 @@ def _register_clip_routes(router: APIRouter, ctx: ProjectContext) -> None:
             if not video:
                 raise HTTPException(404, "Video not found")
             files: list[str] = []
-            video_export = next(
-                (p for p in _export_paths(clip, video, ctx.export_dir, ctx.config.export_name_template) if p.exists()), None
+            seen_names: set[str] = set()
+            for row_path in _clip_export_row_files(clip):
+                if row_path.name not in seen_names:
+                    files.append(row_path.name)
+                    seen_names.add(row_path.name)
+            legacy_export = next(
+                (p for p in _export_paths(clip, video, ctx.export_dir, ctx.config.export_name_template)
+                 if p.exists() and p.name not in seen_names), None
             )
-            if video_export:
-                files.append(video_export.name)
+            if legacy_export:
+                files.append(legacy_export.name)
             files.extend(p.name for p in _srt_sidecar_paths(clip, video, ctx.export_dir, ctx.config.export_name_template))
             return {"files": files}
         finally:
@@ -598,17 +642,49 @@ def _register_clip_routes(router: APIRouter, ctx: ProjectContext) -> None:
 def _register_delete_routes(router: APIRouter, ctx: ProjectContext) -> None:
     @router.delete("/api/clips/{clip_id}/export")
     def delete_clip_export(clip_id: int):
-        """Delete the exported file(s) for a clip from disk; keeps the clip record."""
+        """Delete every exported format for a clip from disk; keeps the clip record.
+
+        Per-format deletion (keeping the clip's other formats) is
+        DELETE /api/clip-exports/{export_id} below.
+        """
         db = ctx.get_db()
         try:
             clip = _require_clip(db, clip_id)
             video = db.get(Video, clip.video_id)
-            targets = [p for p in _all_sidecar_paths(clip, video, ctx.export_dir, ctx.config.export_name_template) if p.exists()]
+            targets = [
+                *(p for p in _all_sidecar_paths(clip, video, ctx.export_dir, ctx.config.export_name_template) if p.exists()),
+                *_clip_export_row_files(clip),
+            ]
+            targets = list(dict.fromkeys(targets))  # de-dupe, preserve order
             locked = _delete_files(targets)
             if locked:
                 raise _locked_files_error(locked)
+            for row in list(clip.exports):
+                db.delete(row)
+            db.commit()
             _log.info("Cleared export for clip %d (%d file(s))", clip_id, len(targets))
             return {"clip_id": clip_id, "files_deleted": len(targets)}
+        finally:
+            db.close()
+
+    @router.delete("/api/clip-exports/{export_id}")
+    def delete_clip_export_row(export_id: int):
+        """Delete one exported format (its file + row) but keep the clip's other formats."""
+        db = ctx.get_db()
+        try:
+            row = db.get(ClipExport, export_id)
+            if not row:
+                raise HTTPException(404, "Export not found")
+            path = Path(row.path)
+            if path.exists():
+                locked = _delete_files([path])
+                if locked:
+                    raise _locked_files_error(locked)
+            clip_id = row.clip_id
+            db.delete(row)
+            db.commit()
+            _log.info("Deleted export %d (preset=%s) for clip %d", export_id, row.preset_name, clip_id)
+            return {"export_id": export_id, "clip_id": clip_id}
         finally:
             db.close()
 
@@ -621,11 +697,14 @@ def _register_delete_routes(router: APIRouter, ctx: ProjectContext) -> None:
             video = db.get(Video, clip.video_id)
             video_id = clip.video_id
 
-            locked = _delete_files(_all_sidecar_paths(clip, video, ctx.export_dir, ctx.config.export_name_template))
+            locked = _delete_files([
+                *_all_sidecar_paths(clip, video, ctx.export_dir, ctx.config.export_name_template),
+                *_clip_export_row_files(clip),
+            ])
             if locked:
                 raise _locked_files_error(locked)
 
-            db.delete(clip)
+            db.delete(clip)  # cascades clip_exports rows via the ORM relationship
             db.commit()
             _log.info("Deleted clip %d from video %d", clip_id, video_id)
             return {"deleted": clip_id, "video_id": video_id}
@@ -811,7 +890,10 @@ def _register_bulk_routes(router: APIRouter, ctx: ProjectContext) -> None:
             locked_ids: list[int] = []
             for clip in clips:
                 video = db.get(Video, clip.video_id)
-                locked = _delete_files(_all_sidecar_paths(clip, video, ctx.export_dir, ctx.config.export_name_template))
+                locked = _delete_files([
+                    *_all_sidecar_paths(clip, video, ctx.export_dir, ctx.config.export_name_template),
+                    *_clip_export_row_files(clip),
+                ])
                 if locked:
                     locked_ids.append(clip.id)
                     continue
@@ -957,8 +1039,18 @@ def _register_clip_edit_routes(router: APIRouter, ctx: ProjectContext) -> None:
             clip_a.exported_title_card = None
 
             video = db.get(Video, clip_a.video_id)
-            _delete_files(_all_sidecar_paths(clip_b, video, ctx.export_dir, ctx.config.export_name_template))
-            _delete_files(_all_sidecar_paths(clip_a, video, ctx.export_dir, ctx.config.export_name_template))
+            _delete_files([
+                *_all_sidecar_paths(clip_b, video, ctx.export_dir, ctx.config.export_name_template),
+                *_clip_export_row_files(clip_b),
+            ])
+            _delete_files([
+                *_all_sidecar_paths(clip_a, video, ctx.export_dir, ctx.config.export_name_template),
+                *_clip_export_row_files(clip_a),
+            ])
+            # clip_b's rows cascade with its delete below; clip_a keeps its id but its
+            # merged window invalidates every format it had, same as the legacy fields above.
+            for row in list(clip_a.exports):
+                db.delete(row)
             db.delete(clip_b)
             db.commit()
 

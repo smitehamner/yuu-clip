@@ -64,6 +64,8 @@ Most lookups only need this table: the authoritative user-facing term, the code 
 | Context ID | `context_slug` | URL-safe identifier — not "slug" in UI |
 | Last scored with | `*_context_json` | Contexts active at last scoring — not "provenance" in UI |
 | Export | `export_clip()` | Save one clip to a file |
+| Export preset | `ExportPreset`, `export_presets` | Named container/resolution/bitrate recipe for export ("YouTube 1080p", "Discord (≤10 MB)", or a custom one) |
+| Format | `ClipExport` (one row per clip+preset) | One of a clip's exported files — a clip can have several, one per Export preset used |
 | Quick export | `stream_copy=True` | Keyframe-aligned, no re-encode — not "stream copy" in UI |
 | Precise export | `reencode=True` | Frame-accurate re-encode; needed for baked-in captions or a title card |
 | Captions | `subtitles`, SRT/VTT | Sidecar or baked-in — not "subtitles" in UI |
@@ -634,6 +636,42 @@ Export mode that copies audio and video without re-encoding, cutting at the near
 - **Also called in codebase:** "stream copy", "keyframe-aligned"
 - **Do not call it:** "stream copy" in user-facing text
 - **Notes:** Fast (seconds). The clip may start/end up to ~1 second off the exact requested time — acceptable for most uses.
+
+---
+
+### Export Preset
+
+A named recipe of container/resolution/bitrate settings a creator picks instead
+of exporting at original quality — e.g. to fit a platform's upload limits.
+
+- **Code:** `ExportPreset` (`yuu_clip/export_presets.py`), `export_presets` (custom
+  presets, stored in global config — they're a user preference, not project data)
+- **Built-ins:** "YouTube 1080p" (`youtube-1080p`) and "Discord (≤10 MB)"
+  (`discord-10mb`) — always available, not editable
+- **UI label:** "Export preset" dropdown in the export options; "Original quality"
+  for the presetless default; custom-preset editor in Settings → Export
+- **Do not call it:** "profile" — collides with **Track Layout**
+- **Notes:** A 9:16 vertical preset is deliberately deferred until a vertical-crop
+  tool exists. A preset export always re-encodes (no Quick Export path).
+
+---
+
+### Format
+
+One of a clip's exported files — the per-preset counterpart to a plain **Export**.
+A clip can have several formats at once (e.g. an original-quality export plus a
+Discord-sized one); re-exporting the same Export preset replaces that format's
+file, a different preset adds another.
+
+- **Code:** `ClipExport` (`clip_exports` table — one row per clip + preset_name)
+- **UI label:** one row per format in the clip detail's Export section (preset
+  label, container, size, date) with per-row Download / Show in folder / Copy
+  path / Regenerate / Delete; "Exported ×2" on the sidebar pill when a clip has
+  more than one format
+- **Notes:** The original one-row-per-clip export columns
+  (`exported_at`/`exported_container`/`exported_burn_subs`/…) stay in place
+  alongside this table for now (they still drive the sidebar pill and aggregate
+  "exported" counts) — retiring them is a separate follow-up.
 
 ---
 

@@ -1099,3 +1099,216 @@ class TestExportStaleness:
         detail = client.get(f"/api/clips/{clip['id']}").json()
         assert detail["has_export"] is False
         assert detail["export_stale"] is False
+
+
+# ---------------------------------------------------------------------------
+# clip_exports rows — Plan 07 Stage 1 (one-row-per-format export tracking).
+# ---------------------------------------------------------------------------
+
+class TestClipExportRows:
+    def _first_clip(self, client):
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        return client.get(f"/api/videos/{vid_id}/clips").json()[0]
+
+    def _write_export_file(self, project_dir: Path, name: str) -> Path:
+        p = project_dir / ".yuu-clip" / "exports" / name
+        p.write_bytes(b"fake video payload")
+        return p
+
+    def _record(self, project_dir: Path, clip_id: int, preset_name: str, filename: str):
+        from yuu_clip.cli.export import _record_clip_export
+
+        path = self._write_export_file(project_dir, filename)
+        db = make_session(project_dir / ".yuu-clip" / "project.db")
+        clip = db.get(ClipCandidate, clip_id)
+        _record_clip_export(clip, db, preset_name, path, {"burn_subs": False, "embed_subs": False, "title_card": False})
+        db.commit()
+        db.close()
+        return path
+
+    def test_export_creates_a_row(self, client, project_dir):
+        clip = self._first_clip(client)
+        self._record(project_dir, clip["id"], "default", "session_clip1_0-00.mkv")
+
+        detail = client.get(f"/api/clips/{clip['id']}").json()
+        assert len(detail["exports"]) == 1
+        assert detail["exports"][0]["preset_name"] == "default"
+        assert detail["has_export"] is True
+
+    def test_same_preset_reexport_replaces_the_row(self, client, project_dir):
+        clip = self._first_clip(client)
+        self._record(project_dir, clip["id"], "youtube-1080p", "session_clip1_0-00_youtube-1080p.mp4")
+        first = client.get(f"/api/clips/{clip['id']}").json()["exports"][0]
+
+        self._record(project_dir, clip["id"], "youtube-1080p", "session_clip1_0-00_youtube-1080p.mp4")
+        detail = client.get(f"/api/clips/{clip['id']}").json()
+
+        assert len(detail["exports"]) == 1
+        assert detail["exports"][0]["id"] == first["id"]  # same row, updated in place
+
+    def test_different_preset_adds_a_row(self, client, project_dir):
+        clip = self._first_clip(client)
+        self._record(project_dir, clip["id"], "default", "session_clip1_0-00.mkv")
+        self._record(project_dir, clip["id"], "youtube-1080p", "session_clip1_0-00_youtube-1080p.mp4")
+
+        detail = client.get(f"/api/clips/{clip['id']}").json()
+        assert len(detail["exports"]) == 2
+        assert {e["preset_name"] for e in detail["exports"]} == {"default", "youtube-1080p"}
+
+    def test_per_row_delete_removes_only_its_file(self, client, project_dir):
+        clip = self._first_clip(client)
+        default_path = self._record(project_dir, clip["id"], "default", "session_clip1_0-00.mkv")
+        self._record(project_dir, clip["id"], "youtube-1080p", "session_clip1_0-00_youtube-1080p.mp4")
+        detail = client.get(f"/api/clips/{clip['id']}").json()
+        default_export_id = next(e["id"] for e in detail["exports"] if e["preset_name"] == "default")
+
+        res = client.delete(f"/api/clip-exports/{default_export_id}")
+        assert res.status_code == 200
+        assert not default_path.exists()
+
+        detail = client.get(f"/api/clips/{clip['id']}").json()
+        assert len(detail["exports"]) == 1
+        assert detail["exports"][0]["preset_name"] == "youtube-1080p"
+
+    def test_per_row_delete_unknown_id_404s(self, client):
+        assert client.delete("/api/clip-exports/999999").status_code == 404
+
+    def test_clip_delete_cascades_rows_and_files(self, client, project_dir):
+        clip = self._first_clip(client)
+        default_path = self._record(project_dir, clip["id"], "default", "session_clip1_0-00.mkv")
+        preset_path = self._record(project_dir, clip["id"], "youtube-1080p", "session_clip1_0-00_youtube-1080p.mp4")
+
+        res = client.delete(f"/api/clips/{clip['id']}")
+        assert res.status_code == 200
+        assert not default_path.exists()
+        assert not preset_path.exists()
+
+        db = make_session(project_dir / ".yuu-clip" / "project.db")
+        from yuu_clip.db.models import ClipExport
+        assert db.query(ClipExport).filter_by(clip_id=clip["id"]).count() == 0
+        db.close()
+
+    def test_export_files_route_lists_every_format(self, client, project_dir):
+        clip = self._first_clip(client)
+        self._record(project_dir, clip["id"], "default", "session_clip1_0-00.mkv")
+        self._record(project_dir, clip["id"], "youtube-1080p", "session_clip1_0-00_youtube-1080p.mp4")
+
+        files = client.get(f"/api/clips/{clip['id']}/export-files").json()["files"]
+        assert "session_clip1_0-00.mkv" in files
+        assert "session_clip1_0-00_youtube-1080p.mp4" in files
+
+    def test_delete_all_exports_clears_every_row(self, client, project_dir):
+        clip = self._first_clip(client)
+        default_path = self._record(project_dir, clip["id"], "default", "session_clip1_0-00.mkv")
+        preset_path = self._record(project_dir, clip["id"], "youtube-1080p", "session_clip1_0-00_youtube-1080p.mp4")
+
+        res = client.delete(f"/api/clips/{clip['id']}/export")
+        assert res.status_code == 200
+        assert not default_path.exists()
+        assert not preset_path.exists()
+        assert client.get(f"/api/clips/{clip['id']}").json()["exports"] == []
+
+
+class TestClipExportBackfillMigration:
+    """The one-time migration that backfills clip_exports from legacy exported_at
+    (Plan 07 Stage 1) — see db.models._backfill_clip_exports."""
+
+    def test_backfills_a_legacy_export_on_first_load(self, project_dir):
+        exports_dir = project_dir / ".yuu-clip" / "exports"
+        db_path = project_dir / ".yuu-clip" / "project.db"
+
+        db = make_session(db_path)
+        clip = db.query(ClipCandidate).order_by(ClipCandidate.id).first()
+        stem = f"session_clip{clip.id}_{clip.start_hms.replace(':', '-')}"
+        (exports_dir / f"{stem}.mkv").write_bytes(b"legacy export")
+        clip.exported_at = datetime.now(timezone.utc)
+        clip.exported_container = "mkv"
+        db.commit()
+        clip_id = clip.id
+        db.close()
+
+        # Re-opening the session (make_session -> make_engine) re-runs the backfill.
+        db = make_session(db_path)
+        from yuu_clip.db.models import ClipExport
+        rows = db.query(ClipExport).filter_by(clip_id=clip_id, preset_name="default").all()
+        assert len(rows) == 1
+        assert rows[0].path.endswith(f"{stem}.mkv")
+        db.close()
+
+    def test_backfill_is_idempotent_across_repeated_loads(self, project_dir):
+        exports_dir = project_dir / ".yuu-clip" / "exports"
+        db_path = project_dir / ".yuu-clip" / "project.db"
+
+        db = make_session(db_path)
+        clip = db.query(ClipCandidate).order_by(ClipCandidate.id).first()
+        stem = f"session_clip{clip.id}_{clip.start_hms.replace(':', '-')}"
+        (exports_dir / f"{stem}.mkv").write_bytes(b"legacy export")
+        clip.exported_at = datetime.now(timezone.utc)
+        db.commit()
+        clip_id = clip.id
+        db.close()
+
+        make_session(db_path).close()
+        make_session(db_path).close()
+
+        db = make_session(db_path)
+        from yuu_clip.db.models import ClipExport
+        assert db.query(ClipExport).filter_by(clip_id=clip_id, preset_name="default").count() == 1
+        db.close()
+
+    def test_skips_a_legacy_export_whose_file_is_missing(self, project_dir):
+        db_path = project_dir / ".yuu-clip" / "project.db"
+
+        db = make_session(db_path)
+        clip = db.query(ClipCandidate).order_by(ClipCandidate.id).first()
+        clip.exported_at = datetime.now(timezone.utc)  # no file written on disk
+        db.commit()
+        clip_id = clip.id
+        db.close()
+
+        db = make_session(db_path)
+        from yuu_clip.db.models import ClipExport
+        assert db.query(ClipExport).filter_by(clip_id=clip_id).count() == 0
+        db.close()
+
+
+class TestExportBaseStemPreset:
+    """{preset} filename placeholder and the automatic "_{preset}" collision-safety
+    suffix for non-default presets (export_naming.export_base_stem)."""
+
+    def _cand(self, clip_id=1, start_hms="0:15", score=0.8, video_filename="session.mkv"):
+        return SimpleNamespace(
+            id=clip_id, start_hms=start_hms, end_ms=90_000, score_overall=score,
+            video=SimpleNamespace(filename=video_filename),
+        )
+
+    def test_default_preset_is_unchanged_from_pre_plan07_naming(self):
+        from yuu_clip.export_naming import DEFAULT_EXPORT_NAME_TEMPLATE, export_base_stem
+        cand = self._cand()
+        assert (
+            export_base_stem(cand, DEFAULT_EXPORT_NAME_TEMPLATE)
+            == export_base_stem(cand, DEFAULT_EXPORT_NAME_TEMPLATE, preset="default")
+        )
+
+    def test_non_default_preset_appends_suffix(self):
+        from yuu_clip.export_naming import DEFAULT_EXPORT_NAME_TEMPLATE, export_base_stem
+        cand = self._cand()
+        base = export_base_stem(cand, DEFAULT_EXPORT_NAME_TEMPLATE)
+        with_preset = export_base_stem(cand, DEFAULT_EXPORT_NAME_TEMPLATE, preset="youtube-1080p")
+        assert with_preset == f"{base}_youtube-1080p"
+
+    def test_preset_placeholder_renders_directly(self):
+        from yuu_clip.export_naming import export_base_stem
+        cand = self._cand()
+        stem = export_base_stem(cand, "{video}_{preset}", preset="discord-10mb")
+        assert stem == "session_discord-10mb"
+        # Template already used {preset} — no double suffix appended.
+        assert not stem.endswith("discord-10mb_discord-10mb")
+
+    def test_two_presets_never_collide(self):
+        from yuu_clip.export_naming import DEFAULT_EXPORT_NAME_TEMPLATE, export_base_stem
+        cand = self._cand()
+        a = export_base_stem(cand, DEFAULT_EXPORT_NAME_TEMPLATE, preset="youtube-1080p")
+        b = export_base_stem(cand, DEFAULT_EXPORT_NAME_TEMPLATE, preset="discord-10mb")
+        default = export_base_stem(cand, DEFAULT_EXPORT_NAME_TEMPLATE)
+        assert len({a, b, default}) == 3
