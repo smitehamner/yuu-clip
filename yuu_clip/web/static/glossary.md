@@ -156,3 +156,6 @@ A single video assembled from several approved clips, with optional transitions 
 
 ### Title card
 A short text card shown between clips in a highlight reel, naming what's coming next.
+
+### Stale export
+A "Stale — re-export to update" badge means the file you already exported no longer matches the clip — its captions, trim, or description changed since you exported it. Re-export (or rebuild the highlight reel) to bring the file up to date. Plain exports without burned-in captions aren't marked stale just because captions were edited, since the video itself didn't change.

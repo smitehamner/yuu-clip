@@ -63,6 +63,7 @@ Most lookups only need this table: the authoritative user-facing term, the code 
 | Captions | `subtitles`, SRT/VTT | Sidecar or baked-in — not "subtitles" in UI |
 | Highlight reel | `demo_reel`, `build_reel()` | Compiled video from approved clips — not "demo reel" in UI |
 | Title card | `title_card` | Text overlay between reel clips |
+| Stale export | `export_stale` | An exported file no longer reflects the clip's current captions/window/description — needs re-export |
 | Project folder | `project_dir` | The hidden `.yuu-clip/` directory |
 | Preview proxy | `proxy`, `proxy_path` | Cached 720p copy of a recording used for fast in-app playback; badge reads "Preview quality (720p)" |
 | Theme | `data-theme`, `applyTheme()` | App color scheme (Dark / Light / High contrast) — not "skin" or "dark mode" |
@@ -603,6 +604,26 @@ A brief text overlay that appears between clips in a highlight reel, identifying
 
 - **Code:** `title_card`, `title_dur`
 - **UI label:** "Title cards" option in reel builder
+
+---
+
+### Stale Export
+
+A previously exported artifact (clip file or highlight reel) no longer reflects the clip's
+current captions, clip window (trim), or description — the source changed after the last
+export/build, so the file on disk is out of date. Distinct from the "Last Scored With"
+staleness warning above, which is about scores/descriptions vs. world contexts, not files.
+
+- **Code:** `export_stale`, `export_stale_reasons`, `ClipCandidate.trim_edited_at`,
+  `ClipCandidate.description_edited_at`
+- **UI label:** "Stale — re-export to update" badge on the export status pill; "Stale —
+  rebuild to update" on a highlight reel row
+- **Notes:** Cheap text artifacts (transcript excerpt, SRT sidecar) auto-refresh instead of
+  going stale. Only expensive encoded artifacts (the exported video file, a highlight reel)
+  show a stale badge — they are never silently rebuilt. A plain-cut export is not marked
+  stale by a caption edit alone, since the raw video is unaffected; it is stale when
+  captions are baked/embedded, when the trim window changed, or (for a title-card export)
+  when the description changed.
 
 ---
 
