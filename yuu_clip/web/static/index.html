@@ -390,6 +390,20 @@
     <button type="button" class="btn-secondary" onclick="addHotwordRow()" style="margin-top:4px">+ Add hot-word</button>
   </div>
 
+  <!-- Sensitive Content section -->
+  <div class="settings-section" id="settings-sec-sensitive">
+    <div class="settings-section-title">Sensitive Content</div>
+    <div class="settings-note" style="margin-bottom:8px">
+      Flag clips containing names, personal info, or language you want to catch before sharing —
+      kept completely separate from scoring, so it never changes a clip's score, only warns.
+      <strong>Privacy Terms</strong> are names or personal info you don't want in shared clips;
+      <strong>Censor Words</strong> are language to flag before posting to restricted platforms.
+      Saved instantly and applied to every clip right away.
+    </div>
+    <div id="s-sensitive-rows"></div>
+    <button type="button" class="btn-secondary" onclick="addSensitiveTermRow()" style="margin-top:4px">+ Add Sensitive Term</button>
+  </div>
+
   <!-- Analysis defaults section -->
   <div class="settings-section" id="settings-sec-analysis">
     <div class="settings-section-title">Analysis defaults <span style="font-size:11px;font-weight:400;color:var(--muted)">(pre-filled in Analyze modal)</span></div>
@@ -654,6 +668,7 @@
         <button class="clip-chip"        aria-pressed="false" data-filter="exported"     onclick="toggleClipFilter('exported')">Exported</button>
         <button class="clip-chip"        aria-pressed="false" data-filter="not-exported" onclick="toggleClipFilter('not-exported')">Not exported</button>
         <button class="clip-chip"        aria-pressed="false" data-filter="error"        onclick="toggleClipFilter('error')" title="Clips whose LLM scoring failed">&#9888; Score error</button>
+        <button class="clip-chip"        aria-pressed="false" data-filter="flagged"      onclick="toggleClipFilter('flagged')" title="Clips containing a Sensitive Terms match">&#9888; Flagged</button>
       </div>
       <div class="clip-bulk-toolbar" id="clip-bulk-toolbar" style="display:none">
         <span id="clip-bulk-count">0 selected</span>
@@ -1555,6 +1570,7 @@
 <script src="/static/settings.js"></script>
 <script src="/static/sounds.js"></script>
 <script src="/static/hotwords.js"></script>
+<script src="/static/sensitive.js"></script>
 <script src="/static/split.js"></script>
 <script src="/static/speakers.js"></script>
 <script src="/static/transcript.js"></script>

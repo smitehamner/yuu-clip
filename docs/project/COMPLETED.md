@@ -6,6 +6,46 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) — see the
 
 ---
 
+## Sensitive content detection (done, 2026-07-03)
+
+Roadmap plan 06 (`docs/dev/plans/roadmap-2026-07/06-sensitive-content.md`), built on
+top of Plan 03's shared `yuu_clip/scoring/textmatch.py` — kept entirely separate from
+Hot-words: warning/flag only, never touches a clip's score.
+
+- **Fuzzy matching** — `textmatch.find_fuzzy_matches()` adds a "Close spelling" mode:
+  rapidfuzz (MIT) `partial_ratio` over a sliding, non-overlapping window of transcript
+  words sized to the term's word count, threshold 85, minimum term length 4 (shorter
+  terms are too noisy — enforced both client-side and server-side with an explanation).
+  `Match.matched_text` records what actually tripped the flag (e.g. "Jonh" for term
+  "John") for fuzzy hits; exact/case-insensitive hits just echo the term.
+- **Backend** — new `SensitiveTerm` table (`term`, `category`: privacy/censor,
+  `match_mode`: exact/case_insensitive/fuzzy, `enabled`) and
+  `ClipCandidate.sensitive_matches_json`. `apply_sensitive_scan()`
+  (`scoring/engine.py`) runs as a `ScoringEngine.score_clip` post-step next to the
+  hot-word boost, scanning the transcript excerpt (speaker prefixes stripped) and both
+  description fields — each scanned separately so a multi-word term can't spuriously
+  match across a field boundary. CRUD at `/api/sensitive-terms`
+  (`routes/sensitive.py`) triggers an immediate synchronous project-wide rescan on every
+  save/delete (text-only, no LLM call), returning `clips_scanned`/`clips_flagged`; a
+  manual per-video `POST /api/videos/{id}/sensitive-rescan` covers the case where a
+  clip's transcript changes without a term-list edit (mirrors hot-word-rescan). Term
+  text is treated as PII throughout — never logged, only counts/ids.
+- **Frontend** — new `yuu_clip/web/static/sensitive.js` (mirrors `hotwords.js`'s
+  per-row save model) backing a new "Sensitive Content" Settings section; a warning
+  badge on flagged sidebar clip cards; a "Flagged terms" detail-panel card with
+  category-colored chips (Privacy/Censor); a `Flagged` filter tab alongside
+  All/Unreviewed/Approved/Rejected, with a dedicated empty state pointing to Settings
+  when the term list is empty.
+- **Glossary** — added **Sensitive Terms**, **Privacy Term**, **Censor Word**, and
+  **Flagged** (`docs/dev/GLOSSARY.md` and the in-app `glossary.md` subset).
+- **Tests** — `tests/test_sensitive.py` (fuzzy matcher incl. the non-overlapping-window
+  regression guard, `apply_sensitive_scan`, no-score-impact and hot-word-independence
+  ScoringEngine integration, CRUD validation, save-triggers-rescan, logging-safety via
+  `caplog`); `tests/test_ui_sensitive.py` (Settings CRUD, client-side fuzzy-length
+  guard, sidebar badge, Flagged tab incl. empty state, detail-panel category chips).
+
+---
+
 ## Manual clip creation (done, 2026-07-03)
 
 Roadmap plan 05 (`docs/dev/plans/roadmap-2026-07/05-manual-clip-creation.md`), the second

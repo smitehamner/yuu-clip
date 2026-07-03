@@ -9,6 +9,7 @@ function _applyFilters() {
     if (f.has('exported') && !f.has('not-exported')) result = result.filter(c => c.has_export);
     else if (f.has('not-exported') && !f.has('exported')) result = result.filter(c => !c.has_export);
     if (f.has('error')) result = result.filter(c => (c.tags || []).includes('llm_error'));
+    if (f.has('flagged')) result = result.filter(c => (c.sensitive_matches || []).length > 0);
   }
   if (AppState.clipScoreMin > 0) result = result.filter(c => c.score_overall >= AppState.clipScoreMin);
   if (AppState.clipSearch) {
@@ -202,7 +203,11 @@ function _renderClipItems(clips) {
   if (!clips.length) {
     const _statusLabel = {pending: 'Unreviewed', approved: 'Approved', rejected: 'Rejected'};
     const hasActiveFilter = AppState.clipFilters.size > 0 || AppState.clipSearch || AppState.clipScoreMin > 0;
-    const filterMsg = hasActiveFilter
+    const isFlaggedOnly = AppState.clipFilters.size === 1 && AppState.clipFilters.has('flagged') &&
+      !AppState.clipSearch && AppState.clipScoreMin === 0;
+    const filterMsg = isFlaggedOnly
+      ? `No flagged clips — add Sensitive Terms in <a href="#" style="color:var(--accent);text-decoration:underline" onclick="event.preventDefault();openSettings()">Settings</a>`
+      : hasActiveFilter
       ? `No clips match the current filters — <a href="#" style="color:var(--accent);text-decoration:underline" onclick="event.preventDefault();_clearClipFilters()">Clear filters</a>`
       : `No clips found — <a href="#" style="color:var(--accent);text-decoration:underline" onclick="event.preventDefault();openNewRecordingPanel()">Analyze another recording</a>`;
     list.innerHTML = `<li style="padding:10px 14px;color:var(--muted)">${filterMsg}</li>`;
@@ -226,6 +231,7 @@ function _renderClipItems(clips) {
               : '<span class="export-pill is-exported" title="Clip has been exported">Exported</span>')
           : '<span class="export-pill not-exported" title="Not yet exported">Not exported</span>'}
         <span class="status-dot dot-${c.status}" title="${c.status === 'approved' ? 'Approved' : c.status === 'rejected' ? 'Rejected' : 'Unreviewed'}">${c.status === 'approved' ? '✓' : c.status === 'rejected' ? '✕' : ''}</span>
+        ${(c.sensitive_matches || []).length ? '<span class="clip-flag-badge" title="Contains flagged terms">&#9888;</span>' : ''}
       </div>
       <div class="clip-scores" aria-label="${c.scored_at ? `Scores: overall ${Math.round(c.score_overall*100)}%, funny ${Math.round(c.score_funny*100)}%, dramatic ${Math.round(c.score_dramatic*100)}%, action ${Math.round(c.score_action*100)}%` : 'Not yet scored'}">
         ${c.scored_at ? `
@@ -437,6 +443,7 @@ function renderDetail(clip) {
     </div>
 
     ${_hotwordDetailHTML(clip)}
+    ${_sensitiveDetailHTML(clip)}
 
     <div class="detail-cards-row">
       <div class="detail-card">
@@ -529,6 +536,27 @@ function _hotwordDetailHTML(clip) {
             <span style="color:var(--muted)"> — ${escHtml(_HOTWORD_MODE_LABELS[m.mode] || m.mode)}${m.count > 1 ? `, ${m.count}×` : ''}</span>
           </div>`).join('')}
         ${boostLine ? `<div style="color:var(--muted);font-size:11px;margin-top:2px">Boost applied: ${escHtml(boostLine)}</div>` : ''}
+      </div>
+    </div>`;
+}
+
+// ── sensitive content (Privacy Terms / Censor Words) ────────────────────────
+const _SENSITIVE_CATEGORY_LABELS = {privacy: 'Privacy Term', censor: 'Censor Word'};
+const _SENSITIVE_MODE_LABELS = {exact: 'Exact', case_insensitive: 'Ignore case', fuzzy: 'Close spelling'};
+
+function _sensitiveDetailHTML(clip) {
+  const matches = clip.sensitive_matches;
+  if (!matches || !matches.length) return '';
+  return `
+    <div class="detail-card">
+      <div class="detail-card-header"><span class="detail-card-title">Flagged terms</span></div>
+      <div style="display:flex;flex-direction:column;gap:4px;font-size:12px">
+        ${matches.map(m => `
+          <div>
+            <span class="sensitive-category sensitive-category-${m.category}">${escHtml(_SENSITIVE_CATEGORY_LABELS[m.category] || m.category)}</span>
+            <strong>${escHtml(m.matched_text)}</strong>
+            <span style="color:var(--muted)"> — ${escHtml(_SENSITIVE_MODE_LABELS[m.mode] || m.mode)}${m.count > 1 ? `, ${m.count}×` : ''}</span>
+          </div>`).join('')}
       </div>
     </div>`;
 }

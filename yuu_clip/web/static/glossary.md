@@ -118,6 +118,9 @@ Extra scoring and description writing done by a local language model that reads 
 ### Hot-word
 A phrase you define that nudges a clip's score when it's spoken in the clip — for example, boosting Funny whenever a running gag's catchphrase comes up. Set up hot-words in Settings: pick a match mode (**Exact**, **Ignore case**, or **Meaning (LLM)**), a boost amount, and which score it affects. Exact/Ignore-case matches apply automatically; **Meaning (LLM)** entries need you to press **Scan** on a recording. Saying a phrase twice in one clip only counts once.
 
+### Sensitive Terms
+Names, personal info, or language you want flagged in clips — kept completely separate from scoring, so it never changes a clip's score. Two categories: **Privacy Terms** (names or personal info you don't want in shared clips) and **Censor Words** (language to flag before posting to restricted platforms). Set up in Settings, with a match mode per term (**Exact**, **Ignore case**, or **Close spelling** for catching misspellings). A flagged clip shows a warning badge and appears under the **Flagged** filter tab.
+
 ---
 
 ## Descriptions & Summaries

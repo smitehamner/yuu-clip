@@ -341,6 +341,22 @@ A phrase counts once per clip no matter how many times it's repeated. Matched ph
 pills on the clip's sidebar card (or a `🔥 N` count once there are more than three), with the
 full list plus the boost actually applied in the clip detail view.
 
+### Sensitive Content
+
+Settings → Sensitive Content lets you flag clips containing names, personal info, or language you
+want to catch before sharing — kept completely separate from scoring: it only warns, never changes
+a clip's score. Two categories:
+
+- **Privacy Terms** — names or personal info you don't want in shared clips.
+- **Censor Words** — language to flag before posting to restricted platforms.
+
+Each term has a match mode: **Exact**, **Ignore case**, or **Close spelling** (catches
+misspellings/mishearings, e.g. "Jonh" for "John" — requires a term of at least 4 characters).
+Saving or deleting a term instantly rescans every clip in the project (text-only, no LLM call).
+A flagged clip shows a warning badge on its sidebar card and a "Flagged terms" section (with the
+matched text and category) in the detail view; the **Flagged** filter tab in the clip list shows
+only flagged clips.
+
 ---
 
 ## Export

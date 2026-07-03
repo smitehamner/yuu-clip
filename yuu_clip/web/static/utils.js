@@ -11,6 +11,8 @@ const AppState = {
   contexts:            [],
   hotWords:            [],
   _hotWordsLoaded:     false,
+  sensitiveTerms:      [],
+  _sensitiveTermsLoaded: false,
   analyzeFilename:     null,
   editingContextId:    null,
   clipFilters:         new Set(),  // active filter tokens; empty = show all

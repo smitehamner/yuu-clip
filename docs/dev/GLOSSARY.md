@@ -49,6 +49,10 @@ Most lookups only need this table: the authoritative user-facing term, the code 
 | Score | `score_overall`, `score_funny`, … | 0–1 rating per dimension |
 | Scoring dimension | `funny`, `dramatic`, `action` | The three axes |
 | Hot-word | `hot_words`, `hotword_*` | A phrase that nudges a clip's score when it appears in the transcript |
+| Sensitive Terms | `sensitive_terms`, `SensitiveTerm` | Privacy Terms + Censor Words together — the feature name (Settings section) |
+| Privacy Term | `category='privacy'` | A name or personal detail to flag, never scored |
+| Censor Word | `category='censor'` | Language to flag before posting to a restricted platform, never scored |
+| Flagged | `sensitive_matches` non-empty | Clip filter tab / badge — a clip containing a Sensitive Terms match |
 | LLM scoring | `LLMScorer` | Transcript-based scoring — not "AI scoring" |
 | Audio energy scoring | `EnergyScorer` | Loudness/activity-based scoring |
 | Scene scoring | `SceneScorer` | Scene-cut-frequency scoring |
@@ -464,6 +468,51 @@ A creator-defined phrase that nudges a clip's score when it appears in the clip'
   sub-score). Exact/Ignore-case matching runs automatically at scoring time; Meaning (LLM) mode
   requires a per-recording Scan. A phrase counts once per clip regardless of how many times it's
   repeated; boosts are clamped and idempotently re-appliable so re-scanning never compounds them.
+
+---
+
+### Sensitive Terms
+
+The feature (and Settings section) that lets a creator flag clips containing chosen
+names, personal details, or language — kept entirely separate from scoring: it never
+changes a clip's score, only warns.
+
+- **Code:** `sensitive_terms` (DB table), `SensitiveTerm`, `sensitive_matches_json`,
+  `sensitive_*` routes
+- **UI label:** "Sensitive Content" (Settings section heading)
+- **Notes:** Made of two categories — **Privacy Terms** and **Censor Words** (below).
+  Matching reuses the Hot-word matcher (`scoring/textmatch.py`) plus an additional
+  **Close spelling** (fuzzy) mode for catching misspellings of a name. A term counts
+  once per clip regardless of repeat count, same as Hot-words. Never affects
+  `score_*` — see [Hot-word](#hot-word) for the feature that does.
+
+#### Privacy Term
+
+A name or personal detail (e.g. a real name, address, or phone number) a creator
+wants flagged so it isn't accidentally left in a shared clip.
+
+- **Code:** `SensitiveTerm.category = "privacy"`
+- **UI label:** "Privacy Terms" — "names or personal info you don't want in shared clips"
+
+#### Censor Word
+
+Language a creator wants flagged before posting a clip to a platform with content
+restrictions (e.g. profanity, slurs).
+
+- **Code:** `SensitiveTerm.category = "censor"`
+- **UI label:** "Censor Words" — "language to flag before posting to restricted platforms"
+
+#### Flagged
+
+The clip-list filter tab (and sidebar badge) for a clip containing at least one
+enabled Sensitive Terms match.
+
+- **Code:** clip's `sensitive_matches` list is non-empty
+- **UI label:** "Flagged" filter tab (alongside All / Unreviewed / Approved / Rejected);
+  &#9888; badge on the clip's sidebar card
+- **Notes:** v1 flags clips only — a Highlight Reel built from flagged clips is not
+  itself marked; see the reel/export note in USER_PATHS (roadmap plan 02) for the
+  deferred follow-up.
 
 ---
 

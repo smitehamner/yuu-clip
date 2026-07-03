@@ -201,16 +201,8 @@ Complex, specialized, or AI-heavy features that are valuable but don't need to b
 
 ### Content safety and moderation
 
-- [ ] **Sensitive content detection** — a "Sensitive Terms" list, kept entirely separate from
-  Hot-words (which affects score). Two categories:
-  - **Privacy Terms** — real names, identifying info the user doesn't want surfacing in shared
-    clips (e.g. a family member calling their name from off-screen, home address)
-  - **Censor Words** — profanity and platform-restricted language; useful for flagging clips
-    before posting to kid-friendly platforms
-  Per-term match modes: exact, case-insensitive, or fuzzy/phonetic. No score impact — warning/flag
-  only. Clips with matches get a warning badge on the sidebar card and a flagged-terms section in
-  the detail panel. `Flagged` filter tab added alongside `All · Unreviewed · Approved · Rejected`.
-  Lives in Settings page under a `Sensitive Content` section.
+- [x] **Sensitive content detection** (done, 2026-07-03) — see
+  [COMPLETED.md](COMPLETED.md#sensitive-content-detection-done-2026-07-03).
 
 - [ ] **Copyright content detection** — detect music in the audio track that might trigger
   copyright claims or content strikes on platforms like YouTube. Requires audio fingerprinting

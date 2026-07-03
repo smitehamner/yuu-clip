@@ -76,6 +76,7 @@ async function openSettings() {
     // runs the dirty check, or a discarded prior edit would re-enable Save.
     await initSoundSettings();
     await initHotwordSettings();
+    await initSensitiveTermSettings();
     _applySettingsToUI(cfg);
     setTimeout(() => document.getElementById('s-whisper-model')?.focus(), 50);
   } catch (e) {
