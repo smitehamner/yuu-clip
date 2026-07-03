@@ -68,7 +68,7 @@ class TestSplitEditorEscape:
         page.evaluate("_splitPoints.push(30); _splitNames = ['Part 1', 'Part 2']")
         page.keyboard.press("Escape")
         page.wait_for_selector("#confirm-modal.visible")
-        expect(page.locator("#confirm-title")).to_contain_text("Discard split points?")
+        expect(page.locator("#confirm-title")).to_contain_text("Discard changes?")
         expect(page.locator("#split-editor-panel")).to_be_visible()
         page.click("#confirm-ok-btn")
         page.wait_for_selector("#split-editor-panel", state="hidden")
@@ -87,7 +87,7 @@ class TestSplitEditorEscape:
     def test_back_button_goes_through_dirty_guard(self, page: Page):
         self._open_editor(page)
         page.evaluate("_splitPoints.push(30); _splitNames = ['Part 1', 'Part 2']")
-        page.click("#split-editor-panel button:has-text('Back')")
+        page.click("#panelnav-breadcrumb button:has-text('Back')")
         page.wait_for_selector("#confirm-modal.visible")
         expect(page.locator("#split-editor-panel")).to_be_visible()
         page.click("#confirm-cancel-btn")

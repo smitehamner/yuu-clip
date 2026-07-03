@@ -75,7 +75,7 @@ class TestSplitMarkers:
     def test_back_button_guards_placed_points(self, split_editor: Page):
         # M6-3 — Back gets the same dirty guard as sidebar navigation.
         _place_split_point(split_editor)
-        split_editor.click("#split-editor-panel button:has-text('Back')")
+        split_editor.click("#panelnav-breadcrumb button:has-text('Back')")
         expect(split_editor.locator("#confirm-modal")).to_be_visible()
         split_editor.click("#confirm-cancel-btn")
         expect(split_editor.locator("#split-editor-panel")).to_be_visible()

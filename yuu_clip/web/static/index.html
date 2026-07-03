@@ -793,13 +793,15 @@
   </div>
 </div>
 
-<!-- Split Editor panel (full-panel overlay, replaces main content) -->
-<div id="split-editor-panel" style="display:none;position:absolute;inset:0;min-height:480px;background:var(--bg);z-index:10;flex-direction:column;padding:20px 24px;gap:16px;overflow-y:auto">
-  <div style="display:flex;align-items:center;gap:10px">
-    <button class="btn ghost" style="padding:4px 10px;font-size:13px" onclick="requestCloseSplitEditor()">&#8592; Back</button>
-    <span style="font-size:14px;font-weight:600" id="split-editor-title">Recording Segments</span>
-  </div>
+<!-- Panel navigation takeover (breadcrumb + stacked panel content) — replaces
+     main content for multi-step flows like the Split Editor. See panelnav.js. -->
+<div id="panelnav-root" style="display:none;position:absolute;inset:0;min-height:480px;background:var(--bg);z-index:10;flex-direction:column;overflow-y:auto">
+  <div id="panelnav-breadcrumb" style="display:flex;align-items:center;gap:10px;padding:20px 24px 0;flex-shrink:0"></div>
+  <div id="panelnav-content" style="padding:16px 24px 20px"></div>
+</div>
 
+<!-- Split Editor panel content — mounted into #panelnav-content by split.js -->
+<div id="split-editor-panel" style="display:none;flex-direction:column;gap:16px">
   <!-- Video preview -->
   <div id="split-preview-wrap" style="display:none;position:relative">
     <video id="split-preview-video" controls preload="metadata"
@@ -869,7 +871,7 @@
     </div>
     <div style="display:flex;gap:10px">
       <button class="btn primary" id="btn-split-confirm" onclick="confirmSplit()">Confirm</button>
-      <button class="btn" onclick="requestCloseSplitEditor()">Cancel</button>
+      <button class="btn" onclick="PanelNav.close()">Cancel</button>
     </div>
   </div>
 </div>
@@ -1542,6 +1544,7 @@
 
 <script src="/static/utils.js"></script>
 <script src="/static/ui.js"></script>
+<script src="/static/panelnav.js"></script>
 <script src="/static/videos.js"></script>
 <script src="/static/clips.js"></script>
 <script src="/static/analyze.js"></script>

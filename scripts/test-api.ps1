@@ -3,7 +3,7 @@ param(
     [Parameter(ValueFromRemainingArguments = $true)]$PytestArgs
 )
 $ErrorActionPreference = "Stop"
-& "$env:USERPROFILE\.claude\sound-cancel.ps1"
+& "$env:USERPROFILE\.claude\scripts\sound-cancel.ps1"
 $RepoRoot    = Split-Path -Parent $PSScriptRoot
 $Python      = Join-Path $RepoRoot ".venv\Scripts\python.exe"
 $LogFile     = Join-Path $RepoRoot "test-api-last.log"

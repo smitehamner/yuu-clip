@@ -6,6 +6,33 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) — see the
 
 ---
 
+## Panel navigation framework + Split Editor migration (done, 2026-07-03)
+
+Roadmap plan 04 (`docs/dev/plans/roadmap-2026-07/04-panel-navigation.md`):
+
+- **Framework** — new `yuu_clip/web/static/panelnav.js`: `PanelNav.open({id, title, render,
+  isDirty, onClose})` takes over the main detail panel with a shared `← Back` breadcrumb,
+  a stack (each level gets its own content container so nesting won't need to re-render a
+  parent), and a dirty-state discard prompt routed through the existing `showConfirm` helper.
+  `PanelNav.close()` gates on `isDirty()`; `PanelNav.forceClose()` bypasses it for callers that
+  already ran their own differently-worded confirm (e.g. switching recordings). Wired into
+  the Escape cascade (`settings.js` `_closeTopmostLayer`) and the global J/K/A/R/E shortcut
+  dispatcher, which now no-ops while any panel is open — the panel covers the detail pane but
+  not the sidebar clip list beside it.
+- **Split Editor migration** — `split.js`'s open/close now routes through `PanelNav.open`/
+  `close`; the bespoke dirty check and breadcrumb markup are gone in favor of the shared ones.
+  `isSplitEditorOpen()` and `closeSplitEditor()` are kept as thin aliases (other modules still
+  call them). `.main` gained `position: relative` so the takeover only covers the player+detail
+  area, not the sidebar.
+- Only Split Editor migrated in this pass — reel builder, analyze panel ("New Recording"),
+  and contexts keep their existing bespoke takeover/modal patterns and migrate opportunistically
+  later (plan 05's manual-clip picker is the next `PanelNav` consumer).
+- **Tests** — `tests/test_ui_panelnav.py` (breadcrumb, dirty/clean Back and Escape paths,
+  Escape-layering with a modal on top of a panel, keyboard-shortcut suppression); one selector
+  update in `tests/test_ui_split.py` where the Back button's DOM location moved.
+
+---
+
 ## Hot-word / phrase config (done, 2026-07-03)
 
 Roadmap plan 03 (`docs/dev/plans/roadmap-2026-07/03-hot-words.md`), both stages:

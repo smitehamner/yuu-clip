@@ -1143,9 +1143,13 @@ async function confirmExport() {
       ]);
       AppState.activeClipData = clip;
       AppState.activeMediaFilename = media.filename;
-      const captionsUrl = media.has_captions ? `/api/clips/${id}/captions.vtt` : null;
-      renderPlayer(media.url, captionsUrl, id);
-      renderDetail(clip);
+      // A takeover panel (e.g. Split Editor) may have opened while the export
+      // was streaming — don't clobber it by re-rendering the covered detail pane.
+      if (!PanelNav.isOpen()) {
+        const captionsUrl = media.has_captions ? `/api/clips/${id}/captions.vtt` : null;
+        renderPlayer(media.url, captionsUrl, id);
+        renderDetail(clip);
+      }
       await _reloadClipList(AppState.activeVideoId);
       loadVideos();
       showToast('Clip exported successfully');
@@ -1477,7 +1481,10 @@ function startFindSimilar() {
       _clearActiveStream(handle);
       resetBtn();
       const clip = await fetch(`/api/clips/${clipId}`).then(r => r.json()).catch(() => null);
-      if (clip) { AppState.activeClipData = clip; renderDetail(clip); }
+      if (clip) {
+        AppState.activeClipData = clip;
+        if (!PanelNav.isOpen()) renderDetail(clip);
+      }
       const count = msg.results?.length ?? 0;
       showToast(count ? `Found ${plural(count, 'similar clip')}` : 'No similar clips found');
     },

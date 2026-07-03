@@ -68,7 +68,7 @@ regular users.
   `exported_at`; reel staleness computed from the existing `.reel.json` composition manifest vs.
   member clips' `exported_at`. See `docs/dev/plans/roadmap-2026-07/02-user-paths-staleness.md`.
 
-- [ ] **Panel navigation UX direction** — multi-step flows take over the main detail panel (not modals); `← Back` breadcrumb; discard prompt on unsaved changes; tabs only for within-view navigation. Migrate incrementally starting with Split Editor.
+- [x] **Panel navigation UX direction** — multi-step flows take over the main detail panel (not modals); `← Back` breadcrumb; discard prompt on unsaved changes; tabs only for within-view navigation. Framework (`panelnav.js`) + Split Editor migration landed; remaining flows (reel builder, analyze panel, contexts) migrate opportunistically.
 
 - [ ] **Validate the voiceprint re-attach threshold** — `Config.speaker_match_threshold` (default
   0.75) shipped as an untuned conservative guess (see `7fb9155`), and every speaker-naming feature

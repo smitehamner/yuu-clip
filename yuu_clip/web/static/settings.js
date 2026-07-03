@@ -709,7 +709,7 @@ function _closeTopmostLayer() {
     return;
   }
   if (document.getElementById('settings-panel').classList.contains('visible')) { closeSettings(); return; }
-  if (isSplitEditorOpen()) { requestCloseSplitEditor(); return; }
+  if (PanelNav.isOpen()) { PanelNav.close(); return; }
   if (_isNewRecordingPanelOpen()) closeNewRecordingPanel();
 }
 
@@ -753,7 +753,10 @@ document.addEventListener('keydown', e => {
     return;
   }
 
-  if (_anyModalOpen()) return;
+  // A takeover panel (e.g. Split Editor) covers the detail pane but not the
+  // clip list beside it — without this guard J/K/A/R would silently act on a
+  // clip the user can no longer see.
+  if (_anyModalOpen() || PanelNav.isOpen()) return;
 
   // A/R/E must act on the clip the user is pointing at: when keyboard focus
   // sits on a clip list row (Tab), that row is the subject — not the active

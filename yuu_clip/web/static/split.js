@@ -41,7 +41,7 @@ document.getElementById('split-timeline-scroll')
   ?.addEventListener('wheel', _onSplitZoomWheel, { passive: false });
 
 function isSplitEditorOpen() {
-  return _splitVideoId !== null;
+  return PanelNav.isOpen('split-editor');
 }
 
 async function openSplitEditor(videoId) {
@@ -58,8 +58,21 @@ async function openSplitEditor(videoId) {
   _splitClipRanges = [];
   _suggestionPins  = [];
 
-  document.getElementById('split-editor-title').textContent =
-    `Split: ${video.filename}`;
+  PanelNav.open({
+    id: 'split-editor',
+    title: `Split: ${video.filename}`,
+    render: container => _mountSplitEditorPanel(container, videoId),
+    isDirty: () => _splitPoints.length > 0,
+    onClose: _teardownSplitEditor,
+  });
+
+  await _loadSplitEditorOverlays(videoId);
+}
+
+function _mountSplitEditorPanel(container, videoId) {
+  const panel = document.getElementById('split-editor-panel');
+  container.appendChild(panel);
+  panel.style.display = 'flex';
 
   document.getElementById('split-preview-wrap').style.display = 'block';
   setupRecordingPreview(
@@ -69,19 +82,16 @@ async function openSplitEditor(videoId) {
     { autoBuild: true, isCurrent: () => _splitVideoId === videoId },
   );
 
-  const notice = document.getElementById('split-waveform-notice');
-  notice.style.display = 'none';
-
-  const panel = document.getElementById('split-editor-panel');
-  panel.style.display = 'flex';
-  document.querySelector('.main').style.overflowY = 'auto';
+  document.getElementById('split-waveform-notice').style.display = 'none';
 
   // A destructive re-analyze choice must not persist into the next session.
   document.querySelector('input[name="split-action"][value="partition"]').checked = true;
 
   _resetSplitZoom();
   _renderSplitEditor();
+}
 
+async function _loadSplitEditorOverlays(videoId) {
   // Fetch overlay data in parallel; render progressively
   const [energyRes, sceneRes, clipsRes] = await Promise.allSettled([
     fetch(`/api/videos/${videoId}/energy`).then(r => r.ok ? r.json() : null),
@@ -109,7 +119,7 @@ async function openSplitEditor(videoId) {
   }
 
   if (!hasEnergy) {
-    notice.style.display = 'flex';
+    document.getElementById('split-waveform-notice').style.display = 'flex';
   }
 
   if (sceneRes.status === 'fulfilled' && sceneRes.value?.boundaries_ms) {
@@ -128,30 +138,27 @@ async function openSplitEditor(videoId) {
   _renderSuggestionLayer();
 }
 
-function requestCloseSplitEditor() {
-  if (_splitPoints.length > 0) {
-    showConfirm(
-      'Discard split points?',
-      'The split points you placed will be lost. Close without splitting?',
-      'Discard',
-      closeSplitEditor,
-      true,
-    );
-    return;
-  }
-  closeSplitEditor();
+// Force-closes the panel (bypasses PanelNav's dirty gate) — used by callers
+// that already ran their own confirm (e.g. switching recordings) and by the
+// split editor's own post-confirm success paths.
+function closeSplitEditor() {
+  PanelNav.forceClose();
 }
 
-function closeSplitEditor() {
+function _teardownSplitEditor() {
   const previewEl = document.getElementById('split-preview-video');
   previewEl.pause();
   previewEl.src = '';
   document.getElementById('split-preview-wrap').style.display = 'none';
   const badge = document.getElementById('split-preview-badge');
   if (badge) badge.style.display = 'none';
-  document.getElementById('split-editor-panel').style.display = 'none';
+  const panel = document.getElementById('split-editor-panel');
+  panel.style.display = 'none';
+  // PanelNav removes its container (and everything still inside it) right
+  // after onClose() runs — move the panel's static markup back out first so
+  // it survives to be reparented into the next PanelNav container on reopen.
+  document.getElementById('panelnav-root').insertAdjacentElement('afterend', panel);
   document.getElementById('split-waveform-notice').style.display = 'none';
-  document.querySelector('.main').style.overflowY = '';
   _splitVideoId   = null;
   _dragActive     = false;
   _dragMarkerSec  = null;
