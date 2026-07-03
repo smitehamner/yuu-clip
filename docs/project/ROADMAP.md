@@ -86,9 +86,10 @@ regular users.
   - *Pre-import estimate (low risk, high value)*: before analysis starts, calculate estimated GPU-hours from total video duration × per-minute benchmark; show a warning when the estimate is large; suggest batching as a mitigation.
   - *Live thermal monitoring*: poll GPU temp via `pynvml` (NVIDIA only initially); log temps; surface a warning in the UI when temp exceeds threshold for N consecutive samples; pause ingest between videos (finish current, then hold — ties into Pause / resume above); UI options: "Pause now" / "Continue anyway". Sensible defaults (85°C warn, 90°C pause); user-configurable thresholds TBD.
 
-- [ ] **Demo reel: add clips from rejected/unrated pool** — the only remaining piece of the
-  advanced clip list editor: today the reel builder can only select from a video's already-exported
-  clips, so a rejected or unrated clip can't be pulled in without first approving and exporting it.
+- [x] **Demo reel: add clips from rejected/unrated pool** (done, 2026-07-03) — `statuses` query
+  param on `/api/demo/approved-clips` (default `approved`, unchanged) plus Approved/Unreviewed/
+  Rejected pool chips in the reel Build tab; clips pulled in from a non-approved pool default to
+  excluded.
 
 - [ ] **Batch processing status panel** — collapsible status summary bar at the top of the clips
   view showing active/queued/completed job counts; clicking expands per-job detail. Long-term: move

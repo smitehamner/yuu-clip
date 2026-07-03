@@ -954,6 +954,13 @@
         </select>
       </div>
 
+      <div class="clip-filter-tabs" style="margin-bottom:10px" aria-label="Reel pool status filters">
+        <span style="font-size:10px;color:var(--muted);padding:2px 4px;line-height:1.8;flex-shrink:0" aria-hidden="true">Pool</span>
+        <button class="clip-chip active" aria-pressed="true"  data-reel-status="approved" onclick="_toggleReelPoolStatus('approved')">Approved</button>
+        <button class="clip-chip"        aria-pressed="false" data-reel-status="pending"  onclick="_toggleReelPoolStatus('pending')">Unreviewed</button>
+        <button class="clip-chip"        aria-pressed="false" data-reel-status="rejected" onclick="_toggleReelPoolStatus('rejected')">Rejected</button>
+      </div>
+
       <div style="margin-bottom:10px">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
           <label style="font-size:12px;color:var(--muted)">Clip order <span style="font-size:10px">(check to include · drag or ↑↓ to reorder)</span></label>

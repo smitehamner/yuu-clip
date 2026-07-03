@@ -6,6 +6,26 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) — see the
 
 ---
 
+## Quick wins Stage 5 — reel pool from rejected/unreviewed (done, 2026-07-03)
+
+Closes the ROADMAP "Demo reel: add clips from rejected/unrated pool" item.
+
+`GET /api/demo/approved-clips` gains a `statuses` query param (comma-separated
+subset of `approved|pending|rejected`, default `approved` — existing behavior
+unchanged, 400 on an invalid/empty value); response rows now include `status`.
+
+Reel Build tab gets Approved/Unreviewed/Rejected pool chips
+(`_toggleReelPoolStatus`, `reel.js`) above the clip-order list. Toggling
+refetches and merges into the existing curation: clips still in the pool
+keep their order/inclusion, newly-added clips default to **excluded**
+unless approved (so a stray chip toggle can't silently stuff the reel), and
+clips that fall out of the pool are dropped. At least one status chip must
+stay active — toggling off the last one is a no-op.
+
++4 API tests (`test_reel.py`), +3 UI tests (`test_ui_reel.py`).
+
+---
+
 ## Quick wins Stage 4 — show in folder (done, 2026-07-03)
 
 New `POST /api/reveal` (`routes/reveal.py`, Windows-only — 501 elsewhere):

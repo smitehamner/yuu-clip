@@ -35,6 +35,9 @@ class DemoRequest(BaseModel):
     captions:    bool  = False
 
 
+_REEL_POOL_STATUSES = {"approved", "pending", "rejected"}
+
+
 def _safe_filename(name: str, default: str = "highlights.mkv") -> str:
     """Return *name* with any directory components stripped.
 
@@ -119,12 +122,25 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         return await subprocess_sse(ctx.demo_cmd, ctx.project_dir, ctx, clear_cmd_attr="demo_cmd")
 
     @router.get("/api/demo/approved-clips")
-    def approved_clips_for_reel(video_id: Optional[int] = Query(None)):
-        """Return approved clips (timeline order) for the reel builder, with export status."""
+    def approved_clips_for_reel(
+        video_id: Optional[int] = Query(None),
+        statuses: str = Query("approved"),
+    ):
+        """Return clips (timeline order) for the reel builder pool, with export status.
+
+        `statuses` is a comma-separated subset of {approved, pending, rejected};
+        defaults to "approved" (unchanged historical behavior)."""
         from yuu_clip.db.models import Video
+        requested = [s.strip() for s in statuses.split(",") if s.strip()]
+        invalid = [s for s in requested if s not in _REEL_POOL_STATUSES]
+        if not requested or invalid:
+            raise HTTPException(
+                400,
+                f"statuses must be a comma-separated subset of: {', '.join(sorted(_REEL_POOL_STATUSES))}",
+            )
         db = ctx.get_db()
         try:
-            q = db.query(ClipCandidate).filter_by(status="approved")
+            q = db.query(ClipCandidate).filter(ClipCandidate.status.in_(requested))
             if video_id:
                 q = q.filter_by(video_id=video_id)
             clips = q.order_by(ClipCandidate.start_ms).all()
@@ -155,6 +171,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                     "duration_ms": c.end_ms - c.start_ms,
                     "score_overall": c.score_overall,
                     "description": c.description or "",
+                    "status": c.status,
                     "has_export": export_file is not None,
                     "export_url": f"/api/clips/{c.id}/media_url" if export_file else None,
                 })

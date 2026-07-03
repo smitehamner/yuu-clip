@@ -195,6 +195,31 @@ class TestApprovedClipsForReel:
         assert r.status_code == 200
         assert r.json() == []
 
+    def test_statuses_param_filters_correctly(self, client):
+        # conftest seeds 1 pending, 1 approved, 1 rejected clip
+        r = client.get("/api/demo/approved-clips?statuses=pending")
+        assert r.status_code == 200
+        clips = r.json()
+        assert len(clips) == 1
+        assert clips[0]["status"] == "pending"
+
+    def test_statuses_param_accepts_comma_separated_list(self, client):
+        r = client.get("/api/demo/approved-clips?statuses=approved,rejected")
+        assert r.status_code == 200
+        statuses = {c["status"] for c in r.json()}
+        assert statuses == {"approved", "rejected"}
+
+    def test_invalid_status_returns_400(self, client):
+        r = client.get("/api/demo/approved-clips?statuses=bogus")
+        assert r.status_code == 400
+
+    def test_default_statuses_unchanged(self, client):
+        r = client.get("/api/demo/approved-clips")
+        assert r.status_code == 200
+        clips = r.json()
+        assert len(clips) == 1
+        assert clips[0]["status"] == "approved"
+
 
 class TestListReels:
     def test_empty_when_no_reels_dir(self, client):

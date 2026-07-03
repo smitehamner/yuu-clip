@@ -62,13 +62,13 @@ class TestDemoModal:
 _FAKE_REEL_CLIPS = [
     {"id": 101, "video_id": 1, "video_name": "s.mkv", "start_hms": "0:00:01",
      "duration_hms": "0:00:05", "duration_ms": 5000, "score_overall": 0.9,
-     "description": "first", "has_export": True},
+     "description": "first", "status": "approved", "has_export": True},
     {"id": 102, "video_id": 1, "video_name": "s.mkv", "start_hms": "0:00:10",
      "duration_hms": "0:00:05", "duration_ms": 5000, "score_overall": 0.8,
-     "description": "second", "has_export": True},
+     "description": "second", "status": "approved", "has_export": True},
     {"id": 103, "video_id": 1, "video_name": "s.mkv", "start_hms": "0:00:20",
      "duration_hms": "0:00:05", "duration_ms": 5000, "score_overall": 0.7,
-     "description": "third", "has_export": True},
+     "description": "third", "status": "approved", "has_export": True},
 ]
 
 
@@ -141,6 +141,60 @@ class TestReelBuilderCuration:
         page.locator(".reel-clip-row").first.wait_for()
         assert self._names(page) == ["first", "second", "third"]
         assert page.locator(".reel-clip-row.excluded").count() == 0
+
+
+_FAKE_PENDING_CLIP = {
+    "id": 104, "video_id": 1, "video_name": "s.mkv", "start_hms": "0:00:30",
+    "duration_hms": "0:00:05", "duration_ms": 5000, "score_overall": 0.5,
+    "description": "fourth-pending", "status": "pending", "has_export": False,
+}
+
+
+@skip_no_server
+class TestReelPoolStatusFilters:
+    """Quick-wins Stage 5 — Approved/Unreviewed/Rejected pool chips in the
+    Build tab. The mocked route branches on the `statuses` query param so
+    toggling a chip is observable without a live DB."""
+
+    def _open_build_with_status_routing(self, page: Page) -> None:
+        import json
+        from urllib.parse import parse_qs, urlparse
+
+        def handler(route):
+            qs = parse_qs(urlparse(route.request.url).query)
+            statuses = qs.get("statuses", ["approved"])[0].split(",")
+            pool = list(_FAKE_REEL_CLIPS)
+            if "pending" in statuses:
+                pool.append(_FAKE_PENDING_CLIP)
+            route.fulfill(content_type="application/json", body=json.dumps(pool))
+
+        page.route("**/api/demo/approved-clips*", handler)
+        page.route("**/api/demo/list",
+                   lambda route: route.fulfill(content_type="application/json", body="[]"))
+        page.evaluate("AppState.videos = [{id: 1, filename: 's.mkv', approved: 3}]")
+        page.evaluate("openHighlightReelsModal('build')")
+        page.locator(".reel-clip-row").first.wait_for()
+
+    def test_approved_chip_active_by_default(self, page: Page):
+        self._open_build_with_status_routing(page)
+        expect(page.locator("[data-reel-status='approved']")).to_have_attribute("aria-pressed", "true")
+        expect(page.locator("[data-reel-status='pending']")).to_have_attribute("aria-pressed", "false")
+        assert page.locator(".reel-clip-row").count() == 3
+
+    def test_toggling_unreviewed_adds_pending_clips_marked_excluded(self, page: Page):
+        self._open_build_with_status_routing(page)
+        page.click("[data-reel-status='pending']")
+        page.wait_for_function("document.querySelectorAll('.reel-clip-row').length === 4")
+        new_row = page.locator(".reel-clip-row", has_text="fourth-pending")
+        expect(new_row).to_have_class("reel-clip-row excluded")
+        # existing approved clips keep their prior (included) state
+        expect(page.locator(".reel-clip-row", has_text="first")).to_have_class("reel-clip-row")
+
+    def test_toggling_off_the_last_active_chip_is_a_noop(self, page: Page):
+        self._open_build_with_status_routing(page)
+        page.click("[data-reel-status='approved']")
+        expect(page.locator("[data-reel-status='approved']")).to_have_attribute("aria-pressed", "true")
+        assert page.locator(".reel-clip-row").count() == 3
 
 
 @skip_no_server

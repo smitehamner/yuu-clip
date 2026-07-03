@@ -9,6 +9,12 @@ let _reelBuildLoaded = false;
 async function openHighlightReelsModal(tab) {
   _reelsOpener = _reelsOpener || document.activeElement;
   _reelBuildLoaded = false;
+  _reelPoolStatuses = new Set(['approved']);
+  document.querySelectorAll('[data-reel-status]').forEach(chip => {
+    const active = chip.dataset.reelStatus === 'approved';
+    chip.classList.toggle('active', active);
+    chip.setAttribute('aria-pressed', active ? 'true' : 'false');
+  });
   document.getElementById('highlight-reels-modal').classList.add('visible');
   await switchReelTab(tab || 'build');
   setTimeout(() => document.querySelector('#highlight-reels-modal .btn')?.focus(), 50);
@@ -113,19 +119,69 @@ function closeHighlightReelsModal() {
   if (opener?.focus) opener.focus();
 }
 
-async function loadReelClips() {
+// Status filter for the reel builder's clip pool — Approved only by default,
+// matching the historical /api/demo/approved-clips behavior.
+let _reelPoolStatuses = new Set(['approved']);
+
+function _reelPoolQs() {
+  const params = new URLSearchParams();
   const videoIdVal = document.getElementById('demo-video-id').value;
-  const qs = videoIdVal ? `?video_id=${videoIdVal}` : '';
+  if (videoIdVal) params.set('video_id', videoIdVal);
+  params.set('statuses', [..._reelPoolStatuses].join(','));
+  return `?${params.toString()}`;
+}
+
+// Toggling a chip must never leave zero statuses selected — the API rejects
+// an empty statuses param, and an empty pool with no way back out is a trap.
+function _toggleReelPoolStatus(status) {
+  if (_reelPoolStatuses.has(status)) {
+    if (_reelPoolStatuses.size === 1) return;
+    _reelPoolStatuses.delete(status);
+  } else {
+    _reelPoolStatuses.add(status);
+  }
+  document.querySelectorAll('[data-reel-status]').forEach(chip => {
+    const active = _reelPoolStatuses.has(chip.dataset.reelStatus);
+    chip.classList.toggle('active', active);
+    chip.setAttribute('aria-pressed', active ? 'true' : 'false');
+  });
+  _refetchReelPool();
+}
+
+async function loadReelClips() {
+  _reelClips = [];
+  await _refetchReelPool();
+}
+
+// Fetches the current status/video pool and merges it into _reelClips:
+// clips still in the pool keep their order and included/excluded state;
+// clips newly entering the pool are appended, defaulting to excluded unless
+// they're approved — so toggling on Unreviewed/Rejected can't silently stuff
+// clips into the reel. Clips that fell out of the pool are dropped.
+async function _refetchReelPool() {
   const listEl = document.getElementById('reel-clip-list');
-  listEl.innerHTML = '<div style="padding:16px;text-align:center;color:var(--muted);font-size:12px">Loading…</div>';
+  if (!_reelBuildLoaded) {
+    listEl.innerHTML = '<div style="padding:16px;text-align:center;color:var(--muted);font-size:12px">Loading…</div>';
+  }
+  let fresh;
   try {
-    const clips = await fetch(`/api/demo/approved-clips${qs}`).then(r => r.json());
-    _reelClips = clips.map(c => ({...c, included: true}));
+    fresh = await fetch(`/api/demo/approved-clips${_reelPoolQs()}`).then(r => r.json());
     _reelBuildLoaded = true;
   } catch {
+    fresh = null;
+  }
+  if (!fresh) {
     _reelClips = [];
     _reelBuildLoaded = false;
+    renderReelClipList();
+    updateReelEstimate();
+    return;
   }
+  const freshById = new Map(fresh.map(c => [c.id, c]));
+  const kept = _reelClips.filter(c => freshById.has(c.id)).map(c => ({...c, ...freshById.get(c.id), included: c.included}));
+  const keptIds = new Set(kept.map(c => c.id));
+  const added = fresh.filter(c => !keptIds.has(c.id)).map(c => ({...c, included: c.status === 'approved'}));
+  _reelClips = [...kept, ...added];
   renderReelClipList();
   updateReelEstimate();
 }
@@ -277,9 +333,7 @@ async function exportUnexportedReelClips() {
 // Refresh has_export on the current clip list without discarding the user's
 // order/inclusion choices (loadReelClips() would reset both).
 async function _refreshReelExportStatus() {
-  const videoIdVal = document.getElementById('demo-video-id').value;
-  const qs = videoIdVal ? `?video_id=${videoIdVal}` : '';
-  const fresh = await fetch(`/api/demo/approved-clips${qs}`).then(r => r.json()).catch(() => null);
+  const fresh = await fetch(`/api/demo/approved-clips${_reelPoolQs()}`).then(r => r.json()).catch(() => null);
   if (!fresh) return;
   const exportById = new Map(fresh.map(c => [c.id, c.has_export]));
   _reelClips.forEach(c => { if (exportById.has(c.id)) c.has_export = exportById.get(c.id); });
@@ -564,7 +618,7 @@ async function _regenReelCaptions(reel, btn) {
 // test. Internal helpers above stay private to this module's closure.
 Object.assign(window, {
   openHighlightReelsModal, closeHighlightReelsModal, switchReelTab,
-  loadReelClips, _reelMove, _reelToggle,
+  loadReelClips, _reelMove, _reelToggle, _toggleReelPoolStatus,
   startDemo, closeDemoModal, updateReelEstimate, exportUnexportedReelClips,
   previewReelPlaylist, closeReelPreview, _reelPreviewStep,
   openBatchExportModal, closeBatchExportModal, confirmBatchExport,
