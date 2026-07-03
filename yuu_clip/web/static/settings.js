@@ -190,9 +190,19 @@ function _applySettingsToUI(cfg) {
   setVal('s-timeline-interval', _tlVal);
   setVal('s-timeline-unit',     _tlUnit);
   setChk('s-autoplay', localStorage.getItem('yuuclip-autoplay') === 'true');
+  setVal('s-theme', localStorage.getItem('yuuclip-theme') || 'dark');
   _snapshotSettings();
   _checkSettingsDirty();
   ['pyannote', 'llamacpp', 'anthropic', 'laugh-deps'].forEach(_refreshInstallStatus);
+}
+
+// Applies instantly (outside the Save flow) so the user sees the theme while
+// choosing it. Deliberately not in _settingsFieldIds — must not flag dirty.
+// The inline <head> script in index.html reads the same key before first paint.
+function applyTheme(theme) {
+  if (theme === 'dark') delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = theme;
+  localStorage.setItem('yuuclip-theme', theme);
 }
 
 // Everything below the master toggle is inert while LLM scoring is off —
@@ -743,7 +753,7 @@ document.addEventListener('keydown', e => {
 // Public API — symbols referenced cross-module, by an inline handler, or by a
 // test. Internal helpers above stay private to this module's closure.
 Object.assign(window, {
-  openSettings, closeSettings, saveSettings, installPackage,
+  openSettings, closeSettings, saveSettings, installPackage, applyTheme,
   openAboutModal, closeAboutModal,
   openGettingStartedModal, closeGettingStartedModal,
   openGlossaryModal, closeGlossaryModal, _filterGlossary,

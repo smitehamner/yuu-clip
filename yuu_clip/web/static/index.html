@@ -5,6 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>yuu-clip</title>
 <link rel="icon" type="image/png" href="/static/gamercat.png">
+<script>
+/* Apply saved theme before the stylesheet paints to avoid a flash of the
+   default dark theme. Kept inline (not in a module) for the same reason. */
+(function () {
+  var theme = null;
+  try { theme = localStorage.getItem('yuuclip-theme'); } catch (e) { /* storage disabled */ }
+  if (theme && theme !== 'dark') document.documentElement.dataset.theme = theme;
+})();
+</script>
 <link rel="stylesheet" href="/static/app.css">
 </head>
 <body>
@@ -411,6 +420,17 @@
   <!-- UI section -->
   <div class="settings-section" id="settings-sec-ui">
     <div class="settings-section-title">UI</div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <label class="settings-label" for="s-theme">Theme</label>
+        <div class="settings-note">Applies immediately</div>
+      </div>
+      <select class="settings-select" id="s-theme" onchange="applyTheme(this.value)">
+        <option value="dark">Dark</option>
+        <option value="light">Light</option>
+        <option value="high-contrast">High contrast</option>
+      </select>
+    </div>
     <div class="settings-row">
       <div class="settings-col">
         <div class="settings-label">Autoplay clips</div>

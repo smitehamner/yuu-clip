@@ -6,6 +6,27 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) — see the
 
 ---
 
+## Theme selector + design-token hardening (done, 2026-07-03)
+
+Settings → UI → **Theme**: Dark (default) / Light / High contrast, applied
+instantly (pre-paint inline script avoids a flash of the wrong theme),
+persisted in localStorage (`yuuclip-theme`).
+
+- **Token cleanup** — every hardcoded hex/rgba literal in `app.css` (and the
+  split-editor overlays in `split.js`) replaced with theme tokens or
+  `color-mix()` derivations; new tokens `--bg-deep`, `--surface-raised`,
+  `--selection`, `--on-accent`, `--on-green`, `--on-red`, `--accent-text`,
+  `--warn-hot`, shadow/backdrop vars. Only `#000` video letterboxing stays
+  literal (intentional — letterbox black is theme-independent).
+- **Contrast fixes** — reject-button/red-dot text (`--on-red`) and
+  accent-as-text (`--accent-text`: header title, settings section titles,
+  context chips, transcript speaker names) now meet AA in the dark theme too
+  (previously ~3.6:1 / ~3.9:1).
+- **Enforcement** — `tests/test_ui_theme.py` runs the WCAG AA token contract
+  per theme, requires each theme block to override the full token set, and
+  fails on any color literal outside theme blocks. CLAUDE.md + GLOSSARY.md
+  ("Theme" entry) document the no-hardcoded-colors rule.
+
 ## Pre-release polish batch 2 (done, 2026-07-03)
 
 Second small-fix pass ahead of the next friend release:

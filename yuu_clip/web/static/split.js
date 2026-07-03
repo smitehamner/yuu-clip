@@ -345,7 +345,7 @@ function _renderSceneLayer() {
 
   el.innerHTML = _splitSceneMs.map(ms => {
     const pct = (ms / 1000 / _splitDurationS * 100).toFixed(3);
-    return `<div style="position:absolute;left:${pct}%;top:0;bottom:0;width:1px;background:rgba(255,255,255,0.25)" title="Scene cut at ${_fmtSplitTime(ms / 1000)}"></div>`;
+    return `<div style="position:absolute;left:${pct}%;top:0;bottom:0;width:1px;background:color-mix(in srgb, var(--text) 30%, transparent)" title="Scene cut at ${_fmtSplitTime(ms / 1000)}"></div>`;
   }).join('');
 }
 
@@ -363,7 +363,7 @@ function _renderSuggestionLayer() {
                  style="position:absolute;left:${pct}%;top:0;bottom:0;width:14px;transform:translateX(-50%);cursor:pointer;pointer-events:auto;display:flex;justify-content:center"
                  title="Quiet valley at ${_fmtSplitTime(sec)} — click to place a split point here"
                  onclick="event.stopPropagation();_promoteSuggestionPin(${sec})">
-               <div style="width:0;border-left:1.5px dashed rgba(255,255,255,0.35)"></div>
+               <div style="width:0;border-left:1.5px dashed color-mix(in srgb, var(--text) 40%, transparent)"></div>
              </div>`;
   }).join('');
 }
@@ -385,7 +385,7 @@ function _renderClipsLayer() {
   el.innerHTML = _splitClipRanges.map(({ start_ms, end_ms }) => {
     const leftPct  = (start_ms / 1000 / _splitDurationS * 100).toFixed(3);
     const widthPct = ((end_ms - start_ms) / 1000 / _splitDurationS * 100).toFixed(3);
-    return `<div style="position:absolute;left:${leftPct}%;width:${widthPct}%;top:50%;transform:translateY(-50%);height:4px;background:rgba(255,255,255,0.18);border-radius:2px" title="Existing clip ${_fmtSplitTime(start_ms/1000)}–${_fmtSplitTime(end_ms/1000)}"></div>`;
+    return `<div style="position:absolute;left:${leftPct}%;width:${widthPct}%;top:50%;transform:translateY(-50%);height:4px;background:color-mix(in srgb, var(--text) 22%, transparent);border-radius:2px" title="Existing clip ${_fmtSplitTime(start_ms/1000)}–${_fmtSplitTime(end_ms/1000)}"></div>`;
   }).join('');
 }
 

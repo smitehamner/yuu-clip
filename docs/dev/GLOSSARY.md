@@ -63,6 +63,7 @@ Most lookups only need this table: the authoritative user-facing term, the code 
 | Title card | `title_card` | Text overlay between reel clips |
 | Project folder | `project_dir` | The hidden `.yuu-clip/` directory |
 | Preview proxy | `proxy`, `proxy_path` | Cached 720p copy of a recording used for fast in-app playback; badge reads "Preview quality (720p)" |
+| Theme | `data-theme`, `applyTheme()` | App color scheme (Dark / Light / High contrast) — not "skin" or "dark mode" |
 
 ---
 
@@ -613,6 +614,23 @@ A short temporary notification that appears and fades, confirming an action or r
 The collapsible section that shows live output from the running job.
 
 - **UI label:** bottom panel during active jobs
+
+---
+
+### Theme
+
+The app-wide color scheme, chosen in Settings → UI. Three themes are
+maintained: **Dark** (default), **Light**, and **High contrast**.
+
+- **Code:** `data-theme` attribute on `<html>`; theme blocks in `app.css`
+  (`:root` = Dark, `html[data-theme="light"]`, `html[data-theme="high-contrast"]`);
+  `applyTheme()` in `settings.js`; localStorage key `yuuclip-theme`
+- **Do not call it:** "skin", "color scheme", "dark mode" (a theme named Dark
+  exists; the feature is "theme")
+- **Notes:** Every color in the UI must resolve from a theme token (CSS custom
+  property) — never a hardcoded hex/rgba literal. Enforced by
+  `tests/test_ui_theme.py`. Each theme must keep WCAG AA contrast; the same
+  test file checks the token pairs per theme.
 
 ---
 

@@ -596,6 +596,9 @@ class TestClipTags:
         select_first_video_and_clip(page)
         page.fill("#clip-tag-input", "keep")
         page.press("#clip-tag-input", "Enter")
+        # The PUT response re-renders the tags card; typing the second tag
+        # before that re-render lands loses it (flaked under xdist load).
+        expect(page.locator("#clip-user-tags .user-tag")).to_have_count(1)
         page.fill("#clip-tag-input", "drop")
         page.press("#clip-tag-input", "Enter")
         expect(page.locator("#clip-user-tags .user-tag")).to_have_count(2)

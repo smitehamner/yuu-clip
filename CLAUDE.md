@@ -206,6 +206,7 @@ Use these glossary terms in **conversation** too, not just in code. If discussin
 - For new route handlers that read the DB: follow the existing pattern in `routes/videos.py`
 
 ### JavaScript / frontend
+- **Never hardcode colors** — no hex/rgba literals in CSS rules, inline styles, or JS-built HTML. Every color must be `var(--token)` or `color-mix(in srgb, var(--token) N%, transparent)` using the theme tokens defined at the top of `app.css`. Literals are only allowed inside the theme definition blocks themselves (`:root` and `html[data-theme=...]`), which must each override the full token set. Exceptions: `#000` video letterboxing and `rgba(0,0,0,…)` scrims drawn *over video content* (theme-independent by design), and the score-gradient stops in `utils.js` (data encoding, not UI chrome). `tests/test_ui_theme.py` enforces this for `app.css` and checks WCAG AA contrast per theme — when adding a new color pairing, add its contrast assertion there.
 - `escHtml(s)` must escape `"` → `&quot;` (used for `data-*` attributes in onclick delegation)
 - Dynamic button lists must use event delegation (`el.onclick = e => { ... }`) not inline `onclick=` attributes with JS values — inline attributes break when names contain quotes
 - SSE streams are tracked in `_activeES`; call `_activeES.close()` before starting a new one

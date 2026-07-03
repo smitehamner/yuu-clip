@@ -365,6 +365,19 @@ Per-context overrides can be set in the World Context editor. When a video is re
 
 ## Settings
 
+### Theme
+
+Settings → UI → **Theme** switches the app's color scheme. Three themes ship:
+
+| Theme | Look |
+|-------|------|
+| Dark (default) | The original dark purple look |
+| Light | White surfaces, darkened accent colors |
+| High contrast | Pure black background, brighter text and colors throughout |
+
+The change applies immediately (no Save needed) and is remembered across
+restarts. All three themes meet WCAG AA contrast for text.
+
 ### Speaker labels
 
 When enabled, yuu-clip runs speaker diarization after transcription and labels each transcript segment with who was speaking. This improves LLM scoring quality: transcript excerpts are formatted as `SPEAKER_00: ...` / `SPEAKER_01: ...` blocks instead of a flat text join.
