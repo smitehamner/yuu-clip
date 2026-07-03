@@ -75,6 +75,7 @@ async function openSettings() {
     // Sound rows must be rendered (from saved state) before _applySettingsToUI
     // runs the dirty check, or a discarded prior edit would re-enable Save.
     await initSoundSettings();
+    await initHotwordSettings();
     _applySettingsToUI(cfg);
     setTimeout(() => document.getElementById('s-whisper-model')?.focus(), 50);
   } catch (e) {

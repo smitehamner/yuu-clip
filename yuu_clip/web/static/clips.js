@@ -184,6 +184,18 @@ function setClipScoreMin(val) {
   _renderClips();
 }
 
+// ≤3 distinct phrases show individually; more collapse to a single count pill so
+// a heavily-matched clip doesn't crowd out the rest of the sidebar row.
+function _hotwordPillsHTML(matches) {
+  if (!matches || !matches.length) return '';
+  if (matches.length <= 3) {
+    return `<div class="tags" style="margin-top:4px">${matches.map(m =>
+      `<span class="tag" title="${escHtml(m.phrase)}${m.count > 1 ? ` (${m.count}×)` : ''}">\u{1F525} ${escHtml(m.phrase)}</span>`
+    ).join('')}</div>`;
+  }
+  return `<div class="tags" style="margin-top:4px"><span class="tag" title="${matches.length} hot-words matched">\u{1F525} ${matches.length}</span></div>`;
+}
+
 function _renderClipItems(clips) {
   const list = document.getElementById('clip-list');
   list.innerHTML = '';
@@ -223,7 +235,8 @@ function _renderClipItems(clips) {
         <span aria-hidden="true" title="Action"><span>⚔️</span> ${Math.round(c.score_action*100)}%</span>
         ` : `<span style="color:var(--muted);font-size:12px" title="This clip has not been scored yet">Not yet scored</span>`}
       </div>
-      ${c.description ? `<div class="clip-desc-preview" title="${escHtml(c.description)}">${escHtml(c.description)}</div>` : ''}`;
+      ${c.description ? `<div class="clip-desc-preview" title="${escHtml(c.description)}">${escHtml(c.description)}</div>` : ''}
+      ${_hotwordPillsHTML(c.hotword_matches)}`;
     const checkbox = li.querySelector('.clip-select-checkbox');
     checkbox.checked = AppState.selectedClipIds.has(c.id);
     checkbox.onclick = e => e.stopPropagation();
@@ -423,6 +436,8 @@ function renderDetail(clip) {
       ${_generatedTagPillsHTML(clip.tags)}
     </div>
 
+    ${_hotwordDetailHTML(clip)}
+
     <div class="detail-cards-row">
       <div class="detail-card">
         <div class="detail-card-header">
@@ -491,6 +506,31 @@ function renderDetail(clip) {
   if (clip.transcript_excerpt && window.loadClipTranscript) loadClipTranscript(clip.id);
   _renderTagDatalist();
   _loadTagSuggestions().then(_renderTagDatalist);
+}
+
+// ── hot-words ────────────────────────────────────────────────────────────────
+const _HOTWORD_MODE_LABELS = {exact: 'Exact', case_insensitive: 'Ignore case', semantic: 'Meaning (LLM)'};
+
+function _hotwordDetailHTML(clip) {
+  const matches = clip.hotword_matches;
+  if (!matches || !matches.length) return '';
+  const boost = clip.hotword_boost || {};
+  const boostLine = Object.entries(boost)
+    .filter(([, v]) => v)
+    .map(([target, v]) => `${target}: ${v > 0 ? '+' : ''}${Math.round(v * 100)}%`)
+    .join(', ');
+  return `
+    <div class="detail-card">
+      <div class="detail-card-header"><span class="detail-card-title">Hot-words</span></div>
+      <div style="display:flex;flex-direction:column;gap:4px;font-size:12px">
+        ${matches.map(m => `
+          <div>
+            <strong>${escHtml(m.phrase)}</strong>
+            <span style="color:var(--muted)"> — ${escHtml(_HOTWORD_MODE_LABELS[m.mode] || m.mode)}${m.count > 1 ? `, ${m.count}×` : ''}</span>
+          </div>`).join('')}
+        ${boostLine ? `<div style="color:var(--muted);font-size:11px;margin-top:2px">Boost applied: ${escHtml(boostLine)}</div>` : ''}
+      </div>
+    </div>`;
 }
 
 // ── generated tags ──────────────────────────────────────────────────────────

@@ -122,12 +122,8 @@ Complex, specialized, or AI-heavy features that are valuable but don't need to b
 
 ### Scoring and signal enrichment
 
-- [ ] **Hot-word / phrase config** — each entry: phrase, match mode (exact / case-insensitive /
-  LLM-semantic), score boost (float), boost target (overall or a specific sub-score).
-  LLM-semantic is opt-in per entry with a visible GPU time warning. Exact + case-insensitive
-  matching runs at ingest and rescore time; LLM-semantic runs via explicit per-video "Scan" button.
-  Tags on sidebar card: pills if ≤3 matches, count pill `🔥 4` if more; full list in detail panel.
-  Lives in Settings page under the `Hot-words` section.
+- [x] **Hot-word / phrase config** (done, 2026-07-03) — see
+  [COMPLETED.md](COMPLETED.md#hot-word--phrase-config-done-2026-07-03).
 
 - [ ] **Laugh / non-speech sound detection: separate attribute** — follow-on to the shipped
   `LaughScorer` (transcript/audio/model modes, contributes to `score_funny` — see COMPLETED-archive.md).

@@ -6,6 +6,39 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) — see the
 
 ---
 
+## Hot-word / phrase config (done, 2026-07-03)
+
+Roadmap plan 03 (`docs/dev/plans/roadmap-2026-07/03-hot-words.md`), both stages:
+
+- **Data model** — new project-wide `hot_words` table (phrase, match mode, boost, boost
+  target, enabled); new `ClipCandidate.hotword_matches_json` / `hotword_boost_json` columns.
+  Boosts are stored per target so re-applying is idempotent (recompute subtracts the old
+  boost, adds the new one, clamps) — a rescan never compounds. Score scale matches the
+  codebase's existing 0–1 internal representation (boost ±0.5, per-target clamp ±0.3), not
+  the plan doc's literal 0–10 numbers, which didn't match how scores are actually stored.
+- **Matcher** — `yuu_clip/scoring/textmatch.py`, shared with the future sensitive-content
+  plan (06): word-boundary-aware exact/case-insensitive phrase matching (regex-escaped,
+  multi-word phrases match across punctuation gaps), with speaker-prefix stripping so a
+  speaker named after a hot-word phrase doesn't spuriously match.
+- **Stage 1** — exact/case-insensitive matching applied automatically in `ScoringEngine`
+  (analyze, rescore) via `apply_hotword_boosts()`; a cheap text-only `POST
+  /api/videos/{id}/hotword-rescan` for applying hot-word edits without a full re-score.
+  Full CRUD (`/api/hotwords`) plus a live-saving table editor in Settings. Clip sidebar
+  shows phrase pills (≤3) or a `🔥 N` count pill; clip detail lists phrase/mode/count/boost.
+- **Stage 2** — "Meaning (LLM)" match mode: one LLM call per clip checks a batch of
+  semantic phrases against the transcript (`scan_hotwords_semantic`, reusing the JSON
+  repair helpers in `scoring/llm.py`). Runs via `GET /api/videos/{id}/hotword-scan`
+  (in-process SSE, matching the existing rescore/redescribe routes' pattern rather than
+  the plan's suggested CLI-subprocess approach) from a "Scan for Hot-words" action in the
+  recording's Additional Actions modal, gated on ≥1 enabled semantic entry. A later
+  text-only rescan preserves semantic matches instead of wiping them.
+- **Tests** — 56 in `tests/test_hotwords.py` (matcher, boost math incl. idempotency and
+  clamp edge cases, CRUD validation, scan route with a stubbed LLM), 24 Playwright tests
+  in `tests/test_ui_hotwords.py` (Settings CRUD against the live project with cleanup,
+  sidebar/detail rendering via client-state injection, Scan-action gating).
+
+---
+
 ## Map user paths end-to-end + artifact staleness policy (done, 2026-07-03)
 
 Roadmap plan 02 (`docs/dev/plans/roadmap-2026-07/02-user-paths-staleness.md`), three stages:

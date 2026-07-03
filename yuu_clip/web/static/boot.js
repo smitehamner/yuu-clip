@@ -16,6 +16,7 @@ document.querySelectorAll('.modal-bg').forEach((bg, i) => {
 initResize();
 _loadContexts();
 loadVideos();
+ensureHotwordsCache();
 fetch('/api/status').then(r => r.json()).then(d => {
   if (d.version) {
     const versionLabel = (/^\d/.test(d.version) ? 'v' : '') + d.version;

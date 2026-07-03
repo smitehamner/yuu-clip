@@ -5,12 +5,13 @@ import asyncio
 import json as json_lib
 from dataclasses import replace as _dc_replace
 from datetime import datetime, timezone
+from types import SimpleNamespace
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
 
 from yuu_clip.contexts import extract_context_weights, format_context_block, load_contexts
-from yuu_clip.db.models import AudioTrack, ClipCandidate, Video
+from yuu_clip.db.models import AudioTrack, ClipCandidate, HotWord, Video
 from yuu_clip.log import get_logger
 from yuu_clip.web.deps import ProjectContext
 from yuu_clip.web.routes._shared import (
@@ -60,6 +61,23 @@ def _resolve_context(ctx: ProjectContext, context_names: list[str]) -> tuple:
     return context_text, config
 
 
+def _load_hot_words(db) -> list:
+    """Snapshot the project's hot-words as plain objects, safe to use after *db* closes.
+
+    ScoringEngine/apply_hotword_boosts only read scalar attributes (no relationships),
+    so a detached ORM instance would work too — but this file's routes query hot-words
+    before closing the session and construct the engine afterward (mirroring clip_ids
+    below), so a snapshot avoids relying on SQLAlchemy detached-instance behavior.
+    """
+    return [
+        SimpleNamespace(
+            phrase=hw.phrase, match_mode=hw.match_mode,
+            boost=hw.boost, target=hw.target, enabled=hw.enabled,
+        )
+        for hw in db.query(HotWord).all()
+    ]
+
+
 def _parse_scope_ids(video_ids: str, default_video_id: int) -> list[int]:
     """Parse the comma-separated video_ids query param, defaulting to the clip's own video."""
     if not video_ids.strip():
@@ -93,7 +111,119 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     _register_rescore_routes(router, ctx)
     _register_summary_routes(router, ctx)
     _register_clip_scoring_routes(router, ctx)
+    _register_hotword_rescan_route(router, ctx)
+    _register_hotword_scan_route(router, ctx)
     return router
+
+
+def _register_hotword_rescan_route(router: APIRouter, ctx: ProjectContext) -> None:
+    @router.post("/api/videos/{video_id}/hotword-rescan")
+    def hotword_rescan(video_id: int):
+        """Recompute hot-word matches and score boosts for every clip of *video_id*
+        from their already-stored transcript excerpts — no LLM call, synchronous."""
+        from yuu_clip.scoring.engine import apply_hotword_boosts
+
+        db = ctx.get_db()
+        try:
+            video = db.get(Video, video_id)
+            if not video:
+                raise HTTPException(404, "Video not found")
+            hot_words = _load_hot_words(db)
+            clips = db.query(ClipCandidate).filter_by(video_id=video_id).all()
+            changed = 0
+            for clip in clips:
+                before = (clip.score_overall, clip.score_funny, clip.score_dramatic, clip.score_action)
+                apply_hotword_boosts(clip, hot_words, ctx.config)
+                after = (clip.score_overall, clip.score_funny, clip.score_dramatic, clip.score_action)
+                if before != after:
+                    changed += 1
+            db.commit()
+            return {"clips_checked": len(clips), "clips_changed": changed}
+        finally:
+            db.close()
+
+
+def _register_hotword_scan_route(router: APIRouter, ctx: ProjectContext) -> None:
+    @router.get("/api/videos/{video_id}/hotword-scan")
+    async def hotword_scan(video_id: int):
+        """Run the LLM-semantic hot-word check against every clip's transcript excerpt.
+
+        Only enabled match_mode='semantic' entries are scanned — exact/case-insensitive
+        matches are untouched (they run via hotword-rescan instead). Streams progress
+        as SSE, one LLM call per clip covering every semantic phrase at once.
+        """
+        from yuu_clip.scoring.llm import check_llm_available
+
+        _reject_if_analyzing(ctx)
+        db = ctx.get_db()
+        try:
+            video = db.get(Video, video_id)
+            if not video:
+                raise HTTPException(404, "Video not found")
+            hot_words = _load_hot_words(db)
+            clip_ids = [
+                c.id for c in
+                db.query(ClipCandidate).filter_by(video_id=video_id).order_by(ClipCandidate.start_ms).all()
+                if c.transcript_excerpt
+            ]
+        finally:
+            db.close()
+
+        semantic_words = [hw for hw in hot_words if hw.enabled and hw.match_mode == "semantic"]
+        if not semantic_words:
+            raise HTTPException(400, "No enabled 'Meaning (LLM)' hot-words to scan for")
+
+        llm_ok, llm_reason = check_llm_available(ctx.config)
+        if not llm_ok:
+            raise HTTPException(503, f"LLM unavailable — {llm_reason}")
+
+        config = ctx.config
+        phrases = [hw.phrase for hw in semantic_words]
+
+        async def event_stream():
+            from yuu_clip.scoring.engine import apply_hotword_boosts
+            from yuu_clip.scoring.llm import scan_hotwords_semantic
+            from yuu_clip.scoring.textmatch import strip_speaker_prefixes
+
+            async with _active_job(ctx):
+                total = len(clip_ids)
+                plural = "s" if total != 1 else ""
+                yield f"data: {json_lib.dumps(f'[Scanning {total} clip{plural} for hot-word meaning…]')}\n\n"
+
+                for i, clip_id in enumerate(clip_ids, 1):
+                    scan_db = ctx.get_db()
+                    error = None
+                    try:
+                        clip = scan_db.get(ClipCandidate, clip_id)
+                        if clip and clip.transcript_excerpt:
+                            text = strip_speaker_prefixes(clip.transcript_excerpt)
+                            matched = await asyncio.to_thread(scan_hotwords_semantic, text, phrases, config)
+                            # apply_hotword_boosts recomputes exact/case-insensitive matches
+                            # fresh from the transcript itself, so only the semantic result
+                            # needs writing here — it reads this back to apply the boost and
+                            # preserve it against a later text-only rescan.
+                            clip.hotword_matches = [
+                                {"phrase": p, "mode": "semantic", "count": 1} for p in matched
+                            ]
+                            apply_hotword_boosts(clip, hot_words, config)
+                            scan_db.commit()
+                    except Exception as exc:
+                        scan_db.rollback()
+                        error = str(exc)
+                        _log.error(
+                            "hotword_scan: clip %d failed for video %d: %s",
+                            clip_id, video_id, exc, exc_info=True,
+                        )
+                    finally:
+                        scan_db.close()
+                    if error:
+                        yield f"data: {json_lib.dumps(f'[Error scanning clip {clip_id}: {error}]')}\n\n"
+                    else:
+                        yield f"data: {json_lib.dumps(f'Scanned {i}/{total} clips')}\n\n"
+
+                yield f"data: {json_lib.dumps('__DONE__')}\n\n"
+
+        return _sse_response(event_stream())
 
 
 def _rescore_video_clips(ctx: ProjectContext, video_id: int, failed_only: bool):
@@ -112,6 +242,7 @@ def _rescore_video_clips(ctx: ProjectContext, video_id: int, failed_only: bool):
         if failed_only:
             query = query.filter(ClipCandidate.tags_json.like('%"llm_error"%'))
         clip_ids = [c.id for c in query.all()]
+        hot_words = _load_hot_words(db)
     finally:
         db.close()
 
@@ -125,7 +256,7 @@ def _rescore_video_clips(ctx: ProjectContext, video_id: int, failed_only: bool):
             total = len(clip_ids)
             plural = "s" if total != 1 else ""
             yield f"data: {json_lib.dumps(f'[Starting LLM scoring for {total} clip{plural}…]')}\n\n"
-            engine = ScoringEngine(config, [LLMScorer(config, context_text=context_text)])
+            engine = ScoringEngine(config, [LLMScorer(config, context_text=context_text)], hot_words=hot_words)
 
             for i, clip_id in enumerate(clip_ids, 1):
                 score_db = ctx.get_db()
@@ -365,6 +496,7 @@ def _register_clip_scoring_routes(router: APIRouter, ctx: ProjectContext) -> Non
             if not video:
                 raise HTTPException(404, "Video not found")
             context_names = _json_list(video.context_names_json)
+            hot_words = _load_hot_words(db)
         finally:
             db.close()
 
@@ -376,7 +508,7 @@ def _register_clip_scoring_routes(router: APIRouter, ctx: ProjectContext) -> Non
 
             async with _active_job(ctx):
                 yield f"data: {json_lib.dumps('[Starting LLM scoring for 1 clip…]')}\n\n"
-                engine = ScoringEngine(config, [LLMScorer(config, context_text=context_text)])
+                engine = ScoringEngine(config, [LLMScorer(config, context_text=context_text)], hot_words=hot_words)
                 score_db = ctx.get_db()
                 error = None
                 desc_new = desc_long_new = None

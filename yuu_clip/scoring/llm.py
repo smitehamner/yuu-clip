@@ -252,6 +252,39 @@ def describe_clip(transcript: str, config: "Config", context_text: str = "") -> 
     return str(data.get("description", "")), str(data.get("description_long", ""))
 
 
+_HOTWORD_SEMANTIC_SYSTEM = """\
+You check whether a clip's transcript expresses the concept behind each of a list of
+phrases — not necessarily the literal words, but the same idea, theme, or moment.
+
+Return ONLY valid JSON: a list containing the exact phrases (copied verbatim from the
+input list) whose concept is expressed in the transcript. Return [] if none apply.
+No markdown, no extra text.\
+"""
+
+
+def scan_hotwords_semantic(transcript: str, phrases: list[str], config: "Config") -> list[str]:
+    """Ask the LLM which of *phrases* have their concept expressed in *transcript*.
+
+    Returns the subset of *phrases* (verbatim) the model judged as matching — filtered
+    against the input list so a model that invents a phrase not asked about is ignored.
+    Truncates the transcript to 4 000 chars. Raises on failure.
+    """
+    if not phrases:
+        return []
+    phrase_list = "\n".join(f"- {p}" for p in phrases)
+    messages = [
+        {"role": "system", "content": _HOTWORD_SEMANTIC_SYSTEM},
+        {"role": "user", "content": (
+            f"Phrases:\n{phrase_list}\n\nTranscript:\n\"\"\"\n{transcript[:4000]}\n\"\"\"\nJSON:"
+        )},
+    ]
+    data = _call_llm_json(messages, config, temperature=0.1)
+    if not isinstance(data, list):
+        raise ValueError(f"Expected list, got {type(data)}")
+    allowed = set(phrases)
+    return [p for p in (str(x) for x in data) if p in allowed]
+
+
 def check_llm_available(config: "Config") -> tuple[bool, str]:
     """Return (available, reason) without logging.  Used by routes to gate LLM calls."""
     if not config.ollama_enabled:

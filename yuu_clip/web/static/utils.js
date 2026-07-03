@@ -9,6 +9,8 @@ const AppState = {
   clips:               [],
   analyzeProfiles:     [],
   contexts:            [],
+  hotWords:            [],
+  _hotWordsLoaded:     false,
   analyzeFilename:     null,
   editingContextId:    null,
   clipFilters:         new Set(),  // active filter tokens; empty = show all

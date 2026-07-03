@@ -47,6 +47,7 @@ Most lookups only need this table: the authoritative user-facing term, the code 
 | Clip generation | `generate_candidates()` | Transcript → candidate windows — not "segmentation" in UI |
 | Score | `score_overall`, `score_funny`, … | 0–1 rating per dimension |
 | Scoring dimension | `funny`, `dramatic`, `action` | The three axes |
+| Hot-word | `hot_words`, `hotword_*` | A phrase that nudges a clip's score when it appears in the transcript |
 | LLM scoring | `LLMScorer` | Transcript-based scoring — not "AI scoring" |
 | Audio energy scoring | `EnergyScorer` | Loudness/activity-based scoring |
 | Scene scoring | `SceneScorer` | Scene-cut-frequency scoring |
@@ -439,6 +440,19 @@ One axis of evaluation: Funny, Dramatic, or Action.
 - **Code:** dimension names `funny`, `dramatic`, `action`
 - **UI label:** labeled score bars ("Funny", "Dramatic", "Action")
 - **Notes:** Each dimension is scored independently by multiple scorers and combined.
+
+---
+
+### Hot-word
+
+A creator-defined phrase that nudges a clip's score when it appears in the clip's transcript excerpt — e.g. boosting "Funny" whenever a running gag's catchphrase is spoken.
+
+- **Code:** `hot_words` (DB table), `hotword_matches_json`, `hotword_boost_json`, `hotword_*` routes
+- **UI label:** "Hot-words" (Settings section); match-mode labels "Exact", "Ignore case", "Meaning (LLM)"
+- **Notes:** Per-entry: phrase, match mode, score boost, and which score it boosts (overall or a
+  sub-score). Exact/Ignore-case matching runs automatically at scoring time; Meaning (LLM) mode
+  requires a per-recording Scan. A phrase counts once per clip regardless of how many times it's
+  repeated; boosts are clamped and idempotently re-appliable so re-scanning never compounds them.
 
 ---
 

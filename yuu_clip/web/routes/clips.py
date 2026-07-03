@@ -197,6 +197,8 @@ def _clip_dict(
         "related_clips": json_lib.loads(clip.related_clips_json) if clip.related_clips_json else None,
         "related_clips_at": clip.related_clips_at.isoformat() if clip.related_clips_at else None,
         "related_clips_stale": _related_clips_stale(clip, video),
+        "hotword_matches": clip.hotword_matches,
+        "hotword_boost": clip.hotword_boost,
         "transcript_stale": _transcript_stale(clip, video),
         "export_stale": export_stale,
         "export_stale_reasons": export_stale_reasons,

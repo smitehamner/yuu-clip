@@ -112,6 +112,9 @@ The three things each clip is rated on:
 ### LLM scoring
 Extra scoring and description writing done by a local language model that reads the clip's transcript. Optional — it improves clip quality but analysis still works without it.
 
+### Hot-word
+A phrase you define that nudges a clip's score when it's spoken in the clip — for example, boosting Funny whenever a running gag's catchphrase comes up. Set up hot-words in Settings: pick a match mode (**Exact**, **Ignore case**, or **Meaning (LLM)**), a boost amount, and which score it affects. Exact/Ignore-case matches apply automatically; **Meaning (LLM)** entries need you to press **Scan** on a recording. Saying a phrase twice in one clip only counts once.
+
 ---
 
 ## Descriptions & Summaries

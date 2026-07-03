@@ -411,6 +411,7 @@ def retranscribe(
 
     if not no_rescore:
         from yuu_clip.contexts import format_context_block, load_contexts
+        from yuu_clip.db.models import HotWord
         from yuu_clip.db.models import Video as _Video
         from yuu_clip.scoring.engine import ScoringEngine
         from yuu_clip.scoring.llm import LLMScorer
@@ -419,7 +420,8 @@ def retranscribe(
         context_names = json.loads(vid.context_names_json) if vid and vid.context_names_json else []
         context_text = format_context_block(load_contexts(proj_dir), context_names)
         console.print("  Re-scoring clip with LLM...")
-        engine = ScoringEngine(config, [LLMScorer(config, context_text=context_text)])
+        hot_words = session.query(HotWord).all()
+        engine = ScoringEngine(config, [LLMScorer(config, context_text=context_text)], hot_words=hot_words)
         engine.score_clip(cand, session)
         session.commit()
         console.print("  [green]  OK[/green]")

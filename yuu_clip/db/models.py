@@ -9,6 +9,7 @@ Schema overview:
   ClipCandidate     - proposed clip with timestamps, score fields, and status
   AudioEnergy       - per-second RMS energy curve per audio track
   SceneBoundary     - detected scene cuts per video
+  HotWord           - creator-defined phrase that boosts clip scores (project-wide)
 """
 from __future__ import annotations
 
@@ -164,6 +165,8 @@ def _migrate(engine) -> None:
             ("description_edited_at", "DATETIME"),
             ("exported_title_card", "BOOLEAN"),
             ("exported_embed_subs", "BOOLEAN"),
+            ("hotword_matches_json", "TEXT"),
+            ("hotword_boost_json",   "TEXT"),
         ]
         for col, typedef in _clip_migrations:
             if col not in existing:
@@ -520,6 +523,11 @@ class ClipCandidate(Base):
     # both mean the exported file's bytes depend on the transcript, for staleness purposes.
     exported_embed_subs: Mapped[Optional[bool]] = mapped_column(Boolean)
 
+    # Hot-word matches found in this clip's transcript_excerpt, and the score boosts
+    # actually applied — see HotWord and scoring/engine.py::apply_hotword_boosts.
+    hotword_matches_json: Mapped[Optional[str]] = mapped_column(Text)
+    hotword_boost_json:   Mapped[Optional[str]] = mapped_column(Text)
+
     related_clips_json: Mapped[Optional[str]] = mapped_column(Text)
     related_clips_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
 
@@ -572,6 +580,22 @@ class ClipCandidate(Base):
     @user_tags.setter
     def user_tags(self, value: list[str]) -> None:
         self.user_tags_json = json.dumps(value)
+
+    @property
+    def hotword_matches(self) -> list[dict]:
+        return json.loads(self.hotword_matches_json) if self.hotword_matches_json else []
+
+    @hotword_matches.setter
+    def hotword_matches(self, value: list[dict]) -> None:
+        self.hotword_matches_json = json.dumps(value)
+
+    @property
+    def hotword_boost(self) -> dict:
+        return json.loads(self.hotword_boost_json) if self.hotword_boost_json else {}
+
+    @hotword_boost.setter
+    def hotword_boost(self, value: dict) -> None:
+        self.hotword_boost_json = json.dumps(value)
 
     @property
     def duration_ms(self) -> int:
@@ -631,3 +655,21 @@ class SceneBoundary(Base):
     __table_args__ = (
         Index("ix_scene_boundaries_video_time", "video_id", "timecode_ms"),
     )
+
+
+class HotWord(Base):
+    """A creator-defined phrase that boosts a clip's score when it appears in the
+    transcript. Project-wide (not per-video) — see scoring/textmatch.py for the
+    matcher and scoring/engine.py::apply_hotword_boosts for how boosts are applied.
+    """
+    __tablename__ = "hot_words"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    phrase: Mapped[str] = mapped_column(String, nullable=False)
+    # "exact" | "case_insensitive" | "semantic"
+    match_mode: Mapped[str] = mapped_column(String, nullable=False, default="exact")
+    boost: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    # "overall" | "funny" | "dramatic" | "action"
+    target: Mapped[str] = mapped_column(String, nullable=False, default="overall")
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))

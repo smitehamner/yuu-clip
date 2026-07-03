@@ -378,6 +378,18 @@
     </div>
   </div>
 
+  <!-- Hot-words section -->
+  <div class="settings-section" id="settings-sec-hotwords">
+    <div class="settings-section-title">Hot-words</div>
+    <div class="settings-note" style="margin-bottom:8px">
+      Boost a clip's score when a phrase is spoken — great for running gags or catchphrases.
+      Saved instantly; use <strong>Rescan current recording</strong> from the confirmation toast
+      to apply changes to a recording's existing clips without a full re-score.
+    </div>
+    <div id="s-hotword-rows"></div>
+    <button type="button" class="btn-secondary" onclick="addHotwordRow()" style="margin-top:4px">+ Add hot-word</button>
+  </div>
+
   <!-- Analysis defaults section -->
   <div class="settings-section" id="settings-sec-analysis">
     <div class="settings-section-title">Analysis defaults <span style="font-size:11px;font-weight:400;color:var(--muted)">(pre-filled in Analyze modal)</span></div>
@@ -1537,6 +1549,7 @@
 <script src="/static/contexts.js"></script>
 <script src="/static/settings.js"></script>
 <script src="/static/sounds.js"></script>
+<script src="/static/hotwords.js"></script>
 <script src="/static/split.js"></script>
 <script src="/static/speakers.js"></script>
 <script src="/static/transcript.js"></script>

@@ -312,6 +312,24 @@ A larger or slower Ollama model multiplies these times proportionally. Running O
 
 Weighted average of the three dimension scores. Default weight: equal. Configurable in project config.
 
+### Hot-words
+
+Settings → Hot-words lets you define phrases that nudge a clip's score whenever they're spoken —
+handy for running gags or catchphrases. Each entry has a phrase, a match mode, a boost amount, and
+which score it affects (Overall or a sub-score):
+
+- **Exact** / **Ignore case** — matched automatically whenever clips are scored or re-scored, at
+  no extra cost. A recording's clips can also be updated without a full re-score via the
+  **Rescan current recording** action offered after saving a hot-word change.
+- **Meaning (LLM)** — matched by concept rather than literal wording (e.g. "big win" matches a clip
+  where someone describes winning without saying those exact words). Runs only when you press
+  **Scan for Hot-words** in a recording's Additional Actions menu (one LLM call per clip, so time
+  scales with clip count) — shown only when at least one enabled "Meaning (LLM)" entry exists.
+
+A phrase counts once per clip no matter how many times it's repeated. Matched phrases show as
+pills on the clip's sidebar card (or a `🔥 N` count once there are more than three), with the
+full list plus the boost actually applied in the clip detail view.
+
 ---
 
 ## Export
