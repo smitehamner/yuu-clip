@@ -630,3 +630,126 @@ class TestThermalJobHeaderUI:
         page.evaluate("() => startJobUI(SCORE_STEPS, 'Re-scoring clip', false, false)")
         expect(page.locator("#job-gpu-temp")).to_be_hidden()
         page.evaluate("() => endJobUI()")
+
+
+# ---------------------------------------------------------------------------
+# Import from URL (roadmap plan 08) — URL field, stubbed inspect card,
+# stubbed-SSE download completion prefilling the analyze form.
+# ---------------------------------------------------------------------------
+
+def _fulfill_json(body: dict, status: int = 200):
+    return lambda route: route.fulfill(status=status, content_type="application/json", body=json.dumps(body))
+
+
+def _sse_body(lines: list[str]) -> str:
+    return "".join(f"data: {json.dumps(line)}\n\n" for line in [*lines, "__DONE__"])
+
+
+@skip_no_server
+class TestImportFromUrl:
+    def _open_panel(self, page: Page) -> None:
+        page.click("#btn-analyze")
+        page.locator("#new-recording-panel").wait_for(state="visible")
+
+    def test_import_url_button_present(self, page: Page):
+        page.goto(LIVE_URL)
+        self._open_panel(page)
+        expect(page.locator("#btn-show-import-url")).to_be_visible()
+        expect(page.locator("#btn-show-import-url")).to_contain_text("Import from a URL")
+        expect(page.locator("#import-url-field")).to_be_hidden()
+
+    def test_clicking_button_reveals_url_field_and_hides_local_path(self, page: Page):
+        page.goto(LIVE_URL)
+        self._open_panel(page)
+        page.click("#btn-show-import-url")
+        expect(page.locator("#import-url-field")).to_be_visible()
+        expect(page.locator("#recording-source-field")).to_be_hidden()
+
+    def test_use_local_file_instead_restores_path_field(self, page: Page):
+        page.goto(LIVE_URL)
+        self._open_panel(page)
+        page.click("#btn-show-import-url")
+        page.click("#import-url-field button:has-text('Use a local file instead')")
+        expect(page.locator("#import-url-field")).to_be_hidden()
+        expect(page.locator("#recording-source-field")).to_be_visible()
+
+    def test_check_link_renders_inspect_card(self, page: Page):
+        page.goto(LIVE_URL)
+        self._open_panel(page)
+        page.click("#btn-show-import-url")
+        page.route("**/api/import-url/inspect", _fulfill_json({
+            "title": "Epic Gaming Moment", "uploader": "SomeStreamer", "duration_s": 3600,
+            "upload_date": "2026-06-15", "category": "Just Chatting",
+            "estimated_size_bytes": 500_000_000, "video_id": "abc123",
+            "already_imported": False, "existing_filename": None,
+        }))
+        page.route("**/api/estimate", _fulfill_json({
+            "steps": [{"name": "Transcribe", "seconds": 60, "note": "1 track", "hms": "1m 00s"}],
+            "total_hms": "1m 00s", "total_seconds": 60, "pct_of_video": 1.7,
+            "source": "estimated", "warn_hours": 2.0, "long_run_warning": False,
+        }))
+        page.fill("#import-url-input", "https://www.youtube.com/watch?v=abc123")
+        page.click("#btn-check-url")
+        expect(page.locator("#import-url-inspect-area")).to_contain_text("Epic Gaming Moment")
+        expect(page.locator("#import-url-inspect-area")).to_contain_text("SomeStreamer")
+        expect(page.locator("#btn-start-import")).to_be_visible()
+
+    def test_check_link_shows_error_for_unsupported_url(self, page: Page):
+        page.goto(LIVE_URL)
+        self._open_panel(page)
+        page.click("#btn-show-import-url")
+        page.route("**/api/import-url/inspect", _fulfill_json(
+            {"detail": "Only YouTube and Twitch links are supported"}, status=400,
+        ))
+        page.fill("#import-url-input", "https://vimeo.com/12345")
+        page.click("#btn-check-url")
+        expect(page.locator("#import-url-inspect-area")).to_contain_text("Only YouTube and Twitch")
+
+    def test_already_imported_note_shown(self, page: Page):
+        page.goto(LIVE_URL)
+        self._open_panel(page)
+        page.click("#btn-show-import-url")
+        page.route("**/api/import-url/inspect", _fulfill_json({
+            "title": "Dup Video", "uploader": "Streamer", "duration_s": 60,
+            "upload_date": None, "category": "", "estimated_size_bytes": None,
+            "video_id": "dup1", "already_imported": True, "existing_filename": "dup.mkv",
+        }))
+        page.fill("#import-url-input", "https://youtu.be/dup1")
+        page.click("#btn-check-url")
+        expect(page.locator("#import-url-inspect-area")).to_contain_text("Already imported as")
+        expect(page.locator("#import-url-inspect-area")).to_contain_text("dup.mkv")
+
+    def test_download_completion_prefills_analyze_path(self, page: Page):
+        fake_path = "C:\\fake\\downloads\\my video.mkv"
+        page.goto(LIVE_URL)
+        self._open_panel(page)
+        page.click("#btn-show-import-url")
+        page.route("**/api/import-url/inspect", _fulfill_json({
+            "title": "Great Clip", "uploader": "Streamer", "duration_s": 60,
+            "upload_date": None, "category": "", "estimated_size_bytes": None,
+            "video_id": "vid1", "already_imported": False, "existing_filename": None,
+        }))
+        page.route("**/api/estimate", _fulfill_json({
+            "steps": [], "total_hms": "0s", "total_seconds": 0, "pct_of_video": 0,
+            "source": "estimated", "warn_hours": 2.0, "long_run_warning": False,
+        }))
+        page.fill("#import-url-input", "https://www.youtube.com/watch?v=vid1")
+        page.click("#btn-check-url")
+        page.wait_for_selector("#btn-start-import")
+
+        page.route("**/api/import-url/start", _fulfill_json({"status": "started"}))
+        page.route("**/api/import-url/events", lambda route: route.fulfill(
+            status=200, content_type="text/event-stream",
+            body=_sse_body([
+                "[Download] 50.0% of 100MB at 5MB/s, ETA 00:05",
+                f"[Imported] {fake_path}",
+            ]),
+        ))
+        # Downloaded VODs have no real file on disk — stub the probe the
+        # prefilled path triggers so it fails quietly instead of erroring.
+        page.route("**/api/probe", _fulfill_json({"detail": "File not found"}, status=400))
+
+        page.click("#btn-start-import")
+        expect(page.locator("#toast-container .toast.success")).to_contain_text("Download complete")
+        page.locator("#new-recording-panel").wait_for(state="visible")
+        expect(page.locator("#analyze-path")).to_have_value(fake_path)

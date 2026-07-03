@@ -260,6 +260,19 @@ async function selectVideo(id) {
   else clearDetail();
 }
 
+// "Imported from" line (roadmap plan 08) — shown only for a recording brought
+// in via Import from URL; a recording added from a local file has no source_url.
+function _renderImportedFromLine(video) {
+  if (!video.source_url) return '';
+  const parts = [escHtml(video.source_uploader || 'Unknown channel')];
+  if (video.source_upload_date) parts.push(escHtml(video.source_upload_date));
+  return `
+      <div style="color:var(--muted);font-size:12px;margin-top:4px">
+        Imported from ${parts.join(' &middot; ')} &middot;
+        <a href="${escHtml(video.source_url)}" target="_blank" rel="noopener noreferrer">View original</a>
+      </div>`;
+}
+
 function renderVideoDetail(video, savedTimeline) {
   AppState.activeVideoData = video;
   const eb = (isEdited) => isEdited ? `<span class="edited-badge">edited</span>` : '';
@@ -291,6 +304,7 @@ function renderVideoDetail(video, savedTimeline) {
         <span>${video.duration_hms} &middot; ${video.clip_count} clips &middot; ${_msToHms(video.total_clip_ms)} clipped</span>
         ${AppState.canReveal ? `<button class="btn ghost" style="font-size:11px;padding:2px 8px" onclick="revealInFolder(AppState.activeVideoData.path)">Show in Folder</button>` : ''}
       </div>
+      ${_renderImportedFromLine(video)}
     </div>
 
     ${_renderContextSection(video)}

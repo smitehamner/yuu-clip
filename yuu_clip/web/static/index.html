@@ -717,12 +717,26 @@
                   aria-label="Close" style="font-size:16px">&#x2715;</button>
         </div>
 
-        <div class="field">
+        <div class="field" id="recording-source-field">
           <label for="analyze-path">Recording file</label>
           <div class="path-row">
             <button class="btn" id="btn-browse-recording" onclick="pickFile()">&#128193; Browse&#8230;</button>
             <input type="text" id="analyze-path" placeholder="or paste a file path" oninput="scheduleProbe()">
           </div>
+          <button class="btn ghost" id="btn-show-import-url" type="button"
+                  style="margin-top:6px;font-size:12px;padding:2px 8px"
+                  onclick="showImportUrlSection()">&#128279; Import from a URL instead (Twitch/YouTube)</button>
+        </div>
+
+        <div class="field" id="import-url-field" style="display:none">
+          <label for="import-url-input">Twitch VOD / YouTube URL</label>
+          <div class="path-row">
+            <input type="text" id="import-url-input" placeholder="https://www.twitch.tv/videos/... or https://youtube.com/watch?v=...">
+            <button class="btn" id="btn-check-url" type="button" onclick="checkImportUrl()">Check link</button>
+          </div>
+          <button class="btn ghost" type="button" style="margin-top:6px;font-size:12px;padding:2px 8px"
+                  onclick="hideImportUrlSection()">&#8592; Use a local file instead</button>
+          <div id="import-url-inspect-area" style="margin-top:8px"></div>
         </div>
 
         <div class="field">

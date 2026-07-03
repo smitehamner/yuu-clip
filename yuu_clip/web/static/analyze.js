@@ -28,6 +28,7 @@ async function openNewRecordingPanel() {
   _panelDirty   = false;
   _updateStartIngestButton();
   hidePreSplitSection();
+  hideImportUrlSection();
   await _loadAnalysisDefaults();
   await _loadProfileDropdown();
   await _loadIngestContextPicker();
@@ -273,7 +274,11 @@ async function runEstimate() {
 
 const _warnThresholdMin = 30;
 
-function renderEstimate(info, data) {
+// Shared by the New Recording panel's own probe estimate (renderEstimate) and
+// the Import from URL inspect card (renderImportUrlEstimate) — both call
+// /api/estimate and show the same per-step breakdown, just under a different
+// header (local file probe info vs. downloaded-video metadata).
+function _estimateBodyHTML(data) {
   AppState.lastEstimateSteps = data.steps;
   const warnS = _warnThresholdMin * 60;
   const tClass = s => s >= warnS ? 't-warn' : s >= warnS / 3 ? 't-medium' : 't-fast';
@@ -306,13 +311,7 @@ function renderEstimate(info, data) {
       GPU runs hot (Settings &rarr; Hardware).</span>
     </div>` : '';
 
-  document.getElementById('estimate-area').innerHTML = `
-    <div class="estimate-box">
-      <div class="probe-info">
-        ${escHtml(info.filename)} &middot; ${info.duration_hms} &middot;
-        ${info.width}&#x2715;${info.height} @ ${info.fps.toFixed(0)}fps &middot;
-        ${plural(info.audio_tracks, 'audio track')}
-      </div>
+  return `
       ${rows}
       <div class="estimate-total">
         <span>Total estimated</span>
@@ -323,7 +322,18 @@ function renderEstimate(info, data) {
       </div>
       ${pctLine}
       ${sourceLine}
-      ${longRunWarning}
+      ${longRunWarning}`;
+}
+
+function renderEstimate(info, data) {
+  document.getElementById('estimate-area').innerHTML = `
+    <div class="estimate-box">
+      <div class="probe-info">
+        ${escHtml(info.filename)} &middot; ${info.duration_hms} &middot;
+        ${info.width}&#x2715;${info.height} @ ${info.fps.toFixed(0)}fps &middot;
+        ${plural(info.audio_tracks, 'audio track')}
+      </div>
+      ${_estimateBodyHTML(data)}
     </div>`;
 }
 
@@ -501,6 +511,189 @@ async function pickFile() {
     btn.textContent = orig;
     btn.disabled = false;
   }
+}
+
+// ── Import from URL (Twitch VOD / YouTube) ────────────────────────────────────
+let _importUrlInfo = null;
+let _importUrlUrl  = null;
+
+function showImportUrlSection() {
+  document.getElementById('recording-source-field').style.display = 'none';
+  document.getElementById('import-url-field').style.display = '';
+  document.getElementById('analyze-path').value = '';
+  scheduleProbe();
+  document.getElementById('import-url-input').focus();
+}
+
+function hideImportUrlSection() {
+  document.getElementById('recording-source-field').style.display = '';
+  document.getElementById('import-url-field').style.display = 'none';
+  document.getElementById('import-url-input').value = '';
+  document.getElementById('import-url-inspect-area').innerHTML = '';
+  _importUrlInfo = null;
+  _importUrlUrl  = null;
+}
+
+async function checkImportUrl() {
+  const url = document.getElementById('import-url-input').value.trim();
+  const area = document.getElementById('import-url-inspect-area');
+  if (!url) return;
+  _panelDirty = true;
+  const btn = document.getElementById('btn-check-url');
+  btn.disabled = true;
+  btn.textContent = 'Checking…';
+  area.innerHTML = '<div class="probing-spinner">Checking link...</div>';
+  _importUrlInfo = null;
+  try {
+    const res = await fetch('/api/import-url/inspect', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body:   JSON.stringify({url}),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      area.innerHTML = `<div style="color:var(--red);font-size:12px">${escHtml(formatApiError(data))}</div>`;
+      return;
+    }
+    _importUrlInfo = data;
+    _importUrlUrl  = url;
+    renderImportUrlInspect(data);
+  } catch (err) {
+    area.innerHTML = `<div style="color:var(--red);font-size:12px">Could not check link: ${escHtml(String(err.message || err))}</div>`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Check link';
+  }
+}
+
+function _fmtDurationS(seconds) {
+  return _msToHms(Math.max(0, seconds || 0) * 1000);
+}
+
+function _fmtBytesHuman(n) {
+  if (!n || n <= 0) return 'unknown';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let size = n;
+  for (const unit of units) {
+    if (size < 1024 || unit === 'GB') return `${unit === 'B' ? Math.round(size) : size.toFixed(1)} ${unit}`;
+    size /= 1024;
+  }
+  return `${size.toFixed(1)} GB`;
+}
+
+function renderImportUrlInspect(info) {
+  const area = document.getElementById('import-url-inspect-area');
+  const metaParts = [
+    escHtml(info.uploader || 'Unknown channel'),
+    _fmtDurationS(info.duration_s),
+    ...(info.category ? [escHtml(info.category)] : []),
+    ...(info.upload_date ? [escHtml(info.upload_date)] : []),
+    `est. ${_fmtBytesHuman(info.estimated_size_bytes)}`,
+  ];
+  const alreadyNote = info.already_imported ? `
+    <div class="long-run-warning">
+      <span aria-hidden="true">&#9888;</span>
+      <span>Already imported as "${escHtml(info.existing_filename || '')}". Downloading again saves a separate copy.</span>
+    </div>` : '';
+
+  area.innerHTML = `
+    <div class="estimate-box">
+      <div class="probe-info"><strong>${escHtml(info.title)}</strong><br>${metaParts.join(' &middot; ')}</div>
+      <div id="import-url-estimate-body"><div class="probing-spinner">Estimating processing time...</div></div>
+      ${alreadyNote}
+    </div>
+    <div class="new-recording-actions" style="padding-top:10px">
+      <button class="btn primary" id="btn-start-import" onclick="startImportUrlDownload()">Download</button>
+    </div>`;
+  _renderImportUrlEstimate(info.duration_s);
+}
+
+async function _renderImportUrlEstimate(durationS) {
+  const body = document.getElementById('import-url-estimate-body');
+  try {
+    const res = await fetch('/api/estimate', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      // Downloaded VODs have exactly one audio track (see roadmap plan 08) —
+      // the default one-track/one-transcribe estimate is trivially right.
+      body:   JSON.stringify({duration_s: durationS, audio_tracks: 1, transcribe_tracks: 1, has_gpu: true}),
+    });
+    if (!body) return;
+    if (!res.ok) { body.innerHTML = ''; return; }
+    body.innerHTML = _estimateBodyHTML(await res.json());
+  } catch {
+    if (body) body.innerHTML = '';
+  }
+}
+
+async function startImportUrlDownload() {
+  if (!_importUrlInfo || !_importUrlUrl) return;
+  const btn = document.getElementById('btn-start-import');
+  btn.disabled = true;
+  btn.textContent = 'Starting…';
+
+  const startRes = await fetch('/api/import-url/start', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body:   JSON.stringify({url: _importUrlUrl}),
+  });
+  if (!startRes.ok) {
+    const err = await startRes.json().catch(() => ({}));
+    showToast(formatApiError(err) || 'Failed to start download', 'error');
+    btn.disabled = false;
+    btn.textContent = 'Download';
+    return;
+  }
+
+  const title = _importUrlInfo.title;
+  _panelDirty = false;
+  _doCloseNewRecordingPanel();
+  openLog();
+  appendLog(`Downloading: ${title}`);
+  streamSSE(
+    '/api/import-url/events',
+    () => _onImportUrlDownloadDone(title),
+    [{label: 'Download', patterns: ['[Download]']}],
+    `Importing ${title}`,
+    false,
+    line => _onImportUrlLine(line),
+  );
+}
+
+// Mirrors url_import.py's format_progress_line/parse_progress_line — keep the
+// three in sync if that format ever changes.
+const _IMPORT_PROGRESS_RE = /^\[Download\] ([\d.]+)% of (\S+)(?: at (\S+)\/s)?(?:, ETA (\S+))?$/;
+const _IMPORT_DONE_RE     = /^\[Imported\] (.+)$/;
+
+let _lastImportedPath = null;
+
+function _onImportUrlLine(line) {
+  const imported = line.match(_IMPORT_DONE_RE);
+  if (imported) { _lastImportedPath = imported[1].trim(); return; }
+
+  const m = line.match(_IMPORT_PROGRESS_RE);
+  const el = document.getElementById('step-0');
+  if (!m || !el) return;
+  const pct = parseFloat(m[1]);
+  const speedPart = m[3] ? ` at ${m[3]}/s` : '';
+  const etaPart = m[4] ? ` (~${m[4]} left)` : '';
+  el.textContent = `Download · ${pct.toFixed(0)}%${speedPart}${etaPart}`;
+  el.style.backgroundImage = `linear-gradient(to right, var(--green) ${pct}%, var(--accent) ${pct}%)`;
+}
+
+function _onImportUrlDownloadDone(title) {
+  showToast('Download complete', 'success');
+  SoundFx.play('analysis');
+  if (!_lastImportedPath) {
+    showToast('Download finished, but the file path was not reported — open it from the downloads folder.', 'warning');
+    return;
+  }
+  const path = _lastImportedPath;
+  _lastImportedPath = null;
+  // The job just finished, but endJobUI() only re-enables #btn-analyze after its
+  // cosmetic 2s "done" pill delay — force it open now instead of waiting.
+  document.getElementById('btn-analyze').disabled = false;
+  openNewRecordingPanel().then(() => {
+    document.getElementById('analyze-path').value = path;
+    scheduleProbe();
+  });
 }
 
 // ── profile manager ───────────────────────────────────────────────────────────
