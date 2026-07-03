@@ -62,6 +62,7 @@ async def subprocess_sse(
     *,
     is_analyze: bool = False,
     clear_cmd_attr: str | None = None,
+    track_active_job: bool = False,
 ) -> StreamingResponse:
     """Run *cmd* as a subprocess and stream its stdout as an SSE response.
 
@@ -75,47 +76,61 @@ async def subprocess_sse(
     *clear_cmd_attr* names the ``ctx`` attribute to set to ``None`` when the
     stream finishes (e.g. ``'analyze_cmd'`` or ``'demo_cmd'``). Callers that
     own no queued-command slot (score, export, retranscribe) omit it.
+
+    *track_active_job* increments ``ctx.active_jobs`` for the run's duration —
+    the same counter the in-process SSE jobs (rescore, timeline, summarize) use
+    — so ``/api/status``'s ``any_running`` reflects this job too. Opt-in: most
+    subprocess_sse callers are already reflected via ``ctx.analyze_proc``
+    (misleadingly under the "analyze" name), so this only needs to be set where
+    a distinct, correctly-named running flag matters (e.g. URL import's
+    ``import_running``).
     """
 
     async def _generate() -> AsyncGenerator[str, None]:
-        _log.debug("Launching subprocess: %s", " ".join(str(c) for c in cmd))
-        proc = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.STDOUT,
-            cwd=str(cwd),
-        )
-        assert proc.stdout
-        _log.info("Subprocess started (pid %s): %s", proc.pid, cmd[3] if len(cmd) > 3 else cmd[0])
-        if ctx is not None:
-            ctx.analyze_proc = proc
+        if track_active_job and ctx is not None:
+            ctx.active_jobs += 1
         try:
-            async for raw_line in proc.stdout:
-                text = raw_line.decode("utf-8", errors="replace").rstrip()
-                _log.debug("[subprocess] %s", text)
-                yield f"data: {json.dumps(text)}\n\n"
-            await proc.wait()
-            if is_analyze and ctx is not None and ctx.analyze_cancelled:
-                ctx.analyze_cancelled = False
-                _log.info("Subprocess (pid %s) cancelled by user", proc.pid)
-                yield f"data: {json.dumps('[Analysis cancelled]')}\n\n"
-            elif proc.returncode != 0:
-                _log.error(
-                    "Subprocess exited with code %d: %s",
-                    proc.returncode,
-                    " ".join(str(c) for c in cmd),
-                )
-                yield f"data: {json.dumps(f'[Error: subprocess exited with code {proc.returncode}]')}\n\n"
-            else:
-                _log.info("Subprocess (pid %s) completed successfully", proc.pid)
-            yield f"data: {json.dumps(_SSE_DONE_SENTINEL)}\n\n"
-        finally:
-            if proc.returncode is None:
-                terminate_process_tree(proc)
-                await proc.wait()
+            _log.debug("Launching subprocess: %s", " ".join(str(c) for c in cmd))
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.STDOUT,
+                cwd=str(cwd),
+            )
+            assert proc.stdout
+            _log.info("Subprocess started (pid %s): %s", proc.pid, cmd[3] if len(cmd) > 3 else cmd[0])
             if ctx is not None:
-                ctx.analyze_proc = None
-                if clear_cmd_attr is not None:
-                    setattr(ctx, clear_cmd_attr, None)
+                ctx.analyze_proc = proc
+            try:
+                async for raw_line in proc.stdout:
+                    text = raw_line.decode("utf-8", errors="replace").rstrip()
+                    _log.debug("[subprocess] %s", text)
+                    yield f"data: {json.dumps(text)}\n\n"
+                await proc.wait()
+                if is_analyze and ctx is not None and ctx.analyze_cancelled:
+                    ctx.analyze_cancelled = False
+                    _log.info("Subprocess (pid %s) cancelled by user", proc.pid)
+                    yield f"data: {json.dumps('[Analysis cancelled]')}\n\n"
+                elif proc.returncode != 0:
+                    _log.error(
+                        "Subprocess exited with code %d: %s",
+                        proc.returncode,
+                        " ".join(str(c) for c in cmd),
+                    )
+                    yield f"data: {json.dumps(f'[Error: subprocess exited with code {proc.returncode}]')}\n\n"
+                else:
+                    _log.info("Subprocess (pid %s) completed successfully", proc.pid)
+                yield f"data: {json.dumps(_SSE_DONE_SENTINEL)}\n\n"
+            finally:
+                if proc.returncode is None:
+                    terminate_process_tree(proc)
+                    await proc.wait()
+                if ctx is not None:
+                    ctx.analyze_proc = None
+                    if clear_cmd_attr is not None:
+                        setattr(ctx, clear_cmd_attr, None)
+        finally:
+            if track_active_job and ctx is not None:
+                ctx.active_jobs -= 1
 
     return StreamingResponse(_generate(), media_type="text/event-stream")

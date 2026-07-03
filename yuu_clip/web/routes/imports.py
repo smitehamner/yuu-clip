@@ -1,0 +1,77 @@
+"""Import from URL routes (roadmap plan 08) — Twitch VOD / YouTube downloads.
+
+Follows the same start->events pattern as the highlight reel (routes/reel.py):
+the POST endpoint validates the link and queues the CLI download command; the
+paired GET endpoint streams that command's stdout as SSE.
+"""
+from __future__ import annotations
+
+import sys
+
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
+
+from yuu_clip.config import project_downloads_dir
+from yuu_clip.db.models import Video
+from yuu_clip.log import get_logger
+from yuu_clip.url_import import ImportUrlError, inspect_url, validate_import_url
+from yuu_clip.web.deps import ProjectContext
+from yuu_clip.web.sse import subprocess_sse
+
+_log = get_logger(__name__)
+
+
+class ImportUrlRequest(BaseModel):
+    url: str
+
+
+def make_router(ctx: ProjectContext) -> APIRouter:
+    router = APIRouter()
+
+    @router.post("/api/import-url/inspect")
+    def inspect(req: ImportUrlRequest):
+        """Fetch metadata for a Twitch/YouTube link without downloading it."""
+        try:
+            info = inspect_url(req.url)
+        except ImportUrlError as e:
+            raise HTTPException(400, str(e))
+
+        db = ctx.get_db()
+        try:
+            existing = db.query(Video).filter(Video.source_url == req.url).first()
+        finally:
+            db.close()
+
+        return {
+            **info,
+            "already_imported": existing is not None,
+            "existing_filename": existing.filename if existing else None,
+        }
+
+    @router.post("/api/import-url/start")
+    def start(req: ImportUrlRequest):
+        """Validate the link and queue the download command for the SSE stream."""
+        try:
+            validate_import_url(req.url)
+        except ImportUrlError as e:
+            raise HTTPException(400, str(e))
+        project_downloads_dir(ctx.project_dir)  # ensure it exists before the subprocess starts
+        cmd = [
+            sys.executable, "-m", "yuu_clip.cli", "import-url", req.url,
+            "--project", str(ctx.project_dir),
+        ]
+        ctx.import_cmd = cmd
+        _log.info("URL import queued: %s", req.url)
+        return {"status": "started"}
+
+    @router.get("/api/import-url/events")
+    async def events():
+        """Stream the download subprocess output as SSE. Call /api/import-url/start first."""
+        if not ctx.import_cmd:
+            raise HTTPException(400, "No import queued. Call /api/import-url/start first.")
+        return await subprocess_sse(
+            ctx.import_cmd, ctx.project_dir, ctx,
+            clear_cmd_attr="import_cmd", track_active_job=True,
+        )
+
+    return router

@@ -39,6 +39,10 @@ dependencies = [
     # Optional: GPU thermal monitoring (Settings -> Hardware). Silently disables
     # (available()==False) when no NVIDIA GPU / driver is present -- see analyze/thermal.py.
     "pynvml>=11.5,<13.0",
+
+    # URL import (Twitch VOD / YouTube downloads). Unlicense (public domain) -- fine
+    # for the licensing policy. See web/routes/imports.py and imports_dl.py.
+    "yt-dlp>=2025.1,<2027.0",
 ]
 
 [project.optional-dependencies]

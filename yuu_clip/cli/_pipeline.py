@@ -281,6 +281,34 @@ def _probe_video(video_path: Path):
     return info
 
 
+def _apply_source_metadata(video, video_path: Path) -> None:
+    """Populate a freshly-created Video's source_* columns from an Import from
+    URL metadata sidecar next to *video_path*, if one exists (see url_import.py).
+
+    Also pre-seeds title_user from the scraped title so the creator doesn't have
+    to retype one yt-dlp already found — they can still edit or clear it in the
+    recording detail view afterward. A no-op (all source_* stay NULL) for a
+    recording added from a local file, which never has a sidecar.
+    """
+    from yuu_clip.url_import import read_source_sidecar
+
+    metadata = read_source_sidecar(video_path)
+    if not metadata:
+        return
+    video.source_url = metadata.get("source_url") or None
+    video.source_title = metadata.get("source_title") or None
+    video.source_uploader = metadata.get("source_uploader") or None
+    video.source_category = metadata.get("source_category") or None
+    upload_date = metadata.get("source_upload_date")
+    if upload_date:
+        try:
+            video.source_upload_date = datetime.strptime(upload_date, "%Y-%m-%d")
+        except ValueError:
+            log.warning("Ignoring unparseable source_upload_date %r in sidecar for %s", upload_date, video_path)
+    if video.source_title and video.title_user is None:
+        video.title_user = video.source_title
+
+
 def _upsert_video_and_tracks(session, video_path: Path, info, existing, profile, force,
                              non_interactive: bool = False,
                              segment_start_s: Optional[float] = None,
@@ -307,6 +335,7 @@ def _upsert_video_and_tracks(session, video_path: Path, info, existing, profile,
         if segment_start_s is not None:
             video.segment_start_s = segment_start_s
             video.segment_end_s   = segment_end_s
+        _apply_source_metadata(video, video_path)
         session.add(video)
         session.flush()
 

@@ -18,6 +18,8 @@ Most lookups only need this table: the authoritative user-facing term, the code 
 |---|---|---|
 | Recording | `video`, `video_path` | A video file input — not "session" (that's the gameplay period) |
 | Session | — | The gameplay period captured in a recording |
+| Import from URL | `import-url` (CLI/API path), `url_import.py` | Download a public Twitch VOD or YouTube video to use as a Recording, instead of picking a local file |
+| Imported from | `source_url`, `source_title`, `source_uploader`, `source_upload_date`, `source_category` | Recording detail line showing the origin link/channel/date for a URL-imported Recording |
 | Duration | `duration_ms`, `duration_hms` | Display as `1h 23m 45s`, never raw ms |
 | Track | `AudioTrack`, `stream_index` | One audio stream in a recording — not "stream" in UI |
 | Track role | `label` | Semantic function: Player Voice / Voice Chat / Game Sounds / Combined / Unlabeled |
@@ -107,6 +109,42 @@ How long a recording or clip runs.
 
 - **Code:** `duration_ms` (internal milliseconds), `duration_hms` (display string)
 - **Display format:** `1h 23m 45s` or `23m 45s` — never raw milliseconds in the UI
+
+---
+
+### Import from URL
+
+Paste a public Twitch VOD or YouTube link instead of a local file path; yuu-clip
+downloads it (via yt-dlp) and the result becomes a normal **Recording**, ready to
+analyze like any other.
+
+- **Code:** `POST /api/import-url/inspect`, `POST /api/import-url/start`,
+  `GET /api/import-url/events`, `yuuclip import-url` (CLI), `yuu_clip/url_import.py`
+- **UI label:** "Import from URL" affordance in the New Recording panel; "Check
+  link" (fetch metadata) → "Download" (start the download)
+- **Notes:** "Download" is the in-progress verb; once it finishes, the file is a
+  normal Recording — the New Recording panel opens prefilled with its path so the
+  creator still confirms track layout and World Contexts before analyzing (analysis
+  is never auto-started). Public YouTube and Twitch links only in v1 — no
+  cookies/browser-profile auth for sub-only or otherwise gated content (a plain
+  "requires a login" error instead). Quality is capped at 1080p. A live/ongoing
+  stream, a playlist/channel link, or a link already imported (matched by
+  **Imported from**'s source link) is rejected or flagged before any download starts.
+
+---
+
+### Imported from
+
+The recording-detail line showing where a URL-imported **Recording** came from —
+shown only when the recording has a source link.
+
+- **Code:** `Video.source_url`, `Video.source_title`, `Video.source_uploader`,
+  `Video.source_upload_date`, `Video.source_category`
+- **UI label:** "Imported from" line (channel/uploader name, upload date, and a
+  link back to the original video) in the recording detail view
+- **Notes:** Set once, at download time, from the metadata sidecar `url_import.py`
+  writes next to the downloaded file; picked up when the Video row is first
+  created during analysis. Never shown for a recording added from a local file.
 
 ---
 

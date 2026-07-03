@@ -1008,4 +1008,9 @@ def _video_dict(video: Video, stats: dict) -> dict:
         "timeline_context": _json_list(video.timeline_context_json),
         "analyze_started_at": video.analyze_started_at.isoformat() if video.analyze_started_at else None,
         "analyze_run": json_lib.loads(video.analyze_run_json) if video.analyze_run_json else None,
+        "source_url": video.source_url,
+        "source_title": video.source_title,
+        "source_uploader": video.source_uploader,
+        "source_upload_date": video.source_upload_date.strftime("%Y-%m-%d") if video.source_upload_date else None,
+        "source_category": video.source_category,
     }

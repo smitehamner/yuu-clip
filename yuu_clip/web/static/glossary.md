@@ -9,6 +9,12 @@ The gameplay period a recording captures — for example, "last night's session.
 ### Duration
 How long a recording or clip runs, shown as `1h 23m 45s` or `23m 45s`.
 
+### Import from URL
+Paste a public Twitch VOD or YouTube link instead of picking a local file — yuu-clip downloads it, then the New Recording panel opens prefilled so you can confirm track layout and World Contexts before analyzing. Public links only (no login-required or subscriber-only content), capped at 1080p.
+
+### Imported from
+The line in a recording's detail view showing where a URL-imported recording came from — the channel/uploader, upload date, and a link back to the original video.
+
 ---
 
 ## Audio Tracks

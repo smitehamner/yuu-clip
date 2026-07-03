@@ -349,6 +349,13 @@ def project_proxies_dir(project_dir: Path) -> Path:
     return d
 
 
+def project_downloads_dir(project_dir: Path) -> Path:
+    """Where Import from URL saves downloaded Twitch VOD / YouTube files."""
+    d = project_dir / ".yuu-clip" / "downloads"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
 def project_db_path(project_dir: Path) -> Path:
     d = project_dir / ".yuu-clip"
     d.mkdir(parents=True, exist_ok=True)

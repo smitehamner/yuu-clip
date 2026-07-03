@@ -340,6 +340,10 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         return {
             "any_running": analyze_running or ctx.active_jobs > 0,
             "analyze_running": analyze_running,
+            # Import from URL (roadmap plan 08): set while a download is queued or
+            # running; already folded into any_running via active_jobs (see
+            # subprocess_sse's track_active_job).
+            "import_running": ctx.import_cmd is not None,
             # Identity of the reattachable analyze job, so a freshly loaded page can
             # reconnect to an analysis already in progress. Null for score/export jobs.
             "analyze_filename": job.filename if job_running else None,

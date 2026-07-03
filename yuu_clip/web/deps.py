@@ -39,6 +39,7 @@ class ProjectContext:
         # Only one analyze or demo job can be queued at a time (single-user tool).
         self.analyze_cmd:       list[str] | None = None
         self.demo_cmd:          list[str] | None = None
+        self.import_cmd:        list[str] | None = None
         self.analyze_proc:      object | None    = None  # asyncio.subprocess.Process
         self.analyze_cancelled: bool             = False
 

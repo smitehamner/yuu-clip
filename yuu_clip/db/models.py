@@ -126,6 +126,11 @@ def _migrate(engine) -> None:
             ("proxy_generated_at",  "DATETIME"),
             ("proxy_source_mtime",  "REAL"),
             ("proxy_source_size",   "INTEGER"),
+            ("source_url",          "TEXT"),
+            ("source_title",        "TEXT"),
+            ("source_uploader",     "TEXT"),
+            ("source_upload_date",  "DATETIME"),
+            ("source_category",     "TEXT"),
         ]
         for col, typedef in _video_migrations:
             if col not in existing:
@@ -355,6 +360,16 @@ class Video(Base):
     parent_video_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("videos.id"), nullable=True)
     segment_start_s: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     segment_end_s: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+
+    # Set at download time (see url_import.py) for a recording brought in via
+    # Import from URL; NULL for a recording added from a local file. Populated
+    # from the metadata sidecar when the Video row is first created — see
+    # cli/_pipeline.py::_apply_source_metadata.
+    source_url:         Mapped[Optional[str]]      = mapped_column(Text, nullable=True)
+    source_title:       Mapped[Optional[str]]      = mapped_column(Text, nullable=True)
+    source_uploader:    Mapped[Optional[str]]      = mapped_column(Text, nullable=True)
+    source_upload_date: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    source_category:    Mapped[Optional[str]]      = mapped_column(Text, nullable=True)
 
     title: Mapped[Optional[str]] = mapped_column(Text)
     title_user: Mapped[Optional[str]] = mapped_column(Text)
