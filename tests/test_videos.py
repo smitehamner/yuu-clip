@@ -422,6 +422,17 @@ class TestVideoDetailFields:
         videos = client.get("/api/videos").json()
         assert videos[0]["has_timeline"] is False
 
+    def test_video_detail_includes_absolute_source_path(self, client, project_dir):
+        # Roadmap plan 10 — the Electron shell needs the absolute source path to
+        # build a native "yuu-media://" URL instead of proxying bytes over HTTP.
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        d = client.get(f"/api/videos/{vid_id}").json()
+        assert Path(d["source_path"]) == (project_dir / "session.mkv").resolve()
+
+    def test_video_list_includes_absolute_source_path(self, client, project_dir):
+        v = client.get("/api/videos").json()[0]
+        assert Path(v["source_path"]) == (project_dir / "session.mkv").resolve()
+
 
 class TestSetClipStatusAllValues:
     """Confirm all three valid statuses are accepted."""
@@ -2434,6 +2445,18 @@ class TestVideoProxy:
         assert body["available"] is False
         assert body["generating"] is False
         assert body["height"] == 720
+        assert body["proxy_path"] is None
+
+    def test_status_includes_absolute_proxy_path_once_generated(self, client, project_dir, monkeypatch):
+        # Roadmap plan 10 — the Electron shell only trusts a "yuu-media://" build
+        # for the proxy once this field confirms one actually exists on disk.
+        self._write_source(project_dir)
+        self._stub_generate(monkeypatch)
+        client.get("/api/videos/1/proxy/generate")
+
+        status = client.get("/api/videos/1/proxy-status").json()
+        assert status["available"] is True
+        assert Path(status["proxy_path"]) == self._proxy_file(project_dir).resolve()
 
     def test_serve_404_when_no_proxy(self, client):
         r = client.get("/api/videos/1/proxy")

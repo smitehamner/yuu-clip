@@ -594,6 +594,21 @@ function streamSSE(url, onDone, stepDefs, jobLabel, cancellable = false, onLine 
   _setActiveStream(handle, stepDefs ? endJobUI : null);
 }
 
+// Single point that picks the transport for a recording's source/proxy stream
+// (roadmap plan 10). Inside the packaged Electron app, window.electronAPI.mediaProtocol
+// is set and playback goes straight through the native "yuu-media://" scheme —
+// bypassing the Python byte-pump — instead of the HTTP route. Plain browser-dev
+// mode never has electronAPI, so it always gets the unchanged HTTP URL. absPath
+// may be null (e.g. a proxy that hasn't been generated/looked up yet), which
+// simply falls back to HTTP for that one request.
+function _buildMediaUrl(videoId, kind, absPath) {
+  if (window.electronAPI?.mediaProtocol && absPath) {
+    const normalized = absPath.replace(/\\/g, '/');
+    return `yuu-media://media/${encodeURIComponent(normalized)}`;
+  }
+  return `/api/videos/${videoId}/${kind}`;
+}
+
 // ── recording preview quality (720p proxy + badge) ────────────────────────────
 // Shared by every full-recording <video> (recording detail player, split editor)
 // so the creator always knows whether they're seeing the fast 720p proxy or the
@@ -607,8 +622,11 @@ function streamSSE(url, onDone, stepDefs, jobLabel, cancellable = false, onLine 
 //   startS / endS     : a split segment's player streams the full untrimmed parent
 //                       file (source and proxy are both keyed by the parent path) —
 //                       these bound playback to the segment's own slice of it
-function setupRecordingPreview(videoEl, badgeEl, videoId, { autoBuild = false, isCurrent = () => true, startS = null, endS = null } = {}) {
-  videoEl.src = `/api/videos/${videoId}/source`;
+//   sourcePath        : the recording's absolute path (video.source_path from the
+//                       already-fetched video record) — only used to build the
+//                       Electron native-protocol URL; ignored in browser-dev mode
+function setupRecordingPreview(videoEl, badgeEl, videoId, { autoBuild = false, isCurrent = () => true, startS = null, endS = null, sourcePath = null } = {}) {
+  videoEl.src = _buildMediaUrl(videoId, 'source', sourcePath);
   if (startS != null) {
     videoEl.addEventListener('loadedmetadata', () => { try { videoEl.currentTime = startS; } catch (_) {} }, { once: true });
   }
@@ -621,7 +639,7 @@ function setupRecordingPreview(videoEl, badgeEl, videoId, { autoBuild = false, i
     .then(r => r.ok ? r.json() : null)
     .then(status => {
       if (!isCurrent() || !status) return;
-      if (status.available) _useRecordingProxy(videoEl, badgeEl, videoId, isCurrent, startS);
+      if (status.available) _useRecordingProxy(videoEl, badgeEl, videoId, isCurrent, startS, status.proxy_path);
       else if (autoBuild || status.generating) buildFn();
     })
     .catch(() => { /* leave the source playing with the original-quality badge */ });
@@ -630,11 +648,11 @@ function setupRecordingPreview(videoEl, badgeEl, videoId, { autoBuild = false, i
 // startS: falls back to it when currentTime is still 0 — the proxy-status fetch
 // can resolve before the source's loadedmetadata seek (setupRecordingPreview) runs,
 // which would otherwise resume a segment's proxy at the parent's t=0.
-function _useRecordingProxy(videoEl, badgeEl, videoId, isCurrent, startS = null) {
+function _useRecordingProxy(videoEl, badgeEl, videoId, isCurrent, startS = null, proxyPath = null) {
   if (!isCurrent()) return;
   const resumeAt   = videoEl.currentTime || startS || 0;
   const wasPlaying = !videoEl.paused && !videoEl.ended;
-  videoEl.src = `/api/videos/${videoId}/proxy`;
+  videoEl.src = _buildMediaUrl(videoId, 'proxy', proxyPath);
   videoEl.addEventListener('loadedmetadata', () => {
     try { videoEl.currentTime = resumeAt; } catch (_) {}
     if (wasPlaying) videoEl.play().catch(() => {});
@@ -652,7 +670,7 @@ function _buildRecordingProxy(videoEl, badgeEl, videoId, isCurrent, startS = nul
       const status = await fetch(`/api/videos/${videoId}/proxy-status`)
         .then(r => r.ok ? r.json() : null).catch(() => null);
       if (!isCurrent()) return;
-      if (status?.available) _useRecordingProxy(videoEl, badgeEl, videoId, isCurrent, startS);
+      if (status?.available) _useRecordingProxy(videoEl, badgeEl, videoId, isCurrent, startS, status.proxy_path);
       // Another open is still encoding — poll until its proxy lands.
       else if (status?.generating) setTimeout(() => _buildRecordingProxy(videoEl, badgeEl, videoId, isCurrent, startS), 5000);
       else _setPreviewBadge(badgeEl, 'original', null, () => _buildRecordingProxy(videoEl, badgeEl, videoId, isCurrent, startS));

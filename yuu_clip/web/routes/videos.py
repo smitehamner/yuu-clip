@@ -469,11 +469,17 @@ def _register_media_routes(router: APIRouter, ctx: ProjectContext) -> None:
             if not video:
                 raise HTTPException(404, "Video not found")
             proxy_file = proxy_file_for(Path(video.path), ctx.proxy_dir)
+            fresh = proxy_is_fresh(video, proxy_file)
             return {
-                "available": proxy_is_fresh(video, proxy_file),
+                "available": fresh,
                 "generating": str(Path(video.path).resolve()) in ctx.proxy_generating,
                 "height": PROXY_HEIGHT,
                 "generated_at": video.proxy_generated_at.isoformat() if video.proxy_generated_at else None,
+                # Absolute path of the proxy file itself — the Electron shell only
+                # trusts a "yuu-media://" build once it has this, since the proxy
+                # may not have existed yet when the recording's own detail response
+                # was fetched (e.g. it was just generated on demand).
+                "proxy_path": str(proxy_file.resolve()) if fresh else None,
             }
         finally:
             db.close()
@@ -1013,4 +1019,8 @@ def _video_dict(video: Video, stats: dict) -> dict:
         "source_uploader": video.source_uploader,
         "source_upload_date": video.source_upload_date.strftime("%Y-%m-%d") if video.source_upload_date else None,
         "source_category": video.source_category,
+        # Absolute path to the recording on disk — lets the Electron shell build a
+        # yuu-media:// URL for direct native playback instead of proxying bytes
+        # through this HTTP server (plain-browser dev mode ignores this field).
+        "source_path": str(Path(video.path).resolve()),
     }

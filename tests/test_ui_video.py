@@ -369,3 +369,54 @@ class TestVideoShowInFolder:
         _render_video_with(page, {})
         page.evaluate("() => { AppState.canReveal = false; renderVideoDetail(AppState.activeVideoData, null); }")
         expect(page.locator("#detail button:has-text('Show in Folder')")).to_have_count(0)
+
+
+@skip_no_server
+class TestNativeMediaProtocolUrlBuilder:
+    """Roadmap plan 10 — utils.js:_buildMediaUrl is the single point that picks
+    between the packaged app's native "yuu-media://" scheme and the unchanged
+    HTTP route. Playwright can't exercise the real Electron protocol handler
+    (electron/main.js), so this only covers the URL-builder logic itself, with
+    window.electronAPI.mediaProtocol stubbed to simulate the packaged app.
+    """
+
+    def test_http_url_when_no_electron_api(self, page: Page):
+        page.goto(LIVE_URL)
+        url = page.evaluate("_buildMediaUrl(7, 'source', 'D:/recordings/session.mp4')")
+        assert url == "/api/videos/7/source"
+
+    def test_http_url_when_stub_present_but_path_missing(self, page: Page):
+        page.goto(LIVE_URL)
+        page.evaluate("window.electronAPI = { mediaProtocol: true }")
+        url = page.evaluate("_buildMediaUrl(7, 'proxy', null)")
+        assert url == "/api/videos/7/proxy"
+
+    def test_native_url_for_source_when_stubbed(self, page: Page):
+        page.goto(LIVE_URL)
+        page.evaluate("window.electronAPI = { mediaProtocol: true }")
+        raw_path = "D:\\recordings\\session.mp4"
+        encoded = page.evaluate("(p) => encodeURIComponent(p.replace(/\\\\/g, '/'))", raw_path)
+        url = page.evaluate("(p) => _buildMediaUrl(7, 'source', p)", raw_path)
+        assert url == f"yuu-media://media/{encoded}"
+
+    def test_native_url_for_proxy_when_stubbed(self, page: Page):
+        page.goto(LIVE_URL)
+        page.evaluate("window.electronAPI = { mediaProtocol: true }")
+        raw_path = "D:\\recordings\\proxy.mp4"
+        encoded = page.evaluate("(p) => encodeURIComponent(p.replace(/\\\\/g, '/'))", raw_path)
+        url = page.evaluate("(p) => _buildMediaUrl(7, 'proxy', p)", raw_path)
+        assert url == f"yuu-media://media/{encoded}"
+
+    def test_native_url_encodes_spaces_and_unicode(self, page: Page):
+        page.goto(LIVE_URL)
+        page.evaluate("window.electronAPI = { mediaProtocol: true }")
+        raw_path = "D:/recordings/クリップ 2026 (final).mp4"
+        encoded = page.evaluate("(p) => encodeURIComponent(p)", raw_path)
+        url = page.evaluate("(p) => _buildMediaUrl(7, 'source', p)", raw_path)
+        assert url == f"yuu-media://media/{encoded}"
+
+    def test_native_url_normalizes_windows_backslashes(self, page: Page):
+        page.goto(LIVE_URL)
+        page.evaluate("window.electronAPI = { mediaProtocol: true }")
+        url = page.evaluate("(p) => _buildMediaUrl(7, 'source', p)", "C:\\Users\\me\\Videos\\clip.mp4")
+        assert url == f"yuu-media://media/{'C%3A%2FUsers%2Fme%2FVideos%2Fclip.mp4'}"

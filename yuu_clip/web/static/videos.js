@@ -290,6 +290,7 @@ function renderVideoDetail(video, savedTimeline) {
       isCurrent: () => AppState.activeVideoId === video.id,
       startS: video.segment_start_s,
       endS: video.segment_end_s,
+      sourcePath: video.source_path,
     },
   );
   document.getElementById('detail').innerHTML = `

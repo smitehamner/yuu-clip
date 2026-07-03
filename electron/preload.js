@@ -9,4 +9,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // a real filesystem path (contextIsolation strips it) — webUtils.getPathForFile,
   // only callable from the preload/main side, recovers it.
   getPathForFile: (file) => webUtils.getPathForFile(file),
+  // Tells the renderer's media-URL builder (utils.js:_buildMediaUrl) that the
+  // "yuu-media://" native scheme is registered in main.js — plain browser-dev
+  // mode has no electronAPI at all, so it never sees this flag.
+  mediaProtocol: true,
 });

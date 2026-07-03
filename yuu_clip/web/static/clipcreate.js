@@ -86,6 +86,7 @@ function _mountClipCreatePanel(container, video) {
       isCurrent: () => _ccVideoId === video.id,
       startS: video.segment_start_s,
       endS: video.segment_end_s,
+      sourcePath: video.source_path,
     },
   );
 

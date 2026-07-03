@@ -74,12 +74,13 @@ function _mountSplitEditorPanel(container, videoId) {
   container.appendChild(panel);
   panel.style.display = 'flex';
 
+  const video = AppState.videos.find(v => v.id === videoId);
   document.getElementById('split-preview-wrap').style.display = 'block';
   setupRecordingPreview(
     document.getElementById('split-preview-video'),
     document.getElementById('split-preview-badge'),
     videoId,
-    { autoBuild: true, isCurrent: () => _splitVideoId === videoId },
+    { autoBuild: true, isCurrent: () => _splitVideoId === videoId, sourcePath: video?.source_path },
   );
 
   document.getElementById('split-waveform-notice').style.display = 'none';

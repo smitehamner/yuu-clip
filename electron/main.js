@@ -1,11 +1,19 @@
 'use strict';
 
-const { app, BrowserWindow, Menu, MenuItem, clipboard, dialog, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, Menu, MenuItem, clipboard, dialog, ipcMain, protocol, shell } = require('electron');
 const { execFileSync, spawn } = require('child_process');
-const fs   = require('fs');
-const http = require('http');
-const net  = require('net');
-const path = require('path');
+const fs     = require('fs');
+const http   = require('http');
+const net    = require('net');
+const path   = require('path');
+const { Readable } = require('stream');
+
+// Roadmap plan 10 — the "yuu-media" scheme must be registered as privileged
+// before app.ready fires (Electron requirement); the actual request handler
+// is wired up in registerMediaProtocol(), called from app.whenReady().
+protocol.registerSchemesAsPrivileged([
+  { scheme: 'yuu-media', privileges: { stream: true, supportFetchAPI: true, corsEnabled: true } },
+]);
 
 // ---------------------------------------------------------------------------
 // Paths
@@ -801,6 +809,145 @@ function spawnBackend(port) {
 }
 
 // ---------------------------------------------------------------------------
+// Native media protocol (roadmap plan 10) — serves the recording source/proxy
+// files directly from disk instead of proxying every byte through the Python
+// HTTP server. Startup-latency win only; seeking already works fine over HTTP
+// via the 720p proxy, so this is intentionally low-stakes and surgical.
+//
+// Electron's protocol.handle() + net.fetch(pathToFileURL(...)) is the
+// documented pattern for this, but Range-request/video-seeking support on top
+// of it has been an unresolved Electron bug (electron/electron#38749) across
+// every version from 25 through at least 35 — still open as of our pinned
+// 33.2.1 (electron/package.json). Range handling is therefore done manually
+// here (parse header, fs.createReadStream(start, end), 206 + Content-Range)
+// rather than trusting net.fetch to cover it.
+// ---------------------------------------------------------------------------
+
+const MEDIA_MIME_TYPES = {
+  '.mp4':  'video/mp4',
+  '.m4v':  'video/mp4',
+  '.mkv':  'video/x-matroska',
+  '.mov':  'video/quicktime',
+  '.avi':  'video/x-msvideo',
+  '.webm': 'video/webm',
+};
+
+// Renderer input is untrusted: a path is only served if it's inside the
+// project's proxies dir (deterministic, always true for generated proxies) or
+// it exactly matches a source/proxy path the backend has told us about for a
+// known video. Source recordings live wherever the creator originally pointed
+// `analyze` at — often outside the project dir entirely — so an allowed-*root*
+// check alone (as for proxies) can't cover them; this whitelist of exact,
+// backend-confirmed paths does. The cache is refreshed at most once every
+// MEDIA_PATH_REFRESH_MIN_INTERVAL_MS so a burst of Range requests during
+// scrubbing doesn't hammer the backend, while a first request for a
+// just-ingested recording still triggers one refresh instead of a flat reject.
+const MEDIA_PATH_REFRESH_MIN_INTERVAL_MS = 2000;
+let knownMediaPaths          = new Set();
+let knownMediaPathsFetchedAt = 0;
+
+async function refreshKnownMediaPaths() {
+  try {
+    const body   = await httpGet(`http://127.0.0.1:${appPort}/api/videos`, 2000);
+    const videos = JSON.parse(body);
+    const paths  = new Set();
+    for (const video of videos) {
+      if (video.source_path) paths.add(path.resolve(video.source_path));
+      if (video.proxy_path)  paths.add(path.resolve(video.proxy_path));
+    }
+    knownMediaPaths = paths;
+  } catch (_) {
+    // Backend not reachable (e.g. still starting) — leave the cache as-is.
+  } finally {
+    knownMediaPathsFetchedAt = Date.now();
+  }
+}
+
+function isPathInside(candidate, root) {
+  const rel = path.relative(root, candidate);
+  return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
+}
+
+async function isAllowedMediaPath(resolvedPath) {
+  const proxiesRoot = path.join(projectDir, '.yuu-clip', 'proxies');
+  if (isPathInside(resolvedPath, proxiesRoot)) return true;
+  if (knownMediaPaths.has(resolvedPath)) return true;
+  if (Date.now() - knownMediaPathsFetchedAt > MEDIA_PATH_REFRESH_MIN_INTERVAL_MS) {
+    await refreshKnownMediaPaths();
+    if (knownMediaPaths.has(resolvedPath)) return true;
+  }
+  return false;
+}
+
+// Parses a single "bytes=start-end" Range header (the only form <video> emits)
+// and returns the serviceable [start, end] pair, or null if malformed/out of range.
+function parseRange(rangeHeader, fileSize) {
+  const match = /^bytes=(\d*)-(\d*)$/.exec((rangeHeader || '').trim());
+  if (!match || (!match[1] && !match[2])) return null;
+  const start = match[1] ? parseInt(match[1], 10) : fileSize - parseInt(match[2], 10);
+  const end   = match[1] && match[2] ? parseInt(match[2], 10) : fileSize - 1;
+  if (Number.isNaN(start) || Number.isNaN(end) || start < 0 || start > end || end >= fileSize) return null;
+  return { start, end };
+}
+
+function serveFileWithRange(filePath, stat, rangeHeader) {
+  const fileSize = stat.size;
+  const mimeType = MEDIA_MIME_TYPES[path.extname(filePath).toLowerCase()] || 'application/octet-stream';
+
+  if (!rangeHeader) {
+    const body = Readable.toWeb(fs.createReadStream(filePath));
+    return new Response(body, {
+      status: 200,
+      headers: { 'Content-Type': mimeType, 'Content-Length': String(fileSize), 'Accept-Ranges': 'bytes' },
+    });
+  }
+
+  const range = parseRange(rangeHeader, fileSize);
+  if (!range) {
+    return new Response(null, { status: 416, headers: { 'Content-Range': `bytes */${fileSize}` } });
+  }
+
+  const body = Readable.toWeb(fs.createReadStream(filePath, { start: range.start, end: range.end }));
+  return new Response(body, {
+    status: 206,
+    headers: {
+      'Content-Type':   mimeType,
+      'Content-Length': String(range.end - range.start + 1),
+      'Content-Range':  `bytes ${range.start}-${range.end}/${fileSize}`,
+      'Accept-Ranges':  'bytes',
+    },
+  });
+}
+
+function registerMediaProtocol() {
+  protocol.handle('yuu-media', async request => {
+    let resolvedPath;
+    try {
+      const parsed = new URL(request.url);
+      if (parsed.hostname !== 'media') return new Response('Not found', { status: 404 });
+      resolvedPath = path.resolve(decodeURIComponent(parsed.pathname.replace(/^\/+/, '')));
+    } catch (err) {
+      logSetup(`yuu-media: malformed request URL ${request.url} — ${err.message}`);
+      return new Response('Bad request', { status: 400 });
+    }
+
+    if (!await isAllowedMediaPath(resolvedPath)) {
+      logSetup(`yuu-media: rejected path outside allowed roots: ${resolvedPath}`);
+      return new Response('Forbidden', { status: 403 });
+    }
+
+    let stat;
+    try {
+      stat = fs.statSync(resolvedPath);
+    } catch (_) {
+      return new Response('Not found', { status: 404 });
+    }
+
+    return serveFileWithRange(resolvedPath, stat, request.headers.get('range'));
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Window + menu
 // ---------------------------------------------------------------------------
 
@@ -916,6 +1063,7 @@ async function handleClose() {
 app.whenReady().then(async () => {
   rotateLogs();
   logSetup(`yuu-clip ${app.getVersion()} starting — ${process.platform} ${process.arch} node/${process.versions.node}`);
+  registerMediaProtocol();
 
   const knownQuits = [
     'Python not found',
