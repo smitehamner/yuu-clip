@@ -242,6 +242,10 @@ class Config:
     # unscored), {date} (export date, YYYY-MM-DD). See config.validate_export_name_template.
     export_name_template: str = DEFAULT_EXPORT_NAME_TEMPLATE
 
+    # Pre-import estimate total (hours) above which the Analyze panel shows a
+    # long-run warning suggesting the recording be split or analyzed in smaller batches.
+    analyze_warn_hours: float = 2.0
+
     @classmethod
     def load(cls, project_dir: Path) -> "Config":
         """Load config, merging global defaults with project overrides."""

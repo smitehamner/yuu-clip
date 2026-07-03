@@ -1659,3 +1659,235 @@ class TestWhisperStep:
         one = self._step(transcribe_tracks=1)
         two = self._step(transcribe_tracks=2)
         assert two["seconds"] > one["seconds"]
+
+
+# ---------------------------------------------------------------------------
+# Measured-rate estimate — roadmap-2026-07 plan 01 Stage 2
+# ---------------------------------------------------------------------------
+
+def _run_json(*, model="medium", has_gpu=True, stages):
+    import json as _json
+    return _json.dumps({
+        "started_at": "2026-07-01T00:00:00+00:00",
+        "finished_at": "2026-07-01T01:00:00+00:00",
+        "elapsed_ms": 3_600_000,
+        "device": {"has_gpu": has_gpu, "transcribe": "cuda (float16)" if has_gpu else "cpu (int8)"},
+        "settings": {"model": model, "track_layout": "default", "energy_mode": "fast",
+                     "scene_mode": "fast", "speaker_labels": False, "captions_source": "whisper",
+                     "scoring": True, "contexts": [], "weights": {}},
+        "stages": stages,
+    })
+
+
+def _seed_run(session, *, model="medium", has_gpu=True, duration_ms=3_600_000, stages, processed_at=None):
+    from datetime import datetime, timedelta, timezone
+
+    from yuu_clip.db.models import Video
+    if processed_at is None:
+        processed_at = datetime.now(timezone.utc) - timedelta(minutes=1)
+    v = Video(
+        path=f"/tmp/seed-{id(stages)}.mkv", filename=f"seed-{id(stages)}.mkv",
+        status="done", duration_ms=duration_ms, processed_at=processed_at,
+        analyze_run_json=_run_json(model=model, has_gpu=has_gpu, stages=stages),
+    )
+    session.add(v)
+    session.flush()
+    return v
+
+
+class TestMeasuredRates:
+    def _db(self, project_dir):
+        from yuu_clip.db.models import make_session
+        return make_session(project_dir / ".yuu-clip" / "project.db")
+
+    def test_no_matching_runs_returns_empty(self, project_dir):
+        from yuu_clip.web.routes.analyze import _measured_rates
+        db = self._db(project_dir)
+        try:
+            assert _measured_rates(db, "medium", True) == {}
+        finally:
+            db.close()
+
+    def test_single_sample_not_trusted(self, project_dir):
+        from yuu_clip.web.routes.analyze import _measured_rates
+        db = self._db(project_dir)
+        try:
+            _seed_run(db, stages=[{"name": "Extract", "seconds": 36.0}])
+            db.commit()
+            assert _measured_rates(db, "medium", True) == {}
+        finally:
+            db.close()
+
+    def test_median_of_two_matching_samples(self, project_dir):
+        from yuu_clip.web.routes.analyze import _measured_rates
+        db = self._db(project_dir)
+        try:
+            # 3600s video: 36s extract -> rate 0.01; 72s extract -> rate 0.02
+            _seed_run(db, stages=[{"name": "Extract", "seconds": 36.0}])
+            _seed_run(db, stages=[{"name": "Extract", "seconds": 72.0}])
+            db.commit()
+            rates = _measured_rates(db, "medium", True)
+            assert rates["extract"] == pytest.approx(0.015)
+        finally:
+            db.close()
+
+    def test_different_model_excluded(self, project_dir):
+        from yuu_clip.web.routes.analyze import _measured_rates
+        db = self._db(project_dir)
+        try:
+            _seed_run(db, model="medium", stages=[{"name": "Extract", "seconds": 36.0}])
+            _seed_run(db, model="large-v3", stages=[{"name": "Extract", "seconds": 36.0}])
+            db.commit()
+            # Only one "medium" sample — below the trust threshold
+            assert "extract" not in _measured_rates(db, "medium", True)
+        finally:
+            db.close()
+
+    def test_different_device_excluded(self, project_dir):
+        from yuu_clip.web.routes.analyze import _measured_rates
+        db = self._db(project_dir)
+        try:
+            _seed_run(db, has_gpu=True, stages=[{"name": "Extract", "seconds": 36.0}])
+            _seed_run(db, has_gpu=False, stages=[{"name": "Extract", "seconds": 36.0}])
+            db.commit()
+            assert "extract" not in _measured_rates(db, "medium", True)
+        finally:
+            db.close()
+
+    def test_malformed_run_json_skipped_not_raised(self, project_dir):
+        from yuu_clip.db.models import Video
+        from yuu_clip.web.routes.analyze import _measured_rates
+        db = self._db(project_dir)
+        try:
+            db.add(Video(
+                path="/tmp/broken.mkv", filename="broken.mkv", status="done",
+                duration_ms=60_000, analyze_run_json="{not valid json",
+            ))
+            db.commit()
+            assert _measured_rates(db, "medium", True) == {}  # must not raise
+        finally:
+            db.close()
+
+    def test_missing_stage_excluded_not_zero(self, project_dir):
+        """A --no-score run has no 'Score' stage — it must be excluded from that
+        stage's sample set, not counted as a zero-second sample (which would
+        corrupt the median toward under-estimating)."""
+        from yuu_clip.web.routes.analyze import _measured_rates
+        db = self._db(project_dir)
+        try:
+            _seed_run(db, stages=[{"name": "Extract", "seconds": 36.0}])  # no "Score"
+            _seed_run(db, stages=[{"name": "Extract", "seconds": 36.0}])  # no "Score"
+            db.commit()
+            assert "score" not in _measured_rates(db, "medium", True)
+        finally:
+            db.close()
+
+    def test_zero_duration_video_excluded(self, project_dir):
+        """Guards the seconds/duration division — a zero-duration row must not raise."""
+        from yuu_clip.web.routes.analyze import _measured_rates
+        db = self._db(project_dir)
+        try:
+            _seed_run(db, duration_ms=0, stages=[{"name": "Extract", "seconds": 36.0}])
+            _seed_run(db, duration_ms=0, stages=[{"name": "Extract", "seconds": 36.0}])
+            db.commit()
+            assert _measured_rates(db, "medium", True) == {}
+        finally:
+            db.close()
+
+    def test_only_last_n_samples_considered(self, project_dir):
+        from yuu_clip.web.routes.analyze import _measured_rates
+        db = self._db(project_dir)
+        try:
+            from datetime import datetime, timedelta, timezone
+            now = datetime.now(timezone.utc)
+            # 10 recent runs at rate 0.01, plus 2 older runs (outside the last-10
+            # window) at a wildly different rate that must not affect the median.
+            for i in range(10):
+                _seed_run(db, stages=[{"name": "Extract", "seconds": 36.0}],
+                          processed_at=now - timedelta(minutes=i))
+            for i in range(2):
+                _seed_run(db, stages=[{"name": "Extract", "seconds": 3600.0}],
+                          processed_at=now - timedelta(days=10 + i))
+            db.commit()
+            assert _measured_rates(db, "medium", True)["extract"] == pytest.approx(0.01)
+        finally:
+            db.close()
+
+
+class TestComputeTimeEstimateMeasured:
+    def _req(self, **overrides):
+        from yuu_clip.web.routes.analyze import EstimateRequest
+        return EstimateRequest(**{
+            "duration_s": 3600, "model": "medium", "audio_tracks": 2,
+            "has_gpu": True, "scene_mode": "fast", **overrides,
+        })
+
+    def _db(self, project_dir):
+        from yuu_clip.db.models import make_session
+        return make_session(project_dir / ".yuu-clip" / "project.db")
+
+    def test_no_db_falls_back_to_estimated(self, project_dir):
+        from yuu_clip.web.routes.analyze import _compute_time_estimate
+        result = _compute_time_estimate(self._req())
+        assert result["source"] == "estimated"
+
+    def test_source_estimated_without_history(self, project_dir):
+        from yuu_clip.web.routes.analyze import _compute_time_estimate
+        db = self._db(project_dir)
+        try:
+            result = _compute_time_estimate(self._req(), db)
+            assert result["source"] == "estimated"
+        finally:
+            db.close()
+
+    def test_source_measured_with_enough_history(self, project_dir):
+        from yuu_clip.web.routes.analyze import _compute_time_estimate
+        db = self._db(project_dir)
+        try:
+            _seed_run(db, stages=[{"name": "Extract", "seconds": 36.0}])
+            _seed_run(db, stages=[{"name": "Extract", "seconds": 36.0}])
+            db.commit()
+            result = _compute_time_estimate(self._req(), db)
+            assert result["source"] == "measured"
+            extract = next(s for s in result["steps"] if s["name"] == "Extract")
+            assert extract["seconds"] == pytest.approx(36.0)  # rate 0.01 * 3600s
+        finally:
+            db.close()
+
+    def test_score_stage_grounds_llm_scoring_net_of_energy_and_scene(self, project_dir):
+        from yuu_clip.web.routes.analyze import _compute_time_estimate
+        db = self._db(project_dir)
+        try:
+            # 3600s video, 600s combined Score stage each run.
+            _seed_run(db, stages=[{"name": "Score", "seconds": 600.0}])
+            _seed_run(db, stages=[{"name": "Score", "seconds": 600.0}])
+            db.commit()
+            result = _compute_time_estimate(self._req(), db)
+            energy = next(s for s in result["steps"] if s["name"].startswith("Audio energy"))
+            scene = next(s for s in result["steps"] if s["name"].startswith("Scene detection"))
+            llm = next(s for s in result["steps"] if s["name"] == "LLM scoring")
+            assert llm["seconds"] == pytest.approx(600.0 - energy["seconds"] - scene["seconds"])
+        finally:
+            db.close()
+
+    def test_warning_true_above_threshold(self, project_dir):
+        from yuu_clip.web.routes.analyze import _compute_time_estimate
+        result = _compute_time_estimate(self._req(duration_s=36000, model="large-v3", has_gpu=False), warn_hours=1.0)
+        assert result["long_run_warning"] is True
+        assert result["warn_hours"] == 1.0
+
+    def test_warning_false_below_threshold(self, project_dir):
+        from yuu_clip.web.routes.analyze import _compute_time_estimate
+        result = _compute_time_estimate(self._req(duration_s=60), warn_hours=2.0)
+        assert result["long_run_warning"] is False
+
+
+class TestEstimateRouteMeasured:
+    def test_estimate_route_returns_source_and_warning_fields(self, client):
+        d = client.post("/api/estimate", json={
+            "duration_s": 3600, "model": "medium", "audio_tracks": 2,
+            "has_gpu": True, "scene_mode": "fast",
+        }).json()
+        assert d["source"] == "estimated"
+        assert "warn_hours" in d
+        assert "long_run_warning" in d

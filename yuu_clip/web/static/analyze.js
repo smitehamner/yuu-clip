@@ -294,6 +294,16 @@ function renderEstimate(info, data) {
   const pctLine    = data.pct_of_video != null
     ? `<div class="estimate-pct">&#8776; ${data.pct_of_video.toFixed(1)}% of recording duration</div>`
     : '';
+  const sourceLine = `<div class="estimate-source">${
+    data.source === 'measured' ? 'Based on your last runs on this model/device' : 'Rough estimate — no matching past runs yet'
+  }</div>`;
+  const longRunWarning = data.long_run_warning ? `
+    <div class="long-run-warning">
+      <span aria-hidden="true">&#9888;</span>
+      <span>This is a long analysis (over ${data.warn_hours}h estimated). Consider splitting the
+      recording into smaller segments before analyzing (see Pre-split below), or analyzing fewer
+      recordings at once.</span>
+    </div>` : '';
 
   document.getElementById('estimate-area').innerHTML = `
     <div class="estimate-box">
@@ -311,6 +321,8 @@ function renderEstimate(info, data) {
         </span>
       </div>
       ${pctLine}
+      ${sourceLine}
+      ${longRunWarning}
     </div>`;
 }
 

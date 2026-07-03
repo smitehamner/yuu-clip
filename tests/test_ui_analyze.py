@@ -265,7 +265,10 @@ def _make_steps(energy_mode: str = "fast") -> list:
     ]
 
 
-def _inject_estimate(page: "Page", energy_mode: str = "fast", pct: float = 18.7) -> None:
+def _inject_estimate(
+    page: "Page", energy_mode: str = "fast", pct: float = 18.7,
+    source: str = "estimated", long_run_warning: bool = False, warn_hours: float = 2.0,
+) -> None:
     """Directly call renderEstimate() with controlled data — no file probe needed."""
     steps = _make_steps(energy_mode)
     total_s = sum(s["seconds"] for s in steps)
@@ -275,7 +278,10 @@ def _inject_estimate(page: "Page", energy_mode: str = "fast", pct: float = 18.7)
         steps: {steps},
         total_hms: "11m 12s",
         total_seconds: {total_s},
-        pct_of_video: {pct}
+        pct_of_video: {pct},
+        source: {source!r},
+        long_run_warning: {'true' if long_run_warning else 'false'},
+        warn_hours: {warn_hours}
       }});
     }}""")
 
@@ -329,6 +335,28 @@ class TestEstimateDisplay:
         _inject_estimate(page, pct=96.0)
         expect(page.locator(".estimate-pct")).to_contain_text("96.0%")
         expect(page.locator(".estimate-pct")).to_contain_text("of recording")
+
+    def test_estimated_source_shows_rough_estimate_caption(self, page: Page):
+        self._open_analyze(page)
+        _inject_estimate(page, source="estimated")
+        expect(page.locator(".estimate-source")).to_contain_text("Rough estimate")
+
+    def test_measured_source_shows_based_on_past_runs_caption(self, page: Page):
+        self._open_analyze(page)
+        _inject_estimate(page, source="measured")
+        expect(page.locator(".estimate-source")).to_contain_text("Based on your last runs")
+
+    def test_long_run_warning_hidden_below_threshold(self, page: Page):
+        self._open_analyze(page)
+        _inject_estimate(page, long_run_warning=False)
+        expect(page.locator(".long-run-warning")).to_have_count(0)
+
+    def test_long_run_warning_shown_above_threshold(self, page: Page):
+        self._open_analyze(page)
+        _inject_estimate(page, long_run_warning=True, warn_hours=2.0)
+        warning = page.locator(".long-run-warning")
+        expect(warning).to_be_visible()
+        expect(warning).to_contain_text("splitting")
 
 
 # ---------------------------------------------------------------------------

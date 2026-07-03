@@ -17,6 +17,8 @@ streams that command's stdout as SSE.
 from __future__ import annotations
 
 import importlib.util
+import json
+import statistics
 import sys
 from pathlib import Path
 from typing import Optional
@@ -90,6 +92,65 @@ _ENERGY_MODE: dict[str, tuple[float, str]] = {
 # since short recordings pay a fixed model-load overhead this linear model omits.
 # CPU reflects the FEATURES-documented ~2–4× real-time floor.
 _DIARIZATION_RT_SPEED = {"gpu": 18.0, "cpu": 3.0}
+
+# ── Measured-rate estimate (from past analyze_run_json timings) ────────────
+# StageRecorder stage names (yuu_clip/cli/_run_meta.py) this estimator can use.
+# "Score" is one combined energy+scenes+LLM-scoring pass (see _pipeline._run_scoring) —
+# there is no per-substage timing, so it grounds only the "LLM scoring" display step
+# (energy/scene detection keep their static, mode-driven formulas).
+_STAGE_NAME_TO_KEY = {
+    "Extract":    "extract",
+    "Transcribe": "transcribe",
+    "Speakers":   "speakers",
+    "Summarize":  "summarize",
+    "Score":      "score",
+}
+_MEASURED_SAMPLE_LIMIT = 10  # most-recent completed runs considered
+_MEASURED_MIN_SAMPLES  = 2   # matching samples required before trusting the median
+
+
+def _measured_rates(db, model: str, has_gpu: bool) -> dict[str, float]:
+    """Median seconds-of-processing per second-of-video, per pipeline stage,
+    from the last _MEASURED_SAMPLE_LIMIT completed runs whose recorded model
+    and device match the requested run — a model or device change would
+    otherwise poison the estimate with an unrelated speed.
+
+    A stage key is only returned once at least _MEASURED_MIN_SAMPLES matching
+    runs recorded it; callers fall back to the static formula otherwise.
+    """
+    from yuu_clip.db.models import Video
+
+    rows = (
+        db.query(Video.analyze_run_json, Video.duration_ms)
+        .filter(Video.analyze_run_json.isnot(None), Video.duration_ms > 0)
+        .order_by(Video.processed_at.desc())
+        .limit(_MEASURED_SAMPLE_LIMIT)
+        .all()
+    )
+    samples: dict[str, list[float]] = {}
+    for run_json, duration_ms in rows:
+        try:
+            run = json.loads(run_json)
+            settings = run["settings"]
+            device = run["device"]
+            stages = run["stages"]
+        except (TypeError, ValueError, KeyError):
+            continue  # malformed/legacy run_json — skip, never raise
+        if settings.get("model") != model or bool(device.get("has_gpu")) != has_gpu:
+            continue
+        duration_s = duration_ms / 1000
+        for stage in stages:
+            key = _STAGE_NAME_TO_KEY.get(stage.get("name"))
+            seconds = stage.get("seconds")
+            if key is None or not isinstance(seconds, (int, float)) or seconds < 0:
+                continue
+            samples.setdefault(key, []).append(seconds / duration_s)
+
+    return {
+        key: statistics.median(rates)
+        for key, rates in samples.items()
+        if len(rates) >= _MEASURED_MIN_SAMPLES
+    }
 
 
 class ProbeRequest(BaseModel):
@@ -193,7 +254,11 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     @router.post("/api/estimate")
     def estimate_processing_time(req: EstimateRequest):
         """Return per-step wall-clock time estimates for analyzing a video of the given length."""
-        return _compute_time_estimate(req)
+        db = ctx.get_db()
+        try:
+            return _compute_time_estimate(req, db, ctx.config.analyze_warn_hours)
+        finally:
+            db.close()
 
     @router.post("/api/analyze/start")
     async def start_analyze(req: IngestRequest):
@@ -562,10 +627,16 @@ def _probe_subtitle_streams(p: Path) -> list[dict]:
     return []
 
 
-def _compute_time_estimate(req: EstimateRequest) -> dict:
+def _compute_time_estimate(req: EstimateRequest, db=None, warn_hours: float = 2.0) -> dict:
     duration_s = req.duration_s
     n_tracks = max(1, req.audio_tracks)
     transcribe_tracks = req.transcribe_tracks if req.transcribe_tracks is not None else max(1, n_tracks // 2)
+
+    # Medians from the creator's own past runs, keyed to this exact model+device so a
+    # different model/CPU-vs-GPU choice can't poison the numbers. None of the individual
+    # step formulas below are touched unless a matching measured rate exists for them.
+    measured = _measured_rates(db, req.model, req.has_gpu) if db is not None else {}
+    used_measured = False
 
     scene_seconds = max(
         _SCENE_FAST_FLOOR_S if req.scene_mode == "fast" else 0.0,
@@ -573,16 +644,31 @@ def _compute_time_estimate(req: EstimateRequest) -> dict:
     )
     energy_cost, energy_label = _ENERGY_MODE.get(req.energy_mode, (0.002, ""))
 
+    extract_seconds = duration_s * n_tracks * 0.002
+    if "extract" in measured:
+        extract_seconds = measured["extract"] * duration_s
+        used_measured = True
+
+    transcribe_step = _whisper_step(req.model, req.has_gpu, duration_s, transcribe_tracks)
+    if transcribe_tracks > 0 and "transcribe" in measured:
+        transcribe_step["seconds"] = measured["transcribe"] * duration_s
+        used_measured = True
+
+    summarize_seconds = max(15.0, duration_s * 0.0015)
+    if "summarize" in measured:
+        summarize_seconds = measured["summarize"] * duration_s
+        used_measured = True
+
     est_clips = int(duration_s / 180)
+    llm_scoring_seconds = est_clips * 12  # ~12s/clip observed (cold model + per-clip prompt)
+
     steps = [
         {
             "name":    "Extract",
-            # ffmpeg reads the source once; real runs land ~0.0017×duration
-            # regardless of track count (the old 0.05×tracks was ~30× too high).
-            "seconds": duration_s * n_tracks * 0.002,
+            "seconds": extract_seconds,
             "note":    f"{n_tracks} track(s)",
         },
-        _whisper_step(req.model, req.has_gpu, duration_s, transcribe_tracks),
+        transcribe_step,
         {
             "name":    f"Audio energy ({req.energy_mode})",
             "seconds": duration_s * n_tracks * energy_cost,
@@ -595,22 +681,33 @@ def _compute_time_estimate(req: EstimateRequest) -> dict:
         },
         {
             "name":    "Summarize",
-            "seconds": max(15.0, duration_s * 0.0015),
+            "seconds": summarize_seconds,
             "note":    "one LLM pass over the transcript",
         },
         {
             "name":    "LLM scoring",
-            # ~12s/clip observed (cold model + per-clip prompt); the old 4s
-            # under-estimated real scoring by 2–4×.
-            "seconds": est_clips * 12,
+            "seconds": llm_scoring_seconds,
             "note":    f"~{est_clips} clips estimated",
         },
     ]
+    if "score" in measured:
+        # "Score" is the one combined energy+scenes+LLM-scoring StageRecorder timing —
+        # ground the roughest guess (LLM scoring) in it, net of this run's own energy/
+        # scene estimates so the two aren't double-counted against the measured total.
+        energy_seconds = steps[2]["seconds"]
+        scene_detect_seconds = steps[3]["seconds"]
+        measured_score_total = measured["score"] * duration_s
+        steps[5]["seconds"] = max(0.0, measured_score_total - energy_seconds - scene_detect_seconds)
+        used_measured = True
     if req.diarize and transcribe_tracks > 0:
         diar_speed = _DIARIZATION_RT_SPEED["gpu" if req.has_gpu else "cpu"]
+        speaker_seconds = duration_s * transcribe_tracks / diar_speed
+        if "speakers" in measured:
+            speaker_seconds = measured["speakers"] * duration_s
+            used_measured = True
         steps.insert(2, {
             "name":    "Speaker labels",
-            "seconds": duration_s * transcribe_tracks / diar_speed,
+            "seconds": speaker_seconds,
             "note":    f"{transcribe_tracks} track(s), pyannote",
         })
     total = sum(s["seconds"] for s in steps)
@@ -622,6 +719,9 @@ def _compute_time_estimate(req: EstimateRequest) -> dict:
         "total_hms": _format_duration(total),
         "total_seconds": total,
         "pct_of_video": pct_of_video,
+        "source": "measured" if used_measured else "estimated",
+        "warn_hours": warn_hours,
+        "long_run_warning": total >= warn_hours * 3600,
     }
 
 
