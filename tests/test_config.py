@@ -505,3 +505,153 @@ class TestThermalConfig:
     def test_thermal_pause_c_out_of_range_rejected(self, client):
         r = client.patch("/api/config", json={"thermal_pause_c": 200})
         assert r.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# Title card config — colors, scale, layout, duration (roadmap plan 09)
+# ---------------------------------------------------------------------------
+
+class TestTitleCardConfigDefaults:
+    def test_defaults(self):
+        from yuu_clip.config import Config
+        cfg = Config()
+        assert cfg.title_card_bg_color == "#000000"
+        assert cfg.title_card_font_color == "#ffffff"
+        assert cfg.title_card_scale == 1.0
+        assert cfg.title_card_layout == "both"
+        assert cfg.title_card_duration_s == 3.0
+
+
+class TestValidateHexColor:
+    def _validate(self, value):
+        from yuu_clip.config import validate_hex_color
+        return validate_hex_color(value, "title_card_bg_color")
+
+    def test_valid_hex_returned_unchanged(self):
+        assert self._validate("#1a2b3c") == "#1a2b3c"
+
+    def test_missing_hash_rejected(self):
+        with pytest.raises(ValueError):
+            self._validate("1a2b3c")
+
+    def test_short_hex_rejected(self):
+        with pytest.raises(ValueError):
+            self._validate("#fff")
+
+    def test_alpha_hex_rejected(self):
+        with pytest.raises(ValueError):
+            self._validate("#ffffffaa")
+
+    def test_named_color_rejected(self):
+        with pytest.raises(ValueError):
+            self._validate("red")
+
+
+class TestTitleCardConfigLoadSanitization:
+    """Config.load() must never crash on a hand-edited config.json — bad
+    title-card values fall back to defaults with a WARN log instead."""
+
+    def _load_with(self, tmp_path, monkeypatch, project_values):
+        import json
+
+        import yuu_clip.config as cfg_mod
+        from yuu_clip.config import Config
+        monkeypatch.setattr(cfg_mod, "_global_config_dir", lambda: tmp_path / "global_cfg")
+        project_dir = tmp_path / "proj"
+        project_dir.mkdir()
+        cfg_dir = project_dir / ".yuu-clip"
+        cfg_dir.mkdir()
+        (cfg_dir / "config.json").write_text(json.dumps(project_values), encoding="utf-8")
+        return Config.load(project_dir)
+
+    def test_bad_bg_color_falls_back_to_default(self, tmp_path, monkeypatch):
+        cfg = self._load_with(tmp_path, monkeypatch, {"title_card_bg_color": "not-a-color"})
+        assert cfg.title_card_bg_color == "#000000"
+
+    def test_bad_font_color_falls_back_to_default(self, tmp_path, monkeypatch):
+        cfg = self._load_with(tmp_path, monkeypatch, {"title_card_font_color": "red"})
+        assert cfg.title_card_font_color == "#ffffff"
+
+    def test_alpha_hex_falls_back_to_default(self, tmp_path, monkeypatch):
+        cfg = self._load_with(tmp_path, monkeypatch, {"title_card_bg_color": "#000000ff"})
+        assert cfg.title_card_bg_color == "#000000"
+
+    def test_bad_layout_falls_back_to_default(self, tmp_path, monkeypatch):
+        cfg = self._load_with(tmp_path, monkeypatch, {"title_card_layout": "everything"})
+        assert cfg.title_card_layout == "both"
+
+    def test_scale_out_of_range_falls_back_to_default(self, tmp_path, monkeypatch):
+        cfg = self._load_with(tmp_path, monkeypatch, {"title_card_scale": 5.0})
+        assert cfg.title_card_scale == 1.0
+
+    def test_duration_out_of_range_falls_back_to_default(self, tmp_path, monkeypatch):
+        cfg = self._load_with(tmp_path, monkeypatch, {"title_card_duration_s": 30.0})
+        assert cfg.title_card_duration_s == 3.0
+
+    def test_valid_title_card_values_roundtrip(self, tmp_path, monkeypatch):
+        cfg = self._load_with(tmp_path, monkeypatch, {
+            "title_card_bg_color": "#112233",
+            "title_card_font_color": "#eeddcc",
+            "title_card_scale": 1.5,
+            "title_card_layout": "timecode",
+            "title_card_duration_s": 5.0,
+        })
+        assert cfg.title_card_bg_color == "#112233"
+        assert cfg.title_card_font_color == "#eeddcc"
+        assert cfg.title_card_scale == 1.5
+        assert cfg.title_card_layout == "timecode"
+        assert cfg.title_card_duration_s == 5.0
+
+
+class TestTitleCardConfigApi:
+    def test_get_config_includes_title_card_defaults(self, client):
+        d = client.get("/api/config").json()
+        assert d["title_card_bg_color"] == "#000000"
+        assert d["title_card_font_color"] == "#ffffff"
+        assert d["title_card_scale"] == 1.0
+        assert d["title_card_layout"] == "both"
+        assert d["title_card_duration_s"] == 3.0
+
+    def test_patch_valid_title_card_fields(self, client):
+        r = client.patch("/api/config", json={
+            "title_card_bg_color": "#123456",
+            "title_card_font_color": "#abcdef",
+            "title_card_scale": 1.25,
+            "title_card_layout": "description",
+            "title_card_duration_s": 4.5,
+        })
+        assert r.status_code == 200
+        d = r.json()
+        assert d["title_card_bg_color"] == "#123456"
+        assert d["title_card_font_color"] == "#abcdef"
+        assert d["title_card_scale"] == 1.25
+        assert d["title_card_layout"] == "description"
+        assert d["title_card_duration_s"] == 4.5
+
+    def test_patch_invalid_hex_bg_color_rejected(self, client):
+        r = client.patch("/api/config", json={"title_card_bg_color": "black"})
+        assert r.status_code == 400
+
+    def test_patch_short_hex_rejected(self, client):
+        r = client.patch("/api/config", json={"title_card_font_color": "#fff"})
+        assert r.status_code == 400
+
+    def test_patch_alpha_hex_rejected(self, client):
+        r = client.patch("/api/config", json={"title_card_bg_color": "#000000ff"})
+        assert r.status_code == 400
+
+    def test_patch_invalid_layout_rejected(self, client):
+        r = client.patch("/api/config", json={"title_card_layout": "everything"})
+        assert r.status_code == 400
+
+    def test_patch_scale_out_of_range_rejected(self, client):
+        assert client.patch("/api/config", json={"title_card_scale": 0.4}).status_code == 400
+        assert client.patch("/api/config", json={"title_card_scale": 2.1}).status_code == 400
+
+    def test_patch_scale_bounds_accepted(self, client):
+        assert client.patch("/api/config", json={"title_card_scale": 0.5}).status_code == 200
+        assert client.patch("/api/config", json={"title_card_scale": 2.0}).status_code == 200
+
+    def test_patch_duration_out_of_range_rejected(self, client):
+        assert client.patch("/api/config", json={"title_card_duration_s": 0.5}).status_code == 400
+        assert client.patch("/api/config", json={"title_card_duration_s": 10.5}).status_code == 400

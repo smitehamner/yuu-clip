@@ -2,7 +2,8 @@
 Highlight reel compilation.
 
 Combines exported clip files into a single highlight reel with:
-  - Title cards between clips (black background, white text, clip description)
+  - Title cards between clips (color, size, and content configurable — see
+    Config.title_card_* in config.py)
   - Optional crossfade / wipe transitions via ffmpeg xfade filter
 
 Requires ffmpeg on PATH.
@@ -26,6 +27,7 @@ from yuu_clip.export_naming import (
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
+    from yuu_clip.config import Config
     from yuu_clip.db.models import ClipCandidate, Video
 
 _log = logging.getLogger(__name__)
@@ -58,6 +60,56 @@ def _find_font() -> Optional[str]:
     return None
 
 
+_TITLE_CARD_DESCRIPTION_MAX_CHARS = 90
+
+
+def _to_ffmpeg_color(hex_color: str) -> str:
+    """Convert a validated '#RRGGBB' config color to ffmpeg's '0xRRGGBB' form."""
+    return "0x" + hex_color.lstrip("#")
+
+
+def _truncate_description(text: str) -> str:
+    """Cap a title-card description line so drawtext (which never wraps) doesn't
+    render it off-card — a 300-char description already renders off-card today,
+    so this is a strict improvement over the previous unbounded behavior."""
+    if len(text) <= _TITLE_CARD_DESCRIPTION_MAX_CHARS:
+        return text
+    return text[: _TITLE_CARD_DESCRIPTION_MAX_CHARS - 1].rstrip() + "…"
+
+
+def title_card_lines(
+    cand: "ClipCandidate",
+    config: "Config",
+    *,
+    description_size: int,
+    timecode_size: int,
+) -> list[tuple[str, int]]:
+    """Return the title-card (text, fontsize) lines for *cand*, honoring
+    config.title_card_layout and config.title_card_scale.
+
+    *description_size* and *timecode_size* are the base (unscaled) font sizes for
+    this call site — clip exports and reels use different base sizes, but both
+    share the same scale multiplier and layout rules. Uses effective_description
+    (the user-edited value, if any) rather than the raw LLM description. A
+    "description" layout with no description falls back to the timecode line so
+    a card is never emitted empty.
+    """
+    scale = config.title_card_scale
+    description = _truncate_description(cand.effective_description)
+    timecode_line = (f"{cand.start_hms}  ·  {cand.duration_hms}", round(timecode_size * scale))
+    description_line = (description, round(description_size * scale)) if description else None
+
+    if config.title_card_layout == "timecode":
+        return [timecode_line]
+    if config.title_card_layout == "description":
+        return [description_line] if description_line else [timecode_line]
+    lines = []
+    if description_line:
+        lines.append(description_line)
+    lines.append(timecode_line)
+    return lines
+
+
 def _esc(path: str) -> str:
     """Escape a path for use as a single-quoted ffmpeg filter option value.
 
@@ -81,8 +133,14 @@ def _make_title_card(
     duration: float = _DEFAULT_TITLE_DUR,
     fps: float = 30.0,
     sample_rate: int = 48000,
+    bg_color: str = "#000000",
+    font_color: str = "#ffffff",
 ) -> None:
-    """Render a black title card with centred white text lines to *output_path*.
+    """Render a title card with centred text lines to *output_path*.
+
+    *bg_color* / *font_color* are validated '#RRGGBB' strings (config.py
+    validate_hex_color); escaping is unaffected since they're never
+    interpolated as free text into the filter string.
 
     Text lines are written to temp files and referenced via drawtext's
     textfile= option so that apostrophes, colons, and other special characters
@@ -105,7 +163,7 @@ def _make_title_card(
             txt_path = _esc(str(txt_file).replace("\\", "/"))
             drawtext_filters.append(
                 f"drawtext=textfile='{txt_path}'"
-                f":fontcolor=white:fontsize={fs}"
+                f":fontcolor={_to_ffmpeg_color(font_color)}:fontsize={fs}"
                 f":x=(w-text_w)/2:y={y}"
                 f"{font_spec}"
             )
@@ -115,7 +173,7 @@ def _make_title_card(
         cmd = [
             "ffmpeg", "-y", "-loglevel", "error",
             "-f", "lavfi", "-i",
-            f"color=black:size={width}x{height}:rate={fps}:duration={duration}",
+            f"color={_to_ffmpeg_color(bg_color)}:size={width}x{height}:rate={fps}:duration={duration}",
             "-f", "lavfi", "-i",
             f"anullsrc=channel_layout=stereo:sample_rate={sample_rate}",
             "-vf", vf,
@@ -336,27 +394,33 @@ def _build_segment_list(
     tmp_dir: Path,
     fps: float,
     title_dur: float,
+    config: "Config",
 ) -> tuple[list[Path], list[float]]:
     """Render title cards and interleave them with clip files.
 
     Returns (segments, durations) — alternating title card, clip file for each clip.
     """
     n = len(clips)
+    scale = config.title_card_scale
     segments: list[Path] = []
     durations: list[float] = []
     for idx, (clip, clip_file, clip_dur) in enumerate(zip(clips, clip_files, clip_durations)):
         video = video_map[clip.video_id]
         session_date = Path(video.filename).stem[:10]
         title_lines: list[tuple[str, int]] = [
-            (f"Clip {idx + 1} of {n}", _DEFAULT_FONT_SIZE_H1),
-            (session_date, _DEFAULT_FONT_SIZE_H2),
+            (f"Clip {idx + 1} of {n}", round(_DEFAULT_FONT_SIZE_H1 * scale)),
+            (session_date, round(_DEFAULT_FONT_SIZE_H2 * scale)),
         ]
-        if clip.description:
-            title_lines.append((clip.description, _DEFAULT_FONT_SIZE_BODY))
+        title_lines += title_card_lines(
+            clip, config, description_size=_DEFAULT_FONT_SIZE_BODY, timecode_size=_DEFAULT_FONT_SIZE_H2,
+        )
 
         print(f"Generating title card {idx + 1}/{n}…", flush=True)
         card_path = tmp_dir / f"title_{idx:03d}.mkv"
-        _make_title_card(title_lines, card_path, duration=title_dur, fps=fps)
+        _make_title_card(
+            title_lines, card_path, duration=title_dur, fps=fps,
+            bg_color=config.title_card_bg_color, font_color=config.title_card_font_color,
+        )
         segments.append(card_path)
         durations.append(title_dur)
 
@@ -370,6 +434,7 @@ def compile_demo(
     video_map: dict[int, "Video"],
     export_dir: Path,
     output: Path,
+    config: "Config",
     transition: str = _DEFAULT_TRANSITION,
     trans_dur: float = _DEFAULT_TRANS_DUR,
     title_dur: float = _DEFAULT_TITLE_DUR,
@@ -378,7 +443,8 @@ def compile_demo(
     """Build a highlight reel from *clips*.
 
     Each clip must have a corresponding exported file in *export_dir*.
-    Title cards are generated in a temp directory and cleaned up afterward.
+    Title cards are generated in a temp directory and cleaned up afterward,
+    using *config*'s title_card_* fields for color, size, and content.
     """
     import random as _random
 
@@ -401,7 +467,7 @@ def compile_demo(
     try:
         with tempfile.TemporaryDirectory() as tmp:
             segments, durations = _build_segment_list(
-                clips, video_map, clip_files, clip_durations, Path(tmp), clip_fps, title_dur,
+                clips, video_map, clip_files, clip_durations, Path(tmp), clip_fps, title_dur, config,
             )
             _log.info("Encoding final reel (%ds footage) → %s", int(total_footage), output.name)
             print(f"Encoding final reel ({total_footage:.0f}s footage)…", flush=True)

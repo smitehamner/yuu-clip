@@ -569,6 +569,75 @@
     </div>
     <div id="s-export-preset-rows"></div>
     <button type="button" class="btn-secondary" onclick="addExportPresetRow()" style="margin-top:4px">+ Add custom preset</button>
+
+    <div class="settings-row" style="margin-top:20px">
+      <div class="settings-col">
+        <div class="settings-label">Title card</div>
+        <div class="settings-note">
+          The text overlay shown between highlight reel clips, and prepended to a
+          clip export when "Add title card" is turned on.
+        </div>
+      </div>
+    </div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <label class="settings-label" for="s-title-card-bg-color">Background color</label>
+      </div>
+      <input class="settings-input" id="s-title-card-bg-color" type="color"
+             style="width:60px;height:32px;padding:2px;flex:0 0 auto" oninput="_updateTitleCardPreview()">
+    </div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <label class="settings-label" for="s-title-card-font-color">Text color</label>
+      </div>
+      <input class="settings-input" id="s-title-card-font-color" type="color"
+             style="width:60px;height:32px;padding:2px;flex:0 0 auto" oninput="_updateTitleCardPreview()">
+    </div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <label class="settings-label" for="s-title-card-scale">Text size</label>
+      </div>
+      <select class="settings-input" id="s-title-card-scale" style="flex:0 0 auto;width:auto" oninput="_updateTitleCardPreview()">
+        <option value="0.75">Small</option>
+        <option value="1.0">Normal</option>
+        <option value="1.25">Large</option>
+        <option value="1.5">Extra large</option>
+      </select>
+    </div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <label class="settings-label" for="s-title-card-layout">Content</label>
+      </div>
+      <select class="settings-input" id="s-title-card-layout" style="flex:0 0 auto;width:auto" oninput="_updateTitleCardPreview()">
+        <option value="description">Description</option>
+        <option value="timecode">Timecode</option>
+        <option value="both">Both</option>
+      </select>
+    </div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <label class="settings-label" for="s-title-card-duration">Duration (seconds)</label>
+      </div>
+      <input class="settings-input" id="s-title-card-duration" type="number" min="1" max="10" step="0.5"
+             style="flex:0 0 auto;width:80px">
+    </div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <div class="settings-label">Preview (approximate)</div>
+        <div class="settings-note">Not to scale — shows colors, size, and content, not the actual render.</div>
+      </div>
+      <div id="s-title-card-preview"
+           style="width:220px;height:124px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;border-radius:4px;overflow:hidden;padding:8px;box-sizing:border-box;flex:0 0 auto">
+        <div id="s-title-card-preview-desc" style="font-weight:600;overflow-wrap:anywhere"></div>
+        <div id="s-title-card-preview-time" style="margin-top:6px"></div>
+      </div>
+    </div>
+    <div class="settings-row">
+      <div class="settings-col"></div>
+      <div id="s-title-card-contrast-warning" style="display:none;font-size:12px;color:var(--warning)">
+        &#9888; Text may be hard to read on this background
+      </div>
+    </div>
   </div>
 
   <!-- Notification sounds -->

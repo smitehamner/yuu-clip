@@ -6,6 +6,46 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) — see the
 
 ---
 
+## Title card customization (done, 2026-07-03)
+
+Roadmap plan 09 (`docs/dev/plans/roadmap-2026-07/09-title-card.md`). Background
+color, text color, text size, content layout, and duration for the title card
+shown between highlight reel clips and prepended to a clip export with "Add
+title card" enabled — previously hardcoded (black background, white text,
+fixed sizes).
+
+- **Config** (`config.py`) — `title_card_bg_color`/`title_card_font_color`
+  (strict `#RRGGBB`, `validate_hex_color`), `title_card_scale` (0.5–2.0,
+  multiplies the existing per-line font sizes so one knob scales both the reel
+  and clip-export contexts), `title_card_layout` (`description` / `timecode` /
+  `both`), `title_card_duration_s` (1–10). `PATCH /api/config` rejects bad
+  values outright; a hand-edited config file with garbage instead falls back
+  to defaults with a WARN log (`Config.load()` never crashes on it).
+- **Backend** (`yuu_clip/reel.py`) — `_make_title_card` takes `bg_color`/
+  `font_color` params, converted to ffmpeg's `0xRRGGBB` form. New shared
+  `title_card_lines(cand, config, *, description_size, timecode_size)` helper
+  replaces the duplicated "which lines go on the card" logic at both call
+  sites (`cli/export.py::_apply_title_card`, `reel.py::_build_segment_list`):
+  it honors layout + scale, reads `cand.effective_description` (the clip
+  export path previously read the raw un-edited description, ignoring user
+  edits — fixed here), caps the description at ~90 chars with an ellipsis
+  (previously unbounded), and falls back to the timecode line when
+  `layout=description` and the clip has no description so a card is never
+  emitted empty.
+- **Settings UI** (`index.html` + `settings.js`, Settings → Export) — two
+  native color inputs, a Text size dropdown (Small/Normal/Large/Extra large →
+  0.75/1.0/1.25/1.5), a Content dropdown, a duration number input, a pure-CSS
+  live preview ("Preview (approximate)"), and a WCAG contrast-ratio check
+  (below 3:1) that shows an inline warning without blocking save.
+- **Tests** — `tests/test_title_card.py` (command construction via mocked
+  `subprocess.run`, `title_card_lines` layout/scale/truncation/
+  effective_description coverage, both call sites' wiring, a real tiny encode
+  with non-default colors) and `tests/test_config.py`
+  (`TestTitleCardConfigDefaults`/`TestValidateHexColor`/
+  `TestTitleCardConfigLoadSanitization`/`TestTitleCardConfigApi`); UI coverage
+  in `tests/test_ui_settings.py::TestTitleCardSettings` (fields render/persist,
+  preview reflects color/layout, contrast warning appears/hides).
+
 ## URL import — Twitch VOD / YouTube (done, 2026-07-03)
 
 Roadmap plan 08 (`docs/dev/plans/roadmap-2026-07/08-url-import.md`). Paste a

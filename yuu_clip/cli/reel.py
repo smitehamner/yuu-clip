@@ -23,7 +23,7 @@ def reel(
     transition: str             = typer.Option("fade", "--transition", "-t",
                                      help="Transition type: fade|dissolve|wipeleft|wiperight|slideleft|slideright|none"),
     trans_dur:  float           = typer.Option(0.5,  "--trans-dur",  help="Transition overlap duration in seconds"),
-    title_dur:  float           = typer.Option(3.0,  "--title-dur",  help="Title card display duration in seconds"),
+    title_dur:  Optional[float] = typer.Option(None, "--title-dur",  help="Title card display duration in seconds (default: the configured Title card duration)"),
     output:     Optional[Path]  = typer.Option(None, "-o", "--output",
                                      help="Output file path (default: .yuu-clip/reels/reel_<timestamp>.mkv)"),
     captions:   bool            = typer.Option(False, "--captions", help="Also write a stitched <reel>.srt caption sidecar"),
@@ -39,6 +39,7 @@ def reel(
     proj_dir, session, config = _load_project(project)
     export_dir = proj_dir / ".yuu-clip" / "exports"
     reels_dir  = proj_dir / ".yuu-clip" / "reels"
+    title_dur  = title_dur if title_dur is not None else config.title_card_duration_s
 
     all_clips = _select_reel_clips(session, clip_ids, video_ids, video_id, status_filter, min_score, top)
     if not all_clips:
@@ -54,7 +55,7 @@ def reel(
     output.parent.mkdir(parents=True, exist_ok=True)
 
     _print_reel_plan(all_clips, video_map, output, transition)
-    _compile_reel(all_clips, video_map, export_dir, output, transition, trans_dur, title_dur, config.export_name_template)
+    _compile_reel(all_clips, video_map, export_dir, output, transition, trans_dur, title_dur, config)
 
     if captions:
         from yuu_clip.reel import build_reel_caption_srt
@@ -89,13 +90,13 @@ def _print_reel_plan(all_clips, video_map, output: Path, transition: str) -> Non
 
 
 def _compile_reel(all_clips, video_map, export_dir: Path, output: Path,
-                  transition: str, trans_dur: float, title_dur: float, name_template: str) -> None:
+                  transition: str, trans_dur: float, title_dur: float, config) -> None:
     from yuu_clip.reel import compile_demo
     try:
         compile_demo(
             clips=all_clips, video_map=video_map, export_dir=export_dir,
-            output=output, transition=transition, trans_dur=trans_dur, title_dur=title_dur,
-            name_template=name_template,
+            output=output, config=config, transition=transition, trans_dur=trans_dur, title_dur=title_dur,
+            name_template=config.export_name_template,
         )
         size_mb = output.stat().st_size / BYTES_PER_MB
         console.print(f"  [green]OK[/green] {output.name}  [dim]({size_mb:.1f} MB)[/dim]")

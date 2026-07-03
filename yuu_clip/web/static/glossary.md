@@ -176,7 +176,10 @@ One of a clip's exported files. A clip can have more than one format at once (sa
 A single video assembled from several approved clips, with optional transitions and title cards.
 
 ### Title card
-A short text card shown between clips in a highlight reel, naming what's coming next.
+A short text card shown between clips in a highlight reel, naming what's coming
+next — also usable on a single clip export. Customize its background color,
+text color, text size, and content (description, timecode, or both) in
+Settings → Export.
 
 ### Stale export
 A "Stale — re-export to update" badge means the file you already exported no longer matches the clip — its captions, trim, or description changed since you exported it. Re-export (or rebuild the highlight reel) to bring the file up to date. Plain exports without burned-in captions aren't marked stale just because captions were edited, since the video itself didn't change.

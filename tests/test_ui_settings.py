@@ -228,6 +228,99 @@ class TestExportNameTemplatePreview:
 
 
 # ---------------------------------------------------------------------------
+# Title card customization — colors, size, layout, duration, preview, contrast
+# warning (roadmap plan 09)
+# ---------------------------------------------------------------------------
+
+@skip_no_server
+class TestTitleCardSettings:
+    """Never clicks Save — that would PATCH the live project's real config.json."""
+
+    def _open_settings(self, page: Page) -> None:
+        # openSettings() fetches and applies config async after the panel is
+        # already visible (see TestSettingsPanelChrome) — the paths display is
+        # rendered last, so waiting on it means _applySettingsToUI (which would
+        # otherwise overwrite an early fill with the fetched config value) has
+        # already run.
+        page.goto(LIVE_URL)
+        page.wait_for_selector("#video-list li[data-video-id]", timeout=5000)
+        page.click("#btn-settings-header")
+        page.wait_for_selector("#settings-panel.visible", timeout=3000)
+        page.wait_for_function(
+            "document.getElementById('s-paths-display').textContent.trim().length > 0",
+            timeout=3000,
+        )
+
+    def test_fields_render_with_saved_config_values(self, page: Page):
+        self._open_settings(page)
+        cfg = page.evaluate("() => fetch('/api/config').then(r => r.json())")
+        assert page.locator("#s-title-card-bg-color").input_value() == cfg["title_card_bg_color"]
+        assert page.locator("#s-title-card-font-color").input_value() == cfg["title_card_font_color"]
+        assert float(page.locator("#s-title-card-scale").input_value()) == cfg["title_card_scale"]
+        assert page.locator("#s-title-card-layout").input_value() == cfg["title_card_layout"]
+        assert float(page.locator("#s-title-card-duration").input_value()) == cfg["title_card_duration_s"]
+
+    def test_changing_bg_color_marks_settings_dirty(self, page: Page):
+        self._open_settings(page)
+        expect(page.locator("#btn-settings-save")).to_be_disabled()
+        current = page.locator("#s-title-card-bg-color").input_value()
+        other = "#123456" if current != "#123456" else "#654321"
+        page.locator("#s-title-card-bg-color").fill(other)
+        page.locator("#s-title-card-bg-color").dispatch_event("input")
+        expect(page.locator("#btn-settings-save")).to_be_enabled()
+        # Restore so the panel isn't left dirty for later tests.
+        page.locator("#s-title-card-bg-color").fill(current)
+        page.locator("#s-title-card-bg-color").dispatch_event("input")
+        expect(page.locator("#btn-settings-save")).to_be_disabled()
+
+    def test_preview_reflects_chosen_background_color(self, page: Page):
+        self._open_settings(page)
+        page.locator("#s-title-card-bg-color").fill("#336699")
+        page.locator("#s-title-card-bg-color").dispatch_event("input")
+        bg = page.evaluate(
+            "getComputedStyle(document.getElementById('s-title-card-preview')).backgroundColor"
+        )
+        assert bg == "rgb(51, 102, 153)"  # #336699
+
+    def test_preview_reflects_chosen_text_color(self, page: Page):
+        self._open_settings(page)
+        page.locator("#s-title-card-font-color").fill("#ff8800")
+        page.locator("#s-title-card-font-color").dispatch_event("input")
+        color = page.evaluate(
+            "getComputedStyle(document.getElementById('s-title-card-preview-desc')).color"
+        )
+        assert color == "rgb(255, 136, 0)"  # #ff8800
+
+    def test_layout_timecode_hides_description_in_preview(self, page: Page):
+        self._open_settings(page)
+        page.select_option("#s-title-card-layout", "timecode")
+        expect(page.locator("#s-title-card-preview-desc")).to_be_hidden()
+        expect(page.locator("#s-title-card-preview-time")).to_be_visible()
+
+    def test_layout_description_hides_timecode_in_preview(self, page: Page):
+        self._open_settings(page)
+        page.select_option("#s-title-card-layout", "description")
+        expect(page.locator("#s-title-card-preview-desc")).to_be_visible()
+        expect(page.locator("#s-title-card-preview-time")).to_be_hidden()
+
+    def test_contrast_warning_appears_for_white_on_white(self, page: Page):
+        self._open_settings(page)
+        page.locator("#s-title-card-bg-color").fill("#ffffff")
+        page.locator("#s-title-card-bg-color").dispatch_event("input")
+        page.locator("#s-title-card-font-color").fill("#ffffff")
+        page.locator("#s-title-card-font-color").dispatch_event("input")
+        expect(page.locator("#s-title-card-contrast-warning")).to_be_visible()
+
+    def test_contrast_warning_hidden_for_default_black_on_white(self, page: Page):
+        self._open_settings(page)
+        page.locator("#s-title-card-bg-color").fill("#000000")
+        page.locator("#s-title-card-bg-color").dispatch_event("input")
+        page.locator("#s-title-card-font-color").fill("#ffffff")
+        page.locator("#s-title-card-font-color").dispatch_event("input")
+        expect(page.locator("#s-title-card-contrast-warning")).to_be_hidden()
+
+
+# ---------------------------------------------------------------------------
 # Glossary modal — filter input (L9-3)
 # ---------------------------------------------------------------------------
 

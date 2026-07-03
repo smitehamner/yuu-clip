@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import shutil
 import sys
 from dataclasses import asdict, dataclass, field
@@ -111,6 +112,78 @@ def validate_whisper_model(model: str) -> str:
             "in config.py after verifying it."
         )
     return model
+
+
+_HEX_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
+
+TITLE_CARD_LAYOUTS: frozenset[str] = frozenset({"description", "timecode", "both"})
+TITLE_CARD_SCALE_RANGE = (0.5, 2.0)
+TITLE_CARD_DURATION_RANGE_S = (1.0, 10.0)
+
+_TITLE_CARD_DEFAULTS: dict[str, object] = {
+    "title_card_bg_color": "#000000",
+    "title_card_font_color": "#ffffff",
+    "title_card_scale": 1.0,
+    "title_card_layout": "both",
+    "title_card_duration_s": 3.0,
+}
+
+
+def validate_hex_color(value: str, label: str) -> str:
+    """
+    Raise ValueError unless *value* is a strict #RRGGBB hex color.
+
+    Rejects short (#RGB), alpha (#RRGGBBAA), and named colors ("red") — only
+    the 6-digit form is accepted, matching what _make_title_card's ffmpeg
+    color= / fontcolor= conversion expects.
+    """
+    if not _HEX_COLOR_RE.match(value):
+        raise ValueError(f"{label} must be a hex color like #RRGGBB (got {value!r})")
+    return value
+
+
+def _sanitize_title_card_fields(merged: dict) -> None:
+    """
+    Guard against a hand-edited config.json with garbage title-card values.
+
+    Config.load() must never crash on a bad color/scale/layout/duration — log a
+    WARN and fall back to the default instead. PATCH /api/config enforces the
+    same rules but rejects the save outright (see web/routes/config.py); this
+    function only protects the load path.
+    """
+    for field_name in ("title_card_bg_color", "title_card_font_color"):
+        if field_name in merged:
+            try:
+                validate_hex_color(merged[field_name], field_name)
+            except ValueError:
+                _log.warning(
+                    "Config: %s invalid (%r) — using default %s",
+                    field_name, merged[field_name], _TITLE_CARD_DEFAULTS[field_name],
+                )
+                merged[field_name] = _TITLE_CARD_DEFAULTS[field_name]
+
+    if "title_card_layout" in merged and merged["title_card_layout"] not in TITLE_CARD_LAYOUTS:
+        _log.warning(
+            "Config: title_card_layout invalid (%r) — using default %s",
+            merged["title_card_layout"], _TITLE_CARD_DEFAULTS["title_card_layout"],
+        )
+        merged["title_card_layout"] = _TITLE_CARD_DEFAULTS["title_card_layout"]
+
+    scale_min, scale_max = TITLE_CARD_SCALE_RANGE
+    if "title_card_scale" in merged and not (scale_min <= merged["title_card_scale"] <= scale_max):
+        _log.warning(
+            "Config: title_card_scale out of range (%r) — using default %s",
+            merged["title_card_scale"], _TITLE_CARD_DEFAULTS["title_card_scale"],
+        )
+        merged["title_card_scale"] = _TITLE_CARD_DEFAULTS["title_card_scale"]
+
+    dur_min, dur_max = TITLE_CARD_DURATION_RANGE_S
+    if "title_card_duration_s" in merged and not (dur_min <= merged["title_card_duration_s"] <= dur_max):
+        _log.warning(
+            "Config: title_card_duration_s out of range (%r) — using default %s",
+            merged["title_card_duration_s"], _TITLE_CARD_DEFAULTS["title_card_duration_s"],
+        )
+        merged["title_card_duration_s"] = _TITLE_CARD_DEFAULTS["title_card_duration_s"]
 
 
 def validate_whisper_language(lang: Optional[str]) -> Optional[str]:
@@ -249,6 +322,17 @@ class Config:
     # presets (youtube-1080p, discord-10mb) are not stored here; see export_presets.py.
     export_presets: list[dict] = field(default_factory=list)
 
+    # Title card customization (Settings -> Export). Applies to both the reel's
+    # per-clip title cards and a clip export's prepended title card (--title-card).
+    # Colors are strict #RRGGBB (validate_hex_color); scale multiplies the existing
+    # per-line font sizes (36/24 for clip exports, 52/36/28 for reels) so one knob
+    # scales both contexts instead of exposing raw pixel fields.
+    title_card_bg_color: str = "#000000"
+    title_card_font_color: str = "#ffffff"
+    title_card_scale: float = 1.0
+    title_card_layout: str = "both"  # "description" | "timecode" | "both"
+    title_card_duration_s: float = 3.0
+
     # Pre-import estimate total (hours) above which the Analyze panel shows a
     # long-run warning suggesting the recording be split or analyzed in smaller batches.
     analyze_warn_hours: float = 2.0
@@ -274,6 +358,8 @@ class Config:
         if project_cfg.exists():
             merged.update(json.loads(project_cfg.read_text(encoding="utf-8")))
             _log.debug("Loaded project config from %s", project_cfg)
+
+        _sanitize_title_card_fields(merged)
 
         known = {f for f in cls.__dataclass_fields__}
         unknown = set(merged) - known

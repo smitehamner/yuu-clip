@@ -13,6 +13,8 @@ const _settingsFieldIds = [
   's-thermal-autopause','s-thermal-warn-c','s-thermal-pause-c',
   's-timeline-interval','s-timeline-unit','s-autoplay','s-play-next','s-loop-clip',
   's-export-name-template',
+  's-title-card-bg-color','s-title-card-font-color','s-title-card-scale',
+  's-title-card-layout','s-title-card-duration',
 ];
 // [element id, config key, default] — single source for apply + Reset to defaults.
 const _weightFields = [
@@ -144,6 +146,16 @@ async function _ensureWhisperLanguageOptions() {
   } catch { /* keep Auto-detect-only fallback */ }
 }
 
+// Selects whose option values are numeric strings (e.g. "1.0") won't match a
+// JSON number reformatted by JS (1.0 -> "1") via plain .value assignment —
+// match by parsed value instead so the saved scale selects the right option.
+function _setSelectByNumber(id, num) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const opt = Array.from(el.options).find(o => parseFloat(o.value) === num);
+  if (opt) el.value = opt.value;
+}
+
 function _applySettingsToUI(cfg) {
   const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
   const setChk = (id, val) => { const el = document.getElementById(id); if (el) el.checked = val; };
@@ -203,6 +215,12 @@ function _applySettingsToUI(cfg) {
   setVal('s-theme', localStorage.getItem('yuuclip-theme') || 'dark');
   setVal('s-export-name-template', cfg.export_name_template || '{video}_clip{clip_id}_{start}');
   _updateExportNameTemplatePreview();
+  setVal('s-title-card-bg-color', cfg.title_card_bg_color || '#000000');
+  setVal('s-title-card-font-color', cfg.title_card_font_color || '#ffffff');
+  _setSelectByNumber('s-title-card-scale', cfg.title_card_scale ?? 1.0);
+  setVal('s-title-card-layout', cfg.title_card_layout || 'both');
+  setVal('s-title-card-duration', cfg.title_card_duration_s ?? 3.0);
+  _updateTitleCardPreview();
   _snapshotSettings();
   _checkSettingsDirty();
   ['pyannote', 'llamacpp', 'anthropic', 'laugh-deps'].forEach(_refreshInstallStatus);
@@ -349,6 +367,64 @@ function _updateExportNameTemplatePreview() {
   el.textContent = `Preview: ${rendered || '(empty — falls back to the default template)'}.mkv`;
 }
 
+// ── title card preview + contrast warning (Settings -> Export) ────────────────
+// A pure-CSS/HTML mock, not an ffmpeg render — "approximate" is called out in
+// the UI copy. Colors here are the user's own chosen values (like the
+// score-gradient exception in utils.js), not UI chrome, so they're applied
+// directly rather than through a theme token.
+const _TITLE_CARD_PREVIEW_DESCRIPTION = 'Chaos erupts as the squad clutches a 1v4.';
+const _TITLE_CARD_PREVIEW_TIMECODE = '2:15 · 0:22';
+const _TITLE_CARD_CONTRAST_WARN_THRESHOLD = 3;
+
+function _hexLuminance(hex) {
+  const m = /^#([0-9a-f]{6})$/i.exec(hex || '');
+  if (!m) return null;
+  const [r, g, b] = [0, 2, 4]
+    .map(i => parseInt(m[1].slice(i, i + 2), 16) / 255)
+    .map(v => v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+function _contrastRatio(hex1, hex2) {
+  const l1 = _hexLuminance(hex1);
+  const l2 = _hexLuminance(hex2);
+  if (l1 === null || l2 === null) return null;
+  return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+}
+
+function _updateTitleCardPreview() {
+  const bg = document.getElementById('s-title-card-bg-color')?.value || '#000000';
+  const fg = document.getElementById('s-title-card-font-color')?.value || '#ffffff';
+  const scale = parseFloat(document.getElementById('s-title-card-scale')?.value || '1') || 1;
+  const layout = document.getElementById('s-title-card-layout')?.value || 'both';
+
+  const box     = document.getElementById('s-title-card-preview');
+  const descEl  = document.getElementById('s-title-card-preview-desc');
+  const timeEl  = document.getElementById('s-title-card-preview-time');
+  if (box) box.style.background = bg;
+
+  const showDesc = layout !== 'timecode';
+  const showTime = layout !== 'description';
+  if (descEl) {
+    descEl.style.display = showDesc ? '' : 'none';
+    descEl.style.color = fg;
+    descEl.style.fontSize = `${Math.round(13 * scale)}px`;
+    descEl.textContent = showDesc ? _TITLE_CARD_PREVIEW_DESCRIPTION : '';
+  }
+  if (timeEl) {
+    timeEl.style.display = showTime ? '' : 'none';
+    timeEl.style.color = fg;
+    timeEl.style.fontSize = `${Math.round(10 * scale)}px`;
+    timeEl.textContent = showTime ? _TITLE_CARD_PREVIEW_TIMECODE : '';
+  }
+
+  const warningEl = document.getElementById('s-title-card-contrast-warning');
+  if (warningEl) {
+    const ratio = _contrastRatio(bg, fg);
+    warningEl.style.display = (ratio !== null && ratio < _TITLE_CARD_CONTRAST_WARN_THRESHOLD) ? '' : 'none';
+  }
+}
+
 async function _refreshInstallStatus(slug) {
   const btn    = document.getElementById(`btn-install-${slug}`);
   const status = document.getElementById(`install-status-${slug}`);
@@ -462,6 +538,11 @@ async function saveSettings() {
     thermal_warn_c:             getNum('s-thermal-warn-c', parseInt),
     thermal_pause_c:            getNum('s-thermal-pause-c', parseInt),
     export_name_template:       getVal('s-export-name-template'),
+    title_card_bg_color:        getVal('s-title-card-bg-color'),
+    title_card_font_color:      getVal('s-title-card-font-color'),
+    title_card_scale:           getNum('s-title-card-scale', parseFloat),
+    title_card_layout:          getVal('s-title-card-layout'),
+    title_card_duration_s:      getNum('s-title-card-duration', parseFloat),
     ...(tlSec ? {ui_timeline_interval_seconds: tlSec, ui_timeline_interval_unit: tlUnit} : {}),
   };
 
@@ -825,5 +906,6 @@ Object.assign(window, {
   _onPlayNextChange, _onLoopClipChange, _updateExportNameTemplatePreview,
   _toggleSecretVisibility, _onHfTokenInput, _updateDiarizationStatus,
   _updateLlmRemoteIndicator, _scrollToSettingsSection, _resetScoringWeights,
+  _updateTitleCardPreview,
 });
 })();

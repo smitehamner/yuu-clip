@@ -189,26 +189,26 @@ def _record_clip_export(cand, session, preset_name: str, output_path: Path, sett
     row.size_bytes = output_path.stat().st_size if output_path.exists() else None
 
 
-def _apply_title_card(clip_path: Path, cand, output: Path) -> Path:
+def _apply_title_card(clip_path: Path, cand, output: Path, config) -> Path:
     """Prepend a title card to *clip_path*, write the result to *output*, and return *output*.
 
     Deletes the intermediate *clip_path* after concatenation.
     """
     import tempfile as _tmp
 
-    from yuu_clip.reel import _compile_concat, _make_title_card
+    from yuu_clip.reel import _compile_concat, _make_title_card, title_card_lines
 
     console.print("  Generating title card...")
     fps    = cand.video.fps    or 30.0
     width  = cand.video.width  or 1920
     height = cand.video.height or 1080
-    title_lines = []
-    if cand.description:
-        title_lines.append((cand.description, 36))
-    title_lines.append((f"{cand.start_hms}  ·  {cand.duration_hms}", 24))
+    title_lines = title_card_lines(cand, config, description_size=36, timecode_size=24)
     with _tmp.TemporaryDirectory() as td:
         card_path = Path(td) / "title_card.mkv"
-        _make_title_card(title_lines, card_path, duration=3.0, fps=fps, width=width, height=height)
+        _make_title_card(
+            title_lines, card_path, duration=config.title_card_duration_s, fps=fps, width=width, height=height,
+            bg_color=config.title_card_bg_color, font_color=config.title_card_font_color,
+        )
         _compile_concat([card_path, clip_path], output)
     clip_path.unlink(missing_ok=True)
     return output
@@ -236,7 +236,7 @@ def _write_export_subs(cand, bake_captions: bool, embed_subs: bool, lines_to_srt
     return None, None
 
 
-def _finalize_export(cand, session, video_path: Path, output: Path, *,
+def _finalize_export(cand, session, video_path: Path, output: Path, config, *,
                      precise: bool, title_card: bool, audio_stream_idx: Optional[int],
                      subtitle_path: Optional[Path], subtitle_track_path: Optional[Path],
                      bake_captions: bool, preset_name: str = "default",
@@ -279,7 +279,7 @@ def _finalize_export(cand, session, video_path: Path, output: Path, *,
                 audio_stream_index=audio_stream_idx,
             )
         if title_card:
-            result = _apply_title_card(result, cand, output)
+            result = _apply_title_card(result, cand, output, config)
         size_mb = result.stat().st_size / BYTES_PER_MB
         console.print(f"  [green]OK[/green] Saved to [cyan]{result}[/cyan]  [dim]({size_mb:.1f} MB)[/dim]")
         cand.exported_at = datetime.now(timezone.utc)
@@ -429,7 +429,7 @@ def export(
         cand, bake_captions, embed_subs, lines_to_srt, merged_srt_lines
     )
     _finalize_export(
-        cand, session, video_path, output,
+        cand, session, video_path, output, config,
         precise=precise, title_card=title_card,
         audio_stream_idx=_resolve_audio_stream_index(session, cand),
         subtitle_path=subtitle_path, subtitle_track_path=subtitle_track_path,

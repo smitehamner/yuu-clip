@@ -109,7 +109,11 @@ regular users.
 - [ ] **Project switcher in UI** — dropdown to switch between project directories without
   restarting the server
 
-- [ ] **Title card customization** — configurable title card for Quick Export: background color or image, font/color/size, content layout (description vs. timecode vs. both). Currently hardcoded style in the reel pipeline.
+- [x] **Title card customization** (done, 2026-07-03 — roadmap plan 09) — configurable
+  background color, text color, text size, and content layout (description /
+  timecode / both) for the highlight reel and clip-export title card. Background
+  image upload deliberately deferred (locked decision, plan 09). See
+  [COMPLETED.md](COMPLETED.md#title-card-customization-done-2026-07-03).
 
 - [ ] **Multi-session grouping** — treat multiple OBS files from one play session as a single
   project with a unified timeline

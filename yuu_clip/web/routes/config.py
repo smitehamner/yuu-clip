@@ -54,6 +54,12 @@ class ConfigPatch(BaseModel):
     speaker_match_threshold:      Optional[float] = None
     # Export
     export_name_template:         Optional[str]   = None
+    # Title card (Settings -> Export)
+    title_card_bg_color:          Optional[str]   = None
+    title_card_font_color:        Optional[str]   = None
+    title_card_scale:             Optional[float] = None
+    title_card_layout:            Optional[str]   = None
+    title_card_duration_s:        Optional[float] = None
     # Hardware — GPU thermal monitoring
     thermal_warn_c:                Optional[int]   = None
     thermal_pause_c:               Optional[int]   = None
@@ -72,6 +78,8 @@ _CONFIG_FIELDS = (
     "scene_detection_mode", "energy_mode", "silence_threshold_ms", "min_clip_ms",
     "diarization_backend", "huggingface_token", "speaker_match_threshold",
     "export_name_template",
+    "title_card_bg_color", "title_card_font_color", "title_card_scale",
+    "title_card_layout", "title_card_duration_s",
     "thermal_warn_c", "thermal_pause_c", "thermal_autopause_enabled",
 )
 
@@ -126,6 +134,17 @@ def _export_name_template_validator(v: str) -> str:
         raise HTTPException(400, str(e))
 
 
+def _hex_color_validator(label: str):
+    from yuu_clip.config import validate_hex_color
+
+    def _v(v: str) -> str:
+        try:
+            return validate_hex_color(v, label)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+    return _v
+
+
 _CONFIG_PATCH_RULES: list[tuple[str, object]] = [
     ("ui_timeline_interval_seconds", _min_validator(10,   "interval")),
     ("ui_timeline_interval_unit",    _enum_validator({"seconds", "minutes"}, "unit")),
@@ -159,6 +178,11 @@ _CONFIG_PATCH_RULES: list[tuple[str, object]] = [
     ("huggingface_token",            lambda v: v.strip()),
     ("speaker_match_threshold",      _range_validator(0.0, 1.0, "speaker_match_threshold")),
     ("export_name_template",         _export_name_template_validator),
+    ("title_card_bg_color",          _hex_color_validator("title_card_bg_color")),
+    ("title_card_font_color",        _hex_color_validator("title_card_font_color")),
+    ("title_card_scale",             _range_validator(0.5, 2.0, "title_card_scale")),
+    ("title_card_layout",            _enum_validator({"description", "timecode", "both"}, "title_card_layout")),
+    ("title_card_duration_s",        _range_validator(1.0, 10.0, "title_card_duration_s")),
     ("thermal_warn_c",               _range_validator(40, 110, "thermal_warn_c")),
     ("thermal_pause_c",              _range_validator(40, 110, "thermal_pause_c")),
     ("thermal_autopause_enabled",    lambda v: v),

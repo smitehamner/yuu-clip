@@ -370,11 +370,15 @@ only flagged clips.
 - **Captions — Hardsub** (`--bake-captions`): subtitles burned into video frames; forces re-encode
 - **Output**: `.yuu-clip/exports/`
 - **File name**: configurable template in Settings → Export (default `{video}_clip{clip_id}_{start}`); placeholders: `{video}`, `{clip_id}`, `{start}`, `{end}`, `{score}`, `{date}`
+- **Add title card**: prepends a title card (see Highlight reel below for the customizable style) with the clip's description and/or timecode
 
 ### Highlight reel
 
 - Filters clips by video, status, minimum score, and top-N per video
-- Generates ffmpeg title cards with clip descriptions between each clip
+- Generates ffmpeg title cards with clip descriptions between each clip — background
+  color, text color, text size, content (description / timecode / both), and
+  duration are configurable in Settings → Export (also applies to a single clip
+  export's title card, see above)
 - Supports fade, dissolve, wipe, and slide transitions with configurable overlap duration
 - Output: MKV, requires ffmpeg ≥ 4.4
 
