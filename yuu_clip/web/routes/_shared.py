@@ -236,6 +236,19 @@ def _srt_sidecar_paths(
     return files
 
 
+def _validate_export_preset_query(ctx, preset: Optional[str], embed_subs: bool) -> None:
+    """Shared 400 checks for the ?preset= query param on every export route
+    (single, batch, bulk): unknown preset id, or combined with embed_subs (a
+    preset export doesn't support the soft-subtitle track)."""
+    if not preset:
+        return
+    if embed_subs:
+        raise HTTPException(400, "embed_subs isn't supported together with a preset export")
+    from yuu_clip.export_presets import resolve_preset
+    if resolve_preset(preset, ctx.config.export_presets) is None:
+        raise HTTPException(400, f"Unknown export preset '{preset}'")
+
+
 def _clip_export_row_files(clip: ClipCandidate) -> list[Path]:
     """Existing on-disk files referenced by this clip's clip_exports rows (every
     tracked Export preset format) — the per-format counterpart to _export_paths'

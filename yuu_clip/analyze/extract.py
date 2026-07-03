@@ -8,11 +8,16 @@ avoid backslash confusion in FFmpeg's argument parser.
 from __future__ import annotations
 
 import subprocess
+import sys
+import tempfile
 from pathlib import Path
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from yuu_clip.config import find_ffmpeg
 from yuu_clip.log import get_logger
+
+if TYPE_CHECKING:
+    from yuu_clip.export_presets import ExportPreset
 
 _log = get_logger(__name__)
 
@@ -232,4 +237,94 @@ def export_clip(
 
     _verify_export_duration(ffprobe, output_path, duration_s)
 
+    return output_path
+
+
+def _null_sink() -> str:
+    """ffmpeg's null-muxer output target — platform-specific bit bucket for pass 1."""
+    return "NUL" if sys.platform == "win32" else "/dev/null"
+
+
+def _run_ffmpeg(cmd: list[str]) -> None:
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise RuntimeError(f"FFmpeg encode failed:\n{result.stderr.strip()}")
+
+
+def _preset_video_filter(preset: "ExportPreset", subtitle_path: Optional[Path]) -> Optional[str]:
+    """Build the -vf filter chain for a preset encode: scale-down-only (never
+    upscales a smaller source) plus burned-in captions, if requested."""
+    parts: list[str] = []
+    if preset.height is not None:
+        parts.append(f"scale=-2:'min(ih,{preset.height})'")
+    if subtitle_path is not None:
+        # FFmpeg filtergraph uses ':' as option separator; Windows drive-letter
+        # colons (C:/) must be escaped as C\:/ within the filter string.
+        escaped = subtitle_path.as_posix().replace(":", "\\:")
+        parts.append(f"subtitles={escaped}")
+    return ",".join(parts) if parts else None
+
+
+def export_clip_with_preset(
+    video_path: Path,
+    start_ms: int,
+    end_ms: int,
+    output_path: Path,
+    preset: "ExportPreset",
+    subtitle_path: Optional[Path] = None,
+    audio_stream_index: Optional[int] = None,
+) -> Path:
+    """Cut a clip from *video_path* using an Export preset's container/resolution/
+    bitrate recipe. Always re-encodes (no stream-copy path — a preset's whole
+    purpose is to change the encode).
+
+    Two encode modes, chosen by which of preset.crf / preset.target_size_mb is
+    set (validate_preset_dict guarantees exactly one):
+      - crf: single-pass constant-quality encode at the preset's CRF.
+      - target_size_mb: two-pass encode at the bitrate that fills the target
+        size (see export_presets.resolve_video_kbps); raises
+        ClipTooLongForPresetError before encoding if the clip can't fit it.
+
+    subtitle_path burns captions in via the same -vf chain as a plain Precise
+    Export; there is no soft-subtitle (embed) path for a preset export (that
+    combination is not offered by the export UI).
+    """
+    from yuu_clip.export_presets import resolve_video_kbps
+
+    ffmpeg, ffprobe = find_ffmpeg()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    start_s    = start_ms / 1000.0
+    duration_s = (end_ms - start_ms) / 1000.0
+    vf = _preset_video_filter(preset, subtitle_path)
+    map_args = ["-map", "0:v:0", "-map", f"0:{audio_stream_index}"] if audio_stream_index is not None else []
+
+    if preset.target_size_mb is not None:
+        video_kbps = resolve_video_kbps(preset, duration_s)
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            passlog = Path(tmp_dir) / "ffmpeg2pass"
+            base_cmd = [
+                ffmpeg, "-y", "-i", _ffmpeg_path(video_path), "-ss", str(start_s), "-t", str(duration_s),
+                *map_args, "-c:v", "libx264", "-b:v", f"{video_kbps:.0f}k", "-preset", "fast",
+                "-passlogfile", _ffmpeg_path(passlog),
+            ]
+            if vf:
+                base_cmd += ["-vf", vf]
+            _run_ffmpeg([*base_cmd, "-pass", "1", "-an", "-f", "mp4", _null_sink()])
+            _run_ffmpeg([
+                *base_cmd, "-pass", "2", "-c:a", "aac", "-b:a", f"{preset.audio_kbps}k",
+                _ffmpeg_path(output_path),
+            ])
+    else:
+        cmd = [
+            ffmpeg, "-y", "-i", _ffmpeg_path(video_path), "-ss", str(start_s), "-t", str(duration_s),
+            *map_args, "-c:v", "libx264", "-crf", str(preset.crf), "-preset", "fast",
+            "-c:a", "aac", "-b:a", f"{preset.audio_kbps}k",
+        ]
+        if vf:
+            cmd += ["-vf", vf]
+        cmd.append(_ffmpeg_path(output_path))
+        _run_ffmpeg(cmd)
+
+    _verify_export_duration(ffprobe, output_path, duration_s)
     return output_path

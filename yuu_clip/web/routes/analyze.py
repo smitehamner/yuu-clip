@@ -30,7 +30,11 @@ from pydantic import BaseModel
 from yuu_clip.config import validate_whisper_model
 from yuu_clip.log import get_logger
 from yuu_clip.web.deps import ProjectContext
-from yuu_clip.web.routes._shared import _analyze_in_flight, _reject_if_analyzing
+from yuu_clip.web.routes._shared import (
+    _analyze_in_flight,
+    _reject_if_analyzing,
+    _validate_export_preset_query,
+)
 from yuu_clip.web.sse import subprocess_sse, terminate_process_tree
 
 _log = get_logger(__name__)
@@ -471,6 +475,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         retranscribe_model: str = Query("large-v3"),
         speaker_labels: bool = Query(True),
         title_card: bool = Query(False),
+        preset: Optional[str] = Query(None, description="Export preset id (built-in or custom); omit for original quality"),
     ):
         """Export a clip to a video file and stream ffmpeg progress as SSE."""
         allowed_containers = {"mkv", "mp4"}
@@ -481,6 +486,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                 validate_whisper_model(retranscribe_model)
             except ValueError as e:
                 raise HTTPException(400, str(e))
+        _validate_export_preset_query(ctx, preset, embed_subs)
         cmd = [
             sys.executable, "-m", "yuu_clip.cli", "export", str(clip_id),
             "--captions", "--project", str(ctx.project_dir),
@@ -496,6 +502,8 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             cmd.append("--speaker-labels" if speaker_labels else "--no-speaker-labels")
         if title_card:
             cmd.append("--title-card")
+        if preset:
+            cmd.extend(["--preset", preset])
         return await subprocess_sse(cmd, ctx.project_dir, ctx)
 
     @router.get("/api/clips/{clip_id}/retranscribe")

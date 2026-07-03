@@ -15,7 +15,7 @@ import json
 import logging
 import shutil
 import sys
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Optional
 
@@ -239,8 +239,15 @@ class Config:
 
     # Export filename stem template. Placeholders: {video} source recording stem,
     # {clip_id}, {start}/{end} (h-mm-ss), {score} (1 decimal, "no-score" when
-    # unscored), {date} (export date, YYYY-MM-DD). See config.validate_export_name_template.
+    # unscored), {date} (export date, YYYY-MM-DD), {preset} (Export preset id).
+    # See config.validate_export_name_template.
     export_name_template: str = DEFAULT_EXPORT_NAME_TEMPLATE
+
+    # Creator-defined Export presets (raw dicts matching export_presets.ExportPreset's
+    # fields) — a user preference, not project data, so this lives in global config
+    # even though most other settings here can be overridden per-project. Built-in
+    # presets (youtube-1080p, discord-10mb) are not stored here; see export_presets.py.
+    export_presets: list[dict] = field(default_factory=list)
 
     # Pre-import estimate total (hours) above which the Analyze panel shows a
     # long-run warning suggesting the recording be split or analyzed in smaller batches.

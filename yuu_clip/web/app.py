@@ -28,6 +28,7 @@ from yuu_clip.web.routes import (
     clips,
     config,
     contexts,
+    export_presets,
     hotwords,
     logs,
     profiles,
@@ -58,7 +59,7 @@ else:
 
 _ROUTE_MODULES = (
     videos, clips, analyze, profiles, reel, reveal, logs, contexts, config,
-    scoring, sounds, speakers, hotwords, sensitive,
+    scoring, sounds, speakers, hotwords, sensitive, export_presets,
 )
 
 

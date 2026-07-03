@@ -239,28 +239,45 @@ def _write_export_subs(cand, bake_captions: bool, embed_subs: bool, lines_to_srt
 def _finalize_export(cand, session, video_path: Path, output: Path, *,
                      precise: bool, title_card: bool, audio_stream_idx: Optional[int],
                      subtitle_path: Optional[Path], subtitle_track_path: Optional[Path],
-                     bake_captions: bool, preset_name: str = "default") -> None:
+                     bake_captions: bool, preset_name: str = "default",
+                     preset=None) -> None:
     """Cut the clip, optionally prepend a title card, record the export on the clip row.
+
+    preset (export_presets.ExportPreset | None) drives the encode through
+    export_clip_with_preset instead of the plain export_clip path when set — a
+    preset export always re-encodes and does not support the soft-subtitle
+    (embed_subs) track, only burned-in captions (subtitle_path).
 
     Always deletes the temp subtitle files. Exits the CLI on ffmpeg failure.
     """
     from datetime import datetime, timezone
 
-    from yuu_clip.analyze.extract import export_clip
+    from yuu_clip.analyze.extract import export_clip, export_clip_with_preset
 
     start_ms, end_ms = _compute_export_window(cand)
     try:
         clip_dest = output if not title_card else output.with_suffix(".clip_tmp" + output.suffix)
-        result = export_clip(
-            video_path=video_path,
-            start_ms=start_ms,
-            end_ms=end_ms,
-            output_path=clip_dest,
-            reencode=precise or title_card,  # title card concat requires matching codecs
-            subtitle_path=subtitle_path,
-            subtitle_track_path=subtitle_track_path,
-            audio_stream_index=audio_stream_idx,
-        )
+        if preset is not None:
+            result = export_clip_with_preset(
+                video_path=video_path,
+                start_ms=start_ms,
+                end_ms=end_ms,
+                output_path=clip_dest,
+                preset=preset,
+                subtitle_path=subtitle_path,
+                audio_stream_index=audio_stream_idx,
+            )
+        else:
+            result = export_clip(
+                video_path=video_path,
+                start_ms=start_ms,
+                end_ms=end_ms,
+                output_path=clip_dest,
+                reencode=precise or title_card,  # title card concat requires matching codecs
+                subtitle_path=subtitle_path,
+                subtitle_track_path=subtitle_track_path,
+                audio_stream_index=audio_stream_idx,
+            )
         if title_card:
             result = _apply_title_card(result, cand, output)
         size_mb = result.stat().st_size / BYTES_PER_MB
@@ -270,13 +287,19 @@ def _finalize_export(cand, session, video_path: Path, output: Path, *,
         cand.exported_burn_subs = bake_captions
         cand.exported_embed_subs = subtitle_track_path is not None
         cand.exported_title_card = title_card
-        _record_clip_export(cand, session, preset_name, result, {
+        settings = {
             "burn_subs": bake_captions,
             "embed_subs": subtitle_track_path is not None,
             "title_card": title_card,
-        })
+        }
+        if preset is not None:
+            settings.update(
+                height=preset.height, crf=preset.crf,
+                target_size_mb=preset.target_size_mb, audio_kbps=preset.audio_kbps,
+            )
+        _record_clip_export(cand, session, preset_name, result, settings)
         session.commit()
-    except RuntimeError as e:
+    except (RuntimeError, ValueError) as e:
         console.print(f"  [red]Export failed: {e}[/red]")
         log.error("Export failed: clip_id=%s video=%s: %s", cand.id, video_path, e)
         raise typer.Exit(1)
@@ -346,10 +369,12 @@ def export(
     retranscribe_model: str = typer.Option("large-v3", "--retranscribe-model", help="Whisper model for retranscription: tiny|base|small|medium|large-v3"),
     speaker_labels: bool = typer.Option(True, "--speaker-labels/--no-speaker-labels", help="Add speaker labels during retranscription (no-op without a diarization backend)"),
     title_card: bool = typer.Option(False, "--title-card", help="Prepend a title card with the clip description"),
+    preset: Optional[str] = typer.Option(None, "--preset", help="Export preset id (built-in or custom); omit for original quality"),
 ):
     """Export a clip to a video file."""
-    from yuu_clip.config import project_exports_dir, validate_whisper_model
+    from yuu_clip.config import Config, project_exports_dir, validate_whisper_model
     from yuu_clip.db.models import ClipCandidate
+    from yuu_clip.export_presets import resolve_preset
     from yuu_clip.subtitles import lines_to_srt, merged_srt_lines
 
     if retranscribe:
@@ -362,6 +387,18 @@ def export(
     proj_dir = _project_dir(project)
     session  = _get_session(proj_dir)
     exports  = project_exports_dir(proj_dir)
+    config   = Config.load(proj_dir)
+
+    resolved_preset = None
+    if preset:
+        resolved_preset = resolve_preset(preset, config.export_presets)
+        if resolved_preset is None:
+            console.print(f"[red]Unknown export preset '{preset}'[/red]")
+            raise typer.Exit(1)
+        if embed_subs:
+            console.print("[red]--embed-subs isn't supported with --preset — use --bake-captions or --no-captions instead[/red]")
+            raise typer.Exit(1)
+        container = resolved_preset.container
 
     cand = session.get(ClipCandidate, clip_id)
     if not cand:
@@ -369,7 +406,6 @@ def export(
         raise typer.Exit(1)
 
     if retranscribe:
-        from yuu_clip.config import Config
         retx_config = Config.load(proj_dir)
         retx_config.whisper_model = retranscribe_model
         console.print(
@@ -383,9 +419,10 @@ def export(
         console.print(f"[red]Source video not found: {video_path}[/red]")
         raise typer.Exit(1)
 
-    from yuu_clip.config import Config
-    name_template = Config.load(proj_dir).export_name_template
-    base, output = _build_export_path(cand, video_path, container, exports, output, name_template)
+    preset_name = resolved_preset.name if resolved_preset else "default"
+    base, output = _build_export_path(
+        cand, video_path, container, exports, output, config.export_name_template, preset_name=preset_name,
+    )
     console.print(f"  Exporting clip [bold]{clip_id}[/bold]  {cand.start_hms}  ({cand.duration_hms})  ...")
 
     subtitle_path, subtitle_track_path = _write_export_subs(
@@ -396,7 +433,7 @@ def export(
         precise=precise, title_card=title_card,
         audio_stream_idx=_resolve_audio_stream_index(session, cand),
         subtitle_path=subtitle_path, subtitle_track_path=subtitle_track_path,
-        bake_captions=bake_captions,
+        bake_captions=bake_captions, preset_name=preset_name, preset=resolved_preset,
     )
 
     if captions:

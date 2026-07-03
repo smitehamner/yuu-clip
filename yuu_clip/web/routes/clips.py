@@ -33,6 +33,7 @@ from yuu_clip.web.routes._shared import (
     _srt_sidecar_paths,
     _srt_to_vtt,
     _sse_response,
+    _validate_export_preset_query,
 )
 
 _log = get_logger(__name__)
@@ -309,6 +310,7 @@ def _build_export_cmd(
     container: Optional[str],
     retranscribe: bool,
     retranscribe_model: str,
+    preset: Optional[str] = None,
 ) -> list[str]:
     cmd = [
         sys.executable, "-m", "yuu_clip.cli", "export", str(clip_id),
@@ -322,6 +324,8 @@ def _build_export_cmd(
         cmd.extend(["--container", container])
     if retranscribe:
         cmd.extend(["--retranscribe", "--retranscribe-model", retranscribe_model])
+    if preset:
+        cmd.extend(["--preset", preset])
     return cmd
 
 
@@ -722,6 +726,7 @@ def _clip_export_stream_response(
     container: Optional[str],
     retranscribe: bool,
     retranscribe_model: str,
+    preset: Optional[str] = None,
 ):
     """Stream sequential per-clip exports as SSE. Shared by the video-scoped batch
     export (filtered by approval/score) and the explicit-selection bulk export."""
@@ -742,6 +747,7 @@ def _clip_export_stream_response(
                     burn_subs=burn_subs, embed_subs=embed_subs,
                     container=container,
                     retranscribe=retranscribe, retranscribe_model=retranscribe_model,
+                    preset=preset,
                 )
                 try:
                     proc = await asyncio.create_subprocess_exec(
@@ -780,6 +786,7 @@ def _register_batch_export_route(router: APIRouter, ctx: ProjectContext) -> None
         container: Optional[str] = Query(None),
         retranscribe: bool = Query(False),
         retranscribe_model: str = Query("large-v3"),
+        preset: Optional[str] = Query(None, description="Export preset id (built-in or custom); omit for original quality"),
     ):
         """Export all approved clips for a video above min_score, streaming per-clip progress as SSE."""
         allowed_containers = {"mkv", "mp4"}
@@ -791,6 +798,7 @@ def _register_batch_export_route(router: APIRouter, ctx: ProjectContext) -> None
                 validate_whisper_model(retranscribe_model)
             except ValueError as e:
                 raise HTTPException(400, str(e))
+        _validate_export_preset_query(ctx, preset, embed_subs)
 
         db = ctx.get_db()
         try:
@@ -817,6 +825,7 @@ def _register_batch_export_route(router: APIRouter, ctx: ProjectContext) -> None
             ctx, clip_ids,
             skip_exported=skip_exported, burn_subs=burn_subs, embed_subs=embed_subs,
             container=container, retranscribe=retranscribe, retranscribe_model=retranscribe_model,
+            preset=preset,
         )
 
 
@@ -916,6 +925,7 @@ def _register_bulk_routes(router: APIRouter, ctx: ProjectContext) -> None:
         burn_subs: bool = Query(False),
         embed_subs: bool = Query(False),
         container: Optional[str] = Query(None),
+        preset: Optional[str] = Query(None, description="Export preset id (built-in or custom); omit for original quality"),
     ):
         """Export a specific set of clips (an explicit selection, not a video-wide
         filter), streaming per-clip progress as SSE."""
@@ -925,6 +935,7 @@ def _register_bulk_routes(router: APIRouter, ctx: ProjectContext) -> None:
         allowed_containers = {"mkv", "mp4"}
         if container is not None and container not in allowed_containers:
             raise HTTPException(400, f"container must be one of {sorted(allowed_containers)}")
+        _validate_export_preset_query(ctx, preset, embed_subs)
 
         db = ctx.get_db()
         try:
@@ -941,6 +952,7 @@ def _register_bulk_routes(router: APIRouter, ctx: ProjectContext) -> None:
             ctx, ids,
             skip_exported=skip_exported, burn_subs=burn_subs, embed_subs=embed_subs,
             container=container, retranscribe=False, retranscribe_model="large-v3",
+            preset=preset,
         )
 
 
