@@ -11,6 +11,7 @@ const _settingsFieldIds = [
   's-funny-weight','s-dramatic-weight','s-action-weight',
   's-scene-mode','s-energy-mode','s-silence-ms','s-min-clip-ms',
   's-timeline-interval','s-timeline-unit','s-autoplay','s-play-next','s-loop-clip',
+  's-export-name-template',
 ];
 // [element id, config key, default] — single source for apply + Reset to defaults.
 const _weightFields = [
@@ -193,6 +194,8 @@ function _applySettingsToUI(cfg) {
   setChk('s-play-next', localStorage.getItem('yuuclip-play-next') === 'true');
   setChk('s-loop-clip', localStorage.getItem('yuuclip-loop-clip') === 'true');
   setVal('s-theme', localStorage.getItem('yuuclip-theme') || 'dark');
+  setVal('s-export-name-template', cfg.export_name_template || '{video}_clip{clip_id}_{start}');
+  _updateExportNameTemplatePreview();
   _snapshotSettings();
   _checkSettingsDirty();
   ['pyannote', 'llamacpp', 'anthropic', 'laugh-deps'].forEach(_refreshInstallStatus);
@@ -312,6 +315,33 @@ function _onLoopClipChange(enabled) {
   if (playNextEl) playNextEl.checked = false;
 }
 
+// Sample values for the export-filename-template live preview — a plausible
+// clip, not real data. Mirrors export_naming.export_base_stem's placeholder
+// set and sanitization so the preview matches what the server would produce.
+const _EXPORT_PREVIEW_SAMPLE = {
+  video: 'MyRecording', clip_id: 42, start: '15-30', end: '16-00', score: '0.8',
+  date: new Date().toISOString().slice(0, 10),
+};
+
+function _updateExportNameTemplatePreview() {
+  const el = document.getElementById('export-name-template-preview');
+  if (!el) return;
+  const template = document.getElementById('s-export-name-template').value
+    || '{video}_clip{clip_id}_{start}';
+  let rendered;
+  try {
+    rendered = template.replace(/\{(\w*)\}/g, (m, key) => {
+      if (!(key in _EXPORT_PREVIEW_SAMPLE)) throw new Error('unknown placeholder');
+      return _EXPORT_PREVIEW_SAMPLE[key];
+    });
+  } catch (e) {
+    el.textContent = 'Preview: (unknown placeholder in template)';
+    return;
+  }
+  rendered = rendered.replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, ' ').trim();
+  el.textContent = `Preview: ${rendered || '(empty — falls back to the default template)'}.mkv`;
+}
+
 async function _refreshInstallStatus(slug) {
   const btn    = document.getElementById(`btn-install-${slug}`);
   const status = document.getElementById(`install-status-${slug}`);
@@ -421,6 +451,7 @@ async function saveSettings() {
     energy_mode:                getVal('s-energy-mode'),
     silence_threshold_ms:       getNum('s-silence-ms', parseInt),
     min_clip_ms:                getNum('s-min-clip-ms', parseInt),
+    export_name_template:       getVal('s-export-name-template'),
     ...(tlSec ? {ui_timeline_interval_seconds: tlSec, ui_timeline_interval_unit: tlUnit} : {}),
   };
 
@@ -778,7 +809,7 @@ Object.assign(window, {
   openGettingStartedModal, closeGettingStartedModal,
   openGlossaryModal, closeGlossaryModal, _filterGlossary,
   _onLlmBackendChange, _onLlmEnabledChange, _onDiarizationBackendChange, _onLaughModeChange,
-  _onPlayNextChange, _onLoopClipChange,
+  _onPlayNextChange, _onLoopClipChange, _updateExportNameTemplatePreview,
   _toggleSecretVisibility, _onHfTokenInput, _updateDiarizationStatus,
   _updateLlmRemoteIndicator, _scrollToSettingsSection, _resetScoringWeights,
 });

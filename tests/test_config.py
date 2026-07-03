@@ -143,6 +143,19 @@ class TestUiConfig:
         assert client.patch("/api/config", json={"speaker_match_threshold": 0.0}).status_code == 200
         assert client.patch("/api/config", json={"speaker_match_threshold": 1.0}).status_code == 200
 
+    def test_get_config_includes_export_name_template_default(self, client):
+        assert client.get("/api/config").json()["export_name_template"] == "{video}_clip{clip_id}_{start}"
+
+    def test_patch_config_updates_export_name_template(self, client):
+        r = client.patch("/api/config", json={"export_name_template": "{date}_{video}_{clip_id}"})
+        assert r.status_code == 200
+        assert r.json()["export_name_template"] == "{date}_{video}_{clip_id}"
+
+    def test_patch_config_unknown_placeholder_returns_400(self, client):
+        r = client.patch("/api/config", json={"export_name_template": "{video}_{bogus}"})
+        assert r.status_code == 400
+        assert "bogus" in r.json()["detail"]
+
 
 # ---------------------------------------------------------------------------
 # Config — new llm_backend / llm_model_path defaults

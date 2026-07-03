@@ -368,6 +368,34 @@ class TestMultiExtensionExport:
             assert not f.exists(), f"{f.name} should have been deleted"
 
 
+class TestExportNameTemplateAffectsWebLookup:
+    """A custom export_name_template must be honored by the web routes that
+    locate already-exported files on disk (has_export, media_url, delete) —
+    not just by the CLI export command that creates them."""
+
+    def test_has_export_true_only_for_current_template_pattern(self, client, project_dir):
+        r = client.patch("/api/config", json={"export_name_template": "{date}_{video}_{clip_id}"})
+        assert r.status_code == 200
+
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        clips = client.get(f"/api/videos/{vid_id}/clips").json()
+        c = clips[0]
+
+        from datetime import date
+        export_dir = project_dir / ".yuu-clip" / "exports"
+        old_pattern_file = export_dir / f"session_clip{c['id']}_{c['start_hms'].replace(':', '-')}.mkv"
+        new_pattern_file = export_dir / f"{date.today().isoformat()}_session_{c['id']}.mkv"
+        old_pattern_file.write_bytes(b"fake video")
+
+        clips_before = client.get(f"/api/videos/{vid_id}/clips").json()
+        assert next(x for x in clips_before if x["id"] == c["id"])["has_export"] is False
+
+        old_pattern_file.unlink()
+        new_pattern_file.write_bytes(b"fake video")
+        clips_after = client.get(f"/api/videos/{vid_id}/clips").json()
+        assert next(x for x in clips_after if x["id"] == c["id"])["has_export"] is True
+
+
 class TestDemoOutputMkv:
     """Demo output_name always gets .mkv extension."""
 

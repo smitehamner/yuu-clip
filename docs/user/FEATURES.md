@@ -324,6 +324,7 @@ Weighted average of the three dimension scores. Default weight: equal. Configura
 - **Captions — Softsub** (`--embed-subs`): SRT added as a subtitle track in the container; stream copy, fast; use MKV for broadest player support
 - **Captions — Hardsub** (`--bake-captions`): subtitles burned into video frames; forces re-encode
 - **Output**: `.yuu-clip/exports/`
+- **File name**: configurable template in Settings → Export (default `{video}_clip{clip_id}_{start}`); placeholders: `{video}`, `{clip_id}`, `{start}`, `{end}`, `{score}`, `{date}`
 
 ### Highlight reel
 

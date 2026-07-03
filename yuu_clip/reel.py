@@ -16,6 +16,8 @@ import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
+from yuu_clip.export_naming import DEFAULT_EXPORT_NAME_TEMPLATE, export_base_stem
+
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
@@ -273,6 +275,7 @@ def _resolve_clip_files(
     clips: list["ClipCandidate"],
     video_map: dict[int, "Video"],
     export_dir: Path,
+    name_template: str = DEFAULT_EXPORT_NAME_TEMPLATE,
 ) -> tuple[list[Path], list[float], float]:
     """Locate exported files for each clip and probe their durations.
 
@@ -284,8 +287,7 @@ def _resolve_clip_files(
     detected_fps: Optional[float] = None
     for clip in clips:
         video = video_map[clip.video_id]
-        stem = Path(video.filename).stem
-        base = f"{stem}_clip{clip.id}_{clip.start_hms.replace(':', '-')}"
+        base = export_base_stem(clip, name_template, video_filename=video.filename)
         clip_file = next(
             (export_dir / f"{base}{ext}"
              for ext in (".mkv", ".mp4", ".mov", ".avi", ".webm")
@@ -353,6 +355,7 @@ def compile_demo(
     transition: str = _DEFAULT_TRANSITION,
     trans_dur: float = _DEFAULT_TRANS_DUR,
     title_dur: float = _DEFAULT_TITLE_DUR,
+    name_template: str = DEFAULT_EXPORT_NAME_TEMPLATE,
 ) -> None:
     """Build a highlight reel from *clips*.
 
@@ -366,7 +369,7 @@ def compile_demo(
 
     n = len(clips)
 
-    clip_files, clip_durations, clip_fps = _resolve_clip_files(clips, video_map, export_dir)
+    clip_files, clip_durations, clip_fps = _resolve_clip_files(clips, video_map, export_dir, name_template)
     total_footage = sum(clip_durations)
 
     if transition == "none":

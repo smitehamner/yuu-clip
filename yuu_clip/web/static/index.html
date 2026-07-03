@@ -73,6 +73,7 @@
       <button type="button" class="settings-jump-link" onclick="_scrollToSettingsSection('settings-sec-weights')">Scoring weights</button>
       <button type="button" class="settings-jump-link" onclick="_scrollToSettingsSection('settings-sec-analysis')">Analysis defaults</button>
       <button type="button" class="settings-jump-link" onclick="_scrollToSettingsSection('settings-sec-ui')">UI</button>
+      <button type="button" class="settings-jump-link" onclick="_scrollToSettingsSection('settings-sec-export')">Export</button>
       <button type="button" class="settings-jump-link" onclick="_scrollToSettingsSection('settings-sec-sounds')">Sounds</button>
       <button type="button" class="settings-jump-link" onclick="_scrollToSettingsSection('settings-sec-paths')">Paths</button>
     </nav>
@@ -474,6 +475,26 @@
           <option value="minutes">minutes</option>
         </select>
       </div>
+    </div>
+  </div>
+
+  <!-- Export -->
+  <div class="settings-section" id="settings-sec-export">
+    <div class="settings-section-title">Export</div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <label class="settings-label" for="s-export-name-template">Export file name</label>
+        <div class="settings-note">
+          Placeholders: <code>{video}</code> <code>{clip_id}</code> <code>{start}</code>
+          <code>{end}</code> <code>{score}</code> <code>{date}</code>
+        </div>
+      </div>
+      <input class="settings-input" id="s-export-name-template" type="text"
+             style="min-width:260px" oninput="_updateExportNameTemplatePreview()">
+    </div>
+    <div class="settings-row">
+      <div class="settings-col"></div>
+      <div id="export-name-template-preview" style="font-size:12px;color:var(--muted);font-family:monospace"></div>
     </div>
   </div>
 

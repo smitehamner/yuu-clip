@@ -16,6 +16,7 @@ from sqlalchemy import case
 
 from yuu_clip.config import validate_whisper_model
 from yuu_clip.db.models import ClipCandidate, TranscriptSegment, Video
+from yuu_clip.export_naming import DEFAULT_EXPORT_NAME_TEMPLATE
 from yuu_clip.log import get_logger
 from yuu_clip.web.deps import ProjectContext
 from yuu_clip.web.media import media_file_response
@@ -100,10 +101,12 @@ class AutoApproveBody(BaseModel):
     score_field: str = "overall"
 
 
-def _subtitle_status(clip: ClipCandidate, video: Optional[Video], export_dir: Optional[Path]) -> str:
+def _subtitle_status(
+    clip: ClipCandidate, video: Optional[Video], export_dir: Optional[Path], name_template: str,
+) -> str:
     if clip.exported_burn_subs:
         return "baked-in"
-    if export_dir and video and _srt_path(clip, video, export_dir) is not None:
+    if export_dir and video and _srt_path(clip, video, export_dir, name_template) is not None:
         return "srt-sidecar"
     return "none"
 
@@ -131,11 +134,12 @@ def _clip_dict(
     full: bool = False,
     export_dir: Optional[Path] = None,
     video: Optional[Video] = None,
+    name_template: str = DEFAULT_EXPORT_NAME_TEMPLATE,
 ) -> dict:
     has_export = (
         export_dir is not None
         and video is not None
-        and any(p.exists() for p in _export_paths(clip, video, export_dir))
+        and any(p.exists() for p in _export_paths(clip, video, export_dir, name_template))
     )
     d = {
         "id": clip.id,
@@ -165,7 +169,7 @@ def _clip_dict(
         "exported_at": clip.exported_at.isoformat() if clip.exported_at else None,
         "exported_container": clip.exported_container or None,
         "exported_burn_subs": clip.exported_burn_subs,
-        "subtitle_status": _subtitle_status(clip, video, export_dir) if has_export else "none",
+        "subtitle_status": _subtitle_status(clip, video, export_dir, name_template) if has_export else "none",
         "related_clips": json_lib.loads(clip.related_clips_json) if clip.related_clips_json else None,
         "related_clips_at": clip.related_clips_at.isoformat() if clip.related_clips_at else None,
         "related_clips_stale": _related_clips_stale(clip, video),
@@ -183,7 +187,7 @@ def _clip_has_export_file(ctx: "ProjectContext", clip_id: int) -> bool:
         clip = db.get(ClipCandidate, clip_id)
         vid  = db.get(Video, clip.video_id) if clip else None
         if clip and vid:
-            return any(p.exists() for p in _export_paths(clip, vid, ctx.export_dir))
+            return any(p.exists() for p in _export_paths(clip, vid, ctx.export_dir, ctx.config.export_name_template))
         return False
     finally:
         db.close()
@@ -347,7 +351,7 @@ def _register_clip_routes(router: APIRouter, ctx: ProjectContext) -> None:
                     else_=ClipCandidate.score_overall,
                 ).desc()
             clips = q.order_by(order).all()
-            return [_clip_dict(c, export_dir=ctx.export_dir, video=video) for c in clips]
+            return [_clip_dict(c, export_dir=ctx.export_dir, video=video, name_template=ctx.config.export_name_template) for c in clips]
         finally:
             db.close()
 
@@ -357,7 +361,7 @@ def _register_clip_routes(router: APIRouter, ctx: ProjectContext) -> None:
         try:
             clip = _require_clip(db, clip_id)
             video = db.get(Video, clip.video_id)
-            return _clip_dict(clip, full=True, export_dir=ctx.export_dir, video=video)
+            return _clip_dict(clip, full=True, export_dir=ctx.export_dir, video=video, name_template=ctx.config.export_name_template)
         finally:
             db.close()
 
@@ -421,11 +425,11 @@ def _register_clip_routes(router: APIRouter, ctx: ProjectContext) -> None:
                 raise HTTPException(404, "Video not found")
             files: list[str] = []
             video_export = next(
-                (p for p in _export_paths(clip, video, ctx.export_dir) if p.exists()), None
+                (p for p in _export_paths(clip, video, ctx.export_dir, ctx.config.export_name_template) if p.exists()), None
             )
             if video_export:
                 files.append(video_export.name)
-            files.extend(p.name for p in _srt_sidecar_paths(clip, video, ctx.export_dir))
+            files.extend(p.name for p in _srt_sidecar_paths(clip, video, ctx.export_dir, ctx.config.export_name_template))
             return {"files": files}
         finally:
             db.close()
@@ -438,9 +442,9 @@ def _register_clip_routes(router: APIRouter, ctx: ProjectContext) -> None:
             clip = _require_clip(db, clip_id)
             video = db.get(Video, clip.video_id)
             export_file = next(
-                (p for p in _export_paths(clip, video, ctx.export_dir) if p.exists()), None
+                (p for p in _export_paths(clip, video, ctx.export_dir, ctx.config.export_name_template) if p.exists()), None
             )
-            srt = _srt_path(clip, video, ctx.export_dir)
+            srt = _srt_path(clip, video, ctx.export_dir, ctx.config.export_name_template)
             if export_file:
                 return {"url": f"/media/exports/{export_file.name}", "filename": export_file.name, "has_captions": srt is not None}
             return {"url": None, "filename": None, "has_captions": False}
@@ -520,7 +524,7 @@ def _register_delete_routes(router: APIRouter, ctx: ProjectContext) -> None:
         try:
             clip = _require_clip(db, clip_id)
             video = db.get(Video, clip.video_id)
-            targets = [p for p in _all_sidecar_paths(clip, video, ctx.export_dir) if p.exists()]
+            targets = [p for p in _all_sidecar_paths(clip, video, ctx.export_dir, ctx.config.export_name_template) if p.exists()]
             locked = _delete_files(targets)
             if locked:
                 raise _locked_files_error(locked)
@@ -538,7 +542,7 @@ def _register_delete_routes(router: APIRouter, ctx: ProjectContext) -> None:
             video = db.get(Video, clip.video_id)
             video_id = clip.video_id
 
-            locked = _delete_files(_all_sidecar_paths(clip, video, ctx.export_dir))
+            locked = _delete_files(_all_sidecar_paths(clip, video, ctx.export_dir, ctx.config.export_name_template))
             if locked:
                 raise _locked_files_error(locked)
 
@@ -728,7 +732,7 @@ def _register_bulk_routes(router: APIRouter, ctx: ProjectContext) -> None:
             locked_ids: list[int] = []
             for clip in clips:
                 video = db.get(Video, clip.video_id)
-                locked = _delete_files(_all_sidecar_paths(clip, video, ctx.export_dir))
+                locked = _delete_files(_all_sidecar_paths(clip, video, ctx.export_dir, ctx.config.export_name_template))
                 if locked:
                     locked_ids.append(clip.id)
                     continue
@@ -822,7 +826,7 @@ def _register_clip_edit_routes(router: APIRouter, ctx: ProjectContext) -> None:
                     clip.description_long_user = None
 
             db.commit()
-            return _clip_dict(clip, full=True, export_dir=ctx.export_dir, video=video)
+            return _clip_dict(clip, full=True, export_dir=ctx.export_dir, video=video, name_template=ctx.config.export_name_template)
         finally:
             db.close()
 
@@ -839,7 +843,7 @@ def _register_clip_edit_routes(router: APIRouter, ctx: ProjectContext) -> None:
             clip.score_overall_user = val
             db.commit()
             video = db.get(Video, clip.video_id)
-            return _clip_dict(clip, full=True, export_dir=ctx.export_dir, video=video)
+            return _clip_dict(clip, full=True, export_dir=ctx.export_dir, video=video, name_template=ctx.config.export_name_template)
         finally:
             db.close()
 
@@ -867,8 +871,8 @@ def _register_clip_edit_routes(router: APIRouter, ctx: ProjectContext) -> None:
             clip_a.exported_burn_subs = None
 
             video = db.get(Video, clip_a.video_id)
-            _delete_files(_all_sidecar_paths(clip_b, video, ctx.export_dir))
-            _delete_files(_all_sidecar_paths(clip_a, video, ctx.export_dir))
+            _delete_files(_all_sidecar_paths(clip_b, video, ctx.export_dir, ctx.config.export_name_template))
+            _delete_files(_all_sidecar_paths(clip_a, video, ctx.export_dir, ctx.config.export_name_template))
             db.delete(clip_b)
             db.commit()
 
@@ -878,7 +882,7 @@ def _register_clip_edit_routes(router: APIRouter, ctx: ProjectContext) -> None:
                     _cached.unlink(missing_ok=True)
 
             _log.info("Merged clip %d into clip %d (new range %d-%d ms)", body.clip_b_id, clip_id, start_ms, end_ms)
-            return _clip_dict(clip_a, full=True, export_dir=ctx.export_dir, video=video)
+            return _clip_dict(clip_a, full=True, export_dir=ctx.export_dir, video=video, name_template=ctx.config.export_name_template)
         finally:
             db.close()
 
@@ -967,7 +971,7 @@ def _register_caption_routes(router: APIRouter, ctx: ProjectContext) -> None:
         try:
             clip = _require_clip(db, clip_id)
             video = db.get(Video, clip.video_id)
-            srt = _srt_path(clip, video, ctx.export_dir)
+            srt = _srt_path(clip, video, ctx.export_dir, ctx.config.export_name_template)
             if srt is None:
                 raise HTTPException(404, "No SRT file found for this clip")
             return PlainTextResponse(_srt_to_vtt(srt.read_text(encoding="utf-8", errors="replace")), media_type="text/vtt")

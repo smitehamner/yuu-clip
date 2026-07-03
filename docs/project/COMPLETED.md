@@ -6,6 +6,56 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) — see the
 
 ---
 
+## Quick wins Stage 8 — export filename template (done, 2026-07-03)
+
+New Settings → Export → **Export file name** field: a template controlling
+exported clip/reel filenames, default `{video}_clip{clip_id}_{start}`
+(byte-for-byte the previous hardcoded naming). Placeholders: `{video}`,
+`{clip_id}`, `{start}`/`{end}` (h-mm-ss), `{score}` (1 decimal or
+`no-score`), `{date}` (export date). Live preview line, no save needed to
+see it. Unknown placeholders rejected with a clear 400 at `PATCH
+/api/config` time.
+
+**Scope grew beyond the original plan** (flagged to and confirmed by the
+user mid-stage): the plan only described extracting one helper for the two
+duplicate stem-builders in `cli/export.py`. Investigation found **five**
+independent copies of the same naming logic — the two in `cli/export.py`,
+plus `web/routes/_shared.py::_clip_stem` (backs ~16 call sites across
+`clips.py`/`videos.py` that locate already-exported files: has_export
+badges, downloads, playback, delete, merge-rename), plus one each in
+`web/routes/reel.py` (reel-builder pool `has_export`) and `yuu_clip/reel.py`
+(`_resolve_clip_files`, the highlight-reel compiler). Fixing only the CLI
+pair would have made a custom template silently break has-export detection
+and reel compilation. All five now go through one shared module:
+
+- **New `yuu_clip/export_naming.py`** — `export_base_stem(cand, template,
+  video_filename=...)`, `validate_export_name_template`,
+  `DEFAULT_EXPORT_NAME_TEMPLATE`. Duck-types on a ClipCandidate-shaped
+  object; only computes the placeholder values the template actually
+  references (so a default-template caller never needs `end_ms`/
+  `score_overall` populated — this was a real bug caught by the existing
+  `test_export.py` fixtures using minimal fakes). No `cli/`↔`web/` import
+  needed — both sides import this new leaf module instead.
+- `Config.export_name_template` (`config.py`), validated in the
+  `PATCH /api/config` route like every other config field.
+- `_clip_stem` and its downstream helpers (`_export_paths`, `_srt_path`,
+  `_srt_sidecar_paths`, `_all_sidecar_paths`) in `_shared.py` gained a
+  `name_template` parameter (defaulted for safety, but threaded explicitly
+  from `ctx.config.export_name_template` at every call site).
+
+Known limitation (not fixed — out of scope): changing the template after a
+clip is already exported orphans the old sidecar-refresh/has-export lookup
+for that clip, since the stem is re-derived from the *current* template
+each time rather than stored. Documented in `_refresh_caption_sidecars`'s
+docstring.
+
++12 tests in new `tests/test_export_naming.py`, +3 in `test_config.py`,
++1 integration test in `test_export.py` confirming the web-route lookup
+path (not just the CLI creation path) honors a custom template, +3 UI tests.
+Full suite: 1122 API + 462 UI, all green.
+
+---
+
 ## Quick wins Stage 7 — detail panel chunking (done, 2026-07-03)
 
 Closes the ROADMAP "Detail panel chunking" item. Clip detail (`renderDetail`,

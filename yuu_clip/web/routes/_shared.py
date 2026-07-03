@@ -13,6 +13,7 @@ from fastapi import HTTPException
 from fastapi.responses import StreamingResponse
 
 from yuu_clip.db.models import ClipCandidate, Video
+from yuu_clip.export_naming import DEFAULT_EXPORT_NAME_TEMPLATE, export_base_stem
 from yuu_clip.log import get_logger
 
 _log = get_logger(__name__)
@@ -203,25 +204,31 @@ def _missing_ids(requested: Iterable[int], found_ids: set[int]) -> list[int]:
     return [cid for cid in requested if cid not in found_ids]
 
 
-def _clip_stem(clip: ClipCandidate, video: Video) -> str:
-    return f"{Path(video.filename).stem}_clip{clip.id}_{clip.start_hms.replace(':', '-')}"
+def _clip_stem(clip: ClipCandidate, video: Video, name_template: str = DEFAULT_EXPORT_NAME_TEMPLATE) -> str:
+    return export_base_stem(clip, name_template, video_filename=video.filename)
 
 
-def _export_paths(clip: ClipCandidate, video: Video, export_dir: Path) -> list[Path]:
+def _export_paths(
+    clip: ClipCandidate, video: Video, export_dir: Path, name_template: str = DEFAULT_EXPORT_NAME_TEMPLATE,
+) -> list[Path]:
     """All candidate export file paths for a clip (any supported container extension)."""
-    stem = _clip_stem(clip, video)
+    stem = _clip_stem(clip, video, name_template)
     return [export_dir / f"{stem}{ext}" for ext in (".mkv", ".mp4", ".mov", ".avi", ".webm")]
 
 
-def _srt_path(clip: ClipCandidate, video: Video, export_dir: Path) -> Optional[Path]:
-    p = export_dir / f"{_clip_stem(clip, video)}.srt"
+def _srt_path(
+    clip: ClipCandidate, video: Video, export_dir: Path, name_template: str = DEFAULT_EXPORT_NAME_TEMPLATE,
+) -> Optional[Path]:
+    p = export_dir / f"{_clip_stem(clip, video, name_template)}.srt"
     return p if p.exists() else None
 
 
-def _srt_sidecar_paths(clip: ClipCandidate, video: Video, export_dir: Path) -> list[Path]:
+def _srt_sidecar_paths(
+    clip: ClipCandidate, video: Video, export_dir: Path, name_template: str = DEFAULT_EXPORT_NAME_TEMPLATE,
+) -> list[Path]:
     """Existing SRT sidecars for a clip: per-label ({stem}.player_voice.srt) plus
     the merged {stem}.srt. Video files are excluded — this is captions only."""
-    stem = _clip_stem(clip, video)
+    stem = _clip_stem(clip, video, name_template)
     files = list(export_dir.glob(f"{stem}.*.srt"))
     merged = export_dir / f"{stem}.srt"
     if merged.exists():
@@ -229,15 +236,17 @@ def _srt_sidecar_paths(clip: ClipCandidate, video: Video, export_dir: Path) -> l
     return files
 
 
-def _all_sidecar_paths(clip: ClipCandidate, video: Video, export_dir: Path) -> list[Path]:
+def _all_sidecar_paths(
+    clip: ClipCandidate, video: Video, export_dir: Path, name_template: str = DEFAULT_EXPORT_NAME_TEMPLATE,
+) -> list[Path]:
     """All on-disk sidecar paths for a clip: video exports + all SRT sidecars.
 
     Includes per-label sidecars (e.g. {stem}.player_voice.srt) produced by
     export_srt_sidecars when multiple audio tracks are transcribed.
     """
-    stem = _clip_stem(clip, video)
+    stem = _clip_stem(clip, video, name_template)
     srt_files = list(export_dir.glob(f"{stem}.*.srt"))
     merged_srt = export_dir / f"{stem}.srt"
     if merged_srt.exists():
         srt_files.append(merged_srt)
-    return [*_export_paths(clip, video, export_dir), *srt_files]
+    return [*_export_paths(clip, video, export_dir, name_template), *srt_files]

@@ -52,6 +52,8 @@ class ConfigPatch(BaseModel):
     diarization_backend:          Optional[str]   = None
     huggingface_token:            Optional[str]   = None
     speaker_match_threshold:      Optional[float] = None
+    # Export
+    export_name_template:         Optional[str]   = None
 
 
 _CONFIG_FIELDS = (
@@ -65,6 +67,7 @@ _CONFIG_FIELDS = (
     "score_funny_weight", "score_dramatic_weight", "score_action_weight",
     "scene_detection_mode", "energy_mode", "silence_threshold_ms", "min_clip_ms",
     "diarization_backend", "huggingface_token", "speaker_match_threshold",
+    "export_name_template",
 )
 
 
@@ -110,6 +113,14 @@ def _whisper_language_validator(v: str) -> str:
         raise HTTPException(400, str(e))
 
 
+def _export_name_template_validator(v: str) -> str:
+    from yuu_clip.export_naming import validate_export_name_template
+    try:
+        return validate_export_name_template(v)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
 _CONFIG_PATCH_RULES: list[tuple[str, object]] = [
     ("ui_timeline_interval_seconds", _min_validator(10,   "interval")),
     ("ui_timeline_interval_unit",    _enum_validator({"seconds", "minutes"}, "unit")),
@@ -142,6 +153,7 @@ _CONFIG_PATCH_RULES: list[tuple[str, object]] = [
     ("diarization_backend",          _enum_validator({"null", "pyannote"}, "diarization_backend")),
     ("huggingface_token",            lambda v: v.strip()),
     ("speaker_match_threshold",      _range_validator(0.0, 1.0, "speaker_match_threshold")),
+    ("export_name_template",         _export_name_template_validator),
 ]
 
 

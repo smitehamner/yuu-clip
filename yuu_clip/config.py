@@ -21,6 +21,11 @@ from typing import Optional
 
 from platformdirs import user_config_dir
 
+from yuu_clip.export_naming import (  # noqa: F401 (re-exported for routes/config.py)
+    DEFAULT_EXPORT_NAME_TEMPLATE,
+    validate_export_name_template,
+)
+
 APP_NAME = "yuu-clip"
 
 _log = logging.getLogger(__name__)
@@ -122,6 +127,8 @@ def validate_whisper_language(lang: Optional[str]) -> Optional[str]:
             f"Use an ISO 639-1 code, e.g. 'en', 'fr', 'de', or omit for auto-detection."
         )
     return lang_lower
+
+
 
 # Labels for which we skip transcription by default (user can override)
 DEFAULT_SKIP_TRANSCRIBE = {"game_sounds"}
@@ -229,6 +236,11 @@ class Config:
 
     ui_timeline_interval_seconds: int = 900
     ui_timeline_interval_unit: str = "minutes"
+
+    # Export filename stem template. Placeholders: {video} source recording stem,
+    # {clip_id}, {start}/{end} (h-mm-ss), {score} (1 decimal, "no-score" when
+    # unscored), {date} (export date, YYYY-MM-DD). See config.validate_export_name_template.
+    export_name_template: str = DEFAULT_EXPORT_NAME_TEMPLATE
 
     @classmethod
     def load(cls, project_dir: Path) -> "Config":

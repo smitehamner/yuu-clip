@@ -20,6 +20,7 @@ from yuu_clip.db.models import (
     TranscriptSegment,
     Video,
 )
+from yuu_clip.export_naming import DEFAULT_EXPORT_NAME_TEMPLATE
 from yuu_clip.log import get_logger
 from yuu_clip.web.deps import ProjectContext
 from yuu_clip.web.media import media_file_response
@@ -147,7 +148,9 @@ def _register_split_and_edit_routes(router: APIRouter, ctx: ProjectContext) -> N
             migrated_clips = 0
             migrated_transcript_lines = 0
             if body.migrate_clips:
-                migrated_clips = _migrate_clips_to_segments(db, video, boundaries, segment_ids, ctx.export_dir)
+                migrated_clips = _migrate_clips_to_segments(
+                    db, video, boundaries, segment_ids, ctx.export_dir, ctx.config.export_name_template,
+                )
                 migrated_transcript_lines = _migrate_transcript_to_segments(db, video_id, boundaries, segment_ids)
 
             db.commit()
@@ -188,7 +191,7 @@ def _register_split_and_edit_routes(router: APIRouter, ctx: ProjectContext) -> N
                 clips = db.query(ClipCandidate).filter_by(video_id=seg.id).all()
                 for clip in clips:
                     clip.video_id = parent.id
-                    _shift_clip_times(clip, parent, offset_ms, ctx.export_dir)
+                    _shift_clip_times(clip, parent, offset_ms, ctx.export_dir, ctx.config.export_name_template)
                     merged_clips += 1
             db.flush()  # persist the clip re-parenting before segment cascade-delete
 
@@ -655,7 +658,7 @@ def _register_video_data_routes(router: APIRouter, ctx: ProjectContext) -> None:
             clips = db.query(ClipCandidate).filter_by(video_id=video_id).all()
             locked: list[Path] = []
             for clip in clips:
-                locked += _delete_files(_all_sidecar_paths(clip, video, ctx.export_dir))
+                locked += _delete_files(_all_sidecar_paths(clip, video, ctx.export_dir, ctx.config.export_name_template))
             if locked:
                 raise _locked_files_error(locked)
 
@@ -720,7 +723,10 @@ def _reject_if_video_analyzing(ctx: ProjectContext, video: Video, action: str) -
         )
 
 
-def _shift_clip_times(clip: ClipCandidate, video: Video, delta_ms: int, export_dir: Path) -> None:
+def _shift_clip_times(
+    clip: ClipCandidate, video: Video, delta_ms: int, export_dir: Path,
+    name_template: str = DEFAULT_EXPORT_NAME_TEMPLATE,
+) -> None:
     """Shift a clip's window by *delta_ms*, renaming its exported files to match.
 
     Export/sidecar filenames embed the clip's start time (_clip_stem), so a clip
@@ -729,11 +735,11 @@ def _shift_clip_times(clip: ClipCandidate, video: Video, delta_ms: int, export_d
     A failed rename is logged, not fatal — the clip is then merely back to
     "file not found", same as if the rename hadn't been attempted.
     """
-    existing_files = [p for p in _all_sidecar_paths(clip, video, export_dir) if p.exists()]
-    old_stem = _clip_stem(clip, video)
+    existing_files = [p for p in _all_sidecar_paths(clip, video, export_dir, name_template) if p.exists()]
+    old_stem = _clip_stem(clip, video, name_template)
     clip.start_ms += delta_ms
     clip.end_ms += delta_ms
-    new_stem = _clip_stem(clip, video)
+    new_stem = _clip_stem(clip, video, name_template)
     if new_stem == old_stem:
         return
     for old_file in existing_files:
@@ -803,6 +809,7 @@ def _create_segments(db, video: Video, boundaries: list[float], segment_names: l
 
 def _migrate_clips_to_segments(
     db, parent: Video, boundaries: list[float], segment_ids: list[int], export_dir: Path,
+    name_template: str = DEFAULT_EXPORT_NAME_TEMPLATE,
 ) -> int:
     """Reassign each of the parent's clips to the segment containing its start time.
 
@@ -818,7 +825,7 @@ def _migrate_clips_to_segments(
             len(segment_ids) - 1,
         )
         clip.video_id = segment_ids[seg_idx]
-        _shift_clip_times(clip, parent, -int(boundaries[seg_idx] * 1000), export_dir)
+        _shift_clip_times(clip, parent, -int(boundaries[seg_idx] * 1000), export_dir, name_template)
     db.flush()
     return len(clips)
 

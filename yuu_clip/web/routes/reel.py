@@ -19,7 +19,7 @@ from pydantic import BaseModel
 from yuu_clip.db.models import ClipCandidate
 from yuu_clip.log import get_logger
 from yuu_clip.web.deps import ProjectContext
-from yuu_clip.web.routes._shared import _delete_files, _locked_files_error, _srt_to_vtt
+from yuu_clip.web.routes._shared import _delete_files, _export_paths, _locked_files_error, _srt_to_vtt
 from yuu_clip.web.sse import subprocess_sse
 
 _log = get_logger(__name__)
@@ -154,14 +154,12 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             result = []
             for c in clips:
                 video = video_map.get(c.video_id)
-                stem = Path(video.filename).stem if video else ""
-                start_hms = c.start_hms.replace(":", "-")
                 export_file = None
-                for ext in (".mkv", ".mp4", ".mov", ".avi", ".webm"):
-                    candidate = ctx.export_dir / f"{stem}_clip{c.id}_{start_hms}{ext}"
-                    if candidate.exists():
-                        export_file = candidate
-                        break
+                if video:
+                    export_file = next(
+                        (p for p in _export_paths(c, video, ctx.export_dir, ctx.config.export_name_template) if p.exists()),
+                        None,
+                    )
                 result.append({
                     "id": c.id,
                     "video_id": c.video_id,

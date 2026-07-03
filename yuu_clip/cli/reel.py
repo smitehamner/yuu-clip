@@ -36,7 +36,7 @@ def reel(
         console.print(f"[red]Unknown transition '{transition}'. Choose from: {', '.join(TRANSITIONS)}[/red]")
         raise typer.Exit(1)
 
-    proj_dir, session, _ = _load_project(project)
+    proj_dir, session, config = _load_project(project)
     export_dir = proj_dir / ".yuu-clip" / "exports"
     reels_dir  = proj_dir / ".yuu-clip" / "reels"
 
@@ -54,7 +54,7 @@ def reel(
     output.parent.mkdir(parents=True, exist_ok=True)
 
     _print_reel_plan(all_clips, video_map, output, transition)
-    _compile_reel(all_clips, video_map, export_dir, output, transition, trans_dur, title_dur)
+    _compile_reel(all_clips, video_map, export_dir, output, transition, trans_dur, title_dur, config.export_name_template)
 
     if captions:
         from yuu_clip.reel import build_reel_caption_srt
@@ -89,12 +89,13 @@ def _print_reel_plan(all_clips, video_map, output: Path, transition: str) -> Non
 
 
 def _compile_reel(all_clips, video_map, export_dir: Path, output: Path,
-                  transition: str, trans_dur: float, title_dur: float) -> None:
+                  transition: str, trans_dur: float, title_dur: float, name_template: str) -> None:
     from yuu_clip.reel import compile_demo
     try:
         compile_demo(
             clips=all_clips, video_map=video_map, export_dir=export_dir,
             output=output, transition=transition, trans_dur=trans_dur, title_dur=title_dur,
+            name_template=name_template,
         )
         size_mb = output.stat().st_size / BYTES_PER_MB
         console.print(f"  [green]OK[/green] {output.name}  [dim]({size_mb:.1f} MB)[/dim]")

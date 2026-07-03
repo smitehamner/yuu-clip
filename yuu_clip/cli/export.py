@@ -17,6 +17,7 @@ from yuu_clip.cli._base import (
     console,
     log,
 )
+from yuu_clip.export_naming import DEFAULT_EXPORT_NAME_TEMPLATE, export_base_stem
 
 
 def _maybe_diarize_segment(session, config, video_id: int, transcript_id: int, segment_wav: Path,
@@ -145,17 +146,17 @@ def _update_clip_excerpt(cand, session, tx_ids: list[int]) -> None:
 
 
 def _build_export_path(
-    cand, video_path: Path, container: Optional[str], exports_dir: Path, output: Optional[Path]
+    cand, video_path: Path, container: Optional[str], exports_dir: Path, output: Optional[Path],
+    name_template: str = DEFAULT_EXPORT_NAME_TEMPLATE,
 ) -> tuple[str, Path]:
     """Return (base_stem, resolved_output_path) for an export clip.
 
     base_stem is used by the caller when writing SRT sidecars.
     output is the caller's --output override when provided; otherwise it is derived
-    from the clip ID and start timecode and placed in exports_dir.
+    from name_template and placed in exports_dir.
     """
-    stem   = Path(cand.video.filename).stem
     suffix = f".{container.lstrip('.')}" if container else (video_path.suffix or ".mkv")
-    base   = f"{stem}_clip{cand.id}_{cand.start_hms.replace(':', '-')}"
+    base   = export_base_stem(cand, name_template)
     if output is None:
         output = exports_dir / f"{base}{suffix}"
     return base, output
@@ -287,18 +288,19 @@ def _emit_caption_sidecars(cand, output: Path, base: str) -> None:
         console.print("  [dim]No transcript data — captions skipped[/dim]")
 
 
-def _refresh_caption_sidecars(cand, proj_dir: Path) -> None:
+def _refresh_caption_sidecars(cand, proj_dir: Path, name_template: str = DEFAULT_EXPORT_NAME_TEMPLATE) -> None:
     """Regenerate an already-exported clip's SRT caption sidecars from its current transcript.
 
     No-op when the clip has no existing sidecar in the exports dir: retranscribe should
     refresh captions the user already has, not create new export artifacts for a clip
-    that was never exported.
+    that was never exported. Note: if the export filename template changed since this
+    clip was exported, its sidecars were written under the old stem and won't be found.
     """
     from yuu_clip.config import project_exports_dir
     from yuu_clip.subtitles import export_srt_sidecars
 
     exports = project_exports_dir(proj_dir)
-    base = f"{Path(cand.video.filename).stem}_clip{cand.id}_{cand.start_hms.replace(':', '-')}"
+    base = export_base_stem(cand, name_template)
     if not any(exports.glob(f"{base}*.srt")):
         return
     for srt in export_srt_sidecars(cand, exports, base):
@@ -356,7 +358,9 @@ def export(
         console.print(f"[red]Source video not found: {video_path}[/red]")
         raise typer.Exit(1)
 
-    base, output = _build_export_path(cand, video_path, container, exports, output)
+    from yuu_clip.config import Config
+    name_template = Config.load(proj_dir).export_name_template
+    base, output = _build_export_path(cand, video_path, container, exports, output, name_template)
     console.print(f"  Exporting clip [bold]{clip_id}[/bold]  {cand.start_hms}  ({cand.duration_hms})  ...")
 
     subtitle_path, subtitle_track_path = _write_export_subs(
@@ -425,6 +429,6 @@ def retranscribe(
         console.print("  [green]  OK[/green]")
 
     if refresh_captions:
-        _refresh_caption_sidecars(cand, proj_dir)
+        _refresh_caption_sidecars(cand, proj_dir, config.export_name_template)
 
     console.print("  [green]Done.[/green]")

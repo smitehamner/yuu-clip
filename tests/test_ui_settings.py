@@ -193,6 +193,41 @@ class TestSettingsPanelChrome:
 
 
 # ---------------------------------------------------------------------------
+# Export filename template — live preview (quick-wins Stage 8)
+# ---------------------------------------------------------------------------
+
+@skip_no_server
+class TestExportNameTemplatePreview:
+    """Preview line is pure client-side (utils.js's _updateExportNameTemplatePreview) —
+    never clicks Save, which would write the live project's real config.json."""
+
+    def _open_settings(self, page: Page) -> None:
+        page.goto(LIVE_URL)
+        page.wait_for_selector("#video-list li[data-video-id]", timeout=5000)
+        page.click("#btn-settings-header")
+        page.wait_for_selector("#settings-panel.visible", timeout=3000)
+        page.wait_for_selector("#s-export-name-template", timeout=3000)
+
+    def test_preview_shows_rendered_default_template(self, page: Page):
+        self._open_settings(page)
+        expect(page.locator("#export-name-template-preview")).to_contain_text(
+            "Preview: MyRecording_clip42_15-30.mkv"
+        )
+
+    def test_preview_updates_on_input(self, page: Page):
+        self._open_settings(page)
+        page.fill("#s-export-name-template", "{date}_{video}_{clip_id}")
+        page.locator("#s-export-name-template").dispatch_event("input")
+        expect(page.locator("#export-name-template-preview")).to_contain_text("_MyRecording_42.mkv")
+
+    def test_preview_flags_unknown_placeholder(self, page: Page):
+        self._open_settings(page)
+        page.fill("#s-export-name-template", "{bogus}")
+        page.locator("#s-export-name-template").dispatch_event("input")
+        expect(page.locator("#export-name-template-preview")).to_contain_text("unknown placeholder")
+
+
+# ---------------------------------------------------------------------------
 # Glossary modal — filter input (L9-3)
 # ---------------------------------------------------------------------------
 
