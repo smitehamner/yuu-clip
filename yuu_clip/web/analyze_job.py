@@ -47,6 +47,10 @@ class AnalyzeJob:
         self.cancelled = False
         self.returncode: Optional[int] = None
         self._pump_task: Optional[asyncio.Task] = None
+        # Set/cleared by POST /api/analyze/pause|resume — mirrors the pause flag
+        # file's existence so /api/status can report state without a filesystem
+        # check on every poll.
+        self.pause_requested = False
 
     async def start(self) -> None:
         self.proc = await asyncio.create_subprocess_exec(

@@ -388,6 +388,8 @@ function _streamAnalyzeEvents(filename) {
     INGEST_STEPS,
     `Analyzing ${filename}`,
     true,
+    null,
+    true,
   );
 }
 
@@ -395,7 +397,7 @@ function _streamAnalyzeEvents(filename) {
 // (detected via /api/status). The subprocess kept going through the refresh; we
 // rebuild the sidebar row, header progress bar, and in-detail progress panel by
 // replaying the job's buffered output.
-async function reattachAnalysis(filename) {
+async function reattachAnalysis(filename, paused = false) {
   if (!filename || AppState.analyzeFilename === filename) return;
   AppState.analyzeFilename = filename;
   openLog();
@@ -403,6 +405,7 @@ async function reattachAnalysis(filename) {
   await loadVideos();
   _rerenderActiveVideoDetail();
   _streamAnalyzeEvents(filename);
+  if (paused) _setPausedUIFromStatus(true);
 }
 
 function _rerenderActiveVideoDetail() {
@@ -411,7 +414,7 @@ function _rerenderActiveVideoDetail() {
   if (active) renderVideoDetail(active, null);
 }
 
-function _analyzeSegmentsSequentially(
+async function _analyzeSegmentsSequentially(
   path, model, profile, energyMode, sceneMode, contextNames, subtitleSource, diarize, segments, index,
 ) {
   if (index >= segments.length) {
@@ -421,6 +424,7 @@ function _analyzeSegmentsSequentially(
     SoundFx.play('analysis');
     return;
   }
+  await _waitWhileAnalyzePaused();
   const seg = segments[index];
   appendLog(`Analyzing segment ${index + 1}/${segments.length}: ${_fmtSplitTime(seg.start_s)}–${_fmtSplitTime(seg.end_s)}`);
   fetch('/api/analyze/start', {
@@ -453,6 +457,8 @@ function _analyzeSegmentsSequentially(
       INGEST_STEPS,
       `Segment ${index + 1}/${segments.length}`,
       false,
+      null,
+      true,
     );
   }).catch(err => showToast(`Network error: ${err.message}`, 'error'));
 }

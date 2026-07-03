@@ -736,13 +736,14 @@ async function _doSplitAndReanalyze(keepExported) {
   _reanalyzeSegmentsSequentially(activeIds, 0, reanalyzeParams);
 }
 
-function _reanalyzeSegmentsSequentially(segmentIds, index, params) {
+async function _reanalyzeSegmentsSequentially(segmentIds, index, params) {
   if (index >= segmentIds.length) {
     loadVideos().then(() =>
       showToast(`Reanalysis complete — ${plural(segmentIds.length, 'segment')}`)
     );
     return;
   }
+  await _waitWhileAnalyzePaused();
   const segId = segmentIds[index];
   fetch('/api/analyze/start', {
     method: 'POST',
@@ -762,6 +763,8 @@ function _reanalyzeSegmentsSequentially(segmentIds, index, params) {
       INGEST_STEPS,
       `Segment ${index + 1}/${segmentIds.length}`,
       false,
+      null,
+      true,
     );
   }).catch(err => showToast(`Network error: ${err.message}`, 'error'));
 }

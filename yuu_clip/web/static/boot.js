@@ -27,7 +27,7 @@ fetch('/api/status').then(r => r.json()).then(d => {
   AppState.canReveal = !!d.can_reveal;
   // Reconnect to an analysis that was already running when this page loaded
   // (e.g. after a refresh) — the subprocess survives independently of the stream.
-  if (d.analyze_filename) reattachAnalysis(d.analyze_filename);
+  if (d.analyze_filename) reattachAnalysis(d.analyze_filename, d.analyze_paused);
 }).catch(() => {});
 
 if (window.electronAPI) {

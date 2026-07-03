@@ -104,6 +104,10 @@ def create_app(project_dir: Path) -> FastAPI:
     ctx.reels_dir.mkdir(parents=True, exist_ok=True)
     seed_builtin_contexts(project_dir)
     _fail_interrupted_analyses(ctx)
+    # A pause flag left by a server that died mid-analysis would otherwise hold
+    # the very first video of the next run — the job it belonged to is gone anyway.
+    from yuu_clip.analyze.pause import remove_pause_flag
+    remove_pause_flag(project_dir)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):

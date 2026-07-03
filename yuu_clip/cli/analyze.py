@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 from typing import Optional
 
@@ -9,6 +10,7 @@ import typer
 from rich.panel import Panel
 from rich.table import Table
 
+from yuu_clip.analyze.pause import pause_flag_path
 from yuu_clip.cli._base import (
     AnalyzeOptions,
     _load_project,
@@ -18,6 +20,18 @@ from yuu_clip.cli._base import (
     console,
 )
 from yuu_clip.cli._pipeline import _analyze_one, _rediarize_video, _run_scoring
+
+_PAUSE_POLL_INTERVAL_S = 3.0
+
+
+def _wait_while_paused(project_dir: Path, poll_interval_s: float = _PAUSE_POLL_INTERVAL_S) -> None:
+    """Block before starting the next video while the pause flag is present."""
+    flag = pause_flag_path(project_dir)
+    if not flag.exists():
+        return
+    console.print("[yellow][Paused — waiting to start next video][/yellow]")
+    while flag.exists():
+        time.sleep(poll_interval_s)
 
 
 @app.command()
@@ -125,6 +139,7 @@ def analyze(
     console.print(f"\n[bold]yuuclip  ·  analyze[/bold]  ({len(video_paths)} video(s))\n")
 
     for video_path in video_paths:
+        _wait_while_paused(proj_dir)
         _analyze_one(video_path, session, config, audio_dir, opts)
 
     console.print("\n[bold green]Done![/bold green]  Run [cyan]yuuclip status[/cyan] to review your clips.\n")

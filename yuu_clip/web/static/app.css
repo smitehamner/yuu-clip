@@ -120,6 +120,7 @@ header h1 { font-size: 16px; font-weight: 700; letter-spacing: .5px; color: var(
 .step { font-size: 11px; padding: 2px 7px; border-radius: 10px; background: var(--border); color: var(--muted); transition: background .2s, color .2s; }
 .step.active { background: var(--accent); color: var(--on-accent); }
 .step.done   { background: var(--green);  color: var(--on-green); }
+.paused-badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px; background: color-mix(in srgb, var(--warning) 20%, transparent); color: var(--warning); white-space: nowrap; flex-shrink: 0; }
 .header-spacer { margin-right: auto; }
 
 /* In-detail live analysis progress panel (survives page refresh). */

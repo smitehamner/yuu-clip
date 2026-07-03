@@ -212,6 +212,8 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                 "Another job is still running — wait for it to finish or cancel it "
                 "before starting a new analysis.",
             )
+        from yuu_clip.analyze.pause import remove_pause_flag
+        remove_pause_flag(ctx.project_dir)
         video_path = _resolve_video_path(req, ctx)
         try:
             validate_whisper_model(req.model)
@@ -259,6 +261,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     def server_status():
         """Return whether any processing is currently active (analysis, scoring, timeline, etc.)."""
         # Lazy import: analyze.py is loaded by app.py, so a top-level import would be circular.
+        from yuu_clip.analyze.pause import pause_flag_exists
         from yuu_clip.web.app import _VERSION_DISPLAY
         job = ctx.analyze_job
         job_running = job is not None and not job.done
@@ -270,6 +273,13 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             # reconnect to an analysis already in progress. Null for score/export jobs.
             "analyze_filename": job.filename if job_running else None,
             "analyze_video_id": job.video_id if job_running else None,
+            # Requires a live job — a pause requested during the last video must not
+            # keep showing "paused" once the job has already finished.
+            "analyze_paused": job_running and pause_flag_exists(ctx.project_dir),
+            # Raw flag state, independent of a live job. The JS sequential-segment
+            # runners (each segment is its own separate AnalyzeJob) poll this between
+            # segments, when there is briefly no "running" job for analyze_paused to key off.
+            "pause_flag_set": pause_flag_exists(ctx.project_dir),
             "active_jobs": ctx.active_jobs,
             "version": _VERSION_DISPLAY,
             "project_dir": str(ctx.project_dir),
@@ -308,6 +318,39 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         """Return whether an analyze subprocess is currently running."""
         return {"running": _analyze_running(ctx)}
 
+    @router.post("/api/analyze/pause")
+    async def pause_analyze():
+        """Request a pause before the next video in the running batch starts.
+
+        The video currently in progress always finishes — this only holds the
+        loop before it starts the next one. No-op with a clear message when no
+        job is running (including single-video runs, where it simply never fires).
+        """
+        job = ctx.analyze_job
+        if job is None or job.done:
+            return {"status": "no-op", "message": "No analysis is running."}
+        from yuu_clip.analyze.pause import create_pause_flag
+        create_pause_flag(ctx.project_dir)
+        job.pause_requested = True
+        _log.info("Analyze pause requested — will hold before the next video")
+        return {"status": "pause-requested"}
+
+    @router.post("/api/analyze/resume")
+    async def resume_analyze():
+        """Clear a pending pause so the batch loop continues to the next video."""
+        job = ctx.analyze_job
+        if job is None or job.done:
+            return {"status": "no-op", "message": "No analysis is running."}
+        from yuu_clip.analyze.pause import remove_pause_flag
+        try:
+            remove_pause_flag(ctx.project_dir)
+        except OSError as e:
+            _log.error("Failed to remove pause flag: %s", e)
+            raise HTTPException(500, f"Could not resume — the pause flag file could not be removed: {e}")
+        job.pause_requested = False
+        _log.info("Analyze resumed")
+        return {"status": "resumed"}
+
     @router.post("/api/analyze/cancel")
     async def cancel_analyze():
         """Terminate the currently running analyze subprocess, if any."""
@@ -323,6 +366,10 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         ctx.analyze_cmd = None
         ctx.analyze_pending_filename = None
         ctx.analyze_pending_video_id = None
+        # Cancel always wins over a pending pause — leaving the flag would start
+        # the next run already paused.
+        from yuu_clip.analyze.pause import remove_pause_flag
+        remove_pause_flag(ctx.project_dir)
         # Flip the killed run's row out of the transient 'extracting' state (the
         # long extract+transcribe phase) so the sidebar stops showing an eternal
         # spinner — same cleanup the server runs on startup for crashed runs.

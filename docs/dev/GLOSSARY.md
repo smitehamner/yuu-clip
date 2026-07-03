@@ -28,6 +28,7 @@ Most lookups only need this table: the authoritative user-facing term, the code 
 | Extract | `extract_audio()` | Track → WAV conversion (internal stage) |
 | Rescore | `score`, `/api/score` | Re-run scoring only |
 | Job | `ingest_proc` | The one active analysis/rescore operation |
+| Pause / Resume analysis | `analyze.pause` flag file | Hold a multi-video batch before the next video, without losing progress |
 | Transcript | `Transcript`, `full_text` | Speech-to-text output, one per eligible track |
 | Speech-to-text model | `whisper_model` | Whisper — never bare "model" |
 | Transcription language | `whisper_language` | What Whisper hears (`""` = auto) — not UI localization |
@@ -212,6 +213,20 @@ An active analysis or rescore operation currently running.
 - **Code:** `ingest_proc`, `ctx.ingest_proc`
 - **UI label:** job status in header; active step pills; live log panel
 - **Notes:** Only one job at a time. Can be cancelled.
+
+---
+
+### Pause / Resume Analysis
+
+Holding a running multi-video (or multi-segment) analyze batch before it starts
+its next video, without losing the progress already made.
+
+- **Code:** `analyze.pause` flag file (`yuu_clip/analyze/pause.py`), `POST /api/analyze/pause`,
+  `POST /api/analyze/resume`, `AnalyzeJob.pause_requested`
+- **UI label:** "Pause after current video" button in the job header (swaps to "Resume" when paused)
+- **Notes:** The video currently in progress always finishes — pausing only holds the loop
+  before the next one starts. In-memory / flag-file only; does not survive a server restart.
+  On a single-video run this simply never fires.
 
 ---
 

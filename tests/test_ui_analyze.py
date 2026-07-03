@@ -409,3 +409,105 @@ class TestDragAndDropAnalyzeBrowser:
         _dispatch_drop(page, ["session.mp4"])
         expect(page.locator("#toast-container .toast.info")).to_contain_text("desktop app")
         expect(page.locator("#new-recording-panel")).to_be_hidden()
+
+
+# ---------------------------------------------------------------------------
+# Pause / resume analysis (roadmap-2026-07 plan 01, Stage 1)
+#
+# startJobUI/endJobUI are driven directly (not via a real analyze job) — same
+# pattern as TestProgressPill in test_ui_clips.py — so these don't depend on a
+# real subprocess's timing.
+# ---------------------------------------------------------------------------
+
+@skip_no_server
+class TestPauseResumeUI:
+    def _ready(self, page: Page) -> None:
+        page.wait_for_selector("#video-list li[data-video-id]", timeout=5000)
+
+    def _simulate_pausable_job(self, page: Page) -> None:
+        page.evaluate("() => startJobUI(INGEST_STEPS, 'Analyzing test.mkv', true, true)")
+
+    def test_pause_button_hidden_for_non_pausable_job(self, page: Page):
+        self._ready(page)
+        page.evaluate("() => startJobUI(INGEST_STEPS, 'Re-scoring clip', false, false)")
+        expect(page.locator("#btn-pause-job")).to_be_hidden()
+        page.evaluate("() => endJobUI()")
+
+    def test_pause_button_visible_and_labeled_for_pausable_job(self, page: Page):
+        self._ready(page)
+        self._simulate_pausable_job(page)
+        expect(page.locator("#btn-pause-job")).to_be_visible()
+        expect(page.locator("#btn-pause-job")).to_have_text("Pause after current video")
+        expect(page.locator("#job-paused-badge")).to_be_hidden()
+        page.evaluate("() => endJobUI()")
+
+    def test_clicking_pause_flips_button_and_shows_badge(self, page: Page):
+        self._ready(page)
+        page.route(
+            "**/api/analyze/pause",
+            lambda route: route.fulfill(
+                status=200, content_type="application/json",
+                body='{"status": "pause-requested"}',
+            ),
+        )
+        self._simulate_pausable_job(page)
+        page.click("#btn-pause-job")
+        expect(page.locator("#btn-pause-job")).to_have_text("Resume")
+        expect(page.locator("#job-paused-badge")).to_be_visible()
+        page.evaluate("() => endJobUI()")
+
+    def test_clicking_resume_clears_button_and_badge(self, page: Page):
+        self._ready(page)
+        page.route(
+            "**/api/analyze/pause",
+            lambda route: route.fulfill(
+                status=200, content_type="application/json",
+                body='{"status": "pause-requested"}',
+            ),
+        )
+        page.route(
+            "**/api/analyze/resume",
+            lambda route: route.fulfill(
+                status=200, content_type="application/json",
+                body='{"status": "resumed"}',
+            ),
+        )
+        self._simulate_pausable_job(page)
+        page.click("#btn-pause-job")
+        expect(page.locator("#btn-pause-job")).to_have_text("Resume")
+        page.click("#btn-pause-job")
+        expect(page.locator("#btn-pause-job")).to_have_text("Pause after current video")
+        expect(page.locator("#job-paused-badge")).to_be_hidden()
+        page.evaluate("() => endJobUI()")
+
+    def test_pause_noop_surfaces_toast_and_leaves_button_unpaused(self, page: Page):
+        self._ready(page)
+        page.route(
+            "**/api/analyze/pause",
+            lambda route: route.fulfill(
+                status=200, content_type="application/json",
+                body='{"status": "no-op", "message": "No analysis is running."}',
+            ),
+        )
+        self._simulate_pausable_job(page)
+        page.click("#btn-pause-job")
+        expect(page.locator("#toast-container .toast.info")).to_contain_text("No analysis is running.")
+        expect(page.locator("#btn-pause-job")).to_have_text("Pause after current video")
+        page.evaluate("() => endJobUI()")
+
+    def test_status_pill_reflects_paused_state(self, page: Page):
+        """_setPausedUIFromStatus is what a page reconnect (boot.js -> reattachAnalysis)
+        uses to reflect a pause that was requested from another tab/session."""
+        self._ready(page)
+        self._simulate_pausable_job(page)
+        page.evaluate("() => _setPausedUIFromStatus(true)")
+        expect(page.locator("#btn-pause-job")).to_have_text("Resume")
+        expect(page.locator("#job-paused-badge")).to_be_visible()
+        page.evaluate("() => endJobUI()")
+
+    def test_end_job_ui_hides_pause_controls(self, page: Page):
+        self._ready(page)
+        self._simulate_pausable_job(page)
+        page.evaluate("() => endJobUI()")
+        expect(page.locator("#btn-pause-job")).to_be_hidden()
+        expect(page.locator("#job-paused-badge")).to_be_hidden()

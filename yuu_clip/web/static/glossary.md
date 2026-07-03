@@ -53,6 +53,9 @@ Re-rate the clips of an already-analyzed recording without re-transcribing or re
 ### Job
 An analysis or rescore that's currently running. You can watch its progress and live log, and cancel it. Only one job runs at a time.
 
+### Pause After Current Video
+Hold a multi-video analysis before it starts the next video, without losing the progress already made — the video currently in progress always finishes first. Doesn't survive a server restart, and has no effect when analyzing a single video.
+
 ---
 
 ## Transcription

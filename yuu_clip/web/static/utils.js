@@ -217,6 +217,8 @@ let _activeJobCleanup = null;
 let _jobStartTime  = 0;
 let _jobTimer      = null;
 let _jobHideTimer  = null;
+let _jobPausable   = false;
+let _jobPaused     = false;
 let _activeStepIdx = -1;
 let _stepStartTime = 0;
 let _stepProgress  = {}; // stepIdx -> {current, total}, cleared per job
@@ -233,13 +235,15 @@ function _estimateHmsFor(stepDef) {
   return match ? match.hms : null;
 }
 
-function startJobUI(stepDefs, jobLabel, cancellable = false) {
+function startJobUI(stepDefs, jobLabel, cancellable = false, pausable = false) {
   _jobStepDefs   = stepDefs;
   _activeStepIdx = -1;
   _jobStartTime  = Date.now();
   _stepStartTime = Date.now();
   _stepProgress  = {};
   _stepRateAnchor = {};
+  _jobPausable   = pausable;
+  _jobPaused     = false;
   if (_jobTimer) clearInterval(_jobTimer);
   _jobTimer = setInterval(_tickJobTimer, 1000);
   if (_jobHideTimer) { clearTimeout(_jobHideTimer); _jobHideTimer = null; }
@@ -256,7 +260,52 @@ function startJobUI(stepDefs, jobLabel, cancellable = false) {
   const analyzeBtn = document.getElementById('btn-analyze');
   if (analyzeBtn) analyzeBtn.title = 'A job is already running';
   document.getElementById('btn-cancel-job').style.display = cancellable ? '' : 'none';
+  _renderPauseUI();
   if (window._renderBatchStatusPanel) _renderBatchStatusPanel();
+}
+
+// "Pause after current video" toggle in the job header — only shown for jobs
+// backed by the pause flag file (the single analyze stream and the JS
+// sequential-segment runners; see togglePauseJob).
+function _renderPauseUI() {
+  const btn = document.getElementById('btn-pause-job');
+  const badge = document.getElementById('job-paused-badge');
+  if (!btn || !badge) return;
+  btn.style.display = _jobPausable ? '' : 'none';
+  btn.textContent = _jobPaused ? 'Resume' : 'Pause after current video';
+  badge.style.display = _jobPaused ? '' : 'none';
+}
+
+// Reflects an already-paused job discovered via /api/status (page reconnect) —
+// does not itself call the pause/resume API.
+function _setPausedUIFromStatus(paused) {
+  _jobPaused = !!paused;
+  _renderPauseUI();
+}
+
+async function togglePauseJob() {
+  const btn = document.getElementById('btn-pause-job');
+  const wantPause = !_jobPaused;
+  btn.disabled = true;
+  try {
+    const res = await fetch(`/api/analyze/${wantPause ? 'pause' : 'resume'}`, {method: 'POST'});
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      showToast(formatApiError(data) || `Could not ${wantPause ? 'pause' : 'resume'}`, 'error');
+      return;
+    }
+    if (data.status === 'no-op') {
+      showToast(data.message || 'No analysis is running.', 'info');
+      return;
+    }
+    _jobPaused = wantPause;
+    _renderPauseUI();
+    showToast(wantPause ? 'Will pause before the next video' : 'Resumed', 'info');
+  } catch (err) {
+    showToast(`Network error: ${err.message}`, 'error');
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 function updateJobUI(line) {
@@ -380,6 +429,9 @@ function endJobUI() {
     if (el) { el.className = 'step done'; el.style.backgroundImage = ''; el.textContent = '✓'; el.title = s.label; }
   });
   document.getElementById('btn-cancel-job').style.display = 'none';
+  _jobPausable = false;
+  _jobPaused   = false;
+  _renderPauseUI();
   _jobHideTimer = setTimeout(() => {
     _jobHideTimer = null;
     document.getElementById('job-status').classList.remove('visible');
@@ -472,9 +524,9 @@ function _blockedByAnalyze(actionLabel) {
 
 // onLine (optional): called with each raw SSE payload line before __DONE__, for
 // callers that need live progress text (e.g. the proxy-build percentage).
-function streamSSE(url, onDone, stepDefs, jobLabel, cancellable = false, onLine = null) {
+function streamSSE(url, onDone, stepDefs, jobLabel, cancellable = false, onLine = null, pausable = false) {
   _supersedeActiveStream();
-  if (stepDefs) startJobUI(stepDefs, jobLabel, cancellable);
+  if (stepDefs) startJobUI(stepDefs, jobLabel, cancellable, pausable);
   const handle = _openSSE(
     url,
     text => { appendLog(text); if (onLine) onLine(text); if (stepDefs) updateJobUI(text); },
@@ -601,6 +653,21 @@ function _setPreviewBadge(badgeEl, mode, pct, onBuild) {
   } else {
     badgeEl.textContent = 'Original quality · slower seeking';
     badgeEl.title = 'Playing the original recording — seeking a long file can be slow.';
+  }
+}
+
+// Polled by the JS sequential-segment runners (analyze.js's pre-split loop,
+// split.js's re-split loop) before firing off each segment's own analyze job.
+// Each segment is a separate AnalyzeJob, so there is a gap between segments
+// with no "running" job for /api/status's analyze_paused to key off — this
+// checks the raw pause flag file instead (pause_flag_set).
+async function _waitWhileAnalyzePaused() {
+  let toasted = false;
+  while (true) {
+    const status = await fetch('/api/status').then(r => r.json()).catch(() => null);
+    if (!status || !status.pause_flag_set) return;
+    if (!toasted) { showToast('Paused — will hold before the next segment', 'info'); toasted = true; }
+    await new Promise(resolve => setTimeout(resolve, 3000));
   }
 }
 
