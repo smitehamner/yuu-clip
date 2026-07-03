@@ -11,7 +11,15 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
 from sqlalchemy import case, func, select
 
-from yuu_clip.db.models import AudioEnergy, AudioTrack, ClipCandidate, SceneBoundary, Video
+from yuu_clip.db.models import (
+    AudioEnergy,
+    AudioTrack,
+    ClipCandidate,
+    SceneBoundary,
+    Transcript,
+    TranscriptSegment,
+    Video,
+)
 from yuu_clip.log import get_logger
 from yuu_clip.web.deps import ProjectContext
 from yuu_clip.web.media import media_file_response
@@ -108,9 +116,11 @@ def _register_split_and_edit_routes(router: APIRouter, ctx: ProjectContext) -> N
 
         Idempotent: re-splitting a video deletes and recreates its existing segments.
         If migrate_clips is set, each of the parent's clips is reassigned to whichever
-        segment contains the clip's start time (its times shifted to segment-relative).
-        Otherwise clips are left untouched on the now-hidden parent — callers that
-        reanalyze each segment generate fresh clips there instead.
+        segment contains the clip's start time (its times shifted to segment-relative),
+        and each transcribable audio track's transcript is copied onto every segment
+        it overlaps (also segment-relative; the parent's own track/transcript rows are
+        left untouched). Otherwise clips and transcript are left on the now-hidden
+        parent — callers that reanalyze each segment generate fresh ones there instead.
         """
         db = ctx.get_db()
         try:
@@ -133,15 +143,21 @@ def _register_split_and_edit_routes(router: APIRouter, ctx: ProjectContext) -> N
             segment_ids = _create_segments(db, video, boundaries, body.segment_names)
 
             migrated_clips = 0
+            migrated_transcript_lines = 0
             if body.migrate_clips:
                 migrated_clips = _migrate_clips_to_segments(db, video_id, boundaries, segment_ids)
+                migrated_transcript_lines = _migrate_transcript_to_segments(db, video_id, boundaries, segment_ids)
 
             db.commit()
             _log.info(
-                "Split video %d into %d segment(s) at points %s: ids=%s, migrated_clips=%d",
-                video_id, len(segment_ids), pts, segment_ids, migrated_clips,
+                "Split video %d into %d segment(s) at points %s: ids=%s, migrated_clips=%d, migrated_transcript_lines=%d",
+                video_id, len(segment_ids), pts, segment_ids, migrated_clips, migrated_transcript_lines,
             )
-            return {"segment_ids": segment_ids, "migrated_clips": migrated_clips}
+            return {
+                "segment_ids": segment_ids,
+                "migrated_clips": migrated_clips,
+                "migrated_transcript_lines": migrated_transcript_lines,
+            }
         finally:
             db.close()
 
@@ -776,6 +792,74 @@ def _migrate_clips_to_segments(
         clip.end_ms -= offset_ms
     db.flush()
     return len(clips)
+
+
+def _migrate_transcript_to_segments(
+    db, parent_video_id: int, boundaries: list[float], segment_ids: list[int],
+) -> int:
+    """Copy each transcribable track's transcript onto every segment it overlaps,
+    with segment-relative timing — same start-time ownership rule as clips.
+
+    The parent's own AudioTrack/Transcript/TranscriptSegment rows are untouched;
+    each segment gets its own copy, so deleting a segment (re-split, unsplit)
+    never touches the source data.
+    """
+    parent = db.get(Video, parent_video_id)
+    migrated = 0
+    for track in parent.audio_tracks:
+        if not track.do_transcribe or track.label == "game_sounds" or not track.transcripts:
+            continue
+        transcript = max(track.transcripts, key=lambda t: t.created_at)
+
+        by_segment: dict[int, list] = {}
+        for seg in transcript.segments:
+            seg_idx = next(
+                (i for i in range(len(segment_ids)) if boundaries[i] <= seg.start_ms / 1000.0 < boundaries[i + 1]),
+                len(segment_ids) - 1,
+            )
+            by_segment.setdefault(seg_idx, []).append(seg)
+
+        for seg_idx, segs in by_segment.items():
+            offset_ms = int(boundaries[seg_idx] * 1000)
+            new_track = AudioTrack(
+                video_id=segment_ids[seg_idx],
+                stream_index=track.stream_index,
+                label=track.label,
+                relevance_weight=track.relevance_weight,
+                do_transcribe=track.do_transcribe,
+                do_score=track.do_score,
+                codec=track.codec,
+                sample_rate=track.sample_rate,
+                channels=track.channels,
+                channel_layout=track.channel_layout,
+                stream_title_tag=track.stream_title_tag,
+                extracted_path=track.extracted_path,
+            )
+            db.add(new_track)
+            db.flush()
+
+            new_transcript = Transcript(
+                audio_track_id=new_track.id,
+                model_name=transcript.model_name,
+                language=transcript.language,
+            )
+            db.add(new_transcript)
+            db.flush()
+
+            for seg in segs:
+                db.add(TranscriptSegment(
+                    transcript_id=new_transcript.id,
+                    start_ms=seg.start_ms - offset_ms,
+                    end_ms=seg.end_ms - offset_ms,
+                    text=seg.text,
+                    confidence=seg.confidence,
+                    speaker_label=seg.speaker_label,
+                    speaker_id=seg.speaker_id,
+                    speaker_edited=seg.speaker_edited,
+                ))
+                migrated += 1
+    db.flush()
+    return migrated
 
 
 def _sync_waveform_track_data(ctx: ProjectContext, video_id: int, audio_streams) -> list[tuple]:

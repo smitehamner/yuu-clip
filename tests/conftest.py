@@ -118,6 +118,11 @@ def select_video_with_clips(page) -> None:
     otherwise leave the clip list showing only its empty-state row and time out
     every clip test. Real clip rows carry a ``.clip-num`` badge; the empty-state
     ``<li>`` does not, which is what we wait on.
+
+    Split segments are skipped even when they have clips — most tests assume a
+    plain top-level recording (e.g. split tests expect 'Split Recording', not
+    'Undo Split', in Additional Actions), and a segment sorting first in a
+    recent-created project would otherwise hijack every caller of this helper.
     """
     # The page fixture already navigated to LIVE_URL; only navigate again if a
     # test moved away, so the common path doesn't pay a second full page load.
@@ -125,8 +130,14 @@ def select_video_with_clips(page) -> None:
         page.goto(LIVE_URL)
     page.wait_for_selector("#video-list li[data-video-id]", timeout=5000)
     videos = page.locator("#video-list li[data-video-id]")
+    segment_ids = set(page.evaluate(
+        "AppState.videos.filter(v => v.parent_video_id != null).map(v => v.id)"
+    ))
     for i in range(videos.count()):
-        videos.nth(i).click()
+        li = videos.nth(i)
+        if int(li.get_attribute("data-video-id")) in segment_ids:
+            continue
+        li.click()
         try:
             page.wait_for_selector("#clip-list li .clip-num", timeout=3000)
             return

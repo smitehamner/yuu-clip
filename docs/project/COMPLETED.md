@@ -5,6 +5,37 @@ Phases 1–3 have been moved to [COMPLETED-archive.md](COMPLETED-archive.md).
 
 ---
 
+## Split: clip/transcript migration + Undo Split (done, 2026-07-03)
+
+"Split only — keep all existing clips" never actually migrated anything —
+`split_video` created the new segment `Video` rows but left every `ClipCandidate`
+sitting on the now-hidden parent, silently orphaned. Fixed:
+
+- `split_video` (`web/routes/videos.py`) takes `migrate_clips: bool`. When set, every
+  parent clip is reassigned to whichever segment contains its **start time**
+  (`_migrate_clips_to_segments`), with `start_ms`/`end_ms` shifted to be
+  segment-relative. A clip straddling a split point keeps its full length and is
+  owned by the segment it starts in.
+- `_migrate_transcript_to_segments` does the same for each transcribable audio
+  track's transcript: copies a fresh `AudioTrack`/`Transcript`/`TranscriptSegment`
+  set onto every segment it overlaps (segment-relative timing), so the Full
+  Transcript section is populated after a plain split, not just after re-analyze.
+  The parent's own track/transcript rows are left untouched.
+- New `POST /api/videos/{id}/unsplit` (accepts the parent or any one segment):
+  merges every segment's current clips back onto the parent (restoring absolute
+  timing) and deletes the segments, so the parent becomes visible again. Exposed
+  as **Undo Split** in a segment's Additional Actions menu.
+- The Ignore checkbox in the split editor's segment list is hidden when the
+  "Split only" action is selected — it only ever affected which segments get
+  reanalyzed, so it was a silent no-op for a plain partition and was mistaken for
+  something that mattered.
+- Fixed a related bug: a segment's recording-preview player always streamed the
+  parent file from `0:00` instead of seeking to the segment's own start (and
+  never stopped at its end) — `setupRecordingPreview` (`utils.js`) now accepts
+  `startS`/`endS` and bounds playback accordingly, including the 720p-proxy
+  swap path (which previously had a race that could resume at `0:00` if the
+  proxy-status check won the race against the initial seek).
+
 ## Preview proxy for fast multi-hour scrubbing (done, 2026-07-02)
 
 Full-video preview was unusably slow on multi-hour `.mkv` recordings — Chromium

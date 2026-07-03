@@ -1140,6 +1140,106 @@ class TestSplitVideoClipMigration:
         assert statuses == {"pending", "approved"}
 
 
+class TestSplitVideoTranscriptMigration:
+    """migrate_clips=True also copies each track's transcript onto the segments it overlaps."""
+
+    def _video_id(self, client) -> int:
+        return client.get("/api/videos").json()[0]["id"]
+
+    def _seed_transcript(self, project_dir, video_id: int) -> None:
+        from yuu_clip.db.models import AudioTrack, Transcript, TranscriptSegment, make_session
+
+        db = make_session(project_dir / ".yuu-clip" / "project.db")
+        try:
+            track = db.query(AudioTrack).filter_by(video_id=video_id).one()
+            transcript = Transcript(audio_track_id=track.id, model_name="test-model")
+            db.add(transcript)
+            db.flush()
+            for start_s, end_s, text in [(10, 20, "before the split"), (100, 110, "after the split")]:
+                db.add(TranscriptSegment(
+                    transcript_id=transcript.id,
+                    start_ms=start_s * 1000,
+                    end_ms=end_s * 1000,
+                    text=text,
+                ))
+            db.commit()
+        finally:
+            db.close()
+
+    def test_default_does_not_migrate_transcript(self, client, project_dir):
+        vid_id = self._video_id(client)
+        self._seed_transcript(project_dir, vid_id)
+        r = client.post(f"/api/videos/{vid_id}/split", json={"split_points": [90.0]})
+        assert r.json()["migrated_transcript_lines"] == 0
+        for seg_id in r.json()["segment_ids"]:
+            assert client.get(f"/api/videos/{seg_id}/transcript").json()["lines"] == []
+
+    def test_migrate_clips_also_migrates_transcript_by_start_time(self, client, project_dir):
+        vid_id = self._video_id(client)
+        self._seed_transcript(project_dir, vid_id)
+        r = client.post(
+            f"/api/videos/{vid_id}/split",
+            json={"split_points": [90.0], "migrate_clips": True},
+        )
+        assert r.json()["migrated_transcript_lines"] == 2
+        seg0_id, seg1_id = r.json()["segment_ids"]
+
+        seg0_lines = client.get(f"/api/videos/{seg0_id}/transcript").json()["lines"]
+        seg1_lines = client.get(f"/api/videos/{seg1_id}/transcript").json()["lines"]
+        assert [line["text"] for line in seg0_lines] == ["before the split"]
+        assert [line["text"] for line in seg1_lines] == ["after the split"]
+
+    def test_migrate_transcript_shifts_times_to_segment_relative(self, client, project_dir):
+        vid_id = self._video_id(client)
+        self._seed_transcript(project_dir, vid_id)
+        r = client.post(
+            f"/api/videos/{vid_id}/split",
+            json={"split_points": [90.0], "migrate_clips": True},
+        )
+        seg1_id = r.json()["segment_ids"][1]
+        seg1_lines = client.get(f"/api/videos/{seg1_id}/transcript").json()["lines"]
+        # Segment 1 starts at 90s; the [100-110s] line shifts to [10-20s].
+        assert seg1_lines[0]["start_ms"] == 10_000
+        assert seg1_lines[0]["end_ms"] == 20_000
+
+    def test_migrate_transcript_leaves_parent_track_untouched(self, client, project_dir):
+        from yuu_clip.db.models import AudioTrack, make_session
+
+        vid_id = self._video_id(client)
+        self._seed_transcript(project_dir, vid_id)
+        client.post(
+            f"/api/videos/{vid_id}/split",
+            json={"split_points": [90.0], "migrate_clips": True},
+        )
+        db = make_session(project_dir / ".yuu-clip" / "project.db")
+        try:
+            parent_tracks = db.query(AudioTrack).filter_by(video_id=vid_id).all()
+        finally:
+            db.close()
+        assert len(parent_tracks) == 1
+
+    def test_unsplit_deletes_segment_transcript_copies(self, client, project_dir):
+        from yuu_clip.db.models import AudioTrack, make_session
+
+        vid_id = self._video_id(client)
+        self._seed_transcript(project_dir, vid_id)
+        seg_ids = client.post(
+            f"/api/videos/{vid_id}/split",
+            json={"split_points": [90.0], "migrate_clips": True},
+        ).json()["segment_ids"]
+
+        client.post(f"/api/videos/{seg_ids[0]}/unsplit")
+
+        db = make_session(project_dir / ".yuu-clip" / "project.db")
+        try:
+            parent_tracks = db.query(AudioTrack).filter_by(video_id=vid_id).all()
+            seg_tracks = db.query(AudioTrack).filter(AudioTrack.video_id.in_(seg_ids)).all()
+        finally:
+            db.close()
+        assert len(parent_tracks) == 1  # the original track, untouched
+        assert seg_tracks == []  # segment copies cascade-deleted with the segments
+
+
 class TestUnsplitVideo:
     """POST /unsplit reverses a split: clips move back, segments are removed."""
 

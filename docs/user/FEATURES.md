@@ -99,13 +99,17 @@ Accessible via the Manage Layouts button in the New Recording panel.
 A recording can be split into independent segments before or after analysis.
 
 - **Before analysis**: toggle in New Recording panel after probe; place markers on the waveform; analysis runs sequentially on each segment
-- **After analysis**: "Split Recording" button opens the full-panel split editor; existing clips shown as dots on the waveform; confirm redistributes clips by start time and creates separate `Video` rows
+- **After analysis**: "Split Recording" button opens the full-panel split editor with three choices:
+  - **Split only** — keeps every existing clip, redistributing each one (and its transcript lines) to whichever segment contains its start time; a clip that straddles a split point keeps its full length and is owned by the segment it starts in
+  - **Re-analyze** — deletes all clips and runs analysis fresh on each segment
+  - **Re-analyze but keep exported clips** — deletes only clips that were never exported, then re-analyzes
 - Markers are dragged to move and removed with the × button that appears on hover; in the full editor, clicking a marker jumps the preview there
 - A legend under the timeline names the overlays (split points, suggested splits, scene cuts, existing clips, segments)
 - Re-analyze choices confirm their consequence first ("deletes N clips…") and reuse the original run's analysis settings (model, track layout, scene/energy mode, speaker labels, world contexts) — falling back to Settings defaults
 - Waveform is generated on demand from per-second RMS energy data
 - Segments appear in the sidebar as normal video entries; the parent is hidden once split
-- Each segment has its own clips, contexts, title, summary, and timeline
+- Each segment has its own clips and full transcript (after Split only) or its own freshly analyzed clips, contexts, title, summary, and timeline (after Re-analyze)
+- **Undo Split** (Additional Actions, on any segment) merges every sibling segment's clips back onto the parent recording — restoring their original absolute timing — deletes the segments, and makes the parent visible again
 
 ### Highlight reel builder
 
