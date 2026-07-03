@@ -10,6 +10,7 @@ const _settingsFieldIds = [
   's-laugh-weight','s-laugh-mode','s-laugh-model-id',
   's-funny-weight','s-dramatic-weight','s-action-weight',
   's-scene-mode','s-energy-mode','s-silence-ms','s-min-clip-ms',
+  's-thermal-autopause','s-thermal-warn-c','s-thermal-pause-c',
   's-timeline-interval','s-timeline-unit','s-autoplay','s-play-next','s-loop-clip',
   's-export-name-template',
 ];
@@ -179,6 +180,9 @@ function _applySettingsToUI(cfg) {
   setVal('s-energy-mode',   cfg.energy_mode          || 'fast');
   setVal('s-silence-ms',    cfg.silence_threshold_ms ?? 3000);
   setVal('s-min-clip-ms',   cfg.min_clip_ms          ?? 15000);
+  setChk('s-thermal-autopause', cfg.thermal_autopause_enabled !== false);
+  setVal('s-thermal-warn-c',    cfg.thermal_warn_c  ?? 85);
+  setVal('s-thermal-pause-c',   cfg.thermal_pause_c ?? 90);
   const _silenceEl = document.getElementById('s-silence-ms');
   const _minClipEl = document.getElementById('s-min-clip-ms');
   const _silenceHint = document.getElementById('s-silence-ms-hint');
@@ -451,6 +455,9 @@ async function saveSettings() {
     energy_mode:                getVal('s-energy-mode'),
     silence_threshold_ms:       getNum('s-silence-ms', parseInt),
     min_clip_ms:                getNum('s-min-clip-ms', parseInt),
+    thermal_autopause_enabled:  getChk('s-thermal-autopause'),
+    thermal_warn_c:             getNum('s-thermal-warn-c', parseInt),
+    thermal_pause_c:            getNum('s-thermal-pause-c', parseInt),
     export_name_template:       getVal('s-export-name-template'),
     ...(tlSec ? {ui_timeline_interval_seconds: tlSec, ui_timeline_interval_unit: tlUnit} : {}),
   };

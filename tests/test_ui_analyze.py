@@ -8,6 +8,7 @@ helpers.
 from __future__ import annotations
 
 import json
+import re
 import urllib.request
 
 import pytest
@@ -539,3 +540,93 @@ class TestPauseResumeUI:
         page.evaluate("() => endJobUI()")
         expect(page.locator("#btn-pause-job")).to_be_hidden()
         expect(page.locator("#job-paused-badge")).to_be_hidden()
+
+
+# ---------------------------------------------------------------------------
+# GPU thermal monitoring — job-header readout, warn toast, auto-pause
+# (roadmap-2026-07 plan 01, Stage 3)
+#
+# /api/status is stubbed so these exercise _pollThermalStatus() (utils.js)
+# purely off its documented gpu_temp_c/gpu_state contract — no real GPU or
+# subprocess involved.
+# ---------------------------------------------------------------------------
+
+def _stub_status(page: Page, *, gpu_temp_c=None, gpu_state="unavailable") -> None:
+    body = json.dumps({
+        "any_running": True, "analyze_running": True, "analyze_filename": "test.mkv",
+        "analyze_video_id": None, "analyze_paused": False, "pause_flag_set": False,
+        "gpu_temp_c": gpu_temp_c, "gpu_state": gpu_state, "active_jobs": 0,
+        "version": "test", "can_reveal": False,
+    })
+    page.route(
+        "**/api/status",
+        lambda route: route.fulfill(status=200, content_type="application/json", body=body),
+    )
+
+
+@skip_no_server
+class TestThermalJobHeaderUI:
+    def _ready(self, page: Page) -> None:
+        page.wait_for_selector("#video-list li[data-video-id]", timeout=5000)
+
+    def _start_pausable_job(self, page: Page) -> None:
+        page.evaluate("() => startJobUI(INGEST_STEPS, 'Analyzing test.mkv', true, true)")
+
+    def test_readout_hidden_when_gpu_unavailable(self, page: Page):
+        self._ready(page)
+        _stub_status(page, gpu_temp_c=None, gpu_state="unavailable")
+        self._start_pausable_job(page)
+        expect(page.locator("#job-gpu-temp")).to_be_hidden()
+        page.evaluate("() => endJobUI()")
+
+    def test_readout_shown_with_temp_when_available(self, page: Page):
+        self._ready(page)
+        _stub_status(page, gpu_temp_c=72.0, gpu_state="ok")
+        self._start_pausable_job(page)
+        expect(page.locator("#job-gpu-temp")).to_be_visible()
+        expect(page.locator("#job-gpu-temp")).to_contain_text("72")
+        page.evaluate("() => endJobUI()")
+
+    def test_warn_state_applies_warn_style_and_toasts_once(self, page: Page):
+        self._ready(page)
+        _stub_status(page, gpu_temp_c=87.0, gpu_state="warn")
+        self._start_pausable_job(page)
+        expect(page.locator("#job-gpu-temp")).to_have_class(re.compile(r"\bwarn\b"))
+        expect(page.locator("#toast-container .toast.warning")).to_contain_text("running hot")
+        page.evaluate("() => endJobUI()")
+
+    def test_pause_state_shows_paused_badge_and_autopause_toast(self, page: Page):
+        self._ready(page)
+        _stub_status(page, gpu_temp_c=92.0, gpu_state="pause")
+        self._start_pausable_job(page)
+        expect(page.locator("#job-gpu-temp")).to_have_class(re.compile(r"\bpause\b"))
+        expect(page.locator("#job-paused-badge")).to_be_visible()
+        expect(page.locator("#btn-pause-job")).to_have_text("Resume")
+        expect(page.locator("#toast-container .toast.warning")).to_contain_text("Auto-paused")
+        page.evaluate("() => endJobUI()")
+
+    def test_ok_state_hidden_from_pause_and_warn_styling(self, page: Page):
+        self._ready(page)
+        _stub_status(page, gpu_temp_c=60.0, gpu_state="ok")
+        self._start_pausable_job(page)
+        expect(page.locator("#job-gpu-temp")).not_to_have_class(re.compile(r"\bwarn\b"))
+        expect(page.locator("#job-gpu-temp")).not_to_have_class(re.compile(r"\bpause\b"))
+        expect(page.locator("#job-paused-badge")).to_be_hidden()
+        page.evaluate("() => endJobUI()")
+
+    def test_readout_cleared_when_job_ends(self, page: Page):
+        self._ready(page)
+        _stub_status(page, gpu_temp_c=72.0, gpu_state="ok")
+        self._start_pausable_job(page)
+        expect(page.locator("#job-gpu-temp")).to_be_visible()
+        page.evaluate("() => endJobUI()")
+        expect(page.locator("#job-gpu-temp")).to_be_hidden()
+
+    def test_non_pausable_job_never_polls_thermal_status(self, page: Page):
+        """A non-pausable job (e.g. Rescore) must not show the GPU readout —
+        thermal monitoring is scoped to analyze-type jobs only."""
+        self._ready(page)
+        _stub_status(page, gpu_temp_c=72.0, gpu_state="ok")
+        page.evaluate("() => startJobUI(SCORE_STEPS, 'Re-scoring clip', false, false)")
+        expect(page.locator("#job-gpu-temp")).to_be_hidden()
+        page.evaluate("() => endJobUI()")

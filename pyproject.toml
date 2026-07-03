@@ -32,6 +32,10 @@ dependencies = [
     # Phase 3: web UI backend and ASGI server.
     "fastapi>=0.110,<1.0",
     "uvicorn[standard]>=0.27,<1.0",
+
+    # Optional: GPU thermal monitoring (Settings -> Hardware). Silently disables
+    # (available()==False) when no NVIDIA GPU / driver is present -- see analyze/thermal.py.
+    "pynvml>=11.5,<13.0",
 ]
 
 [project.optional-dependencies]

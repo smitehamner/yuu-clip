@@ -56,6 +56,9 @@ An analysis or rescore that's currently running. You can watch its progress and 
 ### Pause After Current Video
 Hold a multi-video analysis before it starts the next video, without losing the progress already made — the video currently in progress always finishes first. Doesn't survive a server restart, and has no effect when analyzing a single video.
 
+### GPU Temperature Warning
+A heads-up when your GPU is running hot during analysis (NVIDIA graphics cards only). If it stays hot, analysis automatically pauses before the next video — configurable in Settings → Hardware.
+
 ---
 
 ## Transcription

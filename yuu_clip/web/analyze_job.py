@@ -51,6 +51,14 @@ class AnalyzeJob:
         # file's existence so /api/status can report state without a filesystem
         # check on every poll.
         self.pause_requested = False
+        # GPU thermal monitoring — set by the poll task started in
+        # /api/analyze/events (web/routes/analyze.py::_thermal_poll_loop) and read
+        # by /api/status. thermal_trigger holds this run's ThermalTrigger so a
+        # resume can call note_resumed() for auto-pause hysteresis.
+        self.gpu_temp_c: Optional[float] = None
+        self.gpu_state: str = "unavailable"
+        self.thermal_trigger = None
+        self._thermal_task: Optional[asyncio.Task] = None
 
     async def start(self) -> None:
         self.proc = await asyncio.create_subprocess_exec(
@@ -83,6 +91,8 @@ class AnalyzeJob:
             self._emit("[Error: analysis output stream failed]")
         finally:
             self.done = True
+            if self._thermal_task is not None:
+                self._thermal_task.cancel()
             for queue in self.subscribers:
                 queue.put_nowait(_QUEUE_DONE)
 

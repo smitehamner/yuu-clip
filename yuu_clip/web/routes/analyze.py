@@ -16,6 +16,7 @@ streams that command's stdout as SSE.
 """
 from __future__ import annotations
 
+import asyncio
 import importlib.util
 import json
 import statistics
@@ -315,6 +316,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             ctx.analyze_pending_filename = None
             ctx.analyze_pending_video_id = None
             await job.start()
+            job._thermal_task = asyncio.create_task(_thermal_poll_loop(ctx, job))
             return job.sse_response()
 
         if ctx.analyze_job is not None:
@@ -345,6 +347,9 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             # runners (each segment is its own separate AnalyzeJob) poll this between
             # segments, when there is briefly no "running" job for analyze_paused to key off.
             "pause_flag_set": pause_flag_exists(ctx.project_dir),
+            # GPU thermal monitoring — null/"unavailable" when no NVIDIA GPU is present.
+            "gpu_temp_c": job.gpu_temp_c if job_running else None,
+            "gpu_state": job.gpu_state if job_running else "unavailable",
             "active_jobs": ctx.active_jobs,
             "version": _VERSION_DISPLAY,
             "project_dir": str(ctx.project_dir),
@@ -413,6 +418,10 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             _log.error("Failed to remove pause flag: %s", e)
             raise HTTPException(500, f"Could not resume — the pause flag file could not be removed: {e}")
         job.pause_requested = False
+        if job.thermal_trigger is not None:
+            # Suppress auto-pause from immediately re-firing on a still-hot GPU —
+            # see ThermalTrigger.note_resumed.
+            job.thermal_trigger.note_resumed()
         _log.info("Analyze resumed")
         return {"status": "resumed"}
 
@@ -549,6 +558,46 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         return await subprocess_sse(cmd, ctx.project_dir)
 
     return router
+
+
+_THERMAL_POLL_INTERVAL_S = 10.0
+
+
+async def _thermal_poll_loop(ctx: ProjectContext, job) -> None:
+    """Poll GPU temperature every ~10s while *job* runs; warn / auto-pause on
+    sustained high temperature (see analyze.thermal.ThermalTrigger). Cancelled
+    from AnalyzeJob._pump's finally block when the job ends.
+
+    A no-op (returns immediately) when no NVIDIA GPU is available — the
+    monitor itself already logged one WARN explaining why.
+    """
+    from yuu_clip.analyze.pause import create_pause_flag
+    from yuu_clip.analyze.thermal import ThermalTrigger
+
+    monitor = ctx.thermal_monitor
+    if not monitor.available():
+        return
+    trigger = ThermalTrigger(monitor)
+    job.thermal_trigger = trigger
+    job.gpu_state = "ok"
+    try:
+        while not job.done:
+            cfg = ctx.config  # read thresholds fresh each poll — may change mid-run
+            result = trigger.poll(cfg.thermal_warn_c, cfg.thermal_pause_c, cfg.thermal_autopause_enabled)
+            job.gpu_temp_c = result.temp_c
+            job.gpu_state = result.state
+            if result.warn_triggered:
+                job._emit(f"[Warning: GPU at {result.temp_c:.0f}°C]")
+            if result.pause_triggered:
+                create_pause_flag(ctx.project_dir)
+                job.pause_requested = True
+                job._emit(
+                    f"[Auto-paused: GPU reached {result.temp_c:.0f}°C "
+                    "— will hold before the next video]"
+                )
+            await asyncio.sleep(_THERMAL_POLL_INTERVAL_S)
+    except asyncio.CancelledError:
+        pass
 
 
 def _resolve_video_path(req: IngestRequest, ctx) -> str:

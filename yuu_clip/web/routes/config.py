@@ -54,6 +54,10 @@ class ConfigPatch(BaseModel):
     speaker_match_threshold:      Optional[float] = None
     # Export
     export_name_template:         Optional[str]   = None
+    # Hardware — GPU thermal monitoring
+    thermal_warn_c:                Optional[int]   = None
+    thermal_pause_c:               Optional[int]   = None
+    thermal_autopause_enabled:     Optional[bool]  = None
 
 
 _CONFIG_FIELDS = (
@@ -68,6 +72,7 @@ _CONFIG_FIELDS = (
     "scene_detection_mode", "energy_mode", "silence_threshold_ms", "min_clip_ms",
     "diarization_backend", "huggingface_token", "speaker_match_threshold",
     "export_name_template",
+    "thermal_warn_c", "thermal_pause_c", "thermal_autopause_enabled",
 )
 
 
@@ -154,6 +159,9 @@ _CONFIG_PATCH_RULES: list[tuple[str, object]] = [
     ("huggingface_token",            lambda v: v.strip()),
     ("speaker_match_threshold",      _range_validator(0.0, 1.0, "speaker_match_threshold")),
     ("export_name_template",         _export_name_template_validator),
+    ("thermal_warn_c",               _range_validator(40, 110, "thermal_warn_c")),
+    ("thermal_pause_c",              _range_validator(40, 110, "thermal_pause_c")),
+    ("thermal_autopause_enabled",    lambda v: v),
 ]
 
 
@@ -173,10 +181,20 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     @router.patch("/api/config")
     def patch_config(body: ConfigPatch):
         cfg = ctx.config
+        # Transform first, apply after the cross-field check passes — a failed
+        # validation must leave cfg (the live in-memory config) untouched, not
+        # partially mutated with fields that were processed before the failure.
+        transformed: dict[str, object] = {}
         for field_name, transform in _CONFIG_PATCH_RULES:
             val = getattr(body, field_name)
             if val is not None:
-                setattr(cfg, field_name, transform(val))
+                transformed[field_name] = transform(val)
+        new_warn_c = transformed.get("thermal_warn_c", cfg.thermal_warn_c)
+        new_pause_c = transformed.get("thermal_pause_c", cfg.thermal_pause_c)
+        if new_warn_c >= new_pause_c:
+            raise HTTPException(400, "thermal_warn_c must be less than thermal_pause_c")
+        for field_name, value in transformed.items():
+            setattr(cfg, field_name, value)
         cfg.save_project(ctx.project_dir)
         _REDACT = {"claude_api_key", "huggingface_token"}
         _log.info("Config updated: %s", {

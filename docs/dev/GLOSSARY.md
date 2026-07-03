@@ -29,6 +29,7 @@ Most lookups only need this table: the authoritative user-facing term, the code 
 | Rescore | `score`, `/api/score` | Re-run scoring only |
 | Job | `ingest_proc` | The one active analysis/rescore operation |
 | Pause / Resume analysis | `analyze.pause` flag file | Hold a multi-video batch before the next video, without losing progress |
+| GPU temperature warning | `GpuThermalMonitor`, `ThermalTrigger` | Heads-up (and optional auto-pause) when the GPU runs hot during analysis |
 | Transcript | `Transcript`, `full_text` | Speech-to-text output, one per eligible track |
 | Speech-to-text model | `whisper_model` | Whisper — never bare "model" |
 | Transcription language | `whisper_language` | What Whisper hears (`""` = auto) — not UI localization |
@@ -227,6 +228,22 @@ its next video, without losing the progress already made.
 - **Notes:** The video currently in progress always finishes — pausing only holds the loop
   before the next one starts. In-memory / flag-file only; does not survive a server restart.
   On a single-video run this simply never fires.
+
+---
+
+### GPU Temperature Warning
+
+Non-blocking heads-up that the GPU is running hot during analysis, and the auto-pause
+that follows if it stays hot.
+
+- **Code:** `GpuThermalMonitor`, `ThermalTrigger` (`yuu_clip/analyze/thermal.py`);
+  config `thermal_warn_c` / `thermal_pause_c` / `thermal_autopause_enabled`
+- **UI label:** "GPU NN°C" readout in the job header (only shown when an NVIDIA GPU is
+  detected); warning toast at the warn threshold; "Auto-paused: GPU reached NN°C" toast
+  with a "Resume now" action at the pause threshold
+- **Notes:** Requires 3 consecutive over-threshold readings (~30s) before firing, to avoid
+  reacting to a single noisy sample. Auto-pause reuses the Pause/Resume Analysis flag —
+  the video in progress always finishes. Silently disabled on non-NVIDIA hardware.
 
 ---
 

@@ -63,6 +63,12 @@ class ProjectContext:
         # so a second open of the same recording does not launch a duplicate encode.
         self.proxy_generating: set[str] = set()
 
+        # GPU thermal monitoring — one lazily-initialised monitor per project context
+        # (pynvml init is not free); the analyze job lifecycle owns a fresh
+        # ThermalTrigger (streak/hysteresis state) per run. See analyze/thermal.py.
+        from yuu_clip.analyze.thermal import GpuThermalMonitor
+        self.thermal_monitor = GpuThermalMonitor()
+
     def get_db(self) -> Session:
         """Open a new SQLAlchemy session against this project's database."""
         return self._Session()

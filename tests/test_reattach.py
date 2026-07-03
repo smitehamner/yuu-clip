@@ -102,6 +102,8 @@ class TestStatusAnalyzeIdentity:
             done = False
             filename = "running.mkv"
             video_id = 42
+            gpu_temp_c = None
+            gpu_state = "unavailable"
 
         app = create_app(project_dir)
         with TestClient(app) as tc:

@@ -219,6 +219,8 @@ let _jobTimer      = null;
 let _jobHideTimer  = null;
 let _jobPausable   = false;
 let _jobPaused     = false;
+let _jobThermalPollTimer = null;
+let _lastGpuState  = 'unavailable';
 let _activeStepIdx = -1;
 let _stepStartTime = 0;
 let _stepProgress  = {}; // stepIdx -> {current, total}, cleared per job
@@ -261,7 +263,45 @@ function startJobUI(stepDefs, jobLabel, cancellable = false, pausable = false) {
   if (analyzeBtn) analyzeBtn.title = 'A job is already running';
   document.getElementById('btn-cancel-job').style.display = cancellable ? '' : 'none';
   _renderPauseUI();
+  if (_jobThermalPollTimer) clearInterval(_jobThermalPollTimer);
+  if (pausable) {
+    _lastGpuState = 'unavailable';
+    document.getElementById('job-gpu-temp').style.display = 'none';
+    _pollThermalStatus();
+    _jobThermalPollTimer = setInterval(_pollThermalStatus, 5000);
+  }
   if (window._renderBatchStatusPanel) _renderBatchStatusPanel();
+}
+
+// Polled every 5s (only while a pausable — i.e. analyze-type — job is active) to
+// drive the job-header GPU temperature readout and the warn/auto-pause notices.
+// Uses /api/status rather than SSE log-line matching so it also works correctly
+// across the JS sequential-segment runners' gaps between per-segment jobs.
+async function _pollThermalStatus() {
+  const status = await fetch('/api/status').then(r => r.json()).catch(() => null);
+  if (!status) return;
+  const readout = document.getElementById('job-gpu-temp');
+  if (readout) {
+    if (status.gpu_temp_c == null) {
+      readout.style.display = 'none';
+    } else {
+      readout.style.display = '';
+      readout.className = 'gpu-temp-readout' + (status.gpu_state === 'ok' ? '' : ` ${status.gpu_state}`);
+      readout.textContent = `GPU ${Math.round(status.gpu_temp_c)}°C`;
+    }
+  }
+  if (status.gpu_state === 'warn' && _lastGpuState !== 'warn' && _lastGpuState !== 'pause') {
+    showToast(`GPU running hot — ${Math.round(status.gpu_temp_c)}°C`, 'warning');
+  }
+  if (status.gpu_state === 'pause' && _lastGpuState !== 'pause') {
+    _jobPaused = true;
+    _renderPauseUI();
+    showToast(`Auto-paused: GPU reached ${Math.round(status.gpu_temp_c)}°C — will hold before the next video`, 'warning', {
+      durationMs: 20000,
+      action: {label: 'Resume now', onClick: togglePauseJob},
+    });
+  }
+  _lastGpuState = status.gpu_state;
 }
 
 // "Pause after current video" toggle in the job header — only shown for jobs
@@ -432,6 +472,9 @@ function endJobUI() {
   _jobPausable = false;
   _jobPaused   = false;
   _renderPauseUI();
+  if (_jobThermalPollTimer) { clearInterval(_jobThermalPollTimer); _jobThermalPollTimer = null; }
+  const gpuTemp = document.getElementById('job-gpu-temp');
+  if (gpuTemp) gpuTemp.style.display = 'none';
   _jobHideTimer = setTimeout(() => {
     _jobHideTimer = null;
     document.getElementById('job-status').classList.remove('visible');

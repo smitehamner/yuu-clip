@@ -109,7 +109,7 @@ header h1 { font-size: 16px; font-weight: 700; letter-spacing: .5px; color: var(
 .brand-logo { border-radius: 5px; object-fit: cover; flex-shrink: 0; }
 
 /* job status pill */
-.job-status { display: none; align-items: center; gap: 8px; background: var(--surface-raised); border: 1px solid var(--border); border-radius: 20px; padding: 4px 12px 4px 8px; font-size: 12px; color: var(--text); margin-right: auto; min-width: 0; }
+.job-status { display: none; align-items: center; flex-wrap: wrap; gap: 8px; background: var(--surface-raised); border: 1px solid var(--border); border-radius: 20px; padding: 4px 12px 4px 8px; font-size: 12px; color: var(--text); margin-right: auto; min-width: 0; }
 .job-status.visible { display: flex; }
 .spinner { width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; flex-shrink: 0; }
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -121,6 +121,9 @@ header h1 { font-size: 16px; font-weight: 700; letter-spacing: .5px; color: var(
 .step.active { background: var(--accent); color: var(--on-accent); }
 .step.done   { background: var(--green);  color: var(--on-green); }
 .paused-badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px; background: color-mix(in srgb, var(--warning) 20%, transparent); color: var(--warning); white-space: nowrap; flex-shrink: 0; }
+.gpu-temp-readout { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px; background: var(--border); color: var(--muted); white-space: nowrap; flex-shrink: 0; }
+.gpu-temp-readout.warn  { background: color-mix(in srgb, var(--warning) 20%, transparent); color: var(--warning); }
+.gpu-temp-readout.pause { background: color-mix(in srgb, var(--warn-hot) 20%, transparent); color: var(--warn-hot); }
 .header-spacer { margin-right: auto; }
 
 /* In-detail live analysis progress panel (survives page refresh). */

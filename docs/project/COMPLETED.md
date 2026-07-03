@@ -6,6 +6,40 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) — see the
 
 ---
 
+## Pause/resume analysis + hardware health monitoring (done, 2026-07-03)
+
+Roadmap plan 01 (`docs/dev/plans/roadmap-2026-07/01-pause-hardware-health.md`), three stages:
+
+- **Pause/resume** — a cross-process pause flag (`yuu_clip/analyze/pause.py`)
+  the CLI batch loop polls between videos; `POST /api/analyze/pause|resume`;
+  `/api/status` gains `analyze_paused`/`pause_flag_set`; "Pause after current
+  video" control in the job header (swaps to "Resume" when paused). The JS
+  sequential-segment runners (pre-split, re-split re-analyze) honor the same
+  flag between segments. The video in progress always finishes; single-video
+  runs simply never trigger it. Not durable across a server restart.
+- **Measured processing-time estimate** — `/api/estimate` uses medians from
+  the creator's last 10 runs (keyed by whisper model + device) once ≥2
+  matching samples exist, falling back to the static formula otherwise
+  (`"source": "measured"|"estimated"`). A long-run warning block
+  (`analyze_warn_hours`, default 2h) suggests splitting the recording or
+  analyzing fewer files at once.
+- **GPU thermal monitoring** — `yuu_clip/analyze/thermal.py` (`GpuThermalMonitor`
+  wraps `pynvml`, silently inert on non-NVIDIA hardware; `ThermalTrigger` is
+  the per-run consecutive-sample debounce/hysteresis state machine) polls
+  every ~10s during analysis; warns after 3 consecutive samples at/above the
+  warn threshold, auto-pauses after 3 consecutive samples at/above the pause
+  threshold (reusing the pause-flag mechanism), with hysteresis so a
+  still-hot GPU doesn't immediately re-pause after Resume. Configurable in
+  Settings → Hardware: warn/pause °C thresholds (defaults 85/90, must satisfy
+  warn < pause) and an auto-pause on/off toggle.
+
++21 tests in `tests/test_pause.py`, +18 in `tests/test_thermal.py`, plus
+measured-estimate and thermal-status/config coverage added to
+`tests/test_analyze.py` and `tests/test_config.py`; UI coverage in
+`tests/test_ui_analyze.py` and `tests/test_ui_settings.py`.
+
+---
+
 ## Quick wins Stage 9 — drag-and-drop analyze (done, 2026-07-03)
 
 Dragging a video file over the window (Electron only) shows a full-window

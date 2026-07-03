@@ -246,6 +246,13 @@ class Config:
     # long-run warning suggesting the recording be split or analyzed in smaller batches.
     analyze_warn_hours: float = 2.0
 
+    # GPU thermal monitoring (Settings -> Hardware). Silently inert when no NVIDIA
+    # GPU is detected (yuu_clip/analyze/thermal.py). thermal_warn_c must stay below
+    # thermal_pause_c — enforced in web/routes/config.py on save.
+    thermal_warn_c: int = 85
+    thermal_pause_c: int = 90
+    thermal_autopause_enabled: bool = True
+
     @classmethod
     def load(cls, project_dir: Path) -> "Config":
         """Load config, merging global defaults with project overrides."""

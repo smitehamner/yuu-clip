@@ -286,3 +286,58 @@ class TestGlossaryFilter:
         all_terms = page.eval_on_selector_all("#glossary-content .glossary-term", "els => els.length")
         assert visible_terms == all_terms
         page.evaluate("closeGlossaryModal()")
+
+
+# ---------------------------------------------------------------------------
+# Hardware section — GPU thermal thresholds (roadmap-2026-07 plan 01, Stage 3)
+#
+# Only the rejected-patch test clicks Save — a failed cross-field validation
+# is guaranteed by tests/test_config.py to leave the live config untouched, so
+# it can't write bad values into the project's real config.json. Every other
+# test here only inspects/dirties fields, same convention as
+# TestSettingsPanelChrome above.
+# ---------------------------------------------------------------------------
+
+@skip_no_server
+class TestHardwareSettingsSection:
+    def _open_settings(self, page: Page) -> None:
+        page.goto(LIVE_URL)
+        page.wait_for_selector("#video-list li[data-video-id]", timeout=5000)
+        page.click("#btn-settings-header")
+        page.wait_for_selector("#settings-panel.visible", timeout=3000)
+        page.wait_for_function(
+            "document.getElementById('s-paths-display').textContent.trim().length > 0",
+            timeout=3000,
+        )
+
+    def test_jump_link_scrolls_hardware_section_into_view(self, page: Page):
+        self._open_settings(page)
+        page.click(".settings-jump-link:has-text('Hardware')")
+        page.wait_for_function(
+            "document.getElementById('settings-panel').scrollTop > 0", timeout=3000
+        )
+        expect(page.locator("#settings-sec-hardware")).to_be_in_viewport()
+
+    def test_fields_prefilled_with_a_valid_warn_below_pause_pair(self, page: Page):
+        self._open_settings(page)
+        warn = float(page.eval_on_selector("#s-thermal-warn-c", "el => el.value"))
+        pause = float(page.eval_on_selector("#s-thermal-pause-c", "el => el.value"))
+        assert 40 <= warn < pause <= 110
+        assert page.eval_on_selector("#s-thermal-autopause", "el => el.checked") in (True, False)
+
+    def test_changing_warn_temp_marks_settings_dirty(self, page: Page):
+        self._open_settings(page)
+        page.fill("#s-thermal-warn-c", "70")
+        expect(page.locator("#btn-settings-save")).to_be_enabled()
+
+    def test_toggling_autopause_marks_settings_dirty(self, page: Page):
+        self._open_settings(page)
+        page.click("#s-thermal-autopause")
+        expect(page.locator("#btn-settings-save")).to_be_enabled()
+
+    def test_warn_at_or_above_pause_rejected_on_save(self, page: Page):
+        self._open_settings(page)
+        page.fill("#s-thermal-warn-c", "95")
+        page.fill("#s-thermal-pause-c", "90")
+        page.click("#btn-settings-save")
+        expect(page.locator("#toast-container .toast.error")).to_contain_text("thermal_warn_c")

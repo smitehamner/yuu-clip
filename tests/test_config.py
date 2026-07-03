@@ -450,3 +450,58 @@ class TestConfigPatchWhisperModel:
         r = client.patch("/api/config", json={"scorer_llm_weight": -2.0})
         assert r.status_code == 200
         assert r.json()["scorer_llm_weight"] == pytest.approx(0.0)
+
+
+# ---------------------------------------------------------------------------
+# Thermal config — GPU warn/pause temperatures (roadmap plan 01, Stage 3)
+# ---------------------------------------------------------------------------
+
+class TestThermalConfig:
+    def test_defaults_in_get_config(self, client):
+        d = client.get("/api/config").json()
+        assert d["thermal_warn_c"] == 85
+        assert d["thermal_pause_c"] == 90
+        assert d["thermal_autopause_enabled"] is True
+
+    def test_valid_thresholds_accepted(self, client):
+        r = client.patch("/api/config", json={"thermal_warn_c": 80, "thermal_pause_c": 88})
+        assert r.status_code == 200
+        assert r.json()["thermal_warn_c"] == 80
+        assert r.json()["thermal_pause_c"] == 88
+
+    def test_autopause_toggle_accepted(self, client):
+        r = client.patch("/api/config", json={"thermal_autopause_enabled": False})
+        assert r.status_code == 200
+        assert r.json()["thermal_autopause_enabled"] is False
+
+    def test_warn_equal_to_pause_rejected(self, client):
+        r = client.patch("/api/config", json={"thermal_warn_c": 90, "thermal_pause_c": 90})
+        assert r.status_code == 400
+
+    def test_warn_above_pause_rejected(self, client):
+        r = client.patch("/api/config", json={"thermal_warn_c": 95, "thermal_pause_c": 90})
+        assert r.status_code == 400
+
+    def test_rejected_patch_does_not_mutate_existing_config(self, client):
+        """A failed cross-field check must leave the live config untouched —
+        not partially apply fields processed before the validation ran."""
+        before = client.get("/api/config").json()
+        r = client.patch("/api/config", json={"thermal_warn_c": 100, "thermal_pause_c": 95})
+        assert r.status_code == 400
+        after = client.get("/api/config").json()
+        assert after["thermal_warn_c"] == before["thermal_warn_c"]
+        assert after["thermal_pause_c"] == before["thermal_pause_c"]
+
+    def test_raising_pause_then_warn_together_is_valid(self, client):
+        # Only valid if applied together — proves the check uses the *new*
+        # combined values, not the stale cfg.thermal_pause_c mid-loop.
+        r = client.patch("/api/config", json={"thermal_warn_c": 100, "thermal_pause_c": 105})
+        assert r.status_code == 200
+
+    def test_thermal_warn_c_out_of_range_rejected(self, client):
+        r = client.patch("/api/config", json={"thermal_warn_c": 20})
+        assert r.status_code == 400
+
+    def test_thermal_pause_c_out_of_range_rejected(self, client):
+        r = client.patch("/api/config", json={"thermal_pause_c": 200})
+        assert r.status_code == 400

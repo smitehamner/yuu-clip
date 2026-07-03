@@ -62,6 +62,9 @@ class _RunningJob:
     filename = "session.mkv"
     video_id = None
     pause_requested = False
+    gpu_temp_c = None
+    gpu_state = "unavailable"
+    thermal_trigger = None
 
 
 class _FinishedJob:

@@ -302,7 +302,8 @@ function renderEstimate(info, data) {
       <span aria-hidden="true">&#9888;</span>
       <span>This is a long analysis (over ${data.warn_hours}h estimated). Consider splitting the
       recording into smaller segments before analyzing (see Pre-split below), or analyzing fewer
-      recordings at once.</span>
+      recordings at once. You can also pause between videos, or let auto-pause hold it if your
+      GPU runs hot (Settings &rarr; Hardware).</span>
     </div>` : '';
 
   document.getElementById('estimate-area').innerHTML = `

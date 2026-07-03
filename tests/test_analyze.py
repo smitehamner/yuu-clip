@@ -873,6 +873,163 @@ class TestStatus:
 
 
 # ---------------------------------------------------------------------------
+# GPU thermal monitoring — status payload + poll-loop integration (roadmap
+# plan 01, Stage 3)
+# ---------------------------------------------------------------------------
+
+class TestThermalStatusFields:
+    def test_idle_status_has_null_temp_and_unavailable_state(self, client):
+        d = client.get("/api/status").json()
+        assert d["gpu_temp_c"] is None
+        assert d["gpu_state"] == "unavailable"
+
+    def test_running_job_surfaces_its_thermal_fields(self, project_dir):
+        from fastapi.testclient import TestClient
+
+        from yuu_clip.web.app import create_app
+
+        class _RunningJob:
+            done = False
+            filename = "session.mkv"
+            video_id = None
+            gpu_temp_c = 72.0
+            gpu_state = "ok"
+
+        app = create_app(project_dir)
+        with TestClient(app) as tc:
+            app.state.ctx.analyze_job = _RunningJob()
+            d = tc.get("/api/status").json()
+        assert d["gpu_temp_c"] == 72.0
+        assert d["gpu_state"] == "ok"
+
+    def test_finished_job_reports_unavailable_not_stale_reading(self, project_dir):
+        from fastapi.testclient import TestClient
+
+        from yuu_clip.web.app import create_app
+
+        class _FinishedJob:
+            done = True
+            filename = "session.mkv"
+            video_id = None
+            gpu_temp_c = 95.0
+            gpu_state = "pause"
+
+        app = create_app(project_dir)
+        with TestClient(app) as tc:
+            app.state.ctx.analyze_job = _FinishedJob()
+            d = tc.get("/api/status").json()
+        assert d["gpu_temp_c"] is None
+        assert d["gpu_state"] == "unavailable"
+
+
+class TestThermalPollLoopIntegration:
+    """End-to-end: a hot injected sampler drives the real /api/analyze/events
+    lifecycle through warn -> auto-pause, using a tiny poll interval so the
+    test doesn't wait on the real ~10s cadence."""
+
+    def _run(self, project_dir, monkeypatch, *, sampler, sleep_s=1.0):
+        import sys
+
+        from fastapi.testclient import TestClient
+
+        from yuu_clip.analyze.thermal import GpuThermalMonitor
+        from yuu_clip.web.app import create_app
+        from yuu_clip.web.routes import analyze as analyze_routes
+
+        monkeypatch.setattr(analyze_routes, "_THERMAL_POLL_INTERVAL_S", 0.01)
+        app = create_app(project_dir)
+        app.state.ctx.thermal_monitor = GpuThermalMonitor(sampler=sampler)
+        with TestClient(app) as tc:
+            ctx = app.state.ctx
+            ctx.analyze_cmd = [sys.executable, "-c", f"import time; time.sleep({sleep_s})"]
+            with tc.stream("GET", "/api/analyze/events") as resp:
+                lines = list(resp.iter_lines())
+        return app, lines
+
+    def test_hot_reading_warns_then_auto_pauses(self, project_dir, monkeypatch):
+        import json as _json
+
+        app, lines = self._run(project_dir, monkeypatch, sampler=lambda: 95.0)
+        data_values = [_json.loads(ln.removeprefix("data: ")) for ln in lines if ln.startswith("data: ")]
+        assert any("[Warning: GPU at 95" in v for v in data_values if isinstance(v, str))
+        assert any("[Auto-paused: GPU reached 95" in v for v in data_values if isinstance(v, str))
+
+        from yuu_clip.analyze.pause import pause_flag_exists
+        assert pause_flag_exists(app.state.ctx.project_dir) is True
+        assert app.state.ctx.analyze_job.gpu_state == "pause"
+        assert app.state.ctx.analyze_job.gpu_temp_c == 95.0
+
+    def test_cool_reading_never_warns_or_pauses(self, project_dir, monkeypatch):
+        import json as _json
+
+        app, lines = self._run(project_dir, monkeypatch, sampler=lambda: 50.0)
+        data_values = [_json.loads(ln.removeprefix("data: ")) for ln in lines if ln.startswith("data: ")]
+        assert not any("Warning: GPU" in v for v in data_values if isinstance(v, str))
+        assert not any("Auto-paused" in v for v in data_values if isinstance(v, str))
+
+        from yuu_clip.analyze.pause import pause_flag_exists
+        assert pause_flag_exists(app.state.ctx.project_dir) is False
+        assert app.state.ctx.analyze_job.gpu_state == "ok"
+
+    def test_autopause_disabled_warns_but_never_pauses(self, project_dir, monkeypatch):
+        import json as _json
+        import sys
+
+        from fastapi.testclient import TestClient
+
+        from yuu_clip.analyze.thermal import GpuThermalMonitor
+        from yuu_clip.web.app import create_app
+        from yuu_clip.web.routes import analyze as analyze_routes
+
+        monkeypatch.setattr(analyze_routes, "_THERMAL_POLL_INTERVAL_S", 0.01)
+        app = create_app(project_dir)
+        app.state.ctx.thermal_monitor = GpuThermalMonitor(sampler=lambda: 95.0)
+        app.state.ctx.config.thermal_autopause_enabled = False
+        with TestClient(app) as tc:
+            ctx = app.state.ctx
+            ctx.analyze_cmd = [sys.executable, "-c", "import time; time.sleep(1.0)"]
+            with tc.stream("GET", "/api/analyze/events") as resp:
+                lines = list(resp.iter_lines())
+        data_values = [_json.loads(ln.removeprefix("data: ")) for ln in lines if ln.startswith("data: ")]
+        assert any("[Warning: GPU at 95" in v for v in data_values if isinstance(v, str))
+        assert not any("Auto-paused" in v for v in data_values if isinstance(v, str))
+
+        from yuu_clip.analyze.pause import pause_flag_exists
+        assert pause_flag_exists(app.state.ctx.project_dir) is False
+
+    def test_unavailable_monitor_is_a_noop(self, project_dir, monkeypatch):
+        """When available() is False (no NVIDIA GPU), the poll loop must return
+        immediately without ever writing job.gpu_state/gpu_temp_c."""
+        import json as _json
+        import sys
+
+        from fastapi.testclient import TestClient
+
+        from yuu_clip.analyze.thermal import GpuThermalMonitor
+        from yuu_clip.web.app import create_app
+        from yuu_clip.web.routes import analyze as analyze_routes
+
+        monkeypatch.setattr(analyze_routes, "_THERMAL_POLL_INTERVAL_S", 0.01)
+        app = create_app(project_dir)
+
+        def _boom():
+            raise AssertionError("sampler must never be called when unavailable")
+
+        monitor = GpuThermalMonitor(sampler=None)
+        monkeypatch.setattr(monitor, "available", lambda: False)
+        app.state.ctx.thermal_monitor = monitor
+        with TestClient(app) as tc:
+            ctx = app.state.ctx
+            ctx.analyze_cmd = [sys.executable, "-c", "print('done')"]
+            with tc.stream("GET", "/api/analyze/events") as resp:
+                lines = list(resp.iter_lines())
+        data_values = [_json.loads(ln.removeprefix("data: ")) for ln in lines if ln.startswith("data: ")]
+        assert not any("GPU" in v for v in data_values if isinstance(v, str))
+        assert app.state.ctx.analyze_job.gpu_state == "unavailable"
+        assert app.state.ctx.analyze_job.gpu_temp_c is None
+
+
+# ---------------------------------------------------------------------------
 # Rescore-clips SSE — 404 guard
 # ---------------------------------------------------------------------------
 
