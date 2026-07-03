@@ -50,6 +50,7 @@ function _applyVideoFilters(videos) {
   }
   const sort = AppState.videoSort || 'recent';
   if (sort === 'title')       result.sort((a, b) => (a.title || a.filename || '').localeCompare(b.title || b.filename || ''));
+  else if (sort === 'filename') result.sort((a, b) => (a.filename || '').localeCompare(b.filename || '', undefined, { numeric: true }));
   else if (sort === 'length') result.sort((a, b) => (b.duration_ms || 0) - (a.duration_ms || 0));
   else if (sort === 'clips')  result.sort((a, b) => (b.clip_count || 0) - (a.clip_count || 0));
   // 'recent' keeps the server order (created_at desc).

@@ -52,6 +52,20 @@ All Phase 4 items shipped. See [COMPLETED.md](COMPLETED.md).
 Smaller improvements and UX debt that don't block initial distribution but are high-value for
 regular users.
 
+- [ ] **Preview proxy for fast multi-hour scrubbing** — full-video preview is unusably slow for
+  long recordings because the source is a multi-hour `.mkv` (not a browser-seekable container);
+  Chromium linear-scans to seek. Decision (2026-07-02): generate a **downscaled 720p H.264 NVENC
+  proxy** per recording, cache it, and point all in-app playback (split editor + clip preview) at
+  it. Generate opportunistically during the analyze pass and on-demand (with SSE progress) the
+  first time a recording without one is opened. Scope: ffmpeg NVENC command with CPU-x264 fallback
+  and a no-GPU path; a cache dir + DB field (proxy path / generated_at / source mtime for
+  invalidation); a generate-on-demand route with SSE; wire `split-preview-video` and the clip
+  preview `<video>` to prefer the proxy; hook into analyze. **Must** show a visible "Preview
+  quality (720p)" indicator whenever the proxy is playing (vs original) so the user knows they're
+  not seeing full quality — e.g. a badge on the player. The Python→Electron native-file-protocol
+  swap (drop the byte-pump in the packaged app) is a *secondary* follow-up; it helps startup but
+  not MKV seeking and doesn't help browser-dev mode. Interim shipped: media chunk 64KB→1MB.
+
 - [ ] **Map and end-to-end test expected user paths** — enumerate the journeys a non-technical user
   actually takes (analyze → review → edit/retranscribe → export → re-export; diarize → captions; merge/split
   → export; reel build) and verify each does the *expected* thing without a hidden second step. Motivating

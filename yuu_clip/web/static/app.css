@@ -508,6 +508,11 @@ kbd { background: var(--surface); border: 1px solid var(--border); border-radius
 .split-marker:hover .split-marker-x,
 .split-marker-x:focus-visible { opacity: 1; pointer-events: auto; }
 
+/* Suggested split points: a wide transparent hitbox (set inline) around a thin
+   dashed line, so the 1px valley marker is easy to click. Brighten on hover. */
+.split-suggestion-pin > div { border-left-color: rgba(255,255,255,0.35); transition: border-left-color .1s; }
+.split-suggestion-pin:hover > div { border-left-color: var(--accent); }
+
 /* ── universal focus ring ── */
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .btn:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; box-shadow: 0 0 0 4px rgba(124,106,247,.25); }

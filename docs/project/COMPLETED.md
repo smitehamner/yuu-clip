@@ -5,6 +5,25 @@ Phases 1–3 have been moved to [COMPLETED-archive.md](COMPLETED-archive.md).
 
 ---
 
+## Recordings-list + split-timeline usability pass (done, 2026-07-02)
+
+Three small usability fixes from direct-use feedback:
+
+- **Sort recordings by filename** — new "Filename" option in the recordings
+  sidebar sort (`videos-sort`), numeric-aware (`localeCompare(..., {numeric:true})`)
+  so date/number-stamped OBS filenames order correctly. Distinct from the existing
+  "Title" sort (which falls back to filename).
+- **Easier-to-click suggested splits** — the energy-valley suggestion pins in the
+  split editor went from a 1px line to a 14px transparent hitbox (`.split-suggestion-pin`)
+  around the dashed line, and now brighten to the accent color on hover.
+- **Timeline zoom** — the main split editor timeline gained zoom in/out/Fit
+  controls plus Ctrl/⌘+scroll (zoom-to-cursor), inside a horizontal-scroll
+  wrapper. All %-positioned overlay layers scale for free; the waveform canvas
+  redraws at the new pixel width (clamped to 16000px). Zoom resets on open.
+  +3 UI tests; the M6-4 flex-shrink test now checks the scroll wrapper.
+- **Media streaming chunk** 64KB → 1MB (minor throughput help; not the fix for
+  multi-hour MKV scrubbing — see the ROADMAP preview-proxy item).
+
 ## UX review info/management modals pass — M9-1–M9-4, L9-1/2/3 (done, 2026-07-02)
 
 Prompt 13 of the 2026-07 UX review plan (`UX_REVIEW_PLAN.md`): Getting

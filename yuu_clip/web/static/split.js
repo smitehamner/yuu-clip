@@ -18,6 +18,13 @@ let _dragActive     = false;
 // Suggestion pins (energy-valley seconds)
 let _suggestionPins = [];    // [sec, …]
 
+// Timeline zoom (main split editor only): 1 = fit whole recording, higher =
+// wider bar inside a horizontal-scroll container. All overlay layers are
+// %-positioned so they scale for free; only the waveform canvas needs a redraw.
+let _splitZoom = 1;
+const _SPLIT_ZOOM_MIN = 1;
+const _SPLIT_ZOOM_MAX = 50;
+
 const _SUGGESTION_MIN_GAP_S = 30;
 const _SUGGESTION_COUNT     = 8;
 
@@ -28,6 +35,10 @@ const SPLIT_BAR_INSTRUCTIONS =
 document.getElementById('pre-split-instructions').textContent = SPLIT_BAR_INSTRUCTIONS;
 document.getElementById('split-instructions').textContent =
   `${SPLIT_BAR_INSTRUCTIONS} Click a marker to jump the preview there. Each segment can be analyzed independently after confirming.`;
+
+// Ctrl/⌘+wheel over the timeline zooms; passive:false so preventDefault sticks.
+document.getElementById('split-timeline-scroll')
+  ?.addEventListener('wheel', _onSplitZoomWheel, { passive: false });
 
 function isSplitEditorOpen() {
   return _splitVideoId !== null;
@@ -64,6 +75,7 @@ async function openSplitEditor(videoId) {
   // A destructive re-analyze choice must not persist into the next session.
   document.querySelector('input[name="split-action"][value="partition"]').checked = true;
 
+  _resetSplitZoom();
   _renderSplitEditor();
 
   // Fetch overlay data in parallel; render progressively
@@ -211,14 +223,70 @@ function _computeSuggestionPins() {
   _suggestionPins = pins.sort((a, b) => a - b);
 }
 
+// ── timeline zoom ─────────────────────────────────────────────────────────────
+
+function _fmtZoom(z) {
+  return (z >= 9.95 ? Math.round(z) : Math.round(z * 10) / 10) + '×';
+}
+
+function _resetSplitZoom() {
+  _splitZoom = 1;
+  const bar    = document.getElementById('split-timeline-bar');
+  const scroll = document.getElementById('split-timeline-scroll');
+  const label  = document.getElementById('split-zoom-label');
+  if (bar)    bar.style.width = '100%';
+  if (scroll) scroll.scrollLeft = 0;
+  if (label)  label.textContent = _fmtZoom(1);
+  _updateSplitZoomButtons();
+}
+
+function _updateSplitZoomButtons() {
+  const out = document.getElementById('split-zoom-out');
+  const inb = document.getElementById('split-zoom-in');
+  if (out) out.disabled = _splitZoom <= _SPLIT_ZOOM_MIN + 1e-6;
+  if (inb) inb.disabled = _splitZoom >= _SPLIT_ZOOM_MAX - 1e-6;
+}
+
+// Set the zoom factor, keeping the timeline point under *anchorClientX* fixed on
+// screen (falls back to the viewport centre for button clicks).
+function _setSplitZoom(zoom, anchorClientX) {
+  const bar    = document.getElementById('split-timeline-bar');
+  const scroll = document.getElementById('split-timeline-scroll');
+  const label  = document.getElementById('split-zoom-label');
+  if (!bar || !scroll) return;
+
+  const newZoom = Math.max(_SPLIT_ZOOM_MIN, Math.min(_SPLIT_ZOOM_MAX, zoom));
+  const oldW    = bar.offsetWidth || scroll.clientWidth;
+  const anchorX = anchorClientX != null
+    ? anchorClientX - scroll.getBoundingClientRect().left
+    : scroll.clientWidth / 2;
+  const anchorFrac = oldW ? (scroll.scrollLeft + anchorX) / oldW : 0;
+
+  _splitZoom = newZoom;
+  bar.style.width = (newZoom * 100) + '%';
+  if (label) label.textContent = _fmtZoom(newZoom);
+
+  _drawWaveform();                       // redraw at the new pixel width
+  scroll.scrollLeft = anchorFrac * bar.offsetWidth - anchorX;
+  _updateSplitZoomButtons();
+}
+
+function _onSplitZoomWheel(e) {
+  if (!(e.ctrlKey || e.metaKey)) return;  // plain wheel keeps scrolling/panning
+  e.preventDefault();
+  _setSplitZoom(_splitZoom * (e.deltaY < 0 ? 1.25 : 1 / 1.25), e.clientX);
+}
+
 // ── canvas waveform ──────────────────────────────────────────────────────────
 
 function _drawWaveform() {
   const canvas = document.getElementById('split-waveform-canvas');
   if (!canvas || !_splitEnergyFlat.length || !_splitDurationS) return;
 
-  // Use layout size, not CSS pixel size
-  const W = canvas.offsetWidth || 800;
+  // Use layout size, not CSS pixel size. Clamp the bitmap width so a deep zoom
+  // on a multi-hour recording can't exceed the browser's max canvas dimension;
+  // CSS stretches the (soft, semi-transparent) waveform over any excess.
+  const W = Math.min(canvas.offsetWidth || 800, 16000);
   const H = canvas.offsetHeight || 60;
   canvas.width  = W;
   canvas.height = H;
@@ -282,10 +350,12 @@ function _renderSuggestionLayer() {
     // Hide if already a real marker
     if (_splitPoints.some(p => Math.abs(p - sec) < 1)) return '';
     const pct = (sec / _splitDurationS * 100).toFixed(3);
-    return `<div data-pin="${sec}"
-                 style="position:absolute;left:${pct}%;top:0;bottom:0;width:1px;border-left:1.5px dashed rgba(255,255,255,0.35);cursor:pointer;pointer-events:auto"
-                 title="Quiet valley at ${_fmtSplitTime(sec)} — click to place marker"
-                 onclick="event.stopPropagation();_promoteSuggestionPin(${sec})"></div>`;
+    return `<div data-pin="${sec}" class="split-suggestion-pin"
+                 style="position:absolute;left:${pct}%;top:0;bottom:0;width:14px;transform:translateX(-50%);cursor:pointer;pointer-events:auto;display:flex;justify-content:center"
+                 title="Quiet valley at ${_fmtSplitTime(sec)} — click to place a split point here"
+                 onclick="event.stopPropagation();_promoteSuggestionPin(${sec})">
+               <div style="width:0;border-left:1.5px dashed rgba(255,255,255,0.35)"></div>
+             </div>`;
   }).join('');
 }
 

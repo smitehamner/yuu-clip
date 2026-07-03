@@ -482,6 +482,7 @@
           <select id="videos-sort" class="clips-sort-select" aria-label="Sort recordings by" onchange="setVideoSort(this.value)">
             <option value="recent">&#128338; Recent</option>
             <option value="title">&#128292; Title</option>
+            <option value="filename">&#128196; Filename</option>
             <option value="length">&#8986; Length</option>
             <option value="clips">&#127902; Clips</option>
           </select>
@@ -688,14 +689,25 @@
 
   <div id="split-instructions" style="font-size:12px;color:var(--muted)"></div>
 
-  <!-- Timeline bar -->
-  <div style="position:relative;height:60px;flex-shrink:0;background:var(--surface);border:1px solid var(--border);border-radius:6px;cursor:crosshair;user-select:none" id="split-timeline-bar" onclick="splitTimelineClick(event)">
-    <canvas id="split-waveform-canvas" style="position:absolute;inset:0;width:100%;height:100%;border-radius:6px;pointer-events:none"></canvas>
-    <div id="split-scene-layer"    style="position:absolute;inset:0;pointer-events:none"></div>
-    <div id="split-suggestion-layer" style="position:absolute;inset:0;pointer-events:none"></div>
-    <div id="split-clips-layer"    style="position:absolute;inset:0;pointer-events:none"></div>
-    <div id="split-segments-layer" style="position:absolute;inset:0;pointer-events:none;display:flex"></div>
-    <div id="split-markers-layer"  style="position:absolute;inset:0;pointer-events:none"></div>
+  <!-- Timeline zoom controls -->
+  <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)">
+    <span>&#128269; Zoom</span>
+    <button type="button" class="btn ghost" id="split-zoom-out" style="padding:1px 9px;font-size:15px;line-height:1" title="Zoom out" aria-label="Zoom timeline out" onclick="_setSplitZoom(_splitZoom/1.6)">&#8722;</button>
+    <span id="split-zoom-label" style="min-width:34px;text-align:center">1&#215;</span>
+    <button type="button" class="btn ghost" id="split-zoom-in" style="padding:1px 9px;font-size:15px;line-height:1" title="Zoom in" aria-label="Zoom timeline in" onclick="_setSplitZoom(_splitZoom*1.6)">+</button>
+    <button type="button" class="btn ghost" id="split-zoom-fit" style="padding:1px 9px;font-size:12px" title="Reset zoom to fit the whole recording" aria-label="Reset zoom to fit" onclick="_setSplitZoom(1)">Fit</button>
+    <span style="opacity:0.65">&middot; Ctrl+scroll to zoom, scroll to pan</span>
+  </div>
+  <!-- Timeline bar (horizontally scrollable when zoomed) -->
+  <div id="split-timeline-scroll" style="overflow-x:auto;overflow-y:hidden;flex-shrink:0">
+    <div style="position:relative;height:60px;width:100%;background:var(--surface);border:1px solid var(--border);border-radius:6px;cursor:crosshair;user-select:none" id="split-timeline-bar" onclick="splitTimelineClick(event)">
+      <canvas id="split-waveform-canvas" style="position:absolute;inset:0;width:100%;height:100%;border-radius:6px;pointer-events:none"></canvas>
+      <div id="split-scene-layer"    style="position:absolute;inset:0;pointer-events:none"></div>
+      <div id="split-suggestion-layer" style="position:absolute;inset:0;pointer-events:none"></div>
+      <div id="split-clips-layer"    style="position:absolute;inset:0;pointer-events:none"></div>
+      <div id="split-segments-layer" style="position:absolute;inset:0;pointer-events:none;display:flex"></div>
+      <div id="split-markers-layer"  style="position:absolute;inset:0;pointer-events:none"></div>
+    </div>
   </div>
   <!-- Overlay legend (M6-1) -->
   <div id="split-legend" style="display:flex;flex-wrap:wrap;gap:14px;align-items:center;font-size:11px;color:var(--muted)">

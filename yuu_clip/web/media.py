@@ -18,7 +18,7 @@ from typing import Optional
 from fastapi import HTTPException, Request
 from starlette.responses import Response, StreamingResponse
 
-_CHUNK = 64 * 1024
+_CHUNK = 1024 * 1024
 
 
 def _share_delete_opener(path, flags):

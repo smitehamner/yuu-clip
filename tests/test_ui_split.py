@@ -140,12 +140,14 @@ class TestSplitLegendAndLayout:
             expect(legend).to_contain_text(term)
 
     def test_timeline_bars_do_not_flex_shrink(self, page: Page):
-        # M6-4 — bars must keep their height as the segment list grows.
-        for bar_id in ("split-timeline-bar", "pre-split-timeline-bar"):
+        # M6-4 — the timeline must keep its height as the segment list grows.
+        # For the main editor the flex child is now the zoom scroll wrapper
+        # (the bar lives inside it); the pre-split bar is still a direct child.
+        for element_id in ("split-timeline-scroll", "pre-split-timeline-bar"):
             shrink = page.evaluate(
-                f"getComputedStyle(document.getElementById('{bar_id}')).flexShrink"
+                f"getComputedStyle(document.getElementById('{element_id}')).flexShrink"
             )
-            assert shrink == "0", f"#{bar_id} flex-shrink is {shrink}, expected 0"
+            assert shrink == "0", f"#{element_id} flex-shrink is {shrink}, expected 0"
 
     def test_instruction_copy_shared_between_editors(self, page: Page):
         # L6-3 + H6-1 — one base string in both editors, teaching the × remove
@@ -155,6 +157,41 @@ class TestSplitLegendAndLayout:
         assert pre_text and main_text.startswith(pre_text)
         assert "×" in pre_text
         assert "Click a marker to remove" not in main_text
+
+
+@skip_no_server
+class TestSplitTimelineZoom:
+    def test_zoom_in_widens_timeline_and_makes_it_scrollable(self, split_editor: Page):
+        bar = split_editor.locator("#split-timeline-bar")
+        base_width = bar.bounding_box()["width"]
+        expect(split_editor.locator("#split-zoom-out")).to_be_disabled()  # at Fit
+
+        split_editor.click("#split-zoom-in")
+        split_editor.click("#split-zoom-in")
+
+        assert bar.bounding_box()["width"] > base_width + 1
+        scroll_w = split_editor.evaluate(
+            "document.getElementById('split-timeline-scroll').scrollWidth"
+        )
+        client_w = split_editor.evaluate(
+            "document.getElementById('split-timeline-scroll').clientWidth"
+        )
+        assert scroll_w > client_w
+        expect(split_editor.locator("#split-zoom-label")).not_to_have_text("1×")
+
+    def test_fit_resets_zoom(self, split_editor: Page):
+        bar = split_editor.locator("#split-timeline-bar")
+        base_width = bar.bounding_box()["width"]
+        split_editor.click("#split-zoom-in")
+        split_editor.click("#split-zoom-fit")
+        expect(split_editor.locator("#split-zoom-label")).to_have_text("1×")
+        assert abs(bar.bounding_box()["width"] - base_width) < 2
+
+    def test_zoom_resets_when_reopening_editor(self, split_editor: Page):
+        split_editor.click("#split-zoom-in")
+        split_editor.evaluate("closeSplitEditor()")
+        _open_split_editor(split_editor)
+        expect(split_editor.locator("#split-zoom-label")).to_have_text("1×")
 
 
 @skip_no_server
