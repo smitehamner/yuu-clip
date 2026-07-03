@@ -6,6 +6,37 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) — see the
 
 ---
 
+## Map user paths end-to-end + artifact staleness policy (done, 2026-07-03)
+
+Roadmap plan 02 (`docs/dev/plans/roadmap-2026-07/02-user-paths-staleness.md`), three stages:
+
+- **Journey inventory + policy table** — `docs/dev/USER_PATHS.md` enumerates 10 user journeys,
+  the upstream events that can invalidate a downstream artifact, and the locked policy: cheap
+  text artifacts auto-refresh; expensive encoded artifacts (exported clip file, highlight reel)
+  get a "Stale — re-export to update" badge and are never silently rebuilt. New glossary term:
+  **Stale Export**.
+- **Staleness plumbing** — new `ClipCandidate` columns `trim_edited_at`,
+  `description_edited_at`, `exported_title_card`, `exported_embed_subs`; computed
+  `export_stale`/`export_stale_reasons` in the clip API, comparing those against `exported_at`
+  (a plain-cut export isn't staled by a caption edit alone; burned/embedded captions, a trim
+  change, or a title-card export's description change are). `refresh_export_sidecars()`
+  (`yuu_clip/subtitles.py`) extracted so caption-edit, speaker-rename, and reassign-speaker
+  routes reuse the CLI retranscribe path's sidecar-refresh logic in-process; speaker rename now
+  also sets `transcript_edited_at` (previously only reassign did). `GET /api/demo/list` gains a
+  `stale` flag per reel, computed from the existing `.reel.json` composition manifest vs. member
+  clips' `exported_at` (`null` for reels built before the manifest existed).
+- **Playwright end-to-end coverage** — badge rendering (sidebar pill + detail panel) via
+  client-state injection matching the existing `transcript_stale` pattern; reel staleness tested
+  fully end-to-end against the live project (real manifest + real clip data, no stubbing);
+  stubbed-SSE retranscribe-refresh test; a merge-confirm-cancel smoke test (merge itself stays
+  API-only — it's destructive and the live dev project's DB isn't disposable).
+
++40 tests across `tests/test_export.py`, `tests/test_videos.py`, `tests/test_speakers.py`,
+`tests/test_transcript_edit.py`, `tests/test_reel.py`; +9 new Playwright tests in
+`tests/test_ui_clips.py` and `tests/test_ui_reel.py`.
+
+---
+
 ## Pause/resume analysis + hardware health monitoring (done, 2026-07-03)
 
 Roadmap plan 01 (`docs/dev/plans/roadmap-2026-07/01-pause-hardware-health.md`), three stages:

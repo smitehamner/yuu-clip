@@ -58,16 +58,15 @@ regular users.
   startup latency, not seeking (the proxy already solved that), and doesn't apply to
   browser-dev mode.
 
-- [ ] **Map and end-to-end test expected user paths** — enumerate the journeys a non-technical user
-  actually takes (analyze → review → edit/retranscribe → export → re-export; diarize → captions; merge/split
-  → export; reel build) and verify each does the *expected* thing without a hidden second step. Motivating
-  example: **retranscribe doesn't refresh an already-exported caption sidecar by default-of-discovery** — a
-  `--refresh-captions` flag (default on) now regenerates the SRT *if one exists*, but the broader question is
-  which downstream artifacts (caption sidecars, the exported clip itself, the highlight reel, the clip
-  excerpt/description) should auto-update when an upstream transcript/edit changes, vs. require an explicit
-  re-export, vs. show a "stale, re-export to update" indicator. Decide the policy per artifact, then add
-  Playwright/UI end-to-end coverage for each path so regressions surface. Until then, individual gaps are
-  patched ad hoc (see the retranscribe caption refresh and the `_update_clip_excerpt` speaker-grouping fix).
+- [x] **Map and end-to-end test expected user paths** (done, 2026-07-03) — 10 journeys enumerated
+  in `docs/dev/USER_PATHS.md`, each with a locked per-artifact staleness policy: cheap text
+  artifacts (clip transcript excerpt, SRT caption sidecar) auto-refresh on caption edit, speaker
+  rename/reassign, and retranscribe; expensive encoded artifacts (the exported clip file, a
+  highlight reel) get a "Stale — re-export to update" badge and are never silently rebuilt.
+  `ClipCandidate.export_stale`/`export_stale_reasons` computed from new `trim_edited_at` /
+  `description_edited_at` / `exported_title_card` / `exported_embed_subs` columns vs.
+  `exported_at`; reel staleness computed from the existing `.reel.json` composition manifest vs.
+  member clips' `exported_at`. See `docs/dev/plans/roadmap-2026-07/02-user-paths-staleness.md`.
 
 - [ ] **Panel navigation UX direction** — multi-step flows take over the main detail panel (not modals); `← Back` breadcrumb; discard prompt on unsaved changes; tabs only for within-view navigation. Migrate incrementally starting with Split Editor.
 

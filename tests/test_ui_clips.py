@@ -449,6 +449,100 @@ class TestBulkExportStaleWarning:
 
 
 # ---------------------------------------------------------------------------
+# Plan 02 (staleness) — "Stale — re-export to update" badge on an exported
+# clip's file (export_stale), distinct from transcript_stale above (which is
+# about scores/descriptions vs. the transcript, not the exported file).
+# ---------------------------------------------------------------------------
+
+@skip_no_server
+class TestExportStaleBadge:
+    def test_sidebar_shows_stale_badge_when_export_stale(self, page: Page):
+        select_video_with_clips(page)
+        page.evaluate("""() => {
+            AppState.clips[0].has_export = true;
+            AppState.clips[0].export_stale = true;
+            AppState.clips[0].export_stale_reasons = ['captions changed'];
+            _renderClips();
+        }""")
+        pill = _first_row(page).locator(".export-pill")
+        expect(pill).to_have_class("export-pill is-stale")
+        expect(pill).to_contain_text("Stale")
+
+    def test_sidebar_shows_exported_badge_when_not_stale(self, page: Page):
+        select_video_with_clips(page)
+        page.evaluate("""() => {
+            AppState.clips[0].has_export = true;
+            AppState.clips[0].export_stale = false;
+            AppState.clips[0].export_stale_reasons = [];
+            _renderClips();
+        }""")
+        pill = _first_row(page).locator(".export-pill")
+        expect(pill).to_have_class("export-pill is-exported")
+        expect(pill).not_to_contain_text("Stale")
+
+    def test_detail_panel_shows_stale_note_with_reasons(self, page: Page):
+        select_first_video_and_clip(page)
+        page.wait_for_selector("#clip-tag-input", timeout=3000)
+        page.evaluate("""() => {
+            AppState.activeClipData.has_export = true;
+            AppState.activeClipData.exported_at = new Date().toISOString();
+            AppState.activeClipData.export_stale = true;
+            AppState.activeClipData.export_stale_reasons = ['clip window changed'];
+            renderDetail(AppState.activeClipData);
+        }""")
+        detail = page.locator("#detail")
+        expect(detail).to_contain_text("Stale — re-export to update")
+        expect(detail).to_contain_text("clip window changed")
+
+    def test_detail_panel_no_stale_note_when_not_stale(self, page: Page):
+        select_first_video_and_clip(page)
+        page.wait_for_selector("#clip-tag-input", timeout=3000)
+        page.evaluate("""() => {
+            AppState.activeClipData.has_export = true;
+            AppState.activeClipData.exported_at = new Date().toISOString();
+            AppState.activeClipData.export_stale = false;
+            AppState.activeClipData.export_stale_reasons = [];
+            renderDetail(AppState.activeClipData);
+        }""")
+        expect(page.locator("#detail")).not_to_contain_text("re-export to update")
+
+
+@skip_no_server
+class TestRetranscribeRefresh:
+    """Journey 3 (docs/dev/USER_PATHS.md): retranscribe refreshes the clip's excerpt
+    shown in the detail panel. The subprocess is stubbed at the network layer, same
+    pattern as test_ui_sse.py, so no real Whisper model runs. Caption-sidecar refresh
+    itself is covered at the API layer in test_export.py::TestRefreshCaptionSidecars."""
+
+    def test_retranscribe_refreshes_excerpt_in_detail_panel(self, page: Page):
+        import json
+        select_first_video_and_clip(page)
+        page.wait_for_selector("#clip-tag-input", timeout=3000)
+        clip_id = page.evaluate("() => AppState.activeClipId")
+        original_clip = page.evaluate("() => AppState.activeClipData")
+        refreshed_clip = {**original_clip, "transcript_excerpt": "freshly retranscribed text"}
+
+        page.route(
+            f"**/api/clips/{clip_id}/retranscribe**",
+            lambda route: route.fulfill(
+                status=200, content_type="text/event-stream",
+                body='data: "Retranscribing"\n\ndata: "OK"\n\ndata: "__DONE__"\n\n',
+            ),
+        )
+        page.route(
+            f"**/api/clips/{clip_id}",
+            lambda route: route.fulfill(
+                status=200, content_type="application/json", body=json.dumps(refreshed_clip),
+            ),
+        )
+
+        page.evaluate("(id) => openRetranscribeModal(id)", clip_id)
+        page.evaluate("() => startRetranscribe()")
+
+        expect(page.locator("#detail")).to_contain_text("freshly retranscribed text", timeout=5000)
+
+
+# ---------------------------------------------------------------------------
 # Global keyboard shortcut guard (settings.js keydown handler)
 # ---------------------------------------------------------------------------
 
@@ -728,6 +822,35 @@ class TestClipActionsModalGroups:
         assert "x" * 59 + "…" in merge_desc
         assert "x" * 60 not in merge_desc
         page.keyboard.press("Escape")
+
+    def test_merge_confirm_can_be_cancelled_without_merging(self, page: Page):
+        """Journey 6 smoke test (docs/dev/USER_PATHS.md): the merge action prompts
+        for confirmation and Cancel does not call the (destructive) merge route.
+        Uses fake clip IDs, matching test_merge_row_description_is_truncated above —
+        merge permanently deletes a clip, so the round trip that actually executes
+        it is exercised only against a disposable fixture DB, in
+        tests/test_videos.py::TestMergeClips."""
+        select_first_video_and_clip(page)
+        page.wait_for_selector("#clip-tag-input", timeout=3000)
+        page.evaluate(
+            """() => {
+                AppState.clips = [
+                    {id: 9001, start_ms: 0, start_hms: '0:00', description: 'first'},
+                    {id: 9002, start_ms: 60000, start_hms: '1:00', description: 'second'},
+                ];
+                AppState.activeClipData = null;
+                openClipActionsModal(9002);
+            }"""
+        )
+        page.wait_for_selector("#actions-modal.visible", timeout=2000)
+        merge_requests: list = []
+        page.on("request", lambda r: merge_requests.append(r) if "/merge" in r.url else None)
+        page.click("#actions-modal-body button:has-text('Merge previous')")
+        page.wait_for_selector("#confirm-modal.visible", timeout=2000)
+        expect(page.locator("#confirm-title")).to_contain_text("Merge")
+        page.click("#confirm-modal button:has-text('Cancel')")
+        page.wait_for_selector("#confirm-modal.visible", state="hidden", timeout=2000)
+        assert not merge_requests
 
 
 @skip_no_server

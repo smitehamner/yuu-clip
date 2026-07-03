@@ -244,3 +244,67 @@ class TestReelShowInFolder:
             assert req_info.value.post_data_json["path"].endswith("uitest_show_in_folder.mkv")
         finally:
             fake_reel.unlink(missing_ok=True)
+
+
+@skip_no_server
+class TestReelStaleness:
+    """Plan 02 (staleness) journey 8: a reel built from a clip that is later
+    re-exported (or never/no-longer exported) shows a stale badge. End-to-end
+    against the live project: a real .reel.json manifest referencing a real
+    clip ID, read back by the real GET /api/demo/list staleness computation —
+    no network stubbing, matching the TestReelDelete/TestReelShowInFolder
+    pattern of writing throwaway files into the live project's reels dir."""
+
+    def _reels_dir(self) -> Path:
+        return Path(__file__).resolve().parent.parent / ".yuu-clip" / "reels"
+
+    def _write_reel(self, reels_dir: Path, name: str, clip_ids: list) -> Path:
+        import json
+        reels_dir.mkdir(parents=True, exist_ok=True)
+        reel = reels_dir / name
+        reel.write_bytes(b"fake")
+        reel.with_suffix(".reel.json").write_text(
+            json.dumps({"version": 1, "clips": [{"id": cid, "duration_s": 5.0} for cid in clip_ids]}),
+            encoding="utf-8",
+        )
+        return reel
+
+    def _find_unexported_clip_id(self, page: Page):
+        """First clip in the live project with no export on disk — a reel
+        manifest pointing at it should always compute as stale."""
+        return page.evaluate("""async () => {
+            const videos = await fetch('/api/videos').then(r => r.json());
+            for (const v of videos) {
+                const clips = await fetch(`/api/videos/${v.id}/clips`).then(r => r.json());
+                const unexported = clips.find(c => !c.has_export);
+                if (unexported) return unexported.id;
+            }
+            return null;
+        }""")
+
+    def test_stale_badge_shown_for_unexported_member_clip(self, page: Page):
+        clip_id = self._find_unexported_clip_id(page)
+        assert clip_id is not None, "live project fixture needs at least one unexported clip"
+        reels_dir = self._reels_dir()
+        fake_reel = self._write_reel(reels_dir, "uitest_stale_reel.mkv", [clip_id])
+        try:
+            page.evaluate("openHighlightReelsModal('view')")
+            item = page.locator(".reel-item", has_text="uitest_stale_reel.mkv")
+            item.wait_for()
+            expect(item).to_contain_text("Stale")
+        finally:
+            fake_reel.unlink(missing_ok=True)
+            fake_reel.with_suffix(".reel.json").unlink(missing_ok=True)
+
+    def test_no_stale_badge_for_legacy_reel_without_manifest(self, page: Page):
+        reels_dir = self._reels_dir()
+        reels_dir.mkdir(parents=True, exist_ok=True)
+        fake_reel = reels_dir / "uitest_legacy_reel.mkv"
+        fake_reel.write_bytes(b"fake")
+        try:
+            page.evaluate("openHighlightReelsModal('view')")
+            item = page.locator(".reel-item", has_text="uitest_legacy_reel.mkv")
+            item.wait_for()
+            expect(item).not_to_contain_text("Stale")
+        finally:
+            fake_reel.unlink(missing_ok=True)
