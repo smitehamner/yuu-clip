@@ -365,7 +365,6 @@ function renderDetail(clip) {
   const eb = (isEdited) => isEdited ? `<span class="edited-badge">edited</span>` : '';
 
   const trimExportHtml = `
-    <hr class="detail-card-divider">
     <div style="font-size:12px;color:var(--muted)">
       <div style="margin-bottom:4px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.6px">Trim</div>
       <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
@@ -403,16 +402,23 @@ function renderDetail(clip) {
         </div>
       </div>
       <div class="description">${clip.description ? `"${escHtml(clip.description)}"` : `<span style="color:var(--muted);font-size:13px">No description yet — Re-score to generate</span>`}</div>
-    </div>
 
-    ${clip.description_long ? `
-      <div class="detail-card">
+      ${clip.description_long ? `
+        <hr class="detail-card-divider">
         <div class="detail-card-header">
           <span class="detail-card-title">Full Description${eb(clip.description_long_is_edited)}</span>
           <button class="kebab-btn" title="Edit or regenerate long description" aria-label="Edit or regenerate long description" onclick="openDescLongKebab(${clip.id}, this)">&#8942;</button>
         </div>
-        <div class="description-long">${escHtml(clip.description_long)}</div>
-      </div>` : ''}
+        <div class="description-long">${escHtml(clip.description_long)}</div>` : ''}
+
+      <hr class="detail-card-divider">
+      <div class="detail-card-header"><span class="detail-card-title">Tags</span></div>
+      <div class="clip-tags" id="clip-user-tags">${_clipTagPillsHTML(clip.user_tags)}</div>
+      <input list="clip-tags-datalist" id="clip-tag-input" class="tag-input"
+             placeholder="Add a tag…" maxlength="40" autocomplete="off" aria-label="Add a tag">
+      <datalist id="clip-tags-datalist"></datalist>
+      ${_generatedTagPillsHTML(clip.tags)}
+    </div>
 
     <div class="detail-cards-row">
       <div class="detail-card">
@@ -435,6 +441,7 @@ function renderDetail(clip) {
         </div>
       </div>
       <div class="detail-card">
+        <div class="detail-card-header"><span class="detail-card-title">Actions</span></div>
         <div class="clip-actions">
           <div class="review-actions">
             <button class="btn approve ${clip.status==='approved'?'active':''}" onclick="setStatus(${clip.id},'approved')" title="Approve (press A)">Approve</button>
@@ -444,18 +451,13 @@ function renderDetail(clip) {
             <button class="btn" onclick="exportClip(${clip.id})">${clip.has_export ? 'Re-export' : 'Export'}</button>
             <button class="btn ghost" onclick="openClipActionsModal(${clip.id})">Additional Actions</button>
           </div>
-          ${trimExportHtml}
         </div>
       </div>
     </div>
 
     <div class="detail-card">
-      <div class="detail-card-header"><span class="detail-card-title">Tags</span></div>
-      <div class="clip-tags" id="clip-user-tags">${_clipTagPillsHTML(clip.user_tags)}</div>
-      <input list="clip-tags-datalist" id="clip-tag-input" class="tag-input"
-             placeholder="Add a tag…" maxlength="40" autocomplete="off" aria-label="Add a tag">
-      <datalist id="clip-tags-datalist"></datalist>
-      ${_generatedTagPillsHTML(clip.tags)}
+      <div class="detail-card-header"><span class="detail-card-title">Export</span></div>
+      ${trimExportHtml}
     </div>
 
     ${clip.related_clips ? `

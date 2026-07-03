@@ -100,8 +100,12 @@ regular users.
   that; see `docs/dev/plans/QUICK-WINS-2026-07.md` Stage 6. Deferred: moving the raw log view
   behind a "Developer" toggle.
 
-- [ ] **Detail panel chunking** — group the clip detail panel into cards: Summary → Actions →
-  Transcript, rather than a flat list *(UX debt: Chunking)*
+- [x] **Detail panel chunking** (done, 2026-07-03) — clip detail panel regrouped into
+  Summary (description/full description/tags, merged into one card with dividers) → Scoring +
+  Actions (kept side by side per the existing L4-3 wrap design) → Export (trim/exported-file info,
+  split out of the Actions card) → Transcript, instead of a flatter list of single-purpose cards.
+  Layout-only — no behavior changes; event delegation and all existing selectors verified intact
+  via the full UI suite (459/459, zero test edits needed).
 
 - [ ] **Project switcher in UI** — dropdown to switch between project directories without
   restarting the server

@@ -6,6 +6,28 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) — see the
 
 ---
 
+## Quick wins Stage 7 — detail panel chunking (done, 2026-07-03)
+
+Closes the ROADMAP "Detail panel chunking" item. Clip detail (`renderDetail`,
+`clips.js`) regrouped, layout only:
+
+- **Summary card** — Description, Full Description, and Tags merged into one
+  `.detail-card` with `.detail-card-divider` separators between sub-sections
+  (each keeps its own mini-header, e.g. Description's copy/edit-kebab pair).
+- **Scoring + Actions row** — kept side by side (the existing L4-3
+  narrow-layout wrap design, protected by `test_detail_cards_row_wraps`, was
+  deliberately not disturbed); Actions now has its own "Actions" card title.
+- **Export card** — new: the Trim/Exported-file info block extracted out of
+  the Actions card into its own card.
+- **Transcript / Related Clips** — unchanged, already their own cards.
+
+Full `test-ui.ps1` run: 459/459 passed with zero test edits — event
+delegation (`#detail` click/keydown, tag remove/copy) and every selector the
+plan flagged as a risk (`.detail-card:has(#clip-user-tags)`, transcript/
+related-clips card titles) survived the move untouched.
+
+---
+
 ## Quick wins Stage 6 — batch processing status panel (done, 2026-07-03)
 
 Closes the ROADMAP "Batch processing status panel" item, scoped down from
