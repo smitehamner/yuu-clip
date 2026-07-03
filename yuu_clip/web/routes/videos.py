@@ -32,6 +32,11 @@ _EMPTY_STATS = {
     "llm_error_count": 0,
 }
 
+# Live proxy-encode futures, held only to keep the executor task from being GC'd
+# while the browser that started it has disconnected — the encode finishes and
+# records its own metadata regardless (see generate_video_proxy).
+_PROXY_WORKERS: set = set()
+
 
 class ContextAssignment(BaseModel):
     context_names: list[str]
@@ -365,6 +370,135 @@ def _register_media_routes(router: APIRouter, ctx: ProjectContext) -> None:
                         energy_db.close()
 
                 yield f"data: {json_lib.dumps('Waveform ready')}\n\n"
+                yield f"data: {json_lib.dumps('__DONE__')}\n\n"
+
+        return _sse_response(event_stream())
+
+    @router.get("/api/videos/{video_id}/proxy")
+    def video_proxy(video_id: int, request: Request):
+        """Serve the 720p preview proxy when a fresh one exists, else 404."""
+        from yuu_clip.analyze.proxy import proxy_file_for, proxy_is_fresh
+        db = ctx.get_db()
+        try:
+            video = db.get(Video, video_id)
+            if not video:
+                raise HTTPException(404, "Video not found")
+            proxy_file = proxy_file_for(Path(video.path), ctx.proxy_dir)
+            fresh = proxy_is_fresh(video, proxy_file)
+        finally:
+            db.close()
+        if not fresh:
+            raise HTTPException(404, "No preview proxy available")
+        return media_file_response(proxy_file, request, media_type="video/mp4")
+
+    @router.get("/api/videos/{video_id}/proxy-status")
+    def video_proxy_status(video_id: int):
+        """Report whether a fresh 720p preview proxy is available or being built."""
+        from yuu_clip.analyze.proxy import PROXY_HEIGHT, proxy_file_for, proxy_is_fresh
+        db = ctx.get_db()
+        try:
+            video = db.get(Video, video_id)
+            if not video:
+                raise HTTPException(404, "Video not found")
+            proxy_file = proxy_file_for(Path(video.path), ctx.proxy_dir)
+            return {
+                "available": proxy_is_fresh(video, proxy_file),
+                "generating": str(Path(video.path).resolve()) in ctx.proxy_generating,
+                "height": PROXY_HEIGHT,
+                "generated_at": video.proxy_generated_at.isoformat() if video.proxy_generated_at else None,
+            }
+        finally:
+            db.close()
+
+    @router.get("/api/videos/{video_id}/proxy/generate")
+    async def generate_video_proxy(video_id: int):
+        """Encode a 720p preview proxy for a recording, streaming SSE progress.
+
+        Idempotent: no-ops if a fresh proxy already exists, and never launches a
+        second encode while one is already running for the same source. The encode
+        runs in a worker thread that records its own metadata and clears the
+        in-flight flag even if the browser disconnects mid-encode.
+        """
+        from yuu_clip.analyze.proxy import (
+            generate_proxy,
+            proxy_file_for,
+            proxy_is_fresh,
+            record_proxy_metadata,
+        )
+
+        db = ctx.get_db()
+        try:
+            video = db.get(Video, video_id)
+            if not video:
+                raise HTTPException(404, "Video not found")
+            source = Path(video.path)
+            duration_ms = video.duration_ms
+            proxy_file = proxy_file_for(source, ctx.proxy_dir)
+            already_fresh = proxy_is_fresh(video, proxy_file)
+        finally:
+            db.close()
+
+        if not source.exists():
+            raise HTTPException(404, "Source video file not found on disk")
+
+        source_key = str(source.resolve())
+
+        async def event_stream():
+            async with _active_job(ctx):
+                if already_fresh:
+                    yield f"data: {json_lib.dumps('[Preview already prepared]')}\n\n"
+                    yield f"data: {json_lib.dumps('__DONE__')}\n\n"
+                    return
+                if source_key in ctx.proxy_generating:
+                    yield f"data: {json_lib.dumps('[Preview is already being prepared…]')}\n\n"
+                    yield f"data: {json_lib.dumps('__DONE__')}\n\n"
+                    return
+
+                ctx.proxy_generating.add(source_key)
+                ctx.proxy_dir.mkdir(parents=True, exist_ok=True)
+                queue: asyncio.Queue = asyncio.Queue()
+                loop = asyncio.get_running_loop()
+
+                def progress_cb(fraction: float) -> None:
+                    loop.call_soon_threadsafe(queue.put_nowait, ("progress", fraction))
+
+                def run() -> None:
+                    try:
+                        generate_proxy(source, proxy_file, duration_ms=duration_ms, progress_cb=progress_cb)
+                        rec_db = ctx.get_db()
+                        try:
+                            rec_video = rec_db.get(Video, video_id)
+                            if rec_video:
+                                record_proxy_metadata(rec_db, rec_video, proxy_file)
+                                rec_db.commit()
+                        finally:
+                            rec_db.close()
+                        loop.call_soon_threadsafe(queue.put_nowait, ("done", None))
+                    except Exception as exc:
+                        _log.error("Proxy generation failed for video %d: %s", video_id, exc, exc_info=True)
+                        loop.call_soon_threadsafe(queue.put_nowait, ("error", str(exc)))
+                    finally:
+                        loop.call_soon_threadsafe(ctx.proxy_generating.discard, source_key)
+
+                worker = loop.run_in_executor(None, run)
+                _PROXY_WORKERS.add(worker)
+                worker.add_done_callback(_PROXY_WORKERS.discard)
+
+                yield f"data: {json_lib.dumps('Building 720p preview…')}\n\n"
+                last_pct = -100
+                while True:
+                    kind, payload = await queue.get()
+                    if kind == "progress":
+                        pct = int(payload * 100)
+                        if pct >= last_pct + 5:
+                            last_pct = pct
+                            yield f"data: {json_lib.dumps(f'Building 720p preview… {pct}%')}\n\n"
+                    elif kind == "done":
+                        yield f"data: {json_lib.dumps('720p preview ready')}\n\n"
+                        break
+                    else:  # error
+                        yield f"data: {json_lib.dumps(f'[Preview generation failed: {payload}]')}\n\n"
+                        break
                 yield f"data: {json_lib.dumps('__DONE__')}\n\n"
 
         return _sse_response(event_stream())

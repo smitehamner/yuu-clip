@@ -464,12 +464,14 @@ function _blockedByAnalyze(actionLabel) {
   return true;
 }
 
-function streamSSE(url, onDone, stepDefs, jobLabel, cancellable = false) {
+// onLine (optional): called with each raw SSE payload line before __DONE__, for
+// callers that need live progress text (e.g. the proxy-build percentage).
+function streamSSE(url, onDone, stepDefs, jobLabel, cancellable = false, onLine = null) {
   _supersedeActiveStream();
   if (stepDefs) startJobUI(stepDefs, jobLabel, cancellable);
   const handle = _openSSE(
     url,
-    text => { appendLog(text); if (stepDefs) updateJobUI(text); },
+    text => { appendLog(text); if (onLine) onLine(text); if (stepDefs) updateJobUI(text); },
     () => {
       _clearActiveStream(handle);
       if (stepDefs) endJobUI();

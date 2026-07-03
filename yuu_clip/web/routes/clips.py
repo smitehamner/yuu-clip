@@ -459,8 +459,15 @@ def _register_clip_routes(router: APIRouter, ctx: ProjectContext) -> None:
         if not src.exists():
             raise HTTPException(404, "Source video file not found on disk")
 
-        # clip.start_ms/end_ms are segment-relative for a split recording, but src is
-        # the untrimmed parent file — add segment_start_s to land on the right spot.
+        # Prefer the 720p proxy when one is available: it shares the source's full
+        # timeline (so the offset maths below are unchanged) and cuts reliably to a
+        # seekable MP4, where a raw-MKV stream-copy can fail on odd codecs.
+        from yuu_clip.analyze.proxy import proxy_file_for, proxy_is_fresh
+        proxy_file = proxy_file_for(src, ctx.proxy_dir)
+        encode_src = proxy_file if proxy_is_fresh(video, proxy_file) else src
+
+        # clip.start_ms/end_ms are segment-relative for a split recording, but the
+        # source/proxy is the untrimmed parent — add segment_start_s to land right.
         segment_offset_s = video.segment_start_s or 0
         start_s = segment_offset_s + clip.start_ms / 1000 + (clip.start_offset or 0)
         end_s = segment_offset_s + clip.end_ms / 1000 + (clip.end_offset or 0)
@@ -474,7 +481,7 @@ def _register_clip_routes(router: APIRouter, ctx: ProjectContext) -> None:
             [
                 "ffmpeg", "-y",
                 "-ss", str(start_s),
-                "-i", str(src),
+                "-i", str(encode_src),
                 "-t", str(duration_s),
                 "-c", "copy",
                 "-f", "mp4",

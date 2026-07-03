@@ -5,6 +5,33 @@ Phases 1–3 have been moved to [COMPLETED-archive.md](COMPLETED-archive.md).
 
 ---
 
+## Preview proxy for fast multi-hour scrubbing (done, 2026-07-02)
+
+Full-video preview was unusably slow on multi-hour `.mkv` recordings — Chromium
+can't seek MKV, so it linear-scans. Fixed by generating a downscaled **720p
+H.264** proxy per recording and pointing in-app playback at it.
+
+- `analyze/proxy.py` — `generate_proxy` prefers NVIDIA **NVENC**, falls back to
+  CPU **libx264**, and surfaces a clear error when FFmpeg is missing. Output is a
+  `+faststart` MP4 (seekable). `build_proxy_cmd` is split out and unit-tested.
+- Proxy file is keyed by source path under `.yuu-clip/proxies/`, so a split
+  recording and all its segments share one file. DB columns on `videos`
+  (`proxy_path`, `proxy_generated_at`, `proxy_source_mtime`, `proxy_source_size`)
+  record it and invalidate when the source is re-recorded to the same path.
+- Routes: `GET /api/videos/{id}/proxy` (serve, 404 when absent),
+  `/proxy-status`, and `/proxy/generate` (SSE progress; the encode runs in a
+  worker thread that records its own metadata and clears the in-flight guard even
+  if the browser disconnects mid-encode).
+- Built opportunistically at the end of `_analyze_one` (best-effort, never fails
+  analysis) and on demand: the split editor auto-builds on open, keeps the source
+  playable meanwhile, and swaps to the proxy when ready.
+- **Hard requirement met:** a "Preview quality (720p)" badge shows on the split
+  player whenever the proxy is playing (vs "Original quality" on the source); the
+  clip preview badge gains a "720p" marker when served from the proxy. Exports
+  always use the full-quality original.
+- Left on source deliberately: the pre-analysis pre-split editor (waveform-only,
+  no `<video>`, no Video row to key a proxy — and analysis will build one shortly).
+
 ## Recordings-list + split-timeline usability pass (done, 2026-07-02)
 
 Three small usability fixes from direct-use feedback:

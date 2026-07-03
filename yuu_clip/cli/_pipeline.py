@@ -149,6 +149,10 @@ def _analyze_one(
             console.print(f"  [yellow]Scoring failed — clips kept, unscored. Use Rescore to retry: {exc}[/yellow]")
             log.exception("Scoring failed: video_id=%s", video.id)
 
+    # Opportunistically build the 720p preview proxy so scrubbing is fast later.
+    # Best-effort: a proxy failure must never fail the analysis.
+    _maybe_generate_proxy(video, audio_dir, session)
+
     video.processed_at = datetime.now(timezone.utc)
     # Run metadata is informational only — never let recording it abort the run.
     try:
@@ -224,6 +228,39 @@ def _import_subtitles(subtitle_source: str, video_path: Path, track_objs, sessio
     video.status = "segmented"
     transcripts.append(tr)
     return transcripts
+
+
+def _maybe_generate_proxy(video, audio_dir: Path, session) -> None:
+    """Build the 720p preview proxy for a recording during analysis, if missing.
+
+    Keyed by source path, so a split recording's segments share one proxy — the
+    first segment to reach here builds it and the rest see it fresh and skip.
+    Non-fatal: proxy generation is a convenience, never a pipeline requirement.
+    """
+    from yuu_clip.analyze.proxy import (
+        generate_proxy,
+        proxy_file_for,
+        proxy_is_fresh,
+        record_proxy_metadata,
+    )
+
+    proxy_dir = audio_dir.parent / "proxies"
+    source = Path(video.path)
+    proxy_file = proxy_file_for(source, proxy_dir)
+    if proxy_is_fresh(video, proxy_file):
+        return
+    try:
+        console.print("  [bold]Building 720p preview…[/bold]")
+        generate_proxy(
+            source, proxy_file, duration_ms=video.duration_ms,
+            progress_cb=lambda frac: None,
+        )
+        record_proxy_metadata(session, video, proxy_file)
+        session.flush()
+        console.print("  [green]  OK[/green] 720p preview ready")
+    except Exception as exc:
+        console.print(f"  [yellow]  Preview proxy skipped: {exc}[/yellow]")
+        log.exception("Preview proxy generation failed: video_id=%s", video.id)
 
 
 def _probe_video(video_path: Path):

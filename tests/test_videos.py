@@ -1944,3 +1944,68 @@ class TestVideoSource:
         resp = client.get("/api/videos/1/source")
         assert resp.status_code == 404
         assert resp.json()["detail"] == "Source video file not found on disk"
+
+
+class TestVideoProxy:
+    """/api/videos/{id}/proxy — status, on-demand generation, and serving.
+
+    generate_proxy is stubbed so no real FFmpeg/GPU is needed; the route's
+    threading, metadata recording, and freshness gating are what's under test.
+    """
+
+    def _write_source(self, project_dir):
+        (project_dir / "session.mkv").write_bytes(b"source-bytes" * 64)
+
+    def test_status_absent_by_default(self, client):
+        r = client.get("/api/videos/1/proxy-status")
+        assert r.status_code == 200
+        body = r.json()
+        assert body["available"] is False
+        assert body["generating"] is False
+        assert body["height"] == 720
+
+    def test_serve_404_when_no_proxy(self, client):
+        r = client.get("/api/videos/1/proxy")
+        assert r.status_code == 404
+
+    def test_generate_missing_source_404(self, client):
+        # Source file was never written to disk.
+        r = client.get("/api/videos/1/proxy/generate")
+        assert r.status_code == 404
+
+    def test_generate_records_and_then_serves(self, client, project_dir, monkeypatch):
+        self._write_source(project_dir)
+
+        def fake_generate(source, out, *, duration_ms=None, progress_cb=None, ffmpeg=None):
+            out.parent.mkdir(parents=True, exist_ok=True)
+            out.write_bytes(b"proxy-bytes")
+            if progress_cb:
+                progress_cb(1.0)
+            return out
+
+        monkeypatch.setattr("yuu_clip.analyze.proxy.generate_proxy", fake_generate)
+
+        stream = client.get("/api/videos/1/proxy/generate").text
+        assert "720p preview ready" in stream
+        assert "__DONE__" in stream
+
+        status = client.get("/api/videos/1/proxy-status").json()
+        assert status["available"] is True
+        assert status["generated_at"] is not None
+
+        served = client.get("/api/videos/1/proxy")
+        assert served.status_code == 200
+        assert served.content == b"proxy-bytes"
+
+    def test_generate_reports_failure(self, client, project_dir, monkeypatch):
+        self._write_source(project_dir)
+
+        def boom(source, out, *, duration_ms=None, progress_cb=None, ffmpeg=None):
+            raise RuntimeError("encoder exploded")
+
+        monkeypatch.setattr("yuu_clip.analyze.proxy.generate_proxy", boom)
+
+        stream = client.get("/api/videos/1/proxy/generate").text
+        assert "Preview generation failed" in stream
+        assert "__DONE__" in stream
+        assert client.get("/api/videos/1/proxy-status").json()["available"] is False

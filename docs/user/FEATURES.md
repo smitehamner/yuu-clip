@@ -64,6 +64,10 @@ like **Re-analyze (full)** and **Re-detect Speakers** (see "Re-analyzing a recor
 
 Embedded HTML5 player shown in the clip detail panel. Before export, the player streams a preview directly from the source file via FFmpeg (seekable; LRU-cached temp files). After export it plays the exported file and shows WebVTT subtitles if an SRT sidecar exists. Auto-plays on clip selection.
 
+### Preview quality (720p proxy)
+
+Long recordings are multi-hour files the browser can't scrub smoothly, so the preview player plays a cached **720p** copy of the recording instead. It's built automatically during analysis (NVIDIA GPU when available, otherwise CPU) and, if a recording doesn't have one yet, the first time you open its Split Editor — with a progress badge while it builds. A **"Preview quality (720p)"** badge shows whenever you're watching the smaller copy (vs "Original quality"); the clip preview badge shows a "720p" marker too. Exported clips always use the full-quality original.
+
 ### New Recording panel
 
 Open with the `+ Analyze` button in the header. Replaces the old modal with a full panel that keeps the sidebar live.

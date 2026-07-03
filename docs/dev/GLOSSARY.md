@@ -62,6 +62,7 @@ Most lookups only need this table: the authoritative user-facing term, the code 
 | Highlight reel | `demo_reel`, `build_reel()` | Compiled video from approved clips — not "demo reel" in UI |
 | Title card | `title_card` | Text overlay between reel clips |
 | Project folder | `project_dir` | The hidden `.yuu-clip/` directory |
+| Preview proxy | `proxy`, `proxy_path` | Cached 720p copy of a recording used for fast in-app playback; badge reads "Preview quality (720p)" |
 
 ---
 
@@ -623,6 +624,26 @@ The hidden directory `.yuu-clip/` created inside the folder containing the recor
 
 - **Code:** `project_dir`, `project_root`
 - **Notes:** Transparent to the creator unless they go looking. All per-recording state lives here.
+
+---
+
+### Preview proxy
+
+A cached, downscaled **720p H.264** copy of a recording that in-app playback (the
+Split Editor scrubber and the clip source preview) plays instead of the raw
+source. Long recordings are multi-hour `.mkv` files the browser cannot seek
+(it linear-scans), so scrubbing the original is unusably slow; the proxy is a
+browser-seekable MP4.
+
+- **Code:** `proxy`, `proxy_path`, `proxy_generated_at`; `analyze/proxy.py`
+- **Also called in codebase:** "720p proxy"
+- **Do not call it:** "proxy" alone in user-facing text — the on-screen badge reads
+  **"Preview quality (720p)"**; the fallback badge reads **"Original quality"**
+- **Notes:** Built opportunistically during analysis and on demand (with progress)
+  the first time a recording without one is scrubbed. Generated with NVIDIA NVENC
+  when available, else CPU libx264. One proxy per source file — shared by a split
+  recording and all its segments. Full quality is always used for **export**; the
+  proxy is a playback convenience only.
 
 ---
 

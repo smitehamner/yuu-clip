@@ -235,11 +235,26 @@ function renderPlayer(url, captionsUrl, clipId) {
     const badge = document.createElement('span');
     badge.style.cssText = 'position:absolute;top:8px;left:8px;background:rgba(0,0,0,.65);color:var(--muted);font-size:11px;padding:3px 8px;border-radius:4px;pointer-events:none';
     badge.textContent = 'Source preview · not exported';
+    _markPreviewQuality(badge, clipId);
     wrap.appendChild(vid);
     wrap.appendChild(badge);
     area.innerHTML = '';
     area.appendChild(wrap);
   }
+}
+
+// The clip preview route prefers the 720p proxy when one exists; reflect that on
+// the badge so the creator knows the preview isn't full quality.
+async function _markPreviewQuality(badge, clipId) {
+  const videoId = AppState.activeClipData?.video_id;
+  if (!videoId) return;
+  try {
+    const status = await fetch(`/api/videos/${videoId}/proxy-status`).then(r => r.ok ? r.json() : null);
+    if (status?.available && AppState.activeClipId === clipId) {
+      badge.textContent = 'Source preview · 720p · not exported';
+      badge.title = 'Previewed from a downscaled 720p proxy for fast, reliable playback.';
+    }
+  } catch (_) { /* leave the default badge */ }
 }
 
 // Fully tear down any <video> in the player so the browser aborts its streaming

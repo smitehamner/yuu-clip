@@ -683,9 +683,13 @@
   </div>
 
   <!-- Video preview -->
-  <video id="split-preview-video" controls preload="metadata"
-         style="display:none;width:100%;max-height:38vh;object-fit:contain;background:#000;border-radius:6px"
-         aria-label="Recording preview"></video>
+  <div id="split-preview-wrap" style="display:none;position:relative">
+    <video id="split-preview-video" controls preload="metadata"
+           style="display:block;width:100%;max-height:38vh;object-fit:contain;background:#000;border-radius:6px"
+           aria-label="Recording preview"></video>
+    <span id="split-preview-badge" role="status"
+          style="display:none;position:absolute;top:8px;left:8px;background:rgba(0,0,0,.7);color:#e6e6e6;font-size:11px;padding:3px 8px;border-radius:4px;pointer-events:none"></span>
+  </div>
 
   <div id="split-instructions" style="font-size:12px;color:var(--muted)"></div>
 

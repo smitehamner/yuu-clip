@@ -313,6 +313,12 @@ def project_exports_dir(project_dir: Path) -> Path:
     return d
 
 
+def project_proxies_dir(project_dir: Path) -> Path:
+    d = project_dir / ".yuu-clip" / "proxies"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
 def project_db_path(project_dir: Path) -> Path:
     d = project_dir / ".yuu-clip"
     d.mkdir(parents=True, exist_ok=True)

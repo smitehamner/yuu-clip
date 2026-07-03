@@ -52,7 +52,7 @@ All Phase 4 items shipped. See [COMPLETED.md](COMPLETED.md).
 Smaller improvements and UX debt that don't block initial distribution but are high-value for
 regular users.
 
-- [ ] **Preview proxy for fast multi-hour scrubbing** — full-video preview is unusably slow for
+- [x] **Preview proxy for fast multi-hour scrubbing** *(shipped 2026-07-02)* — full-video preview is unusably slow for
   long recordings because the source is a multi-hour `.mkv` (not a browser-seekable container);
   Chromium linear-scans to seek. Decision (2026-07-02): generate a **downscaled 720p H.264 NVENC
   proxy** per recording, cache it, and point all in-app playback (split editor + clip preview) at
@@ -65,6 +65,15 @@ regular users.
   not seeing full quality — e.g. a badge on the player. The Python→Electron native-file-protocol
   swap (drop the byte-pump in the packaged app) is a *secondary* follow-up; it helps startup but
   not MKV seeking and doesn't help browser-dev mode. Interim shipped: media chunk 64KB→1MB.
+  **Shipped** (`analyze/proxy.py`): NVENC-first / libx264-fallback / no-GPU-graceful encoder;
+  `videos` DB columns (`proxy_path`, `proxy_generated_at`, `proxy_source_mtime/size` for
+  invalidation); `.yuu-clip/proxies/` cache keyed by source path (shared across split segments);
+  `GET /api/videos/{id}/proxy` (serve), `/proxy-status`, `/proxy/generate` (SSE progress);
+  opportunistic build at the end of `_analyze_one`; split editor auto-builds on open and shows the
+  badge; clip preview prefers the proxy. **Left on source:** the pre-analysis pre-split editor (New
+  Recording panel) — it has no `<video>` (waveform-only) and no Video row yet to key a proxy, and
+  the recording gets a proxy during the imminent analyze pass anyway. **Follow-up not done:** the
+  Electron native-file-protocol transport swap.
 
 - [ ] **Map and end-to-end test expected user paths** — enumerate the journeys a non-technical user
   actually takes (analyze → review → edit/retranscribe → export → re-export; diarize → captions; merge/split

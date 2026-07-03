@@ -26,6 +26,7 @@ class ProjectContext:
         self.export_dir  = self.data_dir / "exports"
         self.reels_dir   = self.data_dir / "reels"
         self.audio_dir   = self.data_dir / "audio"
+        self.proxy_dir   = self.data_dir / "proxies"
 
         self.config = Config.load(project_dir)
 
@@ -57,6 +58,10 @@ class ProjectContext:
         # LRU cache of on-disk clip preview files keyed by clip_id. Scoped to this
         # context so concurrent create_app() instances (e.g. in tests) never share state.
         self.preview_cache: OrderedDict[int, Path] = OrderedDict()
+
+        # Resolved source paths whose 720p preview proxy is currently being encoded,
+        # so a second open of the same recording does not launch a duplicate encode.
+        self.proxy_generating: set[str] = set()
 
     def get_db(self) -> Session:
         """Open a new SQLAlchemy session against this project's database."""

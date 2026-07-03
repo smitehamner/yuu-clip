@@ -117,6 +117,10 @@ def _migrate(engine) -> None:
             ("summary_user", "TEXT"),
             ("analyze_started_at", "DATETIME"),
             ("analyze_run_json",   "TEXT"),
+            ("proxy_path",          "TEXT"),
+            ("proxy_generated_at",  "DATETIME"),
+            ("proxy_source_mtime",  "REAL"),
+            ("proxy_source_size",   "INTEGER"),
         ]
         for col, typedef in _video_migrations:
             if col not in existing:
@@ -260,6 +264,14 @@ class Video(Base):
     # (per-stage timings, effective settings, and CPU/GPU device) for later review.
     analyze_started_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
     analyze_run_json: Mapped[Optional[str]] = mapped_column(Text)
+
+    # 720p H.264 preview proxy for fast scrubbing (see analyze/proxy.py). The file
+    # is shared across a recording and its segments; source_mtime/size invalidate
+    # it when the source is re-recorded to the same path.
+    proxy_path: Mapped[Optional[str]] = mapped_column(Text)
+    proxy_generated_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    proxy_source_mtime: Mapped[Optional[float]] = mapped_column(Float)
+    proxy_source_size: Mapped[Optional[int]] = mapped_column(Integer)
 
     parent_video_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("videos.id"), nullable=True)
     segment_start_s: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
