@@ -351,7 +351,10 @@ function renderDetail(clip) {
     <div class="detail-card">
       <div class="detail-card-header">
         <span class="detail-card-title">Description${eb(clip.description_is_edited)}</span>
-        <button class="kebab-btn" title="Edit or regenerate description" aria-label="Edit or regenerate description" onclick="openDescKebab(${clip.id}, this)">&#8942;</button>
+        <div style="display:flex;gap:4px">
+          ${clip.description ? `<button class="copy-icon-btn" title="Copy description" aria-label="Copy description" data-copy="description">&#128203;</button>` : ''}
+          <button class="kebab-btn" title="Edit or regenerate description" aria-label="Edit or regenerate description" onclick="openDescKebab(${clip.id}, this)">&#8942;</button>
+        </div>
       </div>
       <div class="description">${clip.description ? `"${escHtml(clip.description)}"` : `<span style="color:var(--muted);font-size:13px">No description yet — Re-score to generate</span>`}</div>
     </div>
@@ -425,7 +428,10 @@ function renderDetail(clip) {
 
     ${clip.transcript_excerpt ? `
       <div class="detail-card">
-        <div class="detail-card-header"><span class="detail-card-title">Transcript</span></div>
+        <div class="detail-card-header">
+          <span class="detail-card-title">Transcript</span>
+          <button class="copy-icon-btn" title="Copy transcript" aria-label="Copy transcript" data-copy="transcript">&#128203;</button>
+        </div>
         ${clip.transcript_stale ? `<div class="transcript-stale-note">&#9888; Captions edited since last scoring — <button class="btn ghost" style="font-size:11px;padding:2px 8px" onclick="rescoreClip(${clip.id})">Re-score</button> to refresh.</div>` : ''}
         <div id="clip-transcript-view" class="transcript">${escHtml(clip.transcript_excerpt)}</div>
       </div>` : ''}
@@ -532,6 +538,11 @@ document.addEventListener('DOMContentLoaded', () => {
   detail.addEventListener('click', e => {
     const rm = e.target.closest && e.target.closest('[data-remove-tag]');
     if (rm && AppState.activeClipId) _removeClipTag(AppState.activeClipId, rm.dataset.removeTag);
+    const copy = e.target.closest && e.target.closest('[data-copy]');
+    if (copy && AppState.activeClipData) {
+      if (copy.dataset.copy === 'description') copyText(AppState.activeClipData.description, 'Description');
+      else if (copy.dataset.copy === 'transcript') copyText(AppState.activeClipData.transcript_excerpt, 'Transcript');
+    }
   });
   detail.addEventListener('keydown', e => {
     const input = e.target.closest && e.target.closest('#clip-tag-input');
@@ -608,6 +619,7 @@ function openClipActionsModal(clipId) {
     if (AppState.activeMediaFilename) {
       fileRows.push({ label: 'Download Export', description: 'Save the exported file (and any caption sidecars) to your downloads.', action: () => _downloadClipExport(clipId) });
     }
+    fileRows.push({ label: 'Copy File Path(s)', description: 'Copy the full path of the exported file (and any caption sidecars) to your clipboard.', action: () => _copyClipExportPaths(clipId) });
     fileRows.push({ label: 'Delete Export', description: 'Delete the exported video file but keep the clip record.', danger: true, action: () => deleteExport(clipId) });
     groups.push({ heading: 'Files', rows: fileRows });
   }
@@ -648,6 +660,19 @@ async function _downloadClipExport(clipId) {
   // Stagger so the browser doesn't collapse rapid sequential downloads into one.
   files.forEach((fn, i) => setTimeout(() => _downloadFile(fn), i * 200));
   if (files.length > 1) showToast(`Downloading ${files.length} files (video + captions)`, 'info');
+}
+
+async function _copyClipExportPaths(clipId) {
+  let files = [];
+  try {
+    const data = await fetch(`/api/clips/${clipId}/export-files`).then(r => r.json());
+    files = (data && data.files) || [];
+  } catch (_) { /* fall back to the single known media file below */ }
+  if (!files.length && AppState.activeMediaFilename) files = [AppState.activeMediaFilename];
+  if (!files.length) { showToast('No exported files found', 'warning'); return; }
+  const sep = AppState.exportDir && AppState.exportDir.includes('\\') ? '\\' : '/';
+  const paths = files.map(fn => AppState.exportDir ? `${AppState.exportDir}${sep}${fn}` : fn);
+  copyText(paths.join('\n'), files.length > 1 ? 'File paths' : 'File path');
 }
 
 async function _reloadClipList(videoId) {

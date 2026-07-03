@@ -888,3 +888,69 @@ class TestPlaybackOptions:
         expect(page.locator("#s-loop-clip")).not_to_be_checked()
         page.check("#s-loop-clip")
         expect(page.locator("#s-play-next")).not_to_be_checked()
+
+
+# ---------------------------------------------------------------------------
+# Quick-wins Stage 3 — copy-to-clipboard
+# ---------------------------------------------------------------------------
+
+@skip_no_server
+class TestCopyToClipboard:
+    """navigator.clipboard.writeText is stubbed for deterministic assertions
+    across xdist workers — a real clipboard read races with OS clipboard state
+    shared by other workers."""
+
+    def _stub_clipboard(self, page: Page) -> None:
+        page.add_init_script(
+            "navigator.clipboard.writeText = (t) => { window.__copiedText = t; return Promise.resolve(); };"
+        )
+
+    def test_copy_description(self, page: Page):
+        self._stub_clipboard(page)
+        page.goto(LIVE_URL)
+        select_first_video_and_clip(page)
+        page.wait_for_selector(".detail", timeout=3000)
+        description = page.evaluate("() => AppState.activeClipData?.description")
+        if not description:
+            pytest.skip("Active clip has no description")
+        page.click("[data-copy='description']")
+        assert page.evaluate("() => window.__copiedText") == description
+        expect(page.locator("#toast-container .toast.success")).to_contain_text("Description copied")
+
+    def test_copy_transcript(self, page: Page):
+        self._stub_clipboard(page)
+        page.goto(LIVE_URL)
+        select_first_video_and_clip(page)
+        page.wait_for_selector(".detail", timeout=3000)
+        excerpt = page.evaluate("() => AppState.activeClipData?.transcript_excerpt")
+        if not excerpt:
+            pytest.skip("Active clip has no transcript excerpt")
+        page.click("[data-copy='transcript']")
+        assert page.evaluate("() => window.__copiedText") == excerpt
+        expect(page.locator("#toast-container .toast.success")).to_contain_text("Transcript copied")
+
+    def test_copy_export_file_paths(self, page: Page):
+        self._stub_clipboard(page)
+        page.goto(LIVE_URL)
+        select_first_video_and_clip(page)
+        page.wait_for_selector(".detail", timeout=3000)
+        page.route(
+            "**/api/clips/*/export-files",
+            lambda route: route.fulfill(
+                status=200, content_type="application/json",
+                body='{"files": ["clip_export.mkv", "clip_export.srt"]}',
+            ),
+        )
+        page.evaluate(
+            """() => {
+                AppState.activeClipData.has_export = true;
+                AppState.exportDir = 'D:\\\\exports';
+                openClipActionsModal(AppState.activeClipData.id);
+            }"""
+        )
+        page.wait_for_selector("#actions-modal.visible", timeout=2000)
+        page.click("#actions-modal-body .action-row:has-text('Copy File Path(s)')")
+        page.wait_for_function("() => window.__copiedText")
+        assert page.evaluate("() => window.__copiedText") == (
+            "D:\\exports\\clip_export.mkv\nD:\\exports\\clip_export.srt"
+        )

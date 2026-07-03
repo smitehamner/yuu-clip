@@ -6,6 +6,29 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) — see the
 
 ---
 
+## Quick wins Stage 3 — copy-to-clipboard (done, 2026-07-03)
+
+Shared `copyText(text, label)` helper (`utils.js`) wraps
+`navigator.clipboard.writeText` with a success/error toast. Copy buttons
+(📋, event-delegated on `#detail`'s existing click handler, `data-copy`
+attribute selects the field):
+
+- Clip **description** (detail panel Description card).
+- Clip **transcript excerpt** (detail panel Transcript card) — copies the
+  plain-text excerpt, not the rendered speaker-chip markup.
+- **Exported file path(s)** — new "Copy File Path(s)" row in the Additional
+  Actions "Files" group, joining `AppState.exportDir` (populated from
+  `/api/status`) with each filename from `GET /api/clips/{id}/export-files`.
+
+Renamed the shared icon-button style to `.kebab-btn, .copy-icon-btn` so the
+new copy buttons don't collide with `.kebab-btn` selectors that pick the
+description's edit/regenerate kebab.
+
++3 UI tests in `test_ui_clips.py` (clipboard stubbed via `add_init_script`
+for determinism under parallel workers).
+
+---
+
 ## Quick wins Stage 2 — playback options (done, 2026-07-03)
 
 Settings → UI: two checkboxes alongside Autoplay, mutually exclusive (checking

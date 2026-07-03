@@ -532,8 +532,8 @@ kbd { background: var(--surface); border: 1px solid var(--border); border-radius
 /* ── editable field ── */
 .field-row { display: flex; align-items: flex-start; gap: 6px; }
 .field-row > :first-child { flex: 1; min-width: 0; }
-.kebab-btn { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 16px; padding: 2px 5px; border-radius: 4px; line-height: 1; flex-shrink: 0; }
-.kebab-btn:hover { background: var(--border); color: var(--text); }
+.kebab-btn, .copy-icon-btn { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 16px; padding: 2px 5px; border-radius: 4px; line-height: 1; flex-shrink: 0; }
+.kebab-btn:hover, .copy-icon-btn:hover { background: var(--border); color: var(--text); }
 .edited-badge { font-size: 10px; color: var(--accent2); background: color-mix(in srgb, var(--accent2) 10%, transparent); border: 1px solid color-mix(in srgb, var(--accent2) 30%, transparent); border-radius: 4px; padding: 1px 5px; vertical-align: middle; margin-left: 4px; }
 .timing-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .timing-input { width: 80px; padding: 4px 8px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 12px; font-family: monospace; text-align: center; }

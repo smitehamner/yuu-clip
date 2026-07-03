@@ -25,6 +25,7 @@ const AppState = {
   activeMediaFilename: null,
   activeVideoData:     null,
   bootRestoreDone:     false,
+  exportDir:           null,
 };
 
 // ── score utils ───────────────────────────────────────────────────────────────
@@ -710,4 +711,16 @@ function showToast(message, type = 'success', opts = {}) {
     toast.style.opacity = '0';
     setTimeout(() => toast.remove(), 300);
   }, ms);
+}
+
+// ── clipboard ─────────────────────────────────────────────────────────────────
+// The app only ever runs on localhost or inside Electron, so navigator.clipboard
+// is always available — a failure toast is enough, no execCommand fallback.
+async function copyText(text, label) {
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast(`${label} copied`, 'success');
+  } catch (err) {
+    showToast(`Could not copy ${label.toLowerCase()}: ${err.message}`, 'error');
+  }
 }
