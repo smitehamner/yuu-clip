@@ -230,10 +230,7 @@ Complex, specialized, or AI-heavy features that are valuable but don't need to b
   Content-type presets (above) should be designed first so the rename ships with a clear value
   proposition for non-RP users.
 
-- [ ] **URL import (Twitch VOD / YouTube)** — let the user paste a URL instead of a local file path.
-  Scope: download via `yt-dlp` with a live progress bar in the UI before analysis starts; store
-  source URL, scraped title, upload date, game/category, and streamer name as new columns on
-  `Video`; hand off to the normal ingest pipeline automatically after download completes.
+- [x] **URL import (Twitch VOD / YouTube)** — done, 2026-07-03. See [COMPLETED.md](COMPLETED.md).
 
 ---
 

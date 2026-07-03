@@ -6,6 +6,49 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) — see the
 
 ---
 
+## URL import — Twitch VOD / YouTube (done, 2026-07-03)
+
+Roadmap plan 08 (`docs/dev/plans/roadmap-2026-07/08-url-import.md`). Paste a
+public Twitch VOD or YouTube link instead of picking a local file; yt-dlp
+(Unlicense) downloads it, then the New Recording panel opens prefilled so the
+creator still confirms track layout and World Contexts before analyzing —
+analysis is never auto-started, consistent with the drag-and-drop principle.
+
+- **Data model** — new nullable `videos` columns `source_url`, `source_title`,
+  `source_uploader`, `source_upload_date`, `source_category`. Set from a metadata
+  JSON sidecar (`yuu_clip/url_import.py`) written next to the downloaded file;
+  picked up by `cli/_pipeline.py::_apply_source_metadata` when the Video row is
+  first created, which also pre-seeds `title_user` from the scraped title.
+- **Backend** (`yuu_clip/url_import.py`, `cli/import_url.py`, `web/routes/imports.py`)
+  — `POST /api/import-url/inspect` fetches metadata without downloading (host
+  allowlist: youtube.com/youtu.be/twitch.tv; rejects live streams, playlists/
+  channels, and auth-walled videos with plain-English errors); `POST
+  /api/import-url/start` + `GET /api/import-url/events` follow the same
+  start→events SSE pattern as the highlight reel, running the new `yuuclip
+  import-url` CLI command. Downloads are capped at 1080p
+  (`bestvideo[height<=1080]+bestaudio/best[height<=1080]`, merged to mkv), land in
+  a new `<project>/.yuu-clip/downloads/` dir, get a disk-space check before
+  starting, and a sanitized filename (collision-safe via a video-id suffix).
+  `/api/status` gains `import_running`; `subprocess_sse` gained an opt-in
+  `track_active_job` flag so this (and any future job that wants it) is correctly
+  folded into `any_running`.
+- **UI** — "Import from a URL instead" toggle in the New Recording panel swaps the
+  local-file field for a URL field + "Check link", which renders an inspect card
+  (title, channel, duration, category, upload date, estimated size, an
+  already-imported warning when the link was seen before) reusing the Plan 01
+  processing-time estimate and its long-run warning. "Download" streams progress
+  via the standard job UI; on completion the New Recording panel reopens
+  prefilled with the downloaded path. The recording detail view shows an
+  "Imported from" line (channel, upload date, link to the original) when
+  `source_url` is set.
+- **Tests** — `tests/test_url_import.py` (URL validation, metadata mapping,
+  live/playlist/auth-error handling, progress-line format/parse round trip,
+  filename sanitization incl. emoji/unicode/collisions, disk-space guard, sidecar
+  → `source_*` columns, the API routes, and `subprocess_sse`'s active-job
+  tracking — all with yt-dlp mocked, no network calls) and an added
+  `TestImportFromUrl` class in `tests/test_ui_analyze.py` (field visibility,
+  stubbed inspect card, stubbed-SSE download-completion prefill).
+
 ## Export presets + per-format management (done, 2026-07-03)
 
 Roadmap plan 07 (`docs/dev/plans/roadmap-2026-07/07-export-presets.md`). The
