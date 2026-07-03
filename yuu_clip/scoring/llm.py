@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from typing import TYPE_CHECKING
 
 from yuu_clip.scoring.llm_client import make_client
@@ -29,6 +30,38 @@ log = logging.getLogger(__name__)
 
 def _prepend_context(system_prompt: str, context_text: str) -> str:
     return (context_text + "\n\n" + system_prompt) if context_text else system_prompt
+
+
+# Some models wrap JSON in a markdown fence despite being told not to.
+_JSON_FENCE_RE = re.compile(r"^```(?:json)?\s*\n?(.*?)\n?```$", re.DOTALL)
+
+
+def _strip_json_fence(raw: str) -> str:
+    stripped = raw.strip()
+    m = _JSON_FENCE_RE.match(stripped)
+    return m.group(1).strip() if m else stripped
+
+
+def _repair_request(bad_raw: str, exc: Exception) -> list[dict]:
+    return [
+        {"role": "assistant", "content": bad_raw},
+        {"role": "user", "content": (
+            f"That response was not valid JSON ({exc}). Reply again with ONLY "
+            "the corrected JSON — no markdown, no extra text."
+        )},
+    ]
+
+
+def _call_llm_json(messages: list[dict], config: "Config", temperature: float = 0.1):
+    """Call the LLM expecting JSON. If the response doesn't parse, send it back
+    with the parse error and give the model one chance to correct itself."""
+    raw = _call_client(messages, config, temperature)
+    try:
+        return json.loads(_strip_json_fence(raw))
+    except json.JSONDecodeError as exc:
+        log.warning("LLM returned invalid JSON, asking it to correct itself: %s", exc)
+        raw = _call_client(messages + _repair_request(raw, exc), config, temperature)
+        return json.loads(_strip_json_fence(raw))
 
 
 _SYSTEM_PROMPT = """\
@@ -84,8 +117,7 @@ def summarize_transcript(text: str, config: "Config", context_text: str = "") ->
         {"role": "system", "content": system},
         {"role": "user",   "content": f"Transcript:\n\"\"\"\n{excerpt}\n\"\"\"\nJSON:"},
     ]
-    raw = _call_client(messages, config, temperature=0.2)
-    data = json.loads(raw)
+    data = _call_llm_json(messages, config, temperature=0.2)
     return str(data.get("title", "")), str(data.get("summary", ""))
 
 
@@ -160,8 +192,7 @@ def find_related_clips(
         {"role": "system", "content": system},
         {"role": "user",   "content": user_msg},
     ]
-    raw = _call_client(messages, config, temperature=0.1)
-    results = json.loads(raw)
+    results = _call_llm_json(messages, config, temperature=0.1)
     if not isinstance(results, list):
         raise ValueError(f"Expected list, got {type(results)}")
     return [{"id": int(r["id"]), "reason": str(r.get("reason", ""))} for r in results]
@@ -201,7 +232,7 @@ def infer_speaker_names(
         {"role": "system", "content": system},
         {"role": "user",   "content": f"Transcript:\n\"\"\"\n{labeled_transcript[:12000]}\n\"\"\"\nJSON:"},
     ]
-    data = json.loads(_call_client(messages, config, temperature=0.1))
+    data = _call_llm_json(messages, config, temperature=0.1)
     if not isinstance(data, dict):
         raise ValueError(f"Expected a JSON object, got {type(data)}")
     return {str(k): str(v).strip() for k, v in data.items() if str(v).strip()}
@@ -217,8 +248,7 @@ def describe_clip(transcript: str, config: "Config", context_text: str = "") -> 
         {"role": "system", "content": system},
         {"role": "user",   "content": _USER_TEMPLATE.format(excerpt=transcript)},
     ]
-    raw = make_client(config).chat(messages, temperature=0.1)
-    data = json.loads(raw)
+    data = _call_llm_json(messages, config, temperature=0.1)
     return str(data.get("description", "")), str(data.get("description_long", ""))
 
 
@@ -264,7 +294,12 @@ class LLMScorer:
 
         try:
             raw = self._call_llm(clip.transcript_excerpt)
-            data = self._parse(raw)
+            try:
+                data = self._parse(raw)
+            except json.JSONDecodeError as exc:
+                log.warning("LLM scoring: invalid JSON for clip %d, asking model to fix: %s", clip.id, exc)
+                raw = self._call_llm(clip.transcript_excerpt, repair_of=raw, repair_error=exc)
+                data = self._parse(raw)
         except Exception as exc:
             log.warning("LLM scoring failed for clip %d: %s", clip.id, exc, exc_info=True)
             return ScoreResult(tags=["llm_error"])
@@ -279,16 +314,20 @@ class LLMScorer:
             notes={"model": _active_model_id(self._config)},
         )
 
-    def _call_llm(self, excerpt: str) -> str:
+    def _call_llm(
+        self, excerpt: str, *, repair_of: str | None = None, repair_error: Exception | None = None,
+    ) -> str:
         system = _prepend_context(_SYSTEM_PROMPT, self._context_text)
         messages = [
             {"role": "system", "content": system},
             {"role": "user",   "content": _USER_TEMPLATE.format(excerpt=excerpt)},
         ]
+        if repair_of is not None:
+            messages += _repair_request(repair_of, repair_error)
         return self._client.chat(messages, temperature=0.1)
 
     def _parse(self, raw: str) -> dict:
-        data = json.loads(raw)
+        data = json.loads(_strip_json_fence(raw))
         for key in ("score_funny", "score_dramatic", "score_action"):
             if key in data:
                 data[key] = max(0.0, min(1.0, float(data[key])))

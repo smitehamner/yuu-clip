@@ -134,6 +134,8 @@ def _rescore_video_clips(ctx: ProjectContext, video_id: int, failed_only: bool):
                     clip = score_db.get(ClipCandidate, clip_id)
                     if clip:
                         await asyncio.to_thread(engine.score_clip, clip, score_db)
+                        if engine.has_scorers and "llm_error" in clip.tags:
+                            error = "LLM scoring failed — see yuu-clip.log for details"
                         score_db.commit()
                 except Exception as exc:
                     score_db.rollback()
@@ -373,6 +375,7 @@ def _register_clip_scoring_routes(router: APIRouter, ctx: ProjectContext) -> Non
             from yuu_clip.scoring.llm import LLMScorer
 
             async with _active_job(ctx):
+                yield f"data: {json_lib.dumps('[Starting LLM scoring for 1 clip…]')}\n\n"
                 engine = ScoringEngine(config, [LLMScorer(config, context_text=context_text)])
                 score_db = ctx.get_db()
                 error = None
@@ -385,6 +388,8 @@ def _register_clip_scoring_routes(router: APIRouter, ctx: ProjectContext) -> Non
                         old_desc      = clip.description
                         old_desc_long = clip.description_long
                         await asyncio.to_thread(engine.score_clip, clip, score_db)
+                        if engine.has_scorers and "llm_error" in clip.tags:
+                            error = "LLM scoring failed — see yuu-clip.log for details"
                         desc_new      = clip.description
                         desc_long_new = clip.description_long
                         clip.description      = old_desc
@@ -400,7 +405,7 @@ def _register_clip_scoring_routes(router: APIRouter, ctx: ProjectContext) -> Non
                 if error:
                     yield f"data: {json_lib.dumps(f'[Error: {error}]')}\n\n"
                 else:
-                    yield f"data: {json_lib.dumps('Scored clip')}\n\n"
+                    yield f"data: {json_lib.dumps('Scored 1/1 clips')}\n\n"
                 done_payload = {
                     "type": "__DONE__",
                     "description_new": desc_new,

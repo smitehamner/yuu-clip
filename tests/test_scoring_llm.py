@@ -189,6 +189,46 @@ class TestLLMScorerScore:
         result = scorer.score(clip, None)
         assert "llm_error" in result.tags
 
+    def test_markdown_fenced_json_parsed_without_repair_call(self):
+        import json
+        import unittest.mock as mock
+        payload = json.dumps({"score_funny": 0.6})
+        scorer = self._make_scorer(backend_response=f"```json\n{payload}\n```")
+        scorer._call_llm = mock.MagicMock(wraps=scorer._call_llm)
+        clip = self._make_clip(excerpt="some transcript text")
+        result = scorer.score(clip, None)
+        assert "llm_scored" in result.tags
+        assert scorer._call_llm.call_count == 1
+
+    def test_invalid_json_retried_with_repair_request(self):
+        import json
+        import unittest.mock as mock
+
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.llm import LLMScorer
+        payload = json.dumps({"score_funny": 0.9})
+        scorer = LLMScorer(Config())
+        scorer._call_llm = mock.MagicMock(side_effect=["not json {{{{", payload])
+        clip = self._make_clip(excerpt="some transcript text")
+        result = scorer.score(clip, None)
+        assert "llm_scored" in result.tags
+        assert abs(result.score_funny - 0.9) < 1e-9
+        assert scorer._call_llm.call_count == 2
+        repair_kwargs = scorer._call_llm.call_args_list[1].kwargs
+        assert repair_kwargs["repair_of"] == "not json {{{{"
+
+    def test_repair_still_invalid_returns_llm_error_tag(self):
+        import unittest.mock as mock
+
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.llm import LLMScorer
+        scorer = LLMScorer(Config())
+        scorer._call_llm = mock.MagicMock(side_effect=["not json {{{{", "still not json"])
+        clip = self._make_clip(excerpt="some transcript text")
+        result = scorer.score(clip, None)
+        assert "llm_error" in result.tags
+        assert scorer._call_llm.call_count == 2
+
     def test_successful_score_populates_all_fields(self):
         import json
         payload = {
@@ -247,6 +287,69 @@ class TestLLMScorerScore:
 # ---------------------------------------------------------------------------
 # Coverage gaps — pure-function and edge-case paths
 # ---------------------------------------------------------------------------
+
+class TestStripJsonFence:
+    def _strip(self, raw: str) -> str:
+        from yuu_clip.scoring.llm import _strip_json_fence
+        return _strip_json_fence(raw)
+
+    def test_plain_json_unchanged(self):
+        assert self._strip('{"a": 1}') == '{"a": 1}'
+
+    def test_json_fence_with_language_tag_stripped(self):
+        assert self._strip('```json\n{"a": 1}\n```') == '{"a": 1}'
+
+    def test_fence_without_language_tag_stripped(self):
+        assert self._strip('```\n{"a": 1}\n```') == '{"a": 1}'
+
+    def test_surrounding_whitespace_stripped(self):
+        assert self._strip('  \n{"a": 1}\n  ') == '{"a": 1}'
+
+
+class TestCallLlmJson:
+    def _cfg(self):
+        from yuu_clip.config import Config
+        return Config()
+
+    def test_valid_json_returned_without_repair(self):
+        import json
+        import unittest.mock as mock
+
+        from yuu_clip.scoring.llm import _call_llm_json
+        with mock.patch("yuu_clip.scoring.llm._call_client", return_value=json.dumps({"a": 1})) as call:
+            result = _call_llm_json([{"role": "user", "content": "hi"}], self._cfg())
+        assert result == {"a": 1}
+        assert call.call_count == 1
+
+    def test_invalid_json_retried_once_and_succeeds(self):
+        import json
+        import unittest.mock as mock
+
+        from yuu_clip.scoring.llm import _call_llm_json
+        with mock.patch(
+            "yuu_clip.scoring.llm._call_client",
+            side_effect=["not json {{{{", json.dumps({"a": 1})],
+        ) as call:
+            result = _call_llm_json([{"role": "user", "content": "hi"}], self._cfg())
+        assert result == {"a": 1}
+        assert call.call_count == 2
+        repair_messages = call.call_args_list[1].args[0]
+        assert repair_messages[-2] == {"role": "assistant", "content": "not json {{{{"}
+
+    def test_invalid_json_still_invalid_after_repair_raises(self):
+        import json
+        import unittest.mock as mock
+
+        import pytest
+
+        from yuu_clip.scoring.llm import _call_llm_json
+        with mock.patch(
+            "yuu_clip.scoring.llm._call_client",
+            side_effect=["not json {{{{", "still bad"],
+        ):
+            with pytest.raises(json.JSONDecodeError):
+                _call_llm_json([{"role": "user", "content": "hi"}], self._cfg())
+
 
 class TestPrependContext:
     def _pp(self, system, context):

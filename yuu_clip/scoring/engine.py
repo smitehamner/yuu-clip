@@ -34,6 +34,10 @@ class ScoringEngine:
         if not self._scorers:
             _log.warning("ScoringEngine: no scorers are available — clips will not be scored")
 
+    @property
+    def has_scorers(self) -> bool:
+        return bool(self._scorers)
+
     # All tags a scorer may emit — stripped before each re-score so stale
     # results from a previous partial run don't accumulate.
     _SCORER_TAGS: frozenset[str] = frozenset({
