@@ -272,7 +272,12 @@ function renderVideoDetail(video, savedTimeline) {
     document.getElementById('recording-preview-video'),
     document.getElementById('recording-preview-badge'),
     video.id,
-    { autoBuild: false, isCurrent: () => AppState.activeVideoId === video.id },
+    {
+      autoBuild: false,
+      isCurrent: () => AppState.activeVideoId === video.id,
+      startS: video.segment_start_s,
+      endS: video.segment_end_s,
+    },
   );
   document.getElementById('detail').innerHTML = `
     <div><div class="detail-type-badge video-badge">&#127916; Recording</div></div>
@@ -347,6 +352,7 @@ function renderVideoDetail(video, savedTimeline) {
 function openVideoActionsModal(videoId) {
   const video = AppState.activeVideoData?.id === videoId ? AppState.activeVideoData : AppState.videos.find(v => v.id === videoId);
   if (!video) return;
+  const isSegment = video.parent_video_id != null;
 
   const groups = [
     { heading: 'Review', rows: [
@@ -358,7 +364,12 @@ function openVideoActionsModal(videoId) {
       { label: 'Re-detect Speakers', description: 'Re-run speaker detection on the existing transcript. Clips and scores are kept; named speakers re-attach to matching voices.', action: () => rediarizeVideo(videoId) },
     ]},
     { heading: 'Recording tools', rows: [
-      { label: 'Split Recording', description: 'Break this recording into segments that can be analyzed independently.', action: () => openSplitEditor(videoId) },
+      ...(isSegment ? [] : [
+        { label: 'Split Recording', description: 'Break this recording into segments that can be analyzed independently.', action: () => openSplitEditor(videoId) },
+      ]),
+      ...(isSegment ? [
+        { label: 'Undo Split', description: 'Merge this segment and its siblings back into the original recording, keeping all of their clips.', action: () => unsplitVideo(videoId) },
+      ] : []),
       { label: 'Save Captions to SRT', description: 'Write the transcript as an SRT caption file next to the source recording.', action: () => exportVideoTranscript(videoId) },
     ]},
     { heading: 'Danger Zone', rows: [
@@ -812,6 +823,42 @@ function rediarizeVideo(id) {
   );
 }
 
+// ── undo split ────────────────────────────────────────────────────────────────
+function unsplitVideo(videoId) {
+  const video = AppState.videos.find(v => v.id === videoId);
+  if (!video || video.parent_video_id == null) return;
+  const siblings  = AppState.videos.filter(v => v.parent_video_id === video.parent_video_id);
+  const clipTotal = siblings.reduce((sum, v) => sum + (v.clip_count || 0), 0);
+  showConfirm(
+    'Undo split?',
+    `This merges ${plural(siblings.length, 'segment')} — and ${plural(clipTotal, 'clip')} on them — ` +
+    `back into the original recording, restoring each clip's original timing. ` +
+    `The segments are removed and the original recording becomes visible again.`,
+    'Undo Split',
+    () => _doUnsplitVideo(videoId),
+    true,
+  );
+}
+
+async function _doUnsplitVideo(videoId) {
+  let res;
+  try {
+    res = await fetch(`/api/videos/${videoId}/unsplit`, {method: 'POST'});
+  } catch (err) {
+    showToast(`Network error: ${err.message}`, 'error');
+    return;
+  }
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    showToast(`Undo split failed: ${formatApiError(err)}`, 'error');
+    return;
+  }
+  const data = await res.json();
+  showToast(`Split undone — ${plural(data.merged_clips, 'clip')} restored to the original recording`);
+  await loadVideos();
+  selectVideo(data.parent_id);
+}
+
 function _openVideoFieldKebab(videoId, btn, field) {
   const video      = AppState.activeVideoData;
   const isTitle    = field === 'title';
@@ -948,6 +995,7 @@ Object.assign(window, {
   onClipsSortChange, _clipsSortParam,
   summarizeVideo, regenSummaryAuto, _doRegenSummaryAuto,
   reanalyzeVideo, rediarizeVideo, _reanalyzeParams,
+  unsplitVideo, _doUnsplitVideo,
   openVideoSummaryKebab, openVideoTitleKebab,
   generateTimeline, confirmGenerateTimeline, closeTimelineIntervalModal,
   updateTimelineIntervalHint,

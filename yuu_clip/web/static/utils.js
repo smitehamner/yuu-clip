@@ -499,23 +499,35 @@ function streamSSE(url, onDone, stepDefs, jobLabel, cancellable = false, onLine 
 //   autoBuild         : build immediately when no proxy exists (deliberate
 //                       scrubbing surfaces), else the badge offers a click-to-build
 //   isCurrent         : guard so a late swap never lands on a since-changed view
-function setupRecordingPreview(videoEl, badgeEl, videoId, { autoBuild = false, isCurrent = () => true } = {}) {
+//   startS / endS     : a split segment's player streams the full untrimmed parent
+//                       file (source and proxy are both keyed by the parent path) —
+//                       these bound playback to the segment's own slice of it
+function setupRecordingPreview(videoEl, badgeEl, videoId, { autoBuild = false, isCurrent = () => true, startS = null, endS = null } = {}) {
   videoEl.src = `/api/videos/${videoId}/source`;
-  const buildFn = () => _buildRecordingProxy(videoEl, badgeEl, videoId, isCurrent);
+  if (startS != null) {
+    videoEl.addEventListener('loadedmetadata', () => { try { videoEl.currentTime = startS; } catch (_) {} }, { once: true });
+  }
+  if (endS != null) {
+    videoEl.addEventListener('timeupdate', () => { if (videoEl.currentTime >= endS) videoEl.pause(); });
+  }
+  const buildFn = () => _buildRecordingProxy(videoEl, badgeEl, videoId, isCurrent, startS);
   _setPreviewBadge(badgeEl, 'original', null, autoBuild ? null : buildFn);
   fetch(`/api/videos/${videoId}/proxy-status`)
     .then(r => r.ok ? r.json() : null)
     .then(status => {
       if (!isCurrent() || !status) return;
-      if (status.available) _useRecordingProxy(videoEl, badgeEl, videoId, isCurrent);
+      if (status.available) _useRecordingProxy(videoEl, badgeEl, videoId, isCurrent, startS);
       else if (autoBuild || status.generating) buildFn();
     })
     .catch(() => { /* leave the source playing with the original-quality badge */ });
 }
 
-function _useRecordingProxy(videoEl, badgeEl, videoId, isCurrent) {
+// startS: falls back to it when currentTime is still 0 — the proxy-status fetch
+// can resolve before the source's loadedmetadata seek (setupRecordingPreview) runs,
+// which would otherwise resume a segment's proxy at the parent's t=0.
+function _useRecordingProxy(videoEl, badgeEl, videoId, isCurrent, startS = null) {
   if (!isCurrent()) return;
-  const resumeAt   = videoEl.currentTime || 0;
+  const resumeAt   = videoEl.currentTime || startS || 0;
   const wasPlaying = !videoEl.paused && !videoEl.ended;
   videoEl.src = `/api/videos/${videoId}/proxy`;
   videoEl.addEventListener('loadedmetadata', () => {
@@ -525,7 +537,7 @@ function _useRecordingProxy(videoEl, badgeEl, videoId, isCurrent) {
   _setPreviewBadge(badgeEl, 'proxy');
 }
 
-function _buildRecordingProxy(videoEl, badgeEl, videoId, isCurrent) {
+function _buildRecordingProxy(videoEl, badgeEl, videoId, isCurrent, startS = null) {
   if (!isCurrent()) return;
   _setPreviewBadge(badgeEl, 'building');
   streamSSE(
@@ -535,10 +547,10 @@ function _buildRecordingProxy(videoEl, badgeEl, videoId, isCurrent) {
       const status = await fetch(`/api/videos/${videoId}/proxy-status`)
         .then(r => r.ok ? r.json() : null).catch(() => null);
       if (!isCurrent()) return;
-      if (status?.available) _useRecordingProxy(videoEl, badgeEl, videoId, isCurrent);
+      if (status?.available) _useRecordingProxy(videoEl, badgeEl, videoId, isCurrent, startS);
       // Another open is still encoding — poll until its proxy lands.
-      else if (status?.generating) setTimeout(() => _buildRecordingProxy(videoEl, badgeEl, videoId, isCurrent), 5000);
-      else _setPreviewBadge(badgeEl, 'original', null, () => _buildRecordingProxy(videoEl, badgeEl, videoId, isCurrent));
+      else if (status?.generating) setTimeout(() => _buildRecordingProxy(videoEl, badgeEl, videoId, isCurrent, startS), 5000);
+      else _setPreviewBadge(badgeEl, 'original', null, () => _buildRecordingProxy(videoEl, badgeEl, videoId, isCurrent, startS));
     },
     null,        // no global job pill — this is a background convenience
     'Preview',
@@ -562,6 +574,7 @@ function _setPreviewBadge(badgeEl, mode, pct, onBuild) {
   badgeEl.removeAttribute('tabindex');
   badgeEl.setAttribute('role', 'status');
   badgeEl.classList.toggle('preview-badge-proxy', mode === 'proxy');
+  badgeEl.classList.remove('preview-badge-build');
   if (mode === 'proxy') {
     badgeEl.textContent = 'Preview quality (720p)';
     badgeEl.title = 'Playing a downscaled 720p preview for fast seeking — not full quality. Exports use the original.';
@@ -569,8 +582,10 @@ function _setPreviewBadge(badgeEl, mode, pct, onBuild) {
     badgeEl.textContent = pct ? `Building 720p preview… ${pct}%` : 'Building 720p preview…';
     badgeEl.title = 'Encoding a fast-seeking 720p preview from the source recording.';
   } else if (onBuild) {
-    badgeEl.textContent = 'Original quality · build 720p preview';
-    badgeEl.title = 'Playing the full-quality original. Click to build a 720p preview so seeking is fast.';
+    // Render the action as a button-styled pill so it obviously invites a click.
+    badgeEl.classList.add('preview-badge-build');
+    badgeEl.innerHTML = 'Original quality · <span class="preview-badge-action">&#9889; Build 720p preview</span>';
+    badgeEl.title = 'Playing the full-quality original. Build a 720p preview so seeking is fast.';
     badgeEl.style.cursor = 'pointer';
     badgeEl.style.pointerEvents = 'auto';
     badgeEl.setAttribute('role', 'button');

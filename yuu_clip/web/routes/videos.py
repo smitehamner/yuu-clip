@@ -52,6 +52,7 @@ class VideoFieldsUpdate(BaseModel):
 class SplitRequest(BaseModel):
     split_points: list[float]
     segment_names: list[str] = []
+    migrate_clips: bool = False
 
 
 class ClearClipsRequest(BaseModel):
@@ -106,8 +107,10 @@ def _register_split_and_edit_routes(router: APIRouter, ctx: ProjectContext) -> N
         """Partition a recording into named segments at the given split points (seconds).
 
         Idempotent: re-splitting a video deletes and recreates its existing segments.
-        Clips on the parent are not migrated — callers either reanalyze each segment
-        (generating fresh clips) or leave them untouched on the now-hidden parent.
+        If migrate_clips is set, each of the parent's clips is reassigned to whichever
+        segment contains the clip's start time (its times shifted to segment-relative).
+        Otherwise clips are left untouched on the now-hidden parent — callers that
+        reanalyze each segment generate fresh clips there instead.
         """
         db = ctx.get_db()
         try:
@@ -129,12 +132,55 @@ def _register_split_and_edit_routes(router: APIRouter, ctx: ProjectContext) -> N
             boundaries = [0.0] + pts + [duration_s]
             segment_ids = _create_segments(db, video, boundaries, body.segment_names)
 
+            migrated_clips = 0
+            if body.migrate_clips:
+                migrated_clips = _migrate_clips_to_segments(db, video_id, boundaries, segment_ids)
+
             db.commit()
             _log.info(
-                "Split video %d into %d segment(s) at points %s: ids=%s",
-                video_id, len(segment_ids), pts, segment_ids,
+                "Split video %d into %d segment(s) at points %s: ids=%s, migrated_clips=%d",
+                video_id, len(segment_ids), pts, segment_ids, migrated_clips,
             )
-            return {"segment_ids": segment_ids}
+            return {"segment_ids": segment_ids, "migrated_clips": migrated_clips}
+        finally:
+            db.close()
+
+    @router.post("/api/videos/{video_id}/unsplit")
+    def unsplit_video(video_id: int):
+        """Reverse a split: merge every segment's clips back onto the parent (restoring
+        absolute timing), then delete the segments so the parent is visible again.
+
+        video_id may be the parent or any one of its segments.
+        """
+        db = ctx.get_db()
+        try:
+            video = db.get(Video, video_id)
+            if not video:
+                raise HTTPException(404, "Video not found")
+            parent = db.get(Video, video.parent_video_id) if video.parent_video_id is not None else video
+
+            segments = db.query(Video).filter_by(parent_video_id=parent.id).all()
+            if not segments:
+                raise HTTPException(400, "This recording has no segments to merge")
+
+            merged_clips = 0
+            for seg in segments:
+                offset_ms = int((seg.segment_start_s or 0) * 1000)
+                clips = db.query(ClipCandidate).filter_by(video_id=seg.id).all()
+                for clip in clips:
+                    clip.video_id = parent.id
+                    clip.start_ms += offset_ms
+                    clip.end_ms += offset_ms
+                    merged_clips += 1
+            db.flush()  # persist the clip re-parenting before segment cascade-delete
+
+            _delete_existing_segments(db, parent.id)
+            db.commit()
+            _log.info(
+                "Unsplit video %d: merged %d segment(s), %d clip(s) back onto parent",
+                parent.id, len(segments), merged_clips,
+            )
+            return {"parent_id": parent.id, "merged_segments": len(segments), "merged_clips": merged_clips}
         finally:
             db.close()
 
@@ -706,6 +752,30 @@ def _create_segments(db, video: Video, boundaries: list[float], segment_names: l
         db.flush()
         segment_ids.append(seg.id)
     return segment_ids
+
+
+def _migrate_clips_to_segments(
+    db, parent_video_id: int, boundaries: list[float], segment_ids: list[int],
+) -> int:
+    """Reassign each of the parent's clips to the segment containing its start time.
+
+    A clip that straddles a split point keeps its full original duration and is
+    owned by the segment its start falls in — its end_ms may then run past that
+    segment's own length, which is fine since segments share the parent's file.
+    """
+    clips = db.query(ClipCandidate).filter_by(video_id=parent_video_id).all()
+    for clip in clips:
+        start_s = clip.start_ms / 1000.0
+        seg_idx = next(
+            (i for i in range(len(segment_ids)) if boundaries[i] <= start_s < boundaries[i + 1]),
+            len(segment_ids) - 1,
+        )
+        offset_ms = int(boundaries[seg_idx] * 1000)
+        clip.video_id = segment_ids[seg_idx]
+        clip.start_ms -= offset_ms
+        clip.end_ms -= offset_ms
+    db.flush()
+    return len(clips)
 
 
 def _sync_waveform_track_data(ctx: ProjectContext, video_id: int, audio_streams) -> list[tuple]:

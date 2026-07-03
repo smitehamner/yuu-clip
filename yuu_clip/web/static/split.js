@@ -478,8 +478,7 @@ function _rebuildSplitNames() {
 
 function _renderSplitEditor() {
   _renderSplitTimeline();
-  _renderSplitSegmentList();
-  _updateSplitConfirmState();
+  _updateSplitConfirmState();  // also re-renders the segment list
 }
 
 function _updateSplitConfirmState() {
@@ -490,6 +489,7 @@ function _updateSplitConfirmState() {
   const noPoints = _splitPoints.length === 0;
   btn.disabled = noPoints;
   btn.title = noPoints ? 'Place at least one split point first' : '';
+  _renderSplitSegmentList();
 }
 
 function _renderSplitTimeline() {
@@ -558,7 +558,7 @@ function _updateSplitPoint(idx, timeStr, onRerender) {
   onRerender();
 }
 
-function _renderSegmentList(listId, onRerender, showPlayBtn) {
+function _renderSegmentList(listId, onRerender, showPlayBtn, showIgnore = true) {
   const list = document.getElementById(listId);
   if (!list || !_splitDurationS) return;
   const pts = [0, ..._splitPoints, _splitDurationS];
@@ -588,9 +588,9 @@ function _renderSegmentList(listId, onRerender, showPlayBtn) {
     const playBtn  = showPlayBtn
       ? `<button class="btn ghost" style="padding:2px 7px;font-size:12px;flex-shrink:0" title="Play from ${startStr}" onclick="_splitSeekTo(${start})">&#9654;</button>`
       : '';
-    const ignoreChk = `<label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--muted);white-space:nowrap;cursor:pointer;flex-shrink:0" title="Ignore this segment — it will be split off but not analyzed">
+    const ignoreChk = showIgnore ? `<label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--muted);white-space:nowrap;cursor:pointer;flex-shrink:0" title="Ignore this segment — it will be split off but not analyzed">
         <input type="checkbox" ${ignored ? 'checked' : ''} onchange="_toggleIgnored(${i}, ${onRerender.name})"> Ignore
-      </label>`;
+      </label>` : '';
     return `
       <div style="display:flex;align-items:center;gap:10px;padding:6px 10px;background:var(--surface);border:1px solid var(--border);border-radius:6px;${ignored ? 'opacity:0.5' : ''}">
         ${playBtn}
@@ -612,7 +612,10 @@ function _toggleIgnored(idx, onRerender) {
 }
 
 function _renderSplitSegmentList() {
-  _renderSegmentList('split-segment-list', _renderSplitEditor, true);
+  const action = document.querySelector('input[name="split-action"]:checked')?.value || 'partition';
+  // Ignore only matters when segments get reanalyzed independently — meaningless
+  // for a plain partition, where every segment keeps whatever clips land in it.
+  _renderSegmentList('split-segment-list', _renderSplitEditor, true, action !== 'partition');
 }
 
 function _fmtSplitTime(sec) {
@@ -660,14 +663,17 @@ async function _doSplitPartitionOnly() {
     const res = await fetch(`/api/videos/${_splitVideoId}/split`, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({split_points: _splitPoints, segment_names: _splitNames}),
+      body: JSON.stringify({split_points: _splitPoints, segment_names: _splitNames, migrate_clips: true}),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(formatApiError(err));
     }
     const data = await res.json();
-    showToast(`Recording split into ${plural(data.segment_ids.length, 'segment')}`);
+    showToast(
+      `Recording split into ${plural(data.segment_ids.length, 'segment')} ` +
+      `— ${plural(data.migrated_clips, 'clip')} moved over`
+    );
     closeSplitEditor();
     await loadVideos();
   } catch (err) {

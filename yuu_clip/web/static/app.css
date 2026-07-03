@@ -160,6 +160,16 @@ header h1 { font-size: 16px; font-weight: 700; letter-spacing: .5px; color: var(
    quality" without alarming — exports still use the original. */
 .preview-badge-proxy { box-shadow: inset 0 0 0 1px var(--warning); }
 
+/* When the badge offers to build a proxy, the action reads as a real button so
+   the affordance is obvious against the video overlay. */
+.preview-badge-build { cursor: pointer; }
+.preview-badge-action {
+  display: inline-block; margin-left: 4px; padding: 1px 8px; border-radius: 10px;
+  background: var(--accent); color: #fff; font-weight: 600; white-space: nowrap;
+}
+.preview-badge-build:hover .preview-badge-action { filter: brightness(1.12); }
+.preview-badge-build:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
 .clip-header { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
 .clip-header h2 { font-size: 17px; font-weight: 600; }
 .clip-header .time { color: var(--muted); font-size: 13px; }

@@ -1068,6 +1068,137 @@ class TestSplitVideoFields:
         assert d["segment_end_s"] == pytest.approx(120.0)
 
 
+class TestSplitVideoClipMigration:
+    """migrate_clips=True reassigns each clip to the segment its start time falls in."""
+
+    def _video_id(self, client) -> int:
+        return client.get("/api/videos").json()[0]["id"]
+
+    def test_default_does_not_migrate_clips(self, client):
+        vid_id = self._video_id(client)
+        r = client.post(f"/api/videos/{vid_id}/split", json={"split_points": [120.0]})
+        assert r.json()["migrated_clips"] == 0
+        # Clips stay on the (now hidden) parent, not on either segment.
+        assert len(client.get(f"/api/videos/{vid_id}/clips").json()) == 3
+        for seg_id in r.json()["segment_ids"]:
+            assert client.get(f"/api/videos/{seg_id}/clips").json() == []
+
+    def test_migrate_clips_splits_by_start_time(self, client):
+        vid_id = self._video_id(client)
+        # Seed clips are [0-60s], [60-120s], [120-180s]. Splitting at 90s puts the
+        # straddling clip [60-120s] in segment 0 (its start, 60s, is < 90s).
+        r = client.post(
+            f"/api/videos/{vid_id}/split",
+            json={"split_points": [90.0], "migrate_clips": True},
+        )
+        assert r.status_code == 200
+        assert r.json()["migrated_clips"] == 3
+        seg0_id, seg1_id = r.json()["segment_ids"]
+
+        seg0_clips = client.get(f"/api/videos/{seg0_id}/clips").json()
+        seg1_clips = client.get(f"/api/videos/{seg1_id}/clips").json()
+        assert len(seg0_clips) == 2
+        assert len(seg1_clips) == 1
+
+    def test_migrate_clips_shifts_times_to_segment_relative(self, client, project_dir):
+        from yuu_clip.db.models import ClipCandidate, make_session
+
+        vid_id = self._video_id(client)
+        r = client.post(
+            f"/api/videos/{vid_id}/split",
+            json={"split_points": [90.0], "migrate_clips": True},
+        )
+        seg0_id, seg1_id = r.json()["segment_ids"]
+
+        db = make_session(project_dir / ".yuu-clip" / "project.db")
+        try:
+            seg0_clips = {(c.start_ms, c.end_ms) for c in db.query(ClipCandidate).filter_by(video_id=seg0_id)}
+            seg1_clips = {(c.start_ms, c.end_ms) for c in db.query(ClipCandidate).filter_by(video_id=seg1_id)}
+        finally:
+            db.close()
+
+        # Segment 0 starts at 0s, so its clips keep their original absolute ms.
+        assert seg0_clips == {(0, 60_000), (60_000, 120_000)}
+        # Segment 1 starts at 90s (90_000ms); the clip at [120-180s] shifts by -90_000ms.
+        assert seg1_clips == {(30_000, 90_000)}
+
+    def test_migrate_clips_preserves_approval_status(self, client, project_dir):
+        from yuu_clip.db.models import ClipCandidate, make_session
+
+        vid_id = self._video_id(client)
+        r = client.post(
+            f"/api/videos/{vid_id}/split",
+            json={"split_points": [90.0], "migrate_clips": True},
+        )
+        seg0_id = r.json()["segment_ids"][0]
+
+        db = make_session(project_dir / ".yuu-clip" / "project.db")
+        try:
+            statuses = {c.status for c in db.query(ClipCandidate).filter_by(video_id=seg0_id)}
+        finally:
+            db.close()
+        assert statuses == {"pending", "approved"}
+
+
+class TestUnsplitVideo:
+    """POST /unsplit reverses a split: clips move back, segments are removed."""
+
+    def _video_id(self, client) -> int:
+        return client.get("/api/videos").json()[0]["id"]
+
+    def test_unsplit_restores_parent_and_clips(self, client):
+        vid_id = self._video_id(client)
+        seg_ids = client.post(
+            f"/api/videos/{vid_id}/split",
+            json={"split_points": [90.0], "migrate_clips": True},
+        ).json()["segment_ids"]
+
+        r = client.post(f"/api/videos/{seg_ids[0]}/unsplit")
+        assert r.status_code == 200
+        body = r.json()
+        assert body["parent_id"] == vid_id
+        assert body["merged_segments"] == 2
+        assert body["merged_clips"] == 3
+
+        visible = client.get("/api/videos").json()
+        assert any(v["id"] == vid_id for v in visible)
+        assert not any(v.get("parent_video_id") == vid_id for v in visible)
+
+    def test_unsplit_restores_original_clip_times(self, client, project_dir):
+        from yuu_clip.db.models import ClipCandidate, make_session
+
+        vid_id = self._video_id(client)
+        seg_ids = client.post(
+            f"/api/videos/{vid_id}/split",
+            json={"split_points": [90.0], "migrate_clips": True},
+        ).json()["segment_ids"]
+        client.post(f"/api/videos/{seg_ids[0]}/unsplit")
+
+        db = make_session(project_dir / ".yuu-clip" / "project.db")
+        try:
+            clips = {(c.start_ms, c.end_ms) for c in db.query(ClipCandidate).filter_by(video_id=vid_id)}
+        finally:
+            db.close()
+        assert clips == {(0, 60_000), (60_000, 120_000), (120_000, 180_000)}
+
+    def test_unsplit_accepts_parent_id_too(self, client):
+        vid_id = self._video_id(client)
+        client.post(f"/api/videos/{vid_id}/split", json={"split_points": [90.0], "migrate_clips": True})
+
+        r = client.post(f"/api/videos/{vid_id}/unsplit")
+        assert r.status_code == 200
+        assert r.json()["parent_id"] == vid_id
+
+    def test_unsplit_404_for_unknown_video(self, client):
+        r = client.post("/api/videos/99999/unsplit")
+        assert r.status_code == 404
+
+    def test_unsplit_400_when_no_segments(self, client):
+        vid_id = self._video_id(client)
+        r = client.post(f"/api/videos/{vid_id}/unsplit")
+        assert r.status_code == 400
+
+
 class TestSplitVideoOrphanCleanup:
     """Re-splitting an analyzed segment must not orphan or FK-violate clips."""
 
