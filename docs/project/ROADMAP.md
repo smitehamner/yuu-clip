@@ -175,11 +175,11 @@ Complex, specialized, or AI-heavy features that are valuable but don't need to b
 
 ### Export and delivery
 
-- [ ] **Export presets + per-format management** — saved output profiles (YouTube 1080p, Discord
-  8 MB cap, TikTok 9:16 crop) with a picker at export time; support exporting a clip in multiple
-  formats and tracking each as a separate file with individual delete; distinguish "regenerate this
-  format" from "export a new format". Current model (one export file per clip) will need to be
-  extended — multiple rows or a JSON list — before this ships.
+- [x] **Export presets + per-format management** — saved output profiles (YouTube 1080p, Discord
+  ≤10 MB cap; TikTok 9:16 crop deferred until vertical crop exists) with a picker at export time;
+  exporting a clip in multiple formats, each tracked as a separate `clip_exports` row with
+  individual delete; "Regenerate" (same preset) distinguished from "Export another format".
+  Done 2026-07-03 — see roadmap-2026-07/07-export-presets.md.
 
 - [ ] **Auto captions on clip export** — pulled forward to Phase 3 Near-term as *Caption / subtitle
   export* (softsub + hardsub). See Near-term section. Full caption styling (font, colour,

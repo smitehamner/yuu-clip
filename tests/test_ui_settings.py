@@ -341,3 +341,95 @@ class TestHardwareSettingsSection:
         page.fill("#s-thermal-pause-c", "90")
         page.click("#btn-settings-save")
         expect(page.locator("#toast-container .toast.error")).to_contain_text("thermal_warn_c")
+
+
+# ---------------------------------------------------------------------------
+# Export presets — Plan 07 Stage 3. Custom presets live in *global* config (a
+# user preference, not project data — see export_presets.py), so every test
+# that creates one cleans it up via a direct DELETE in a ``finally`` block,
+# mirroring the hot-word CRUD cleanup pattern in test_ui_hotwords.py.
+# ---------------------------------------------------------------------------
+
+def _delete_export_preset(page: Page, name) -> None:
+    if not name:
+        return
+    page.evaluate("(name) => fetch(`/api/export-presets/${name}`, {method: 'DELETE'})", name)
+
+
+def _create_export_preset(page: Page, label, container="mp4", crf=20, target_size_mb=None):
+    return page.evaluate(
+        """(args) => fetch('/api/export-presets', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(args),
+        }).then(r => r.json())""",
+        {"label": label, "container": container, "crf": crf, "target_size_mb": target_size_mb, "audio_kbps": 128},
+    )
+
+
+@skip_no_server
+class TestExportPresetSettingsSection:
+    def _open_settings(self, page: Page) -> None:
+        page.goto(LIVE_URL)
+        page.wait_for_selector("#video-list li[data-video-id]", timeout=5000)
+        page.click("#btn-settings-header")
+        page.wait_for_selector("#settings-panel.visible", timeout=3000)
+        page.wait_for_selector("#s-export-preset-rows", timeout=3000)
+
+    def test_builtin_presets_are_read_only(self, page: Page):
+        self._open_settings(page)
+        rows = page.locator("#s-export-preset-rows > div")
+        labels = rows.all_inner_texts()
+        assert any("YouTube 1080p" in t for t in labels)
+        assert any("Discord" in t for t in labels)
+
+    def test_seeded_custom_preset_row_renders_with_saved_values(self, page: Page):
+        preset = _create_export_preset(page, "UI Test Preset", crf=22)
+        try:
+            self._open_settings(page)
+            row = page.locator(f'[data-preset-row="{preset["name"]}"]')
+            expect(row).to_be_visible()
+            expect(row.locator(".ep-label")).to_have_value("UI Test Preset")
+            expect(row.locator(".ep-crf")).to_have_value("22")
+        finally:
+            _delete_export_preset(page, preset.get("name"))
+
+    def test_add_preset_button_appends_draft_row_without_persisting_it(self, page: Page):
+        self._open_settings(page)
+        before_rows = page.locator("[data-preset-row]").count()
+        before_count = page.evaluate(
+            "() => fetch('/api/export-presets').then(r => r.json()).then(d => d.custom.length)"
+        )
+        page.get_by_role("button", name="+ Add custom preset").click()
+        expect(page.locator("[data-preset-row]")).to_have_count(before_rows + 1)
+        # An empty draft (no label typed) must never reach the server.
+        after_count = page.evaluate(
+            "() => fetch('/api/export-presets').then(r => r.json()).then(d => d.custom.length)"
+        )
+        assert after_count == before_count
+
+    def test_delete_button_removes_row(self, page: Page):
+        preset = _create_export_preset(page, "UI Test Delete Me")
+        deleted_via_ui = False
+        try:
+            self._open_settings(page)
+            row = page.locator(f'[data-preset-row="{preset["name"]}"]')
+            expect(row).to_be_visible()
+            row.locator(".ep-delete").click()
+            expect(row).to_have_count(0)
+            deleted_via_ui = True
+        finally:
+            if not deleted_via_ui:
+                _delete_export_preset(page, preset.get("name"))
+
+    def test_switching_to_target_size_mode_disables_crf_input(self, page: Page):
+        preset = _create_export_preset(page, "UI Test Mode Switch")
+        try:
+            self._open_settings(page)
+            row = page.locator(f'[data-preset-row="{preset["name"]}"]')
+            expect(row.locator(".ep-crf")).to_be_enabled()
+            expect(row.locator(".ep-size")).to_be_disabled()
+            row.locator(".ep-mode-size").check()
+            expect(row.locator(".ep-crf")).to_be_disabled()
+            expect(row.locator(".ep-size")).to_be_enabled()
+        finally:
+            _delete_export_preset(page, preset.get("name"))

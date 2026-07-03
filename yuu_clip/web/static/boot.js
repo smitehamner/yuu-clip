@@ -17,6 +17,7 @@ initResize();
 _loadContexts();
 loadVideos();
 ensureHotwordsCache();
+ensureExportPresetsCache();
 fetch('/api/status').then(r => r.json()).then(d => {
   if (d.version) {
     const versionLabel = (/^\d/.test(d.version) ? 'v' : '') + d.version;

@@ -507,6 +507,121 @@ class TestExportStaleBadge:
         expect(page.locator("#detail")).not_to_contain_text("re-export to update")
 
 
+# ---------------------------------------------------------------------------
+# Export presets — Plan 07 Stage 3 (preset picker + per-format export rows)
+# ---------------------------------------------------------------------------
+
+@skip_no_server
+class TestExportPresetPicker:
+    def _open_export_modal(self, page: Page):
+        select_first_video_and_clip(page)
+        page.wait_for_selector("#detail .clip-badge", timeout=3000)
+        page.evaluate("() => exportClip(AppState.activeClipId)")
+        page.wait_for_selector("#export-settings-modal.visible", timeout=3000)
+
+    def test_picker_lists_original_quality_and_builtin_presets(self, page: Page):
+        self._open_export_modal(page)
+        page.wait_for_function(
+            "document.querySelectorAll('#export-preset option').length > 1", timeout=3000,
+        )
+        values = page.eval_on_selector_all("#export-preset option", "els => els.map(e => e.value)")
+        assert values[0] == ""
+        assert "youtube-1080p" in values
+        assert "discord-10mb" in values
+        page.evaluate("closeExportModal()")
+
+    def test_selecting_a_preset_disables_container_and_softsub(self, page: Page):
+        self._open_export_modal(page)
+        page.wait_for_function(
+            "document.querySelectorAll('#export-preset option').length > 1", timeout=3000,
+        )
+        page.select_option("#export-preset", "youtube-1080p")
+        expect(page.locator("#export-container")).to_be_disabled()
+        expect(page.locator("#export-captions option[value='softsub']")).to_be_disabled()
+        page.evaluate("closeExportModal()")
+
+    def test_choosing_original_quality_re_enables_container(self, page: Page):
+        self._open_export_modal(page)
+        page.wait_for_function(
+            "document.querySelectorAll('#export-preset option').length > 1", timeout=3000,
+        )
+        page.select_option("#export-preset", "youtube-1080p")
+        page.select_option("#export-preset", "")
+        expect(page.locator("#export-container")).to_be_enabled()
+        expect(page.locator("#export-captions option[value='softsub']")).to_be_enabled()
+        page.evaluate("closeExportModal()")
+
+
+@skip_no_server
+class TestMultiFormatExportRows:
+    """One row per clip_exports entry in the detail panel's Export section
+    (synthetic AppState.activeClipData — the established renderDetail pattern
+    above; no real exported files needed)."""
+
+    def _clip_with_formats(self, clip_id, exports):
+        return {
+            "id": clip_id, "start_hms": "0:00", "duration_hms": "0:30",
+            "status": "pending", "tags": [], "user_tags": [],
+            "start_offset": 0, "end_offset": 0, "has_export": True,
+            "exports": exports,
+        }
+
+    def _format_row(self, export_id, preset_name="default", size_bytes=1_048_576):
+        return {
+            "id": export_id, "preset_name": preset_name, "container": "mp4",
+            "filename": f"clip_{preset_name}.mp4", "created_at": "2026-07-03T00:00:00+00:00",
+            "size_bytes": size_bytes, "exists": True,
+            "export_stale": False, "export_stale_reasons": [],
+            "burn_subs": False, "embed_subs": False, "title_card": False,
+        }
+
+    def test_renders_one_row_per_format(self, page: Page):
+        page.goto(LIVE_URL)
+        page.wait_for_selector("#video-list li[data-video-id]", timeout=5000)
+        clip = self._clip_with_formats(9301, [
+            self._format_row(1, "default"),
+            self._format_row(2, "youtube-1080p"),
+        ])
+        page.evaluate("(clip) => renderDetail(clip)", clip)
+        rows = page.locator(".export-format-row")
+        expect(rows).to_have_count(2)
+        expect(rows.nth(0)).to_contain_text("Original quality")
+        expect(rows.nth(1)).to_contain_text("YouTube 1080p")
+
+    def test_per_row_delete_calls_the_row_delete_endpoint(self, page: Page):
+        page.goto(LIVE_URL)
+        page.wait_for_selector("#video-list li[data-video-id]", timeout=5000)
+        clip = self._clip_with_formats(9302, [self._format_row(42, "youtube-1080p")])
+        page.evaluate("(clip) => { AppState.activeClipData = clip; renderDetail(clip); }", clip)
+        page.route(
+            "**/api/clip-exports/42",
+            lambda route: route.fulfill(status=200, content_type="application/json", body='{"export_id": 42}'),
+        )
+        page.route("**/api/clips/9302", lambda route: route.fulfill(
+            status=200, content_type="application/json",
+            body='{"id": 9302, "has_export": false, "exports": []}',
+        ))
+        page.click(".export-format-row[data-export-id='42'] [data-export-action='delete']")
+        page.wait_for_selector("#confirm-modal.visible", timeout=2000)
+        with page.expect_request("**/api/clip-exports/42") as req_info:
+            page.click("#confirm-ok-btn")
+        assert req_info.value.method == "DELETE"
+
+    def test_regenerate_asks_for_confirmation_before_re_exporting(self, page: Page):
+        page.goto(LIVE_URL)
+        page.wait_for_selector("#video-list li[data-video-id]", timeout=5000)
+        clip = self._clip_with_formats(9303, [self._format_row(43, "discord-10mb")])
+        page.evaluate("(clip) => { AppState.activeClipData = clip; renderDetail(clip); }", clip)
+        export_requests: list = []
+        page.on("request", lambda r: export_requests.append(r) if "/api/clips/9303/export" in r.url else None)
+        page.click(".export-format-row[data-export-id='43'] [data-export-action='regenerate']")
+        page.wait_for_selector("#confirm-modal.visible", timeout=2000)
+        expect(page.locator("#confirm-title")).to_contain_text("Regenerate")
+        page.click("#confirm-modal button:has-text('Cancel')")
+        page.wait_for_selector("#confirm-modal.visible", state="hidden", timeout=2000)
+        assert not export_requests
+
+
 @skip_no_server
 class TestRetranscribeRefresh:
     """Journey 3 (docs/dev/USER_PATHS.md): retranscribe refreshes the clip's excerpt

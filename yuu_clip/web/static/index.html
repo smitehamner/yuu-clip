@@ -547,7 +547,7 @@
         <label class="settings-label" for="s-export-name-template">Export file name</label>
         <div class="settings-note">
           Placeholders: <code>{video}</code> <code>{clip_id}</code> <code>{start}</code>
-          <code>{end}</code> <code>{score}</code> <code>{date}</code>
+          <code>{end}</code> <code>{score}</code> <code>{date}</code> <code>{preset}</code>
         </div>
       </div>
       <input class="settings-input" id="s-export-name-template" type="text"
@@ -557,6 +557,18 @@
       <div class="settings-col"></div>
       <div id="export-name-template-preview" style="font-size:12px;color:var(--muted);font-family:monospace"></div>
     </div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <div class="settings-label">Export presets</div>
+        <div class="settings-note">
+          Named recipes for export — container, resolution, and quality/size — instead of
+          exporting at original quality. "YouTube 1080p" and "Discord (&le;10 MB)" are
+          always available; add your own below.
+        </div>
+      </div>
+    </div>
+    <div id="s-export-preset-rows"></div>
+    <button type="button" class="btn-secondary" onclick="addExportPresetRow()" style="margin-top:4px">+ Add custom preset</button>
   </div>
 
   <!-- Notification sounds -->
@@ -1351,6 +1363,12 @@
     <h3 style="margin-top:0">Export Clip</h3>
     <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:14px">
       <div style="display:flex;align-items:center;gap:10px">
+        <label for="export-preset" style="font-size:13px;color:var(--muted);min-width:110px">Export preset</label>
+        <select id="export-preset" style="flex:1;padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px" onchange="_onExportPresetChange(this.value)">
+          <option value="">Original quality (default)</option>
+        </select>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
         <label for="export-container" style="font-size:13px;color:var(--muted);min-width:110px">Output format</label>
         <select id="export-container" style="flex:1;padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px">
           <option value="">Match source</option>
@@ -1570,6 +1588,7 @@
 <script src="/static/settings.js"></script>
 <script src="/static/sounds.js"></script>
 <script src="/static/hotwords.js"></script>
+<script src="/static/exportpresets.js"></script>
 <script src="/static/sensitive.js"></script>
 <script src="/static/split.js"></script>
 <script src="/static/speakers.js"></script>

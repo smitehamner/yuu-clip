@@ -228,7 +228,10 @@ function _renderClipItems(clips) {
         ${c.has_export
           ? (c.export_stale
               ? `<span class="export-pill is-stale" title="Stale — re-export to update (${escHtml((c.export_stale_reasons || []).join(', '))})">Stale</span>`
-              : '<span class="export-pill is-exported" title="Clip has been exported">Exported</span>')
+              : `<span class="export-pill is-exported" title="Clip has been exported">${(() => {
+                  const n = (c.exports || []).filter(e => e.exists).length;
+                  return n > 1 ? `Exported &times;${n}` : 'Exported';
+                })()}</span>`)
           : '<span class="export-pill not-exported" title="Not yet exported">Not exported</span>'}
         <span class="status-dot dot-${c.status}" title="${c.status === 'approved' ? 'Approved' : c.status === 'rejected' ? 'Rejected' : 'Unreviewed'}">${c.status === 'approved' ? '✓' : c.status === 'rejected' ? '✕' : ''}</span>
         ${(c.sensitive_matches || []).length ? '<span class="clip-flag-badge" title="Contains flagged terms">&#9888;</span>' : ''}
@@ -382,6 +385,58 @@ async function _releasePlayerBeforeDelete() {
 }
 
 // ── detail ────────────────────────────────────────────────────────────────────
+function _fmtSizeMb(bytes) {
+  if (bytes == null) return '';
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+// One row per exported format (Export presets — Plan 07). Falls back to the
+// legacy single-block display when a clip has has_export but no clip_exports
+// rows yet (a project not backfilled, or a clip mutated directly in a test).
+function _exportFormatsHtml(clip) {
+  if (!clip.has_export) return '';
+  const rows = (clip.exports || []).filter(r => r.exists);
+  if (!rows.length) {
+    return `
+      <div style="margin-top:8px;margin-bottom:4px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.6px">Exported</div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap">
+        ${clip.exported_container ? `<span>Container: <strong style="color:var(--text)">${escHtml(clip.exported_container.toUpperCase())}</strong></span>` : ''}
+        <span>Captions: <strong style="color:var(--text)">${
+          clip.subtitle_status === 'baked-in'    ? 'Baked in' :
+          clip.subtitle_status === 'srt-sidecar' ? 'SRT sidecar' :
+          'None'
+        }</strong></span>
+        ${clip.exported_at ? `<span>When: <strong style="color:var(--text)">${_fmtAgo(clip.exported_at)}</strong></span>` : ''}
+      </div>
+      ${clip.export_stale ? `<div class="transcript-stale-note" style="margin-top:8px">&#9888; Stale — re-export to update (${escHtml((clip.export_stale_reasons || []).join(', '))})</div>` : ''}`;
+  }
+  return `
+    <div style="margin-top:8px;margin-bottom:4px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.6px">Exported formats</div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      ${rows.map(row => `
+        <div class="export-format-row" data-clip-id="${clip.id}" data-export-id="${row.id}" data-preset-name="${escHtml(row.preset_name)}"
+             data-filename="${escHtml(row.filename)}" data-burn-subs="${row.burn_subs ? '1' : ''}"
+             data-embed-subs="${row.embed_subs ? '1' : ''}" data-title-card="${row.title_card ? '1' : ''}"
+             style="border:1px solid var(--border);border-radius:6px;padding:8px">
+          <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:baseline">
+            <strong style="color:var(--text)">${escHtml(exportPresetLabel(row.preset_name))}</strong>
+            <span>${escHtml(row.container.toUpperCase())}</span>
+            <span>${_fmtSizeMb(row.size_bytes)}</span>
+            <span>${_fmtAgo(row.created_at)}</span>
+          </div>
+          ${row.export_stale ? `<div class="transcript-stale-note" style="margin-top:4px">&#9888; Stale — re-export to update (${escHtml((row.export_stale_reasons || []).join(', '))})</div>` : ''}
+          <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:6px">
+            <button class="btn ghost" data-export-action="download">Download</button>
+            ${AppState.canReveal ? `<button class="btn ghost" data-export-action="reveal">Show in folder</button>` : ''}
+            <button class="btn ghost" data-export-action="copy-path">Copy path</button>
+            <button class="btn ghost" data-export-action="regenerate">Regenerate</button>
+            <button class="btn danger" data-export-action="delete">Delete</button>
+          </div>
+        </div>`).join('')}
+    </div>
+    <button class="btn-secondary" style="margin-top:8px" onclick="exportClip(${clip.id})">+ Export another format</button>`;
+}
+
 function renderDetail(clip) {
   const eb = (isEdited) => isEdited ? `<span class="edited-badge">edited</span>` : '';
 
@@ -393,18 +448,7 @@ function renderDetail(clip) {
         <span>End <strong style="color:var(--text);font-family:monospace">${_fmtOffset(clip.end_offset)}</strong></span>
         <span style="font-size:11px">(edit in Export)</span>
       </div>
-      ${clip.has_export ? `
-        <div style="margin-top:8px;margin-bottom:4px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.6px">Exported</div>
-        <div style="display:flex;gap:12px;flex-wrap:wrap">
-          ${clip.exported_container ? `<span>Container: <strong style="color:var(--text)">${escHtml(clip.exported_container.toUpperCase())}</strong></span>` : ''}
-          <span>Captions: <strong style="color:var(--text)">${
-            clip.subtitle_status === 'baked-in'    ? 'Baked in' :
-            clip.subtitle_status === 'srt-sidecar' ? 'SRT sidecar' :
-            'None'
-          }</strong></span>
-          ${clip.exported_at ? `<span>When: <strong style="color:var(--text)">${_fmtAgo(clip.exported_at)}</strong></span>` : ''}
-        </div>
-        ${clip.export_stale ? `<div class="transcript-stale-note" style="margin-top:8px">&#9888; Stale — re-export to update (${escHtml((clip.export_stale_reasons || []).join(', '))})</div>` : ''}` : ''}
+      ${_exportFormatsHtml(clip)}
     </div>`;
 
   document.getElementById('detail').innerHTML = `
@@ -663,6 +707,11 @@ document.addEventListener('DOMContentLoaded', () => {
       if (copy.dataset.copy === 'description') copyText(AppState.activeClipData.description, 'Description');
       else if (copy.dataset.copy === 'transcript') copyText(AppState.activeClipData.transcript_excerpt, 'Transcript');
     }
+    const formatBtn = e.target.closest && e.target.closest('[data-export-action]');
+    if (formatBtn) {
+      const row = formatBtn.closest('.export-format-row');
+      if (row) _handleExportFormatAction(formatBtn.dataset.exportAction, row.dataset);
+    }
   });
   detail.addEventListener('keydown', e => {
     const input = e.target.closest && e.target.closest('#clip-tag-input');
@@ -735,15 +784,16 @@ function openClipActionsModal(clipId) {
   }
 
   if (clip.has_export) {
+    const multiFormat = (clip.exports || []).filter(e => e.exists).length > 1;
     const fileRows = [];
     if (AppState.activeMediaFilename) {
-      fileRows.push({ label: 'Download Export', description: 'Save the exported file (and any caption sidecars) to your downloads.', action: () => _downloadClipExport(clipId) });
+      fileRows.push({ label: 'Download Export', description: `Save ${multiFormat ? 'every exported format' : 'the exported file'} (and any caption sidecars) to your downloads.`, action: () => _downloadClipExport(clipId) });
     }
-    fileRows.push({ label: 'Copy File Path(s)', description: 'Copy the full path of the exported file (and any caption sidecars) to your clipboard.', action: () => _copyClipExportPaths(clipId) });
+    fileRows.push({ label: 'Copy File Path(s)', description: `Copy the full path of ${multiFormat ? 'every exported format' : 'the exported file'} (and any caption sidecars) to your clipboard.`, action: () => _copyClipExportPaths(clipId) });
     if (AppState.canReveal) {
       fileRows.push({ label: 'Show in Folder', description: 'Open the exports folder with this file selected.', action: () => _revealClipExport(clipId) });
     }
-    fileRows.push({ label: 'Delete Export', description: 'Delete the exported video file but keep the clip record.', danger: true, action: () => deleteExport(clipId) });
+    fileRows.push({ label: 'Delete All Exports', description: `Delete ${multiFormat ? 'every exported format' : 'the exported video file'} but keep the clip record. Use the Export section to delete one format at a time.`, danger: true, action: () => deleteExport(clipId) });
     groups.push({ heading: 'Files', rows: fileRows });
   }
 
@@ -808,6 +858,90 @@ async function _copyClipExportPaths(clipId) {
   const sep = AppState.exportDir && AppState.exportDir.includes('\\') ? '\\' : '/';
   const paths = files.map(fn => AppState.exportDir ? `${AppState.exportDir}${sep}${fn}` : fn);
   copyText(paths.join('\n'), files.length > 1 ? 'File paths' : 'File path');
+}
+
+// ── per-format export row actions (Export presets — Plan 07) ───────────────
+function _handleExportFormatAction(action, data) {
+  // Read from the row's own dataset rather than AppState.activeClipId — the
+  // Export card can be rendered for a clip before it's the globally "active"
+  // one (e.g. in tests, or a future non-selection preview), so each row must
+  // be self-contained.
+  const clipId = parseInt(data.clipId, 10);
+  if (!clipId) return;
+  if (action === 'download') _downloadFile(data.filename);
+  else if (action === 'reveal') {
+    if (!AppState.exportDir) { showToast('Exports folder unknown', 'warning'); return; }
+    const sep = AppState.exportDir.includes('\\') ? '\\' : '/';
+    revealInFolder(`${AppState.exportDir}${sep}${data.filename}`);
+  } else if (action === 'copy-path') {
+    const path = AppState.exportDir ? `${AppState.exportDir}${AppState.exportDir.includes('\\') ? '\\' : '/'}${data.filename}` : data.filename;
+    copyText(path, 'File path');
+  } else if (action === 'regenerate') {
+    _confirmRegenerateExportFormat(clipId, data);
+  } else if (action === 'delete') {
+    _confirmDeleteExportFormat(clipId, data.exportId);
+  }
+}
+
+function _confirmRegenerateExportFormat(clipId, data) {
+  const label = exportPresetLabel(data.presetName);
+  showConfirm(
+    'Regenerate this format?',
+    `Re-export "${escHtml(label)}" with the same settings, overwriting the existing file.`,
+    'Regenerate',
+    () => _regenerateExportFormat(clipId, data),
+  );
+}
+
+function _regenerateExportFormat(clipId, data) {
+  const params = new URLSearchParams();
+  if (data.presetName && data.presetName !== 'default') params.set('preset', data.presetName);
+  if (data.burnSubs) params.set('burn_subs', 'true');
+  else if (data.embedSubs) params.set('embed_subs', 'true');
+  if (data.titleCard) params.set('title_card', 'true');
+  const qs = params.toString() ? `?${params}` : '';
+
+  openLog();
+  streamSSE(
+    `/api/clips/${clipId}/export${qs}`,
+    async () => {
+      const clip = await fetch(`/api/clips/${clipId}`).then(r => r.json());
+      AppState.activeClipData = clip;
+      if (!PanelNav.isOpen()) renderDetail(clip);
+      await _reloadClipList(AppState.activeVideoId);
+      showToast('Format regenerated');
+      SoundFx.play('export');
+    },
+    [{label: 'Export', patterns: ['Exporting', 'OK Saved']}],
+    'Exporting',
+  );
+}
+
+function _confirmDeleteExportFormat(clipId, exportId) {
+  showConfirm(
+    'Delete this format?',
+    'This exported file will be removed from disk. The clip\'s other formats (if any) are kept.',
+    'Delete Format',
+    () => _deleteExportFormat(clipId, exportId),
+    true,
+  );
+}
+
+async function _deleteExportFormat(clipId, exportId) {
+  await _releasePlayerBeforeDelete();
+  const res = await fetch(`/api/clip-exports/${exportId}`, {method: 'DELETE'});
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    showToast(`Failed to delete format: ${formatApiError(err)}`, 'error');
+    selectClip(clipId);
+    return;
+  }
+  const clip = await fetch(`/api/clips/${clipId}`).then(r => r.json());
+  AppState.activeClipData = clip;
+  if (!clip.has_export) renderPlayer(null, null, clipId);
+  renderDetail(clip);
+  await _reloadClipList(AppState.activeVideoId);
+  showToast('Format deleted');
 }
 
 async function _reloadClipList(videoId) {
@@ -1069,6 +1203,22 @@ function _onExportCaptionsChange() {
   _updateExportModeSummary();
 }
 
+// Preset exports always re-encode and don't support the soft-subtitle (embed)
+// track or a container override — the preset dictates both. Reflect that in
+// the rest of the modal so a creator never hits the server-side 400 for the
+// unsupported combination.
+function _onExportPresetChange(presetName) {
+  const containerSel = document.getElementById('export-container');
+  const captionsSel  = document.getElementById('export-captions');
+  const softsubOpt   = captionsSel.querySelector('option[value="softsub"]');
+  const usingPreset  = !!presetName;
+
+  containerSel.disabled = usingPreset;
+  softsubOpt.disabled = usingPreset;
+  if (usingPreset && captionsSel.value === 'softsub') captionsSel.value = 'none';
+  _updateExportModeSummary();
+}
+
 // Speaker labels only apply to a retranscribe pass and need diarization fully
 // set up (pyannote installed + token), so the checkbox is enabled only when both
 // conditions hold.
@@ -1098,7 +1248,7 @@ async function _loadExportSpeakerDefault() {
   _onExportRetranscribeChange(document.getElementById('export-retranscribe').checked);
 }
 
-function exportClip(id) {
+async function exportClip(id) {
   _exportOpener = document.activeElement;
   _exportClipId = id;
   document.getElementById('export-captions').value = 'softsub';
@@ -1109,6 +1259,8 @@ function exportClip(id) {
   retx.checked = false;
   document.getElementById('export-retranscribe-model').disabled = true;
   document.getElementById('export-title-card').checked = false;
+  await populateExportPresetSelect('');
+  _onExportPresetChange('');
   _updateExportModeSummary();
   _loadExportSpeakerDefault();
   document.getElementById('export-settings-modal').classList.add('visible');
@@ -1128,6 +1280,7 @@ async function confirmExport() {
   const burnSubs  = captions === 'hardsub';
   const embedSubs = captions === 'softsub';
   const container = document.getElementById('export-container').value;
+  const preset    = document.getElementById('export-preset').value;
   const trimStart = _parseTimingOffset(document.getElementById('export-trim-start').value);
   const trimEnd   = _parseTimingOffset(document.getElementById('export-trim-end').value);
   const retx      = document.getElementById('export-retranscribe').checked;
@@ -1150,7 +1303,8 @@ async function confirmExport() {
   const params = new URLSearchParams();
   if (burnSubs)   params.set('burn_subs', 'true');
   if (embedSubs)  params.set('embed_subs', 'true');
-  if (container)  params.set('container', container);
+  if (preset)     params.set('preset', preset);
+  else if (container) params.set('container', container);  // a preset dictates its own container
   if (retx)       {
     params.set('retranscribe', 'true');
     params.set('retranscribe_model', retxModel);
@@ -1551,7 +1705,7 @@ Object.assign(window, {
   deleteClip, deleteVideo, deleteExport, mergeClips,
   exportClip, exportVideoTranscript, confirmExport, closeExportModal,
   bulkSetClipStatus, bulkDeleteClips, bulkExportClips, _clearClipSelection,
-  _onExportCaptionsChange, _onExportRetranscribeChange,
+  _onExportCaptionsChange, _onExportRetranscribeChange, _onExportPresetChange,
   _updateExportModeSummary, _renderExportModeSummary,
   openScoreOverride, closeScoreOverrideModal, _scoreOverrideSave, clearScoreOverride,
   openDescKebab, openDescLongKebab,

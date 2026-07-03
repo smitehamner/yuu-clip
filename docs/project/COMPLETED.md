@@ -6,6 +6,44 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) — see the
 
 ---
 
+## Export presets + per-format management (done, 2026-07-03)
+
+Roadmap plan 07 (`docs/dev/plans/roadmap-2026-07/07-export-presets.md`). The
+one-export-per-clip model becomes one-row-per-format; built-in presets plus a
+custom-preset editor replace the flat container/quality choice at export time.
+
+- **Data model** — new `ClipExport` table (`clip_exports`: `clip_id` FK cascade
+  delete, `preset_name`, `path`, `container`, `settings_json`, `size_bytes`,
+  `created_at`). One row per (clip, preset_name) — re-exporting the same preset
+  replaces the row and overwrites the file ("regenerate"); a different preset adds a
+  row ("export another format"). Backfill migration seeds a `default` row for every
+  pre-existing `exported_at` clip by globbing the exports dir; legacy columns
+  (`exported_at`/`exported_container`/`exported_burn_subs`) stay for the sidebar pill
+  until a follow-up retires them. `GET /api/clips/{id}/export-files`, the per-row
+  `DELETE /api/clip-exports/{export_id}`, and the bulk/batch export-status
+  derivations in `routes/clips.py` all read the new rows.
+- **Presets** (`yuu_clip/export_presets.py`) — built-ins `youtube-1080p` (mp4, h264
+  CRF 18, scale ≤1080p, aac 192k) and `discord-10mb` (mp4, two-pass size-capped
+  encode targeting 10 MB); custom presets are a global-config preference
+  (`config.py: export_presets`), validated on save (unique kebab-case name,
+  container allowlist, resolution in {720,1080,1440,2160,None}, exactly one of
+  CRF/target-size). Size-capped encode fails before encoding with a plain-English
+  error when the computed bitrate can't fit the clip's duration. Preset encodes
+  always re-encode (no stream-copy path); never upscale past the source resolution.
+  CRUD at `/api/export-presets`.
+- **UI** — export options modal gains a preset dropdown ("Original quality
+  (default)" + built-ins + custom); choosing a preset disables the container select
+  and the soft-subtitle caption option since the preset dictates both. The clip
+  detail panel's Export card now lists one row per format (preset label, container,
+  size, date) with per-row Download / Show in folder / Copy path / Regenerate /
+  Delete, plus "Export another format"; the sidebar pill shows a count when a clip
+  has more than one format. New `yuu_clip/web/static/exportpresets.js` backs a
+  matching custom-preset editor in Settings (label, container, resolution, CRF vs.
+  target-size mode) using the same per-row save pattern as hot-words.
+- **Glossary** — added **Export preset** and **Format** (`docs/dev/GLOSSARY.md`).
+
+---
+
 ## Sensitive content detection (done, 2026-07-03)
 
 Roadmap plan 06 (`docs/dev/plans/roadmap-2026-07/06-sensitive-content.md`), built on

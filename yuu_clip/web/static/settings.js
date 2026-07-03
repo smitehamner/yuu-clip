@@ -77,6 +77,7 @@ async function openSettings() {
     await initSoundSettings();
     await initHotwordSettings();
     await initSensitiveTermSettings();
+    await initExportPresetSettings();
     _applySettingsToUI(cfg);
     setTimeout(() => document.getElementById('s-whisper-model')?.focus(), 50);
   } catch (e) {
@@ -326,7 +327,7 @@ function _onLoopClipChange(enabled) {
 // set and sanitization so the preview matches what the server would produce.
 const _EXPORT_PREVIEW_SAMPLE = {
   video: 'MyRecording', clip_id: 42, start: '15-30', end: '16-00', score: '0.8',
-  date: new Date().toISOString().slice(0, 10),
+  date: new Date().toISOString().slice(0, 10), preset: 'youtube-1080p',
 };
 
 function _updateExportNameTemplatePreview() {
