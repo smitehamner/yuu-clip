@@ -257,6 +257,74 @@ class TestListReels:
         assert entry["has_captions"] is False
         assert entry["can_caption"] is False
 
+    def _write_reel(self, project_dir, name, clip_ids):
+        import json as _json
+        reels_dir = project_dir / ".yuu-clip" / "reels"
+        reels_dir.mkdir(parents=True, exist_ok=True)
+        reel = reels_dir / name
+        reel.write_bytes(b"x")
+        reel.with_suffix(".reel.json").write_text(
+            _json.dumps({"version": 1, "clips": [{"id": cid, "duration_s": 5.0} for cid in clip_ids]}),
+            encoding="utf-8",
+        )
+        return reel
+
+    def _first_clip_id(self, client) -> int:
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        return client.get(f"/api/videos/{vid_id}/clips").json()[0]["id"]
+
+    def test_stale_none_when_no_composition_manifest(self, client, project_dir):
+        reels_dir = project_dir / ".yuu-clip" / "reels"
+        reels_dir.mkdir(parents=True, exist_ok=True)
+        (reels_dir / "legacy.mkv").write_bytes(b"x")
+        entry = client.get("/api/demo/list").json()[0]
+        assert entry["stale"] is None
+
+    def test_stale_false_when_member_clip_exported_before_reel_built(self, client, project_dir):
+        from datetime import datetime, timedelta, timezone
+
+        from yuu_clip.db.models import ClipCandidate, make_session
+
+        clip_id = self._first_clip_id(client)
+        db = make_session(project_dir / ".yuu-clip" / "project.db")
+        db.get(ClipCandidate, clip_id).exported_at = datetime.now(timezone.utc) - timedelta(hours=1)
+        db.commit()
+        db.close()
+
+        self._write_reel(project_dir, "fresh.mkv", [clip_id])
+
+        entry = client.get("/api/demo/list").json()[0]
+        assert entry["stale"] is False
+
+    def test_stale_true_when_member_clip_reexported_after_reel_built(self, client, project_dir):
+        from datetime import datetime, timedelta, timezone
+
+        from yuu_clip.db.models import ClipCandidate, make_session
+
+        clip_id = self._first_clip_id(client)
+        db = make_session(project_dir / ".yuu-clip" / "project.db")
+        db.get(ClipCandidate, clip_id).exported_at = datetime.now(timezone.utc) + timedelta(hours=1)
+        db.commit()
+        db.close()
+
+        self._write_reel(project_dir, "outdated.mkv", [clip_id])
+
+        entry = client.get("/api/demo/list").json()[0]
+        assert entry["stale"] is True
+
+    def test_stale_true_when_member_clip_export_deleted(self, client, project_dir):
+        clip_id = self._first_clip_id(client)  # never exported: exported_at is None
+        self._write_reel(project_dir, "orphaned.mkv", [clip_id])
+
+        entry = client.get("/api/demo/list").json()[0]
+        assert entry["stale"] is True
+
+    def test_stale_true_when_member_clip_row_deleted(self, client, project_dir):
+        self._write_reel(project_dir, "ghost.mkv", [999999])
+
+        entry = client.get("/api/demo/list").json()[0]
+        assert entry["stale"] is True
+
 
 class TestDeleteReel:
     def _make_reel(self, project_dir, name="del_me.mkv", with_sidecars=False):

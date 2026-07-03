@@ -197,6 +197,23 @@ def export_srt_sidecars(clip, output_dir: Path, base_stem: str) -> list[Path]:
     return written
 
 
+def refresh_export_sidecars(clip, exports_dir: Path, name_template: str) -> list[Path]:
+    """Regenerate an already-exported clip's SRT caption sidecars from its current transcript.
+
+    No-op when the clip has no existing sidecar in *exports_dir*: an upstream transcript
+    edit should refresh captions the user already has, not create new export artifacts for
+    a clip that was never exported. If the export filename template changed since this clip
+    was exported, its sidecars were written under the old stem and won't be found. Shared by
+    the CLI retranscribe command and the caption-edit/speaker-rename/reassign web routes.
+    """
+    from yuu_clip.export_naming import export_base_stem
+
+    base = export_base_stem(clip, name_template)
+    if not any(exports_dir.glob(f"{base}*.srt")):
+        return []
+    return export_srt_sidecars(clip, exports_dir, base)
+
+
 def export_video_transcript_srt(video, output_path: Path) -> Path:
     """
     Write a full-video SRT file to *output_path* using all transcribed tracks.

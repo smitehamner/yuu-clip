@@ -209,7 +209,9 @@ function _renderClipItems(clips) {
         <span class="clip-num" title="Clip #${c.id}">#${c.id}</span>
         <span class="clip-time">${c.start_hms} &middot; ${c.duration_hms}</span>
         ${c.has_export
-          ? '<span class="export-pill is-exported" title="Clip has been exported">Exported</span>'
+          ? (c.export_stale
+              ? `<span class="export-pill is-stale" title="Stale — re-export to update (${escHtml((c.export_stale_reasons || []).join(', '))})">Stale</span>`
+              : '<span class="export-pill is-exported" title="Clip has been exported">Exported</span>')
           : '<span class="export-pill not-exported" title="Not yet exported">Not exported</span>'}
         <span class="status-dot dot-${c.status}" title="${c.status === 'approved' ? 'Approved' : c.status === 'rejected' ? 'Rejected' : 'Unreviewed'}">${c.status === 'approved' ? '✓' : c.status === 'rejected' ? '✕' : ''}</span>
       </div>
@@ -382,7 +384,8 @@ function renderDetail(clip) {
             'None'
           }</strong></span>
           ${clip.exported_at ? `<span>When: <strong style="color:var(--text)">${_fmtAgo(clip.exported_at)}</strong></span>` : ''}
-        </div>` : ''}
+        </div>
+        ${clip.export_stale ? `<div class="transcript-stale-note" style="margin-top:8px">&#9888; Stale — re-export to update (${escHtml((clip.export_stale_reasons || []).join(', '))})</div>` : ''}` : ''}
     </div>`;
 
   document.getElementById('detail').innerHTML = `

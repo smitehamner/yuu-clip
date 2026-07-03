@@ -640,6 +640,35 @@ class TestEditableClipFields:
         r = client.patch("/api/clips/99999/fields", json={"action": "revert", "field": "description"})
         assert r.status_code == 404
 
+    def test_accept_edit_description_sets_description_edited_at(self, client, project_dir):
+        from yuu_clip.db.models import ClipCandidate, make_session
+        clip_id = self._first_clip_id(client)
+        db = make_session(project_dir / ".yuu-clip" / "project.db")
+        assert db.get(ClipCandidate, clip_id).description_edited_at is None
+        db.close()
+
+        client.patch(f"/api/clips/{clip_id}/fields", json={
+            "action": "accept_edit", "field": "description", "new_description": "Edited",
+        })
+
+        db = make_session(project_dir / ".yuu-clip" / "project.db")
+        assert db.get(ClipCandidate, clip_id).description_edited_at is not None
+        db.close()
+
+    def test_description_long_only_edit_does_not_set_description_edited_at(self, client, project_dir):
+        """description_edited_at only tracks the short description — that's the only
+        one burned into a title card export."""
+        from yuu_clip.db.models import ClipCandidate, make_session
+        clip_id = self._first_clip_id(client)
+
+        client.patch(f"/api/clips/{clip_id}/fields", json={
+            "action": "accept_edit", "field": "description_long", "new_description_long": "Long edit",
+        })
+
+        db = make_session(project_dir / ".yuu-clip" / "project.db")
+        assert db.get(ClipCandidate, clip_id).description_edited_at is None
+        db.close()
+
     def test_invalid_action_returns_400(self, client):
         clip_id = self._first_clip_id(client)
         r = client.patch(f"/api/clips/{clip_id}/fields", json={
@@ -1746,6 +1775,19 @@ class TestClipTiming:
     def test_update_timing_404(self, client):
         r = client.patch("/api/clips/99999/timing", json={"start_offset": 0.0, "end_offset": 0.0})
         assert r.status_code == 404
+
+    def test_update_timing_sets_trim_edited_at(self, client, project_dir):
+        from yuu_clip.db.models import ClipCandidate, make_session
+        clip_id = self._first_clip_id(client)
+        db = make_session(project_dir / ".yuu-clip" / "project.db")
+        assert db.get(ClipCandidate, clip_id).trim_edited_at is None
+        db.close()
+
+        client.patch(f"/api/clips/{clip_id}/timing", json={"start_offset": -1.0, "end_offset": 0.0})
+
+        db = make_session(project_dir / ".yuu-clip" / "project.db")
+        assert db.get(ClipCandidate, clip_id).trim_edited_at is not None
+        db.close()
 
 
 class TestConfig:

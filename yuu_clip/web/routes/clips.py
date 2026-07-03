@@ -129,6 +129,27 @@ def _transcript_stale(clip: ClipCandidate, video: Optional[Video]) -> bool:
     )
 
 
+def _export_stale(clip: ClipCandidate) -> tuple[bool, list[str]]:
+    """Whether the exported video file for *clip* no longer reflects its current state.
+
+    Only concerns the encoded file itself — cheap text artifacts (transcript excerpt,
+    SRT caption sidecar) auto-refresh in place and are never "stale". A caption edit only
+    stales the file when captions are actually part of the file's bytes (baked-in or
+    muxed as a soft subtitle track); a plain cut is unaffected by transcript changes.
+    """
+    if not clip.exported_at:
+        return False, []
+    reasons: list[str] = []
+    if clip.trim_edited_at and clip.trim_edited_at > clip.exported_at:
+        reasons.append("clip window changed")
+    captions_in_file = bool(clip.exported_burn_subs or clip.exported_embed_subs)
+    if captions_in_file and clip.transcript_edited_at and clip.transcript_edited_at > clip.exported_at:
+        reasons.append("captions changed")
+    if clip.exported_title_card and clip.description_edited_at and clip.description_edited_at > clip.exported_at:
+        reasons.append("description changed")
+    return bool(reasons), reasons
+
+
 def _clip_dict(
     clip: ClipCandidate,
     full: bool = False,
@@ -141,6 +162,7 @@ def _clip_dict(
         and video is not None
         and any(p.exists() for p in _export_paths(clip, video, export_dir, name_template))
     )
+    export_stale, export_stale_reasons = _export_stale(clip) if has_export else (False, [])
     d = {
         "id": clip.id,
         "video_id": clip.video_id,
@@ -169,11 +191,15 @@ def _clip_dict(
         "exported_at": clip.exported_at.isoformat() if clip.exported_at else None,
         "exported_container": clip.exported_container or None,
         "exported_burn_subs": clip.exported_burn_subs,
+        "exported_embed_subs": clip.exported_embed_subs,
+        "exported_title_card": clip.exported_title_card,
         "subtitle_status": _subtitle_status(clip, video, export_dir, name_template) if has_export else "none",
         "related_clips": json_lib.loads(clip.related_clips_json) if clip.related_clips_json else None,
         "related_clips_at": clip.related_clips_at.isoformat() if clip.related_clips_at else None,
         "related_clips_stale": _related_clips_stale(clip, video),
         "transcript_stale": _transcript_stale(clip, video),
+        "export_stale": export_stale,
+        "export_stale_reasons": export_stale_reasons,
     }
     if full:
         d["transcript_excerpt"] = clip.transcript_excerpt or ""
@@ -825,6 +851,11 @@ def _register_clip_edit_routes(router: APIRouter, ctx: ProjectContext) -> None:
                 if touch_desc_long:
                     clip.description_long_user = None
 
+            # description_edited_at only tracks the short description — that's the
+            # only one burned into a title card export.
+            if touch_desc:
+                clip.description_edited_at = datetime.now(timezone.utc)
+
             db.commit()
             return _clip_dict(clip, full=True, export_dir=ctx.export_dir, video=video, name_template=ctx.config.export_name_template)
         finally:
@@ -869,6 +900,8 @@ def _register_clip_edit_routes(router: APIRouter, ctx: ProjectContext) -> None:
             clip_a.exported_at  = None
             clip_a.exported_container = None
             clip_a.exported_burn_subs = None
+            clip_a.exported_embed_subs = None
+            clip_a.exported_title_card = None
 
             video = db.get(Video, clip_a.video_id)
             _delete_files(_all_sidecar_paths(clip_b, video, ctx.export_dir, ctx.config.export_name_template))
@@ -894,6 +927,7 @@ def _register_clip_edit_routes(router: APIRouter, ctx: ProjectContext) -> None:
             clip = _require_clip(db, clip_id)
             clip.start_offset = body.start_offset
             clip.end_offset   = body.end_offset
+            clip.trim_edited_at = datetime.now(timezone.utc)
             db.commit()
             # Invalidate the cached preview so the next request reflects the new timing.
             cached = ctx.preview_cache.pop(clip_id, None)
@@ -928,6 +962,7 @@ def _register_caption_routes(router: APIRouter, ctx: ProjectContext) -> None:
         Preserves the segment's speaker and timing — only the text changes.
         """
         from yuu_clip.segments.windower import rebuild_clip_excerpt
+        from yuu_clip.subtitles import refresh_export_sidecars
         new_text = body.text.strip()
         if not new_text:
             raise HTTPException(400, "Caption text cannot be empty")
@@ -952,6 +987,8 @@ def _register_caption_routes(router: APIRouter, ctx: ProjectContext) -> None:
                 rebuild_clip_excerpt(clip)
                 clip.transcript_edited_at = edited_at
             db.commit()
+            for clip in affected:
+                refresh_export_sidecars(clip, ctx.export_dir, ctx.config.export_name_template)
             _log.info(
                 "Edited caption segment %d (video %d) — rebuilt %d clip excerpt(s)",
                 seg_id, video_id, len(affected),

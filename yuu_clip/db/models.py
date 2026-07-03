@@ -160,6 +160,10 @@ def _migrate(engine) -> None:
             ("related_clips_at",    "DATETIME"),
             ("transcript_edited_at", "DATETIME"),
             ("user_tags_json",      "TEXT"),
+            ("trim_edited_at",      "DATETIME"),
+            ("description_edited_at", "DATETIME"),
+            ("exported_title_card", "BOOLEAN"),
+            ("exported_embed_subs", "BOOLEAN"),
         ]
         for col, typedef in _clip_migrations:
             if col not in existing:
@@ -510,6 +514,11 @@ class ClipCandidate(Base):
     exported_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
     exported_container: Mapped[Optional[str]] = mapped_column(String)
     exported_burn_subs: Mapped[Optional[bool]] = mapped_column(Boolean)
+    exported_title_card: Mapped[Optional[bool]] = mapped_column(Boolean)
+    # True when captions were muxed in as a soft subtitle stream (--embed-subs). Distinct
+    # from exported_burn_subs (captions composited into the video pixels themselves) —
+    # both mean the exported file's bytes depend on the transcript, for staleness purposes.
+    exported_embed_subs: Mapped[Optional[bool]] = mapped_column(Boolean)
 
     related_clips_json: Mapped[Optional[str]] = mapped_column(Text)
     related_clips_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
@@ -518,6 +527,14 @@ class ClipCandidate(Base):
     # the video's clips_scored_at to flag a clip whose transcript changed since it
     # was last scored (same provenance pattern as related_clips_at).
     transcript_edited_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+
+    # Set whenever start_offset/end_offset change (the trim/timing route) — compared
+    # against exported_at to flag an exported file whose cut window has since moved.
+    trim_edited_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+
+    # Set whenever description/description_user actually changes value — compared
+    # against exported_at to flag a title-card export whose burned-in text is stale.
+    description_edited_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
 
     # Set the first time ScoringEngine.score_clip actually scores this clip. Null
     # distinguishes "never scored" from the score_* fields' 0.0 default, which a

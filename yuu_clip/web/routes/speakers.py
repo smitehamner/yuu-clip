@@ -133,6 +133,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
 
     @router.put("/api/speakers/{speaker_id}")
     def rename_speaker(speaker_id: int, body: SpeakerRename):
+        from yuu_clip.subtitles import refresh_export_sidecars
         db = ctx.get_db()
         try:
             speaker = db.get(Speaker, speaker_id)
@@ -141,12 +142,17 @@ def make_router(ctx: ProjectContext) -> APIRouter:
 
             fields_set = body.model_fields_set
             refreshed = 0
+            affected: list[ClipCandidate] = []
             if "name" in fields_set:
                 name = (body.name or "").strip()
                 speaker.name = name or None
                 speaker.confirmed = True
                 db.flush()
                 refreshed = _rebuild_video_excerpts(db, speaker.video_id)
+                edited_at = datetime.now(timezone.utc)
+                affected = db.query(ClipCandidate).filter_by(video_id=speaker.video_id).all()
+                for clip in affected:
+                    clip.transcript_edited_at = edited_at
 
             if "color" in fields_set:
                 color = (body.color or "").strip()
@@ -155,6 +161,8 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                 speaker.color = color or None
 
             db.commit()
+            for clip in affected:
+                refresh_export_sidecars(clip, ctx.export_dir, ctx.config.export_name_template)
             _log.info(
                 "Updated speaker %d (video %d): name=%r color=%r; refreshed %d clip excerpt(s)",
                 speaker_id, speaker.video_id, speaker.name, speaker.color, refreshed,
@@ -172,6 +180,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         overlaps it (the excerpt groups by speaker), and flags those clips for
         re-score — mirrors the caption-edit route.
         """
+        from yuu_clip.subtitles import refresh_export_sidecars
         db = ctx.get_db()
         try:
             seg = db.get(TranscriptSegment, seg_id)
@@ -201,6 +210,8 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                 rebuild_clip_excerpt(clip)
                 clip.transcript_edited_at = edited_at
             db.commit()
+            for clip in affected:
+                refresh_export_sidecars(clip, ctx.export_dir, ctx.config.export_name_template)
 
             speaker = db.get(Speaker, seg.speaker_id) if seg.speaker_id is not None else None
             _log.info(

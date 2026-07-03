@@ -417,6 +417,49 @@ class TestSpeakerRoutes:
         from yuu_clip.db.models import SPEAKER_COLOR_PALETTE
         assert lines[0]["color"] == SPEAKER_COLOR_PALETTE[0]
 
+    def test_rename_sets_transcript_edited_at_on_video_clips(self, client, project_dir):
+        _video_id, speaker_id, clip_id = self._seed_speaker(project_dir)
+        db = self._db(project_dir)
+        assert db.get(ClipCandidate, clip_id).transcript_edited_at is None
+        db.close()
+
+        client.put(f"/api/speakers/{speaker_id}", json={"name": "Yuu"})
+
+        db = self._db(project_dir)
+        assert db.get(ClipCandidate, clip_id).transcript_edited_at is not None
+        db.close()
+
+    def test_color_only_rename_does_not_set_transcript_edited_at(self, client, project_dir):
+        """Color is cosmetic — it doesn't change any transcript text, so no clip
+        should be flagged as needing a re-score or export refresh."""
+        _video_id, speaker_id, clip_id = self._seed_speaker(project_dir)
+
+        client.put(f"/api/speakers/{speaker_id}", json={"color": "#abcdef"})
+
+        db = self._db(project_dir)
+        assert db.get(ClipCandidate, clip_id).transcript_edited_at is None
+        db.close()
+
+    def test_rename_refreshes_existing_export_sidecar(self, client, project_dir):
+        _video_id, speaker_id, clip_id = self._seed_speaker(project_dir)
+        clip = client.get(f"/api/clips/{clip_id}").json()
+        export_dir = project_dir / ".yuu-clip" / "exports"
+        stem = f"session_clip{clip_id}_{clip['start_hms'].replace(':', '-')}"
+        srt = export_dir / f"{stem}.srt"
+        srt.write_text("1\n00:00:00,000 --> 00:00:01,000\nold text\n\n", encoding="utf-8")
+
+        client.put(f"/api/speakers/{speaker_id}", json={"name": "Yuu"})
+
+        assert "Yuu" in srt.read_text(encoding="utf-8")
+
+    def test_rename_does_not_create_sidecar_when_none_exists(self, client, project_dir):
+        _video_id, speaker_id, _clip_id = self._seed_speaker(project_dir)
+        export_dir = project_dir / ".yuu-clip" / "exports"
+
+        client.put(f"/api/speakers/{speaker_id}", json={"name": "Yuu"})
+
+        assert list(export_dir.glob("*.srt")) == []
+
 
 class TestReassignSegmentSpeaker:
     def _db(self, project_dir: Path):
@@ -496,6 +539,18 @@ class TestReassignSegmentSpeaker:
         lines = client.get(f"/api/clips/{clip_id}/transcript").json()["lines"]
         assert lines[0]["speaker_id"] == sp2
         assert lines[0]["speaker_edited"] is True
+
+    def test_reassign_refreshes_existing_export_sidecar(self, client, project_dir):
+        _, _, sp2, seg_id, clip_id, _ = self._seed(project_dir)
+        clip = client.get(f"/api/clips/{clip_id}").json()
+        export_dir = project_dir / ".yuu-clip" / "exports"
+        stem = f"session_clip{clip_id}_{clip['start_hms'].replace(':', '-')}"
+        srt = export_dir / f"{stem}.srt"
+        srt.write_text("1\n00:00:00,000 --> 00:00:01,000\nold text\n\n", encoding="utf-8")
+
+        client.put(f"/api/transcript-segments/{seg_id}/speaker", json={"speaker_id": sp2})
+
+        assert "Mara" in srt.read_text(encoding="utf-8")
 
 
 class TestApplyNameSuggestions:

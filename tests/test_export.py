@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import os
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 from fastapi import HTTPException
+
+from yuu_clip.db.models import ClipCandidate, make_session
 
 # ---------------------------------------------------------------------------
 # export_clip FFmpeg command shape — the -t duration flag must land after every
@@ -972,3 +975,127 @@ class TestRefreshCaptionSidecars:
         _refresh_caption_sidecars(self._make_clip("SPEAKER_00"), tmp_path)
 
         assert list(exports.glob("*.srt")) == []
+
+
+# ---------------------------------------------------------------------------
+# export_stale staleness matrix — GET /api/clips/{id} (see docs/dev/USER_PATHS.md).
+#
+# Uses explicit before/after timestamps rather than wall-clock call ordering, so the
+# matrix isn't sensitive to how fast the test process happens to run.
+# ---------------------------------------------------------------------------
+
+class TestExportStaleness:
+    def _first_clip(self, client):
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        return client.get(f"/api/videos/{vid_id}/clips").json()[0]
+
+    def _seed(self, project_dir: Path, clip_id: int, start_hms: str, exported_at, **fields):
+        """Write a fake export file on disk and set exported_at plus any exported_*/
+        *_edited_at fields directly on the clip row."""
+        export_dir = project_dir / ".yuu-clip" / "exports"
+        stem = f"session_clip{clip_id}_{start_hms.replace(':', '-')}"
+        (export_dir / f"{stem}.mkv").write_bytes(b"fake video")
+
+        db = make_session(project_dir / ".yuu-clip" / "project.db")
+        clip = db.get(ClipCandidate, clip_id)
+        clip.exported_at = exported_at
+        for key, value in fields.items():
+            setattr(clip, key, value)
+        db.commit()
+        db.close()
+
+    def test_plain_cut_not_stale_after_caption_edit(self, client, project_dir):
+        now = datetime.now(timezone.utc)
+        clip = self._first_clip(client)
+        self._seed(project_dir, clip["id"], clip["start_hms"],
+                    exported_at=now, transcript_edited_at=now + timedelta(minutes=1))
+
+        detail = client.get(f"/api/clips/{clip['id']}").json()
+        assert detail["export_stale"] is False
+        assert detail["export_stale_reasons"] == []
+
+    def test_burned_captions_stale_after_caption_edit(self, client, project_dir):
+        now = datetime.now(timezone.utc)
+        clip = self._first_clip(client)
+        self._seed(project_dir, clip["id"], clip["start_hms"],
+                    exported_at=now, exported_burn_subs=True,
+                    transcript_edited_at=now + timedelta(minutes=1))
+
+        detail = client.get(f"/api/clips/{clip['id']}").json()
+        assert detail["export_stale"] is True
+        assert detail["export_stale_reasons"] == ["captions changed"]
+
+    def test_embedded_captions_stale_after_caption_edit(self, client, project_dir):
+        now = datetime.now(timezone.utc)
+        clip = self._first_clip(client)
+        self._seed(project_dir, clip["id"], clip["start_hms"],
+                    exported_at=now, exported_embed_subs=True,
+                    transcript_edited_at=now + timedelta(minutes=1))
+
+        detail = client.get(f"/api/clips/{clip['id']}").json()
+        assert detail["export_stale"] is True
+        assert detail["export_stale_reasons"] == ["captions changed"]
+
+    def test_any_export_stale_after_trim_change(self, client, project_dir):
+        now = datetime.now(timezone.utc)
+        clip = self._first_clip(client)
+        self._seed(project_dir, clip["id"], clip["start_hms"],
+                    exported_at=now, trim_edited_at=now + timedelta(minutes=1))
+
+        detail = client.get(f"/api/clips/{clip['id']}").json()
+        assert detail["export_stale"] is True
+        assert detail["export_stale_reasons"] == ["clip window changed"]
+
+    def test_title_card_export_stale_after_description_edit(self, client, project_dir):
+        now = datetime.now(timezone.utc)
+        clip = self._first_clip(client)
+        self._seed(project_dir, clip["id"], clip["start_hms"],
+                    exported_at=now, exported_title_card=True,
+                    description_edited_at=now + timedelta(minutes=1))
+
+        detail = client.get(f"/api/clips/{clip['id']}").json()
+        assert detail["export_stale"] is True
+        assert detail["export_stale_reasons"] == ["description changed"]
+
+    def test_plain_export_not_stale_after_description_edit_without_title_card(self, client, project_dir):
+        now = datetime.now(timezone.utc)
+        clip = self._first_clip(client)
+        self._seed(project_dir, clip["id"], clip["start_hms"],
+                    exported_at=now, description_edited_at=now + timedelta(minutes=1))
+
+        detail = client.get(f"/api/clips/{clip['id']}").json()
+        assert detail["export_stale"] is False
+
+    def test_edit_before_export_is_not_stale(self, client, project_dir):
+        """An export made after the transcript edit already reflects it."""
+        now = datetime.now(timezone.utc)
+        clip = self._first_clip(client)
+        self._seed(project_dir, clip["id"], clip["start_hms"],
+                    exported_at=now, exported_burn_subs=True,
+                    transcript_edited_at=now - timedelta(minutes=1))
+
+        detail = client.get(f"/api/clips/{clip['id']}").json()
+        assert detail["export_stale"] is False
+
+    def test_no_badge_when_never_exported(self, client, project_dir):
+        clip = self._first_clip(client)
+        db = make_session(project_dir / ".yuu-clip" / "project.db")
+        db.get(ClipCandidate, clip["id"]).trim_edited_at = datetime.now(timezone.utc)
+        db.commit()
+        db.close()
+
+        detail = client.get(f"/api/clips/{clip['id']}").json()
+        assert detail["has_export"] is False
+        assert detail["export_stale"] is False
+
+    def test_no_badge_when_export_file_deleted(self, client, project_dir):
+        now = datetime.now(timezone.utc)
+        clip = self._first_clip(client)
+        self._seed(project_dir, clip["id"], clip["start_hms"],
+                    exported_at=now, trim_edited_at=now + timedelta(minutes=1))
+        stem = f"session_clip{clip['id']}_{clip['start_hms'].replace(':', '-')}"
+        (project_dir / ".yuu-clip" / "exports" / f"{stem}.mkv").unlink()
+
+        detail = client.get(f"/api/clips/{clip['id']}").json()
+        assert detail["has_export"] is False
+        assert detail["export_stale"] is False

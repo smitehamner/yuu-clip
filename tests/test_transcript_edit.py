@@ -135,6 +135,32 @@ class TestUpdateCaptionSegment:
         res = client.put("/api/caption-segments/999999", json={"text": "x"})
         assert res.status_code == 404
 
+    def test_refreshes_existing_export_sidecar(self, client, project_dir):
+        session = _db(project_dir)
+        seg_a_id, _b, clip_ids, _vid = _seed_transcript(session)
+        session.close()
+        clip = client.get(f"/api/clips/{clip_ids[0]}").json()
+        export_dir = project_dir / ".yuu-clip" / "exports"
+        stem = f"session_clip{clip_ids[0]}_{clip['start_hms'].replace(':', '-')}"
+        srt = export_dir / f"{stem}.srt"
+        srt.write_text("1\n00:00:00,000 --> 00:00:01,000\nstale text\n\n", encoding="utf-8")
+
+        client.put(f"/api/caption-segments/{seg_a_id}", json={"text": "fresh text"})
+
+        content = srt.read_text(encoding="utf-8")
+        assert "fresh text" in content
+        assert "stale text" not in content
+
+    def test_does_not_create_sidecar_when_none_exists(self, client, project_dir):
+        session = _db(project_dir)
+        seg_a_id, _b, _clip_ids, _vid = _seed_transcript(session)
+        session.close()
+        export_dir = project_dir / ".yuu-clip" / "exports"
+
+        client.put(f"/api/caption-segments/{seg_a_id}", json={"text": "no sidecar yet"})
+
+        assert list(export_dir.glob("*.srt")) == []
+
 
 class TestTranscriptSeekOffset:
     def test_clip_transcript_lines_carry_seg_id(self, client, project_dir):

@@ -74,9 +74,10 @@ async function switchReelTab(tab) {
       const item = document.createElement('div');
       item.className = 'reel-item' + (i === 0 ? ' active' : '');
       const capBadge = reel.has_captions ? ' &middot; <span style="color:var(--green)" title="Captions available">CC</span>' : '';
+      const staleBadge = reel.stale ? ' &middot; <span style="color:var(--warning)" title="A member clip was re-exported since this reel was built">Stale — rebuild to update</span>' : '';
       item.innerHTML =
         `<div class="reel-name">${escHtml(reel.filename)}</div>` +
-        `<div class="reel-meta">${escHtml(reel.date)} &middot; ${reel.size_mb} MB${capBadge}</div>`;
+        `<div class="reel-meta">${escHtml(reel.date)} &middot; ${reel.size_mb} MB${capBadge}${staleBadge}</div>`;
       if (reel.can_caption) {
         const capBtn = document.createElement('button');
         capBtn.className = 'btn ghost';

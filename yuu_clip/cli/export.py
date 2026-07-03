@@ -65,6 +65,7 @@ def _run_retranscribe(cand, session, config, language: Optional[str] = None,
     Does not rescore. Caller is responsible for session.commit() afterward.
     """
     import tempfile
+    from datetime import datetime, timezone
 
     from yuu_clip.db.models import AudioTrack, Transcript, TranscriptSegment
     from yuu_clip.transcribe.whisper_runner import _get_model, resolve_transcription_language
@@ -127,6 +128,8 @@ def _run_retranscribe(cand, session, config, language: Optional[str] = None,
                                        effective_start_s, track.label)
 
     _update_clip_excerpt(cand, session, new_tx_ids)
+    if new_tx_ids:
+        cand.transcript_edited_at = datetime.now(timezone.utc)
 
 
 def _update_clip_excerpt(cand, session, tx_ids: list[int]) -> None:
@@ -241,6 +244,8 @@ def _finalize_export(cand, session, video_path: Path, output: Path, *,
         cand.exported_at = datetime.now(timezone.utc)
         cand.exported_container = result.suffix.lstrip(".")
         cand.exported_burn_subs = bake_captions
+        cand.exported_embed_subs = subtitle_track_path is not None
+        cand.exported_title_card = title_card
         session.commit()
     except RuntimeError as e:
         console.print(f"  [red]Export failed: {e}[/red]")
@@ -289,21 +294,12 @@ def _emit_caption_sidecars(cand, output: Path, base: str) -> None:
 
 
 def _refresh_caption_sidecars(cand, proj_dir: Path, name_template: str = DEFAULT_EXPORT_NAME_TEMPLATE) -> None:
-    """Regenerate an already-exported clip's SRT caption sidecars from its current transcript.
-
-    No-op when the clip has no existing sidecar in the exports dir: retranscribe should
-    refresh captions the user already has, not create new export artifacts for a clip
-    that was never exported. Note: if the export filename template changed since this
-    clip was exported, its sidecars were written under the old stem and won't be found.
-    """
+    """CLI-facing wrapper around subtitles.refresh_export_sidecars() that prints progress."""
     from yuu_clip.config import project_exports_dir
-    from yuu_clip.subtitles import export_srt_sidecars
+    from yuu_clip.subtitles import refresh_export_sidecars
 
     exports = project_exports_dir(proj_dir)
-    base = export_base_stem(cand, name_template)
-    if not any(exports.glob(f"{base}*.srt")):
-        return
-    for srt in export_srt_sidecars(cand, exports, base):
+    for srt in refresh_export_sidecars(cand, exports, name_template):
         console.print(f"  [green]  OK[/green] Captions refreshed  [cyan]{srt.name}[/cyan]")
 
 

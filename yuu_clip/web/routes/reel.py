@@ -8,7 +8,7 @@ Validation at the start step prevents starting a long render only to fail early.
 from __future__ import annotations
 
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -196,11 +196,44 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                 "mtime": st.st_mtime,
                 "has_captions": reel_caption_path(f).exists(),
                 "can_caption": reel_composition_path(f).exists(),
+                "stale": _reel_stale(f, st.st_mtime),
             })
         reels.sort(key=lambda r: r["mtime"], reverse=True)
         for r in reels:
             del r["mtime"]
         return reels
+
+    def _reel_stale(reel_path: Path, reel_mtime: float) -> Optional[bool]:
+        """None (unknown) when the reel predates the composition manifest; otherwise True
+        when a member clip was re-exported, or its export deleted, since the reel was built."""
+        import json as _json
+
+        from yuu_clip.reel import reel_composition_path
+
+        comp_path = reel_composition_path(reel_path)
+        if not comp_path.exists():
+            return None
+        comp = _json.loads(comp_path.read_text(encoding="utf-8"))
+        clip_ids = [entry["id"] for entry in comp.get("clips", [])]
+        if not clip_ids:
+            return None
+        db = ctx.get_db()
+        try:
+            clips = db.query(ClipCandidate).filter(ClipCandidate.id.in_(clip_ids)).all()
+            found_ids = {c.id for c in clips}
+            if found_ids != set(clip_ids):
+                return True  # a member clip was deleted since the reel was built
+            for clip in clips:
+                if not clip.exported_at:
+                    return True
+                # exported_at is stored UTC-naive; attach tzinfo so the comparison against
+                # st_mtime (an epoch, tz-agnostic) is apples-to-apples.
+                exported_ts = clip.exported_at.replace(tzinfo=timezone.utc).timestamp()
+                if exported_ts > reel_mtime:
+                    return True
+            return False
+        finally:
+            db.close()
 
     def _resolve_reel(filename: str) -> Path:
         """Return the reel path for a name, rejecting traversal and missing files."""

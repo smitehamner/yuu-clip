@@ -178,6 +178,7 @@ header h1 { font-size: 16px; font-weight: 700; letter-spacing: .5px; color: var(
 .export-pill { font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 9px; flex-shrink: 0; letter-spacing: .2px; }
 .export-pill.is-exported { background: var(--green); color: var(--on-green); opacity: .9; }
 .export-pill.not-exported { background: var(--border); color: var(--muted); }
+.export-pill.is-stale { background: color-mix(in srgb, var(--warning) 20%, transparent); color: var(--warning); }
 .sidebar-list { list-style: none; overflow-y: auto; }
 .sidebar-list li { padding: 8px 14px; cursor: pointer; border-left: 3px solid transparent; transition: background .1s; }
 .sidebar-list li:hover { background: var(--border); }
