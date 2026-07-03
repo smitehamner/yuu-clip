@@ -6,6 +6,20 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) — see the
 
 ---
 
+## Quick wins Stage 2 — playback options (done, 2026-07-03)
+
+Settings → UI: two checkboxes alongside Autoplay, mutually exclusive (checking
+one unchecks the other, both live in `settings.js` and reflected in the panel):
+
+- **Play next clip when finished** — on the preview video's `ended` event,
+  advances to the next clip in the current list order (same path arrow-key
+  navigation uses); stops silently at the end of the list.
+- **Loop clip** — sets `loop` on the preview `<video>` element.
+
++3 UI tests in `test_ui_clips.py`.
+
+---
+
 ## Quick wins Stage 1 — micro wins (done, 2026-07-03)
 
 Four small JS/HTML-only items from `docs/dev/plans/QUICK-WINS-2026-07.md`:

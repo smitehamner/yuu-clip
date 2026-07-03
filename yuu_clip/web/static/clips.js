@@ -233,17 +233,20 @@ async function refreshClipDetail(id) {
 function renderPlayer(url, captionsUrl, clipId) {
   const area = document.getElementById('player-area');
   const autoplay = localStorage.getItem('yuuclip-autoplay') === 'true';
+  const loopClip = localStorage.getItem('yuuclip-loop-clip') === 'true';
+  const playNext = localStorage.getItem('yuuclip-play-next') === 'true';
   if (url) {
     const track = captionsUrl
       ? `<track kind="captions" src="${escHtml(captionsUrl)}" label="Captions" default>`
       : '';
-    area.innerHTML = `<video controls ${autoplay ? 'autoplay' : ''} src="${escHtml(url)}" aria-label="Clip preview">${track}</video>`;
+    area.innerHTML = `<video controls ${autoplay ? 'autoplay' : ''} ${loopClip ? 'loop' : ''} src="${escHtml(url)}" aria-label="Clip preview">${track}</video>`;
   } else {
     const wrap = document.createElement('div');
     wrap.style.position = 'relative';
     const vid = document.createElement('video');
     vid.controls = true;
     vid.autoplay = autoplay;
+    vid.loop = loopClip;
     vid.src = `/api/clips/${clipId}/preview`;
     vid.setAttribute('aria-label', 'Clip source preview');
     vid.style.cssText = 'display:block;width:100%;max-height:var(--player-max-height, 42vh);object-fit:contain;background:#000';
@@ -261,6 +264,17 @@ function renderPlayer(url, captionsUrl, clipId) {
     area.innerHTML = '';
     area.appendChild(wrap);
   }
+  if (playNext) area.querySelector('video')?.addEventListener('ended', _playNextClip);
+}
+
+// Advances to the next clip in the current filtered/sorted order — same path
+// arrow-key navigation uses — and stops silently at the end of the list.
+function _playNextClip() {
+  const idx = AppState.clips.findIndex(c => c.id === AppState.activeClipId);
+  if (idx === -1 || idx >= AppState.clips.length - 1) return;
+  const nextId = AppState.clips[idx + 1].id;
+  selectClip(nextId);
+  document.querySelector(`#clip-list li[data-clip-id="${nextId}"]`)?.focus();
 }
 
 // The clip preview route prefers the 720p proxy when one exists; reflect that on

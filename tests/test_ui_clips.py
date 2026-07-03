@@ -851,3 +851,40 @@ class TestRefreshHamburgerItem:
         page.evaluate("toggleHamburger()")
         page.wait_for_selector("#hamburger-menu.open")
         expect(page.locator("#btn-refresh")).to_be_visible()
+
+
+# ---------------------------------------------------------------------------
+# Quick-wins Stage 2 — playback options (play-next, loop clip)
+# ---------------------------------------------------------------------------
+
+@skip_no_server
+class TestPlaybackOptions:
+    def test_play_next_seeded_advances_on_ended(self, page: Page):
+        page.add_init_script(
+            "try { localStorage.setItem('yuuclip-play-next', 'true'); } catch (e) {}"
+        )
+        page.goto(LIVE_URL)
+        select_first_video_and_clip(page)
+        page.wait_for_selector(".detail", timeout=3000)
+        second_id = page.evaluate("() => AppState.clips[1]?.id")
+        assert second_id is not None, "Need at least 2 clips for this test"
+        page.eval_on_selector("#player-area video", "v => v.dispatchEvent(new Event('ended'))")
+        page.wait_for_function(f"() => AppState.activeClipId === {second_id}")
+
+    def test_loop_seeded_sets_loop_attribute(self, page: Page):
+        page.add_init_script(
+            "try { localStorage.setItem('yuuclip-loop-clip', 'true'); } catch (e) {}"
+        )
+        page.goto(LIVE_URL)
+        select_first_video_and_clip(page)
+        page.wait_for_selector("#player-area video", timeout=3000)
+        assert page.eval_on_selector("#player-area video", "v => v.loop") is True
+
+    def test_play_next_and_loop_are_mutually_exclusive(self, page: Page):
+        page.goto(LIVE_URL)
+        page.evaluate("openSettings()")
+        page.wait_for_selector("#settings-panel.visible", timeout=3000)
+        page.check("#s-play-next")
+        expect(page.locator("#s-loop-clip")).not_to_be_checked()
+        page.check("#s-loop-clip")
+        expect(page.locator("#s-play-next")).not_to_be_checked()

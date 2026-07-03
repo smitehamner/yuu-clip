@@ -444,6 +444,26 @@
     </div>
     <div class="settings-row">
       <div class="settings-col">
+        <div class="settings-label">Play next clip when finished</div>
+        <div class="settings-note">Advance to the next clip in the list when the current one ends</div>
+      </div>
+      <label class="settings-checkbox">
+        <input type="checkbox" id="s-play-next" onchange="_onPlayNextChange(this.checked)">
+        <span style="font-size:13px">Enabled</span>
+      </label>
+    </div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <div class="settings-label">Loop clip</div>
+        <div class="settings-note">Repeat the current clip instead of stopping at the end</div>
+      </div>
+      <label class="settings-checkbox">
+        <input type="checkbox" id="s-loop-clip" onchange="_onLoopClipChange(this.checked)">
+        <span style="font-size:13px">Enabled</span>
+      </label>
+    </div>
+    <div class="settings-row">
+      <div class="settings-col">
         <label class="settings-label" for="s-timeline-interval">Timeline interval</label>
         <div class="settings-note">Bucket size used when generating session timeline</div>
       </div>

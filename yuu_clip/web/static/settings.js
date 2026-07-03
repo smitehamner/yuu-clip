@@ -10,7 +10,7 @@ const _settingsFieldIds = [
   's-laugh-weight','s-laugh-mode','s-laugh-model-id',
   's-funny-weight','s-dramatic-weight','s-action-weight',
   's-scene-mode','s-energy-mode','s-silence-ms','s-min-clip-ms',
-  's-timeline-interval','s-timeline-unit','s-autoplay',
+  's-timeline-interval','s-timeline-unit','s-autoplay','s-play-next','s-loop-clip',
 ];
 // [element id, config key, default] — single source for apply + Reset to defaults.
 const _weightFields = [
@@ -190,6 +190,8 @@ function _applySettingsToUI(cfg) {
   setVal('s-timeline-interval', _tlVal);
   setVal('s-timeline-unit',     _tlUnit);
   setChk('s-autoplay', localStorage.getItem('yuuclip-autoplay') === 'true');
+  setChk('s-play-next', localStorage.getItem('yuuclip-play-next') === 'true');
+  setChk('s-loop-clip', localStorage.getItem('yuuclip-loop-clip') === 'true');
   setVal('s-theme', localStorage.getItem('yuuclip-theme') || 'dark');
   _snapshotSettings();
   _checkSettingsDirty();
@@ -294,6 +296,20 @@ async function _updateDiarizationStatus() {
 function _onLaughModeChange(mode) {
   const modelEl = document.getElementById('s-laugh-model-fields');
   if (modelEl) modelEl.style.display = mode === 'model' ? '' : 'none';
+}
+
+// Play-next and loop-clip are mutually exclusive — looping a clip forever
+// would make "play next" unreachable, so enabling one clears the other.
+function _onPlayNextChange(enabled) {
+  if (!enabled) return;
+  const loopEl = document.getElementById('s-loop-clip');
+  if (loopEl) loopEl.checked = false;
+}
+
+function _onLoopClipChange(enabled) {
+  if (!enabled) return;
+  const playNextEl = document.getElementById('s-play-next');
+  if (playNextEl) playNextEl.checked = false;
 }
 
 async function _refreshInstallStatus(slug) {
@@ -409,6 +425,8 @@ async function saveSettings() {
   };
 
   localStorage.setItem('yuuclip-autoplay', getChk('s-autoplay'));
+  localStorage.setItem('yuuclip-play-next', getChk('s-play-next'));
+  localStorage.setItem('yuuclip-loop-clip', getChk('s-loop-clip'));
 
   const btn = document.getElementById('btn-settings-save');
   if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
@@ -760,6 +778,7 @@ Object.assign(window, {
   openGettingStartedModal, closeGettingStartedModal,
   openGlossaryModal, closeGlossaryModal, _filterGlossary,
   _onLlmBackendChange, _onLlmEnabledChange, _onDiarizationBackendChange, _onLaughModeChange,
+  _onPlayNextChange, _onLoopClipChange,
   _toggleSecretVisibility, _onHfTokenInput, _updateDiarizationStatus,
   _updateLlmRemoteIndicator, _scrollToSettingsSection, _resetScoringWeights,
 });
