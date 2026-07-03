@@ -832,6 +832,13 @@
 <div id="sr-live-assertive" aria-live="assertive" aria-atomic="true" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)"></div>
 <div class="toast-container" id="toast-container"></div>
 
+<!-- Drag-and-drop analyze overlay (Electron only) -->
+<div id="drop-overlay" style="display:none;position:fixed;inset:0;z-index:9999;align-items:center;justify-content:center;pointer-events:none;background:color-mix(in srgb, var(--bg-deep) 80%, transparent)">
+  <div style="border:3px dashed var(--accent);border-radius:16px;padding:48px 64px;font-size:20px;font-weight:600;color:var(--text);background:var(--surface)">
+    Drop to analyze this recording
+  </div>
+</div>
+
 <!-- App footer bar -->
 <footer class="app-footer">
   <span id="version-tag"></span>

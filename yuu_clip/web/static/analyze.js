@@ -680,3 +680,66 @@ document.addEventListener('DOMContentLoaded', () => {
     editor.addEventListener('change', () => { _profileEditorDirty = true; });
   }
 });
+
+// ── drag-and-drop analyze (Electron-first) ──────────────────────────────────
+// A plain browser can't read a filesystem path off a dropped File, so the
+// overlay affordance only appears when window.electronAPI is present; a
+// browser drop still gets a toast pointing at manual path entry instead.
+const DROP_VIDEO_EXTENSIONS = ['.mp4', '.mkv', '.mov', '.avi', '.webm', '.flv', '.ts'];
+
+let _dragDepth = 0;
+
+function _dragHasFiles(e) {
+  return !!(e.dataTransfer && Array.from(e.dataTransfer.types).includes('Files'));
+}
+
+document.addEventListener('dragenter', e => {
+  if (!_dragHasFiles(e) || !window.electronAPI) return;
+  e.preventDefault();
+  _dragDepth++;
+  document.getElementById('drop-overlay').style.display = 'flex';
+});
+
+document.addEventListener('dragover', e => {
+  if (!_dragHasFiles(e) || !window.electronAPI) return;
+  e.preventDefault();  // required for the browser to fire 'drop'
+});
+
+document.addEventListener('dragleave', e => {
+  if (!_dragHasFiles(e) || !window.electronAPI) return;
+  e.preventDefault();
+  _dragDepth = Math.max(0, _dragDepth - 1);
+  if (_dragDepth === 0) document.getElementById('drop-overlay').style.display = 'none';
+});
+
+document.addEventListener('drop', async e => {
+  if (!_dragHasFiles(e)) return;
+  e.preventDefault();
+  _dragDepth = 0;
+  document.getElementById('drop-overlay').style.display = 'none';
+
+  const files = Array.from(e.dataTransfer.files);
+  if (!files.length) return;
+
+  if (!window.electronAPI || typeof window.electronAPI.getPathForFile !== 'function') {
+    showToast('Drag and drop needs the desktop app — use Analyze and enter the file path instead.', 'info');
+    return;
+  }
+  if (files.length > 1) {
+    showToast('Drop one recording at a time — using the first file.', 'warning');
+  }
+  const file = files[0];
+  const ext = '.' + (file.name.split('.').pop() || '').toLowerCase();
+  if (!DROP_VIDEO_EXTENSIONS.includes(ext)) {
+    showToast(`Unsupported file type "${ext}" — expected a video file.`, 'error');
+    return;
+  }
+  const path = window.electronAPI.getPathForFile(file);
+  if (!path) {
+    showToast("Could not read the dropped file's path.", 'error');
+    return;
+  }
+  await openNewRecordingPanel();
+  document.getElementById('analyze-path').value = path;
+  scheduleProbe();
+});

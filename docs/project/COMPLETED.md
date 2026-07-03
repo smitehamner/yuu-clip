@@ -6,6 +6,29 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) — see the
 
 ---
 
+## Quick wins Stage 9 — drag-and-drop analyze (done, 2026-07-03)
+
+Dragging a video file over the window (Electron only) shows a full-window
+drop overlay ("Drop to analyze this recording"); dropping opens the New
+Recording panel with the file path prefilled and triggers the existing
+probe — the user still confirms track layout and world context before
+starting. Never auto-starts analysis.
+
+- `electron/preload.js` gains `getPathForFile(file)` via Electron's
+  `webUtils.getPathForFile` (≥ Electron 32; this app ships 33.2.1) — the
+  only way to recover a real filesystem path from a dropped `File` under
+  `contextIsolation`.
+- Plain browser: no overlay affordance (nothing to drop onto that would
+  work); a drop shows a toast pointing at manual path entry instead.
+- Only `VIDEO_EXTENSIONS`-equivalent files accepted (mirrored in JS);
+  multiple files drops the first and toasts that one-at-a-time is
+  supported; non-file drags (e.g. text) are ignored entirely.
+
++6 UI tests in `test_ui_analyze.py` (synthetic `DragEvent`/`DataTransfer`
+dispatch — no real OS drag needed).
+
+---
+
 ## Quick wins Stage 8 — export filename template (done, 2026-07-03)
 
 New Settings → Export → **Export file name** field: a template controlling

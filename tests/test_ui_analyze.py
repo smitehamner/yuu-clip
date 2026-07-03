@@ -329,3 +329,83 @@ class TestEstimateDisplay:
         _inject_estimate(page, pct=96.0)
         expect(page.locator(".estimate-pct")).to_contain_text("96.0%")
         expect(page.locator(".estimate-pct")).to_contain_text("of recording")
+
+
+# ---------------------------------------------------------------------------
+# Drag-and-drop analyze (quick-wins Stage 9) — Electron-first
+# ---------------------------------------------------------------------------
+
+_MOCK_ELECTRON_API = (
+    "window.electronAPI = { runSetupWizard: () => {}, "
+    "getPathForFile: (f) => 'D:\\\\Videos\\\\' + f.name };"
+)
+
+
+def _dispatch_drop(page: Page, filenames: list) -> None:
+    page.evaluate(
+        """(names) => {
+            const dt = new DataTransfer();
+            for (const name of names) dt.items.add(new File(['x'], name, {type: 'video/mp4'}));
+            document.dispatchEvent(new DragEvent('drop', {bubbles: true, cancelable: true, dataTransfer: dt}));
+        }""",
+        filenames,
+    )
+
+
+def _dispatch_dragenter(page: Page, filename: str = "a.mp4") -> None:
+    page.evaluate(
+        """(name) => {
+            const dt = new DataTransfer();
+            dt.items.add(new File(['x'], name, {type: 'video/mp4'}));
+            document.dispatchEvent(new DragEvent('dragenter', {bubbles: true, cancelable: true, dataTransfer: dt}));
+        }""",
+        filename,
+    )
+
+
+@skip_no_server
+class TestDragAndDropAnalyzeElectron:
+    def _goto(self, page: Page) -> None:
+        page.add_init_script(_MOCK_ELECTRON_API)
+        page.goto(LIVE_URL)
+        page.wait_for_selector("#video-list li[data-video-id]", timeout=5000)
+
+    def test_drop_opens_panel_with_path_filled(self, page: Page):
+        self._goto(page)
+        _dispatch_drop(page, ["session.mp4"])
+        page.wait_for_selector("#new-recording-panel", state="visible", timeout=3000)
+        expect(page.locator("#analyze-path")).to_have_value("D:\\Videos\\session.mp4")
+
+    def test_dragenter_shows_overlay(self, page: Page):
+        self._goto(page)
+        _dispatch_dragenter(page)
+        expect(page.locator("#drop-overlay")).to_be_visible()
+
+    def test_unsupported_extension_rejected(self, page: Page):
+        self._goto(page)
+        _dispatch_drop(page, ["notes.txt"])
+        expect(page.locator("#toast-container .toast.error")).to_contain_text("Unsupported file type")
+        expect(page.locator("#new-recording-panel")).to_be_hidden()
+
+    def test_multiple_files_uses_first_and_warns(self, page: Page):
+        self._goto(page)
+        _dispatch_drop(page, ["first.mp4", "second.mp4"])
+        expect(page.locator("#toast-container .toast.warning")).to_contain_text("one recording at a time")
+        expect(page.locator("#analyze-path")).to_have_value("D:\\Videos\\first.mp4")
+
+
+@skip_no_server
+class TestDragAndDropAnalyzeBrowser:
+    def test_dragenter_does_not_show_overlay(self, page: Page):
+        page.goto(LIVE_URL)
+        page.wait_for_selector("#video-list li[data-video-id]", timeout=5000)
+        assert page.evaluate("() => window.electronAPI") is None
+        _dispatch_dragenter(page)
+        expect(page.locator("#drop-overlay")).to_be_hidden()
+
+    def test_drop_shows_desktop_app_toast(self, page: Page):
+        page.goto(LIVE_URL)
+        page.wait_for_selector("#video-list li[data-video-id]", timeout=5000)
+        _dispatch_drop(page, ["session.mp4"])
+        expect(page.locator("#toast-container .toast.info")).to_contain_text("desktop app")
+        expect(page.locator("#new-recording-panel")).to_be_hidden()
