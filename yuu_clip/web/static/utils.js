@@ -489,6 +489,100 @@ function streamSSE(url, onDone, stepDefs, jobLabel, cancellable = false, onLine 
   _setActiveStream(handle, stepDefs ? endJobUI : null);
 }
 
+// ── recording preview quality (720p proxy + badge) ────────────────────────────
+// Shared by every full-recording <video> (recording detail player, split editor)
+// so the creator always knows whether they're seeing the fast 720p proxy or the
+// full-quality original. Prefers the proxy when one exists; otherwise plays the
+// source and either builds a proxy on demand (autoBuild) or invites the user to.
+//
+//   videoEl / badgeEl : the <video> and its overlay badge (caller owns layout)
+//   autoBuild         : build immediately when no proxy exists (deliberate
+//                       scrubbing surfaces), else the badge offers a click-to-build
+//   isCurrent         : guard so a late swap never lands on a since-changed view
+function setupRecordingPreview(videoEl, badgeEl, videoId, { autoBuild = false, isCurrent = () => true } = {}) {
+  videoEl.src = `/api/videos/${videoId}/source`;
+  const buildFn = () => _buildRecordingProxy(videoEl, badgeEl, videoId, isCurrent);
+  _setPreviewBadge(badgeEl, 'original', null, autoBuild ? null : buildFn);
+  fetch(`/api/videos/${videoId}/proxy-status`)
+    .then(r => r.ok ? r.json() : null)
+    .then(status => {
+      if (!isCurrent() || !status) return;
+      if (status.available) _useRecordingProxy(videoEl, badgeEl, videoId, isCurrent);
+      else if (autoBuild || status.generating) buildFn();
+    })
+    .catch(() => { /* leave the source playing with the original-quality badge */ });
+}
+
+function _useRecordingProxy(videoEl, badgeEl, videoId, isCurrent) {
+  if (!isCurrent()) return;
+  const resumeAt   = videoEl.currentTime || 0;
+  const wasPlaying = !videoEl.paused && !videoEl.ended;
+  videoEl.src = `/api/videos/${videoId}/proxy`;
+  videoEl.addEventListener('loadedmetadata', () => {
+    try { videoEl.currentTime = resumeAt; } catch (_) {}
+    if (wasPlaying) videoEl.play().catch(() => {});
+  }, { once: true });
+  _setPreviewBadge(badgeEl, 'proxy');
+}
+
+function _buildRecordingProxy(videoEl, badgeEl, videoId, isCurrent) {
+  if (!isCurrent()) return;
+  _setPreviewBadge(badgeEl, 'building');
+  streamSSE(
+    `/api/videos/${videoId}/proxy/generate`,
+    async () => {
+      if (!isCurrent()) return;
+      const status = await fetch(`/api/videos/${videoId}/proxy-status`)
+        .then(r => r.ok ? r.json() : null).catch(() => null);
+      if (!isCurrent()) return;
+      if (status?.available) _useRecordingProxy(videoEl, badgeEl, videoId, isCurrent);
+      // Another open is still encoding — poll until its proxy lands.
+      else if (status?.generating) setTimeout(() => _buildRecordingProxy(videoEl, badgeEl, videoId, isCurrent), 5000);
+      else _setPreviewBadge(badgeEl, 'original', null, () => _buildRecordingProxy(videoEl, badgeEl, videoId, isCurrent));
+    },
+    null,        // no global job pill — this is a background convenience
+    'Preview',
+    false,
+    line => {    // onLine: surface the encode percentage on the badge
+      const m = /(\d+)%/.exec(line);
+      if (m && isCurrent()) _setPreviewBadge(badgeEl, 'building', m[1]);
+    },
+  );
+}
+
+function _setPreviewBadge(badgeEl, mode, pct, onBuild) {
+  if (!badgeEl) return;
+  // Reset to a non-interactive status indicator; the build affordance below
+  // re-arms it as a button so role/tabindex never go stale between states.
+  badgeEl.style.display = 'inline-block';
+  badgeEl.onclick = null;
+  badgeEl.onkeydown = null;
+  badgeEl.style.cursor = '';
+  badgeEl.style.pointerEvents = 'none';
+  badgeEl.removeAttribute('tabindex');
+  badgeEl.setAttribute('role', 'status');
+  badgeEl.classList.toggle('preview-badge-proxy', mode === 'proxy');
+  if (mode === 'proxy') {
+    badgeEl.textContent = 'Preview quality (720p)';
+    badgeEl.title = 'Playing a downscaled 720p preview for fast seeking — not full quality. Exports use the original.';
+  } else if (mode === 'building') {
+    badgeEl.textContent = pct ? `Building 720p preview… ${pct}%` : 'Building 720p preview…';
+    badgeEl.title = 'Encoding a fast-seeking 720p preview from the source recording.';
+  } else if (onBuild) {
+    badgeEl.textContent = 'Original quality · build 720p preview';
+    badgeEl.title = 'Playing the full-quality original. Click to build a 720p preview so seeking is fast.';
+    badgeEl.style.cursor = 'pointer';
+    badgeEl.style.pointerEvents = 'auto';
+    badgeEl.setAttribute('role', 'button');
+    badgeEl.tabIndex = 0;
+    badgeEl.onclick = onBuild;
+    badgeEl.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onBuild(); } };
+  } else {
+    badgeEl.textContent = 'Original quality · slower seeking';
+    badgeEl.title = 'Playing the original recording — seeking a long file can be slow.';
+  }
+}
+
 function cancelJob() {
   showConfirm(
     'Cancel analysis?',

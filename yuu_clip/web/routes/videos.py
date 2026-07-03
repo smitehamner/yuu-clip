@@ -623,12 +623,32 @@ def _register_video_data_routes(router: APIRouter, ctx: ProjectContext) -> None:
                 SceneBoundary.video_id == video_id
             ).delete(synchronize_session=False)
 
+            source_path = video.path
             db.delete(video)  # cascades: ClipCandidate, AudioTrack → Transcript → TranscriptSegment
             db.commit()
+            _delete_orphaned_proxy(db, ctx, source_path)
             _log.info("Deleted video %d (%s) and %d exported clip(s)", video_id, video.filename, len(clips))
             return {"deleted": video_id}
         finally:
             db.close()
+
+
+def _delete_orphaned_proxy(db, ctx: ProjectContext, source_path: str) -> None:
+    """Remove a recording's cached 720p proxy once no Video row still uses the file.
+
+    The proxy is keyed by source path and shared across split segments, so it is
+    only safe to delete after the last row referencing that path is gone. Best-
+    effort disk hygiene — a locked file (mid-preview) is logged, never fatal.
+    """
+    from yuu_clip.analyze.proxy import proxy_file_for
+
+    if db.query(Video).filter(Video.path == source_path).count() > 0:
+        return
+    proxy_file = proxy_file_for(Path(source_path), ctx.proxy_dir)
+    try:
+        proxy_file.unlink(missing_ok=True)
+    except OSError as exc:
+        _log.warning("Could not delete orphaned proxy %s: %s", proxy_file, exc)
 
 
 def _validate_split_points(pts: list[float], duration_s: float) -> None:
@@ -675,6 +695,12 @@ def _create_segments(db, video: Video, boundaries: list[float], segment_names: l
             segment_start_s=start,
             segment_end_s=end,
             title=name or f"{stem} — Part {i + 1}",
+            # Segments share the parent's source file and its one proxy — inherit
+            # the pointer so a segment's player finds it without rebuilding.
+            proxy_path=video.proxy_path,
+            proxy_generated_at=video.proxy_generated_at,
+            proxy_source_mtime=video.proxy_source_mtime,
+            proxy_source_size=video.proxy_source_size,
         )
         db.add(seg)
         db.flush()

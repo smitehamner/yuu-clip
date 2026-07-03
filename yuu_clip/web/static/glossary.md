@@ -87,7 +87,7 @@ Whether you've reviewed a clip and what you decided:
 Small start/end adjustments that fine-tune where a clip begins and ends, without re-analyzing. Applied when you export.
 
 ### Preview quality (720p)
-For fast scrubbing, yuu-clip plays a smaller **720p** copy of a recording in the preview player instead of the huge original — long recordings can't be scrubbed smoothly otherwise. A **"Preview quality (720p)"** badge shows when you're watching this copy; it's made automatically during analysis (or the first time you scrub a recording without one). Your **exported** clips always use the full-quality original — the 720p copy is only for previewing.
+For fast scrubbing, yuu-clip plays a smaller **720p** copy of a recording in the preview player instead of the huge original — long recordings can't be scrubbed smoothly otherwise. A **"Preview quality (720p)"** badge shows when you're watching this copy; a **"Original quality"** badge shows when you're on the full-size file (where seeking a long recording can be slow — click the badge to build a fast 720p copy). Copies are made automatically during analysis. Your **exported** clips always use the full-quality original — the 720p copy is only for previewing.
 
 ---
 

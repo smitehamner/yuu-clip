@@ -1956,6 +1956,20 @@ class TestVideoProxy:
     def _write_source(self, project_dir):
         (project_dir / "session.mkv").write_bytes(b"source-bytes" * 64)
 
+    def _stub_generate(self, monkeypatch):
+        def fake_generate(source, out, *, duration_ms=None, progress_cb=None, ffmpeg=None):
+            out.parent.mkdir(parents=True, exist_ok=True)
+            out.write_bytes(b"proxy-bytes")
+            if progress_cb:
+                progress_cb(1.0)
+            return out
+
+        monkeypatch.setattr("yuu_clip.analyze.proxy.generate_proxy", fake_generate)
+
+    def _proxy_file(self, project_dir):
+        from yuu_clip.analyze.proxy import proxy_file_for
+        return proxy_file_for(project_dir / "session.mkv", project_dir / ".yuu-clip" / "proxies")
+
     def test_status_absent_by_default(self, client):
         r = client.get("/api/videos/1/proxy-status")
         assert r.status_code == 200
@@ -2009,3 +2023,37 @@ class TestVideoProxy:
         assert "Preview generation failed" in stream
         assert "__DONE__" in stream
         assert client.get("/api/videos/1/proxy-status").json()["available"] is False
+
+    def test_split_segments_inherit_proxy_pointer(self, client, project_dir, monkeypatch):
+        self._write_source(project_dir)
+        self._stub_generate(monkeypatch)
+        client.get("/api/videos/1/proxy/generate")
+
+        seg_ids = client.post("/api/videos/1/split",
+                              json={"split_points": [300.0], "segment_names": []}).json()["segment_ids"]
+        assert seg_ids
+        for sid in seg_ids:
+            # A freshly-split segment finds the parent's proxy without rebuilding.
+            assert client.get(f"/api/videos/{sid}/proxy-status").json()["available"] is True
+
+    def test_deleting_recording_removes_orphaned_proxy(self, client, project_dir, monkeypatch):
+        self._write_source(project_dir)
+        self._stub_generate(monkeypatch)
+        client.get("/api/videos/1/proxy/generate")
+        proxy_file = self._proxy_file(project_dir)
+        assert proxy_file.exists()
+
+        assert client.delete("/api/videos/1").status_code == 200
+        assert not proxy_file.exists()
+
+    def test_deleting_one_segment_keeps_shared_proxy(self, client, project_dir, monkeypatch):
+        self._write_source(project_dir)
+        self._stub_generate(monkeypatch)
+        client.get("/api/videos/1/proxy/generate")
+        seg_ids = client.post("/api/videos/1/split",
+                              json={"split_points": [300.0], "segment_names": []}).json()["segment_ids"]
+        proxy_file = self._proxy_file(project_dir)
+
+        # Parent and the other segment still reference the file — keep the proxy.
+        assert client.delete(f"/api/videos/{seg_ids[0]}").status_code == 200
+        assert proxy_file.exists()

@@ -25,12 +25,22 @@ H.264** proxy per recording and pointing in-app playback at it.
 - Built opportunistically at the end of `_analyze_one` (best-effort, never fails
   analysis) and on demand: the split editor auto-builds on open, keeps the source
   playable meanwhile, and swaps to the proxy when ready.
-- **Hard requirement met:** a "Preview quality (720p)" badge shows on the split
-  player whenever the proxy is playing (vs "Original quality" on the source); the
-  clip preview badge gains a "720p" marker when served from the proxy. Exports
-  always use the full-quality original.
+- **Hard requirement met:** a "Preview quality (720p)" badge shows whenever the
+  proxy is playing (vs "Original quality" on the source); the clip preview badge
+  gains a "720p" marker when served from the proxy. Exports always use the
+  full-quality original.
+- **All full-recording players are consistent:** one shared `setupRecordingPreview`
+  (`utils.js`) drives the recording detail player *and* the split editor — both
+  prefer the proxy and always show the badge. The split editor auto-builds on open
+  (deliberate scrubbing surface); the recording detail player offers a click-to-
+  build badge instead of auto-encoding on every casual selection (avoids surprise
+  GPU load). The badge is a `role="status"` live region, or a keyboard-focusable
+  `role="button"` when it invites a build.
 - Left on source deliberately: the pre-analysis pre-split editor (waveform-only,
   no `<video>`, no Video row to key a proxy — and analysis will build one shortly).
+- Disk hygiene: split segments inherit the parent's proxy pointer (no needless
+  rebuild), and deleting the last Video row for a source file removes its orphaned
+  proxy (best-effort — a locked mid-preview file is logged, never fatal).
 
 ## Recordings-list + split-timeline usability pass (done, 2026-07-02)
 

@@ -61,7 +61,13 @@ async function openSplitEditor(videoId) {
   document.getElementById('split-editor-title').textContent =
     `Split: ${video.filename}`;
 
-  _setupSplitPreview(videoId);
+  document.getElementById('split-preview-wrap').style.display = 'block';
+  setupRecordingPreview(
+    document.getElementById('split-preview-video'),
+    document.getElementById('split-preview-badge'),
+    videoId,
+    { autoBuild: true, isCurrent: () => _splitVideoId === videoId },
+  );
 
   const notice = document.getElementById('split-waveform-notice');
   notice.style.display = 'none';
@@ -159,82 +165,8 @@ function _splitSeekTo(sec) {
   }
 }
 
-// ── preview proxy (720p, fast scrubbing) ──────────────────────────────────────
-// A multi-hour source .mkv is not browser-seekable, so we prefer a downscaled
-// 720p proxy. Start on the source (usable immediately), then swap to the proxy
-// when one exists or is built on demand. A badge always states which is playing.
-
-async function _setupSplitPreview(videoId) {
-  const wrap  = document.getElementById('split-preview-wrap');
-  const video = document.getElementById('split-preview-video');
-  wrap.style.display = 'block';
-  video.src = `/api/videos/${videoId}/source`;
-  _setSplitPreviewBadge('original');
-
-  let status = null;
-  try {
-    status = await fetch(`/api/videos/${videoId}/proxy-status`).then(r => r.ok ? r.json() : null);
-  } catch (_) { /* leave on source */ }
-  if (_splitVideoId !== videoId) return;   // editor closed or switched while awaiting
-  if (!status) return;
-
-  if (status.available) _useSplitProxy(videoId);
-  else _buildSplitProxy(videoId);
-}
-
-function _useSplitProxy(videoId) {
-  if (_splitVideoId !== videoId) return;
-  const video = document.getElementById('split-preview-video');
-  const resumeAt   = video.currentTime || 0;
-  const wasPlaying = !video.paused;
-  video.src = `/api/videos/${videoId}/proxy`;
-  video.addEventListener('loadedmetadata', () => {
-    try { video.currentTime = resumeAt; } catch (_) {}
-    if (wasPlaying) video.play().catch(() => {});
-  }, { once: true });
-  _setSplitPreviewBadge('proxy');
-}
-
-function _buildSplitProxy(videoId) {
-  if (_splitVideoId !== videoId) return;
-  _setSplitPreviewBadge('building');
-  streamSSE(
-    `/api/videos/${videoId}/proxy/generate`,
-    async () => {
-      if (_splitVideoId !== videoId) return;
-      const status = await fetch(`/api/videos/${videoId}/proxy-status`)
-        .then(r => r.ok ? r.json() : null).catch(() => null);
-      if (_splitVideoId !== videoId) return;
-      if (status?.available) _useSplitProxy(videoId);
-      // Another tab/open is still encoding — poll until its proxy lands.
-      else if (status?.generating) setTimeout(() => _buildSplitProxy(videoId), 5000);
-      else _setSplitPreviewBadge('original');
-    },
-    null,        // no global job pill — this is a background convenience
-    'Preview',
-    false,
-    line => {    // onLine: surface the encode percentage on the badge
-      const m = /(\d+)%/.exec(line);
-      if (m && _splitVideoId === videoId) _setSplitPreviewBadge('building', m[1]);
-    },
-  );
-}
-
-function _setSplitPreviewBadge(mode, pct) {
-  const badge = document.getElementById('split-preview-badge');
-  if (!badge) return;
-  badge.style.display = 'inline-block';
-  if (mode === 'proxy') {
-    badge.textContent = 'Preview quality (720p)';
-    badge.title = 'Playing a downscaled 720p preview for fast seeking — not full quality.';
-  } else if (mode === 'building') {
-    badge.textContent = pct ? `Building 720p preview… ${pct}%` : 'Building 720p preview…';
-    badge.title = 'Encoding a fast-seeking 720p preview from the source recording.';
-  } else {
-    badge.textContent = 'Original quality · slower seeking';
-    badge.title = 'Playing the original recording — seeking a long file can be slow.';
-  }
-}
+// Preview proxy (720p, fast scrubbing) is handled by the shared
+// setupRecordingPreview() in utils.js — see openSplitEditor.
 
 async function _generateWaveform() {
   const btn = document.querySelector('#split-waveform-notice button');
