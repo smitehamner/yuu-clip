@@ -199,6 +199,7 @@ def _clip_dict(
         "related_clips_stale": _related_clips_stale(clip, video),
         "hotword_matches": clip.hotword_matches,
         "hotword_boost": clip.hotword_boost,
+        "sensitive_matches": clip.sensitive_matches,
         "transcript_stale": _transcript_stale(clip, video),
         "export_stale": export_stale,
         "export_stale_reasons": export_stale_reasons,

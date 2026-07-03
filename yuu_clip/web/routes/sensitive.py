@@ -1,0 +1,162 @@
+"""Sensitive-content (Privacy Terms / Censor Words) CRUD + rescan routes
+(roadmap plan 06). Term text is user PII by definition — never log a `term`
+value anywhere in this module; log only counts and ids.
+"""
+from __future__ import annotations
+
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
+
+from yuu_clip.db.models import ClipCandidate, SensitiveTerm, Video
+from yuu_clip.scoring.engine import apply_sensitive_scan
+from yuu_clip.scoring.textmatch import FUZZY_MIN_TERM_LENGTH
+from yuu_clip.web.deps import ProjectContext
+
+_VALID_CATEGORIES = ("privacy", "censor")
+_VALID_MODES = ("exact", "case_insensitive", "fuzzy")
+_TERM_MAX_LEN = 200
+
+
+class SensitiveTermBody(BaseModel):
+    term: str
+    category: str
+    match_mode: str
+    enabled: bool = True
+
+
+def _sensitive_term_dict(term_row: SensitiveTerm) -> dict:
+    return {
+        "id": term_row.id,
+        "term": term_row.term,
+        "category": term_row.category,
+        "match_mode": term_row.match_mode,
+        "enabled": term_row.enabled,
+        "created_at": term_row.created_at.isoformat() if term_row.created_at else None,
+    }
+
+
+def _validate_sensitive_term_body(body: SensitiveTermBody, term: str) -> None:
+    if not term:
+        raise HTTPException(400, "Term cannot be empty")
+    if len(term) > _TERM_MAX_LEN:
+        raise HTTPException(400, f"Term must be {_TERM_MAX_LEN} characters or fewer")
+    if body.category not in _VALID_CATEGORIES:
+        raise HTTPException(400, f"Category must be one of {', '.join(_VALID_CATEGORIES)}")
+    if body.match_mode not in _VALID_MODES:
+        raise HTTPException(400, f"Match mode must be one of {', '.join(_VALID_MODES)}")
+    if body.match_mode == "fuzzy" and len(term) < FUZZY_MIN_TERM_LENGTH:
+        raise HTTPException(
+            400,
+            f"Close spelling matching needs a term of at least {FUZZY_MIN_TERM_LENGTH} characters — "
+            "shorter terms match too many unrelated words. Use Exact or Ignore case instead.",
+        )
+
+
+def _rescan_all_clips(db) -> tuple[int, int]:
+    """Full project rescan: re-derive sensitive_matches for every clip in the
+    project from its already-stored transcript/descriptions. Synchronous and
+    text-only (no LLM call), so it's cheap enough to run inline whenever the
+    term list changes — a saved edit is reflected everywhere immediately, not
+    just on whichever recording happens to be open."""
+    sensitive_terms = db.query(SensitiveTerm).all()
+    clips = db.query(ClipCandidate).all()
+    flagged = 0
+    for clip in clips:
+        apply_sensitive_scan(clip, sensitive_terms)
+        if clip.sensitive_matches:
+            flagged += 1
+    db.commit()
+    return len(clips), flagged
+
+
+def make_router(ctx: ProjectContext) -> APIRouter:
+    router = APIRouter()
+
+    @router.get("/api/sensitive-terms")
+    def list_sensitive_terms():
+        db = ctx.get_db()
+        try:
+            rows = db.query(SensitiveTerm).order_by(SensitiveTerm.created_at).all()
+            return [_sensitive_term_dict(row) for row in rows]
+        finally:
+            db.close()
+
+    @router.post("/api/sensitive-terms")
+    def create_sensitive_term(body: SensitiveTermBody):
+        db = ctx.get_db()
+        try:
+            term = body.term.strip()
+            _validate_sensitive_term_body(body, term)
+            row = SensitiveTerm(
+                term=term, category=body.category, match_mode=body.match_mode, enabled=body.enabled,
+            )
+            db.add(row)
+            db.commit()
+            db.refresh(row)
+            clips_scanned, clips_flagged = _rescan_all_clips(db)
+            result = _sensitive_term_dict(row)
+            result.update(clips_scanned=clips_scanned, clips_flagged=clips_flagged)
+            return result
+        finally:
+            db.close()
+
+    @router.put("/api/sensitive-terms/{term_id}")
+    def update_sensitive_term(term_id: int, body: SensitiveTermBody):
+        db = ctx.get_db()
+        try:
+            row = db.get(SensitiveTerm, term_id)
+            if not row:
+                raise HTTPException(404, "Sensitive term not found")
+            term = body.term.strip()
+            _validate_sensitive_term_body(body, term)
+            row.term = term
+            row.category = body.category
+            row.match_mode = body.match_mode
+            row.enabled = body.enabled
+            db.commit()
+            db.refresh(row)
+            clips_scanned, clips_flagged = _rescan_all_clips(db)
+            result = _sensitive_term_dict(row)
+            result.update(clips_scanned=clips_scanned, clips_flagged=clips_flagged)
+            return result
+        finally:
+            db.close()
+
+    @router.delete("/api/sensitive-terms/{term_id}")
+    def delete_sensitive_term(term_id: int):
+        db = ctx.get_db()
+        try:
+            row = db.get(SensitiveTerm, term_id)
+            if not row:
+                raise HTTPException(404, "Sensitive term not found")
+            db.delete(row)
+            db.commit()
+            clips_scanned, clips_flagged = _rescan_all_clips(db)
+            return {"deleted": term_id, "clips_scanned": clips_scanned, "clips_flagged": clips_flagged}
+        finally:
+            db.close()
+
+    @router.post("/api/videos/{video_id}/sensitive-rescan")
+    def sensitive_rescan_video(video_id: int):
+        """Recompute sensitive-term matches for every clip of *video_id* from
+        their already-stored transcript/descriptions — no LLM call, synchronous.
+        Symmetric with POST /api/videos/{video_id}/hotword-rescan."""
+        db = ctx.get_db()
+        try:
+            video = db.get(Video, video_id)
+            if not video:
+                raise HTTPException(404, "Video not found")
+            sensitive_terms = db.query(SensitiveTerm).all()
+            clips = db.query(ClipCandidate).filter_by(video_id=video_id).all()
+            changed = 0
+            for clip in clips:
+                before = clip.sensitive_matches
+                apply_sensitive_scan(clip, sensitive_terms)
+                if clip.sensitive_matches != before:
+                    changed += 1
+            db.commit()
+            return {"clips_checked": len(clips), "clips_changed": changed}
+        finally:
+            db.close()
+
+    return router

@@ -11,7 +11,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Query
 
 from yuu_clip.contexts import extract_context_weights, format_context_block, load_contexts
-from yuu_clip.db.models import AudioTrack, ClipCandidate, HotWord, Video
+from yuu_clip.db.models import AudioTrack, ClipCandidate, HotWord, SensitiveTerm, Video
 from yuu_clip.log import get_logger
 from yuu_clip.web.deps import ProjectContext
 from yuu_clip.web.routes._shared import (
@@ -75,6 +75,18 @@ def _load_hot_words(db) -> list:
             boost=hw.boost, target=hw.target, enabled=hw.enabled,
         )
         for hw in db.query(HotWord).all()
+    ]
+
+
+def _load_sensitive_terms(db) -> list:
+    """Snapshot the project's sensitive terms as plain objects, safe to use after
+    *db* closes — mirrors _load_hot_words above. Never log the .term values read
+    here (see SensitiveTerm docstring)."""
+    return [
+        SimpleNamespace(
+            term=t.term, category=t.category, match_mode=t.match_mode, enabled=t.enabled,
+        )
+        for t in db.query(SensitiveTerm).all()
     ]
 
 
@@ -243,6 +255,7 @@ def _rescore_video_clips(ctx: ProjectContext, video_id: int, failed_only: bool):
             query = query.filter(ClipCandidate.tags_json.like('%"llm_error"%'))
         clip_ids = [c.id for c in query.all()]
         hot_words = _load_hot_words(db)
+        sensitive_terms = _load_sensitive_terms(db)
     finally:
         db.close()
 
@@ -256,7 +269,10 @@ def _rescore_video_clips(ctx: ProjectContext, video_id: int, failed_only: bool):
             total = len(clip_ids)
             plural = "s" if total != 1 else ""
             yield f"data: {json_lib.dumps(f'[Starting LLM scoring for {total} clip{plural}…]')}\n\n"
-            engine = ScoringEngine(config, [LLMScorer(config, context_text=context_text)], hot_words=hot_words)
+            engine = ScoringEngine(
+                config, [LLMScorer(config, context_text=context_text)],
+                hot_words=hot_words, sensitive_terms=sensitive_terms,
+            )
 
             for i, clip_id in enumerate(clip_ids, 1):
                 score_db = ctx.get_db()
@@ -497,6 +513,7 @@ def _register_clip_scoring_routes(router: APIRouter, ctx: ProjectContext) -> Non
                 raise HTTPException(404, "Video not found")
             context_names = _json_list(video.context_names_json)
             hot_words = _load_hot_words(db)
+            sensitive_terms = _load_sensitive_terms(db)
         finally:
             db.close()
 
@@ -508,7 +525,10 @@ def _register_clip_scoring_routes(router: APIRouter, ctx: ProjectContext) -> Non
 
             async with _active_job(ctx):
                 yield f"data: {json_lib.dumps('[Starting LLM scoring for 1 clip…]')}\n\n"
-                engine = ScoringEngine(config, [LLMScorer(config, context_text=context_text)], hot_words=hot_words)
+                engine = ScoringEngine(
+                    config, [LLMScorer(config, context_text=context_text)],
+                    hot_words=hot_words, sensitive_terms=sensitive_terms,
+                )
                 score_db = ctx.get_db()
                 error = None
                 desc_new = desc_long_new = None

@@ -33,6 +33,9 @@ dependencies = [
     "fastapi>=0.110,<1.0",
     "uvicorn[standard]>=0.27,<1.0",
 
+    # Fuzzy string matching for sensitive-content "Close spelling" mode (MIT licensed).
+    "rapidfuzz>=3.0,<4.0",
+
     # Optional: GPU thermal monitoring (Settings -> Hardware). Silently disables
     # (available()==False) when no NVIDIA GPU / driver is present -- see analyze/thermal.py.
     "pynvml>=11.5,<13.0",

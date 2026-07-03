@@ -581,14 +581,15 @@ def _run_scoring(video, track_objs, config, session, energy_mode: str = "fast", 
             log.exception("Scene detection failed: video_id=%s", video.id)
 
     console.print("  [bold]Scoring clips...[/bold]")
-    from yuu_clip.db.models import HotWord
+    from yuu_clip.db.models import HotWord, SensitiveTerm
     hot_words = session.query(HotWord).all()
+    sensitive_terms = session.query(SensitiveTerm).all()
     engine = ScoringEngine(config, [
         AudioEnergyScorer(config),
         SceneCutScorer(config),
         LaughScorer(config),
         LLMScorer(config, context_text=context_text),
-    ], hot_words=hot_words)
+    ], hot_words=hot_words, sensitive_terms=sensitive_terms)
     n = engine.score_video(
         video, session,
         progress_cb=lambda i, total: console.print(f"  Scoring {i}/{total}..."),

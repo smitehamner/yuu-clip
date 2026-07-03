@@ -10,6 +10,7 @@ Schema overview:
   AudioEnergy       - per-second RMS energy curve per audio track
   SceneBoundary     - detected scene cuts per video
   HotWord           - creator-defined phrase that boosts clip scores (project-wide)
+  SensitiveTerm     - creator-defined privacy/censor term flagged on clips (project-wide)
 """
 from __future__ import annotations
 
@@ -167,6 +168,7 @@ def _migrate(engine) -> None:
             ("exported_embed_subs", "BOOLEAN"),
             ("hotword_matches_json", "TEXT"),
             ("hotword_boost_json",   "TEXT"),
+            ("sensitive_matches_json", "TEXT"),
         ]
         for col, typedef in _clip_migrations:
             if col not in existing:
@@ -528,6 +530,11 @@ class ClipCandidate(Base):
     hotword_matches_json: Mapped[Optional[str]] = mapped_column(Text)
     hotword_boost_json:   Mapped[Optional[str]] = mapped_column(Text)
 
+    # Sensitive-content matches found in this clip's transcript_excerpt and
+    # descriptions — see SensitiveTerm and scoring/engine.py::apply_sensitive_scan.
+    # Warning-only: never affects score_* (contrast with hotword_boost_json above).
+    sensitive_matches_json: Mapped[Optional[str]] = mapped_column(Text)
+
     related_clips_json: Mapped[Optional[str]] = mapped_column(Text)
     related_clips_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
 
@@ -596,6 +603,14 @@ class ClipCandidate(Base):
     @hotword_boost.setter
     def hotword_boost(self, value: dict) -> None:
         self.hotword_boost_json = json.dumps(value)
+
+    @property
+    def sensitive_matches(self) -> list[dict]:
+        return json.loads(self.sensitive_matches_json) if self.sensitive_matches_json else []
+
+    @sensitive_matches.setter
+    def sensitive_matches(self, value: list[dict]) -> None:
+        self.sensitive_matches_json = json.dumps(value)
 
     @property
     def duration_ms(self) -> int:
@@ -671,5 +686,24 @@ class HotWord(Base):
     boost: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     # "overall" | "funny" | "dramatic" | "action"
     target: Mapped[str] = mapped_column(String, nullable=False, default="overall")
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class SensitiveTerm(Base):
+    """A creator-defined Privacy Term or Censor Word flagged (never scored) when it
+    appears in a clip's transcript or descriptions. Project-wide (not per-video) —
+    see scoring/textmatch.py for the matcher and scoring/engine.py::apply_sensitive_scan
+    for how the flag is applied. Term text is user PII by definition: never log the
+    `term` value anywhere (routes/sensitive.py logs counts/ids only).
+    """
+    __tablename__ = "sensitive_terms"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    term: Mapped[str] = mapped_column(String, nullable=False)
+    # "privacy" | "censor"
+    category: Mapped[str] = mapped_column(String, nullable=False, default="privacy")
+    # "exact" | "case_insensitive" | "fuzzy"
+    match_mode: Mapped[str] = mapped_column(String, nullable=False, default="exact")
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))

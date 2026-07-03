@@ -10,7 +10,7 @@ if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
     from yuu_clip.config import Config
-    from yuu_clip.db.models import ClipCandidate, HotWord, Video
+    from yuu_clip.db.models import ClipCandidate, HotWord, SensitiveTerm, Video
 
 _log = get_logger(__name__)
 
@@ -102,16 +102,63 @@ def apply_hotword_boosts(clip: "ClipCandidate", hot_words: list["HotWord"], conf
     clip.hotword_boost = new_boost
 
 
+def apply_sensitive_scan(clip: "ClipCandidate", sensitive_terms: list["SensitiveTerm"]) -> None:
+    """Match enabled sensitive terms against *clip*'s transcript excerpt and
+    descriptions, storing the result on clip.sensitive_matches. Warning-only —
+    unlike apply_hotword_boosts, this never touches score_*.
+
+    Speaker prefixes are stripped from the excerpt first (same as hot-words), so a
+    named Speaker equal to a Privacy Term doesn't match on every line it speaks.
+    Each scanned field is matched separately rather than concatenated, so a
+    multi-word term can't spuriously match across a field boundary (e.g. the
+    excerpt's last word plus the description's first word).
+    """
+    from yuu_clip.scoring.textmatch import MatchTerm, find_fuzzy_matches, find_matches, strip_speaker_prefixes
+
+    enabled_terms = [t for t in sensitive_terms if t.enabled]
+    text_terms = [
+        MatchTerm(phrase=t.term, mode=t.match_mode)
+        for t in enabled_terms if t.match_mode in ("exact", "case_insensitive")
+    ]
+    fuzzy_terms = [MatchTerm(phrase=t.term, mode=t.match_mode) for t in enabled_terms if t.match_mode == "fuzzy"]
+    category_by_key = {(t.term, t.match_mode): t.category for t in enabled_terms}
+
+    fields = [
+        strip_speaker_prefixes(clip.transcript_excerpt or ""),
+        clip.effective_description,
+        clip.effective_description_long,
+    ]
+
+    merged: dict[tuple[str, str], dict] = {}
+    for field_text in fields:
+        if not field_text:
+            continue
+        for m in find_matches(field_text, text_terms) + find_fuzzy_matches(field_text, fuzzy_terms):
+            key = (m.phrase, m.mode)
+            if key not in merged:
+                merged[key] = {
+                    "term": m.phrase, "category": category_by_key[key], "mode": m.mode,
+                    "matched_text": m.matched_text or m.phrase, "count": 0,
+                }
+            merged[key]["count"] += m.count
+
+    clip.sensitive_matches = list(merged.values())
+
+
 class ScoringEngine:
     def __init__(
-        self, config: "Config", scorers: list[Scorer], hot_words: list["HotWord"] | None = None,
+        self, config: "Config", scorers: list[Scorer],
+        hot_words: list["HotWord"] | None = None,
+        sensitive_terms: list["SensitiveTerm"] | None = None,
     ) -> None:
         self._config  = config
         self._scorers = [s for s in scorers if s.is_available()]
-        # None (the default) means "caller didn't opt in" — skip hot-word matching
-        # entirely rather than treating it the same as an explicitly empty list, so
-        # callers that don't care about hot-words (most existing tests) see no change.
+        # None (the default) means "caller didn't opt in" — skip hot-word/sensitive
+        # matching entirely rather than treating it the same as an explicitly empty
+        # list, so callers that don't care about these features (most existing
+        # tests) see no change.
         self._hot_words = hot_words
+        self._sensitive_terms = sensitive_terms
         if not self._scorers:
             _log.warning("ScoringEngine: no scorers are available — clips will not be scored")
 
@@ -171,6 +218,9 @@ class ScoringEngine:
 
         if self._hot_words is not None:
             apply_hotword_boosts(clip, self._hot_words, self._config)
+
+        if self._sensitive_terms is not None:
+            apply_sensitive_scan(clip, self._sensitive_terms)
 
         clip.scored_at = datetime.now(timezone.utc)
 
