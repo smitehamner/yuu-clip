@@ -6,6 +6,60 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) — see the
 
 ---
 
+## Electron native-file-protocol media transport (implemented, manual packaged-app verification pending, 2026-07-03)
+
+Roadmap plan 10 (`docs/dev/plans/roadmap-2026-07/10-electron-file-protocol.md`), the
+last and lowest-value plan of the set. **Code and automated tests are done; the
+plan's own 5-item manual packaged-app checklist has not been run** — this entry is
+intentionally not "done" until someone builds the app and runs it. No user-facing
+change (plain browser-dev mode is unaffected either way).
+
+- **Electron main** (`electron/main.js`) — registers a privileged `yuu-media://`
+  scheme before `app.ready` and a `protocol.handle` request handler wired up in
+  `app.whenReady()`. Range requests (required for `<video>` seeking) are handled
+  **manually** — `fs.createReadStream(start, end)` + 206/`Content-Range` — rather
+  than trusting `net.fetch(pathToFileURL(...))` to cover it: the pinned Electron
+  version (33.2.1, `electron/package.json`) falls inside the span of a still-open
+  upstream bug (electron/electron#38749) where that pattern breaks video seeking;
+  reports of the same failure exist as recently as Electron 34/35. Manual Range
+  handling sidesteps the bug regardless of Electron version.
+- **Path validation** — a requested path is served only if it resolves inside the
+  project's `.yuu-clip/proxies` dir, or exactly matches a source/proxy path the
+  backend has reported for a known video (a cached whitelist refreshed from
+  `GET /api/videos`, rate-limited to once per 2s). This is a deliberate deviation
+  from the plan's literal "allowed root directories" wording: recordings are
+  ingested from wherever the creator originally pointed `analyze` at, which is
+  frequently outside the project directory entirely, so a directory-prefix check
+  alone would reject every real source file. The exact-path whitelist covers that
+  case correctly without weakening the security intent.
+- **Server** (`yuu_clip/web/routes/videos.py`) — `_video_dict` now includes the
+  recording's absolute `source_path`; `GET /api/videos/{id}/proxy-status` includes
+  the proxy's absolute `proxy_path` (null until a fresh proxy exists). No behavior
+  change to the existing HTTP source/proxy routes.
+- **Renderer** (`yuu_clip/web/static/utils.js`) — new `_buildMediaUrl(videoId, kind,
+  absPath)` is the single point that picks the transport: `yuu-media://media/<url-
+  encoded path>` when `window.electronAPI.mediaProtocol` is set (packaged app) and
+  an absolute path is known, otherwise the unchanged `/api/videos/{id}/{source,
+  proxy}` HTTP URL. `setupRecordingPreview`/`_useRecordingProxy` (shared by the
+  recording detail player, Split Editor, and the manual clip-create picker) now
+  thread `sourcePath`/`proxy_path` through to it.
+- **Tests**: `tests/test_ui_video.py::TestNativeMediaProtocolUrlBuilder` covers the
+  URL builder with a stubbed `electronAPI.mediaProtocol` (drive-letter path, spaces,
+  unicode, backslash normalization, no-stub HTTP fallback, stub-but-no-path
+  fallback). `tests/test_videos.py` covers the new `source_path`/`proxy_path`
+  response fields. `electron/main.js`'s protocol handler itself has no automated
+  coverage — Playwright cannot exercise a real Electron process.
+
+**What's still needed before this can be marked fully done** — the plan's own
+manual packaged-app checklist, none of which is possible from an automated/headless
+session:
+  1. Build the packaged app and open a recording — confirm playback starts.
+  2. Confirm seeking works (Range requests).
+  3. Confirm a split segment plays back at the correct offset.
+  4. Confirm DevTools' Network tab shows no `/api/videos/.../source` byte traffic
+     (i.e. the native protocol is actually being used, not a silent HTTP fallback).
+  5. Confirm a doctored/malicious path outside the allowed set is refused (403).
+
 ## Title card customization (done, 2026-07-03)
 
 Roadmap plan 09 (`docs/dev/plans/roadmap-2026-07/09-title-card.md`). Background

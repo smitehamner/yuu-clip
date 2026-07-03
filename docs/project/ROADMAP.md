@@ -56,7 +56,9 @@ regular users.
   720p preview proxy work (shipped 2026-07-02, see COMPLETED.md): in the packaged app, serve
   local media via Electron's native file protocol instead of the Python byte-pump. Helps
   startup latency, not seeking (the proxy already solved that), and doesn't apply to
-  browser-dev mode.
+  browser-dev mode. Implemented 2026-07-03 (roadmap plan 10); left unticked because the
+  5-item manual packaged-app verification checklist hasn't run yet — see COMPLETED.md and
+  the plan file's own status header.
 
 - [x] **Map and end-to-end test expected user paths** (done, 2026-07-03) — 10 journeys enumerated
   in `docs/dev/USER_PATHS.md`, each with a locked per-artifact staleness policy: cheap text
