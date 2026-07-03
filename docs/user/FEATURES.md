@@ -150,8 +150,8 @@ Dependency versions table and licensing notes. Open from the hamburger menu → 
 | `R` | Reject the current clip (or the focused clip row) |
 | `Space` | Play / pause video |
 | `E` | Export the current clip (or the focused clip row) |
-| `←` / `↑` | Previous clip |
-| `→` / `↓` | Next clip |
+| `←` / `↑` / `K` | Previous clip |
+| `→` / `↓` / `J` | Next clip |
 | `Ctrl`/`Cmd`+`Z` | Undo the most recent status change (single or bulk) |
 | `?` or `/` | Open the keyboard controls list |
 | `Esc` | Close the topmost window |

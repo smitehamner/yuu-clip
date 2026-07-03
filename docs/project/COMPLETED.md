@@ -6,6 +6,23 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) — see the
 
 ---
 
+## Quick wins Stage 1 — micro wins (done, 2026-07-03)
+
+Four small JS/HTML-only items from `docs/dev/plans/QUICK-WINS-2026-07.md`:
+
+- **J/K navigation aliases** — `j`/`J` and `k`/`K` alias the existing
+  arrow-key prev/next clip navigation; added to the `?` controls modal.
+- **Clip stats line** — muted summary between the filter chips and the clip
+  list (`14 shown · 6 unreviewed · 5 approved · 3 rejected · 22 min total`),
+  recomputed on every `_renderClips()`; hidden when no recording is selected.
+- **Hamburger Refresh item** — `⟳ Refresh` → `location.reload()`,
+  Electron-only visibility (same toggle as `#btn-setup-wizard`).
+- **Shortcut hint** — one muted line under the clip list pointing at J/K/A/R/?.
+
++8 UI tests in `test_ui_clips.py`.
+
+---
+
 ## Theme selector + design-token hardening (done, 2026-07-03)
 
 Settings → UI → **Theme**: Dark (default) / Light / High contrast, applied

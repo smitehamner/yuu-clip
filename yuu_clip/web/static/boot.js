@@ -29,6 +29,7 @@ fetch('/api/status').then(r => r.json()).then(d => {
 
 if (window.electronAPI) {
   document.getElementById('btn-setup-wizard').style.display = '';
+  document.getElementById('btn-refresh').style.display = '';
 }
 
 fetch('/api/config').then(r => r.json()).then(cfg => {

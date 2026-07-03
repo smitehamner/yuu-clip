@@ -50,6 +50,7 @@
       <a class="hamburger-item" href="/api/logs/export" download="yuu-clip.log" onclick="closeHamburger()">&#8595; Download Log</a>
       <button class="hamburger-item" onclick="closeHamburger();openAboutModal()">&#9432; About</button>
       <button class="hamburger-item" id="btn-setup-wizard" onclick="closeHamburger();window.electronAPI.runSetupWizard()" style="display:none">&#128295; Re-run Setup Wizard</button>
+      <button class="hamburger-item" id="btn-refresh" onclick="closeHamburger();location.reload()" style="display:none">&#8635; Refresh</button>
     </div>
   </div>
 </header>
@@ -567,7 +568,9 @@
           <button class="btn ghost" style="font-size:11px;padding:2px 6px" title="Clear selection" aria-label="Clear selection" onclick="_clearClipSelection()">&times;</button>
         </div>
       </div>
+      <div class="clip-stats-line" id="clip-stats-line" style="display:none;font-size:11px;color:var(--muted);padding:4px 14px"></div>
       <ul class="sidebar-list" id="clip-list"></ul>
+      <div class="clip-shortcut-hint" style="font-size:11px;color:var(--muted);padding:6px 14px" aria-hidden="true">Keyboard: J/K navigate &middot; A approve &middot; R reject &middot; ? all shortcuts</div>
     </div>
   </div>
 
@@ -1364,8 +1367,8 @@
         <tr><td><kbd>R</kbd></td><td>Reject selected clip</td></tr>
         <tr><td><kbd>Space</kbd></td><td>Play / Pause video</td></tr>
         <tr><td><kbd>E</kbd></td><td>Export selected clip</td></tr>
-        <tr><td><kbd>&#8592; &#8593;</kbd></td><td>Previous clip</td></tr>
-        <tr><td><kbd>&#8594; &#8595;</kbd></td><td>Next clip</td></tr>
+        <tr><td><kbd>&#8592; &#8593;</kbd> / <kbd>K</kbd></td><td>Previous clip</td></tr>
+        <tr><td><kbd>&#8594; &#8595;</kbd> / <kbd>J</kbd></td><td>Next clip</td></tr>
         <tr><td><kbd>Ctrl+Z</kbd></td><td>Undo last status change</td></tr>
         <tr><td><kbd>?</kbd> or <kbd>/</kbd></td><td>Open this panel</td></tr>
         <tr><td><kbd>Esc</kbd></td><td>Close the topmost window</td></tr>

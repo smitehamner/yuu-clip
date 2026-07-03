@@ -755,3 +755,99 @@ class TestClipFilterChips:
         not_exported.click()
         expect(not_exported).to_have_attribute("aria-pressed", "true")
         expect(exported).to_have_attribute("aria-pressed", "false")
+
+
+# ---------------------------------------------------------------------------
+# Quick-wins Stage 1 — J/K navigation, clip stats line, shortcut hint,
+# Electron-only Refresh hamburger item
+# ---------------------------------------------------------------------------
+
+@skip_no_server
+class TestJKNavigation:
+    """J/K are aliases for the existing arrow-key prev/next navigation."""
+
+    def test_j_moves_to_next_clip(self, page: Page):
+        select_first_video_and_clip(page)
+        page.wait_for_selector(".detail", timeout=3000)
+        first_id = page.evaluate("() => AppState.activeClipId")
+        second_id = page.evaluate("() => AppState.clips[1]?.id")
+        assert second_id is not None, "Need at least 2 clips for this test"
+        page.keyboard.press("j")
+        expect(page.locator("#clip-list li.active")).to_have_attribute(
+            "data-clip-id", str(second_id)
+        )
+        assert page.evaluate("() => AppState.activeClipId") != first_id
+
+    def test_k_moves_to_previous_clip(self, page: Page):
+        select_first_video_and_clip(page)
+        page.wait_for_selector(".detail", timeout=3000)
+        second_id = page.evaluate("() => AppState.clips[1]?.id")
+        assert second_id is not None, "Need at least 2 clips for this test"
+        page.keyboard.press("j")
+        page.wait_for_function(
+            f"() => AppState.activeClipId === {second_id}"
+        )
+        first_id = page.evaluate("() => AppState.clips[0].id")
+        page.keyboard.press("k")
+        expect(page.locator("#clip-list li.active")).to_have_attribute(
+            "data-clip-id", str(first_id)
+        )
+
+
+@skip_no_server
+class TestClipStatsLine:
+    def test_stats_line_matches_clip_counts(self, page: Page):
+        select_video_with_clips(page)
+        page.wait_for_selector("#clip-stats-line", state="visible", timeout=3000)
+        counts = page.evaluate(
+            """() => {
+                const c = {pending: 0, approved: 0, rejected: 0};
+                for (const clip of AppState.clips) c[clip.status]++;
+                return c;
+            }"""
+        )
+        stats = page.locator("#clip-stats-line")
+        expect(stats).to_contain_text(f"{counts['pending']} unreviewed")
+        expect(stats).to_contain_text(f"{counts['approved']} approved")
+        expect(stats).to_contain_text(f"{counts['rejected']} rejected")
+
+    def test_stats_line_updates_with_filter(self, page: Page):
+        select_video_with_clips(page)
+        page.wait_for_selector("#clip-stats-line", state="visible", timeout=3000)
+        total_shown = page.locator("#clip-list li[data-clip-id]").count()
+        page.locator("button.clip-chip[data-filter='approved']").click()
+        approved_count = page.evaluate(
+            "() => AppState.clips.filter(c => c.status === 'approved').length"
+        )
+        expect(page.locator("#clip-stats-line")).to_contain_text(f"{approved_count} shown")
+        assert approved_count <= total_shown
+
+    def test_stats_line_hidden_when_no_recording_selected(self, page: Page):
+        page.goto(LIVE_URL)
+        page.evaluate("() => { AppState.activeVideoId = null; AppState.clips = []; _renderClips(); }")
+        expect(page.locator("#clip-stats-line")).to_be_hidden()
+
+
+@skip_no_server
+class TestShortcutHint:
+    def test_hint_present_near_clip_list(self, page: Page):
+        page.goto(LIVE_URL)
+        expect(page.locator(".clip-shortcut-hint")).to_contain_text("J/K navigate")
+        expect(page.locator(".clip-shortcut-hint")).to_contain_text("? all shortcuts")
+
+
+@skip_no_server
+class TestRefreshHamburgerItem:
+    def test_hidden_in_plain_browser(self, page: Page):
+        page.goto(LIVE_URL)
+        assert page.evaluate("() => window.electronAPI") is None
+        page.evaluate("toggleHamburger()")
+        page.wait_for_selector("#hamburger-menu.open")
+        expect(page.locator("#btn-refresh")).to_be_hidden()
+
+    def test_shown_when_electron_api_present(self, page: Page):
+        page.add_init_script("window.electronAPI = { runSetupWizard: () => {} };")
+        page.goto(LIVE_URL)
+        page.evaluate("toggleHamburger()")
+        page.wait_for_selector("#hamburger-menu.open")
+        expect(page.locator("#btn-refresh")).to_be_visible()

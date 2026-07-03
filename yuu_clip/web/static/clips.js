@@ -28,7 +28,27 @@ function _applyFilters() {
 // filters. Call this — never _renderClipItems directly — after mutating AppState.clips.
 function _renderClips() {
   _pruneClipSelection();
-  _renderClipItems(_applyFilters());
+  const shown = _applyFilters();
+  _renderClipItems(shown);
+  _renderClipStatsLine(shown);
+}
+
+function _renderClipStatsLine(shown) {
+  const el = document.getElementById('clip-stats-line');
+  if (!el) return;
+  if (!AppState.activeVideoId || !AppState.clips.length) {
+    el.style.display = 'none';
+    return;
+  }
+  const counts = {pending: 0, approved: 0, rejected: 0};
+  for (const c of AppState.clips) counts[c.status] = (counts[c.status] || 0) + 1;
+  const totalSeconds = shown.reduce((sum, c) => sum + (c.end_s - c.start_s), 0);
+  const durationText = totalSeconds >= 60
+    ? `${Math.round(totalSeconds / 60)} min`
+    : `${Math.round(totalSeconds)} sec`;
+  el.textContent = `${shown.length} shown · ${counts.pending} unreviewed · ` +
+    `${counts.approved} approved · ${counts.rejected} rejected · ${durationText} total`;
+  el.style.display = '';
 }
 
 // ── multi-select bulk actions ────────────────────────────────────────────────

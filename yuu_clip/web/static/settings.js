@@ -739,11 +739,13 @@ document.addEventListener('keydown', e => {
       break;
     case 'ArrowLeft':
     case 'ArrowUp':
+    case 'k': case 'K':
       e.preventDefault();
       if (idx > 0) _navigateTo(AppState.clips[idx - 1].id);
       break;
     case 'ArrowRight':
     case 'ArrowDown':
+    case 'j': case 'J':
       e.preventDefault();
       if (idx !== -1 && idx < AppState.clips.length - 1) _navigateTo(AppState.clips[idx + 1].id);
       break;
