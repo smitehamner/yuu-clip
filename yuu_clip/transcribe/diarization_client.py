@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import warnings
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
@@ -154,13 +155,19 @@ class PyannoteDiarizationClient(DiarizationClient):
         Shared by ``diarize`` and ``diarize_with_embeddings`` so the pipeline load
         + error translation lives in one place.
         """
-        # Importing pyannote pulls in torchcodec, which logs a noisy "Could not load
-        # libtorchcodec" traceback when FFmpeg's shared libs aren't on PATH (common on
+        # pyannote.audio.core.io warns (with the full libtorchcodec load traceback
+        # inlined as text) whenever FFmpeg's shared libs aren't on PATH (common on
         # Windows). It's expected and harmless here: we decode the WAV ourselves in
-        # _load_waveform and never use torchcodec. Tracked as a ROADMAP follow-up to
-        # silence the warning. If diarization itself fails, that surfaces separately below.
-        _log.info("Loading diarization pipeline (any torchcodec load warning below is expected)")
-        from pyannote.audio import Pipeline
+        # _load_waveform and never use torchcodec. Narrowly scoped to this one
+        # warning/module so unrelated warnings during the import still surface.
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                message=r"\s*torchcodec is not installed correctly",
+                category=UserWarning,
+                module=r"pyannote\.audio\.core\.io",
+            )
+            from pyannote.audio import Pipeline
         try:
             pipeline = Pipeline.from_pretrained(
                 _PIPELINE_ID,

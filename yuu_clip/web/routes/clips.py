@@ -78,6 +78,15 @@ class BulkStatusUpdate(BaseModel):
     status: str  # approved | rejected | pending
 
 
+class BulkStatusRestoreItem(BaseModel):
+    id: int
+    status: str  # approved | rejected | pending
+
+
+class BulkStatusRestore(BaseModel):
+    updates: list[BulkStatusRestoreItem]
+
+
 class BulkClipIds(BaseModel):
     clip_ids: list[int]
 
@@ -661,6 +670,7 @@ def _register_bulk_routes(router: APIRouter, ctx: ProjectContext) -> None:
         try:
             clips = db.query(ClipCandidate).filter(ClipCandidate.id.in_(body.clip_ids)).all()
             found_ids = {c.id for c in clips}
+            previous = {c.id: c.status for c in clips}
             for clip in clips:
                 clip.status = body.status
             db.commit()
@@ -669,7 +679,35 @@ def _register_bulk_routes(router: APIRouter, ctx: ProjectContext) -> None:
                 "Bulk status update: %d clip(s) set to %s, %d missing",
                 len(clips), body.status, len(missing),
             )
-            return {"updated": sorted(found_ids), "status": body.status, "missing": missing}
+            return {
+                "updated": sorted(found_ids), "status": body.status, "missing": missing,
+                "previous": previous,
+            }
+        finally:
+            db.close()
+
+    @router.post("/api/clips/bulk-status-restore")
+    def bulk_restore_clip_status(body: BulkStatusRestore):
+        """Restore each clip to its own previous status — undo for bulk_set_clip_status.
+
+        Unlike bulk-status, clips may end up on different statuses, so this takes
+        a per-clip mapping rather than one status for the whole batch.
+        """
+        if not body.updates:
+            raise HTTPException(400, "updates must not be empty")
+        for item in body.updates:
+            if item.status not in _VALID_STATUSES:
+                raise HTTPException(400, f"status must be one of: {' | '.join(_VALID_STATUSES)}")
+        db = ctx.get_db()
+        try:
+            by_id = {item.id: item.status for item in body.updates}
+            clips = db.query(ClipCandidate).filter(ClipCandidate.id.in_(by_id)).all()
+            for clip in clips:
+                clip.status = by_id[clip.id]
+            db.commit()
+            found_ids = {c.id for c in clips}
+            _log.info("Bulk status restore (undo): %d clip(s) reverted", len(clips))
+            return {"restored": sorted(found_ids), "missing": _missing_ids(list(by_id), found_ids)}
         finally:
             db.close()
 

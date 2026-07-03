@@ -1980,6 +1980,54 @@ class TestBulkClipStatus:
         r = client.post("/api/clips/bulk-status", json={"clip_ids": [], "status": "approved"})
         assert r.status_code == 400
 
+    def test_bulk_status_returns_previous_status_per_clip(self, client):
+        ids = self._clip_ids(client)
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        original = {c["id"]: c["status"] for c in client.get(f"/api/videos/{vid_id}/clips").json()}
+        client.post("/api/clips/bulk-status", json={"clip_ids": ids[:1], "status": "rejected"})
+        r = client.post("/api/clips/bulk-status", json={"clip_ids": ids, "status": "approved"})
+        previous = r.json()["previous"]
+        assert previous[str(ids[0])] == "rejected"  # overwritten by the first bulk call above
+        for cid in ids[1:]:
+            assert previous[str(cid)] == original[cid]
+
+
+class TestBulkStatusRestore:
+    def _clip_ids(self, client) -> list[int]:
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        return [c["id"] for c in client.get(f"/api/videos/{vid_id}/clips").json()]
+
+    def test_restore_reverts_each_clip_to_its_own_status(self, client):
+        ids = self._clip_ids(client)
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        original = {c["id"]: c["status"] for c in client.get(f"/api/videos/{vid_id}/clips").json()}
+
+        r = client.post("/api/clips/bulk-status", json={"clip_ids": ids, "status": "approved"})
+        previous = r.json()["previous"]
+        updates = [{"id": cid, "status": previous[str(cid)]} for cid in ids]
+
+        r = client.post("/api/clips/bulk-status-restore", json={"updates": updates})
+        assert r.status_code == 200
+        assert sorted(r.json()["restored"]) == sorted(ids)
+
+        clips = {c["id"]: c for c in client.get(f"/api/videos/{vid_id}/clips").json()}
+        for cid in ids:
+            assert clips[cid]["status"] == original[cid]
+
+    def test_restore_reports_missing_ids(self, client):
+        r = client.post("/api/clips/bulk-status-restore", json={"updates": [{"id": 99999, "status": "approved"}]})
+        assert r.status_code == 200
+        assert r.json()["missing"] == [99999]
+
+    def test_restore_invalid_status_400(self, client):
+        ids = self._clip_ids(client)
+        r = client.post("/api/clips/bulk-status-restore", json={"updates": [{"id": ids[0], "status": "maybe"}]})
+        assert r.status_code == 400
+
+    def test_restore_empty_updates_400(self, client):
+        r = client.post("/api/clips/bulk-status-restore", json={"updates": []})
+        assert r.status_code == 400
+
 
 class TestBulkDeleteClips:
     def _clip_ids(self, client) -> list[int]:

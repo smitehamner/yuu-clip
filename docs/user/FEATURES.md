@@ -58,7 +58,7 @@ Regenerate / Files sections in the modal it opens):
 The same **Additional Actions** pattern is used on the video detail view for less-common actions
 like **Re-analyze (full)** and **Re-detect Speakers** (see "Re-analyzing a recording" below).
 
-**Bulk actions** — each clip row has a checkbox; checking any shows a toolbar above the list with Approve / Reject / Export / Delete buttons that act on every checked clip currently visible under the active search/status/score filter. Bulk delete asks for confirmation first. Bulk export warns if any selected clip's captions were edited since it was last scored, letting you re-score first or export anyway.
+**Bulk actions** — each clip row has a checkbox; checking any shows a toolbar above the list with Approve / Reject / Export / Delete buttons that act on every checked clip currently visible under the active search/status/score filter. Bulk delete asks for confirmation first. Bulk export warns if any selected clip's captions were edited since it was last scored, letting you re-score first or export anyway. Bulk Approve/Reject shows an **Undo** toast, same as single-clip status changes — since clips can have had different statuses before the bulk action, each clip reverts to its own previous status. `Ctrl`/`Cmd`+`Z` also undoes the most recent status change, single or bulk.
 
 ### Video player
 

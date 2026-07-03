@@ -105,18 +105,24 @@ regular users.
 
 - [x] **Search + filter** — text search across clip descriptions and transcripts; minimum score dropdown; both combine with the existing status tabs. Client-side; no backend changes. Regex and tag filter deferred.
 
-- [ ] **Demo reel: random transition + advanced editor** — add "random" as a transition option in
-  the demo reel builder. Separately, add an advanced clip list editor: reorder approved clips via
-  drag-and-drop, add clips from rejected or unrated pool, remove individual clips before compiling.
+- [x] **Demo reel: random transition** *(shipped)* — "random" transition option in the demo reel
+  builder (`reel.py`). Reordering (drag-and-drop + ▲▼) and removing individual clips before
+  compiling also shipped as part of the reel builder's ordered clip list — see FEATURES.md.
+
+- [ ] **Demo reel: add clips from rejected/unrated pool** — the only remaining piece of the
+  advanced clip list editor: today the reel builder can only select from a video's already-exported
+  clips, so a rejected or unrated clip can't be pulled in without first approving and exporting it.
 
 - [ ] **Batch processing status panel** — collapsible status summary bar at the top of the clips
   view showing active/queued/completed job counts; clicking expands per-job detail. Long-term: move
   the raw log view behind a "Developer" toggle.
 
-- [ ] **Undo for bulk Approve/Reject** — single-clip status changes show an undo toast, but the
-  bulk toolbar's Approve/Reject have no undo. Needs a per-clip status snapshot before the bulk
-  write so one undo restores each clip's *previous* status (they may differ). Deliberately not a
-  confirm dialog — approve/reject is frequent and recoverable, so friction would be worse than undo.
+- [x] **Undo for bulk Approve/Reject** *(shipped 2026-07-03)* — the bulk toolbar's Approve/Reject
+  now show an undo toast, same as single-clip status changes. `bulk_set_clip_status`
+  (`web/routes/clips.py`) returns each clip's pre-update status; a new `POST
+  /api/clips/bulk-status-restore` reverts each clip to its own captured status (they may differ)
+  in one call. `Ctrl/Cmd+Z` dispatches to whichever of single/bulk undo is pending — setting one
+  clears the other so there's never ambiguity about which "last change" it refers to.
 
 - [ ] **Detail panel chunking** — group the clip detail panel into cards: Summary → Actions →
   Transcript, rather than a flat list *(UX debt: Chunking)*

@@ -790,6 +790,8 @@ async function setStatus(id, status) {
 
   if (fromStatus && fromStatus !== status) {
     if (AppState.lastStatusChange?.timer) clearTimeout(AppState.lastStatusChange.timer);
+    if (AppState.lastBulkStatusChange?.timer) clearTimeout(AppState.lastBulkStatusChange.timer);
+    AppState.lastBulkStatusChange = null;
     const label = {approved:'Approved', rejected:'Rejected', pending:'Marked as Unreviewed'}[status] || status;
     AppState.lastStatusChange = {clipId: id, fromStatus};
     AppState.lastStatusChange.timer = setTimeout(() => { AppState.lastStatusChange = null; }, 5000);
@@ -797,7 +799,14 @@ async function setStatus(id, status) {
   }
 }
 
+// Ctrl/Cmd+Z dispatch (settings.js) — prefers whichever of single/bulk status
+// change is still pending; setting either clears the other, so at most one is
+// ever live and this never has to arbitrate between the two.
 function undoLastStatus() {
+  if (AppState.lastBulkStatusChange) {
+    undoLastBulkStatus();
+    return;
+  }
   if (!AppState.lastStatusChange) return;
   const {clipId, fromStatus} = AppState.lastStatusChange;
   clearTimeout(AppState.lastStatusChange.timer);
@@ -1116,6 +1125,7 @@ async function bulkSetClipStatus(status) {
     return;
   }
   const label = {approved: 'Approved', rejected: 'Rejected', pending: 'Marked as Unreviewed'}[status] || status;
+  const data = await res.json();
   AppState.selectedClipIds.clear();
   await _reloadClipList(AppState.activeVideoId);
   if (AppState.activeClipId && ids.includes(AppState.activeClipId)) {
@@ -1124,7 +1134,38 @@ async function bulkSetClipStatus(status) {
     renderDetail(clip);
   }
   loadVideos();
-  showToast(`${label}: ${plural(ids.length, 'clip')}`);
+
+  if (AppState.lastBulkStatusChange?.timer) clearTimeout(AppState.lastBulkStatusChange.timer);
+  if (AppState.lastStatusChange?.timer) clearTimeout(AppState.lastStatusChange.timer);
+  AppState.lastStatusChange = null;
+  AppState.lastBulkStatusChange = {previous: data.previous};
+  AppState.lastBulkStatusChange.timer = setTimeout(() => { AppState.lastBulkStatusChange = null; }, 5000);
+  showUndoToast(`${label}: ${plural(ids.length, 'clip')}`, undoLastBulkStatus);
+}
+
+async function undoLastBulkStatus() {
+  if (!AppState.lastBulkStatusChange) return;
+  const {previous} = AppState.lastBulkStatusChange;
+  clearTimeout(AppState.lastBulkStatusChange.timer);
+  AppState.lastBulkStatusChange = null;
+  const updates = Object.entries(previous).map(([id, status]) => ({id: Number(id), status}));
+  const res = await fetch('/api/clips/bulk-status-restore', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({updates}),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    showToast(`Undo failed: ${formatApiError(err)}`, 'error');
+    return;
+  }
+  await _reloadClipList(AppState.activeVideoId);
+  if (AppState.activeClipId && updates.some(u => u.id === AppState.activeClipId)) {
+    const clip = await fetch(`/api/clips/${AppState.activeClipId}`).then(r => r.json());
+    AppState.activeClipData = clip;
+    renderDetail(clip);
+  }
+  loadVideos();
+  showToast(`Undone: ${plural(updates.length, 'clip')} restored`);
 }
 
 function bulkDeleteClips() {

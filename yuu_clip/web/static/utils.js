@@ -19,6 +19,7 @@ const AppState = {
   videoFilters:        new Set(),  // active video filter tokens; empty = show all
   selectedClipIds:     new Set(),
   lastStatusChange:    null, // {clipId, fromStatus, timer}
+  lastBulkStatusChange: null, // {previous: {clipId: fromStatus}, timer}
   confirmCallback:     null,
   activeClipData:      null,
   activeMediaFilename: null,

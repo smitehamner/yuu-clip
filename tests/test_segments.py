@@ -500,10 +500,13 @@ class TestPearsonCorrelation:
     def test_short_sequence_returns_zero(self):
         assert self._pearson([1.0, 2.0, 3.0], [1.0, 2.0, 3.0]) == 0.0
 
-    def test_constant_sequences_returns_one(self):
-        # Both all-same: da == 0 and db == 0 → returns 1.0
+    def test_constant_sequences_returns_zero(self):
+        # Both all-same (e.g. two tracks silent over the sampled window): no
+        # variance to correlate against, so this is undetermined, not "identical" —
+        # returning 1.0 here would wrongly suppress a track that's only silent
+        # during the sample.
         a = [0.5, 0.5, 0.5, 0.5, 0.5]
-        assert self._pearson(a, a) == 1.0
+        assert self._pearson(a, a) == 0.0
 
     def test_one_constant_other_varying_returns_zero(self):
         a = [0.5, 0.5, 0.5, 0.5, 0.5]

@@ -5,6 +5,35 @@ Phases 1–3 have been moved to [COMPLETED-archive.md](COMPLETED-archive.md).
 
 ---
 
+## Pre-release polish batch (done, 2026-07-03)
+
+Small fixes/wins identified while reviewing state ahead of the next friend release:
+
+- **Undo for bulk Approve/Reject** — `bulk_set_clip_status` (`web/routes/clips.py`) now returns
+  a `previous` map of `{clip_id: prior_status}`; a new `POST /api/clips/bulk-status-restore`
+  reverts each clip to its own prior status in one call (clips may have had different statuses
+  before the bulk write). The bulk toolbar shows the same undo toast pattern as single-clip
+  status changes. `AppState.lastStatusChange` / `lastBulkStatusChange` are mutually exclusive —
+  setting either clears the other — so `Ctrl/Cmd+Z` always resolves to the single most recent
+  action without needing to compare timestamps.
+- **`_pearson` flat-curve fix** (`analyze/overlap.py`) — two constant (silent) RMS curves used to
+  return correlation `1.0` ("identical"), which could wrongly suppress a specialized audio track
+  that just happened to be silent during the 30 s sample window. Now returns `0.0`
+  (undetermined/no-correlation) for any flat-curve case, matching the existing asymmetric
+  (one-flat-one-not) behavior. Was a documented "Known issue" in ROADMAP.md.
+- **Torchcodec import warning suppressed** — `pyannote.audio.core.io` emits a `UserWarning` with
+  the full libtorchcodec load traceback inlined as text whenever FFmpeg's shared libs aren't on
+  PATH (the default on Windows) — harmless since diarization decodes WAVs itself and never uses
+  torchcodec, but alarming to see on a friend's first run. `diarization_client.py` now scopes a
+  `warnings.catch_warnings()` filter narrowly to that one message/module around the
+  `from pyannote.audio import Pipeline` import, so unrelated warnings still surface normally.
+- **ROADMAP.md staleness fix** — "random transition" for the highlight reel builder had already
+  shipped (`reel.py` + `index.html`) but was still listed as pending; split that roadmap item into
+  the shipped part and the one genuinely remaining piece (adding clips from the rejected/unrated
+  pool to the reel builder).
+
+---
+
 ## Split: clip/transcript migration + Undo Split (done, 2026-07-03)
 
 "Split only — keep all existing clips" never actually migrated anything —
