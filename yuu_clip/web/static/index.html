@@ -567,6 +567,13 @@
           <option value="0.9">90%+</option>
         </select>
       </div>
+      <div class="batch-status-panel" id="batch-status-panel" style="display:none">
+        <button class="batch-status-toggle" id="batch-status-toggle" onclick="_toggleBatchStatusPanel()" aria-expanded="true" aria-controls="batch-status-body">
+          <span id="batch-status-summary"></span>
+          <span class="batch-status-caret" aria-hidden="true">&#9660;</span>
+        </button>
+        <div class="batch-status-body" id="batch-status-body"></div>
+      </div>
       <div class="clip-filter-tabs" aria-label="Clip filters">
         <span style="font-size:10px;color:var(--muted);padding:2px 4px;line-height:1.8;flex-shrink:0" aria-hidden="true">Filter</span>
         <button class="clip-chip active" aria-pressed="true"  data-filter="all"          onclick="toggleClipFilter('all')">All</button>

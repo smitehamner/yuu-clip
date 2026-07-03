@@ -6,6 +6,28 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) — see the
 
 ---
 
+## Quick wins Stage 6 — batch processing status panel (done, 2026-07-03)
+
+Closes the ROADMAP "Batch processing status panel" item, scoped down from
+its original "active/queued/completed job counts with per-job detail"
+wording (no job-queue/history infrastructure exists to back that) to a
+simpler counts-plus-indicator panel, per user decision when the plan's
+"roadmap wins on drift" instruction hit that mismatch.
+
+Collapsible bar above the clip filter chips (`#batch-status-panel`,
+`_renderBatchStatusPanel()` in `clips.js`): unreviewed/approved/rejected +
+scoring-error counts for the selected recording, plus an in-flight job
+indicator (reads the existing `#job-status` pill visibility — `startJobUI`/
+`endJobUI` now call back into it, guarded via `window._renderBatchStatusPanel`
+so `utils.js` doesn't hard-depend on `clips.js`). Clicking a count applies
+the matching filter chip; collapsed state persists in localStorage
+(`yuuclip-batch-panel`). No new endpoints — everything derives from
+`AppState.clips` and existing job-UI state.
+
++4 UI tests in `test_ui_clips.py`.
+
+---
+
 ## Quick wins Stage 5 — reel pool from rejected/unreviewed (done, 2026-07-03)
 
 Closes the ROADMAP "Demo reel: add clips from rejected/unrated pool" item.

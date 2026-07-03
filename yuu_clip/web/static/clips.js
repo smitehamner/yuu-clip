@@ -31,6 +31,52 @@ function _renderClips() {
   const shown = _applyFilters();
   _renderClipItems(shown);
   _renderClipStatsLine(shown);
+  _renderBatchStatusPanel();
+}
+
+// Collapsible summary bar above the filter chips: status counts for the
+// selected recording (not the filtered/shown subset — see the stats line for
+// that) plus an in-flight job indicator. Clicking a count applies the
+// matching filter chip. Derived entirely from AppState.clips and the
+// existing job-status pill — no new endpoints.
+function _renderBatchStatusPanel() {
+  const panel = document.getElementById('batch-status-panel');
+  if (!panel) return;
+  if (!AppState.activeVideoId || !AppState.clips.length) {
+    panel.style.display = 'none';
+    return;
+  }
+  panel.style.display = '';
+
+  const counts = {pending: 0, approved: 0, rejected: 0};
+  let errorCount = 0;
+  for (const c of AppState.clips) {
+    counts[c.status] = (counts[c.status] || 0) + 1;
+    if ((c.tags || []).includes('llm_error')) errorCount++;
+  }
+  const jobRunning = document.getElementById('job-status')?.classList.contains('visible') || false;
+  const collapsed = localStorage.getItem('yuuclip-batch-panel') === 'collapsed';
+
+  panel.classList.toggle('collapsed', collapsed);
+  document.getElementById('batch-status-toggle').setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+  document.getElementById('batch-status-summary').textContent =
+    `${counts.pending} unreviewed · ${counts.approved} approved · ${counts.rejected} rejected` +
+    (errorCount ? ` · ${plural(errorCount, 'scoring error')}` : '') +
+    (jobRunning ? ' · job running…' : '');
+
+  document.getElementById('batch-status-body').innerHTML = `
+    <button class="batch-status-count" onclick="toggleClipFilter('pending')">${counts.pending} Unreviewed</button>
+    <button class="batch-status-count" onclick="toggleClipFilter('approved')">${counts.approved} Approved</button>
+    <button class="batch-status-count" onclick="toggleClipFilter('rejected')">${counts.rejected} Rejected</button>
+    ${errorCount ? `<button class="batch-status-count" onclick="toggleClipFilter('error')">${plural(errorCount, 'scoring error')}</button>` : ''}
+    ${jobRunning ? `<span class="batch-status-job">&#9679; Job running…</span>` : ''}
+  `;
+}
+
+function _toggleBatchStatusPanel() {
+  const collapsed = localStorage.getItem('yuuclip-batch-panel') === 'collapsed';
+  localStorage.setItem('yuuclip-batch-panel', collapsed ? 'expanded' : 'collapsed');
+  _renderBatchStatusPanel();
 }
 
 function _renderClipStatsLine(shown) {
@@ -1420,6 +1466,7 @@ Object.assign(window, {
   selectClip, setStatus, undoLastStatus, renderDetail, clearDetail, refreshClipDetail,
   toggleClipFilter, _syncFilterChips, setClipSearch, setClipScoreMin, _clearClipFilters,
   _applyFilters, _renderClips, _parseTimingOffset,
+  _renderBatchStatusPanel, _toggleBatchStatusPanel,
   deleteClip, deleteVideo, deleteExport, mergeClips,
   exportClip, exportVideoTranscript, confirmExport, closeExportModal,
   bulkSetClipStatus, bulkDeleteClips, bulkExportClips, _clearClipSelection,

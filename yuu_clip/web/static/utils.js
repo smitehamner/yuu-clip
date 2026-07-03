@@ -256,6 +256,7 @@ function startJobUI(stepDefs, jobLabel, cancellable = false) {
   const analyzeBtn = document.getElementById('btn-analyze');
   if (analyzeBtn) analyzeBtn.title = 'A job is already running';
   document.getElementById('btn-cancel-job').style.display = cancellable ? '' : 'none';
+  if (window._renderBatchStatusPanel) _renderBatchStatusPanel();
 }
 
 function updateJobUI(line) {
@@ -388,6 +389,7 @@ function endJobUI() {
     if (analyzeBtn) analyzeBtn.title = '';
     const totalApproved = (AppState.videos || []).reduce((n, v) => n + v.approved, 0);
     _updateDemoButton(totalApproved);
+    if (window._renderBatchStatusPanel) _renderBatchStatusPanel();
   }, 2000);
 }
 

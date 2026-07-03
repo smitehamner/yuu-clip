@@ -1005,3 +1005,47 @@ class TestClipShowInFolder:
         )
         page.wait_for_selector("#actions-modal.visible", timeout=2000)
         expect(page.locator("#actions-modal-body .action-row:has-text('Show in Folder')")).to_have_count(0)
+
+
+# ---------------------------------------------------------------------------
+# Quick-wins Stage 6 — batch processing status panel
+# ---------------------------------------------------------------------------
+
+@skip_no_server
+class TestBatchStatusPanel:
+    def test_counts_match_clip_fixtures(self, page: Page):
+        select_video_with_clips(page)
+        page.wait_for_selector("#batch-status-panel", state="visible", timeout=3000)
+        counts = page.evaluate(
+            """() => {
+                const c = {pending: 0, approved: 0, rejected: 0};
+                for (const clip of AppState.clips) c[clip.status]++;
+                return c;
+            }"""
+        )
+        body = page.locator("#batch-status-body")
+        expect(body).to_contain_text(f"{counts['pending']} Unreviewed")
+        expect(body).to_contain_text(f"{counts['approved']} Approved")
+        expect(body).to_contain_text(f"{counts['rejected']} Rejected")
+
+    def test_clicking_a_count_applies_the_filter_chip(self, page: Page):
+        select_video_with_clips(page)
+        page.wait_for_selector("#batch-status-panel", state="visible", timeout=3000)
+        page.click("#batch-status-body button:has-text('Approved')")
+        expect(page.locator("button.clip-chip[data-filter='approved']")).to_have_attribute("aria-pressed", "true")
+
+    def test_collapse_state_survives_reload(self, page: Page):
+        select_video_with_clips(page)
+        page.wait_for_selector("#batch-status-panel", state="visible", timeout=3000)
+        page.click("#batch-status-toggle")
+        expect(page.locator("#batch-status-panel")).to_have_class("batch-status-panel collapsed")
+        assert page.evaluate("() => localStorage.getItem('yuuclip-batch-panel')") == "collapsed"
+        page.reload()
+        select_video_with_clips(page)
+        page.wait_for_selector("#batch-status-panel", state="visible", timeout=3000)
+        expect(page.locator("#batch-status-panel")).to_have_class("batch-status-panel collapsed")
+
+    def test_hidden_when_no_recording_selected(self, page: Page):
+        page.goto(LIVE_URL)
+        page.evaluate("() => { AppState.activeVideoId = null; AppState.clips = []; _renderClips(); }")
+        expect(page.locator("#batch-status-panel")).to_be_hidden()

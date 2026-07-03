@@ -91,9 +91,14 @@ regular users.
   Rejected pool chips in the reel Build tab; clips pulled in from a non-approved pool default to
   excluded.
 
-- [ ] **Batch processing status panel** — collapsible status summary bar at the top of the clips
-  view showing active/queued/completed job counts; clicking expands per-job detail. Long-term: move
-  the raw log view behind a "Developer" toggle.
+- [x] **Batch processing status panel** (done, 2026-07-03) — collapsible summary bar above the clip
+  filter chips: status counts (unreviewed/approved/rejected/scoring-errors) for the selected
+  recording plus an in-flight job indicator, derived from `AppState.clips` and the existing
+  job-status pill (no new endpoints). Clicking a count applies the matching filter chip; collapsed
+  state persists in localStorage. Scoped down from the original "active/queued/completed job
+  counts with per-job detail" wording — the app has no job-queue/history infrastructure to back
+  that; see `docs/dev/plans/QUICK-WINS-2026-07.md` Stage 6. Deferred: moving the raw log view
+  behind a "Developer" toggle.
 
 - [ ] **Detail panel chunking** — group the clip detail panel into cards: Summary → Actions →
   Transcript, rather than a flat list *(UX debt: Chunking)*
