@@ -14,7 +14,7 @@ const _settingsFieldIds = [
   's-timeline-interval','s-timeline-unit','s-autoplay','s-play-next','s-loop-clip',
   's-export-name-template',
   's-title-card-bg-color','s-title-card-font-color','s-title-card-scale',
-  's-title-card-layout','s-title-card-duration',
+  's-title-card-template','s-title-card-duration',
 ];
 // [element id, config key, default] — single source for apply + Reset to defaults.
 const _weightFields = [
@@ -218,7 +218,7 @@ function _applySettingsToUI(cfg) {
   setVal('s-title-card-bg-color', cfg.title_card_bg_color || '#000000');
   setVal('s-title-card-font-color', cfg.title_card_font_color || '#ffffff');
   _setSelectByNumber('s-title-card-scale', cfg.title_card_scale ?? 1.0);
-  setVal('s-title-card-layout', cfg.title_card_layout || 'both');
+  setVal('s-title-card-template', cfg.title_card_template ?? '{description}\n{start} · {duration}');
   setVal('s-title-card-duration', cfg.title_card_duration_s ?? 3.0);
   _updateTitleCardPreview();
   _snapshotSettings();
@@ -372,9 +372,32 @@ function _updateExportNameTemplatePreview() {
 // the UI copy. Colors here are the user's own chosen values (like the
 // score-gradient exception in utils.js), not UI chrome, so they're applied
 // directly rather than through a theme token.
-const _TITLE_CARD_PREVIEW_DESCRIPTION = 'Chaos erupts as the squad clutches a 1v4.';
-const _TITLE_CARD_PREVIEW_TIMECODE = '2:15 · 0:22';
+// Sample values for the title-card template live preview — mirrors the
+// placeholder set and per-line truncation of reel.title_card_lines so the mock
+// matches what ffmpeg would render.
+const _TITLE_CARD_PREVIEW_SAMPLE = {
+  description: 'Chaos erupts as the squad clutches a 1v4.',
+  start: '2:15',
+  duration: '0:22',
+};
+const _TITLE_CARD_DESC_MAX = 90;
 const _TITLE_CARD_CONTRAST_WARN_THRESHOLD = 3;
+
+function _renderTitleCardPreviewLines(template) {
+  const unknown = [];
+  const lines = [];
+  for (const rawLine of template.split('\n')) {
+    let rendered = rawLine.replace(/\{(\w*)\}/g, (match, key) => {
+      if (!(key in _TITLE_CARD_PREVIEW_SAMPLE)) { unknown.push(key); return match; }
+      return _TITLE_CARD_PREVIEW_SAMPLE[key];
+    }).trim();
+    if (rendered.length > _TITLE_CARD_DESC_MAX) {
+      rendered = rendered.slice(0, _TITLE_CARD_DESC_MAX - 1).trimEnd() + '…';
+    }
+    if (rendered) lines.push(rendered);
+  }
+  return {lines, unknown};
+}
 
 function _hexLuminance(hex) {
   const m = /^#([0-9a-f]{6})$/i.exec(hex || '');
@@ -396,26 +419,38 @@ function _updateTitleCardPreview() {
   const bg = document.getElementById('s-title-card-bg-color')?.value || '#000000';
   const fg = document.getElementById('s-title-card-font-color')?.value || '#ffffff';
   const scale = parseFloat(document.getElementById('s-title-card-scale')?.value || '1') || 1;
-  const layout = document.getElementById('s-title-card-layout')?.value || 'both';
+  const template = document.getElementById('s-title-card-template')?.value ?? '';
 
-  const box     = document.getElementById('s-title-card-preview');
-  const descEl  = document.getElementById('s-title-card-preview-desc');
-  const timeEl  = document.getElementById('s-title-card-preview-time');
-  if (box) box.style.background = bg;
-
-  const showDesc = layout !== 'timecode';
-  const showTime = layout !== 'description';
-  if (descEl) {
-    descEl.style.display = showDesc ? '' : 'none';
-    descEl.style.color = fg;
-    descEl.style.fontSize = `${Math.round(13 * scale)}px`;
-    descEl.textContent = showDesc ? _TITLE_CARD_PREVIEW_DESCRIPTION : '';
-  }
-  if (timeEl) {
-    timeEl.style.display = showTime ? '' : 'none';
-    timeEl.style.color = fg;
-    timeEl.style.fontSize = `${Math.round(10 * scale)}px`;
-    timeEl.textContent = showTime ? _TITLE_CARD_PREVIEW_TIMECODE : '';
+  const box = document.getElementById('s-title-card-preview');
+  if (box) {
+    box.style.background = bg;
+    box.textContent = '';
+    const {lines, unknown} = _renderTitleCardPreviewLines(template);
+    const shown = lines.length
+      ? lines
+      : [`${_TITLE_CARD_PREVIEW_SAMPLE.start}  ·  ${_TITLE_CARD_PREVIEW_SAMPLE.duration}`];
+    shown.forEach((text, idx) => {
+      const line = document.createElement('div');
+      line.textContent = text;
+      line.style.color = fg;
+      line.style.overflowWrap = 'anywhere';
+      if (idx === 0) {
+        line.style.fontWeight = '600';
+        line.style.fontSize = `${Math.round(15 * scale)}px`;
+      } else {
+        line.style.fontSize = `${Math.round(11 * scale)}px`;
+        line.style.marginTop = '6px';
+      }
+      box.appendChild(line);
+    });
+    const placeholderWarn = document.getElementById('s-title-card-template-warning');
+    if (placeholderWarn) {
+      const bad = [...new Set(unknown)];
+      placeholderWarn.style.display = bad.length ? '' : 'none';
+      placeholderWarn.textContent = bad.length
+        ? `⚠ Unknown placeholder: ${bad.map(u => `{${u}}`).join(', ')}`
+        : '';
+    }
   }
 
   const warningEl = document.getElementById('s-title-card-contrast-warning');
@@ -541,7 +576,7 @@ async function saveSettings() {
     title_card_bg_color:        getVal('s-title-card-bg-color'),
     title_card_font_color:      getVal('s-title-card-font-color'),
     title_card_scale:           getNum('s-title-card-scale', parseFloat),
-    title_card_layout:          getVal('s-title-card-layout'),
+    title_card_template:        getVal('s-title-card-template'),
     title_card_duration_s:      getNum('s-title-card-duration', parseFloat),
     ...(tlSec ? {ui_timeline_interval_seconds: tlSec, ui_timeline_interval_unit: tlUnit} : {}),
   };

@@ -754,17 +754,20 @@ A brief text overlay that appears between clips in a highlight reel, identifying
 what the next clip contains — also usable on a single clip export.
 
 - **Code:** `title_card`, `title_dur`; config `title_card_bg_color`,
-  `title_card_font_color`, `title_card_scale`, `title_card_layout`,
+  `title_card_font_color`, `title_card_scale`, `title_card_template`,
   `title_card_duration_s`; shared line-building helper `title_card_lines()`
   (`yuu_clip/reel.py`)
 - **UI label:** "Title cards" option in reel builder; "Add title card" option in
   the clip export options; "Title card" subsection in Settings → Export
-  (background color, text color, text size, content, duration)
-- **Notes:** Background color, text color, text size, and content (description /
-  timecode / both) are creator-configurable (Settings → Export); background-image
-  upload is deliberately deferred. Uses the clip's **Clip Description** (the
-  edited version, if the creator changed it) — never the raw AI text once
-  overridden.
+  (background color, text color, text size, text, duration)
+- **Notes:** Background color, text color, text size, and the **text template**
+  are creator-configurable (Settings → Export). The template is free text with
+  `{description}`, `{start}`, and `{duration}` placeholders; each newline becomes
+  a line on the card, and a placeholder that renders empty (e.g. `{description}`
+  on a clip with no description) drops its line so the card is never blank.
+  Background-image upload is deliberately deferred. Uses the clip's **Clip
+  Description** (the edited version, if the creator changed it) — never the raw
+  AI text once overridden.
 
 ---
 

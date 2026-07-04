@@ -77,37 +77,54 @@ def _truncate_description(text: str) -> str:
     return text[: _TITLE_CARD_DESCRIPTION_MAX_CHARS - 1].rstrip() + "…"
 
 
+def _render_title_card_template(template: str, values: dict[str, str]) -> list[str]:
+    """Substitute placeholders line-by-line, dropping lines that render empty.
+
+    Each newline-separated template line becomes a title-card line. A line that
+    is empty after substitution (e.g. {description} on a clip with no
+    description) is dropped so the card never shows a blank line. Each line is
+    truncated to fit the card (drawtext does not wrap)."""
+    lines: list[str] = []
+    for raw_line in template.split("\n"):
+        rendered = raw_line
+        for key, val in values.items():
+            rendered = rendered.replace("{" + key + "}", val)
+        rendered = _truncate_description(rendered.strip())
+        if rendered:
+            lines.append(rendered)
+    return lines
+
+
 def title_card_lines(
     cand: "ClipCandidate",
     config: "Config",
     *,
-    description_size: int,
-    timecode_size: int,
+    primary_size: int,
+    secondary_size: int,
 ) -> list[tuple[str, int]]:
-    """Return the title-card (text, fontsize) lines for *cand*, honoring
-    config.title_card_layout and config.title_card_scale.
+    """Return the title-card (text, fontsize) lines for *cand* from
+    config.title_card_template, honoring config.title_card_scale.
 
-    *description_size* and *timecode_size* are the base (unscaled) font sizes for
-    this call site — clip exports and reels use different base sizes, but both
-    share the same scale multiplier and layout rules. Uses effective_description
-    (the user-edited value, if any) rather than the raw LLM description. A
-    "description" layout with no description falls back to the timecode line so
-    a card is never emitted empty.
+    The first rendered line uses *primary_size*, remaining lines use
+    *secondary_size* — clip exports and reels pass different base sizes but share
+    the template, scale multiplier, and this headline/body hierarchy. Uses
+    effective_description (the user-edited value, if any) rather than the raw LLM
+    description. A template that renders no lines (empty, or every line collapsed
+    to blank) falls back to the timecode line so a card is never emitted empty.
     """
     scale = config.title_card_scale
-    description = _truncate_description(cand.effective_description)
-    timecode_line = (f"{cand.start_hms}  ·  {cand.duration_hms}", round(timecode_size * scale))
-    description_line = (description, round(description_size * scale)) if description else None
-
-    if config.title_card_layout == "timecode":
-        return [timecode_line]
-    if config.title_card_layout == "description":
-        return [description_line] if description_line else [timecode_line]
-    lines = []
-    if description_line:
-        lines.append(description_line)
-    lines.append(timecode_line)
-    return lines
+    values = {
+        "description": cand.effective_description,
+        "start": cand.start_hms,
+        "duration": cand.duration_hms,
+    }
+    rendered = _render_title_card_template(config.title_card_template, values)
+    if not rendered:
+        rendered = [f"{cand.start_hms}  ·  {cand.duration_hms}"]
+    return [
+        (text, round((primary_size if idx == 0 else secondary_size) * scale))
+        for idx, text in enumerate(rendered)
+    ]
 
 
 def _esc(path: str) -> str:
@@ -409,7 +426,7 @@ def _build_segment_list(
             (session_date, round(_DEFAULT_FONT_SIZE_H2 * scale)),
         ]
         title_lines += title_card_lines(
-            clip, config, description_size=_DEFAULT_FONT_SIZE_BODY, timecode_size=_DEFAULT_FONT_SIZE_H2,
+            clip, config, primary_size=_DEFAULT_FONT_SIZE_H2, secondary_size=_DEFAULT_FONT_SIZE_BODY,
         )
 
         print(f"Generating title card {idx + 1}/{n}…", flush=True)

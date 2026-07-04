@@ -117,7 +117,8 @@ def validate_whisper_model(model: str) -> str:
 
 _HEX_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 
-TITLE_CARD_LAYOUTS: frozenset[str] = frozenset({"description", "timecode", "both"})
+TITLE_CARD_PLACEHOLDERS: frozenset[str] = frozenset({"description", "start", "duration"})
+TITLE_CARD_TEMPLATE_MAX_LEN = 300
 TITLE_CARD_SCALE_RANGE = (0.5, 2.0)
 TITLE_CARD_DURATION_RANGE_S = (1.0, 10.0)
 
@@ -125,7 +126,7 @@ _TITLE_CARD_DEFAULTS: dict[str, object] = {
     "title_card_bg_color": "#000000",
     "title_card_font_color": "#ffffff",
     "title_card_scale": 1.0,
-    "title_card_layout": "both",
+    "title_card_template": "{description}\n{start} · {duration}",
     "title_card_duration_s": 3.0,
 }
 
@@ -140,6 +141,30 @@ def validate_hex_color(value: str, label: str) -> str:
     """
     if not _HEX_COLOR_RE.match(value):
         raise ValueError(f"{label} must be a hex color like #RRGGBB (got {value!r})")
+    return value
+
+
+def validate_title_card_template(value: str) -> str:
+    """
+    Raise ValueError unless *value* is a valid title-card text template.
+
+    A template is free text with {placeholder} tokens drawn from
+    TITLE_CARD_PLACEHOLDERS; newlines separate title-card lines. Empty is
+    allowed — the renderer falls back to a timecode line so a card is never
+    emitted blank (see reel.title_card_lines).
+    """
+    if not isinstance(value, str):
+        raise ValueError("title_card_template must be text")
+    if len(value) > TITLE_CARD_TEMPLATE_MAX_LEN:
+        raise ValueError(
+            f"title_card_template must be {TITLE_CARD_TEMPLATE_MAX_LEN} characters or fewer"
+        )
+    unknown = sorted({p for p in re.findall(r"\{(\w*)\}", value) if p not in TITLE_CARD_PLACEHOLDERS})
+    if unknown:
+        raise ValueError(
+            "title_card_template has unknown placeholders: "
+            + ", ".join("{%s}" % u for u in unknown)
+        )
     return value
 
 
@@ -163,12 +188,15 @@ def _sanitize_title_card_fields(merged: dict) -> None:
                 )
                 merged[field_name] = _TITLE_CARD_DEFAULTS[field_name]
 
-    if "title_card_layout" in merged and merged["title_card_layout"] not in TITLE_CARD_LAYOUTS:
-        _log.warning(
-            "Config: title_card_layout invalid (%r) — using default %s",
-            merged["title_card_layout"], _TITLE_CARD_DEFAULTS["title_card_layout"],
-        )
-        merged["title_card_layout"] = _TITLE_CARD_DEFAULTS["title_card_layout"]
+    if "title_card_template" in merged:
+        try:
+            validate_title_card_template(merged["title_card_template"])
+        except ValueError:
+            _log.warning(
+                "Config: title_card_template invalid (%r) — using default %r",
+                merged["title_card_template"], _TITLE_CARD_DEFAULTS["title_card_template"],
+            )
+            merged["title_card_template"] = _TITLE_CARD_DEFAULTS["title_card_template"]
 
     scale_min, scale_max = TITLE_CARD_SCALE_RANGE
     if "title_card_scale" in merged and not (scale_min <= merged["title_card_scale"] <= scale_max):
@@ -331,7 +359,7 @@ class Config:
     title_card_bg_color: str = "#000000"
     title_card_font_color: str = "#ffffff"
     title_card_scale: float = 1.0
-    title_card_layout: str = "both"  # "description" | "timecode" | "both"
+    title_card_template: str = "{description}\n{start} · {duration}"
     title_card_duration_s: float = 3.0
 
     # Pre-import estimate total (hours) above which the Analyze panel shows a

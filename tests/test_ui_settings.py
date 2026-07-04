@@ -265,7 +265,7 @@ class TestTitleCardSettings:
         assert page.locator("#s-title-card-bg-color").input_value() == cfg["title_card_bg_color"]
         assert page.locator("#s-title-card-font-color").input_value() == cfg["title_card_font_color"]
         assert float(page.locator("#s-title-card-scale").input_value()) == cfg["title_card_scale"]
-        assert page.locator("#s-title-card-layout").input_value() == cfg["title_card_layout"]
+        assert page.locator("#s-title-card-template").input_value() == cfg["title_card_template"]
         assert float(page.locator("#s-title-card-duration").input_value()) == cfg["title_card_duration_s"]
 
     def test_changing_bg_color_marks_settings_dirty(self, page: Page):
@@ -295,21 +295,31 @@ class TestTitleCardSettings:
         page.locator("#s-title-card-font-color").fill("#ff8800")
         page.locator("#s-title-card-font-color").dispatch_event("input")
         color = page.evaluate(
-            "getComputedStyle(document.getElementById('s-title-card-preview-desc')).color"
+            "getComputedStyle(document.querySelector('#s-title-card-preview > div')).color"
         )
         assert color == "rgb(255, 136, 0)"  # #ff8800
 
-    def test_layout_timecode_hides_description_in_preview(self, page: Page):
+    def test_template_renders_one_line_per_nonempty_line(self, page: Page):
         self._open_settings(page)
-        page.select_option("#s-title-card-layout", "timecode")
-        expect(page.locator("#s-title-card-preview-desc")).to_be_hidden()
-        expect(page.locator("#s-title-card-preview-time")).to_be_visible()
+        page.fill("#s-title-card-template", "{start} · {duration}")
+        page.locator("#s-title-card-template").dispatch_event("input")
+        count = page.evaluate("document.querySelectorAll('#s-title-card-preview > div').length")
+        assert count == 1
+        assert "2:15" in page.locator("#s-title-card-preview").inner_text()
 
-    def test_layout_description_hides_timecode_in_preview(self, page: Page):
+    def test_default_template_renders_description_and_timecode(self, page: Page):
         self._open_settings(page)
-        page.select_option("#s-title-card-layout", "description")
-        expect(page.locator("#s-title-card-preview-desc")).to_be_visible()
-        expect(page.locator("#s-title-card-preview-time")).to_be_hidden()
+        page.fill("#s-title-card-template", "{description}\n{start} · {duration}")
+        page.locator("#s-title-card-template").dispatch_event("input")
+        count = page.evaluate("document.querySelectorAll('#s-title-card-preview > div').length")
+        assert count == 2
+
+    def test_unknown_placeholder_shows_warning(self, page: Page):
+        self._open_settings(page)
+        expect(page.locator("#s-title-card-template-warning")).to_be_hidden()
+        page.fill("#s-title-card-template", "{description} {bogus}")
+        page.locator("#s-title-card-template").dispatch_event("input")
+        expect(page.locator("#s-title-card-template-warning")).to_be_visible()
 
     def test_contrast_warning_appears_for_white_on_white(self, page: Page):
         self._open_settings(page)

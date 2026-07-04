@@ -215,34 +215,47 @@ class TestTitleCardLines:
         from yuu_clip.config import Config
         return Config(**overrides)
 
-    def test_both_layout_includes_description_then_timecode(self):
+    def test_default_template_renders_description_then_timecode(self):
         from yuu_clip.reel import title_card_lines
         clip = _FakeClip(description="A wild moment happens")
-        lines = title_card_lines(clip, self._config(title_card_layout="both"),
-                                 description_size=36, timecode_size=24)
-        assert lines == [("A wild moment happens", 36), ("1:23  ·  0:30", 24)]
+        lines = title_card_lines(clip, self._config(),
+                                 primary_size=36, secondary_size=24)
+        assert lines == [("A wild moment happens", 36), ("1:23 · 0:30", 24)]
 
-    def test_description_layout_omits_timecode_when_description_present(self):
+    def test_single_line_template_renders_one_line(self):
         from yuu_clip.reel import title_card_lines
         clip = _FakeClip(description="Something funny")
-        lines = title_card_lines(clip, self._config(title_card_layout="description"),
-                                 description_size=36, timecode_size=24)
+        lines = title_card_lines(clip, self._config(title_card_template="{description}"),
+                                 primary_size=36, secondary_size=24)
         assert lines == [("Something funny", 36)]
 
-    def test_description_layout_falls_back_to_timecode_when_no_description(self):
-        """A card must never be emitted empty — no description falls back to timecode."""
+    def test_blank_description_line_dropped_but_timecode_kept(self):
+        """A line that renders empty (no description) is skipped, not shown blank."""
         from yuu_clip.reel import title_card_lines
         clip = _FakeClip(description="")
-        lines = title_card_lines(clip, self._config(title_card_layout="description"),
-                                 description_size=36, timecode_size=24)
-        assert lines == [("1:23  ·  0:30", 24)]
+        lines = title_card_lines(clip, self._config(),
+                                 primary_size=36, secondary_size=24)
+        assert lines == [("1:23 · 0:30", 36)]
 
-    def test_timecode_layout_omits_description(self):
+    def test_empty_template_falls_back_to_timecode(self):
+        """A card must never be emitted empty — a template with nothing to show
+        falls back to the timecode line."""
         from yuu_clip.reel import title_card_lines
         clip = _FakeClip(description="ignored")
-        lines = title_card_lines(clip, self._config(title_card_layout="timecode"),
-                                 description_size=36, timecode_size=24)
-        assert lines == [("1:23  ·  0:30", 24)]
+        lines = title_card_lines(clip, self._config(title_card_template="{description}"),
+                                 primary_size=36, secondary_size=24)
+        clip_no_desc = _FakeClip(description="")
+        fallback = title_card_lines(clip_no_desc, self._config(title_card_template="{description}"),
+                                    primary_size=36, secondary_size=24)
+        assert lines == [("ignored", 36)]
+        assert fallback == [("1:23  ·  0:30", 36)]
+
+    def test_static_text_in_template(self):
+        from yuu_clip.reel import title_card_lines
+        clip = _FakeClip(description="text")
+        lines = title_card_lines(clip, self._config(title_card_template="Highlight: {description}"),
+                                 primary_size=36, secondary_size=24)
+        assert lines == [("Highlight: text", 36)]
 
     def test_effective_description_user_override_wins(self):
         """cand.description_user (a user edit) must be used on the card, not the
@@ -250,31 +263,31 @@ class TestTitleCardLines:
         field directly, which ignored user edits."""
         from yuu_clip.reel import title_card_lines
         clip = _FakeClip(description="LLM text", description_user="Creator's version")
-        lines = title_card_lines(clip, self._config(title_card_layout="description"),
-                                 description_size=36, timecode_size=24)
+        lines = title_card_lines(clip, self._config(title_card_template="{description}"),
+                                 primary_size=36, secondary_size=24)
         assert lines == [("Creator's version", 36)]
 
     def test_scale_multiplies_font_sizes(self):
         from yuu_clip.reel import title_card_lines
         clip = _FakeClip(description="text")
-        lines = title_card_lines(clip, self._config(title_card_layout="both", title_card_scale=1.5),
-                                 description_size=36, timecode_size=24)
-        assert lines == [("text", 54), ("1:23  ·  0:30", 36)]
+        lines = title_card_lines(clip, self._config(title_card_scale=1.5),
+                                 primary_size=36, secondary_size=24)
+        assert lines == [("text", 54), ("1:23 · 0:30", 36)]
 
-    def test_long_description_truncated_with_ellipsis(self):
+    def test_long_line_truncated_with_ellipsis(self):
         from yuu_clip.reel import title_card_lines
         clip = _FakeClip(description="x" * 300)
-        lines = title_card_lines(clip, self._config(title_card_layout="description"),
-                                 description_size=36, timecode_size=24)
+        lines = title_card_lines(clip, self._config(title_card_template="{description}"),
+                                 primary_size=36, secondary_size=24)
         text, _ = lines[0]
         assert len(text) == 90
         assert text.endswith("…")
 
-    def test_short_description_not_truncated(self):
+    def test_short_line_not_truncated(self):
         from yuu_clip.reel import title_card_lines
         clip = _FakeClip(description="short")
-        lines = title_card_lines(clip, self._config(title_card_layout="description"),
-                                 description_size=36, timecode_size=24)
+        lines = title_card_lines(clip, self._config(title_card_template="{description}"),
+                                 primary_size=36, secondary_size=24)
         assert lines[0][0] == "short"
 
 
@@ -324,7 +337,7 @@ class TestApplyTitleCardThreadsConfig:
         assert captured["kwargs"]["bg_color"] == "#112233"
         assert captured["kwargs"]["font_color"] == "#aabbcc"
         assert captured["kwargs"]["duration"] == 4.0
-        assert captured["lines"] == [("A funny moment", 36), ("0:05  ·  0:10", 24)]
+        assert captured["lines"] == [("A funny moment", 36), ("0:05 · 0:10", 24)]
         assert not clip_path.exists()  # deleted after concat
 
 
@@ -351,7 +364,7 @@ class TestBuildSegmentListThreadsConfig:
         clip = _FakeClip(description="Great save", start_hms="0:05", duration_hms="0:10")
         clip.video_id = 1
         video = _FakeVideoForReel(filename="2026-01-16_session.mkv")
-        config = Config(title_card_scale=2.0, title_card_layout="both",
+        config = Config(title_card_scale=2.0,
                         title_card_bg_color="#101010", title_card_font_color="#efefef")
 
         reel_mod._build_segment_list(
@@ -364,8 +377,8 @@ class TestBuildSegmentListThreadsConfig:
         assert lines == [
             ("Clip 1 of 1", 104),     # _DEFAULT_FONT_SIZE_H1 (52) * scale 2.0
             ("2026-01-16", 72),       # _DEFAULT_FONT_SIZE_H2 (36) * scale 2.0
-            ("Great save", 56),       # _DEFAULT_FONT_SIZE_BODY (28) * scale 2.0
-            ("0:05  ·  0:10", 72),    # timecode_size = H2 (36) * scale 2.0
+            ("Great save", 72),       # primary_size = H2 (36) * scale 2.0
+            ("0:05 · 0:10", 56),      # secondary_size = BODY (28) * scale 2.0
         ]
         assert kwargs["bg_color"] == "#101010"
         assert kwargs["font_color"] == "#efefef"

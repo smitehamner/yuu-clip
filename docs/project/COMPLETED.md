@@ -6,6 +6,31 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) — see the
 
 ---
 
+## Title-card text template + UI polish pass (2026-07-04)
+
+Four review-noted items from a walkthrough of the app:
+
+- **Title-card text is now a free-text template** (issue: "let the user customize what
+  text gets displayed"). The old Settings → Export "Content" dropdown
+  (Description / Timecode / Both) is replaced by a template field with `{description}`,
+  `{start}`, and `{duration}` placeholders and a live preview. Each newline becomes a
+  card line; a placeholder that renders empty drops its line so the card is never blank;
+  an empty/all-blank template falls back to the timecode line. Config field
+  `title_card_layout` → `title_card_template` (validated on load and on PATCH; unknown
+  placeholders rejected). `reel.title_card_lines()` now takes `primary_size`/`secondary_size`
+  (first line headline, rest body) instead of description/timecode-specific sizes — this
+  also makes the reel's per-clip card show the description as the prominent line (previously
+  the timecode was larger), matching the clip-export card.
+- **Export filename placeholder hints** moved from a cramped column beside the input to a
+  full-width row below it that wraps horizontally (was overlapping the textbox).
+- **New Recording form spacing**: `.new-recording-inner` had `gap: 0`, so fields touched
+  (most visibly the Advanced options box against World Contexts). Now a consistent 16px gap.
+- **Hamburger menu icons** wrapped in a fixed-width span so the varying-width emoji no longer
+  push the labels out of alignment.
+
+Covered by updated `tests/test_config.py`, `tests/test_title_card.py`, and
+`tests/test_ui_settings.py`.
+
 ## Actionable failures for missing tools/services: FFmpeg, scorers, Claude key (2026-07-04)
 
 A second sweep over the same "missing host dependency → opaque failure / silent

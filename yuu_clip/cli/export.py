@@ -202,7 +202,7 @@ def _apply_title_card(clip_path: Path, cand, output: Path, config) -> Path:
     fps    = cand.video.fps    or 30.0
     width  = cand.video.width  or 1920
     height = cand.video.height or 1080
-    title_lines = title_card_lines(cand, config, description_size=36, timecode_size=24)
+    title_lines = title_card_lines(cand, config, primary_size=36, secondary_size=24)
     with _tmp.TemporaryDirectory() as td:
         card_path = Path(td) / "title_card.mkv"
         _make_title_card(

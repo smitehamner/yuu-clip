@@ -508,7 +508,7 @@ class TestThermalConfig:
 
 
 # ---------------------------------------------------------------------------
-# Title card config — colors, scale, layout, duration (roadmap plan 09)
+# Title card config — colors, scale, text template, duration (roadmap plan 09)
 # ---------------------------------------------------------------------------
 
 class TestTitleCardConfigDefaults:
@@ -518,8 +518,31 @@ class TestTitleCardConfigDefaults:
         assert cfg.title_card_bg_color == "#000000"
         assert cfg.title_card_font_color == "#ffffff"
         assert cfg.title_card_scale == 1.0
-        assert cfg.title_card_layout == "both"
+        assert cfg.title_card_template == "{description}\n{start} · {duration}"
         assert cfg.title_card_duration_s == 3.0
+
+
+class TestValidateTitleCardTemplate:
+    def _validate(self, value):
+        from yuu_clip.config import validate_title_card_template
+        return validate_title_card_template(value)
+
+    def test_valid_template_returned_unchanged(self):
+        assert self._validate("{description}\n{start}") == "{description}\n{start}"
+
+    def test_static_text_only_allowed(self):
+        assert self._validate("Highlight of the night") == "Highlight of the night"
+
+    def test_empty_allowed(self):
+        assert self._validate("") == ""
+
+    def test_unknown_placeholder_rejected(self):
+        with pytest.raises(ValueError):
+            self._validate("{description} {score}")
+
+    def test_too_long_rejected(self):
+        with pytest.raises(ValueError):
+            self._validate("x" * 301)
 
 
 class TestValidateHexColor:
@@ -576,9 +599,9 @@ class TestTitleCardConfigLoadSanitization:
         cfg = self._load_with(tmp_path, monkeypatch, {"title_card_bg_color": "#000000ff"})
         assert cfg.title_card_bg_color == "#000000"
 
-    def test_bad_layout_falls_back_to_default(self, tmp_path, monkeypatch):
-        cfg = self._load_with(tmp_path, monkeypatch, {"title_card_layout": "everything"})
-        assert cfg.title_card_layout == "both"
+    def test_bad_template_falls_back_to_default(self, tmp_path, monkeypatch):
+        cfg = self._load_with(tmp_path, monkeypatch, {"title_card_template": "{bogus}"})
+        assert cfg.title_card_template == "{description}\n{start} · {duration}"
 
     def test_scale_out_of_range_falls_back_to_default(self, tmp_path, monkeypatch):
         cfg = self._load_with(tmp_path, monkeypatch, {"title_card_scale": 5.0})
@@ -593,13 +616,13 @@ class TestTitleCardConfigLoadSanitization:
             "title_card_bg_color": "#112233",
             "title_card_font_color": "#eeddcc",
             "title_card_scale": 1.5,
-            "title_card_layout": "timecode",
+            "title_card_template": "{start} · {duration}",
             "title_card_duration_s": 5.0,
         })
         assert cfg.title_card_bg_color == "#112233"
         assert cfg.title_card_font_color == "#eeddcc"
         assert cfg.title_card_scale == 1.5
-        assert cfg.title_card_layout == "timecode"
+        assert cfg.title_card_template == "{start} · {duration}"
         assert cfg.title_card_duration_s == 5.0
 
 
@@ -609,7 +632,7 @@ class TestTitleCardConfigApi:
         assert d["title_card_bg_color"] == "#000000"
         assert d["title_card_font_color"] == "#ffffff"
         assert d["title_card_scale"] == 1.0
-        assert d["title_card_layout"] == "both"
+        assert d["title_card_template"] == "{description}\n{start} · {duration}"
         assert d["title_card_duration_s"] == 3.0
 
     def test_patch_valid_title_card_fields(self, client):
@@ -617,7 +640,7 @@ class TestTitleCardConfigApi:
             "title_card_bg_color": "#123456",
             "title_card_font_color": "#abcdef",
             "title_card_scale": 1.25,
-            "title_card_layout": "description",
+            "title_card_template": "Clip: {description}",
             "title_card_duration_s": 4.5,
         })
         assert r.status_code == 200
@@ -625,7 +648,7 @@ class TestTitleCardConfigApi:
         assert d["title_card_bg_color"] == "#123456"
         assert d["title_card_font_color"] == "#abcdef"
         assert d["title_card_scale"] == 1.25
-        assert d["title_card_layout"] == "description"
+        assert d["title_card_template"] == "Clip: {description}"
         assert d["title_card_duration_s"] == 4.5
 
     def test_patch_invalid_hex_bg_color_rejected(self, client):
@@ -640,8 +663,8 @@ class TestTitleCardConfigApi:
         r = client.patch("/api/config", json={"title_card_bg_color": "#000000ff"})
         assert r.status_code == 400
 
-    def test_patch_invalid_layout_rejected(self, client):
-        r = client.patch("/api/config", json={"title_card_layout": "everything"})
+    def test_patch_invalid_template_rejected(self, client):
+        r = client.patch("/api/config", json={"title_card_template": "{description} {bogus}"})
         assert r.status_code == 400
 
     def test_patch_scale_out_of_range_rejected(self, client):
