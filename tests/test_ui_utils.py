@@ -70,6 +70,26 @@ class TestJsUtils:
         result = page.evaluate("() => [_msToHms(5000), _msToHms(65000)]")
         assert result == ["5s", "1m 05s"]
 
+    def test_finite_or_returns_value_when_finite(self, page: Page):
+        assert page.evaluate("() => finiteOr(42)") == 42
+        assert page.evaluate("() => finiteOr(0)") == 0
+
+    def test_finite_or_falls_back_for_non_finite(self, page: Page):
+        # NaN / Infinity / non-numbers must never surface raw.
+        result = page.evaluate(
+            "() => [finiteOr(NaN), finiteOr(Infinity), finiteOr(undefined), finiteOr(NaN, 'n/a')]"
+        )
+        assert result == ["—", "—", "—", "n/a"]
+
+    def test_fmt_duration_formats_seconds_and_minutes(self, page: Page):
+        result = page.evaluate("() => [fmtDuration(30), fmtDuration(90), fmtDuration(0)]")
+        assert result == ["30 sec", "2 min", "0 sec"]
+
+    def test_fmt_duration_falls_back_for_non_finite(self, page: Page):
+        # A clip missing start/end yields NaN — must read "unknown", not "NaN sec".
+        result = page.evaluate("() => [fmtDuration(NaN), fmtDuration(Infinity, 'n/a')]")
+        assert result == ["unknown", "n/a"]
+
 
 # ---------------------------------------------------------------------------
 # formatApiError (utils.js)

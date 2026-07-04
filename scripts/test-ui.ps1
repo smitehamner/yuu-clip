@@ -13,6 +13,36 @@ $SummaryFile = Join-Path $RepoRoot "test-ui-last-summary.log"
 Write-Host "UI tests require a live server at http://127.0.0.1:8080 (run scripts\serve.ps1 first)" -ForegroundColor Yellow
 Write-Host "Log: $LogFile" -ForegroundColor DarkGray
 
+# The UI suite runs against the single shared dev server on :8080, so two runs
+# at once (e.g. two Claude sessions) corrupt each other's DB state and produce
+# spurious failures. Guard with an atomic lock file. CreateNew is atomic, so
+# only one caller wins even if both start simultaneously; a lock older than
+# $LockMaxAgeMin is treated as stale (a crashed run) and reclaimed.
+$LockFile      = Join-Path $RepoRoot "test-ui.lock"
+$LockMaxAgeMin = 15
+$LockAcquired  = $false
+for ($attempt = 0; $attempt -lt 2 -and -not $LockAcquired; $attempt++) {
+    try {
+        $fs = [System.IO.File]::Open($LockFile, [System.IO.FileMode]::CreateNew, [System.IO.FileAccess]::Write, [System.IO.FileShare]::None)
+        $bytes = [System.Text.Encoding]::UTF8.GetBytes("PID $PID started $(Get-Date -Format o)")
+        $fs.Write($bytes, 0, $bytes.Length)
+        $fs.Close()
+        $LockAcquired = $true
+    } catch [System.IO.IOException] {
+        $age = (Get-Date) - (Get-Item $LockFile -ErrorAction SilentlyContinue).LastWriteTime
+        if ($age.TotalMinutes -ge $LockMaxAgeMin) {
+            Write-Host "Removing stale UI test lock ($([int]$age.TotalMinutes) min old)." -ForegroundColor Yellow
+            Remove-Item $LockFile -Force -ErrorAction SilentlyContinue
+        } else {
+            $holder = (Get-Content $LockFile -Raw -ErrorAction SilentlyContinue).Trim()
+            Write-Host "Another UI test run is already in progress ($holder)." -ForegroundColor Red
+            Write-Host "UI tests share the live server on :8080 - running two at once corrupts state." -ForegroundColor Red
+            Write-Host "Wait for it to finish, or delete $LockFile if you are sure it is stale." -ForegroundColor Red
+            exit 2
+        }
+    }
+}
+
 # Default is quiet (dots + failures only) to keep the log small for automated
 # reads; pass -Detailed for the old per-test -v output.
 $Verbosity = if ($Detailed) { "-v" } else { "-q" }
@@ -34,6 +64,7 @@ try {
     $testExitCode = $LASTEXITCODE
 } finally {
     Pop-Location
+    if ($LockAcquired) { Remove-Item $LockFile -Force -ErrorAction SilentlyContinue }
 
     $lines = Get-Content $LogFile -ErrorAction SilentlyContinue
     if ($lines) {

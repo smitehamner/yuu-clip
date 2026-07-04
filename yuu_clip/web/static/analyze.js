@@ -652,9 +652,16 @@ async function startImportUrlDownload() {
     () => _onImportUrlDownloadDone(title),
     [{label: 'Download', patterns: ['[Download]']}],
     `Importing ${title}`,
-    false,
+    true,
     line => _onImportUrlLine(line),
   );
+  setJobCancel({
+    url:     '/api/import-url/cancel',
+    title:   'Cancel download?',
+    body:    'The partial download will be discarded. You can start the import again later.',
+    confirm: 'Cancel Download',
+    logMsg:  '[Import cancelled]',
+  });
 }
 
 // Mirrors url_import.py's format_progress_line/parse_progress_line — keep the

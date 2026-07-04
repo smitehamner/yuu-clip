@@ -343,6 +343,45 @@ class TestSubprocessSseTracksActiveJob:
 
 
 # ---------------------------------------------------------------------------
+# subprocess_sse cancel messaging (used by /api/import-url/cancel)
+# ---------------------------------------------------------------------------
+
+class TestSubprocessSseCancel:
+    def test_cancel_flag_emits_message_and_clears(self, tmp_path: Path):
+        from yuu_clip.web.sse import subprocess_sse
+
+        ctx = SimpleNamespace(analyze_proc=None, import_cancelled=True, active_jobs=0)
+        chunks: list[str] = []
+
+        async def drive():
+            response = await subprocess_sse(
+                [sys.executable, "-c", "print('done')"], tmp_path, ctx,
+                cancel_flag_attr="import_cancelled", cancel_message="[Import cancelled]",
+            )
+            async for chunk in response.body_iterator:
+                chunks.append(chunk)
+
+        asyncio.run(drive())
+        assert any("[Import cancelled]" in c for c in chunks)
+        assert ctx.import_cancelled is False
+
+    def test_stale_flag_not_leaked_without_cancel_attr(self, tmp_path: Path):
+        from yuu_clip.web.sse import subprocess_sse
+
+        ctx = SimpleNamespace(analyze_proc=None, import_cancelled=True, active_jobs=0)
+        chunks: list[str] = []
+
+        async def drive():
+            response = await subprocess_sse([sys.executable, "-c", "print('done')"], tmp_path, ctx)
+            async for chunk in response.body_iterator:
+                chunks.append(chunk)
+
+        asyncio.run(drive())
+        assert not any("cancelled" in c.lower() for c in chunks)
+        assert ctx.import_cancelled is True
+
+
+# ---------------------------------------------------------------------------
 # API routes
 # ---------------------------------------------------------------------------
 
@@ -418,3 +457,35 @@ class TestImportUrlRoutes:
     def test_status_import_running_false_by_default(self, client):
         r = client.get("/api/status")
         assert r.json()["import_running"] is False
+
+    def test_status_exposes_thermal_autopause_config(self, client):
+        body = client.get("/api/status").json()
+        assert isinstance(body["thermal_autopause_enabled"], bool)
+        assert body["thermal_pause_c"] == client.app.state.ctx.config.thermal_pause_c
+
+    def test_cancel_terminates_proc_and_clears_state(self, client):
+        from unittest.mock import MagicMock, patch
+
+        from yuu_clip.web import sse
+
+        ctx = client.app.state.ctx
+        client.post("/api/import-url/start", json={"url": "https://www.youtube.com/watch?v=vid1"})
+        mock_proc = MagicMock()
+        mock_proc.returncode = None
+        mock_proc.pid = 4321
+        ctx.analyze_proc = mock_proc
+        with patch.object(sse.sys, "platform", "win32"), patch.object(sse.subprocess, "run") as run:
+            r = client.post("/api/import-url/cancel")
+        assert r.status_code == 200
+        assert ctx.import_cancelled is True
+        assert ctx.import_cmd is None
+        assert any(c.args[0][0] == "taskkill" for c in run.call_args_list)
+
+    def test_cancel_with_no_running_proc_is_safe(self, client):
+        ctx = client.app.state.ctx
+        ctx.import_cmd = ["queued"]
+        r = client.post("/api/import-url/cancel")
+        assert r.status_code == 200
+        assert r.json()["status"] == "cancelled"
+        assert ctx.import_cmd is None
+        assert ctx.import_cancelled is False

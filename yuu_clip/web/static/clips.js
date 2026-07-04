@@ -89,12 +89,12 @@ function _renderClipStatsLine(shown) {
   }
   const counts = {pending: 0, approved: 0, rejected: 0};
   for (const c of AppState.clips) counts[c.status] = (counts[c.status] || 0) + 1;
-  const totalSeconds = shown.reduce((sum, c) => sum + (c.end_s - c.start_s), 0);
-  const durationText = totalSeconds >= 60
-    ? `${Math.round(totalSeconds / 60)} min`
-    : `${Math.round(totalSeconds)} sec`;
+  const totalSeconds = shown.reduce((sum, c) => {
+    const len = c.end_s - c.start_s;
+    return sum + (Number.isFinite(len) ? len : 0);
+  }, 0);
   el.textContent = `${shown.length} shown · ${counts.pending} unreviewed · ` +
-    `${counts.approved} approved · ${counts.rejected} rejected · ${durationText} total`;
+    `${counts.approved} approved · ${counts.rejected} rejected · ${fmtDuration(totalSeconds)} total`;
   el.style.display = '';
 }
 

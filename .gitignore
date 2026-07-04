@@ -11,6 +11,7 @@ __pycache__/
 /test-ui-last.log
 /test-api-last-summary.log
 /test-ui-last-summary.log
+/test-ui.lock
 
 # Build artifacts
 /build/

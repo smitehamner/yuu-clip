@@ -360,6 +360,10 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             # GPU thermal monitoring — null/"unavailable" when no NVIDIA GPU is present.
             "gpu_temp_c": job.gpu_temp_c if job_running else None,
             "gpu_state": job.gpu_state if job_running else "unavailable",
+            # Auto-pause config so the "running hot" warning can tell the user what
+            # happens next (auto-pause at N°C, or that it won't and they should pause).
+            "thermal_autopause_enabled": bool(ctx.config.thermal_autopause_enabled),
+            "thermal_pause_c": ctx.config.thermal_pause_c,
             "active_jobs": ctx.active_jobs,
             "version": _VERSION_DISPLAY,
             "project_dir": str(ctx.project_dir),

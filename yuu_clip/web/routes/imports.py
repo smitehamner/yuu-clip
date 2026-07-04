@@ -16,7 +16,7 @@ from yuu_clip.db.models import Video
 from yuu_clip.log import get_logger
 from yuu_clip.url_import import ImportUrlError, inspect_url, validate_import_url
 from yuu_clip.web.deps import ProjectContext
-from yuu_clip.web.sse import subprocess_sse
+from yuu_clip.web.sse import subprocess_sse, terminate_process_tree
 
 _log = get_logger(__name__)
 
@@ -71,7 +71,19 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             raise HTTPException(400, "No import queued. Call /api/import-url/start first.")
         return await subprocess_sse(
             ctx.import_cmd, ctx.project_dir, ctx,
+            cancel_flag_attr="import_cancelled", cancel_message="[Import cancelled]",
             clear_cmd_attr="import_cmd", track_active_job=True,
         )
+
+    @router.post("/api/import-url/cancel")
+    async def cancel_import():
+        """Terminate the running URL-import download subprocess, if any."""
+        proc = ctx.analyze_proc
+        if proc is not None and getattr(proc, "returncode", None) is None:
+            ctx.import_cancelled = True
+            _log.warning("URL import cancelled by user")
+            terminate_process_tree(proc)
+        ctx.import_cmd = None
+        return {"status": "cancelled"}
 
     return router

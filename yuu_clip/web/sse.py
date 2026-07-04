@@ -60,7 +60,8 @@ async def subprocess_sse(
     cwd: Path,
     ctx=None,
     *,
-    is_analyze: bool = False,
+    cancel_flag_attr: str | None = None,
+    cancel_message: str = "",
     clear_cmd_attr: str | None = None,
     track_active_job: bool = False,
 ) -> StreamingResponse:
@@ -69,9 +70,12 @@ async def subprocess_sse(
     If *ctx* is a ProjectContext, the running process is stored on
     ``ctx.analyze_proc`` so it can be terminated via the cancel endpoint.
 
-    *is_analyze* must be True only for the analyze job — it gates the
-    ``ctx.analyze_cancelled`` check so cancellation messages are not emitted
-    for unrelated jobs (score, export, retranscribe, demo).
+    *cancel_flag_attr* names a boolean ``ctx`` attribute a cancel endpoint sets
+    to signal a user-initiated cancel (e.g. ``'import_cancelled'``). When it is
+    truthy on exit, the stream emits *cancel_message* instead of the generic
+    error line and clears the flag. Jobs with no cancel button (score, export,
+    retranscribe, demo) omit it, so a stale flag never leaks a cancel message
+    into an unrelated job.
 
     *clear_cmd_attr* names the ``ctx`` attribute to set to ``None`` when the
     stream finishes (e.g. ``'analyze_cmd'`` or ``'demo_cmd'``). Callers that
@@ -107,10 +111,10 @@ async def subprocess_sse(
                     _log.debug("[subprocess] %s", text)
                     yield f"data: {json.dumps(text)}\n\n"
                 await proc.wait()
-                if is_analyze and ctx is not None and ctx.analyze_cancelled:
-                    ctx.analyze_cancelled = False
+                if cancel_flag_attr and ctx is not None and getattr(ctx, cancel_flag_attr, False):
+                    setattr(ctx, cancel_flag_attr, False)
                     _log.info("Subprocess (pid %s) cancelled by user", proc.pid)
-                    yield f"data: {json.dumps('[Analysis cancelled]')}\n\n"
+                    yield f"data: {json.dumps(cancel_message)}\n\n"
                 elif proc.returncode != 0:
                     _log.error(
                         "Subprocess exited with code %d: %s",

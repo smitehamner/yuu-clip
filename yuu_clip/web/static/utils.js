@@ -87,6 +87,22 @@ function plural(count, singular, pluralForm) {
   return `${count} ${count === 1 ? singular : (pluralForm || singular + 's')}`;
 }
 
+// Standard guard for any computed number shown to the user: returns *value*
+// only when it is a finite number, otherwise a plain-English *fallback*. NaN
+// or Infinity — usually from arithmetic on missing/partial data — must never
+// reach the UI as the literal "NaN"/"Infinity". Use this (or fmtDuration) at
+// every display site that formats a derived number.
+function finiteOr(value, fallback = '—') {
+  return Number.isFinite(value) ? value : fallback;
+}
+
+// Human-readable clip/segment length. Returns *fallback* for a non-finite
+// input (e.g. a clip missing its start/end times) rather than "NaN sec".
+function fmtDuration(seconds, fallback = 'unknown') {
+  if (!Number.isFinite(seconds)) return fallback;
+  return seconds >= 60 ? `${Math.round(seconds / 60)} min` : `${Math.round(seconds)} sec`;
+}
+
 function truncate(text, max) {
   return text.length > max ? text.slice(0, max - 1) + '…' : text;
 }
@@ -250,6 +266,7 @@ function startJobUI(stepDefs, jobLabel, cancellable = false, pausable = false) {
   _stepRateAnchor = {};
   _jobPausable   = pausable;
   _jobPaused     = false;
+  _activeCancel  = _ANALYZE_CANCEL;
   if (_jobTimer) clearInterval(_jobTimer);
   _jobTimer = setInterval(_tickJobTimer, 1000);
   if (_jobHideTimer) { clearTimeout(_jobHideTimer); _jobHideTimer = null; }
@@ -295,7 +312,10 @@ async function _pollThermalStatus() {
     }
   }
   if (status.gpu_state === 'warn' && _lastGpuState !== 'warn' && _lastGpuState !== 'pause') {
-    showToast(`GPU running hot — ${Math.round(status.gpu_temp_c)}°C`, 'warning');
+    const next = status.thermal_autopause_enabled
+      ? `Analysis will auto-pause if it reaches ${Math.round(status.thermal_pause_c)}°C.`
+      : `Auto-pause is off — pause the job manually if it keeps climbing.`;
+    showToast(`GPU running hot — ${Math.round(status.gpu_temp_c)}°C. ${next}`, 'warning');
   }
   if (status.gpu_state === 'pause' && _lastGpuState !== 'pause') {
     _jobPaused = true;
@@ -736,28 +756,43 @@ async function _waitWhileAnalyzePaused() {
   }
 }
 
+// The job-header Cancel button serves whichever cancellable job is running. Each
+// cancellable flow sets _activeCancel (via setJobCancel) so the confirm copy and
+// the cancel endpoint match the job; startJobUI resets it to the analyze default.
+const _ANALYZE_CANCEL = {
+  url:      '/api/analyze/cancel',
+  title:    'Cancel analysis?',
+  body:     'All progress for this recording will be lost and you will need to analyze it again.',
+  confirm:  'Cancel Analysis',
+  logMsg:   '[Analysis cancelled]',
+};
+let _activeCancel = _ANALYZE_CANCEL;
+
+function setJobCancel(cfg) { _activeCancel = cfg || _ANALYZE_CANCEL; }
+
 function cancelJob() {
   showConfirm(
-    'Cancel analysis?',
-    `All progress for this recording will be lost and you will need to analyze it again.`,
-    'Cancel Analysis',
+    _activeCancel.title,
+    _activeCancel.body,
+    _activeCancel.confirm,
     _doCancelJob,
     true,
   );
 }
 
 async function _doCancelJob() {
-  // Cancel on the server FIRST — if it fails, the analysis is still running, so
+  const cancel = _activeCancel;
+  // Cancel on the server FIRST — if it fails, the job is still running, so
   // keep the stream attached and the job UI up instead of pretending it stopped.
   try {
-    const res = await fetch('/api/analyze/cancel', {method: 'POST'});
+    const res = await fetch(cancel.url, {method: 'POST'});
     if (!res.ok) throw new Error(`Server error ${res.status}`);
   } catch (err) {
     showToast(`Could not cancel — ${err.message}`, 'error');
     return;
   }
   _supersedeActiveStream();
-  appendLog('[Analysis cancelled]');
+  appendLog(cancel.logMsg);
   endJobUI();
   // Clear the analyzing marker so loadVideos() drops the sidebar placeholder /
   // spinner. Left set, a cancelled run whose DB row never materialised would

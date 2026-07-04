@@ -42,6 +42,7 @@ class ProjectContext:
         self.import_cmd:        list[str] | None = None
         self.analyze_proc:      object | None    = None  # asyncio.subprocess.Process
         self.analyze_cancelled: bool             = False
+        self.import_cancelled:  bool             = False
 
         # /api/analyze/start records the file/target for the queued command so
         # /api/analyze/events can attach that identity to the AnalyzeJob it launches
