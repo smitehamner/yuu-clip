@@ -1,5 +1,8 @@
 ## Recordings & Sessions
 
+### Project
+A folder where yuu-clip keeps one body of work — its recordings, clips, exports, and highlight reels all live under that folder. Use the project name at the top-left to switch between projects (for example, one per game or per channel) without restarting. Point it at a brand-new folder to start a fresh, empty project.
+
 ### Recording
 A video file of a gaming session — the main thing you feed into yuu-clip. Each recording is listed in the Sessions panel on the left.
 

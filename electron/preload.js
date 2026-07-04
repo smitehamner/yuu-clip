@@ -13,4 +13,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // "yuu-media://" native scheme is registered in main.js — plain browser-dev
   // mode has no electronAPI at all, so it never sees this flag.
   mediaProtocol: true,
+  // Project switcher (roadmap plan 03): the server swaps projects in place, but
+  // main.js still serves media proxies from its own in-memory projectDir and
+  // persists the choice for next launch — so the renderer tells it after a switch.
+  projectChanged: (newDir) => ipcRenderer.send('project:changed', newDir),
+  // Native folder picker for "Open another project…" (browser mode falls back to
+  // a text input); the setup wizard already uses this same dialog pattern.
+  pickProjectFolder: () => ipcRenderer.invoke('project:pick-folder'),
 });

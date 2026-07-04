@@ -20,6 +20,21 @@ class ProjectContext:
     """Resolved paths and factories for a single yuu-clip project directory."""
 
     def __init__(self, project_dir: Path) -> None:
+        # GPU thermal monitoring — one lazily-initialised monitor per project context
+        # (pynvml init is not free); the analyze job lifecycle owns a fresh
+        # ThermalTrigger (streak/hysteresis state) per run. See analyze/thermal.py.
+        # Project-independent hardware state, so it is created once and kept across
+        # in-place project switches.
+        from yuu_clip.analyze.thermal import GpuThermalMonitor
+        self.thermal_monitor = GpuThermalMonitor()
+
+        # Bumped on every in-place switch_project so clients (and /api/status) can
+        # detect that the server is now serving a different project.
+        self.project_generation = 0
+
+        self._bind_project(project_dir)
+
+    def _bind_project(self, project_dir: Path) -> None:
         self.project_dir = project_dir
         self.data_dir    = project_dir / ".yuu-clip"
         self.db_path     = self.data_dir / "project.db"
@@ -27,6 +42,11 @@ class ProjectContext:
         self.reels_dir   = self.data_dir / "reels"
         self.audio_dir   = self.data_dir / "audio"
         self.proxy_dir   = self.data_dir / "proxies"
+
+        # make_engine opens (and creates) the SQLite file, which fails if the
+        # parent dir is absent — true when switching to a project that has never
+        # been opened. On first boot configure_logging already created it.
+        self.data_dir.mkdir(parents=True, exist_ok=True)
 
         self.config = Config.load(project_dir)
 
@@ -65,11 +85,24 @@ class ProjectContext:
         # so a second open of the same recording does not launch a duplicate encode.
         self.proxy_generating: set[str] = set()
 
-        # GPU thermal monitoring — one lazily-initialised monitor per project context
-        # (pynvml init is not free); the analyze job lifecycle owns a fresh
-        # ThermalTrigger (streak/hysteresis state) per run. See analyze/thermal.py.
-        from yuu_clip.analyze.thermal import GpuThermalMonitor
-        self.thermal_monitor = GpuThermalMonitor()
+    def switch_project(self, project_dir: Path) -> None:
+        """Tear down the current project's resources and rebind to *project_dir*
+        in place, bumping project_generation.
+
+        Every route handler closure-captures this object, so the swap mutates it
+        rather than replacing it. thermal_monitor is deliberately kept — it is
+        project-independent hardware state. Callers must have already refused the
+        switch while any job is running (see routes/projects.py).
+        """
+        self._dispose_project_resources()
+        self._bind_project(project_dir)
+        self.project_generation += 1
+
+    def _dispose_project_resources(self) -> None:
+        for cached in self.preview_cache.values():
+            cached.unlink(missing_ok=True)
+        self.preview_cache.clear()
+        self._engine.dispose()
 
     def get_db(self) -> Session:
         """Open a new SQLAlchemy session against this project's database."""

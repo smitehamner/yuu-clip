@@ -23,7 +23,7 @@ and the locked design decisions. Implement one plan per session.
 |---|---|
 | ~~Voiceprint threshold validation + borderline confirmation band~~ (done 2026-07-04) | 01 |
 | ~~Laugh score as separate attribute~~ (done 2026-07-04) | 02 |
-| Project switcher | 03 |
+| ~~Project switcher~~ (done 2026-07-04) | 03 |
 | Multi-session grouping (full unified timeline) | 04 |
 | Caption style options | 05 |
 | Vertical crop / Shorts export | 06 |
@@ -131,8 +131,11 @@ regular users.
   Layout-only — no behavior changes; event delegation and all existing selectors verified intact
   via the full UI suite (459/459, zero test edits needed).
 
-- [ ] **Project switcher in UI** — dropdown to switch between project directories without
-  restarting the server
+- [x] **Project switcher in UI** (done, 2026-07-04 — roadmap plan 03) — header dropdown
+  switches the server between project folders in place (no restart), with a recent-projects
+  list and an "Open another project…" path input (native Browse in the desktop app). See
+  [COMPLETED.md](COMPLETED.md#project-switcher-done-2026-07-04). Unblocks the future
+  Project backup/restore item.
 
 - [x] **Title card customization** (done, 2026-07-03 — roadmap plan 09) — configurable
   background color, text color, text size, and content layout (description /

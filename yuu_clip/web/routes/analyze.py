@@ -367,6 +367,9 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             "active_jobs": ctx.active_jobs,
             "version": _VERSION_DISPLAY,
             "project_dir": str(ctx.project_dir),
+            # Bumped by an in-place project switch (routes/projects.py) so a
+            # client can tell the server is now serving a different project.
+            "project_generation": ctx.project_generation,
             "export_dir":  str(ctx.export_dir),
             "reels_dir":   str(ctx.reels_dir),
             "db_path":     str(ctx.db_path),

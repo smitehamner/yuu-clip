@@ -33,6 +33,7 @@ from yuu_clip.web.routes import (
     imports,
     logs,
     profiles,
+    projects,
     reel,
     reveal,
     scoring,
@@ -61,6 +62,7 @@ else:
 _ROUTE_MODULES = (
     videos, clips, analyze, profiles, reel, reveal, logs, contexts, config,
     scoring, sounds, speakers, hotwords, sensitive, export_presets, imports,
+    projects,
 )
 
 
@@ -97,6 +99,20 @@ def _fail_interrupted_analyses(ctx: ProjectContext) -> None:
         db.close()
 
 
+def prepare_project(ctx: ProjectContext) -> None:
+    """Per-project filesystem + DB setup shared by boot and the in-place project
+    switch (routes/projects.py): ensure output dirs, seed built-in contexts,
+    clear stuck 'extracting' rows, and drop any stale pause flag."""
+    ctx.export_dir.mkdir(parents=True, exist_ok=True)
+    ctx.reels_dir.mkdir(parents=True, exist_ok=True)
+    seed_builtin_contexts(ctx.project_dir)
+    _fail_interrupted_analyses(ctx)
+    # A pause flag left by a server that died mid-analysis would otherwise hold
+    # the very first video of the next run — the job it belonged to is gone anyway.
+    from yuu_clip.analyze.pause import remove_pause_flag
+    remove_pause_flag(ctx.project_dir)
+
+
 def create_app(project_dir: Path) -> FastAPI:
     """Create a FastAPI app bound to *project_dir*.
 
@@ -107,14 +123,9 @@ def create_app(project_dir: Path) -> FastAPI:
     _log.info("Starting yuu-clip web server — project: %s", project_dir)
 
     ctx = ProjectContext(project_dir)
-    ctx.export_dir.mkdir(parents=True, exist_ok=True)
-    ctx.reels_dir.mkdir(parents=True, exist_ok=True)
-    seed_builtin_contexts(project_dir)
-    _fail_interrupted_analyses(ctx)
-    # A pause flag left by a server that died mid-analysis would otherwise hold
-    # the very first video of the next run — the job it belonged to is gone anyway.
-    from yuu_clip.analyze.pause import remove_pause_flag
-    remove_pause_flag(project_dir)
+    prepare_project(ctx)
+    from yuu_clip.config import record_known_project
+    record_known_project(project_dir)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):

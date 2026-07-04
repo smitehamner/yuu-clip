@@ -8,6 +8,7 @@
 - **Sidebar right pane** — clip list for the selected recording; sortable by Overall / Funny / Dramatic / Action / Laughs score, Length, or Timeline (chronological). Sorting by Laughs puts clips with no laugh measurement last.
 - **Main panel** — detail view for the selected video or clip, plus video player
 - **Header** — global action buttons and live job status (step pills + cancel button)
+- **Project switcher** — the current project name (top-left) is a dropdown: pick a recent project or "Open another project…" to point at any folder. yuu-clip switches without a restart and reloads; a brand-new folder starts a fresh, empty project. Blocked while analysis or another job is running.
 - **Log panel** — collapsible; streams live job output; download button for the full log file
 
 ### Video management

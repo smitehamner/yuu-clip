@@ -6,6 +6,46 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) — see the
 
 ---
 
+## Project switcher (done 2026-07-04)
+
+Closed the Phase 5 "Project switcher in UI" item (plan 03). The server now switches
+between project folders **in place** — no process restart, works identically in
+browser-dev mode and the packaged desktop app.
+
+- **In-place swap.** `ProjectContext.switch_project` disposes the current SQLite engine
+  (and cleans preview-cache temp files), rebinds every path/engine/transient field to the
+  new folder via a shared `_bind_project`, and bumps `project_generation`. Routes
+  closure-capture the context, so it is mutated, never replaced. `thermal_monitor` is
+  kept (project-independent hardware state). `_bind_project` creates `.yuu-clip` before
+  `make_engine`, and the per-project bootstrap (output dirs, seed contexts, clear stuck
+  `extracting` rows, drop stale pause flag) was extracted to `app.py::prepare_project` and
+  re-run on switch — so pointing at a brand-new folder initializes a fresh, empty project.
+- **Endpoints.** `GET /api/projects` → `{current, known:[{path, last_opened_at, exists}]}`;
+  `POST /api/projects/switch {path}` → **409** while any job runs (analyze/SSE/`proxy_generating`),
+  **400** on a non-folder path, else rebuild + return the new `current`. `/api/status` gained
+  `project_generation` (already had `project_dir`) so clients/tests can detect a swap.
+- **Recent-projects registry.** `config.load_known_projects` / `record_known_project` maintain
+  `<global config dir>/projects.json` (sibling of `profiles.json`), most-recent-first, deduped
+  by resolved path, capped at 20, tolerant of a corrupt file. Boot records the startup project.
+- **UI.** A header dropdown (left of the job status) shows the current project's folder name;
+  the menu lists recent projects (missing folders disabled) and "Open another project…", which
+  opens a path-input dialog. A successful switch toasts and does a full `location.reload()`
+  (AppState is not hot-swapped). No new color tokens — reuses the hamburger-menu chrome.
+- **Electron sync.** `preload.js` exposes `projectChanged(dir)` and `pickProjectFolder()`;
+  `main.js` updates its in-memory `projectDir` (media-proxy serving + next-launch persistence
+  via `saveElectronConfig`) and provides the native Browse dialog. Browser mode falls back to
+  the text input.
+
+New tests: `tests/test_projects.py` (registry dedup/corruption; list; switch round-trip reflecting
+the second DB; generation bump; fresh-dir init; idempotent re-switch; 400/409 guards) and
+`tests/test_ui_projects.py` (render + menu + modal, deliberately no live switch). Glossary +
+in-app glossary: **Project**.
+
+Out of scope (deferred): creating projects from the switcher (wizard/CLI already do), display
+names / renaming, and backup/restore (separate future item, now unblocked).
+
+---
+
 ## Laugh score as a separate attribute (2026-07-04)
 
 Closed the Phase 6 "Laugh / non-speech sound detection: separate attribute" item (plan 02).

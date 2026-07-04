@@ -14,6 +14,7 @@ document.querySelectorAll('.modal-bg').forEach((bg, i) => {
 
 // ── boot ──────────────────────────────────────────────────────────────────────
 initResize();
+initProjectSwitcher();
 _loadContexts();
 loadVideos();
 ensureHotwordsCache();

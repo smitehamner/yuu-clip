@@ -970,7 +970,36 @@ function createWindow(port) {
     return { action: 'deny' };
   });
 
+  registerProjectIPC();
   buildMenu();
+}
+
+// Project switcher (roadmap plan 03): the Python server swaps projects in place,
+// but main.js keeps its own projectDir for media-proxy serving and for the next
+// launch, so the renderer notifies us after a successful switch. We also provide
+// the native folder picker the renderer's "Open another project…" dialog uses.
+function registerProjectIPC() {
+  try { ipcMain.removeHandler('project:pick-folder'); } catch (_) {}
+  ipcMain.removeAllListeners('project:changed');
+
+  ipcMain.on('project:changed', (_, newDir) => {
+    if (typeof newDir !== 'string' || !newDir) return;
+    projectDir = newDir;
+    saveElectronConfig({ projectDir: newDir });
+    // Force the media-path allowlist to rebuild against the new project's videos.
+    knownMediaPaths = new Set();
+    knownMediaPathsFetchedAt = 0;
+    logSetup(`Project switched to ${newDir}`);
+  });
+
+  ipcMain.handle('project:pick-folder', async () => {
+    const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
+      title: 'Choose project folder',
+      defaultPath: projectDir,
+      properties: ['openDirectory', 'createDirectory'],
+    });
+    return canceled ? null : filePaths[0];
+  });
 }
 
 function buildMenu() {
