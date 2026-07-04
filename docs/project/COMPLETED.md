@@ -20,6 +20,9 @@ browser-dev mode and the packaged desktop app.
   `make_engine`, and the per-project bootstrap (output dirs, seed contexts, clear stuck
   `extracting` rows, drop stale pause flag) was extracted to `app.py::prepare_project` and
   re-run on switch — so pointing at a brand-new folder initializes a fresh, empty project.
+  The file log follows the active project: `log.redirect_logging` swaps the rotating file
+  handler to the new project's `.yuu-clip/yuu-clip.log` (new handler added before the old is
+  closed; the in-memory buffer handler is left intact).
 - **Endpoints.** `GET /api/projects` → `{current, known:[{path, last_opened_at, exists}]}`;
   `POST /api/projects/switch {path}` → **409** while any job runs (analyze/SSE/`proxy_generating`),
   **400** on a non-folder path, else rebuild + return the new `current`. `/api/status` gained

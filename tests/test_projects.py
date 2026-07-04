@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from yuu_clip.db.models import Video, make_session
+from yuu_clip.log import _LOG_FILENAME, configure_logging, get_logger, redirect_logging
 
 
 def _seed_project(root: Path, filename: str) -> Path:
@@ -14,6 +16,44 @@ def _seed_project(root: Path, filename: str) -> Path:
     session.commit()
     session.close()
     return root
+
+
+class TestLogRedirect:
+    def test_redirect_points_file_at_new_project(self, tmp_path):
+        """redirect_logging sends subsequent output to the new project's log and
+        leaves the old project's log untouched, without duplicating handlers."""
+        root = logging.getLogger("yuu_clip")
+        saved = root.handlers[:]
+        for handler in saved:
+            root.removeHandler(handler)
+        try:
+            proj_a = tmp_path / "a"
+            proj_b = tmp_path / "b"
+            configure_logging(proj_a)
+            file_handlers_before = [h for h in root.handlers
+                                    if isinstance(h, logging.handlers.RotatingFileHandler)]
+            get_logger("test").warning("before-redirect")
+
+            redirect_logging(proj_b)
+            # Exactly one file handler survives the swap.
+            file_handlers_after = [h for h in root.handlers
+                                   if isinstance(h, logging.handlers.RotatingFileHandler)]
+            assert len(file_handlers_before) == 1
+            assert len(file_handlers_after) == 1
+            get_logger("test").warning("after-redirect")
+            for handler in root.handlers:
+                handler.flush()
+
+            log_a = (proj_a / ".yuu-clip" / _LOG_FILENAME).read_text(encoding="utf-8")
+            log_b = (proj_b / ".yuu-clip" / _LOG_FILENAME).read_text(encoding="utf-8")
+            assert "before-redirect" in log_a and "after-redirect" not in log_a
+            assert "after-redirect" in log_b and "before-redirect" not in log_b
+        finally:
+            for handler in root.handlers[:]:
+                root.removeHandler(handler)
+                handler.close()
+            for handler in saved:
+                root.addHandler(handler)
 
 
 class TestKnownProjectsRegistry:
@@ -45,11 +85,12 @@ class TestProjectList:
         assert any(p["path"] == str(project_dir.resolve()) for p in body["known"])
 
     def test_missing_folder_marked_not_existing(self, client, tmp_path):
-        gone = _seed_project(tmp_path / "gone", "gone.mkv")
-        client.post("/api/projects/switch", json={"path": str(gone)})
-        # Remove the folder after it is on the known list, then list again.
-        for child in sorted(gone.rglob("*"), reverse=True):
-            child.unlink() if child.is_file() else child.rmdir()
+        # A project can be in the recent list but its folder later deleted. Use a
+        # registry entry we never switch to, so no open log handle blocks removal.
+        from yuu_clip.config import record_known_project
+        gone = tmp_path / "gone"
+        gone.mkdir()
+        record_known_project(gone)
         gone.rmdir()
         known = client.get("/api/projects").json()["known"]
         entry = next(p for p in known if p["path"] == str(gone.resolve()))
@@ -90,6 +131,11 @@ class TestProjectSwitch:
         assert res.status_code == 200
         assert (fresh / ".yuu-clip" / "project.db").exists()
         assert client.get("/api/videos").json() == []
+
+    def test_switch_creates_new_project_log(self, client, tmp_path):
+        other = _seed_project(tmp_path / "logged", "logged.mkv")
+        assert client.post("/api/projects/switch", json={"path": str(other)}).status_code == 200
+        assert (other / ".yuu-clip" / _LOG_FILENAME).exists()
 
     def test_idempotent_reswitch(self, client, tmp_path):
         other = _seed_project(tmp_path / "again", "again.mkv")

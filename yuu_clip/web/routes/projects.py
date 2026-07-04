@@ -15,7 +15,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from yuu_clip.config import load_known_projects, record_known_project
-from yuu_clip.log import configure_logging, get_logger
+from yuu_clip.log import get_logger, redirect_logging
 from yuu_clip.web.deps import ProjectContext
 from yuu_clip.web.routes._shared import _analyze_in_flight
 
@@ -58,11 +58,11 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             raise HTTPException(400, f"Not a folder: {body.path}")
         new_dir = new_dir.resolve()
 
-        # Create the log dir + reconfigure logging before make_engine touches the
-        # DB (switch_project → _bind_project). configure_logging is a no-op after
-        # first boot, so this only guarantees the dir exists for a fresh project.
-        configure_logging(new_dir)
+        # switch_project mkdirs .yuu-clip before make_engine; redirect_logging then
+        # points the file log at the new project so its bootstrap (prepare_project)
+        # and everything after logs there rather than into the old project's file.
         ctx.switch_project(new_dir)
+        redirect_logging(new_dir)
         from yuu_clip.web.app import prepare_project
         prepare_project(ctx)
         record_known_project(new_dir)

@@ -35,31 +35,51 @@ class _MemoryLineHandler(logging.Handler):
         _memory_buffer.append(self.format(record))
 
 
+def _make_file_handler(project_dir: Path) -> logging.Handler:
+    """Build a rotating file handler for *project_dir*'s log, creating the dir."""
+    log_path = project_dir / ".yuu-clip" / _LOG_FILENAME
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    handler = logging.handlers.RotatingFileHandler(
+        log_path, maxBytes=_MAX_BYTES, backupCount=_BACKUP_COUNT, encoding="utf-8"
+    )
+    handler.setFormatter(logging.Formatter(_FORMAT, datefmt=_DATE_FORMAT))
+    return handler
+
+
 def configure_logging(project_dir: Path) -> None:
     """Wire up file and memory log handlers under the yuu_clip namespace.
 
     Safe to call multiple times — subsequent calls are no-ops so tests that
-    call create_app() repeatedly don't accumulate duplicate handlers.
+    call create_app() repeatedly don't accumulate duplicate handlers. To point
+    an already-configured logger at a different project (the in-place project
+    switch), use redirect_logging.
     """
     root = logging.getLogger("yuu_clip")
     if root.handlers:
         return
 
     root.setLevel(logging.DEBUG)
-    fmt = logging.Formatter(_FORMAT, datefmt=_DATE_FORMAT)
-
-    log_path = project_dir / ".yuu-clip" / _LOG_FILENAME
-    log_path.parent.mkdir(parents=True, exist_ok=True)
-
-    file_h = logging.handlers.RotatingFileHandler(
-        log_path, maxBytes=_MAX_BYTES, backupCount=_BACKUP_COUNT, encoding="utf-8"
-    )
-    file_h.setFormatter(fmt)
-    root.addHandler(file_h)
+    root.addHandler(_make_file_handler(project_dir))
 
     mem_h = _MemoryLineHandler()
-    mem_h.setFormatter(fmt)
+    mem_h.setFormatter(logging.Formatter(_FORMAT, datefmt=_DATE_FORMAT))
     root.addHandler(mem_h)
+
+
+def redirect_logging(project_dir: Path) -> None:
+    """Point the file log at *project_dir* so log output follows the active
+    project after an in-place switch.
+
+    The new file handler is added before the old ones are removed and closed, so
+    there is never a window with no file sink. The in-memory buffer handler is
+    process-global (not per-project) and is left untouched.
+    """
+    root = logging.getLogger("yuu_clip")
+    stale = [h for h in root.handlers if isinstance(h, logging.handlers.RotatingFileHandler)]
+    root.addHandler(_make_file_handler(project_dir))
+    for handler in stale:
+        root.removeHandler(handler)
+        handler.close()
 
 
 def get_logger(name: str) -> logging.Logger:
