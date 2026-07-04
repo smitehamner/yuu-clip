@@ -7,6 +7,7 @@ const http   = require('http');
 const net    = require('net');
 const path   = require('path');
 const { Readable } = require('stream');
+const { parseNvidiaVramMB, selectGPU } = require('./gpu-detect');
 
 // Roadmap plan 10 — the "yuu-media" scheme must be registered as privileged
 // before app.ready fires (Electron requirement); the actual request handler
@@ -314,39 +315,29 @@ async function checkOllamaModel(modelName) {
   }
 }
 
-function detectGPU() {
+function detectNvidiaVramMB() {
   try {
     const out = execFileSync(
-      'wmic', ['path', 'win32_VideoController', 'get', 'Name,AdapterRAM', '/format:value'],
+      'nvidia-smi', ['--query-gpu=memory.total', '--format=csv,noheader,nounits'],
       { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }
     );
-    // Parse blocks separated by blank lines; each block has Key=Value lines.
-    const gpus = [];
-    let cur = {};
-    for (const line of out.split(/\r?\n/)) {
-      const m = line.match(/^(\w+)=(.+)$/);
-      if (m) {
-        cur[m[1].toLowerCase()] = m[2].trim();
-      } else if (Object.keys(cur).length > 0) {
-        gpus.push(cur);
-        cur = {};
-      }
-    }
-    if (Object.keys(cur).length > 0) gpus.push(cur);
+    return parseNvidiaVramMB(out);
+  } catch (_) {
+    return 0;
+  }
+}
 
-    // Pick GPU with most VRAM (prefer discrete over integrated).
-    gpus.sort((a, b) => parseInt(b.adapterram || 0) - parseInt(a.adapterram || 0));
-    const best = gpus[0];
-    if (!best) return { name: 'Unknown', vramMB: 0, vendor: 'unknown' };
-
-    const vramMB = Math.round(parseInt(best.adapterram || 0) / (1024 * 1024));
-    const name   = best.name || 'Unknown';
-    const nl     = name.toLowerCase();
-    const vendor = nl.includes('nvidia') ? 'nvidia'
-      : (nl.includes('amd') || nl.includes('radeon')) ? 'amd'
-      : nl.includes('intel') ? 'intel' : 'unknown';
-
-    return { name, vramMB, vendor };
+function detectGPU() {
+  // wmic is deprecated (and emits UTF-16, which broke the old utf8 parse);
+  // Get-CimInstance is the supported path and returns clean JSON.
+  try {
+    const out = execFileSync(
+      'powershell',
+      ['-NoProfile', '-NonInteractive', '-Command',
+        'Get-CimInstance Win32_VideoController | Select-Object Name,AdapterRAM | ConvertTo-Json -Compress'],
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }
+    );
+    return selectGPU(out, detectNvidiaVramMB);
   } catch (_) {
     return { name: 'Unknown', vramMB: 0, vendor: 'unknown' };
   }
