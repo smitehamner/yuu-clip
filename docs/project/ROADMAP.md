@@ -22,7 +22,7 @@ and the locked design decisions. Implement one plan per session.
 | Item | Plan |
 |---|---|
 | ~~Voiceprint threshold validation + borderline confirmation band~~ (done 2026-07-04) | 01 |
-| Laugh score as separate attribute | 02 |
+| ~~Laugh score as separate attribute~~ (done 2026-07-04) | 02 |
 | Project switcher | 03 |
 | Multi-session grouping (full unified timeline) | 04 |
 | Caption style options | 05 |
@@ -154,11 +154,10 @@ Complex, specialized, or AI-heavy features that are valuable but don't need to b
 - [x] **Hot-word / phrase config** (done, 2026-07-03) — see
   [COMPLETED.md](COMPLETED.md#hot-word--phrase-config-done-2026-07-03).
 
-- [ ] **Laugh / non-speech sound detection: separate attribute** — follow-on to the shipped
-  `LaughScorer` (transcript/audio/model modes, contributes to `score_funny` — see COMPLETED-archive.md).
-  Add a dedicated `score_laugh` column so laugh density can be sorted and filtered independently
-  of the Funny sub-score; surface it in the sidebar score line and sort/filter dropdowns.
-  Non-speech event detection (sound effects, reactions) also deferred to this item.
+- [x] **Laugh score: separate attribute** (done, 2026-07-04) — see
+  [COMPLETED.md](COMPLETED.md#laugh-score-as-a-separate-attribute-2026-07-04). Added the
+  `score_laugh` column, sidebar/detail score display, and a Laughs sort option.
+  Non-speech event detection (sound effects, reactions) remains deferred — laugh-only for now.
 
 - [ ] **Image-based clip analysis** — optional, clip-only feature: sample frames at a configurable
   interval and send them to a vision model to enrich clip descriptions and scoring. Requires a

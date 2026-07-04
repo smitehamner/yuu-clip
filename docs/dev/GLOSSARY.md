@@ -508,6 +508,20 @@ One axis of evaluation: Funny, Dramatic, or Action.
 
 ---
 
+### Laughs
+
+A 0–1 measure of laughter density in a clip, shown as its own score independent of the Funny dimension.
+
+- **Code:** `score_laugh` (nullable column); produced by `LaughScorer`
+- **UI label:** "Laughs" (score bar, sidebar percentage, sort option)
+- **Notes:** The laugh detector's raw, unweighted result. It still contributes to
+  "Funny" through the weighted scoring engine as before; `score_laugh` is an
+  additional stored copy so laugh density can be sorted and displayed on its own.
+  `NULL` means laughter was never computed for the clip (pre-existing clips, or the
+  laugh scorer disabled) — the UI hides the value rather than showing a misleading 0%.
+
+---
+
 ### Hot-word
 
 A creator-defined phrase that nudges a clip's score when it appears in the clip's transcript excerpt — e.g. boosting "Funny" whenever a running gag's catchphrase is spoken.

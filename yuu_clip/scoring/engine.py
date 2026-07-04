@@ -194,6 +194,7 @@ class ScoringEngine:
         clip.tags = [t for t in clip.tags if t not in self._SCORER_TAGS]
         clip.score_funny = clip.score_dramatic = clip.score_action = 0.0
         clip.score_overall = 0.0
+        clip.score_laugh = None
 
         # Per dimension: numerator (Σ value·weight) and the weight total of the
         # scorers that actually emitted that dimension. A scorer that returns
@@ -203,6 +204,12 @@ class ScoringEngine:
 
         for scorer in self._scorers:
             result: ScoreResult = scorer.score(clip, session)
+            # Store the laugh scorer's raw, unweighted result as its own attribute
+            # so laugh density can be sorted/displayed apart from its weighted
+            # contribution to score_funny. "No data" results carry only tags
+            # (score_funny is None) — leave score_laugh None in that case.
+            if scorer.name == "laugh" and result.score_funny is not None:
+                clip.score_laugh = result.score_funny
             for dim, value in (
                 ("funny",    result.score_funny),
                 ("dramatic", result.score_dramatic),

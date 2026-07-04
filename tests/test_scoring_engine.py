@@ -192,6 +192,78 @@ class TestScoringEngine:
         engine.score_clip(clip, None)
         assert abs(clip.score_action - 1.0) < 1e-6  # empty's weight excluded
 
+class TestLaughScoreAttribute:
+    """score_laugh mirrors the laugh scorer's raw result without altering score_funny."""
+
+    def _laugh_scorer(self, score_funny=None, tags=None, weight=1.0):
+        from unittest.mock import MagicMock
+
+        from yuu_clip.scoring.protocol import ScoreResult
+        mock = MagicMock()
+        mock.name = "laugh"
+        mock.is_available.return_value = True
+        mock.weight = weight
+        mock.score.return_value = ScoreResult(score_funny=score_funny, tags=tags or [])
+        return mock
+
+    def _make_clip(self):
+        from unittest.mock import MagicMock
+        clip = MagicMock()
+        clip.tags = []
+        clip.score_funny = clip.score_dramatic = clip.score_action = 0.0
+        clip.score_overall = 0.0
+        clip.score_laugh = 0.42  # stale sentinel: must be reset each run
+        clip.description = clip.description_long = ""
+        clip.scored_at = None
+        return clip
+
+    def test_laugh_result_stored_and_still_feeds_funny(self):
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.engine import ScoringEngine
+        laugh = self._laugh_scorer(score_funny=0.8, tags=["laugh_transcript"])
+        engine = ScoringEngine(Config(), [laugh])
+        clip = self._make_clip()
+        engine.score_clip(clip, None)
+        assert abs(clip.score_laugh - 0.8) < 1e-6   # raw laugh result stored
+        assert abs(clip.score_funny - 0.8) < 1e-6   # still weighted into funny
+
+    def test_laugh_disabled_leaves_score_laugh_none(self):
+        # No laugh scorer in the list at all → the column resets to None.
+        from unittest.mock import MagicMock
+
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.engine import ScoringEngine
+        from yuu_clip.scoring.protocol import ScoreResult
+        other = MagicMock()
+        other.name = "energy"
+        other.is_available.return_value = True
+        other.weight = 1.0
+        other.score.return_value = ScoreResult(score_action=1.0)
+        engine = ScoringEngine(Config(), [other])
+        clip = self._make_clip()
+        engine.score_clip(clip, None)
+        assert clip.score_laugh is None
+
+    def test_laugh_no_data_result_leaves_score_laugh_none(self):
+        # A "no data" laugh result carries only tags (score_funny is None) — the
+        # column must stay None, not fall to a misleading 0.
+        from unittest.mock import MagicMock
+
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.engine import ScoringEngine
+        from yuu_clip.scoring.protocol import ScoreResult
+        laugh = self._laugh_scorer(score_funny=None, tags=["laugh_no_wav"])
+        other = MagicMock()
+        other.name = "energy"
+        other.is_available.return_value = True
+        other.weight = 1.0
+        other.score.return_value = ScoreResult(score_action=1.0)
+        engine = ScoringEngine(Config(), [laugh, other])
+        clip = self._make_clip()
+        engine.score_clip(clip, None)
+        assert clip.score_laugh is None
+
+
 class TestScoringEngineWeightEdgeCases:
     def _make_scorer(self, score_action=0.0, weight=1.0):
         from unittest.mock import MagicMock

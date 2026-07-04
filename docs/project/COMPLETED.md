@@ -6,6 +6,33 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) — see the
 
 ---
 
+## Laugh score as a separate attribute (2026-07-04)
+
+Closed the Phase 6 "Laugh / non-speech sound detection: separate attribute" item (plan 02).
+The `LaughScorer` (transcript/audio/model modes) already fed `score_funny`; it now also
+stores its raw, unweighted 0–1 result in a new `score_laugh` so laugh density can be read
+and sorted on its own — with **no change** to existing scores.
+
+- **Model + migration.** Added the nullable `ClipCandidate.score_laugh` column via the guarded
+  ADD-COLUMN list. `NULL` means laughter was never computed (pre-existing clips, or the laugh
+  scorer disabled) — never backfilled, so the UI hides it rather than showing a misleading 0%.
+- **Engine.** `score_clip` resets `score_laugh` to `None` each run and stores the laugh scorer's
+  raw `score_funny` (identified by `scorer.name == "laugh"`) before weighted aggregation. "No
+  data" laugh results carry only tags, so `score_laugh` stays `None` for them. Funny is unchanged.
+- **API.** `score_laugh` is serialized on the clip shape (`null` when unset) and `laugh` is a new
+  server-side sort key — SQLite's `DESC` puts the null (never-measured) clips last.
+- **UI.** Sidebar score line and detail panel gain a **Laughs** bar/percentage (only when the
+  value is present); the sort dropdown gains a **Laughs** option. A dedicated `--laugh` theme
+  token (rose) was added across all three themes with a `.bar-laugh` rule.
+
+New tests: engine unit tests (`tests/test_scoring_engine.py::TestLaughScoreAttribute`), API
+serialization + null-last sort (`tests/test_videos.py`), UI render/sort (`tests/test_ui_clips.py::TestLaughScore`),
+and `--laugh` added to the theme-token contract in `tests/test_ui_theme.py`. Glossary: **Laughs**.
+
+Out of scope (deferred): filtering chips by laugh density, and non-speech/sound-effect detection.
+
+---
+
 ## Voiceprint threshold validation + borderline voice-match confirmation (2026-07-04)
 
 Closed both Phase 5 "validate the re-attach threshold" and the Phase 6

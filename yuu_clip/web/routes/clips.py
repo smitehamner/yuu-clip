@@ -209,6 +209,7 @@ def _clip_dict(
         "score_funny": round(clip.score_funny, 3),
         "score_dramatic": round(clip.score_dramatic, 3),
         "score_action": round(clip.score_action, 3),
+        "score_laugh": round(clip.score_laugh, 3) if clip.score_laugh is not None else None,
         "score_overall_user": round(clip.score_overall_user, 3) if clip.score_overall_user is not None else None,
         "scored_at": clip.scored_at.isoformat() if clip.scored_at else None,
         "description": clip.effective_description,
@@ -414,6 +415,7 @@ def _register_clip_routes(router: APIRouter, ctx: ProjectContext) -> None:
                 "funny":    ClipCandidate.score_funny,
                 "dramatic": ClipCandidate.score_dramatic,
                 "action":   ClipCandidate.score_action,
+                "laugh":    ClipCandidate.score_laugh,
             }
             if sort == "timeline":
                 order = ClipCandidate.start_ms.asc()

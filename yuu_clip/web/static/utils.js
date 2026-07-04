@@ -63,6 +63,7 @@ function _sortScore(clip) {
   if (sort === 'funny')    return clip.score_funny;
   if (sort === 'dramatic') return clip.score_dramatic;
   if (sort === 'action')   return clip.score_action;
+  if (sort === 'laugh')    return clip.score_laugh;
   return clip.score_overall;
 }
 

@@ -5,7 +5,7 @@
 ### Layout
 
 - **Sidebar left pane** — recordings list with per-recording clip count, approved count, exported count, score range bar, and clipped time. Has its own search box (title/filename), sort dropdown (Recent / Title / Filename / Length / Clips — persisted), and filter chips (Has clips / Unscored / Errors)
-- **Sidebar right pane** — clip list for the selected recording; sortable by Overall / Funny / Dramatic / Action score, Length, or Timeline (chronological)
+- **Sidebar right pane** — clip list for the selected recording; sortable by Overall / Funny / Dramatic / Action / Laughs score, Length, or Timeline (chronological). Sorting by Laughs puts clips with no laugh measurement last.
 - **Main panel** — detail view for the selected video or clip, plus video player
 - **Header** — global action buttons and live job status (step pills + cancel button)
 - **Log panel** — collapsible; streams live job output; download button for the full log file
@@ -42,7 +42,7 @@
 
 Each clip detail view shows:
 
-- **Score bars** (0–1 scale): Overall, Funny, Dramatic, Action — shown once the clip has been scored; a clip that hasn't been scored yet (e.g. a failed analysis run) shows "Not yet scored" instead of a misleading 0%
+- **Score bars** (0–1 scale): Overall, Funny, Dramatic, Action, and Laughs — shown once the clip has been scored; a clip that hasn't been scored yet (e.g. a failed analysis run) shows "Not yet scored" instead of a misleading 0%. The Laughs bar only appears when laughter was actually measured for the clip (see the Laughs score section)
 - **One-liner description** and **long description** (paragraph)
 - **Tags**: auto-generated labels such as `llm_scored`, `energy_scored`, `long_silence_after`
 - **Transcript excerpt** in a monospace box
@@ -318,6 +318,17 @@ LLM scoring speed depends entirely on your LLM backend and model. Rough estimate
 | 2.5 hours | ~50 clips | ~3.5 min |
 
 A larger or slower Ollama model multiplies these times proportionally. Running Ollama on the same GPU as Whisper is fine — they run sequentially, not simultaneously.
+
+### Laughs score
+
+A separate 0–1 measure of laughter density, produced by the laughter detector (transcript,
+audio, or model mode — see Settings). It still contributes to the Funny score as before; the
+Laughs score is an additional value you can sort and read on its own. It shows up as its own
+score bar and sidebar percentage, and as a **Laughs** option in the clip sort dropdown.
+
+Clips where laughter was never measured — anything scored before this feature existed, or clips
+scored with the laughter detector turned off — have no Laughs value and simply omit it, rather
+than showing a misleading 0%.
 
 ### Overall score
 

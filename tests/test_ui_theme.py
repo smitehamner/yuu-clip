@@ -40,7 +40,7 @@ COLOR_TOKENS = [
     "--accent", "--accent-text", "--accent2", "--on-accent",
     "--green", "--on-green", "--red", "--on-red",
     "--warning", "--warn-hot",
-    "--funny", "--dramatic", "--action",
+    "--funny", "--dramatic", "--action", "--laugh",
 ]
 
 _CONTRAST_JS = """

@@ -118,6 +118,46 @@ class TestClipSort:
         expect(page.locator("#clip-list li").first).to_be_visible()
 
 
+@skip_no_server
+class TestLaughScore:
+    """Laughs score: sort option, and sidebar rendering gated on a non-null value."""
+
+    def _clip(self, clip_id: int, score_laugh):
+        return {
+            "id": clip_id, "status": "pending", "scored_at": "2026-07-04T00:00:00+00:00",
+            "start_hms": "00:00", "duration_hms": "00:05",
+            "has_export": False, "export_stale": False, "export_stale_reasons": [], "exports": [],
+            "sensitive_matches": [], "hotword_matches": [], "description": "",
+            "score_overall": 0.5, "score_funny": 0.5, "score_dramatic": 0.3,
+            "score_action": 0.2, "score_laugh": score_laugh,
+        }
+
+    def test_sort_has_laugh_option(self, page: Page):
+        page.goto(LIVE_URL)
+        options = page.locator("#clips-sort option")
+        values = [options.nth(i).get_attribute("value") for i in range(options.count())]
+        assert "laugh" in values
+
+    def _render(self, page: Page, clips):
+        page.wait_for_function("typeof _renderClips === 'function' && typeof AppState === 'object'")
+        page.evaluate(
+            "(clips) => { AppState.clips = clips; AppState.clipFilters = new Set();"
+            " AppState.clipSearch = ''; AppState.clipScoreMin = 0; _renderClips(); }",
+            clips,
+        )
+
+    def test_sidebar_shows_laugh_only_when_present(self, page: Page):
+        page.goto(LIVE_URL)
+        self._render(page, [self._clip(1, 0.6), self._clip(2, None)])
+        assert page.locator("li[data-clip-id='1'] .clip-scores span[title='Laughs']").count() == 1
+        assert page.locator("li[data-clip-id='2'] .clip-scores span[title='Laughs']").count() == 0
+
+    def test_sidebar_laugh_shows_rounded_percentage(self, page: Page):
+        page.goto(LIVE_URL)
+        self._render(page, [self._clip(1, 0.6)])
+        expect(page.locator("li[data-clip-id='1'] .clip-scores span[title='Laughs']")).to_contain_text("60%")
+
+
 # ---------------------------------------------------------------------------
 # Score override via field-edit modal
 # ---------------------------------------------------------------------------

@@ -187,6 +187,7 @@ def _migrate(engine) -> None:
             ("hotword_matches_json", "TEXT"),
             ("hotword_boost_json",   "TEXT"),
             ("sensitive_matches_json", "TEXT"),
+            ("score_laugh",          "REAL"),
         ]
         for col, typedef in _clip_migrations:
             if col not in existing:
@@ -579,6 +580,9 @@ class ClipCandidate(Base):
     score_dramatic: Mapped[float] = mapped_column(Float, default=0.0)
     score_action: Mapped[float] = mapped_column(Float, default=0.0)
     score_overall_user: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    # Raw, unweighted laugh-density result from LaughScorer (0–1). NULL = laugh
+    # was never computed for this clip (pre-existing clips, or scorer disabled).
+    score_laugh: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
 
     reasons_json: Mapped[Optional[str]] = mapped_column(Text)   # JSON list of strings
     tags_json: Mapped[Optional[str]] = mapped_column(Text)       # JSON list — system tags (llm_error, silence_Ns, …)

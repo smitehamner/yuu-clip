@@ -211,6 +211,27 @@ class TestListClipsAdditional:
         scores = [c["score_action"] for c in clips]
         assert scores == sorted(scores, reverse=True)
 
+    def test_clip_detail_includes_score_laugh(self, client):
+        vid_id = self._vid_id(client)
+        clip_id = client.get(f"/api/videos/{vid_id}/clips").json()[0]["id"]
+        d = client.get(f"/api/clips/{clip_id}").json()
+        assert "score_laugh" in d
+
+    def test_list_clips_sort_laugh_nulls_last(self, client, project_dir):
+        from yuu_clip.db.models import ClipCandidate, Video, make_session
+        session = make_session(project_dir / ".yuu-clip" / "project.db")
+        vid = session.query(Video).first()
+        session.add(ClipCandidate(video_id=vid.id, start_ms=0, end_ms=5_000, status="pending", score_laugh=0.9))
+        session.add(ClipCandidate(video_id=vid.id, start_ms=0, end_ms=5_000, status="pending", score_laugh=0.2))
+        session.commit()
+        vid_id = vid.id
+        session.close()
+        laughs = [c["score_laugh"] for c in client.get(f"/api/videos/{vid_id}/clips?sort=laugh").json()]
+        first_null = next((i for i, v in enumerate(laughs) if v is None), len(laughs))
+        assert all(v is not None for v in laughs[:first_null])         # scored clips lead
+        assert all(v is None for v in laughs[first_null:])             # unscored (null) clips trail
+        assert laughs[:first_null] == sorted(laughs[:first_null], reverse=True)  # highest laugh first
+
     def test_list_clips_sort_length(self, client, project_dir):
         from yuu_clip.db.models import ClipCandidate, Video, make_session
         session = make_session(project_dir / ".yuu-clip" / "project.db")

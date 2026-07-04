@@ -24,6 +24,7 @@
   --funny:    #f7a85a;
   --dramatic: #b06af7;
   --action:   #4fc3f7;
+  --laugh:    #f77ac0;
   --overall:  var(--accent);
   --shadow-pop:  0 4px 20px rgba(0,0,0,.5);
   --shadow-menu: 0 8px 24px rgba(0,0,0,.5);
@@ -66,6 +67,7 @@ html[data-theme="light"] {
   --funny:    #c26a12;
   --dramatic: #8b3fd6;
   --action:   #0e7490;
+  --laugh:    #c2298a;
   --shadow-pop:  0 4px 20px rgba(0,0,0,.18);
   --shadow-menu: 0 8px 24px rgba(0,0,0,.18);
   --modal-backdrop: rgba(0,0,0,.45);
@@ -95,6 +97,7 @@ html[data-theme="high-contrast"] {
   --funny:    #ffb066;
   --dramatic: #d09aff;
   --action:   #6fd6ff;
+  --laugh:    #ff9ad6;
   --modal-backdrop: rgba(0,0,0,.85);
   color-scheme: dark;
 }
@@ -279,6 +282,7 @@ header h1 { font-size: 16px; font-weight: 700; letter-spacing: .5px; color: var(
 .bar-funny    { background: var(--funny); }
 .bar-dramatic { background: var(--dramatic); }
 .bar-action   { background: var(--action); }
+.bar-laugh    { background: var(--laugh); }
 .score-val { font-size: 12px; font-weight: 600; text-align: right; }
 .score-override-badge { font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: .4px; color: var(--accent2); background: color-mix(in srgb, var(--accent2) 10%, transparent); border: 1px solid color-mix(in srgb, var(--accent2) 30%, transparent); border-radius: 3px; padding: 1px 4px; vertical-align: middle; margin-left: 3px; }
 
