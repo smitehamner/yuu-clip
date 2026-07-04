@@ -124,6 +124,18 @@ serve process should sit near 0% CPU when idle.
 
 Run at least `test-api.ps1` before reporting a backend fix as done.
 
+### Electron wrapper tests (only when touching `electron/`)
+
+The desktop wrapper has its own Node test suite, separate from the pytest
+suites above (they don't cover `electron/`, and this doesn't cover them):
+
+```powershell
+cd electron; npm test        # node --test, no dependencies, ~0.2s
+```
+
+Run it only after changing files under `electron/` (e.g. `main.js`,
+`gpu-detect.js`) — skip it for pure Python/web-UI changes.
+
 ## Current focus
 
 **Phase 3 web UI — manual testing and bugfixing.** The pipeline is complete; the
