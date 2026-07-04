@@ -20,8 +20,10 @@ Approximate VRAM / RAM usage:
 """
 from __future__ import annotations
 
+import importlib.util
 import json
 import math
+import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
@@ -227,29 +229,117 @@ def _resolve_device_and_compute(config: Config) -> tuple[str, str]:
     return device, compute_type
 
 
-def _get_model(config: Config):
-    """Load (or retrieve from cache) a WhisperModel."""
+_cuda_dll_dirs_registered = False
+
+
+def _register_cuda_dll_dirs() -> None:
+    """Make CUDA runtime DLLs from the nvidia-*-cu12 wheels loadable on Windows.
+
+    The wheels install cuBLAS/cuDNN into site-packages/nvidia/<lib>/bin, which is
+    not on the DLL search path, so CTranslate2 fails with 'cublas64_12.dll not
+    found' even after a successful pip install. add_dll_directory (Windows-only)
+    registers those dirs before faster_whisper loads the CUDA backend.
+    """
+    global _cuda_dll_dirs_registered
+    if _cuda_dll_dirs_registered or not hasattr(os, "add_dll_directory"):
+        return
+    for pkg in ("nvidia.cublas", "nvidia.cudnn"):
+        try:
+            spec = importlib.util.find_spec(pkg)
+        except ModuleNotFoundError:
+            spec = None
+        if not spec or not spec.submodule_search_locations:
+            continue
+        bin_dir = Path(next(iter(spec.submodule_search_locations))) / "bin"
+        if bin_dir.is_dir():
+            os.add_dll_directory(str(bin_dir))
+            _log.debug("Registered CUDA DLL dir: %s", bin_dir)
+    _cuda_dll_dirs_registered = True
+
+
+class TranscriptionModelError(RuntimeError):
+    """Whisper model could not be loaded — carries an end-user-actionable message."""
+
+
+def _model_key(config: Config, device: str, compute_type: str) -> tuple:
+    return (config.whisper_model, device, compute_type, config.whisper_model_revision)
+
+
+def _model_load_error(config: Config, exc: Exception) -> TranscriptionModelError:
+    return TranscriptionModelError(
+        f"Couldn't load the transcription model '{config.whisper_model}'. "
+        "The first time a model is used it is downloaded from the internet, so if this "
+        "is a new model, check your connection and try again. If transcription worked "
+        f"before, the downloaded model may be corrupt — retry to re-download. (details: {exc})"
+    )
+
+
+def _load_whisper_model(config: Config, device: str, compute_type: str):
     from faster_whisper import WhisperModel  # imported here so the module loads without it
 
+    if device == "cuda":
+        _register_cuda_dll_dirs()
+
+    rev_note = f"  revision={config.whisper_model_revision}" if config.whisper_model_revision else "  revision=latest (not pinned)"
+    console.print(
+        f"  [dim]Loading Whisper model '[bold]{config.whisper_model}[/bold]' "
+        f"on {device} ({compute_type}){rev_note} — "
+        f"first run downloads the model…[/dim]"
+    )
+    return WhisperModel(
+        config.whisper_model,
+        device=device,
+        compute_type=compute_type,
+        # revision pins the HuggingFace git commit SHA; None = "main" (latest)
+        revision=config.whisper_model_revision,
+    )
+
+
+def _get_model(config: Config):
+    """Load (or retrieve from cache) a WhisperModel.
+
+    A machine can report a CUDA device (NVIDIA GPU + driver present) yet lack the
+    cuBLAS/cuDNN runtime libraries CTranslate2 links against (e.g. no CUDA toolkit
+    and no nvidia-cublas-cu12/nvidia-cudnn-cu12 wheels). Loading then fails with
+    'cublas64_12.dll is not found or cannot be loaded'. Rather than abort the whole
+    analysis, fall back to CPU so transcription still completes (slower).
+    """
     validate_whisper_model(config.whisper_model)
 
     device, compute_type = _resolve_device_and_compute(config)
+    key = _model_key(config, device, compute_type)
+    if key in _model_cache:
+        return _model_cache[key]
 
-    key = (config.whisper_model, device, compute_type, config.whisper_model_revision)
-    if key not in _model_cache:
-        rev_note = f"  revision={config.whisper_model_revision}" if config.whisper_model_revision else "  revision=latest (not pinned)"
-        console.print(
-            f"  [dim]Loading Whisper model '[bold]{config.whisper_model}[/bold]' "
-            f"on {device} ({compute_type}){rev_note} — "
-            f"first run downloads the model…[/dim]"
-        )
-        _model_cache[key] = WhisperModel(
-            config.whisper_model,
-            device=device,
-            compute_type=compute_type,
-            # revision pins the HuggingFace git commit SHA; None = "main" (latest)
-            revision=config.whisper_model_revision,
-        )
+    if device == "cuda":
+        try:
+            _model_cache[key] = _load_whisper_model(config, device, compute_type)
+            return _model_cache[key]
+        except Exception as exc:
+            _log.warning(
+                "Whisper model failed to load on CUDA (%s) — falling back to CPU. "
+                "To use the GPU, install the CUDA support libraries from "
+                "Settings -> Hardware (Enable GPU acceleration).",
+                exc,
+            )
+            console.print(
+                "[yellow]GPU transcription unavailable — the CUDA support libraries "
+                "(cuBLAS + cuDNN) are missing, so this run will use the CPU instead "
+                "(slower).[/yellow]"
+            )
+            console.print(
+                "  [dim]To enable the GPU, open Settings -> Hardware and click "
+                "'Enable GPU acceleration', then re-run analysis.[/dim]"
+            )
+            device, compute_type = "cpu", "int8"
+            key = _model_key(config, device, compute_type)
+            if key in _model_cache:
+                return _model_cache[key]
+
+    try:
+        _model_cache[key] = _load_whisper_model(config, device, compute_type)
+    except Exception as exc:
+        raise _model_load_error(config, exc) from exc
 
     return _model_cache[key]
 

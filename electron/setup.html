@@ -393,7 +393,7 @@ const WHISPER_LANGUAGES = [
 
 let status  = null;
 let pulling = false;
-let installing = { llamacpp: false, pyannote: false };
+let installing = { llamacpp: false, pyannote: false, 'cuda-libs': false };
 let defaultsApplied = false;
 
 // ── helpers ────────────────────────────────────────────────────────────────
@@ -404,7 +404,7 @@ function esc(s) {
     .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-function anyInstalling() { return installing.llamacpp || installing.pyannote; }
+function anyInstalling() { return installing.llamacpp || installing.pyannote || installing['cuda-libs']; }
 
 function updateLaunchBtn() {
   const btn  = document.getElementById('launch-btn');
@@ -478,13 +478,18 @@ function renderGpuLine(s) {
 
 function renderCudaSlot(s) {
   const el = document.getElementById('cuda-slot');
-  if (s.gpu.vendor !== 'nvidia' || s.cuda.available) { el.innerHTML = ''; return; }
-  el.innerHTML = row('cuda', 'warn', '⚠', 'GPU acceleration (CUDA)',
-    `Your NVIDIA GPU can make transcription much faster, but the CUDA Toolkit isn't installed. ` +
-    `Install it, then use <em>Restart app</em> below so it's picked up. ` +
-    `If you use Ollama, reinstall Ollama afterwards so it also gains GPU support.`,
-    `<button class="sm" onclick="api.openURL('https://developer.nvidia.com/cuda-downloads')">Get CUDA Toolkit</button>`
-  );
+  if (s.gpu.vendor !== 'nvidia') { el.innerHTML = ''; return; }
+  if (s.cudaLibsInstalled || s.cuda.available) {
+    el.innerHTML = row('cuda', 'ok', '✓', 'GPU acceleration ready',
+      'The CUDA support libraries are available — transcription runs on your NVIDIA GPU.');
+    return;
+  }
+  el.innerHTML = row('cuda', 'warn', '○', 'GPU acceleration for transcription',
+    `Your NVIDIA GPU can transcribe much faster than the CPU. This one-time install ` +
+    `adds the CUDA support libraries (cuBLAS + cuDNN, ~1 GB). You can keep using this ` +
+    `window while it runs.`,
+    `<button class="sm" id="install-btn-cuda-libs" onclick="startInstall('cuda-libs')">Enable GPU acceleration (~1 GB)</button>
+     <div class="pull-msg" id="install-msg-cuda-libs"></div>`);
 }
 
 function renderOllamaStatus(s) {
@@ -699,6 +704,7 @@ function onInstallProgress(data) {
     installing[data.slug] = false;
     if (data.slug === 'llamacpp') { status.llamacppInstalled = true; renderLlamacppPkgSlot(status); }
     if (data.slug === 'pyannote') { status.pyannoteInstalled = true; renderPyannoteSlot(status); updateDiarStatus(); }
+    if (data.slug === 'cuda-libs') { status.cudaLibsInstalled = true; renderCudaSlot(status); }
     updateLaunchBtn();
   } else if (data.error) {
     installing[data.slug] = false;

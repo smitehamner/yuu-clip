@@ -54,12 +54,14 @@ _INSTALLABLE: dict[str, str | list[str]] = {
     "llamacpp":    "llama-cpp-python",
     "anthropic":   "anthropic",
     "laugh-deps":  ["transformers", "torch", "torchaudio", "soundfile"],
+    "cuda-libs":   ["nvidia-cublas-cu12", "nvidia-cudnn-cu12"],
 }
 _IMPORT_NAMES: dict[str, list[str]] = {
     "pyannote":    ["pyannote.audio"],
     "llamacpp":    ["llama_cpp"],
     "anthropic":   ["anthropic"],
     "laugh-deps":  ["transformers", "torch", "torchaudio", "soundfile"],
+    "cuda-libs":   ["nvidia.cublas", "nvidia.cudnn"],
 }
 
 # ── Whisper real-time speed ratios ──────────────────────────────────────────

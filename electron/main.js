@@ -281,8 +281,10 @@ function refreshPathFromRegistry() {
 // the same installs via /api/install/{slug}, but it isn't running yet during
 // first-run setup, so the wizard drives pip directly.
 const WIZARD_INSTALLABLE = {
-  pyannote: { packages: ['pyannote.audio'],     importName: 'pyannote.audio' },
-  llamacpp: { packages: ['llama-cpp-python'],   importName: 'llama_cpp' },
+  pyannote:    { packages: ['pyannote.audio'],   importName: 'pyannote.audio' },
+  llamacpp:    { packages: ['llama-cpp-python'], importName: 'llama_cpp' },
+  // Both wheels install together, so nvidia.cublas is a sufficient presence proxy.
+  'cuda-libs': { packages: ['nvidia-cublas-cu12', 'nvidia-cudnn-cu12'], importName: 'nvidia.cublas' },
 };
 
 function checkVenvModule(importName) {
@@ -395,10 +397,11 @@ function registerWizardIPC(wizardWin) {
     const ffmpegOk      = checkFFmpeg();
     const gpu           = detectGPU();
     const cuda          = detectCUDA();
-    const [ollamaRunning, llamacppInstalled, pyannoteInstalled] = await Promise.all([
+    const [ollamaRunning, llamacppInstalled, pyannoteInstalled, cudaLibsInstalled] = await Promise.all([
       checkOllama(),
       checkVenvModule(WIZARD_INSTALLABLE.llamacpp.importName),
       checkVenvModule(WIZARD_INSTALLABLE.pyannote.importName),
+      checkVenvModule(WIZARD_INSTALLABLE['cuda-libs'].importName),
     ]);
     const ollamaModelPulled = ollamaRunning ? await checkOllamaModel(ollamaModel) : false;
 
@@ -406,12 +409,12 @@ function registerWizardIPC(wizardWin) {
     const existingModelPath = projCfg.llm_model_path || '';
     const defaultBackend    = existingBackend || (ollamaRunning ? 'ollama' : 'llamacpp');
 
-    logSetup(`Status check — FFmpeg:${ffmpegOk} GPU:${gpu.name} CUDA:${cuda.available} Ollama:${ollamaRunning} Model:${ollamaModelPulled} llamacpp:${llamacppInstalled} pyannote:${pyannoteInstalled}`);
+    logSetup(`Status check — FFmpeg:${ffmpegOk} GPU:${gpu.name} CUDA:${cuda.available} cudaLibs:${cudaLibsInstalled} Ollama:${ollamaRunning} Model:${ollamaModelPulled} llamacpp:${llamacppInstalled} pyannote:${pyannoteInstalled}`);
     return {
       ffmpegOk,
       gpu, cuda,
       ollamaRunning, ollamaModel, ollamaModelPulled,
-      llamacppInstalled, pyannoteInstalled,
+      llamacppInstalled, pyannoteInstalled, cudaLibsInstalled,
       recommendedWhisper: recommendWhisperModel(gpu.vramMB),
       projectDir: pDir,
       llmBackend:    defaultBackend,

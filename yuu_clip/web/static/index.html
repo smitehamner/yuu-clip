@@ -456,6 +456,17 @@
     <div class="settings-section-title">Hardware <span style="font-size:11px;font-weight:400;color:var(--muted)">(GPU temperature — NVIDIA only, hidden automatically otherwise)</span></div>
     <div class="settings-row">
       <div class="settings-col">
+        <label class="settings-label">GPU acceleration for transcription</label>
+        <div class="settings-note">On an NVIDIA GPU, installs the CUDA support libraries (cuBLAS + cuDNN) so transcription runs on the GPU — much faster than CPU. About 1&nbsp;GB. Re-run analysis after installing.</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn-secondary" id="btn-install-cuda-libs" onclick="installPackage('cuda-libs')">Enable GPU acceleration</button>
+        <span id="install-status-cuda-libs" style="font-size:12px"></span>
+      </div>
+    </div>
+    <div id="install-log-cuda-libs" class="settings-install-log"></div>
+    <div class="settings-row">
+      <div class="settings-col">
         <label class="settings-label" id="lbl-thermal-autopause" for="s-thermal-autopause">Auto-pause on high GPU temperature</label>
         <div class="settings-note">Pauses analysis before the next video when the GPU stays too hot</div>
       </div>
@@ -1090,6 +1101,7 @@
         <tr><td>anthropic</td><td>Claude API LLM backend</td><td>MIT</td></tr>
         <tr><td>pyannote.audio</td><td>Speaker diarization</td><td>MIT (model: HF gated)</td></tr>
         <tr><td>transformers / torch</td><td>Laugh detection (model mode)</td><td>Apache-2 / BSD</td></tr>
+        <tr><td>nvidia-cublas-cu12 / nvidia-cudnn-cu12</td><td>GPU acceleration for transcription (NVIDIA)</td><td>NVIDIA proprietary (redistributable)</td></tr>
       </tbody>
     </table>
     <div class="modal-actions" style="margin-top:16px">

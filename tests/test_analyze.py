@@ -445,6 +445,7 @@ class TestScoringIsolation:
 
         from yuu_clip.cli import _pipeline
         from yuu_clip.cli._base import AnalyzeOptions
+        from yuu_clip.config import Config
         from yuu_clip.db.models import ClipCandidate, Video, make_session
 
         session = make_session(tmp_path / "project.db")
@@ -467,7 +468,9 @@ class TestScoringIsolation:
              patch.object(_pipeline, "_summarize_video", return_value=None), \
              patch.object(_pipeline, "_run_scoring", side_effect=boom):
             # Must not raise — a per-video scoring crash cannot abort the batch.
-            _pipeline._analyze_one(tmp_path / "s.mkv", session, object(), tmp_path, AnalyzeOptions())
+            _pipeline._analyze_one(
+                tmp_path / "s.mkv", session, Config(ollama_enabled=False), tmp_path, AnalyzeOptions()
+            )
 
         session.close()
         verify = make_session(tmp_path / "project.db")

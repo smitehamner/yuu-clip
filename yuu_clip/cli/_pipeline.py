@@ -20,6 +20,29 @@ from yuu_clip.cli._base import (
 from yuu_clip.cli._run_meta import StageRecorder, build_run_json
 
 
+def _llm_unavailable_notice(reason: str) -> None:
+    console.print(f"  [yellow]AI clip ranking unavailable — {reason}.[/yellow]")
+    console.print(
+        "  [yellow]Clips will still be created and ranked, just without the AI score. "
+        "Start the LLM engine (e.g. run Ollama) to include it — do it now and it will be "
+        "used in this run; otherwise use Rescore later.[/yellow]"
+    )
+
+
+def _preflight_llm_check(config, opts: AnalyzeOptions) -> None:
+    """Warn up front — before the slow transcription — if LLM scoring is wanted but the
+    backend isn't reachable, so the user can start it now instead of discovering
+    unranked clips at the end. Silent when scoring is off or the LLM is intentionally
+    disabled in Settings."""
+    if opts.no_score or not config.ollama_enabled:
+        return
+    from yuu_clip.scoring.llm import check_llm_available
+
+    ok, reason = check_llm_available(config)
+    if not ok:
+        _llm_unavailable_notice(reason)
+
+
 def _resolve_existing_video(session, video_path: Path, opts: AnalyzeOptions):
     """Find the Video row this run targets, rewriting video_path when targeting by ID.
 
@@ -75,6 +98,8 @@ def _analyze_one(
 
     console.print(f"Analyzing: {video_path.name}")
     console.rule(f"[bold]{video_path.name}[/bold]")
+
+    _preflight_llm_check(config, opts)
 
     started_at = datetime.now(timezone.utc)
     recorder = StageRecorder()
@@ -610,6 +635,12 @@ def _run_scoring(video, track_objs, config, session, energy_mode: str = "fast", 
             log.exception("Scene detection failed: video_id=%s", video.id)
 
     console.print("  [bold]Scoring clips...[/bold]")
+    if config.ollama_enabled:
+        from yuu_clip.scoring.llm import check_llm_available
+        llm_ok, llm_reason = check_llm_available(config)
+        if not llm_ok:
+            _llm_unavailable_notice(llm_reason)
+
     from yuu_clip.db.models import HotWord, SensitiveTerm
     hot_words = session.query(HotWord).all()
     sensitive_terms = session.query(SensitiveTerm).all()
