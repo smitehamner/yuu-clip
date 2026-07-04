@@ -15,6 +15,7 @@ Schema overview:
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional
@@ -211,39 +212,15 @@ def _migrate(engine) -> None:
         if "UNIQUE (path)" in videos_ddl:
             _log.info("Migration: dropping UNIQUE(path) from videos (segments share parent path)")
             all_cols = ", ".join(row[1] for row in conn.execute(text("PRAGMA table_info(videos)")))
+            # Derive the new DDL from the live schema by stripping only the
+            # UNIQUE (path) fragment — never a hardcoded column list, which drifts
+            # as new columns are added by the ADD-COLUMN migrations above.
+            new_ddl = re.sub(r",\s*UNIQUE\s*\(\s*path\s*\)", "", videos_ddl)
+            new_ddl = re.sub(r"UNIQUE\s*\(\s*path\s*\)\s*,", "", new_ddl)
             conn.execute(text("PRAGMA foreign_keys=OFF"))
             conn.execute(text(f"CREATE TABLE videos_migration_tmp AS SELECT {all_cols} FROM videos"))
             conn.execute(text("DROP TABLE videos"))
-            conn.execute(text("""
-                CREATE TABLE videos (
-                    id INTEGER NOT NULL,
-                    path VARCHAR NOT NULL,
-                    filename VARCHAR NOT NULL,
-                    duration_ms INTEGER,
-                    fps FLOAT,
-                    width INTEGER,
-                    height INTEGER,
-                    status VARCHAR NOT NULL,
-                    created_at DATETIME NOT NULL,
-                    processed_at DATETIME,
-                    title TEXT,
-                    summary TEXT,
-                    timeline_json TEXT,
-                    context_names_json TEXT,
-                    clips_scored_at DATETIME,
-                    clips_scored_context_json TEXT,
-                    summarized_at DATETIME,
-                    summary_context_json TEXT,
-                    timeline_generated_at DATETIME,
-                    timeline_context_json TEXT,
-                    title_user TEXT,
-                    summary_user TEXT,
-                    parent_video_id INTEGER REFERENCES videos(id),
-                    segment_start_s REAL,
-                    segment_end_s REAL,
-                    PRIMARY KEY (id)
-                )
-            """))
+            conn.execute(text(new_ddl))
             conn.execute(text(f"INSERT INTO videos ({all_cols}) SELECT {all_cols} FROM videos_migration_tmp"))
             conn.execute(text("DROP TABLE videos_migration_tmp"))
             conn.execute(text("PRAGMA foreign_keys=ON"))

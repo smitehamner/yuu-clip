@@ -252,11 +252,12 @@ they're discoverable. See [COMPLETED.md](COMPLETED.md#code-quality-review-of-the
 - [x] **Actionable GPU "running hot" warn toast** — done, 2026-07-04. The warn toast now tells
   the user what happens next (auto-pause at N°C, or that auto-pause is off and to pause
   manually); `/api/status` gained `thermal_autopause_enabled` + `thermal_pause_c`.
-- [ ] **Legacy `UNIQUE(path)` videos-table migration** — on an old DB still carrying the
-  pre-roadmap schema, the table-recreation block in `db/models.py` hardcodes a column subset
-  and would fail against the new `source_*`/`proxy_*` columns → startup crash. Unreachable on
-  fresh or already-migrated DBs; deferred under the standing "wipe-fresh is fine while sole
-  user" stance. **Revisit before distribution** — a shipped user can't wipe fresh.
+- [x] **Legacy `UNIQUE(path)` videos-table migration** — done, 2026-07-04. The table-recreation
+  block in `db/models.py` no longer hardcodes a column subset; it derives the new DDL from the
+  live `videos` schema by stripping only the `UNIQUE (path)` fragment, so it can't drift as
+  columns are added. Regression test in `tests/test_db_migrations.py` runs `_migrate` against a
+  legacy DB (UNIQUE(path) + pre-`source_*`/`proxy_*` columns) and asserts no crash, data intact,
+  constraint gone, and idempotency. See [COMPLETED.md](COMPLETED.md).
 
 ---
 

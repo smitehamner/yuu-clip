@@ -15,6 +15,59 @@ def _column_names(engine, table: str) -> set[str]:
         return {row[1] for row in conn.execute(text(f"PRAGMA table_info({table})"))}
 
 
+# A videos table as it existed when the UNIQUE(path)-drop migration was written:
+# it carries UNIQUE (path) but predates the later source_*/proxy_*/analyze_*
+# columns. On a real legacy DB the ADD-COLUMN loop adds those *before* the
+# constraint-drop block runs, which is exactly what used to crash the recreation.
+_LEGACY_VIDEOS_DDL = """
+CREATE TABLE videos (
+    id INTEGER NOT NULL,
+    path VARCHAR NOT NULL,
+    filename VARCHAR NOT NULL,
+    duration_ms INTEGER,
+    fps FLOAT,
+    width INTEGER,
+    height INTEGER,
+    status VARCHAR NOT NULL,
+    created_at DATETIME NOT NULL,
+    processed_at DATETIME,
+    title TEXT,
+    summary TEXT,
+    timeline_json TEXT,
+    context_names_json TEXT,
+    clips_scored_at DATETIME,
+    clips_scored_context_json TEXT,
+    summarized_at DATETIME,
+    summary_context_json TEXT,
+    timeline_generated_at DATETIME,
+    timeline_context_json TEXT,
+    title_user TEXT,
+    summary_user TEXT,
+    parent_video_id INTEGER REFERENCES videos(id),
+    segment_start_s REAL,
+    segment_end_s REAL,
+    PRIMARY KEY (id),
+    UNIQUE (path)
+)
+"""
+
+
+def _build_legacy_videos_db(db_path: Path):
+    """Full current schema for the sibling tables, but a legacy videos table."""
+    engine = make_engine(db_path)
+    with engine.begin() as conn:
+        conn.execute(text("DROP TABLE videos"))
+        conn.execute(text(_LEGACY_VIDEOS_DDL))
+    return engine
+
+
+def _videos_ddl(engine) -> str:
+    with engine.connect() as conn:
+        return conn.execute(text(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='videos'"
+        )).scalar()
+
+
 class TestScoredAtBackfillMigration:
     """clip_candidates.scored_at is backfilled from the parent video's
     clips_scored_at so pre-existing scored clips don't start looking unscored."""
@@ -75,3 +128,63 @@ class TestScoredAtBackfillMigration:
                 "SELECT scored_at FROM clip_candidates WHERE id = :id"
             ), {"id": clip_id}).scalar()
         assert scored_at is not None
+
+
+class TestDropUniquePathMigration:
+    """The UNIQUE(path) drop recreates the videos table. It must derive the new
+    DDL from the live schema (never a hardcoded column list), so newer columns
+    added by the ADD-COLUMN loop above it don't crash the INSERT ... SELECT."""
+
+    def test_drops_unique_path_on_legacy_db_with_newer_columns(self, tmp_path: Path):
+        engine = _build_legacy_videos_db(tmp_path / "legacy.db")
+        created = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        # Distinct paths: a legacy DB that still enforces UNIQUE(path) cannot
+        # contain segment rows sharing their parent's path — those become
+        # possible only once the constraint is gone (asserted below).
+        with engine.begin() as conn:
+            conn.execute(text(
+                "INSERT INTO videos (id, path, filename, status, created_at, title) "
+                "VALUES (1, '/vids/a.mkv', 'a.mkv', 'done', :created, 'Session A')"
+            ), {"created": created})
+            conn.execute(text(
+                "INSERT INTO videos (id, path, filename, status, created_at, title) "
+                "VALUES (2, '/vids/b.mkv', 'b.mkv', 'done', :created, 'Session B')"
+            ), {"created": created})
+
+        _migrate(engine)  # must not raise despite source_*/proxy_* now present
+
+        ddl = _videos_ddl(engine)
+        assert "UNIQUE (path)" not in ddl
+        assert "source_url" in _column_names(engine, "videos")
+        with engine.connect() as conn:
+            rows = {r[0]: r[1] for r in conn.execute(text(
+                "SELECT id, title FROM videos ORDER BY id"
+            ))}
+        assert rows == {1: "Session A", 2: "Session B"}
+
+        # Idempotent: the drop block is skipped on a second pass.
+        ddl_before_second = _videos_ddl(engine)
+        _migrate(engine)
+        assert _videos_ddl(engine) == ddl_before_second
+        with engine.connect() as conn:
+            assert {r[0]: r[1] for r in conn.execute(text(
+                "SELECT id, title FROM videos ORDER BY id"
+            ))} == {1: "Session A", 2: "Session B"}
+
+        # The reason the drop exists: two segments may now share their parent's path.
+        with engine.begin() as conn:
+            conn.execute(text(
+                "INSERT INTO videos (id, path, filename, status, created_at, "
+                "parent_video_id, segment_start_s, segment_end_s) "
+                "VALUES (3, '/vids/a.mkv', 'a.mkv', 'done', :created, 1, 0.0, 10.0)"
+            ), {"created": created})
+            conn.execute(text(
+                "INSERT INTO videos (id, path, filename, status, created_at, "
+                "parent_video_id, segment_start_s, segment_end_s) "
+                "VALUES (4, '/vids/a.mkv', 'a.mkv', 'done', :created, 1, 10.0, 20.0)"
+            ), {"created": created})
+        with engine.connect() as conn:
+            segment_paths = [r[0] for r in conn.execute(text(
+                "SELECT path FROM videos WHERE parent_video_id = 1 ORDER BY id"
+            ))]
+        assert segment_paths == ["/vids/a.mkv", "/vids/a.mkv"]

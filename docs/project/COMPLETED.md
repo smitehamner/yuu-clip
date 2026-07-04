@@ -6,6 +6,28 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) — see the
 
 ---
 
+## Legacy UNIQUE(path) videos-table migration crash fixed (2026-07-04)
+
+Pre-distribution robustness fix. `db/models.py::_migrate()` drops the legacy
+`UNIQUE (path)` constraint (segments share their parent's path) by recreating the
+`videos` table. The recreation used a **hardcoded** `CREATE TABLE videos (...)` column
+list, but the row-copy `INSERT INTO videos ({all_cols}) SELECT {all_cols}` reads
+`all_cols` live from `PRAGMA table_info`. On an old DB the ADD-COLUMN loop above the
+block had already added the roadmap `source_*`/`proxy_*`/`analyze_*` columns, so
+`all_cols` included columns the hardcoded schema omitted → `table videos has no column
+named source_url` → **the server wouldn't start**. Unreachable on fresh/already-migrated
+DBs, but a shipped user can't wipe fresh.
+
+- **Fix**: derive the new DDL from the live `videos` DDL (already fetched for the
+  `"UNIQUE (path)" in ...` guard) by stripping just the `UNIQUE (path)` fragment (both
+  comma forms) via regex. This preserves the exact current column set, types, PK, and the
+  `parent_video_id` self-FK regardless of future columns — it can never drift again. The
+  `PRAGMA foreign_keys=OFF/ON` fence and the two INFO log lines are unchanged.
+- **Test**: `tests/test_db_migrations.py::TestDropUniquePathMigration` builds a legacy
+  `videos` table (UNIQUE(path) + only the pre-`source_*`/`proxy_*` columns) with real rows,
+  runs `_migrate`, and asserts it doesn't raise, rows survive intact, `UNIQUE (path)` is gone,
+  a second `_migrate` is a no-op, and post-drop two segments can now share their parent's path.
+
 ## Clearer failures for missing services: LLM pre-flight + model-download errors (2026-07-04)
 
 Two "works on my machine" gaps where a missing host dependency failed opaquely:
