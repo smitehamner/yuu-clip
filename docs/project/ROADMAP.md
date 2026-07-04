@@ -11,6 +11,30 @@
 | 5 | Post-launch polish | Pending |
 | 6 | Advanced features | Pending |
 
+## Implementation plans (written 2026-07-04)
+
+Every open Phase 5/6 item below (except copyright content detection, which
+stays deferred) has a detailed plan in
+[docs/dev/plans/roadmap-close-2026-07/](../dev/plans/roadmap-close-2026-07/INDEX.md)
+— see its INDEX for the recommended order (Waves A–D), sizes, dependencies,
+and the locked design decisions. Implement one plan per session.
+
+| Item | Plan |
+|---|---|
+| Voiceprint threshold validation + borderline confirmation band | 01 |
+| Laugh score as separate attribute | 02 |
+| Project switcher | 03 |
+| Multi-session grouping (full unified timeline) | 04 |
+| Caption style options | 05 |
+| Vertical crop / Shorts export | 06 |
+| Clip export editor | 07 |
+| SpeechBrain diarization backend | 08 |
+| Transcript name correction | 09 |
+| Model selection + capability gating | 10 |
+| Image-based clip analysis | 11 |
+| Content-type presets | 12 |
+| Generalise for any video content | 13 |
+
 ---
 
 ## Phase 1 — Core pipeline (Done)
