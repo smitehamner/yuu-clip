@@ -207,6 +207,14 @@ class TestExportNameTemplatePreview:
         page.click("#btn-settings-header")
         page.wait_for_selector("#settings-panel.visible", timeout=3000)
         page.wait_for_selector("#s-export-name-template", timeout=3000)
+        # openSettings() applies the fetched config (which resets the template
+        # field and re-renders the preview) asynchronously after the panel is
+        # visible, and populates #s-paths-display last. Wait for that to finish,
+        # or the async apply races the test's fill and overwrites it.
+        page.wait_for_function(
+            "document.getElementById('s-paths-display').textContent.trim().length > 0",
+            timeout=3000,
+        )
 
     def test_preview_shows_rendered_default_template(self, page: Page):
         self._open_settings(page)

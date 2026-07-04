@@ -386,6 +386,50 @@ class TestSegmentStartTimes:
         assert self._starts([0.2, 0.2], 0.5) == [0.0, 0.0]
 
 
+class TestSelectClipExportFile:
+    """reel._select_clip_export_file — which exported file a reel build uses when a
+    clip has several per-preset formats. Must deterministically prefer the default
+    (presetless) export and never silently change format between runs."""
+
+    def _clip_and_video(self):
+        import types
+        clip = types.SimpleNamespace(id=1, start_hms="0:15", video_id=1)
+        video = types.SimpleNamespace(filename="session.mkv")
+        return clip, video
+
+    def _select(self, export_dir):
+        from yuu_clip.export_naming import DEFAULT_EXPORT_NAME_TEMPLATE
+        from yuu_clip.reel import _select_clip_export_file
+        clip, video = self._clip_and_video()
+        return _select_clip_export_file(clip, video, export_dir, DEFAULT_EXPORT_NAME_TEMPLATE)
+
+    def test_returns_none_when_no_export_files(self, tmp_path):
+        assert self._select(tmp_path) is None
+
+    def test_returns_default_export_when_only_default_exists(self, tmp_path):
+        (tmp_path / "session_clip1_0-15.mp4").write_bytes(b"x")
+        assert self._select(tmp_path) == tmp_path / "session_clip1_0-15.mp4"
+
+    def test_prefers_default_over_a_preset_format(self, tmp_path):
+        (tmp_path / "session_clip1_0-15.mkv").write_bytes(b"x")
+        (tmp_path / "session_clip1_0-15_youtube-1080p.mp4").write_bytes(b"x")
+        assert self._select(tmp_path) == tmp_path / "session_clip1_0-15.mkv"
+
+    def test_falls_back_to_most_recent_preset_when_no_default(self, tmp_path):
+        import os
+        older = tmp_path / "session_clip1_0-15_discord-10mb.mp4"
+        newer = tmp_path / "session_clip1_0-15_youtube-1080p.mp4"
+        older.write_bytes(b"x")
+        newer.write_bytes(b"x")
+        os.utime(older, (1_000_000, 1_000_000))
+        os.utime(newer, (2_000_000, 2_000_000))
+        assert self._select(tmp_path) == newer
+
+    def test_ignores_non_video_sidecars_with_base_prefix(self, tmp_path):
+        (tmp_path / "session_clip1_0-15_youtube-1080p.srt").write_text("1\n", encoding="utf-8")
+        assert self._select(tmp_path) is None
+
+
 def _seed_transcribed_project(tmp_path):
     """A project DB with one approved clip carrying one transcript segment.
 

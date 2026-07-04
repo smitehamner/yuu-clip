@@ -59,8 +59,15 @@ class TestHotwordSettingsSection:
         try:
             _open_settings(page)
             row = page.locator(f'[data-hotword-row="{hw["id"]}"]')
-            row.locator(".hw-boost").fill("0.4")
-            row.locator(".hw-boost").dispatch_event("change")
+            # Set the value and fire exactly one change event. Playwright's
+            # fill() dispatches change nondeterministically here, so fill + an
+            # explicit dispatch races between one and two saves (two stacked
+            # "Hot-word saved" toasts -> strict-mode violation) while fill alone
+            # sometimes fires no change at all (no save, no toast). Driving a
+            # single controlled change removes both flakes.
+            row.locator(".hw-boost").evaluate(
+                "el => { el.value = '0.4'; el.dispatchEvent(new Event('change', {bubbles: true})); }"
+            )
             expect(page.locator("#toast-container .toast.success")).to_contain_text("Hot-word saved")
             saved = page.evaluate(
                 "(id) => fetch('/api/hotwords').then(r => r.json())"

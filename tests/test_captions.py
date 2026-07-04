@@ -552,6 +552,54 @@ class TestExportSrtSidecars:
 
 
 # ---------------------------------------------------------------------------
+# subtitles.py — refresh_export_sidecars: only rewrites captions the user
+# already has on disk, keyed to the current export filename template.
+# ---------------------------------------------------------------------------
+
+class TestRefreshExportSidecars:
+    def _make_clip(self, start_ms=5_000, end_ms=10_000):
+        import datetime
+        import types
+
+        seg = types.SimpleNamespace(start_ms=5_000, end_ms=8_000, text="hello")
+        tx = types.SimpleNamespace(
+            audio_track_id=1, created_at=datetime.datetime(2024, 1, 1), segments=[seg],
+        )
+        track = types.SimpleNamespace(id=1, label="player_voice", do_transcribe=True, transcripts=[tx])
+        return types.SimpleNamespace(
+            id=1, start_hms="0:05", start_ms=start_ms, end_ms=end_ms,
+            start_offset=0.0, end_offset=0.0, clip_transcripts=[],
+            video=types.SimpleNamespace(filename="session.mkv", audio_tracks=[track]),
+        )
+
+    def test_no_op_when_clip_was_never_exported(self, tmp_path):
+        from yuu_clip.export_naming import DEFAULT_EXPORT_NAME_TEMPLATE
+        from yuu_clip.subtitles import refresh_export_sidecars
+
+        written = refresh_export_sidecars(self._make_clip(), tmp_path, DEFAULT_EXPORT_NAME_TEMPLATE)
+        assert written == []
+        assert list(tmp_path.glob("*.srt")) == []
+
+    def test_regenerates_when_a_matching_sidecar_already_exists(self, tmp_path):
+        from yuu_clip.export_naming import DEFAULT_EXPORT_NAME_TEMPLATE
+        from yuu_clip.subtitles import refresh_export_sidecars
+
+        (tmp_path / "session_clip1_0-05.srt").write_text("stale\n", encoding="utf-8")
+        written = refresh_export_sidecars(self._make_clip(), tmp_path, DEFAULT_EXPORT_NAME_TEMPLATE)
+        assert [p.name for p in written] == ["session_clip1_0-05.srt"]
+        assert "hello" in (tmp_path / "session_clip1_0-05.srt").read_text(encoding="utf-8")
+
+    def test_no_op_when_only_a_different_stem_sidecar_exists(self, tmp_path):
+        from yuu_clip.export_naming import DEFAULT_EXPORT_NAME_TEMPLATE
+        from yuu_clip.subtitles import refresh_export_sidecars
+
+        (tmp_path / "old_template_name.srt").write_text("1\n", encoding="utf-8")
+        written = refresh_export_sidecars(self._make_clip(), tmp_path, DEFAULT_EXPORT_NAME_TEMPLATE)
+        assert written == []
+        assert (tmp_path / "old_template_name.srt").read_text(encoding="utf-8") == "1\n"
+
+
+# ---------------------------------------------------------------------------
 # subtitles.py — collect_clip_subtitles: clip_transcripts override
 # ---------------------------------------------------------------------------
 
