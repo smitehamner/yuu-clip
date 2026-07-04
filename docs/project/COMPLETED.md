@@ -6,6 +6,80 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) — see the
 
 ---
 
+## Clearer failures for missing services: LLM pre-flight + model-download errors (2026-07-04)
+
+Two "works on my machine" gaps where a missing host dependency failed opaquely:
+
+- **LLM scoring silently skipped when Ollama is down** (`cli/_pipeline.py`,
+  `scoring/llm.py`). When the LLM backend was unreachable, `ScoringEngine` dropped the
+  LLM scorer with only a `log.warning` — the user got clips ranked without the AI score
+  and no visible reason. Now a **pre-flight check runs before transcription starts**
+  (`_preflight_llm_check`): if scoring is enabled and the backend isn't reachable, it
+  warns immediately so the user can start Ollama *during* the slow transcription and have
+  it used this run. A second notice at scoring time covers the case where they didn't.
+  Silent when scoring is off or the LLM is intentionally disabled in Settings.
+- **Whisper model-download failure was an opaque traceback** (`transcribe/whisper_runner.py`).
+  A failed first-run model download (offline / HF unreachable) surfaced as a raw
+  `FAIL transcription: <network error>`. Load failures now raise `TranscriptionModelError`
+  with an actionable message ("check your connection and try again … or the model may be
+  corrupt — retry to re-download"), preserving the original detail.
+- Covered by `tests/test_preflight_llm.py` and additions to `tests/test_whisper_fallback.py`;
+  `tests/test_analyze.py` scoring-isolation test updated to pass a real `Config`.
+
+## GPU transcription: graceful CPU fallback + one-click CUDA libraries (2026-07-04)
+
+On a machine with an NVIDIA GPU + driver but no CUDA runtime libraries, Whisper
+loading crashed the whole analysis with `cublas64_12.dll is not found or cannot be
+loaded` (CTranslate2 needs cuBLAS/cuDNN, which the CUDA toolkit or the
+`nvidia-cublas-cu12` / `nvidia-cudnn-cu12` wheels provide). Now handled end to end:
+
+- **Graceful fallback** (`transcribe/whisper_runner.py`). When CUDA model load fails,
+  the run falls back to CPU (int8) with a plain-English notice instead of aborting.
+- **DLL wiring** (`_register_cuda_dll_dirs`). The nvidia wheels install DLLs under
+  `site-packages/nvidia/<lib>/bin`, which isn't on the Windows DLL search path — so pip
+  alone wouldn't fix the crash. We now `os.add_dll_directory()` those dirs before loading
+  the CUDA backend (idempotent, Windows-only).
+- **One-click install.** New `cuda-libs` slug in `web/routes/analyze.py` `_INSTALLABLE`;
+  an "Enable GPU acceleration" button in Settings → Hardware and in the first-run wizard
+  (offered, not auto-installed, only when an NVIDIA GPU is detected and neither the
+  system toolkit nor the wheels are present). The wizard previously pointed users at the
+  ~3 GB CUDA Toolkit; it now installs the ~1 GB wheels, the lighter correct path.
+- **About page** lists the two nvidia wheels (NVIDIA proprietary, redistributable —
+  policy-compatible; pulled from PyPI, not bundled).
+- Covered by `tests/test_whisper_fallback.py` (fallback, DLL registration, no-retry).
+
+## Quality-review follow-ups: URL-import cancel, actionable thermal toast, NaN guard (2026-07-04)
+
+Closing out the actionable follow-ups surfaced by the review pass below.
+
+- **URL-import download cancel** (`web/routes/imports.py`, `web/sse.py`, `web/deps.py`,
+  `static/analyze.js`, `static/utils.js`). The Import-from-URL download now has a Stop
+  button. `POST /api/import-url/cancel` terminates the yt-dlp subprocess tree
+  (`terminate_process_tree`) and sets `ctx.import_cancelled`; the SSE stream emits
+  `[Import cancelled]` instead of a generic error. `subprocess_sse`'s old analyze-only
+  `is_analyze` cancel flag was generalized to `cancel_flag_attr`/`cancel_message` (no
+  caller passed `is_analyze=True` — the real analyze cancel runs through `AnalyzeJob`).
+  The single job-header Cancel button now dispatches per-job: `setJobCancel({url, title,
+  body, confirm, logMsg})` sets the active cancel config; `startJobUI` resets it to the
+  analyze default. Covered by new tests in `tests/test_url_import.py` (cancel route,
+  cancel-message emission, stale-flag-not-leaked).
+- **Actionable "GPU running hot" warn toast** (`web/routes/analyze.py`, `static/utils.js`).
+  `/api/status` now returns `thermal_autopause_enabled` + `thermal_pause_c`; the warn toast
+  tells the user what happens next (auto-pause at N°C, or that auto-pause is off and to pause
+  manually) instead of just stating the temperature.
+- **"NaN sec total" guard + standard non-finite formatting** (`static/clips.js`,
+  `static/utils.js`). A clip missing `start_s`/`end_s` poisoned the summed clip-stats
+  duration into `NaN sec total`. New shared helpers `finiteOr(value, fallback)` and
+  `fmtDuration(seconds, fallback)` are the standard way to render a computed number —
+  non-finite values (NaN/Infinity from partial data) now degrade to a plain-English
+  placeholder (`—` / `unknown`) rather than surfacing raw. The clip-stats sum also skips
+  non-finite per-clip lengths. Covered by `tests/test_ui_utils.py`.
+- **Concurrent-UI-test guard** (`scripts/test-ui.ps1`). The UI suite shares the single dev
+  server on :8080, so two runs at once (e.g. two Claude sessions) corrupted each other's
+  DB state and produced spurious failures. The script now takes an atomic lock file
+  (`test-ui.lock`, gitignored); a second run refuses with a clear message, and a lock older
+  than 15 min is reclaimed as stale.
+
 ## Code-quality review of the roadmap-2026-07 slice (2026-07-04)
 
 A full multi-phase quality pass (test integrity → bug hunt → coverage → refactor →
