@@ -6,6 +6,39 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) — see the
 
 ---
 
+## Code-quality review of the roadmap-2026-07 slice (2026-07-04)
+
+A full multi-phase quality pass (test integrity → bug hunt → coverage → refactor →
+logging → docs → UX/UI → regression) over Plans 01–10. Suite green throughout:
+API 1484 passed, UI 573 passed, lint clean.
+
+- **Bug fix — malformed export filename template crash** (`yuu_clip/export_naming.py`).
+  A stray/unbalanced brace (e.g. `clip_{video}}`) passed `validate_export_name_template`
+  (its `{(\w*)}` regex only caught unknown placeholders) and then raised an uncaught
+  `ValueError` in `export_base_stem` — which broke every export for the recording *and*
+  500'd the clip-list has-export badge endpoints that call it in a loop, effectively
+  bricking the recording detail view from one bad character. Validation now trial-formats
+  the template and rejects unbalanced braces with a plain-English message; `export_base_stem`
+  also catches `ValueError` as a fallback for any already-saved bad template. Covered by
+  new tests in `tests/test_export_naming.py`.
+- **Diagnosability — URL import logging** (`yuu_clip/url_import.py`, `yuu_clip/cli/import_url.py`).
+  The raw yt-dlp `DownloadError` cause (auth wall vs 404 vs network vs stale yt-dlp) was
+  discarded before the friendly message; it's now logged at WARNING with the URL, plus
+  download start/complete/size and a "reported success but file missing" ERROR. The
+  `import-url` subprocess also never wired up `configure_logging`, so none of its logging
+  reached `yuu-clip.log` — now fixed.
+- **Diagnosability — thermal auto-pause + sensitive-term rescans** (`web/routes/analyze.py`,
+  `web/routes/sensitive.py`). "Why did analysis pause?" now logs the temp + configured
+  threshold; sensitive-term create/update/delete log the rescanned/flagged clip counts
+  (never the term text).
+- **Refactor** — `scoring/engine.py:apply_hotword_boosts` decomposed into two pure helpers
+  (behavior byte-identical).
+- **UX** — Enter now submits the Import-from-URL field (`index.html`).
+- **Tests** — 2 pre-existing flaky UI tests fixed (settings preview race, hotwords
+  double-save); coverage added for reel export-format selection and subtitle sidecar refresh.
+- Keep-as-is decisions and review-discovered follow-ups recorded in
+  [REVIEW_DECISIONS.md](../dev/REVIEW_DECISIONS.md) and [ROADMAP.md](ROADMAP.md).
+
 ## Electron native-file-protocol media transport (implemented, manual packaged-app verification pending, 2026-07-03)
 
 Roadmap plan 10 (`docs/dev/plans/roadmap-2026-07/10-electron-file-protocol.md`), the

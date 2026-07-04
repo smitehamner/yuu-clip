@@ -240,6 +240,28 @@ Complex, specialized, or AI-heavy features that are valuable but don't need to b
 
 ---
 
+## Follow-ups from the 2026-07-04 quality review
+
+Surfaced during the code-quality pass over the roadmap-2026-07 slice; recorded here so
+they're discoverable. See [COMPLETED.md](COMPLETED.md#code-quality-review-of-the-roadmap-2026-07-slice-2026-07-04).
+
+- [ ] **URL-import download cancel** — the Import-from-URL download streams progress/speed/ETA
+  but has no Stop button (`analyze.js` calls `streamSSE(..., cancellable=false)`; no
+  `/api/import-url/cancel` route exists). A user who pastes the wrong link or a multi-hour
+  Twitch VOD must wait it out or kill the app. Needs a backend cancel route that terminates
+  the yt-dlp subprocess, then `cancellable=true` + a cancel handler in the UI. *(High value
+  for the distribution audience — Analyze already has Cancel; import should match.)*
+- [ ] **Actionable GPU "running hot" warn toast** — the warn toast (`utils.js`) just states
+  the temp, unlike the auto-pause toast which says what happens next. Append what will happen
+  when auto-pause is enabled (decide whether to surface the configured pause threshold). *(Low.)*
+- [ ] **Legacy `UNIQUE(path)` videos-table migration** — on an old DB still carrying the
+  pre-roadmap schema, the table-recreation block in `db/models.py` hardcodes a column subset
+  and would fail against the new `source_*`/`proxy_*` columns → startup crash. Unreachable on
+  fresh or already-migrated DBs; deferred under the standing "wipe-fresh is fine while sole
+  user" stance. **Revisit before distribution** — a shipped user can't wipe fresh.
+
+---
+
 ## Future considerations (no phase yet)
 
 Items wanted long-term but not yet assigned to a phase.

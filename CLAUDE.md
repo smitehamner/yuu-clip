@@ -211,7 +211,7 @@ Use these glossary terms in **conversation** too, not just in code. If discussin
 - Dynamic button lists must use event delegation (`el.onclick = e => { ... }`) not inline `onclick=` attributes with JS values — inline attributes break when names contain quotes
 - SSE streams are tracked in `_activeES`; call `_activeES.close()` before starting a new one
 - `startJobUI` / `endJobUI` / `streamSSE` are the canonical helpers for long-running jobs
-- **Panel flows**: a multi-step flow (Split Editor; future manual-clip picker, etc.) must take
+- **Panel flows**: a multi-step flow (Split Editor, manual-clip picker, etc.) must take
   over the main detail panel via `PanelNav.open()` (`panelnav.js`), not a modal. Tabs are only
   for navigation *within* a single view. `PanelNav.open({id, title, render, isDirty, onClose})`
   handles the `← Back` breadcrumb, the stack (for future nesting), and the shared discard
