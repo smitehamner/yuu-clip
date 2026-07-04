@@ -33,6 +33,38 @@ def _compute_overall(cfg: "Config", funny: float, dramatic: float, action: float
     ) / dim_total
 
 
+def _collect_hotword_matches(
+    clip: "ClipCandidate", hot_words: list["HotWord"], term_by_key: dict
+) -> list[dict]:
+    from yuu_clip.scoring.textmatch import MatchTerm, find_matches, strip_speaker_prefixes
+
+    text = strip_speaker_prefixes(clip.transcript_excerpt or "")
+    text_terms = [
+        MatchTerm(phrase=hw.phrase, mode=hw.match_mode)
+        for hw in hot_words
+        if hw.enabled and hw.match_mode in ("exact", "case_insensitive")
+    ]
+    text_matches = find_matches(text, text_terms) if text else []
+    return [
+        {"phrase": m.phrase, "mode": m.mode, "count": m.count} for m in text_matches
+    ] + [
+        m for m in (clip.hotword_matches or [])
+        if m.get("mode") == "semantic" and (m.get("phrase"), "semantic") in term_by_key
+    ]
+
+
+def _clamped_hotword_boost(matches: list[dict], term_by_key: dict) -> dict[str, float]:
+    boost = {"overall": 0.0, "funny": 0.0, "dramatic": 0.0, "action": 0.0}
+    for match in matches:
+        hw = term_by_key.get((match["phrase"], match["mode"]))
+        if hw:
+            boost[hw.target] += hw.boost
+    return {
+        target: max(-_HOTWORD_TARGET_CLAMP, min(_HOTWORD_TARGET_CLAMP, value))
+        for target, value in boost.items()
+    }
+
+
 def apply_hotword_boosts(clip: "ClipCandidate", hot_words: list["HotWord"], config: "Config") -> None:
     """Match enabled hot-words against *clip*'s transcript excerpt and apply their
     score boosts, storing the matches and the boost actually applied.
@@ -49,31 +81,9 @@ def apply_hotword_boosts(clip: "ClipCandidate", hot_words: list["HotWord"], conf
     list, and dropping them if their entry was since deleted) so a text-only rescan
     never wipes semantic results.
     """
-    from yuu_clip.scoring.textmatch import MatchTerm, find_matches, strip_speaker_prefixes
-
     term_by_key = {(hw.phrase, hw.match_mode): hw for hw in hot_words if hw.enabled}
-
-    text = strip_speaker_prefixes(clip.transcript_excerpt or "")
-    text_terms = [
-        MatchTerm(phrase=hw.phrase, mode=hw.match_mode)
-        for hw in hot_words
-        if hw.enabled and hw.match_mode in ("exact", "case_insensitive")
-    ]
-    text_matches = find_matches(text, text_terms) if text else []
-    matches = [
-        {"phrase": m.phrase, "mode": m.mode, "count": m.count} for m in text_matches
-    ] + [
-        m for m in (clip.hotword_matches or [])
-        if m.get("mode") == "semantic" and (m.get("phrase"), "semantic") in term_by_key
-    ]
-
-    new_boost = {"overall": 0.0, "funny": 0.0, "dramatic": 0.0, "action": 0.0}
-    for m in matches:
-        hw = term_by_key.get((m["phrase"], m["mode"]))
-        if hw:
-            new_boost[hw.target] += hw.boost
-    for target in new_boost:
-        new_boost[target] = max(-_HOTWORD_TARGET_CLAMP, min(_HOTWORD_TARGET_CLAMP, new_boost[target]))
+    matches = _collect_hotword_matches(clip, hot_words, term_by_key)
+    new_boost = _clamped_hotword_boost(matches, term_by_key)
 
     old_boost = clip.hotword_boost or {}
     sub_score_changed = any(
