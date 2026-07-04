@@ -409,6 +409,16 @@ The internal voice embedding that lets a **Speaker** be re-identified across dia
 
 ---
 
+### Voice match (borderline confirmation)
+
+When a re-diarized voice lands just below the re-attach threshold (within a fixed 0.10 band), instead of silently minting a fresh "Speaker N" the app records the near miss and asks the creator: **"Might be {name} (NN% voice match)"** with **Same voice** / **Different voice** buttons on the Speakers card. "Same voice" merges the new Speaker into the suggested one (averaging voiceprints); "Different voice" dismisses the suggestion.
+
+- **Code:** `Speaker.suggested_match_id`, `Speaker.suggested_match_score`; routes `POST /api/speakers/{id}/confirm-match` and `/reject-match`
+- **User-facing terms:** "voice match", "Same voice", "Different voice" — not "cosine", "threshold", or "voiceprint"
+- **Notes:** On same-audio re-diarize this rarely fires (a voice's own print re-attaches at ~1.00); it earns its keep for degraded or cross-session audio. See `docs/dev/plans/roadmap-close-2026-07/01-voiceprint-validation.md`.
+
+---
+
 ## Clips
 
 ### Clip

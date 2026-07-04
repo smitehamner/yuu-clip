@@ -21,7 +21,7 @@ and the locked design decisions. Implement one plan per session.
 
 | Item | Plan |
 |---|---|
-| Voiceprint threshold validation + borderline confirmation band | 01 |
+| ~~Voiceprint threshold validation + borderline confirmation band~~ (done 2026-07-04) | 01 |
 | Laugh score as separate attribute | 02 |
 | Project switcher | 03 |
 | Multi-session grouping (full unified timeline) | 04 |
@@ -96,14 +96,13 @@ regular users.
 
 - [x] **Panel navigation UX direction** — multi-step flows take over the main detail panel (not modals); `← Back` breadcrumb; discard prompt on unsaved changes; tabs only for within-view navigation. Framework (`panelnav.js`) + Split Editor migration landed; remaining flows (reel builder, analyze panel, contexts) migrate opportunistically.
 
-- [ ] **Validate the voiceprint re-attach threshold** — `Config.speaker_match_threshold` (default
-  0.75) shipped as an untuned conservative guess (see `7fb9155`), and every speaker-naming feature
-  built since — voiceprint re-attach, name inference, per-speaker colors — inherits its
-  correctness. Decide the validation method first (a one-off manual QA pass re-analyzing a few
-  recordings with previously-named speakers and checking matches/no-matches by hand, vs. a small
-  labeled benchmark of known-good/known-bad voice pairs wired into a regression test), then run it
-  and adjust the default if warranted. See the "Speaker naming" entry in Phase 6 for the full
-  re-attach mechanism this threshold gates.
+- [x] **Validate the voiceprint re-attach threshold** (done, 2026-07-04) — QA pass over three real
+  recordings (see plan 01 Results): a voice's own print re-attaches at ~1.00, while the highest
+  cosine between two *different* voices across 214 pairs was 0.647 — a wide clean gap, so the 0.75
+  default (and this project's 0.80 override) is well-placed. No false matches, no missed re-attaches;
+  no benchmark corpus was warranted. Re-diarize now streams the per-cluster similarity so the
+  threshold stays inspectable. Kept the default at 0.75. See
+  `docs/dev/plans/roadmap-close-2026-07/01-voiceprint-validation.md`.
 
 - [x] **Pause / resume analysis** (done, 2026-07-03) — pause a running analysis job between videos (finish the video currently in progress, then hold before starting the next). Two trigger modes: **manual** ("Pause after current video" button in the job header) and **automatic** (triggered by hardware health thermal threshold). On resume, the queue continues from the next unprocessed video. Pause state is in-memory / flag-file only and does not survive a server restart. Applies to both single-video and batch analysis (and the JS sequential-segment runners for pre-split/re-split). See `docs/dev/plans/roadmap-2026-07/01-pause-hardware-health.md`.
 
@@ -181,9 +180,11 @@ Complex, specialized, or AI-heavy features that are valuable but don't need to b
 
 - [ ] **Speaker naming — remaining pieces** — Phases 1–4 shipped (manual naming, voiceprint
   re-attach, sample playback, LLM name inference — see COMPLETED-archive.md; the re-attach threshold's
-  validation is tracked in Phase 5). Still open:
-  - *Borderline-match confirmation band* — a near-threshold voiceprint match should ask the user
-    instead of silently re-attaching or minting a fresh "Speaker N".
+  validation shipped in Phase 5). Still open:
+  - [x] *Borderline-match confirmation band* (done, 2026-07-04) — a near-threshold voiceprint match
+    (within 0.10 below the threshold) now mints the fresh Speaker as before but records the near miss;
+    the Speakers card shows "Might be **{name}** (NN% voice match)" with **Same voice** (merge, average
+    the voiceprints) / **Different voice** (dismiss) buttons. See plan 01.
   - *Deferred alternatives (weighed, not chosen for v1):* **project-wide speaker identity** — promote
     per-recording Speakers to a project-level voice by matching voiceprints across all recordings so a
     name applies everywhere (needs a merge/split UX, higher threshold, handles voice drift; hook: a

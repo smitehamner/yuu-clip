@@ -237,6 +237,79 @@ class TestVoiceprintMatch:
         assert speakers[1].name is None and speakers[1].display_index == 2
         session.close()
 
+    def test_in_band_mints_new_speaker_and_records_suggestion(self, tmp_path: Path):
+        from yuu_clip.transcribe.whisper_runner import _attach_speakers, _cosine_similarity
+
+        session = make_session(tmp_path / "v.db")
+        video = Video(path="x.mkv", filename="x.mkv", status="done")
+        session.add(video)
+        session.flush()
+
+        tx1 = self._seed_transcript(session, video.id, "SPEAKER_00")
+        _attach_speakers(session, video.id, tx1.id, {"SPEAKER_00": [1.0, 0.0]})
+        prior = session.query(Speaker).one()
+        prior.name = "Yuu"
+        session.flush()
+
+        # Cosine ≈ 0.697 — inside the [0.65, 0.75) band below the 0.75 default.
+        near_vector = [0.7, 0.72]
+        expected = _cosine_similarity(near_vector, [1.0, 0.0])
+        assert 0.65 <= expected < 0.75  # guards the test's own premise
+        tx2 = self._seed_transcript(session, video.id, "SPEAKER_00")
+        _attach_speakers(session, video.id, tx2.id, {"SPEAKER_00": near_vector})
+
+        speakers = session.query(Speaker).order_by(Speaker.display_index).all()
+        assert len(speakers) == 2  # minted, not re-attached onto Yuu
+        minted = speakers[1]
+        assert minted.name is None
+        assert minted.suggested_match_id == prior.id
+        assert minted.suggested_match_score == expected
+        session.close()
+
+    def test_below_band_mints_clean_with_no_suggestion(self, tmp_path: Path):
+        from yuu_clip.transcribe.whisper_runner import _attach_speakers
+
+        session = make_session(tmp_path / "v.db")
+        video = Video(path="x.mkv", filename="x.mkv", status="done")
+        session.add(video)
+        session.flush()
+
+        tx1 = self._seed_transcript(session, video.id, "SPEAKER_00")
+        _attach_speakers(session, video.id, tx1.id, {"SPEAKER_00": [1.0, 0.0]})
+        session.query(Speaker).one().name = "Yuu"
+        session.flush()
+
+        # Cosine ≈ 0.5 — below the band, so a clean mint with no suggestion.
+        tx2 = self._seed_transcript(session, video.id, "SPEAKER_00")
+        _attach_speakers(session, video.id, tx2.id, {"SPEAKER_00": [0.5, 0.87]})
+
+        minted = session.query(Speaker).order_by(Speaker.display_index).all()[1]
+        assert minted.suggested_match_id is None
+        assert minted.suggested_match_score is None
+        session.close()
+
+    def test_above_threshold_reattach_records_no_suggestion(self, tmp_path: Path):
+        from yuu_clip.transcribe.whisper_runner import _attach_speakers
+
+        session = make_session(tmp_path / "v.db")
+        video = Video(path="x.mkv", filename="x.mkv", status="done")
+        session.add(video)
+        session.flush()
+
+        tx1 = self._seed_transcript(session, video.id, "SPEAKER_00")
+        _attach_speakers(session, video.id, tx1.id, {"SPEAKER_00": [1.0, 0.0]})
+        speaker = session.query(Speaker).one()
+        speaker.name = "Yuu"
+        session.flush()
+
+        tx2 = self._seed_transcript(session, video.id, "SPEAKER_00")
+        _attach_speakers(session, video.id, tx2.id, {"SPEAKER_00": [0.99, 0.02]})
+
+        speaker = session.query(Speaker).one()  # single row → re-attached
+        assert speaker.suggested_match_id is None
+        assert speaker.suggested_match_score is None
+        session.close()
+
     def test_two_clusters_do_not_collapse_onto_one_prior(self, tmp_path: Path):
         from yuu_clip.transcribe.whisper_runner import _attach_speakers
 
@@ -551,6 +624,114 @@ class TestReassignSegmentSpeaker:
         client.put(f"/api/transcript-segments/{seg_id}/speaker", json={"speaker_id": sp2})
 
         assert "Mara" in srt.read_text(encoding="utf-8")
+
+
+class TestVoiceMatchRoutes:
+    def _db(self, project_dir: Path):
+        return make_session(project_dir / ".yuu-clip" / "project.db")
+
+    def _seed(self, project_dir: Path) -> tuple[int, int, int, int]:
+        """Seed a named prior speaker with a voiceprint and a freshly-minted speaker
+        that carries a borderline suggestion pointing at the prior, with one segment
+        attributed to the new speaker and a clip overlapping it.
+
+        Returns (video_id, prior_id, new_id, clip_id).
+        """
+        from yuu_clip.transcribe.whisper_runner import _serialize_voiceprint
+
+        db = self._db(project_dir)
+        video = db.query(Video).first()
+        track = db.query(AudioTrack).filter_by(video_id=video.id).first()
+        tx = Transcript(audio_track_id=track.id, model_name="base")
+        db.add(tx)
+        db.flush()
+        prior = Speaker(video_id=video.id, name="Yuu", display_index=1, confirmed=True,
+                        voiceprint=_serialize_voiceprint([1.0, 0.0, 0.0]))
+        db.add(prior)
+        db.flush()
+        new = Speaker(video_id=video.id, display_index=2,
+                      voiceprint=_serialize_voiceprint([0.0, 1.0, 0.0]),
+                      suggested_match_id=prior.id, suggested_match_score=0.7)
+        db.add(new)
+        db.flush()
+        db.add(TranscriptSegment(
+            transcript_id=tx.id, start_ms=0, end_ms=3000,
+            text="let's go go go", speaker_label="SPEAKER_01", speaker_id=new.id,
+        ))
+        clip = db.query(ClipCandidate).filter_by(video_id=video.id).order_by(ClipCandidate.start_ms).first()
+        db.commit()
+        ids = (video.id, prior.id, new.id, clip.id)
+        db.close()
+        return ids
+
+    def test_confirm_moves_segments_and_deletes_new_speaker(self, client, project_dir):
+        _video_id, prior_id, new_id, _clip_id = self._seed(project_dir)
+        resp = client.post(f"/api/speakers/{new_id}/confirm-match")
+        assert resp.status_code == 200
+        assert resp.json()["id"] == prior_id
+        assert resp.json()["display_name"] == "Yuu"
+
+        db = self._db(project_dir)
+        assert db.get(Speaker, new_id) is None
+        seg = db.query(TranscriptSegment).filter_by(speaker_label="SPEAKER_01").one()
+        assert seg.speaker_id == prior_id
+        db.close()
+
+    def test_confirm_averages_voiceprints(self, client, project_dir):
+        from yuu_clip.transcribe.whisper_runner import _deserialize_voiceprint
+        _video_id, prior_id, new_id, _clip_id = self._seed(project_dir)
+        client.post(f"/api/speakers/{new_id}/confirm-match")
+
+        db = self._db(project_dir)
+        merged = _deserialize_voiceprint(db.get(Speaker, prior_id).voiceprint)
+        db.close()
+        assert merged == [0.5, 0.5, 0.0]  # mean of [1,0,0] and [0,1,0]
+
+    def test_confirm_rebuilds_overlapping_clip_excerpt(self, client, project_dir):
+        _video_id, _prior_id, new_id, clip_id = self._seed(project_dir)
+        client.post(f"/api/speakers/{new_id}/confirm-match")
+
+        db = self._db(project_dir)
+        excerpt = db.get(ClipCandidate, clip_id).transcript_excerpt
+        db.close()
+        assert excerpt == "Yuu: let's go go go"
+
+    def test_reject_clears_suggestion_and_keeps_both(self, client, project_dir):
+        _video_id, prior_id, new_id, _clip_id = self._seed(project_dir)
+        resp = client.post(f"/api/speakers/{new_id}/reject-match")
+        assert resp.status_code == 200
+        assert resp.json()["suggested_match_id"] is None
+
+        db = self._db(project_dir)
+        assert db.get(Speaker, prior_id) is not None
+        new = db.get(Speaker, new_id)
+        assert new is not None
+        assert new.suggested_match_score is None
+        seg = db.query(TranscriptSegment).filter_by(speaker_label="SPEAKER_01").one()
+        assert seg.speaker_id == new_id  # still separate
+        db.close()
+
+    def test_confirm_404_when_no_suggestion(self, client, project_dir):
+        _video_id, prior_id, _new_id, _clip_id = self._seed(project_dir)
+        assert client.post(f"/api/speakers/{prior_id}/confirm-match").status_code == 404
+
+    def test_reject_404_when_no_suggestion(self, client, project_dir):
+        _video_id, prior_id, _new_id, _clip_id = self._seed(project_dir)
+        assert client.post(f"/api/speakers/{prior_id}/reject-match").status_code == 404
+
+    def test_confirm_404_for_missing_speaker(self, client):
+        assert client.post("/api/speakers/9999/confirm-match").status_code == 404
+
+    def test_reject_404_for_missing_speaker(self, client):
+        assert client.post("/api/speakers/9999/reject-match").status_code == 404
+
+    def test_list_exposes_suggestion_with_prior_name(self, client, project_dir):
+        video_id, prior_id, new_id, _clip_id = self._seed(project_dir)
+        data = client.get(f"/api/videos/{video_id}/speakers").json()
+        new_row = next(s for s in data if s["id"] == new_id)
+        assert new_row["suggested_match_id"] == prior_id
+        assert new_row["suggested_match_name"] == "Yuu"
+        assert new_row["suggested_match_score"] == 0.7
 
 
 class TestApplyNameSuggestions:

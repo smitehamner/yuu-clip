@@ -6,6 +6,31 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) — see the
 
 ---
 
+## Voiceprint threshold validation + borderline voice-match confirmation (2026-07-04)
+
+Closed both Phase 5 "validate the re-attach threshold" and the Phase 6
+"borderline-match confirmation band" (plan 01).
+
+- **Threshold validated.** Instrumented `_attach_speakers` to emit each cluster's best
+  voiceprint similarity (INFO log + Re-diarize SSE stream), then ran a QA pass over three
+  real recordings. A voice's own print re-attaches at ~1.00 (device-stable across GPU and
+  CPU); the highest cosine between two *different* voices across 214 pairs was 0.647 — a
+  wide clean gap. No false matches, no missed re-attaches, so **the 0.75 default stands**
+  (this project overrides to 0.80) and no benchmark corpus was needed. Results tabulated in
+  the plan file.
+- **Borderline confirmation band.** A cluster whose best similarity lands in
+  `[threshold − 0.10, threshold)` is minted as a fresh Speaker as before, but now records
+  the near miss (`Speaker.suggested_match_id` / `suggested_match_score`). The Speakers card
+  shows "Might be **{name}** (NN% voice match)" with **Same voice** / **Different voice**.
+  `POST /api/speakers/{id}/confirm-match` moves the new Speaker's segments to the suggested
+  prior (preserving `speaker_edited`), averages the two voiceprints, deletes the new row,
+  and refreshes clip excerpts + export sidecars; `/reject-match` clears the suggestion.
+  Caption/export surfaces are unaffected until confirmed.
+
+Covered by new tests in `tests/test_speakers.py` (band mint/suggestion + both routes) and
+`tests/test_ui_speakers.py` (chip render + button POSTs). See
+`docs/dev/plans/roadmap-close-2026-07/01-voiceprint-validation.md`.
+
 ## Title-card text template + UI polish pass (2026-07-04)
 
 Four review-noted items from a walkthrough of the app:

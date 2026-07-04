@@ -461,6 +461,10 @@ Each speaker also gets a colour, auto-assigned from a fixed palette so voices ar
 
 The **Suggest names** button (top of the Speakers card) uses the LLM to guess names from how people address each other in the transcript ("Hey Yuu, watch out"). Each guess appears as a **Suggested: …** prompt next to the voice with **Accept** and **Dismiss** buttons — nothing is applied to your captions until you accept it, so a wrong guess never silently mislabels a speaker. The same name is never suggested for two different voices, and an existing name you already typed is never overwritten.
 
+**Borderline voice matches**
+
+When you re-analyze or re-detect speakers, yuu-clip tries to re-attach each voice to the one you already named so your names survive. If a voice comes back *close but not certain* — similar enough to be suspicious, not similar enough to auto-match — it doesn't guess. Instead the new voice shows a **"Might be {name} (NN% voice match)"** prompt on the Speakers card with **Same voice** and **Different voice** buttons. **Same voice** merges the two (the name and colour carry over and both voice samples are blended so the match improves next time); **Different voice** keeps them separate. Until you choose, the new voice stays an unnamed "Speaker N", so a borderline guess never reaches your captions on its own.
+
 **Fixing speakers from the transcript**
 
 You don't have to go to the Speakers card to fix a mislabelled line. In any timed transcript, each line shows a small coloured **speaker dot**. Click it to open a menu where you can:

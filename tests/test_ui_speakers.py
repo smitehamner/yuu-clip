@@ -143,6 +143,66 @@ class TestSpeakerNaming:
         # The open transcript reloads with the new name — no manual refresh.
         expect(page.locator("#video-transcript-view .tline-speaker").first).to_have_text("Yuu")
 
+    def test_voice_match_chip_renders_and_confirm_posts(self, page: Page):
+        prior = {**_SPEAKER, "id": 90001, "display_index": 1, "name": "Yuu",
+                 "display_name": "Yuu", "is_named": True,
+                 "suggested_match_id": None, "suggested_match_name": None,
+                 "suggested_match_score": None}
+        suggested = {**_SPEAKER, "id": 90002, "display_index": 2,
+                     "suggested_match_id": 90001, "suggested_match_name": "Yuu",
+                     "suggested_match_score": 0.7}
+        page.route(
+            "**/api/videos/*/speakers",
+            lambda route: route.fulfill(
+                status=200, content_type="application/json", body=json.dumps([prior, suggested])
+            ),
+        )
+        posted = {"url": None}
+
+        def _handle_confirm(route):
+            posted["url"] = route.request.url
+            route.fulfill(status=200, content_type="application/json", body=json.dumps(prior))
+
+        page.route("**/api/speakers/*/confirm-match", _handle_confirm)
+        self._select_first_video(page)
+
+        chip = page.locator("#speakers-section .speaker-voicematch")
+        expect(chip).to_have_count(1)  # only the borderline speaker shows one
+        expect(chip).to_contain_text("Might be")
+        expect(chip).to_contain_text("Yuu")
+        expect(chip).to_contain_text("70% voice match")
+
+        page.locator(".speaker-samevoice").click()
+        expect(page.locator("#toast-container")).to_contain_text("Merged into Yuu")
+        assert posted["url"] and posted["url"].endswith("/api/speakers/90002/confirm-match"), posted
+
+    def test_voice_match_different_voice_posts_reject(self, page: Page):
+        suggested = {**_SPEAKER, "id": 90002, "display_index": 2,
+                     "suggested_match_id": 90001, "suggested_match_name": "Yuu",
+                     "suggested_match_score": 0.7}
+        page.route(
+            "**/api/videos/*/speakers",
+            lambda route: route.fulfill(
+                status=200, content_type="application/json", body=json.dumps([suggested])
+            ),
+        )
+        posted = {"url": None}
+
+        def _handle_reject(route):
+            posted["url"] = route.request.url
+            route.fulfill(
+                status=200, content_type="application/json",
+                body=json.dumps({**suggested, "suggested_match_id": None,
+                                 "suggested_match_name": None, "suggested_match_score": None}),
+            )
+
+        page.route("**/api/speakers/*/reject-match", _handle_reject)
+        self._select_first_video(page)
+
+        page.locator(".speaker-diffvoice").click()
+        expect(page.locator("#toast-container")).to_contain_text("Kept as a separate speaker")
+        assert posted["url"] and posted["url"].endswith("/api/speakers/90002/reject-match"), posted
+
     def test_card_absent_when_no_speakers(self, page: Page):
         page.route(
             "**/api/videos/*/speakers",

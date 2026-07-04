@@ -85,6 +85,13 @@ def _assign_speakers(
 # Overridable per-project via Config.speaker_match_threshold (Settings → Speaker labels).
 _VOICEPRINT_MATCH_THRESHOLD = 0.75
 
+# Width of the borderline "confirm this voice" band immediately below the match
+# threshold. A cluster whose best similarity lands in [threshold − band, threshold)
+# is minted as a fresh Speaker (as before) but also records a suggested match so the
+# user can confirm it is the same voice rather than the re-attach silently dropping
+# it. Fixed at 0.10 in v1 (plan 01); no Settings field for it yet.
+_CONFIRM_BAND_WIDTH = 0.10
+
 
 def _serialize_voiceprint(vector: list[float]) -> bytes:
     return json.dumps([float(x) for x in vector]).encode("utf-8")
@@ -104,20 +111,56 @@ def _cosine_similarity(a: list[float], b: list[float]) -> float:
 
 
 def _best_voiceprint_match(vector, candidates, taken_ids, threshold=_VOICEPRINT_MATCH_THRESHOLD):
-    """The most-similar unused candidate Speaker at or above *threshold*, with its
-    cosine score, or (None, best-below-threshold-score) when nothing matches."""
-    best_speaker = None
-    best_score = threshold
+    """Score *vector* against each unused candidate Speaker's voiceprint.
+
+    Returns ``(matched, score, top)`` where ``top`` is the single most-similar unused
+    candidate that has a voiceprint (or ``None`` when there were none), ``score`` its
+    cosine, and ``matched`` is ``top`` when ``score >= threshold`` else ``None``.
+    Callers use ``top`` / ``score`` to record a near-threshold suggestion when
+    ``matched`` is ``None``.
+    """
+    top_speaker = None
     top_score = 0.0
     for speaker in candidates:
         if speaker.id in taken_ids or not speaker.voiceprint:
             continue
         score = _cosine_similarity(vector, _deserialize_voiceprint(speaker.voiceprint))
-        top_score = max(top_score, score)
-        if score >= best_score:
-            best_score = score
-            best_speaker = speaker
-    return best_speaker, (best_score if best_speaker is not None else top_score)
+        if top_speaker is None or score > top_score:
+            top_speaker = speaker
+            top_score = score
+    matched = top_speaker if (top_speaker is not None and top_score >= threshold) else None
+    return matched, top_score, top_speaker
+
+
+def _report_attach_decision(video_id, speaker, score, threshold, matched,
+                            has_candidates, suggested=False) -> None:
+    """Log (INFO) and surface via the SSE stream one cluster's re-attach outcome.
+
+    The best similarity is reported even on a miss so the voiceprint threshold can
+    be validated against real recordings from the Re-diarize stream without tailing
+    the log (plan 01, stage 1). ``console`` output goes to the subprocess stdout the
+    web UI streams as SSE.
+    """
+    if matched:
+        _log.info("Voiceprint re-attach: speaker %d (video %d, cosine %.3f)",
+                  speaker.id, video_id, score)
+        console.print(f"    [dim]Re-attached to Speaker {speaker.display_index} "
+                      f"(voice similarity {score:.2f})[/dim]")
+    elif suggested:
+        _log.info("Voiceprint near-miss: minted speaker %d (video %d, cosine %.3f in "
+                  "[%.2f, %.2f)) — suggested match to speaker %d",
+                  speaker.id, video_id, score, threshold - _CONFIRM_BAND_WIDTH,
+                  threshold, speaker.suggested_match_id)
+        console.print(f"    [dim]New Speaker {speaker.display_index} — possible match "
+                      f"(voice similarity {score:.2f}, just below {threshold:.2f})[/dim]")
+    elif has_candidates:
+        _log.info("Voiceprint miss: minted speaker %d (video %d, best cosine %.3f < %.2f)",
+                  speaker.id, video_id, score, threshold)
+        console.print(f"    [dim]New Speaker {speaker.display_index} "
+                      f"(closest existing voice {score:.2f}, below {threshold:.2f})[/dim]")
+    else:
+        _log.info("New speaker %d minted (video %d, no prior voiceprints)", speaker.id, video_id)
+        console.print(f"    [dim]New Speaker {speaker.display_index}[/dim]")
 
 
 def _attach_speakers(
@@ -153,6 +196,7 @@ def _attach_speakers(
         return
 
     prior_speakers = session.query(Speaker).filter_by(video_id=video_id).all()
+    has_candidates = any(s.voiceprint for s in prior_speakers)
     next_index = max((s.display_index for s in prior_speakers), default=0)
     taken_ids: set[int] = set()
     label_to_speaker_id: dict[str, int] = {}
@@ -164,9 +208,9 @@ def _attach_speakers(
         vector = embeddings_by_label.get(label)
         if not vector:
             without_voiceprint += 1
-        match, score = (
+        match, score, near = (
             _best_voiceprint_match(vector, prior_speakers, taken_ids, threshold)
-            if vector else (None, 0.0)
+            if vector else (None, 0.0, None)
         )
         if match is not None:
             taken_ids.add(match.id)
@@ -174,28 +218,26 @@ def _attach_speakers(
                 match.voiceprint = _serialize_voiceprint(vector)
             label_to_speaker_id[label] = match.id
             matched += 1
-            _log.debug(
-                "Voiceprint re-attach: cluster %s → speaker %d (video %d, cosine %.3f)",
-                label, match.id, video_id, score,
-            )
+            _report_attach_decision(video_id, match, score, threshold,
+                                    matched=True, has_candidates=has_candidates)
             continue
+        in_band = near is not None and score >= threshold - _CONFIRM_BAND_WIDTH
         next_index += 1
         speaker = Speaker(
             video_id=video_id,
             display_index=next_index,
             source="manual",
             voiceprint=_serialize_voiceprint(vector) if vector else None,
+            suggested_match_id=near.id if in_band else None,
+            suggested_match_score=score if in_band else None,
         )
         session.add(speaker)
         session.flush()
         label_to_speaker_id[label] = speaker.id
         minted += 1
         if vector:
-            _log.debug(
-                "Voiceprint no match: cluster %s minted speaker %d (video %d, "
-                "best cosine %.3f < threshold %.2f)",
-                label, speaker.id, video_id, score, threshold,
-            )
+            _report_attach_decision(video_id, speaker, score, threshold, matched=False,
+                                    has_candidates=has_candidates, suggested=in_band)
 
     for seg in segs:
         if seg.speaker_label in label_to_speaker_id:

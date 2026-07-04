@@ -155,6 +155,15 @@ def _migrate(engine) -> None:
                 "ALTER TABLE transcript_segments ADD COLUMN speaker_edited BOOLEAN NOT NULL DEFAULT 0"
             ))
 
+        existing = {row[1] for row in conn.execute(text("PRAGMA table_info(speakers)"))}
+        for col, typedef in [
+            ("suggested_match_id",    "INTEGER REFERENCES speakers(id)"),
+            ("suggested_match_score", "REAL"),
+        ]:
+            if col not in existing:
+                _log.info("Migration: adding speakers.%s", col)
+                conn.execute(text(f"ALTER TABLE speakers ADD COLUMN {col} {typedef}"))
+
         existing = {row[1] for row in conn.execute(text("PRAGMA table_info(clip_candidates)"))}
         _clip_migrations = [
             ("score_overall_user",  "REAL"),
@@ -507,6 +516,16 @@ class Speaker(Base):
     # User-picked subtitle colour ("#RRGGBB"). NULL until the user overrides the
     # auto-assigned default — see display_color.
     color: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+
+    # Borderline voiceprint match recorded at diarization time: this freshly-minted
+    # Speaker's voice landed just below the re-attach threshold of an existing
+    # Speaker, so instead of silently re-attaching or minting in silence we record
+    # the near miss for the user to confirm ("Same voice") or dismiss. Both NULL
+    # when there was no near-threshold candidate. See _attach_speakers.
+    suggested_match_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("speakers.id"), nullable=True
+    )
+    suggested_match_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
 

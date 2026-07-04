@@ -60,7 +60,17 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                 .all()
             )
             samples = _speaker_samples(db, [s.id for s in speakers])
-            return [_speaker_dict(s, samples.get(s.id)) for s in speakers]
+            by_id = {s.id: s for s in speakers}
+            return [
+                _speaker_dict(
+                    s, samples.get(s.id),
+                    suggested_name=(
+                        by_id[s.suggested_match_id].display_name
+                        if s.suggested_match_id in by_id else None
+                    ),
+                )
+                for s in speakers
+            ]
         finally:
             db.close()
 
@@ -229,10 +239,70 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         finally:
             db.close()
 
+    @router.post("/api/speakers/{speaker_id}/confirm-match")
+    def confirm_match(speaker_id: int):
+        """Accept a borderline suggestion: merge this new Speaker into its suggested prior.
+
+        Moves this Speaker's segments onto the prior Speaker (keeping its name/color),
+        averages the two voiceprints, deletes this row, and refreshes the affected
+        clip excerpts + export sidecars so the prior name surfaces. Returns the
+        surviving prior Speaker.
+        """
+        from yuu_clip.subtitles import refresh_export_sidecars
+        db = ctx.get_db()
+        try:
+            new_speaker = db.get(Speaker, speaker_id)
+            if not new_speaker or new_speaker.suggested_match_id is None:
+                raise HTTPException(404, "No pending voice-match suggestion for this speaker")
+            prior = db.get(Speaker, new_speaker.suggested_match_id)
+            if not prior:
+                new_speaker.suggested_match_id = None
+                new_speaker.suggested_match_score = None
+                db.commit()
+                raise HTTPException(404, "The suggested speaker no longer exists")
+            video_id = prior.video_id
+            _merge_speaker_into(db, new_speaker, prior)
+            refreshed = _rebuild_video_excerpts(db, video_id)
+            edited_at = datetime.now(timezone.utc)
+            affected = db.query(ClipCandidate).filter_by(video_id=video_id).all()
+            for clip in affected:
+                clip.transcript_edited_at = edited_at
+            db.commit()
+            for clip in affected:
+                refresh_export_sidecars(clip, ctx.export_dir, ctx.config.export_name_template)
+            _log.info(
+                "Confirmed voice match (video %d): merged speaker %d into speaker %d; "
+                "refreshed %d clip excerpt(s)",
+                video_id, speaker_id, prior.id, refreshed,
+            )
+            samples = _speaker_samples(db, [prior.id])
+            return _speaker_dict(prior, samples.get(prior.id))
+        finally:
+            db.close()
+
+    @router.post("/api/speakers/{speaker_id}/reject-match")
+    def reject_match(speaker_id: int):
+        """Dismiss a borderline suggestion: keep this Speaker separate, clear the near miss."""
+        db = ctx.get_db()
+        try:
+            speaker = db.get(Speaker, speaker_id)
+            if not speaker or speaker.suggested_match_id is None:
+                raise HTTPException(404, "No pending voice-match suggestion for this speaker")
+            speaker.suggested_match_id = None
+            speaker.suggested_match_score = None
+            db.commit()
+            _log.info("Dismissed voice-match suggestion for speaker %d (video %d)",
+                      speaker_id, speaker.video_id)
+            samples = _speaker_samples(db, [speaker.id])
+            return _speaker_dict(speaker, samples.get(speaker.id))
+        finally:
+            db.close()
+
     return router
 
 
-def _speaker_dict(speaker: Speaker, sample: Optional[dict]) -> dict:
+def _speaker_dict(speaker: Speaker, sample: Optional[dict],
+                  suggested_name: Optional[str] = None) -> dict:
     return {
         "id": speaker.id,
         "video_id": speaker.video_id,
@@ -243,10 +313,49 @@ def _speaker_dict(speaker: Speaker, sample: Optional[dict]) -> dict:
         "source": speaker.source,
         "confirmed": speaker.confirmed,
         "color": speaker.display_color,
+        "suggested_match_id": speaker.suggested_match_id,
+        "suggested_match_score": speaker.suggested_match_score,
+        "suggested_match_name": suggested_name,
         "sample_text": sample["text"] if sample else "",
         "sample_start_ms": sample["start_ms"] if sample else None,
         "sample_end_ms": sample["end_ms"] if sample else None,
     }
+
+
+def _mean_voiceprint(a: Optional[bytes], b: Optional[bytes]) -> Optional[bytes]:
+    """Element-wise mean of two serialized voiceprint centroids.
+
+    Falls back to whichever side is present when the other is missing or the two
+    have mismatched dimensions (never raises — a bad merge must not lose a print).
+    """
+    from yuu_clip.transcribe.whisper_runner import _deserialize_voiceprint, _serialize_voiceprint
+    if not a:
+        return b
+    if not b:
+        return a
+    va, vb = _deserialize_voiceprint(a), _deserialize_voiceprint(b)
+    if len(va) != len(vb):
+        return a
+    return _serialize_voiceprint([(x + y) / 2 for x, y in zip(va, vb)])
+
+
+def _merge_speaker_into(db, source: Speaker, target: Speaker) -> None:
+    """Move *source*'s segments to *target*, average voiceprints, delete *source*.
+
+    The bulk update rewrites only speaker_id, so per-segment ``speaker_edited`` flags
+    are preserved. Any other Speaker still suggesting *source* has that dangling
+    suggestion cleared so the UI never points at a deleted row.
+    """
+    db.query(TranscriptSegment).filter_by(speaker_id=source.id).update(
+        {"speaker_id": target.id}, synchronize_session=False
+    )
+    target.voiceprint = _mean_voiceprint(target.voiceprint, source.voiceprint)
+    db.query(Speaker).filter_by(suggested_match_id=source.id).update(
+        {"suggested_match_id": None, "suggested_match_score": None},
+        synchronize_session=False,
+    )
+    db.delete(source)
+    db.flush()
 
 
 def _speaker_samples(db, speaker_ids: list[int]) -> dict[int, dict]:

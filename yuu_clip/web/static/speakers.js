@@ -49,6 +49,18 @@ function _renderSpeakersCard(speakers) {
                    title="Discard this suggestion">Dismiss</button>
          </span>`
       : '';
+    // A borderline voiceprint near-miss: this new voice was close to an existing
+    // speaker but under the re-attach threshold, so we ask instead of guessing.
+    const voiceMatch = (s.suggested_match_id && s.suggested_match_name)
+      ? `<span class="speaker-voicematch" title="This voice is close to an existing speaker — confirm if it's the same person">
+           Might be <strong>${escHtml(s.suggested_match_name)}</strong>
+           (${Math.round((s.suggested_match_score || 0) * 100)}% voice match)
+           <button class="speaker-samevoice" data-speaker-id="${s.id}" data-match-name="${escHtml(s.suggested_match_name)}"
+                   title="Merge into ${escHtml(s.suggested_match_name)}">Same voice</button>
+           <button class="speaker-diffvoice" data-speaker-id="${s.id}"
+                   title="Keep as a separate speaker">Different voice</button>
+         </span>`
+      : '';
     return `
       <div class="speaker-row">
         ${play}
@@ -60,6 +72,7 @@ function _renderSpeakersCard(speakers) {
                value="${inputValue}" placeholder="Add a name&hellip;"
                aria-label="Name for Speaker ${s.display_index}" maxlength="60">
         ${suggestion}
+        ${voiceMatch}
         ${sample}
       </div>`;
   }).join('');
@@ -195,6 +208,24 @@ async function _resolveSuggestion(speakerId, name) {
   }
 }
 
+// Confirm ("Same voice" → merge into the suggested speaker) or dismiss
+// ("Different voice" → keep separate) a borderline voiceprint suggestion.
+async function _resolveVoiceMatch(speakerId, sameVoice, matchName) {
+  const endpoint = sameVoice ? 'confirm-match' : 'reject-match';
+  try {
+    const res = await fetch(`/api/speakers/${speakerId}/${endpoint}`, { method: 'POST' });
+    if (!res.ok) { showToast('Could not update speaker', 'error'); return; }
+    showToast(sameVoice
+      ? `Merged into ${matchName || 'the suggested speaker'}`
+      : 'Kept as a separate speaker');
+    if (_currentVideoId) await loadSpeakers(_currentVideoId);
+    if (AppState.activeClipId) selectClip(AppState.activeClipId);
+    if (_currentVideoId) reloadVideoTranscriptIfOpen(_currentVideoId);
+  } catch (_) {
+    showToast('Could not update speaker', 'error');
+  }
+}
+
 // Event delegation on the persistent #detail element (its innerHTML is replaced
 // each render, so per-row handlers would be lost — the container listener isn't).
 document.addEventListener('DOMContentLoaded', () => {
@@ -222,6 +253,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const dismissBtn = e.target.closest && e.target.closest('.speaker-dismiss');
     if (dismissBtn) {
       _resolveSuggestion(parseInt(dismissBtn.dataset.speakerId, 10), '');
+      return;
+    }
+    const sameVoiceBtn = e.target.closest && e.target.closest('.speaker-samevoice');
+    if (sameVoiceBtn) {
+      _resolveVoiceMatch(parseInt(sameVoiceBtn.dataset.speakerId, 10), true, sameVoiceBtn.dataset.matchName);
+      return;
+    }
+    const diffVoiceBtn = e.target.closest && e.target.closest('.speaker-diffvoice');
+    if (diffVoiceBtn) {
+      _resolveVoiceMatch(parseInt(diffVoiceBtn.dataset.speakerId, 10), false);
     }
   });
   detail.addEventListener('change', e => {
