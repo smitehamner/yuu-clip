@@ -13,6 +13,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+import yuu_clip.config as config_mod
 from yuu_clip.db.models import (
     AudioTrack,
     ClipCandidate,
@@ -20,6 +21,22 @@ from yuu_clip.db.models import (
     make_session,
 )
 from yuu_clip.web.app import create_app
+
+# ---------------------------------------------------------------------------
+# Global config isolation — Config.load() always reads the real OS-level
+# global config dir (platformdirs), so without this every test run picks up
+# whatever settings are saved on the machine actually running the suite.
+# Autouse so every test gets an isolated, empty global config dir by default;
+# tests that need specific global values still monkeypatch _global_config_dir
+# themselves (that continues to work — it just overrides this default).
+# ---------------------------------------------------------------------------
+
+@pytest.fixture(autouse=True)
+def isolate_global_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        config_mod, "_global_config_dir", lambda: tmp_path / "_isolated_global_config"
+    )
+
 
 # ---------------------------------------------------------------------------
 # Minimal project dir fixture — isolated temp dir with a seeded DB
