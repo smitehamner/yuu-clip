@@ -55,6 +55,19 @@ class TestValidateExportNameTemplate:
     def test_literal_text_with_no_placeholders_is_valid(self):
         assert validate_export_name_template("clip") == "clip"
 
+    def test_unbalanced_trailing_brace_raises(self):
+        # The placeholder regex only sees {video}, so this used to slip through
+        # validation and then crash str.format in export_base_stem.
+        with pytest.raises(ValueError, match="brace"):
+            validate_export_name_template("clip_{video}}")
+
+    def test_unbalanced_leading_brace_raises(self):
+        with pytest.raises(ValueError, match="brace"):
+            validate_export_name_template("{video")
+
+    def test_escaped_braces_are_valid(self):
+        assert validate_export_name_template("{{video}}_{clip_id}") == "{{video}}_{clip_id}"
+
 
 class TestExportBaseStem:
     def test_default_template_matches_legacy_naming(self):
@@ -109,3 +122,10 @@ class TestExportBaseStem:
     def test_video_filename_override(self):
         clip = _FakeClip(id=1, start_ms=0, end_ms=1_000, video_filename="Original.mkv")
         assert export_base_stem(clip, "{video}", video_filename="Other.mp4") == "Other"
+
+    def test_malformed_brace_falls_back_to_default_instead_of_crashing(self):
+        # A template saved before this validation existed (or hand-edited) must
+        # not crash the export / has-export lookup — fall back to the default stem.
+        clip = _FakeClip(id=42, start_ms=15 * 60_000, end_ms=16 * 60_000)
+        stem = export_base_stem(clip, "clip_{video}}")
+        assert stem == export_base_stem(clip, DEFAULT_EXPORT_NAME_TEMPLATE)

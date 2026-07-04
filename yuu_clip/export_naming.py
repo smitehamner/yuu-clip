@@ -33,7 +33,9 @@ def candidate_export_paths(export_dir: Path, stem: str) -> list[Path]:
 def validate_export_name_template(template: str) -> str:
     """
     Raise ValueError if *template* references a placeholder outside
-    EXPORT_NAME_PLACEHOLDERS. Returns the template unchanged if valid.
+    EXPORT_NAME_PLACEHOLDERS, or is not a well-formed format string (e.g. an
+    unbalanced brace like ``clip_{video}}``). Returns the template unchanged if
+    valid.
     """
     used = set(re.findall(r"\{(\w*)\}", template))
     unknown = used - EXPORT_NAME_PLACEHOLDERS
@@ -42,6 +44,16 @@ def validate_export_name_template(template: str) -> str:
             f"Unknown placeholder(s) in export filename template: {', '.join(sorted(unknown))}.  "
             f"Allowed: {', '.join(sorted(EXPORT_NAME_PLACEHOLDERS))}"
         )
+    # A stray/unbalanced brace passes the placeholder regex above but blows up
+    # str.format later (in export_base_stem, on every export AND every has-export
+    # lookup). Reject it here so the save fails with a clear message instead.
+    try:
+        template.format(**{name: "" for name in EXPORT_NAME_PLACEHOLDERS})
+    except (ValueError, IndexError, KeyError) as exc:
+        raise ValueError(
+            "Export filename template has an unbalanced or misplaced brace — "
+            "use { and } only around a placeholder name."
+        ) from exc
     return template
 
 
@@ -101,7 +113,7 @@ def export_base_stem(
         values["preset"] = preset or "default"
     try:
         stem = template.format(**values)
-    except (KeyError, IndexError):
+    except (KeyError, IndexError, ValueError):
         stem = _default_stem(cand, video_filename)
     if preset and preset != "default" and "preset" not in used:
         stem = f"{stem}_{preset}"
