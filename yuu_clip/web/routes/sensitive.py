@@ -8,9 +8,12 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from yuu_clip.db.models import ClipCandidate, SensitiveTerm, Video
+from yuu_clip.log import get_logger
 from yuu_clip.scoring.engine import apply_sensitive_scan
 from yuu_clip.scoring.textmatch import FUZZY_MIN_TERM_LENGTH
 from yuu_clip.web.deps import ProjectContext
+
+_log = get_logger(__name__)
 
 _VALID_CATEGORIES = ("privacy", "censor")
 _VALID_MODES = ("exact", "case_insensitive", "fuzzy")
@@ -94,6 +97,10 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             db.commit()
             db.refresh(row)
             clips_scanned, clips_flagged = _rescan_all_clips(db)
+            _log.info(
+                "Sensitive term %d created (category=%s mode=%s) — rescanned %d clips, %d flagged",
+                row.id, row.category, row.match_mode, clips_scanned, clips_flagged,
+            )
             result = _sensitive_term_dict(row)
             result.update(clips_scanned=clips_scanned, clips_flagged=clips_flagged)
             return result
@@ -116,6 +123,10 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             db.commit()
             db.refresh(row)
             clips_scanned, clips_flagged = _rescan_all_clips(db)
+            _log.info(
+                "Sensitive term %d updated (category=%s mode=%s) — rescanned %d clips, %d flagged",
+                row.id, row.category, row.match_mode, clips_scanned, clips_flagged,
+            )
             result = _sensitive_term_dict(row)
             result.update(clips_scanned=clips_scanned, clips_flagged=clips_flagged)
             return result
@@ -129,9 +140,14 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             row = db.get(SensitiveTerm, term_id)
             if not row:
                 raise HTTPException(404, "Sensitive term not found")
+            category = row.category
             db.delete(row)
             db.commit()
             clips_scanned, clips_flagged = _rescan_all_clips(db)
+            _log.info(
+                "Sensitive term %d deleted (category=%s) — rescanned %d clips, %d flagged",
+                term_id, category, clips_scanned, clips_flagged,
+            )
             return {"deleted": term_id, "clips_scanned": clips_scanned, "clips_flagged": clips_flagged}
         finally:
             db.close()

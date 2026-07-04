@@ -16,9 +16,11 @@ def import_url_cmd(
 ) -> None:
     """Download a public Twitch VOD or YouTube video so it can be analyzed."""
     from yuu_clip.config import project_downloads_dir
+    from yuu_clip.log import configure_logging
     from yuu_clip.url_import import ImportUrlError, download_video
 
     proj_dir = _project_dir(project)
+    configure_logging(proj_dir)
     downloads_dir = project_downloads_dir(proj_dir)
 
     console.print(f"\n[bold]yuuclip  ·  import-url[/bold]\n  {url}\n")

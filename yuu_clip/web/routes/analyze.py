@@ -599,8 +599,17 @@ async def _thermal_poll_loop(ctx: ProjectContext, job) -> None:
             job.gpu_temp_c = result.temp_c
             job.gpu_state = result.state
             if result.warn_triggered:
+                _log.warning(
+                    "GPU thermal warning: %.0f°C sustained (warn threshold %.0f°C)",
+                    result.temp_c, cfg.thermal_warn_c,
+                )
                 job._emit(f"[Warning: GPU at {result.temp_c:.0f}°C]")
             if result.pause_triggered:
+                _log.warning(
+                    "Auto-paused analysis: GPU reached %.0f°C sustained "
+                    "(pause threshold %.0f°C) — holding before the next video",
+                    result.temp_c, cfg.thermal_pause_c,
+                )
                 create_pause_flag(ctx.project_dir)
                 job.pause_requested = True
                 job._emit(

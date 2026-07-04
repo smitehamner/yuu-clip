@@ -18,6 +18,10 @@ from pathlib import Path
 from typing import Optional
 from urllib.parse import urlparse
 
+from yuu_clip.log import get_logger
+
+_log = get_logger(__name__)
+
 ALLOWED_HOSTS = frozenset({
     "youtube.com", "www.youtube.com", "youtu.be",
     "twitch.tv", "www.twitch.tv",
@@ -86,6 +90,10 @@ def inspect_url(url: str, timeout_s: float = 30.0) -> dict:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
     except yt_dlp.utils.DownloadError as e:
+        # The friendly message collapses network / unavailable / site-change into
+        # one line; keep the raw extractor error in the log so the real cause is
+        # diagnosable (auth wall vs 404 vs yt-dlp needing an update).
+        _log.warning("Inspect failed for %s: %s", url, e)
         raise ImportUrlError(_friendly_extractor_error(str(e))) from e
 
     if not info:
@@ -279,6 +287,7 @@ def download_video(url: str, output_dir: Path, *, progress_line_cb=print) -> Pat
     stem = sanitize_import_filename(info["title"], info["video_id"], existing_stems)
 
     check_disk_space(output_dir, info.get("estimated_size_bytes"))
+    _log.info("Download starting: %s (video_id=%s) → %s.mkv", url, info.get("video_id") or "?", stem)
 
     def _hook(d: dict) -> None:
         if d.get("status") == "downloading":
@@ -300,11 +309,15 @@ def download_video(url: str, output_dir: Path, *, progress_line_cb=print) -> Pat
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
     except yt_dlp.utils.DownloadError as e:
+        _log.warning("Download failed for %s: %s", url, e)
         raise RuntimeError(_friendly_extractor_error(str(e))) from e
 
     downloaded_path = output_dir / f"{stem}.mkv"
     if not downloaded_path.exists():
+        _log.error("Download for %s reported success but %s is missing", url, downloaded_path)
         raise RuntimeError("Download finished but the output file was not found")
 
     _write_source_sidecar(downloaded_path, url, info)
+    _log.info("Download complete: %s (%.1f MB)", downloaded_path.name,
+              downloaded_path.stat().st_size / (1024 * 1024))
     return downloaded_path
