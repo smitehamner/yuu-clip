@@ -135,33 +135,37 @@ class LaughScorer:
     def is_available(self) -> bool:
         if not self._config.scorer_laugh_enabled:
             return False
+        return self.availability()[0]
+
+    def availability(self) -> tuple[bool, str]:
+        """(available, reason) — reason is a user-facing explanation when unavailable."""
         mode = self._config.scorer_laugh_mode
         if mode == "transcript":
-            return True
+            return True, ""
         if mode == "audio":
             try:
                 import av  # noqa: F401
                 import numpy  # noqa: F401
-                return True
+                return True, ""
             except ImportError:
                 log.warning("LaughScorer (audio): av or numpy not available")
-                return False
+                return False, "audio analysis needs the av and numpy packages"
         if mode == "model":
             if not self._config.scorer_laugh_model_id:
                 log.warning("LaughScorer (model): scorer_laugh_model_id is not configured")
-                return False
+                return False, "no laughter model is selected in Settings"
             try:
                 import torch  # noqa: F401
                 import transformers  # noqa: F401
-                return True
+                return True, ""
             except ImportError:
                 log.warning(
                     "LaughScorer (model): missing deps — run: "
                     "pip install transformers torch torchaudio soundfile"
                 )
-                return False
+                return False, "its model dependencies aren't installed (install them from Settings)"
         log.warning("LaughScorer: unknown mode %r — scorer disabled", mode)
-        return False
+        return False, f"unknown laughter mode {mode!r}"
 
     def score(self, clip: "ClipCandidate", session: "Session") -> ScoreResult:
         mode = self._config.scorer_laugh_mode

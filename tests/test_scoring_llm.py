@@ -443,6 +443,54 @@ class TestClaudeClientAvailable:
         assert ok is True
         assert reason == ""
 
+    def test_rejected_api_key_returns_false(self):
+        import sys
+        import unittest.mock as mock
+
+        class _AuthError(Exception):
+            pass
+
+        c = self._client(claude_api_key="sk-bad")
+        fake_anthropic = mock.MagicMock()
+        fake_anthropic.AuthenticationError = _AuthError
+        fake_anthropic.Anthropic.return_value.models.list.side_effect = _AuthError("401")
+        with mock.patch.dict(sys.modules, {"anthropic": fake_anthropic}):
+            ok, reason = c.available()
+        assert ok is False
+        assert "rejected" in reason
+
+    def test_unreachable_api_returns_false(self):
+        import sys
+        import unittest.mock as mock
+
+        class _AuthError(Exception):
+            pass
+
+        c = self._client(claude_api_key="sk-test")
+        fake_anthropic = mock.MagicMock()
+        fake_anthropic.AuthenticationError = _AuthError
+        fake_anthropic.Anthropic.return_value.models.list.side_effect = ConnectionError("no route")
+        with mock.patch.dict(sys.modules, {"anthropic": fake_anthropic}):
+            ok, reason = c.available()
+        assert ok is False
+        assert "Couldn't reach" in reason
+
+    def test_old_sdk_without_models_api_trusts_key(self):
+        import sys
+        import unittest.mock as mock
+
+        class _AuthError(Exception):
+            pass
+
+        c = self._client(claude_api_key="sk-test")
+        fake_anthropic = mock.MagicMock()
+        fake_anthropic.AuthenticationError = _AuthError
+        fake_anthropic.Anthropic.return_value = object()  # no .models attribute → AttributeError
+        with mock.patch.dict(sys.modules, {"anthropic": fake_anthropic}):
+            ok, reason = c.available()
+        assert ok is True
+        assert reason == ""
+
     def test_null_client_available_returns_false(self):
         from yuu_clip.scoring.llm_client import NullLLMClient
         ok, reason = NullLLMClient().available()

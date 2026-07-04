@@ -15,6 +15,7 @@ import json
 import logging
 import re
 import shutil
+import subprocess
 import sys
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -485,3 +486,21 @@ def find_ffmpeg() -> tuple[str, str]:
         )
 
     return ffmpeg, ffprobe
+
+
+def run_ffmpeg(args: list[str], timeout: Optional[float] = None) -> subprocess.CompletedProcess:
+    """Run an ffmpeg/ffprobe command with actionable failures.
+
+    args[0] must be "ffmpeg" or "ffprobe"; it is replaced with the resolved binary
+    from find_ffmpeg() so a missing install raises the friendly install-instructions
+    error instead of a bare FileNotFoundError. stderr is captured and, on a non-zero
+    exit, surfaced in the raised RuntimeError — callers (and the user) get the reason
+    rather than an opaque "returned non-zero exit status 1".
+    """
+    ffmpeg, ffprobe = find_ffmpeg()
+    tool = args[0]
+    exe = ffprobe if tool == "ffprobe" else ffmpeg
+    result = subprocess.run([exe, *args[1:]], capture_output=True, text=True, timeout=timeout)
+    if result.returncode != 0:
+        raise RuntimeError(f"{tool} failed (exit {result.returncode}):\n{result.stderr.strip()}")
+    return result

@@ -14,7 +14,7 @@ from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 from sqlalchemy import case
 
-from yuu_clip.config import validate_whisper_model
+from yuu_clip.config import run_ffmpeg, validate_whisper_model
 from yuu_clip.db.models import ClipCandidate, ClipExport, TranscriptSegment, Video
 from yuu_clip.export_naming import DEFAULT_EXPORT_NAME_TEMPLATE
 from yuu_clip.log import get_logger
@@ -617,8 +617,8 @@ def _register_clip_routes(router: APIRouter, ctx: ProjectContext) -> None:
         preview_dir.mkdir(exist_ok=True)
         out_path = preview_dir / f"clip_{clip_id}_preview.mp4"
 
-        result = _subprocess.run(
-            [
+        try:
+            run_ffmpeg([
                 "ffmpeg", "-y",
                 "-ss", str(start_s),
                 "-i", str(encode_src),
@@ -627,12 +627,13 @@ def _register_clip_routes(router: APIRouter, ctx: ProjectContext) -> None:
                 "-f", "mp4",
                 "-movflags", "+faststart",
                 str(out_path),
-            ],
-            stderr=_subprocess.DEVNULL,
-        )
-        if result.returncode != 0 or not out_path.exists():
-            _log.error("Preview generation failed for clip %d (rc=%d, src=%s)", clip_id, result.returncode, src.name)
-            raise HTTPException(500, "Preview generation failed")
+            ])
+        except RuntimeError as exc:
+            _log.error("Preview generation failed for clip %d (src=%s): %s", clip_id, src.name, exc)
+            raise HTTPException(500, f"Preview generation failed: {exc}")
+        if not out_path.exists():
+            _log.error("Preview generation produced no file for clip %d (src=%s)", clip_id, src.name)
+            raise HTTPException(500, "Preview generation failed — no output produced")
 
         ctx.preview_cache[clip_id] = out_path
         ctx.preview_cache.move_to_end(clip_id)

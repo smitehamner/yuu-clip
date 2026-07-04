@@ -70,10 +70,12 @@ def _detect_transcript(video: "Video", session: "Session", gap_s: float) -> list
 
 def _detect_keyframes(video_path: str) -> list[int]:
     """Extract I-frame timestamps in ms via ffprobe (no decoding, instant)."""
+    from yuu_clip.config import find_ffmpeg
     try:
+        _, ffprobe = find_ffmpeg()  # actionable error if FFmpeg is missing (caught below)
         result = subprocess.run(
             [
-                "ffprobe", "-v", "quiet",
+                ffprobe, "-v", "quiet",
                 "-select_streams", "v:0",
                 "-show_entries", "packet=pts_time,flags",
                 "-of", "csv=print_section=0",

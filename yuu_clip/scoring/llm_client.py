@@ -87,9 +87,23 @@ class ClaudeClient(LLMClient):
         if not self._config.claude_api_key:
             return False, "No Claude API key set — open Settings (⚙) and enter your Anthropic API key under LLM scoring"
         try:
-            import anthropic  # noqa: F401
+            import anthropic
         except ImportError:
             return False, "anthropic package not installed (pip install anthropic)"
+        # Presence of a key doesn't mean it's valid; a bad/expired key otherwise
+        # passes the pre-flight and then fails silently on every clip. models.list()
+        # is a free GET that verifies auth + reachability.
+        try:
+            anthropic.Anthropic(
+                api_key=self._config.claude_api_key,
+                timeout=self._config.claude_timeout_s,
+            ).models.list()
+        except anthropic.AuthenticationError:
+            return False, "Claude API key was rejected — check the key in Settings (⚙)"
+        except AttributeError:
+            return True, ""  # anthropic SDK too old for the Models API — trust the key
+        except Exception as exc:
+            return False, f"Couldn't reach the Claude API — check your connection: {exc}"
         return True, ""
 
     def chat(self, messages: list[dict], temperature: float = 0.1) -> str:

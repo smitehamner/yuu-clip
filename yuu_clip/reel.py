@@ -12,11 +12,11 @@ from __future__ import annotations
 
 import json
 import logging
-import subprocess
 import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
+from yuu_clip.config import run_ffmpeg
 from yuu_clip.export_naming import (
     DEFAULT_EXPORT_NAME_TEMPLATE,
     EXPORT_VIDEO_EXTENSIONS,
@@ -183,20 +183,19 @@ def _make_title_card(
             "-pix_fmt", "yuv420p",
             str(output_path),
         ]
-        subprocess.run(cmd, check=True)
+        run_ffmpeg(cmd)
 
 
 def _ffprobe_stream_value(path: Path, entry: str) -> str:
     """Return one stream entry value from ffprobe, or empty string if unavailable."""
-    result = subprocess.run(
+    result = run_ffmpeg(
         [
             "ffprobe", "-v", "error",
             "-select_streams", "v:0",
             "-show_entries", f"stream={entry}",
             "-of", "default=noprint_wrappers=1:nokey=1",
             str(path),
-        ],
-        capture_output=True, text=True, check=True,
+        ]
     )
     return result.stdout.strip()
 
@@ -214,10 +213,9 @@ def _probe_duration(path: Path) -> float:
     """Return duration in seconds via ffprobe."""
     out = _ffprobe_stream_value(path, "duration")
     if not out or out == "N/A":
-        result2 = subprocess.run(
+        result2 = run_ffmpeg(
             ["ffprobe", "-v", "error", "-show_entries", "format=duration",
-             "-of", "default=noprint_wrappers=1:nokey=1", str(path)],
-            capture_output=True, text=True, check=True,
+             "-of", "default=noprint_wrappers=1:nokey=1", str(path)]
         )
         out = result2.stdout.strip()
     if not out or out == "N/A":
@@ -233,15 +231,14 @@ def _compile_concat(segments: list[Path], output: Path) -> None:
         for seg in segments:
             f.write(f"file '{seg.as_posix()}'\n")
     try:
-        subprocess.run(
+        run_ffmpeg(
             [
                 "ffmpeg", "-y", "-loglevel", "error",
                 "-f", "concat", "-safe", "0",
                 "-i", str(list_path),
                 "-c", "copy",
                 str(output),
-            ],
-            check=True,
+            ]
         )
     finally:
         list_path.unlink(missing_ok=True)
@@ -317,7 +314,7 @@ def _compile_xfade(
     """Re-encode with xfade/acrossfade transitions between every segment pair."""
     n = len(segments)
     transitions = [transition] * max(0, n - 1)
-    subprocess.run(_build_xfade_cmd(segments, durations, output, transitions, trans_dur), check=True)
+    run_ffmpeg(_build_xfade_cmd(segments, durations, output, transitions, trans_dur))
 
 
 def _compile_xfade_random(
@@ -331,7 +328,7 @@ def _compile_xfade_random(
     """Like _compile_xfade but picks a different transition at each cut."""
     n = len(segments)
     transitions = [rng.choice(pool) for _ in range(max(0, n - 1))]
-    subprocess.run(_build_xfade_cmd(segments, durations, output, transitions, trans_dur), check=True)
+    run_ffmpeg(_build_xfade_cmd(segments, durations, output, transitions, trans_dur))
 
 
 def _select_clip_export_file(clip, video, export_dir: Path, name_template: str) -> Optional[Path]:

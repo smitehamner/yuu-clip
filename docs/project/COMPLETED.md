@@ -6,6 +6,30 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) — see the
 
 ---
 
+## Actionable failures for missing tools/services: FFmpeg, scorers, Claude key (2026-07-04)
+
+A second sweep over the same "missing host dependency → opaque failure / silent
+degradation" class that produced the CUDA + LLM-preflight work below.
+
+- **Single FFmpeg choke-point** (`config.py:run_ffmpeg`). The analyze pipeline resolved
+  FFmpeg via `find_ffmpeg` (friendly install error), but reel export, clip preview, and
+  scene probing called the bare `"ffmpeg"`/`"ffprobe"` string — a missing binary surfaced
+  as `[WinError 2]` and processing failures as a stderr-less `CalledProcessError`. All of
+  those now route through `run_ffmpeg`, which resolves via `find_ffmpeg` and raises a
+  `RuntimeError` carrying either the install instructions or the captured stderr. Migrated
+  `reel.py` (5 sites), `web/routes/clips.py` (preview), and `scoring/scenes.py`; `cli/reel.py`
+  now reports the `RuntimeError`.
+- **Silent scorer degradation surfaced** (`cli/_pipeline.py`, `scoring/laugh.py`). Laughter
+  scoring in "model"/"audio" mode was dropped silently when its deps were missing — now a
+  notice names the reason (`LaughScorer.availability()` returns a user-facing string), and a
+  guard warns when *no* scoring signal is available (clips created but unscored).
+- **Claude API key validated, not just present** (`scoring/llm_client.py`). `ClaudeClient.available()`
+  now makes a free `models.list()` call so a wrong/expired key is caught in the pre-flight
+  ("key was rejected") instead of failing silently on every clip; network errors and pre-Models-API
+  SDKs are handled distinctly.
+- Covered by `tests/test_run_ffmpeg.py`, new `ClaudeClient.available()` cases in
+  `tests/test_scoring_llm.py`, and updated `tests/test_title_card.py`.
+
 ## Legacy UNIQUE(path) videos-table migration crash fixed (2026-07-04)
 
 Pre-distribution robustness fix. `db/models.py::_migrate()` drops the legacy

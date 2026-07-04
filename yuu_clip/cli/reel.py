@@ -1,7 +1,6 @@
 """Highlight reel command."""
 from __future__ import annotations
 
-import subprocess
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -103,8 +102,10 @@ def _compile_reel(all_clips, video_map, export_dir: Path, output: Path,
     except FileNotFoundError as e:
         console.print(f"  [red]{e}[/red]")
         raise typer.Exit(1)
-    except subprocess.CalledProcessError as e:
-        console.print(f"  [red]ffmpeg error: {e}[/red]")
+    except RuntimeError as e:
+        # run_ffmpeg raises this for a missing FFmpeg (with install instructions) or a
+        # non-zero ffmpeg exit (with the captured stderr).
+        console.print(f"  [red]{e}[/red]")
         raise typer.Exit(1)
 
 

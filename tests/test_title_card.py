@@ -163,10 +163,10 @@ class TestMakeTitleCardCommandConstruction:
     def test_custom_colors_and_fontsize_appear_in_command(self, monkeypatch, tmp_path):
         captured = {}
 
-        def _fake_run(cmd, check):
+        def _fake_run(cmd):
             captured["cmd"] = cmd
 
-        monkeypatch.setattr("yuu_clip.reel.subprocess.run", _fake_run)
+        monkeypatch.setattr("yuu_clip.reel.run_ffmpeg", _fake_run)
         _make_title_card(
             [("hello", 45)], tmp_path / "card.mkv",
             bg_color="#112233", font_color="#aabbcc", **_SMALL,
@@ -180,10 +180,10 @@ class TestMakeTitleCardCommandConstruction:
     def test_default_colors_used_when_not_specified(self, monkeypatch, tmp_path):
         captured = {}
 
-        def _fake_run(cmd, check):
+        def _fake_run(cmd):
             captured["cmd"] = cmd
 
-        monkeypatch.setattr("yuu_clip.reel.subprocess.run", _fake_run)
+        monkeypatch.setattr("yuu_clip.reel.run_ffmpeg", _fake_run)
         _make_title_card([("hello", 30)], tmp_path / "card.mkv", **_SMALL)
         cmd = captured["cmd"]
         assert any(arg.startswith("color=0x000000:") for arg in cmd)

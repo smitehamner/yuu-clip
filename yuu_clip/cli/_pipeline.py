@@ -641,15 +641,29 @@ def _run_scoring(video, track_objs, config, session, energy_mode: str = "fast", 
         if not llm_ok:
             _llm_unavailable_notice(llm_reason)
 
+    laugh_scorer = LaughScorer(config)
+    if config.scorer_laugh_mode in ("audio", "model"):
+        laugh_ok, laugh_reason = laugh_scorer.availability()
+        if not laugh_ok:
+            console.print(
+                f"  [yellow]Laughter detection unavailable — {laugh_reason}. "
+                f"Clips are still scored using the other signals.[/yellow]"
+            )
+
     from yuu_clip.db.models import HotWord, SensitiveTerm
     hot_words = session.query(HotWord).all()
     sensitive_terms = session.query(SensitiveTerm).all()
     engine = ScoringEngine(config, [
         AudioEnergyScorer(config),
         SceneCutScorer(config),
-        LaughScorer(config),
+        laugh_scorer,
         LLMScorer(config, context_text=context_text),
     ], hot_words=hot_words, sensitive_terms=sensitive_terms)
+    if not engine.has_scorers:
+        console.print(
+            "  [yellow]No scoring signals are available — clips were created but left "
+            "unscored. Check Settings (LLM / laughter), then use Rescore.[/yellow]"
+        )
     n = engine.score_video(
         video, session,
         progress_cb=lambda i, total: console.print(f"  Scoring {i}/{total}..."),
