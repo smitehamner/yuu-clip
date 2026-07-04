@@ -38,6 +38,22 @@ class DemoRequest(BaseModel):
 _REEL_POOL_STATUSES = {"approved", "pending", "rejected"}
 
 
+def _parse_video_ids(raw: Optional[str]) -> list[int]:
+    """Parse a comma-separated video_ids query param, ignoring blanks and non-ints."""
+    if not raw:
+        return []
+    ids: list[int] = []
+    for part in raw.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        try:
+            ids.append(int(part))
+        except ValueError:
+            raise HTTPException(400, f"video_ids must be integers: got '{part}'")
+    return ids
+
+
 def _safe_filename(name: str, default: str = "highlights.mkv") -> str:
     """Return *name* with any directory components stripped.
 
@@ -124,12 +140,15 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     @router.get("/api/demo/approved-clips")
     def approved_clips_for_reel(
         video_id: Optional[int] = Query(None),
+        video_ids: Optional[str] = Query(None),
         statuses: str = Query("approved"),
     ):
         """Return clips (timeline order) for the reel builder pool, with export status.
 
-        `statuses` is a comma-separated subset of {approved, pending, rejected};
-        defaults to "approved" (unchanged historical behavior)."""
+        Scope: `video_ids` (comma-separated) supersedes `video_id` when present —
+        used for a session-scoped pool spanning several recordings. With neither,
+        the pool is project-wide. `statuses` is a comma-separated subset of
+        {approved, pending, rejected}; defaults to "approved" (historical behavior)."""
         from yuu_clip.db.models import Video
         requested = [s.strip() for s in statuses.split(",") if s.strip()]
         invalid = [s for s in requested if s not in _REEL_POOL_STATUSES]
@@ -138,10 +157,13 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                 400,
                 f"statuses must be a comma-separated subset of: {', '.join(sorted(_REEL_POOL_STATUSES))}",
             )
+        scope_ids = _parse_video_ids(video_ids)
         db = ctx.get_db()
         try:
             q = db.query(ClipCandidate).filter(ClipCandidate.status.in_(requested))
-            if video_id:
+            if scope_ids:
+                q = q.filter(ClipCandidate.video_id.in_(scope_ids))
+            elif video_id:
                 q = q.filter_by(video_id=video_id)
             clips = q.order_by(ClipCandidate.start_ms).all()
 

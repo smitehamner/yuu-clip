@@ -132,6 +132,7 @@ def _migrate(engine) -> None:
             ("source_uploader",     "TEXT"),
             ("source_upload_date",  "DATETIME"),
             ("source_category",     "TEXT"),
+            ("session_id",          "INTEGER REFERENCES sessions(id)"),
         ]
         for col, typedef in _video_migrations:
             if col not in existing:
@@ -348,6 +349,11 @@ class Video(Base):
     segment_start_s: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     segment_end_s: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
 
+    # The Session this recording belongs to (grouping multiple OBS files from one
+    # play session). Only top-level recordings carry it; a split segment belongs
+    # via its parent and always leaves this NULL. See RecordingSession.
+    session_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("sessions.id"), nullable=True)
+
     # Set at download time (see url_import.py) for a recording brought in via
     # Import from URL; NULL for a recording added from a local file. Populated
     # from the metadata sidecar when the Video row is first created — see
@@ -381,6 +387,9 @@ class Video(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
+    session: Mapped[Optional["RecordingSession"]] = relationship(
+        back_populates="videos", foreign_keys="[Video.session_id]",
+    )
     audio_tracks: Mapped[List["AudioTrack"]] = relationship(
         back_populates="video", cascade="all, delete-orphan"
     )
@@ -400,6 +409,46 @@ class Video(Base):
     @property
     def effective_title(self) -> str:
         """User override if present, else the LLM-generated value, else empty."""
+        return self.title_user if self.title_user is not None else (self.title or "")
+
+    @property
+    def effective_summary(self) -> str:
+        return self.summary_user if self.summary_user is not None else (self.summary or "")
+
+
+class RecordingSession(Base):
+    """A group of recordings from one play session, sharing a unified timeline.
+
+    User-facing term: "Session". Named RecordingSession in code to avoid colliding
+    with SQLAlchemy's orm.Session (imported in this module). Members are top-level
+    recordings (videos.session_id); a split segment belongs via its parent and is
+    never a direct member. Dissolving a session nulls members' session_id — it
+    never deletes recordings (the delete route does this explicitly; there is no
+    cascade).
+    """
+    __tablename__ = "sessions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    # Rollup title/summary generated from member recordings, mirroring the
+    # title/title_user override pattern on Video (user edit wins over generated).
+    title: Mapped[Optional[str]] = mapped_column(Text)
+    title_user: Mapped[Optional[str]] = mapped_column(Text)
+    summary: Mapped[Optional[str]] = mapped_column(Text)
+    summary_user: Mapped[Optional[str]] = mapped_column(Text)
+    summarized_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    summary_context_json: Mapped[Optional[str]] = mapped_column(Text)
+
+    videos: Mapped[List["Video"]] = relationship(
+        back_populates="session",
+        foreign_keys="[Video.session_id]",
+        order_by="Video.created_at",
+    )
+
+    @property
+    def effective_title(self) -> str:
         return self.title_user if self.title_user is not None else (self.title or "")
 
     @property

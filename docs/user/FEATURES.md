@@ -124,9 +124,18 @@ A recording can be split into independent segments before or after analysis.
 - Each segment has its own clips and full transcript (after Split only) or its own freshly analyzed clips, contexts, title, summary, and timeline (after Re-analyze)
 - **Undo Split** (Additional Actions, on any segment) merges every sibling segment's clips back onto the parent recording — restoring their original absolute timing — deletes the segments, and makes the parent visible again
 
+### Sessions (multi-recording grouping)
+
+When one sitting of gameplay spans several recordings (OBS splitting a long session into multiple files), group them into a single **Session** with a unified view.
+
+- **Group** (Recordings sidebar) enters a selection mode — tick 2+ top-level recordings and name the session
+- **Suggest sessions** auto-detects recordings recorded back-to-back (a gap under 30 minutes between one ending and the next starting, read from the OBS filename timestamp or the file's modified time) and proposes groups; each can be accepted or dismissed, and dismissals are remembered so the same suggestion won't nag
+- Grouped recordings appear under a **collapsible session header** in the sidebar; the session's own detail view shows a **Session Summary** rolled up from the member recordings' summaries and a **Unified Timeline** — one continuous time axis across every recording, stitching each recording's existing timeline entries and clip markers, with the real-world break between files labelled (e.g. "— 12 min break —"). Clicking a timeline entry or clip jumps to that recording (and clip)
+- A session can be **renamed**, have recordings **added**, or be **ungrouped (dissolved)** — dissolving only detaches the recordings; it never deletes them. Split segments are never grouped directly; they belong to a session through their parent recording
+
 ### Highlight reel builder
 
-Accessible from the header. Choose a video filter (all approved clips or a specific video), transition type and duration (including "random"), title card duration, and output filename. Ordered clip list lets you check/uncheck clips and reorder them — drag a row by its grip, or use the ▲▼ buttons. Your order and selections are kept while the window is open, even if you flip to the View tab and back. Saved reels go to `.yuu-clip/reels/` with a timestamp in the filename.
+Accessible from the header. Choose a source (all approved clips, a specific recording, or a whole **Session** — the "Clips from" picker lists sessions under their own group), transition type and duration (including "random"), title card duration, and output filename. A session's reel spans every member recording's approved clips; the session detail view has a **Build Highlight Reel from Session** button that opens the builder pre-scoped. Ordered clip list lets you check/uncheck clips and reorder them — drag a row by its grip, or use the ▲▼ buttons. Your order and selections are kept while the window is open, even if you flip to the View tab and back. Saved reels go to `.yuu-clip/reels/` with a timestamp in the filename.
 
 A reel is built from your **exported** clips, so any selected clip that hasn't been exported is skipped — the builder shows an **Export N clips** button to export the missing ones first. **Preview** plays the selected clips in sequence with Previous/Next controls. Tick **Generate captions** to also write an SRT alongside the reel (each clip's transcript stitched onto the reel timeline). In the **View** tab you can generate or regenerate captions for an existing reel, play it with captions, and **Delete** reels you no longer need (removes the file and its captions from disk; your clips are untouched).
 

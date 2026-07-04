@@ -1006,6 +1006,7 @@ def _video_dict(video: Video, stats: dict) -> dict:
         "parent_video_id": video.parent_video_id,
         "segment_start_s": video.segment_start_s,
         "segment_end_s": video.segment_end_s,
+        "session_id": video.session_id,
         "clips_scored_at": video.clips_scored_at.isoformat() if video.clips_scored_at else None,
         "clips_scored_context": _json_list(video.clips_scored_context_json),
         "summarized_at": video.summarized_at.isoformat() if video.summarized_at else None,

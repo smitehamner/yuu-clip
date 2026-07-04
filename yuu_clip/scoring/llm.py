@@ -101,6 +101,40 @@ Return ONLY valid JSON. No markdown, no extra text.\
 """
 
 
+_SESSION_SUMMARY_SYSTEM = """\
+You summarize a multi-recording play session for a clip extraction tool.
+You are given the per-recording titles and summaries of every recording in the
+session, in order. Return JSON with exactly two keys:
+  "title":   a 5-8 word headline capturing the whole session's arc or defining theme
+  "summary": a 3-5 sentence paragraph describing the session across all recordings —
+             the overall story, how it developed, standout moments, who was involved.
+Treat the recordings as one continuous session, not separate videos.
+Return ONLY valid JSON. No markdown, no extra text.\
+"""
+
+
+def summarize_session(
+    members: list[tuple[str, str]], config: "Config", context_text: str = ""
+) -> tuple[str, str]:
+    """Roll up a session title + summary from member recordings' (title, summary).
+
+    Members with no title and no summary are skipped. Returns (title, summary).
+    Raises on failure.
+    """
+    blocks = "\n\n".join(
+        f"Recording {i}: {title or '(untitled)'}\n{summary}".strip()
+        for i, (title, summary) in enumerate(members, 1)
+        if (title or summary)
+    )
+    system = _prepend_context(_SESSION_SUMMARY_SYSTEM, context_text)
+    messages = [
+        {"role": "system", "content": system},
+        {"role": "user",   "content": f"Recordings:\n\"\"\"\n{blocks[:12000]}\n\"\"\"\nJSON:"},
+    ]
+    data = _call_llm_json(messages, config, temperature=0.2)
+    return str(data.get("title", "")), str(data.get("summary", ""))
+
+
 def _call_client(messages: list[dict], config: "Config", temperature: float = 0.1) -> str:
     return make_client(config).chat(messages, temperature)
 

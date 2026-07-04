@@ -24,7 +24,7 @@ and the locked design decisions. Implement one plan per session.
 | ~~Voiceprint threshold validation + borderline confirmation band~~ (done 2026-07-04) | 01 |
 | ~~Laugh score as separate attribute~~ (done 2026-07-04) | 02 |
 | ~~Project switcher~~ (done 2026-07-04) | 03 |
-| Multi-session grouping (full unified timeline) | 04 |
+| ~~Multi-session grouping (full unified timeline)~~ (done 2026-07-04) | 04 |
 | Caption style options | 05 |
 | Vertical crop / Shorts export | 06 |
 | Clip export editor | 07 |
@@ -143,8 +143,9 @@ regular users.
   image upload deliberately deferred (locked decision, plan 09). See
   [COMPLETED.md](COMPLETED.md#title-card-customization-done-2026-07-03).
 
-- [ ] **Multi-session grouping** — treat multiple OBS files from one play session as a single
-  project with a unified timeline
+- [x] **Multi-session grouping** — treat multiple OBS files from one play session as a single
+  Session with a unified timeline (done 2026-07-04, plan 04) — see
+  [COMPLETED.md](COMPLETED.md#multi-session-grouping--unified-timeline-done-2026-07-04).
 
 ---
 

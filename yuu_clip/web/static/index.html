@@ -718,6 +718,20 @@
         <button class="clip-chip"        aria-pressed="false" data-vfilter="unscored"  onclick="toggleVideoFilter('unscored')">Unscored</button>
         <button class="clip-chip"        aria-pressed="false" data-vfilter="errors"    onclick="toggleVideoFilter('errors')" title="Recordings with clip scoring errors">&#9888; Errors</button>
       </div>
+      <div class="session-toolbar" id="session-toolbar" aria-label="Session grouping">
+        <button class="btn ghost" style="font-size:11px;padding:2px 8px" onclick="enterGroupingMode()" title="Select recordings to group into one session">&#8862; Group</button>
+        <button class="btn ghost" style="font-size:11px;padding:2px 8px" onclick="suggestSessions()" title="Find recordings that look like one play session">&#10024; Suggest sessions</button>
+      </div>
+      <div class="session-grouping-bar" id="session-grouping-bar" style="display:none">
+        <div>
+          <div id="session-grouping-count" style="font-weight:600;font-size:12px">0 selected</div>
+          <div id="session-grouping-label" class="meta">Pick 2+ recordings to group as a session</div>
+        </div>
+        <div style="display:flex;gap:6px;flex-shrink:0">
+          <button class="btn ghost" style="font-size:11px;padding:2px 8px" onclick="exitGroupingMode()">Cancel</button>
+          <button class="btn primary" id="btn-confirm-group" style="font-size:11px;padding:2px 8px" onclick="confirmGroupSelection()" disabled>Group as session</button>
+        </div>
+      </div>
       <ul class="sidebar-list" id="video-list"></ul>
     </div>
     <div class="resize-handle resize-handle-v" id="videos-clips-resize-handle" title="Drag to resize Recordings / Clips panels" role="separator" aria-orientation="horizontal" aria-label="Resize Recordings / Clips panels"></div>
@@ -1702,6 +1716,7 @@
 <script src="/static/ui.js"></script>
 <script src="/static/panelnav.js"></script>
 <script src="/static/videos.js"></script>
+<script src="/static/sessions.js"></script>
 <script src="/static/clips.js"></script>
 <script src="/static/analyze.js"></script>
 <script src="/static/reel.js"></script>

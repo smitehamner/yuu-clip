@@ -7,7 +7,7 @@ A folder where yuu-clip keeps one body of work — its recordings, clips, export
 A video file of a gaming session — the main thing you feed into yuu-clip. Each recording is listed in the Sessions panel on the left.
 
 ### Session
-The gameplay period a recording captures — for example, "last night's session." One recording is one session.
+One sitting of gameplay — for example, "last night's session." When OBS splits a long sitting into several files, you can group those recordings into one Session: it gets a shared name, a combined Session Summary, and a Unified Timeline that runs continuously across every recording (with the real-world breaks between files marked). Use **Suggest sessions** to auto-group back-to-back recordings, or **Group** to pick them by hand; ungrouping never deletes anything.
 
 ### Duration
 How long a recording or clip runs, shown as `1h 23m 45s` or `23m 45s`.

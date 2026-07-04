@@ -6,6 +6,8 @@ const AppState = {
   activeVideoId:       null,
   activeClipId:        null,
   videos:              [],
+  sessions:            [],       // grouped play sessions (RecordingSession rows)
+  activeSessionId:     null,     // session whose detail view is open, or null
   clips:               [],
   analyzeProfiles:     [],
   contexts:            [],

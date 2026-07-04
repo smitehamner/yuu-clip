@@ -3,9 +3,13 @@
 async function loadVideos() {
   let videos;
   try {
-    const res = await fetch('/api/videos');
-    if (!res.ok) throw new Error(`Server error ${res.status}`);
-    videos = await res.json();
+    const [videosRes, sessions] = await Promise.all([
+      fetch('/api/videos'),
+      fetch('/api/sessions').then(r => r.ok ? r.json() : []).catch(() => []),
+    ]);
+    if (!videosRes.ok) throw new Error(`Server error ${videosRes.status}`);
+    videos = await videosRes.json();
+    AppState.sessions = sessions;
   } catch (err) {
     document.getElementById('video-list').innerHTML =
       `<li style="padding:10px 14px;color:var(--red)">Failed to load recordings: ${escHtml(String(err.message || err))}</li>`;
@@ -75,49 +79,88 @@ function _renderVideoList() {
     return;
   }
 
-  for (const v of shown) {
-    const isAnalyzing = v.filename === analyzingName && v.status !== 'done';
-    const li = document.createElement('li');
-    li.className = 'video-item'
-      + (v.id === AppState.activeVideoId ? ' active' : '')
-      + (isAnalyzing ? ' analyzing' : '');
-    li.dataset.videoId = v.id;
-    li.tabIndex = 0;
-    const clipsPct = v.duration_ms > 0
-      ? ` (${Math.round(v.total_clip_ms / v.duration_ms * 100)}%)`
-      : '';
-    const scoreBar = (v.score_min !== null && v.score_max !== null && v.clip_count > 0)
-      ? `<div class="meta">Scores: ${Math.round(v.score_min * 100)}% – ${Math.round(v.score_max * 100)}%</div>`
-      : '';
-    const segmentMeta = (v.segment_start_s != null && v.segment_end_s != null)
-      ? `<div class="meta" style="color:var(--accent2)">${_msToHms(v.segment_start_s * 1000)} – ${_msToHms(v.segment_end_s * 1000)}</div>`
-      : '';
-    const errCount = v.clips_llm_error || 0;
-    const errBadge = errCount > 0
-      ? `<div class="meta" style="margin-top:2px;color:var(--warning)" title="LLM scoring failed for ${plural(errCount, 'clip')} — re-score to retry">&#9888; ${plural(errCount, 'scoring error')}</div>`
-      : '';
-    li.innerHTML = `
-      <div class="name" title="${v.title ? escHtml(v.filename) : ''}">${escHtml(v.title || v.filename)}</div>
-      ${v.title ? `<div class="video-title">${escHtml(v.filename)}</div>` : ''}
-      ${segmentMeta}
-      <div class="meta">${v.duration_hms} &middot; ${v.clip_count} clips &middot; ${_msToHms(v.total_clip_ms)} clipped${clipsPct}</div>
-      <div class="meta">${isAnalyzing
-        ? `<span class="spinner" style="display:inline-block;vertical-align:middle"></span> <span style="color:var(--accent)">${escHtml(_fmtVideoStatus(v.status))}…</span>`
-        : `${v.approved} approved &middot; ${v.exported} exported &middot; ${_fmtVideoStatus(v.status)}`}</div>
-      ${errBadge}
-      ${scoreBar}`;
-    list.appendChild(li);
-  }
+  _renderGroupedVideoItems(list, shown, analyzingName);
 
   const _handleVideoListActivate = e => {
     const li = e.target.closest('li[data-video-id]');
     if (!li) return;
+    const videoId = parseInt(li.dataset.videoId);
+    if (window.SessionUI && SessionUI.selectionMode) { toggleGroupSelect(videoId); return; }
     document.querySelectorAll('#video-list li').forEach(l => l.classList.remove('active'));
     li.classList.add('active');
-    selectVideo(parseInt(li.dataset.videoId));
+    selectVideo(videoId);
   };
   list.onclick = _handleVideoListActivate;
   list.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); _handleVideoListActivate(e); } };
+}
+
+// Renders the sidebar list grouped by session: a session's shown members appear
+// together under a collapsible header, anchored at the sort position of their
+// first-appearing member; ungrouped recordings render inline.
+function _renderGroupedVideoItems(list, shown, analyzingName) {
+  const sessionById = new Map((AppState.sessions || []).map(s => [s.id, s]));
+  const renderedSessions = new Set();
+  for (const v of shown) {
+    const session = v.session_id != null ? sessionById.get(v.session_id) : null;
+    if (session && !renderedSessions.has(session.id)) {
+      renderedSessions.add(session.id);
+      const members = shown.filter(x => x.session_id === session.id);
+      list.appendChild(sessionGroupHeaderLi(session, members.length));
+      if (!isSessionCollapsed(session.id)) {
+        for (const m of members) list.appendChild(_videoItemLi(m, analyzingName, true));
+      }
+    } else if (!session) {
+      list.appendChild(_videoItemLi(v, analyzingName, false));
+    }
+  }
+}
+
+// Builds one recording <li>. inSession indents it under its session header;
+// grouping selection mode adds a checkbox and suppresses normal navigation.
+function _videoItemLi(v, analyzingName, inSession) {
+  const isAnalyzing = v.filename === analyzingName && v.status !== 'done';
+  const selecting = !!(window.SessionUI && SessionUI.selectionMode);
+  const selectable = selecting && v.parent_video_id == null;
+  const li = document.createElement('li');
+  li.className = 'video-item'
+    + (v.id === AppState.activeVideoId ? ' active' : '')
+    + (isAnalyzing ? ' analyzing' : '')
+    + (inSession ? ' in-session' : '')
+    + (selectable && SessionUI.selected.has(v.id) ? ' selected' : '');
+  li.dataset.videoId = v.id;
+  li.tabIndex = 0;
+  const clipsPct = v.duration_ms > 0
+    ? ` (${Math.round(v.total_clip_ms / v.duration_ms * 100)}%)`
+    : '';
+  const scoreBar = (v.score_min !== null && v.score_max !== null && v.clip_count > 0)
+    ? `<div class="meta">Scores: ${Math.round(v.score_min * 100)}% – ${Math.round(v.score_max * 100)}%</div>`
+    : '';
+  const segmentMeta = (v.segment_start_s != null && v.segment_end_s != null)
+    ? `<div class="meta" style="color:var(--accent2)">${_msToHms(v.segment_start_s * 1000)} – ${_msToHms(v.segment_end_s * 1000)}</div>`
+    : '';
+  const errCount = v.clips_llm_error || 0;
+  const errBadge = errCount > 0
+    ? `<div class="meta" style="margin-top:2px;color:var(--warning)" title="LLM scoring failed for ${plural(errCount, 'clip')} — re-score to retry">&#9888; ${plural(errCount, 'scoring error')}</div>`
+    : '';
+  const checkbox = selectable
+    ? `<input type="checkbox" class="session-select-box" aria-label="Select for grouping" ${SessionUI.selected.has(v.id) ? 'checked' : ''}>`
+    : '';
+  li.innerHTML = `
+    <div class="video-item-body">
+      ${checkbox}
+      <div style="flex:1;min-width:0">
+        <div class="name" title="${v.title ? escHtml(v.filename) : ''}">${escHtml(v.title || v.filename)}</div>
+        ${v.title ? `<div class="video-title">${escHtml(v.filename)}</div>` : ''}
+        ${segmentMeta}
+        <div class="meta">${v.duration_hms} &middot; ${v.clip_count} clips &middot; ${_msToHms(v.total_clip_ms)} clipped${clipsPct}</div>
+        <div class="meta">${isAnalyzing
+          ? `<span class="spinner" style="display:inline-block;vertical-align:middle"></span> <span style="color:var(--accent)">${escHtml(_fmtVideoStatus(v.status))}…</span>`
+          : `${v.approved} approved &middot; ${v.exported} exported &middot; ${_fmtVideoStatus(v.status)}`}</div>
+        ${errBadge}
+        ${scoreBar}
+      </div>
+    </div>`;
+  return li;
 }
 
 // ── video search / filter / sort controls ──────────────────────────────────
@@ -234,6 +277,8 @@ async function selectVideo(id) {
   }
   if (_isNewRecordingPanelOpen()) _doCloseNewRecordingPanel();
   AppState.activeVideoId = id;
+  AppState.activeSessionId = null;
+  document.querySelectorAll('#video-list li.session-header.active').forEach(l => l.classList.remove('active'));
   AppState.activeClipId  = null;
   localStorage.setItem('yuuclip-view', JSON.stringify({videoId: id, clipId: null}));
   AppState.clipFilters.clear();

@@ -96,11 +96,31 @@ A video file containing a gaming session — the primary input to yuu-clip.
 
 ### Session
 
-The gameplay period captured in a recording — e.g., "last night's FiveM session."
+The gameplay period from one sitting — e.g., "last night's FiveM session." A
+session may span **several recordings** when OBS splits a long sitting into
+multiple files. yuu-clip can **group** those recordings into one first-class
+Session with a shared name, a rolled-up **Session Summary**, and a **Unified
+Timeline** (a continuous time axis across all member recordings, with the
+real-world breaks between files labelled). Grouping can be suggested
+automatically (recordings recorded back-to-back, gap under 30 min) or done by
+hand; a group can be renamed, extended, or ungrouped (dissolved) without ever
+deleting recordings.
 
+- **Code:** `RecordingSession` (ORM model; named to avoid colliding with
+  SQLAlchemy's `orm.Session`), `videos.session_id`, `yuu_clip/sessions.py`
+  (auto-suggest), `yuu_clip/web/routes/sessions.py`, `POST/GET/PATCH/DELETE
+  /api/sessions`
 - **Also called:** gaming session, gameplay session
-- **Do not confuse with:** SQLAlchemy `Session` object (dev-only; never user-facing) — see [Disambiguation](#disambiguation)
-- **UI label:** appears only in "Session Summary" and "Session Timeline" — the sidebar panel heading is "Recordings" (see [Recording](#recording))
+- **Members:** only top-level recordings carry a `session_id`; a split segment
+  belongs to a session via its parent, never directly (see [Recording
+  Segment](#recording-segment) / Split)
+- **Do not confuse with:** SQLAlchemy `Session` object (dev-only; never
+  user-facing) — see [Disambiguation](#disambiguation); or **Recording
+  Segments**, which split one file rather than grouping many
+- **UI label:** "🎞 Session" detail badge; collapsible session header in the
+  Recordings sidebar; "Session Summary", "Unified Timeline", "Group",
+  "Suggest sessions". A lone recording's own "Session Summary"/"Session
+  Timeline" cards still describe that single recording's gameplay period.
 
 ---
 
@@ -932,6 +952,7 @@ These appear in code but should not appear in the UI or creator-facing documenta
 | Internal term | User-facing equivalent |
 |--------------|----------------------|
 | `ClipCandidate`, "clip candidate" | Clip |
+| `RecordingSession`, `session_id` | Session |
 | `Ollama` | *(not mentioned in UI; just "LLM model")* |
 | `stream` (audio) | Track |
 | `stream_index` | *(internal)* |

@@ -6,6 +6,35 @@ let _reelsOpener = null;
 // it; reopening the modal or changing the source select starts fresh.
 let _reelBuildLoaded = false;
 
+// Preselected "Clips from" source (e.g. a session) applied on the next Build-tab
+// population, so a caller can open the reel builder already scoped.
+let _reelPendingSource = null;
+
+// Adds one "Session: {name}" option per session that has at least one member with
+// approved clips, so the reel pool can span a whole session's recordings.
+function _appendSessionScopeOptions(sel) {
+  const approvedByVideo = new Map(AppState.videos.map(v => [v.id, v.approved]));
+  const usable = (AppState.sessions || []).filter(
+    s => s.member_ids.some(id => (approvedByVideo.get(id) || 0) > 0)
+  );
+  if (!usable.length) return;
+  const group = document.createElement('optgroup');
+  group.label = 'Sessions';
+  for (const s of usable) {
+    const approved = s.member_ids.reduce((n, id) => n + (approvedByVideo.get(id) || 0), 0);
+    const opt = document.createElement('option');
+    opt.value = `session:${s.id}`;
+    opt.textContent = `${s.name || s.title || 'Session'} (${approved} approved)`;
+    group.appendChild(opt);
+  }
+  sel.appendChild(group);
+}
+
+function openReelForSession(sessionId, _memberIds) {
+  _reelPendingSource = `session:${sessionId}`;
+  openHighlightReelsModal('build');
+}
+
 async function openHighlightReelsModal(tab) {
   _reelsOpener = _reelsOpener || document.activeElement;
   _reelBuildLoaded = false;
@@ -39,8 +68,10 @@ async function switchReelTab(tab) {
     }
     document.getElementById('demo-status').textContent = '';
     const sel = document.getElementById('demo-video-id');
-    const prevSource = sel.value;
+    const prevSource = _reelPendingSource || sel.value;
+    _reelPendingSource = null;
     sel.innerHTML = '<option value="">All approved clips</option>';
+    _appendSessionScopeOptions(sel);
     for (const v of AppState.videos) {
       if (!v.approved) continue;
       const opt = document.createElement('option');
@@ -50,7 +81,7 @@ async function switchReelTab(tab) {
     }
     sel.value = prevSource;
     if (sel.value !== prevSource) {
-      // Selected recording lost its approved clips — fall back to all and reload
+      // Selected source lost its approved clips — fall back to all and reload
       sel.value = '';
       _reelBuildLoaded = false;
     }
@@ -126,8 +157,14 @@ let _reelPoolStatuses = new Set(['approved']);
 
 function _reelPoolQs() {
   const params = new URLSearchParams();
-  const videoIdVal = document.getElementById('demo-video-id').value;
-  if (videoIdVal) params.set('video_id', videoIdVal);
+  const sourceVal = document.getElementById('demo-video-id').value;
+  if (sourceVal.startsWith('session:')) {
+    const sessionId = parseInt(sourceVal.slice('session:'.length), 10);
+    const session = (AppState.sessions || []).find(s => s.id === sessionId);
+    if (session && session.member_ids.length) params.set('video_ids', session.member_ids.join(','));
+  } else if (sourceVal) {
+    params.set('video_id', sourceVal);
+  }
   params.set('statuses', [..._reelPoolStatuses].join(','));
   return `?${params.toString()}`;
 }
@@ -618,7 +655,7 @@ async function _regenReelCaptions(reel, btn) {
 // Public API — symbols referenced cross-module, by an inline handler, or by a
 // test. Internal helpers above stay private to this module's closure.
 Object.assign(window, {
-  openHighlightReelsModal, closeHighlightReelsModal, switchReelTab,
+  openHighlightReelsModal, openReelForSession, closeHighlightReelsModal, switchReelTab,
   loadReelClips, _reelMove, _reelToggle, _toggleReelPoolStatus,
   startDemo, closeDemoModal, updateReelEstimate, exportUnexportedReelClips,
   previewReelPlaylist, closeReelPreview, _reelPreviewStep,

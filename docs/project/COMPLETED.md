@@ -6,6 +6,60 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) — see the
 
 ---
 
+## Multi-session grouping + unified timeline (done 2026-07-04)
+
+Closed the Phase 5 "Multi-session grouping" item (plan 04). Multiple OBS files from one
+sitting can be grouped into a single **Session** with a shared name, a rolled-up summary,
+a continuous cross-recording timeline, and session-scoped reel building. Auto-suggested
+from timestamps or grouped by hand; grouping never mutates recordings.
+
+- **Schema.** New `RecordingSession` ORM model (table `sessions` — named to avoid
+  colliding with SQLAlchemy's `orm.Session`) with rollup `title/title_user/summary/
+  summary_user/summarized_at/summary_context_json`. New nullable `videos.session_id` FK
+  (guarded ADD-COLUMN in `_migrate`; the table itself comes free via `create_all`). Only
+  top-level recordings carry `session_id`; split segments belong via their parent.
+  Dissolving a session nulls members' `session_id` explicitly — no cascade, recordings
+  never deleted.
+- **Auto-suggest.** Pure, unit-tested `yuu_clip/sessions.py`: parses OBS-style stems
+  (`YYYY-MM-DD HH-MM-SS`, space or underscore), falls back to `mtime − duration`, and
+  groups recordings whose consecutive gap (prev end → next start) is under a hard **30-min**
+  constant. Singleton groups are never suggested. `GET /api/sessions/suggestions` only
+  considers ungrouped recordings, so an accepted suggestion is never re-proposed.
+- **Routes** (`web/routes/sessions.py`): CRUD (create with member ids, rename, add/remove
+  member, dissolve), `GET /api/sessions/{id}` detail (members ordered by real start time
+  with cumulative offsets + real-world gaps + re-offset timeline entries and clip markers),
+  `PATCH /{id}/fields` (user title/summary override, mirroring the video pattern), and
+  `GET /{id}/summarize` (SSE, in-process `summarize_session` LLM rollup, auto-commit).
+  Mixed/unknown/segment member ids → 400.
+- **Reel scope.** `/api/demo/approved-clips` gained a plural `video_ids` filter (supersedes
+  `video_id`); the reel builder's "Clips from" picker lists sessions under a **Sessions**
+  optgroup, and the session detail view has a **Build Highlight Reel from Session** button.
+  The reel composer already handled clips from multiple source files, so no compositor
+  change was needed.
+- **UI** (`sessions.js`, new IIFE module): collapsible session headers in the Recordings
+  sidebar (collapse state in localStorage), a manual **Group** selection mode + grouping
+  bar, a **Suggest sessions** prompt with per-group accept/dismiss (dismissals remembered),
+  and the session detail view (rollup summary card + unified timeline with labelled breaks,
+  entries/clips navigating to the source recording). No hardcoded colors (theme tokens only).
+
+New tests: `tests/test_sessions.py` (grouping rule, filename parse, mtime fallback,
+threshold, singletons), `tests/test_api_sessions.py` (CRUD, dissolve nulls FK, suggestions,
+detail offsets/gaps/markers, rollup commit, `video_ids` pool filter, 400s), and
+`tests/test_ui_sessions.py` (grouped/collapse render, selection mode, suggestion
+dismissal memory, unified-timeline detail, reel scope option). Glossary + in-app glossary:
+**Session** expanded to cover the grouping; `RecordingSession`/`session_id` added to the
+dev-only term table.
+
+Terminology note flagged during implementation: the plan specified code name `Session`, but
+`models.py` already imports SQLAlchemy's `Session`; used `RecordingSession` to avoid the
+shadow (recorded under GLOSSARY "Code:").
+
+Out of scope (deferred, per plan): cross-file seamless playback, a session-level LLM
+re-timeline pass (the unified view stitches existing per-recording timelines), and sidebar
+grouping for split segments.
+
+---
+
 ## Project switcher (done 2026-07-04)
 
 Closed the Phase 5 "Project switcher in UI" item (plan 03). The server now switches
