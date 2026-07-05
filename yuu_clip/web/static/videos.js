@@ -381,7 +381,9 @@ function renderVideoDetail(video, savedTimeline) {
 
     ${(video.clip_count > 0 || video.status === 'done') ? `
     <div class="detail-card">
-      <div style="display:flex;justify-content:flex-end;margin-bottom:4px">
+      <div style="display:flex;justify-content:flex-end;gap:6px;margin-bottom:4px">
+        <button class="btn ghost" style="font-size:11px;padding:3px 9px" title="Scan the transcript for mis-heard names (e.g. &quot;You&quot; for &quot;Yuu&quot;) and fix them"
+                onclick="openNameCorrections(${video.id})">Fix names</button>
         <button class="btn ghost" style="font-size:11px;padding:3px 9px" title="Pick a time range to create a clip by hand"
                 onclick="openClipCreatePicker(${video.id})">Create clip</button>
       </div>

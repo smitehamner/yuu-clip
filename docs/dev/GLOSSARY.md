@@ -442,6 +442,19 @@ When a re-diarized voice lands just below the re-attach threshold (within a fixe
 
 ---
 
+### Name Corrections
+
+The reviewable feature that scans a transcript for likely mis-transcriptions of **known** names (Whisper hearing "You" for "Yuu") and fixes the ones the creator approves. Launched from the recording's transcript card ("Fix names").
+
+- **Code:** `name_corrections` — `find_name_corrections` / `LexiconName` / `NameCorrection` in `scoring/textmatch.py`; routes `POST /api/videos/{id}/name-corrections/scan` and `/apply`; `namecorrections.js`
+- **Lexicon:** confirmed **Speaker Names** (owned by that voice) + capitalized character names extracted from the recording's attached **World Contexts**
+- **Precision rules:** fuzzy (rapidfuzz `ratio`) with a higher bar for ordinary tokens and a lower bar + mandatory capitalization for short/common words; a speaker's own name is excluded from their own lines; nothing is auto-applied
+- **UI label:** "Fix names"; grouped as "**You → Yuu** · N instances", each with per-instance and per-group checkboxes
+- **User-facing terms:** "fix names", "name correction" — not "fuzzy match", "lexicon", or "rapidfuzz"
+- **Notes:** Applying routes through the same caption-edit path as a manual edit, so overlapping clips are re-excerpted and marked stale. See `docs/dev/plans/roadmap-close-2026-07/09-transcript-name-correction.md`.
+
+---
+
 ## Clips
 
 ### Clip

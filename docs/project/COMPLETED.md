@@ -6,6 +6,54 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) — see the
 
 ---
 
+## Transcript name correction (done 2026-07-04)
+
+Closed the Phase 6 "Transcript name correction" item (plan 09) — Whisper mis-hears
+spoken names ("You" for "Yuu"); this scans the transcript, groups the likely
+mis-transcriptions of **known** names, and applies only the ones the creator approves.
+No LLM in v1 — pure fuzzy string matching.
+
+- **Matcher** (`find_name_corrections` / `LexiconName` / `NameCorrection` in
+  `scoring/textmatch.py`, pure + fully unit-tested): rapidfuzz `ratio`, one correction
+  per token (its best lexicon match). **Lexicon** = confirmed Speaker Names (owned by
+  that voice) + capitalized ≥3-char character tokens extracted from the recording's
+  attached world contexts' `your_characters`/`other_characters` free text.
+- **Cutoff design deviates from the plan (flagged):** the plan's "ratio ≥ 90 common /
+  ≥ 80 normal" is wrong for the marquee case — `ratio("you","yuu")` is only **66.7**, so
+  a 90 floor would never fire. Instead ordinary tokens need ratio ≥ 80, while short/common
+  tokens use a **lower** floor (≥ 65) gated by **capitalization-in-context** — capitalization
+  is the precision lever a bare similarity score can't give for 3-letter words. Plus a
+  length-difference guard on common tokens (kills "All"→"Sally"), a stop-word skip (function
+  words never match a character name), and the plan's own precision rules: known-names-only,
+  and own-name exclusion (a speaker's own lines are skipped for their own name).
+- **Known limitation:** short homophone-only pairs like "All"/"Lil" score identically to the
+  real "You"/"Yuu" (both 66.7) and are inseparable by edit distance — separating them needs
+  phonetics, which the plan defers. The grouped-review UI is the mitigation: an obviously-wrong
+  pattern group is rejected in one uncheck. Verified on real project data: 91 true "You"→"Yuu"
+  surfaced on one recording alongside a couple of trivially-rejected false groups.
+- **Routes** (`web/routes/name_corrections.py`, in-process — matching is fast):
+  `POST /api/videos/{id}/name-corrections/scan` returns corrections grouped by
+  `(token → suggested)` with per-instance ±1-line context and speaker labels; nothing
+  stored. `POST …/apply` takes `[{segment_id, token_start, token_end, token, replacement}]`,
+  applies each segment's spans right-to-left, and validates the span still holds the expected
+  token — a drifted item is reported per-item (`error: "text_changed"`) rather than failing
+  the batch (a pragmatic read of the plan's "409 for that item only").
+- **Shared caption-edit path:** applying reuses the same bookkeeping as a manual caption edit
+  via a new `stage_segment_text_edit` helper (extracted from the caption-edit route into
+  `_shared.py`) — overlapping clips are re-excerpted, `transcript_edited_at` is stamped, and
+  export sidecars refresh, so staleness badges behave identically.
+- **UI** (`namecorrections.js`, PanelNav takeover from a "Fix names" button in the transcript
+  card): grouped list, each group a `<details>` with a select-all checkbox and per-instance
+  checkboxes (all checked by default), matched token highlighted, "speaker unknown" chip on
+  unattributed lines. Apply shows a count, toasts the result (with a skipped count on drift),
+  reloads the open transcript, and re-scans.
+- **Tests:** `test_name_corrections.py` (20 unit + API — matcher rules, lexicon extraction,
+  scan grouping, apply drift/idempotency/staleness); `test_ui_namecorrections.py` (6 Playwright
+  — panel open, highlight, chips, group select-all, apply-only-checked, empty state). Glossary
+  "Name Corrections" (dev + in-app "Fix names").
+
+---
+
 ## SpeechBrain diarization backend (done 2026-07-04)
 
 Closed the Phase 6 "Additional diarization backends" item (plan 08) — a second

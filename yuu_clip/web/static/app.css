@@ -390,6 +390,29 @@ header h1 { font-size: 16px; font-weight: 700; letter-spacing: .5px; color: var(
 .transcript-summary { cursor: pointer; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); list-style: revert; }
 .transcript-summary:hover { color: var(--text); }
 .transcript-details[open] .transcript-summary { margin-bottom: 8px; }
+/* name corrections panel (Plan 09) */
+.nc-intro { font-size: 13px; line-height: 1.5; color: var(--muted); margin: 0; }
+.nc-footer:not([hidden]) { display: flex; }
+.nc-footer { position: sticky; bottom: 0; justify-content: flex-end; padding-top: 8px; border-top: 1px solid var(--border); background: var(--bg); }
+.nc-group { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); margin-bottom: 10px; overflow: hidden; }
+.nc-group-head { display: flex; align-items: center; gap: 10px; padding: 8px 12px; cursor: pointer; list-style: none; }
+.nc-group-head::-webkit-details-marker { display: none; }
+.nc-group-head:hover { background: var(--surface-raised); }
+.nc-check { display: inline-flex; align-items: center; }
+.nc-pattern { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; }
+.nc-from { color: var(--muted); text-decoration: line-through; }
+.nc-arrow { color: var(--muted); }
+.nc-to { color: var(--accent-text); font-weight: 600; }
+.nc-count { margin-left: auto; font-size: 12px; color: var(--muted); }
+.nc-instances { border-top: 1px solid var(--border); }
+.nc-instance { display: flex; align-items: flex-start; gap: 10px; padding: 8px 12px; cursor: pointer; }
+.nc-instance + .nc-instance { border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent); }
+.nc-instance:hover { background: var(--surface-raised); }
+.nc-line { flex: 1; font-size: 13px; line-height: 1.5; color: var(--text); }
+.nc-ctx { color: var(--muted); }
+.nc-mark { background: color-mix(in srgb, var(--accent) 28%, transparent); color: var(--text); border-radius: 3px; padding: 0 2px; font-weight: 600; }
+.nc-chips { display: flex; flex-wrap: wrap; gap: 4px; flex-shrink: 0; }
+.nc-chip { font-size: 10px; padding: 1px 7px; border-radius: 10px; background: var(--border); color: var(--muted); white-space: nowrap; }
 /* context picker pills (new recording panel) */
 .ctx-picker { display: flex; flex-wrap: wrap; gap: 6px; }
 .ctx-pill { display: inline-flex; align-items: center; padding: 4px 11px; border-radius: 12px; font-size: 12px; cursor: pointer; border: 1px solid var(--border); background: var(--surface); color: var(--muted); transition: background .12s, border-color .12s, color .12s; user-select: none; }

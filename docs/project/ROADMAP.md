@@ -29,7 +29,7 @@ and the locked design decisions. Implement one plan per session.
 | ~~Vertical crop / Shorts export~~ (done 2026-07-04) | 06 |
 | ~~Clip export editor~~ (done 2026-07-04) | 07 |
 | ~~SpeechBrain diarization backend~~ (done 2026-07-04) | 08 |
-| Transcript name correction | 09 |
+| ~~Transcript name correction~~ (done 2026-07-04) | 09 |
 | Model selection + capability gating | 10 |
 | Image-based clip analysis | 11 |
 | Content-type presets | 12 |
@@ -197,11 +197,12 @@ Complex, specialized, or AI-heavy features that are valuable but don't need to b
     boost per named character" and per-speaker lore in scoring; deferred to avoid coupling naming to
     the contexts model in v1.
 
-- [ ] **Transcript name correction** — after speaker diarization maps clusters to character names,
-  auto-suggest replacements for mis-transcribed names that *other* speakers say (e.g. Whisper
-  hears "You" when someone is saying the name "Yuu"). Must be speaker-scoped and confidence-gated;
-  surfaced as a reviewable diff before committing. *Fed by* the speaker→name map from Speaker naming
-  above (which provides the reliable speaker scoping) — not subsumed by it.
+- [x] **Transcript name correction** — scan the transcript for mis-transcribed known names that
+  *other* speakers say (Whisper hears "You" for "Yuu") and apply the ones the user approves
+  (done 2026-07-04, plan 09). Fuzzy (rapidfuzz) against a lexicon of confirmed speaker names +
+  world-context characters; speaker-scoped (own-name lines excluded); reviewable grouped diff, no
+  auto-apply. Phonetic matching stays deferred — the marquee "You"/"Yuu" case is caught, but short
+  homophone-only pairs ("All"/"Lil") are inseparable by edit distance and rely on group rejection.
 
 - [x] **Subtitle style options** — font, size, position for burned-in captions (done 2026-07-04,
   plan 05). Global default in Settings → Export + per-export override, applied via libass

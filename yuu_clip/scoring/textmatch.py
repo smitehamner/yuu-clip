@@ -3,11 +3,15 @@ Text matching shared by hot-word scoring (Plan 03) and sensitive-content scannin
 (Plan 06). Handles the "exact", "case_insensitive", and "fuzzy" match modes —
 LLM-semantic matching is a separate path (scoring/llm.py) and never goes through
 this module.
+
+Also hosts transcript name-correction detection (Plan 09): fuzzy-matching mis-heard
+spoken names ("You" → "Yuu") against a lexicon of known names.
 """
 from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from typing import Optional
 
 from rapidfuzz import fuzz
 
@@ -115,3 +119,141 @@ def find_fuzzy_matches(
         if hits:
             matches.append(Match(phrase=term.phrase, mode="fuzzy", count=len(hits), matched_text=hits[0]))
     return matches
+
+
+# ── transcript name correction (Plan 09) ──────────────────────────────────────
+# Whisper mis-hears spoken names ("You" for "Yuu"). We fuzzy-match transcript
+# tokens against a lexicon of *known* names (confirmed speakers + world-context
+# characters) and surface a reviewable diff — nothing is auto-applied.
+#
+# Cutoff design (tuned empirically — the plan's "ratio >= 90 common / >= 80 normal"
+# is wrong for the marquee case: fuzz.ratio("you", "yuu") is only 66.7, so a 90
+# floor would never catch it). Instead:
+#   - Ordinary (long/rare) tokens need a high similarity (>= 80): a big edit
+#     distance on a long word is unlikely to be the same name.
+#   - Short / common tokens can never clear 80 against a 3-letter name even when
+#     they ARE the mis-hearing, so they use a lower floor (>= 65) but must appear
+#     Capitalized in context — capitalization is the precision lever a bare
+#     similarity score can't provide for short words.
+# Precision is further protected by: known-names-only lexicon, own-name exclusion
+# (a speaker rarely mis-says their own name), and mandatory per-group review.
+
+_NAME_TOKEN_RE = re.compile(r"[^\W\d_]+", re.UNICODE)  # unicode letters, no digits/underscore
+_NAME_RATIO_NORMAL = 80.0
+_NAME_RATIO_COMMON = 65.0
+_MIN_NAME_LENGTH = 3
+
+# Pure function words: never plausible mis-heard names. Excluded outright so a
+# character named e.g. "Thane" / "Ander" doesn't flag every capitalized
+# "The" / "And" at a sentence start.
+_STOPWORDS = frozenset({
+    "the", "a", "an", "and", "or", "but", "if", "of", "to", "in", "on", "at",
+    "for", "by", "with", "as", "is", "it", "its", "be", "was", "were", "are",
+    "am", "been", "being", "this", "that", "these", "those", "i", "we", "they",
+    "he", "she", "him", "her", "them", "his", "hers", "their", "our", "my", "me",
+    "us", "your", "yours", "not", "no", "do", "does", "did", "so", "up", "out",
+    "off", "then", "than", "too", "very", "just", "can", "will", "would",
+})
+# Common English words that ARE plausible name mis-hearings ("You" for "Yuu",
+# "Mark" / "Jack" / "Rose" as both a word and a name). These, plus any token
+# <= 3 characters, use the lower ratio floor and the capitalization gate.
+_COMMON_WORDS = frozenset({
+    "you", "hey", "see", "may", "well", "mark", "jack", "rose", "dawn", "grace",
+    "hope", "joy", "art", "ray", "max", "june", "bill", "jean", "sky", "faith",
+})
+
+
+@dataclass(frozen=True)
+class LexiconName:
+    """A known name to look for mis-transcriptions of.
+
+    ``owner_speaker_id`` is the Speaker this name belongs to (so their own lines
+    are excluded — people rarely mis-say their own name); None for world-context
+    character names, which have no owning voice.
+    """
+    name: str
+    owner_speaker_id: Optional[int] = None
+
+
+@dataclass(frozen=True)
+class NameCorrection:
+    segment_id: int
+    token: str            # the literal mis-heard text as it appears
+    token_start: int      # character offset of the token within the segment text
+    token_end: int
+    suggested: str        # the lexicon name to replace it with
+    score: float          # rapidfuzz ratio (0–100)
+    speaker_scoped: bool  # True when the segment is attributed (own-name rule applied)
+    common_word: bool     # True when the token used the common/short-word cutoff
+
+
+def _is_common_token(token: str) -> bool:
+    return token.casefold() in _COMMON_WORDS or len(token) <= 3
+
+
+def extract_character_names(text: str) -> list[str]:
+    """Capitalized letter-tokens >= 3 chars from world-context character free text.
+
+    Deduplicated case-insensitively, preserving first-seen casing. Used to seed
+    the name-correction lexicon from a context's your/other-characters fields.
+    """
+    seen: dict[str, str] = {}
+    for match in _NAME_TOKEN_RE.finditer(text or ""):
+        token = match.group()
+        if len(token) >= _MIN_NAME_LENGTH and token[0].isupper():
+            seen.setdefault(token.casefold(), token)
+    return list(seen.values())
+
+
+def find_name_corrections(segments, lexicon: list[LexiconName]) -> list[NameCorrection]:
+    """Find likely mis-transcriptions of known names across transcript *segments*.
+
+    *segments* is any iterable of objects with ``id``, ``text``, and ``speaker_id``.
+    Pure and deterministic — the primary test surface for Plan 09. Emits at most one
+    correction per token (its best-scoring lexicon name); nothing is applied here.
+    """
+    names = [(entry.name, entry.owner_speaker_id) for entry in lexicon
+             if len(entry.name) >= _MIN_NAME_LENGTH]
+    if not names:
+        return []
+    lexicon_lower = {name.casefold() for name, _ in names}
+
+    corrections: list[NameCorrection] = []
+    for segment in segments:
+        text = segment.text or ""
+        speaker_id = getattr(segment, "speaker_id", None)
+        for match in _NAME_TOKEN_RE.finditer(text):
+            token = match.group()
+            token_lower = token.casefold()
+            if token_lower in _STOPWORDS or token_lower in lexicon_lower:
+                continue
+            common = _is_common_token(token)
+            if common and not token[0].isupper():
+                continue
+            cutoff = _NAME_RATIO_COMMON if common else _NAME_RATIO_NORMAL
+            best_name: Optional[str] = None
+            best_score = 0.0
+            for name, owner_speaker_id in names:
+                if owner_speaker_id is not None and owner_speaker_id == speaker_id:
+                    continue
+                # Short/common words match longer names too loosely at the lower
+                # cutoff ("All" vs "Sally"), so require near-equal length there — a
+                # genuine one-word mis-hearing barely changes length ("You"/"Yuu").
+                if common and abs(len(token) - len(name)) > 1:
+                    continue
+                score = fuzz.ratio(token_lower, name.casefold())
+                if score >= cutoff and score > best_score:
+                    best_name, best_score = name, score
+            if best_name is None:
+                continue
+            corrections.append(NameCorrection(
+                segment_id=segment.id,
+                token=token,
+                token_start=match.start(),
+                token_end=match.end(),
+                suggested=best_name,
+                score=round(best_score, 1),
+                speaker_scoped=speaker_id is not None,
+                common_word=common,
+            ))
+    return corrections

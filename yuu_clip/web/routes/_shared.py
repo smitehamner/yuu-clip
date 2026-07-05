@@ -192,6 +192,38 @@ def _json_list(s: Optional[str]) -> list:
     return json_lib.loads(s) if s else []
 
 
+def stage_segment_text_edit(db, seg, new_text: str) -> list[ClipCandidate]:
+    """Set a transcript segment's text and stage the downstream caption bookkeeping.
+
+    Rebuilds the transcript excerpt of every clip overlapping the segment and stamps
+    each with a fresh ``transcript_edited_at`` (so staleness badges fire). Does NOT
+    commit and does NOT refresh export sidecars — the caller must ``db.commit()``
+    then ``refresh_export_sidecars`` per returned clip (sidecar rewriting reads the
+    committed state). Shared by the caption-edit route and name-correction apply so
+    a corrected name flows through the exact same path as a manual caption edit.
+    """
+    from datetime import datetime, timezone
+
+    from yuu_clip.segments.windower import rebuild_clip_excerpt
+
+    seg.text = new_text
+    video_id = seg.transcript.audio_track.video_id
+    affected = (
+        db.query(ClipCandidate)
+        .filter(
+            ClipCandidate.video_id == video_id,
+            ClipCandidate.start_ms < seg.end_ms,
+            ClipCandidate.end_ms > seg.start_ms,
+        )
+        .all()
+    )
+    edited_at = datetime.now(timezone.utc)
+    for clip in affected:
+        rebuild_clip_excerpt(clip)
+        clip.transcript_edited_at = edited_at
+    return affected
+
+
 def _require_clip(db, clip_id: int) -> ClipCandidate:
     clip = db.get(ClipCandidate, clip_id)
     if not clip:

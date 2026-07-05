@@ -35,6 +35,7 @@ from yuu_clip.web.routes._shared import (
     _srt_to_vtt,
     _sse_response,
     _validate_export_preset_query,
+    stage_segment_text_edit,
 )
 
 _log = get_logger(__name__)
@@ -1210,7 +1211,6 @@ def _register_caption_routes(router: APIRouter, ctx: ProjectContext) -> None:
 
         Preserves the segment's speaker and timing — only the text changes.
         """
-        from yuu_clip.segments.windower import rebuild_clip_excerpt
         from yuu_clip.subtitles import refresh_export_sidecars
         new_text = body.text.strip()
         if not new_text:
@@ -1220,21 +1220,8 @@ def _register_caption_routes(router: APIRouter, ctx: ProjectContext) -> None:
             seg = db.get(TranscriptSegment, seg_id)
             if not seg:
                 raise HTTPException(404, "Caption segment not found")
-            seg.text = new_text
             video_id = seg.transcript.audio_track.video_id
-            affected = (
-                db.query(ClipCandidate)
-                .filter(
-                    ClipCandidate.video_id == video_id,
-                    ClipCandidate.start_ms < seg.end_ms,
-                    ClipCandidate.end_ms > seg.start_ms,
-                )
-                .all()
-            )
-            edited_at = datetime.now(timezone.utc)
-            for clip in affected:
-                rebuild_clip_excerpt(clip)
-                clip.transcript_edited_at = edited_at
+            affected = stage_segment_text_edit(db, seg, new_text)
             db.commit()
             for clip in affected:
                 refresh_export_sidecars(clip, ctx.export_dir, ctx.config.export_name_template)
