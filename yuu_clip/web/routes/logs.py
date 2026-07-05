@@ -1,3 +1,6 @@
+# Feature-map — Application log download (send-to-developer)
+#   UI: index.html footer "Download log" link (no dedicated JS module)
+#   Siblings: yuu_clip/log.py · web/sse.py (subprocess stdout capture)
 """
 Log export route.
 

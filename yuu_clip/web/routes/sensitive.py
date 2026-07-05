@@ -1,3 +1,6 @@
+# Feature-map — Sensitive Terms (code: sensitive_terms / SensitiveTerm; Privacy Terms + Censor Words)
+#   UI: static/sensitive.js (Settings → Sensitive Content) · "Flagged" clip filter
+#   Siblings: scoring/textmatch.py · scoring/engine.py (apply_sensitive_scan) · tests/test_sensitive.py, tests/test_ui_sensitive.py
 """Sensitive-content (Privacy Terms / Censor Words) CRUD + rescan routes
 (roadmap plan 06). Term text is user PII by definition — never log a `term`
 value anywhere in this module; log only counts and ids.

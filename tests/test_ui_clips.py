@@ -812,6 +812,16 @@ class TestRetranscribeRefresh:
                 status=200, content_type="application/json", body=json.dumps(refreshed_clip),
             ),
         )
+        # selectClip() renders the detail only after Promise.all of the clip and
+        # media_url fetches resolve; stub media_url too so the re-render can't be
+        # gated on a slow real-server response under full-suite parallel load.
+        page.route(
+            f"**/api/clips/{clip_id}/media_url",
+            lambda route: route.fulfill(
+                status=200, content_type="application/json",
+                body=json.dumps({"url": None, "filename": None, "has_captions": False}),
+            ),
+        )
 
         page.evaluate("(id) => openRetranscribeModal(id)", clip_id)
         page.evaluate("() => startRetranscribe()")

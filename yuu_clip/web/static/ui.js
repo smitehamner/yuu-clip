@@ -1,3 +1,5 @@
+// Feature-map — Shared UI primitives (alert / confirm / prompt modals) used app-wide.
+//   API: none (client-only) · Tests: covered indirectly by the test_ui_*.py suites
 // ── alert modal (single-button, no cancel) ────────────────────────────────────
 let _alertOpener = null;
 function showAlert(title, body) {

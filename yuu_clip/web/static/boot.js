@@ -1,3 +1,5 @@
+// Infrastructure — first-paint boot wiring (a11y init, event hookup, initial load).
+//   Not a feature module; loaded last in index.html.
 // ── accessibility init ────────────────────────────────────────────────────────
 document.querySelectorAll('.modal-bg').forEach((bg, i) => {
   const inner = bg.querySelector('.modal, [class*="modal"]');

@@ -1,4 +1,6 @@
 (function () {
+// Feature-map — Sensitive Terms (Privacy Terms + Censor Words; code: sensitive_terms).
+//   API: routes/sensitive.py · Tests: tests/test_ui_sensitive.py
 // ── sensitive-content settings ──────────────────────────────────────────────
 // Server-backed CRUD, same per-row-save model as hot-words (hotwords.js). The
 // key difference: every save/delete triggers an immediate project-wide rescan

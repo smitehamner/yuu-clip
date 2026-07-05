@@ -1,3 +1,6 @@
+# Feature-map — NOT a feature: cross-cutting grab-bag (file-lock diagnosis, SSE
+#   helper, SRT→VTT, export paths, clip lookup). Slated to be dissolved in repo-
+#   legibility stage 07 — add new helpers to a feature module, not here.
 """Cross-cutting helpers shared by two or more route modules."""
 from __future__ import annotations
 

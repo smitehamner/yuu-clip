@@ -1,3 +1,6 @@
+# Feature-map — Export preset (code: ExportPreset)
+#   UI: static/exportpresets.js (Settings → Export editor) + export options picker
+#   Siblings: export_presets.py (built-ins + validation) · tests/test_export_presets.py
 """Export preset routes — built-ins are read-only; custom presets are a
 per-user (global config) preference, edited from Settings -> Export."""
 from __future__ import annotations

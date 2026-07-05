@@ -1,4 +1,6 @@
 (function () {
+// Feature-map — Hot-word (code: hot_words; Settings → Hot-words).
+//   API: routes/hotwords.py · Tests: tests/test_ui_hotwords.py
 // ── hot-words settings ────────────────────────────────────────────────────────
 // Server-backed CRUD (unlike the rest of the Settings panel, which batches into
 // one Save): each row change persists immediately via POST/PUT/DELETE against

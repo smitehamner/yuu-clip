@@ -1,3 +1,6 @@
+# Feature-map — Settings / configuration (code: Config)
+#   UI: static/settings.js (whole Settings panel)
+#   Siblings: config.py (load/save_project) · tests/test_config.py, tests/test_ui_settings.py
 """Config get/patch routes — GET /api/config, PATCH /api/config."""
 from __future__ import annotations
 

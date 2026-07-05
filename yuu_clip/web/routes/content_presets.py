@@ -1,3 +1,6 @@
+# Feature-map — Content type (code: content_preset)
+#   UI: static/settings.js (Settings → Scoring weights → Content type)
+#   Siblings: content_presets.py · scoring/llm.py (live prompt flavor) · tests/test_content_presets.py, tests/test_ui_content_presets.py
 """Content-type preset routes (plan 12).
 
 GET  /api/content-presets        — list built-in presets + the active one

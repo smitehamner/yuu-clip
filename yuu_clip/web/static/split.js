@@ -1,3 +1,5 @@
+// Feature-map — Split recording into segments (code: segment / segment_start_s).
+//   API: routes/videos.py (split) · Tests: tests/test_ui_split.py, tests/test_segments.py
 // ── split editor ─────────────────────────────────────────────────────────────
 
 let _splitVideoId   = null;

@@ -1,3 +1,6 @@
+# Feature-map — Hot-word (code: hot_words / HotWord)
+#   UI: static/hotwords.js (Settings → Hot-words)
+#   Siblings: scoring/engine.py · scoring/textmatch.py · tests/test_hotwords.py, tests/test_ui_hotwords.py
 """Hot-word / phrase config CRUD routes."""
 from __future__ import annotations
 

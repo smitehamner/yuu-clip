@@ -1,4 +1,6 @@
 (function () {
+// Feature-map — Name corrections (code: name_corrections; UI "Fix names").
+//   API: routes/name_corrections.py · Tests: tests/test_ui_namecorrections.py
 // ── transcript name correction (Plan 09) ──────────────────────────────────────
 // A PanelNav takeover launched from the recording's transcript card. Scans the
 // transcript for likely mis-transcriptions of known names ("You" → "Yuu"),

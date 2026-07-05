@@ -1,3 +1,6 @@
+# Feature-map — Reveal in Explorer / "Show in folder"
+#   UI: invoked from static/clips.js, videos.js, reel.js (per-file "Show in folder")
+#   Siblings: web/media.py · tests/test_reveal.py
 """Reveal-in-Explorer route.
 
 Windows-only: opens Explorer with the target file pre-selected. Never shells

@@ -1,5 +1,5 @@
 (function () {
-// ── clips ─────────────────────────────────────────────────────────────────────
+// ── clip list & filtering ─────────────────────────────────────────────────────────────────────
 function _applyFilters() {
   const f = AppState.clipFilters;
   let result = AppState.clips;
@@ -1026,6 +1026,7 @@ function _replaceClipInList(updated) {
   if (idx !== -1) AppState.clips[idx] = updated;
 }
 
+// ── score override & merge ───────────────────────────────────────────────────
 let _scoreOverrideClipId = null;
 let _scoreOverrideOpener = null;
 
@@ -1114,6 +1115,7 @@ function _parseTimingOffset(str) {
   return parseFloat(s);
 }
 
+// ── description edit ─────────────────────────────────────────────────────────
 function _openClipDescKebab(clipId, btn, field) {
   const clip    = AppState.activeClipData;
   const isLong  = field === 'description_long';
@@ -1234,6 +1236,7 @@ function showUndoToast(message, undoFn) {
   setTimeout(() => toast.remove(), 5000);
 }
 
+// ── export dialog (modal) flow ───────────────────────────────────────────────
 let _exportClipId = null;
 let _exportOpener = null;
 let _exportDiarReady  = false;

@@ -1,4 +1,6 @@
 (function () {
+// Feature-map — Recordings list + detail (code: video / Video).
+//   API: routes/videos.py · Tests: tests/test_ui_video.py, tests/test_videos.py
 // ── videos ────────────────────────────────────────────────────────────────────
 async function loadVideos() {
   let videos;

@@ -1,3 +1,5 @@
+// Feature-map — Analyze (start + SSE progress) + Import from URL, both in the New Recording panel.
+//   API: routes/analyze.py, routes/imports.py · Tests: tests/test_ui_analyze.py
 // ── new recording panel ───────────────────────────────────────────────────────
 let _probeTimer    = null;
 let _probedInfo    = null;

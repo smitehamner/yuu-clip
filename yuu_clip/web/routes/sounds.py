@@ -1,3 +1,6 @@
+# Feature-map — Notification sounds
+#   UI: static/sounds.js (Settings → Notification sounds; playback state in localStorage)
+#   Siblings: tests/test_sounds.py, tests/test_ui_sounds.py
 """
 Notification sound routes.
 

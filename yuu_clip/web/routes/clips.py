@@ -1,3 +1,6 @@
+# Feature-map — Clips (code: ClipCandidate)
+#   UI: static/clips.js (list, detail, player, tags, score override, export modal, bulk ops)
+#   Siblings: scoring/engine.py · cli/export.py · tests/test_videos.py, tests/test_ui_clips.py
 """Clip management routes — CRUD, preview, approval, export."""
 from __future__ import annotations
 

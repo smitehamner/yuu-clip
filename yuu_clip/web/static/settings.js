@@ -1,4 +1,6 @@
 (function () {
+// Feature-map — Settings panel (all sections; see the per-section banners below).
+//   API: routes/config.py, llm.py, profiles.py, content_presets.py, export_presets.py · Tests: tests/test_ui_settings.py
 // ── settings panel ────────────────────────────────────────────────────────────
 const _settingsFieldIds = [
   's-whisper-model','s-whisper-device','s-whisper-compute','s-whisper-language',
@@ -80,7 +82,6 @@ async function openSettings() {
     _doCloseNewRecordingPanel();
   }
   const panel = document.getElementById('settings-panel');
-  panel.style.top = document.querySelector('header').offsetHeight + 'px';
   panel.classList.add('visible');
   try {
     const cfg = await fetch('/api/config').then(r => r.json());
@@ -264,6 +265,7 @@ function applyTheme(theme) {
   localStorage.setItem('yuuclip-theme', theme);
 }
 
+// ── LLM scoring section (enable toggle + backend selection) ──────────────────
 // Everything below the master toggle is inert while LLM scoring is off —
 // inert (not disabled) so the fields keep their values for the save payload.
 function _onLlmEnabledChange(enabled) {
@@ -336,6 +338,7 @@ function _setPrivacyMode(mode) {
   _checkSettingsDirty();
 }
 
+// ── speaker labels section (diarization backend + HF token) ──────────────────
 function _onDiarizationBackendChange(backend) {
   const pyannoteEl    = document.getElementById('s-pyannote-fields');
   const speechbrainEl = document.getElementById('s-speechbrain-fields');
@@ -405,6 +408,7 @@ async function _updateDiarizationStatus() {
   el.style.color = installed && tokenSet ? 'var(--green, #22c55e)' : 'var(--muted, #888)';
 }
 
+// ── scoring, similarity & playback section handlers ──────────────────────────
 function _onLaughModeChange(mode) {
   const modelEl = document.getElementById('s-laugh-model-fields');
   if (modelEl) modelEl.style.display = mode === 'model' ? '' : 'none';
@@ -429,6 +433,7 @@ function _onLoopClipChange(enabled) {
   if (playNextEl) playNextEl.checked = false;
 }
 
+// ── export section (filename template preview) ───────────────────────────────
 // Sample values for the export-filename-template live preview — a plausible
 // clip, not real data. Mirrors export_naming.export_base_stem's placeholder
 // set and sanitization so the preview matches what the server would produce.
@@ -549,6 +554,7 @@ function _updateTitleCardPreview() {
   }
 }
 
+// ── optional-package installs (hardware / model dependencies) ────────────────
 async function _refreshInstallStatus(slug) {
   const btn    = document.getElementById(`btn-install-${slug}`);
   const status = document.getElementById(`install-status-${slug}`);
@@ -878,6 +884,7 @@ async function pullOllamaModel(tag) {
   }
 }
 
+// ── model readiness ──────────────────────────────────────────────────────────
 // Readiness of the *saved* active model. Reflects config on disk, not unsaved
 // edits — refreshed on open and after Save.
 async function _updateLlmCapabilities() {
@@ -974,6 +981,7 @@ function _captionSizeValue(raw) {
   return Number.isNaN(n) ? 0 : n;
 }
 
+// ── save + dirty tracking ────────────────────────────────────────────────────
 async function saveSettings() {
   const getVal = id => { const el = document.getElementById(id); return el ? el.value : null; };
   const getChk = id => { const el = document.getElementById(id); return el ? el.checked : null; };
@@ -1090,6 +1098,19 @@ document.addEventListener('DOMContentLoaded', () => {
   if (panel) {
     panel.addEventListener('input',  _checkSettingsDirty);
     panel.addEventListener('change', _checkSettingsDirty);
+  }
+
+  // The settings panel is a fixed overlay pinned below the header (CSS reads
+  // --header-height for `top`). The header grows/shrinks as badges appear (remote
+  // LLM), the job-progress row shows during analyze, or buttons wrap — so keep the
+  // token live rather than snapshotting it once, or a stale value lets the panel
+  // ride up over the header buttons.
+  const header = document.querySelector('header');
+  if (header && typeof ResizeObserver !== 'undefined') {
+    const syncHeaderHeight = () =>
+      document.documentElement.style.setProperty('--header-height', header.offsetHeight + 'px');
+    syncHeaderHeight();
+    new ResizeObserver(syncHeaderHeight).observe(header);
   }
 
   // Show "Re-run Setup Wizard" in the hamburger only when running inside Electron.

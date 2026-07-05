@@ -1,4 +1,6 @@
 (function () {
+// Feature-map — World context (code: rp_context / Context; UI term "Contexts").
+//   API: routes/contexts.py · Tests: tests/test_ui_contexts.py
 // ── context manager ───────────────────────────────────────────────────────────
 function _parseWeight(id) {
   const v = parseFloat(document.getElementById(id).value);

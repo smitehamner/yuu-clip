@@ -1,3 +1,7 @@
+// Feature-map — Shared subsystem grab-bag: AppState, formatters, job-UI/SSE machinery,
+//   thermal polling, pause UI, and the preview-proxy player. Named "utils" for historical
+//   reasons; slated to split into named subsystems in repo-legibility stage 02.
+//   Tests: tests/test_ui_utils.py, tests/test_ui_sse.py, tests/test_utils.py
 // ── shared application state ──────────────────────────────────────────────────
 // Mutable state shared across feature modules. Centralized in one explicit object
 // so cross-module reads/writes are greppable and obviously shared, rather than

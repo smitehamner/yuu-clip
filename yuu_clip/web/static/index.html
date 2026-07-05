@@ -18,6 +18,27 @@
 </head>
 <body>
 
+<!-- ===========================================================================
+     PAGE TABLE OF CONTENTS (major regions, in source order)
+     Each region is marked by its own HTML-comment banner below; no line
+     numbers here on purpose (they rot). Feature ↔ file map: see the
+     "Feature-map" header at the top of each static/*.js and routes/*.py.
+
+       · Header bar (brand, project switcher, job status, action buttons, hamburger)
+       · Settings panel (replaces the main layout when active — all Settings sections)
+       · Sidebar (Recordings list + Clips list)
+       · Main panel (player + clip detail; New Recording panel; Progress log)
+       · Panel-nav takeover (breadcrumb + Split Editor panel content)
+       · Toast container
+       · Drag-and-drop analyze overlay (Electron only)
+       · App footer bar
+       · Modals: Getting Started · About · Profile Manager · Highlight Reels ·
+         Reel Preview · Batch Export · Retranscribe · Context Manager · Diff ·
+         Field Edit · Alert · Open Project · Confirm · Export Settings ·
+         Timeline Interval · Auto-approve · Glossary · Controls · Find Similar ·
+         Additional Actions · Score Override
+============================================================================ -->
+
 <header>
   <div class="brand">
     <img class="brand-logo" src="/static/gamercat.png" alt="" width="26" height="26">

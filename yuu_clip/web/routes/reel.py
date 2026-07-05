@@ -1,3 +1,6 @@
+# Feature-map — Highlight reel (code: demo_reel / build_reel)
+#   UI: static/reel.js (Build + View modal)
+#   Siblings: reel.py (build_reel, title_card_lines) · tests/test_reel.py, tests/test_ui_reel.py
 """
 Highlight reel compilation routes.
 
