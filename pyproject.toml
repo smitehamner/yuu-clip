@@ -8,7 +8,7 @@ version = "0.1.15"
 description = "Video session clip extraction pipeline"
 requires-python = ">=3.11,<3.14"
 dependencies = [
-    # Transcription Ã¢â‚¬â€ GPU-accelerated Whisper via CTranslate2
+    # Transcription - GPU-accelerated Whisper via CTranslate2.
     # av (PyAV) is a required dep of faster-whisper and is also used
     # directly in energy.py / overlap.py for audio frame decoding.
     "faster-whisper>=1.2,<2.0",
@@ -16,7 +16,7 @@ dependencies = [
     # CLI framework; [all] pulls in rich (pretty output) and shellingham.
     "typer[all]>=0.12,<1.0",
 
-    # ORM Ã¢â‚¬â€ SQLite database for clips, transcripts, scores
+    # ORM - SQLite database for clips, transcripts, scores.
     "sqlalchemy>=2.0,<3.0",
 
     # Cross-platform config/data dirs (AppData on Windows, ~/.config on Linux).
@@ -59,7 +59,8 @@ llamacpp = [
 ]
 laugh-model = [
     # Required for scorer_laugh_mode = "model".
-    # Recommended model: MIT/ast-finetuned-audioset-10-10-0.4593 (~350 MB, auto-downloads)
+    # Recommended model: MIT/ast-finetuned-audioset-10-10-0.4593 (~350 MB, auto-downloads;
+    # BSD-3-Clause -- "MIT" is the HF org namespace, not the licence).
     "transformers>=4.30,<6.0",
     "torch>=2.0",
     "torchaudio>=2.0",
@@ -83,7 +84,5 @@ target-version = "py311"
 [tool.ruff.lint]
 select = ["E", "F", "W", "I"]
 ignore = [
-    "E501",  # line too long ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â tighten incrementally
+    "E501",  # line too long - tighten incrementally
 ]
-
-

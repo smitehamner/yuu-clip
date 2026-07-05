@@ -9,7 +9,7 @@ Everything runs locally — no cloud APIs, no internet required after first mode
 ## What it does
 
 - Probes video files and detects multiple OBS audio tracks
-- Labels tracks interactively (mic, voice chat, game sounds, combined) with saved profiles
+- Assigns each track a role (mic, voice chat, game sounds, combined) with saved track layouts
 - Extracts audio tracks to 16 kHz mono WAV
 - Transcribes with [faster-whisper](https://github.com/SYSTRAN/faster-whisper) (GPU accelerated via CTranslate2)
 - Detects when specialized tracks duplicate a combined track and falls back automatically

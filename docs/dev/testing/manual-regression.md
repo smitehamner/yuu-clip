@@ -12,7 +12,7 @@ Run this before any release or after a significant change. Each item should pass
 |---|------|----------|
 | 1 | Open `http://127.0.0.1:8080` | Page loads; no console errors |
 | 2 | Check footer bar | Version string visible bottom-left |
-| 3 | Click `≡` hamburger | Dropdown shows: View Highlight Reels, World Contexts, Terminology, Controls, About, Download Log, Settings |
+| 3 | Click `≡` hamburger | Dropdown shows: Getting Started, Controls, World Contexts, Terminology Glossary, Settings, Download Log, About (plus Re-run Setup Wizard in the packaged desktop app) |
 
 ---
 

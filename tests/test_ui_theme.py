@@ -242,3 +242,62 @@ def test_app_css_has_no_color_literals_outside_theme_blocks():
     literals = re.findall(r"#[0-9a-fA-F]{3,8}\b|rgba?\([^)]*\)", outside)
     offenders = sorted(set(literals) - {"#000"})
     assert offenders == []
+
+
+# ── No hardcoded colors in JS-built HTML / inline styles (CLAUDE.md) ─────────
+# The rule in CLAUDE.md bans color literals in JS-built HTML and inline styles,
+# not just in app.css. This scans the static *.js and index.html for them.
+#
+# Legitimate non-token colors are stripped or allowlisted, by class:
+#   - HTML numeric entities (&#8230;) are not colors at all.
+#   - `var(--token, #fallback)` — the literal is a defensive CSS-var fallback
+#     that never fires (the token is always defined by a theme block).
+#   - `|| '#data'` — a JS fallback for user/data-supplied colors (speaker dot,
+#     title-card color-picker default), not UI chrome.
+#   - Over-video overlays (#000/#fff/#e6e6e6 caption text, black/white scrims):
+#     drawn over video, theme-independent by design — same class as #000
+#     letterboxing (the documented CLAUDE.md exemption).
+#   - The score-gradient stops in utils.js: data encoding, not chrome.
+# Adding a new literal outside these classes breaks this test.
+_OVER_VIDEO_HEX = {"#000", "#fff", "#e6e6e6"}
+_SCORE_GRADIENT_STOPS = {"#6b6b80", "#4fc3f7", "#4caf7d", "#f0c060", "#f7a85a"}
+# Grandfathered: dark text on the amber "Remote LLM" badge. Proper fix is an
+# --on-warning theme token (tracked in ROADMAP frontend-polish). Guard prevents
+# any *new* literal while this one stays enumerated rather than silently ignored.
+_GRANDFATHERED = {"#1a1a1a"}
+_ALLOWED_HEX = _OVER_VIDEO_HEX | _SCORE_GRADIENT_STOPS | _GRANDFATHERED
+
+_HTML_ENTITY_RE = re.compile(r"&#\d+;?")
+_VAR_FALLBACK_RE = re.compile(r"var\(\s*--[\w-]+\s*,[^)]*\)")
+_JS_COLOR_FALLBACK_RE = re.compile(
+    r"""\|\|\s*['"](?:#[0-9a-fA-F]{3,8}|rgba?\([^)]*\))['"]"""
+)
+_RGB_INTERP_RE = re.compile(r"rgb\(\$\{[^)]*\)")
+_COLOR_LITERAL_RE = re.compile(r"#[0-9a-fA-F]{3,8}\b|rgba?\([^)]*\)")
+
+
+def _color_literal_offenders(text: str) -> list[str]:
+    for pattern in (_HTML_ENTITY_RE, _VAR_FALLBACK_RE, _JS_COLOR_FALLBACK_RE, _RGB_INTERP_RE):
+        text = pattern.sub(" ", text)
+    offenders = []
+    for literal in _COLOR_LITERAL_RE.findall(text):
+        low = literal.lower()
+        if low in _ALLOWED_HEX:
+            continue
+        # Over-video black/white scrims at any alpha.
+        if re.match(r"rgba?\(\s*0\s*,\s*0\s*,\s*0\s*[,)]", low):
+            continue
+        if re.match(r"rgba?\(\s*255\s*,\s*255\s*,\s*255\s*[,)]", low):
+            continue
+        offenders.append(literal)
+    return offenders
+
+
+def test_no_hardcoded_colors_in_static_js_and_html():
+    offenders = {
+        path.name: found
+        for path in sorted(STATIC_DIR.iterdir())
+        if path.suffix in {".js", ".html"}
+        if (found := _color_literal_offenders(path.read_text(encoding="utf-8")))
+    }
+    assert offenders == {}, f"hardcoded color literals (use a theme token): {offenders}"

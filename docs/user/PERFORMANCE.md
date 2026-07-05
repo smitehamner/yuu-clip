@@ -29,7 +29,7 @@ Whisper weights are cached in the faster-whisper model cache (default: `%USERPRO
 | Item | Size per hour of source video |
 |---|---|
 | Extracted audio WAVs (16 kHz mono, kept in `.yuu-clip/audio/`) | ~115 MB/hr per track |
-| SQLite database (`.yuu-clip/yuu-clip.db`) | Negligible (<5 MB for typical sessions) |
+| SQLite database (`.yuu-clip/project.db`) | Negligible (<5 MB for typical sessions) |
 | Exported clips (`.yuu-clip/exports/`) | Depends on source bitrate; stream-copy exports match source |
 | Highlight reels (`.yuu-clip/reels/`) | Same as above |
 
@@ -72,4 +72,6 @@ Long analysis runs keep the GPU at sustained load. For safety:
 - Make sure your laptop has adequate airflow and is on a hard surface
 - Monitor GPU temperature if you're running large-v3 on multi-hour sessions
 - Consider batching: analyze one file at a time rather than a large folder drop
-- The hardware health monitor (planned, Phase 5) will add automatic thermal warnings and pause support
+- The hardware health monitor watches GPU temperature during analysis: it warns at the configurable
+  warn threshold and can auto-pause before the next video if the GPU stays hot (NVIDIA only; tune the
+  thresholds in Settings → Hardware)

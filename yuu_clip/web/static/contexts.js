@@ -337,7 +337,7 @@ function rescoreAllClips(videoId, btn) {
   const count = video ? video.clip_count : 0;
   const hasContext = video && video.context_names && video.context_names.length > 0;
   const contextWarn = hasContext ? '' :
-    `<div style="margin-top:8px;padding:6px 10px;background:rgba(240,192,96,.1);border-left:3px solid var(--warning);border-radius:3px;font-size:12px">` +
+    `<div style="margin-top:8px;padding:6px 10px;background:color-mix(in srgb, var(--warning) 10%, transparent);border-left:3px solid var(--warning);border-radius:3px;font-size:12px">` +
     `No world context assigned — descriptions will be generic.</div>`;
   showConfirm(
     'Re-score all clips?',
@@ -356,7 +356,7 @@ function redescribeAllClips(videoId, btn) {
   const count = video ? video.clip_count : 0;
   const hasContext = video && video.context_names && video.context_names.length > 0;
   const contextWarn = hasContext ? '' :
-    `<div style="margin-top:8px;padding:6px 10px;background:rgba(240,192,96,.1);border-left:3px solid var(--warning);border-radius:3px;font-size:12px">` +
+    `<div style="margin-top:8px;padding:6px 10px;background:color-mix(in srgb, var(--warning) 10%, transparent);border-left:3px solid var(--warning);border-radius:3px;font-size:12px">` +
     `No world context assigned — descriptions will be generic.</div>`;
   showConfirm(
     'Re-describe all clips?',

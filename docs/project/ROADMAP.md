@@ -1,6 +1,10 @@
 # yuu-clip — Roadmap
 
-## Status overview
+Forward-looking only. Everything already shipped is recorded in
+[COMPLETED.md](COMPLETED.md) and [COMPLETED-archive.md](COMPLETED-archive.md) —
+this file tracks just the work that is still open, grouped by priority.
+
+## Where things stand
 
 | Phase | Description | Status |
 |---|---|---|
@@ -8,395 +12,159 @@
 | 2 | Signal enrichment + scoring | Done |
 | 3 | Web UI | Done |
 | 4 | Packaging for distribution | Done |
-| 5 | Post-launch polish | Pending |
-| 6 | Advanced features | Pending |
+| 5 | Post-launch polish | Shipped (one packaged-app verification outstanding) |
+| 6 | Advanced features | Shipped except copyright detection (deferred) |
 
-## Implementation plans (written 2026-07-04)
-
-Every open Phase 5/6 item below (except copyright content detection, which
-stays deferred) has a detailed plan in
-[docs/dev/plans/roadmap-close-2026-07/](../dev/plans/roadmap-close-2026-07/INDEX.md)
-— see its INDEX for the recommended order (Waves A–D), sizes, dependencies,
-and the locked design decisions. Implement one plan per session.
-
-| Item | Plan |
-|---|---|
-| ~~Voiceprint threshold validation + borderline confirmation band~~ (done 2026-07-04) | 01 |
-| ~~Laugh score as separate attribute~~ (done 2026-07-04) | 02 |
-| ~~Project switcher~~ (done 2026-07-04) | 03 |
-| ~~Multi-session grouping (full unified timeline)~~ (done 2026-07-04) | 04 |
-| ~~Caption style options~~ (done 2026-07-04) | 05 |
-| ~~Vertical crop / Shorts export~~ (done 2026-07-04) | 06 |
-| ~~Clip export editor~~ (done 2026-07-04) | 07 |
-| ~~SpeechBrain diarization backend~~ (done 2026-07-04) | 08 |
-| ~~Transcript name correction~~ (done 2026-07-04) | 09 |
-| ~~Model selection + capability gating~~ (done 2026-07-04) | 10 |
-| ~~Image-based clip analysis~~ (done 2026-07-04) | 11 |
-| ~~Content-type presets~~ (done 2026-07-05) | 12 |
-| ~~Generalise for any video content~~ (done 2026-07-05) | 13 |
+The 13-plan `roadmap-close-2026-07` set (voiceprint confirmation, laugh score,
+project switcher, multi-session grouping, caption styles, vertical crop, clip
+export editor, SpeechBrain diarization, name correction, model selection, image
+analysis, content presets, de-RP generalisation) all shipped 2026-07-04/05. The
+remaining open work below is what did **not** have a plan in that set.
 
 ---
 
-## Phase 1 — Core pipeline (Done)
+## 1 — Verification & known-issue debt
 
-ffprobe probing, interactive track labeling, audio extraction, Whisper transcription (faster-whisper/CTranslate2, CUDA), sliding-window clip generation, SRT sidecars, baked captions. CLI: `yuuclip analyze / export / clips / status / probe`.
+Implemented-but-unverified surfaces and latent traps to close before distribution.
 
-See [COMPLETED-archive.md](COMPLETED-archive.md) for full details.
+- [ ] **Electron native-file-protocol packaged-app verification** — the packaged app
+  serves local media via Electron's native file protocol instead of the Python
+  byte-pump (implemented 2026-07-03, roadmap plan 10). It is unticked only because
+  the packaged-app verification checklist has never been run — it can't be exercised
+  from browser-dev mode. Steps and expected results live in
+  [docs/dev/plans/consolidation-2026-07-05-manual-verification.md](../dev/plans/consolidation-2026-07-05-manual-verification.md).
 
----
+- [ ] **Analyze pipeline is not idempotent on a no-`--force` re-run** — `transcribe_track`
+  (`whisper_runner.py`) always creates a *new* `Transcript`, and `generate_candidates`
+  (`segments/windower.py`) always *appends* new `ClipCandidate` rows; neither skips or
+  replaces existing output. Nothing duplicates today because the `status == "done"` skip
+  in `_pipeline._resolve_existing_video` short-circuits any completed video on re-run.
+  It is a latent trap: any future change that loosens that skip (stage-level resume, or
+  marking `"done"` only after scoring) would silently duplicate transcripts and clips.
+  Proper fix when stage-level resume is wanted: make transcription and clip-generation
+  skip-if-already-present (gated on `not force`).
 
-## Phase 2 — Signal enrichment + scoring (Done)
+- [ ] **Modal keyboard trap** — Escape closes all open modals simultaneously instead of
+  only the topmost one. Fixing properly requires a modal stack so Escape pops one layer
+  at a time. Low UX impact for a single-user tool. *(Partially addressed 2026-07-01: the
+  confirm modal — the only layer that actually stacks on other modals today — is popped
+  alone by Escape; the flat close-all cascade remains for the rest, and the dirty-editor
+  modals now confirm before discarding.)*
 
-Audio energy (PyAV RMS), tiered scene detection (transcript gaps / keyframes / PySceneDetect), LLM scoring via Ollama (JSON-structured, funny/dramatic/action sub-scores + clip description), track overlap detection, weighted scoring engine. `yuuclip score` and `yuuclip reel` CLI commands.
-
-See [COMPLETED-archive.md](COMPLETED-archive.md) for full details.
-
----
-
-## Phase 3 — Web UI (Done)
-
-Core review workflow, sidebar, export, analyze modal, track layout manager, reel builder, video summary + title, two-level clip descriptions, session timeline, World Contexts, settings panel, keyboard shortcuts, editable LLM fields with diff/compare, batch export, auto-approve, confirmation dialogs, prebuilt contexts, context nudge, post-analysis toast, elapsed timer on job steps, clip preview before export (seekable, LRU-cached temp files from source via FFmpeg), export status pills in sidebar, Save As button, Delete Export vs Delete Clip separation, export metadata display (container/captions/timestamp), and more. See [COMPLETED-archive.md](COMPLETED-archive.md) for the full shipped list.
-
-All near-term and medium-term items shipped.
-
----
-
-## Phase 4 — Packaging + distribution (Done)
-
-Goal: friends can install and use without knowing Python.
-
-Electron wrapper, NSIS installer, first-run setup wizard, venv setup, backend health check, rolling logs, version in footer, bundled `llama-cpp-python` inference backend, LLM backend picker + Ollama model pull in wizard — shipped. See [COMPLETED-archive.md](COMPLETED-archive.md).
-
-All Phase 4 items shipped. See [COMPLETED-archive.md](COMPLETED-archive.md).
-
----
-
-## Phase 5 — Post-launch polish (Pending)
-
-Smaller improvements and UX debt that don't block initial distribution but are high-value for
-regular users.
-
-- [ ] **Electron native-file-protocol transport swap** — the remaining follow-up from the
-  720p preview proxy work (shipped 2026-07-02, see COMPLETED.md): in the packaged app, serve
-  local media via Electron's native file protocol instead of the Python byte-pump. Helps
-  startup latency, not seeking (the proxy already solved that), and doesn't apply to
-  browser-dev mode. Implemented 2026-07-03 (roadmap plan 10); left unticked because the
-  5-item manual packaged-app verification checklist hasn't run yet — see COMPLETED.md and
-  the plan file's own status header.
-
-- [x] **Map and end-to-end test expected user paths** (done, 2026-07-03) — 10 journeys enumerated
-  in `docs/dev/USER_PATHS.md`, each with a locked per-artifact staleness policy: cheap text
-  artifacts (clip transcript excerpt, SRT caption sidecar) auto-refresh on caption edit, speaker
-  rename/reassign, and retranscribe; expensive encoded artifacts (the exported clip file, a
-  highlight reel) get a "Stale — re-export to update" badge and are never silently rebuilt.
-  `ClipCandidate.export_stale`/`export_stale_reasons` computed from new `trim_edited_at` /
-  `description_edited_at` / `exported_title_card` / `exported_embed_subs` columns vs.
-  `exported_at`; reel staleness computed from the existing `.reel.json` composition manifest vs.
-  member clips' `exported_at`. See `docs/dev/plans/roadmap-2026-07/02-user-paths-staleness.md`.
-
-- [x] **Panel navigation UX direction** — multi-step flows take over the main detail panel (not modals); `← Back` breadcrumb; discard prompt on unsaved changes; tabs only for within-view navigation. Framework (`panelnav.js`) + Split Editor migration landed; remaining flows (reel builder, analyze panel, contexts) migrate opportunistically.
-
-- [x] **Validate the voiceprint re-attach threshold** (done, 2026-07-04) — QA pass over three real
-  recordings (see plan 01 Results): a voice's own print re-attaches at ~1.00, while the highest
-  cosine between two *different* voices across 214 pairs was 0.647 — a wide clean gap, so the 0.75
-  default (and this project's 0.80 override) is well-placed. No false matches, no missed re-attaches;
-  no benchmark corpus was warranted. Re-diarize now streams the per-cluster similarity so the
-  threshold stays inspectable. Kept the default at 0.75. See
-  `docs/dev/plans/roadmap-close-2026-07/01-voiceprint-validation.md`.
-
-- [x] **Pause / resume analysis** (done, 2026-07-03) — pause a running analysis job between videos (finish the video currently in progress, then hold before starting the next). Two trigger modes: **manual** ("Pause after current video" button in the job header) and **automatic** (triggered by hardware health thermal threshold). On resume, the queue continues from the next unprocessed video. Pause state is in-memory / flag-file only and does not survive a server restart. Applies to both single-video and batch analysis (and the JS sequential-segment runners for pre-split/re-split). See `docs/dev/plans/roadmap-2026-07/01-pause-hardware-health.md`.
-
-- [x] **Hardware health monitoring** (done, 2026-07-03) — two-part protective feature for laptop users during long analysis runs:
-  - *Pre-import estimate*: `/api/estimate` uses medians from the creator's own last 10 runs (keyed by model + device) once at least 2 matching samples exist, falling back to the static formula otherwise (`"source": "measured"|"estimated"`); shows a warning block (`analyze_warn_hours`, default 2h) suggesting the recording be split or fewer files analyzed at once.
-  - *Live thermal monitoring*: `yuu_clip/analyze/thermal.py` polls GPU temp via `pynvml` (NVIDIA only; silently inert otherwise) every ~10s during an analysis; warns after 3 consecutive samples at/above the warn threshold, auto-pauses after 3 consecutive samples at/above the pause threshold (same pause-flag mechanism as manual pause), with hysteresis after resume so a still-hot GPU doesn't immediately re-pause. Configurable in Settings → Hardware: `thermal_warn_c` (default 85), `thermal_pause_c` (default 90), `thermal_autopause_enabled` (default on).
-
-- [x] **Demo reel: add clips from rejected/unrated pool** (done, 2026-07-03) — `statuses` query
-  param on `/api/demo/approved-clips` (default `approved`, unchanged) plus Approved/Unreviewed/
-  Rejected pool chips in the reel Build tab; clips pulled in from a non-approved pool default to
-  excluded.
-
-- [x] **Batch processing status panel** (done, 2026-07-03) — collapsible summary bar above the clip
-  filter chips: status counts (unreviewed/approved/rejected/scoring-errors) for the selected
-  recording plus an in-flight job indicator, derived from `AppState.clips` and the existing
-  job-status pill (no new endpoints). Clicking a count applies the matching filter chip; collapsed
-  state persists in localStorage. Scoped down from the original "active/queued/completed job
-  counts with per-job detail" wording — the app has no job-queue/history infrastructure to back
-  that; see `docs/dev/plans/QUICK-WINS-2026-07.md` Stage 6. Deferred: moving the raw log view
-  behind a "Developer" toggle.
-
-- [x] **Detail panel chunking** (done, 2026-07-03) — clip detail panel regrouped into
-  Summary (description/full description/tags, merged into one card with dividers) → Scoring +
-  Actions (kept side by side per the existing L4-3 wrap design) → Export (trim/exported-file info,
-  split out of the Actions card) → Transcript, instead of a flatter list of single-purpose cards.
-  Layout-only — no behavior changes; event delegation and all existing selectors verified intact
-  via the full UI suite (459/459, zero test edits needed).
-
-- [x] **Project switcher in UI** (done, 2026-07-04 — roadmap plan 03) — header dropdown
-  switches the server between project folders in place (no restart), with a recent-projects
-  list and an "Open another project…" path input (native Browse in the desktop app). See
-  [COMPLETED.md](COMPLETED.md#project-switcher-done-2026-07-04). Unblocks the future
-  Project backup/restore item.
-
-- [x] **Title card customization** (done, 2026-07-03 — roadmap plan 09) — configurable
-  background color, text color, text size, and content layout (description /
-  timecode / both) for the highlight reel and clip-export title card. Background
-  image upload deliberately deferred (locked decision, plan 09). See
-  [COMPLETED.md](COMPLETED.md#title-card-customization-done-2026-07-03).
-
-- [x] **Multi-session grouping** — treat multiple OBS files from one play session as a single
-  Session with a unified timeline (done 2026-07-04, plan 04) — see
-  [COMPLETED.md](COMPLETED.md#multi-session-grouping--unified-timeline-done-2026-07-04).
+- [ ] **`--on-warning` theme token** — the "Remote LLM" billing badge still hardcodes
+  `color:#1a1a1a` for dark text on `var(--warning)` (grandfathered in
+  `tests/test_ui_theme.py`). Introduce an `--on-warning` token defined per theme, with a
+  contrast assertion, and drop the literal. Surfaced by the 2026-07-05 guard-rail pass.
 
 ---
 
-## Phase 6 — Advanced features (Pending)
+## 2 — Pre-distribution blockers
 
-Complex, specialized, or AI-heavy features that are valuable but don't need to block distribution.
+Wanted before distributing beyond friends/trusted users.
 
-### Scoring and signal enrichment
+- [ ] **Distribution licence** — the preview `LICENSE` (all rights reserved, no
+  redistribution) is intentionally restrictive. Before any public distribution, decide on
+  a looser licence (MIT, GPL-3, source-available, or BSL). Update `LICENSE`,
+  `pyproject.toml`, and the About modal.
 
-- [x] **Hot-word / phrase config** (done, 2026-07-03) — see
-  [COMPLETED.md](COMPLETED.md#hot-word--phrase-config-done-2026-07-03).
+- [ ] **Code signing for public distribution** — the installer is unsigned; Windows shows
+  a SmartScreen "unknown publisher" warning on first run and some AV tools flag it. Options:
+  EV code-signing cert (~$300/yr, immediate SmartScreen trust) or standard OV cert (cheaper,
+  builds reputation over time). electron-builder supports both via `CSC_LINK` /
+  `CSC_KEY_PASSWORD`; remove the `CSC_IDENTITY_AUTO_DISCOVERY=false` override in
+  `build-release.ps1` when a cert is in place.
 
-- [x] **Laugh score: separate attribute** (done, 2026-07-04) — see
-  [COMPLETED.md](COMPLETED.md#laugh-score-as-a-separate-attribute-2026-07-04). Added the
-  `score_laugh` column, sidebar/detail score display, and a Laughs sort option.
-  Non-speech event detection (sound effects, reactions) remains deferred — laugh-only for now.
-
-- [x] **Image-based clip analysis** — shipped 2026-07-04 (plan 11): optional, off-by-default
-  clip-only feature. "Analyze frames" samples N frames evenly across a clip and sends them to a
-  vision model (Ollama / Claude / llama.cpp+mmproj) for a "what's on screen" summary that enriches
-  descriptions and adds a *Visual context* block to the text scorer's prompt — never scores directly.
-  Manual per-clip button + an "Include frame analysis" checkbox in batch Re-score; on/off toggle +
-  frames-per-clip (1–10) in Settings. Vision models come from the plan-10 catalog (permissive
-  licences). Verified end-to-end against a real recording via Ollama + moondream.
-
-- [x] **Model selection and capability gating** — shipped 2026-07-04 (plan 10): curated
-  `model_catalog.py` of recommended text + vision models, all under monetization-safe licences
-  (Apache-2.0 / MIT / Anthropic commercial; Llama & Gemma recorded as rejected). Surfaced in
-  Settings and the wizard (recommended lists, one-click Ollama pull, download links, catalog-driven
-  Claude dropdown). `GET /api/llm/capabilities` + the `gateOnCapability()` helper let a control show
-  *why* it's disabled and link to Settings rather than failing silently (used by plan 11's vision
-  controls). Local-vision needs a vision-projector `.gguf` (`llm_mmproj_path`).
-
-### Transcript and speaker features
-
-- [x] **Additional diarization backends** — **SpeechBrain** shipped 2026-07-04 (plan 08):
-  ECAPA-TDNN embeddings + agglomerative sklearn clustering, no HF account/token, model
-  auto-downloads. Backend-specific voiceprints (`speakers.voiceprint_backend`) so names never
-  cross-match between engines. **NeMo TitaNet** (Apache 2.0, no token, heavier install) remains a
-  stretch/deferred backend. Adding another backend = a `DiarizationClient` subclass + allowlist
-  entry in `install_package`.
-
-- [ ] **Speaker naming — remaining pieces** — Phases 1–4 shipped (manual naming, voiceprint
-  re-attach, sample playback, LLM name inference — see COMPLETED-archive.md; the re-attach threshold's
-  validation shipped in Phase 5). Still open:
-  - [x] *Borderline-match confirmation band* (done, 2026-07-04) — a near-threshold voiceprint match
-    (within 0.10 below the threshold) now mints the fresh Speaker as before but records the near miss;
-    the Speakers card shows "Might be **{name}** (NN% voice match)" with **Same voice** (merge, average
-    the voiceprints) / **Different voice** (dismiss) buttons. See plan 01.
-  - *Deferred alternatives (weighed, not chosen for v1):* **project-wide speaker identity** — promote
-    per-recording Speakers to a project-level voice by matching voiceprints across all recordings so a
-    name applies everywhere (needs a merge/split UX, higher threshold, handles voice drift; hook: a
-    nullable `global_voice_id` / `ProjectVoice` table). **Link name → world-context character** —
-    replace free text with a reference to a context character (`Speaker.character_id`) to feed "score
-    boost per named character" and per-speaker lore in scoring; deferred to avoid coupling naming to
-    the contexts model in v1.
-
-- [x] **Transcript name correction** — scan the transcript for mis-transcribed known names that
-  *other* speakers say (Whisper hears "You" for "Yuu") and apply the ones the user approves
-  (done 2026-07-04, plan 09). Fuzzy (rapidfuzz) against a lexicon of confirmed speaker names +
-  world-context characters; speaker-scoped (own-name lines excluded); reviewable grouped diff, no
-  auto-apply. Phonetic matching stays deferred — the marquee "You"/"Yuu" case is caught, but short
-  homophone-only pairs ("All"/"Lil") are inseparable by edit distance and rely on group rejection.
-
-- [x] **Subtitle style options** — font, size, position for burned-in captions (done 2026-07-04,
-  plan 05). Global default in Settings → Export + per-export override, applied via libass
-  `force_style`; per-speaker *colour* (shipped earlier via `Speaker.display_color` and inline
-  `<font color>`) is never overridden. See COMPLETED.md.
-
-### Export and delivery
-
-- [x] **Export presets + per-format management** — saved output profiles (YouTube 1080p, Discord
-  ≤10 MB cap; TikTok 9:16 crop deferred until vertical crop exists) with a picker at export time;
-  exporting a clip in multiple formats, each tracked as a separate `clip_exports` row with
-  individual delete; "Regenerate" (same preset) distinguished from "Export another format".
-  Done 2026-07-03 — see roadmap-2026-07/07-export-presets.md.
-
-- [ ] **Auto captions on clip export** — pulled forward to Phase 3 Near-term as *Caption / subtitle
-  export* (softsub + hardsub). See Near-term section. Full caption styling (font, colour,
-  per-speaker) is still Phase 6.
-
-- [x] **Clip export editor** — done, 2026-07-04 (plan 07). "Edit & export" opens a PanelNav
-  takeover with transcript-driven trim (per-line ⇤/⇥ + ±0.5 s nudge, ~30 s extendable context),
-  a drag-to-position 9:16 crop box over a live preview, and a live burned-in caption overlay
-  (labelled a preview approximation). Reuses the existing trim/framing/caption/export machinery —
-  no new encode path. See [COMPLETED.md](COMPLETED.md).
-
-- [x] **Manual clip creation** — done, 2026-07-03. See [COMPLETED.md](COMPLETED.md).
-
-- [x] **Vertical crop / Shorts export** — done, 2026-07-04. Stage 1 manual 9:16 framing
-  (`tiktok-9x16` built-in preset + Left/Center/Right + slider) and Stage 2 optional
-  MediaPipe auto-framing ("Auto-frame on faces"). See
-  [COMPLETED.md](COMPLETED.md#vertical-crop--shorts-export--stage-2-mediapipe-auto-framing-done-2026-07-04).
-  ultralytics YOLO stayed banned (AGPL); MediaPipe is Apache-2.0.
-
-### Content safety and moderation
-
-- [x] **Sensitive content detection** (done, 2026-07-03) — see
-  [COMPLETED.md](COMPLETED.md#sensitive-content-detection-done-2026-07-03).
-
-- [ ] **Copyright content detection** — detect music in the audio track that might trigger
-  copyright claims or content strikes on platforms like YouTube. Requires audio fingerprinting
-  against a reference database (e.g. AcoustID or similar). No clear implementation path yet —
-  needs evaluation of fingerprinting libraries, database licensing terms, and accuracy on gaming
-  audio. Deferred until sensitive content detection is stable.
-
-### Generalisation
-
-- [x] **Content-type presets** — configurable specialization for different streaming styles so the
-  LLM prompts and scoring weights are tuned without manual config editing (shipped 2026-07-05, plan 12):
-  - RP / narrative (character names, dramatic moments, lore drops)
-  - Competitive gaming (clutch plays, comebacks, callouts)
-  - Casual / let's play (funny moments, reactions, commentary)
-  - Speedrun (split times, PB attempts, mistakes)
-  - Podcast / conversation (topic changes, memorable quotes)
-  Minimal/generic default for users who don't match a preset. Each preset ships with recommended
-  score weights, hot-words, and LLM prompt language. Prerequisite for the rename/generalisation work.
-
-- [x] **Generalise for any video content** — done, 2026-07-05 (plan 13). The rename
-  (rp-clipper → yuu-clip) shipped earlier; this pass audited and neutralised the remaining
-  roleplay-specific copy. Verified every LLM prompt was already content-neutral (RP flavor is
-  injected live only via the `rp-narrative` content preset, plan 12); added `podcast` and
-  `just-chatting` prebuilt world contexts; neutralised RP-assuming tooltips, docs, and comments;
-  and added a "Content type" question to the setup wizard. Gaming-first framing was kept by
-  design — de-RP, not de-gaming. See [COMPLETED.md](COMPLETED.md). This closes the
-  roadmap-close-2026-07 plan set (copyright content detection stays deferred — no implementation
-  path).
-
-- [x] **URL import (Twitch VOD / YouTube)** — done, 2026-07-03. See [COMPLETED.md](COMPLETED.md).
+- [ ] **Project backup / restore** — there is no way today to back up or move a project short
+  of manually copying folders. As distribution grows, a corrupted DB or a reinstalled machine
+  with no recovery path is a bad first impression. Scope: a "Backup project" action that
+  archives the SQLite DB plus configured media roots (source videos excluded by default — too
+  large; exports/audio cache included) into a single file, and a "Restore from backup" path in
+  the setup wizard. Now unblocked — the Project switcher settled how project directories are
+  addressed.
 
 ---
 
-## Follow-ups from the 2026-07-04 quality review
+## 3 — Speaker & scoring depth
 
-Surfaced during the code-quality pass over the roadmap-2026-07 slice; recorded here so
-they're discoverable. See [COMPLETED.md](COMPLETED.md#code-quality-review-of-the-roadmap-2026-07-slice-2026-07-04).
+- [ ] **Speaker identity beyond one recording** — the remaining Speaker-naming pieces, both
+  weighed but deferred for v1:
+  - **Project-wide speaker identity** — promote per-recording Speakers to a project-level
+    voice by matching voiceprints across all recordings so a name applies everywhere. Needs a
+    merge/split UX, a higher threshold, and voice-drift handling; hook: a nullable
+    `global_voice_id` / `ProjectVoice` table.
+  - **Link name → world-context character** — replace free-text names with a reference to a
+    context character (`Speaker.character_id`) to feed "score boost per named character" and
+    per-speaker lore into scoring; deferred to avoid coupling naming to the contexts model.
 
-- [x] **URL-import download cancel** — done, 2026-07-04. The Import-from-URL download now shows
-  a Stop button; `POST /api/import-url/cancel` terminates the yt-dlp subprocess tree and the
-  stream emits `[Import cancelled]`. The job-header Cancel button dispatches per-job via
-  `setJobCancel`. See [COMPLETED.md](COMPLETED.md).
-- [x] **Actionable GPU "running hot" warn toast** — done, 2026-07-04. The warn toast now tells
-  the user what happens next (auto-pause at N°C, or that auto-pause is off and to pause
-  manually); `/api/status` gained `thermal_autopause_enabled` + `thermal_pause_c`.
-- [x] **Legacy `UNIQUE(path)` videos-table migration** — done, 2026-07-04. The table-recreation
-  block in `db/models.py` no longer hardcodes a column subset; it derives the new DDL from the
-  live `videos` schema by stripping only the `UNIQUE (path)` fragment, so it can't drift as
-  columns are added. Regression test in `tests/test_db_migrations.py` runs `_migrate` against a
-  legacy DB (UNIQUE(path) + pre-`source_*`/`proxy_*` columns) and asserts no crash, data intact,
-  constraint gone, and idempotency. See [COMPLETED.md](COMPLETED.md).
+- [ ] **Score learning loop** — use accumulated manual score overrides to tune the prompt or
+  scoring-weight vector semi-automatically. Requires a meaningful corpus of overrides first.
+
+- [ ] **Copyright content detection** *(deferred — no implementation path)* — detect music in
+  the audio track that might trigger copyright claims. Requires audio fingerprinting against a
+  reference database (AcoustID or similar); needs evaluation of fingerprinting libraries,
+  database licensing, and accuracy on gaming audio before it can be scoped.
 
 ---
 
-## Future considerations (no phase yet)
+## 4 — Frontend polish
 
-Items wanted long-term but not yet assigned to a phase.
+- [ ] **Finish the JS module-scoping refactor** *(partially done 2026-06-29)* — shared mutable
+  state is encapsulated in `AppState` and five feature modules are IIFE-scoped. **Remaining:**
+  module-scope the deferred `analyze`/`split` modules and their global constants; extract the
+  remaining inline `display`-toggling style strings to CSS classes where it won't change
+  behavior. See `docs/dev/REVIEW_DECISIONS.md`.
 
-- [ ] **JS code quality refactor** *(partially done 2026-06-29)* — the no-build SPA accumulated
-  debt from global constants, implicit shared state, and inline styles. **Shipped:** shared
-  mutable state (`_clips`, `activeVideoId`, etc.) encapsulated into `AppState`; module-private
-  helpers in 5 feature modules now scoped via IIFE (see "Frontend JS maintainability pass" above).
-  **Remaining:** finish module-scoping the deferred `analyze`/`split` modules and their global
-  constants; extract the remaining inline style strings to CSS classes (only the static
-  `.col-head` table-header case was done — the bulk is `display`-toggling styles that can't move
-  to a class without a behavior change, plus class-merge cases; a proper utility/token layer
-  belongs with the Themes / CSS-variable-layer work below). See `docs/dev/REVIEW_DECISIONS.md`.
+- [ ] **Custom colour-picker component + accent-colour theme variants** — replace the native
+  `<input type="color">` (per-speaker caption colours in `speakers.js`) with a shared JS-built
+  picker that supports direct hex entry, a recently-used strip, and a user-curated named
+  palette. Build it reusable from the start so the accent-colour theme variants below reuse it:
+  alternative accent colours (e.g. blue vs the current amber/green) layered on the existing
+  Dark / Light / High-contrast themes, since those themes are already pure token swaps. Decide
+  palette persistence (localStorage vs per-project DB) as part of the design.
 
-- [ ] **Themes** — the app ships with a single dark theme. Future options:
-  - **Light mode** — full light-background theme matching the dark palette's contrast ratios
-  - **Colour variants** — alternative accent colours for both light and dark themes (e.g.
-    blue-accent vs current amber/green), picked via the custom colour picker component below
-  - Theme picker in Settings (persisted to localStorage); system `prefers-color-scheme` as the
-    default when no preference is saved. Design the CSS variable layer first so themes are pure
-    token swaps.
+- [ ] **Sidebar grouping for split segments** — a collapsible parent row
+  "session.mkv (3 segments)" with indented children, as an alternative to the flat list.
+  Deferred until the flat list proves insufficient in practice.
 
-- [ ] **Custom colour picker component** — replace the native `<input type="color">` (currently
-  used for per-speaker subtitle colours in `speakers.js`) with a JS-built picker that supports
-  direct hex-code entry. Build it as a shared, reusable component from the start — not
-  speaker-specific — so the Themes accent-colour picker above and any future colour selection can
-  reuse it without rework. Saves two things: an automatic recently-used strip, and a user-curated
-  named palette (add/remove/name swatches, e.g. per speaker or per project). Decide palette
-  persistence (localStorage vs. per-project DB) as part of the design.
+---
 
-- [ ] **Clips vs Scenes** — introduce a second candidate type: "Scenes" are longer contextual
-  moments (1–5 min, may include pauses and story arc) vs. "clips" (15–90 s punchy bits). Design
-  first: separate pipeline? flag on `ClipCandidate`? separate table? separate review UI?
-  Depends on transcript editing being stable.
+## 5 — Larger / speculative features
 
-- [ ] **Sidebar grouping for segments** — once Recording Segments ships (Phase 3), consider a
-  collapsible parent row "session.mkv (3 segments)" with indented children as an alternative to
-  the flat list. Deferred until the flat list proves insufficient in practice.
+- [ ] **Clips vs Scenes** — a second candidate type: "Scenes" are longer contextual moments
+  (1–5 min, may include pauses and story arc) vs. "clips" (15–90 s punchy bits). Design first:
+  separate pipeline? flag on `ClipCandidate`? separate table? separate review UI? Depends on
+  transcript editing being stable.
 
-- [ ] **Clip deduplication** — detect and merge near-duplicate clips (same event captured in overlapping time windows from different segmentation passes). Design unclear; revisit after transcript editing is stable.
+- [ ] **Clip deduplication** — detect and merge near-duplicate clips (the same event captured in
+  overlapping windows from different segmentation passes). Design unclear; revisit after
+  transcript editing is stable.
 
-- [ ] **Score learning loop** — use accumulated manual score overrides (see Phase 5) to tune the
-  prompt or scoring weight vector semi-automatically. Requires a meaningful corpus of overrides
-  before it's worthwhile.
-
-- [ ] **AMD / Intel GPU support** — evaluate ROCm (AMD) and OpenVINO (Intel) in CTranslate2; the wizard already detects both and surfaces informational messages. Actual accelerated inference requires library support that doesn't exist on Windows for these vendors yet.
-
-- [ ] **Linux compatibility** — verify the full pipeline on Linux; audit Windows-only assumptions in path handling (`LOCALAPPDATA`/`APPDATA`), `wmic` GPU detection, file pickers, and process management. Electron wrapper is Windows-only; would need a separate packaging path.
-
-- [ ] **UI localization (i18n)** — translate the web UI and setup wizard themselves into other
-  languages. Distinct from the shipped *transcription language* setting (which controls what
-  Whisper transcribes, not what the UI displays). Requires externalizing the hardcoded UI strings
-  in `index.html` / the JS modules / `setup.html` into a string table first — expensive to
-  retrofit, so batch it with any larger frontend rework. English-only is fine while the user base
-  is friends/trusted users.
-
-- [ ] **Project backup / restore** — there is no way today to back up or move a project short of
-  manually copying the right folders and hoping the paths are correct. As distribution moves
-  beyond solo use, a corrupted DB or a reinstalled machine with no recovery path is a bad first
-  impression for a new user. Scope: a "Backup project" action that archives the SQLite DB plus
-  configured media roots (source videos likely excluded by default — too large; exports/audio
-  cache included) into a single file, and a "Restore from backup" path in the setup wizard.
-  Depends on the Project switcher (Phase 5) settling how project directories are addressed.
-
-- [ ] **Distribution licence** — the preview `LICENSE` (all rights reserved, no redistribution) is intentionally restrictive. Before any public distribution, decide on a looser licence (MIT, GPL-3, source-available, or BSL). Update `LICENSE`, `pyproject.toml`, and the About modal.
-
-- [ ] **Code signing for public distribution** — the installer is currently unsigned; Windows shows
-  a SmartScreen "unknown publisher" warning on first run, and some AV tools will flag it. Required
-  before distributing outside friends/trusted users. Options: EV code signing certificate (~$300/yr,
-  immediate SmartScreen trust) or standard OV cert (cheaper, builds SmartScreen reputation over time
-  via volume). electron-builder supports both via `CSC_LINK` / `CSC_KEY_PASSWORD` env vars; remove
-  the `CSC_IDENTITY_AUTO_DISCOVERY=false` override in `build-release.ps1` when a cert is in place.
-
-- [ ] **Modal keyboard trap** — Escape closes all open modals simultaneously instead of only the
-  topmost one. Fixing properly requires a modal stack so Escape pops one layer at a time. Low UX
-  impact for a single-user tool; look into later when modal nesting becomes common.
-  *(Partially addressed 2026-07-01: the confirm modal — the only layer that actually stacks on
-  other modals today — is now popped alone by Escape; the flat close-all cascade remains for the
-  rest, and the dirty-editor modals now confirm before discarding.)*
-
-- [ ] **Quality presets** *(on hold)* — named compute bundles (e.g. "Fast draft" / "Balanced" /
+- [ ] **Quality presets** *(on hold)* — named compute bundles ("Fast draft" / "Balanced" /
   "Max quality") that pick a matched set of Whisper model, energy mode, scene mode, and scoring
-  weights in one choice instead of configuring each independently. Deferred — no clear preset
-  definitions yet.
+  weights in one choice. Deferred — no clear preset definitions yet.
 
 - [ ] **Export-time transcript upgrade** *(shelved)* — re-run a higher-quality Whisper pass at
-  export time (vs. the ingest-time transcript) so exported captions can use a bigger model without
-  slowing down the initial analyze pass. Shelved — the design wasn't fully thought through (unclear
-  how it interacts with retranscribe and caption sidecars that already exist).
+  export time so exported captions can use a bigger model without slowing the initial analyze.
+  Shelved — the design wasn't fully worked out (unclear interaction with retranscribe and the
+  caption sidecars that already exist).
 
 ---
 
-## Known issues (code quality)
+## 6 — Platform reach
 
-Resolved entries are removed once fixed (the fix is recorded in COMPLETED.md /
-COMPLETED-archive.md); only genuinely open issues live here.
+- [ ] **AMD / Intel GPU support** — evaluate ROCm (AMD) and OpenVINO (Intel) in CTranslate2; the
+  wizard already detects both and surfaces informational messages. Accelerated inference needs
+  library support that doesn't exist on Windows for these vendors yet.
 
-- **Analyze pipeline is not idempotent on a no-`--force` re-run** — `transcribe_track` (`whisper_runner.py`) always creates a *new* `Transcript`, and `generate_candidates` (`segments/windower.py`) always *appends* new `ClipCandidate` rows; neither skips or replaces existing output. Today nothing duplicates because the `status == "done"` skip in `_pipeline._resolve_existing_video` short-circuits any completed video on re-run. Not a bug today, but it's a latent trap: any future change that loosens that skip (e.g. stage-level resume, or marking `"done"` only after scoring) would silently duplicate transcripts and clips. Proper fix when stage-level resume is wanted: make transcription and clip-generation skip-if-already-present (gated on `not force`). Surfaced in the 2026-06-29 ingest/analyze bug-hunt while fixing the crashed-scoring case (which was instead fixed by isolating scoring, leaving this untouched).
+- [ ] **Linux compatibility** — verify the full pipeline on Linux; audit Windows-only assumptions
+  in path handling (`LOCALAPPDATA`/`APPDATA`), `wmic` GPU detection, file pickers, and process
+  management. The Electron wrapper is Windows-only; Linux would need a separate packaging path.
+
+- [ ] **UI localization (i18n)** — translate the web UI and setup wizard into other languages.
+  Distinct from the shipped *transcription language* setting (what Whisper transcribes).
+  Requires externalizing the hardcoded UI strings in `index.html` / the JS modules / `setup.html`
+  into a string table first — batch it with any larger frontend rework. English-only is fine
+  while the user base is friends/trusted users.
 
 ---
 

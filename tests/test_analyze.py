@@ -1,6 +1,19 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
+
+
+class TestAnalyzeCommand:
+    def test_web_analyze_cmd_is_non_interactive(self, tmp_path: Path):
+        """The web UI must never launch analyze interactively — label_tracks()
+        would block the subprocess forever waiting on stdin (CLAUDE.md)."""
+        from yuu_clip.web.routes.analyze import IngestRequest, _build_analyze_cmd
+
+        cmd = _build_analyze_cmd(IngestRequest(path="x.mkv"), "x.mkv", tmp_path)
+        assert "--no-interact" in cmd
+
 
 # ---------------------------------------------------------------------------
 # Estimate
