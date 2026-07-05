@@ -438,7 +438,7 @@ When a re-diarized voice lands just below the re-attach threshold (within a fixe
 
 - **Code:** `Speaker.suggested_match_id`, `Speaker.suggested_match_score`; routes `POST /api/speakers/{id}/confirm-match` and `/reject-match`
 - **User-facing terms:** "voice match", "Same voice", "Different voice" — not "cosine", "threshold", or "voiceprint"
-- **Notes:** On same-audio re-diarize this rarely fires (a voice's own print re-attaches at ~1.00); it earns its keep for degraded or cross-session audio. See `docs/dev/plans/roadmap-close-2026-07/01-voiceprint-validation.md`.
+- **Notes:** On same-audio re-diarize this rarely fires (a voice's own print re-attaches at ~1.00); it earns its keep for degraded or cross-session audio.
 
 ---
 
@@ -451,7 +451,7 @@ The reviewable feature that scans a transcript for likely mis-transcriptions of 
 - **Precision rules:** fuzzy (rapidfuzz `ratio`) with a higher bar for ordinary tokens and a lower bar + mandatory capitalization for short/common words; a speaker's own name is excluded from their own lines; nothing is auto-applied
 - **UI label:** "Fix names"; grouped as "**You → Yuu** · N instances", each with per-instance and per-group checkboxes
 - **User-facing terms:** "fix names", "name correction" — not "fuzzy match", "lexicon", or "rapidfuzz"
-- **Notes:** Applying routes through the same caption-edit path as a manual edit, so overlapping clips are re-excerpted and marked stale. See `docs/dev/plans/roadmap-close-2026-07/09-transcript-name-correction.md`.
+- **Notes:** Applying routes through the same caption-edit path as a manual edit, so overlapping clips are re-excerpted and marked stale.
 
 ---
 

@@ -612,8 +612,7 @@ Closed both Phase 5 "validate the re-attach threshold" and the Phase 6
   Caption/export surfaces are unaffected until confirmed.
 
 Covered by new tests in `tests/test_speakers.py` (band mint/suggestion + both routes) and
-`tests/test_ui_speakers.py` (chip render + button POSTs). See
-`docs/dev/plans/roadmap-close-2026-07/01-voiceprint-validation.md`.
+`tests/test_ui_speakers.py` (chip render + button POSTs).
 
 ## Title-card text template + UI polish pass (2026-07-04)
 

@@ -7,7 +7,7 @@ Tests that touch the DB use the shared `project_dir` fixture from conftest.py.
 from __future__ import annotations
 
 import pytest
-from click.exceptions import Exit as ClickExit
+from typer import Exit as ClickExit  # typer.Exit is its own class since typer 0.13; test the public API
 from typer.testing import CliRunner
 
 from yuu_clip.cli import _resolve_videos, app

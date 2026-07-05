@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib.util
 import sys
 import types
 from unittest.mock import MagicMock
@@ -19,6 +20,10 @@ from yuu_clip.transcribe.diarization_client import (
     _slice_windows,
     make_diarization_client,
 )
+
+# torch/scikit-learn are optional (pyannote/speechbrain deps installed on demand),
+# so tests that need them skip cleanly on a lean install rather than erroring.
+_HAS_TORCH = importlib.util.find_spec("torch") is not None
 
 # ---------------------------------------------------------------------------
 # NullDiarizationClient
@@ -90,6 +95,7 @@ def pyannote_stub(monkeypatch):
     return audio_module
 
 
+@pytest.mark.skipif(not _HAS_TORCH, reason="torch not installed (pyannote optional dep)")
 class TestPyannoteDiarize:
     def _write_wav(self, path, sample_rate=16000, n_frames=1600):
         import struct
@@ -666,6 +672,7 @@ class TestSpeechBrainPipeline:
         assert _active_window_indices(np.array([], dtype=np.float32)) == []
 
     def test_cluster_labels_separates_two_voices(self):
+        pytest.importorskip("sklearn", reason="scikit-learn not installed (speechbrain optional dep)")
         import numpy as np
         # Two tight clusters of orthogonal embeddings → two labels.
         embeddings = np.array([
