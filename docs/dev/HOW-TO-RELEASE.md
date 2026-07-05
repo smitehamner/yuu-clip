@@ -135,8 +135,9 @@ After the upgrade, LLM scoring runs on the GPU automatically — no config chang
 
 When they first try LLM scoring, they'll need a GGUF model file:
 
-1. Go to `https://huggingface.co/bartowski/Meta-Llama-3.1-8B-Instruct-GGUF`
-2. Download `Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf` (~5 GB) — good balance of speed and quality
+1. Go to `https://huggingface.co/bartowski/Qwen2.5-7B-Instruct-GGUF`
+2. Download a `Qwen2.5-7B-Instruct-Q4_K_M.gguf` (~4.7 GB) — good balance of speed and quality,
+   and Apache-2.0 so clips made with it can be monetized (see `yuu_clip/model_catalog.py`)
 3. In yuu-clip Settings → LLM → Model file path: point to the downloaded `.gguf` file
 4. Run Rescore on any video to confirm it works
 

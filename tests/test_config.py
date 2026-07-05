@@ -267,9 +267,9 @@ class TestConfigApiLlmFields:
         assert r.json()["llm_backend"] == "ollama"
 
     def test_patch_llm_model_path(self, client):
-        r = client.patch("/api/config", json={"llm_model_path": "/models/llama3.gguf"})
+        r = client.patch("/api/config", json={"llm_model_path": "/models/qwen2.5.gguf"})
         assert r.status_code == 200
-        assert r.json()["llm_model_path"] == "/models/llama3.gguf"
+        assert r.json()["llm_model_path"] == "/models/qwen2.5.gguf"
 
 
 # ---------------------------------------------------------------------------

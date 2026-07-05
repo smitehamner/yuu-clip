@@ -262,12 +262,12 @@ class TestLLMScorerScore:
         from yuu_clip.scoring.llm import LLMScorer
         cfg = Config()
         cfg.llm_backend = "llamacpp"
-        cfg.llm_model_path = "/models/llama3.gguf"
+        cfg.llm_model_path = "/models/qwen2.5.gguf"
         scorer = LLMScorer(cfg)
         scorer._call_llm = mock.MagicMock(return_value=json.dumps({"score_funny": 0.5}))
         clip = self._make_clip(excerpt="text")
         result = scorer.score(clip, None)
-        assert result.notes.get("model") == "/models/llama3.gguf"
+        assert result.notes.get("model") == "/models/qwen2.5.gguf"
 
     def test_success_notes_include_model_id_for_ollama(self):
         import json
@@ -277,12 +277,12 @@ class TestLLMScorerScore:
         from yuu_clip.scoring.llm import LLMScorer
         cfg = Config()
         cfg.llm_backend = "ollama"
-        cfg.ollama_model = "llama3.1:8b"
+        cfg.ollama_model = "qwen2.5:7b"
         scorer = LLMScorer(cfg)
         scorer._call_llm = mock.MagicMock(return_value=json.dumps({"score_funny": 0.5}))
         clip = self._make_clip(excerpt="text")
         result = scorer.score(clip, None)
-        assert result.notes.get("model") == "llama3.1:8b"
+        assert result.notes.get("model") == "qwen2.5:7b"
 
 # ---------------------------------------------------------------------------
 # Coverage gaps — pure-function and edge-case paths

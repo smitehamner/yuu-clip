@@ -45,7 +45,7 @@ window.__mockStatus = {
   ffmpegOk: true,
   gpu: { name: 'NVIDIA GeForce RTX 3080', vramMB: 10240, vendor: 'nvidia' },
   cuda: { available: true, version: '12.4' },
-  ollamaRunning: false, ollamaModel: 'llama3.2', ollamaModelPulled: false,
+  ollamaRunning: false, ollamaModel: 'qwen2.5:7b', ollamaModelPulled: false,
   llamacppInstalled: false, pyannoteInstalled: false,
   recommendedWhisper: { model: 'large-v3', reason: '10 GB+ VRAM' },
   projectDir: 'C:/Users/test/Videos/yuu-clip',
