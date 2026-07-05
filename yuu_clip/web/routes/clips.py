@@ -1181,6 +1181,28 @@ def _register_caption_routes(router: APIRouter, ctx: ProjectContext) -> None:
         finally:
             db.close()
 
+    @router.get("/api/clips/{clip_id}/context-transcript")
+    def clip_context_transcript(clip_id: int, pad_s: float = Query(30.0, ge=0, le=300)):
+        """Transcript lines around a clip for the export editor's boundary extension:
+        the clip's own lines flagged ``in_clip`` plus ~``pad_s`` seconds of neighboring
+        context, timed recording-relative (segment-relative for a split segment).
+
+        ``seek_offset_s`` is the segment start to add when seeking the parent player.
+        """
+        from yuu_clip.subtitles import clip_context_transcript_lines
+        db = ctx.get_db()
+        try:
+            clip = _require_clip(db, clip_id)
+            video = db.get(Video, clip.video_id)
+            if not video:
+                raise HTTPException(404, "Video not found")
+            return {
+                "lines": clip_context_transcript_lines(clip, video, int(pad_s * 1000)),
+                "seek_offset_s": video.segment_start_s or 0.0,
+            }
+        finally:
+            db.close()
+
     @router.put("/api/caption-segments/{seg_id}")
     def update_caption_segment(seg_id: int, body: CaptionSegmentUpdate):
         """Edit a caption segment's text, then rebuild the excerpt of every clip that

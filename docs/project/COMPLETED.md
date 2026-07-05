@@ -6,6 +6,44 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) — see the
 
 ---
 
+## Clip export editor (done 2026-07-04)
+
+Closed the Phase 6 "Clip export editor" item (plan 07) — a PanelNav takeover
+launched from "Edit & export" on a clip that ties **Trim** (plan 05-era
+`start_offset`/`end_offset`), **Vertical framing** (plan 06 `crop_x`), and
+**Caption style** (plan 05) together over one live preview. Adds no new encode
+path: Export writes the same clip fields and runs the same single-clip export SSE
+as the plain Export dialog, which stays for quick exports.
+
+- **Context endpoint** (`GET /api/clips/{id}/context-transcript?pad_s=30`):
+  returns the parent recording's transcript clipped to the clip's current
+  (offset-adjusted) window ± the pad, each line flagged `in_clip`, timed
+  recording-relative (segment-relative for a split segment) with `seek_offset_s`
+  for parent-player seeking. Backed by `subtitles.clip_context_transcript_lines`
+  (reuses `video_transcript_lines`); unit-tested for pad clipping + in_clip flags
+  + offset-shifted windows. No DB columns — reuses `start_offset`/`end_offset`/`crop_x`.
+- **Editor module** (`yuu_clip/web/static/exporteditor.js`, own IIFE): inline
+  proxy-preferred preview `<video>` (never relies on `#player-area`, which the
+  panel covers), transcript-driven trim (per-line ⇤/⇥ boundary buttons + ±0.5 s
+  nudge + reset, 1 s floor guard, live duration readout), a drag-to-position 9:16
+  crop box drawn over the real frame (shown only for a vertical preset; reuses the
+  plan-06 `suggest-framing` route for Auto-frame), a live caption overlay labelled
+  "preview approximation" (JS overlay styled from the config caption style, not
+  libass-exact), and a footer (preset / captions / title-card) whose Export runs
+  the existing SSE after PATCHing timing + framing.
+- **Entry point**: "Edit & export" button in the clip detail's Export card
+  (`renderDetail`, clips.js).
+- **Colors**: the caption overlay and the outside-crop scrim use the documented
+  over-video exemption (inline `rgba(0,0,0,…)` scrim + `#fff` caption text, same
+  class as `#000` letterboxing) — no app.css literals, so `test_ui_theme.py` is
+  untouched.
+- **Tests**: `tests/test_ui_exporteditor.py` (13 Playwright tests — open/dirty
+  guard, line-click + nudge + reset + too-short reject, caption overlay
+  show/hide/off, crop-box appears-for-vertical + drag-persists-crop_x, export
+  saves trim & closes) and the context-transcript unit tests in test_captions.py.
+  Real `tiktok-9x16` export smoke-verified end to end (crop_x from the drag box
+  lands in a 1080×1920 output).
+
 ## Vertical crop / Shorts export — Stage 2: MediaPipe auto-framing (done 2026-07-04)
 
 Completes plan 06 — an optional "Auto-frame on faces" button that suggests the

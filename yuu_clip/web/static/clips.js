@@ -527,7 +527,10 @@ function renderDetail(clip) {
     </div>
 
     <div class="detail-card">
-      <div class="detail-card-header"><span class="detail-card-title">Export</span></div>
+      <div class="detail-card-header">
+        <span class="detail-card-title">Export</span>
+        <button class="btn ghost" style="font-size:12px;padding:2px 10px" onclick="openExportEditor(${clip.id})" title="Trim, frame vertical, preview captions, then export">Edit &amp; export</button>
+      </div>
       ${trimExportHtml}
     </div>
 

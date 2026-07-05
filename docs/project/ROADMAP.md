@@ -26,8 +26,8 @@ and the locked design decisions. Implement one plan per session.
 | ~~Project switcher~~ (done 2026-07-04) | 03 |
 | ~~Multi-session grouping (full unified timeline)~~ (done 2026-07-04) | 04 |
 | ~~Caption style options~~ (done 2026-07-04) | 05 |
-| Vertical crop / Shorts export | 06 |
-| Clip export editor | 07 |
+| ~~Vertical crop / Shorts export~~ (done 2026-07-04) | 06 |
+| ~~Clip export editor~~ (done 2026-07-04) | 07 |
 | SpeechBrain diarization backend | 08 |
 | Transcript name correction | 09 |
 | Model selection + capability gating | 10 |
@@ -219,14 +219,11 @@ Complex, specialized, or AI-heavy features that are valuable but don't need to b
   export* (softsub + hardsub). See Near-term section. Full caption styling (font, colour,
   per-speaker) is still Phase 6.
 
-- [ ] **Clip export editor** — in-browser editor launched before final export. Full scope:
-  transcript-driven trim handles (click a transcript line to set the clip's start/end — the clip's
-  own transcript plus ~30s of the neighboring clip's transcript shown as *extendable* context, so
-  the boundary can be dragged past the original window into that region; resulting overlap between
-  adjacent ClipCandidates is allowed, same as sliding-window generation already produces today),
-  drag-to-position 9:16 crop box for Shorts/TikTok framing, and a live preview of burned-in
-  captions if caption export is enabled. Reference UX: Twitch clip editor. Natural dependency
-  order: Vertical crop and Auto captions should land first, then the editor ties them together.
+- [x] **Clip export editor** — done, 2026-07-04 (plan 07). "Edit & export" opens a PanelNav
+  takeover with transcript-driven trim (per-line ⇤/⇥ + ±0.5 s nudge, ~30 s extendable context),
+  a drag-to-position 9:16 crop box over a live preview, and a live burned-in caption overlay
+  (labelled a preview approximation). Reuses the existing trim/framing/caption/export machinery —
+  no new encode path. See [COMPLETED.md](COMPLETED.md).
 
 - [x] **Manual clip creation** — done, 2026-07-03. See [COMPLETED.md](COMPLETED.md).
 

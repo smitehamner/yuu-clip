@@ -292,6 +292,28 @@ def clip_transcript_lines(clip) -> list[dict]:
     return _lines_to_view(merged)
 
 
+def clip_context_transcript_lines(clip, video, pad_ms: int) -> list[dict]:
+    """Transcript lines around *clip* for the export editor's boundary extension.
+
+    Draws from the parent recording's transcript, clipped to the clip's current
+    (offset-adjusted) window padded by *pad_ms* on each side, and flags each line
+    ``in_clip`` when it overlaps that window. Times are recording-relative — for a
+    split segment they are segment-relative (0 = segment start), matching
+    ``clip.start_ms``; the caller adds ``segment_start_s`` to seek the parent player.
+    """
+    clip_start_ms = clip.start_ms + int((clip.start_offset or 0.0) * 1000)
+    clip_end_ms   = clip.end_ms   + int((clip.end_offset   or 0.0) * 1000)
+    window_start  = max(0, clip_start_ms - pad_ms)
+    window_end    = clip_end_ms + pad_ms
+    out: list[dict] = []
+    for line in video_transcript_lines(video):
+        if line["end_ms"] <= window_start or line["start_ms"] >= window_end:
+            continue
+        line["in_clip"] = line["start_ms"] < clip_end_ms and line["end_ms"] > clip_start_ms
+        out.append(line)
+    return out
+
+
 def video_transcript_lines(video) -> list[dict]:
     """Per-segment transcript lines for a whole recording, absolute timing."""
     lines: list[SubLine] = []

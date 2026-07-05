@@ -825,6 +825,27 @@ builder / `reel --bake-captions`).
 
 ---
 
+### Clip export editor
+
+A full-panel editor opened before final export that ties **Trim**, **Vertical
+framing**, and **Caption Style** together over a live preview of the clip: drag
+the trim boundaries from the transcript (with ~30 s of neighboring context you can
+extend into), position the 9:16 crop box by dragging it over the frame, and see a
+live caption overlay — then export from the same panel. It adds no new encode path;
+Export runs the same single-clip export as the plain Export dialog after writing
+the chosen `start_offset`/`end_offset`/`crop_x`.
+
+- **Code:** `yuu_clip/web/static/exporteditor.js` (`openExportEditor`);
+  `GET /api/clips/{id}/context-transcript` supplies the neighboring transcript
+- **UI label:** "Edit & export" (button in the clip detail's Export section)
+- **Do not call it:** "trim editor" or "crop editor" — it is all three at once
+- **Notes:** The caption overlay is a **preview approximation** (a JS overlay, not
+  libass-exact) and is labelled as such in the panel. The plain Export dialog stays
+  for quick exports. The panel embeds its own inline preview `<video>` (it never
+  relies on the main player, which the panel covers).
+
+---
+
 ### Highlight Reel
 
 A compiled video assembled from multiple approved clips, with optional transitions and title cards.

@@ -643,6 +643,53 @@ class TestCollectClipSubtitlesClipTranscripts:
 
 
 # ---------------------------------------------------------------------------
+# subtitles.py — clip_context_transcript_lines (export editor boundary context)
+# ---------------------------------------------------------------------------
+
+class TestClipContextTranscriptLines:
+    def _seg(self, start_ms, end_ms, text):
+        import types
+        return types.SimpleNamespace(start_ms=start_ms, end_ms=end_ms, text=text)
+
+    def _video(self, segments):
+        import datetime
+        import types
+        tx = types.SimpleNamespace(created_at=datetime.datetime(2024, 1, 1), segments=segments)
+        track = types.SimpleNamespace(id=1, label="player_voice", do_transcribe=True, transcripts=[tx])
+        return types.SimpleNamespace(audio_tracks=[track])
+
+    def _clip(self, start_ms=10_000, end_ms=20_000, start_offset=0.0, end_offset=0.0):
+        import types
+        return types.SimpleNamespace(
+            start_ms=start_ms, end_ms=end_ms,
+            start_offset=start_offset, end_offset=end_offset,
+        )
+
+    def test_pads_context_and_flags_in_clip(self):
+        from yuu_clip.subtitles import clip_context_transcript_lines
+        video = self._video([
+            self._seg(2_000, 4_000, "far before"),    # ends before window → excluded
+            self._seg(6_000, 8_000, "before ctx"),     # in pad, not in clip
+            self._seg(12_000, 15_000, "inside"),        # in clip
+            self._seg(22_000, 24_000, "after ctx"),     # in pad, not in clip
+            self._seg(26_000, 28_000, "far after"),     # starts after window → excluded
+        ])
+        lines = clip_context_transcript_lines(self._clip(), video, pad_ms=5_000)
+        assert [ln["text"] for ln in lines] == ["before ctx", "inside", "after ctx"]
+        assert [ln["in_clip"] for ln in lines] == [False, True, False]
+
+    def test_offsets_shift_the_in_clip_window(self):
+        from yuu_clip.subtitles import clip_context_transcript_lines
+        # end_offset=+3s extends the clip to 23s → the 22s line is now in_clip.
+        video = self._video([self._seg(21_000, 22_500, "extended tail")])
+        lines = clip_context_transcript_lines(
+            self._clip(end_offset=3.0), video, pad_ms=5_000
+        )
+        assert len(lines) == 1
+        assert lines[0]["in_clip"] is True
+
+
+# ---------------------------------------------------------------------------
 # subtitles.py — per-speaker (diarization) subtitle display
 # ---------------------------------------------------------------------------
 

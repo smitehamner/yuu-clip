@@ -181,6 +181,9 @@ One of a clip's exported files. A clip can have more than one format at once (sa
 ### Vertical framing
 When you export with a vertical (9:16) preset like "TikTok / Shorts", the video is cropped from your widescreen recording down to a tall frame. Vertical framing is the horizontal position of that crop — Left, Center, or Right, or anywhere in between with the slider — so you can keep the action in shot. "Auto-frame on faces" can suggest a position by finding faces in the clip (needs the optional MediaPipe package, installed from Settings → Export); you always confirm before it's used.
 
+### Clip export editor
+The "Edit & export" panel opens a full-screen editor where you fine-tune the clip and export it all in one place: drag the trim in and out using the transcript (with about 30 seconds of surrounding lines you can extend into), position the vertical 9:16 crop by dragging the box over the video, and preview the captions live. The plain "Export" button is still there for quick exports. The caption preview is an approximation of the final look.
+
 ### Highlight reel
 A single video assembled from several approved clips, with optional transitions and title cards.
 
