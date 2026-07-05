@@ -33,6 +33,7 @@
     },
     "extraResources": [
       { "from": "../build/wheel", "to": ".", "filter": ["*.whl"] },
+      { "from": "../requirements.lock", "to": "requirements.lock" },
       { "from": "../build/python-runtime", "to": "python", "filter": ["**/*", "!.version"] }
     ],
     "publish": null

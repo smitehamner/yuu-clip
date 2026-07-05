@@ -745,9 +745,21 @@ async function ensureVenv() {
     }
     progress('s2', 'active');
     logSetup('Installing wheel…');
+    // Constrain to the bundled lock so every user resolves the exact base-dep
+    // versions we tested (see requirements.lock / scripts/lock-deps.ps1). Optional
+    // in dev if the lock wasn't bundled.
+    const lockPath = path.join(resourcesDir, 'requirements.lock');
+    const installArgs = ['install', '--force-reinstall', '--progress-bar', 'raw'];
+    if (fs.existsSync(lockPath)) {
+      installArgs.push('-c', lockPath);
+      logSetup(`Constraining deps to ${lockPath}`);
+    } else {
+      logSetup('requirements.lock not bundled — installing without a constraint');
+    }
+    installArgs.push(wheelPath);
     await runCmd(
       VENV_PIP,
-      ['install', '--force-reinstall', '--progress-bar', 'raw', wheelPath],
+      installArgs,
       pipStatusReporter(statusText => {
         try { setupWin.webContents.send('venv:status', statusText); } catch (_) {}
       })

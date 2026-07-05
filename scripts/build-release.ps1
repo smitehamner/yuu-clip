@@ -80,6 +80,14 @@ Write-Host "Wheel: $($whl.FullName)"
 [System.IO.File]::WriteAllText($buildInfoPath, "BUILD_DATE = `"dev`"`n", [System.Text.UTF8Encoding]::new($false))
 Write-Host "Build date reset to dev"
 
+# ── 3b. Ensure the dependency lock is present (bundled to constrain user installs) ──
+$lockPath = "$root\requirements.lock"
+if (-not (Test-Path $lockPath)) {
+    Write-Error "requirements.lock missing — run scripts\lock-deps.ps1 first (packaged installs are constrained to it)."
+    exit 1
+}
+Write-Host "Dependency lock present: $lockPath"
+
 # ── 4. Fetch the bundled Python runtime (cached after first build) ─────────
 Write-Host "`nFetching bundled Python runtime..."
 & "$root\scripts\fetch-python-runtime.ps1"

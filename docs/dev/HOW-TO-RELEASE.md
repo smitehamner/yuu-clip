@@ -49,10 +49,26 @@ This script:
 1. Checks the git working tree is clean (warns if not)
 2. Reads the version from `pyproject.toml`
 3. Builds the Python wheel → `build/wheel/yuu_clip-X.Y.Z-py3-none-any.whl`
-4. Fetches the pinned standalone Python runtime bundled into the installer (see
+4. Verifies `requirements.lock` is present (bundled to pin user installs — see below)
+5. Fetches the pinned standalone Python runtime bundled into the installer (see
    below) — cached after the first build, so this is a no-op on later runs
-5. Runs `npm run dist` in `electron/` → `build/installer/yuu-clip-X.Y.Z-Setup.exe`
-6. Prints the installer path
+6. Runs `npm run dist` in `electron/` → `build/installer/yuu-clip-X.Y.Z-Setup.exe`
+7. Prints the installer path
+
+### Dependency lock
+
+`requirements.lock` pins the exact base-runtime dependency versions. It is bundled into
+the installer, and the first-run venv setup installs the wheel with `pip install -c
+requirements.lock <wheel>`, so **every user resolves the same versions we tested** instead
+of whatever is newest on PyPI that day. It covers base deps only — optional extras
+(`llamacpp`, `laugh-model`, and the speaker/vision packages installed on demand from
+Settings) are intentionally not pinned.
+
+Regenerate it whenever you change the base dependencies in `pyproject.toml`:
+```powershell
+.\scripts\lock-deps.ps1   # resolves base deps in a clean 3.12 venv, freezes, writes requirements.lock
+```
+Then commit the updated `requirements.lock`.
 
 Total build time: ~2–5 minutes depending on machine (longer on the first run,
 which downloads the ~45 MB Python runtime archive).
