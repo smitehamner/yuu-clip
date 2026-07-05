@@ -21,7 +21,17 @@ function _applyFilters() {
       (c.user_tags || []).some(t => t.toLowerCase().includes(q))
     );
   }
+  // Direction is applied client-side by reversing the server-sorted order; copy
+  // first so we never mutate AppState.clips (result may still be that array).
+  if ((AppState.clipSortDir || 'desc') === 'asc') result = [...result].reverse();
   return result;
+}
+
+function toggleClipSortDir() {
+  AppState.clipSortDir = (AppState.clipSortDir === 'asc') ? 'desc' : 'asc';
+  localStorage.setItem('clips-sort-dir', AppState.clipSortDir);
+  _syncSortDirBtn('clips-sort-dir', AppState.clipSortDir);
+  _renderClips();
 }
 
 // Canonical clip re-render entry point. Always routes through _applyFilters()
@@ -32,52 +42,36 @@ function _renderClips() {
   const shown = _applyFilters();
   _renderClipItems(shown);
   _renderClipStatsLine(shown);
-  _renderBatchStatusPanel();
+  _renderClipFilterCounts();
 }
 
-// Collapsible summary bar above the filter chips: status counts for the
-// selected recording (not the filtered/shown subset — see the stats line for
-// that) plus an in-flight job indicator. Clicking a count applies the
-// matching filter chip. Derived entirely from AppState.clips and the
-// existing job-status pill — no new endpoints.
-function _renderBatchStatusPanel() {
-  const panel = document.getElementById('batch-status-panel');
-  if (!panel) return;
+// Per-status counts shown inline on the filter chips ("Unreviewed 30"). Counts
+// reflect the whole selected recording, not the filtered/shown subset — see the
+// stats line for that. Derived entirely from AppState.clips; blank when no
+// recording is selected so the chips read as a plain filter bar.
+function _renderClipFilterCounts() {
+  // Badges live only on the clip filter chips (data-count is unique to them), so
+  // query the document directly — the recordings filter row shares the
+  // .clip-filter-tabs class but carries no counts.
+  const setCount = (key, value) => {
+    const badge = document.querySelector(`.clip-chip-count[data-count="${key}"]`);
+    if (badge) badge.textContent = value == null ? '' : String(value);
+  };
   if (!AppState.activeVideoId || !AppState.clips.length) {
-    panel.style.display = 'none';
+    for (const key of ['all', 'pending', 'approved', 'rejected', 'error']) setCount(key, null);
     return;
   }
-  panel.style.display = '';
-
   const counts = {pending: 0, approved: 0, rejected: 0};
   let errorCount = 0;
   for (const c of AppState.clips) {
     counts[c.status] = (counts[c.status] || 0) + 1;
     if ((c.tags || []).includes('llm_error')) errorCount++;
   }
-  const jobRunning = document.getElementById('job-status')?.classList.contains('visible') || false;
-  const collapsed = localStorage.getItem('yuuclip-batch-panel') === 'collapsed';
-
-  panel.classList.toggle('collapsed', collapsed);
-  document.getElementById('batch-status-toggle').setAttribute('aria-expanded', collapsed ? 'false' : 'true');
-  document.getElementById('batch-status-summary').textContent =
-    `${counts.pending} unreviewed · ${counts.approved} approved · ${counts.rejected} rejected` +
-    (errorCount ? ` · ${plural(errorCount, 'scoring error')}` : '') +
-    (jobRunning ? ' · job running…' : '');
-
-  document.getElementById('batch-status-body').innerHTML = `
-    <button class="batch-status-count" onclick="toggleClipFilter('pending')">${counts.pending} Unreviewed</button>
-    <button class="batch-status-count" onclick="toggleClipFilter('approved')">${counts.approved} Approved</button>
-    <button class="batch-status-count" onclick="toggleClipFilter('rejected')">${counts.rejected} Rejected</button>
-    ${errorCount ? `<button class="batch-status-count" onclick="toggleClipFilter('error')">${plural(errorCount, 'scoring error')}</button>` : ''}
-    ${jobRunning ? `<span class="batch-status-job">&#9679; Job running…</span>` : ''}
-  `;
-}
-
-function _toggleBatchStatusPanel() {
-  const collapsed = localStorage.getItem('yuuclip-batch-panel') === 'collapsed';
-  localStorage.setItem('yuuclip-batch-panel', collapsed ? 'expanded' : 'collapsed');
-  _renderBatchStatusPanel();
+  setCount('all', AppState.clips.length);
+  setCount('pending', counts.pending);
+  setCount('approved', counts.approved);
+  setCount('rejected', counts.rejected);
+  setCount('error', errorCount || null);
 }
 
 function _renderClipStatsLine(shown) {
@@ -469,46 +463,7 @@ function renderDetail(clip) {
       ${_exportFormatsHtml(clip)}
     </div>`;
 
-  document.getElementById('detail').innerHTML = `
-    <div>
-      <div class="detail-type-badge clip-badge" style="margin-bottom:8px">&#127902; Clip #${clip.id}</div>
-      <div class="clip-header">
-        <span class="time">${clip.start_hms} &middot; ${clip.duration_hms}</span>
-      </div>
-    </div>
-
-    <div class="detail-card">
-      <div class="detail-card-header">
-        <span class="detail-card-title">Description${eb(clip.description_is_edited)}</span>
-        <div style="display:flex;gap:4px">
-          ${clip.description ? `<button class="copy-icon-btn" title="Copy description" aria-label="Copy description" data-copy="description">&#128203;</button>` : ''}
-          <button class="kebab-btn" title="Edit or regenerate description" aria-label="Edit or regenerate description" onclick="openDescKebab(${clip.id}, this)">&#8942;</button>
-        </div>
-      </div>
-      <div class="description">${clip.description ? `"${escHtml(clip.description)}"` : `<span style="color:var(--muted);font-size:13px">No description yet — Re-score to generate</span>`}</div>
-      ${_basicDescChipHTML(clip)}
-
-      ${clip.description_long ? `
-        <hr class="detail-card-divider">
-        <div class="detail-card-header">
-          <span class="detail-card-title">Full Description${eb(clip.description_long_is_edited)}</span>
-          <button class="kebab-btn" title="Edit or regenerate long description" aria-label="Edit or regenerate long description" onclick="openDescLongKebab(${clip.id}, this)">&#8942;</button>
-        </div>
-        <div class="description-long">${escHtml(clip.description_long)}</div>` : ''}
-
-      <hr class="detail-card-divider">
-      <div class="detail-card-header"><span class="detail-card-title">Tags</span></div>
-      <div class="clip-tags" id="clip-user-tags">${_clipTagPillsHTML(clip.user_tags)}</div>
-      <input list="clip-tags-datalist" id="clip-tag-input" class="tag-input"
-             placeholder="Add a tag…" maxlength="40" autocomplete="off" aria-label="Add a tag">
-      <datalist id="clip-tags-datalist"></datalist>
-      ${_generatedTagPillsHTML(clip.tags)}
-    </div>
-
-    ${_visionDetailHTML(clip)}
-    ${_hotwordDetailHTML(clip)}
-    ${_sensitiveDetailHTML(clip)}
-
+  const scoringActionsHtml = `
     <div class="detail-cards-row">
       <div class="detail-card">
         <div class="detail-card-header">
@@ -543,7 +498,49 @@ function renderDetail(clip) {
           </div>
         </div>
       </div>
+    </div>`;
+
+  document.getElementById('detail').innerHTML = `
+    <div>
+      <div class="detail-type-badge clip-badge" style="margin-bottom:8px">&#127902; Clip #${clip.id}</div>
+      <div class="clip-header">
+        <span class="time">${clip.start_hms} &middot; ${clip.duration_hms}</span>
+      </div>
     </div>
+
+    ${scoringActionsHtml}
+
+    <div class="detail-card">
+      <div class="detail-card-header">
+        <span class="detail-card-title">Description${eb(clip.description_is_edited)}</span>
+        <div style="display:flex;gap:4px">
+          ${clip.description ? `<button class="copy-icon-btn" title="Copy description" aria-label="Copy description" data-copy="description">&#128203;</button>` : ''}
+          <button class="kebab-btn" title="Edit or regenerate description" aria-label="Edit or regenerate description" onclick="openDescKebab(${clip.id}, this)">&#8942;</button>
+        </div>
+      </div>
+      <div class="description">${clip.description ? `"${escHtml(clip.description)}"` : `<span style="color:var(--muted);font-size:13px">No description yet — Re-score to generate</span>`}</div>
+      ${_basicDescChipHTML(clip)}
+
+      ${clip.description_long ? `
+        <hr class="detail-card-divider">
+        <div class="detail-card-header">
+          <span class="detail-card-title">Full Description${eb(clip.description_long_is_edited)}</span>
+          <button class="kebab-btn" title="Edit or regenerate long description" aria-label="Edit or regenerate long description" onclick="openDescLongKebab(${clip.id}, this)">&#8942;</button>
+        </div>
+        <div class="description-long">${escHtml(clip.description_long)}</div>` : ''}
+
+      <hr class="detail-card-divider">
+      <div class="detail-card-header"><span class="detail-card-title">Tags</span></div>
+      <div class="clip-tags" id="clip-user-tags">${_clipTagPillsHTML(clip.user_tags)}</div>
+      <input list="clip-tags-datalist" id="clip-tag-input" class="tag-input"
+             placeholder="Add a tag…" maxlength="40" autocomplete="off" aria-label="Add a tag">
+      <datalist id="clip-tags-datalist"></datalist>
+      ${_generatedTagPillsHTML(clip.tags)}
+    </div>
+
+    ${_visionDetailHTML(clip)}
+    ${_hotwordDetailHTML(clip)}
+    ${_sensitiveDetailHTML(clip)}
 
     <div class="detail-card">
       <div class="detail-card-header">
@@ -1867,7 +1864,7 @@ Object.assign(window, {
   analyzeFrames,
   toggleClipFilter, _syncFilterChips, setClipSearch, setClipScoreMin, _clearClipFilters,
   _applyFilters, _renderClips, _parseTimingOffset, _reloadClipList,
-  _renderBatchStatusPanel, _toggleBatchStatusPanel,
+  _renderClipFilterCounts, toggleClipSortDir,
   deleteClip, deleteVideo, deleteExport, mergeClips,
   exportClip, exportVideoTranscript, confirmExport, closeExportModal,
   bulkSetClipStatus, bulkDeleteClips, bulkExportClips, _clearClipSelection,

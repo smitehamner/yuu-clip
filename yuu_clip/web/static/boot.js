@@ -56,6 +56,10 @@ if (_savedVideoSort) {
   AppState.videoSort = _savedVideoSort;
   document.getElementById('videos-sort').value = _savedVideoSort;
 }
+AppState.clipSortDir = localStorage.getItem('clips-sort-dir') || 'desc';
+AppState.videoSortDir = localStorage.getItem('videos-sort-dir') || 'desc';
+_syncSortDirBtn('clips-sort-dir', AppState.clipSortDir);
+_syncSortDirBtn('videos-sort-dir', AppState.videoSortDir);
 document.getElementById('log-panel').classList.add('visible', 'minimized');
 document.getElementById('log-toggle').textContent = '▼';
 

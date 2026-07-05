@@ -22,6 +22,8 @@ const AppState = {
   clipScoreMin:        0,
   videoSearch:         '',
   videoSort:           'recent',
+  videoSortDir:        'desc',  // 'desc' = the sort option's natural order; 'asc' reverses it
+  clipSortDir:         'desc',
   videoFilters:        new Set(),  // active video filter tokens; empty = show all
   selectedClipIds:     new Set(),
   lastStatusChange:    null, // {clipId, fromStatus, timer}
@@ -35,6 +37,21 @@ const AppState = {
   reelsDir:            null,
   canReveal:           false,
 };
+
+// Reflects a sort-direction toggle's current state onto its button: arrow glyph,
+// aria-pressed, and a self-describing aria-label. 'desc' is the sort option's
+// natural order (highest/newest first); 'asc' reverses it.
+function _syncSortDirBtn(btnId, dir) {
+  const btn = document.getElementById(btnId);
+  if (!btn) return;
+  const asc = dir === 'asc';
+  btn.innerHTML = asc ? '&#8593;' : '&#8595;';
+  btn.setAttribute('aria-pressed', asc ? 'true' : 'false');
+  btn.setAttribute('aria-label', asc
+    ? 'Sorted ascending — click to sort descending'
+    : 'Sorted descending — click to sort ascending');
+  btn.title = asc ? 'Ascending order' : 'Descending order';
+}
 
 // ── score utils ───────────────────────────────────────────────────────────────
 function _scoreIcon(score) {
@@ -295,7 +312,7 @@ function startJobUI(stepDefs, jobLabel, cancellable = false, pausable = false) {
     _pollThermalStatus();
     _jobThermalPollTimer = setInterval(_pollThermalStatus, 5000);
   }
-  if (window._renderBatchStatusPanel) _renderBatchStatusPanel();
+  if (window._renderClipFilterCounts) _renderClipFilterCounts();
 }
 
 // Polled every 5s (only while a pausable — i.e. analyze-type — job is active) to
@@ -512,7 +529,7 @@ function endJobUI() {
     if (analyzeBtn) analyzeBtn.title = '';
     const totalApproved = (AppState.videos || []).reduce((n, v) => n + v.approved, 0);
     _updateDemoButton(totalApproved);
-    if (window._renderBatchStatusPanel) _renderBatchStatusPanel();
+    if (window._renderClipFilterCounts) _renderClipFilterCounts();
   }, 2000);
 }
 

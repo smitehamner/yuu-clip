@@ -939,7 +939,7 @@
       <div class="clips-section-header">
         <span>Recordings</span>
         <div style="display:flex;align-items:center;gap:4px">
-          <span style="font-size:10px;color:var(--muted)">&#x1F53D; Sort</span>
+          <span style="font-size:10px;color:var(--muted)">Sort</span>
           <select id="videos-sort" class="clips-sort-select" aria-label="Sort recordings by" onchange="setVideoSort(this.value)">
             <option value="recent">&#128338; Recent</option>
             <option value="title">&#128292; Title</option>
@@ -947,6 +947,7 @@
             <option value="length">&#8986; Length</option>
             <option value="clips">&#127902; Clips</option>
           </select>
+          <button id="videos-sort-dir" class="sort-dir-btn" onclick="toggleVideoSortDir()">&#8595;</button>
         </div>
       </div>
       <div class="clip-search-row">
@@ -982,7 +983,7 @@
         <div style="display:flex;align-items:center;gap:8px">
           <button class="btn ghost" id="btn-new-clip" style="font-size:11px;padding:3px 9px" title="Pick a time range to create a clip by hand"
                   onclick="openClipCreatePicker(AppState.activeVideoId)">+ New clip</button>
-          <span style="font-size:10px;color:var(--muted)">&#x1F53D; Sort</span>
+          <span style="font-size:10px;color:var(--muted)">Sort</span>
           <select id="clips-sort" class="clips-sort-select" aria-label="Sort clips by" onchange="onClipsSortChange()">
             <option value="score">&#11088; Overall</option>
             <option value="funny">&#128514; Funny</option>
@@ -992,6 +993,7 @@
             <option value="length">&#8986; Length</option>
             <option value="timeline">Timeline</option>
           </select>
+          <button id="clips-sort-dir" class="sort-dir-btn" onclick="toggleClipSortDir()">&#8595;</button>
         </div>
       </div>
       <div class="clip-search-row">
@@ -1004,23 +1006,16 @@
           <option value="0.9">90%+</option>
         </select>
       </div>
-      <div class="batch-status-panel" id="batch-status-panel" style="display:none">
-        <button class="batch-status-toggle" id="batch-status-toggle" onclick="_toggleBatchStatusPanel()" aria-expanded="true" aria-controls="batch-status-body">
-          <span id="batch-status-summary"></span>
-          <span class="batch-status-caret" aria-hidden="true">&#9660;</span>
-        </button>
-        <div class="batch-status-body" id="batch-status-body"></div>
-      </div>
       <div class="clip-filter-tabs" aria-label="Clip filters">
         <span style="font-size:10px;color:var(--muted);padding:2px 4px;line-height:1.8;flex-shrink:0" aria-hidden="true">Filter</span>
-        <button class="clip-chip active" aria-pressed="true"  data-filter="all"          onclick="toggleClipFilter('all')">All</button>
-        <button class="clip-chip"        aria-pressed="false" data-filter="pending"      onclick="toggleClipFilter('pending')">Unreviewed</button>
-        <button class="clip-chip"        aria-pressed="false" data-filter="approved"     onclick="toggleClipFilter('approved')">Approved</button>
-        <button class="clip-chip"        aria-pressed="false" data-filter="rejected"     onclick="toggleClipFilter('rejected')">Rejected</button>
+        <button class="clip-chip active" aria-pressed="true"  data-filter="all"          onclick="toggleClipFilter('all')">All<span class="clip-chip-count" data-count="all"></span></button>
+        <button class="clip-chip"        aria-pressed="false" data-filter="pending"      onclick="toggleClipFilter('pending')">Unreviewed<span class="clip-chip-count" data-count="pending"></span></button>
+        <button class="clip-chip"        aria-pressed="false" data-filter="approved"     onclick="toggleClipFilter('approved')">Approved<span class="clip-chip-count" data-count="approved"></span></button>
+        <button class="clip-chip"        aria-pressed="false" data-filter="rejected"     onclick="toggleClipFilter('rejected')">Rejected<span class="clip-chip-count" data-count="rejected"></span></button>
         <span class="clip-chip-sep" aria-hidden="true"></span>
         <button class="clip-chip"        aria-pressed="false" data-filter="exported"     onclick="toggleClipFilter('exported')">Exported</button>
         <button class="clip-chip"        aria-pressed="false" data-filter="not-exported" onclick="toggleClipFilter('not-exported')">Not exported</button>
-        <button class="clip-chip"        aria-pressed="false" data-filter="error"        onclick="toggleClipFilter('error')" title="Clips whose LLM scoring failed">&#9888; Score error</button>
+        <button class="clip-chip"        aria-pressed="false" data-filter="error"        onclick="toggleClipFilter('error')" title="Clips whose LLM scoring failed">&#9888; Score error<span class="clip-chip-count" data-count="error"></span></button>
         <button class="clip-chip"        aria-pressed="false" data-filter="flagged"      onclick="toggleClipFilter('flagged')" title="Clips containing a Sensitive Terms match">&#9888; Flagged</button>
       </div>
       <div class="clip-bulk-toolbar" id="clip-bulk-toolbar" style="display:none">

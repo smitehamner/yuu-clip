@@ -6,6 +6,27 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) — see the
 
 ---
 
+## Clip-review ergonomics — E2E UX review stage 04 (done 2026-07-05)
+
+Four design-fork decisions from the install→daily-use UX review, resolved by
+user interview then implemented
+(`docs/dev/plans/ux-e2e-review-2026-07/04-review-ergonomics-decisions.md`):
+
+- **Approve/Reject/Export above the fold** — the Scoring + Actions two-card row now
+  renders directly under the clip header, before the Description card, so decision
+  info and decision actions are visible without scrolling every clip.
+- **One filter chip row, not two** — the redundant status-summary block (a second
+  row of look-alike filter pills) is gone; per-status counts are folded into the
+  filter chips themselves ("Unreviewed 30"). Counts reflect the whole recording and
+  blank out when no recording is selected.
+- **Real sort-direction toggle** — the decorative 🔽 emoji (rendered as a stray blue
+  square on Windows) next to the Recordings/Clips sort dropdowns is replaced by an
+  asc/desc arrow button (↑/↓, `aria-pressed`, self-describing `aria-label`) that
+  reverses the sort. Direction persists per-list in localStorage.
+- **Split-segment range labelled** — a segment row's parent-window range now reads
+  "from 41:53 to 2:10:05" (with an explanatory tooltip) instead of a bare
+  "41:53 – 2:10:05" that looked like a contradictory second duration.
+
 ## Web-UI quick fixes — E2E UX review stage 03 (done 2026-07-05)
 
 Seven Medium-severity fixes from the install→daily-use UX review

@@ -58,6 +58,7 @@ function _applyVideoFilters(videos) {
   else if (sort === 'length') result.sort((a, b) => (b.duration_ms || 0) - (a.duration_ms || 0));
   else if (sort === 'clips')  result.sort((a, b) => (b.clip_count || 0) - (a.clip_count || 0));
   // 'recent' keeps the server order (created_at desc).
+  if ((AppState.videoSortDir || 'desc') === 'asc') result.reverse();
   return result;
 }
 
@@ -136,7 +137,7 @@ function _videoItemLi(v, analyzingName, inSession) {
     ? `<div class="meta">Scores: ${Math.round(v.score_min * 100)}% – ${Math.round(v.score_max * 100)}%</div>`
     : '';
   const segmentMeta = (v.segment_start_s != null && v.segment_end_s != null)
-    ? `<div class="meta" style="color:var(--accent2)">${_msToHms(v.segment_start_s * 1000)} – ${_msToHms(v.segment_end_s * 1000)}</div>`
+    ? `<div class="meta" style="color:var(--accent2)" title="Where this part sits inside the original recording">from ${_msToHms(v.segment_start_s * 1000)} to ${_msToHms(v.segment_end_s * 1000)}</div>`
     : '';
   const errCount = v.clips_llm_error || 0;
   const errBadge = errCount > 0
@@ -168,6 +169,12 @@ function setVideoSearch(q) { AppState.videoSearch = q.trim(); _renderVideoList()
 function setVideoSort(sort) {
   AppState.videoSort = sort;
   localStorage.setItem('videos-sort', sort);
+  _renderVideoList();
+}
+function toggleVideoSortDir() {
+  AppState.videoSortDir = (AppState.videoSortDir === 'asc') ? 'desc' : 'asc';
+  localStorage.setItem('videos-sort-dir', AppState.videoSortDir);
+  _syncSortDirBtn('videos-sort-dir', AppState.videoSortDir);
   _renderVideoList();
 }
 
@@ -1113,7 +1120,7 @@ Object.assign(window, {
   _updateDemoButton, _updateStartIngestButton,
   _analysisLivePanelHTML, _syncAnalysisLivePanel,
   _applyVideoFilters, _renderVideoList,
-  setVideoSearch, setVideoSort, toggleVideoFilter, _syncVideoFilterChips, _clearVideoFilters,
+  setVideoSearch, setVideoSort, toggleVideoSortDir, toggleVideoFilter, _syncVideoFilterChips, _clearVideoFilters,
   openVideoActionsModal,
 });
 })();

@@ -118,6 +118,29 @@ class TestClipSort:
         page.locator("#clips-sort").select_option("score")
         expect(page.locator("#clip-list li").first).to_be_visible()
 
+    def test_direction_button_defaults_descending(self, page: Page):
+        page.goto(LIVE_URL)
+        btn = page.locator("#clips-sort-dir")
+        expect(btn).to_be_visible()
+        expect(btn).to_have_attribute("aria-pressed", "false")
+
+    def test_toggling_direction_reverses_clip_order(self, page: Page):
+        select_video_with_clips(page)
+
+        def clip_order():
+            return page.eval_on_selector_all(
+                "#clip-list li", "els => els.map(e => e.dataset.clipId)")
+
+        before = clip_order()
+        assert len(before) >= 2
+        page.click("#clips-sort-dir")
+        expect(page.locator("#clips-sort-dir")).to_have_attribute("aria-pressed", "true")
+        assert clip_order() == list(reversed(before))
+        # restore natural order so sibling tests see a descending list
+        page.click("#clips-sort-dir")
+        page.evaluate("() => localStorage.removeItem('clips-sort-dir')")
+        assert clip_order() == before
+
 
 @skip_no_server
 class TestLaughScore:
@@ -1033,6 +1056,17 @@ class TestClipDetailCards:
         expect(card).to_have_count(1)
         expect(card.locator(".detail-card-title")).to_have_text("Transcript")
 
+    def test_scoring_actions_render_above_description(self, page: Page):
+        select_first_video_and_clip(page)
+        page.wait_for_selector("#clip-tag-input", timeout=3000)
+        titles = page.eval_on_selector_all(
+            "#detail .detail-card-title",
+            "els => els.map(e => e.textContent.trim())")
+        assert "Scoring" in titles and "Actions" in titles
+        first_desc = next(i for i, t in enumerate(titles) if t.startswith("Description"))
+        assert titles.index("Scoring") < first_desc
+        assert titles.index("Actions") < first_desc
+
 
 @skip_no_server
 class TestClipActionsModalGroups:
@@ -1405,43 +1439,30 @@ class TestClipShowInFolder:
 # ---------------------------------------------------------------------------
 
 @skip_no_server
-class TestBatchStatusPanel:
-    def test_counts_match_clip_fixtures(self, page: Page):
+class TestClipFilterCounts:
+    def test_counts_render_on_filter_chips(self, page: Page):
         select_video_with_clips(page)
-        page.wait_for_selector("#batch-status-panel", state="visible", timeout=3000)
+        page.wait_for_selector(".clip-chip-count[data-count='all']", timeout=3000)
         counts = page.evaluate(
             """() => {
                 const c = {pending: 0, approved: 0, rejected: 0};
                 for (const clip of AppState.clips) c[clip.status]++;
-                return c;
+                return {total: AppState.clips.length, ...c};
             }"""
         )
-        body = page.locator("#batch-status-body")
-        expect(body).to_contain_text(f"{counts['pending']} Unreviewed")
-        expect(body).to_contain_text(f"{counts['approved']} Approved")
-        expect(body).to_contain_text(f"{counts['rejected']} Rejected")
+        def badge(key):
+            return page.locator(f".clip-chip-count[data-count='{key}']")
 
-    def test_clicking_a_count_applies_the_filter_chip(self, page: Page):
-        select_video_with_clips(page)
-        page.wait_for_selector("#batch-status-panel", state="visible", timeout=3000)
-        page.click("#batch-status-body button:has-text('Approved')")
-        expect(page.locator("button.clip-chip[data-filter='approved']")).to_have_attribute("aria-pressed", "true")
+        expect(badge("all")).to_have_text(str(counts["total"]))
+        expect(badge("pending")).to_have_text(str(counts["pending"]))
+        expect(badge("approved")).to_have_text(str(counts["approved"]))
+        expect(badge("rejected")).to_have_text(str(counts["rejected"]))
 
-    def test_collapse_state_survives_reload(self, page: Page):
-        select_video_with_clips(page)
-        page.wait_for_selector("#batch-status-panel", state="visible", timeout=3000)
-        page.click("#batch-status-toggle")
-        expect(page.locator("#batch-status-panel")).to_have_class("batch-status-panel collapsed")
-        assert page.evaluate("() => localStorage.getItem('yuuclip-batch-panel')") == "collapsed"
-        page.reload()
-        select_video_with_clips(page)
-        page.wait_for_selector("#batch-status-panel", state="visible", timeout=3000)
-        expect(page.locator("#batch-status-panel")).to_have_class("batch-status-panel collapsed")
-
-    def test_hidden_when_no_recording_selected(self, page: Page):
+    def test_counts_blank_when_no_recording_selected(self, page: Page):
         page.goto(LIVE_URL)
         page.evaluate("() => { AppState.activeVideoId = null; AppState.clips = []; _renderClips(); }")
-        expect(page.locator("#batch-status-panel")).to_be_hidden()
+        for key in ("all", "pending", "approved", "rejected", "error"):
+            expect(page.locator(f".clip-chip-count[data-count='{key}']")).to_have_text("")
 
 
 @skip_no_server
