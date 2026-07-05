@@ -1264,10 +1264,15 @@
         <input type="text" id="demo-output-name" placeholder="highlights_YYYYMMDD_HHMMSS.mkv (auto)">
       </div>
 
-      <label style="display:flex;align-items:center;gap:8px;margin-bottom:12px;font-size:12px;cursor:pointer">
-        <input type="checkbox" id="demo-captions">
-        Generate captions (writes an SRT alongside the reel — can be regenerated later)
-      </label>
+      <div class="field" style="margin-bottom:12px">
+        <label for="demo-captions">Captions</label>
+        <select id="demo-captions">
+          <option value="none" selected>None</option>
+          <option value="sidecar">Caption file (SRT alongside the reel)</option>
+          <option value="burnin">Burn into video (uses the Caption style from Settings)</option>
+        </select>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">Burned-in captions re-encode the reel and can't be turned off later. A caption file can be regenerated any time.</div>
+      </div>
 
       <div id="demo-status" style="font-size:12px;color:var(--muted);margin-bottom:6px"></div>
       <div id="reel-estimate" class="reel-estimate" style="margin-bottom:10px">Loading estimate…</div>

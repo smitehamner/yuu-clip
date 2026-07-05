@@ -386,6 +386,53 @@ class TestSegmentStartTimes:
         assert self._starts([0.2, 0.2], 0.5) == [0.0, 0.0]
 
 
+class TestBurnReelCaptions:
+    """reel.burn_reel_captions — the final burn-in pass reuses the clip-export
+    subtitles filter (so the global Caption style applies), stream-copies audio,
+    and replaces the reel file in place."""
+
+    def _run(self, tmp_path, monkeypatch, style=None):
+        from pathlib import Path
+
+        from yuu_clip import reel as reel_mod
+        captured = {}
+
+        def fake_run_ffmpeg(cmd):
+            captured["cmd"] = cmd
+            # Simulate ffmpeg writing the temp output so .replace() succeeds.
+            out = Path(cmd[-1])
+            out.write_bytes(b"burned")
+
+        monkeypatch.setattr(reel_mod, "run_ffmpeg", fake_run_ffmpeg)
+        reel = tmp_path / "reel.mkv"
+        reel.write_bytes(b"original")
+        srt = tmp_path / "reel.srt"
+        srt.write_text("1\n00:00:00,000 --> 00:00:01,000\nhi\n", encoding="utf-8")
+        reel_mod.burn_reel_captions(reel, srt, style)
+        return captured["cmd"], reel
+
+    def test_vf_uses_subtitles_filter(self, tmp_path, monkeypatch):
+        cmd, _ = self._run(tmp_path, monkeypatch)
+        vf = cmd[cmd.index("-vf") + 1]
+        assert vf.startswith("subtitles=")
+        assert (tmp_path / "reel.srt").name in vf
+
+    def test_style_becomes_force_style(self, tmp_path, monkeypatch):
+        from yuu_clip.analyze.extract import CaptionStyle
+        cmd, _ = self._run(tmp_path, monkeypatch, CaptionStyle(font_size=40, position="top"))
+        vf = cmd[cmd.index("-vf") + 1]
+        assert "force_style='FontSize=40,Alignment=8'" in vf
+
+    def test_audio_is_stream_copied(self, tmp_path, monkeypatch):
+        cmd, _ = self._run(tmp_path, monkeypatch)
+        assert cmd[cmd.index("-c:a") + 1] == "copy"
+
+    def test_replaces_reel_in_place(self, tmp_path, monkeypatch):
+        _, reel = self._run(tmp_path, monkeypatch)
+        assert reel.read_bytes() == b"burned"
+        assert not reel.with_name("reel.burn_tmp.mkv").exists()
+
+
 class TestSelectClipExportFile:
     """reel._select_clip_export_file — which exported file a reel build uses when a
     clip has several per-preset formats. Must deterministically prefer the default
@@ -524,6 +571,16 @@ class TestReelCaptionRoutes:
         r = client.post("/api/demo/start", json={"video_id": vid, "transition": "fade"})
         assert r.status_code == 200
         assert "--captions" not in client.app.state.ctx.demo_cmd
+
+    def test_start_bake_captions_uses_bake_flag_not_captions(self, client):
+        vid = client.get("/api/videos").json()[0]["id"]
+        r = client.post("/api/demo/start", json={
+            "video_id": vid, "transition": "fade", "captions": True, "bake_captions": True,
+        })
+        assert r.status_code == 200
+        cmd = client.app.state.ctx.demo_cmd
+        assert "--bake-captions" in cmd
+        assert "--captions" not in cmd  # bake-captions builds the sidecar itself
 
     def test_regenerate_without_composition_409(self, client, project_dir):
         self._make_reel(project_dir)

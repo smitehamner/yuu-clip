@@ -33,6 +33,7 @@ class DemoRequest(BaseModel):
     title_dur:   float = 3.0
     output_name: str   = ""
     captions:    bool  = False
+    bake_captions: bool = False
 
 
 _REEL_POOL_STATUSES = {"approved", "pending", "rejected"}
@@ -113,7 +114,9 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             "--title-dur",  str(req.title_dur),
             "--output",     str(output_path),
         ]
-        if req.captions:
+        if req.bake_captions:
+            cmd += ["--bake-captions"]
+        elif req.captions:
             cmd += ["--captions"]
         if req.clip_ids:
             for cid in req.clip_ids:

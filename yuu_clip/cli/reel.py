@@ -26,6 +26,7 @@ def reel(
     output:     Optional[Path]  = typer.Option(None, "-o", "--output",
                                      help="Output file path (default: .yuu-clip/reels/reel_<timestamp>.mkv)"),
     captions:   bool            = typer.Option(False, "--captions", help="Also write a stitched <reel>.srt caption sidecar"),
+    bake_captions: bool         = typer.Option(False, "--bake-captions", help="Burn captions into the reel video (also writes the SRT sidecar); uses the configured Caption style"),
 ) -> None:
     """Compile a highlight reel from approved clips with title cards and transitions."""
     from yuu_clip.db.models import Video
@@ -56,11 +57,13 @@ def reel(
     _print_reel_plan(all_clips, video_map, output, transition)
     _compile_reel(all_clips, video_map, export_dir, output, transition, trans_dur, title_dur, config)
 
-    if captions:
+    if captions or bake_captions:
         from yuu_clip.reel import build_reel_caption_srt
         srt_path = build_reel_caption_srt(session, output)
         if srt_path:
             console.print(f"  [green]OK[/green] captions {srt_path.name}")
+        if bake_captions:
+            _burn_reel_captions(output, srt_path, config)
 
 
 def _select_reel_clips(session, clip_ids, video_ids, video_id, status_filter, min_score, top) -> list:
@@ -106,6 +109,31 @@ def _compile_reel(all_clips, video_map, export_dir: Path, output: Path,
         # run_ffmpeg raises this for a missing FFmpeg (with install instructions) or a
         # non-zero ffmpeg exit (with the captured stderr).
         console.print(f"  [red]{e}[/red]")
+        raise typer.Exit(1)
+
+
+def _burn_reel_captions(output: Path, srt_path: Optional[Path], config) -> None:
+    """Burn the stitched reel SRT into the reel video using the configured Caption style.
+
+    Skips (with a note) when there was no transcript data to stitch — an empty SRT
+    would be a wasteful no-op re-encode.
+    """
+    if srt_path is None or not srt_path.exists() or srt_path.stat().st_size == 0:
+        console.print("  [yellow]No transcript data — burn-in skipped[/yellow]")
+        return
+    from yuu_clip.analyze.extract import CaptionStyle
+    from yuu_clip.reel import burn_reel_captions
+    style = CaptionStyle(
+        font_name=config.caption_font_name,
+        font_size=config.caption_font_size,
+        position=config.caption_position,
+    )
+    console.print("  Burning captions into the reel...")
+    try:
+        burn_reel_captions(output, srt_path, style)
+        console.print("  [green]OK[/green] captions burned in")
+    except RuntimeError as e:
+        console.print(f"  [red]Caption burn-in failed: {e}[/red]")
         raise typer.Exit(1)
 
 

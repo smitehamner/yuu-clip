@@ -41,10 +41,14 @@ class TestDemoModal:
         placeholder = page.locator("#demo-output-name").get_attribute("placeholder")
         assert placeholder is not None and ".mkv" in placeholder
 
-    def test_has_captions_checkbox(self, page: Page):
+    def test_has_captions_mode_select(self, page: Page):
         page.goto(LIVE_URL)
         self._open_modal(page)
-        expect(page.locator("#demo-captions")).to_be_visible()
+        select = page.locator("#demo-captions")
+        expect(select).to_be_visible()
+        values = select.locator("option").evaluate_all("opts => opts.map(o => o.value)")
+        assert values == ["none", "sidecar", "burnin"]
+        assert select.input_value() == "none"
 
     def test_export_button_hidden_until_unexported_clips(self, page: Page):
         page.goto(LIVE_URL)

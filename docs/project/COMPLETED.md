@@ -39,6 +39,20 @@ Closed the Phase 6 "Subtitle style options" item (plan 05). Font, size, and posi
   (`tests/test_export.py`); config PATCH accept/reject + load-sanitize
   (`tests/test_config.py`); settings render + dirty-marking (`tests/test_ui_settings.py`).
 
+### Follow-up: highlight-reel caption burn-in (done 2026-07-04)
+
+Extended caption burn-in to the highlight reel (previously the reel could only write an
+SRT sidecar). `reel.burn_reel_captions()` re-encodes the finished reel with the stitched
+`<reel>.srt` (built by the existing `build_reel_caption_srt`, which already offsets each
+clip's lines onto the reel timeline accounting for title cards + transition overlaps) using
+the same `_subtitles_filter`/`CaptionStyle` as clip export — audio stream-copied, per-speaker
+colours preserved. `reel` CLI gained `--bake-captions` (uses the configured Caption style,
+also writes the sidecar); the `/api/demo/start` route gained `bake_captions`; the reel
+builder's captions checkbox became a **None / Caption file / Burn into video** dropdown.
+Empty-transcript reels skip the burn (no wasteful re-encode). Tests: `burn_reel_captions`
+command shape (`tests/test_reel.py`), route flag mapping, and the dropdown options
+(`tests/test_ui_reel.py`).
+
 ---
 
 ## Multi-session grouping + unified timeline (done 2026-07-04)

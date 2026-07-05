@@ -459,13 +459,15 @@ async function startDemo() {
     return;
   }
 
+  const captionMode = document.getElementById('demo-captions').value;
   const body = {
     clip_ids:    included.map(c => c.id),
     transition:  document.getElementById('demo-transition').value,
     trans_dur:   parseFloat(document.getElementById('demo-trans-dur').value),
     title_dur:   parseFloat(document.getElementById('demo-title-dur').value),
     output_name: document.getElementById('demo-output-name').value.trim(),
-    captions:    document.getElementById('demo-captions').checked,
+    captions:      captionMode !== 'none',
+    bake_captions: captionMode === 'burnin',
   };
 
   const statusEl = document.getElementById('demo-status');

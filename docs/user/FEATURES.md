@@ -137,7 +137,7 @@ When one sitting of gameplay spans several recordings (OBS splitting a long sess
 
 Accessible from the header. Choose a source (all approved clips, a specific recording, or a whole **Session** — the "Clips from" picker lists sessions under their own group), transition type and duration (including "random"), title card duration, and output filename. A session's reel spans every member recording's approved clips; the session detail view has a **Build Highlight Reel from Session** button that opens the builder pre-scoped. Ordered clip list lets you check/uncheck clips and reorder them — drag a row by its grip, or use the ▲▼ buttons. Your order and selections are kept while the window is open, even if you flip to the View tab and back. Saved reels go to `.yuu-clip/reels/` with a timestamp in the filename.
 
-A reel is built from your **exported** clips, so any selected clip that hasn't been exported is skipped — the builder shows an **Export N clips** button to export the missing ones first. **Preview** plays the selected clips in sequence with Previous/Next controls. Tick **Generate captions** to also write an SRT alongside the reel (each clip's transcript stitched onto the reel timeline). In the **View** tab you can generate or regenerate captions for an existing reel, play it with captions, and **Delete** reels you no longer need (removes the file and its captions from disk; your clips are untouched).
+A reel is built from your **exported** clips, so any selected clip that hasn't been exported is skipped — the builder shows an **Export N clips** button to export the missing ones first. **Preview** plays the selected clips in sequence with Previous/Next controls. The **Captions** dropdown offers three choices: **None**; **Caption file** — writes an SRT alongside the reel (each clip's transcript stitched onto the reel timeline); or **Burn into video** — bakes the captions into the reel picture using the Caption style (font/size/position) from Settings → Export, keeping per-speaker colours. Burn-in re-encodes the reel and can't be undone; a caption file can be regenerated any time. In the **View** tab you can generate or regenerate the caption file for an existing reel, play it with captions, and **Delete** reels you no longer need (removes the file and its captions from disk; your clips are untouched).
 
 ### World contexts manager
 
@@ -269,6 +269,7 @@ Compiles a highlight reel from approved clips with title cards and transitions.
 | `--title-dur S` | 3.0 | Title card display time |
 | `--output PATH` | auto | Default: `.yuu-clip/reels/reel_<timestamp>.mkv` |
 | `--captions` | off | Also write a stitched `<reel>.srt` caption sidecar |
+| `--bake-captions` | off | Burn captions into the reel video (also writes the sidecar); uses the configured Caption style |
 
 ### `yuuclip serve [options]`
 Starts the web server and opens the browser. Options: `--host`, `--port` (default 8080), `--open`/`--no-open`, `--reload`. Preferred entry point for day-to-day use.

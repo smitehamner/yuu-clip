@@ -785,7 +785,9 @@ Text overlaid on exported clips showing what was said, derived from the transcri
 ### Caption Style
 
 The font, size, and position applied to **burned-in** captions. Set as a global
-default in Settings → Export and overridable per clip export in the Export dialog.
+default in Settings → Export, overridable per clip export in the Export dialog, and
+also applied when a highlight reel burns captions in ("Burn into video" in the reel
+builder / `reel --bake-captions`).
 
 - **Code:** config `caption_font_name`, `caption_font_size`, `caption_position`;
   `CaptionStyle` dataclass and `_subtitles_filter()` (`yuu_clip/analyze/extract.py`);

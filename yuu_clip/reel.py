@@ -588,3 +588,27 @@ def build_reel_caption_srt(session: "Session", reel_path: Path) -> Optional[Path
     srt_path = reel_caption_path(reel_path)
     srt_path.write_text(lines_to_srt(stitched), encoding="utf-8")
     return srt_path
+
+
+def burn_reel_captions(reel_path: Path, srt_path: Path, caption_style=None) -> None:
+    """Re-encode *reel_path* in place with *srt_path* burned into the video.
+
+    Reuses the clip-export burn-in filter (`analyze.extract._subtitles_filter`) so
+    reel captions honor the same global Caption style (font/size/position) and never
+    override per-speaker colours (they arrive as inline <font color> tags in the SRT).
+    Audio is stream-copied — only the video is re-encoded.
+    """
+    from yuu_clip.analyze.extract import _subtitles_filter
+
+    vf = _subtitles_filter(srt_path, caption_style)
+    tmp_out = reel_path.with_name(reel_path.stem + ".burn_tmp" + reel_path.suffix)
+    run_ffmpeg([
+        "ffmpeg", "-y", "-loglevel", "error",
+        "-i", str(reel_path),
+        "-vf", vf,
+        "-c:v", "libx264", "-preset", "fast", "-crf", "18",
+        "-c:a", "copy",
+        "-pix_fmt", "yuv420p",
+        str(tmp_out),
+    ])
+    tmp_out.replace(reel_path)
