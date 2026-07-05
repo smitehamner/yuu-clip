@@ -147,6 +147,39 @@ class TestReelBuilderCuration:
         assert page.locator(".reel-clip-row.excluded").count() == 0
 
 
+_MANY_REEL_CLIPS = [
+    {"id": 200 + i, "video_id": 1, "video_name": "s.mkv", "start_hms": f"0:00:{i:02d}",
+     "duration_hms": "0:00:05", "duration_ms": 5000, "score_overall": 0.5,
+     "description": f"clip {i}", "status": "approved", "has_export": True}
+    for i in range(8)
+]
+
+
+@skip_no_server
+class TestReelBuilderFooterVisible:
+    """The Build Reel action row stays on-screen (sticky footer) even with a
+    long clip list at the Electron default 1280x900 window — regression for the
+    footer being half-clipped below the fold."""
+
+    def test_build_button_within_viewport_with_many_clips(self, page: Page):
+        import json
+        page.set_viewport_size({"width": 1280, "height": 900})
+        page.route("**/api/demo/approved-clips*",
+                   lambda route: route.fulfill(content_type="application/json",
+                                               body=json.dumps(_MANY_REEL_CLIPS)))
+        page.route("**/api/demo/list",
+                   lambda route: route.fulfill(content_type="application/json", body="[]"))
+        page.evaluate("AppState.videos = [{id: 1, filename: 's.mkv', approved: 8}]")
+        page.evaluate("openHighlightReelsModal('build')")
+        page.locator(".reel-clip-row").first.wait_for()
+        btn = page.locator("#reel-tab-build .modal-actions button:has-text('Build Reel')")
+        box = btn.bounding_box()
+        assert box is not None
+        assert box["y"] >= 0
+        assert box["y"] + box["height"] <= 900 + 1
+        page.evaluate("closeHighlightReelsModal()")
+
+
 _FAKE_PENDING_CLIP = {
     "id": 104, "video_id": 1, "video_name": "s.mkv", "start_hms": "0:00:30",
     "duration_hms": "0:00:05", "duration_ms": 5000, "score_overall": 0.5,

@@ -90,7 +90,7 @@ function _renderClipStatsLine(shown) {
   const counts = {pending: 0, approved: 0, rejected: 0};
   for (const c of AppState.clips) counts[c.status] = (counts[c.status] || 0) + 1;
   const totalSeconds = shown.reduce((sum, c) => {
-    const len = c.end_s - c.start_s;
+    const len = (c.end_ms - c.start_ms) / 1000;
     return sum + (Number.isFinite(len) ? len : 0);
   }, 0);
   el.textContent = `${shown.length} shown · ${counts.pending} unreviewed · ` +
@@ -1161,9 +1161,12 @@ async function _patchClipField(clipId, action, field, newDesc, newDescLong) {
 }
 
 function clearDetail() {
+  const hasRecording = !!AppState.activeVideoId;
   document.getElementById('player-area').innerHTML = `
-    <div class="no-export-msg"><div style="color:var(--muted)">Select a clip to review</div></div>`;
-  document.getElementById('detail').innerHTML = '<div class="detail-empty">Select a clip from the sidebar<div style="color:var(--muted);font-size:12px;margin-top:6px">Use ← → to navigate between clips</div></div>';
+    <div class="no-export-msg"><div style="color:var(--muted)">${hasRecording ? 'Select a clip to review' : 'Select a recording to get started'}</div></div>`;
+  document.getElementById('detail').innerHTML = hasRecording
+    ? '<div class="detail-empty">Select a clip from the sidebar<div style="color:var(--muted);font-size:12px;margin-top:6px">Use ← → to navigate between clips</div></div>'
+    : '<div class="detail-empty">Select a recording on the left</div>';
 }
 
 // ── clip actions ──────────────────────────────────────────────────────────────

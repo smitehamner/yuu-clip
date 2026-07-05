@@ -1287,6 +1287,7 @@ const _modalEscapeClosers = {
 function _closeTopmostLayer() {
   if (closeKebab(true)) return;
   if (isHamburgerOpen()) { closeHamburger(true); return; }
+  if (isProjectMenuOpen()) { closeProjectMenu(true); return; }
   const topModal = topmostVisibleModal();
   if (topModal) {
     (_modalEscapeClosers[topModal.id] || (() => topModal.classList.remove('visible')))();

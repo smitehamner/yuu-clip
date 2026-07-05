@@ -86,6 +86,14 @@ document.getElementById('project-menu').addEventListener('keydown', e => {
 document.addEventListener('click', e => {
   if (!document.getElementById('project-switcher-wrap').contains(e.target)) closeProjectMenu();
 });
+// Close when focus leaves the switcher — covers a panel/modal (or its focus
+// trap) opening while the menu is up, which would otherwise float over it.
+document.getElementById('project-switcher-wrap').addEventListener('focusout', e => {
+  if (!isProjectMenuOpen()) return;
+  const wrap = document.getElementById('project-switcher-wrap');
+  if (e.relatedTarget && wrap.contains(e.relatedTarget)) return;
+  closeProjectMenu();
+});
 
 async function switchProject(path) {
   try {

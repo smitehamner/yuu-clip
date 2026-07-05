@@ -140,7 +140,6 @@ async function _loadProfileDropdown() {
 }
 
 function scheduleProbe() {
-  _panelDirty = true;
   clearTimeout(_probeTimer);
   const path = document.getElementById('analyze-path').value.trim();
   if (!path) {
@@ -149,6 +148,7 @@ function scheduleProbe() {
     _updateStartIngestButton();
     return;
   }
+  _panelDirty = true;
   document.getElementById('estimate-area').innerHTML = '<div class="probing-spinner">Inspecting file...</div>';
   _probeTimer = setTimeout(() => runProbe(path), 700);
 }

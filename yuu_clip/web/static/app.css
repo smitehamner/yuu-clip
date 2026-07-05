@@ -678,7 +678,7 @@ kbd { background: var(--surface); border: 1px solid var(--border); border-radius
 input:focus-visible, select:focus-visible, textarea:focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent); }
 details summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) { .spinner { animation: none; border-top-color: var(--accent); border-right-color: var(--accent); } .toast { animation: none; } * { transition-duration: 0.01ms !important; } }
-.settings-select { padding: 6px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 13px; width: auto; max-width: 260px; }
+.settings-select { padding: 6px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 13px; width: auto; max-width: 320px; }
 .settings-row.dirty, .settings-weight-row.dirty { border-left: 2px solid var(--accent); padding-left: 10px; margin-left: -12px; }
 .settings-checkbox { display: flex; align-items: center; gap: 8px; cursor: pointer; }
 .settings-save-badge { font-size: 11px; color: var(--green); opacity: 0; transition: opacity .3s; }
@@ -719,6 +719,10 @@ details summary:focus-visible { outline: 2px solid var(--accent); outline-offset
 .reel-tab-btn:hover:not(.active) { color: var(--text); }
 
 /* ── reel builder ── */
+/* Pin the action row to the modal's bottom edge so Build Reel stays reachable
+   without scrolling when the clip list is long (negative margins bleed over the
+   modal's 24px padding; bottom offset cancels padding-bottom). */
+#reel-tab-build .modal-actions { position: sticky; bottom: -24px; z-index: 1; margin: 0 -24px -24px; padding: 12px 24px; background: var(--surface); border-top: 1px solid var(--border); }
 .reel-clip-list { display: flex; flex-direction: column; gap: 4px; max-height: 300px; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px; padding: 4px; background: var(--bg); }
 .reel-clip-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 4px; background: var(--surface); }
 .reel-clip-row.excluded { opacity: .4; }

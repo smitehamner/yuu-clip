@@ -665,6 +665,18 @@ class TestImportFromUrl:
         expect(page.locator("#import-url-field")).to_be_visible()
         expect(page.locator("#recording-source-field")).to_be_hidden()
 
+    def test_url_toggle_alone_does_not_dirty_the_panel(self, page: Page):
+        # Regression: showImportUrlSection() → scheduleProbe() set _panelDirty
+        # even with an empty path, so closing the panel falsely prompted
+        # "Discard new recording?". An untouched toggle must close cleanly.
+        page.goto(LIVE_URL)
+        self._open_panel(page)
+        page.click("#btn-show-import-url")
+        expect(page.locator("#import-url-field")).to_be_visible()
+        page.click("#btn-close-new-recording")
+        expect(page.locator("#confirm-modal")).not_to_be_visible()
+        expect(page.locator("#new-recording-panel")).not_to_be_visible()
+
     def test_use_local_file_instead_restores_path_field(self, page: Page):
         page.goto(LIVE_URL)
         self._open_panel(page)

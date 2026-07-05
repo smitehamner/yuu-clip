@@ -50,3 +50,12 @@ class TestProjectSwitcher:
         expect(page.locator("#project-menu")).to_have_class(_OPEN)
         page.locator("header .brand h1").click()
         expect(page.locator("#project-menu")).not_to_have_class(_OPEN)
+
+    def test_escape_closes_menu_and_refocuses_trigger(self, page: Page):
+        page.goto(LIVE_URL)
+        expect(page.locator("#project-current-name")).to_have_text("yuu-clip")
+        page.locator("#btn-project-switcher").click()
+        expect(page.locator("#project-menu")).to_have_class(_OPEN)
+        page.keyboard.press("Escape")
+        expect(page.locator("#project-menu")).not_to_have_class(_OPEN)
+        expect(page.locator("#btn-project-switcher")).to_be_focused()

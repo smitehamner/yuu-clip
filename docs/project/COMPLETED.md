@@ -6,6 +6,36 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) — see the
 
 ---
 
+## Web-UI quick fixes — E2E UX review stage 03 (done 2026-07-05)
+
+Seven Medium-severity fixes from the install→daily-use UX review
+(`docs/dev/plans/ux-e2e-review-2026-07/03-web-ui-quick-fixes.md`), all reproduced live:
+
+- **Clip stats "0 sec total"** — `_renderClipStatsLine` summed `end_s - start_s`, but
+  clips carry `start_ms`/`end_ms`; every term was `NaN`. Now `(end_ms - start_ms) / 1000`.
+- **Project switcher ignored Escape / floated over panels** — added the menu to the global
+  `_closeTopmostLayer` cascade (Escape closes + refocuses the trigger) and a `focusout`
+  close so a panel/modal that grabs focus can't leave it floating.
+- **URL toggle falsely dirtied the New Recording panel** — `scheduleProbe` set `_panelDirty`
+  before the empty-path early return, so opening the URL import (which clears the path)
+  triggered a false "Discard new recording?" prompt. Dirty is now set only for a non-empty
+  path.
+- **Clip search placeholder truncated** → "Search clips…" (full field list kept in
+  title/aria-label).
+- **Settings speech-to-text select clipped its option** — `.settings-select` max-width
+  260 → 320px (matches the LLM path input beside it).
+- **Main-panel empty state pointed at the wrong first action** — `clearDetail` is now
+  state-aware: no active recording → "Select a recording on the left".
+- **Reel builder Build button below the fold** — the Build-tab action row is now a sticky
+  footer pinned to the modal's bottom edge; the clip list remains the scrolling region.
+
+Tests: new UI cases in `test_ui_clips.py` (nonzero total duration), `test_ui_projects.py`
+(Escape closes + refocuses), `test_ui_analyze.py` (URL toggle leaves panel clean),
+`test_ui_reel.py` (Build button within a 1280×900 viewport with 8 clips). Full UI suite
+(637) green; no Python source touched.
+
+---
+
 ## Streamlined local-model install — disk precheck + cancel (done 2026-07-05)
 
 Non-LLM-tiers plan, **Stage 08** (`docs/dev/plans/non-llm-tiers/08-model-install.md`) — the

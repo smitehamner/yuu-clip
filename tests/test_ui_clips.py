@@ -1188,6 +1188,22 @@ class TestClipStatsLine:
         expect(stats).to_contain_text(f"{counts['approved']} approved")
         expect(stats).to_contain_text(f"{counts['rejected']} rejected")
 
+    def test_stats_line_total_duration_is_nonzero(self, page: Page):
+        # Regression: the total summed c.end_s - c.start_s, but clips carry
+        # start_ms/end_ms — every term was NaN, so a list of real clips still
+        # read "0 sec total". Compare against the ms-based duration.
+        select_video_with_clips(page)
+        page.wait_for_selector("#clip-stats-line", state="visible", timeout=3000)
+        expected = page.evaluate(
+            """() => {
+                const secs = _applyFilters().reduce(
+                    (s, c) => s + (c.end_ms - c.start_ms) / 1000, 0);
+                return fmtDuration(secs);
+            }"""
+        )
+        assert not expected.startswith("0 sec"), "fixture clips have no duration"
+        expect(page.locator("#clip-stats-line")).to_contain_text(f"{expected} total")
+
     def test_stats_line_updates_with_filter(self, page: Page):
         select_video_with_clips(page)
         page.wait_for_selector("#clip-stats-line", state="visible", timeout=3000)
