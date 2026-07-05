@@ -44,6 +44,10 @@ the fix.
   the pattern plan 11's image-analysis controls consume.
 - **Wizard** (`setup.html`): Claude dropdown refreshed to current models; the recommended
   `.gguf` download changed from Llama 3.2 (licence-excluded) to **Qwen2.5 7B (Apache-2.0)**.
+- **Default Ollama model** changed `llama3.2` → **`qwen2.5:7b`** (Apache-2.0) across
+  `config.py`, the Electron wizard (`main.js` `DEFAULT_OLLAMA_MODEL`, `setup.html` fallback),
+  the Settings placeholder, and the README pull command — so the out-of-box default is also
+  monetization-safe, not just the recommendations.
 - **Docs:** GLOSSARY "Recommended models" + "Model readiness" (dev + in-app glossary.md);
   FEATURES.md monetization-licence section.
 - **Tests:** `test_model_catalog.py` (catalog integrity + licence policy), `test_llm.py`

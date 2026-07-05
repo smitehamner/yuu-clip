@@ -40,7 +40,7 @@ winget install Python.Python.3.12   # Windows
 ### Ollama (optional — for LLM scoring)
 Download from [ollama.ai](https://ollama.ai). After installing, pull the model:
 ```
-ollama pull llama3.1:8b
+ollama pull qwen2.5:7b
 ```
 Ollama must be running (`ollama serve`) when you ingest or score.
 

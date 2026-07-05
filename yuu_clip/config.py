@@ -407,7 +407,7 @@ class Config:
     llm_mmproj_path: str = ""        # path to the vision projector .gguf; enables vision on llamacpp
 
     ollama_host: str = "http://localhost:11434"
-    ollama_model: str = "llama3.2"
+    ollama_model: str = "qwen2.5:7b"  # Apache-2.0 (monetization-safe); see model_catalog.py
     ollama_timeout_s: float = 120.0
     ollama_enabled: bool = True
 

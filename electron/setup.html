@@ -792,7 +792,7 @@ function collectConfig() {
     whisperLanguage: document.getElementById('whisper-lang-sel').value,
     llmBackend:      document.getElementById('llm-backend-sel').value,
     llmModelPath:    (document.getElementById('llm-model-path').value || '').trim(),
-    ollamaModel:     (document.getElementById('ollama-model-input').value || '').trim() || 'llama3.2',
+    ollamaModel:     (document.getElementById('ollama-model-input').value || '').trim() || 'qwen2.5:7b',
     claudeApiKey:    (document.getElementById('claude-api-key').value || '').trim(),
     claudeModel:     document.getElementById('claude-model-sel').value,
     diarizationEnabled: document.getElementById('diar-enabled').checked,
