@@ -163,12 +163,12 @@
     <div class="settings-row">
       <div class="settings-col">
         <label class="settings-label" for="s-llm-backend">LLM backend</label>
-        <div class="settings-note">Local model file runs offline; Ollama requires a running server</div>
+        <div class="settings-note">Local backends run on your machine and are free. Claude is a paid remote API — most people should pick a local backend.</div>
       </div>
       <select class="settings-select" id="s-llm-backend" onchange="_onLlmBackendChange(this.value)">
-        <option value="llamacpp">Local model file (offline)</option>
-        <option value="ollama">Ollama (local server)</option>
-        <option value="claude">Claude API &#x26A0; Remote</option>
+        <option value="llamacpp">Local model file (offline, free)</option>
+        <option value="ollama">Ollama (local server, free)</option>
+        <option value="claude">Claude API &#x26A0; paid &middot; sends transcript to Anthropic</option>
       </select>
     </div>
     <div id="s-backend-remote-warning" style="display:none;margin:0 0 8px;padding:8px 12px;border-radius:6px;background:rgba(240,192,96,.12);border:1px solid rgba(240,192,96,.4);font-size:12px;color:var(--warning)">

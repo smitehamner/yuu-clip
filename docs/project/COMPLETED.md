@@ -48,6 +48,11 @@ the fix.
   `config.py`, the Electron wizard (`main.js` `DEFAULT_OLLAMA_MODEL`, `setup.html` fallback),
   the Settings placeholder, and the README pull command — so the out-of-box default is also
   monetization-safe, not just the recommendations.
+- **Claude de-emphasized (kept)**: local backends are labelled "free" and Claude's option
+  now reads "paid · sends transcript to Anthropic" in both Settings and the wizard, with a
+  "most people should pick a local backend" note. The backend stays fully functional and in
+  the catalog — this is a clarity change for non-developer end users, not a removal (Claude is
+  monetization-safe; the concern was the paid/remote/third-party tradeoff being under-stated).
 - **Drift guard** (`TestDefaultsMatchCatalog` in `test_model_catalog.py`): the config
   `ollama_model`/`claude_model` defaults and the Electron `DEFAULT_OLLAMA_MODEL` constant must
   each be a *recommended* catalog entry — so a default can't silently lag the licence policy
