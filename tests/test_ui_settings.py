@@ -224,6 +224,43 @@ class TestSettingsPanelChrome:
 
 
 # ---------------------------------------------------------------------------
+# Capabilities overview — the tiered "lightweight mode" story (Stage 06)
+# ---------------------------------------------------------------------------
+
+@skip_no_server
+class TestCapabilitiesSection:
+    """The Capabilities section renders one row per non-LLM upgrade tier from
+    /api/capabilities/tiers. Read-only — never clicks Save."""
+
+    def _open_settings(self, page: Page) -> None:
+        page.goto(LIVE_URL)
+        page.wait_for_selector("#video-list li[data-video-id]", timeout=5000)
+        page.click("#btn-settings-header")
+        page.wait_for_selector("#settings-panel.visible", timeout=3000)
+        # The tier rows are rendered async by _renderCapabilityTiers during
+        # _applySettingsToUI; wait for them rather than racing the fetch.
+        page.wait_for_function(
+            "document.querySelectorAll('#s-capabilities-list .capability-tier').length === 3",
+            timeout=3000,
+        )
+
+    def test_renders_three_tier_rows_with_intro(self, page: Page):
+        self._open_settings(page)
+        expect(page.locator("#s-capabilities-list .capability-tier")).to_have_count(3)
+        names = page.eval_on_selector_all(
+            "#s-capabilities-list .capability-tier-name",
+            "els => els.map(e => e.textContent)",
+        )
+        assert names == ["Similarity engine", "Descriptions & summaries", "Audio-event detection"]
+        assert page.locator("#s-capabilities-intro").inner_text().strip() != ""
+
+    def test_jump_link_scrolls_to_capabilities(self, page: Page):
+        self._open_settings(page)
+        page.click(".settings-jump-link:has-text('Capabilities')")
+        expect(page.locator("#settings-sec-capabilities")).to_be_in_viewport()
+
+
+# ---------------------------------------------------------------------------
 # Export filename template — live preview (quick-wins Stage 8)
 # ---------------------------------------------------------------------------
 

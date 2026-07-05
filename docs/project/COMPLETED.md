@@ -6,6 +6,36 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) — see the
 
 ---
 
+## Capabilities panel + "lightweight mode" framing (done 2026-07-05)
+
+Non-LLM-tiers plan, **Stage 06** (`docs/dev/plans/non-llm-tiers/06-capabilities-panel.md`).
+Makes the tiered "lightweight-by-default, upgrade anytime" design discoverable — a read-only
+overview of every non-LLM upgrade tier plus first-run framing, without building a parallel
+capability system (plan 10 already shipped `/api/llm/capabilities` + the model catalog).
+
+- **`GET /api/capabilities/tiers`** (`web/routes/llm.py`) composes one row per non-LLM
+  upgrade tier from the *same* `availability()` functions the features use, so the panel can
+  never drift: **Similarity engine** (Fast keyword → Smart embeddings, from
+  `EmbeddingsBackend.availability()`), **Descriptions & summaries** (Basic template → AI
+  model, from the static `_capabilities()` readiness), **Audio-event detection** (Off → On,
+  from `AudioEventScorer.availability()`). Each row reports the *resolved* active tier
+  (honestly falling back like `make_backend` — a configured-but-uninstalled Smart/LLM tier
+  reads as Fast), what the upgrade adds, the backend's guidance string, and an install slug /
+  jump target. Static checks only (no live probe), and a `lightweight` flag = LLM text tier
+  not active.
+- **Settings → Capabilities** (`index.html` `settings-sec-capabilities`, first section + jump
+  link): `_renderCapabilityTiers()` renders the rows read-only — "Set up →" links jump to the
+  section holding the real install/enable control rather than duplicating install buttons (no
+  `install-status-*` id collisions). Refreshed on panel open and after Save.
+- **First-run note**: a lightweight-mode callout atop the Getting Started modal
+  ("everything works now; install a local model anytime"). GLOSSARY: **Lightweight mode**.
+- Tests: `test_llm.py::TestCapabilityTiers` (lightweight/basic-descriptions with no model,
+  Fast default, honest LLM→Fast fallback, audio-events off by default, a real llamacpp model
+  flips Descriptions ready / clears lightweight); `test_ui_settings.py::TestCapabilitiesSection`
+  (three rows + intro render, jump link scrolls). Full API (1879) + UI (637) suites green.
+
+---
+
 ## Audio-event detection — heavy opt-in scoring tier (done 2026-07-05)
 
 Non-LLM-tiers plan, **Stage 05** (`docs/dev/plans/non-llm-tiers/05-audio-event.md`).

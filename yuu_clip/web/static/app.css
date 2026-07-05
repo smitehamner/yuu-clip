@@ -700,6 +700,15 @@ details summary:focus-visible { outline: 2px solid var(--accent); outline-offset
 .rec-model-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .rec-model-actions a { color: var(--accent-text); font-size: 12px; }
 .gate-note { font-size: 12px; color: var(--warning); margin-top: 4px; }
+/* ── capabilities overview (Stage 06) ── */
+.capability-tier { padding: 10px 0; border-bottom: 1px solid var(--border); }
+.capability-tier:first-child { padding-top: 0; }
+.capability-tier:last-child { border-bottom: none; padding-bottom: 0; }
+.capability-tier-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 2px; }
+.capability-tier-name { font-size: 13px; font-weight: 600; color: var(--text); }
+.capability-tier-active { margin-left: auto; font-size: 12px; color: var(--muted); }
+.capability-mark { font-weight: 700; color: var(--muted); }
+.capability-mark.ready { color: var(--green); }
 .gate-note a { color: var(--accent-text); }
 
 /* ── highlight reels modal (combined build + view) ── */

@@ -198,6 +198,7 @@ function _applySettingsToUI(cfg) {
   setVal('s-similarity-backend', cfg.similarity_backend || 'tfidf');
   _onSimilarityBackendChange(cfg.similarity_backend || 'tfidf');
   _updateLlmCapabilities();
+  _renderCapabilityTiers();
   const diarBackend = cfg.diarization_backend || 'null';
   setVal('s-diarization-backend', diarBackend);
   _onDiarizationBackendChange(diarBackend);
@@ -810,6 +811,52 @@ async function _updateLlmCapabilities() {
   el.style.color = cap.text ? 'var(--green, #22c55e)' : 'var(--muted)';
 }
 
+// ── capabilities overview (Stage 06) ────────────────────────────────────────
+// A read-only, at-a-glance map of the non-LLM upgrade tiers. Sources each tier's
+// active state + install guidance from the backend's availability() reasons via
+// /api/capabilities/tiers — it never installs anything itself; each row links to
+// the section where the real install/enable control lives.
+async function _renderCapabilityTiers() {
+  const list = document.getElementById('s-capabilities-list');
+  const intro = document.getElementById('s-capabilities-intro');
+  if (!list) return;
+  let data;
+  try {
+    data = await fetch('/api/capabilities/tiers').then(r => r.json());
+  } catch {
+    if (intro) intro.textContent = '';
+    list.innerHTML = '<div class="settings-note">Could not check capabilities.</div>';
+    return;
+  }
+  if (intro) {
+    intro.textContent = data.lightweight
+      ? "You're running in lightweight mode — transcription, scoring, and clip descriptions all work right now. Install a local model anytime for richer AI descriptions and smarter scoring."
+      : "Here's what each part of yuu-clip is using right now, and what you can upgrade.";
+  }
+  list.innerHTML = (data.tiers || []).map(_capabilityTierHtml).join('');
+  list.querySelectorAll('[data-section]').forEach(btn => {
+    btn.addEventListener('click', () => _scrollToSettingsSection(btn.getAttribute('data-section')));
+  });
+}
+
+function _capabilityTierHtml(tier) {
+  const action = tier.ready ? '' :
+    `<button type="button" class="settings-jump-link" data-section="${escHtml(tier.section)}" style="margin-top:2px">Set up &rarr;</button>`;
+  return (
+    `<div class="capability-tier">` +
+      `<div class="capability-tier-head">` +
+        `<span class="capability-mark${tier.ready ? ' ready' : ''}" aria-hidden="true">${tier.ready ? '✓' : '○'}</span>` +
+        `<span class="capability-tier-name">${escHtml(tier.name)}</span>` +
+        `<span class="capability-tier-active">${escHtml(tier.active)}</span>` +
+      `</div>` +
+      `<div class="settings-note">${escHtml(tier.purpose)}</div>` +
+      `<div class="settings-note">${escHtml(tier.upgrade)}</div>` +
+      (tier.detail ? `<div class="settings-note">${escHtml(tier.detail)}</div>` : '') +
+      action +
+    `</div>`
+  );
+}
+
 // Gate a control on a model capability ("text" | "vision") from
 // /api/llm/capabilities. Disables the element and appends a linked explanation
 // when the capability is unavailable; used by image-analysis controls (plan 11).
@@ -936,6 +983,7 @@ async function saveSettings() {
     if (btn) btn.textContent = 'Save';
     _updateLlmRemoteIndicator(payload.llm_backend || 'llamacpp', payload.ollama_enabled !== false);
     _updateLlmCapabilities();
+    _renderCapabilityTiers();
     window._visionEnabled = payload.vision_enabled === true;
   } catch {
     showToast('Settings save failed', 'error');

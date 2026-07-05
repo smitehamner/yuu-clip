@@ -89,12 +89,109 @@ def _capabilities(cfg) -> dict:
     }
 
 
+# ── Capabilities overview (non-LLM upgrade tiers) ────────────────────────────
+# A read-only map of the tiered "lightweight-by-default" design (Stage 06). Each
+# tier sources its active state + install guidance from the same availability()
+# functions the features use, so the panel can never drift from reality. Static
+# checks only, mirroring _capabilities — no live backend probe.
+
+_SIMILARITY_LABELS = {
+    "tfidf": "Fast (keyword)",
+    "embeddings": "Smart (embeddings)",
+    "llm": "LLM",
+}
+
+
+def _sentence(reason: str) -> str:
+    """Capitalise a lower-case availability() reason for display as a sentence."""
+    return reason[:1].upper() + reason[1:] if reason else ""
+
+
+def _audio_model_deps_installed() -> bool:
+    try:
+        import torch  # noqa: F401
+        import transformers  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
+def _similarity_tier(cfg, text_ok: bool) -> dict:
+    from yuu_clip.scoring.similarity import EmbeddingsBackend
+
+    embed_ok, embed_reason = EmbeddingsBackend(cfg).availability()
+    configured = (getattr(cfg, "similarity_backend", "tfidf") or "tfidf").strip()
+    if configured == "embeddings" and embed_ok:
+        active = "embeddings"
+    elif configured == "llm" and text_ok:
+        active = "llm"
+    else:
+        active = "tfidf"
+    return {
+        "id": "similarity",
+        "name": "Similarity engine",
+        "purpose": 'Powers Find related clips and "Meaning" hot-words.',
+        "active": _SIMILARITY_LABELS.get(active, active),
+        "upgrade": "Smart (embeddings) adds paraphrase-aware matching with a small on-device model.",
+        "ready": embed_ok,
+        "detail": "The Smart (embeddings) engine is installed and ready." if embed_ok else _sentence(embed_reason),
+        "install_slug": None if embed_ok else "embeddings",
+        "section": "settings-sec-llm",
+    }
+
+
+def _descriptions_tier(text_ok: bool, detail: str) -> dict:
+    return {
+        "id": "descriptions",
+        "name": "Descriptions & summaries",
+        "purpose": "Clip descriptions, session summaries, and the session timeline.",
+        "active": "AI (language model)" if text_ok else "Basic (template)",
+        "upgrade": "A local language model writes richer descriptions and unlocks summaries and the timeline.",
+        "ready": text_ok,
+        "detail": detail,
+        "install_slug": None,
+        "section": "settings-sec-llm",
+    }
+
+
+def _audio_events_tier(cfg) -> dict:
+    from yuu_clip.scoring.audio_event import AudioEventScorer
+
+    available, reason = AudioEventScorer(cfg).availability()
+    deps_ok = _audio_model_deps_installed()
+    return {
+        "id": "audio_events",
+        "name": "Audio-event detection",
+        "purpose": "Boosts Action on gunshots and explosions, Funny on crowd cheers.",
+        "active": "On" if available else "Off",
+        "upgrade": "Install the audio model to score sound events (heaviest tier, opt-in).",
+        "ready": available,
+        "detail": "Audio-event detection is on and ready." if available else _sentence(reason),
+        "install_slug": None if deps_ok else "audio-model",
+        "section": "settings-sec-weights",
+    }
+
+
 def make_router(ctx: ProjectContext) -> APIRouter:
     router = APIRouter()
 
     @router.get("/api/llm/capabilities")
     def capabilities():
         return _capabilities(ctx.config)
+
+    @router.get("/api/capabilities/tiers")
+    def capability_tiers():
+        cfg = ctx.config
+        llm = _capabilities(cfg)
+        text_ok = bool(llm["text"])
+        return {
+            "lightweight": not text_ok,
+            "tiers": [
+                _similarity_tier(cfg, text_ok),
+                _descriptions_tier(text_ok, llm["detail"]),
+                _audio_events_tier(cfg),
+            ],
+        }
 
     @router.get("/api/llm/catalog")
     def catalog():

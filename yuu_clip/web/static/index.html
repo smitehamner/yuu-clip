@@ -82,6 +82,7 @@
       </div>
     </div>
     <nav class="settings-jump-row" aria-label="Jump to settings section">
+      <button type="button" class="settings-jump-link" onclick="_scrollToSettingsSection('settings-sec-capabilities')">Capabilities</button>
       <button type="button" class="settings-jump-link" onclick="_scrollToSettingsSection('settings-sec-stt')">Speech-to-text</button>
       <button type="button" class="settings-jump-link" onclick="_scrollToSettingsSection('settings-sec-llm')">LLM scoring</button>
       <button type="button" class="settings-jump-link" onclick="_scrollToSettingsSection('settings-sec-speakers')">Speaker labels</button>
@@ -95,6 +96,16 @@
     </nav>
   </div>
 <div class="settings-inner">
+
+  <!-- Capabilities overview — the tiered "lightweight mode" story (Stage 06).
+       Read-only: sources each non-LLM upgrade tier's active state + guidance from
+       the backend's availability() via /api/capabilities/tiers; "Set up" links jump
+       to the section that holds the real install/enable control. -->
+  <div class="settings-section" id="settings-sec-capabilities">
+    <div class="settings-section-title">Capabilities</div>
+    <div class="settings-note" id="s-capabilities-intro" style="margin-bottom:12px">Checking…</div>
+    <div id="s-capabilities-list"></div>
+  </div>
 
   <!-- Whisper section -->
   <div class="settings-section" id="settings-sec-stt">
@@ -1233,6 +1244,10 @@
 <div class="modal-bg" id="getting-started-modal" onclick="if(event.target===this)closeGettingStartedModal()">
   <div class="modal" style="max-width:520px">
     <h3>Getting Started</h3>
+
+    <div style="margin:0 0 16px;padding:10px 12px;border:1px solid color-mix(in srgb, var(--accent) 40%, transparent);border-radius:8px;background:color-mix(in srgb, var(--accent) 8%, transparent);font-size:13px;line-height:1.6;color:var(--text)">
+      <strong>You're in lightweight mode.</strong> Transcription, scoring, and clip descriptions all work right now — no extra setup, nothing to download. Install a local language model anytime for richer AI descriptions, summaries, and smarter scoring. See <em>Settings &rarr; Capabilities</em> to check what's active and what you can upgrade.
+    </div>
 
     <div class="section-title" style="margin-bottom:6px">Your workflow</div>
     <ol style="margin:0 0 16px;padding-left:20px;font-size:13px;line-height:1.9;color:var(--text)">

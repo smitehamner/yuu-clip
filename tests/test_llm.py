@@ -97,3 +97,47 @@ class TestOllamaPullGuard:
     def test_unknown_tag_is_rejected(self, client: TestClient):
         resp = client.post("/api/llm/ollama/pull", params={"tag": "evil:latest"})
         assert resp.status_code == 400
+
+
+class TestCapabilityTiers:
+    def _tiers(self, client: TestClient) -> tuple[dict, bool]:
+        resp = client.get("/api/capabilities/tiers")
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        return {t["id"]: t for t in body["tiers"]}, body["lightweight"]
+
+    def test_no_model_reports_lightweight_and_basic_descriptions(self, client: TestClient):
+        _patch(client, ollama_enabled=False)
+        tiers, lightweight = self._tiers(client)
+        assert lightweight is True
+        assert set(tiers) == {"similarity", "descriptions", "audio_events"}
+        assert tiers["descriptions"]["active"] == "Basic (template)"
+        assert tiers["descriptions"]["ready"] is False
+
+    def test_similarity_defaults_to_fast_keyword(self, client: TestClient):
+        _patch(client, ollama_enabled=False, similarity_backend="tfidf")
+        tiers, _ = self._tiers(client)
+        assert tiers["similarity"]["active"] == "Fast (keyword)"
+
+    def test_llm_similarity_falls_back_when_no_model(self, client: TestClient):
+        # 'llm' selected but no model ready → active tier honestly reports the fallback.
+        _patch(client, ollama_enabled=False, similarity_backend="llm")
+        tiers, _ = self._tiers(client)
+        assert tiers["similarity"]["active"] == "Fast (keyword)"
+
+    def test_audio_events_off_by_default(self, client: TestClient):
+        tiers, _ = self._tiers(client)
+        assert tiers["audio_events"]["active"] == "Off"
+        assert tiers["audio_events"]["ready"] is False
+
+    def test_ready_llamacpp_model_flips_descriptions_and_lightweight(
+        self, client: TestClient, project_dir: Path,
+    ):
+        model_file = project_dir / "model.gguf"
+        model_file.write_bytes(b"gguf")
+        _patch(client, ollama_enabled=True, llm_backend="llamacpp",
+               llm_model_path=str(model_file), llm_mmproj_path="")
+        tiers, lightweight = self._tiers(client)
+        assert lightweight is False
+        assert tiers["descriptions"]["active"] == "AI (language model)"
+        assert tiers["descriptions"]["ready"] is True
