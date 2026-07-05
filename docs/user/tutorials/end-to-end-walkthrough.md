@@ -10,7 +10,7 @@ If you're recording a tutorial video from this document, each top-level section 
 
 - A video recording of a gaming or roleplay session (see [Recommended test videos](#recommended-test-videos) below)
 - yuu-clip running: `.\scripts\serve.ps1`
-- Ollama running locally with at least one LLM loaded (the app will show which model it's using)
+- An LLM backend set up for scoring. By default this is a local model file (the setup wizard downloads the recommended one with one click); you can also use Ollama or the Claude API. The app shows which model it's using. If no backend is set up, analysis still runs but clips get no descriptions or scores.
 - A browser open at `http://127.0.0.1:8080`
 
 ---
@@ -35,7 +35,7 @@ Open `http://127.0.0.1:8080`. You'll see:
 
 - A **left sidebar** split into two panels: video list (top) and clip list (bottom). Both are empty until you ingest something.
 - A **main panel** on the right, showing the detail view for whatever clip is selected.
-- A **header bar** with `+ Analyze`, `Build Reel`, and a `≡` hamburger menu.
+- A **header bar** with `+ Analyze`, `Highlight Reels`, and a `≡` hamburger menu.
 - A **footer bar** at the bottom showing the app version.
 
 Nothing works yet — there's no data. Let's fix that.
@@ -46,7 +46,7 @@ Nothing works yet — there's no data. Let's fix that.
 
 **Goal:** Get a recording into the system and let the pipeline run.
 
-1. Click `+ Analyze` in the header. A modal opens.
+1. Click `+ Analyze` in the header. The **New Recording** panel takes over the main view.
 
 2. Click the file picker button and select your recording. After a few seconds you'll see an inspection summary: file duration, the audio tracks found, and a time estimate for transcription. The estimate is deliberately conservative — your actual runtime will often be shorter.
 
@@ -54,7 +54,7 @@ Nothing works yet — there's no data. Let's fix that.
 
 4. **Pick a track layout.** If you haven't created one yet, the default layout will be selected. A track layout tells the app which audio tracks to transcribe — for most recordings there's only one relevant track (your microphone), but OBS sometimes captures game audio separately, and you want to skip that.
 
-5. Click **Start Analysis**. The modal closes and the header shows a row of step chips: `Extract → Transcribe → Generate Clips → Energy → Scenes → Score`. These advance as each stage finishes.
+5. Click **Start Analysis**. The panel closes and the header shows a row of step chips: `Extract → Transcribe → Generate Clips → Energy → Scenes → Score`. These advance as each stage finishes.
 
 6. Wait. Whisper is doing the heavy lifting here. The time estimate from step 2 is your rough guide. The app keeps working in the background — you can leave the tab open and do something else.
 
@@ -94,12 +94,12 @@ The fastest way to review is keyboard-only:
 3. Read the description and transcript. Does this sound like a moment worth watching?
    - If yes: press `A` to approve. The status dot turns green.
    - If no: press `R` to reject. The status dot turns red.
-   - If unsure: press `→` to move on without deciding. You can come back via the `Unreviewed` filter tab.
+   - If unsure: press `→` to move on without deciding. You can come back via the `Unreviewed` filter chip.
 4. Press `→` to advance to the next clip.
 
 Repeat. A typical 1-hour session produces 20–40 clips. At 5–10 seconds per clip on average, a full review pass takes under 5 minutes.
 
-**Useful tab trick:** Switch to the `Unreviewed` tab to see only unreviewed clips. Switch to `Approved` to review your picks. The tabs are above the clip list.
+**Useful filter trick:** Click the `Unreviewed` chip to see only unreviewed clips. Click `Approved` to review your picks. The filter chips are above the clip list, each showing a live count.
 
 **Changed your mind?** If you reject a clip and immediately realize you were wrong, press `Ctrl+Z` within 5 seconds to undo the status change. A toast appears confirming the undo.
 
@@ -111,7 +111,7 @@ When a clip's description catches your eye, look closer before approving:
 
 1. **Read the long description.** The one-liner is the summary; the paragraph gives context — who was involved, what the vibe was, why this moment might matter.
 
-2. **Check the tags.** Tags like `audio_spike`, `scene_cut`, and `llm_scored` tell you what signals drove the score. A clip with `audio_spike` and a high action score got everyone talking at once. A clip tagged `llm_error` means Ollama didn't score it — the overall score is based on audio energy only.
+2. **Check the tags.** Tags like `audio_spike`, `scene_cut`, and `llm_scored` tell you what signals drove the score. A clip with `audio_spike` and a high action score got everyone talking at once. A clip tagged `llm_error` means your AI model didn't score it — the overall score is based on audio energy only.
 
 3. **Export and watch it.** Press `E` to export the clip. A progress stream appears in the header. When it finishes, a video player appears right in the detail panel — watch the actual clip to confirm the description matches reality.
 
@@ -134,7 +134,7 @@ The same works for the longer description. Your edits are preserved even if you 
 
 You've already exported one clip in Chapter 5. The same process works for all approved clips — select a clip, press `E`, wait for the stream.
 
-Exported clips land in the `exports` folder inside your project directory.
+Exported clips land in the `.yuu-clip/exports/` folder inside your project directory.
 
 **What's in the export?**
 - A video file (MKV by default) — the exact frames from your source recording, no re-encoding, so no quality loss
@@ -146,13 +146,13 @@ Exported clips land in the `exports` folder inside your project directory.
 
 Once you have a few approved clips, compile them into a single reel:
 
-1. Click `Build Reel` in the header. A modal opens.
+1. Click `Highlight Reels` in the header. A window opens with **Build** and **View** tabs, on the Build tab.
 2. Configure:
    - **Session scope:** "all approved clips" pulls from every analyzed recording, or you can limit to the current session
    - **Transition style:** fade, dissolve, wipe, slide, or hard cut
    - **Transition duration** and **title card duration**
-3. Click compile. A progress stream appears in the header.
-4. The finished reel is saved to the `reels` folder inside your project directory.
+3. Click **Build Reel**. A progress stream appears in the header.
+4. The finished reel is saved to the `.yuu-clip/reels/` folder inside your project directory.
 
 The reel uses the clip one-liners as title card text, so it comes out pre-labeled. Good for a "here's what happened this session" share.
 
@@ -176,7 +176,7 @@ See [OVERVIEW.md](../OVERVIEW.md#world-contexts--making-the-scores-actually-make
 
 | Symptom | First check |
 |---------|-------------|
-| Clips have no description and tags show `llm_error` | Ollama is not running or has no model loaded. Start Ollama and re-score. |
+| Clips have no description and tags show `llm_error` | Your AI model isn't set up or is unreachable. Check Settings → LLM scoring (and, if you use Ollama, that it's running with a model loaded), then re-score. |
 | Transcript is garbled or missing words | The Whisper model is too small for your audio. Retranscribe the clip with `medium` or `large-v3`. |
 | Export fails immediately | The source video file has moved or been renamed since ingest. The path in the DB no longer resolves. |
 | Score seems backwards (calm moment scores high) | Check the tags — `audio_spike` means a burst of audio energy. A loud laugh can spike energy even if the dialogue content is mild. |

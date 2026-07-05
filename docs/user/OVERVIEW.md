@@ -12,11 +12,11 @@ yuu-clip watches your recordings for you. It listens to what was said, figures o
 
 1. **You point it at a recording.** OBS output, shadowplay, whatever — as long as it's a video file.
 2. **It listens.** It runs your audio through a local speech-to-text model (Whisper, runs on your PC, nothing is uploaded anywhere) to get a full transcript of everything said during the session.
-3. **It scores.** It chops the session into clip windows and rates each one for how funny, dramatic, or action-packed it was — using a local LLM (Ollama, also runs on your PC) that reads the transcript and scores what happened.
+3. **It scores.** It chops the session into clip windows and rates each one for how funny, dramatic, or action-packed it was — using an LLM that reads the transcript and scores what happened. By default this is a local model file that runs on your PC; you can also point it at Ollama (also local) or the Claude API (cloud) in the setup wizard or Settings.
 4. **You review.** Open the web UI in your browser, flip through the clips, watch the ones that look good, approve or skip, then export.
 5. **You've got clips.** Ready-to-share video files, no re-encoding required unless you want frame-perfect cuts.
 
-Everything runs locally. No cloud, no subscription, no footage leaving your machine.
+By default everything runs locally — no cloud, no subscription, no footage leaving your machine. The one exception is if you deliberately choose the Claude API backend for scoring, which sends clip transcripts (text only, never video) to Anthropic. The two local backends keep everything on your machine.
 
 ---
 
@@ -52,13 +52,14 @@ The fastest way to go through a session is keyboard shortcuts:
 
 | Key | What it does |
 |-----|-------------|
-| `→` or `↓` | Next clip |
-| `←` or `↑` | Previous clip |
+| `J` / `→` / `↓` | Next clip |
+| `K` / `←` / `↑` | Previous clip |
 | `A` | Approve this clip |
 | `R` | Reject (skip) this clip |
 | `Space` | Play / pause the video |
 | `E` | Export this clip |
-| `?` | Open the help panel |
+| `Ctrl+Z` | Undo the last approve/reject (within 5 seconds) |
+| `?` | Open the Keyboard Controls panel |
 
 You can go through dozens of clips in a few minutes just using arrow keys and A/R. A typical 1-hour session produces 20–40 clips; a full review pass takes under 5 minutes.
 
@@ -113,13 +114,13 @@ Hit **Export** on any clip (or press `E`). By default it does a quick export —
 
 Options for baking captions into the video, precise frame-accurate cuts, and container format are in the export modal or in [FEATURES.md](FEATURES.md).
 
-Exports go to `exports/` inside your project directory.
+Exports go to `.yuu-clip/exports/` inside your project directory.
 
 ---
 
 ## Building a highlight reel
 
-Once you've approved a set of clips, **Build Reel** in the header compiles them into a single video with title cards and transitions between clips. The title cards use the clip one-liners as text, so the output is already labeled. Good for a quick "here's what happened this session" share.
+Once you've approved a set of clips, **Highlight Reels** in the header opens a window (with Build and View tabs) where you compile them into a single video with title cards and transitions between clips. The title cards use the clip one-liners as text, so the output is already labeled. Good for a quick "here's what happened this session" share.
 
 ---
 
@@ -129,7 +130,7 @@ Once you've approved a set of clips, **Build Reel** in the header compiles them 
 
 **It doesn't edit video.** It finds and exports clips; it doesn't add effects, color grade, or do anything fancy with the video itself. Take the exports into your editor of choice if you want that.
 
-**It doesn't upload anything.** Everything stays on your machine. The flip side is that you need Ollama installed and running locally for the LLM scoring to work — it's a one-time setup, but it's a setup.
+**It doesn't upload anything (by default).** With either local backend, everything stays on your machine. LLM scoring does need a model set up first — the setup wizard downloads the recommended local model with one click, so it's a one-time setup, but it's a setup. (If you instead choose the Claude API backend, clip transcripts are sent to Anthropic for scoring — that's the one case where text leaves your machine.)
 
 **The scores are a starting point, not a verdict.** A 0.3-scoring clip might be the funniest moment of the session but happen to be mostly non-verbal. Always sort by score to find the obvious candidates fast, then flip through the lower-scoring ones in timeline order before you close out.
 

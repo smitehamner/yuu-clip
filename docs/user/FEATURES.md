@@ -62,7 +62,7 @@ Regenerate / Files sections in the modal it opens):
 | Action | What it does |
 |--------|-------------|
 | Retranscribe | Re-runs Whisper on this clip's time window; shows model selector |
-| Re-score | Sends clip to Ollama with current context |
+| Re-score | Sends clip to the configured LLM backend with current context |
 | Override / Remove Override Score | Manually set the overall score, or discard the override and go back to the generated score |
 | Find Similar | Searches other recordings for clips with a similar description |
 | Mark Unreviewed | Clears an Approve/Reject status (only shown once a clip has one) |
@@ -309,8 +309,8 @@ Scene cuts are stored as database records and influence candidate boundaries.
 
 ### LLM scorer
 
-Sends each candidate's transcript excerpt to the configured LLM backend — Ollama, a bundled
-local `.gguf` model (llama.cpp), or the Claude API, chosen in the setup wizard or Settings.
+Sends each candidate's transcript excerpt to the configured LLM backend — a local `.gguf`
+model (llama.cpp, the default), Ollama, or the Claude API, chosen in the setup wizard or Settings.
 When speaker labels
 are enabled (see Settings → Speaker labels), the excerpt is formatted with `SPEAKER_XX:` prefixes
 so the LLM understands who said what without any extra configuration. Returns a JSON object with:
@@ -401,7 +401,7 @@ Each term has a match mode: **Exact**, **Ignore case**, or **Close spelling** (c
 misspellings/mishearings, e.g. "Jonh" for "John" — requires a term of at least 4 characters).
 Saving or deleting a term instantly rescans every clip in the project (text-only, no LLM call).
 A flagged clip shows a warning badge on its sidebar card and a "Flagged terms" section (with the
-matched text and category) in the detail view; the **Flagged** filter tab in the clip list shows
+matched text and category) in the detail view; the **Flagged** filter chip in the clip list shows
 only flagged clips.
 
 ---
@@ -550,7 +550,7 @@ This controls what Whisper *hears* — the app interface itself stays in English
 
 ### Setup wizard
 
-The first-run setup wizard groups everything by how necessary it is: **Required** (FFmpeg — bundled with yuu-clip and shown as "Included", so there's nothing to install), **LLM scoring — choose one** (Ollama, a local `.gguf` model file with a one-click guided download, or the Claude API), **Optional** (speaker labels, GPU acceleration), and **Basics** (project folder, speech-to-text model, transcription language). After installing something outside the app, click **Check again** to re-detect it without closing the wizard — or **Restart app** for driver-level installs like CUDA. The wizard re-appears once after an update only when it gained new options; you can always reopen it from the hamburger menu (**Re-run Setup Wizard**).
+The first-run setup wizard groups everything by how necessary it is: **Required** (FFmpeg — bundled with yuu-clip and shown as "Included", so there's nothing to install), **LLM scoring — choose one** (a local `.gguf` model file with a one-click guided download — the default — or Ollama, or the Claude API), **Optional** (speaker labels, GPU acceleration), and **Basics** (project folder, speech-to-text model, transcription language). After installing something outside the app, click **Check again** to re-detect it without closing the wizard — or **Restart app** for driver-level installs like CUDA. The wizard re-appears once after an update only when it gained new options; you can always reopen it from the hamburger menu (**Re-run Setup Wizard**).
 
 ### Optional dependency install
 

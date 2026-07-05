@@ -123,6 +123,12 @@ Before sharing, install and smoke-test in a secondary Windows user account or a 
 - [ ] Desktop shortcut was offered as optional during install
 - [ ] Launch from Start Menu — app window opens, browser loads
 - [ ] First-run venv setup completes without errors
+- [ ] Fresh install on a machine whose bundled pip is older than the latest on PyPI —
+      venv setup must still complete (regression guard for the 0.1.13/0.1.14 blocker where
+      `pip install --upgrade pip` couldn't replace itself; now `python -m pip`)
+- [ ] Wizard LLM-engine install on a machine with **no usable CUDA** (no NVIDIA GPU, or
+      an unparseable driver) — must succeed with the prebuilt CPU wheel, never fail with a
+      source-compile error
 - [ ] Export a clip / build a highlight reel with **no system FFmpeg installed** —
       succeeds using the bundled copy
 - [ ] In the setup wizard, choose the "Local model file" LLM backend and click
@@ -207,11 +213,19 @@ pip install --force-reinstall --no-cache-dir `
 
 ## LLM model setup (for the friend)
 
-When they first try LLM scoring, they'll need a GGUF model file:
+LLM scoring needs a local GGUF model file. The setup wizard handles this now — no manual
+download needed for the default path:
+
+1. In the setup wizard, under **LLM scoring**, leave the default **Local model file** backend
+   selected and click **Download recommended model**. This fetches `Qwen2.5-7B-Instruct-Q4_K_M.gguf`
+   (~4.7 GB, Apache-2.0 so clips made with it can be monetized — see `yuu_clip/model_catalog.py`)
+   and auto-fills the model path.
+2. Run Rescore on any video to confirm it works.
+
+**Manual fallback** (if the in-app download fails, or to use a different model):
 
 1. Go to `https://huggingface.co/bartowski/Qwen2.5-7B-Instruct-GGUF`
-2. Download a `Qwen2.5-7B-Instruct-Q4_K_M.gguf` (~4.7 GB) — good balance of speed and quality,
-   and Apache-2.0 so clips made with it can be monetized (see `yuu_clip/model_catalog.py`)
+2. Download a `Qwen2.5-7B-Instruct-Q4_K_M.gguf` (~4.7 GB)
 3. In yuu-clip Settings → LLM → Model file path: point to the downloaded `.gguf` file
 4. Run Rescore on any video to confirm it works
 
