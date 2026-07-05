@@ -264,6 +264,7 @@ class TestSettingsPanelChrome:
 
     def test_claude_api_key_has_show_hide_toggle(self, page: Page):
         self._open_settings(page)
+        page.evaluate("() => _setPrivacyMode('remote_ok')")
         page.select_option("#s-llm-backend", "claude")
         key_input = page.locator("#s-claude-api-key")
         expect(key_input).to_be_visible()

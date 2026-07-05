@@ -31,6 +31,7 @@ window.setupAPI = {
   onPullProgress:    (cb) => { window.__pullCb = cb; },
   installPackage:    (s)  => { window.__events.installed.push(s); },
   onInstallProgress: (cb) => { window.__installCb = cb; },
+  onGgufDownloadProgress: (cb) => { window.__ggufCb = cb; },
   restartApp:        ()   => { window.__events.restarted = true; },
   openURL:           (u)  => { window.__events.opened.push(u); },
   copyText:          ()   => {},
@@ -127,6 +128,7 @@ class TestWizardLlmBackends:
 
     def test_claude_panel_warns_until_key_entered(self, page: Page):
         _open_wizard(page)
+        page.select_option("#ai-privacy-sel", "remote_ok")  # claude backend is hidden in local-only mode
         page.select_option("#llm-backend-sel", "claude")
         expect(page.locator("#claude-warn")).to_be_visible()
         page.fill("#claude-api-key", "sk-ant-test")
