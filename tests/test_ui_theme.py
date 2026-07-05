@@ -257,7 +257,7 @@ def test_app_css_has_no_color_literals_outside_theme_blocks():
 #   - Over-video overlays (#000/#fff/#e6e6e6 caption text, black/white scrims):
 #     drawn over video, theme-independent by design — same class as #000
 #     letterboxing (the documented CLAUDE.md exemption).
-#   - The score-gradient stops in utils.js: data encoding, not chrome.
+#   - The score-gradient stops in format.js: data encoding, not chrome.
 # Adding a new literal outside these classes breaks this test.
 _OVER_VIDEO_HEX = {"#000", "#fff", "#e6e6e6"}
 _SCORE_GRADIENT_STOPS = {"#6b6b80", "#4fc3f7", "#4caf7d", "#f0c060", "#f7a85a"}

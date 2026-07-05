@@ -21,7 +21,8 @@ from conftest import LIVE_URL, skip_no_server
 from playwright.sync_api import Page
 
 _JS_MODULES = [
-    "utils.js", "ui.js", "videos.js", "clips.js", "analyze.js",
+    "state.js", "format.js", "jobs.js", "preview.js", "utils.js",
+    "ui.js", "videos.js", "clips.js", "analyze.js",
     "reel.js", "contexts.js", "settings.js", "split.js", "boot.js",
 ]
 
