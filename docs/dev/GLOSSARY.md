@@ -59,6 +59,7 @@ Most lookups only need this table: the authoritative user-facing term, the code 
 | LLM scoring | `LLMScorer` | Transcript-based scoring — not "AI scoring" |
 | Audio energy scoring | `EnergyScorer` | Loudness/activity-based scoring |
 | Scene scoring | `SceneScorer` | Scene-cut-frequency scoring |
+| Lexicon scoring | `LexiconScorer` | Curated keyword-density funny/dramatic/action nudge — no model |
 | Similarity engine | `similarity_backend` | Powers Find related clips + "Meaning" hot-words: Fast (keyword) / Smart (embeddings) / LLM |
 | Clip description | `description`, `description_long` | AI one-liner + paragraph; `*_user` overrides win |
 | Basic description | `desc_basic` tag | Non-LLM template one-liner so a clip is never blank without a model |
@@ -699,6 +700,16 @@ Scoring based on how many visual scene cuts occur within a clip window.
 
 - **Code:** `SceneScorer`, `SceneBoundary`
 - **Notes:** More cuts per minute → higher Action score. Boundaries are detected once per recording.
+
+---
+
+### Lexicon Scoring
+
+Scoring based on the density of curated marker phrases in a clip's transcript — a zero-dependency signal that works with no language model installed.
+
+- **Code:** `LexiconScorer` (`scoring/lexicon.py`), config `scorer_lexicon_enabled` / `scorer_lexicon_weight`
+- **UI label:** "Lexicon" (Settings → Scoring weights → Signal weights)
+- **Notes:** Genre-neutral, editable word lists per dimension (laughter/absurdity → Funny, confrontation/emotion → Dramatic, urgency/combat/profanity intensity → Action). Marker density is normalised per minute to a 0–1 score; a dimension with no markers contributes nothing (returns no opinion), so it never drags a dimension's average down. Feeds the standard dimensions, so [Content type](#content-type) presets tune it through the dimension weights.
 
 ---
 

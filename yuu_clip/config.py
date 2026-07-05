@@ -475,6 +475,10 @@ class Config:
     scorer_scenes_enabled: bool = True
     scorer_llm_enabled: bool = True
     scorer_laugh_enabled: bool = True
+    # Lexicon scoring (plan non-llm-tiers/03) — curated funny/dramatic/action keyword
+    # density, zero-dep. Feeds the standard dimensions so content presets tune it via
+    # score_*_weight; None for a dimension with no markers.
+    scorer_lexicon_enabled: bool = True
     # "transcript" — regex patterns in Whisper output, no extra deps (default)
     # "audio"      — spectral rhythm analysis via PyAV + numpy
     # "model"      — HuggingFace audio-classification (requires transformers+torch)
@@ -507,6 +511,7 @@ class Config:
     scorer_scene_weight: float = 0.5
     scorer_llm_weight: float = 2.0
     scorer_laugh_weight: float = 1.5
+    scorer_lexicon_weight: float = 1.0
 
     score_funny_weight: float = 1.0
     score_dramatic_weight: float = 1.0

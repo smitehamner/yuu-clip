@@ -158,6 +158,22 @@ class TestScoringEngine:
         # Weighted: (1.0*2 + 0.0*1) / (2+1) = 2/3
         assert abs(clip.score_action - (2.0 / 3.0)) < 1e-6
 
+    def test_real_lexicon_scorer_contributes_action_with_no_llm(self):
+        # Stage 03: the zero-dep lexicon scorer alone (no LLM) lands score_action
+        # for a clip full of action markers, through the weighted engine.
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.engine import ScoringEngine
+        from yuu_clip.scoring.lexicon import LexiconScorer
+        clip = self._make_clip()
+        clip.start_ms = 0
+        clip.end_ms = 60_000
+        clip.transcript_excerpt = "Player: go go go push push, reload clutch"
+        engine = ScoringEngine(Config(), [LexiconScorer(Config())])
+        engine.score_clip(clip, None)
+        assert clip.score_action > 0.0
+        assert "lexicon_scored" in clip.tags
+        assert clip.scored_at is not None
+
     def _make_partial_scorer(self, weight=1.0, **dims):
         """Scorer that emits ONLY the named dimensions (others stay None — no opinion)."""
         from unittest.mock import MagicMock

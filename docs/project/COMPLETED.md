@@ -6,6 +6,31 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) — see the
 
 ---
 
+## No-LLM scoring baseline + Lexicon signal (done 2026-07-05)
+
+Non-LLM-tiers plan, **Stage 03** (`docs/dev/plans/non-llm-tiers/03-lexicon-scoring.md`).
+Confirms clips score sensibly with **no language model** (energy + scene + laugh already
+run and the engine normalises over present scorers — no rebalancing needed) and adds a
+zero-dependency lexical signal so a model-less install isn't scoring on audio/scene alone.
+
+- New `scoring/lexicon.py`: **`LexiconScorer`** follows the `Scorer` protocol and the
+  laugh tiered style. Genre-neutral, editable marker lists per dimension (laughter/absurdity
+  → Funny, confrontation/emotion → Dramatic, urgency/combat/profanity intensity → Action),
+  matched via `textmatch.find_matches` after `strip_speaker_prefixes`. Per-minute marker
+  density → 0–1 (saturating at 6/min, mirroring laugh); **`None`** for a dimension with no
+  markers so it never dilutes that dimension's average.
+- Config `scorer_lexicon_enabled` / `scorer_lexicon_weight` (default 1.0), mirroring
+  `scorer_laugh_*`; registered in `cli/_pipeline.py::_run_scoring`; new lexicon tags added
+  to `ScoringEngine._SCORER_TAGS`. Feeds the standard dimensions, so **content presets tune
+  it** through `score_*_weight` — no per-preset lexicon weight, no auto-rebalancing.
+- Settings: a "Lexicon" signal-weight slider (`index.html`, `settings.js` `_weightFields` /
+  `_settingsFieldIds` / apply payload). GLOSSARY: new **Lexicon scoring** term + table row.
+- Tests: new `test_scoring_lexicon.py` (availability, per-dimension scoring, speaker-prefix
+  self-trip guard, density bounds/determinism); engine integration test (lexicon-only, no
+  LLM → `score_action`). Full API (1817) + UI (637) suites green.
+
+---
+
 ## Basic descriptions + no-model summary/timeline empty states (done 2026-07-05)
 
 Non-LLM-tiers plan, **Stage 02** (`docs/dev/plans/non-llm-tiers/02-basic-descriptions.md`).

@@ -603,6 +603,7 @@ def _run_scoring(video, track_objs, config, session, energy_mode: str = "fast", 
     from yuu_clip.scoring.energy import AudioEnergyScorer, compute_energy
     from yuu_clip.scoring.engine import ScoringEngine
     from yuu_clip.scoring.laugh import LaughScorer
+    from yuu_clip.scoring.lexicon import LexiconScorer
     from yuu_clip.scoring.llm import LLMScorer
     from yuu_clip.scoring.scenes import SceneCutScorer, compute_scenes
 
@@ -657,6 +658,7 @@ def _run_scoring(video, track_objs, config, session, energy_mode: str = "fast", 
         AudioEnergyScorer(config),
         SceneCutScorer(config),
         laugh_scorer,
+        LexiconScorer(config),
         LLMScorer(config, context_text=context_text),
     ], hot_words=hot_words, sensitive_terms=sensitive_terms)
     if not engine.has_scorers:

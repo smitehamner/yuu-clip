@@ -190,6 +190,7 @@ class ScoringEngine:
         "llm_scored", "llm_error", "llm_no_transcript",
         "laugh_transcript", "laugh_audio", "laugh_model",
         "laugh_no_transcript", "laugh_no_wav",
+        "lexicon_scored", "lexicon_no_transcript", "lexicon_no_markers",
     })
 
     def score_clip(self, clip: "ClipCandidate", session: "Session") -> None:
