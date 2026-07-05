@@ -22,7 +22,7 @@ from playwright.sync_api import Page
 
 _JS_MODULES = [
     "state.js", "format.js", "jobs.js", "preview.js", "utils.js",
-    "ui.js", "videos.js", "clips.js", "analyze.js",
+    "ui.js", "videos.js", "clips.js", "clipbulk.js", "clipexport.js", "analyze.js",
     "reel.js", "contexts.js", "settings.js", "split.js", "boot.js",
 ]
 

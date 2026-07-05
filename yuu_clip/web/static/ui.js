@@ -525,3 +525,25 @@ function _applyPrereqWarnings(prereqs) {
     banner.style.display = '';
   }
 }
+
+// ── undo toast (auto-dismiss, single Undo button) ─────────────────────────────
+// A transient toast carrying an Undo action, used by reversible clip operations
+// (single/bulk status changes). Generic UI, so it lives here rather than in a
+// feature module.
+function showUndoToast(message, undoFn) {
+  const container = document.getElementById('toast-container');
+  const toast = document.createElement('div');
+  toast.className = 'toast info';
+  toast.style.display = 'flex';
+  toast.style.alignItems = 'center';
+  toast.style.justifyContent = 'space-between';
+  toast.style.gap = '12px';
+  const btn = document.createElement('button');
+  btn.textContent = 'Undo';
+  btn.style.cssText = 'font-size:11px;padding:2px 8px;border-radius:4px;border:1px solid var(--accent);background:none;color:var(--accent);cursor:pointer;flex-shrink:0';
+  btn.onclick = () => { toast.remove(); undoFn(); };
+  toast.appendChild(document.createTextNode(message));
+  toast.appendChild(btn);
+  container.appendChild(toast);
+  setTimeout(() => toast.remove(), 5000);
+}

@@ -463,6 +463,69 @@ function openVideoActionsModal(videoId) {
   openActionsModal(`${video.title || video.filename} — Additional Actions`, groups);
 }
 
+// ── recording removal + transcript export ─────────────────────────────────────
+async function exportVideoTranscript(id, btn) {
+  await _doExportVideoTranscript(id, btn, false);
+}
+
+async function _doExportVideoTranscript(id, btn, overwrite) {
+  if (btn) { btn.disabled = true; btn.textContent = 'Exporting…'; }
+  try {
+    const res = await fetch(`/api/videos/${id}/export-transcript?overwrite=${overwrite}`, {method: 'POST'});
+    const data = await res.json().catch(() => ({}));
+    if (res.status === 409 && data.exists) {
+      showConfirm(
+        'Overwrite existing captions?',
+        `An SRT file already exists at:<br><code>${escHtml(data.path)}</code><br><br>Overwrite it with the current transcript?`,
+        'Overwrite',
+        () => _doExportVideoTranscript(id, btn, true),
+        true,
+      );
+      return;
+    }
+    if (!res.ok) throw new Error(formatApiError(data));
+    showToast(`Captions exported → ${data.path}`);
+  } catch (err) {
+    showToast(`Export failed: ${err.message}`, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Save Captions to SRT'; }
+  }
+}
+
+function deleteVideo(id) {
+  const video = AppState.videos.find(v => v.id === id);
+  const name  = video ? video.filename : `recording ${id}`;
+  showConfirm(
+    'Remove recording?',
+    `Remove <strong>${escHtml(name)}</strong> from yuu-clip?<br><br>` +
+    `All clips, transcripts, and extracted audio are removed from the database. ` +
+    `Your source recording file is <strong>not</strong> deleted.`,
+    'Remove',
+    () => _doDeleteVideo(id, name),
+    true,
+  );
+}
+
+async function _doDeleteVideo(id, name) {
+  // Release the player so its backing export/preview file isn't locked during delete.
+  if (AppState.activeVideoId === id) await _releasePlayerBeforeDelete();
+  const delRes = await fetch(`/api/videos/${id}`, {method: 'DELETE'});
+  if (!delRes.ok) {
+    const err = await delRes.json().catch(() => ({}));
+    showToast(`Failed to remove recording: ${formatApiError(err)}`, 'error');
+    if (AppState.activeClipId) selectClip(AppState.activeClipId);
+    return;
+  }
+  if (AppState.activeVideoId === id) {
+    AppState.activeVideoId = null;
+    AppState.activeClipId  = null;
+    document.getElementById('clip-list').innerHTML = '';
+    clearDetail();
+  }
+  await loadVideos();
+  showToast(`"${name}" removed from yuu-clip`);
+}
+
 // ── live analysis progress (in-detail) ────────────────────────────────────────
 // A recording is "being analyzed" when it matches the filename of the active
 // analyze job (AppState.analyzeFilename, set on start/reattach) and hasn't yet
@@ -1111,7 +1174,7 @@ function _runStageBars(stages) {
 // Public API — symbols referenced cross-module, by an inline handler, or by a
 // test. Internal helpers above stay private to this module's closure.
 Object.assign(window, {
-  loadVideos, selectVideo, renderVideoDetail,
+  loadVideos, selectVideo, renderVideoDetail, deleteVideo,
   onClipsSortChange, _clipsSortParam,
   summarizeVideo, regenSummaryAuto, _doRegenSummaryAuto,
   reanalyzeVideo, rediarizeVideo, _reanalyzeParams,
