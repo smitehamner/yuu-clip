@@ -154,8 +154,8 @@ function scanHotwordsForVideo(videoId, btn) {
 function confirmScanHotwordsForVideo(videoId, btn) {
   showConfirm(
     'Scan for hot-words?',
-    'Checks every clip\'s transcript against your "Meaning (LLM)" hot-words — one LLM ' +
-    'call per clip. GPU time varies with clip count and may take several minutes.',
+    'Checks every clip\'s transcript against your "Meaning" hot-words using the ' +
+    'Similarity engine. Recordings with many clips may take a moment.',
     'Scan',
     () => scanHotwordsForVideo(videoId, btn),
   );
@@ -178,7 +178,7 @@ function _renderHotwordRows() {
       <select class="settings-select hw-mode" style="max-width:150px" aria-label="Match mode">
         <option value="exact"${hw.match_mode === 'exact' ? ' selected' : ''}>Exact</option>
         <option value="case_insensitive"${hw.match_mode === 'case_insensitive' ? ' selected' : ''}>Ignore case</option>
-        <option value="semantic"${hw.match_mode === 'semantic' ? ' selected' : ''}>Meaning (LLM)</option>
+        <option value="semantic"${hw.match_mode === 'semantic' ? ' selected' : ''}>Meaning</option>
       </select>
       <input type="number" class="settings-input hw-boost" value="${hw.boost}" step="0.05" min="-0.5" max="0.5"
              style="max-width:76px" aria-label="Score boost" title="Score boost, -0.5 to +0.5">
@@ -194,7 +194,7 @@ function _renderHotwordRows() {
       </label>
       <button type="button" class="btn ghost hw-delete" title="Delete hot-word"
               aria-label="Delete hot-word ${escHtml(hw.phrase || 'draft')}" style="font-size:13px;padding:2px 8px">&times;</button>
-      ${hw.match_mode === 'semantic' ? '<div style="width:100%;font-size:10px;color:var(--muted)">Uses LLM — slower. Applies only via the recording’s "Scan for Hot-words" action.</div>' : ''}
+      ${hw.match_mode === 'semantic' ? '<div style="width:100%;font-size:10px;color:var(--muted)">Matches by concept via the Similarity engine (set under Settings → LLM scoring). Applies only via the recording’s "Scan for Hot-words" action.</div>' : ''}
     </div>`).join('');
 }
 

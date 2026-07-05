@@ -59,6 +59,7 @@ Most lookups only need this table: the authoritative user-facing term, the code 
 | LLM scoring | `LLMScorer` | Transcript-based scoring — not "AI scoring" |
 | Audio energy scoring | `EnergyScorer` | Loudness/activity-based scoring |
 | Scene scoring | `SceneScorer` | Scene-cut-frequency scoring |
+| Similarity engine | `similarity_backend` | Powers Find related clips + "Meaning" hot-words: Fast (keyword) / Smart (embeddings) / LLM |
 | Clip description | `description`, `description_long` | AI one-liner + paragraph; `*_user` overrides win |
 | Session summary | `Video.summary` | AI title + overview of a recording |
 | Session timeline | `Video.timeline` | AI 15-min chunk descriptions — always "session timeline" |
@@ -573,15 +574,31 @@ A 0–1 measure of laughter density in a clip, shown as its own score independen
 A creator-defined phrase that nudges a clip's score when it appears in the clip's transcript excerpt — e.g. boosting "Funny" whenever a running gag's catchphrase is spoken.
 
 - **Code:** `hot_words` (DB table), `hotword_matches_json`, `hotword_boost_json`, `hotword_*` routes
-- **UI label:** "Hot-words" (Settings section); match-mode labels "Exact", "Ignore case", "Meaning (LLM)"
+- **UI label:** "Hot-words" (Settings section); match-mode labels "Exact", "Ignore case", "Meaning"
 - **Notes:** Per-entry: phrase, match mode, score boost, and which score it boosts (overall or a
-  sub-score). Exact/Ignore-case matching runs automatically at scoring time; Meaning (LLM) mode
-  requires a per-recording Scan. A phrase counts once per clip regardless of how many times it's
-  repeated; boosts are clamped and idempotently re-appliable so re-scanning never compounds them.
+  sub-score). Exact/Ignore-case matching runs automatically at scoring time; **Meaning** mode
+  (DB `match_mode='semantic'`) matches by concept via the [Similarity engine](#similarity-engine)
+  and requires a per-recording Scan — it no longer needs an LLM. A phrase counts once per clip
+  regardless of how many times it's repeated; boosts are clamped and idempotently re-appliable so
+  re-scanning never compounds them.
 
 ---
 
-### Sensitive Terms
+### Similarity engine
+
+The engine behind **Find related clips** and the **Meaning** hot-word mode — it ranks
+clips by how alike their descriptions are and checks whether a clip expresses a phrase's
+concept. Tiered so it works with no language model installed.
+
+- **Code:** `similarity_backend` (config), `scoring/similarity.py` (`make_backend`,
+  `TfidfBackend` / `EmbeddingsBackend` / `LlmBackend`)
+- **UI label:** "Similarity engine" (Settings → LLM scoring), with tiers **Fast
+  (keyword)** / **Smart (embeddings)** / **LLM**
+- **Notes:** Default **Fast** is a zero-dependency TF-IDF keyword cosine (always
+  available). **Smart** uses a small local embeddings model via `fastembed` (opt-in
+  package, ONNX, no PyTorch) for paraphrase matching. **LLM** reuses the language-model
+  path. An unavailable tier (e.g. Smart without `fastembed`) transparently falls back to
+  Fast so the features never hard-fail — see [Hot-word](#hot-word).
 
 The feature (and Settings section) that lets a creator flag clips containing chosen
 names, personal details, or language — kept entirely separate from scoring: it never

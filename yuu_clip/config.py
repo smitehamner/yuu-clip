@@ -484,6 +484,14 @@ class Config:
     # Install deps first: pip install transformers torch torchaudio soundfile
     scorer_laugh_model_id: str = "MIT/ast-finetuned-audioset-10-10-0.4593"
 
+    # Similarity engine backend (plan non-llm-tiers/01) — powers "Find related clips"
+    # and "Meaning" hot-words without requiring an LLM:
+    #   "tfidf"      — pure-Python keyword cosine, zero extra deps (default)
+    #   "embeddings" — local paraphrase matching via fastembed (opt-in extra)
+    #   "llm"        — the language-model path (find_related_clips / scan_hotwords_semantic)
+    # Unknown/unavailable values fall back to "tfidf" at make_backend time.
+    similarity_backend: str = "tfidf"
+
     # Scene detection mode: "transcript" | "fast" | "full"
     # transcript = silence gaps only (instant, no extra deps)
     # fast       = keyframes + transcript gaps (seconds, recommended default)

@@ -159,13 +159,14 @@ def _register_hotword_rescan_route(router: APIRouter, ctx: ProjectContext) -> No
 def _register_hotword_scan_route(router: APIRouter, ctx: ProjectContext) -> None:
     @router.get("/api/videos/{video_id}/hotword-scan")
     async def hotword_scan(video_id: int):
-        """Run the LLM-semantic hot-word check against every clip's transcript excerpt.
+        """Run the "Meaning" hot-word check against every clip's transcript excerpt.
 
         Only enabled match_mode='semantic' entries are scanned — exact/case-insensitive
-        matches are untouched (they run via hotword-rescan instead). Streams progress
-        as SSE, one LLM call per clip covering every semantic phrase at once.
+        matches are untouched (they run via hotword-rescan instead). Concept matching
+        goes through the similarity engine (config.similarity_backend), so this works
+        with no LLM installed. Streams progress as SSE, one backend call per clip.
         """
-        from yuu_clip.scoring.llm import check_llm_available
+        from yuu_clip.scoring.similarity import make_backend
 
         _reject_if_analyzing(ctx)
         db = ctx.get_db()
@@ -184,18 +185,14 @@ def _register_hotword_scan_route(router: APIRouter, ctx: ProjectContext) -> None
 
         semantic_words = [hw for hw in hot_words if hw.enabled and hw.match_mode == "semantic"]
         if not semantic_words:
-            raise HTTPException(400, "No enabled 'Meaning (LLM)' hot-words to scan for")
-
-        llm_ok, llm_reason = check_llm_available(ctx.config)
-        if not llm_ok:
-            raise HTTPException(503, f"LLM unavailable — {llm_reason}")
+            raise HTTPException(400, "No enabled 'Meaning' hot-words to scan for")
 
         config = ctx.config
         phrases = [hw.phrase for hw in semantic_words]
+        backend = make_backend(config)
 
         async def event_stream():
             from yuu_clip.scoring.engine import apply_hotword_boosts
-            from yuu_clip.scoring.llm import scan_hotwords_semantic
             from yuu_clip.scoring.textmatch import strip_speaker_prefixes
 
             async with _active_job(ctx):
@@ -210,7 +207,7 @@ def _register_hotword_scan_route(router: APIRouter, ctx: ProjectContext) -> None
                         clip = scan_db.get(ClipCandidate, clip_id)
                         if clip and clip.transcript_excerpt:
                             text = strip_speaker_prefixes(clip.transcript_excerpt)
-                            matched = await asyncio.to_thread(scan_hotwords_semantic, text, phrases, config)
+                            matched = await asyncio.to_thread(backend.match_concepts, text, phrases)
                             # apply_hotword_boosts recomputes exact/case-insensitive matches
                             # fresh from the transcript itself, so only the semantic result
                             # needs writing here — it reads this back to apply the boost and
@@ -669,13 +666,13 @@ def _register_clip_scoring_routes(router: APIRouter, ctx: ProjectContext) -> Non
 
     @router.get("/api/clips/{clip_id}/related-clips")
     async def find_related_clips(clip_id: int, video_ids: str = Query("")):
-        """Find clips similar to this one via LLM. Streams progress as SSE.
+        """Find clips similar to this one via the similarity engine. Streams as SSE.
 
-        video_ids: comma-separated list of video IDs to search (empty = current video only).
-        Saves results to related_clips_json on the clip.
+        Uses config.similarity_backend (keyword / embeddings / LLM), so this works with
+        no LLM installed. video_ids: comma-separated list of video IDs to search (empty
+        = current video only). Saves results to related_clips_json on the clip.
         """
-        from yuu_clip.scoring.llm import check_llm_available
-        from yuu_clip.scoring.llm import find_related_clips as _find_related
+        from yuu_clip.scoring.similarity import make_backend
 
         config = ctx.config
 
@@ -698,11 +695,8 @@ def _register_clip_scoring_routes(router: APIRouter, ctx: ProjectContext) -> Non
         finally:
             db.close()
 
-        llm_ok, llm_reason = check_llm_available(config)
-        if not llm_ok:
-            raise HTTPException(503, f"LLM unavailable — {llm_reason}")
-
         context_text = format_context_block(load_contexts(ctx.project_dir), context_names)
+        backend = make_backend(config, context_text)
 
         async def event_stream():
             async with _active_job(ctx):
@@ -712,9 +706,8 @@ def _register_clip_scoring_routes(router: APIRouter, ctx: ProjectContext) -> Non
                 results = None
                 error = None
                 try:
-                    results = await asyncio.to_thread(
-                        _find_related, ref_desc, candidates, config, context_text
-                    )
+                    ranked = await asyncio.to_thread(backend.rank_similar, ref_desc, candidates, 5)
+                    results = [{"id": r["id"], "reason": r["reason"]} for r in ranked]
                 except Exception as exc:
                     error = str(exc)
                     _log.error("find_related_clips: clip %d failed: %s", clip_id, exc, exc_info=True)

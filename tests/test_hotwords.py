@@ -521,24 +521,23 @@ class TestHotwordScanRoute:
         })
         assert client.get(f"/api/videos/{vid_id}/hotword-scan").status_code == 400
 
-    def test_503_when_llm_unavailable(self, client, monkeypatch):
+    def test_scan_succeeds_without_llm(self, client):
+        # Non-LLM tiers plan/01: the scan runs on the default keyword similarity
+        # backend, so it no longer 503s when no LLM is available.
         vid_id = self._vid_id(client)
         client.post("/api/hotwords", json={
             "phrase": "big win", "match_mode": "semantic", "boost": 0.2, "target": "funny", "enabled": True,
         })
-        import yuu_clip.scoring.llm as llm
-        monkeypatch.setattr(llm, "check_llm_available", lambda config: (False, "LLM off"))
         r = client.get(f"/api/videos/{vid_id}/hotword-scan")
-        assert r.status_code == 503
+        assert r.status_code == 200
 
-    def test_scan_applies_semantic_match_and_boost(self, client, monkeypatch):
-        vid_id, clip_id = self._seed_clip_with_excerpt(client, "I won the jackpot!")
+    def test_scan_applies_semantic_match_and_boost(self, client):
+        # The default keyword backend matches "big win" when both content words
+        # appear in the excerpt — no LLM needed.
+        vid_id, clip_id = self._seed_clip_with_excerpt(client, "That was such a big win, we won it all!")
         client.post("/api/hotwords", json={
             "phrase": "big win", "match_mode": "semantic", "boost": 0.2, "target": "funny", "enabled": True,
         })
-        import yuu_clip.scoring.llm as llm
-        monkeypatch.setattr(llm, "check_llm_available", lambda config: (True, ""))
-        monkeypatch.setattr(llm, "scan_hotwords_semantic", lambda text, phrases, config: ["big win"])
 
         status, messages = self._drain(client, vid_id)
         assert status == 200
@@ -553,19 +552,16 @@ class TestHotwordScanRoute:
         assert matches == [{"phrase": "big win", "mode": "semantic", "count": 1}]
         assert boost["funny"] == 0.2
 
-    def test_mixed_modes_text_rescan_preserves_semantic_match(self, client, monkeypatch):
-        """Stage 2 edge case: a text-only rescan (Stage 1's hotword-rescan) must not
-        wipe out a semantic match applied by an earlier scan."""
-        vid_id, clip_id = self._seed_clip_with_excerpt(client, "I won the jackpot! haha")
+    def test_mixed_modes_text_rescan_preserves_semantic_match(self, client):
+        """A text-only rescan (hotword-rescan) must not wipe out a semantic match
+        applied by an earlier scan."""
+        vid_id, clip_id = self._seed_clip_with_excerpt(client, "That was a big win! haha")
         client.post("/api/hotwords", json={
             "phrase": "big win", "match_mode": "semantic", "boost": 0.2, "target": "funny", "enabled": True,
         })
         client.post("/api/hotwords", json={
             "phrase": "haha", "match_mode": "exact", "boost": 0.1, "target": "funny", "enabled": True,
         })
-        import yuu_clip.scoring.llm as llm
-        monkeypatch.setattr(llm, "check_llm_available", lambda config: (True, ""))
-        monkeypatch.setattr(llm, "scan_hotwords_semantic", lambda text, phrases, config: ["big win"])
         self._drain(client, vid_id)
 
         r = client.post(f"/api/videos/{vid_id}/hotword-rescan")

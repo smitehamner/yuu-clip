@@ -7,6 +7,7 @@ const _settingsFieldIds = [
   's-ollama-model','s-ollama-host','s-ollama-timeout',
   's-claude-api-key','s-claude-model','s-claude-timeout',
   's-diarization-backend','s-hf-token','s-speaker-match-threshold',
+  's-similarity-backend',
   's-energy-weight','s-scene-weight','s-llm-weight',
   's-laugh-weight','s-laugh-mode','s-laugh-model-id',
   's-funny-weight','s-dramatic-weight','s-action-weight',
@@ -187,6 +188,8 @@ function _applySettingsToUI(cfg) {
   _setClaudeModelValue(cfg.claude_model || 'claude-haiku-4-5-20251001');
   setVal('s-claude-timeout', cfg.claude_timeout_s ?? 30);
   _updateLlmRemoteIndicator(cfg.llm_backend || 'llamacpp', cfg.ollama_enabled !== false);
+  setVal('s-similarity-backend', cfg.similarity_backend || 'tfidf');
+  _onSimilarityBackendChange(cfg.similarity_backend || 'tfidf');
   _updateLlmCapabilities();
   const diarBackend = cfg.diarization_backend || 'null';
   setVal('s-diarization-backend', diarBackend);
@@ -237,7 +240,7 @@ function _applySettingsToUI(cfg) {
   setVal('s-caption-position', cfg.caption_position || 'bottom');
   _snapshotSettings();
   _checkSettingsDirty();
-  ['pyannote', 'speechbrain', 'llamacpp', 'anthropic', 'laugh-deps', 'cuda-libs', 'mediapipe'].forEach(_refreshInstallStatus);
+  ['pyannote', 'speechbrain', 'llamacpp', 'anthropic', 'laugh-deps', 'cuda-libs', 'mediapipe', 'embeddings'].forEach(_refreshInstallStatus);
 }
 
 // Applies instantly (outside the Save flow) so the user sees the theme while
@@ -352,6 +355,11 @@ async function _updateDiarizationStatus() {
 function _onLaughModeChange(mode) {
   const modelEl = document.getElementById('s-laugh-model-fields');
   if (modelEl) modelEl.style.display = mode === 'model' ? '' : 'none';
+}
+
+function _onSimilarityBackendChange(backend) {
+  const fields = document.getElementById('s-similarity-embeddings-fields');
+  if (fields) fields.style.display = backend === 'embeddings' ? '' : 'none';
 }
 
 // Play-next and loop-clip are mutually exclusive — looping a clip forever
@@ -864,6 +872,7 @@ async function saveSettings() {
     scorer_laugh_weight:        getNum('s-laugh-weight', parseFloat),
     scorer_laugh_mode:          getVal('s-laugh-mode'),
     scorer_laugh_model_id:      getVal('s-laugh-model-id'),
+    similarity_backend:         getVal('s-similarity-backend'),
     score_funny_weight:         getNum('s-funny-weight', parseFloat),
     score_dramatic_weight:      getNum('s-dramatic-weight', parseFloat),
     score_action_weight:        getNum('s-action-weight', parseFloat),
@@ -1248,6 +1257,7 @@ Object.assign(window, {
   openGettingStartedModal, closeGettingStartedModal,
   openGlossaryModal, closeGlossaryModal, _filterGlossary,
   _onLlmBackendChange, _onLlmEnabledChange, _onDiarizationBackendChange, _onLaughModeChange,
+  _onSimilarityBackendChange,
   _onPlayNextChange, _onLoopClipChange, _updateExportNameTemplatePreview,
   _toggleSecretVisibility, _onHfTokenInput, _updateDiarizationStatus,
   _updateLlmRemoteIndicator, _scrollToSettingsSection, _resetScoringWeights,

@@ -296,6 +296,32 @@
       <div id="s-llm-capabilities" style="font-size:12px;color:var(--muted)">Checking…</div>
     </div>
     </div><!-- /#s-llm-body -->
+    <!-- Similarity engine — powers Find related clips + "Meaning" hot-words. Outside
+         #s-llm-body on purpose: the keyword/embeddings tiers work with LLM scoring off. -->
+    <div class="settings-row" id="s-similarity-row">
+      <div class="settings-col">
+        <label class="settings-label" for="s-similarity-backend">Similarity engine</label>
+        <div class="settings-note">Powers <strong>Find related clips</strong> and <strong>Meaning</strong> hot-words. Fast keyword matching needs no model; Smart uses a small local embeddings model for paraphrase matching; LLM uses your language model above.</div>
+      </div>
+      <select class="settings-select" id="s-similarity-backend" onchange="_onSimilarityBackendChange(this.value)">
+        <option value="tfidf">Fast (keyword)</option>
+        <option value="embeddings">Smart (embeddings)</option>
+        <option value="llm">LLM</option>
+      </select>
+    </div>
+    <div id="s-similarity-embeddings-fields" style="display:none">
+      <div class="settings-row">
+        <div class="settings-col">
+          <div class="settings-label">Python package</div>
+          <div class="settings-note">The Smart engine needs the fastembed package. The model (~130 MB) downloads on first use.</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="btn-secondary" id="btn-install-embeddings" onclick="installPackage('embeddings')">Install fastembed</button>
+          <span id="install-status-embeddings" style="font-size:12px"></span>
+        </div>
+      </div>
+      <div id="install-log-embeddings" class="settings-install-log"></div>
+    </div>
   </div>
 
   <!-- Speaker labels section -->

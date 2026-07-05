@@ -432,7 +432,7 @@ function openVideoActionsModal(videoId) {
       { label: 'Re-describe All Clips', description: 'Regenerate descriptions only — scores are kept as-is.', action: () => redescribeAllClips(videoId, document.createElement('button')) },
       { label: 'Re-detect Speakers', description: 'Re-run speaker detection on the existing transcript. Clips and scores are kept; named speakers re-attach to matching voices.', action: () => rediarizeVideo(videoId) },
       ...(hasEnabledSemanticHotwords() ? [
-        { label: 'Scan for Hot-words', description: 'Check every clip against your "Meaning (LLM)" hot-words — one LLM call per clip, so GPU time varies with clip count.', action: () => confirmScanHotwordsForVideo(videoId, document.createElement('button')) },
+        { label: 'Scan for Hot-words', description: 'Check every clip against your "Meaning" hot-words using the Similarity engine.', action: () => confirmScanHotwordsForVideo(videoId, document.createElement('button')) },
       ] : []),
     ]},
     { heading: 'Recording tools', rows: [

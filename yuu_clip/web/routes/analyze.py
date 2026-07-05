@@ -58,6 +58,7 @@ _INSTALLABLE: dict[str, str | list[str]] = {
     "laugh-deps":  ["transformers", "torch", "torchaudio", "soundfile"],
     "cuda-libs":   ["nvidia-cublas-cu12", "nvidia-cudnn-cu12"],
     "mediapipe":   "mediapipe",
+    "embeddings":  "fastembed",
 }
 _IMPORT_NAMES: dict[str, list[str]] = {
     "pyannote":    ["pyannote.audio"],
@@ -67,6 +68,7 @@ _IMPORT_NAMES: dict[str, list[str]] = {
     "laugh-deps":  ["transformers", "torch", "torchaudio", "soundfile"],
     "cuda-libs":   ["nvidia.cublas", "nvidia.cudnn"],
     "mediapipe":   ["mediapipe"],
+    "embeddings":  ["fastembed"],
 }
 
 # ── Whisper real-time speed ratios ──────────────────────────────────────────

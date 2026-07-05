@@ -6,6 +6,28 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) — see the
 
 ---
 
+## Tiered similarity engine — related clips + "Meaning" hot-words without an LLM (done 2026-07-05)
+
+Non-LLM-tiers plan, **Stage 01** (`docs/dev/plans/non-llm-tiers/01-similarity-engine.md`).
+Replaced the two LLM uses that were the wrong tool for an LLM — related-clip ranking
+and semantic ("Meaning") hot-word matching — with a tiered similarity engine, so both
+now work with **no language model installed**.
+
+- New `scoring/similarity.py` with three backends dispatched by `config.similarity_backend`:
+  **`tfidf`** (default, pure-Python keyword cosine, zero deps, always available) →
+  **`embeddings`** (opt-in `fastembed` ONNX, no PyTorch; `pyproject` extra + on-demand
+  installer slug `embeddings`) → **`llm`** (wraps the existing `find_related_clips` /
+  `scan_hotwords_semantic`). `make_backend()` falls back to `tfidf` when the requested
+  tier is unavailable, so the routes never hard-fail.
+- Rewired `GET /api/clips/{id}/related-clips` and `GET /api/videos/{id}/hotword-scan`
+  onto the engine — the LLM 503 gates are gone. Related-clips `reason` is now the top
+  shared terms (tfidf) / a similarity band (embeddings) / LLM prose (llm).
+- Renamed the hot-word mode **"Meaning (LLM)" → "Meaning"** everywhere; added a Settings
+  "Similarity engine" selector (Fast / Smart / LLM) with a fastembed install hint.
+- GLOSSARY: new **Similarity engine** term; Hot-word entry updated. Tests: new
+  `test_similarity.py`; the related-clips / hotword-scan route tests flipped from
+  "503 without LLM" to "succeeds without LLM"; +2 Settings UI tests.
+
 ## Generalise for any video content — de-RP pass (done 2026-07-05)
 
 Plan 13 (roadmap-close-2026-07) — **the final plan in the set**. An audit-and-copy

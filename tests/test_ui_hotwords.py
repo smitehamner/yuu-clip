@@ -190,14 +190,16 @@ class TestClipHotwordDetailBlock:
 
 @skip_no_server
 class TestSemanticModeSettingsUI:
-    def test_semantic_option_is_selectable_and_shows_llm_hint(self, page: Page):
+    def test_semantic_option_labeled_meaning_and_shows_similarity_hint(self, page: Page):
         hw = _create_hotword(page, "uitest_semantic", match_mode="semantic", boost=0.15, target="dramatic")
         try:
             _open_settings(page)
             row = page.locator(f'[data-hotword-row="{hw["id"]}"]')
             expect(row.locator(".hw-mode")).to_have_value("semantic")
-            expect(row.locator(".hw-mode option[value='semantic']")).to_be_enabled()
-            expect(row).to_contain_text("Uses LLM")
+            option = row.locator(".hw-mode option[value='semantic']")
+            expect(option).to_be_enabled()
+            expect(option).to_have_text("Meaning")
+            expect(row).to_contain_text("Similarity engine")
         finally:
             _delete_hotword(page, hw.get("id"))
 
@@ -205,7 +207,7 @@ class TestSemanticModeSettingsUI:
 @skip_no_server
 class TestScanActionGating:
     """The recording detail's Additional Actions modal only offers "Scan for
-    Hot-words" when at least one enabled 'Meaning (LLM)' hot-word exists."""
+    Hot-words" when at least one enabled 'Meaning' hot-word exists."""
 
     def _open_video_actions(self, page: Page) -> None:
         select_video_with_clips(page)

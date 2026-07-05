@@ -616,7 +616,7 @@ async function analyzeFrames(clipId, btn) {
 }
 
 // ── hot-words ────────────────────────────────────────────────────────────────
-const _HOTWORD_MODE_LABELS = {exact: 'Exact', case_insensitive: 'Ignore case', semantic: 'Meaning (LLM)'};
+const _HOTWORD_MODE_LABELS = {exact: 'Exact', case_insensitive: 'Ignore case', semantic: 'Meaning'};
 
 function _hotwordDetailHTML(clip) {
   const matches = clip.hotword_matches;

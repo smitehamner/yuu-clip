@@ -59,6 +59,12 @@ dev = [
 llamacpp = [
     "llama-cpp-python>=0.3,<1.0",
 ]
+embeddings = [
+    # Required for similarity_backend = "embeddings" (Find related clips + "Meaning"
+    # hot-words). ONNX runtime, no PyTorch. Model BAAI/bge-small-en-v1.5 (MIT, ~130 MB)
+    # downloads on first use. fastembed is Apache-2.0; onnxruntime is MIT.
+    "fastembed>=0.3,<1.0",
+]
 laugh-model = [
     # Required for scorer_laugh_mode = "model".
     # Recommended model: MIT/ast-finetuned-audioset-10-10-0.4593 (~350 MB, auto-downloads;

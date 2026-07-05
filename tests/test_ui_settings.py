@@ -189,6 +189,24 @@ class TestSettingsPanelChrome:
             "document.getElementById('s-llm-body').classList.contains('settings-dimmed')"
         ) is False
 
+    def test_similarity_selector_visible_with_llm_disabled(self, page: Page):
+        # The keyword/embeddings tiers work with LLM scoring off, so the selector
+        # lives outside #s-llm-body and must stay interactive when the master
+        # toggle is off.
+        self._open_settings(page)
+        page.uncheck("#s-ollama-enabled")
+        selector = page.locator("#s-similarity-backend")
+        expect(selector).to_be_visible()
+        assert page.evaluate("document.getElementById('s-similarity-backend').disabled") is False
+
+    def test_similarity_embeddings_fields_toggle_on_smart_tier(self, page: Page):
+        self._open_settings(page)
+        page.select_option("#s-similarity-backend", "tfidf")
+        expect(page.locator("#s-similarity-embeddings-fields")).to_be_hidden()
+        page.select_option("#s-similarity-backend", "embeddings")
+        expect(page.locator("#s-similarity-embeddings-fields")).to_be_visible()
+        expect(page.locator("#btn-install-embeddings")).to_be_visible()
+
     def test_claude_api_key_has_show_hide_toggle(self, page: Page):
         self._open_settings(page)
         page.select_option("#s-llm-backend", "claude")
