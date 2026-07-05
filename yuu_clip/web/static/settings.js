@@ -809,14 +809,49 @@ function _useOllamaModel(tag) {
   _checkSettingsDirty();
 }
 
+// Abort controller for the active pull, so a Cancel button can close the SSE
+// stream. Closing it disconnects the request, which makes the server terminate
+// the `ollama pull` subprocess (subprocess_sse's finally block).
+let _pullAbort = null;
+
+function _setPullCancel(show, onCancel) {
+  const log = document.getElementById('ollama-pull-log');
+  if (!log) return;
+  let btn = document.getElementById('ollama-pull-cancel');
+  if (show) {
+    if (!btn) {
+      btn = document.createElement('button');
+      btn.id = 'ollama-pull-cancel';
+      btn.type = 'button';
+      btn.className = 'btn-secondary';
+      btn.textContent = 'Cancel download';
+      log.parentNode.insertBefore(btn, log);
+    }
+    btn.disabled = false;
+    btn.onclick = onCancel;
+    btn.style.display = '';
+  } else if (btn) {
+    btn.style.display = 'none';
+  }
+}
+
 async function pullOllamaModel(tag) {
   const log = document.getElementById('ollama-pull-log');
   if (!log) return;
   log.style.display = 'block';
   log.textContent = `Pulling ${tag} — this can take several minutes…\n`;
+  const controller = new AbortController();
+  _pullAbort = controller;
+  _setPullCancel(true, () => { controller.abort(); });
   try {
-    const resp = await fetch(`/api/llm/ollama/pull?tag=${encodeURIComponent(tag)}`, { method: 'POST' });
-    if (!resp.ok) throw new Error(await resp.text());
+    const resp = await fetch(`/api/llm/ollama/pull?tag=${encodeURIComponent(tag)}`,
+                             { method: 'POST', signal: controller.signal });
+    if (!resp.ok) {
+      let detail = '';
+      try { detail = (await resp.json()).detail || ''; } catch { detail = await resp.text(); }
+      log.textContent += `✗ ${detail || 'Pull could not start.'}\n`;
+      return;
+    }
     const reader = resp.body.getReader();
     const dec = new TextDecoder();
     let buf = '';
@@ -834,8 +869,12 @@ async function pullOllamaModel(tag) {
         log.scrollTop = log.scrollHeight;
       }
     }
-  } catch {
-    log.textContent += '✗ Pull failed — is Ollama installed and running?\n';
+  } catch (err) {
+    if (err && err.name === 'AbortError') log.textContent += '■ Download cancelled.\n';
+    else log.textContent += '✗ Pull failed — is Ollama installed and running?\n';
+  } finally {
+    _pullAbort = null;
+    _setPullCancel(false);
   }
 }
 

@@ -11,6 +11,7 @@ const { Readable } = require('stream');
 const { parseNvidiaVramMB, selectGPU } = require('./gpu-detect');
 const { resolveBundledFfmpegDir } = require('./ffmpeg-detect');
 const { pickCudaWheelTag, buildCudaWheelUrl, LLAMA_CPP_CUDA_VERSION } = require('./llamacpp-cuda');
+const diskSpace = require('./disk-space');
 
 // Roadmap plan 10 — the "yuu-media" scheme must be registered as privileged
 // before app.ready fires (Electron requirement); the actual request handler
@@ -47,6 +48,8 @@ const BASE_PORT = 8080;
 
 const DEFAULT_OLLAMA_MODEL = 'qwen2.5:7b';  // Apache-2.0 (monetization-safe)
 const DEFAULT_CLAUDE_MODEL = 'claude-haiku-4-5-20251001';
+// Approx on-disk size of DEFAULT_OLLAMA_MODEL (qwen2.5:7b), for the disk precheck.
+const DEFAULT_OLLAMA_MODEL_SIZE_GB = 4.7;
 
 // Cross-checked against yuu_clip/model_catalog.py by
 // tests/test_model_catalog.py::test_electron_wizard_default_llamacpp_model_matches_the_catalog
@@ -55,6 +58,7 @@ const DEFAULT_LLAMACPP_MODEL = {
   id: 'qwen2.5-7b-instruct',
   repoUrl: 'https://huggingface.co/bartowski/Qwen2.5-7B-Instruct-GGUF',
   filename: 'Qwen2.5-7B-Instruct-Q4_K_M.gguf',
+  sizeGb: 4.7,
 };
 
 // One-click .gguf downloads land here, out of the user's way (same spirit as
@@ -74,6 +78,11 @@ let appPort         = BASE_PORT;
 let wizardWin       = null;
 let startupComplete = false;
 let isQuitting      = false;
+
+// In-flight model-download state, for the wizard's Cancel buttons.
+let activeGgufController = null;  // AbortController for the .gguf download
+let activePullReq       = null;  // http.ClientRequest for the Ollama pull
+let pullCancelled       = false;
 
 // ---------------------------------------------------------------------------
 // Electron config persistence (project dir choice etc.)
@@ -165,14 +174,20 @@ function runCmd(cmd, args, onLine = null) {
 // truncated-download check are handled by hand. Writes to a `.part` sibling
 // and renames on success, so a half-finished download can never be mistaken
 // for a complete model file.
-function downloadFileWithProgress(url, destPath, onProgress, redirectsLeft = 5) {
+// `opts.signal` (an AbortSignal) makes the download cancellable — aborting
+// fires an ABORT_ERR on the request, and the .part file is removed so a
+// cancelled download never leaves a stray file behind.
+function downloadFileWithProgress(url, destPath, onProgress, opts = {}) {
+  const { signal, redirectsLeft = 5 } = opts;
   return new Promise((resolve, reject) => {
     const tmpPath = `${destPath}.part`;
-    https.get(url, { headers: { 'User-Agent': 'yuu-clip' } }, res => {
+    const cleanupAndReject = (err) => { fs.unlink(tmpPath, () => {}); reject(err); };
+    const req = https.get(url, { headers: { 'User-Agent': 'yuu-clip' }, signal }, res => {
       if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location) {
         res.resume();
         if (redirectsLeft <= 0) { reject(new Error('Too many redirects')); return; }
-        downloadFileWithProgress(res.headers.location, destPath, onProgress, redirectsLeft - 1).then(resolve, reject);
+        downloadFileWithProgress(res.headers.location, destPath, onProgress,
+                                 { signal, redirectsLeft: redirectsLeft - 1 }).then(resolve, reject);
         return;
       }
       if (res.statusCode !== 200) {
@@ -190,15 +205,15 @@ function downloadFileWithProgress(url, destPath, onProgress, redirectsLeft = 5) 
       res.pipe(fileStream);
       fileStream.on('finish', () => {
         if (total > 0 && received !== total) {
-          fs.unlink(tmpPath, () => {});
-          reject(new Error(`Downloaded size (${received}) doesn't match expected (${total}) — try again`));
+          cleanupAndReject(new Error(`Downloaded size (${received}) doesn't match expected (${total}) — try again`));
           return;
         }
         fs.rename(tmpPath, destPath, err => (err ? reject(err) : resolve()));
       });
-      fileStream.on('error', reject);
-      res.on('error', reject);
-    }).on('error', reject);
+      fileStream.on('error', cleanupAndReject);
+      res.on('error', cleanupAndReject);
+    });
+    req.on('error', cleanupAndReject);
   });
 }
 
@@ -453,6 +468,9 @@ function registerWizardIPC(wizardWin) {
     try { ipcMain.removeHandler(ch); } catch (_) {}
   }
   ipcMain.removeAllListeners('setup:pull-model');
+  ipcMain.removeAllListeners('setup:cancel-pull');
+  ipcMain.removeAllListeners('setup:download-gguf-model');
+  ipcMain.removeAllListeners('setup:cancel-gguf-download');
   ipcMain.removeAllListeners('setup:open-url');
   ipcMain.removeAllListeners('setup:install-package');
   ipcMain.removeAllListeners('setup:restart-app');
@@ -543,19 +561,38 @@ function registerWizardIPC(wizardWin) {
     const send = (payload) => {
       try { event.sender.send('setup:gguf-download-progress', payload); } catch (_) {}
     };
+    const shortfall = diskSpace.diskShortfallMessage(MODELS_DIR, DEFAULT_LLAMACPP_MODEL.sizeGb);
+    if (shortfall) {
+      logSetup(`GGUF model download blocked — ${shortfall}`);
+      send({ error: shortfall });
+      return;
+    }
     const url = `${DEFAULT_LLAMACPP_MODEL.repoUrl}/resolve/main/${DEFAULT_LLAMACPP_MODEL.filename}`;
     const destPath = path.join(MODELS_DIR, DEFAULT_LLAMACPP_MODEL.filename);
     fs.mkdirSync(MODELS_DIR, { recursive: true });
     logSetup(`GGUF model download starting: ${url}`);
-    downloadFileWithProgress(url, destPath, pct => send({ progress: pct }))
+    activeGgufController = new AbortController();
+    downloadFileWithProgress(url, destPath, pct => send({ progress: pct }),
+                             { signal: activeGgufController.signal })
       .then(() => {
+        activeGgufController = null;
         logSetup(`GGUF model download complete: ${destPath}`);
         send({ done: true, path: destPath });
       })
       .catch(err => {
+        activeGgufController = null;
+        if (err && (err.name === 'AbortError' || err.code === 'ABORT_ERR')) return; // cancel event already sent
         logSetup(`GGUF model download failed: ${err.message}`);
         send({ error: err.message });
       });
+  });
+
+  ipcMain.on('setup:cancel-gguf-download', (event) => {
+    if (!activeGgufController) return;
+    logSetup('GGUF model download cancelled by user');
+    activeGgufController.abort();
+    activeGgufController = null;
+    try { event.sender.send('setup:gguf-download-progress', { cancelled: true }); } catch (_) {}
   });
 
   ipcMain.on('setup:restart-app', () => {
@@ -590,7 +627,16 @@ function registerWizardIPC(wizardWin) {
 
   // Stream an Ollama model pull back to the wizard as progress events.
   ipcMain.on('setup:pull-model', (event, modelName) => {
+    const ollamaStore = process.env.OLLAMA_MODELS
+      || path.join(process.env.USERPROFILE, '.ollama', 'models');
+    const shortfall = diskSpace.diskShortfallMessage(ollamaStore, DEFAULT_OLLAMA_MODEL_SIZE_GB);
+    if (shortfall) {
+      logSetup(`Ollama model pull blocked — ${shortfall}`);
+      event.sender.send('setup:pull-progress', { status: 'error', error: shortfall });
+      return;
+    }
     logSetup(`Ollama model pull starting: ${modelName}`);
+    pullCancelled = false;
     const req = http.request({
       hostname: 'localhost', port: 11434, path: '/api/pull', method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -606,14 +652,31 @@ function registerWizardIPC(wizardWin) {
           try { event.sender.send('setup:pull-progress', JSON.parse(line)); } catch (_) {}
         }
       });
-      res.on('end', () => event.sender.send('setup:pull-progress', { status: 'success' }));
+      res.on('end', () => {
+        activePullReq = null;
+        if (!pullCancelled) event.sender.send('setup:pull-progress', { status: 'success' });
+      });
     });
+    activePullReq = req;
     req.on('error', err => {
+      activePullReq = null;
+      if (pullCancelled) return; // cancel event already sent
       logSetup(`Ollama model pull failed: ${modelName} — ${err.message}`);
       event.sender.send('setup:pull-progress', { status: 'error', error: err.message });
     });
     req.write(JSON.stringify({ name: modelName }));
     req.end();
+  });
+
+  // Cancels an in-flight pull. Destroying the request disconnects the client;
+  // the Ollama daemon aborts the pull when its client goes away.
+  ipcMain.on('setup:cancel-pull', (event) => {
+    if (!activePullReq) return;
+    pullCancelled = true;
+    logSetup('Ollama model pull cancelled by user');
+    activePullReq.destroy();
+    activePullReq = null;
+    event.sender.send('setup:pull-progress', { status: 'cancelled' });
   });
 }
 

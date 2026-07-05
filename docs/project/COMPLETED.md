@@ -6,6 +6,36 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) — see the
 
 ---
 
+## Streamlined local-model install — disk precheck + cancel (done 2026-07-05)
+
+Non-LLM-tiers plan, **Stage 08** (`docs/dev/plans/non-llm-tiers/08-model-install.md`) — the
+**final stage; plan set closed**. Most of the stage's scope (curated catalog, one-click
+Ollama pull + `.gguf` download, progress UI) had already shipped via plan 10 and the
+FFmpeg-bundling onboarding follow-up (`7892b05`). This stage closed the two safety gaps
+that were in **neither** surface, so a non-developer never hits a cryptic late failure or
+an un-stoppable multi-GB download.
+
+- **Disk-space precheck.** Backend `_preflight_ollama_pull(tag)` (`web/routes/llm.py`)
+  compares free space on the Ollama models drive against the catalog `size_gb` + 2 GB
+  headroom; `POST /api/llm/ollama/pull` now returns **507** with an actionable message
+  *before* spawning `ollama pull`. Electron wizard mirrors it via a new pure
+  `electron/disk-space.js` (`fs.statfsSync`) guarding both the Ollama pull and the `.gguf`
+  download.
+- **Cancel.** Web Settings pull runs under an `AbortController` with a **Cancel download**
+  button — closing the SSE stream makes `subprocess_sse`'s `finally` terminate the pull
+  subprocess. Wizard gets Cancel buttons on both rows: `setup:cancel-gguf-download` aborts
+  the download (and cleans up its `.part` file); `setup:cancel-pull` destroys the `/api/pull`
+  request so the Ollama daemon aborts.
+- **Stage-07 tie preserved:** under `local_only`/`none` the installer still offers local
+  models only — no change needed, verified.
+- Tests: `test_llm.py::TestOllamaPullDiskPrecheck` (preflight + 507-before-spawn),
+  `test_ui_model_catalog.py::TestOllamaPullUI` (mocked 507 message + successful-pull done
+  state + cancel control), `electron/test/disk-space.test.js` (pure size math), and the
+  `test_model_catalog.py` cross-check extended to keep the wizard's `sizeGb` in sync with
+  the catalog. Full API (1904) + UI (637) + electron (26) suites green.
+
+---
+
 ## AI privacy modes — 3-level trust setting (done 2026-07-05)
 
 Non-LLM-tiers plan, **Stage 07** (`docs/dev/plans/non-llm-tiers/07-privacy-modes.md`).

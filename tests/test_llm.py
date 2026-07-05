@@ -101,6 +101,34 @@ class TestOllamaPullGuard:
         assert resp.status_code == 400
 
 
+class TestOllamaPullDiskPrecheck:
+    def _low_disk(self, monkeypatch, free_bytes: int):
+        import shutil as shutil_mod
+        from unittest import mock
+
+        from yuu_clip.web.routes import llm as llm_routes
+
+        monkeypatch.setattr(shutil_mod, "disk_usage", lambda _p: mock.MagicMock(free=free_bytes))
+        return llm_routes
+
+    def test_preflight_reports_shortfall(self, monkeypatch):
+        llm_routes = self._low_disk(monkeypatch, 1_000_000_000)  # 1 GB free
+        info = llm_routes._preflight_ollama_pull("qwen2.5:7b")
+        assert info["sufficient"] is False
+        assert info["needed_gb"] > info["free_gb"]
+
+    def test_preflight_ok_with_ample_space(self, monkeypatch):
+        llm_routes = self._low_disk(monkeypatch, 500_000_000_000)  # 500 GB free
+        info = llm_routes._preflight_ollama_pull("qwen2.5:7b")
+        assert info["sufficient"] is True
+
+    def test_insufficient_disk_returns_507_before_spawning(self, client: TestClient, monkeypatch):
+        self._low_disk(monkeypatch, 1_000_000_000)
+        resp = client.post("/api/llm/ollama/pull", params={"tag": "qwen2.5:7b"})
+        assert resp.status_code == 507
+        assert "disk space" in resp.json()["detail"].lower()
+
+
 class TestCapabilityTiers:
     def _tiers(self, client: TestClient) -> tuple[dict, bool]:
         resp = client.get("/api/capabilities/tiers")

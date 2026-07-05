@@ -56,6 +56,47 @@ class TestModelCatalogSettings:
 
 
 @skip_no_server
+class TestOllamaPullUI:
+    """Stage 08 — the one-click pull surfaces a disk-precheck failure and a
+    cancel control. The pull endpoint is route-mocked so no real Ollama runs."""
+
+    def _pull(self, page: Page, tag: str = "qwen2.5:7b") -> str:
+        return page.evaluate(
+            "async (tag) => { await window.pullOllamaModel(tag); "
+            "return document.getElementById('ollama-pull-log').textContent; }",
+            tag,
+        )
+
+    def test_precheck_failure_shows_actionable_message(self, page: Page):
+        _open_settings(page)
+        page.route(
+            "**/api/llm/ollama/pull*",
+            lambda route: route.fulfill(
+                status=507,
+                content_type="application/json",
+                body='{"detail":"Not enough disk space: about 6.7 GB is needed but only 1.0 GB is free. Free up space and try again."}',
+            ),
+        )
+        log = self._pull(page)
+        assert "Not enough disk space" in log
+        assert "Free up space" in log
+
+    def test_successful_pull_shows_done_and_provisions_cancel_control(self, page: Page):
+        _open_settings(page)
+        sse_body = 'data: "pulling manifest"\n\ndata: "__DONE__"\n\n'
+        page.route(
+            "**/api/llm/ollama/pull*",
+            lambda route: route.fulfill(
+                status=200, content_type="text/event-stream", body=sse_body,
+            ),
+        )
+        log = self._pull(page)
+        assert "✓ Done" in log
+        # A cancel control is provisioned for the pull (hidden again once done).
+        assert page.locator("#ollama-pull-cancel").count() == 1
+
+
+@skip_no_server
 class TestCapabilityGating:
     def _gate_result(self, page: Page, capability: str) -> dict:
         return page.evaluate(

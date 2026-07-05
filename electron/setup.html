@@ -550,6 +550,7 @@ function renderOllamaStatus(s) {
     el.innerHTML = row('ollama', 'warn', '⚠', `Ollama running — ${esc(s.ollamaModel)} not downloaded`,
       'One more step: download the model (a few GB, one-time).',
       `<button class="sm" id="pull-btn" onclick="startPull()">Download ${esc(s.ollamaModel)}</button>
+       <button class="sm" id="pull-cancel-btn" onclick="cancelPull()" style="display:none">Cancel</button>
        <div class="pull-bar" id="pull-bar" style="display:none;width:100%;margin-top:5px"><div class="pull-fill" id="pull-fill"></div></div>
        <div class="pull-msg" id="pull-msg"></div>`);
   } else {
@@ -585,6 +586,7 @@ function renderGgufDownloadSlot(s) {
     'Qwen2.5 7B Instruct (Apache-2.0, so clips you make can be monetized), ~4.7 GB. ' +
     'You can keep using this window while it downloads.',
     `<button class="sm" id="gguf-download-btn" onclick="startGgufDownload()">Download recommended model (~4.7 GB)</button>
+     <button class="sm" id="gguf-cancel-btn" onclick="cancelGgufDownload()" style="display:none">Cancel</button>
      <div class="pull-bar" id="gguf-download-bar" style="display:none;width:100%;margin-top:5px"><div class="pull-fill" id="gguf-download-fill"></div></div>
      <div class="pull-msg" id="gguf-download-msg"></div>`);
 }
@@ -745,28 +747,41 @@ function updateDiarStatus() {
 
 function startPull() {
   const btn = document.getElementById('pull-btn');
+  const cancel = document.getElementById('pull-cancel-btn');
   const bar = document.getElementById('pull-bar');
   if (btn) btn.disabled = true;
+  if (cancel) { cancel.style.display = ''; cancel.disabled = false; }
   if (bar) bar.style.display = '';
   pulling = true;
   updateLaunchBtn();
   api.pullModel(status.ollamaModel);
 }
 
+function cancelPull() {
+  const cancel = document.getElementById('pull-cancel-btn');
+  if (cancel) cancel.disabled = true;
+  api.cancelPull();
+}
+
 function onPullProgress(data) {
-  const btn  = document.getElementById('pull-btn');
-  const fill = document.getElementById('pull-fill');
-  const msg  = document.getElementById('pull-msg');
+  const btn    = document.getElementById('pull-btn');
+  const cancel = document.getElementById('pull-cancel-btn');
+  const fill   = document.getElementById('pull-fill');
+  const msg    = document.getElementById('pull-msg');
+  const done = () => { pulling = false; if (cancel) cancel.style.display = 'none'; updateLaunchBtn(); };
   if (data.status === 'success') {
-    pulling = false;
     status.ollamaModelPulled = true;
     renderOllamaStatus(status);
-    updateLaunchBtn();
+    done();
+  } else if (data.status === 'cancelled') {
+    if (msg) msg.textContent = 'Download cancelled.';
+    if (fill) fill.style.width = '0%';
+    if (btn) btn.disabled = false;
+    done();
   } else if (data.error) {
     if (msg) msg.textContent = `Download failed: ${data.error} — check that Ollama is still running, then try again.`;
     if (btn) btn.disabled = false;
-    pulling = false;
-    updateLaunchBtn();
+    done();
   } else if (data.total) {
     const pct = Math.round((data.completed / data.total) * 100);
     if (fill) fill.style.width = pct + '%';
@@ -780,28 +795,41 @@ function onPullProgress(data) {
 
 function startGgufDownload() {
   const btn = document.getElementById('gguf-download-btn');
+  const cancel = document.getElementById('gguf-cancel-btn');
   const bar = document.getElementById('gguf-download-bar');
   if (btn) btn.disabled = true;
+  if (cancel) { cancel.style.display = ''; cancel.disabled = false; }
   if (bar) bar.style.display = '';
   downloadingGguf = true;
   updateLaunchBtn();
   api.downloadGgufModel();
 }
 
+function cancelGgufDownload() {
+  const cancel = document.getElementById('gguf-cancel-btn');
+  if (cancel) cancel.disabled = true;
+  api.cancelGgufDownload();
+}
+
 function onGgufDownloadProgress(data) {
-  const fill = document.getElementById('gguf-download-fill');
-  const msg  = document.getElementById('gguf-download-msg');
+  const fill   = document.getElementById('gguf-download-fill');
+  const msg    = document.getElementById('gguf-download-msg');
+  const btn    = document.getElementById('gguf-download-btn');
+  const cancel = document.getElementById('gguf-cancel-btn');
+  const done = () => { downloadingGguf = false; if (cancel) cancel.style.display = 'none'; updateLaunchBtn(); };
   if (data.done) {
-    downloadingGguf = false;
     document.getElementById('llm-model-path').value = data.path;
     updateLlmWarn(); // also re-renders the download slot, now hidden since the path is set
-    updateLaunchBtn();
-  } else if (data.error) {
-    downloadingGguf = false;
-    if (msg) msg.textContent = `Download failed: ${data.error} — check your internet connection, then try again.`;
-    const btn = document.getElementById('gguf-download-btn');
+    done();
+  } else if (data.cancelled) {
+    if (msg) msg.textContent = 'Download cancelled.';
+    if (fill) fill.style.width = '0%';
     if (btn) btn.disabled = false;
-    updateLaunchBtn();
+    done();
+  } else if (data.error) {
+    if (msg) msg.textContent = `Download failed: ${data.error} — check your internet connection, then try again.`;
+    if (btn) btn.disabled = false;
+    done();
   } else if (typeof data.progress === 'number') {
     if (fill) fill.style.width = data.progress + '%';
     if (msg)  msg.textContent  = `Downloading… ${data.progress}%`;

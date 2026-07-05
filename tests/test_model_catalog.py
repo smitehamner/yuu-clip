@@ -124,11 +124,12 @@ class TestDefaultsMatchCatalog:
             r"DEFAULT_LLAMACPP_MODEL\s*=\s*\{\s*"
             r"id:\s*'([^']+)',\s*"
             r"repoUrl:\s*'([^']+)',\s*"
-            r"filename:\s*'([^']+)',?\s*\}",
+            r"filename:\s*'([^']+)',\s*"
+            r"sizeGb:\s*([\d.]+),?\s*\}",
             main_js,
         )
         assert match, "DEFAULT_LLAMACPP_MODEL constant not found (or shape changed) in electron/main.js"
-        model_id, repo_url, filename = match.groups()
+        model_id, repo_url, filename, size_gb = match.groups()
 
         entry = mc.model_by_id(model_id)
         assert entry is not None, f"electron's DEFAULT_LLAMACPP_MODEL id {model_id!r} isn't in the catalog"
@@ -136,3 +137,5 @@ class TestDefaultsMatchCatalog:
         assert mc.BACKEND_LLAMACPP in entry.backends
         assert entry.gguf_url == repo_url
         assert entry.gguf_filename == filename
+        # The wizard's disk-precheck size must track the catalog's on-disk size.
+        assert float(size_gb) == entry.size_gb

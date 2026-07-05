@@ -11,6 +11,8 @@ GET /api/llm/catalog — the curated recommended-model catalog, so Settings and
 """
 from __future__ import annotations
 
+import os
+import shutil
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
@@ -27,6 +29,44 @@ _PULLABLE_OLLAMA_TAGS = frozenset(
     for entry in model_catalog.recommended_models()
     if entry.ollama_tag and model_catalog.BACKEND_OLLAMA in entry.backends
 )
+
+# Headroom beyond the model's own on-disk size — Ollama writes temporary blobs
+# and a manifest during a pull, so a pull needs more than the final weight size.
+_PULL_DISK_HEADROOM_GB = 2.0
+
+
+def _ollama_models_dir() -> Path:
+    """Where Ollama stores pulled models (its default, or an OLLAMA_MODELS
+    override). The precheck measures free space on this location's drive."""
+    override = os.environ.get("OLLAMA_MODELS")
+    return Path(override) if override else Path.home() / ".ollama" / "models"
+
+
+def _existing_ancestor(path: Path) -> Path:
+    """Nearest existing ancestor of *path* — disk_usage needs a real path, and
+    the models dir may not exist yet before the first pull."""
+    for candidate in (path, *path.parents):
+        if candidate.exists():
+            return candidate
+    return Path(path.anchor) if path.anchor else Path.cwd()
+
+
+def _preflight_ollama_pull(tag: str) -> dict:
+    """Free vs needed space for pulling *tag*. Non-raising — callers decide."""
+    entry = next(
+        (e for e in model_catalog.recommended_models() if e.ollama_tag == tag), None
+    )
+    size_gb = float(entry.size_gb) if entry and entry.size_gb else 0.0
+    needed_gb = round(size_gb + _PULL_DISK_HEADROOM_GB, 1)
+    target = _existing_ancestor(_ollama_models_dir())
+    free_gb = round(shutil.disk_usage(target).free / 1e9, 1)
+    return {
+        "sufficient": free_gb >= needed_gb,
+        "free_gb": free_gb,
+        "needed_gb": needed_gb,
+        "size_gb": size_gb,
+        "target": str(target),
+    }
 
 
 def _ollama_tag_base(name: str) -> str:
@@ -220,6 +260,14 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     async def ollama_pull(tag: str):
         if tag not in _PULLABLE_OLLAMA_TAGS:
             raise HTTPException(400, f"Unknown model tag '{tag}' — allowed: {sorted(_PULLABLE_OLLAMA_TAGS)}")
+        disk = _preflight_ollama_pull(tag)
+        if not disk["sufficient"]:
+            raise HTTPException(
+                507,
+                f"Not enough disk space: about {disk['needed_gb']} GB is needed on "
+                f"{disk['target']} but only {disk['free_gb']} GB is free. "
+                "Free up space and try again.",
+            )
         return await subprocess_sse(["ollama", "pull", tag], ctx.project_dir)
 
     return router
