@@ -170,6 +170,9 @@ class TestSettingsPanelChrome:
         defaults = {
             "s-energy-weight": "1.0", "s-scene-weight": "0.5",
             "s-llm-weight": "2.0", "s-laugh-weight": "1.5",
+            "s-lexicon-weight": "1.0",
+            "s-speech-rate-weight": "0.5", "s-churn-weight": "0.5",
+            "s-prosody-weight": "0.5",
             "s-funny-weight": "1.0", "s-dramatic-weight": "1.0",
             "s-action-weight": "1.0",
         }

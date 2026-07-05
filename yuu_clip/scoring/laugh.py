@@ -29,10 +29,10 @@ from __future__ import annotations
 
 import logging
 import re
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from yuu_clip.scoring.protocol import ScoreResult
+from yuu_clip.scoring.wav_access import WavCache, best_wav_track
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -63,25 +63,6 @@ def _score_transcript_text(text: str, duration_s: float) -> float:
         return 0.0
     laughs_per_min = count / duration_s * 60
     return min(1.0, laughs_per_min / 4.0)   # 4+ laugh events/min → 1.0
-
-
-def _read_full_audio(wav_path: Path) -> tuple:
-    """Read all samples from *wav_path*.  Returns (np.ndarray, sample_rate)."""
-    import av
-    import numpy as np
-
-    chunks: list = []
-    with av.open(str(wav_path)) as container:
-        stream = container.streams.audio[0]
-        sample_rate = stream.codec_context.sample_rate or 16_000
-        for frame in container.decode(stream):
-            chunks.append(frame.to_ndarray().astype(np.float32).flatten())
-
-    if not chunks:
-        import numpy as np
-        return np.array([]), sample_rate
-    import numpy as np
-    return np.concatenate(chunks), sample_rate
 
 
 def _detect_laugh_rhythm(samples, sample_rate: int, start_ms: int, end_ms: int) -> float:
@@ -129,7 +110,7 @@ class LaughScorer:
         self._config     = config
         self.weight      = config.scorer_laugh_weight
         # Cache loaded WAV data per track_id across clips in a single scoring run.
-        self._wav_cache: dict[int, tuple] = {}
+        self._wav_cache  = WavCache()
         self._classifier = None
 
     def is_available(self) -> bool:
@@ -193,30 +174,12 @@ class LaughScorer:
 
     # ── audio mode ────────────────────────────────────────────────────────────
 
-    def _best_wav_track(self, clip: "ClipCandidate"):
-        """Return the scored track with the highest relevance weight that has a valid WAV."""
-        candidates = [
-            t for t in clip.video.audio_tracks
-            if t.do_score and t.extracted_path and Path(t.extracted_path).exists()
-        ]
-        return max(candidates, key=lambda t: t.relevance_weight, default=None)
-
-    def _load_wav(self, track):
-        """Return (samples, sample_rate) for *track*, loading from disk if needed."""
-        if track.id not in self._wav_cache:
-            try:
-                self._wav_cache[track.id] = _read_full_audio(Path(track.extracted_path))
-            except Exception as exc:
-                log.warning("LaughScorer: failed to read %s: %s", track.extracted_path, exc)
-                return None, None
-        return self._wav_cache[track.id]
-
     def _score_audio(self, clip: "ClipCandidate") -> ScoreResult:
-        track = self._best_wav_track(clip)
+        track = best_wav_track(clip)
         if track is None:
             return ScoreResult(tags=["laugh_no_wav"])
 
-        samples, sr = self._load_wav(track)
+        samples, sr = self._wav_cache.load(track)
         if samples is None:
             return ScoreResult(tags=["laugh_no_wav"])
 
@@ -239,11 +202,11 @@ class LaughScorer:
         return self._classifier
 
     def _score_model(self, clip: "ClipCandidate") -> ScoreResult:
-        track = self._best_wav_track(clip)
+        track = best_wav_track(clip)
         if track is None:
             return ScoreResult(tags=["laugh_no_wav"])
 
-        samples, sr = self._load_wav(track)
+        samples, sr = self._wav_cache.load(track)
         if samples is None:
             return ScoreResult(tags=["laugh_no_wav"])
 

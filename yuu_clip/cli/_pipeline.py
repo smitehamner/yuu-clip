@@ -600,12 +600,15 @@ def _summarize_video(video, transcripts, config, session, context_text: str = ""
 
 def _run_scoring(video, track_objs, config, session, energy_mode: str = "fast", context_text: str = "") -> None:
     """Run Phase 2 scoring (energy, scenes, LLM) for all candidates belonging to *video*."""
+    from yuu_clip.scoring.churn import SpeakerChurnScorer
     from yuu_clip.scoring.energy import AudioEnergyScorer, compute_energy
     from yuu_clip.scoring.engine import ScoringEngine
     from yuu_clip.scoring.laugh import LaughScorer
     from yuu_clip.scoring.lexicon import LexiconScorer
     from yuu_clip.scoring.llm import LLMScorer
+    from yuu_clip.scoring.prosody import ProsodyScorer
     from yuu_clip.scoring.scenes import SceneCutScorer, compute_scenes
+    from yuu_clip.scoring.speechrate import SpeechRateScorer
 
     if config.scorer_energy_enabled and energy_mode != "none":
         console.print(f"  [bold]Computing audio energy ({energy_mode})...[/bold]")
@@ -659,6 +662,9 @@ def _run_scoring(video, track_objs, config, session, energy_mode: str = "fast", 
         SceneCutScorer(config),
         laugh_scorer,
         LexiconScorer(config),
+        SpeechRateScorer(config),
+        SpeakerChurnScorer(config),
+        ProsodyScorer(config),
         LLMScorer(config, context_text=context_text),
     ], hot_words=hot_words, sensitive_terms=sensitive_terms)
     if not engine.has_scorers:

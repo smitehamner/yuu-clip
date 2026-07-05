@@ -174,6 +174,30 @@ class TestScoringEngine:
         assert "lexicon_scored" in clip.tags
         assert clip.scored_at is not None
 
+    def test_stage4_speech_rate_scorer_contributes_with_no_llm(self, monkeypatch):
+        # Stage 04: the zero-dep speech-rate scorer alone (no LLM) lands funny+action
+        # for a fast-talking clip, through the weighted engine, via clip_window_segments.
+        from unittest.mock import MagicMock
+
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.engine import ScoringEngine
+        from yuu_clip.scoring.speechrate import SpeechRateScorer
+
+        fast = MagicMock()
+        fast.text = "a b c d e f g h i j k l"   # 12 words / 2 s = 6 wps
+        fast.start_ms, fast.end_ms = 0, 2000
+        monkeypatch.setattr(
+            "yuu_clip.segments.windower.clip_window_segments", lambda *a: [fast]
+        )
+        clip = self._make_clip()
+        clip.start_ms, clip.end_ms = 0, 30_000
+        engine = ScoringEngine(Config(), [SpeechRateScorer(Config())])
+        engine.score_clip(clip, None)
+        assert clip.score_funny > 0.0
+        assert clip.score_action > 0.0
+        assert "speech_rate_scored" in clip.tags
+        assert clip.scored_at is not None
+
     def _make_partial_scorer(self, weight=1.0, **dims):
         """Scorer that emits ONLY the named dimensions (others stay None — no opinion)."""
         from unittest.mock import MagicMock

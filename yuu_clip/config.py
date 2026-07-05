@@ -479,6 +479,15 @@ class Config:
     # density, zero-dep. Feeds the standard dimensions so content presets tune it via
     # score_*_weight; None for a dimension with no markers.
     scorer_lexicon_enabled: bool = True
+    # Additional lightweight signals (plan non-llm-tiers/04), all feeding the standard
+    # dimensions so content presets tune them via score_*_weight:
+    #   speech_rate — words-per-sec bursts → funny/action (zero-dep transcript timings)
+    #   churn       — rapid speaker turn-taking + cross-talk → funny/action (needs
+    #                 diarization; abstains when off)
+    #   prosody     — loudness + pitch delivery dynamics → dramatic/action (PyAV+numpy)
+    scorer_speech_rate_enabled: bool = True
+    scorer_churn_enabled: bool = True
+    scorer_prosody_enabled: bool = True
     # "transcript" — regex patterns in Whisper output, no extra deps (default)
     # "audio"      — spectral rhythm analysis via PyAV + numpy
     # "model"      — HuggingFace audio-classification (requires transformers+torch)
@@ -512,6 +521,9 @@ class Config:
     scorer_llm_weight: float = 2.0
     scorer_laugh_weight: float = 1.5
     scorer_lexicon_weight: float = 1.0
+    scorer_speech_rate_weight: float = 0.5
+    scorer_churn_weight: float = 0.5
+    scorer_prosody_weight: float = 0.5
 
     score_funny_weight: float = 1.0
     score_dramatic_weight: float = 1.0

@@ -123,7 +123,7 @@ def _build_excerpt(segs: list[TranscriptSegment]) -> str:
     return "\n".join(lines)
 
 
-def _clip_window_segments(video: Video, start_ms: int, end_ms: int) -> list[TranscriptSegment]:
+def clip_window_segments(video: Video, start_ms: int, end_ms: int) -> list[TranscriptSegment]:
     """Segments from the video's transcribable tracks that overlap [start_ms, end_ms).
 
     Uses the newest transcript per track — the same source generate_candidates
@@ -158,7 +158,7 @@ def build_excerpt_for_window(video: Video, start_ms: int, end_ms: int) -> str:
     Shared by rebuild_clip_excerpt (an existing clip's window) and manual clip
     creation (a window with no ClipCandidate yet).
     """
-    segs = _clip_window_segments(video, start_ms, end_ms)
+    segs = clip_window_segments(video, start_ms, end_ms)
     return _build_excerpt(segs)
 
 

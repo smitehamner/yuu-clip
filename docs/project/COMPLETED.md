@@ -6,6 +6,36 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) — see the
 
 ---
 
+## Additional lightweight scoring signals (done 2026-07-05)
+
+Non-LLM-tiers plan, **Stage 04** (`docs/dev/plans/non-llm-tiers/04-lightweight-signals.md`).
+Deepens the no-LLM baseline with three new scorers from the researched signal menu, each
+feeding the standard funny/dramatic/action dimensions (so content presets tune them for
+free) and each returning `None` for dimensions it has no opinion on.
+
+- **`scoring/speechrate.py` — `SpeechRateScorer`** (zero-dep): words-per-second from the
+  clip's transcript segments; blends mean rate with the fastest "burst" segment and ramps a
+  calm→fast band to 0–1. Feeds Funny + Action; abstains on calm speech so it only nudges up.
+- **`scoring/churn.py` — `SpeakerChurnScorer`** (zero-dep, needs diarization): speaker-switch
+  rate along the window plus cross-talk overlap fraction. Feeds Funny + Action; abstains
+  (graceful skip) when fewer than two speakers are attributed (diarization off / solo stretch).
+- **`scoring/prosody.py` — `ProsodyScorer`** (numpy/av): energy-envelope coefficient-of-variation
+  (loudness swings) + spectral-centroid CoV (pitch movement), extending
+  `laugh._detect_laugh_rhythm`'s FFT. Feeds Dramatic + Action; a *continuous* measure that
+  emits on any non-silent clip, giving Dramatic a real non-LLM baseline signal.
+- New **`scoring/wav_access.py`** (`read_full_audio` / `best_wav_track` / `WavCache`) removes
+  the WAV-reading duplication between laugh and prosody; `windower._clip_window_segments`
+  promoted to public **`clip_window_segments`** as the shared transcript-segment accessor.
+- Config `scorer_{speech_rate,churn,prosody}_{enabled,weight}` (default on, weight 0.5),
+  registered in `_run_scoring`, nine new tags in `ScoringEngine._SCORER_TAGS`; three Settings
+  sliders (Speech rate / Speaker overlap / Prosody). GLOSSARY: three new terms.
+- VADER sentiment + punctuation-density left as documented candidates (not shipped).
+- Tests: new `test_scoring_{speechrate,churn,prosody}.py` (pure-function + scorer paths) and
+  an engine integration test; extended the UI reset-weights test. Full API (1860) + UI (637)
+  suites green.
+
+---
+
 ## No-LLM scoring baseline + Lexicon signal (done 2026-07-05)
 
 Non-LLM-tiers plan, **Stage 03** (`docs/dev/plans/non-llm-tiers/03-lexicon-scoring.md`).

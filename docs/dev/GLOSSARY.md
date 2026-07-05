@@ -60,6 +60,9 @@ Most lookups only need this table: the authoritative user-facing term, the code 
 | Audio energy scoring | `EnergyScorer` | Loudness/activity-based scoring |
 | Scene scoring | `SceneScorer` | Scene-cut-frequency scoring |
 | Lexicon scoring | `LexiconScorer` | Curated keyword-density funny/dramatic/action nudge — no model |
+| Speech-rate scoring | `SpeechRateScorer` | Words-per-second bursts nudge funny/action — no model |
+| Speaker-overlap scoring | `SpeakerChurnScorer` | Rapid speaker turn-taking + cross-talk nudge funny/action — needs diarization |
+| Prosody scoring | `ProsodyScorer` | Loudness + pitch delivery dynamics nudge dramatic/action — no model |
 | Similarity engine | `similarity_backend` | Powers Find related clips + "Meaning" hot-words: Fast (keyword) / Smart (embeddings) / LLM |
 | Clip description | `description`, `description_long` | AI one-liner + paragraph; `*_user` overrides win |
 | Basic description | `desc_basic` tag | Non-LLM template one-liner so a clip is never blank without a model |
