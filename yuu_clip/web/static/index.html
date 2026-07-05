@@ -194,6 +194,14 @@
         </div>
         <input class="settings-input" id="s-llm-model-path" type="text" placeholder="C:\models\llama3.gguf" style="max-width:320px">
       </div>
+      <div class="settings-row">
+        <div class="settings-col">
+          <label class="settings-label" for="s-llm-mmproj-path">Vision projector file (optional)</label>
+          <div class="settings-note">Path to the model's mmproj .gguf — enables image analysis</div>
+        </div>
+        <input class="settings-input" id="s-llm-mmproj-path" type="text" placeholder="C:\models\model-mmproj.gguf" style="max-width:320px">
+      </div>
+      <div id="s-llamacpp-recommended" class="settings-recommended"></div>
     </div>
     <!-- ollama fields -->
     <div id="s-ollama-fields" style="display:none">
@@ -204,6 +212,8 @@
         </div>
         <input class="settings-input" id="s-ollama-model" type="text" placeholder="llama3.1:8b" style="max-width:200px">
       </div>
+      <div id="s-ollama-recommended" class="settings-recommended"></div>
+      <div id="ollama-pull-log" class="settings-install-log"></div>
       <div class="settings-row">
         <div class="settings-col">
           <label class="settings-label" for="s-ollama-host">Host</label>
@@ -248,8 +258,9 @@
           <div class="settings-note">Haiku is fast and cheap; Sonnet is smarter</div>
         </div>
         <select class="settings-select" id="s-claude-model">
-          <option value="claude-haiku-4-5-20251001">claude-haiku-4-5 (fast, cheap)</option>
-          <option value="claude-sonnet-4-6">claude-sonnet-4-6 (smarter)</option>
+          <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5 (fast, cheap)</option>
+          <option value="claude-sonnet-5">Claude Sonnet 5 (smarter)</option>
+          <option value="claude-opus-4-8">Claude Opus 4.8 (most capable)</option>
         </select>
       </div>
       <div class="settings-row">
@@ -259,6 +270,13 @@
         </div>
         <input class="settings-input" id="s-claude-timeout" type="number" min="5" max="300" step="5" style="max-width:100px">
       </div>
+    </div>
+    <div class="settings-row" id="s-llm-capabilities-row">
+      <div class="settings-col">
+        <div class="settings-label">Model readiness</div>
+        <div class="settings-note">Whether the active model can score text and analyze images</div>
+      </div>
+      <div id="s-llm-capabilities" style="font-size:12px;color:var(--muted)">Checking…</div>
     </div>
     </div><!-- /#s-llm-body -->
   </div>

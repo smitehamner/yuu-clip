@@ -116,7 +116,9 @@ class TestWizardLlmBackends:
         page.select_option("#llm-backend-sel", "llamacpp")
         expect(page.locator("#llm-llamacpp-fields")).to_be_visible()
         expect(page.locator("#install-btn-llamacpp")).to_be_visible()
-        expect(page.locator("#llm-llamacpp-fields")).to_contain_text("Llama 3.2 3B Instruct")
+        # Recommends an Apache-2.0 model (Qwen2.5) — Llama is licence-excluded
+        # from recommendations (see model_catalog.py).
+        expect(page.locator("#llm-llamacpp-fields")).to_contain_text("Qwen2.5 7B Instruct")
         expect(page.locator("#llm-warn")).to_be_visible()  # no .gguf chosen yet
         page.fill("#llm-model-path", "C:/models/model.gguf")
         expect(page.locator("#llm-warn")).to_be_hidden()

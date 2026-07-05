@@ -6,6 +6,53 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) — see the
 
 ---
 
+## Model selection + capability gating (done 2026-07-04)
+
+Closed the Phase 6 "Model selection and capability gating" item (plan 10). A curated
+catalog of recommended text + vision models, surfaced in Settings and the wizard, plus a
+uniform way for UI features to detect "the model this needs isn't installed" and link to
+the fix.
+
+- **`yuu_clip/model_catalog.py`** (pattern: `export_presets.py`): a frozen `ModelEntry`
+  dataclass + static `CATALOG` tuple + helpers (`recommended_models`, `text_models`,
+  `vision_models`, `catalog_for_backend`, `model_by_id`). Each entry records id, display
+  name, kinds (`text`/`vision`), licence, one-line "why", backends, size, and the backend
+  path (ollama tag / GGUF url + mmproj url / Claude api id). **Licence policy is enforced by
+  a test**: every *recommended* entry must permit monetized output
+  (`MONETIZATION_OK_LICENCES` = Apache-2.0 / MIT / BSD-3 / Anthropic commercial). Licences
+  web-verified against the HF model cards at implementation time (Qwen2.5-7B & VL-7B,
+  Mistral-7B-v0.3, moondream2, SmolVLM2 = Apache-2.0; Phi-4 = MIT). **Llama 3.1 and Gemma 3
+  are recorded as rejected** (`recommended=False` + `rejected_reason`) so the next session
+  doesn't re-litigate — they stay out of the pickers but still work if configured by hand.
+- **Deviation from the plan (flagged):** the plan's `kind` (singular `text`/`vision`) is a
+  `kinds: frozenset` instead, because Claude models are multimodal and belong in *both*
+  `text_models()` and `vision_models()`; local models carry a single kind.
+- **Routes** (`web/routes/llm.py`): `GET /api/llm/capabilities` →
+  `{backend, model, text, vision, detail}` (cheap static check — file-exists for llamacpp,
+  model-name for ollama, key-present for claude; no test inference). `GET /api/llm/catalog`
+  → recommended entries. `POST /api/llm/ollama/pull?tag=` streams `ollama pull` via
+  `subprocess_sse`, **allowlisted to catalog tags** (the tag is a subprocess arg).
+- **New config field** `llm_mmproj_path` (config-only, no migration): the vision-projector
+  `.gguf` that enables image analysis on the local llamacpp backend — makes the capabilities
+  endpoint's llamacpp `vision` flag meaningful and gives plan 11 its config seam.
+- **Settings UI** (`settings.js` + `index.html`): the Claude model dropdown is now
+  catalog-driven (fixes a stale `claude-sonnet-4-6` option → Haiku 4.5 / Sonnet 5 / Opus
+  4.8); per-backend "recommended models" lists (Ollama: **Use this model** + one-click
+  **Pull with Ollama**; llamacpp: download-page links + mmproj input); a **Model readiness**
+  line (text ✓/○ · image ✓/○ + reason). New shared `gateOnCapability(el, "vision", message)`
+  helper disables a control and appends a linked explanation when the capability is missing —
+  the pattern plan 11's image-analysis controls consume.
+- **Wizard** (`setup.html`): Claude dropdown refreshed to current models; the recommended
+  `.gguf` download changed from Llama 3.2 (licence-excluded) to **Qwen2.5 7B (Apache-2.0)**.
+- **Docs:** GLOSSARY "Recommended models" + "Model readiness" (dev + in-app glossary.md);
+  FEATURES.md monetization-licence section.
+- **Tests:** `test_model_catalog.py` (catalog integrity + licence policy), `test_llm.py`
+  (capabilities per backend/config permutation + pull-guard), `test_ui_model_catalog.py`
+  (catalog-driven dropdown/lists + `gateOnCapability` via route-mocked capabilities). 1688
+  api / 629 ui pass; updated the wizard UI test's Llama→Qwen2.5 assertion.
+
+---
+
 ## Transcript name correction (done 2026-07-04)
 
 Closed the Phase 6 "Transcript name correction" item (plan 09) — Whisper mis-hears

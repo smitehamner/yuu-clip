@@ -404,6 +404,7 @@ class Config:
     # LOCAL backends — inference runs on your machine, no API costs
     llm_backend: str = "llamacpp"    # "llamacpp" | "ollama" | "claude"
     llm_model_path: str = ""         # path to .gguf file; required when backend is llamacpp
+    llm_mmproj_path: str = ""        # path to the vision projector .gguf; enables vision on llamacpp
 
     ollama_host: str = "http://localhost:11434"
     ollama_model: str = "llama3.2"

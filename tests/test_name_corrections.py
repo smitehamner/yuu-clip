@@ -7,7 +7,6 @@ TestClient, including span-drift handling and the caption-edit bookkeeping.
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -160,6 +159,7 @@ def _project_with_transcript(tmp_path: Path, texts_and_speakers, *, context=None
 class TestScanRoute:
     def test_scan_groups_by_pattern(self, tmp_path: Path):
         from fastapi.testclient import TestClient
+
         from yuu_clip.web.app import create_app
 
         project = _project_with_transcript(tmp_path, [
@@ -179,6 +179,7 @@ class TestScanRoute:
 
     def test_scan_lexicon_includes_context_characters(self, tmp_path: Path):
         from fastapi.testclient import TestClient
+
         from yuu_clip.web.app import create_app
 
         project = _project_with_transcript(tmp_path, [("hello world", 2)], context=True)
@@ -192,6 +193,7 @@ class TestScanRoute:
 class TestApplyRoute:
     def test_apply_updates_text_and_stamps_edited(self, tmp_path: Path):
         from fastapi.testclient import TestClient
+
         from yuu_clip.web.app import create_app
 
         project = _project_with_transcript(tmp_path, [("You were amazing", 2)])
@@ -222,6 +224,7 @@ class TestApplyRoute:
 
     def test_apply_reports_drift_per_item(self, tmp_path: Path):
         from fastapi.testclient import TestClient
+
         from yuu_clip.web.app import create_app
 
         project = _project_with_transcript(tmp_path, [("You were amazing", 2)])
@@ -241,6 +244,7 @@ class TestApplyRoute:
 
     def test_apply_scan_apply_is_idempotent_second_time_finds_nothing(self, tmp_path: Path):
         from fastapi.testclient import TestClient
+
         from yuu_clip.web.app import create_app
 
         project = _project_with_transcript(tmp_path, [("You were amazing", 2)])

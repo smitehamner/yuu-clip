@@ -627,6 +627,25 @@ Scoring and description generation performed by a local language model that read
 
 ---
 
+### Recommended models
+
+The curated list of text and vision models yuu-clip suggests for the LLM backend, shown in Settings → LLM scoring and the setup wizard. Every recommended model carries a licence that permits monetizing the clips it helps produce (Apache-2.0 / MIT for local models; the Anthropic API's commercial terms for Claude). Llama- and Gemma-licensed models are excluded from the list because their terms impose use restrictions — they still work if configured by hand.
+
+- **Code:** `yuu_clip/model_catalog.py` (`ModelEntry`, `recommended_models()`, `text_models()`, `vision_models()`, `catalog_for_backend()`); route `GET /api/llm/catalog`
+- **Also called in codebase:** "model catalog"
+- **Notes:** A static, hand-maintained list (pattern: `export_presets.py`), not a live registry. Licences are re-verified against the model cards when the list changes.
+
+---
+
+### Model readiness
+
+The at-a-glance indicator in Settings → LLM scoring showing whether the active model can score **text** and analyze **images** right now, with a plain-English reason. Backs the rule that a control needing a capability the model lacks explains why and links to the fix rather than silently disabling itself.
+
+- **Code:** route `GET /api/llm/capabilities` → `{backend, model, text, vision, detail}`; `gateOnCapability()` in `settings.js`
+- **Notes:** A cheap static check (file exists / model set / API key set) — no test inference call. Vision on the local `llamacpp` backend needs a **vision projector** file (`llm_mmproj_path`, an mmproj `.gguf`) in addition to the model file.
+
+---
+
 ### Audio Energy Scoring
 
 Scoring based on how loud and active the audio was during a clip window.

@@ -245,16 +245,16 @@ footer {
         <div class="desc" style="margin:8px 0 2px"><strong style="color:#8888aa">Step 2 — download a model file (.gguf)</strong></div>
         <div class="desc">
           A <code>.gguf</code> file is the AI model itself. Recommended:
-          <strong>Llama 3.2 3B Instruct</strong> — on the download page pick the file named
-          <code>Llama-3.2-3B-Instruct-Q4_K_M.gguf</code> (~2 GB), a good balance of quality
-          and speed. Save it somewhere permanent, then choose it below.
+          <strong>Qwen2.5 7B Instruct</strong> (Apache-2.0, so clips you make can be
+          monetized) — on the download page pick a <code>Q4_K_M.gguf</code> file (~4.7 GB),
+          a good balance of quality and speed. Save it somewhere permanent, then choose it below.
         </div>
         <div class="action">
-          <button class="sm" onclick="api.openURL('https://huggingface.co/bartowski/Llama-3.2-3B-Instruct-GGUF/tree/main')">Open download page</button>
+          <button class="sm" onclick="api.openURL('https://huggingface.co/bartowski/Qwen2.5-7B-Instruct-GGUF/tree/main')">Open download page</button>
         </div>
         <div class="cfg-row" style="margin-top:8px">
           <span class="cfg-label">Model file (.gguf)</span>
-          <input type="text" id="llm-model-path" placeholder="C:\models\Llama-3.2-3B-Instruct-Q4_K_M.gguf">
+          <input type="text" id="llm-model-path" placeholder="C:\models\Qwen2.5-7B-Instruct-Q4_K_M.gguf">
           <button class="sm" id="llm-browse-btn">Browse…</button>
         </div>
         <div id="llm-warn" style="display:none" class="inline-warn">
@@ -277,8 +277,9 @@ footer {
         <div class="cfg-row">
           <span class="cfg-label">Model</span>
           <select id="claude-model-sel">
-            <option value="claude-haiku-4-5-20251001">claude-haiku-4-5 (fast, cheap)</option>
-            <option value="claude-sonnet-4-6">claude-sonnet-4-6 (smarter)</option>
+            <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5 (fast, cheap)</option>
+            <option value="claude-sonnet-5">Claude Sonnet 5 (smarter)</option>
+            <option value="claude-opus-4-8">Claude Opus 4.8 (most capable)</option>
           </select>
         </div>
       </div>

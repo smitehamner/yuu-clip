@@ -168,10 +168,13 @@ Complex, specialized, or AI-heavy features that are valuable but don't need to b
   separately downloadable vision model (permissive licence required — clips may be monetized by
   users). Configurable: on/off toggle, frames-per-clip frequency.
 
-- [ ] **Model selection and capability gating** — research and recommend text LLM models that are
-  better-tuned for clip description/scoring and carry permissive licences suitable for monetized
-  content. Similarly for the vision model (see image-based analysis above). Disabled UI options
-  should detect whether the required model is installed and link to the wizard if not.
+- [x] **Model selection and capability gating** — shipped 2026-07-04 (plan 10): curated
+  `model_catalog.py` of recommended text + vision models, all under monetization-safe licences
+  (Apache-2.0 / MIT / Anthropic commercial; Llama & Gemma recorded as rejected). Surfaced in
+  Settings and the wizard (recommended lists, one-click Ollama pull, download links, catalog-driven
+  Claude dropdown). `GET /api/llm/capabilities` + the `gateOnCapability()` helper let a control show
+  *why* it's disabled and link to Settings rather than failing silently (used by plan 11's vision
+  controls). Local-vision needs a vision-projector `.gguf` (`llm_mmproj_path`).
 
 ### Transcript and speaker features
 

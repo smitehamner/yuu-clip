@@ -334,6 +334,12 @@ LLM scoring speed depends entirely on your LLM backend and model. Rough estimate
 
 A larger or slower Ollama model multiplies these times proportionally. Running Ollama on the same GPU as Whisper is fine — they run sequentially, not simultaneously.
 
+#### Recommended models and readiness
+
+Settings → LLM scoring lists a curated set of **recommended models** for each backend. Every recommended model is licensed so that clips you make with it can be monetized — Apache-2.0 or MIT for local models (Ollama / llama.cpp), and the Anthropic API's commercial terms for Claude. Models under Meta's Llama licence or Google's Gemma terms are deliberately **left out** of the recommendations because their use restrictions would need a case-by-case legal reading; they still work if you configure them by hand.
+
+For Ollama, each recommended model has a one-click **Pull** button and a **Use this model** button. For a local `.gguf` file, you get a link to the model's download page. A **Model readiness** line shows whether the model you've set up can score **text** and analyze **images** right now, and explains what's missing if not (for example, a Claude API key, or — for the local llama.cpp backend — a separate *vision projector* `.gguf` file, which is what enables image analysis).
+
 ### Laughs score
 
 A separate 0–1 measure of laughter density, produced by the laughter detector (transcript,

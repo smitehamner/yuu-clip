@@ -130,6 +130,12 @@ The three things each clip is rated on:
 ### LLM scoring
 Extra scoring and description writing done by a local language model that reads the clip's transcript. Optional — it improves clip quality but analysis still works without it.
 
+### Recommended models
+The curated list of models yuu-clip suggests under Settings → LLM scoring. Every one is licensed so the clips you make with it can be monetized (models with restrictive terms are left out). For Ollama you can pull a model in one click; for a local model file you get a link to its download page.
+
+### Model readiness
+The line under Settings → LLM scoring showing whether the model you've set up can score **text** and analyze **images** right now, plus a plain-English reason if something's missing (for example, a Claude API key or a vision projector file).
+
 ### Hot-word
 A phrase you define that nudges a clip's score when it's spoken in the clip — for example, boosting Funny whenever a running gag's catchphrase comes up. Set up hot-words in Settings: pick a match mode (**Exact**, **Ignore case**, or **Meaning (LLM)**), a boost amount, and which score it affects. Exact/Ignore-case matches apply automatically; **Meaning (LLM)** entries need you to press **Scan** on a recording. Saying a phrase twice in one clip only counts once.
 

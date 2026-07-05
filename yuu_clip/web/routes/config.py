@@ -24,6 +24,7 @@ class ConfigPatch(BaseModel):
     # LLM backend
     llm_backend:                  Optional[str]   = None
     llm_model_path:               Optional[str]   = None
+    llm_mmproj_path:              Optional[str]   = None
     # Ollama (local)
     ollama_host:                  Optional[str]   = None
     ollama_model:                 Optional[str]   = None
@@ -73,7 +74,7 @@ class ConfigPatch(BaseModel):
 _CONFIG_FIELDS = (
     "ui_timeline_interval_seconds", "ui_timeline_interval_unit",
     "whisper_model", "whisper_device", "whisper_compute_type", "whisper_language",
-    "llm_backend", "llm_model_path",
+    "llm_backend", "llm_model_path", "llm_mmproj_path",
     "ollama_host", "ollama_model", "ollama_timeout_s", "ollama_enabled",
     "claude_api_key", "claude_model", "claude_timeout_s",
     "scorer_energy_weight", "scorer_scene_weight", "scorer_llm_weight",
@@ -183,6 +184,7 @@ _CONFIG_PATCH_RULES: list[tuple[str, object]] = [
     ("whisper_language",             _whisper_language_validator),
     ("llm_backend",                  _enum_validator({"llamacpp", "ollama", "claude"}, "llm_backend")),
     ("llm_model_path",               lambda v: v),
+    ("llm_mmproj_path",              lambda v: v),
     ("ollama_host",                  lambda v: v.strip()),
     ("ollama_model",                 lambda v: v.strip()),
     ("ollama_timeout_s",             _min_validator(1,    "ollama_timeout_s")),

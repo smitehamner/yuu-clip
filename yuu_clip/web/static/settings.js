@@ -2,7 +2,7 @@
 // ── settings panel ────────────────────────────────────────────────────────────
 const _settingsFieldIds = [
   's-whisper-model','s-whisper-device','s-whisper-compute','s-whisper-language',
-  's-ollama-enabled','s-llm-backend','s-llm-model-path',
+  's-ollama-enabled','s-llm-backend','s-llm-model-path','s-llm-mmproj-path',
   's-ollama-model','s-ollama-host','s-ollama-timeout',
   's-claude-api-key','s-claude-model','s-claude-timeout',
   's-diarization-backend','s-hf-token','s-speaker-match-threshold',
@@ -75,6 +75,9 @@ async function openSettings() {
   try {
     const cfg = await fetch('/api/config').then(r => r.json());
     await _ensureWhisperLanguageOptions();
+    // Populate catalog-driven pickers before _applySettingsToUI so the saved
+    // claude_model matches a rendered option rather than falling to option 0.
+    await _ensureModelCatalog();
     // Sound rows must be rendered (from saved state) before _applySettingsToUI
     // runs the dirty check, or a discarded prior edit would re-enable Save.
     await initSoundSettings();
@@ -171,13 +174,15 @@ function _applySettingsToUI(cfg) {
   setVal('s-llm-backend',    backend);
   _onLlmBackendChange(backend);
   setVal('s-llm-model-path', cfg.llm_model_path  || '');
+  setVal('s-llm-mmproj-path', cfg.llm_mmproj_path || '');
   setVal('s-ollama-model',   cfg.ollama_model    || '');
   setVal('s-ollama-host',    cfg.ollama_host     || '');
   setVal('s-ollama-timeout', cfg.ollama_timeout_s|| 120);
   setVal('s-claude-api-key', cfg.claude_api_key  || '');
-  setVal('s-claude-model',   cfg.claude_model    || 'claude-haiku-4-5-20251001');
+  _setClaudeModelValue(cfg.claude_model || 'claude-haiku-4-5-20251001');
   setVal('s-claude-timeout', cfg.claude_timeout_s ?? 30);
   _updateLlmRemoteIndicator(cfg.llm_backend || 'llamacpp', cfg.ollama_enabled !== false);
+  _updateLlmCapabilities();
   const diarBackend = cfg.diarization_backend || 'null';
   setVal('s-diarization-backend', diarBackend);
   _onDiarizationBackendChange(diarBackend);
@@ -543,6 +548,170 @@ function _updateLlmRemoteIndicator(backend, llmEnabled) {
   if (badge) badge.style.display = (llmEnabled && backend === 'claude') ? '' : 'none';
 }
 
+// ── model catalog (recommended text + vision models) ────────────────────────
+// Loaded once per session. Fills the Claude model dropdown and the per-backend
+// recommended lists; the capabilities line reflects the *saved* active model.
+let _modelCatalog = null;
+
+async function _ensureModelCatalog() {
+  if (_modelCatalog) return;
+  try {
+    const data = await fetch('/api/llm/catalog').then(r => r.json());
+    _modelCatalog = data.models || [];
+  } catch { _modelCatalog = []; return; }
+  _populateClaudeModelSelect();
+  _renderRecommendedModels('s-llamacpp-recommended', 'llamacpp');
+  _renderRecommendedModels('s-ollama-recommended', 'ollama');
+}
+
+function _populateClaudeModelSelect() {
+  const sel = document.getElementById('s-claude-model');
+  if (!sel || !_modelCatalog) return;
+  const claude = _modelCatalog.filter(m => m.backends.includes('claude') && m.api_model_id);
+  if (!claude.length) return;  // keep the HTML fallback options on empty catalog
+  sel.innerHTML = claude.map(m =>
+    `<option value="${escHtml(m.api_model_id)}">${escHtml(m.display_name)}</option>`
+  ).join('');
+}
+
+// Show *value* even when it isn't a catalog option (a legacy or manually-typed
+// model id) so opening Settings never silently rewrites the saved model.
+function _setClaudeModelValue(value) {
+  const sel = document.getElementById('s-claude-model');
+  if (!sel) return;
+  if (!Array.from(sel.options).some(o => o.value === value)) {
+    const opt = document.createElement('option');
+    opt.value = value;
+    opt.textContent = value + ' (configured)';
+    sel.insertBefore(opt, sel.firstChild);
+  }
+  sel.value = value;
+}
+
+function _renderRecommendedModels(containerId, backend) {
+  const el = document.getElementById(containerId);
+  if (!el || !_modelCatalog) return;
+  const models = _modelCatalog.filter(m => m.backends.includes(backend));
+  if (!models.length) { el.innerHTML = ''; return; }
+  const label = backend === 'ollama'
+    ? 'Recommended models — pull one, then set it as the model above.'
+    : 'Recommended models — download a .gguf, then point the paths above at it.';
+  el.innerHTML =
+    `<div class="settings-note" style="margin-bottom:2px">${label}</div>` +
+    models.map(m => _recModelHtml(m, backend)).join('');
+  el.querySelectorAll('.rec-model').forEach(card => {
+    const tag = card.getAttribute('data-tag');
+    card.querySelector('[data-act="use"]')?.addEventListener('click', () => _useOllamaModel(tag));
+    card.querySelector('[data-act="pull"]')?.addEventListener('click', () => pullOllamaModel(tag));
+  });
+}
+
+function _recModelHtml(m, backend) {
+  const meta = [
+    m.size_gb ? `~${m.size_gb} GB` : null,
+    m.licence,
+    m.kinds.includes('vision') ? 'vision' : 'text',
+  ].filter(Boolean).join(' · ');
+  let actions = '';
+  if (backend === 'ollama' && m.ollama_tag) {
+    actions =
+      `<button type="button" class="btn-secondary" data-act="use">Use this model</button>` +
+      `<button type="button" class="btn-secondary" data-act="pull">Pull with Ollama</button>` +
+      `<code class="rec-model-meta">${escHtml(m.ollama_tag)}</code>`;
+  } else if (backend === 'llamacpp' && m.gguf_url) {
+    const proj = (m.mmproj_url && m.mmproj_url !== m.gguf_url)
+      ? ` · <a href="${escHtml(m.mmproj_url)}" target="_blank" rel="noopener">vision projector</a>` : '';
+    actions = `<a href="${escHtml(m.gguf_url)}" target="_blank" rel="noopener">Download page</a>${proj}`;
+  }
+  return (
+    `<div class="rec-model" data-tag="${escHtml(m.ollama_tag || '')}">` +
+      `<div class="rec-model-head"><span class="rec-model-name">${escHtml(m.display_name)}</span>` +
+      `<span class="rec-model-meta">${escHtml(meta)}</span></div>` +
+      `<div class="rec-model-why">${escHtml(m.why)}</div>` +
+      `<div class="rec-model-actions">${actions}</div>` +
+    `</div>`
+  );
+}
+
+function _useOllamaModel(tag) {
+  const el = document.getElementById('s-ollama-model');
+  if (!el) return;
+  el.value = tag;
+  _checkSettingsDirty();
+}
+
+async function pullOllamaModel(tag) {
+  const log = document.getElementById('ollama-pull-log');
+  if (!log) return;
+  log.style.display = 'block';
+  log.textContent = `Pulling ${tag} — this can take several minutes…\n`;
+  try {
+    const resp = await fetch(`/api/llm/ollama/pull?tag=${encodeURIComponent(tag)}`, { method: 'POST' });
+    if (!resp.ok) throw new Error(await resp.text());
+    const reader = resp.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      const lines = buf.split('\n');
+      buf = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const msg = JSON.parse(line.slice(6));
+        if (msg === '__DONE__') { log.textContent += '✓ Done — set it as the model above and Save.\n'; return; }
+        log.textContent += msg + '\n';
+        log.scrollTop = log.scrollHeight;
+      }
+    }
+  } catch {
+    log.textContent += '✗ Pull failed — is Ollama installed and running?\n';
+  }
+}
+
+// Readiness of the *saved* active model. Reflects config on disk, not unsaved
+// edits — refreshed on open and after Save.
+async function _updateLlmCapabilities() {
+  const el = document.getElementById('s-llm-capabilities');
+  if (!el) return;
+  let cap;
+  try {
+    cap = await fetch('/api/llm/capabilities').then(r => r.json());
+  } catch { el.textContent = 'Could not check model readiness.'; return; }
+  const mark = ok => ok ? '✓' : '○';
+  el.innerHTML =
+    `<span style="margin-right:14px">${mark(cap.text)} Text scoring</span>` +
+    `<span>${mark(cap.vision)} Image analysis</span>` +
+    `<div class="settings-note" style="margin-top:4px">${escHtml(cap.detail || '')}</div>`;
+  el.style.color = cap.text ? 'var(--green, #22c55e)' : 'var(--muted)';
+}
+
+// Gate a control on a model capability ("text" | "vision") from
+// /api/llm/capabilities. Disables the element and appends a linked explanation
+// when the capability is unavailable; used by image-analysis controls (plan 11).
+// Returns the resolved capabilities object.
+async function gateOnCapability(el, capability, message) {
+  let cap;
+  try {
+    cap = await fetch('/api/llm/capabilities').then(r => r.json());
+  } catch { cap = { text: false, vision: false, detail: '' }; }
+  const ok = !!cap[capability];
+  el.disabled = !ok;
+  let note = el.parentElement?.querySelector('.gate-note');
+  if (!ok) {
+    if (!note) {
+      note = document.createElement('div');
+      note.className = 'gate-note';
+      el.parentElement?.appendChild(note);
+    }
+    note.innerHTML = `${escHtml(message)} <a href="#" onclick="openSettings();return false">Open Settings</a>`;
+  } else if (note) {
+    note.remove();
+  }
+  return cap;
+}
+
 // Blank caption size means "renderer default", stored as 0. A non-numeric entry
 // also collapses to 0 so the PATCH never sends NaN.
 function _captionSizeValue(raw) {
@@ -573,6 +742,7 @@ async function saveSettings() {
     ollama_enabled:             getChk('s-ollama-enabled'),
     llm_backend:                getVal('s-llm-backend'),
     llm_model_path:             getVal('s-llm-model-path'),
+    llm_mmproj_path:            getVal('s-llm-mmproj-path'),
     ollama_model:               getVal('s-ollama-model'),
     ollama_host:                getVal('s-ollama-host'),
     ollama_timeout_s:           getNum('s-ollama-timeout', parseFloat),
@@ -633,6 +803,7 @@ async function saveSettings() {
     _checkSettingsDirty();
     if (btn) btn.textContent = 'Save';
     _updateLlmRemoteIndicator(payload.llm_backend || 'llamacpp', payload.ollama_enabled !== false);
+    _updateLlmCapabilities();
   } catch {
     showToast('Settings save failed', 'error');
     if (btn) { btn.disabled = false; btn.textContent = 'Save'; }
@@ -970,6 +1141,6 @@ Object.assign(window, {
   _onPlayNextChange, _onLoopClipChange, _updateExportNameTemplatePreview,
   _toggleSecretVisibility, _onHfTokenInput, _updateDiarizationStatus,
   _updateLlmRemoteIndicator, _scrollToSettingsSection, _resetScoringWeights,
-  _updateTitleCardPreview,
+  _updateTitleCardPreview, gateOnCapability, pullOllamaModel,
 });
 })();
