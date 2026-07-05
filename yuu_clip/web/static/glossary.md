@@ -127,6 +127,9 @@ The three things each clip is rated on:
 - **Dramatic** — tense or emotional moments
 - **Action** — fast, loud, high-activity moments
 
+### Content type
+A one-click way to tune scoring for the kind of content you make — RP / narrative, Competitive gaming, Casual / let's play, Speedrun, Podcast / conversation, or the Generic default. Pick one at the top of Settings → Scoring weights and press **Apply**: it sets the Funny / Dramatic / Action / Laughs weights to sensible values, optionally adds a few starter hot-words, and points the language model at what makes a good highlight for that style. You can fine-tune every weight afterwards. Generic is the plain default — applying it changes nothing.
+
 ### LLM scoring
 Extra scoring and description writing done by a local language model that reads the clip's transcript. Optional — it improves clip quality but analysis still works without it.
 

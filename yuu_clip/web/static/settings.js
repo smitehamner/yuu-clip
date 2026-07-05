@@ -85,6 +85,7 @@ async function openSettings() {
     await initHotwordSettings();
     await initSensitiveTermSettings();
     await initExportPresetSettings();
+    await initContentPresetSettings();
     _applySettingsToUI(cfg);
     setTimeout(() => document.getElementById('s-whisper-model')?.focus(), 50);
   } catch (e) {
@@ -550,6 +551,108 @@ async function installPackage(slug) {
 function _updateLlmRemoteIndicator(backend, llmEnabled) {
   const badge = document.getElementById('llm-remote-badge');
   if (badge) badge.style.display = (llmEnabled && backend === 'claude') ? '' : 'none';
+}
+
+// ── content-type presets (plan 12) ──────────────────────────────────────────
+// A one-choice tuning applied on top of the weight sliders. Unlike the sliders
+// (batched into Save), Apply is its own atomic server-side action: it copies the
+// preset's dimension + laugh weights into config and, opt-in, inserts starter
+// hot-words. The selected preset drives the LLM prompt flavor live server-side.
+let _contentPresets = null;
+let _activeContentPresetId = 'generic';
+
+async function initContentPresetSettings() {
+  const sel = document.getElementById('s-content-preset');
+  if (!sel) return;
+  try {
+    const data = await fetch('/api/content-presets').then(r => r.json());
+    _contentPresets = data.presets || [];
+    _activeContentPresetId = data.active || 'generic';
+    sel.innerHTML = _contentPresets.map(p =>
+      `<option value="${escHtml(p.id)}">${escHtml(p.name)}</option>`).join('');
+    sel.value = _activeContentPresetId;
+  } catch { _contentPresets = []; }
+  _renderContentPresetInfo();
+}
+
+function _renderContentPresetInfo() {
+  const sel = document.getElementById('s-content-preset');
+  const chosen = (_contentPresets || []).find(p => p.id === sel?.value);
+  const active = (_contentPresets || []).find(p => p.id === _activeContentPresetId);
+  const descEl = document.getElementById('s-content-preset-desc');
+  const activeEl = document.getElementById('s-content-preset-active');
+  if (descEl) descEl.textContent = chosen ? chosen.description : '';
+  if (activeEl) activeEl.textContent = active ? `Currently active: ${active.name}` : '';
+}
+
+function _onContentPresetChange() { _renderContentPresetInfo(); }
+
+async function applyContentPreset() {
+  const sel = document.getElementById('s-content-preset');
+  const chosen = (_contentPresets || []).find(p => p.id === sel?.value);
+  if (!chosen) return;
+  const addHotwords = document.getElementById('s-content-preset-hotwords')?.checked ?? true;
+  const w = chosen.dimension_weights || {};
+  const weightLine =
+    `Funny ${(w.score_funny_weight ?? 1).toFixed(1)}, ` +
+    `Dramatic ${(w.score_dramatic_weight ?? 1).toFixed(1)}, ` +
+    `Action ${(w.score_action_weight ?? 1).toFixed(1)}, ` +
+    `Laughs ${(chosen.laugh_weight ?? 1.5).toFixed(1)}`;
+  const hotwordLine = (addHotwords && chosen.hotword_count)
+    ? ` and adds up to ${plural(chosen.hotword_count, 'starter hot-word')} (existing hot-words are kept)`
+    : '';
+  showConfirm(
+    `Apply "${chosen.name}"?`,
+    `Sets scoring weights to ${weightLine}${hotwordLine}. You can fine-tune everything below afterwards.`,
+    'Apply',
+    () => _doApplyContentPreset(chosen.id, addHotwords),
+  );
+}
+
+async function _doApplyContentPreset(id, addHotwords) {
+  let res;
+  try {
+    res = await fetch('/api/content-presets/apply', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({id, add_hotwords: addHotwords}),
+    });
+  } catch { showToast('Could not apply content type', 'error'); return; }
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({}));
+    showToast(formatApiError(e) || 'Could not apply content type', 'error');
+    return;
+  }
+  const body = await res.json();
+  _activeContentPresetId = body.applied;
+  _applyPresetWeightsToUI(body.weights);
+  if (addHotwords && body.hotwords_added) await initHotwordSettings();
+  _renderContentPresetInfo();
+  const added = body.hotwords_added ? ` · ${plural(body.hotwords_added, 'hot-word')} added` : '';
+  showToast(`Applied content type${added} — re-score to apply the new weighting`, 'success');
+}
+
+// The preset already persisted these weights server-side, so rebaseline the
+// settings snapshot for the weight fields — otherwise the panel's dirty check
+// would flag them and prompt a redundant "discard changes?" on close.
+function _applyPresetWeightsToUI(weights) {
+  if (!weights) return;
+  const map = {
+    score_funny_weight: 's-funny-weight',
+    score_dramatic_weight: 's-dramatic-weight',
+    score_action_weight: 's-action-weight',
+    scorer_laugh_weight: 's-laugh-weight',
+  };
+  for (const [key, id] of Object.entries(map)) {
+    if (weights[key] == null) continue;
+    const el = document.getElementById(id);
+    const valEl = document.getElementById(`${id}-val`);
+    const v = Number(weights[key]).toFixed(1);
+    if (valEl) valEl.textContent = v;
+    // Baseline from the element's own read-back, not `v`: a range input
+    // normalizes "1.0" to "1", so storing `v` would falsely read as dirty.
+    if (el) { el.value = v; _settingsOriginal[id] = el.value; }
+  }
+  _checkSettingsDirty();
 }
 
 // ── model catalog (recommended text + vision models) ────────────────────────
@@ -1149,5 +1252,6 @@ Object.assign(window, {
   _toggleSecretVisibility, _onHfTokenInput, _updateDiarizationStatus,
   _updateLlmRemoteIndicator, _scrollToSettingsSection, _resetScoringWeights,
   _updateTitleCardPreview, gateOnCapability, pullOllamaModel,
+  applyContentPreset, _onContentPresetChange,
 });
 })();

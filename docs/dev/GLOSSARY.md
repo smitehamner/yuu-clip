@@ -544,6 +544,16 @@ One axis of evaluation: Funny, Dramatic, or Action.
 
 ---
 
+### Content type
+
+A one-choice tuning preset for the kind of content you make — RP / narrative, Competitive gaming, Casual / let's play, Speedrun, Podcast / conversation, or the Generic default. Applying one copies recommended scoring weights and offers to add starter hot-words, and steers the LLM's scoring, summary, and timeline prompts toward that style.
+
+- **Code:** `content_preset` (Config field — the applied preset's id); `yuu_clip/content_presets.py`; `POST /api/content-presets/apply`
+- **UI label:** "Content type" (Settings → Scoring weights)
+- **Notes:** Weights are *copied* on apply (you tune them afterwards); the prompt flavor paragraph is read *live* from the active preset at scoring time, so flavor text can improve in updates without a re-apply. Selecting Generic is a true no-op relative to the defaults. Built-in only — no user-defined content presets in v1.
+
+---
+
 ### Laughs
 
 A 0–1 measure of laughter density in a clip, shown as its own score independent of the Funny dimension.

@@ -32,6 +32,26 @@ def _prepend_context(system_prompt: str, context_text: str) -> str:
     return (context_text + "\n\n" + system_prompt) if context_text else system_prompt
 
 
+def _active_flavor(config: "Config") -> str:
+    """The active content preset's flavor paragraph (plan 12), '' for generic.
+
+    Read live at prompt-assembly time — the applied preset only stores its id in
+    Config.content_preset; the flavor text itself lives in content_presets.py so it
+    stays improvable in updates without re-applying a preset.
+    """
+    from yuu_clip.content_presets import preset_flavor
+    return preset_flavor(getattr(config, "content_preset", "generic"))
+
+
+def _compose_system(base_prompt: str, context_text: str, config: "Config") -> str:
+    """Assemble a system prompt as world contexts → preset flavor → base prompt.
+
+    Contexts stay outermost (they're the most specific knowledge), then the
+    content-type flavor, then the base task instructions.
+    """
+    return _prepend_context(_prepend_context(base_prompt, _active_flavor(config)), context_text)
+
+
 # Some models wrap JSON in a markdown fence despite being told not to.
 _JSON_FENCE_RE = re.compile(r"^```(?:json)?\s*\n?(.*?)\n?```$", re.DOTALL)
 
@@ -106,8 +126,8 @@ _VIDEO_SUMMARY_SYSTEM = """\
 You summarize video session recordings for a clip extraction tool.
 Given a session transcript (or excerpt), return JSON with exactly two keys:
   "title":   a 5-8 word headline capturing the session's defining moment or theme
-  "summary": a 3-5 sentence paragraph describing what happened — key story beats,
-             memorable moments, funny incidents, who was involved.
+  "summary": a 3-5 sentence paragraph describing what happened — the key moments and
+             turning points, memorable or funny incidents, and who was involved.
 Return ONLY valid JSON. No markdown, no extra text.\
 """
 
@@ -118,7 +138,7 @@ You are given the per-recording titles and summaries of every recording in the
 session, in order. Return JSON with exactly two keys:
   "title":   a 5-8 word headline capturing the whole session's arc or defining theme
   "summary": a 3-5 sentence paragraph describing the session across all recordings —
-             the overall story, how it developed, standout moments, who was involved.
+             how it developed, standout moments, and who was involved.
 Treat the recordings as one continuous session, not separate videos.
 Return ONLY valid JSON. No markdown, no extra text.\
 """
@@ -137,7 +157,7 @@ def summarize_session(
         for i, (title, summary) in enumerate(members, 1)
         if (title or summary)
     )
-    system = _prepend_context(_SESSION_SUMMARY_SYSTEM, context_text)
+    system = _compose_system(_SESSION_SUMMARY_SYSTEM, context_text, config)
     messages = [
         {"role": "system", "content": system},
         {"role": "user",   "content": f"Recordings:\n\"\"\"\n{blocks[:12000]}\n\"\"\"\nJSON:"},
@@ -157,7 +177,7 @@ def summarize_transcript(text: str, config: "Config", context_text: str = "") ->
     Returns (title, summary). Raises on failure.
     """
     excerpt = text[:12000]
-    system = _prepend_context(_VIDEO_SUMMARY_SYSTEM, context_text)
+    system = _compose_system(_VIDEO_SUMMARY_SYSTEM, context_text, config)
     messages = [
         {"role": "system", "content": system},
         {"role": "user",   "content": f"Transcript:\n\"\"\"\n{excerpt}\n\"\"\"\nJSON:"},
@@ -168,8 +188,8 @@ def summarize_transcript(text: str, config: "Config", context_text: str = "") ->
 
 _TIMELINE_CHUNK_SYSTEM = """\
 You are summarizing a 15-minute segment of a video session recording.
-Write 2-4 sentences describing what happened in this time window: key events, story beats,
-memorable moments, who was involved, and narrative flow. Use names if mentioned in the transcript.
+Write 2-4 sentences describing what happened in this time window: key events, turning points,
+memorable moments, who was involved, and how it flowed. Use names if mentioned in the transcript.
 Be specific and grounded in the transcript. Skip filler phrases like "In this segment."
 Return ONLY the paragraph — no JSON, no headings, no extra formatting.\
 """
@@ -187,7 +207,7 @@ def generate_timeline_chunk(
 
     Truncates transcript to 4 000 chars. Raises on failure.
     """
-    system = _prepend_context(_TIMELINE_CHUNK_SYSTEM, context_text)
+    system = _compose_system(_TIMELINE_CHUNK_SYSTEM, context_text, config)
     clips_ctx = (
         "\n\nNotable clips in this window:\n" + "\n".join(f"- {d}" for d in clip_descriptions)
         if clip_descriptions else ""
@@ -291,7 +311,7 @@ def describe_clip(
     When *vision_summary* is set, a 'Visual context' block is added so descriptions
     reflect what's on screen. Returns (description, description_long). Raises on failure.
     """
-    system = _prepend_context(_SYSTEM_PROMPT, context_text)
+    system = _compose_system(_SYSTEM_PROMPT, context_text, config)
     messages = [
         {"role": "system", "content": system},
         {"role": "user",   "content": _USER_TEMPLATE.format(
@@ -477,7 +497,7 @@ class LLMScorer:
         self, excerpt: str, *, vision_summary: str = "",
         repair_of: str | None = None, repair_error: Exception | None = None,
     ) -> str:
-        system = _prepend_context(_SYSTEM_PROMPT, self._context_text)
+        system = _compose_system(_SYSTEM_PROMPT, self._context_text, self._config)
         messages = [
             {"role": "system", "content": system},
             {"role": "user",   "content": _USER_TEMPLATE.format(

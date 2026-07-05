@@ -356,6 +356,17 @@ than showing a misleading 0%.
 
 Weighted average of the three dimension scores. Default weight: equal. Configurable in project config.
 
+### Content-type presets
+
+At the top of Settings → Scoring weights, **Content type** tunes scoring for the kind of content
+you make in one step. Pick one — **RP / narrative**, **Competitive gaming**, **Casual / let's
+play**, **Speedrun**, **Podcast / conversation**, or the **Generic** default — and press **Apply**.
+It sets the Funny / Dramatic / Action / Laughs weights to sensible values, optionally adds a few
+starter hot-words for that style, and points the language model at what makes a good highlight for
+it (scoring, descriptions, summaries, and timeline). You can fine-tune every weight afterwards, and
+the confirm dialog spells out exactly what will change before it does. Generic is the plain default,
+so applying it changes nothing.
+
 ### Hot-words
 
 Settings → Hot-words lets you define phrases that nudge a clip's score whenever they're spoken —

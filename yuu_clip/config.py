@@ -362,6 +362,18 @@ def _sanitize_vision_fields(merged: dict) -> None:
             merged["vision_frames_per_clip"] = 4
 
 
+def _sanitize_content_preset_field(merged: dict) -> None:
+    """Guard the load path against a hand-edited config naming an unknown preset."""
+    if "content_preset" in merged:
+        from yuu_clip.content_presets import is_valid_preset_id
+        if not is_valid_preset_id(merged["content_preset"]):
+            _log.warning(
+                "Config: content_preset invalid (%r) — using default 'generic'",
+                merged["content_preset"],
+            )
+            merged["content_preset"] = "generic"
+
+
 def validate_whisper_language(lang: Optional[str]) -> Optional[str]:
     """
     Raise ValueError if *lang* is not a recognised ISO 639-1 code.
@@ -491,6 +503,12 @@ class Config:
     score_dramatic_weight: float = 1.0
     score_action_weight: float = 1.0
 
+    # Content-type preset (plan 12) — records the last-applied preset id. Applying
+    # a preset copies its dimension weights + laugh weight into the fields above;
+    # this field only records which one, so scoring/summary/timeline prompts can read
+    # its flavor paragraph live (see scoring/llm.py). "generic" == today's behavior.
+    content_preset: str = "generic"
+
     ui_timeline_interval_seconds: int = 900
     ui_timeline_interval_unit: str = "minutes"
 
@@ -554,6 +572,7 @@ class Config:
         _sanitize_title_card_fields(merged)
         _sanitize_caption_style_fields(merged)
         _sanitize_vision_fields(merged)
+        _sanitize_content_preset_field(merged)
 
         known = {f for f in cls.__dataclass_fields__}
         unknown = set(merged) - known

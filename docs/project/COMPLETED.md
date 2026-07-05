@@ -6,6 +6,73 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) — see the
 
 ---
 
+## Content-type presets (done 2026-07-05)
+
+Plan 12 (roadmap-close-2026-07). One-choice tuning for different streaming styles so
+non-RP creators get sensible behavior without touching individual settings. Six
+built-in presets — **Generic** (default, a true no-op), **RP / narrative**,
+**Competitive gaming**, **Casual / let's play**, **Speedrun**, and **Podcast /
+conversation** — each bundling recommended scoring weights, an LLM prompt flavor, and
+starter hot-words.
+
+- **`yuu_clip/content_presets.py`**: frozen `ContentPreset` + `HotWordSpec` dataclasses,
+  a static `PRESETS` tuple, and lookup helpers (`all_presets`, `preset_by_id`,
+  `preset_flavor`, `is_valid_preset_id`). Pattern mirrors `export_presets.py` /
+  `model_catalog.py`.
+- **Apply = one-shot copy with confirmation** (`POST /api/content-presets/apply`
+  `{id, add_hotwords}`): copies the preset's dimension weights + laugh weight into
+  config (project-level save), records the id in the new `Config.content_preset` field,
+  and — opt-in (checkbox, default on) — inserts ~5 starter hot-words (case-insensitive,
+  boosts ≤ 0.2), skipping any phrase that already exists so a re-apply is idempotent.
+  Users tune everything afterwards.
+- **Prompt flavor is live, not copied**: `scoring/llm.py::_compose_system(base,
+  context, config)` assembles every content prompt as *world context → preset flavor →
+  base* and is applied at the scoring, describe, video-summary, session-summary, and
+  timeline sites. The flavor text lives in `content_presets.py` and is read from the
+  active preset at call time, so it stays improvable in updates without a re-apply.
+  Summary/timeline base prompts were reworded to be flavor-compatible (no more baked-in
+  "story beats").
+- **Config**: `content_preset: str = "generic"` — load-sanitized (unknown → generic)
+  and PATCH-validated against the preset ids; config-only, no migration.
+- **UI**: a "Content type" card at the top of Settings → Scoring weights — a preset
+  select with one-line descriptions, an "Add starter hot-words" checkbox, an Apply
+  button with a confirm dialog listing exactly what changes, and a "Currently active"
+  line. Applying updates the weight sliders in place and rebaselines the panel's
+  dirty-tracking so it doesn't falsely prompt "discard changes?".
+- **Deviations flagged** (see the plan file): route path is the plural
+  `/api/content-presets*` collection, not the plan's singular `/api/content-preset/apply`;
+  a real UI bug was caught — a range input normalizes `"1.0"`→`"1"` on read-back, so the
+  applied-weight baseline is re-read from the element.
+- Glossary "Content type" (dev + in-app). Tests: `test_content_presets.py`,
+  `test_ui_content_presets.py`, `test_config.py` additions. 1755 API / 639 UI green.
+
+---
+
+## Bundled Python runtime for the Electron installer (done 2026-07-04)
+
+`electron/main.js`'s `findPython()` used to search PATH for a system Python (3.11+),
+which on a machine running Python 3.14 (no cp314 wheel for `llama-cpp-python`) meant
+the "Install llama.cpp" button always failed with a source-build error (no C++
+toolchain). The installer now bundles a pinned CPython 3.12.13
+([python-build-standalone](https://github.com/astral-sh/python-build-standalone))
+so end users never need a system Python at all, and the compiled optional backends
+(llama.cpp, pyannote, CUDA libs) install from prebuilt wheels.
+
+- **`scripts/fetch-python-runtime.ps1`**: downloads the pinned build (SHA256-verified,
+  cached in `build/python-runtime-cache/`), extracts to `build/python-runtime/`.
+  Wired into `build-release.ps1` as a build step.
+- **`electron/package.json`**: new `extraResources` entry ships `build/python-runtime/`
+  as `resources/python/` in the packaged app.
+- **`electron/main.js`**: `findPython()` returns the bundled interpreter directly in
+  packaged builds; dev mode (unpackaged) is unchanged (searches PATH). The "Python not
+  found" dialog only fires in dev mode now; packaged builds show a "damaged install"
+  dialog if the bundled runtime is somehow missing.
+- **`pyproject.toml`**: `requires-python` capped at `<3.14` as a belt-and-suspenders,
+  since `llama-cpp-python` has no cp314 wheel yet.
+- Verified: fetch script downloads + verifies + extracts correctly, the bundled
+  interpreter creates a working venv with pip. **Not yet verified on a clean machine
+  with no system Python** — do that before the next release build.
+
 ## Image-based clip analysis (done 2026-07-04)
 
 Closed the Phase 6 "Image-based clip analysis" item (plan 11). Optional, off-by-default,

@@ -127,6 +127,27 @@ class TestUiConfig:
         r = client.patch("/api/config", json={"ui_timeline_interval_unit": "hours"})
         assert r.status_code == 400
 
+    def test_get_config_includes_content_preset_default(self, client):
+        assert client.get("/api/config").json()["content_preset"] == "generic"
+
+    def test_patch_config_accepts_known_content_preset(self, client):
+        r = client.patch("/api/config", json={"content_preset": "speedrun"})
+        assert r.status_code == 200
+        assert r.json()["content_preset"] == "speedrun"
+
+    def test_patch_config_rejects_unknown_content_preset(self, client):
+        assert client.patch("/api/config", json={"content_preset": "bogus"}).status_code == 400
+
+    def test_load_sanitizes_unknown_content_preset(self, tmp_path, monkeypatch):
+        import json as _json
+
+        from yuu_clip.config import Config
+        monkeypatch.setattr("yuu_clip.config._global_config_dir", lambda: tmp_path / "g")
+        proj = tmp_path / ".yuu-clip"
+        proj.mkdir()
+        (proj / "config.json").write_text(_json.dumps({"content_preset": "nonsense"}), encoding="utf-8")
+        assert Config.load(tmp_path).content_preset == "generic"
+
     def test_get_config_includes_speaker_match_threshold_default(self, client):
         assert client.get("/api/config").json()["speaker_match_threshold"] == 0.75
 

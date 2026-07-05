@@ -47,6 +47,7 @@ class ConfigPatch(BaseModel):
     score_funny_weight:           Optional[float] = None
     score_dramatic_weight:        Optional[float] = None
     score_action_weight:          Optional[float] = None
+    content_preset:               Optional[str]   = None
     # Analysis defaults
     scene_detection_mode:         Optional[str]   = None
     energy_mode:                  Optional[str]   = None
@@ -84,6 +85,7 @@ _CONFIG_FIELDS = (
     "scorer_energy_weight", "scorer_scene_weight", "scorer_llm_weight",
     "scorer_laugh_weight", "scorer_laugh_mode", "scorer_laugh_model_id",
     "score_funny_weight", "score_dramatic_weight", "score_action_weight",
+    "content_preset",
     "scene_detection_mode", "energy_mode", "silence_threshold_ms", "min_clip_ms",
     "diarization_backend", "huggingface_token", "speaker_match_threshold",
     "export_name_template",
@@ -142,6 +144,13 @@ def _export_name_template_validator(v: str) -> str:
         return validate_export_name_template(v)
     except ValueError as e:
         raise HTTPException(400, str(e))
+
+
+def _content_preset_validator(v: str) -> str:
+    from yuu_clip.content_presets import is_valid_preset_id
+    if not is_valid_preset_id(v):
+        raise HTTPException(400, f"Unknown content type '{v}'")
+    return v
 
 
 def _title_card_template_validator(v: str) -> str:
@@ -207,6 +216,7 @@ _CONFIG_PATCH_RULES: list[tuple[str, object]] = [
     ("score_funny_weight",           lambda v: max(0.0, v)),
     ("score_dramatic_weight",        lambda v: max(0.0, v)),
     ("score_action_weight",          lambda v: max(0.0, v)),
+    ("content_preset",               _content_preset_validator),
     ("scene_detection_mode",         _enum_validator({"transcript", "fast", "full"}, "scene_detection_mode")),
     ("energy_mode",                  _enum_validator({"none", "fast", "full"}, "energy_mode")),
     ("silence_threshold_ms",         _min_validator(500,  "silence_threshold_ms")),

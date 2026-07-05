@@ -372,6 +372,21 @@
       <span>Scoring weights <span style="font-size:11px;font-weight:400;color:var(--muted)">(takes effect on next re-score)</span></span>
       <button type="button" class="btn-secondary" id="btn-reset-weights" onclick="_resetScoringWeights()" style="margin-left:auto;font-size:11px;padding:3px 8px;text-transform:none;letter-spacing:normal;font-weight:400">Reset to defaults</button>
     </div>
+    <!-- Content type preset (plan 12) — one-choice tuning applied on top of the sliders below -->
+    <div id="s-content-preset-block" style="margin:0 0 16px;padding:10px 12px;border:1px solid var(--border);border-radius:8px">
+      <label class="settings-label" for="s-content-preset" style="display:block;margin-bottom:2px">Content type</label>
+      <div class="settings-note" style="margin-bottom:8px">Pick the kind of content you make to tune the weights and starter hot-words below in one step. You can fine-tune everything afterwards.</div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <select class="settings-select" id="s-content-preset" style="flex:1;min-width:180px" onchange="_onContentPresetChange()"></select>
+        <label class="settings-checkbox" title="Also add this content type's starter hot-words">
+          <input type="checkbox" id="s-content-preset-hotwords" checked>
+          <span style="font-size:13px">Add starter hot-words</span>
+        </label>
+        <button type="button" class="btn-secondary" id="btn-apply-content-preset" onclick="applyContentPreset()">Apply</button>
+      </div>
+      <div class="settings-note" id="s-content-preset-desc" style="margin-top:6px"></div>
+      <div class="settings-note" id="s-content-preset-active" style="margin-top:2px;color:var(--accent-text)"></div>
+    </div>
     <div class="settings-note" style="margin:-8px 0 12px">0 turns a signal off; higher = more influence on the overall score.</div>
     <div style="font-size:12px;color:var(--muted);margin-bottom:8px;font-weight:600">Signal weights</div>
     <div class="settings-weight-row">

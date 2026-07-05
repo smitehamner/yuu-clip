@@ -254,8 +254,8 @@ Complex, specialized, or AI-heavy features that are valuable but don't need to b
 
 ### Generalisation
 
-- [ ] **Content-type presets** — configurable specialization for different streaming styles so the
-  LLM prompts and scoring weights are tuned without manual config editing:
+- [x] **Content-type presets** — configurable specialization for different streaming styles so the
+  LLM prompts and scoring weights are tuned without manual config editing (shipped 2026-07-05, plan 12):
   - RP / narrative (character names, dramatic moments, lore drops)
   - Competitive gaming (clutch plays, comebacks, callouts)
   - Casual / let's play (funny moments, reactions, commentary)
