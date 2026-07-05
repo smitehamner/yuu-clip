@@ -535,7 +535,7 @@ function registerWizardIPC(wizardWin) {
 
     const existingBackend   = projCfg.llm_backend;
     const existingModelPath = projCfg.llm_model_path || '';
-    const defaultBackend    = existingBackend || (ollamaRunning ? 'ollama' : 'llamacpp');
+    const defaultBackend    = existingBackend || 'llamacpp';
 
     logSetup(`Status check — FFmpeg:${ffmpegOk} GPU:${gpu.name} CUDA:${cuda.available} cudaLibs:${cudaLibsInstalled} Ollama:${ollamaRunning} Model:${ollamaModelPulled} llamacpp:${llamacppInstalled} pyannote:${pyannoteInstalled}`);
     return {
@@ -545,6 +545,7 @@ function registerWizardIPC(wizardWin) {
       ollamaRunning, ollamaModel, ollamaModelPulled,
       llamacppInstalled, pyannoteInstalled, cudaLibsInstalled,
       recommendedWhisper: recommendWhisperModel(gpu.vramMB),
+      whisperModel:  projCfg.whisper_model || '',
       projectDir: pDir,
       aiPrivacyMode: projCfg.ai_privacy_mode || 'local_only',
       llmBackend:    defaultBackend,
@@ -724,7 +725,7 @@ function registerWizardIPC(wizardWin) {
 // Swap the wizard window to a "Starting yuu-clip…" screen while the backend
 // boots; app lifecycle closes it once the main window is ready.
 function showWizardLoadingScreen(win) {
-  const loadingHtml = `<!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;margin:0;display:flex;align-items:center;justify-content:center;height:100vh;background:#12121e;color:#d8d8e8;text-align:center"><style>@keyframes spin{to{transform:rotate(360deg)}}</style><div><div style="width:32px;height:32px;border:3px solid #1e1e30;border-top-color:#5b8ef0;border-radius:50%;animation:spin 0.65s linear infinite;margin:0 auto 14px"></div><h3 style="margin:0 0 6px;font-size:14px;color:#e8e8f8">Starting yuu-clip…</h3><p id="status" style="margin:0;color:#666;font-size:12px">Waiting for backend</p></div></body></html>`;
+  const loadingHtml = `<!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;margin:0;display:flex;align-items:center;justify-content:center;height:100vh;background:#12121e;color:#d8d8e8;text-align:center"><style>@keyframes spin{to{transform:rotate(360deg)}}</style><div><div style="width:32px;height:32px;border:3px solid #1e1e30;border-top-color:#5b8ef0;border-radius:50%;animation:spin 0.65s linear infinite;margin:0 auto 14px"></div><h3 style="margin:0 0 6px;font-size:14px;color:#e8e8f8">Starting yuu-clip…</h3><p id="status" style="margin:0;color:#9090a8;font-size:12px">Waiting for backend</p></div></body></html>`;
   win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(loadingHtml)}`);
   wizardWin = win;
 }
@@ -738,6 +739,13 @@ function updateLoadingStatus(win, text) {
   win.webContents.executeJavaScript(statusJs).catch(() => {});
 }
 
+// Approx on-disk download sizes, mirroring the wizard's whisper-sel option
+// labels, so the one-time prefetch tells the user how long to expect to wait.
+const WHISPER_MODEL_SIZES = {
+  tiny: '~75 MB', base: '~145 MB', small: '~465 MB',
+  medium: '~1.5 GB', 'large-v3': '~3 GB',
+};
+
 // Best-effort pre-download of the Whisper model chosen in setup, so first
 // Analyze doesn't stall on a surprise multi-GB download. Reuses the exact
 // download path production transcription already takes (see
@@ -746,7 +754,9 @@ function updateLoadingStatus(win, text) {
 // swallowed — analyze-time already has a clear retry message if this didn't
 // warm the cache (see _model_load_error in whisper_runner.py).
 async function prefetchWhisperModel(modelName, win) {
-  updateLoadingStatus(win, `Downloading transcription model (${modelName})…`);
+  const size = WHISPER_MODEL_SIZES[modelName];
+  const sizeNote = size ? `, ${size} — one-time` : ' — one-time';
+  updateLoadingStatus(win, `Downloading the speech-to-text model (${modelName}${sizeNote})…`);
   logSetup(`Pre-fetching Whisper model: ${modelName}`);
   const code =
     'from faster_whisper import WhisperModel\n' +
@@ -876,14 +886,14 @@ function showVenvSetupWindow() {
     h3{margin:0 0 12px;font-size:14px;color:#e8e8f8}
     .spin{display:inline-block;width:28px;height:28px;border:3px solid #1e1e30;border-top-color:#5b8ef0;border-radius:50%;animation:spin 0.65s linear infinite;margin:0 auto 14px}
     .steps{list-style:none;margin:0;padding:0;text-align:left;display:inline-block}
-    .steps li{font-size:12px;color:#555;padding:2px 0;padding-left:18px;position:relative}
+    .steps li{font-size:12px;color:#87879f;padding:2px 0;padding-left:18px;position:relative}
     .steps li.done{color:#4caf7d}
     .steps li.active{color:#d0d0e0}
     .steps li::before{content:'·';position:absolute;left:4px}
     .steps li.done::before{content:'✓';color:#4caf7d}
     .steps li.active::before{content:'›';color:#5b8ef0}
     .status{font-size:11px;color:#5b8ef0;margin-top:14px;min-height:14px;padding:0 16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .note{font-size:11px;color:#555;margin-top:4px}
+    .note{font-size:11px;color:#87879f;margin-top:4px}
   </style></head><body><div>
     <div class="spin"></div>
     <h3>Setting up yuu-clip</h3>

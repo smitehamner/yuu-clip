@@ -106,6 +106,18 @@ class TestDefaultsMatchCatalog:
     default can't silently drift to a non-monetization-safe model (the way the
     old llama3.2 default lagged the licence policy — see COMPLETED.md plan 10)."""
 
+    def test_config_default_backend_is_llamacpp(self):
+        # Locked user decision 2026-07-05: the offline local model file is the
+        # out-of-box backend (one-click engine install + Apache-2.0 model, no
+        # third-party app). The electron wizard default below must match.
+        assert Config().llm_backend == "llamacpp"
+
+    def test_electron_wizard_default_backend_is_llamacpp(self):
+        main_js = (_REPO_ROOT / "electron" / "main.js").read_text(encoding="utf-8")
+        match = re.search(r"defaultBackend\s*=\s*existingBackend\s*\|\|\s*'([^']+)'", main_js)
+        assert match, "defaultBackend fallback not found (or shape changed) in electron/main.js"
+        assert match.group(1) == "llamacpp"
+
     def test_config_default_ollama_model_is_recommended(self):
         assert Config().ollama_model in _recommended_ollama_tags()
 
