@@ -48,6 +48,13 @@ the fix.
   `config.py`, the Electron wizard (`main.js` `DEFAULT_OLLAMA_MODEL`, `setup.html` fallback),
   the Settings placeholder, and the README pull command — so the out-of-box default is also
   monetization-safe, not just the recommendations.
+- **Drift guard** (`TestDefaultsMatchCatalog` in `test_model_catalog.py`): the config
+  `ollama_model`/`claude_model` defaults and the Electron `DEFAULT_OLLAMA_MODEL` constant must
+  each be a *recommended* catalog entry — so a default can't silently lag the licence policy
+  again (the root cause of the llama3.2 default outliving the policy). Plus a `CLAUDE.md`
+  Licensing subsection extending the guardrail from code dependencies to **model weights and
+  runtime-downloaded assets** (which are bespoke-licensed, not GPL/AGPL, so they slipped the
+  dependency check).
 - **Docs:** GLOSSARY "Recommended models" + "Model readiness" (dev + in-app glossary.md);
   FEATURES.md monetization-licence section.
 - **Tests:** `test_model_catalog.py` (catalog integrity + licence policy), `test_llm.py`

@@ -209,6 +209,22 @@ Use these glossary terms in **conversation** too, not just in code. If discussin
 - Error paths must be handled explicitly, not silently swallowed
 - One concern per function
 
+### Licensing
+- The global "no GPL/AGPL dependencies" rule covers *code* — it does **not** cover the
+  thing that actually ships to users' machines here: **model weights and other assets the
+  app downloads or recommends at runtime** (LLM/vision `.gguf` files, Ollama tags, HF
+  models). Those are governed by their *own* licences, which are often bespoke (Meta's
+  Llama Community License, Google's Gemma Terms) rather than GPL/AGPL, so they slip past the
+  dependency check.
+- **Any model this project recommends or defaults to must carry a licence that permits the
+  user to monetize the output** — because we distribute this and steer non-developer users.
+  Apache-2.0 / MIT / BSD are in; Llama- and Gemma-licensed models are **out of recommendations
+  and defaults** (they keep working if a user configures them by hand). The authoritative list
+  is `yuu_clip/model_catalog.py`; its licence policy and the "defaults match the catalog" rule
+  are enforced by `tests/test_model_catalog.py`. Licences vary by parameter size (Qwen2.5 **7B**
+  is Apache-2.0 but the 3B/72B are not) — re-verify against the HF model card before adding an
+  entry, and if you change a default model, change it to a *recommended* catalog entry.
+
 ### Python / backend
 - SQLAlchemy sessions must be explicitly closed in route handlers — always use `try/finally: db.close()`
 - All SQLite engines use `NullPool` (set in `make_engine`) — never change this; pooled connections block the ingest subprocess

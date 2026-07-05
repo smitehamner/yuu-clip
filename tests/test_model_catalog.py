@@ -1,6 +1,20 @@
 from __future__ import annotations
 
+import re
+from pathlib import Path
+
 from yuu_clip import model_catalog as mc
+from yuu_clip.config import Config
+
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _recommended_ollama_tags() -> set[str]:
+    return {e.ollama_tag for e in mc.catalog_for_backend(mc.BACKEND_OLLAMA)}
+
+
+def _recommended_claude_ids() -> set[str]:
+    return {e.api_model_id for e in mc.catalog_for_backend(mc.BACKEND_CLAUDE)}
 
 
 class TestCatalogIntegrity:
@@ -70,3 +84,21 @@ class TestCatalogHelpers:
         assert isinstance(d["kinds"], list)
         assert isinstance(d["backends"], list)
         assert set(d) >= {"id", "display_name", "kinds", "licence", "why", "backends"}
+
+
+class TestDefaultsMatchCatalog:
+    """The out-of-box default models must be *recommended* catalog entries, so a
+    default can't silently drift to a non-monetization-safe model (the way the
+    old llama3.2 default lagged the licence policy — see COMPLETED.md plan 10)."""
+
+    def test_config_default_ollama_model_is_recommended(self):
+        assert Config().ollama_model in _recommended_ollama_tags()
+
+    def test_config_default_claude_model_is_recommended(self):
+        assert Config().claude_model in _recommended_claude_ids()
+
+    def test_electron_wizard_default_ollama_model_is_recommended(self):
+        main_js = (_REPO_ROOT / "electron" / "main.js").read_text(encoding="utf-8")
+        match = re.search(r"DEFAULT_OLLAMA_MODEL\s*=\s*'([^']+)'", main_js)
+        assert match, "DEFAULT_OLLAMA_MODEL constant not found in electron/main.js"
+        assert match.group(1) in _recommended_ollama_tags()
