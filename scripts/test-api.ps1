@@ -1,4 +1,4 @@
-param(
+﻿param(
     [switch]$Detailed,
     [Parameter(ValueFromRemainingArguments = $true)]$PytestArgs
 )

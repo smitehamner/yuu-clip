@@ -278,3 +278,11 @@ legacy `ctx.analyze_proc` path (flag: `ctx.analyze_cancelled`) is also covered.
 ### HTML safety
 `escHtml` in `utils.js` escapes `& < > "`. Always run track layout names, context
 names, and filenames through it before embedding in HTML attributes.
+
+### PowerShell script encoding
+Any `.ps1` file containing non-ASCII (em-dash `—`, box-drawing `─`, smart quotes)
+**must** be saved with a UTF-8 BOM. Without one, Windows PowerShell 5.1 decodes the
+file as cp1252, turning those bytes into a `”` that it treats as a string delimiter —
+producing "missing terminator" parse errors far from the actual character. The `Write`
+tool does not add a BOM; prepend `EF BB BF` after writing. `tests/test_ps1_bom.py`
+enforces this for `scripts/*.ps1` (ASCII-only scripts don't need a BOM).

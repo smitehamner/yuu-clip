@@ -1,4 +1,4 @@
-# pin-deps.ps1 — generate requirements.lock with SHA256 hashes (Windows)
+﻿# pin-deps.ps1 — generate requirements.lock with SHA256 hashes (Windows)
 # Run this whenever you want to update or initially generate the lockfile.
 #
 # Usage (from repo root, with venv active):

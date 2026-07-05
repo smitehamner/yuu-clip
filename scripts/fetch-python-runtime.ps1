@@ -1,4 +1,4 @@
-# fetch-python-runtime.ps1 — download the pinned standalone CPython build used
+﻿# fetch-python-runtime.ps1 — download the pinned standalone CPython build used
 # to bundle a Python runtime into the Electron installer, so end users don't
 # need a system Python install.
 #
