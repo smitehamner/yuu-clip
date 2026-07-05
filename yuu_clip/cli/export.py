@@ -47,7 +47,8 @@ def _maybe_diarize_segment(session, config, video_id: int, transcript_id: int, s
         shifted = [(start + offset_s, end + offset_s, label) for start, end, label in turns]
         _assign_speakers(session, transcript_id, shifted)
         _attach_speakers(session, video_id, transcript_id, embeddings,
-                         threshold=config.speaker_match_threshold)
+                         threshold=config.speaker_match_threshold,
+                         active_backend=config.diarization_backend)
         console.print(f"  [green]  OK[/green] [{track_label}]  {len(turns)} speaker turn(s)")
     except DiarizationError as exc:
         log.warning("Diarization failed during retranscribe (tx %d): %s", transcript_id, exc)

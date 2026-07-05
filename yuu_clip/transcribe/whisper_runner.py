@@ -110,7 +110,8 @@ def _cosine_similarity(a: list[float], b: list[float]) -> float:
     return dot / (norm_a * norm_b) if norm_a and norm_b else 0.0
 
 
-def _best_voiceprint_match(vector, candidates, taken_ids, threshold=_VOICEPRINT_MATCH_THRESHOLD):
+def _best_voiceprint_match(vector, candidates, taken_ids, threshold=_VOICEPRINT_MATCH_THRESHOLD,
+                           active_backend=None):
     """Score *vector* against each unused candidate Speaker's voiceprint.
 
     Returns ``(matched, score, top)`` where ``top`` is the single most-similar unused
@@ -118,11 +119,17 @@ def _best_voiceprint_match(vector, candidates, taken_ids, threshold=_VOICEPRINT_
     cosine, and ``matched`` is ``top`` when ``score >= threshold`` else ``None``.
     Callers use ``top`` / ``score`` to record a near-threshold suggestion when
     ``matched`` is ``None``.
+
+    Candidates whose voiceprint came from a different diarization backend are
+    skipped: embeddings from pyannote and SpeechBrain live in incompatible spaces
+    (and dimensionalities), so a cross-backend cosine would be meaningless.
     """
     top_speaker = None
     top_score = 0.0
     for speaker in candidates:
         if speaker.id in taken_ids or not speaker.voiceprint:
+            continue
+        if active_backend is not None and speaker.voiceprint_backend != active_backend:
             continue
         score = _cosine_similarity(vector, _deserialize_voiceprint(speaker.voiceprint))
         if top_speaker is None or score > top_score:
@@ -169,6 +176,7 @@ def _attach_speakers(
     transcript_id: int,
     embeddings_by_label: dict[str, list[float]] | None = None,
     threshold: float = _VOICEPRINT_MATCH_THRESHOLD,
+    active_backend: str | None = None,
 ) -> None:
     """Attribute this run's segments to durable per-recording Speakers.
 
@@ -209,13 +217,14 @@ def _attach_speakers(
         if not vector:
             without_voiceprint += 1
         match, score, near = (
-            _best_voiceprint_match(vector, prior_speakers, taken_ids, threshold)
+            _best_voiceprint_match(vector, prior_speakers, taken_ids, threshold, active_backend)
             if vector else (None, 0.0, None)
         )
         if match is not None:
             taken_ids.add(match.id)
             if not match.voiceprint:
                 match.voiceprint = _serialize_voiceprint(vector)
+                match.voiceprint_backend = active_backend
             label_to_speaker_id[label] = match.id
             matched += 1
             _report_attach_decision(video_id, match, score, threshold,
@@ -228,6 +237,7 @@ def _attach_speakers(
             display_index=next_index,
             source="manual",
             voiceprint=_serialize_voiceprint(vector) if vector else None,
+            voiceprint_backend=active_backend if vector else None,
             suggested_match_id=near.id if in_band else None,
             suggested_match_score=score if in_band else None,
         )
@@ -510,6 +520,7 @@ def diarize_track(
         _attach_speakers(
             session, track.video_id, transcript.id, embeddings,
             threshold=config.speaker_match_threshold,
+            active_backend=config.diarization_backend,
         )
         _log.info(
             "Diarization complete: %d turns, %d voiceprint(s) for track %d",

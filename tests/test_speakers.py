@@ -34,6 +34,7 @@ class TestSchema:
                 text("SELECT name FROM sqlite_master WHERE type='table'")
             )}
         assert "speakers" in tables
+        assert "voiceprint_backend" in _column_names(engine, "speakers")
 
 
 class TestSpeakerModel:
@@ -213,6 +214,57 @@ class TestVoiceprintMatch:
         assert speakers[0].name == "Yuu"
         seg2 = session.query(TranscriptSegment).filter_by(transcript_id=tx2.id).one()
         assert seg2.speaker_id == speakers[0].id  # name survived re-diarization
+        session.close()
+
+    def test_cross_backend_voiceprint_is_not_matched(self, tmp_path: Path):
+        from yuu_clip.transcribe.whisper_runner import _attach_speakers
+
+        session = make_session(tmp_path / "v.db")
+        video = Video(path="x.mkv", filename="x.mkv", status="done")
+        session.add(video)
+        session.flush()
+
+        tx1 = self._seed_transcript(session, video.id, "SPEAKER_00")
+        _attach_speakers(session, video.id, tx1.id, {"SPEAKER_00": [1.0, 0.0, 0.0]},
+                         active_backend="pyannote")
+        session.query(Speaker).one().name = "Yuu"
+        session.flush()
+
+        # A SpeechBrain run with an identical-looking vector must NOT re-attach:
+        # pyannote and SpeechBrain embeddings live in incompatible spaces, so a
+        # cross-backend cosine would be a garbage match.
+        tx2 = self._seed_transcript(session, video.id, "SPEAKER_00")
+        _attach_speakers(session, video.id, tx2.id, {"SPEAKER_00": [1.0, 0.0, 0.0]},
+                         active_backend="speechbrain")
+
+        speakers = session.query(Speaker).order_by(Speaker.display_index).all()
+        assert len(speakers) == 2  # minted fresh, not merged onto "Yuu"
+        assert speakers[0].name == "Yuu"
+        assert speakers[0].voiceprint_backend == "pyannote"
+        assert speakers[1].voiceprint_backend == "speechbrain"
+        session.close()
+
+    def test_same_backend_voiceprint_reattaches(self, tmp_path: Path):
+        from yuu_clip.transcribe.whisper_runner import _attach_speakers
+
+        session = make_session(tmp_path / "v.db")
+        video = Video(path="x.mkv", filename="x.mkv", status="done")
+        session.add(video)
+        session.flush()
+
+        tx1 = self._seed_transcript(session, video.id, "SPEAKER_00")
+        _attach_speakers(session, video.id, tx1.id, {"SPEAKER_00": [1.0, 0.0, 0.0]},
+                         active_backend="speechbrain")
+        session.query(Speaker).one().name = "Yuu"
+        session.flush()
+
+        tx2 = self._seed_transcript(session, video.id, "SPEAKER_00")
+        _attach_speakers(session, video.id, tx2.id, {"SPEAKER_00": [0.99, 0.02, 0.0]},
+                         active_backend="speechbrain")
+
+        speakers = session.query(Speaker).all()
+        assert len(speakers) == 1  # same backend + same voice → re-attached
+        assert speakers[0].name == "Yuu"
         session.close()
 
     def test_distinct_voice_mints_new_speaker(self, tmp_path: Path):

@@ -11,6 +11,12 @@ from yuu_clip.transcribe.diarization_client import (
     DiarizationError,
     NullDiarizationClient,
     PyannoteDiarizationClient,
+    SpeechBrainDiarizationClient,
+    _active_window_indices,
+    _cluster_centroids,
+    _cluster_labels,
+    _merge_turns,
+    _slice_windows,
     make_diarization_client,
 )
 
@@ -308,8 +314,8 @@ class TestRetranscribeDiarization:
         )
         monkeypatch.setattr(
             whisper_runner, "_attach_speakers",
-            lambda session, video_id, transcript_id, embeddings, threshold=None:
-                captured.update(attach=(video_id, transcript_id, embeddings, threshold)),
+            lambda session, video_id, transcript_id, embeddings, threshold=None, active_backend=None:
+                captured.update(attach=(video_id, transcript_id, embeddings, threshold, active_backend)),
         )
         return captured
 
@@ -355,9 +361,9 @@ class TestRetranscribeDiarization:
             session=None, config=cfg, video_id=4, transcript_id=7,
             segment_wav=Path("seg.wav"), offset_s=0.0, track_label="combined",
         )
-        # video_id and the configured threshold must reach _attach_speakers so a
-        # named voice re-attaches during a per-clip retranscribe.
-        assert captured["attach"] == (4, 7, embeddings, 0.62)
+        # video_id, the configured threshold, and the active backend must reach
+        # _attach_speakers so a named voice re-attaches during a per-clip retranscribe.
+        assert captured["attach"] == (4, 7, embeddings, 0.62, "pyannote")
 
     def test_noop_when_diarization_unavailable(self, monkeypatch):
         from pathlib import Path
@@ -404,7 +410,7 @@ class TestDiarizeTrack:
         )
         monkeypatch.setattr(
             whisper_runner, "_attach_speakers",
-            lambda session, video_id, transcript_id, embeddings, threshold=None: captured.setdefault("attach", []).append((video_id, transcript_id, embeddings, threshold)),
+            lambda session, video_id, transcript_id, embeddings, threshold=None, active_backend=None: captured.setdefault("attach", []).append((video_id, transcript_id, embeddings, threshold, active_backend)),
         )
         return captured
 
@@ -428,8 +434,8 @@ class TestDiarizeTrack:
         diarize_track(cfg, None, self._fake_transcript(), Path("a.wav"), self._fake_track())
 
         assert captured["assign"] == [(7, turns)]
-        # The configured threshold must be forwarded to _attach_speakers.
-        assert captured["attach"] == [(9, 7, embeddings, 0.6)]
+        # The configured threshold and active backend must be forwarded to _attach_speakers.
+        assert captured["attach"] == [(9, 7, embeddings, 0.6, "pyannote")]
 
     def test_noop_when_backend_unavailable(self, monkeypatch):
         from pathlib import Path
@@ -610,6 +616,94 @@ class TestBestVoiceprintMatch:
 
 
 # ---------------------------------------------------------------------------
+# SpeechBrainDiarizationClient — availability + pure pipeline helpers
+# (steps d–e are factored out so they test without importing SpeechBrain)
+# ---------------------------------------------------------------------------
+
+class TestSpeechBrainAvailable:
+    def test_missing_reports_install_hint(self, monkeypatch):
+        import importlib.util
+        real = importlib.util.find_spec
+
+        def _absent(name, *args, **kwargs):
+            if name in ("speechbrain", "sklearn"):
+                return None
+            return real(name, *args, **kwargs)
+
+        monkeypatch.setattr(importlib.util, "find_spec", _absent)
+        ok, reason = SpeechBrainDiarizationClient(Config(diarization_backend="speechbrain")).available()
+        assert ok is False
+        assert "Settings" in reason
+
+    def test_present_when_both_installed(self, monkeypatch):
+        import importlib.util
+        monkeypatch.setattr(
+            importlib.util, "find_spec",
+            lambda name, *a, **k: object(),  # every module resolves
+        )
+        ok, reason = SpeechBrainDiarizationClient(Config(diarization_backend="speechbrain")).available()
+        assert ok is True
+        assert reason == ""
+
+
+class TestSpeechBrainPipeline:
+    def test_slice_windows_only_full_length(self):
+        # 3.0 s at 16 kHz, 1.5 s window, 0.75 s hop → starts at 0, 0.75, 1.5 s.
+        bounds = _slice_windows(48_000, 16_000)
+        assert bounds == [(0, 24_000), (12_000, 36_000), (24_000, 48_000)]
+
+    def test_slice_windows_too_short_returns_empty(self):
+        assert _slice_windows(8_000, 16_000) == []
+
+    def test_active_windows_drop_silence(self):
+        import numpy as np
+        # Three loud windows around -10 dB, one silent at -90 dB → silent dropped.
+        rms_db = np.array([-10.0, -90.0, -12.0, -11.0], dtype=np.float32)
+        assert _active_window_indices(rms_db) == [0, 2, 3]
+
+    def test_active_windows_empty(self):
+        import numpy as np
+        assert _active_window_indices(np.array([], dtype=np.float32)) == []
+
+    def test_cluster_labels_separates_two_voices(self):
+        import numpy as np
+        # Two tight clusters of orthogonal embeddings → two labels.
+        embeddings = np.array([
+            [1.0, 0.0], [0.99, 0.01], [0.98, 0.02],
+            [0.0, 1.0], [0.01, 0.99], [0.02, 0.98],
+        ])
+        labels = _cluster_labels(embeddings)
+        assert len(set(labels)) == 2
+        assert labels[0] == labels[1] == labels[2]
+        assert labels[3] == labels[4] == labels[5]
+        assert labels[0] != labels[3]
+
+    def test_cluster_labels_single_window(self):
+        assert list(_cluster_labels([[1.0, 0.0]])) == [0]
+
+    def test_merge_turns_collapses_adjacent_same_label(self):
+        times = [(0.0, 1.5), (0.75, 2.25), (2.25, 3.75)]
+        turns = _merge_turns(times, [0, 0, 1])
+        assert turns == [(0.0, 2.25, "SPEAKER_00"), (2.25, 3.75, "SPEAKER_01")]
+
+    def test_merge_turns_splits_non_adjacent(self):
+        # A gap (window 1 ends before window 2 starts) keeps them separate even
+        # with the same label.
+        times = [(0.0, 1.5), (10.0, 11.5)]
+        turns = _merge_turns(times, [0, 0])
+        assert turns == [(0.0, 1.5, "SPEAKER_00"), (10.0, 11.5, "SPEAKER_00")]
+
+    def test_centroids_are_l2_normalized_and_keyed_by_speaker(self):
+        import numpy as np
+        embeddings = np.array([[3.0, 4.0], [3.0, 4.0], [0.0, 5.0]])
+        centroids = _cluster_centroids(embeddings, [0, 0, 1])
+        assert set(centroids) == {"SPEAKER_00", "SPEAKER_01"}
+        for vector in centroids.values():
+            assert np.isclose(np.linalg.norm(vector), 1.0)
+        assert np.allclose(centroids["SPEAKER_00"], [0.6, 0.8])
+
+
+# ---------------------------------------------------------------------------
 # make_diarization_client factory
 # ---------------------------------------------------------------------------
 
@@ -625,6 +719,10 @@ class TestFactory:
     def test_pyannote(self):
         cfg = Config(diarization_backend="pyannote", huggingface_token="hf_abc")
         assert isinstance(make_diarization_client(cfg), PyannoteDiarizationClient)
+
+    def test_speechbrain(self):
+        cfg = Config(diarization_backend="speechbrain")
+        assert isinstance(make_diarization_client(cfg), SpeechBrainDiarizationClient)
 
 
 # ---------------------------------------------------------------------------

@@ -217,7 +217,240 @@ class PyannoteDiarizationClient(DiarizationClient):
         return turns, embeddings
 
 
+# ── SpeechBrain diarization ──────────────────────────────────────────────────
+# A token-free backend: ECAPA-TDNN speaker embeddings (SpeechBrain, Apache-2.0)
+# over energy-active windows, clustered with agglomerative clustering. No fixed
+# speaker count and no HuggingFace account — the model downloads anonymously.
+
+_SB_MODEL_SOURCE = "speechbrain/spkrec-ecapa-voxceleb"
+_SB_WINDOW_S = 1.5   # embedding window length
+_SB_HOP_S = 0.75     # step between windows
+_SB_BATCH = 32       # windows per encoder forward pass
+# Cosine-distance threshold above which two windows are treated as different
+# speakers. Tuned conservatively on real recordings; distinct voices sit well
+# above ~0.5 cosine distance, same-voice windows well below.
+_SB_DISTANCE_THRESHOLD = 0.55
+# Voice-activity floor: a window is "speech" when its RMS is above both an
+# absolute silence floor and a margin below the track's median window level.
+_SB_ABS_FLOOR_DB = -55.0
+_SB_REL_MARGIN_DB = 15.0
+
+
+def _load_mono_waveform(audio_path: str):
+    """Return (mono float32 numpy array, sample_rate) for a PCM WAV.
+
+    Reuses _load_waveform's decode, then downmixes to mono — SpeechBrain's ECAPA
+    encoder and the energy VAD both want a single channel. Our extracted track
+    WAVs are already 16 kHz mono, so this is a no-op reshape in practice.
+    """
+    import numpy as np
+
+    decoded = _load_waveform(audio_path)
+    waveform = decoded["waveform"].numpy()  # (channels, samples)
+    mono = waveform.mean(axis=0).astype(np.float32)
+    return mono, decoded["sample_rate"]
+
+
+def _slice_windows(n_samples: int, sample_rate: int) -> list[tuple[int, int]]:
+    """Sample-index bounds of fixed-length windows tiling the signal.
+
+    Only full-length windows are emitted (a sub-window tail is dropped) so every
+    window is identical length and can be batched into one encoder call.
+    """
+    window = int(_SB_WINDOW_S * sample_rate)
+    hop = int(_SB_HOP_S * sample_rate)
+    if window <= 0 or hop <= 0 or n_samples < window:
+        return []
+    return [(start, start + window) for start in range(0, n_samples - window + 1, hop)]
+
+
+def _window_rms_db(waveform, bounds: list[tuple[int, int]]):
+    """Per-window RMS in dBFS (float32 array aligned with *bounds*)."""
+    import numpy as np
+
+    rms = np.array(
+        [np.sqrt(np.mean(np.square(waveform[start:end]))) for start, end in bounds],
+        dtype=np.float32,
+    )
+    return 20.0 * np.log10(rms + 1e-9)
+
+
+def _active_window_indices(rms_db) -> list[int]:
+    """Indices of windows loud enough to be speech (energy VAD).
+
+    Active when RMS is above both an absolute floor and a relative margin below
+    the median window level, so a uniformly-quiet or uniformly-loud track still
+    yields a sensible set rather than everything or nothing.
+    """
+    import numpy as np
+
+    if len(rms_db) == 0:
+        return []
+    floor = max(_SB_ABS_FLOOR_DB, float(np.median(rms_db)) - _SB_REL_MARGIN_DB)
+    return [index for index, value in enumerate(rms_db) if value >= floor]
+
+
+def _cluster_labels(embeddings, distance_threshold: float = _SB_DISTANCE_THRESHOLD):
+    """Agglomerative cosine clustering of window embeddings → integer labels.
+
+    A single window (or none) can't be clustered, so it trivially forms cluster 0.
+    """
+    import numpy as np
+
+    count = len(embeddings)
+    if count == 0:
+        return np.array([], dtype=int)
+    if count == 1:
+        return np.zeros(1, dtype=int)
+    from sklearn.cluster import AgglomerativeClustering
+
+    model = AgglomerativeClustering(
+        n_clusters=None,
+        distance_threshold=distance_threshold,
+        metric="cosine",
+        linkage="average",
+    )
+    return model.fit_predict(np.asarray(embeddings, dtype=np.float64))
+
+
+def _merge_turns(window_times: list[tuple[float, float]], labels) -> list[tuple[float, float, str]]:
+    """Merge adjacent same-label windows into (start_s, end_s, "SPEAKER_NN") turns.
+
+    Windows overlap (hop < window), so a run of the same speaker collapses to one
+    turn spanning the first window's start to the last window's end.
+    """
+    turns: list[tuple[float, float, str]] = []
+    for (start_s, end_s), label in zip(window_times, labels):
+        speaker = f"SPEAKER_{int(label):02d}"
+        if turns and turns[-1][2] == speaker and start_s <= turns[-1][1]:
+            prev_start, prev_end, _ = turns[-1]
+            turns[-1] = (prev_start, max(prev_end, end_s), speaker)
+        else:
+            turns.append((start_s, end_s, speaker))
+    return turns
+
+
+def _cluster_centroids(embeddings, labels) -> dict[str, list[float]]:
+    """L2-normalized mean embedding per cluster, keyed by "SPEAKER_NN".
+
+    These centroids become Speaker voiceprints; cosine re-attach needs them unit-
+    normalized so the stored centroid matches how similarity is later computed.
+    """
+    import numpy as np
+
+    array = np.asarray(embeddings, dtype=np.float64)
+    centroids: dict[str, list[float]] = {}
+    for label in sorted(set(int(value) for value in labels)):
+        mean = array[np.asarray(labels) == label].mean(axis=0)
+        norm = np.linalg.norm(mean)
+        if norm > 0:
+            mean = mean / norm
+        centroids[f"SPEAKER_{label:02d}"] = mean.tolist()
+    return centroids
+
+
+class SpeechBrainDiarizationClient(DiarizationClient):
+    """Token-free diarization via SpeechBrain ECAPA embeddings + clustering."""
+
+    def __init__(self, config: Config) -> None:
+        self._config = config
+        self._encoder = None
+
+    def available(self) -> tuple[bool, str]:
+        import importlib.util
+
+        missing = [
+            name for name in ("speechbrain", "sklearn")
+            if importlib.util.find_spec(name) is None
+        ]
+        if missing:
+            return False, (
+                "SpeechBrain speaker labels aren't installed — open Settings (⚙) and "
+                "click Install under Speaker labels"
+            )
+        return True, ""
+
+    def _model_dir(self):
+        from pathlib import Path
+
+        from platformdirs import user_cache_dir
+
+        return Path(user_cache_dir("yuu-clip")) / "models" / "spkrec-ecapa-voxceleb"
+
+    def _load_encoder(self):
+        if self._encoder is not None:
+            return self._encoder
+        import torch
+        from speechbrain.inference import EncoderClassifier
+        from speechbrain.utils.fetching import LocalStrategy
+
+        savedir = self._model_dir()
+        savedir.mkdir(parents=True, exist_ok=True)
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        _log.info(
+            "Loading SpeechBrain ECAPA encoder (%s) on %s — first run downloads "
+            "~80 MB from HuggingFace (no token needed)", _SB_MODEL_SOURCE, device,
+        )
+        # LocalStrategy.COPY, not the default SYMLINK: symlinking the HF cache into
+        # savedir needs a privilege Windows withholds unless Developer Mode/admin is
+        # on, so the default raises WinError 1314. Copying is portable.
+        self._encoder = EncoderClassifier.from_hparams(
+            source=_SB_MODEL_SOURCE,
+            savedir=str(savedir),
+            run_opts={"device": device},
+            local_strategy=LocalStrategy.COPY,
+        )
+        return self._encoder
+
+    def _embed_windows(self, waveform, active_bounds: list[tuple[int, int]]):
+        import numpy as np
+        import torch
+
+        encoder = self._load_encoder()
+        device = next(encoder.mods.parameters()).device
+        vectors: list[np.ndarray] = []
+        for offset in range(0, len(active_bounds), _SB_BATCH):
+            chunk = active_bounds[offset:offset + _SB_BATCH]
+            batch = torch.tensor(
+                np.stack([waveform[start:end] for start, end in chunk]),
+                dtype=torch.float32,
+            ).to(device)
+            with torch.no_grad():
+                # encode_batch → (batch, 1, embedding_dim); drop the singleton axis.
+                embeddings = encoder.encode_batch(batch).squeeze(1).cpu().numpy()
+            vectors.extend(embeddings)
+        return np.asarray(vectors, dtype=np.float64)
+
+    def diarize(self, audio_path: str) -> list[tuple[float, float, str]]:
+        turns, _ = self.diarize_with_embeddings(audio_path)
+        return turns
+
+    def diarize_with_embeddings(
+        self, audio_path: str
+    ) -> tuple[list[tuple[float, float, str]], dict[str, list[float]]]:
+        waveform, sample_rate = _load_mono_waveform(audio_path)
+        bounds = _slice_windows(len(waveform), sample_rate)
+        if not bounds:
+            return [], {}
+        active = _active_window_indices(_window_rms_db(waveform, bounds))
+        active_bounds = [bounds[index] for index in active]
+        if not active_bounds:
+            return [], {}
+        embeddings = self._embed_windows(waveform, active_bounds)
+        labels = _cluster_labels(embeddings, _SB_DISTANCE_THRESHOLD)
+        window_times = [(start / sample_rate, end / sample_rate) for start, end in active_bounds]
+        turns = _merge_turns(window_times, labels)
+        centroids = _cluster_centroids(embeddings, labels)
+        _log.info(
+            "SpeechBrain diarization: %d active window(s) → %d turn(s), %d speaker(s)",
+            len(active_bounds), len(turns), len(centroids),
+        )
+        return turns, centroids
+
+
 def make_diarization_client(config: Config) -> DiarizationClient:
     if config.diarization_backend == "pyannote":
         return PyannoteDiarizationClient(config)
+    if config.diarization_backend == "speechbrain":
+        return SpeechBrainDiarizationClient(config)
     return NullDiarizationClient()

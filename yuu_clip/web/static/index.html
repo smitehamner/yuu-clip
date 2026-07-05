@@ -273,6 +273,7 @@
       </div>
       <select class="settings-select" id="s-diarization-backend" onchange="_onDiarizationBackendChange(this.value)">
         <option value="null">Off</option>
+        <option value="speechbrain">SpeechBrain (no account or token needed)</option>
         <option value="pyannote">Pyannote (requires HuggingFace token)</option>
       </select>
     </div>
@@ -302,6 +303,23 @@
           <div id="s-hf-token-feedback" style="font-size:11px;min-height:14px" aria-live="polite"></div>
         </div>
       </div>
+    </div>
+    <!-- speechbrain fields -->
+    <div id="s-speechbrain-fields" style="display:none">
+      <div class="settings-row">
+        <div class="settings-col">
+          <div class="settings-label">Python package</div>
+          <div class="settings-note">SpeechBrain is not included by default — install it once here. No HuggingFace account or token needed; the speaker model (~80 MB) downloads automatically on first use.</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="btn-secondary" id="btn-install-speechbrain" onclick="installPackage('speechbrain')">Install SpeechBrain</button>
+          <span id="install-status-speechbrain" style="font-size:12px"></span>
+        </div>
+      </div>
+      <div id="install-log-speechbrain" class="settings-install-log"></div>
+    </div>
+    <!-- shared fields (shown whenever a backend is selected) -->
+    <div id="s-diarization-common-fields" style="display:none">
       <div class="settings-row">
         <div class="settings-col">
           <label class="settings-label" for="s-speaker-match-threshold">Speaker match strictness</label>

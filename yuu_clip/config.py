@@ -416,8 +416,8 @@ class Config:
     claude_timeout_s: float = 30.0                   # per-request timeout
 
     # Speaker diarization — identifies who is speaking within a track
-    diarization_backend: str = "null"  # "null" | "pyannote"
-    huggingface_token: str = ""        # required for pyannote backend
+    diarization_backend: str = "null"  # "null" | "pyannote" | "speechbrain"
+    huggingface_token: str = ""        # required for pyannote backend (not speechbrain)
     # Cosine similarity above which a re-diarization cluster is treated as the same
     # voice as an existing named Speaker and re-attached to it (preserving the name).
     # Higher = stricter (fewer wrong re-attaches, more speakers re-minted for

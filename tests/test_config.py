@@ -143,6 +143,14 @@ class TestUiConfig:
         assert client.patch("/api/config", json={"speaker_match_threshold": 0.0}).status_code == 200
         assert client.patch("/api/config", json={"speaker_match_threshold": 1.0}).status_code == 200
 
+    def test_patch_config_accepts_speechbrain_backend(self, client):
+        r = client.patch("/api/config", json={"diarization_backend": "speechbrain"})
+        assert r.status_code == 200
+        assert r.json()["diarization_backend"] == "speechbrain"
+
+    def test_patch_config_rejects_unknown_diarization_backend(self, client):
+        assert client.patch("/api/config", json={"diarization_backend": "bogus"}).status_code == 400
+
     def test_get_config_includes_export_name_template_default(self, client):
         assert client.get("/api/config").json()["export_name_template"] == "{video}_clip{clip_id}_{start}"
 

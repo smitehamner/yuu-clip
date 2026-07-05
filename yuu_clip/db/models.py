@@ -160,10 +160,20 @@ def _migrate(engine) -> None:
         for col, typedef in [
             ("suggested_match_id",    "INTEGER REFERENCES speakers(id)"),
             ("suggested_match_score", "REAL"),
+            ("voiceprint_backend",    "TEXT"),
         ]:
             if col not in existing:
                 _log.info("Migration: adding speakers.%s", col)
                 conn.execute(text(f"ALTER TABLE speakers ADD COLUMN {col} {typedef}"))
+        # Voiceprints predating multiple backends were all produced by pyannote.
+        # Backfill so cross-backend match-skipping treats them as pyannote embeddings
+        # rather than "unknown backend" (which would strand named speakers).
+        if "voiceprint_backend" not in existing:
+            _log.info("Migration: backfilling speakers.voiceprint_backend = 'pyannote'")
+            conn.execute(text(
+                "UPDATE speakers SET voiceprint_backend = 'pyannote' "
+                "WHERE voiceprint IS NOT NULL"
+            ))
 
         existing = {row[1] for row in conn.execute(text("PRAGMA table_info(clip_candidates)"))}
         _clip_migrations = [
@@ -559,6 +569,10 @@ class Speaker(Base):
     # Serialized voice embedding centroid, used to re-attach this Speaker across
     # re-diarizations. NULL when the diarization backend produced no embedding.
     voiceprint: Mapped[Optional[bytes]] = mapped_column(LargeBinary, nullable=True)
+    # Which diarization backend produced `voiceprint` ("pyannote" | "speechbrain").
+    # Embeddings from different backends live in incompatible spaces, so re-attach
+    # only compares voiceprints sharing the active backend. NULL when no voiceprint.
+    voiceprint_backend: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
     # "manual" (created from a diarization cluster) or "inferred" (name suggested).
     source: Mapped[str] = mapped_column(String, default="manual")

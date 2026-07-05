@@ -130,30 +130,31 @@ function stripRichMarkup(text) {
 }
 
 // ── speaker labels (diarization) readiness ────────────────────────────────────
-// Speaker labels need BOTH the pyannote package installed AND a HuggingFace
-// token. The per-run checkboxes in the analyze and export panels both gate on
-// this single check; the configured backend only sets the default, since the
-// CLI --diarize flag overrides the backend for that run. Centralized here so the
-// three surfaces (Settings, analyze, export) can't drift to different rules.
-function _diarizationReason(installed, hasToken) {
+// Speaker labels need their configured backend's package installed. Pyannote also
+// needs a HuggingFace token; SpeechBrain needs neither an account nor a token. The
+// per-run checkboxes in the analyze and export panels both gate on this single
+// check. Centralized here so the three surfaces (Settings, analyze, export) can't
+// drift to different rules.
+function _diarizationReason(backend, installed, hasToken) {
+  if (backend === 'speechbrain') return installed ? '' : 'Install SpeechBrain';
   if (!installed) return 'Install pyannote.audio';
   if (!hasToken)  return 'Requires a HuggingFace token';
   return '';
 }
 
 async function _diarizationReadiness() {
-  const [cfg, install] = await Promise.all([
-    fetch('/api/config').then(r => r.json()).catch(() => ({})),
-    fetch('/api/install/pyannote').then(r => r.json()).catch(() => ({installed: false})),
-  ]);
+  const cfg = await fetch('/api/config').then(r => r.json()).catch(() => ({}));
+  const backend = cfg.diarization_backend || 'null';
+  const slug = backend === 'speechbrain' ? 'speechbrain' : 'pyannote';
+  const install = await fetch(`/api/install/${slug}`).then(r => r.json()).catch(() => ({installed: false}));
   const installed = !!install.installed;
   const hasToken  = !!(cfg.huggingface_token && cfg.huggingface_token.trim());
   return {
     installed,
     hasToken,
-    backend: cfg.diarization_backend || 'null',
-    ready:   installed && hasToken,
-    reason:  _diarizationReason(installed, hasToken),
+    backend,
+    ready:   backend === 'speechbrain' ? installed : (installed && hasToken),
+    reason:  _diarizationReason(backend, installed, hasToken),
   };
 }
 

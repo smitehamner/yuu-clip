@@ -403,7 +403,8 @@ An LLM-proposed **Speaker Name** the creator has **not accepted yet** — surfac
 
 The user-facing **feature**: transcripts and captions show who is speaking.
 
-- **Code:** `diarization_backend` config (`'pyannote'` = enabled), `speaker_labels` flag in analyze options/status
+- **Code:** `diarization_backend` config (`'null'` = off, `'pyannote'` or `'speechbrain'` = enabled), `speaker_labels` flag in analyze options/status
+- **Backends:** **Pyannote** (needs a HuggingFace account + token) and **SpeechBrain** (no account or token — ECAPA embeddings, Apache-2.0, model auto-downloads). Voiceprints are backend-specific (`speakers.voiceprint_backend`): named speakers can't auto-match across backends, so re-confirm names after switching.
 - **Also called in codebase:** "diarization" (the technique), `diar-*` element ids
 - **Do not call it:** "diarization" in user-facing text — say "Speaker labels"
 - **UI label:** "Speaker labels" (Settings section, analyze modal checkbox, setup wizard checkbox — usually with the gloss "(identifies who is speaking)")

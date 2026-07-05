@@ -472,15 +472,24 @@ When enabled, yuu-clip runs speaker diarization after transcription and labels e
 | Backend | Default | Requirement |
 |---------|---------|-------------|
 | Off | ✓ | No extra setup |
+| SpeechBrain | — | `pip install speechbrain scikit-learn` (one-click install button in Settings) — **no account or token** |
 | Pyannote | — | HuggingFace account + `pip install pyannote.audio` (one-click install button in Settings) |
 
-To enable Pyannote:
+**SpeechBrain** is the easiest to set up — it needs no account and no token. To enable it:
+1. Open Settings → Speaker labels and click **Install SpeechBrain**
+2. Change the backend to **SpeechBrain** and save
+
+The speaker model (~80 MB) downloads automatically the first time you analyze a recording.
+
+To enable **Pyannote** instead (slightly higher accuracy, but requires an account):
 1. Create a free account at [HuggingFace](https://huggingface.co) and, while signed in, accept the gated model terms for [speaker-diarization-community-1](https://huggingface.co/pyannote/speaker-diarization-community-1)
 2. Generate a token at HuggingFace → Settings → Access Tokens with **Read** access (a classic Read token, or a fine-grained token with "Read access to contents of all public gated repos you can access")
 3. Open Settings → Speaker labels in the app; paste the token and click **Install pyannote.audio**
 4. Change the backend to **Pyannote** and save
 
-The Settings value is the default. You can override it per analysis: the **New Recording → Advanced options** panel has a **Speaker labels** checkbox (pre-set from your default) so you can turn diarization on or off for a single run. When enabled, the time estimate includes a **Speaker labels** step. The checkbox is disabled until a HuggingFace token is saved in Settings.
+The Settings value is the default. You can override it per analysis: the **New Recording → Advanced options** panel has a **Speaker labels** checkbox (pre-set from your default) so you can turn diarization on or off for a single run. When enabled, the time estimate includes a **Speaker labels** step. The checkbox is disabled until the configured backend is fully set up (SpeechBrain installed, or Pyannote installed with a saved token).
+
+Named voices are matched back to their names by a voiceprint that is specific to the backend that produced it, so if you switch backends the app can't auto-match your existing names — re-confirm them from the Speakers card after switching.
 
 Diarization adds extra processing time after transcription (roughly 2–4× real-time on CPU, faster with CUDA). Speaker labels are re-used on retranscription; re-running diarization requires a full re-analysis.
 

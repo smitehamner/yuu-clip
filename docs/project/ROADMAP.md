@@ -28,7 +28,7 @@ and the locked design decisions. Implement one plan per session.
 | ~~Caption style options~~ (done 2026-07-04) | 05 |
 | ~~Vertical crop / Shorts export~~ (done 2026-07-04) | 06 |
 | ~~Clip export editor~~ (done 2026-07-04) | 07 |
-| SpeechBrain diarization backend | 08 |
+| ~~SpeechBrain diarization backend~~ (done 2026-07-04) | 08 |
 | Transcript name correction | 09 |
 | Model selection + capability gating | 10 |
 | Image-based clip analysis | 11 |
@@ -175,11 +175,12 @@ Complex, specialized, or AI-heavy features that are valuable but don't need to b
 
 ### Transcript and speaker features
 
-- [ ] **Additional diarization backends** — the shipped `DiarizationClient` infrastructure
-  (Null + Pyannote backends; speaker labels flow through excerpts, captions, and exports — see
-  COMPLETED-archive.md) was designed for more: **SpeechBrain** (Apache 2.0, no HF gating — ECAPA-TDNN
-  embeddings + sklearn clustering) and **NeMo TitaNet** (Apache 2.0, no token, heavier install).
-  Adding a new backend = a `DiarizationClient` subclass + allowlist entry in `install_package`.
+- [x] **Additional diarization backends** — **SpeechBrain** shipped 2026-07-04 (plan 08):
+  ECAPA-TDNN embeddings + agglomerative sklearn clustering, no HF account/token, model
+  auto-downloads. Backend-specific voiceprints (`speakers.voiceprint_backend`) so names never
+  cross-match between engines. **NeMo TitaNet** (Apache 2.0, no token, heavier install) remains a
+  stretch/deferred backend. Adding another backend = a `DiarizationClient` subclass + allowlist
+  entry in `install_package`.
 
 - [ ] **Speaker naming — remaining pieces** — Phases 1–4 shipped (manual naming, voiceprint
   re-attach, sample playback, LLM name inference — see COMPLETED-archive.md; the re-attach threshold's

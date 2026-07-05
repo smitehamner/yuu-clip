@@ -203,7 +203,7 @@ _CONFIG_PATCH_RULES: list[tuple[str, object]] = [
     ("energy_mode",                  _enum_validator({"none", "fast", "full"}, "energy_mode")),
     ("silence_threshold_ms",         _min_validator(500,  "silence_threshold_ms")),
     ("min_clip_ms",                  _min_validator(1000, "min_clip_ms")),
-    ("diarization_backend",          _enum_validator({"null", "pyannote"}, "diarization_backend")),
+    ("diarization_backend",          _enum_validator({"null", "pyannote", "speechbrain"}, "diarization_backend")),
     ("huggingface_token",            lambda v: v.strip()),
     ("speaker_match_threshold",      _range_validator(0.0, 1.0, "speaker_match_threshold")),
     ("export_name_template",         _export_name_template_validator),

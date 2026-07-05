@@ -227,7 +227,7 @@ function _applySettingsToUI(cfg) {
   setVal('s-caption-position', cfg.caption_position || 'bottom');
   _snapshotSettings();
   _checkSettingsDirty();
-  ['pyannote', 'llamacpp', 'anthropic', 'laugh-deps', 'cuda-libs', 'mediapipe'].forEach(_refreshInstallStatus);
+  ['pyannote', 'speechbrain', 'llamacpp', 'anthropic', 'laugh-deps', 'cuda-libs', 'mediapipe'].forEach(_refreshInstallStatus);
 }
 
 // Applies instantly (outside the Save flow) so the user sees the theme while
@@ -271,8 +271,12 @@ function _onLlmBackendChange(backend) {
 }
 
 function _onDiarizationBackendChange(backend) {
-  const pyannoteEl = document.getElementById('s-pyannote-fields');
-  if (pyannoteEl) pyannoteEl.style.display = backend === 'pyannote' ? '' : 'none';
+  const pyannoteEl    = document.getElementById('s-pyannote-fields');
+  const speechbrainEl = document.getElementById('s-speechbrain-fields');
+  const commonEl      = document.getElementById('s-diarization-common-fields');
+  if (pyannoteEl)    pyannoteEl.style.display    = backend === 'pyannote'    ? '' : 'none';
+  if (speechbrainEl) speechbrainEl.style.display = backend === 'speechbrain' ? '' : 'none';
+  if (commonEl)      commonEl.style.display      = backend !== 'null'        ? '' : 'none';
   _updateDiarizationStatus();
 }
 
@@ -309,11 +313,21 @@ function _onHfTokenInput() {
 async function _updateDiarizationStatus() {
   const el = document.getElementById('s-diarization-status');
   if (!el) return;
-  if (document.getElementById('s-diarization-backend').value !== 'pyannote') {
+  const backend = document.getElementById('s-diarization-backend').value;
+  if (backend === 'null') {
     el.style.display = 'none';
     return;
   }
   el.style.display = '';
+  if (backend === 'speechbrain') {
+    let installed = false;
+    try {
+      installed = !!(await fetch('/api/install/speechbrain').then(r => r.json())).installed;
+    } catch { /* treat unknown as not installed */ }
+    el.innerHTML = `<span>${installed ? '✓' : '○'} SpeechBrain installed — no token needed</span>`;
+    el.style.color = installed ? 'var(--green, #22c55e)' : 'var(--muted, #888)';
+    return;
+  }
   const tokenSet = !!document.getElementById('s-hf-token').value.trim();
   let installed = false;
   try {
@@ -509,7 +523,7 @@ async function installPackage(slug) {
           status.style.color = 'var(--green, #22c55e)';
           btn.textContent = 'Reinstall';
           btn.disabled = false;
-          if (slug === 'pyannote') _updateDiarizationStatus();
+          if (slug === 'pyannote' || slug === 'speechbrain') _updateDiarizationStatus();
           return;
         }
         log.textContent += msg + '\n';

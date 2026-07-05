@@ -52,6 +52,7 @@ def _analyze_running(ctx: ProjectContext) -> bool:
 # used to detect whether it is already present (pip name ≠ import name for some).
 _INSTALLABLE: dict[str, str | list[str]] = {
     "pyannote":    "pyannote.audio",
+    "speechbrain": ["speechbrain", "scikit-learn"],
     "llamacpp":    "llama-cpp-python",
     "anthropic":   "anthropic",
     "laugh-deps":  ["transformers", "torch", "torchaudio", "soundfile"],
@@ -60,6 +61,7 @@ _INSTALLABLE: dict[str, str | list[str]] = {
 }
 _IMPORT_NAMES: dict[str, list[str]] = {
     "pyannote":    ["pyannote.audio"],
+    "speechbrain": ["speechbrain", "sklearn"],
     "llamacpp":    ["llama_cpp"],
     "anthropic":   ["anthropic"],
     "laugh-deps":  ["transformers", "torch", "torchaudio", "soundfile"],

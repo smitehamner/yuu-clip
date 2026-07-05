@@ -112,7 +112,10 @@ def analyze(
     config.whisper_device       = device
     config.scene_detection_mode = scene_mode
     if diarize is True:
-        config.diarization_backend = "pyannote"
+        # Turn speaker labels on for this run using the project's configured
+        # backend; only fall back to pyannote when no backend was configured.
+        if config.diarization_backend == "null":
+            config.diarization_backend = "pyannote"
     elif diarize is False:
         config.diarization_backend = "null"
 
@@ -159,9 +162,11 @@ def rediarize(
     from yuu_clip.db.models import Video
 
     proj_dir, session, config = _load_project(project)
-    # The whole point of this command is to diarize, so force the backend on even
-    # when the project config has it disabled.
-    config.diarization_backend = "pyannote"
+    # The whole point of this command is to diarize, so force a backend on even
+    # when the project config has it disabled — but respect a configured backend
+    # (e.g. speechbrain) rather than always forcing pyannote.
+    if config.diarization_backend == "null":
+        config.diarization_backend = "pyannote"
 
     video = session.get(Video, video_id)
     if not video:

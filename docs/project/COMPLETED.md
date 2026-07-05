@@ -6,6 +6,57 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) — see the
 
 ---
 
+## SpeechBrain diarization backend (done 2026-07-04)
+
+Closed the Phase 6 "Additional diarization backends" item (plan 08) — a second
+real speaker-labels backend that needs **no HuggingFace account or token**:
+SpeechBrain ECAPA-TDNN embeddings (Apache-2.0) + agglomerative clustering. Removes
+the pyannote gating friction for distributed users. NeMo TitaNet stays a deferred
+stretch backend.
+
+- **Client** (`SpeechBrainDiarizationClient`, `transcribe/diarization_client.py`):
+  energy-VAD windows (1.5 s / 0.75 s hop) over the extracted 16 kHz mono WAV →
+  ECAPA embeddings (192-dim) → `AgglomerativeClustering(distance_threshold=0.55,
+  metric="cosine")` → adjacent-same-cluster windows merged into turns, per-cluster
+  L2-normalized centroids become `Speaker.voiceprint`. Steps VAD→cluster→merge→
+  centroid are pure module functions so they test without importing SpeechBrain.
+  Moves the encoder to CUDA when available.
+- **Windows symlink fix (not in the plan):** `EncoderClassifier.from_hparams`
+  defaults to symlinking the HF cache into `savedir`, which raises WinError 1314
+  without Developer Mode/admin — so we pass `local_strategy=LocalStrategy.COPY`.
+  Caught by running the real encode path during implementation.
+- **Backend-specific voiceprints:** new `speakers.voiceprint_backend` column
+  (guarded `_migrate` ADD-COLUMN, backfilled to `"pyannote"` where a voiceprint
+  exists). `_best_voiceprint_match` skips candidates whose backend differs from the
+  active run — pyannote and SpeechBrain embeddings live in incompatible spaces, so
+  a cross-backend cosine would mis-match. `_attach_speakers` stamps the backend on
+  minted/backfilled voiceprints.
+- **CLI backend-override fix (not in the plan):** `analyze --diarize` and
+  `rediarize` hardcoded `"pyannote"`, which would force pyannote even for a
+  speechbrain-configured project. Now they only default to pyannote when the
+  configured backend is `"null"`, otherwise they respect the configured backend.
+- **Install + config:** `"speechbrain": ["speechbrain", "scikit-learn"]` in the
+  Settings optional-install allowlist (`_INSTALLABLE`/`_IMPORT_NAMES`, import names
+  `["speechbrain", "sklearn"]`); config PATCH enum accepts `"speechbrain"`. All
+  deps verified permissive (Apache-2.0/BSD/MPL; no GPL/AGPL) incl. the ECAPA model
+  (`speechbrain/spkrec-ecapa-voxceleb`, Apache-2.0), which auto-downloads (~80 MB)
+  to the platformdirs user cache on first use.
+- **UI:** Settings → Speaker labels gains a "SpeechBrain — no account or token
+  needed" backend with its own install row; the match-threshold + readiness status
+  moved to a shared block shown for any backend. `_diarizationReadiness` /
+  `_diarizationReason` are now backend-aware (SpeechBrain needs no token) so the
+  analyze/export checkboxes gate correctly. Switching backends can't auto-match
+  names across engines — surfaced in FEATURES + glossary.
+- **Tests:** pure-pipeline units (slice/VAD/cluster/merge/centroid) +
+  `available()` find_spec-mocked (no SpeechBrain import needed) in
+  `test_diarization.py`; cross-backend match-skip + same-backend re-attach + column
+  existence in `test_speakers.py`; config-accepts-speechbrain +
+  install-status-slug in `test_config.py`/`test_analyze.py`; backend-aware
+  `_diarizationReason` in `test_ui_utils.py`. Real end-to-end encode verified
+  during implementation.
+
+---
+
 ## Clip export editor (done 2026-07-04)
 
 Closed the Phase 6 "Clip export editor" item (plan 07) — a PanelNav takeover

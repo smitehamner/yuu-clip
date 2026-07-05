@@ -354,6 +354,17 @@ class TestInstallStatus:
             r = client.get("/api/install/laugh-deps")
         assert r.json() == {"installed": False}
 
+    def test_speechbrain_slug_requires_speechbrain_and_sklearn(self, client):
+        from unittest.mock import patch
+
+        def only_sklearn_missing(module):
+            return None if module == "sklearn" else object()
+
+        with patch("yuu_clip.web.routes.analyze.importlib.util.find_spec", side_effect=only_sklearn_missing):
+            assert client.get("/api/install/speechbrain").json() == {"installed": False}
+        with patch("yuu_clip.web.routes.analyze.importlib.util.find_spec", return_value=object()):
+            assert client.get("/api/install/speechbrain").json() == {"installed": True}
+
 
 # ---------------------------------------------------------------------------
 # Glossary
