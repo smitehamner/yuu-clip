@@ -6,6 +6,44 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) — see the
 
 ---
 
+## Generalise for any video content — de-RP pass (done 2026-07-05)
+
+Plan 13 (roadmap-close-2026-07) — **the final plan in the set**. An audit-and-copy
+pass to make the tool read naturally for competitive, casual, speedrun, and podcast
+creators, not just RP streamers. The app rename (rp-clipper → yuu-clip) shipped
+earlier; this closed out the remaining roleplay-specific assumptions.
+
+Approach was **de-RP, not de-gaming**: the tool is gaming-first by design, so
+"players / NPCs / squad" language stayed; only *roleplay*-specific copy changed. RP
+remains one flavor among several (its content preset and two prebuilt contexts are
+kept), not scrubbed.
+
+- **LLM prompts: already neutral.** Re-auditing every system prompt (scoring, video
+  summary, session summary, timeline, related-clips, speaker-name inference, hot-word
+  semantic scan) confirmed none assume roleplay — plan 12 already moved the RP flavor
+  into the live `rp-narrative` preset via `_compose_system`. Nothing needed moving;
+  this half of the plan was a verified no-op.
+- **Two new prebuilt world contexts** in `contexts.py::BUILTIN_CONTEXTS`: **Podcast /
+  Talk Show** and **Just Chatting / IRL** — the content types from the preset list
+  with no matching seeded context (the set was already 8/10 non-RP). Seeding stays
+  idempotent; the seed test asserts a subset so no count literal changed.
+- **Copy neutralised**: index.html Getting-Started and World-Contexts tooltips
+  ("who's in your recordings" / "people, setting, and notes"), `docs/user/OVERVIEW.md`
+  world-contexts section (gaming-general with RP as one example), `FEATURES.md` context
+  field table + score-dimension wording, the end-to-end walkthrough, two code comments
+  (`extract.py`, `windower.py`), and the dev `GLOSSARY.md` World Context definition. The
+  `rp_context` code-name aliases were kept (glossary rule requires recording them).
+- **Setup wizard**: new "Content type" dropdown (`electron/setup.html`) defaulting to
+  Generic, written as `content_preset` into the project config the wizard already
+  persists (`main.js`); `SETUP_SCHEMA_VERSION` bumped 2 → 3 so existing users see it
+  once. A dropdown (not the plan's "preset cards") to match the wizard's row-based idiom.
+
+Tests: 1755 API, 636 UI, 9 electron — all green; lint clean. This **closes the
+roadmap-close-2026-07 series** (13/13 shipped); only copyright content detection stays
+deferred (no implementation path).
+
+---
+
 ## Content-type presets (done 2026-07-05)
 
 Plan 12 (roadmap-close-2026-07). One-choice tuning for different streaming styles so

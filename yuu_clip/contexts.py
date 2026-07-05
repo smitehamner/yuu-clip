@@ -95,6 +95,20 @@ BUILTIN_CONTEXTS: dict[str, dict] = {
         "other_characters": "",
         "notes": "Add your game, full ruleset (e.g. 'Nuzlocke — faint = release'), and any named party members or key units. Great highlights: unexpected loss of a beloved team member, low-HP clutch survival, restrictions creating funny situations, gym or boss victories against the odds.",
     },
+    "podcast": {
+        "display_name": "Podcast / Talk Show",
+        "setting": "Conversation- or podcast-style session where talk, not gameplay, drives the highlights. Hosts and guests riff on topics, tell stories, and react to each other.",
+        "your_characters": "",
+        "other_characters": "",
+        "notes": "Add the host(s), recurring co-hosts or guests, and any running segments or in-jokes. Great highlights: memorable quotes and hot takes, genuine disagreements, funny tangents, standout stories, and shared laughter.",
+    },
+    "just-chatting": {
+        "display_name": "Just Chatting / IRL",
+        "setting": "Talking-to-chat or IRL stream — reactions, Q&A, stories, and community interaction rather than a specific game. Personality carries the session.",
+        "your_characters": "",
+        "other_characters": "",
+        "notes": "Add your handle and any frequent chatters, mods, or guests. Great highlights: genuine reactions, funny stories, community callbacks, spicy takes, and anything worth clipping for social media.",
+    },
 }
 
 BUILTIN_IDS: frozenset[str] = frozenset(BUILTIN_CONTEXTS)

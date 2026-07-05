@@ -7,7 +7,7 @@ clip candidates.  Candidates shorter than `min_clip_ms` are dropped;
 those longer than `hard_split_ms` are force-split regardless of silence.
 
 This produces far more natural candidate boundaries than a fixed
-sliding window — RP sessions have natural conversational rhythms
+sliding window — recorded sessions have natural conversational rhythms
 that align with these gaps.
 """
 from __future__ import annotations

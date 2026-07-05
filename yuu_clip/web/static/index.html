@@ -1183,7 +1183,7 @@
     <table style="width:100%;font-size:13px;border-collapse:collapse;margin-bottom:16px">
       <tbody>
         <tr><td style="padding:3px 8px 3px 0;color:var(--text);white-space:nowrap">Track layout</td><td style="color:var(--muted)">Maps your OBS audio tracks to roles (player voice, game sounds, etc.) so yuu-clip knows what to transcribe</td></tr>
-        <tr><td style="padding:3px 8px 3px 0;color:var(--text);white-space:nowrap">World context</td><td style="color:var(--muted)">Tells the LLM scorer who your characters are and what the setting is — improves descriptions and scores for your specific game</td></tr>
+        <tr><td style="padding:3px 8px 3px 0;color:var(--text);white-space:nowrap">World context</td><td style="color:var(--muted)">Tells the LLM scorer who's in your recordings and what the setting is — improves descriptions and scores for your specific game</td></tr>
       </tbody>
     </table>
 
@@ -1192,7 +1192,7 @@
       <li>Use the search box and score filter in the sidebar to find specific moments</li>
       <li>Press <kbd>&#8592;</kbd> / <kbd>&#8594;</kbd> to move between clips without touching the mouse</li>
       <li>Open <em>Controls</em> from the menu for the full keyboard shortcut list</li>
-      <li>Open <em>World Contexts</em> from the menu to add character and setting info before scoring</li>
+      <li>Open <em>World Contexts</em> from the menu to add people and setting info before scoring</li>
     </ul>
 
     <div class="modal-actions">
@@ -1486,7 +1486,7 @@
 <div class="modal-bg" id="context-modal" onclick="if(event.target===this)closeContextManager()">
   <div class="modal" style="width:680px;max-height:85vh">
     <h3>World Contexts</h3>
-    <p style="font-size:12px;color:var(--muted);margin-top:-6px">Named knowledge injected into LLM prompts — players, setting, and world lore.</p>
+    <p style="font-size:12px;color:var(--muted);margin-top:-6px">Named knowledge injected into LLM prompts — people, setting, and notes.</p>
     <div style="display:flex;gap:16px;min-height:300px">
       <div style="width:180px;flex-shrink:0;display:flex;flex-direction:column;gap:6px">
         <div id="context-list-items" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:4px"></div>

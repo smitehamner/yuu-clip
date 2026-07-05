@@ -251,7 +251,7 @@ def export_clip(
 
     Default (reencode=False): stream-copy — extremely fast, lossless,
     but seeks to the nearest keyframe so the actual start may be up to
-    ~2 seconds early.  For RP highlights this is almost always fine.
+    ~2 seconds early.  For highlight clips this is almost always fine.
 
     With reencode=True: frame-accurate cut using libx264 + aac.
     Slower but exact.  Use if the keyframe offset is noticeable.

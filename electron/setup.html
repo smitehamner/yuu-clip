@@ -285,6 +285,29 @@ footer {
       </div>
     </section>
 
+    <!-- ═══ Content type ═══ -->
+    <section>
+      <div class="sec-title">Content type</div>
+      <div class="sec-note">
+        Tune scoring for the kind of content you make. This sets sensible funny /
+        dramatic / action weights and points the AI at what makes a good highlight
+        for that style. Leave it on Generic if you're not sure — you can change it
+        any time in Settings.
+      </div>
+      <div class="cfg-row">
+        <span class="cfg-label">Content type</span>
+        <select id="content-preset-sel">
+          <option value="generic">Generic — balanced default</option>
+          <option value="rp-narrative">RP / narrative — character and drama first</option>
+          <option value="competitive">Competitive gaming — clutches, comebacks, callouts</option>
+          <option value="casual">Casual / let's play — personality and funny failures</option>
+          <option value="speedrun">Speedrun — splits, PBs, heartbreak resets</option>
+          <option value="podcast">Podcast / conversation — quotes, hot takes, laughter</option>
+        </select>
+      </div>
+      <div class="inline-note" id="content-preset-note"></div>
+    </section>
+
     <!-- ═══ Optional ═══ -->
     <section>
       <div class="sec-title">Optional</div>
@@ -580,6 +603,9 @@ function applyDefaults(s) {
   document.getElementById('claude-model-sel').value = s.claudeModel  || 'claude-haiku-4-5-20251001';
   document.getElementById('diar-enabled').checked   = !!s.diarizationEnabled;
   document.getElementById('hf-token').value         = s.hfToken || '';
+  document.getElementById('content-preset-sel').value = s.contentPreset || 'generic';
+  document.getElementById('content-preset-note').textContent =
+    'Applied on launch. You can fine-tune every scoring weight later in Settings.';
 
   onLlmBackendChange(document.getElementById('llm-backend-sel').value);
   onDiarToggle();
@@ -797,6 +823,7 @@ function collectConfig() {
     claudeModel:     document.getElementById('claude-model-sel').value,
     diarizationEnabled: document.getElementById('diar-enabled').checked,
     hfToken:         (document.getElementById('hf-token').value || '').trim(),
+    contentPreset:   document.getElementById('content-preset-sel').value,
   };
 }
 

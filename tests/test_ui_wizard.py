@@ -52,6 +52,7 @@ window.__mockStatus = {
   llmBackend: 'ollama', llmModelPath: '',
   claudeApiKey: '', claudeModel: 'claude-haiku-4-5-20251001',
   whisperLanguage: '', diarizationEnabled: false, hfToken: '',
+  contentPreset: 'generic',
 };
 """
 
@@ -74,8 +75,9 @@ class TestWizardLayout:
         assert titles[0] == "Required"
         assert titles[1].startswith("LLM scoring")
         assert "choose one" in titles[1]
-        assert titles[2] == "Optional"
-        assert titles[3] == "Basics"
+        assert titles[2] == "Content type"
+        assert titles[3] == "Optional"
+        assert titles[4] == "Basics"
 
     def test_launch_enabled_when_ffmpeg_ok(self, page: Page):
         _open_wizard(page)
@@ -175,6 +177,7 @@ class TestWizardModes:
         page.select_option("#whisper-lang-sel", "de")
         page.check("#diar-enabled")
         page.fill("#hf-token", "hf_abc123")
+        page.select_option("#content-preset-sel", "podcast")
         page.click("#launch-btn")
         completed = page.evaluate("window.__events.completed")
         assert completed["whisperModel"] == "large-v3"
@@ -182,6 +185,7 @@ class TestWizardModes:
         assert completed["llmBackend"] == "ollama"
         assert completed["diarizationEnabled"] is True
         assert completed["hfToken"] == "hf_abc123"
+        assert completed["contentPreset"] == "podcast"
         assert completed["projectDir"] == "C:/Users/test/Videos/yuu-clip"
 
     def test_rerun_mode_close_discards_without_saving(self, page: Page):

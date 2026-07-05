@@ -719,9 +719,9 @@ AI-generated descriptions of what happened in each 15-minute chunk of a session.
 
 ### World Context
 
-A named bundle of information about the RP setting, characters, and lore — used to help the AI scorer understand what's happening.
+A named bundle of information about the setting, the people involved, and any notes — used to help the AI scorer understand what's happening (works for any content: RP, competitive, podcast, etc.).
 
-- **Code:** `rp_context`, `Context`
+- **Code:** `rp_context`, `Context` (code name predates the rename; kept for compatibility)
 - **Also called:** "RP context", "game context", "context"
 - **Do not call it:** just "context" in code (too generic)
 - **UI label:** "Contexts" section, context chips

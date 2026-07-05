@@ -21,7 +21,7 @@ Different video types stress different parts of the pipeline. If you're building
 
 | Type | Why it's useful | Where to get it |
 |------|----------------|-----------------|
-| **Short RP session (30–60 min)** | The app's primary use case — rich dialogue, character names, dramatic beats. Tests the full pipeline well. | Your own OBS recordings |
+| **Short talk-heavy session (30–60 min)** | Rich dialogue, named people, dramatic beats — e.g. an RP session, a podcast, or a chatty co-op run. Tests the full pipeline well. | Your own OBS recordings |
 | **Co-op gaming with voice chat (any length)** | Multiple speakers, crosstalk, game audio bleeding into the mic. Tests multi-track separation and Whisper accuracy under real conditions. | Your own recordings with friends |
 | **Solo let's play / commentary** | Single clean audio track, good baseline. Establishes a score floor: clips from a solo commentary should cluster around the funny or action categories. | Your own recordings |
 | **Tabletop RPG session (D&D, etc.)** | Heavy dialogue, distinct character voices, long dramatic scenes. Good for testing context features and the dramatic score. Publicly available recordings (Critical Role, etc.) work fine for personal dev testing. | YouTube downloads via `yt-dlp` for personal use |
@@ -158,13 +158,13 @@ The reel uses the clip one-liners as title card text, so it comes out pre-labele
 
 ---
 
-## Chapter 9 — Add context (optional but recommended for RP)
+## Chapter 9 — Add context (optional but recommended)
 
-If your video is a roleplay session, the LLM doesn't know your character, your server, or your story — without context it's scoring a transcript of strangers talking. You can fix this:
+Out of the box the LLM doesn't know who's in your recording, what you're playing, or what's been going on across sessions — without context it's scoring a transcript of strangers talking. This helps most for talk-heavy content (RP, podcasts, squad play). You can fix it:
 
 1. Open `≡` → World Contexts.
-2. Click New Context and give it a name (e.g. "NCRP — Marcus Webb").
-3. Fill in the context body: who you are, what the server is, who else shows up regularly, what the current storyline is. More detail = better scoring.
+2. Click New Context and give it a name (e.g. "Squad night" or "NCRP — Marcus Webb").
+3. Fill in the context body: who you are, what the game or setting is, who else shows up regularly, what's been going on lately. More detail = better scoring.
 4. Close the modal and go back to your video detail. Assign the context there.
 5. Re-score one of the clips to see whether the descriptions improve.
 

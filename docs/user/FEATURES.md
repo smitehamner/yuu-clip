@@ -150,9 +150,9 @@ Accessible from the header. Create and edit named context bundles:
 | Context ID | Short ID used in CLI (`--context una-server`) |
 | Display name | Human-readable label shown in the UI |
 | Setting | World description injected into LLM prompts |
-| Your characters | Character(s) you play |
-| Frequent other characters | Common NPCs / other players |
-| Notes | Any other lore or context for the LLM |
+| Your player(s) | Who you play — character, handle, or role |
+| Other players & NPCs | Frequent teammates, guests, opponents, or NPCs |
+| Notes | Any other context for the LLM |
 | LLM scoring weights | Optional per-context overrides for funny / dramatic / action weights |
 
 Contexts are assigned per-video and injected into every LLM call for that video. When a video is rescored, any weight overrides from assigned contexts are averaged together and applied instead of the global Settings weights.
@@ -303,7 +303,7 @@ Three modes:
 | 1 hour | ~18 s | ~36 min |
 | 2.5 hours | ~45 s | ~1.5 hours |
 
-`full` mode is only worth using if you want precise visual cut boundaries — `fast` is sufficient for most RP sessions where cuts align naturally with transcript silences.
+`full` mode is only worth using if you want precise visual cut boundaries — `fast` is sufficient for most sessions where cuts align naturally with transcript silences.
 
 Scene cuts are stored as database records and influence candidate boundaries.
 
@@ -319,11 +319,11 @@ so the LLM understands who said what without any extra configuration. Returns a 
 |-------|-------------|
 | `description` | One-liner (< 20 words) |
 | `description_long` | 3–5 sentence paragraph: what happened, who was involved, why it matters |
-| `score_funny` | 0–1; jokes, absurdist RP, chaotic banter |
+| `score_funny` | 0–1; jokes, absurd moments, chaotic banter |
 | `score_dramatic` | 0–1; confrontations, revelations, emotional beats |
 | `score_action` | 0–1; combat, chaos, high-stakes tension |
 
-World context text is injected into the system prompt so the LLM understands character relationships and setting. If the LLM backend is unreachable the analysis continues with zero scores and a warning in the log.
+World context text is injected into the system prompt so the LLM understands who's involved and the setting. If the LLM backend is unreachable the analysis continues with zero scores and a warning in the log.
 
 LLM scoring speed depends entirely on your LLM backend and model. Rough estimates at ~4 s/clip:
 
@@ -365,7 +365,8 @@ It sets the Funny / Dramatic / Action / Laughs weights to sensible values, optio
 starter hot-words for that style, and points the language model at what makes a good highlight for
 it (scoring, descriptions, summaries, and timeline). You can fine-tune every weight afterwards, and
 the confirm dialog spells out exactly what will change before it does. Generic is the plain default,
-so applying it changes nothing.
+so applying it changes nothing. The desktop setup wizard also asks for your content type up front
+(defaulting to Generic), so a new project starts with sensible weights for your style.
 
 ### Hot-words
 

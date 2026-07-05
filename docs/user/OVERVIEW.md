@@ -82,18 +82,18 @@ The scoring reads transcripts, not video — so a moment where something visuall
 
 ## World contexts — making the scores actually make sense
 
-If you play on a roleplay server, the LLM has no idea who your character is, what server you're on, or what the ongoing story is. Without context, it's scoring a transcript of strangers talking — it might miss that "Jameson getting arrested" is significant because Jameson has been evading the police for six sessions.
+Out of the box, the LLM has no idea who's in your recording, what you're playing, or what's been going on across sessions. Without context, it's scoring a transcript of strangers talking — it might miss that "Jameson getting arrested" is a big deal because Jameson has been the running rival of your squad for six sessions.
 
-**World contexts** let you give the LLM that background. You create a named context (e.g. "Public Server") and fill in:
+**World contexts** let you give the LLM that background. You create a named context (e.g. "Squad night" or "Public server") and fill in:
 
-- What the server/setting is ("FiveM RP server, semi-serious crime and civilian life")
-- Who your character is ("Marcus Webb, mid-level fixer, known for deflecting with humor")
-- Who else shows up regularly ("Detective Reyes — runs the anti-corruption unit, has history with Marcus")
+- What the game/setting is ("Valorant ranked, five-stack" or "FiveM RP server, semi-serious crime and civilian life")
+- Who you are ("Yuu — duelist, usually calling strats" or "Marcus Webb, mid-level fixer, deflects with humor")
+- Who else shows up regularly ("Alex on support; recurring rival team 'Nightfall'")
 - Any other notes the AI should know
 
-Once you've set one up you can assign it to any session at analysis time or afterward. The AI then uses all of that when scoring, so it knows what's a throwaway line and what's actually a significant story beat.
+Once you've set one up you can assign it to any session at analysis time or afterward. The AI then uses all of that when scoring, so it knows what's a throwaway line and what's actually a significant moment.
 
-You can have multiple contexts for different servers or campaigns.
+You can have multiple contexts for different games, servers, or crews.
 
 ---
 

@@ -43,7 +43,7 @@ const DEFAULT_CLAUDE_MODEL = 'claude-haiku-4-5-20251001';
 // setup stores this number; an older stored number re-shows the wizard once
 // after updating, so existing users discover the new options. Routine app
 // updates that don't change setup stay silent.
-const SETUP_SCHEMA_VERSION = 2;
+const SETUP_SCHEMA_VERSION = 3;
 
 let projectDir      = DEFAULT_PROJECT_DIR;
 let pyProc          = null;
@@ -428,6 +428,7 @@ function registerWizardIPC(wizardWin) {
       whisperLanguage:    projCfg.whisper_language || '',
       diarizationEnabled: projCfg.diarization_backend === 'pyannote',
       hfToken:            projCfg.huggingface_token || '',
+      contentPreset:      projCfg.content_preset || 'generic',
     };
   });
 
@@ -556,6 +557,7 @@ function showSetupWizard({ rerun = false, updated = false } = {}) {
         whisper_language: cfg.whisperLanguage || '',
         llm_backend:      cfg.llmBackend,
         diarization_backend: cfg.diarizationEnabled ? 'pyannote' : 'null',
+        content_preset:   cfg.contentPreset || 'generic',
       };
       if (cfg.diarizationEnabled) pyCfg.huggingface_token = cfg.hfToken || '';
       if (cfg.llmBackend === 'llamacpp') {

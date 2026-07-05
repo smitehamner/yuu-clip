@@ -30,10 +30,10 @@ and the locked design decisions. Implement one plan per session.
 | ~~Clip export editor~~ (done 2026-07-04) | 07 |
 | ~~SpeechBrain diarization backend~~ (done 2026-07-04) | 08 |
 | ~~Transcript name correction~~ (done 2026-07-04) | 09 |
-| Model selection + capability gating | 10 |
+| ~~Model selection + capability gating~~ (done 2026-07-04) | 10 |
 | ~~Image-based clip analysis~~ (done 2026-07-04) | 11 |
-| Content-type presets | 12 |
-| Generalise for any video content | 13 |
+| ~~Content-type presets~~ (done 2026-07-05) | 12 |
+| ~~Generalise for any video content~~ (done 2026-07-05) | 13 |
 
 ---
 
@@ -264,13 +264,15 @@ Complex, specialized, or AI-heavy features that are valuable but don't need to b
   Minimal/generic default for users who don't match a preset. Each preset ships with recommended
   score weights, hot-words, and LLM prompt language. Prerequisite for the rename/generalisation work.
 
-- [ ] **Generalise for any video content** — remove RP-specific assumptions from the tool name,
-  CLI, config paths, and LLM prompts. Replace hard-coded RP context prompt with a free-text
-  "session context" field; character vocabulary becomes a user-supplied list; rename app and CLI;
-  audit remaining RP-specific language in UI and prompts.
-  *Design the rename before touching code — it's a wide change.*
-  Content-type presets (above) should be designed first so the rename ships with a clear value
-  proposition for non-RP users.
+- [x] **Generalise for any video content** — done, 2026-07-05 (plan 13). The rename
+  (rp-clipper → yuu-clip) shipped earlier; this pass audited and neutralised the remaining
+  roleplay-specific copy. Verified every LLM prompt was already content-neutral (RP flavor is
+  injected live only via the `rp-narrative` content preset, plan 12); added `podcast` and
+  `just-chatting` prebuilt world contexts; neutralised RP-assuming tooltips, docs, and comments;
+  and added a "Content type" question to the setup wizard. Gaming-first framing was kept by
+  design — de-RP, not de-gaming. See [COMPLETED.md](COMPLETED.md). This closes the
+  roadmap-close-2026-07 plan set (copyright content detection stays deferred — no implementation
+  path).
 
 - [x] **URL import (Twitch VOD / YouTube)** — done, 2026-07-03. See [COMPLETED.md](COMPLETED.md).
 
