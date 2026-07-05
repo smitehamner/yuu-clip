@@ -750,10 +750,14 @@ a 0–1 fraction: 0 = left edge flush, 0.5 = center, 1 = right edge flush.
 - **Code:** `ClipCandidate.crop_x` (nullable REAL; NULL = center),
   `ExportPreset.vertical` (bool)
 - **UI label:** "Vertical framing" — Left / Center / Right + slider, shown in the
-  export options only when a vertical preset is selected
+  export options only when a vertical preset is selected. "Auto-frame on faces"
+  (optional MediaPipe face detection — `POST /api/clips/{id}/suggest-framing`)
+  suggests the position; the creator still confirms it.
 - **Do not call it:** "crop position" or "pan" in UI copy
 - **Notes:** A source already narrower than 9:16 is letterboxed, never cropped past
-  its own width — a vertical export never fails on aspect ratio.
+  its own width — a vertical export never fails on aspect ratio. Auto-framing is a
+  static position per clip (median face center across sampled frames), not
+  per-frame panning; MediaPipe (Apache-2.0) is installed on demand from Settings.
 
 ---
 

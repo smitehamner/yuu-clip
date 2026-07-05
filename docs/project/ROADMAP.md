@@ -230,11 +230,11 @@ Complex, specialized, or AI-heavy features that are valuable but don't need to b
 
 - [x] **Manual clip creation** — done, 2026-07-03. See [COMPLETED.md](COMPLETED.md).
 
-- [~] **Vertical crop / Shorts export** — Stage 1 done, 2026-07-04 (manual 9:16 framing:
-  `tiktok-9x16` built-in preset + Left/Center/Right + slider). See
-  [COMPLETED.md](COMPLETED.md#vertical-crop--shorts-export--stage-1-done-2026-07-04).
-  Stage 2 (MediaPipe auto-framing suggestion — face-center crop; ultralytics YOLO is
-  AGPL and banned) is deferred; plan 06 stage 2 has the design.
+- [x] **Vertical crop / Shorts export** — done, 2026-07-04. Stage 1 manual 9:16 framing
+  (`tiktok-9x16` built-in preset + Left/Center/Right + slider) and Stage 2 optional
+  MediaPipe auto-framing ("Auto-frame on faces"). See
+  [COMPLETED.md](COMPLETED.md#vertical-crop--shorts-export--stage-2-mediapipe-auto-framing-done-2026-07-04).
+  ultralytics YOLO stayed banned (AGPL); MediaPipe is Apache-2.0.
 
 ### Content safety and moderation
 

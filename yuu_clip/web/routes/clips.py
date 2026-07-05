@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import importlib.util
 import json as json_lib
 import subprocess as _subprocess
 import sys
@@ -1117,6 +1118,51 @@ def _register_clip_edit_routes(router: APIRouter, ctx: ProjectContext) -> None:
             return {"id": clip_id, "crop_x": clip.crop_x}
         finally:
             db.close()
+
+    @router.post("/api/clips/{clip_id}/suggest-framing")
+    async def suggest_framing(clip_id: int):
+        """Suggest a vertical (9:16) crop position by finding the median face
+        position across sampled frames (MediaPipe). Returns {crop_x: float|null}
+        — null when no face is found; the creator still confirms before it sticks.
+
+        503 when the optional MediaPipe package isn't installed (Settings →
+        Export → Auto-framing). The detection runs off the event loop via
+        asyncio.to_thread — it is CPU-bound frame extraction + inference.
+        """
+        if importlib.util.find_spec("mediapipe") is None:
+            raise HTTPException(
+                503,
+                "Auto-framing needs the MediaPipe package — install it under "
+                "Settings → Export → Vertical framing (auto-frame).",
+            )
+        db = ctx.get_db()
+        try:
+            clip = _require_clip(db, clip_id)
+            video = db.get(Video, clip.video_id)
+            if not video:
+                raise HTTPException(404, "Video not found")
+            src = Path(video.path)
+            if not src.exists():
+                raise HTTPException(404, "Source video file not found on disk")
+            from yuu_clip.analyze.proxy import proxy_file_for, proxy_is_fresh
+            proxy_file = proxy_file_for(src, ctx.proxy_dir)
+            encode_src = proxy_file if proxy_is_fresh(video, proxy_file) else src
+            segment_offset_s = video.segment_start_s or 0
+            start_s = segment_offset_s + clip.start_ms / 1000 + (clip.start_offset or 0)
+            end_s = segment_offset_s + clip.end_ms / 1000 + (clip.end_offset or 0)
+            source_w, source_h = video.width, video.height
+        finally:
+            db.close()
+
+        from yuu_clip.analyze.framing import suggest_crop_x
+        try:
+            crop_x = await asyncio.to_thread(
+                suggest_crop_x, encode_src, start_s, end_s, source_w, source_h
+            )
+        except Exception as exc:
+            _log.error("Auto-framing failed for clip %d: %s", clip_id, exc, exc_info=True)
+            raise HTTPException(500, "Auto-framing failed — see the log for details")
+        return {"crop_x": crop_x}
 
 
 def _register_caption_routes(router: APIRouter, ctx: ProjectContext) -> None:

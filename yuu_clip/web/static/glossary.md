@@ -179,7 +179,7 @@ A named recipe for export — container, resolution, and bitrate — instead of 
 One of a clip's exported files. A clip can have more than one format at once (say, an original-quality export plus a Discord-sized one) — exporting with a new preset adds a format instead of replacing your existing one.
 
 ### Vertical framing
-When you export with a vertical (9:16) preset like "TikTok / Shorts", the video is cropped from your widescreen recording down to a tall frame. Vertical framing is the horizontal position of that crop — Left, Center, or Right, or anywhere in between with the slider — so you can keep the action in shot.
+When you export with a vertical (9:16) preset like "TikTok / Shorts", the video is cropped from your widescreen recording down to a tall frame. Vertical framing is the horizontal position of that crop — Left, Center, or Right, or anywhere in between with the slider — so you can keep the action in shot. "Auto-frame on faces" can suggest a position by finding faces in the clip (needs the optional MediaPipe package, installed from Settings → Export); you always confirm before it's used.
 
 ### Highlight reel
 A single video assembled from several approved clips, with optional transitions and title cards.

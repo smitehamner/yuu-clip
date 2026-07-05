@@ -56,6 +56,7 @@ _INSTALLABLE: dict[str, str | list[str]] = {
     "anthropic":   "anthropic",
     "laugh-deps":  ["transformers", "torch", "torchaudio", "soundfile"],
     "cuda-libs":   ["nvidia-cublas-cu12", "nvidia-cudnn-cu12"],
+    "mediapipe":   "mediapipe",
 }
 _IMPORT_NAMES: dict[str, list[str]] = {
     "pyannote":    ["pyannote.audio"],
@@ -63,6 +64,7 @@ _IMPORT_NAMES: dict[str, list[str]] = {
     "anthropic":   ["anthropic"],
     "laugh-deps":  ["transformers", "torch", "torchaudio", "soundfile"],
     "cuda-libs":   ["nvidia.cublas", "nvidia.cudnn"],
+    "mediapipe":   ["mediapipe"],
 }
 
 # ── Whisper real-time speed ratios ──────────────────────────────────────────

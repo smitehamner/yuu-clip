@@ -1244,6 +1244,36 @@ function _setExportFraming(fraction) {
   });
 }
 
+// Ask the server to suggest a crop position from faces in the clip (MediaPipe).
+// Fills the slider on success; the creator still confirms by exporting. Absent
+// package (503) points at the Settings install; no face found leaves the manual
+// position untouched.
+async function _autoFrameExport() {
+  const btn  = document.getElementById('export-autoframe-btn');
+  const note = document.getElementById('export-autoframe-note');
+  btn.disabled = true;
+  note.textContent = 'Finding faces…';
+  try {
+    const res = await fetch(`/api/clips/${_exportClipId}/suggest-framing`, {method: 'POST'});
+    if (res.status === 503) {
+      note.innerHTML = 'Needs MediaPipe — <a href="#" onclick="closeExportModal();openSettings();return false">install it in Settings</a>.';
+      return;
+    }
+    if (!res.ok) throw new Error(formatApiError(await res.json().catch(() => ({}))) || `HTTP ${res.status}`);
+    const {crop_x} = await res.json();
+    if (crop_x == null) {
+      note.textContent = 'No face found — set the crop manually.';
+      return;
+    }
+    _setExportFraming(crop_x);
+    note.textContent = 'Framed on faces.';
+  } catch (err) {
+    note.textContent = `Auto-frame failed: ${err.message}`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 // Speaker labels only apply to a retranscribe pass and need diarization fully
 // set up (pyannote installed + token), so the checkbox is enabled only when both
 // conditions hold.
@@ -1300,6 +1330,7 @@ async function exportClip(id) {
   await populateExportPresetSelect('');
   const savedCropX = AppState.activeClipData?.crop_x;
   _setExportFraming(savedCropX == null ? 0.5 : savedCropX);
+  document.getElementById('export-autoframe-note').textContent = '';
   _onExportPresetChange('');
   _updateExportModeSummary();
   _loadExportSpeakerDefault();
@@ -1765,7 +1796,7 @@ Object.assign(window, {
   exportClip, exportVideoTranscript, confirmExport, closeExportModal,
   bulkSetClipStatus, bulkDeleteClips, bulkExportClips, _clearClipSelection,
   _onExportCaptionsChange, _onExportRetranscribeChange, _onExportPresetChange,
-  _setExportFraming, _updateExportModeSummary, _renderExportModeSummary,
+  _setExportFraming, _autoFrameExport, _updateExportModeSummary, _renderExportModeSummary,
   openScoreOverride, closeScoreOverrideModal, _scoreOverrideSave, clearScoreOverride,
   openDescKebab, openDescLongKebab,
   startFindSimilar, openSimilarClipsModal, closeSimilarClipsModal,

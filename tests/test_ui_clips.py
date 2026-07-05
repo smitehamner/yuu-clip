@@ -7,6 +7,7 @@ helpers.
 """
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 
@@ -312,6 +313,59 @@ class TestVerticalFramingControl:
         )
         page.click("#export-framing [data-frame-pos='0']")
         assert page.eval_on_selector("#export-framing-box", "el => el.style.left") == "0%"
+        page.evaluate("closeExportModal()")
+
+
+# ---------------------------------------------------------------------------
+# Export modal — Auto-frame button (plan 06 stage 2)
+# ---------------------------------------------------------------------------
+
+@skip_no_server
+class TestAutoFrameButton:
+    def _open_vertical(self, page: Page):
+        select_first_video_and_clip(page)
+        page.wait_for_selector("#detail .clip-badge", timeout=3000)
+        page.evaluate("() => exportClip(AppState.activeClipId)")
+        page.wait_for_selector("#export-settings-modal.visible", timeout=3000)
+        page.evaluate("() => _onExportPresetChange('tiktok-9x16')")
+
+    def _mock_suggest(self, page: Page, status: int, body: dict):
+        page.route(
+            "**/api/clips/*/suggest-framing",
+            lambda route: route.fulfill(
+                status=status, content_type="application/json", body=json.dumps(body)
+            ),
+        )
+
+    def test_button_visible_for_vertical_preset(self, page: Page):
+        self._open_vertical(page)
+        expect(page.locator("#export-autoframe-btn")).to_be_visible()
+        page.evaluate("closeExportModal()")
+
+    def test_success_moves_the_slider(self, page: Page):
+        self._open_vertical(page)
+        self._mock_suggest(page, 200, {"crop_x": 0.8})
+        page.click("#export-autoframe-btn")
+        expect(page.locator("#export-autoframe-note")).to_contain_text("Framed on faces")
+        assert page.eval_on_selector("#export-framing-slider", "el => el.value") == "0.8"
+        page.evaluate("closeExportModal()")
+
+    def test_no_face_leaves_position_and_notes(self, page: Page):
+        self._open_vertical(page)
+        page.evaluate("() => _setExportFraming(0.5)")
+        self._mock_suggest(page, 200, {"crop_x": None})
+        page.click("#export-autoframe-btn")
+        expect(page.locator("#export-autoframe-note")).to_contain_text("No face found")
+        assert page.eval_on_selector("#export-framing-slider", "el => el.value") == "0.5"
+        page.evaluate("closeExportModal()")
+
+    def test_503_links_to_settings_install(self, page: Page):
+        self._open_vertical(page)
+        self._mock_suggest(page, 503, {"detail": "Auto-framing needs the MediaPipe package"})
+        page.click("#export-autoframe-btn")
+        note = page.locator("#export-autoframe-note")
+        expect(note).to_contain_text("MediaPipe")
+        expect(note.locator("a")).to_have_count(1)
         page.evaluate("closeExportModal()")
 
 

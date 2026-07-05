@@ -6,6 +6,38 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) — see the
 
 ---
 
+## Vertical crop / Shorts export — Stage 2: MediaPipe auto-framing (done 2026-07-04)
+
+Completes plan 06 — an optional "Auto-frame on faces" button that suggests the
+vertical crop position from face detection, on top of Stage 1's manual framing.
+
+- **Detector** (`yuu_clip/analyze/framing.py`): samples 5 evenly-spaced frames
+  across the clip window (from the 720p proxy when fresh, else the source), runs
+  MediaPipe face detection, takes the median face-center x, and converts it to a
+  `crop_x` that centers the 9:16 column on the face (`crop_x_from_face_center`,
+  aspect-aware; returns None when no face is found in any frame). Pure pieces
+  (`_center_x_from_result`, `_median`, `_sample_timestamps`, the conversion) are
+  unit-tested without MediaPipe.
+- **Route** (`POST /api/clips/{id}/suggest-framing`): 503 when MediaPipe isn't
+  installed (with a Settings install hint), 404 guards, else runs the detector
+  off the event loop via `asyncio.to_thread` and returns `{crop_x: float|null}`.
+- **Install gating**: `mediapipe` added to `_INSTALLABLE`/`_IMPORT_NAMES`; a
+  "Vertical framing (auto-frame)" install row in Settings → Export uses the
+  shared `installPackage`/`_refreshInstallStatus` plumbing.
+- **UI**: an "Auto-frame on faces" button in the export dialog's Vertical framing
+  group fills the slider on success; the creator still confirms by exporting.
+  Absent-package (503) links to the Settings install; no-face leaves the manual
+  position untouched.
+- **Deviations from the plan (flagged).** The plan assumed MediaPipe's legacy
+  `mp.solutions.face_detection` API, but the only `mediapipe` wheel that installs
+  on this Python (3.14) is the Tasks-only build (`mediapipe.tasks.python.vision.
+  FaceDetector`), which needs a model asset. So the detector uses the Tasks API
+  and downloads the ~230 KB BlazeFace model (Apache-2.0) to the user cache on
+  first use (same "downloads on first use" pattern as the laugh model) rather
+  than requiring the legacy solutions API. Verified end-to-end: MediaPipe 0.10.35
+  imports on Python 3.14, the model downloads, and the full
+  ffmpeg→detect→median pipeline runs (returns None cleanly on a no-face source).
+
 ## Vertical crop / Shorts export — Stage 1 (done 2026-07-04)
 
 Closed the Phase 6 "Vertical crop / Shorts export" item (plan 06), Stage 1 — manual 9:16

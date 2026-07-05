@@ -589,6 +589,22 @@
 
     <div class="settings-row" style="margin-top:20px">
       <div class="settings-col">
+        <div class="settings-label">Vertical framing (auto-frame)</div>
+        <div class="settings-note">
+          Optional. When exporting with a vertical (9:16) preset, "Auto-frame on faces"
+          suggests where to place the crop by finding faces in the clip. Needs the
+          MediaPipe package (~50 MB, Apache-2.0) — you can still set the crop by hand without it.
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:6px">
+          <button class="btn-secondary" id="btn-install-mediapipe" onclick="installPackage('mediapipe')">Install MediaPipe</button>
+          <span id="install-status-mediapipe" style="font-size:12px"></span>
+        </div>
+        <div id="install-log-mediapipe" class="settings-install-log" style="margin-top:6px"></div>
+      </div>
+    </div>
+
+    <div class="settings-row" style="margin-top:20px">
+      <div class="settings-col">
         <div class="settings-label">Title card</div>
         <div class="settings-note">
           The text overlay shown between highlight reel clips, and prepended to a
@@ -1598,6 +1614,11 @@
             </div>
             <input id="export-framing-slider" type="range" min="0" max="1" step="0.01" value="0.5"
                    aria-label="Vertical crop position" oninput="_setExportFraming(parseFloat(this.value))" style="width:100%">
+            <div style="display:flex;gap:8px;align-items:center">
+              <button type="button" id="export-autoframe-btn" class="btn-secondary" style="font-size:12px;padding:4px 8px"
+                      onclick="_autoFrameExport()">Auto-frame on faces</button>
+              <span id="export-autoframe-note" style="font-size:11px;color:var(--muted)"></span>
+            </div>
           </div>
         </div>
       </div>

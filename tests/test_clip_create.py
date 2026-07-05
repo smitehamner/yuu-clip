@@ -192,3 +192,51 @@ class TestClipFramingPatch:
             assert session.get(ClipCandidate, clip_id).trim_edited_at is not None
         finally:
             session.close()
+
+
+class TestSuggestFraming:
+    """POST /api/clips/{id}/suggest-framing returns a MediaPipe-suggested crop_x,
+    or 503 when the optional package is absent. The detector itself is mocked —
+    the tests exercise the gate, the response shape, and the null-face path."""
+
+    def _new_clip_id(self, client) -> int:
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        return client.post(f"/api/videos/{vid_id}/clips", json={"start_ms": 10_000, "end_ms": 20_000}).json()["id"]
+
+    def _force_mediapipe(self, monkeypatch, present: bool):
+        import importlib.util as _util
+        real = _util.find_spec
+
+        def _fake(name, *args, **kwargs):
+            if name == "mediapipe":
+                return object() if present else None
+            return real(name, *args, **kwargs)
+
+        monkeypatch.setattr(_util, "find_spec", _fake)
+
+    def test_503_when_mediapipe_missing(self, client, monkeypatch):
+        self._force_mediapipe(monkeypatch, present=False)
+        clip_id = self._new_clip_id(client)
+        res = client.post(f"/api/clips/{clip_id}/suggest-framing")
+        assert res.status_code == 503
+        assert "MediaPipe" in res.json()["detail"]
+
+    def test_returns_suggested_crop_x(self, client, project_dir, monkeypatch):
+        import yuu_clip.analyze.framing as framing_mod
+        self._force_mediapipe(monkeypatch, present=True)
+        (project_dir / "session.mkv").write_bytes(b"")  # route guards on src.exists()
+        monkeypatch.setattr(framing_mod, "suggest_crop_x", lambda *a, **k: 0.72)
+        clip_id = self._new_clip_id(client)
+        res = client.post(f"/api/clips/{clip_id}/suggest-framing")
+        assert res.status_code == 200
+        assert res.json() == {"crop_x": 0.72}
+
+    def test_null_crop_x_when_no_face(self, client, project_dir, monkeypatch):
+        import yuu_clip.analyze.framing as framing_mod
+        self._force_mediapipe(monkeypatch, present=True)
+        (project_dir / "session.mkv").write_bytes(b"")
+        monkeypatch.setattr(framing_mod, "suggest_crop_x", lambda *a, **k: None)
+        clip_id = self._new_clip_id(client)
+        res = client.post(f"/api/clips/{clip_id}/suggest-framing")
+        assert res.status_code == 200
+        assert res.json() == {"crop_x": None}

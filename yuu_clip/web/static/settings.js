@@ -227,7 +227,7 @@ function _applySettingsToUI(cfg) {
   setVal('s-caption-position', cfg.caption_position || 'bottom');
   _snapshotSettings();
   _checkSettingsDirty();
-  ['pyannote', 'llamacpp', 'anthropic', 'laugh-deps', 'cuda-libs'].forEach(_refreshInstallStatus);
+  ['pyannote', 'llamacpp', 'anthropic', 'laugh-deps', 'cuda-libs', 'mediapipe'].forEach(_refreshInstallStatus);
 }
 
 // Applies instantly (outside the Save flow) so the user sees the theme while
