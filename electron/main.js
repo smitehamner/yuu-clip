@@ -941,7 +941,10 @@ async function ensureVenv() {
       progress('s0', 'done');
       progress('s1', 'active');
       logSetup('Upgrading pip…');
-      await runCmd(VENV_PIP, ['install', '--upgrade', 'pip']);
+      // pip.exe cannot replace itself on Windows — it exits 1 with "To modify
+      // pip, please run python -m pip" the moment PyPI has a newer pip than
+      // the bundled one. Only `python -m pip` may upgrade pip.
+      await runCmd(VENV_PYTHON, ['-m', 'pip', 'install', '--upgrade', 'pip']);
       progress('s1', 'done');
     }
     progress('s2', 'active');

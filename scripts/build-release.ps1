@@ -1,4 +1,4 @@
-# build-release.ps1 — build the yuu-clip installer
+﻿# build-release.ps1 — build the yuu-clip installer
 # Usage: .\scripts\build-release.ps1 [-Version 0.2.0]
 param(
     [string]$Version = ""
