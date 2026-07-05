@@ -6,6 +6,51 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) — see the
 
 ---
 
+## First-run reliability + wizard defaults — E2E UX review stages 01–02 (done 2026-07-05)
+
+The install→daily-use UX review was performed by actually building
+`yuu-clip Setup 0.1.15.exe` from the working tree, silent-installing it, and
+launching as a first-run user — which surfaced two blockers that no automated
+suite covered (both were "worked when built, broke when the environment moved").
+
+- **First-run venv setup died on every fresh install (Blocker).** `pip.exe install
+  --upgrade pip` cannot replace itself on Windows — it exits 1 the moment PyPI has a
+  newer pip than the bundled runtime's. 0.1.13/0.1.14 testing passed only because pip
+  was current then; pip 26 shipping broke every fresh install with a raw "Startup
+  error / Exited with code 1" dialog. Fixed by routing the upgrade through
+  `python -m pip` (`electron/venv-setup.js`, extracted so it is regression-tested),
+  verified end-to-end with a rebuilt installer.
+- **LLM-engine install failed on every machine without a C++ toolchain (Blocker).**
+  The wizard's "Install llama.cpp" built `llama-cpp-python` from source (no MSVC/CMake
+  → compile error, observed on the RTX 4050 laptop). It now always installs a prebuilt
+  `win_amd64` wheel — a CUDA build matched to the detected CUDA version (or the lowest
+  pinned tag when `nvidia-smi`'s version is unparseable), else the plain CPU wheel
+  (`selectLlamaWheelUrl`/`buildCpuWheelUrl` in `llamacpp-cuda.js`, unit-tested for all
+  four machine shapes).
+- **Humane failure copy + non-dead-end dialogs.** Install-failure copy no longer blames
+  the internet for every error (`install-error.js` classifies pip stderr — network
+  failures get the connection hint, build/resolution failures get an honest next step);
+  a shared `showFatalDialog` offers Try again / Open log folder / Quit and drops
+  developer terms (venv, wheel, exit code).
+- **Encoding corruption fixed.** The setup log gets a UTF-8 BOM on first write, the
+  `/api/status` version string uses ASCII separators, and `logs.ps1` reads the app log
+  as UTF-8 — so em-dashes and "·" stop mojibaking under PowerShell 5.1 / cp1252.
+- **llamacpp is the new default LLM backend** (locked user decision 2026-07-05,
+  superseding the wizard-revamp Ollama default): `main.js` `defaultBackend`, the wizard
+  + Settings lists ("Local model file" first, tagged *recommended*; Ollama reframed as
+  "if you already use Ollama"), and the `claude→local` privacy fallback all point at it,
+  locked by guard tests in `config.py` and the wizard.
+- **Wizard WCAG AA contrast pass** (nothing enforced this before): muted grays
+  `#555`/`#666` → `#87879f`/`#9090a8`, all now ≥ 4.5:1 on the `#12121e` wizard
+  background, with a new static `tests/test_wizard_theme.py` checking every wizard text
+  color. Plus live-seen wizard state/copy bugs: saved Whisper model no longer reset on
+  re-run, recommended-model tag can't overflow the 620px window, "CUDA detected" (not
+  "unknown") when the version parse misses, "no model file chosen" warning hidden while
+  the download runs.
+- Tests: `electron/test/{venv-setup,install-error,llamacpp-cuda}.test.js` (38 electron
+  tests green), `tests/test_wizard_theme.py`, `tests/test_model_catalog.py` default-lock
+  additions.
+
 ## Clip-review ergonomics — E2E UX review stage 04 (done 2026-07-05)
 
 Four design-fork decisions from the install→daily-use UX review, resolved by
