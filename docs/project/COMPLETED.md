@@ -6,6 +6,35 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) — see the
 
 ---
 
+## Vertical crop / Shorts export — Stage 1 (done 2026-07-04)
+
+Closed the Phase 6 "Vertical crop / Shorts export" item (plan 06), Stage 1 — manual 9:16
+framing. Stage 2 (MediaPipe auto-framing suggestion) is deferred; see the plan file.
+
+- **Preset model.** `ExportPreset` gains a `vertical: bool` field. New built-in preset
+  `tiktok-9x16` ("TikTok / Shorts (9:16)", mp4, 1080×1920, CRF 20). Custom presets can be
+  vertical too (`validate_preset_dict` + the `/api/export-presets` body + a "Vertical 9:16"
+  checkbox in Settings → Export).
+- **Filter chain.** New `_vertical_crop_filters()` in `analyze/extract.py`: for a vertical
+  preset it prepends `crop=min(iw\,ih*9/16):ih:<x>:0` (comma escaped for libavfilter) →
+  `scale=1080:1920:force_original_aspect_ratio=decrease` → `pad=1080:1920:…`, with any
+  burned-in captions appended **after** so they're sized for the 9:16 frame. The `min()`
+  crop width + decrease/pad means a source already narrower than 9:16 is letterboxed, never
+  cropped past its own width — a vertical export never fails on aspect ratio (verified with a
+  real 480×1080 ffmpeg smoke test). `crop_x` threads through
+  `_preset_video_filter`/`export_clip_with_preset`/`cli/export.py`.
+- **Vertical framing (crop position).** New nullable `ClipCandidate.crop_x` REAL column
+  (0=left, 0.5=center, 1=right; NULL=center), added via `_migrate`. `PATCH /api/clips/{id}/
+  framing` clamps 0–1 and stamps `trim_edited_at` (crop moves pixels like a trim), serialized
+  into `_clip_dict`, and recorded in `ClipExport.settings` for a vertical export.
+- **UI.** Export dialog shows a "Vertical framing" control (Left/Center/Right + slider over a
+  schematic 16:9 frame with a movable 9:16 box, theme-token styled) only when a vertical
+  preset is selected; `confirmExport` PATCHes `crop_x` before running. Framing preview is a
+  schematic box, not a real video frame — there is no poster/thumbnail endpoint yet (a real
+  frame + drag box is plan 07's scope).
+- **Tests.** Filter-chain strings (center/left/right/clamp/captions/narrow), preset `vertical`
+  round-trip, `tiktok-9x16` built-in, and `crop_x` PATCH validation. 1610 API tests pass.
+
 ## Caption style options (done 2026-07-04)
 
 Closed the Phase 6 "Subtitle style options" item (plan 05). Font, size, and position for

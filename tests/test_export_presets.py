@@ -150,14 +150,32 @@ class TestValidatePresetDict:
         with pytest.raises(ValueError, match="Audio bitrate"):
             validate_preset_dict(self._valid(audio_kbps=1000), existing_names=set())
 
+    def test_vertical_defaults_false_when_absent(self):
+        preset = validate_preset_dict(self._valid(), existing_names=set())
+        assert preset.vertical is False
+
+    def test_vertical_round_trips_true(self):
+        preset = validate_preset_dict(self._valid(vertical=True), existing_names=set())
+        assert preset.vertical is True
+        assert preset.to_dict()["vertical"] is True
+
 
 class TestBuiltinPresets:
     def test_builtins_always_present(self):
         names = {p.name for p in BUILTIN_PRESETS}
-        assert names == {"youtube-1080p", "discord-10mb"}
+        assert names == {"youtube-1080p", "discord-10mb", "tiktok-9x16"}
 
     def test_builtin_names_frozenset_matches(self):
-        assert BUILTIN_PRESET_NAMES == {"youtube-1080p", "discord-10mb"}
+        assert BUILTIN_PRESET_NAMES == {"youtube-1080p", "discord-10mb", "tiktok-9x16"}
+
+    def test_tiktok_preset_is_vertical(self):
+        preset = next(p for p in BUILTIN_PRESETS if p.name == "tiktok-9x16")
+        assert preset.vertical is True
+        assert preset.container == "mp4"
+
+    def test_non_vertical_builtins_default_vertical_false(self):
+        for name in ("youtube-1080p", "discord-10mb"):
+            assert next(p for p in BUILTIN_PRESETS if p.name == name).vertical is False
 
     def test_youtube_preset_never_upscales_source(self):
         preset = next(p for p in BUILTIN_PRESETS if p.name == "youtube-1080p")
@@ -199,7 +217,7 @@ class TestResolvePreset:
 class TestExportPresetRoutes:
     def test_list_includes_builtins_and_empty_custom_by_default(self, client):
         data = client.get("/api/export-presets").json()
-        assert {p["name"] for p in data["builtins"]} == {"youtube-1080p", "discord-10mb"}
+        assert {p["name"] for p in data["builtins"]} == {"youtube-1080p", "discord-10mb", "tiktok-9x16"}
         assert data["custom"] == []
 
     def test_create_round_trip(self, client):

@@ -398,6 +398,7 @@ only flagged clips.
   Settings → Export and override it per export in the Export dialog's collapsible "Caption style"
   group. Empty/default values use the renderer default. Per-speaker colours are always kept.
   Embedded tracks and SRT sidecars are unstyled — players control their rendering.
+- **Vertical / Shorts export** (`--preset tiktok-9x16`): the built-in "TikTok / Shorts (9:16)" Export preset crops the widescreen recording to a 9:16 column and scales it to 1080×1920. **Vertical framing** — Left / Center / Right buttons plus a fine slider in the Export dialog — chooses which slice of the frame to keep; the choice is saved on the clip and reused for later vertical exports. Sources already narrower than 9:16 are letterboxed rather than cropped. Any custom preset can be made vertical with the "Vertical 9:16" checkbox in Settings → Export.
 - **Output**: `.yuu-clip/exports/`
 - **File name**: configurable template in Settings → Export (default `{video}_clip{clip_id}_{start}`); placeholders: `{video}`, `{clip_id}`, `{start}`, `{end}`, `{score}`, `{date}`
 - **Add title card**: prepends a title card (see Highlight reel below for the customizable style) with text built from your template — the clip's description and/or timecode by default

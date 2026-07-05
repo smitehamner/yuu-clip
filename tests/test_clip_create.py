@@ -148,3 +148,47 @@ class TestRescoreAfterManualCreate:
 
         rescored = client.get(f"/api/clips/{created['id']}").json()
         assert rescored["scored_at"] is not None
+
+
+class TestClipFramingPatch:
+    """PATCH /api/clips/{id}/framing sets the vertical (9:16) crop position,
+    clamps it to 0..1, and stamps trim_edited_at so any existing vertical export
+    is flagged stale (crop_x moves pixels the same way a trim does)."""
+
+    def _new_clip_id(self, client) -> int:
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        return client.post(f"/api/videos/{vid_id}/clips", json={"start_ms": 10_000, "end_ms": 20_000}).json()["id"]
+
+    def test_default_crop_x_is_null(self, client):
+        clip_id = self._new_clip_id(client)
+        assert client.get(f"/api/clips/{clip_id}").json()["crop_x"] is None
+
+    def test_sets_crop_x(self, client):
+        clip_id = self._new_clip_id(client)
+        r = client.patch(f"/api/clips/{clip_id}/framing", json={"crop_x": 0.25})
+        assert r.status_code == 200
+        assert r.json()["crop_x"] == 0.25
+        assert client.get(f"/api/clips/{clip_id}").json()["crop_x"] == 0.25
+
+    def test_clamps_above_one(self, client):
+        clip_id = self._new_clip_id(client)
+        assert client.patch(f"/api/clips/{clip_id}/framing", json={"crop_x": 1.7}).json()["crop_x"] == 1.0
+
+    def test_clamps_below_zero(self, client):
+        clip_id = self._new_clip_id(client)
+        assert client.patch(f"/api/clips/{clip_id}/framing", json={"crop_x": -0.4}).json()["crop_x"] == 0.0
+
+    def test_null_resets_to_center(self, client):
+        clip_id = self._new_clip_id(client)
+        client.patch(f"/api/clips/{clip_id}/framing", json={"crop_x": 0.8})
+        assert client.patch(f"/api/clips/{clip_id}/framing", json={"crop_x": None}).json()["crop_x"] is None
+
+    def test_stamps_trim_edited_at(self, client, project_dir):
+        from yuu_clip.db.models import ClipCandidate, make_session
+        clip_id = self._new_clip_id(client)
+        client.patch(f"/api/clips/{clip_id}/framing", json={"crop_x": 0.5})
+        session = make_session(project_dir / ".yuu-clip" / "project.db")
+        try:
+            assert session.get(ClipCandidate, clip_id).trim_edited_at is not None
+        finally:
+            session.close()

@@ -267,6 +267,7 @@ def _finalize_export(cand, session, video_path: Path, output: Path, config, *,
                 subtitle_path=subtitle_path,
                 audio_stream_index=audio_stream_idx,
                 caption_style=caption_style,
+                crop_x=cand.crop_x,
             )
         else:
             result = export_clip(
@@ -305,6 +306,8 @@ def _finalize_export(cand, session, video_path: Path, output: Path, config, *,
                 height=preset.height, crf=preset.crf,
                 target_size_mb=preset.target_size_mb, audio_kbps=preset.audio_kbps,
             )
+            if preset.vertical:
+                settings.update(vertical=True, crop_x=cand.crop_x)
         _record_clip_export(cand, session, preset_name, result, settings)
         session.commit()
     except (RuntimeError, ValueError) as e:

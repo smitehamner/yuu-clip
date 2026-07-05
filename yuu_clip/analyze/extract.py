@@ -300,15 +300,44 @@ def _run_ffmpeg(cmd: list[str]) -> None:
         raise RuntimeError(f"FFmpeg encode failed:\n{result.stderr.strip()}")
 
 
+# Vertical (9:16 Shorts) output dimensions.
+_VERTICAL_W, _VERTICAL_H = 1080, 1920
+
+
+def _vertical_crop_filters(crop_x: Optional[float]) -> list[str]:
+    """Crop the source to a 9:16 column positioned by *crop_x* (0=left, 0.5=center,
+    1=right; None → center), then fit it to 1080x1920.
+
+    The crop width is min(iw, ih*9/16) so a source already narrower than 9:16 (a
+    portrait clip, e.g. a re-imported Short) is never asked for more pixels than it
+    has — it takes the full width and gets letterboxed by the pad instead of failing
+    the encode. The comma inside min() is escaped (\\,) so libavfilter doesn't read
+    it as a filter separator. Scale uses decrease+pad so the exact-9:16 case fits
+    with no padding and the narrow case is padded rather than distorted.
+    """
+    fraction = 0.5 if crop_x is None else max(0.0, min(1.0, crop_x))
+    crop_w = "min(iw\\,ih*9/16)"
+    x_expr = f"(iw-{crop_w})*{fraction:.4f}"
+    return [
+        f"crop={crop_w}:ih:{x_expr}:0",
+        f"scale={_VERTICAL_W}:{_VERTICAL_H}:force_original_aspect_ratio=decrease",
+        f"pad={_VERTICAL_W}:{_VERTICAL_H}:(ow-iw)/2:(oh-ih)/2",
+    ]
+
+
 def _preset_video_filter(
     preset: "ExportPreset",
     subtitle_path: Optional[Path],
     caption_style: Optional[CaptionStyle] = None,
+    crop_x: Optional[float] = None,
 ) -> Optional[str]:
-    """Build the -vf filter chain for a preset encode: scale-down-only (never
-    upscales a smaller source) plus burned-in captions, if requested."""
+    """Build the -vf filter chain for a preset encode: either a 9:16 vertical
+    crop+scale (Shorts) or plain scale-down-only (never upscales a smaller source),
+    plus burned-in captions last so they are sized for the final frame."""
     parts: list[str] = []
-    if preset.height is not None:
+    if preset.vertical:
+        parts.extend(_vertical_crop_filters(crop_x))
+    elif preset.height is not None:
         parts.append(f"scale=-2:'min(ih,{preset.height})'")
     if subtitle_path is not None:
         parts.append(_subtitles_filter(subtitle_path, caption_style))
@@ -324,6 +353,7 @@ def export_clip_with_preset(
     subtitle_path: Optional[Path] = None,
     audio_stream_index: Optional[int] = None,
     caption_style: Optional[CaptionStyle] = None,
+    crop_x: Optional[float] = None,
 ) -> Path:
     """Cut a clip from *video_path* using an Export preset's container/resolution/
     bitrate recipe. Always re-encodes (no stream-copy path — a preset's whole
@@ -347,7 +377,7 @@ def export_clip_with_preset(
 
     start_s    = start_ms / 1000.0
     duration_s = (end_ms - start_ms) / 1000.0
-    vf = _preset_video_filter(preset, subtitle_path, caption_style)
+    vf = _preset_video_filter(preset, subtitle_path, caption_style, crop_x)
     map_args = ["-map", "0:v:0", "-map", f"0:{audio_stream_index}"] if audio_stream_index is not None else []
 
     if preset.target_size_mb is not None:

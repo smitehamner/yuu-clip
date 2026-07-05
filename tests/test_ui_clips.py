@@ -271,6 +271,51 @@ class TestExportModalDefaults:
 
 
 # ---------------------------------------------------------------------------
+# Export modal — vertical (9:16 Shorts) framing control (plan 06)
+# ---------------------------------------------------------------------------
+
+@skip_no_server
+class TestVerticalFramingControl:
+    def _open_export_modal(self, page: Page):
+        select_first_video_and_clip(page)
+        page.wait_for_selector("#detail .clip-badge", timeout=3000)
+        page.evaluate("() => exportClip(AppState.activeClipId)")
+        page.wait_for_selector("#export-settings-modal.visible", timeout=3000)
+
+    def test_framing_hidden_by_default(self, page: Page):
+        self._open_export_modal(page)
+        expect(page.locator("#export-framing")).to_be_hidden()
+        page.evaluate("closeExportModal()")
+
+    def test_framing_shown_for_vertical_preset(self, page: Page):
+        self._open_export_modal(page)
+        page.select_option("#export-preset", "tiktok-9x16")
+        page.evaluate("() => _onExportPresetChange('tiktok-9x16')")
+        expect(page.locator("#export-framing")).to_be_visible()
+        page.evaluate("closeExportModal()")
+
+    def test_framing_hidden_again_for_non_vertical_preset(self, page: Page):
+        self._open_export_modal(page)
+        page.evaluate("() => _onExportPresetChange('tiktok-9x16')")
+        expect(page.locator("#export-framing")).to_be_visible()
+        page.evaluate("() => _onExportPresetChange('')")
+        expect(page.locator("#export-framing")).to_be_hidden()
+        page.evaluate("closeExportModal()")
+
+    def test_position_buttons_move_the_crop_box(self, page: Page):
+        self._open_export_modal(page)
+        page.evaluate("() => _onExportPresetChange('tiktok-9x16')")
+        page.click("#export-framing [data-frame-pos='1']")
+        assert page.eval_on_selector("#export-framing-box", "el => el.style.left") == "68.36%"
+        assert page.eval_on_selector(
+            "#export-framing [data-frame-pos='1']", "el => el.classList.contains('active')"
+        )
+        page.click("#export-framing [data-frame-pos='0']")
+        assert page.eval_on_selector("#export-framing-box", "el => el.style.left") == "0%"
+        page.evaluate("closeExportModal()")
+
+
+# ---------------------------------------------------------------------------
 # Export modal — Quick/Precise mode summary (M9-1)
 # ---------------------------------------------------------------------------
 

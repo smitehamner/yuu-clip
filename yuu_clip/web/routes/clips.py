@@ -72,6 +72,10 @@ class ClipScoreOverride(BaseModel):
     score_overall_user: Optional[float] = None  # None = clear override
 
 
+class ClipFramingUpdate(BaseModel):
+    crop_x: Optional[float] = None  # 0..1 horizontal 9:16 crop position; None = center
+
+
 class ClipMergeRequest(BaseModel):
     clip_b_id: int
 
@@ -220,6 +224,7 @@ def _clip_dict(
         "description_long_is_edited": clip.description_long_user is not None,
         "start_offset": clip.start_offset,
         "end_offset": clip.end_offset,
+        "crop_x": clip.crop_x,
         "status": clip.status,
         "tags": clip.tags,
         "user_tags": clip.user_tags,
@@ -1094,6 +1099,22 @@ def _register_clip_edit_routes(router: APIRouter, ctx: ProjectContext) -> None:
             if cached:
                 cached.unlink(missing_ok=True)
             return {"start_offset": clip.start_offset, "end_offset": clip.end_offset}
+        finally:
+            db.close()
+
+    @router.patch("/api/clips/{clip_id}/framing")
+    def update_clip_framing(clip_id: int, body: ClipFramingUpdate):
+        """Set the vertical (9:16) crop position on a clip. crop_x is clamped to
+        0..1 (None = center). Moves pixels the same way a trim does, so it stamps
+        trim_edited_at to flag any existing vertical export as stale."""
+        crop_x = None if body.crop_x is None else round(max(0.0, min(1.0, body.crop_x)), 4)
+        db = ctx.get_db()
+        try:
+            clip = _require_clip(db, clip_id)
+            clip.crop_x = crop_x
+            clip.trim_edited_at = datetime.now(timezone.utc)
+            db.commit()
+            return {"id": clip_id, "crop_x": clip.crop_x}
         finally:
             db.close()
 

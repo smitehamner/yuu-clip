@@ -22,6 +22,7 @@ class ExportPresetBody(BaseModel):
     crf: Optional[int] = None
     target_size_mb: Optional[float] = None
     audio_kbps: int = 128
+    vertical: bool = False
 
 
 def _slugify(label: str) -> str:

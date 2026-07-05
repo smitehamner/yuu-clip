@@ -1583,6 +1583,24 @@
           </div>
         </div>
       </details>
+      <div id="export-framing" style="display:none;border-top:1px solid var(--border);padding-top:10px">
+        <div style="font-size:13px;color:var(--muted);margin-bottom:8px">Vertical framing
+          <span style="font-size:11px">— which slice of the frame fills the 9:16 video</span></div>
+        <div style="display:flex;gap:12px;align-items:center">
+          <div class="framing-preview" title="16:9 source frame; the box is the 9:16 crop">
+            <div id="export-framing-box" class="framing-box"></div>
+          </div>
+          <div style="flex:1;display:flex;flex-direction:column;gap:8px">
+            <div style="display:flex;gap:6px">
+              <button type="button" class="framing-btn" data-frame-pos="0" onclick="_setExportFraming(0)">Left</button>
+              <button type="button" class="framing-btn" data-frame-pos="0.5" onclick="_setExportFraming(0.5)">Center</button>
+              <button type="button" class="framing-btn" data-frame-pos="1" onclick="_setExportFraming(1)">Right</button>
+            </div>
+            <input id="export-framing-slider" type="range" min="0" max="1" step="0.01" value="0.5"
+                   aria-label="Vertical crop position" oninput="_setExportFraming(parseFloat(this.value))" style="width:100%">
+          </div>
+        </div>
+      </div>
       <div style="display:flex;align-items:center;gap:10px">
         <label style="display:flex;align-items:center;gap:10px;cursor:pointer;flex:1">
           <input type="checkbox" id="export-retranscribe" onchange="_onExportRetranscribeChange(this.checked)">

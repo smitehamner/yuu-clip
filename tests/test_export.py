@@ -126,9 +126,54 @@ class TestCaptionStyleInExportCmd:
         from types import SimpleNamespace
 
         from yuu_clip.analyze.extract import CaptionStyle, _preset_video_filter
-        preset = SimpleNamespace(height=1080)
+        preset = SimpleNamespace(height=1080, vertical=False)
         vf = _preset_video_filter(preset, Path("subs.srt"), CaptionStyle(font_name="Arial"))
         assert vf == "scale=-2:'min(ih,1080)',subtitles=subs.srt:force_style='FontName=Arial'"
+
+
+class TestVerticalCropFilter:
+    """A vertical (9:16 Shorts) preset crops the source to a 9:16 column at the
+    clip's crop_x position, scales+pads to 1080x1920, and puts any burned-in
+    captions last so they are sized for the final vertical frame."""
+
+    def _vertical_preset(self):
+        from types import SimpleNamespace
+        return SimpleNamespace(vertical=True, height=1920)
+
+    def _crop(self, fraction: str) -> str:
+        # min()'s comma is escaped so libavfilter doesn't read it as a filter separator.
+        return f"crop=min(iw\\,ih*9/16):ih:(iw-min(iw\\,ih*9/16))*{fraction}:0"
+
+    def _expect(self, fraction: str) -> str:
+        return (
+            f"{self._crop(fraction)},"
+            "scale=1080:1920:force_original_aspect_ratio=decrease,"
+            "pad=1080:1920:(ow-iw)/2:(oh-ih)/2"
+        )
+
+    def test_center_when_crop_x_none(self):
+        from yuu_clip.analyze.extract import _preset_video_filter
+        assert _preset_video_filter(self._vertical_preset(), None, crop_x=None) == self._expect("0.5000")
+
+    def test_left_edge(self):
+        from yuu_clip.analyze.extract import _preset_video_filter
+        assert _preset_video_filter(self._vertical_preset(), None, crop_x=0.0) == self._expect("0.0000")
+
+    def test_right_edge(self):
+        from yuu_clip.analyze.extract import _preset_video_filter
+        assert _preset_video_filter(self._vertical_preset(), None, crop_x=1.0) == self._expect("1.0000")
+
+    def test_crop_x_is_clamped_to_unit_interval(self):
+        from yuu_clip.analyze.extract import _preset_video_filter
+        assert _preset_video_filter(self._vertical_preset(), None, crop_x=1.5) == self._expect("1.0000")
+        assert _preset_video_filter(self._vertical_preset(), None, crop_x=-0.3) == self._expect("0.0000")
+
+    def test_captions_appended_after_crop_and_scale(self):
+        from yuu_clip.analyze.extract import CaptionStyle, _preset_video_filter
+        vf = _preset_video_filter(
+            self._vertical_preset(), Path("subs.srt"), CaptionStyle(font_size=48), crop_x=0.5,
+        )
+        assert vf == self._expect("0.5000") + ",subtitles=subs.srt:force_style='FontSize=48'"
 
 
 class TestComputeExportWindow:

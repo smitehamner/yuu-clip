@@ -189,6 +189,7 @@ def _migrate(engine) -> None:
             ("hotword_boost_json",   "TEXT"),
             ("sensitive_matches_json", "TEXT"),
             ("score_laugh",          "REAL"),
+            ("crop_x",               "REAL"),
         ]
         for col, typedef in _clip_migrations:
             if col not in existing:
@@ -645,6 +646,11 @@ class ClipCandidate(Base):
 
     start_offset: Mapped[float] = mapped_column(Float, default=0.0)
     end_offset: Mapped[float] = mapped_column(Float, default=0.0)
+
+    # Horizontal position of the 9:16 crop for a vertical (Shorts) export, as a
+    # 0-1 fraction: 0=left edge flush, 0.5=center, 1=right edge flush. NULL means
+    # center. A property of the clip's content, reused across vertical exports.
+    crop_x: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
 
     # pending → approved / rejected / trimmed
     status: Mapped[str] = mapped_column(String, default="pending")

@@ -1166,6 +1166,12 @@ let _exportClipId = null;
 let _exportOpener = null;
 let _exportDiarReady  = false;
 let _exportDiarReason = '';
+let _exportCropX = 0.5;  // vertical-framing crop position for the active export
+
+// A 9:16 column spanning the full height of a 16:9 preview is (9/16)^2 = 31.64%
+// of its width; the box's left edge therefore travels across the remaining 68.36%.
+const _VERT_BOX_W_PCT = 31.64;
+const _VERT_BOX_TRAVEL_PCT = 100 - _VERT_BOX_W_PCT;
 
 // One always-visible line answering "will this be quick or slow, and why" —
 // the terms match the Getting Started guide and glossary (Quick/Precise export).
@@ -1218,7 +1224,24 @@ function _onExportPresetChange(presetName) {
   containerSel.disabled = usingPreset;
   softsubOpt.disabled = usingPreset;
   if (usingPreset && captionsSel.value === 'softsub') captionsSel.value = 'none';
+  document.getElementById('export-framing').style.display =
+    exportPresetIsVertical(presetName) ? '' : 'none';
   _updateExportModeSummary();
+}
+
+// Position the 9:16 crop box for the active export and keep the slider + buttons in sync.
+function _setExportFraming(fraction) {
+  _exportCropX = Math.max(0, Math.min(1, fraction));
+  const slider = document.getElementById('export-framing-slider');
+  if (slider && parseFloat(slider.value) !== _exportCropX) slider.value = _exportCropX;
+  const box = document.getElementById('export-framing-box');
+  if (box) {
+    box.style.width = `${_VERT_BOX_W_PCT}%`;
+    box.style.left  = `${_exportCropX * _VERT_BOX_TRAVEL_PCT}%`;
+  }
+  document.querySelectorAll('#export-framing [data-frame-pos]').forEach(btn => {
+    btn.classList.toggle('active', parseFloat(btn.dataset.framePos) === _exportCropX);
+  });
 }
 
 // Speaker labels only apply to a retranscribe pass and need diarization fully
@@ -1275,6 +1298,8 @@ async function exportClip(id) {
   document.getElementById('export-title-card').checked = false;
   await _prefillExportCaptionStyle();
   await populateExportPresetSelect('');
+  const savedCropX = AppState.activeClipData?.crop_x;
+  _setExportFraming(savedCropX == null ? 0.5 : savedCropX);
   _onExportPresetChange('');
   _updateExportModeSummary();
   _loadExportSpeakerDefault();
@@ -1311,6 +1336,17 @@ async function confirmExport() {
     }).catch(err => { showToast(`Failed to save trim: ${err.message}`, 'error'); return null; });
     if (!timingRes || !timingRes.ok) {
       if (timingRes) showToast('Failed to save trim points', 'error');
+      return;
+    }
+  }
+
+  if (exportPresetIsVertical(preset)) {
+    const framingRes = await fetch(`/api/clips/${id}/framing`, {
+      method: 'PATCH', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({crop_x: _exportCropX}),
+    }).catch(err => { showToast(`Failed to save framing: ${err.message}`, 'error'); return null; });
+    if (!framingRes || !framingRes.ok) {
+      if (framingRes) showToast('Failed to save vertical framing', 'error');
       return;
     }
   }
@@ -1729,7 +1765,7 @@ Object.assign(window, {
   exportClip, exportVideoTranscript, confirmExport, closeExportModal,
   bulkSetClipStatus, bulkDeleteClips, bulkExportClips, _clearClipSelection,
   _onExportCaptionsChange, _onExportRetranscribeChange, _onExportPresetChange,
-  _updateExportModeSummary, _renderExportModeSummary,
+  _setExportFraming, _updateExportModeSummary, _renderExportModeSummary,
   openScoreOverride, closeScoreOverrideModal, _scoreOverrideSave, clearScoreOverride,
   openDescKebab, openDescLongKebab,
   startFindSimilar, openSimilarClipsModal, closeSimilarClipsModal,

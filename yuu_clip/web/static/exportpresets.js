@@ -29,6 +29,11 @@ function exportPresetLabel(name) {
   return _allExportPresets().find(p => p.name === name)?.label || name;
 }
 
+function exportPresetIsVertical(name) {
+  if (!name || name === 'default') return false;
+  return !!_allExportPresets().find(p => p.name === name)?.vertical;
+}
+
 // Renders the <option>s for the export options modal's preset picker.
 async function populateExportPresetSelect(selectedName = '') {
   await ensureExportPresetsCache();
@@ -81,6 +86,9 @@ function _customPresetRowHtml(p) {
           <option value="1440"${p.height === 1440 ? ' selected' : ''}>&le;1440p</option>
           <option value="2160"${p.height === 2160 ? ' selected' : ''}>&le;2160p</option>
         </select>
+        <label style="display:flex;align-items:center;gap:4px;font-size:12px" title="Crop to a 9:16 column and scale to 1080x1920 for TikTok / Shorts">
+          <input type="checkbox" class="ep-vertical"${p.vertical ? ' checked' : ''}> Vertical 9:16
+        </label>
         <button type="button" class="btn ghost ep-delete" title="Delete preset"
                 aria-label="Delete preset ${escHtml(p.label || 'draft')}" style="font-size:13px;padding:2px 8px">&times;</button>
       </div>
@@ -133,6 +141,7 @@ function _presetRowValues(rowEl) {
     crf: sizeMode ? null : parseInt(rowEl.querySelector('.ep-crf').value, 10),
     target_size_mb: sizeMode ? parseFloat(rowEl.querySelector('.ep-size').value) : null,
     audio_kbps: parseInt(rowEl.querySelector('.ep-audio').value, 10) || 128,
+    vertical: rowEl.querySelector('.ep-vertical').checked,
   };
 }
 
@@ -182,7 +191,7 @@ function addExportPresetRow() {
   AppState.exportPresets = AppState.exportPresets || {builtins: [], custom: []};
   AppState.exportPresets.custom.push({
     _draftKey: `draft-${++_draftSeq}`, label: '', container: 'mp4',
-    height: null, crf: 20, target_size_mb: null, audio_kbps: 128,
+    height: null, crf: 20, target_size_mb: null, audio_kbps: 128, vertical: false,
   });
   _renderExportPresetRows();
   const host = document.getElementById('s-export-preset-rows');
@@ -208,7 +217,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 Object.assign(window, {
-  ensureExportPresetsCache, exportPresetLabel, populateExportPresetSelect,
-  initExportPresetSettings, addExportPresetRow,
+  ensureExportPresetsCache, exportPresetLabel, exportPresetIsVertical,
+  populateExportPresetSelect, initExportPresetSettings, addExportPresetRow,
 });
 })();

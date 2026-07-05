@@ -35,6 +35,10 @@ class ExportPreset:
     crf: Optional[int] = None              # quality mode (mutually exclusive with target_size_mb)
     target_size_mb: Optional[float] = None  # size mode (two-pass)
     audio_kbps: int = 128
+    # Vertical (9:16) output for TikTok / Shorts: the source is cropped to 9:16 at
+    # the clip's crop_x position and scaled to 1080x1920. When True, `height` is
+    # informational only — the vertical filter owns the scale (see extract.py).
+    vertical: bool = False
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -48,6 +52,10 @@ BUILTIN_PRESETS: tuple[ExportPreset, ...] = (
     ExportPreset(
         name="discord-10mb", label="Discord (≤10 MB)", container="mp4",
         height=None, crf=None, target_size_mb=10.0, audio_kbps=128,
+    ),
+    ExportPreset(
+        name="tiktok-9x16", label="TikTok / Shorts (9:16)", container="mp4",
+        height=1920, crf=20, target_size_mb=None, audio_kbps=160, vertical=True,
     ),
 )
 BUILTIN_PRESET_NAMES: frozenset[str] = frozenset(p.name for p in BUILTIN_PRESETS)
@@ -117,6 +125,7 @@ def validate_preset_dict(data: dict, existing_names: set[str]) -> ExportPreset:
     return ExportPreset(
         name=name, label=label, container=container, height=height,
         crf=crf, target_size_mb=target_size_mb, audio_kbps=audio_kbps,
+        vertical=bool(data.get("vertical", False)),
     )
 
 

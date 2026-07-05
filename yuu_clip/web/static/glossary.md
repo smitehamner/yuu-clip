@@ -173,10 +173,13 @@ Fast export that copies the video without re-encoding. The clip may start or end
 Slower export that re-encodes the video to cut at the exact frame. Required when burning captions into the video or prepending a title card.
 
 ### Export preset
-A named recipe for export — container, resolution, and bitrate — instead of exporting at original quality. Built-in presets include "YouTube 1080p" and "Discord (≤10 MB)"; you can also create your own in Settings → Export.
+A named recipe for export — container, resolution, and bitrate — instead of exporting at original quality. Built-in presets include "YouTube 1080p", "Discord (≤10 MB)", and "TikTok / Shorts (9:16)"; you can also create your own in Settings → Export.
 
 ### Format
 One of a clip's exported files. A clip can have more than one format at once (say, an original-quality export plus a Discord-sized one) — exporting with a new preset adds a format instead of replacing your existing one.
+
+### Vertical framing
+When you export with a vertical (9:16) preset like "TikTok / Shorts", the video is cropped from your widescreen recording down to a tall frame. Vertical framing is the horizontal position of that crop — Left, Center, or Right, or anywhere in between with the slider — so you can keep the action in shot.
 
 ### Highlight reel
 A single video assembled from several approved clips, with optional transitions and title cards.

@@ -69,6 +69,7 @@ Most lookups only need this table: the authoritative user-facing term, the code 
 | Export | `export_clip()` | Save one clip to a file |
 | Export preset | `ExportPreset`, `export_presets` | Named container/resolution/bitrate recipe for export ("YouTube 1080p", "Discord (≤10 MB)", or a custom one) |
 | Format | `ClipExport` (one row per clip+preset) | One of a clip's exported files — a clip can have several, one per Export preset used |
+| Vertical framing | `crop_x`, `ExportPreset.vertical` | Which 9:16 slice of the frame fills a Shorts export — 0=left, 0.5=center, 1=right; not "crop position" in UI |
 | Quick export | `stream_copy=True` | Keyframe-aligned, no re-encode — not "stream copy" in UI |
 | Precise export | `reencode=True` | Frame-accurate re-encode; needed for baked-in captions or a title card |
 | Captions | `subtitles`, SRT/VTT | Sidecar or baked-in — not "subtitles" in UI |
@@ -729,13 +730,30 @@ of exporting at original quality — e.g. to fit a platform's upload limits.
 
 - **Code:** `ExportPreset` (`yuu_clip/export_presets.py`), `export_presets` (custom
   presets, stored in global config — they're a user preference, not project data)
-- **Built-ins:** "YouTube 1080p" (`youtube-1080p`) and "Discord (≤10 MB)"
-  (`discord-10mb`) — always available, not editable
+- **Built-ins:** "YouTube 1080p" (`youtube-1080p`), "Discord (≤10 MB)"
+  (`discord-10mb`), and "TikTok / Shorts (9:16)" (`tiktok-9x16`) — always
+  available, not editable
 - **UI label:** "Export preset" dropdown in the export options; "Original quality"
   for the presetless default; custom-preset editor in Settings → Export
 - **Do not call it:** "profile" — collides with **Track Layout**
-- **Notes:** A 9:16 vertical preset is deliberately deferred until a vertical-crop
-  tool exists. A preset export always re-encodes (no Quick Export path).
+- **Notes:** A preset export always re-encodes (no Quick Export path). A vertical
+  preset (`vertical=true`) additionally crops to 9:16 — see **Vertical framing**.
+
+---
+
+### Vertical framing
+
+The horizontal position of the 9:16 crop used by a vertical (TikTok / Shorts)
+Export preset — a property of the clip, reused across vertical exports. Stored as
+a 0–1 fraction: 0 = left edge flush, 0.5 = center, 1 = right edge flush.
+
+- **Code:** `ClipCandidate.crop_x` (nullable REAL; NULL = center),
+  `ExportPreset.vertical` (bool)
+- **UI label:** "Vertical framing" — Left / Center / Right + slider, shown in the
+  export options only when a vertical preset is selected
+- **Do not call it:** "crop position" or "pan" in UI copy
+- **Notes:** A source already narrower than 9:16 is letterboxed, never cropped past
+  its own width — a vertical export never fails on aspect ratio.
 
 ---
 

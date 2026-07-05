@@ -735,3 +735,16 @@ details summary:focus-visible { outline: 2px solid var(--accent); outline-offset
 .session-tl-stamp { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 12px; flex-shrink: 0; min-width: 52px; }
 .session-tl-text { font-size: 13px; color: var(--text); }
 .session-tl-clip .session-tl-text { color: var(--text-secondary); }
+
+/* Vertical-framing control (Shorts export) — a schematic 16:9 frame with a
+   movable 9:16 crop box. Not a real video frame; just shows crop position. */
+.framing-preview { position: relative; width: 160px; height: 90px; flex: 0 0 auto;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 4px; overflow: hidden; }
+.framing-box { position: absolute; top: 0; bottom: 0; box-sizing: border-box;
+  border: 2px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 18%, transparent); }
+.framing-btn { flex: 1; padding: 4px 6px; font-size: 12px; cursor: pointer;
+  background: var(--surface); color: var(--text);
+  border: 1px solid var(--border); border-radius: 4px; }
+.framing-btn:hover { background: var(--surface-raised); }
+.framing-btn.active { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
