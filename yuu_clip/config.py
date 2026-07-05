@@ -488,6 +488,11 @@ class Config:
     scorer_speech_rate_enabled: bool = True
     scorer_churn_enabled: bool = True
     scorer_prosody_enabled: bool = True
+    # Audio-event detection (plan non-llm-tiers/05) — the heaviest tier: reuses the
+    # AudioSet AST model (scorer_laugh_model_id, transformers+torch) to detect action
+    # sounds → action and crowd/cheer → funny. OFF by default so a lightweight install
+    # never downloads the ~350 MB model; the user opts in from Settings.
+    scorer_audio_event_enabled: bool = False
     # "transcript" — regex patterns in Whisper output, no extra deps (default)
     # "audio"      — spectral rhythm analysis via PyAV + numpy
     # "model"      — HuggingFace audio-classification (requires transformers+torch)
@@ -524,6 +529,7 @@ class Config:
     scorer_speech_rate_weight: float = 0.5
     scorer_churn_weight: float = 0.5
     scorer_prosody_weight: float = 0.5
+    scorer_audio_event_weight: float = 1.0
 
     score_funny_weight: float = 1.0
     score_dramatic_weight: float = 1.0

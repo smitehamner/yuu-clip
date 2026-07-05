@@ -479,11 +479,34 @@
              oninput="document.getElementById('s-churn-weight-val').textContent=parseFloat(this.value).toFixed(1)">
       <span class="settings-weight-val" id="s-churn-weight-val">0.5</span>
     </div>
-    <div class="settings-weight-row" style="margin-bottom:16px">
+    <div class="settings-weight-row">
       <span class="settings-weight-label">&#128200; Prosody</span>
       <input type="range" min="0" max="5" step="0.1" id="s-prosody-weight" aria-label="Prosody weight" style="flex:1"
              oninput="document.getElementById('s-prosody-weight-val').textContent=parseFloat(this.value).toFixed(1)">
       <span class="settings-weight-val" id="s-prosody-weight-val">0.5</span>
+    </div>
+    <div class="settings-weight-row" style="margin-bottom:4px">
+      <span class="settings-weight-label">&#128165; Audio events</span>
+      <input type="range" min="0" max="5" step="0.1" id="s-audio-event-weight" aria-label="Audio events weight" style="flex:1"
+             oninput="document.getElementById('s-audio-event-weight-val').textContent=parseFloat(this.value).toFixed(1)">
+      <span class="settings-weight-val" id="s-audio-event-weight-val">1.0</span>
+    </div>
+    <div style="margin-bottom:4px;display:flex;gap:8px;align-items:center">
+      <label class="settings-label" for="s-audio-event-enabled" style="white-space:nowrap">
+        <input type="checkbox" id="s-audio-event-enabled"> Detect gunshots, explosions &amp; cheers (needs audio model)
+      </label>
+    </div>
+    <div style="margin-bottom:16px">
+      <div style="font-size:11px;color:var(--muted);margin-bottom:6px">
+        Off by default. Reuses the same HuggingFace audio model as Laugh &ldquo;Model&rdquo; mode
+        (<code>MIT/ast-finetuned-audioset-10-10-0.4593</code>, ~350 MB, downloads on first use).
+        Action sounds boost Action; crowd cheers boost Funny.
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn-secondary" id="btn-install-audio-model" onclick="installPackage('audio-model')">Install deps</button>
+        <span id="install-status-audio-model" style="font-size:12px"></span>
+      </div>
+      <div id="install-log-audio-model" class="settings-install-log" style="margin-top:6px"></div>
     </div>
     <div style="font-size:12px;color:var(--muted);margin-bottom:8px;font-weight:600">Sub-score weights</div>
     <div class="settings-weight-row">

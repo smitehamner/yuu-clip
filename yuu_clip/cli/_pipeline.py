@@ -600,6 +600,7 @@ def _summarize_video(video, transcripts, config, session, context_text: str = ""
 
 def _run_scoring(video, track_objs, config, session, energy_mode: str = "fast", context_text: str = "") -> None:
     """Run Phase 2 scoring (energy, scenes, LLM) for all candidates belonging to *video*."""
+    from yuu_clip.scoring.audio_event import AudioEventScorer
     from yuu_clip.scoring.churn import SpeakerChurnScorer
     from yuu_clip.scoring.energy import AudioEnergyScorer, compute_energy
     from yuu_clip.scoring.engine import ScoringEngine
@@ -654,6 +655,15 @@ def _run_scoring(video, track_objs, config, session, energy_mode: str = "fast", 
                 f"Clips are still scored using the other signals.[/yellow]"
             )
 
+    audio_event_scorer = AudioEventScorer(config)
+    if config.scorer_audio_event_enabled:
+        audio_ok, audio_reason = audio_event_scorer.availability()
+        if not audio_ok:
+            console.print(
+                f"  [yellow]Audio-event detection unavailable — {audio_reason}. "
+                f"Clips are still scored using the other signals.[/yellow]"
+            )
+
     from yuu_clip.db.models import HotWord, SensitiveTerm
     hot_words = session.query(HotWord).all()
     sensitive_terms = session.query(SensitiveTerm).all()
@@ -665,6 +675,7 @@ def _run_scoring(video, track_objs, config, session, energy_mode: str = "fast", 
         SpeechRateScorer(config),
         SpeakerChurnScorer(config),
         ProsodyScorer(config),
+        audio_event_scorer,
         LLMScorer(config, context_text=context_text),
     ], hot_words=hot_words, sensitive_terms=sensitive_terms)
     if not engine.has_scorers:

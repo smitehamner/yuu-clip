@@ -6,6 +6,37 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) — see the
 
 ---
 
+## Audio-event detection — heavy opt-in scoring tier (done 2026-07-05)
+
+Non-LLM-tiers plan, **Stage 05** (`docs/dev/plans/non-llm-tiers/05-audio-event.md`).
+Adds the set's one heavy tier: a `Scorer` that reuses the same AudioSet Audio-Spectrogram-
+Transformer already wired for laugh **Model** mode to detect *sound events* and nudge the
+standard dimensions.
+
+- **`scoring/audio_event.py` — `AudioEventScorer`**: runs the AST classifier
+  (`MIT/ast-finetuned-audioset-10-10-0.4593`, reusing `scorer_laugh_model_id`) over the
+  clip's best scored-track WAV, then maps AudioSet classes to two curated, editable groups —
+  **action sounds** (gunshot / gunfire / machine gun / explosion / artillery / cannon /
+  screaming) → **Action**, and **crowd/reaction** (cheering / applause / crowd / clapping) →
+  **Funny**. Emits `0.0` for an absent group (real "no such sound" info, like laugh's
+  `default=0.0`); `None`/`audio_event_no_wav` when there's no usable audio; inference failure
+  is logged and degrades — never raises.
+- **Off by default** (`scorer_audio_event_enabled = False`, weight `1.0`): the lightweight
+  install never downloads the ~350 MB model or pays torch load time. Availability mirrors the
+  laugh model tier (needs `transformers` + `torch` and a model id) with a user-facing reason.
+- pyproject extra `laugh-model` **renamed → `audio-model`** (the deps now serve two scorers),
+  with `laugh-model` kept as a self-referencing alias. New `audio-model` install slug in the
+  on-demand installer (same deps as `laugh-deps`).
+- Registered in `_run_scoring` (with an availability notice when enabled-but-unavailable),
+  two new tags in `ScoringEngine._SCORER_TAGS`; a Settings weight slider + opt-in checkbox +
+  Install-deps block. GLOSSARY: **Audio-event scoring**.
+- Tests: new `test_scoring_audio_event.py` (classifier fully mocked — no download: group
+  mapping, availability across disabled/no-model/missing-deps/present, gunshot→action,
+  cheer→funny, never-raises on missing WAV / classifier error). Full API (1874) + UI (637)
+  suites green.
+
+---
+
 ## Additional lightweight scoring signals (done 2026-07-05)
 
 Non-LLM-tiers plan, **Stage 04** (`docs/dev/plans/non-llm-tiers/04-lightweight-signals.md`).

@@ -194,6 +194,7 @@ class ScoringEngine:
         "speech_rate_scored", "speech_rate_no_transcript", "speech_rate_calm",
         "churn_scored", "churn_no_transcript", "churn_no_speakers",
         "prosody_scored", "prosody_no_wav", "prosody_no_audio",
+        "audio_event_scored", "audio_event_no_wav",
     })
 
     def score_clip(self, clip: "ClipCandidate", session: "Session") -> None:

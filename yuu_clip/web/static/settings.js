@@ -14,6 +14,7 @@ const _settingsFieldIds = [
   's-funny-weight','s-dramatic-weight','s-action-weight',
   's-scene-mode','s-energy-mode','s-silence-ms','s-min-clip-ms',
   's-thermal-autopause','s-thermal-warn-c','s-thermal-pause-c',
+  's-audio-event-enabled',
   's-timeline-interval','s-timeline-unit','s-autoplay','s-play-next','s-loop-clip',
   's-export-name-template',
   's-title-card-bg-color','s-title-card-font-color','s-title-card-scale',
@@ -30,6 +31,7 @@ const _weightFields = [
   ['s-speech-rate-weight', 'scorer_speech_rate_weight', 0.5],
   ['s-churn-weight',       'scorer_churn_weight',       0.5],
   ['s-prosody-weight',     'scorer_prosody_weight',     0.5],
+  ['s-audio-event-weight', 'scorer_audio_event_weight', 1.0],
   ['s-funny-weight',    'score_funny_weight',     1.0],
   ['s-dramatic-weight', 'score_dramatic_weight',  1.0],
   ['s-action-weight',   'score_action_weight',    1.0],
@@ -210,6 +212,7 @@ function _applySettingsToUI(cfg) {
   setVal('s-laugh-mode',    cfg.scorer_laugh_mode     || 'transcript');
   setVal('s-laugh-model-id',cfg.scorer_laugh_model_id || 'MIT/ast-finetuned-audioset-10-10-0.4593');
   _onLaughModeChange(cfg.scorer_laugh_mode || 'transcript');
+  setChk('s-audio-event-enabled', cfg.scorer_audio_event_enabled === true);
   setVal('s-scene-mode',    cfg.scene_detection_mode || 'fast');
   setVal('s-energy-mode',   cfg.energy_mode          || 'fast');
   setVal('s-silence-ms',    cfg.silence_threshold_ms ?? 3000);
@@ -245,7 +248,7 @@ function _applySettingsToUI(cfg) {
   setVal('s-caption-position', cfg.caption_position || 'bottom');
   _snapshotSettings();
   _checkSettingsDirty();
-  ['pyannote', 'speechbrain', 'llamacpp', 'anthropic', 'laugh-deps', 'cuda-libs', 'mediapipe', 'embeddings'].forEach(_refreshInstallStatus);
+  ['pyannote', 'speechbrain', 'llamacpp', 'anthropic', 'laugh-deps', 'audio-model', 'cuda-libs', 'mediapipe', 'embeddings'].forEach(_refreshInstallStatus);
 }
 
 // Applies instantly (outside the Save flow) so the user sees the theme while
@@ -881,6 +884,8 @@ async function saveSettings() {
     scorer_speech_rate_weight:  getNum('s-speech-rate-weight', parseFloat),
     scorer_churn_weight:        getNum('s-churn-weight', parseFloat),
     scorer_prosody_weight:      getNum('s-prosody-weight', parseFloat),
+    scorer_audio_event_weight:  getNum('s-audio-event-weight', parseFloat),
+    scorer_audio_event_enabled: getChk('s-audio-event-enabled'),
     similarity_backend:         getVal('s-similarity-backend'),
     score_funny_weight:         getNum('s-funny-weight', parseFloat),
     score_dramatic_weight:      getNum('s-dramatic-weight', parseFloat),

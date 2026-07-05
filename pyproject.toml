@@ -65,15 +65,18 @@ embeddings = [
     # downloads on first use. fastembed is Apache-2.0; onnxruntime is MIT.
     "fastembed>=0.3,<1.0",
 ]
-laugh-model = [
-    # Required for scorer_laugh_mode = "model".
-    # Recommended model: MIT/ast-finetuned-audioset-10-10-0.4593 (~350 MB, auto-downloads;
+audio-model = [
+    # Required for the HuggingFace audio classifier — scorer_laugh_mode = "model"
+    # (laughter) and scorer_audio_event_enabled (gunshot/explosion/cheer events).
+    # Both reuse MIT/ast-finetuned-audioset-10-10-0.4593 (~350 MB, auto-downloads;
     # BSD-3-Clause -- "MIT" is the HF org namespace, not the licence).
     "transformers>=4.30,<6.0",
     "torch>=2.0",
     "torchaudio>=2.0",
     "soundfile>=0.12",
 ]
+# Backwards-compatible alias for the pre-Stage-05 name.
+laugh-model = ["yuu-clip[audio-model]"]
 
 [project.scripts]
 yuuclip = "yuu_clip.cli:app"

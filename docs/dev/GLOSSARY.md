@@ -63,6 +63,7 @@ Most lookups only need this table: the authoritative user-facing term, the code 
 | Speech-rate scoring | `SpeechRateScorer` | Words-per-second bursts nudge funny/action — no model |
 | Speaker-overlap scoring | `SpeakerChurnScorer` | Rapid speaker turn-taking + cross-talk nudge funny/action — needs diarization |
 | Prosody scoring | `ProsodyScorer` | Loudness + pitch delivery dynamics nudge dramatic/action — no model |
+| Audio-event scoring | `AudioEventScorer` | Gunshot/explosion/cheer detection via the AudioSet model → action/funny — heavy opt-in, off by default |
 | Similarity engine | `similarity_backend` | Powers Find related clips + "Meaning" hot-words: Fast (keyword) / Smart (embeddings) / LLM |
 | Clip description | `description`, `description_long` | AI one-liner + paragraph; `*_user` overrides win |
 | Basic description | `desc_basic` tag | Non-LLM template one-liner so a clip is never blank without a model |
