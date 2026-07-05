@@ -42,4 +42,6 @@ $psi.UseShellExecute = $true
 
 Write-Host "Server starting..." -ForegroundColor Cyan
 Start-Sleep -Seconds 2
-Get-Content $Log -Tail 3
+# -Encoding UTF8 so PowerShell 5.1 doesn't decode the log's em-dashes as cp1252
+# (the file is BOM-less UTF-8; without this "—" prints as "â€”").
+Get-Content $Log -Tail 3 -Encoding UTF8
