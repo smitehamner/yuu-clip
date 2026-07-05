@@ -31,6 +31,16 @@ class TestTranscriptionLanguageSelect:
             "document.querySelectorAll('#s-whisper-language option').length > 1",
             timeout=3000,
         )
+        # The language options are populated (above) *before* openSettings()'s
+        # _applySettingsToUI runs — that later call resets #s-whisper-language to
+        # the saved value and takes the dirty snapshot. Interacting between those
+        # two steps lets the async apply overwrite the test's selection and
+        # re-snapshot, leaving Save disabled. #s-paths-display is populated last,
+        # after the snapshot, so waiting on it means the panel is fully settled.
+        page.wait_for_function(
+            "document.getElementById('s-paths-display').textContent.trim().length > 0",
+            timeout=3000,
+        )
 
     def test_first_option_is_auto_detect_with_empty_value(self, page: Page):
         self._open_settings(page)

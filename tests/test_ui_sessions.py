@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 
-from conftest import LIVE_URL, skip_no_server
+from conftest import skip_no_server
 from playwright.sync_api import Page, expect
 
 
@@ -73,15 +73,42 @@ def _route_json(page, pattern, payload):
 
 
 def _boot_with_sessions(page, videos=None, sessions=None, extra_routes=None):
-    """Register the sidebar route mocks (plus any extras) BEFORE navigating, so
-    boot.js's own loadVideos() renders the mocked recordings/sessions — otherwise
-    the real boot fetch races and clobbers a post-goto mock render."""
-    _route_json(page, "**/api/videos", videos if videos is not None else _VIDEOS)
-    _route_json(page, "**/api/sessions", sessions if sessions is not None else _SESSIONS)
+    """Seed the sidebar with fixture recordings/sessions deterministically.
+
+    The ``page`` fixture has already navigated (against the real dev server). We
+    do NOT navigate a second time: a full reload re-fetches ~20 static JS files
+    from the single shared dev server, and under a full parallel run that
+    intermittently stalled the ``load`` event past the navigation timeout — a
+    flake that surfaced as the session-group tests (and unrelated tests) timing
+    out. Instead we wait for the first boot's loadVideos() to finish, then
+    overwrite AppState and re-render directly — the same inject-and-render
+    approach the rest of the UI suite uses. This removes both the second-load
+    dependency and the boot/render race entirely.
+
+    The /api/videos and /api/sessions mocks are still registered so any stray
+    background re-fetch returns the fixture data rather than clobbering the
+    injected state with the real project's; the extra routes cover endpoints hit
+    by later interactions (session detail, suggestions, reel pool)."""
+    vids = videos if videos is not None else _VIDEOS
+    sess = sessions if sessions is not None else _SESSIONS
+    _route_json(page, "**/api/videos", vids)
+    _route_json(page, "**/api/sessions", sess)
     for pattern, payload in (extra_routes or []):
         _route_json(page, pattern, payload)
-    page.evaluate("localStorage.removeItem('yuuclip-view')")
-    page.goto(LIVE_URL)
+    # Wait for the fixture's own loadVideos() to finish rendering so its late
+    # resolution can't clobber the injected state a moment later.
+    page.wait_for_selector("#video-list li[data-video-id]", timeout=15000)
+    page.evaluate(
+        """({videos, sessions}) => {
+            localStorage.removeItem('yuuclip-view');
+            AppState.videos = videos;
+            AppState.sessions = sessions;
+            AppState.activeVideoId = null;
+            AppState.activeSessionId = null;
+            _renderVideoList();
+        }""",
+        {"videos": vids, "sessions": sess},
+    )
     page.locator("#video-list li.session-header").wait_for(state="visible")
 
 

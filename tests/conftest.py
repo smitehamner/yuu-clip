@@ -145,7 +145,10 @@ def select_video_with_clips(page) -> None:
     # test moved away, so the common path doesn't pay a second full page load.
     if not page.url.startswith(LIVE_URL):
         page.goto(LIVE_URL)
-    page.wait_for_selector("#video-list li[data-video-id]", timeout=5000)
+    # 15s (not 5s): /api/videos can stall for several seconds under a full
+    # parallel run when its query contends on the single SQLite DB — a 5s wait
+    # here failed this shared helper for reasons unrelated to the test.
+    page.wait_for_selector("#video-list li[data-video-id]", timeout=15000)
     videos = page.locator("#video-list li[data-video-id]")
     segment_ids = set(page.evaluate(
         "AppState.videos.filter(v => v.parent_video_id != null).map(v => v.id)"
@@ -269,11 +272,19 @@ def browser(launch_browser):
 
 @pytest.fixture
 def page(page):
-    """Override pytest-playwright's page fixture to set tighter default timeouts.
+    """Override pytest-playwright's page fixture to set default timeouts.
 
     Playwright defaults to 30s for actions and assertions, which means a
     selector miss silently hangs for half a minute before the test fails.
-    10s is more than enough for a local dev server and gives faster feedback.
+    10s gives faster feedback on a genuine miss.
+
+    Navigation keeps the full 30s, though: page.goto waits for the ``load``
+    event, i.e. all ~20 static JS files served by the single shared dev server.
+    Under a full parallel run (4 browsers re-fetching them while /api/videos
+    queries contend on the one SQLite DB) that occasionally stalls past 10s and
+    failed unrelated tests at their fixture goto. 30s absorbs the transient
+    contention without hiding a real hang (the teardown watchdog still bounds
+    those).
 
     Also seeds the Getting Started seen-flag via an init script so the modal
     never auto-opens — the script runs before boot.js on *every* navigation,
@@ -282,7 +293,7 @@ def page(page):
     overlay intercepts all clicks until a test happens to re-navigate.)
     """
     page.set_default_timeout(10_000)
-    page.set_default_navigation_timeout(10_000)
+    page.set_default_navigation_timeout(30_000)
     page.add_init_script(
         "try { localStorage.setItem('yuu-getting-started-seen', '1'); } catch (e) {}"
     )
