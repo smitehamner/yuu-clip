@@ -233,6 +233,44 @@ now work with **no language model installed**.
   `test_similarity.py`; the related-clips / hotword-scan route tests flipped from
   "503 without LLM" to "succeeds without LLM"; +2 Settings UI tests.
 
+---
+
+## Bundled GPL FFmpeg + streamlined first-run model setup (done 2026-07-05)
+
+Two packaging plans landed together in `7892b05` (`ffmpeg-gpl-bundling.md` +
+`installer-onboarding-automation.md`), removing the manual, technical first-run steps a
+non-developer would otherwise have to do by hand.
+
+- **Bundled GPL FFmpeg.** The installer now ships a pinned GPL Windows FFmpeg build
+  (`scripts/fetch-ffmpeg-runtime.ps1`, SHA256-verified + cached) so end users never
+  install FFmpeg themselves; `find_ffmpeg()` resolves the bundled copy via
+  `YUU_CLIP_FFMPEG_DIR` in packaged builds, PATH otherwise. GPL obligations are met
+  properly: matching FFmpeg + libx264 **source archives** ship alongside the installer,
+  a `THIRD-PARTY-NOTICES-FFMPEG.md` compliance record, and a drift-guard
+  (`tests/test_ffmpeg_licensing.py`) that fails if the notices and fetch script disagree.
+  The `av`/PyAV LGPL constraint is unchanged — this only governs the `ffmpeg.exe`
+  encoder binary. (Licensing memory rule 2 flipped accordingly; the version-bump process
+  is documented in `HOW-TO-RELEASE.md § Bundled FFmpeg`.)
+- **One-click GGUF download.** The setup wizard's llama.cpp path gets a "Download
+  recommended model" button that streams the exact Q4_K_M quant (per-entry
+  `gguf_filename` in `model_catalog.py`, `bartowski` convention) to a fixed
+  `%LOCALAPPDATA%\yuu-clip\models\` folder with byte-counted progress, `Content-Length`
+  verification, and `.part`→rename so a half-finished download is never mistaken for a
+  model. The manual "browse for a .gguf" path stays.
+- **Transparent CUDA llama-cpp-python.** New pure `electron/llamacpp-cuda.js`
+  (`pickCudaWheelTag`/`buildCudaWheelUrl`) makes the wizard's existing Install button pick
+  the matching prebuilt CUDA wheel (GitHub Release asset `v<ver>-cu<tag>`) when a supported
+  NVIDIA GPU is detected — no separate toggle. Replaces the stale/broken CUDA-wheel command
+  the docs used to hand out.
+- **Silent Whisper pre-fetch** after the wizard closes (only on a real first-run/updated
+  setup), using the VRAM-based recommended model size; best-effort, logged and ignored on
+  failure, never blocks backend start.
+- Tests: `test_ffmpeg_licensing.py`, `electron/test/llamacpp-cuda.test.js`,
+  `test_model_catalog.py` `gguf_filename`/`DEFAULT_LLAMACPP_MODEL` cross-checks; manual
+  wizard/CUDA verification steps added to `HOW-TO-RELEASE.md`.
+
+---
+
 ## Generalise for any video content — de-RP pass (done 2026-07-05)
 
 Plan 13 (roadmap-close-2026-07) — **the final plan in the set**. An audit-and-copy

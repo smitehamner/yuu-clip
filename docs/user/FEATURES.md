@@ -550,7 +550,7 @@ This controls what Whisper *hears* — the app interface itself stays in English
 
 ### Setup wizard
 
-The first-run setup wizard groups everything by how necessary it is: **Required** (FFmpeg), **LLM scoring — choose one** (Ollama, a local `.gguf` model file with a guided download, or the Claude API), **Optional** (speaker labels, GPU acceleration), and **Basics** (project folder, speech-to-text model, transcription language). After installing something outside the app, click **Check again** to re-detect it without closing the wizard — or **Restart app** for driver-level installs like CUDA. The wizard re-appears once after an update only when it gained new options; you can always reopen it from the hamburger menu (**Re-run Setup Wizard**).
+The first-run setup wizard groups everything by how necessary it is: **Required** (FFmpeg — bundled with yuu-clip and shown as "Included", so there's nothing to install), **LLM scoring — choose one** (Ollama, a local `.gguf` model file with a one-click guided download, or the Claude API), **Optional** (speaker labels, GPU acceleration), and **Basics** (project folder, speech-to-text model, transcription language). After installing something outside the app, click **Check again** to re-detect it without closing the wizard — or **Restart app** for driver-level installs like CUDA. The wizard re-appears once after an update only when it gained new options; you can always reopen it from the hamburger menu (**Re-run Setup Wizard**).
 
 ### Optional dependency install
 

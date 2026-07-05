@@ -67,6 +67,12 @@ Wanted before distributing beyond friends/trusted users.
   a looser licence (MIT, GPL-3, source-available, or BSL). Update `LICENSE`,
   `pyproject.toml`, and the About modal.
 
+- [ ] **FFmpeg source-hosting once the repo is public** — the GPL-compliance story today
+  ships the FFmpeg + libx264 source archives *side-by-side* with each installer. Once the
+  yuu-clip GitHub repo goes public, attach the source archives to GitHub Releases as the
+  canonical long-term host (in addition to, or instead of, the shipped zip). See
+  `docs/dev/THIRD-PARTY-NOTICES-FFMPEG.md` and `HOW-TO-RELEASE.md § Bundled FFmpeg`.
+
 - [ ] **Code signing for public distribution** — the installer is unsigned; Windows shows
   a SmartScreen "unknown publisher" warning on first run and some AV tools flag it. Options:
   EV code-signing cert (~$300/yr, immediate SmartScreen trust) or standard OV cert (cheaper,
