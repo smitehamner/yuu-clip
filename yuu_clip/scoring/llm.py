@@ -86,9 +86,20 @@ _USER_TEMPLATE = """\
 Transcript:
 \"\"\"
 {excerpt}
-\"\"\"
+\"\"\"{visual}
 JSON:\
 """
+
+
+def _visual_block(vision_summary: str) -> str:
+    """A 'Visual context' block appended to the scoring/description prompt when a
+    clip has been image-analyzed. Empty when it hasn't, so the prompt is unchanged."""
+    if not vision_summary:
+        return ""
+    return (
+        '\nVisual context (what is on screen, from analyzing frames of the clip):\n'
+        f'\"\"\"\n{vision_summary}\n\"\"\"'
+    )
 
 
 _VIDEO_SUMMARY_SYSTEM = """\
@@ -272,18 +283,95 @@ def infer_speaker_names(
     return {str(k): str(v).strip() for k, v in data.items() if str(v).strip()}
 
 
-def describe_clip(transcript: str, config: "Config", context_text: str = "") -> tuple[str, str]:
+def describe_clip(
+    transcript: str, config: "Config", context_text: str = "", vision_summary: str = "",
+) -> tuple[str, str]:
     """Generate description and description_long for a clip transcript.
 
-    Returns (description, description_long). Raises on failure.
+    When *vision_summary* is set, a 'Visual context' block is added so descriptions
+    reflect what's on screen. Returns (description, description_long). Raises on failure.
     """
     system = _prepend_context(_SYSTEM_PROMPT, context_text)
     messages = [
         {"role": "system", "content": system},
-        {"role": "user",   "content": _USER_TEMPLATE.format(excerpt=transcript)},
+        {"role": "user",   "content": _USER_TEMPLATE.format(
+            excerpt=transcript, visual=_visual_block(vision_summary))},
     ]
     data = _call_llm_json(messages, config, temperature=0.1)
     return str(data.get("description", "")), str(data.get("description_long", ""))
+
+
+# Image-based clip analysis (plan 11). The instruction goes in the user turn, not a
+# system role, and asks for plain prose (not JSON): small local vision models
+# (moondream, SmolVLM) reliably follow a plain "describe this" user prompt but return
+# coordinates/empty output for a JSON-schema system prompt (verified against real
+# moondream via Ollama at implementation time).
+_VISION_USER_PROMPT = """\
+These images are frames sampled from a single video clip, in time order.
+In 2-3 sentences, describe what is visible on screen: the game or scene, any on-screen
+action or events, and notable UI, HUD, popups, or text. Describe only what you can see —
+do not guess at audio or dialogue. Reply with the description only, no preamble."""
+
+_VISION_SUMMARY_MAX_CHARS = 1500
+
+
+def _clean_vision_summary(raw: str) -> str:
+    """Normalize a vision model's reply into a plain-text summary. Tolerates a model
+    that ignored the plain-text ask and returned JSON (pulls vision_summary), strips
+    fences, and caps the length so a runaway response can't bloat the clip row."""
+    text = _strip_json_fence(raw).strip()
+    if text.startswith("{"):
+        try:
+            data = json.loads(text)
+            if isinstance(data, dict) and data.get("vision_summary"):
+                text = str(data["vision_summary"]).strip()
+        except json.JSONDecodeError:
+            pass
+    return text[:_VISION_SUMMARY_MAX_CHARS].strip()
+
+
+def describe_frames(image_paths, config: "Config", context_text: str = "") -> str:
+    """Send sampled clip frames to the vision model and return a short on-screen summary.
+
+    Raises VisionNotSupportedError if the active backend/model can't do vision, or any
+    other exception on a failed call. *image_paths* is a list of Path to JPEG frames.
+    """
+    prompt = _prepend_context(_VISION_USER_PROMPT, context_text)
+    raw = make_client(config).chat_vision(
+        [{"role": "user", "content": prompt}], list(image_paths), temperature=0.2,
+    )
+    return _clean_vision_summary(raw)
+
+
+def check_vision_available(config: "Config") -> tuple[bool, str]:
+    """Return (available, reason) for image analysis on the active backend — the cheap
+    pre-check routes gate on, mirroring check_llm_available. The backstop is the
+    client's chat_vision raising VisionNotSupportedError."""
+    if not config.ollama_enabled:
+        return False, "LLM scoring is disabled in Settings"
+    if not config.vision_enabled:
+        return False, "Image analysis is turned off — enable it under Settings → LLM scoring"
+    backend = config.llm_backend
+    if backend == "claude":
+        ok = bool(config.claude_api_key)
+        return ok, "" if ok else "No Claude API key set — add one under Settings → LLM scoring"
+    if backend == "llamacpp":
+        from pathlib import Path
+        ok = (
+            bool(config.llm_model_path) and Path(config.llm_model_path).exists()
+            and bool(config.llm_mmproj_path) and Path(config.llm_mmproj_path).exists()
+        )
+        return ok, "" if ok else (
+            "llama.cpp image analysis needs a model file and a vision projector "
+            "(.gguf) — set both under Settings → LLM scoring"
+        )
+    from yuu_clip.model_catalog import ollama_vision_tag_bases
+    model = (config.ollama_model or "").strip()
+    ok = bool(model) and model.split(":", 1)[0].strip().lower() in ollama_vision_tag_bases()
+    return ok, "" if ok else (
+        "The current Ollama model can't analyze images — pick a vision model "
+        "under Settings → LLM scoring"
+    )
 
 
 _HOTWORD_SEMANTIC_SYSTEM = """\
@@ -359,13 +447,17 @@ class LLMScorer:
         if not clip.transcript_excerpt:
             return ScoreResult(tags=["llm_no_transcript"])
 
+        vision_summary = clip.vision_summary or ""
         try:
-            raw = self._call_llm(clip.transcript_excerpt)
+            raw = self._call_llm(clip.transcript_excerpt, vision_summary=vision_summary)
             try:
                 data = self._parse(raw)
             except json.JSONDecodeError as exc:
                 log.warning("LLM scoring: invalid JSON for clip %d, asking model to fix: %s", clip.id, exc)
-                raw = self._call_llm(clip.transcript_excerpt, repair_of=raw, repair_error=exc)
+                raw = self._call_llm(
+                    clip.transcript_excerpt, vision_summary=vision_summary,
+                    repair_of=raw, repair_error=exc,
+                )
                 data = self._parse(raw)
         except Exception as exc:
             log.warning("LLM scoring failed for clip %d: %s", clip.id, exc, exc_info=True)
@@ -382,12 +474,14 @@ class LLMScorer:
         )
 
     def _call_llm(
-        self, excerpt: str, *, repair_of: str | None = None, repair_error: Exception | None = None,
+        self, excerpt: str, *, vision_summary: str = "",
+        repair_of: str | None = None, repair_error: Exception | None = None,
     ) -> str:
         system = _prepend_context(_SYSTEM_PROMPT, self._context_text)
         messages = [
             {"role": "system", "content": system},
-            {"role": "user",   "content": _USER_TEMPLATE.format(excerpt=excerpt)},
+            {"role": "user",   "content": _USER_TEMPLATE.format(
+                excerpt=excerpt, visual=_visual_block(vision_summary))},
         ]
         if repair_of is not None:
             messages += _repair_request(repair_of, repair_error)

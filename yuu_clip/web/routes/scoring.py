@@ -5,6 +5,7 @@ import asyncio
 import json as json_lib
 from dataclasses import replace as _dc_replace
 from datetime import datetime, timezone
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Optional
 
@@ -238,8 +239,35 @@ def _register_hotword_scan_route(router: APIRouter, ctx: ProjectContext) -> None
         return _sse_response(event_stream())
 
 
-def _rescore_video_clips(ctx: ProjectContext, video_id: int, failed_only: bool):
+async def _maybe_analyze_frames(ctx, score_db, clip, config, context_text: str) -> None:
+    """Run image analysis for one clip during a batch Re-score, storing its summary so
+    the scoring pass that follows sees the visual context. A vision failure is logged
+    and swallowed — it must never block the clip's LLM scoring."""
+    from yuu_clip.analyze.frames import analyze_clip_frames
+
+    try:
+        video_row = score_db.get(Video, clip.video_id)
+        if not (video_row and Path(video_row.path).exists()):
+            return
+        summary = await asyncio.to_thread(
+            analyze_clip_frames, video_row, clip, config, ctx.proxy_dir, context_text,
+        )
+        if summary:
+            clip.vision_summary = summary
+            clip.vision_analyzed_at = datetime.now(timezone.utc)
+    except Exception as exc:
+        _log.warning("Batch frame analysis failed for clip %d: %s", clip.id, exc, exc_info=True)
+
+
+def _rescore_video_clips(
+    ctx: ProjectContext, video_id: int, failed_only: bool, include_frames: bool = False,
+):
     _reject_if_analyzing(ctx)
+    if include_frames:
+        from yuu_clip.scoring.llm import check_vision_available
+        vision_ok, reason = check_vision_available(ctx.config)
+        if not vision_ok:
+            raise HTTPException(503, f"Image analysis unavailable — {reason}")
     db = ctx.get_db()
     try:
         video = db.get(Video, video_id)
@@ -280,6 +308,8 @@ def _rescore_video_clips(ctx: ProjectContext, video_id: int, failed_only: bool):
                 try:
                     clip = score_db.get(ClipCandidate, clip_id)
                     if clip:
+                        if include_frames:
+                            await _maybe_analyze_frames(ctx, score_db, clip, config, context_text)
                         await asyncio.to_thread(engine.score_clip, clip, score_db)
                         if engine.has_scorers and "llm_error" in clip.tags:
                             error = "LLM scoring failed — see yuu-clip.log for details"
@@ -312,9 +342,11 @@ def _rescore_video_clips(ctx: ProjectContext, video_id: int, failed_only: bool):
 
 def _register_rescore_routes(router: APIRouter, ctx: ProjectContext) -> None:
     @router.get("/api/videos/{video_id}/rescore-clips")
-    async def rescore_clips(video_id: int):
-        """Re-run LLM scoring for all clips using the video's current context. Streams progress as SSE."""
-        return _rescore_video_clips(ctx, video_id, failed_only=False)
+    async def rescore_clips(video_id: int, include_frames: bool = Query(False)):
+        """Re-run LLM scoring for all clips using the video's current context. Streams
+        progress as SSE. With include_frames, each clip is image-analyzed first (slower)
+        so its scores/descriptions reflect what's on screen — 503 if no vision model."""
+        return _rescore_video_clips(ctx, video_id, failed_only=False, include_frames=include_frames)
 
     @router.get("/api/videos/{video_id}/rescore-failed-clips")
     async def rescore_failed_clips(video_id: int):
@@ -610,7 +642,8 @@ def _register_clip_scoring_routes(router: APIRouter, ctx: ProjectContext) -> Non
                         clip = desc_db.get(ClipCandidate, clip_id)
                         if clip and clip.transcript_excerpt:
                             desc, desc_long = await asyncio.to_thread(
-                                _describe_clip, clip.transcript_excerpt, config, context_text
+                                _describe_clip, clip.transcript_excerpt, config,
+                                context_text, clip.vision_summary or "",
                             )
                             if desc:
                                 clip.description = desc

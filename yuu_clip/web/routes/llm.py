@@ -33,11 +33,7 @@ def _ollama_tag_base(name: str) -> str:
     return name.split(":", 1)[0].strip().lower()
 
 
-_OLLAMA_VISION_BASES = frozenset(
-    _ollama_tag_base(entry.ollama_tag)
-    for entry in model_catalog.vision_models()
-    if entry.ollama_tag
-)
+_OLLAMA_VISION_BASES = model_catalog.ollama_vision_tag_bases()
 
 
 def _capabilities(cfg) -> dict:

@@ -271,6 +271,23 @@
         <input class="settings-input" id="s-claude-timeout" type="number" min="5" max="300" step="5" style="max-width:100px">
       </div>
     </div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <label class="settings-label" for="s-vision-enabled">Image analysis</label>
+        <div class="settings-note">Let the "Analyze frames" button sample frames from a clip and describe what's on screen (needs a vision model above). Off by default.</div>
+      </div>
+      <label class="settings-checkbox">
+        <input type="checkbox" id="s-vision-enabled" aria-label="Enable image analysis">
+        <span style="font-size:13px" aria-hidden="true">Enable</span>
+      </label>
+    </div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <label class="settings-label" for="s-vision-frames">Frames per clip</label>
+        <div class="settings-note">How many frames to sample across each clip (1–10). More frames give the model more to work with but cost more time.</div>
+      </div>
+      <input class="settings-input" id="s-vision-frames" type="number" min="1" max="10" step="1" style="max-width:100px">
+    </div>
     <div class="settings-row" id="s-llm-capabilities-row">
       <div class="settings-col">
         <div class="settings-label">Model readiness</div>

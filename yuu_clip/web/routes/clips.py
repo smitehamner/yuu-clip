@@ -6,6 +6,7 @@ import importlib.util
 import json as json_lib
 import subprocess as _subprocess
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -27,8 +28,10 @@ from yuu_clip.web.routes._shared import (
     _clip_export_row_files,
     _delete_files,
     _export_paths,
+    _json_list,
     _locked_files_error,
     _missing_ids,
+    _reject_if_analyzing,
     _require_clip,
     _srt_path,
     _srt_sidecar_paths,
@@ -240,6 +243,8 @@ def _clip_dict(
         "related_clips": json_lib.loads(clip.related_clips_json) if clip.related_clips_json else None,
         "related_clips_at": clip.related_clips_at.isoformat() if clip.related_clips_at else None,
         "related_clips_stale": _related_clips_stale(clip, video),
+        "vision_summary": clip.vision_summary or None,
+        "vision_analyzed_at": clip.vision_analyzed_at.isoformat() if clip.vision_analyzed_at else None,
         "hotword_matches": clip.hotword_matches,
         "hotword_boost": clip.hotword_boost,
         "sensitive_matches": clip.sensitive_matches,
@@ -1164,6 +1169,76 @@ def _register_clip_edit_routes(router: APIRouter, ctx: ProjectContext) -> None:
             _log.error("Auto-framing failed for clip %d: %s", clip_id, exc, exc_info=True)
             raise HTTPException(500, "Auto-framing failed — see the log for details")
         return {"crop_x": crop_x}
+
+    @router.post("/api/clips/{clip_id}/analyze-frames")
+    async def analyze_frames(clip_id: int):
+        """Sample frames from the clip window, send them to the vision model, and store
+        a short 'what's on screen' summary that enriches descriptions and gives the text
+        scorer visual context. In-process (asyncio.to_thread) — seconds, not minutes, so
+        no SSE. Off by default; 503 when no vision-capable model is configured. Re-running
+        overwrites the previous summary.
+        """
+        from yuu_clip.analyze.frames import (
+            clamp_frame_count,
+            resolve_frame_window,
+            sample_and_describe,
+        )
+        from yuu_clip.contexts import format_context_block, load_contexts
+        from yuu_clip.scoring.llm import check_vision_available
+        from yuu_clip.scoring.llm_client import VisionNotSupportedError
+
+        _reject_if_analyzing(ctx)
+        vision_ok, reason = check_vision_available(ctx.config)
+        if not vision_ok:
+            raise HTTPException(503, f"Image analysis unavailable — {reason}")
+
+        db = ctx.get_db()
+        try:
+            clip = _require_clip(db, clip_id)
+            video = db.get(Video, clip.video_id)
+            if not video:
+                raise HTTPException(404, "Video not found")
+            if not Path(video.path).exists():
+                raise HTTPException(404, "Source video file not found on disk")
+            encode_src, start_s, end_s = resolve_frame_window(video, clip, ctx.proxy_dir)
+            frame_count = clamp_frame_count(ctx.config)
+            context_names = _json_list(video.context_names_json)
+        finally:
+            db.close()
+
+        context_text = format_context_block(load_contexts(ctx.project_dir), context_names)
+        started = time.monotonic()
+        try:
+            summary = await asyncio.to_thread(
+                sample_and_describe, encode_src, start_s, end_s,
+                frame_count, ctx.config, context_text,
+            )
+        except VisionNotSupportedError as exc:
+            raise HTTPException(503, f"Image analysis unavailable — {exc}")
+        except Exception as exc:
+            _log.error("Frame analysis failed for clip %d: %s", clip_id, exc, exc_info=True)
+            raise HTTPException(500, "Image analysis failed — see the log for details")
+        if not summary:
+            raise HTTPException(502, "The vision model returned an empty description — try again")
+        elapsed_s = round(time.monotonic() - started, 1)
+
+        save_db = ctx.get_db()
+        try:
+            stored = save_db.get(ClipCandidate, clip_id)
+            if stored:
+                stored.vision_summary = summary
+                stored.vision_analyzed_at = datetime.now(timezone.utc)
+                save_db.commit()
+                analyzed_at = stored.vision_analyzed_at
+        finally:
+            save_db.close()
+        _log.info("Analyzed %d frame(s) for clip %d in %.1fs", frame_count, clip_id, elapsed_s)
+        return {
+            "clip_id": clip_id,
+            "vision_summary": summary,
+            "vision_analyzed_at": analyzed_at.isoformat(),
+            "elapsed_s": elapsed_s,
+        }
 
 
 def _register_caption_routes(router: APIRouter, ctx: ProjectContext) -> None:

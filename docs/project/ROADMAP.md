@@ -31,7 +31,7 @@ and the locked design decisions. Implement one plan per session.
 | ~~SpeechBrain diarization backend~~ (done 2026-07-04) | 08 |
 | ~~Transcript name correction~~ (done 2026-07-04) | 09 |
 | Model selection + capability gating | 10 |
-| Image-based clip analysis | 11 |
+| ~~Image-based clip analysis~~ (done 2026-07-04) | 11 |
 | Content-type presets | 12 |
 | Generalise for any video content | 13 |
 
@@ -163,10 +163,13 @@ Complex, specialized, or AI-heavy features that are valuable but don't need to b
   `score_laugh` column, sidebar/detail score display, and a Laughs sort option.
   Non-speech event detection (sound effects, reactions) remains deferred — laugh-only for now.
 
-- [ ] **Image-based clip analysis** — optional, clip-only feature: sample frames at a configurable
-  interval and send them to a vision model to enrich clip descriptions and scoring. Requires a
-  separately downloadable vision model (permissive licence required — clips may be monetized by
-  users). Configurable: on/off toggle, frames-per-clip frequency.
+- [x] **Image-based clip analysis** — shipped 2026-07-04 (plan 11): optional, off-by-default
+  clip-only feature. "Analyze frames" samples N frames evenly across a clip and sends them to a
+  vision model (Ollama / Claude / llama.cpp+mmproj) for a "what's on screen" summary that enriches
+  descriptions and adds a *Visual context* block to the text scorer's prompt — never scores directly.
+  Manual per-clip button + an "Include frame analysis" checkbox in batch Re-score; on/off toggle +
+  frames-per-clip (1–10) in Settings. Vision models come from the plan-10 catalog (permissive
+  licences). Verified end-to-end against a real recording via Ollama + moondream.
 
 - [x] **Model selection and capability gating** — shipped 2026-07-04 (plan 10): curated
   `model_catalog.py` of recommended text + vision models, all under monetization-safe licences

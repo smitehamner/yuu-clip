@@ -219,6 +219,36 @@ class TestCaptionStyleConfig:
         assert cfg.caption_position == "bottom"
 
 
+class TestVisionConfig:
+    def test_defaults_off(self, client):
+        cfg = client.get("/api/config").json()
+        assert cfg["vision_enabled"] is False
+        assert cfg["vision_frames_per_clip"] == 4
+
+    def test_patch_accepts_valid(self, client):
+        assert client.patch("/api/config", json={
+            "vision_enabled": True, "vision_frames_per_clip": 8,
+        }).status_code == 200
+        cfg = client.get("/api/config").json()
+        assert cfg["vision_enabled"] is True and cfg["vision_frames_per_clip"] == 8
+
+    def test_patch_rejects_frames_out_of_range(self, client):
+        assert client.patch("/api/config", json={"vision_frames_per_clip": 0}).status_code == 400
+        assert client.patch("/api/config", json={"vision_frames_per_clip": 11}).status_code == 400
+
+    def test_load_sanitizes_bad_frame_count(self, tmp_path, monkeypatch):
+        import json as _json
+
+        from yuu_clip.config import Config
+        monkeypatch.setattr("yuu_clip.config._global_config_dir", lambda: tmp_path / "global")
+        proj = tmp_path / "proj"
+        (proj / ".yuu-clip").mkdir(parents=True)
+        (proj / ".yuu-clip" / "config.json").write_text(
+            _json.dumps({"vision_frames_per_clip": 999}), encoding="utf-8",
+        )
+        assert Config.load(proj).vision_frames_per_clip == 4
+
+
 # ---------------------------------------------------------------------------
 # Config — new llm_backend / llm_model_path defaults
 # ---------------------------------------------------------------------------

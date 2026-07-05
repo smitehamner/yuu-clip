@@ -487,6 +487,7 @@ function renderDetail(clip) {
       ${_generatedTagPillsHTML(clip.tags)}
     </div>
 
+    ${_visionDetailHTML(clip)}
     ${_hotwordDetailHTML(clip)}
     ${_sensitiveDetailHTML(clip)}
 
@@ -562,6 +563,56 @@ function renderDetail(clip) {
   if (clip.transcript_excerpt && window.loadClipTranscript) loadClipTranscript(clip.id);
   _renderTagDatalist();
   _loadTagSuggestions().then(_renderTagDatalist);
+  const visionBtn = document.getElementById('analyze-frames-btn');
+  if (visionBtn) {
+    gateOnCapability(visionBtn, 'vision',
+      'Frame analysis needs a vision-capable model.');
+  }
+}
+
+// ── image-based clip analysis (What's on screen) ─────────────────────────────
+function _visionDetailHTML(clip) {
+  // Master switch (Settings → Image analysis). Off by default: no vision UI until
+  // the creator opts in. window._visionEnabled is seeded at boot and on settings save.
+  if (!window._visionEnabled) return '';
+  const summary = clip.vision_summary;
+  const btnLabel = summary ? 'Re-analyze frames' : 'Analyze frames';
+  const body = summary
+    ? `<div class="description-long">${escHtml(summary)}</div>
+       <div style="font-size:11px;color:var(--muted);margin-top:4px">Analyzed ${_fmtAgo(clip.vision_analyzed_at)}</div>`
+    : `<div style="color:var(--muted);font-size:13px">Sample frames from this clip and describe what's on screen — it enriches the description and gives scoring visual context.</div>`;
+  return `
+    <div class="detail-card">
+      <div class="detail-card-header"><span class="detail-card-title">What's on screen</span></div>
+      ${body}
+      <div style="margin-top:8px">
+        <button class="btn ghost" id="analyze-frames-btn" style="font-size:12px;padding:3px 10px"
+                onclick="analyzeFrames(${clip.id}, this)">${btnLabel}</button>
+      </div>
+    </div>`;
+}
+
+async function analyzeFrames(clipId, btn) {
+  const orig = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Analyzing frames…';
+  try {
+    const resp = await fetch(`/api/clips/${clipId}/analyze-frames`, {method: 'POST'});
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      showToast(data.detail || 'Frame analysis failed', 'error');
+      return;
+    }
+    showToast(`Frame analysis complete (${data.elapsed_s}s)`);
+    const clip = await fetch(`/api/clips/${clipId}`).then(r => r.json());
+    AppState.activeClipData = clip;
+    if (!PanelNav.isOpen()) renderDetail(clip);
+  } catch (e) {
+    showToast('Frame analysis failed — check the log', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = orig;
+  }
 }
 
 // ── hot-words ────────────────────────────────────────────────────────────────
@@ -1792,6 +1843,7 @@ function scoreAll() {
 // test. Internal helpers above stay private to this module's closure.
 Object.assign(window, {
   selectClip, setStatus, undoLastStatus, renderDetail, clearDetail, refreshClipDetail,
+  analyzeFrames,
   toggleClipFilter, _syncFilterChips, setClipSearch, setClipScoreMin, _clearClipFilters,
   _applyFilters, _renderClips, _parseTimingOffset, _reloadClipList,
   _renderBatchStatusPanel, _toggleBatchStatusPanel,

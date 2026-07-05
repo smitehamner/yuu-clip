@@ -235,3 +235,14 @@ def vision_models() -> list[ModelEntry]:
 def catalog_for_backend(backend: str) -> list[ModelEntry]:
     """Recommended models runnable on *backend*, ordered as in CATALOG."""
     return [entry for entry in recommended_models() if backend in entry.backends]
+
+
+def ollama_vision_tag_bases() -> frozenset[str]:
+    """Tag bases (the part before ':') of recommended Ollama vision models — the
+    single source of truth for "is this Ollama model vision-capable". Consumed by
+    the /api/llm/capabilities check and plan 11's vision-availability gate."""
+    return frozenset(
+        entry.ollama_tag.split(":", 1)[0].strip().lower()
+        for entry in vision_models()
+        if entry.ollama_tag
+    )

@@ -200,6 +200,8 @@ def _migrate(engine) -> None:
             ("sensitive_matches_json", "TEXT"),
             ("score_laugh",          "REAL"),
             ("crop_x",               "REAL"),
+            ("vision_summary",       "TEXT"),
+            ("vision_analyzed_at",   "DATETIME"),
         ]
         for col, typedef in _clip_migrations:
             if col not in existing:
@@ -691,6 +693,12 @@ class ClipCandidate(Base):
 
     related_clips_json: Mapped[Optional[str]] = mapped_column(Text)
     related_clips_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+
+    # Short factual "what's on screen" summary from image-based analysis (plan 11):
+    # frames sampled from the clip window and described by a vision model. Enriches
+    # descriptions and gives the text scorer visual context. NULL = never analyzed.
+    vision_summary: Mapped[Optional[str]] = mapped_column(Text)
+    vision_analyzed_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
 
     # Set when a caption segment overlapping this clip is edited. Compared against
     # the video's clips_scored_at to flag a clip whose transcript changed since it

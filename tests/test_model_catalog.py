@@ -54,6 +54,13 @@ class TestCatalogHelpers:
         assert all("vision" in e.kinds for e in mc.vision_models())
         assert all(e.recommended for e in mc.text_models())
 
+    def test_ollama_vision_tag_bases_match_vision_models(self):
+        bases = mc.ollama_vision_tag_bases()
+        assert "moondream" in bases  # recommended small vision model
+        # Every base derives from a recommended vision model's ollama tag.
+        expected = {e.ollama_tag.split(":", 1)[0].lower() for e in mc.vision_models() if e.ollama_tag}
+        assert bases == frozenset(expected)
+
     def test_claude_models_are_both_text_and_vision(self):
         claude = mc.catalog_for_backend(mc.BACKEND_CLAUDE)
         assert claude, "expected Claude entries"

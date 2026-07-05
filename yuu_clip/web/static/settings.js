@@ -3,6 +3,7 @@
 const _settingsFieldIds = [
   's-whisper-model','s-whisper-device','s-whisper-compute','s-whisper-language',
   's-ollama-enabled','s-llm-backend','s-llm-model-path','s-llm-mmproj-path',
+  's-vision-enabled','s-vision-frames',
   's-ollama-model','s-ollama-host','s-ollama-timeout',
   's-claude-api-key','s-claude-model','s-claude-timeout',
   's-diarization-backend','s-hf-token','s-speaker-match-threshold',
@@ -175,6 +176,9 @@ function _applySettingsToUI(cfg) {
   _onLlmBackendChange(backend);
   setVal('s-llm-model-path', cfg.llm_model_path  || '');
   setVal('s-llm-mmproj-path', cfg.llm_mmproj_path || '');
+  setChk('s-vision-enabled', cfg.vision_enabled === true);
+  setVal('s-vision-frames',  cfg.vision_frames_per_clip ?? 4);
+  window._visionEnabled = cfg.vision_enabled === true;
   setVal('s-ollama-model',   cfg.ollama_model    || '');
   setVal('s-ollama-host',    cfg.ollama_host     || '');
   setVal('s-ollama-timeout', cfg.ollama_timeout_s|| 120);
@@ -743,6 +747,8 @@ async function saveSettings() {
     llm_backend:                getVal('s-llm-backend'),
     llm_model_path:             getVal('s-llm-model-path'),
     llm_mmproj_path:            getVal('s-llm-mmproj-path'),
+    vision_enabled:             getChk('s-vision-enabled'),
+    vision_frames_per_clip:     getNum('s-vision-frames', v => parseInt(v, 10)),
     ollama_model:               getVal('s-ollama-model'),
     ollama_host:                getVal('s-ollama-host'),
     ollama_timeout_s:           getNum('s-ollama-timeout', parseFloat),
@@ -804,6 +810,7 @@ async function saveSettings() {
     if (btn) btn.textContent = 'Save';
     _updateLlmRemoteIndicator(payload.llm_backend || 'llamacpp', payload.ollama_enabled !== false);
     _updateLlmCapabilities();
+    window._visionEnabled = payload.vision_enabled === true;
   } catch {
     showToast('Settings save failed', 'error');
     if (btn) { btn.disabled = false; btn.textContent = 'Save'; }

@@ -40,6 +40,7 @@ if (window.electronAPI) {
 
 fetch('/api/config').then(r => r.json()).then(cfg => {
   _updateLlmRemoteIndicator(cfg.llm_backend || 'llamacpp', cfg.ollama_enabled !== false);
+  window._visionEnabled = cfg.vision_enabled === true;
 }).catch(() => {});
 
 window._prereqs = {ffmpeg_ok: true, llm_ok: true};

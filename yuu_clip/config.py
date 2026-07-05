@@ -336,6 +336,32 @@ def _sanitize_caption_style_fields(merged: dict) -> None:
         merged["caption_position"] = _CAPTION_STYLE_DEFAULTS["caption_position"]
 
 
+# Frames sampled per clip for image-based analysis. 1 keeps it cheap; 10 caps the
+# cost/latency of a single vision call on long clips.
+VISION_FRAMES_RANGE = (1, 10)
+
+
+def validate_vision_frames_per_clip(value: int) -> int:
+    """Raise ValueError unless *value* is an int within VISION_FRAMES_RANGE."""
+    lo, hi = VISION_FRAMES_RANGE
+    if not isinstance(value, int) or isinstance(value, bool) or not (lo <= value <= hi):
+        raise ValueError(f"vision_frames_per_clip must be an integer between {lo} and {hi}")
+    return value
+
+
+def _sanitize_vision_fields(merged: dict) -> None:
+    """Guard the load path against a hand-edited config with a bad frame count."""
+    if "vision_frames_per_clip" in merged:
+        try:
+            validate_vision_frames_per_clip(merged["vision_frames_per_clip"])
+        except (ValueError, TypeError):
+            _log.warning(
+                "Config: vision_frames_per_clip invalid (%r) — using default 4",
+                merged["vision_frames_per_clip"],
+            )
+            merged["vision_frames_per_clip"] = 4
+
+
 def validate_whisper_language(lang: Optional[str]) -> Optional[str]:
     """
     Raise ValueError if *lang* is not a recognised ISO 639-1 code.
@@ -405,6 +431,13 @@ class Config:
     llm_backend: str = "llamacpp"    # "llamacpp" | "ollama" | "claude"
     llm_model_path: str = ""         # path to .gguf file; required when backend is llamacpp
     llm_mmproj_path: str = ""        # path to the vision projector .gguf; enables vision on llamacpp
+
+    # Image-based clip analysis (plan 11): sample frames from a clip, send them to a
+    # vision model, and store a short factual "what's on screen" summary that enriches
+    # the clip's descriptions and gives the text scorer visual context. Off by default —
+    # opt in per clip ("Analyze frames") or in the batch Re-score flow; never automatic.
+    vision_enabled: bool = False
+    vision_frames_per_clip: int = 4  # frames evenly sampled across the clip window (1–10)
 
     ollama_host: str = "http://localhost:11434"
     ollama_model: str = "qwen2.5:7b"  # Apache-2.0 (monetization-safe); see model_catalog.py
@@ -520,6 +553,7 @@ class Config:
 
         _sanitize_title_card_fields(merged)
         _sanitize_caption_style_fields(merged)
+        _sanitize_vision_fields(merged)
 
         known = {f for f in cls.__dataclass_fields__}
         unknown = set(merged) - known

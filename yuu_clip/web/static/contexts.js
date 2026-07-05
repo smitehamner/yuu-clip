@@ -254,15 +254,25 @@ document.addEventListener('click', e => {
 });
 
 // ── re-score clips with context ───────────────────────────────────────────────
-function rescoreClips(videoId, btn) {
+async function rescoreClips(videoId, btn) {
   const video = AppState.videos.find(v => v.id === videoId);
   const count = video ? video.clip_count : 0;
+  let cap = {vision: false};
+  try { cap = await fetch('/api/llm/capabilities').then(r => r.json()); } catch { /* offline */ }
+  const framesRow = (window._visionEnabled && cap.vision)
+    ? `<label style="display:flex;align-items:center;gap:6px;margin-top:10px;font-size:13px">
+         <input type="checkbox" id="rescore-include-frames"> Include frame analysis (slower)
+       </label>`
+    : '';
   showConfirm(
     'Re-score clips with context?',
     `This will run LLM scoring on <strong>${plural(count, 'clip')}</strong>.<br>` +
-    `GPU time varies with clip count — this may take several minutes.`,
+    `GPU time varies with clip count — this may take several minutes.` + framesRow,
     'Re-score',
-    () => _doRescoreClips(videoId, btn),
+    () => {
+      const inc = document.getElementById('rescore-include-frames');
+      _doRescoreClips(videoId, btn, 'rescore-clips', !!(inc && inc.checked));
+    },
   );
 }
 
@@ -278,7 +288,7 @@ function rescoreFailedClips(videoId, btn) {
   );
 }
 
-function _doRescoreClips(videoId, btn, endpoint = 'rescore-clips') {
+function _doRescoreClips(videoId, btn, endpoint = 'rescore-clips', includeFrames = false) {
   if (_blockedByAnalyze('re-score clips')) return;
   const orig = btn?.textContent;
   if (btn) { btn.disabled = true; btn.textContent = 'Re-scoring…'; }
@@ -287,7 +297,7 @@ function _doRescoreClips(videoId, btn, endpoint = 'rescore-clips') {
   const resetBtn = () => { if (btn) { btn.disabled = false; btn.textContent = orig; } };
   let errorCount = 0;
   const handle = _openSSE(
-    `/api/videos/${videoId}/${endpoint}`,
+    `/api/videos/${videoId}/${endpoint}${includeFrames ? '?include_frames=1' : ''}`,
     data => {
       if (typeof data === 'string' && data.startsWith('[Error')) errorCount++;
       appendLog(String(data));

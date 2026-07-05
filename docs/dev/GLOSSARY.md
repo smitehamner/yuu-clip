@@ -646,6 +646,15 @@ The at-a-glance indicator in Settings → LLM scoring showing whether the active
 
 ---
 
+### Image analysis
+
+User-facing: **"Analyze frames"** / **"What's on screen"**. Optional, off by default: sample a few frames evenly across a clip, send them to a vision model, and store a short factual "what's on screen" summary (the game/scene, on-screen events, HUD/popups). The summary enriches the clip's descriptions and is added to the text scorer's prompt as a *Visual context* block — it never scores the clip directly. Triggered manually per clip ("Analyze frames" button) or via an "Include frame analysis" checkbox in the batch Re-score flow; never automatic during Analyze.
+
+- **Code:** `analyze/frames.py` (`sample_clip_frames`, `resolve_frame_window`, `sample_and_describe`); `scoring/llm.py` (`describe_frames`, `check_vision_available`, `_visual_block`); `LLMClient.chat_vision` + `VisionNotSupportedError` in `scoring/llm_client.py`; route `POST /api/clips/{id}/analyze-frames` and `?include_frames=1` on rescore-clips; config `vision_enabled` (master switch), `vision_frames_per_clip` (1–10). DB: `clip_candidates.vision_summary` / `vision_analyzed_at`.
+- **Notes:** The instruction is a plain-text user prompt (not JSON) — small local vision models reliably follow "describe this" but return coordinates/empty for a JSON-schema system prompt. Ollama frames scale `num_ctx` and degrade to fewer frames on a context overflow (moondream is hard-capped at ~2048 tokens ≈ 2 frames). Frames come from the fresh 720p proxy when present (parent-keyed timeline, segment offset added).
+
+---
+
 ### Audio Energy Scoring
 
 Scoring based on how loud and active the audio was during a clip window.

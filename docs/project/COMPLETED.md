@@ -6,6 +6,51 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) — see the
 
 ---
 
+## Image-based clip analysis (done 2026-07-04)
+
+Closed the Phase 6 "Image-based clip analysis" item (plan 11). Optional, off-by-default,
+clip-only: sample frames from a clip, send them to a vision model, and store a short
+"what's on screen" summary that enriches descriptions and gives the text scorer visual
+context — it never scores directly.
+
+- **`yuu_clip/analyze/frames.py`**: `frame_timestamps` (evenly-spaced, midpoint for one
+  frame), `sample_clip_frames` (ffmpeg JPEG extraction, ≤1280px), `resolve_frame_window`
+  (fresh 720p proxy preferred, parent segment offset added for split segments — same maths
+  as preview/auto-framing), and `sample_and_describe` / `analyze_clip_frames` orchestrators.
+- **Vision clients** (`scoring/llm_client.py`): `LLMClient.chat_vision(messages, images)`
+  with a base implementation that raises the new typed `VisionNotSupportedError`; overrides
+  for **Ollama** (base64 images on the user turn), **Claude** (native image content blocks),
+  and **llama.cpp** (mmproj chat handler chosen per model family). The Ollama path scales
+  `num_ctx` with frame count and **degrades to fewer frames on a context overflow** (moondream
+  is hard-capped at ~2048 tokens ≈ 2 frames and ignores `num_ctx`).
+- **Prompt** (`scoring/llm.py`): `describe_frames` sends a **plain-text** "describe what's on
+  screen" instruction in the *user* turn (not a JSON system prompt — verified that small vision
+  models return coordinates/empty for JSON schemas but follow a plain ask). `_clean_vision_summary`
+  tolerates a stray JSON reply and caps length. `check_vision_available` is the per-backend gate
+  (master switch + model capability). Scoring/description prompts gain a *Visual context* block
+  (`_visual_block`) when a clip has a summary.
+- **Storage + routes**: `clip_candidates.vision_summary` / `vision_analyzed_at` (guarded
+  ADD-COLUMN); serialized in `_clip_dict`. `POST /api/clips/{id}/analyze-frames` (in-process via
+  `asyncio.to_thread`, 503 when unavailable, returns elapsed) and `?include_frames=1` on
+  `rescore-clips` (per-clip analysis folded into the batch loop, vision failure never blocks scoring).
+- **Config**: `vision_enabled` (off by default — the master switch) + `vision_frames_per_clip`
+  (1–10, load-sanitized + PATCH-validated). Catalog: `model_catalog.ollama_vision_tag_bases()`
+  centralizes the Ollama vision-tag set (reused by `/api/llm/capabilities`).
+- **UI**: a "What's on screen" clip-detail card with the **Analyze frames** button (gated via
+  plan-10's `gateOnCapability`, hidden entirely unless the master switch is on); an "Include frame
+  analysis" checkbox in the Re-score dialog (shown only when vision is enabled + capable); Settings
+  → LLM scoring toggle + frames field. `window._visionEnabled` is seeded at boot and refreshed on
+  settings save.
+- **Verified end-to-end** against a real recording (video 13, clip 167) through Ollama + moondream:
+  frames sampled from the proxy, summary generated, stored, and serialized. Glossary "Image analysis"
+  (dev + in-app); FEATURES "What's on screen". Tests: `test_frames.py`, `test_vision.py`,
+  `test_ui_vision.py`, plus catalog + config additions (1733 api / 632 ui pass).
+- **Deviations flagged**: plain-text prompt instead of the plan's JSON `{"vision_summary"}`
+  (small models fail JSON); Ollama frame-degradation fallback (moondream's hard 2048 context);
+  `vision_enabled` made a real client+server master switch (the plan didn't wire it to anything).
+  **llama.cpp vision is implemented but untested on this machine** — no cp314 wheel and no C++
+  toolchain to build `llama-cpp-python` from source (`CMAKE_C_COMPILER not set`).
+
 ## Model selection + capability gating (done 2026-07-04)
 
 Closed the Phase 6 "Model selection and capability gating" item (plan 10). A curated
