@@ -21,6 +21,8 @@ class ConfigPatch(BaseModel):
     whisper_device:               Optional[str]   = None
     whisper_compute_type:         Optional[str]   = None
     whisper_language:             Optional[str]   = None
+    # AI privacy mode (plan non-llm-tiers/07) — none | local_only | remote_ok
+    ai_privacy_mode:              Optional[str]   = None
     # LLM backend
     llm_backend:                  Optional[str]   = None
     llm_model_path:               Optional[str]   = None
@@ -44,6 +46,16 @@ class ConfigPatch(BaseModel):
     scorer_laugh_weight:          Optional[float] = None
     scorer_laugh_mode:            Optional[str]   = None
     scorer_laugh_model_id:        Optional[str]   = None
+    # Lightweight scorer weights + toggles (plans non-llm-tiers/03–05) and the similarity
+    # engine (plan 01). Previously sent by settings.js but dropped here, so they never
+    # persisted — wired through in Stage 07.
+    scorer_lexicon_weight:        Optional[float] = None
+    scorer_speech_rate_weight:    Optional[float] = None
+    scorer_churn_weight:          Optional[float] = None
+    scorer_prosody_weight:        Optional[float] = None
+    scorer_audio_event_weight:    Optional[float] = None
+    scorer_audio_event_enabled:   Optional[bool]  = None
+    similarity_backend:           Optional[str]   = None
     score_funny_weight:           Optional[float] = None
     score_dramatic_weight:        Optional[float] = None
     score_action_weight:          Optional[float] = None
@@ -78,12 +90,16 @@ class ConfigPatch(BaseModel):
 _CONFIG_FIELDS = (
     "ui_timeline_interval_seconds", "ui_timeline_interval_unit",
     "whisper_model", "whisper_device", "whisper_compute_type", "whisper_language",
+    "ai_privacy_mode",
     "llm_backend", "llm_model_path", "llm_mmproj_path",
     "vision_enabled", "vision_frames_per_clip",
     "ollama_host", "ollama_model", "ollama_timeout_s", "ollama_enabled",
     "claude_api_key", "claude_model", "claude_timeout_s",
     "scorer_energy_weight", "scorer_scene_weight", "scorer_llm_weight",
     "scorer_laugh_weight", "scorer_laugh_mode", "scorer_laugh_model_id",
+    "scorer_lexicon_weight", "scorer_speech_rate_weight", "scorer_churn_weight",
+    "scorer_prosody_weight", "scorer_audio_event_weight", "scorer_audio_event_enabled",
+    "similarity_backend",
     "score_funny_weight", "score_dramatic_weight", "score_action_weight",
     "content_preset",
     "scene_detection_mode", "energy_mode", "silence_threshold_ms", "min_clip_ms",
@@ -195,6 +211,7 @@ _CONFIG_PATCH_RULES: list[tuple[str, object]] = [
     ("whisper_device",               _enum_validator({"cpu", "cuda", "auto"}, "whisper_device")),
     ("whisper_compute_type",         _enum_validator({"int8", "float16", "float32", "int8_float16"}, "whisper_compute_type")),
     ("whisper_language",             _whisper_language_validator),
+    ("ai_privacy_mode",              _enum_validator({"none", "local_only", "remote_ok"}, "ai_privacy_mode")),
     ("llm_backend",                  _enum_validator({"llamacpp", "ollama", "claude"}, "llm_backend")),
     ("llm_model_path",               lambda v: v),
     ("llm_mmproj_path",              lambda v: v),
@@ -213,6 +230,13 @@ _CONFIG_PATCH_RULES: list[tuple[str, object]] = [
     ("scorer_laugh_weight",          lambda v: max(0.0, v)),
     ("scorer_laugh_mode",            _enum_validator({"transcript", "audio", "model"}, "scorer_laugh_mode")),
     ("scorer_laugh_model_id",        lambda v: v.strip()),
+    ("scorer_lexicon_weight",        lambda v: max(0.0, v)),
+    ("scorer_speech_rate_weight",    lambda v: max(0.0, v)),
+    ("scorer_churn_weight",          lambda v: max(0.0, v)),
+    ("scorer_prosody_weight",        lambda v: max(0.0, v)),
+    ("scorer_audio_event_weight",    lambda v: max(0.0, v)),
+    ("scorer_audio_event_enabled",   lambda v: v),
+    ("similarity_backend",           _enum_validator({"tfidf", "embeddings", "llm"}, "similarity_backend")),
     ("score_funny_weight",           lambda v: max(0.0, v)),
     ("score_dramatic_weight",        lambda v: max(0.0, v)),
     ("score_action_weight",          lambda v: max(0.0, v)),

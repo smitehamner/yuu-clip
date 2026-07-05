@@ -443,6 +443,13 @@ function _exportFormatsHtml(clip) {
 // richer AI descriptions; absent once an LLM description or a creator edit lands.
 function _basicDescChipHTML(clip) {
   if (!clip.tags || !clip.tags.includes('desc_basic')) return '';
+  // Under "No generative AI" the user opted out of language models — show a neutral
+  // note, never an install nudge (Stage 07).
+  if ((window._aiPrivacyMode || 'local_only') === 'none') {
+    return `<div class="basic-desc-chip" title="This one-liner was built from the transcript without a language model">
+      Basic description — generative AI is turned off
+    </div>`;
+  }
   return `<div class="basic-desc-chip" title="This one-liner was built from the transcript without a language model">
     Basic description — <a href="#" onclick="event.preventDefault();openSettings();setTimeout(()=>_scrollToSettingsSection('settings-sec-llm'),120)">install a local model</a> for richer AI descriptions
   </div>`;

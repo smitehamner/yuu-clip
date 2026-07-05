@@ -37,7 +37,9 @@ class TestCapabilities:
         assert cap["text"] is False and cap["vision"] is False
 
     def test_claude_requires_a_key_for_text_and_vision(self, client: TestClient):
-        _patch(client, ollama_enabled=True, llm_backend="claude", claude_api_key="")
+        # remote_ok so the privacy-mode block isn't the reason under test (Stage 07).
+        _patch(client, ollama_enabled=True, llm_backend="claude", claude_api_key="",
+               ai_privacy_mode="remote_ok")
         cap = client.get("/api/llm/capabilities").json()
         assert cap["backend"] == "claude"
         assert cap["text"] is False and cap["vision"] is False

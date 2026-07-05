@@ -130,6 +130,24 @@ class TestUiConfig:
     def test_get_config_includes_content_preset_default(self, client):
         assert client.get("/api/config").json()["content_preset"] == "generic"
 
+    # AI privacy mode (plan non-llm-tiers/07)
+    def test_ai_privacy_mode_defaults_to_local_only(self, client):
+        assert client.get("/api/config").json()["ai_privacy_mode"] == "local_only"
+
+    def test_patch_ai_privacy_mode_persists(self, client):
+        r = client.patch("/api/config", json={"ai_privacy_mode": "none"})
+        assert r.status_code == 200 and r.json()["ai_privacy_mode"] == "none"
+        assert client.get("/api/config").json()["ai_privacy_mode"] == "none"
+
+    def test_patch_ai_privacy_mode_rejects_unknown(self, client):
+        assert client.patch("/api/config", json={"ai_privacy_mode": "cloud"}).status_code == 400
+
+    # Regression: similarity_backend (plan 01) was dropped by ConfigPatch before Stage 07.
+    def test_patch_similarity_backend_persists(self, client):
+        r = client.patch("/api/config", json={"similarity_backend": "embeddings"})
+        assert r.status_code == 200 and r.json()["similarity_backend"] == "embeddings"
+        assert client.get("/api/config").json()["similarity_backend"] == "embeddings"
+
     def test_patch_config_accepts_known_content_preset(self, client):
         r = client.patch("/api/config", json={"content_preset": "speedrun"})
         assert r.status_code == 200

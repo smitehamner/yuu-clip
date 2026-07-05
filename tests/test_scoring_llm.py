@@ -392,7 +392,8 @@ class TestMakeClient:
 
     def test_claude_backend_returns_claude_client(self):
         from yuu_clip.scoring.llm_client import ClaudeClient, make_client
-        client = make_client(self._cfg(ollama_enabled=True, llm_backend="claude"))
+        client = make_client(self._cfg(
+            ollama_enabled=True, llm_backend="claude", ai_privacy_mode="remote_ok"))
         assert isinstance(client, ClaudeClient)
 
     def test_ollama_backend_returns_ollama_client(self):

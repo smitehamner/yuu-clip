@@ -56,6 +56,7 @@ Most lookups only need this table: the authoritative user-facing term, the code 
 | Privacy Term | `category='privacy'` | A name or personal detail to flag, never scored |
 | Censor Word | `category='censor'` | Language to flag before posting to a restricted platform, never scored |
 | Flagged | `sensitive_matches` non-empty | Clip filter tab / badge — a clip containing a Sensitive Terms match |
+| AI privacy mode | `ai_privacy_mode` | The trust control: No generative AI / Local models only / Allow remote models |
 | LLM scoring | `LLMScorer` | Transcript-based scoring — not "AI scoring" |
 | Audio energy scoring | `EnergyScorer` | Loudness/activity-based scoring |
 | Scene scoring | `SceneScorer` | Scene-cut-frequency scoring |
@@ -646,6 +647,20 @@ enabled Sensitive Terms match.
 - **Notes:** v1 flags clips only — a Highlight Reel built from flagged clips is not
   itself marked; see the reel/export note in USER_PATHS (roadmap plan 02) for the
   deferred follow-up.
+
+---
+
+### AI privacy mode
+
+The single setting that decides what yuu-clip may do with a recording's transcript. It is a **guarantee, not a hint** — enforced at every point a language model could run (`resolve_ai_permissions`), so no UI mistake or saved backend can leak data past it. Three levels:
+
+- **No generative AI** (`none`) — no language model runs at all. Clip finding, related-clip search, "Meaning" hot-words, and lightweight scoring (lexicon, energy, laughs) still work, because embeddings and keyword matching are *discriminative, not generative*. All "install a model" nudges are suppressed — a user who opted out is never nagged.
+- **Local models only** (`local_only`, the default) — on-device language models are allowed; the remote Claude backend is blocked and hidden. Nothing you record leaves the machine.
+- **Allow remote models** (`remote_ok`) — the paid Claude API backend is permitted; it sends your transcript to Anthropic.
+
+- **Code:** config `ai_privacy_mode`; `resolve_ai_permissions(config) -> AiPermissions(allow_llm, allow_remote)` in `config.py`. Enforced in `make_client` (never constructs a remote client — reads `LLMClient.is_remote` as a class attribute *before* instantiation), `check_llm_available`, `check_vision_available` / `describe_frames`, `LLMScorer.is_available`, and (transitively) the similarity `llm` backend. UI: the AI privacy radios at the top of Settings → LLM scoring and the first-run setup wizard.
+- **Do not call it:** "privacy toggle" (it's one 3-level control, not an on/off), or the levels "off / local / cloud" — use the exact labels above; they are the trust surface.
+- **Notes:** Fails safe — an unknown/garbage value resolves to Local models only (blocks the remote path), never to Allow remote models. `ollama_enabled` (Enable LLM scoring) is a separate feature toggle; either one independently forces the LLM off.
 
 ---
 

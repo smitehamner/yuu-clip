@@ -16,7 +16,7 @@ import logging
 import re
 from typing import TYPE_CHECKING
 
-from yuu_clip.scoring.llm_client import make_client
+from yuu_clip.scoring.llm_client import backend_is_remote, make_client
 from yuu_clip.scoring.protocol import ScoreResult
 
 if TYPE_CHECKING:
@@ -26,6 +26,15 @@ if TYPE_CHECKING:
     from yuu_clip.db.models import ClipCandidate
 
 log = logging.getLogger(__name__)
+
+# User-facing reasons for the two AI-privacy-mode blocks (Stage non-llm-tiers/07).
+_GENERATIVE_OFF_REASON = (
+    "Generative AI is turned off — change it under Settings → AI privacy"
+)
+_REMOTE_BLOCKED_REASON = (
+    "The remote (Claude) backend is blocked by AI privacy mode — switch to a local model "
+    "or allow remote models under Settings → AI privacy"
+)
 
 
 def _prepend_context(system_prompt: str, context_text: str) -> str:
@@ -367,12 +376,19 @@ def check_vision_available(config: "Config") -> tuple[bool, str]:
     """Return (available, reason) for image analysis on the active backend — the cheap
     pre-check routes gate on, mirroring check_llm_available. The backstop is the
     client's chat_vision raising VisionNotSupportedError."""
+    from yuu_clip.config import resolve_ai_permissions
+
     if not config.ollama_enabled:
         return False, "LLM scoring is disabled in Settings"
+    permissions = resolve_ai_permissions(config)
+    if not permissions.allow_llm:
+        return False, _GENERATIVE_OFF_REASON
     if not config.vision_enabled:
         return False, "Image analysis is turned off — enable it under Settings → LLM scoring"
     backend = config.llm_backend
     if backend == "claude":
+        if not permissions.allow_remote:
+            return False, _REMOTE_BLOCKED_REASON
         ok = bool(config.claude_api_key)
         return ok, "" if ok else "No Claude API key set — add one under Settings → LLM scoring"
     if backend == "llamacpp":
@@ -429,8 +445,15 @@ def scan_hotwords_semantic(transcript: str, phrases: list[str], config: "Config"
 
 def check_llm_available(config: "Config") -> tuple[bool, str]:
     """Return (available, reason) without logging.  Used by routes to gate LLM calls."""
+    from yuu_clip.config import resolve_ai_permissions
+
     if not config.ollama_enabled:
         return False, "LLM scoring is disabled in Settings"
+    permissions = resolve_ai_permissions(config)
+    if not permissions.allow_llm:
+        return False, _GENERATIVE_OFF_REASON
+    if backend_is_remote(config) and not permissions.allow_remote:
+        return False, _REMOTE_BLOCKED_REASON
     return make_client(config).available()
 
 
@@ -453,7 +476,11 @@ class LLMScorer:
         self._available: bool | None = None
 
     def is_available(self) -> bool:
+        from yuu_clip.config import resolve_ai_permissions
+
         if not self._config.ollama_enabled:
+            return False
+        if not resolve_ai_permissions(self._config).allow_llm:
             return False
         if self._available is not None:
             return self._available

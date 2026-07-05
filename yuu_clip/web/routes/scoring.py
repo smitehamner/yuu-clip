@@ -26,12 +26,13 @@ from yuu_clip.web.routes._shared import (
 _log = get_logger(__name__)
 
 
-def _install_ctas_ok() -> bool:
+def _install_ctas_ok(config) -> bool:
     """Whether "install a local model" nudges should be shown at all.
 
-    Always True today. Hook for the Stage 07 "No generative AI" privacy mode, which
-    will suppress every install CTA rather than nag a user who opted out."""
-    return True
+    Suppressed under the "No generative AI" privacy mode — never nag a user who
+    deliberately opted out of language models (Stage 07)."""
+    from yuu_clip.config import resolve_ai_permissions
+    return resolve_ai_permissions(config).allow_llm
 
 
 # Structured empty state the summary/timeline features return instead of hard-failing
@@ -49,11 +50,11 @@ _NEEDS_MODEL_STATES = {
 }
 
 
-def _needs_model_payload(kind: str, reason: str) -> dict:
+def _needs_model_payload(kind: str, reason: str, config) -> dict:
     state = _NEEDS_MODEL_STATES[kind]
     return {
         "needs_model": True,
-        "show_cta": _install_ctas_ok(),
+        "show_cta": _install_ctas_ok(config),
         "heading": state["heading"],
         "detail": state["detail"],
         "reason": reason,
@@ -416,7 +417,7 @@ def _register_rescore_routes(router: APIRouter, ctx: ProjectContext) -> None:
         from yuu_clip.scoring.llm import check_llm_available
         llm_ok, llm_reason = check_llm_available(config)
         if not llm_ok:
-            payload = _needs_model_payload("timeline", llm_reason)
+            payload = _needs_model_payload("timeline", llm_reason, config)
 
             async def needs_model_stream():
                 yield f"data: {json_lib.dumps(payload)}\n\n"
@@ -497,7 +498,7 @@ def _register_summary_routes(router: APIRouter, ctx: ProjectContext) -> None:
 
             llm_ok, llm_reason = check_llm_available(ctx.config)
             if not llm_ok:
-                return _needs_model_payload("summary", llm_reason)
+                return _needs_model_payload("summary", llm_reason, ctx.config)
 
             title_current   = video.effective_title
             summary_current = video.effective_summary
@@ -542,7 +543,7 @@ def _register_summary_routes(router: APIRouter, ctx: ProjectContext) -> None:
         from yuu_clip.scoring.llm import check_llm_available
         llm_ok, llm_reason = check_llm_available(ctx.config)
         if not llm_ok:
-            payload = _needs_model_payload("summary", llm_reason)
+            payload = _needs_model_payload("summary", llm_reason, ctx.config)
 
             async def needs_model_stream():
                 yield f"data: {json_lib.dumps(payload)}\n\n"

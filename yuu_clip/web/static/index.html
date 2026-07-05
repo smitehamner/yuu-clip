@@ -160,6 +160,34 @@
   <!-- LLM scoring section -->
   <div class="settings-section" id="settings-sec-llm">
     <div class="settings-section-title">LLM scoring</div>
+    <!-- AI privacy mode (plan non-llm-tiers/07) — the trust control. Enforced server-side
+         at every point a language model could run, not just a UI hint. -->
+    <div class="settings-row" id="s-privacy-row">
+      <div class="settings-col">
+        <label class="settings-label">AI privacy</label>
+        <div class="settings-note">What yuu-clip may do with your transcript. This is enforced everywhere — it is a guarantee, not just a preference.</div>
+      </div>
+      <div id="s-ai-privacy-options" role="radiogroup" aria-label="AI privacy mode"
+           onchange="_onPrivacyModeChange(this.querySelector('input:checked').value)"
+           style="display:flex;flex-direction:column;gap:8px;font-size:13px;max-width:340px">
+        <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer">
+          <input type="radio" name="s-ai-privacy" value="none" style="margin-top:2px">
+          <span><strong>No generative AI</strong><br><span class="settings-note">No language model runs. Clip finding, search and lightweight scoring still work.</span></span>
+        </label>
+        <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer">
+          <input type="radio" name="s-ai-privacy" value="local_only" style="margin-top:2px">
+          <span><strong>Local models only</strong><br><span class="settings-note">On-device models allowed. Nothing you record is sent anywhere.</span></span>
+        </label>
+        <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer">
+          <input type="radio" name="s-ai-privacy" value="remote_ok" style="margin-top:2px">
+          <span><strong>Allow remote models</strong><br><span class="settings-note">Permits the paid Claude API, which sends your transcript to Anthropic.</span></span>
+        </label>
+        <!-- Mirrors the checked radio so the existing id-based dirty/save machinery tracks it. -->
+        <input type="hidden" id="s-ai-privacy-value">
+      </div>
+    </div>
+    <!-- Collapses to #s-privacy-none-summary under "No generative AI". -->
+    <div id="s-llm-generative-block">
     <div class="settings-row">
       <div class="settings-col">
         <label class="settings-label" id="lbl-ollama-enabled" for="s-ollama-enabled">Enable LLM scoring</label>
@@ -184,6 +212,9 @@
     </div>
     <div id="s-backend-remote-warning" style="display:none;margin:0 0 8px;padding:8px 12px;border-radius:6px;background:color-mix(in srgb, var(--warning) 12%, transparent);border:1px solid color-mix(in srgb, var(--warning) 40%, transparent);font-size:12px;color:var(--warning)">
       &#x26A0; <strong>Remote backend</strong> — transcript data is sent to an external API and <strong>billed per token</strong>. Every analyze run, re-score, timeline, and session summary will incur costs.
+    </div>
+    <div id="s-remote-blocked-notice" style="display:none;margin:0 0 8px;padding:8px 12px;border-radius:6px;background:color-mix(in srgb, var(--warning) 12%, transparent);border:1px solid color-mix(in srgb, var(--warning) 40%, transparent);font-size:12px;color:var(--warning)">
+      &#x26A0; The Claude backend is saved but <strong>turned off by AI privacy mode</strong> (Local models only). Choose <strong>Allow remote models</strong> above to use it, or switch to a local backend.
     </div>
     <!-- llamacpp fields -->
     <div id="s-llamacpp-fields">
@@ -307,6 +338,13 @@
       <div id="s-llm-capabilities" style="font-size:12px;color:var(--muted)">Checking…</div>
     </div>
     </div><!-- /#s-llm-body -->
+    </div><!-- /#s-llm-generative-block -->
+    <div id="s-privacy-none-summary" style="display:none;margin:0 0 4px;padding:10px 12px;border-radius:6px;background:var(--surface-2);font-size:13px">
+      Generative AI is turned off. Clip finding, related-clip search, "Meaning" hot-words, and lightweight scoring (lexicon, energy, laughs) all still work — nothing is disabled that doesn't need a language model.
+      <div style="margin-top:8px">
+        <button type="button" class="btn-secondary" onclick="_setPrivacyMode('local_only')">Turn on local models</button>
+      </div>
+    </div>
     <!-- Similarity engine — powers Find related clips + "Meaning" hot-words. Outside
          #s-llm-body on purpose: the keyword/embeddings tiers work with LLM scoring off. -->
     <div class="settings-row" id="s-similarity-row">

@@ -295,11 +295,41 @@ def _llamacpp_vision_handler(model_path: str, mmproj_path: str):
     return fmt.Llava15ChatHandler(clip_model_path=mmproj_path)
 
 
+# Backend name → client class. Keyed lookup lets make_client read a class's is_remote
+# attribute BEFORE constructing it, so a remote backend blocked by the AI privacy mode is
+# never instantiated (the trust guarantee: no ClaudeClient under local_only). Unknown
+# backends fall back to Ollama, matching the historical default.
+_BACKEND_CLIENTS: dict[str, type[LLMClient]] = {
+    "llamacpp": LlamaCppClient,
+    "ollama": OllamaClient,
+    "claude": ClaudeClient,
+}
+
+
+def _client_class_for(config: Config) -> type[LLMClient]:
+    return _BACKEND_CLIENTS.get(config.llm_backend, OllamaClient)
+
+
+def backend_is_remote(config: Config) -> bool:
+    """Whether the configured backend sends data off-device — read from the client
+    class's is_remote attribute without constructing it."""
+    return _client_class_for(config).is_remote
+
+
 def make_client(config: Config) -> LLMClient:
-    if not config.ollama_enabled:
+    """The single point where an LLM client is constructed. Enforces the AI privacy mode:
+    returns NullLLMClient (never a real, let alone remote, client) when generative AI is
+    off or the backend is remote and remote is not allowed."""
+    from yuu_clip.config import resolve_ai_permissions
+
+    permissions = resolve_ai_permissions(config)
+    if not config.ollama_enabled or not permissions.allow_llm:
         return NullLLMClient()
-    if config.llm_backend == "llamacpp":
-        return LlamaCppClient(config)
-    if config.llm_backend == "claude":
-        return ClaudeClient(config)
-    return OllamaClient(config)
+    client_class = _client_class_for(config)
+    if client_class.is_remote and not permissions.allow_remote:
+        _log.info(
+            "Remote LLM backend %r blocked by AI privacy mode — using NullLLMClient",
+            config.llm_backend,
+        )
+        return NullLLMClient()
+    return client_class(config)

@@ -391,6 +391,46 @@ def validate_whisper_language(lang: Optional[str]) -> Optional[str]:
     return lang_lower
 
 
+# AI privacy mode (plan non-llm-tiers/07) — the single trust control over what the app
+# may do with a user's transcript. Enforced everywhere a language model could run, via
+# resolve_ai_permissions below. "none" = no generative language model runs at all
+# (embeddings/lexicon/energy still work — they're discriminative, not generative);
+# "local_only" = on-device LLM allowed, remote (Claude) backend blocked, nothing leaves
+# the machine; "remote_ok" = the Claude API backend is permitted.
+ALLOWED_AI_PRIVACY_MODES: frozenset[str] = frozenset({"none", "local_only", "remote_ok"})
+
+
+def validate_ai_privacy_mode(mode: str) -> str:
+    if mode not in ALLOWED_AI_PRIVACY_MODES:
+        raise ValueError(
+            f"Unrecognised AI privacy mode '{mode}'. "
+            f"Use one of: {sorted(ALLOWED_AI_PRIVACY_MODES)}."
+        )
+    return mode
+
+
+@dataclass(frozen=True)
+class AiPermissions:
+    """What the active AI privacy mode permits. The trust surface: every LLM gate reads
+    this, so the mode is a real guarantee, not a UI hint. allow_llm covers any generative
+    language model; allow_remote covers off-device/billed backends (Claude)."""
+    allow_llm: bool
+    allow_remote: bool
+
+
+def resolve_ai_permissions(config: "Config") -> AiPermissions:
+    """The single choke point that turns ai_privacy_mode into concrete permissions.
+
+    Fails safe: an unknown/garbage mode resolves to local_only (blocks the billed,
+    off-device remote path) — never to remote_ok.
+    """
+    mode = (getattr(config, "ai_privacy_mode", "local_only") or "local_only").strip()
+    if mode == "none":
+        return AiPermissions(allow_llm=False, allow_remote=False)
+    if mode == "remote_ok":
+        return AiPermissions(allow_llm=True, allow_remote=True)
+    return AiPermissions(allow_llm=True, allow_remote=False)
+
 
 # Labels for which we skip transcription by default (user can override)
 DEFAULT_SKIP_TRANSCRIBE = {"game_sounds"}
@@ -439,6 +479,10 @@ class Config:
     # transcript text per second of clip. Real speech is ~10+ cps; 0.2 only
     # removes near-silent windows. Set 0 to keep every window (disable).
     min_clip_speech_cps: float = 0.2
+
+    # AI privacy mode (plan non-llm-tiers/07) — the trust control over transcript use.
+    # "none" | "local_only" (default) | "remote_ok"; enforced via resolve_ai_permissions.
+    ai_privacy_mode: str = "local_only"
 
     # LOCAL backends — inference runs on your machine, no API costs
     llm_backend: str = "llamacpp"    # "llamacpp" | "ollama" | "claude"

@@ -87,6 +87,58 @@ class TestTranscriptionLanguageSelect:
 
 
 @skip_no_server
+class TestAiPrivacyMode:
+    """The AI privacy radios (plan non-llm-tiers/07). Read-only: these manipulate the
+    live DOM (radios, visibility) but never click Save — that would PATCH the real
+    config.json. Each test starts from a fresh page.goto so nothing persists."""
+
+    def _open_settings(self, page: Page) -> None:
+        page.goto(LIVE_URL)
+        page.wait_for_selector("#video-list li[data-video-id]", timeout=5000)
+        page.click("#btn-settings-header")
+        page.wait_for_selector("#settings-panel.visible", timeout=3000)
+        page.wait_for_function(
+            "document.getElementById('s-paths-display').textContent.trim().length > 0",
+            timeout=3000,
+        )
+
+    def test_three_privacy_radios_render(self, page: Page):
+        self._open_settings(page)
+        values = page.eval_on_selector_all(
+            "input[name='s-ai-privacy']", "els => els.map(e => e.value)"
+        )
+        assert values == ["none", "local_only", "remote_ok"]
+
+    def test_local_only_hides_claude_backend_option(self, page: Page):
+        self._open_settings(page)
+        page.check("input[name='s-ai-privacy'][value='local_only']")
+        hidden = page.eval_on_selector(
+            "#s-llm-backend option[value='claude']", "el => el.hidden"
+        )
+        assert hidden is True
+
+    def test_remote_ok_shows_claude_backend_option(self, page: Page):
+        self._open_settings(page)
+        page.check("input[name='s-ai-privacy'][value='remote_ok']")
+        hidden = page.eval_on_selector(
+            "#s-llm-backend option[value='claude']", "el => el.hidden"
+        )
+        assert hidden is False
+
+    def test_none_collapses_generative_block(self, page: Page):
+        self._open_settings(page)
+        page.check("input[name='s-ai-privacy'][value='none']")
+        expect(page.locator("#s-llm-generative-block")).to_be_hidden()
+        expect(page.locator("#s-privacy-none-summary")).to_be_visible()
+
+    def test_local_only_shows_generative_block(self, page: Page):
+        self._open_settings(page)
+        page.check("input[name='s-ai-privacy'][value='local_only']")
+        expect(page.locator("#s-llm-generative-block")).to_be_visible()
+        expect(page.locator("#s-privacy-none-summary")).to_be_hidden()
+
+
+@skip_no_server
 class TestSettingsPanelLayout:
     """Settings takes over the detail area as a fixed overlay but leaves the
     sidebar visible, and opening the Analyze panel closes settings (no overlap)."""

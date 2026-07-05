@@ -2,6 +2,7 @@
 // ── settings panel ────────────────────────────────────────────────────────────
 const _settingsFieldIds = [
   's-whisper-model','s-whisper-device','s-whisper-compute','s-whisper-language',
+  's-ai-privacy-value',
   's-ollama-enabled','s-llm-backend','s-llm-model-path','s-llm-mmproj-path',
   's-vision-enabled','s-vision-frames',
   's-ollama-model','s-ollama-host','s-ollama-timeout',
@@ -194,8 +195,10 @@ function _applySettingsToUI(cfg) {
   setVal('s-claude-api-key', cfg.claude_api_key  || '');
   _setClaudeModelValue(cfg.claude_model || 'claude-haiku-4-5-20251001');
   setVal('s-claude-timeout', cfg.claude_timeout_s ?? 30);
-  _updateLlmRemoteIndicator(cfg.llm_backend || 'llamacpp', cfg.ollama_enabled !== false);
   setVal('s-similarity-backend', cfg.similarity_backend || 'tfidf');
+  // After the backend + similarity selects are populated: applies the privacy mode,
+  // which re-evaluates backend visibility, the remote badge, and option filtering.
+  _setPrivacyMode(cfg.ai_privacy_mode || 'local_only');
   _onSimilarityBackendChange(cfg.similarity_backend || 'tfidf');
   _updateLlmCapabilities();
   _renderCapabilityTiers();
@@ -282,14 +285,55 @@ function _resetScoringWeights() {
 }
 
 function _onLlmBackendChange(backend) {
+  const mode = _currentPrivacyMode();
+  const isClaude      = backend === 'claude';
+  const remoteAllowed = mode === 'remote_ok';
   const llamacppEl = document.getElementById('s-llamacpp-fields');
   const ollamaEl   = document.getElementById('s-ollama-fields');
   const claudeEl   = document.getElementById('s-claude-fields');
   const warnEl     = document.getElementById('s-backend-remote-warning');
+  const blockedEl  = document.getElementById('s-remote-blocked-notice');
   if (llamacppEl) llamacppEl.style.display = backend === 'llamacpp' ? '' : 'none';
   if (ollamaEl)   ollamaEl.style.display   = backend === 'ollama'   ? '' : 'none';
-  if (claudeEl)   claudeEl.style.display   = backend === 'claude'   ? '' : 'none';
-  if (warnEl)     warnEl.style.display     = backend === 'claude'   ? '' : 'none';
+  if (claudeEl)   claudeEl.style.display   = isClaude ? '' : 'none';
+  // Costs warning only when the remote backend is actually usable; otherwise the
+  // "blocked by AI privacy mode" notice explains why a saved Claude backend is inert.
+  if (warnEl)     warnEl.style.display     = (isClaude && remoteAllowed)  ? '' : 'none';
+  if (blockedEl)  blockedEl.style.display  = (isClaude && !remoteAllowed) ? '' : 'none';
+}
+
+// ── AI privacy mode (plan non-llm-tiers/07) ─────────────────────────────────
+// The UI mirror of the server-side trust guarantee. Hiding the remote option and
+// collapsing the generative block is presentation only — enforcement lives in
+// resolve_ai_permissions; these controls never *grant* a capability the server blocks.
+function _currentPrivacyMode() {
+  const checked = document.querySelector('input[name="s-ai-privacy"]:checked');
+  return checked ? checked.value : (window._aiPrivacyMode || 'local_only');
+}
+
+function _onPrivacyModeChange(mode) {
+  window._aiPrivacyMode = mode;
+  const hidden = document.getElementById('s-ai-privacy-value');
+  if (hidden) hidden.value = mode;
+  const generativeOff = mode === 'none';
+  const genBlock    = document.getElementById('s-llm-generative-block');
+  const noneSummary = document.getElementById('s-privacy-none-summary');
+  if (genBlock)    genBlock.style.display    = generativeOff ? 'none' : '';
+  if (noneSummary) noneSummary.style.display = generativeOff ? '' : 'none';
+  const claudeOption = document.querySelector('#s-llm-backend option[value="claude"]');
+  if (claudeOption) claudeOption.hidden = claudeOption.disabled = mode !== 'remote_ok';
+  const simLlmOption = document.querySelector('#s-similarity-backend option[value="llm"]');
+  if (simLlmOption) simLlmOption.hidden = simLlmOption.disabled = generativeOff;
+  const backend = document.getElementById('s-llm-backend')?.value || 'llamacpp';
+  _onLlmBackendChange(backend);
+  _updateLlmRemoteIndicator(backend, document.getElementById('s-ollama-enabled')?.checked !== false);
+}
+
+function _setPrivacyMode(mode) {
+  const radio = document.querySelector(`input[name="s-ai-privacy"][value="${mode}"]`);
+  if (radio) radio.checked = true;
+  _onPrivacyModeChange(mode);
+  _checkSettingsDirty();
 }
 
 function _onDiarizationBackendChange(backend) {
@@ -567,7 +611,8 @@ async function installPackage(slug) {
 
 function _updateLlmRemoteIndicator(backend, llmEnabled) {
   const badge = document.getElementById('llm-remote-badge');
-  if (badge) badge.style.display = (llmEnabled && backend === 'claude') ? '' : 'none';
+  const remoteActive = llmEnabled && backend === 'claude' && _currentPrivacyMode() === 'remote_ok';
+  if (badge) badge.style.display = remoteActive ? '' : 'none';
 }
 
 // ── content-type presets (plan 12) ──────────────────────────────────────────
@@ -909,6 +954,7 @@ async function saveSettings() {
     whisper_device:             getVal('s-whisper-device'),
     whisper_compute_type:       getVal('s-whisper-compute'),
     whisper_language:           getVal('s-whisper-language'),
+    ai_privacy_mode:            _currentPrivacyMode(),
     ollama_enabled:             getChk('s-ollama-enabled'),
     llm_backend:                getVal('s-llm-backend'),
     llm_model_path:             getVal('s-llm-model-path'),
@@ -1319,7 +1365,7 @@ Object.assign(window, {
   openGettingStartedModal, closeGettingStartedModal,
   openGlossaryModal, closeGlossaryModal, _filterGlossary,
   _onLlmBackendChange, _onLlmEnabledChange, _onDiarizationBackendChange, _onLaughModeChange,
-  _onSimilarityBackendChange,
+  _onSimilarityBackendChange, _onPrivacyModeChange, _setPrivacyMode,
   _onPlayNextChange, _onLoopClipChange, _updateExportNameTemplatePreview,
   _toggleSecretVisibility, _onHfTokenInput, _updateDiarizationStatus,
   _updateLlmRemoteIndicator, _scrollToSettingsSection, _resetScoringWeights,

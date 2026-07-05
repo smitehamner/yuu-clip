@@ -140,8 +140,9 @@ class TestCheckVisionAvailable:
         assert ok is False and "turned off" in reason
 
     def test_claude_needs_key(self):
-        assert self._check(llm_backend="claude", claude_api_key="")[0] is False
-        assert self._check(llm_backend="claude", claude_api_key="sk-x")[0] is True
+        # remote_ok isolates the key check from the privacy-mode block (Stage 07).
+        assert self._check(llm_backend="claude", claude_api_key="", ai_privacy_mode="remote_ok")[0] is False
+        assert self._check(llm_backend="claude", claude_api_key="sk-x", ai_privacy_mode="remote_ok")[0] is True
 
     def test_ollama_needs_vision_model(self):
         assert self._check(llm_backend="ollama", ollama_model="llama3.1:8b")[0] is False

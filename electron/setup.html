@@ -223,6 +223,16 @@ footer {
         Not ready to decide? You can set this up any time in Settings (⚙).
       </div>
       <div class="cfg-row">
+        <span class="cfg-label">AI privacy</span>
+        <select id="ai-privacy-sel">
+          <option value="none">No generative AI — no language model runs</option>
+          <option value="local_only">Local models only — nothing leaves your machine (recommended)</option>
+          <option value="remote_ok">Allow remote models — permits the paid Claude API</option>
+        </select>
+      </div>
+      <div class="desc" id="ai-privacy-note" style="margin:-2px 0 6px"></div>
+      <div id="llm-generative-block">
+      <div class="cfg-row">
         <span class="cfg-label">How to run it</span>
         <select id="llm-backend-sel">
           <option value="ollama">Ollama — easiest, runs locally, free (recommended)</option>
@@ -286,6 +296,7 @@ footer {
           </select>
         </div>
       </div>
+      </div><!-- /#llm-generative-block -->
     </section>
 
     <!-- ═══ Content type ═══ -->
@@ -628,6 +639,7 @@ function applyDefaults(s) {
     named.map(o => `<option value="${esc(o.code)}">${esc(o.name)}</option>`).join('');
   langSel.value = WHISPER_LANGUAGES.includes(s.whisperLanguage) ? s.whisperLanguage : '';
 
+  document.getElementById('ai-privacy-sel').value = s.aiPrivacyMode || 'local_only';
   document.getElementById('llm-backend-sel').value = s.llmBackend;
   document.getElementById('llm-model-path').value  = s.llmModelPath || '';
   document.getElementById('ollama-model-input').value = s.ollamaModel;
@@ -639,7 +651,7 @@ function applyDefaults(s) {
   document.getElementById('content-preset-note').textContent =
     'Applied on launch. You can fine-tune every scoring weight later in Settings.';
 
-  onLlmBackendChange(document.getElementById('llm-backend-sel').value);
+  onPrivacyModeChange(document.getElementById('ai-privacy-sel').value);
   onDiarToggle();
   onHfTokenInput();
 
@@ -659,6 +671,25 @@ function onLlmBackendChange(val) {
   document.getElementById('llm-claude-fields').style.display   = val === 'claude'   ? '' : 'none';
   updateLlmWarn();
   updateClaudeWarn();
+}
+
+// AI privacy mode governs which backends are even offered here (plan non-llm-tiers/07).
+const AI_PRIVACY_NOTES = {
+  none: 'No language model runs. Clips are still found and searchable; scoring uses lightweight signals only.',
+  local_only: 'On-device models only. The remote Claude backend is hidden — nothing you record is sent anywhere.',
+  remote_ok: 'The paid Claude API is available. Your transcript is sent to Anthropic when it runs.',
+};
+
+function onPrivacyModeChange(mode) {
+  document.getElementById('ai-privacy-note').textContent = AI_PRIVACY_NOTES[mode] || '';
+  const claudeOption = document.querySelector('#llm-backend-sel option[value="claude"]');
+  if (claudeOption) claudeOption.hidden = claudeOption.disabled = mode !== 'remote_ok';
+  const backendSel = document.getElementById('llm-backend-sel');
+  // If a remote backend is no longer offered, fall back to the recommended local one.
+  if (mode !== 'remote_ok' && backendSel.value === 'claude') backendSel.value = 'ollama';
+  const llmBlock = document.getElementById('llm-generative-block');
+  if (llmBlock) llmBlock.style.display = mode === 'none' ? 'none' : '';
+  onLlmBackendChange(backendSel.value);
 }
 
 function updateLlmWarn() {
@@ -851,6 +882,7 @@ document.getElementById('llm-browse-btn').addEventListener('click', async () => 
   }
 });
 
+document.getElementById('ai-privacy-sel').addEventListener('change', e => onPrivacyModeChange(e.target.value));
 document.getElementById('llm-backend-sel').addEventListener('change', e => onLlmBackendChange(e.target.value));
 document.getElementById('llm-model-path').addEventListener('input', updateLlmWarn);
 document.getElementById('claude-api-key').addEventListener('input', updateClaudeWarn);
@@ -881,6 +913,7 @@ function collectConfig() {
     projectDir:      document.getElementById('project-dir').value,
     whisperModel:    document.getElementById('whisper-sel').value,
     whisperLanguage: document.getElementById('whisper-lang-sel').value,
+    aiPrivacyMode:   document.getElementById('ai-privacy-sel').value,
     llmBackend:      document.getElementById('llm-backend-sel').value,
     llmModelPath:    (document.getElementById('llm-model-path').value || '').trim(),
     ollamaModel:     (document.getElementById('ollama-model-input').value || '').trim() || 'qwen2.5:7b',

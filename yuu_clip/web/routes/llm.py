@@ -37,11 +37,27 @@ _OLLAMA_VISION_BASES = model_catalog.ollama_vision_tag_bases()
 
 
 def _capabilities(cfg) -> dict:
+    from yuu_clip.config import resolve_ai_permissions
+
     backend = cfg.llm_backend
     if not cfg.ollama_enabled:
         return {
             "backend": backend, "model": None, "text": False, "vision": False,
             "detail": "LLM scoring is turned off in Settings.",
+        }
+    permissions = resolve_ai_permissions(cfg)
+    if not permissions.allow_llm:
+        return {
+            "backend": backend, "model": None, "text": False, "vision": False,
+            "detail": "Generative AI is turned off — change it under Settings → AI privacy.",
+        }
+    if backend == "claude" and not permissions.allow_remote:
+        return {
+            "backend": backend, "model": cfg.claude_model or None, "text": False, "vision": False,
+            "detail": (
+                "The remote (Claude) backend is blocked by AI privacy mode — switch to a "
+                "local model or allow remote models under Settings → AI privacy."
+            ),
         }
     if backend == "claude":
         has_key = bool(cfg.claude_api_key)

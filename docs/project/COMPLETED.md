@@ -6,6 +6,39 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) — see the
 
 ---
 
+## AI privacy modes — 3-level trust setting (done 2026-07-05)
+
+Non-LLM-tiers plan, **Stage 07** (`docs/dev/plans/non-llm-tiers/07-privacy-modes.md`).
+One setting decides what yuu-clip may do with a recording's transcript, enforced at a single
+resolver consulted everywhere a language model could run — a **provable guarantee, not a UI hint**.
+
+- **`ai_privacy_mode`** = `none` (No generative AI) / `local_only` (Local models only — default)
+  / `remote_ok` (Allow remote models). One choke point `resolve_ai_permissions(config) ->
+  AiPermissions(allow_llm, allow_remote)` in `config.py`; fails safe (unknown value → local_only,
+  never remote).
+- **Enforcement keyed off `LLMClient.is_remote` as a *class* attribute**: `make_client` maps
+  backend→class and reads `client_cls.is_remote` **before** constructing, so a blocked remote
+  backend is never instantiated (`ClaudeClient` is never constructed under `local_only`). Wired
+  into `check_llm_available`, `check_vision_available` / `describe_frames` (Null backstop raises
+  `VisionNotSupportedError`), `LLMScorer.is_available`, and transitively the Stage 01 similarity
+  `llm` backend (falls back to TF-IDF). `_capabilities` and the Stage 02 install-CTA hook
+  (`_install_ctas_ok`) both honor the mode.
+- **Settings UI** (`index.html` + `settings.js`): AI privacy radios atop LLM scoring — Local-only
+  hides the Claude backend option + shows a "blocked" notice on a saved remote backend; No-generative-AI
+  collapses the whole generative block to a neutral summary with a "Turn on local models" re-enable;
+  the header remote badge and basic-description chip respect the mode. **First-run** (Electron setup
+  wizard) asks the question, defaulting to Local models only.
+- **Fixed a latent bug found in passing**: `similarity_backend` (Stage 01) and the Stage 03/04
+  scorer weight/enable fields were sent by `settings.js` but silently dropped by `PATCH /api/config`
+  (absent from `ConfigPatch`); they now persist.
+- GLOSSARY: **AI privacy mode** + the three level names. Tests: `test_privacy_modes.py` (resolver,
+  make_client never constructs a blocked/remote client — spy-verified, gates, vision backstop,
+  similarity fallback), `test_config.py` (persist + reject + similarity regression),
+  `test_ui_settings.py::TestAiPrivacyMode`, plus updated claude-backend expectations in
+  `test_scoring_llm`/`test_vision`/`test_llm`. Full API (1899) + UI (637) + electron (21) suites green.
+
+---
+
 ## Capabilities panel + "lightweight mode" framing (done 2026-07-05)
 
 Non-LLM-tiers plan, **Stage 06** (`docs/dev/plans/non-llm-tiers/06-capabilities-panel.md`).

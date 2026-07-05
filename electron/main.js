@@ -490,6 +490,7 @@ function registerWizardIPC(wizardWin) {
       llamacppInstalled, pyannoteInstalled, cudaLibsInstalled,
       recommendedWhisper: recommendWhisperModel(gpu.vramMB),
       projectDir: pDir,
+      aiPrivacyMode: projCfg.ai_privacy_mode || 'local_only',
       llmBackend:    defaultBackend,
       llmModelPath:  existingModelPath,
       claudeApiKey:  projCfg.claude_api_key  || '',
@@ -691,6 +692,7 @@ function showSetupWizard({ rerun = false, updated = false } = {}) {
       const pyCfg = {
         whisper_model:    cfg.whisperModel,
         whisper_language: cfg.whisperLanguage || '',
+        ai_privacy_mode:  cfg.aiPrivacyMode || 'local_only',
         llm_backend:      cfg.llmBackend,
         diarization_backend: cfg.diarizationEnabled ? 'pyannote' : 'null',
         content_preset:   cfg.contentPreset || 'generic',
