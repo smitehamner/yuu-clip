@@ -58,10 +58,12 @@ try:
 except PackageNotFoundError:
     _PKG_VERSION = "unknown"
 
+# ASCII separators only — this string is surfaced via /api/status and gets
+# pasted into terminals, where a "·" mojibakes under PowerShell 5.1 / cp1252.
 if _BUILD_DATE == "dev":
-    _VERSION_DISPLAY = f"{_PKG_VERSION}-dev · started {_SERVER_START}"
+    _VERSION_DISPLAY = f"{_PKG_VERSION}-dev - started {_SERVER_START}"
 else:
-    _VERSION_DISPLAY = f"{_PKG_VERSION} · {_BUILD_DATE}"
+    _VERSION_DISPLAY = f"{_PKG_VERSION} - {_BUILD_DATE}"
 
 _ROUTE_MODULES = (
     videos, clips, analyze, profiles, reel, reveal, logs, contexts, config,

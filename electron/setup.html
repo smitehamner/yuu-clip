@@ -859,7 +859,7 @@ function onInstallProgress(data) {
     updateLaunchBtn();
   } else if (data.error) {
     installing[data.slug] = false;
-    if (msg) msg.textContent = `Install failed: ${data.error} — check your internet connection, then try again.`;
+    if (msg) msg.textContent = `Install failed: ${data.error}`;
     if (btn) btn.disabled = false;
     updateLaunchBtn();
   } else if (data.status) {

@@ -10,7 +10,9 @@ const path   = require('path');
 const { Readable } = require('stream');
 const { parseNvidiaVramMB, selectGPU } = require('./gpu-detect');
 const { resolveBundledFfmpegDir } = require('./ffmpeg-detect');
-const { pickCudaWheelTag, buildCudaWheelUrl, LLAMA_CPP_CUDA_VERSION } = require('./llamacpp-cuda');
+const { selectLlamaWheelUrl } = require('./llamacpp-cuda');
+const { buildPipUpgradeArgs, buildWheelInstallArgs } = require('./venv-setup');
+const { describeInstallFailure } = require('./install-error');
 const diskSpace = require('./disk-space');
 
 // Roadmap plan 10 — the "yuu-media" scheme must be registered as privileged
@@ -136,6 +138,10 @@ function rotateLogs() {
 
 function logSetup(msg) {
   fs.mkdirSync(path.dirname(SETUP_LOG), { recursive: true });
+  // Write a UTF-8 BOM when starting a fresh log (first line, or first after a
+  // rotation) so PowerShell 5.1 / ANSI-default tools don't decode the em-dashes
+  // our copy uses as cp1252 (which renders "—" as "â€”").
+  if (!fs.existsSync(SETUP_LOG)) fs.writeFileSync(SETUP_LOG, '﻿');
   fs.appendFileSync(SETUP_LOG, `[${new Date().toISOString()}] ${msg}\n`);
 }
 
@@ -324,7 +330,10 @@ function pollReady(port, attempts = 120, delayMs = 500) {
     for (let i = 0; i < attempts; i++) {
       if (pyProc && pyProc.exitCode !== null) {
         logSetup(`Backend exited during startup (code ${pyProc.exitCode}) after ${i} poll attempts`);
-        return reject(new Error(`Python backend exited unexpectedly (exit code ${pyProc.exitCode}).\n\nCheck the startup log at:\n${SETUP_LOG}`));
+        return reject(startupError(
+          'yuu-clip started, but its engine stopped before it was ready.\n\n' +
+          'This is usually a temporary hiccup — start yuu-clip again. If it keeps ' +
+          'happening, open the log and send it to us.', SETUP_LOG));
       }
       try {
         await httpGet(`http://127.0.0.1:${port}/api/videos`, 1000);
@@ -334,8 +343,37 @@ function pollReady(port, attempts = 120, delayMs = 500) {
       await new Promise(r => setTimeout(r, delayMs));
     }
     logSetup(`Backend did not respond after ${attempts} attempts (${Date.now() - t0} ms)`);
-    reject(new Error(`Python backend did not start within 60 seconds.\n\nCheck the startup log at:\n${SETUP_LOG}`));
+    reject(startupError(
+      'yuu-clip’s engine didn’t start in time.\n\n' +
+      'Start yuu-clip again. If it keeps happening, open the log and send it to us.',
+      SETUP_LOG));
   });
+}
+
+// Builds a startup-failure error carrying the plain-English text and log path
+// the fatal dialog shows. The Error message stays one-line for the log.
+function startupError(userMessage, logPath) {
+  const err = new Error(userMessage.replace(/\s*\n+\s*/g, ' '));
+  err.userMessage = userMessage;
+  err.logPath = logPath;
+  return err;
+}
+
+// A single dead-end-free fatal dialog for unrecoverable startup/runtime
+// failures: plain-English "what happened", plus Try again (relaunch) / Open log
+// folder / Quit. Technical detail stays in the log, never the dialog.
+async function showFatalDialog(userMessage, logPath) {
+  const win = mainWindow && !mainWindow.isDestroyed() ? mainWindow : null;
+  const opts = {
+    type: 'error', title: 'yuu-clip couldn’t start', message: userMessage,
+    buttons: ['Try again', 'Open log folder', 'Quit'],
+    defaultId: 0, cancelId: 2, noLink: true,
+  };
+  const { response } = win
+    ? await dialog.showMessageBox(win, opts)
+    : await dialog.showMessageBox(opts);
+  if (response === 0) { isQuitting = true; app.relaunch(); app.exit(0); return; }
+  if (response === 1) { try { shell.showItemInFolder(logPath); } catch (_) {} }
 }
 
 // ---------------------------------------------------------------------------
@@ -529,18 +567,19 @@ function registerWizardIPC(wizardWin) {
     };
     if (!spec) { send({ error: `Unknown package '${slug}'` }); return; }
 
-    // The LLM engine install transparently picks the matching CUDA wheel when
-    // this machine has a supported NVIDIA GPU — same PyPI package name, so
-    // checkVenvModule()'s presence check works unchanged either way. Falls
-    // back to the plain CPU package below if no compatible tag is found.
+    // The LLM engine always installs from a prebuilt win_amd64 wheel — a CUDA
+    // build for NVIDIA GPUs, else the CPU build — so an end user never triggers
+    // a from-source compile (which needs MSVC/CMake and fails for nearly all of
+    // them). Same import name either way, so checkVenvModule()'s presence check
+    // is unaffected.
     let installArgs = ['install', '--progress-bar', 'raw', ...spec.packages];
     if (slug === 'llamacpp') {
-      const cudaTag = pickCudaWheelTag(detectCUDA().version);
-      if (cudaTag) {
-        const wheelUrl = buildCudaWheelUrl(LLAMA_CPP_CUDA_VERSION, cudaTag);
-        logSetup(`GPU detected — installing CUDA build of llama-cpp-python (${cudaTag}): ${wheelUrl}`);
-        installArgs = ['install', '--progress-bar', 'raw', '--force-reinstall', wheelUrl];
-      }
+      const wheelUrl = selectLlamaWheelUrl({
+        cudaVersion: detectCUDA().version,
+        gpuVendor:   detectGPU().vendor,
+      });
+      logSetup(`Installing llama-cpp-python from prebuilt wheel: ${wheelUrl}`);
+      installArgs = ['install', '--progress-bar', 'raw', '--force-reinstall', wheelUrl];
     }
 
     logSetup(`Wizard install starting: ${installArgs.join(' ')}`);
@@ -550,8 +589,10 @@ function registerWizardIPC(wizardWin) {
       logSetup(`Wizard install complete: ${slug}`);
       send({ done: true });
     } catch (err) {
-      logSetup(`Wizard install failed: ${slug} — ${err.message}`);
-      send({ error: err.message });
+      const stderr = (err.stderr || '').trim();
+      const tail   = stderr.split(/\r?\n/).filter(Boolean).slice(-3).join('\n');
+      logSetup(`Wizard install failed: ${slug} — ${err.message}${tail ? '\n' + tail : ''}`);
+      send({ error: describeInstallFailure(stderr) });
     }
   });
 
@@ -941,29 +982,18 @@ async function ensureVenv() {
       progress('s0', 'done');
       progress('s1', 'active');
       logSetup('Upgrading pip…');
-      // pip.exe cannot replace itself on Windows — it exits 1 with "To modify
-      // pip, please run python -m pip" the moment PyPI has a newer pip than
-      // the bundled one. Only `python -m pip` may upgrade pip.
-      await runCmd(VENV_PYTHON, ['-m', 'pip', 'install', '--upgrade', 'pip']);
+      await runCmd(VENV_PYTHON, buildPipUpgradeArgs());
       progress('s1', 'done');
     }
     progress('s2', 'active');
     logSetup('Installing wheel…');
-    // Constrain to the bundled lock so every user resolves the exact base-dep
-    // versions we tested (see requirements.lock / scripts/lock-deps.ps1). Optional
-    // in dev if the lock wasn't bundled.
     const lockPath = path.join(resourcesDir, 'requirements.lock');
-    const installArgs = ['install', '--force-reinstall', '--progress-bar', 'raw'];
-    if (fs.existsSync(lockPath)) {
-      installArgs.push('-c', lockPath);
-      logSetup(`Constraining deps to ${lockPath}`);
-    } else {
-      logSetup('requirements.lock not bundled — installing without a constraint');
-    }
-    installArgs.push(wheelPath);
+    const lockOk   = fs.existsSync(lockPath);
+    logSetup(lockOk ? `Constraining deps to ${lockPath}`
+                    : 'requirements.lock not bundled — installing without a constraint');
     await runCmd(
       VENV_PIP,
-      installArgs,
+      buildWheelInstallArgs(wheelPath, lockOk ? lockPath : null),
       pipStatusReporter(statusText => {
         try { setupWin.webContents.send('venv:status', statusText); } catch (_) {}
       })
@@ -974,7 +1004,14 @@ async function ensureVenv() {
   } catch (err) {
     const detail = [err.stderr, err.stdout].filter(Boolean).join('\n');
     logSetup(`Venv setup failed: ${err.message}${detail ? '\n' + detail : ''}`);
-    throw err;
+    const wrapped = new Error(err.message);
+    wrapped.userMessage =
+      'yuu-clip couldn’t finish setting itself up.\n\n' +
+      'The first launch downloads a few things from the internet, and that download ' +
+      'was interrupted. Check your connection and start yuu-clip again.\n\n' +
+      'If it keeps happening, open the setup log and send it to us.';
+    wrapped.logPath = SETUP_LOG;
+    throw wrapped;
   } finally {
     setupWin.close();
   }
@@ -1034,20 +1071,17 @@ function spawnBackend(port) {
   });
   pyProc.on('exit', code => {
     if (isQuitting) return;
+    // During startup, pollReady already owns the failure dialog (it watches
+    // pyProc.exitCode); showing one here too would double up. Only handle the
+    // post-startup runtime crash.
+    if (!startupComplete) return;
     logSetup(`Backend exited unexpectedly (code ${code})`);
-    const msg = code !== null && code !== 0
-      ? `The Python backend exited with code ${code}.`
-      : 'The Python backend stopped unexpectedly.';
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      dialog.showMessageBox(mainWindow, {
-        type: 'error', title: 'Backend stopped',
-        message: `${msg}\n\nCheck the log at:\n${projectDir}\\.yuu-clip\\yuu-clip.log`,
-        buttons: ['Quit'],
-      }).then(() => { isQuitting = true; app.quit(); });
-    } else {
-      isQuitting = true;
-      app.quit();
-    }
+    const projectLog = path.join(projectDir, '.yuu-clip', 'yuu-clip.log');
+    showFatalDialog(
+      'yuu-clip’s engine stopped unexpectedly.\n\n' +
+      'Start yuu-clip again. If it keeps happening, open the log and send it to us.',
+      projectLog,
+    ).then(() => { if (!isQuitting) app.quit(); });
   });
 }
 
@@ -1374,7 +1408,10 @@ app.whenReady().then(async () => {
   } catch (err) {
     if (!knownQuits.includes(err.message)) {
       logSetup(`Startup error: ${err.stack || err.message}`);
-      dialog.showErrorBox('Startup error', String(err));
+      const userMessage = err.userMessage ||
+        'yuu-clip ran into a problem while starting up.\n\n' +
+        'Start yuu-clip again. If it keeps happening, open the log and send it to us.';
+      await showFatalDialog(userMessage, err.logPath || SETUP_LOG);
     }
     if (!isQuitting) app.quit();
   }

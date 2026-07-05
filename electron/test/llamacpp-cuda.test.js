@@ -2,7 +2,10 @@
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { pickCudaWheelTag, buildCudaWheelUrl } = require('../llamacpp-cuda');
+const {
+  pickCudaWheelTag, buildCudaWheelUrl, buildCpuWheelUrl, selectLlamaWheelUrl,
+  LLAMA_CPP_CUDA_VERSION,
+} = require('../llamacpp-cuda');
 
 const TAGS = ['cu118', 'cu121', 'cu122', 'cu123', 'cu124', 'cu125', 'cu130', 'cu132'];
 
@@ -38,4 +41,33 @@ test('buildCudaWheelUrl produces the expected GitHub release asset URL', () => {
     buildCudaWheelUrl('0.3.32', 'cu124'),
     'https://github.com/abetlen/llama-cpp-python/releases/download/v0.3.32-cu124/llama_cpp_python-0.3.32-py3-none-win_amd64.whl'
   );
+});
+
+test('buildCpuWheelUrl points at the plain (no -cu) release tag', () => {
+  assert.equal(
+    buildCpuWheelUrl('0.3.32'),
+    'https://github.com/abetlen/llama-cpp-python/releases/download/v0.3.32/llama_cpp_python-0.3.32-py3-none-win_amd64.whl'
+  );
+});
+
+// selectLlamaWheelUrl must always return a prebuilt win_amd64 URL — never fall
+// through to a source build — across every machine shape.
+test('known CUDA version → the matching CUDA wheel', () => {
+  const url = selectLlamaWheelUrl({ cudaVersion: '12.4', gpuVendor: 'nvidia' });
+  assert.equal(url, buildCudaWheelUrl(LLAMA_CPP_CUDA_VERSION, 'cu124'));
+});
+
+test('NVIDIA GPU but unparseable CUDA version → the lowest pinned CUDA wheel', () => {
+  const url = selectLlamaWheelUrl({ cudaVersion: 'unknown', gpuVendor: 'nvidia' });
+  assert.equal(url, buildCudaWheelUrl(LLAMA_CPP_CUDA_VERSION, 'cu118'));
+});
+
+test('non-NVIDIA GPU → the CPU wheel', () => {
+  const url = selectLlamaWheelUrl({ cudaVersion: null, gpuVendor: 'amd' });
+  assert.equal(url, buildCpuWheelUrl(LLAMA_CPP_CUDA_VERSION));
+});
+
+test('no GPU info at all → the CPU wheel', () => {
+  assert.equal(selectLlamaWheelUrl({}), buildCpuWheelUrl(LLAMA_CPP_CUDA_VERSION));
+  assert.equal(selectLlamaWheelUrl(), buildCpuWheelUrl(LLAMA_CPP_CUDA_VERSION));
 });

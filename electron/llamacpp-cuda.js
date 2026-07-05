@@ -11,6 +11,14 @@
 const LLAMA_CPP_CUDA_VERSION = '0.3.32';
 const AVAILABLE_CUDA_TAGS = ['cu118', 'cu121', 'cu122', 'cu123', 'cu124', 'cu125', 'cu130', 'cu132'];
 
+// Lowest published CUDA tag, used as the safe default when an NVIDIA GPU is
+// present but nvidia-smi reports no parseable CUDA version: a wheel built for an
+// older CUDA toolkit runs against any newer driver (NVIDIA's compatibility
+// guarantee), so cu118 works everywhere an NVIDIA card exists.
+const LOWEST_CUDA_TAG = AVAILABLE_CUDA_TAGS
+  .map(tag => parseInt(tag.slice(2), 10))
+  .reduce((lo, code) => Math.min(lo, code));
+
 // Each tag encodes major*10+minor (cu124 -> 12.4, cu130 -> 13.0) — the same scale
 // `nvidia-smi`'s reported "CUDA Version: 12.6" parses to, so tag and detected
 // version compare directly as integers.
@@ -38,4 +46,27 @@ function buildCudaWheelUrl(version, tag) {
   return `https://github.com/abetlen/llama-cpp-python/releases/download/v${version}-${tag}/llama_cpp_python-${version}-py3-none-win_amd64.whl`;
 }
 
-module.exports = { LLAMA_CPP_CUDA_VERSION, AVAILABLE_CUDA_TAGS, pickCudaWheelTag, buildCudaWheelUrl };
+// The plain (no `-cu…` suffix) release tag also publishes a prebuilt CPU
+// win_amd64 wheel, so machines without a usable CUDA wheel still install from a
+// binary rather than triggering a from-source compile (which needs MSVC/CMake
+// and fails for essentially every end user — the whole reason this path exists).
+function buildCpuWheelUrl(version) {
+  return `https://github.com/abetlen/llama-cpp-python/releases/download/v${version}/llama_cpp_python-${version}-py3-none-win_amd64.whl`;
+}
+
+// Chooses the prebuilt llama-cpp-python wheel URL for this machine: a CUDA build
+// for NVIDIA GPUs (matched to the detected CUDA version, or the lowest pinned
+// tag when nvidia-smi's version is unparseable), otherwise the CPU build. Always
+// returns a prebuilt win_amd64 URL, so the install never falls back to a source
+// compile.
+function selectLlamaWheelUrl({ cudaVersion, gpuVendor } = {}) {
+  const matchedTag = pickCudaWheelTag(cudaVersion);
+  if (matchedTag) return buildCudaWheelUrl(LLAMA_CPP_CUDA_VERSION, matchedTag);
+  if (gpuVendor === 'nvidia') return buildCudaWheelUrl(LLAMA_CPP_CUDA_VERSION, `cu${LOWEST_CUDA_TAG}`);
+  return buildCpuWheelUrl(LLAMA_CPP_CUDA_VERSION);
+}
+
+module.exports = {
+  LLAMA_CPP_CUDA_VERSION, AVAILABLE_CUDA_TAGS, LOWEST_CUDA_TAG,
+  pickCudaWheelTag, buildCudaWheelUrl, buildCpuWheelUrl, selectLlamaWheelUrl,
+};
