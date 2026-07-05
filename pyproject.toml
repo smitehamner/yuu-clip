@@ -13,8 +13,9 @@ dependencies = [
     # directly in energy.py / overlap.py for audio frame decoding.
     "faster-whisper>=1.2,<2.0",
 
-    # CLI framework; [all] pulls in rich (pretty output) and shellingham.
-    "typer[all]>=0.12,<1.0",
+    # CLI framework. rich (pretty output) + shellingham are core deps since 0.12,
+    # so the old [all] extra is gone — plain typer already pulls them.
+    "typer>=0.12,<1.0",
 
     # ORM - SQLite database for clips, transcripts, scores.
     "sqlalchemy>=2.0,<3.0",
@@ -22,9 +23,10 @@ dependencies = [
     # Cross-platform config/data dirs (AppData on Windows, ~/.config on Linux).
     "platformdirs>=4.0,<6.0",
 
-    # Phase 2: scene cut detection. [opencv-headless] avoids pulling in
-    # a GUI-linked OpenCV build, which is unnecessary on a headless server.
-    "scenedetect[opencv-headless]>=0.6,<1.0",
+    # Phase 2: scene cut detection. Pulls opencv-python transitively (scenedetect
+    # 0.7 dropped the [opencv-headless] extra and depends on the full build). Fine
+    # here: yuu-clip is a desktop app with a display, not a headless server.
+    "scenedetect>=0.6,<1.0",
 
     # Phase 2: local LLM scoring via Ollama HTTP client.
     "ollama>=0.3,<1.0",
