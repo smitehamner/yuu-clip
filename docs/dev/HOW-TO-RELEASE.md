@@ -48,18 +48,31 @@ Use [semver](https://semver.org/): `MAJOR.MINOR.PATCH`
 This script:
 1. Checks the git working tree is clean (warns if not)
 2. Reads the version from `pyproject.toml`
-3. Builds the Python wheel → `dist/yuu_clip-X.Y.Z-py3-none-any.whl`
-4. Copies the wheel into `electron/resources/`
-5. Runs `npm run dist` in `electron/` → `dist/yuu-clip-X.Y.Z-Setup.exe`
+3. Builds the Python wheel → `build/wheel/yuu_clip-X.Y.Z-py3-none-any.whl`
+4. Fetches the pinned standalone Python runtime bundled into the installer (see
+   below) — cached after the first build, so this is a no-op on later runs
+5. Runs `npm run dist` in `electron/` → `build/installer/yuu-clip-X.Y.Z-Setup.exe`
 6. Prints the installer path
 
-Total build time: ~2–5 minutes depending on machine.
+Total build time: ~2–5 minutes depending on machine (longer on the first run,
+which downloads the ~45 MB Python runtime archive).
+
+### Bundled Python runtime
+
+The installer bundles a pinned [python-build-standalone](https://github.com/astral-sh/python-build-standalone)
+CPython build (`scripts/fetch-python-runtime.ps1`) so end users never need to
+install Python themselves — `electron/main.js` points the venv setup at this
+bundled interpreter in packaged builds (dev mode still searches PATH). To
+re-pin to a newer version, update `PYTHON_VERSION`/`PYBUILD_TAG`/`SHA256` at
+the top of `scripts/fetch-python-runtime.ps1` using that repo's release
+assets and `SHA256SUMS` file.
 
 ---
 
 ## Test the build
 
-Before sharing, install and smoke-test in a secondary Windows user account or a VM:
+Before sharing, install and smoke-test in a secondary Windows user account or a VM
+**with no system Python installed** — this confirms the bundled runtime works standalone:
 
 - [ ] Run `yuu-clip-X.Y.Z-Setup.exe` — confirm Start Menu shortcut is created
 - [ ] Desktop shortcut was offered as optional during install
@@ -145,8 +158,10 @@ When they first try LLM scoring, they'll need a GGUF model file:
 
 ## Troubleshooting
 
-**Python not found on first launch**
-The app shows a dialog. Install Python 3.11 via `winget install Python.Python.3.11`, restart the app.
+**"yuu-clip installation is damaged" on first launch**
+The bundled Python runtime (`resources/python/python.exe`) is missing or corrupted — this
+should only happen if the installer itself is broken. Reinstall the app; if that doesn't fix
+it, check that `build-release.ps1` actually populated `build/python-runtime/` before packaging.
 
 **Venv install failed**
 Check `%APPDATA%\yuu-clip\yuu-clip_install.log` (written by the Electron first-run setup). Common cause: Python is installed but not on PATH — open a new terminal after installing Python and try again.

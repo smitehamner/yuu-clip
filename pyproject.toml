@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "yuu-clip"
 version = "0.1.15"
 description = "Video session clip extraction pipeline"
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.14"
 dependencies = [
     # Transcription Ã¢â‚¬â€ GPU-accelerated Whisper via CTranslate2
     # av (PyAV) is a required dep of faster-whisper and is also used

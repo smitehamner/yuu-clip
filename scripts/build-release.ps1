@@ -80,14 +80,18 @@ Write-Host "Wheel: $($whl.FullName)"
 [System.IO.File]::WriteAllText($buildInfoPath, "BUILD_DATE = `"dev`"`n", [System.Text.UTF8Encoding]::new($false))
 Write-Host "Build date reset to dev"
 
-# ── 4. npm run dist ──────────────────────────────────────────────────────────
+# ── 4. Fetch the bundled Python runtime (cached after first build) ─────────
+Write-Host "`nFetching bundled Python runtime..."
+& "$root\scripts\fetch-python-runtime.ps1"
+
+# ── 5. npm run dist ──────────────────────────────────────────────────────────
 Write-Host "`nRunning electron-builder..."
 Push-Location "$root\electron"
 $env:CSC_IDENTITY_AUTO_DISCOVERY = "false"
 npm run dist
 Pop-Location
 
-# ── 5. Report output ────────────────────────────────────────────────────────
+# ── 6. Report output ────────────────────────────────────────────────────────
 $exe = Get-ChildItem "$root\build\installer\*.exe" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
 if ($exe) {
     Write-Host "`nInstaller ready: $($exe.FullName)"

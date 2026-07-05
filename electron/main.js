@@ -23,6 +23,11 @@ protocol.registerSchemesAsPrivileged([
 const VENV_DIR    = path.join(process.env.LOCALAPPDATA, 'yuu-clip', 'venv');
 const VENV_PYTHON = path.join(VENV_DIR, 'Scripts', 'python.exe');
 const VENV_PIP    = path.join(VENV_DIR, 'Scripts', 'pip.exe');
+
+// Pinned CPython bundled into the installer (see scripts/fetch-python-runtime.ps1)
+// so end users never need a system Python. Only present in packaged builds —
+// dev mode (running unpackaged) falls back to a system Python on PATH.
+const BUNDLED_PYTHON = path.join(process.resourcesPath || '', 'python', 'python.exe');
 const SETUP_LOG   = path.join(process.env.APPDATA, 'yuu-clip', 'yuu-clip_install.log');
 const SETUP_COMPLETE_MARKER = path.join(process.env.APPDATA, 'yuu-clip', 'setup-complete');
 const WHEEL_MARKER          = path.join(process.env.APPDATA, 'yuu-clip', 'installed-wheel-version');
@@ -166,6 +171,14 @@ function formatPipLine(line) {
 // ---------------------------------------------------------------------------
 
 function findPython() {
+  if (app.isPackaged) {
+    if (fs.existsSync(BUNDLED_PYTHON)) {
+      logSetup(`Using bundled python: ${BUNDLED_PYTHON}`);
+      return BUNDLED_PYTHON;
+    }
+    logSetup(`Bundled python not found at ${BUNDLED_PYTHON}`);
+    return null;
+  }
   for (const candidate of ['python3.11', 'python3', 'python']) {
     try {
       const out = execFileSync(candidate, ['--version'],
@@ -683,17 +696,27 @@ async function ensureVenv() {
 
   const pythonBin = findPython();
   if (!pythonBin) {
-    logSetup('No Python 3.11+ found on PATH — aborting setup');
-    await dialog.showMessageBox({
-      type: 'error', title: 'Python 3.11+ required',
-      message:
-        'yuu-clip needs Python 3.11 or later, which was not found on PATH.\n\n' +
-        'Download and install it from python.org, then restart yuu-clip.\n\n' +
-        '(Make sure to check "Add Python to PATH" during installation.)',
-      buttons: ['Open python.org', 'Quit'], defaultId: 0,
-    }).then(({ response }) => {
-      if (response === 0) shell.openExternal('https://www.python.org/downloads/');
-    });
+    if (app.isPackaged) {
+      await dialog.showMessageBox({
+        type: 'error', title: 'yuu-clip installation is damaged',
+        message:
+          'The Python runtime bundled with yuu-clip is missing or damaged.\n\n' +
+          'Try reinstalling yuu-clip. If the problem persists, please report it.',
+        buttons: ['Quit'], defaultId: 0,
+      });
+    } else {
+      logSetup('No Python 3.11+ found on PATH — aborting setup');
+      await dialog.showMessageBox({
+        type: 'error', title: 'Python 3.11+ required',
+        message:
+          'yuu-clip needs Python 3.11 or later, which was not found on PATH.\n\n' +
+          'Download and install it from python.org, then restart yuu-clip.\n\n' +
+          '(Make sure to check "Add Python to PATH" during installation.)',
+        buttons: ['Open python.org', 'Quit'], defaultId: 0,
+      }).then(({ response }) => {
+        if (response === 0) shell.openExternal('https://www.python.org/downloads/');
+      });
+    }
     app.quit();
     throw new Error('Python not found');
   }

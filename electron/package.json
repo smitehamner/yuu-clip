@@ -32,7 +32,8 @@
       "include": "installer.nsh"
     },
     "extraResources": [
-      { "from": "../build/wheel", "to": ".", "filter": ["*.whl"] }
+      { "from": "../build/wheel", "to": ".", "filter": ["*.whl"] },
+      { "from": "../build/python-runtime", "to": "python", "filter": ["**/*", "!.version"] }
     ],
     "publish": null
   }
