@@ -242,12 +242,15 @@ footer {
       <div id="llm-llamacpp-fields" style="display:none">
         <div class="desc" style="margin:4px 0 2px"><strong style="color:#8888aa">Step 1 — install the LLM engine</strong> (one-time)</div>
         <div id="llamacpp-pkg-slot"></div>
-        <div class="desc" style="margin:8px 0 2px"><strong style="color:#8888aa">Step 2 — download a model file (.gguf)</strong></div>
+        <div class="desc" style="margin:8px 0 2px"><strong style="color:#8888aa">Step 2 — get a model file (.gguf)</strong></div>
         <div class="desc">
-          A <code>.gguf</code> file is the AI model itself. Recommended:
-          <strong>Qwen2.5 7B Instruct</strong> (Apache-2.0, so clips you make can be
-          monetized) — on the download page pick a <code>Q4_K_M.gguf</code> file (~4.7 GB),
-          a good balance of quality and speed. Save it somewhere permanent, then choose it below.
+          A <code>.gguf</code> file is the AI model itself.
+        </div>
+        <div id="gguf-download-slot"></div>
+        <div class="desc" style="margin-top:6px">
+          Already have a model file, or want a different one?
+          On the download page, pick a <code>Q4_K_M.gguf</code> file (a good balance of
+          quality and speed), save it somewhere permanent, then choose it below.
         </div>
         <div class="action">
           <button class="sm" onclick="api.openURL('https://huggingface.co/bartowski/Qwen2.5-7B-Instruct-GGUF/tree/main')">Open download page</button>
@@ -418,6 +421,7 @@ const WHISPER_LANGUAGES = [
 let status  = null;
 let pulling = false;
 let installing = { llamacpp: false, pyannote: false, 'cuda-libs': false };
+let downloadingGguf = false;
 let defaultsApplied = false;
 
 // ── helpers ────────────────────────────────────────────────────────────────
@@ -434,7 +438,7 @@ function updateLaunchBtn() {
   const btn  = document.getElementById('launch-btn');
   const hint = document.getElementById('launch-hint');
   const blockedByFfmpeg  = !status || !status.ffmpegOk;
-  const blockedByWork    = pulling || anyInstalling();
+  const blockedByWork    = pulling || anyInstalling() || downloadingGguf;
   btn.disabled = blockedByFfmpeg || blockedByWork;
   btn.textContent = rerunMode ? 'Apply & Close' : 'Launch';
   hint.textContent = blockedByFfmpeg && status ? 'FFmpeg is required before you can launch'
@@ -462,6 +466,16 @@ function row(id, cls, icon, title, descHtml, actionHtml = '') {
 
 function renderFfmpegSlot(s) {
   const el = document.getElementById('ffmpeg-slot');
+  if (s.ffmpegBundled) {
+    if (s.ffmpegOk) {
+      el.innerHTML = row('ffmpeg', 'ok', '✓', 'FFmpeg', 'Included with yuu-clip. Used to read and cut video files.');
+      return;
+    }
+    el.innerHTML = row('ffmpeg', 'err', '✗', 'FFmpeg install is damaged',
+      'The FFmpeg bundled with yuu-clip is missing or damaged. Try reinstalling yuu-clip; ' +
+      'if the problem persists, please report it.');
+    return;
+  }
   if (s.ffmpegOk) {
     el.innerHTML = row('ffmpeg', 'ok', '✓', 'FFmpeg', 'Found on PATH. Used to read and cut video files.');
     return;
@@ -537,14 +551,31 @@ function renderOllamaStatus(s) {
 
 function renderLlamacppPkgSlot(s) {
   const el = document.getElementById('llamacpp-pkg-slot');
+  const gpuNote = s.gpu.vendor === 'nvidia'
+    ? ' Your NVIDIA GPU was detected — the GPU-accelerated build installs automatically.'
+    : '';
   if (s.llamacppInstalled) {
     el.innerHTML = row('llamacpp-pkg', 'ok', '✓', 'LLM engine installed', 'llama-cpp-python is ready.');
   } else {
     el.innerHTML = row('llamacpp-pkg', 'warn', '○', 'LLM engine not installed',
-      'One-time install of the local inference engine (llama-cpp-python).',
+      `One-time install of the local inference engine (llama-cpp-python).${gpuNote}`,
       `<button class="sm" id="install-btn-llamacpp" onclick="startInstall('llamacpp')">Install</button>
        <div class="pull-msg" id="install-msg-llamacpp"></div>`);
   }
+}
+
+function renderGgufDownloadSlot(s) {
+  const el = document.getElementById('gguf-download-slot');
+  if (!el) return;
+  if (downloadingGguf) return; // preserve the in-progress bar across a status re-render
+  const currentPath = (document.getElementById('llm-model-path').value || '').trim();
+  if (currentPath) { el.innerHTML = ''; return; }
+  el.innerHTML = row('gguf-download', 'warn', '○', 'Download the recommended model',
+    'Qwen2.5 7B Instruct (Apache-2.0, so clips you make can be monetized), ~4.7 GB. ' +
+    'You can keep using this window while it downloads.',
+    `<button class="sm" id="gguf-download-btn" onclick="startGgufDownload()">Download recommended model (~4.7 GB)</button>
+     <div class="pull-bar" id="gguf-download-bar" style="display:none;width:100%;margin-top:5px"><div class="pull-fill" id="gguf-download-fill"></div></div>
+     <div class="pull-msg" id="gguf-download-msg"></div>`);
 }
 
 function renderPyannoteSlot(s) {
@@ -566,6 +597,7 @@ function renderSlots(s) {
   renderCudaSlot(s);
   renderOllamaStatus(s);
   renderLlamacppPkgSlot(s);
+  renderGgufDownloadSlot(s);
   renderPyannoteSlot(s);
   updateDiarStatus();
   document.getElementById('subtitle').textContent =
@@ -634,6 +666,7 @@ function updateLlmWarn() {
   const filePath = (document.getElementById('llm-model-path').value || '').trim();
   document.getElementById('llm-warn').style.display =
     (backend === 'llamacpp' && !filePath) ? 'block' : 'none';
+  if (status) renderGgufDownloadSlot(status);
 }
 
 function updateClaudeWarn() {
@@ -709,6 +742,38 @@ function onPullProgress(data) {
     if (msg)  msg.textContent  = `${data.status} — ${pct}%`;
   } else if (data.status) {
     if (msg) msg.textContent = data.status;
+  }
+}
+
+// ── GGUF model one-click download ───────────────────────────────────────────
+
+function startGgufDownload() {
+  const btn = document.getElementById('gguf-download-btn');
+  const bar = document.getElementById('gguf-download-bar');
+  if (btn) btn.disabled = true;
+  if (bar) bar.style.display = '';
+  downloadingGguf = true;
+  updateLaunchBtn();
+  api.downloadGgufModel();
+}
+
+function onGgufDownloadProgress(data) {
+  const fill = document.getElementById('gguf-download-fill');
+  const msg  = document.getElementById('gguf-download-msg');
+  if (data.done) {
+    downloadingGguf = false;
+    document.getElementById('llm-model-path').value = data.path;
+    updateLlmWarn(); // also re-renders the download slot, now hidden since the path is set
+    updateLaunchBtn();
+  } else if (data.error) {
+    downloadingGguf = false;
+    if (msg) msg.textContent = `Download failed: ${data.error} — check your internet connection, then try again.`;
+    const btn = document.getElementById('gguf-download-btn');
+    if (btn) btn.disabled = false;
+    updateLaunchBtn();
+  } else if (typeof data.progress === 'number') {
+    if (fill) fill.style.width = data.progress + '%';
+    if (msg)  msg.textContent  = `Downloading… ${data.progress}%`;
   }
 }
 
@@ -844,6 +909,7 @@ document.getElementById('launch-btn').addEventListener('click', () => {
 
 api.onPullProgress(onPullProgress);
 api.onInstallProgress(onInstallProgress);
+api.onGgufDownloadProgress(onGgufDownloadProgress);
 
 (async () => {
   try {

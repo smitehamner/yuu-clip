@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 import shutil
 import subprocess
@@ -665,9 +666,26 @@ def find_ffmpeg() -> tuple[str, str]:
     """
     Return (ffmpeg_exe, ffprobe_exe) paths.
 
-    On Windows, shutil.which() finds .exe files in PATH automatically.
-    Raises RuntimeError with install instructions if not found.
+    Packaged (Electron) builds set YUU_CLIP_FFMPEG_DIR to the bundled GPL FFmpeg
+    directory (see docs/dev/THIRD-PARTY-NOTICES-FFMPEG.md) and always use it — a
+    packaging bug that leaves it unset or pointing at an incomplete directory must
+    surface immediately, not silently fall through to whatever happens to be on
+    PATH. When unset (dev mode, non-Windows contributors), falls back to PATH via
+    shutil.which() as before.
     """
+    bundled_dir = os.environ.get("YUU_CLIP_FFMPEG_DIR")
+    if bundled_dir:
+        ffmpeg = os.path.join(bundled_dir, "ffmpeg.exe")
+        ffprobe = os.path.join(bundled_dir, "ffprobe.exe")
+        missing = [name for name, path in (("ffmpeg.exe", ffmpeg), ("ffprobe.exe", ffprobe)) if not os.path.isfile(path)]
+        if missing:
+            raise RuntimeError(
+                f"YUU_CLIP_FFMPEG_DIR is set to {bundled_dir!r} but missing: {', '.join(missing)}\n\n"
+                "This indicates a broken packaged install, not a missing user dependency — "
+                "reinstalling yuu-clip should fix it."
+            )
+        return ffmpeg, ffprobe
+
     ffmpeg = shutil.which("ffmpeg")
     ffprobe = shutil.which("ffprobe")
 

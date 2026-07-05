@@ -34,7 +34,9 @@
     "extraResources": [
       { "from": "../build/wheel", "to": ".", "filter": ["*.whl"] },
       { "from": "../requirements.lock", "to": "requirements.lock" },
-      { "from": "../build/python-runtime", "to": "python", "filter": ["**/*", "!.version"] }
+      { "from": "../build/python-runtime", "to": "python", "filter": ["**/*", "!.version"] },
+      { "from": "../build/ffmpeg-runtime", "to": "ffmpeg", "filter": ["**/*", "!.version"] },
+      { "from": "resources/LICENSE-FFMPEG-GPL.txt", "to": "LICENSE-FFMPEG-GPL.txt" }
     ],
     "publish": null
   }

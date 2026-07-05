@@ -8,6 +8,8 @@ contextBridge.exposeInMainWorld('setupAPI', {
   onPullProgress:    (cb)     => ipcRenderer.on('setup:pull-progress', (_, data) => cb(data)),
   installPackage:    (slug)   => ipcRenderer.send('setup:install-package', slug),
   onInstallProgress: (cb)     => ipcRenderer.on('setup:install-progress', (_, data) => cb(data)),
+  downloadGgufModel: ()       => ipcRenderer.send('setup:download-gguf-model'),
+  onGgufDownloadProgress: (cb) => ipcRenderer.on('setup:gguf-download-progress', (_, data) => cb(data)),
   restartApp:        ()       => ipcRenderer.send('setup:restart-app'),
   openURL:           (url)    => ipcRenderer.send('setup:open-url', url),
   copyText:          (text)   => ipcRenderer.send('setup:copy-text', text),

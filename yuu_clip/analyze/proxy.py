@@ -7,9 +7,10 @@ keyframes, ``+faststart``) is seekable and small, so all in-app playback points
 at the proxy instead of the raw source.
 
 Generation prefers NVIDIA NVENC (``h264_nvenc``) and falls back to CPU
-``libx264`` when no GPU/encoder is available. It uses the same system FFmpeg as
-extract/export (``find_ffmpeg``) — no GPL FFmpeg is bundled (see the ffmpeg
-licensing note in docs). A missing FFmpeg surfaces as a clear RuntimeError.
+``libx264`` when no GPU/encoder is available. It uses the same FFmpeg as
+extract/export (``find_ffmpeg``) — packaged builds bundle a GPL FFmpeg (see
+``docs/dev/THIRD-PARTY-NOTICES-FFMPEG.md``); dev mode resolves it from PATH.
+A missing FFmpeg surfaces as a clear RuntimeError.
 
 The proxy file is keyed by the *source path*, not the Video row, so a split
 recording's segments all share their parent file's single proxy.

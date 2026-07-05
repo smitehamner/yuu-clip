@@ -53,7 +53,8 @@ class ModelEntry:
     backends: frozenset[str]             # subset of the BACKEND_* values
     size_gb: Optional[float] = None      # approximate on-disk size (local weights)
     ollama_tag: Optional[str] = None     # `ollama pull` tag (ollama backend)
-    gguf_url: Optional[str] = None       # HF page for the .gguf (llamacpp backend)
+    gguf_url: Optional[str] = None       # HF repo *page* for the .gguf (llamacpp backend) — not a direct download
+    gguf_filename: Optional[str] = None  # exact quant filename at gguf_url/resolve/main/<this>, for one-click download
     mmproj_url: Optional[str] = None     # vision projector .gguf (llamacpp vision)
     api_model_id: Optional[str] = None   # provider model id (claude backend)
     recommended: bool = True
@@ -70,6 +71,7 @@ class ModelEntry:
             "size_gb": self.size_gb,
             "ollama_tag": self.ollama_tag,
             "gguf_url": self.gguf_url,
+            "gguf_filename": self.gguf_filename,
             "mmproj_url": self.mmproj_url,
             "api_model_id": self.api_model_id,
             "recommended": self.recommended,
@@ -97,6 +99,7 @@ CATALOG: tuple[ModelEntry, ...] = (
         size_gb=4.7,
         ollama_tag="qwen2.5:7b",
         gguf_url="https://huggingface.co/bartowski/Qwen2.5-7B-Instruct-GGUF",
+        gguf_filename="Qwen2.5-7B-Instruct-Q4_K_M.gguf",
     ),
     ModelEntry(
         id="mistral-7b-instruct-v0.3",
@@ -108,6 +111,7 @@ CATALOG: tuple[ModelEntry, ...] = (
         size_gb=4.4,
         ollama_tag="mistral:7b",
         gguf_url="https://huggingface.co/bartowski/Mistral-7B-Instruct-v0.3-GGUF",
+        gguf_filename="Mistral-7B-Instruct-v0.3-Q4_K_M.gguf",
     ),
     ModelEntry(
         id="phi-4",
@@ -119,6 +123,7 @@ CATALOG: tuple[ModelEntry, ...] = (
         size_gb=9.1,
         ollama_tag="phi4",
         gguf_url="https://huggingface.co/bartowski/phi-4-GGUF",
+        gguf_filename="phi-4-Q4_K_M.gguf",
     ),
     # ── Local vision models (consumed by plan 11's image analysis) ──────────
     ModelEntry(

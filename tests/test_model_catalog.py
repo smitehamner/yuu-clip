@@ -86,6 +86,14 @@ class TestCatalogHelpers:
             if mc.BACKEND_LLAMACPP in entry.backends:
                 assert entry.gguf_url, f"{entry.id} runs on llamacpp but has no gguf_url"
 
+    def test_recommended_text_models_declare_an_exact_gguf_filename(self):
+        # gguf_url is an HF *repo page*, not a direct download — the setup wizard's
+        # one-click model download needs the exact quant filename to resolve a real
+        # file URL (gguf_url + "/resolve/main/" + gguf_filename).
+        for entry in mc.text_models():
+            if mc.BACKEND_LLAMACPP in entry.backends:
+                assert entry.gguf_filename, f"{entry.id} runs on llamacpp but has no gguf_filename"
+
     def test_to_dict_is_json_friendly(self):
         d = mc.CATALOG[0].to_dict()
         assert isinstance(d["kinds"], list)
@@ -109,3 +117,22 @@ class TestDefaultsMatchCatalog:
         match = re.search(r"DEFAULT_OLLAMA_MODEL\s*=\s*'([^']+)'", main_js)
         assert match, "DEFAULT_OLLAMA_MODEL constant not found in electron/main.js"
         assert match.group(1) in _recommended_ollama_tags()
+
+    def test_electron_wizard_default_llamacpp_model_matches_the_catalog(self):
+        main_js = (_REPO_ROOT / "electron" / "main.js").read_text(encoding="utf-8")
+        match = re.search(
+            r"DEFAULT_LLAMACPP_MODEL\s*=\s*\{\s*"
+            r"id:\s*'([^']+)',\s*"
+            r"repoUrl:\s*'([^']+)',\s*"
+            r"filename:\s*'([^']+)',?\s*\}",
+            main_js,
+        )
+        assert match, "DEFAULT_LLAMACPP_MODEL constant not found (or shape changed) in electron/main.js"
+        model_id, repo_url, filename = match.groups()
+
+        entry = mc.model_by_id(model_id)
+        assert entry is not None, f"electron's DEFAULT_LLAMACPP_MODEL id {model_id!r} isn't in the catalog"
+        assert entry.recommended
+        assert mc.BACKEND_LLAMACPP in entry.backends
+        assert entry.gguf_url == repo_url
+        assert entry.gguf_filename == filename

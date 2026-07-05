@@ -4,10 +4,13 @@ const { app, BrowserWindow, Menu, MenuItem, clipboard, dialog, ipcMain, protocol
 const { execFileSync, spawn } = require('child_process');
 const fs     = require('fs');
 const http   = require('http');
+const https  = require('https');
 const net    = require('net');
 const path   = require('path');
 const { Readable } = require('stream');
 const { parseNvidiaVramMB, selectGPU } = require('./gpu-detect');
+const { resolveBundledFfmpegDir } = require('./ffmpeg-detect');
+const { pickCudaWheelTag, buildCudaWheelUrl, LLAMA_CPP_CUDA_VERSION } = require('./llamacpp-cuda');
 
 // Roadmap plan 10 — the "yuu-media" scheme must be registered as privileged
 // before app.ready fires (Electron requirement); the actual request handler
@@ -28,6 +31,12 @@ const VENV_PIP    = path.join(VENV_DIR, 'Scripts', 'pip.exe');
 // so end users never need a system Python. Only present in packaged builds —
 // dev mode (running unpackaged) falls back to a system Python on PATH.
 const BUNDLED_PYTHON = path.join(process.resourcesPath || '', 'python', 'python.exe');
+
+// Pinned GPL FFmpeg bundled into the installer (see
+// scripts/fetch-ffmpeg-runtime.ps1 and docs/dev/THIRD-PARTY-NOTICES-FFMPEG.md)
+// so end users never need to install FFmpeg themselves. Only present in
+// packaged builds — dev mode keeps resolving FFmpeg from PATH.
+const BUNDLED_FFMPEG_DIR = path.join(process.resourcesPath || '', 'ffmpeg');
 const SETUP_LOG   = path.join(process.env.APPDATA, 'yuu-clip', 'yuu-clip_install.log');
 const SETUP_COMPLETE_MARKER = path.join(process.env.APPDATA, 'yuu-clip', 'setup-complete');
 const WHEEL_MARKER          = path.join(process.env.APPDATA, 'yuu-clip', 'installed-wheel-version');
@@ -38,6 +47,19 @@ const BASE_PORT = 8080;
 
 const DEFAULT_OLLAMA_MODEL = 'qwen2.5:7b';  // Apache-2.0 (monetization-safe)
 const DEFAULT_CLAUDE_MODEL = 'claude-haiku-4-5-20251001';
+
+// Cross-checked against yuu_clip/model_catalog.py by
+// tests/test_model_catalog.py::test_electron_wizard_default_llamacpp_model_matches_the_catalog
+// — keep id/repoUrl/filename in sync with that catalog entry.
+const DEFAULT_LLAMACPP_MODEL = {
+  id: 'qwen2.5-7b-instruct',
+  repoUrl: 'https://huggingface.co/bartowski/Qwen2.5-7B-Instruct-GGUF',
+  filename: 'Qwen2.5-7B-Instruct-Q4_K_M.gguf',
+};
+
+// One-click .gguf downloads land here, out of the user's way (same spirit as
+// the venv/runtime dirs) — never a folder picker for this.
+const MODELS_DIR = path.join(process.env.LOCALAPPDATA, 'yuu-clip', 'models');
 
 // Bump ONLY when the setup wizard gains new settings or steps. A completed
 // setup stores this number; an older stored number re-shows the wizard once
@@ -134,6 +156,49 @@ function runCmd(cmd, args, onLine = null) {
       reject(err);
     });
     proc.on('error', reject);
+  });
+}
+
+// Streams a large binary download (GGUF model files) to disk with percentage
+// progress. Unlike the pip installs elsewhere in this file, there's no package
+// manager doing this for us, so redirects, progress accounting, and a
+// truncated-download check are handled by hand. Writes to a `.part` sibling
+// and renames on success, so a half-finished download can never be mistaken
+// for a complete model file.
+function downloadFileWithProgress(url, destPath, onProgress, redirectsLeft = 5) {
+  return new Promise((resolve, reject) => {
+    const tmpPath = `${destPath}.part`;
+    https.get(url, { headers: { 'User-Agent': 'yuu-clip' } }, res => {
+      if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location) {
+        res.resume();
+        if (redirectsLeft <= 0) { reject(new Error('Too many redirects')); return; }
+        downloadFileWithProgress(res.headers.location, destPath, onProgress, redirectsLeft - 1).then(resolve, reject);
+        return;
+      }
+      if (res.statusCode !== 200) {
+        res.resume();
+        reject(new Error(`Download failed with HTTP ${res.statusCode}`));
+        return;
+      }
+      const total = parseInt(res.headers['content-length'] || '0', 10);
+      let received = 0;
+      const fileStream = fs.createWriteStream(tmpPath);
+      res.on('data', chunk => {
+        received += chunk.length;
+        if (total > 0) onProgress(Math.round((received / total) * 100));
+      });
+      res.pipe(fileStream);
+      fileStream.on('finish', () => {
+        if (total > 0 && received !== total) {
+          fs.unlink(tmpPath, () => {});
+          reject(new Error(`Downloaded size (${received}) doesn't match expected (${total}) — try again`));
+          return;
+        }
+        fs.rename(tmpPath, destPath, err => (err ? reject(err) : resolve()));
+      });
+      fileStream.on('error', reject);
+      res.on('error', reject);
+    }).on('error', reject);
   });
 }
 
@@ -263,6 +328,9 @@ function pollReady(port, attempts = 120, delayMs = 500) {
 // ---------------------------------------------------------------------------
 
 function checkFFmpeg() {
+  if (app.isPackaged) {
+    return resolveBundledFfmpegDir(true, BUNDLED_FFMPEG_DIR, fs.existsSync) !== null;
+  }
   try {
     execFileSync('ffmpeg', ['-version'], { stdio: 'ignore' });
     return true;
@@ -416,6 +484,7 @@ function registerWizardIPC(wizardWin) {
     logSetup(`Status check — FFmpeg:${ffmpegOk} GPU:${gpu.name} CUDA:${cuda.available} cudaLibs:${cudaLibsInstalled} Ollama:${ollamaRunning} Model:${ollamaModelPulled} llamacpp:${llamacppInstalled} pyannote:${pyannoteInstalled}`);
     return {
       ffmpegOk,
+      ffmpegBundled: app.isPackaged,
       gpu, cuda,
       ollamaRunning, ollamaModel, ollamaModelPulled,
       llamacppInstalled, pyannoteInstalled, cudaLibsInstalled,
@@ -440,9 +509,24 @@ function registerWizardIPC(wizardWin) {
       try { event.sender.send('setup:install-progress', { slug, ...payload }); } catch (_) {}
     };
     if (!spec) { send({ error: `Unknown package '${slug}'` }); return; }
-    logSetup(`Wizard install starting: ${spec.packages.join(' ')}`);
+
+    // The LLM engine install transparently picks the matching CUDA wheel when
+    // this machine has a supported NVIDIA GPU — same PyPI package name, so
+    // checkVenvModule()'s presence check works unchanged either way. Falls
+    // back to the plain CPU package below if no compatible tag is found.
+    let installArgs = ['install', '--progress-bar', 'raw', ...spec.packages];
+    if (slug === 'llamacpp') {
+      const cudaTag = pickCudaWheelTag(detectCUDA().version);
+      if (cudaTag) {
+        const wheelUrl = buildCudaWheelUrl(LLAMA_CPP_CUDA_VERSION, cudaTag);
+        logSetup(`GPU detected — installing CUDA build of llama-cpp-python (${cudaTag}): ${wheelUrl}`);
+        installArgs = ['install', '--progress-bar', 'raw', '--force-reinstall', wheelUrl];
+      }
+    }
+
+    logSetup(`Wizard install starting: ${installArgs.join(' ')}`);
     try {
-      await runCmd(VENV_PIP, ['install', '--progress-bar', 'raw', ...spec.packages],
+      await runCmd(VENV_PIP, installArgs,
         pipStatusReporter(statusText => send({ status: statusText })));
       logSetup(`Wizard install complete: ${slug}`);
       send({ done: true });
@@ -450,6 +534,27 @@ function registerWizardIPC(wizardWin) {
       logSetup(`Wizard install failed: ${slug} — ${err.message}`);
       send({ error: err.message });
     }
+  });
+
+  // Stream a one-click .gguf model download for the llama.cpp backend, mirroring
+  // the Ollama pull flow's progress pattern below.
+  ipcMain.on('setup:download-gguf-model', (event) => {
+    const send = (payload) => {
+      try { event.sender.send('setup:gguf-download-progress', payload); } catch (_) {}
+    };
+    const url = `${DEFAULT_LLAMACPP_MODEL.repoUrl}/resolve/main/${DEFAULT_LLAMACPP_MODEL.filename}`;
+    const destPath = path.join(MODELS_DIR, DEFAULT_LLAMACPP_MODEL.filename);
+    fs.mkdirSync(MODELS_DIR, { recursive: true });
+    logSetup(`GGUF model download starting: ${url}`);
+    downloadFileWithProgress(url, destPath, pct => send({ progress: pct }))
+      .then(() => {
+        logSetup(`GGUF model download complete: ${destPath}`);
+        send({ done: true, path: destPath });
+      })
+      .catch(err => {
+        logSetup(`GGUF model download failed: ${err.message}`);
+        send({ error: err.message });
+      });
   });
 
   ipcMain.on('setup:restart-app', () => {
@@ -514,9 +619,40 @@ function registerWizardIPC(wizardWin) {
 // Swap the wizard window to a "Starting yuu-clip…" screen while the backend
 // boots; app lifecycle closes it once the main window is ready.
 function showWizardLoadingScreen(win) {
-  const loadingHtml = `<!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;margin:0;display:flex;align-items:center;justify-content:center;height:100vh;background:#12121e;color:#d8d8e8;text-align:center"><style>@keyframes spin{to{transform:rotate(360deg)}}</style><div><div style="width:32px;height:32px;border:3px solid #1e1e30;border-top-color:#5b8ef0;border-radius:50%;animation:spin 0.65s linear infinite;margin:0 auto 14px"></div><h3 style="margin:0 0 6px;font-size:14px;color:#e8e8f8">Starting yuu-clip…</h3><p style="margin:0;color:#666;font-size:12px">Waiting for backend</p></div></body></html>`;
+  const loadingHtml = `<!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;margin:0;display:flex;align-items:center;justify-content:center;height:100vh;background:#12121e;color:#d8d8e8;text-align:center"><style>@keyframes spin{to{transform:rotate(360deg)}}</style><div><div style="width:32px;height:32px;border:3px solid #1e1e30;border-top-color:#5b8ef0;border-radius:50%;animation:spin 0.65s linear infinite;margin:0 auto 14px"></div><h3 style="margin:0 0 6px;font-size:14px;color:#e8e8f8">Starting yuu-clip…</h3><p id="status" style="margin:0;color:#666;font-size:12px">Waiting for backend</p></div></body></html>`;
   win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(loadingHtml)}`);
   wizardWin = win;
+}
+
+// Updates the "Starting yuu-clip…" loading screen's status line from the main
+// process. No preload/IPC needed for one line of text — executeJavaScript is
+// simpler than wiring a context-bridged channel just for this.
+function updateLoadingStatus(win, text) {
+  if (!win || win.isDestroyed()) return;
+  const statusJs = `var el = document.getElementById('status'); if (el) el.textContent = ${JSON.stringify(text)};`;
+  win.webContents.executeJavaScript(statusJs).catch(() => {});
+}
+
+// Best-effort pre-download of the Whisper model chosen in setup, so first
+// Analyze doesn't stall on a surprise multi-GB download. Reuses the exact
+// download path production transcription already takes (see
+// yuu_clip/transcribe/whisper_runner.py _load_whisper_model) rather than
+// re-deriving the HuggingFace repo id ourselves. Failure is logged and
+// swallowed — analyze-time already has a clear retry message if this didn't
+// warm the cache (see _model_load_error in whisper_runner.py).
+async function prefetchWhisperModel(modelName, win) {
+  updateLoadingStatus(win, `Downloading transcription model (${modelName})…`);
+  logSetup(`Pre-fetching Whisper model: ${modelName}`);
+  const code =
+    'from faster_whisper import WhisperModel\n' +
+    `WhisperModel(${JSON.stringify(modelName)}, device="cpu", compute_type="int8")\n`;
+  try {
+    await runCmd(VENV_PYTHON, ['-c', code]);
+    logSetup(`Whisper model pre-fetch complete: ${modelName}`);
+  } catch (err) {
+    logSetup(`Whisper model pre-fetch failed (non-fatal, will retry on first Analyze): ${modelName} — ${err.message}`);
+  }
+  updateLoadingStatus(win, 'Waiting for backend');
 }
 
 // Opens the setup wizard.  In initial/update mode, returns a promise that
@@ -809,10 +945,18 @@ function spawnBackend(port) {
   const args = ['-m', 'yuu_clip.cli', 'serve', '--project', projectDir, '--no-open'];
   if (port !== BASE_PORT) args.push('--port', String(port));
 
+  // Packaged builds always point the backend at the bundled FFmpeg, rather than
+  // relying on an inherited PATH — YUU_CLIP_FFMPEG_DIR set-but-broken raises a
+  // loud error in find_ffmpeg() instead of silently falling back to PATH, so a
+  // packaging bug surfaces immediately (see yuu_clip/config.py find_ffmpeg()).
+  const env = { ...process.env };
+  if (app.isPackaged) env.YUU_CLIP_FFMPEG_DIR = BUNDLED_FFMPEG_DIR;
+
   logSetup(`Spawning backend: ${VENV_PYTHON} ${args.join(' ')}`);
   pyProc = spawn(VENV_PYTHON, args, {
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
+    env,
   });
 
   pyProc.stdout.on('data', d => process.stdout.write(d));
@@ -1146,6 +1290,7 @@ app.whenReady().then(async () => {
       if (setupOutdated) logSetup(`Setup schema ${storedSchema} < ${SETUP_SCHEMA_VERSION} — showing wizard with new options`);
       const cfg = await showSetupWizard({ rerun: false, updated: setupOutdated && ffmpegOk && !firstRun });
       projectDir = cfg.projectDir;
+      if (cfg.whisperModel) await prefetchWhisperModel(cfg.whisperModel, wizardWin);
     } else {
       projectDir = loadElectronConfig().projectDir || DEFAULT_PROJECT_DIR;
       logSetup(`Project dir: ${projectDir}`);

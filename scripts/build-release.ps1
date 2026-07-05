@@ -92,6 +92,15 @@ Write-Host "Dependency lock present: $lockPath"
 Write-Host "`nFetching bundled Python runtime..."
 & "$root\scripts\fetch-python-runtime.ps1"
 
+# ── 4b. Fetch the bundled GPL FFmpeg runtime + matching source archives ────
+Write-Host "`nFetching bundled FFmpeg runtime..."
+& "$root\scripts\fetch-ffmpeg-runtime.ps1"
+
+$sourceOutDir = "$root\build\installer"
+New-Item -ItemType Directory -Force -Path $sourceOutDir | Out-Null
+Copy-Item "$root\build\ffmpeg-source\*" $sourceOutDir -Force
+Write-Host "FFmpeg source archives copied to $sourceOutDir (ship alongside the installer)"
+
 # ── 5. npm run dist ──────────────────────────────────────────────────────────
 Write-Host "`nRunning electron-builder..."
 Push-Location "$root\electron"
