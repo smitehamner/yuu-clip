@@ -6,6 +6,32 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) — see the
 
 ---
 
+## Basic descriptions + no-model summary/timeline empty states (done 2026-07-05)
+
+Non-LLM-tiers plan, **Stage 02** (`docs/dev/plans/non-llm-tiers/02-basic-descriptions.md`).
+Makes a model-less install genuinely usable: clips are **never blank** without a
+language model, and the Session Summary / Session Timeline features stop hard-failing
+with a 503.
+
+- New `scoring/describe_basic.py`: `build_basic_description(clip)` assembles a template
+  one-liner from data already on the clip — speaker names in the transcript excerpt, top
+  keywords (new `similarity.top_keywords`, reusing Stage 01's token extraction), and the
+  leading score dimension (e.g. `"Yuu & Alex — heist, getaway · high action"`).
+- Wired into `ScoringEngine.score_clip`: when no scorer emitted a description (i.e. no
+  LLM), it fills `clip.description` and tags the clip **`desc_basic`**. Never overwrites
+  `description_user`; the tag is dropped the moment a real LLM description supersedes it.
+- Summary + timeline routes (`web/routes/scoring.py`) now return a structured
+  **`needs_model`** empty state (200) instead of a 503 — `summarize` (POST) in its JSON
+  body, `timeline` / `regenerate-summary` (SSE) as one event before `__DONE__`. A
+  `_install_ctas_ok()` hook (always `True` today) is left for the Stage 07 privacy mode.
+- UI: a "Basic description — install a local model…" chip under `desc_basic` clips
+  (`clips.js`); friendly install-CTA empty states for summary/timeline (`videos.js`,
+  `_needsModelCtaHTML`). GLOSSARY: new **Basic description** term.
+- Tests: new `test_describe_basic.py`; engine fallback + `needs_model` route tests; 2
+  UI chip tests. Full API (1802) + UI (637) suites green.
+
+---
+
 ## Tiered similarity engine — related clips + "Meaning" hot-words without an LLM (done 2026-07-05)
 
 Non-LLM-tiers plan, **Stage 01** (`docs/dev/plans/non-llm-tiers/01-similarity-engine.md`).

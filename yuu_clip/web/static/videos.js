@@ -362,9 +362,9 @@ function renderVideoDetail(video, savedTimeline) {
           ? `<button class="kebab-btn" title="Edit or regenerate summary" aria-label="Edit or regenerate summary" onclick="openVideoSummaryKebab(${video.id}, this)">&#8942;</button>`
           : `<button class="btn ghost" id="btn-summarize-video" onclick="summarizeVideo(${video.id}, this)">Generate Summary</button>`}
       </div>
-      ${video.summary
+      <div id="summary-body">${video.summary
         ? `<div class="description-long">${escHtml(video.summary)}</div>`
-        : `<div style="color:var(--muted);font-size:12px">No summary yet — generate a title and summary from the transcript.</div>`}
+        : `<div style="color:var(--muted);font-size:12px">No summary yet — generate a title and summary from the transcript.</div>`}</div>
     </div>
 
     ${_isVideoBeingAnalyzed(video) ? _analysisLivePanelHTML() : ''}
@@ -576,6 +576,21 @@ function _timelineEmptyNoteHTML() {
   return `<div style="color:var(--muted);font-size:12px">No timeline yet — generate a time-stamped outline of the session.</div>`;
 }
 
+// Friendly empty state for the AI summary/timeline features when no language model is
+// installed — the backend returns a needs_model payload instead of a hard error, and
+// this renders it as an inviting "install a local model" call to action. The install
+// nudge is hidden when the payload asks for it (Stage 07 privacy mode).
+function _needsModelCtaHTML(payload) {
+  const cta = payload.show_cta === false ? '' :
+    `<button class="btn ghost" style="font-size:11px;padding:3px 9px"
+       onclick="openSettings();setTimeout(()=>_scrollToSettingsSection('settings-sec-llm'),120)">Install a local model</button>`;
+  return `<div class="needs-model-cta">
+    <div class="needs-model-heading">${escHtml(payload.heading)}</div>
+    <div class="needs-model-detail">${escHtml(payload.detail)}</div>
+    ${cta}
+  </div>`;
+}
+
 // ── timeline generation ───────────────────────────────────────────────────────
 let _timelineVideoId = null;
 let _timelineIntervalOpener = null;
@@ -678,10 +693,16 @@ function _startGenerateTimeline(id, intervalS) {
     btn.textContent = video?.has_timeline ? 'Regenerate Timeline' : 'Generate Timeline';
   };
   let firstEntry = true;
+  let needsModel = false;
 
   const handle = _openSSE(
     `/api/videos/${id}/timeline?interval_s=${intervalS}`,
     data => {
+      if (data && data.needs_model) {
+        needsModel = true;
+        section.innerHTML = _needsModelCtaHTML(data);
+        return;
+      }
       if (firstEntry) {
         section.innerHTML = `<div class="timeline" id="timeline-list"></div>`;
         firstEntry = false;
@@ -695,9 +716,10 @@ function _startGenerateTimeline(id, intervalS) {
     },
     () => {
       _clearActiveStream(handle);
+      resetBtn();
+      if (needsModel) return;
       const video = AppState.videos.find(v => v.id === id);
       if (video) video.has_timeline = true;
-      resetBtn();
       showToast('Timeline generated');
     },
     errMsg => {
@@ -728,6 +750,11 @@ async function summarizeVideo(id, btn) {
       throw new Error(formatApiError(err));
     }
     const data = await res.json();
+    if (data.needs_model) {
+      const body = document.getElementById('summary-body');
+      if (body) body.innerHTML = _needsModelCtaHTML(data);
+      return;
+    }
     openDiffModal('Review Generated Summary', [
       {label: 'Title',   current: data.title_current,   proposed: data.title_new},
       {label: 'Summary', current: data.summary_current, proposed: data.summary_new},
@@ -768,15 +795,27 @@ function _doRegenSummaryAuto(id, btn) {
   _supersedeActiveStream();
   const resetBtn = () => { if (actionBtn) { actionBtn.disabled = false; actionBtn.textContent = 'Regenerate (auto-save)'; } };
   let hadError = false;
+  let needsModel = false;
   const handle = _openSSE(
     `/api/videos/${id}/regenerate-summary`,
     data => {
+      if (data && data.needs_model) {
+        needsModel = true;
+        const body = document.getElementById('summary-body');
+        if (body) body.innerHTML = _needsModelCtaHTML(data);
+        appendLog(data.detail);
+        return;
+      }
       if (typeof data === 'string' && data.startsWith('[Error')) hadError = true;
       appendLog(String(data));
     },
     () => {
       _clearActiveStream(handle);
       resetBtn();
+      if (needsModel) {
+        showToast('Install a local model to generate summaries', 'warning');
+        return;
+      }
       if (hadError) {
         showToast('Summary generation failed — check log for details', 'error');
         return;

@@ -31,6 +31,7 @@ class TestScoringEngine:
         from unittest.mock import MagicMock
         clip = MagicMock()
         clip.tags = []
+        clip.transcript_excerpt = None
         clip.score_funny = 0.0
         clip.score_dramatic = 0.0
         clip.score_action = 0.0
@@ -210,6 +211,7 @@ class TestLaughScoreAttribute:
         from unittest.mock import MagicMock
         clip = MagicMock()
         clip.tags = []
+        clip.transcript_excerpt = None
         clip.score_funny = clip.score_dramatic = clip.score_action = 0.0
         clip.score_overall = 0.0
         clip.score_laugh = 0.42  # stale sentinel: must be reset each run
@@ -279,6 +281,7 @@ class TestScoringEngineWeightEdgeCases:
         from unittest.mock import MagicMock
         clip = MagicMock()
         clip.tags = []
+        clip.transcript_excerpt = None
         clip.score_funny = clip.score_dramatic = clip.score_action = 0.0
         clip.score_overall = 0.5   # stale value to verify it is not changed
         clip.description = clip.description_long = ""
@@ -307,6 +310,72 @@ class TestScoringEngineWeightEdgeCases:
         engine.score_clip(clip, None)
         # dim_total == 0 → overall can't be computed; must not leave stale value
         assert clip.score_overall == 0.0
+
+
+# ---------------------------------------------------------------------------
+# Basic description fallback (Stage 02) — no-LLM template so clips aren't blank
+# ---------------------------------------------------------------------------
+
+class TestBasicDescriptionFallback:
+    def _scorer(self, description=""):
+        from unittest.mock import MagicMock
+
+        from yuu_clip.scoring.protocol import ScoreResult
+        mock = MagicMock()
+        mock.name = "energy"
+        mock.is_available.return_value = True
+        mock.weight = 1.0
+        mock.score.return_value = ScoreResult(score_action=0.8, description=description)
+        return mock
+
+    def _clip(self, **kw):
+        from yuu_clip.db.models import ClipCandidate
+        return ClipCandidate(video_id=1, start_ms=0, end_ms=1000, **kw)
+
+    def test_fills_description_and_tags_when_no_scorer_describes(self):
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.engine import ScoringEngine
+        clip = self._clip(transcript_excerpt="Yuu: we pulled off the heist")
+        ScoringEngine(Config(), [self._scorer()]).score_clip(clip, None)
+        assert clip.description
+        assert "heist" in clip.description
+        assert "desc_basic" in clip.tags
+
+    def test_llm_description_wins_and_no_basic_tag(self):
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.engine import ScoringEngine
+        clip = self._clip(transcript_excerpt="Yuu: we pulled off the heist")
+        ScoringEngine(Config(), [self._scorer(description="A daring heist")]).score_clip(clip, None)
+        assert clip.description == "A daring heist"
+        assert "desc_basic" not in clip.tags
+
+    def test_never_overwrites_user_description(self):
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.engine import ScoringEngine
+        clip = self._clip(transcript_excerpt="Yuu: we pulled off the heist", description_user="my words")
+        ScoringEngine(Config(), [self._scorer()]).score_clip(clip, None)
+        assert clip.description_user == "my words"
+        assert clip.effective_description == "my words"
+
+    def test_no_excerpt_leaves_description_blank(self):
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.engine import ScoringEngine
+        clip = self._clip(transcript_excerpt=None)
+        ScoringEngine(Config(), [self._scorer()]).score_clip(clip, None)
+        assert not clip.description
+        assert "desc_basic" not in clip.tags
+
+    def test_basic_tag_dropped_once_a_real_description_lands(self):
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.engine import ScoringEngine
+        clip = self._clip(transcript_excerpt="Yuu: we pulled off the heist")
+        ScoringEngine(Config(), [self._scorer()]).score_clip(clip, None)
+        assert "desc_basic" in clip.tags
+        # A later run with an LLM description supersedes the template and clears the tag.
+        ScoringEngine(Config(), [self._scorer(description="A daring heist")]).score_clip(clip, None)
+        assert clip.description == "A daring heist"
+        assert "desc_basic" not in clip.tags
+
 
 # ---------------------------------------------------------------------------
 # Auto-approve endpoint

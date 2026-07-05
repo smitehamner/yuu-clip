@@ -56,6 +56,25 @@ def _content_tokens(text: str) -> list[str]:
     return [t for t in _TOKEN_RE.findall((text or "").lower()) if t not in _STOPWORDS]
 
 
+def top_keywords(text: str, limit: int = 3) -> list[str]:
+    """Return the most frequent content words in *text*, most-common first.
+
+    Reuses the TF-IDF token extraction (lowercased word tokens minus stopwords).
+    Frequency ties break by first appearance, so the result is deterministic. Used
+    by the Basic description template (Stage 02) to name what a clip is about
+    without a language model.
+    """
+    tokens = _content_tokens(text)
+    if not tokens:
+        return []
+    first_index: dict[str, int] = {}
+    for i, token in enumerate(tokens):
+        first_index.setdefault(token, i)
+    counts = Counter(tokens)
+    ranked = sorted(counts, key=lambda t: (-counts[t], first_index[t]))
+    return ranked[:limit]
+
+
 # ── TF-IDF (default, zero-dep) ────────────────────────────────────────────────
 
 

@@ -26,6 +26,40 @@ from yuu_clip.web.routes._shared import (
 _log = get_logger(__name__)
 
 
+def _install_ctas_ok() -> bool:
+    """Whether "install a local model" nudges should be shown at all.
+
+    Always True today. Hook for the Stage 07 "No generative AI" privacy mode, which
+    will suppress every install CTA rather than nag a user who opted out."""
+    return True
+
+
+# Structured empty state the summary/timeline features return instead of hard-failing
+# with a 503 when no language model is available — the frontend renders it as a
+# friendly "install a local model" invitation (Stage 02).
+_NEEDS_MODEL_STATES = {
+    "summary": {
+        "heading": "AI summaries need a local model",
+        "detail": "A local language model writes the session title and summary from the transcript.",
+    },
+    "timeline": {
+        "heading": "AI timelines need a local model",
+        "detail": "A local language model writes a time-stamped outline of the session from the transcript.",
+    },
+}
+
+
+def _needs_model_payload(kind: str, reason: str) -> dict:
+    state = _NEEDS_MODEL_STATES[kind]
+    return {
+        "needs_model": True,
+        "show_cta": _install_ctas_ok(),
+        "heading": state["heading"],
+        "detail": state["detail"],
+        "reason": reason,
+    }
+
+
 def _collect_transcript_segments(db, video_id: int) -> list:
     tracks = db.query(AudioTrack).filter_by(video_id=video_id, do_transcribe=True).all()
     segs = []
@@ -382,7 +416,13 @@ def _register_rescore_routes(router: APIRouter, ctx: ProjectContext) -> None:
         from yuu_clip.scoring.llm import check_llm_available
         llm_ok, llm_reason = check_llm_available(config)
         if not llm_ok:
-            raise HTTPException(503, f"LLM unavailable — {llm_reason}")
+            payload = _needs_model_payload("timeline", llm_reason)
+
+            async def needs_model_stream():
+                yield f"data: {json_lib.dumps(payload)}\n\n"
+                yield f"data: {json_lib.dumps('__DONE__')}\n\n"
+
+            return _sse_response(needs_model_stream())
 
         context_text = format_context_block(load_contexts(ctx.project_dir), context_names)
 
@@ -442,7 +482,7 @@ def _register_summary_routes(router: APIRouter, ctx: ProjectContext) -> None:
         Does NOT write to the DB — the caller commits via PATCH /fields after the
         user accepts the result in the diff modal.
         """
-        from yuu_clip.scoring.llm import summarize_transcript
+        from yuu_clip.scoring.llm import check_llm_available, summarize_transcript
         db = ctx.get_db()
         try:
             video = db.get(Video, video_id)
@@ -454,6 +494,10 @@ def _register_summary_routes(router: APIRouter, ctx: ProjectContext) -> None:
 
             if not full_text:
                 raise HTTPException(400, "No transcript available — analyze the recording first")
+
+            llm_ok, llm_reason = check_llm_available(ctx.config)
+            if not llm_ok:
+                return _needs_model_payload("summary", llm_reason)
 
             title_current   = video.effective_title
             summary_current = video.effective_summary
@@ -494,6 +538,17 @@ def _register_summary_routes(router: APIRouter, ctx: ProjectContext) -> None:
 
         if not full_text:
             raise HTTPException(400, "No transcript available — analyze the recording first")
+
+        from yuu_clip.scoring.llm import check_llm_available
+        llm_ok, llm_reason = check_llm_available(ctx.config)
+        if not llm_ok:
+            payload = _needs_model_payload("summary", llm_reason)
+
+            async def needs_model_stream():
+                yield f"data: {json_lib.dumps(payload)}\n\n"
+                yield f"data: {json_lib.dumps('__DONE__')}\n\n"
+
+            return _sse_response(needs_model_stream())
 
         context_text = format_context_block(load_contexts(ctx.project_dir), context_names)
 

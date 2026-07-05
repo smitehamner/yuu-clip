@@ -438,6 +438,16 @@ function _exportFormatsHtml(clip) {
     <button class="btn-secondary" style="margin-top:8px" onclick="exportClip(${clip.id})">+ Export another format</button>`;
 }
 
+// A subtle nudge under a clip whose one-liner is the non-LLM template fallback
+// (tagged desc_basic by the scoring engine). Invites installing a local model for
+// richer AI descriptions; absent once an LLM description or a creator edit lands.
+function _basicDescChipHTML(clip) {
+  if (!clip.tags || !clip.tags.includes('desc_basic')) return '';
+  return `<div class="basic-desc-chip" title="This one-liner was built from the transcript without a language model">
+    Basic description — <a href="#" onclick="event.preventDefault();openSettings();setTimeout(()=>_scrollToSettingsSection('settings-sec-llm'),120)">install a local model</a> for richer AI descriptions
+  </div>`;
+}
+
 function renderDetail(clip) {
   const eb = (isEdited) => isEdited ? `<span class="edited-badge">edited</span>` : '';
 
@@ -469,6 +479,7 @@ function renderDetail(clip) {
         </div>
       </div>
       <div class="description">${clip.description ? `"${escHtml(clip.description)}"` : `<span style="color:var(--muted);font-size:13px">No description yet — Re-score to generate</span>`}</div>
+      ${_basicDescChipHTML(clip)}
 
       ${clip.description_long ? `
         <hr class="detail-card-divider">

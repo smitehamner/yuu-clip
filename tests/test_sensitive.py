@@ -255,7 +255,13 @@ class TestScoringEngineSensitiveIntegration:
         from yuu_clip.config import Config
         from yuu_clip.db.models import ClipCandidate, HotWord, SensitiveTerm
         from yuu_clip.scoring.engine import ScoringEngine
-        clip = ClipCandidate(video_id=1, start_ms=0, end_ms=1000, transcript_excerpt="haha wow")
+        # A pre-set description keeps the non-LLM basic-description fallback (Stage 02)
+        # out of this test — otherwise the template one-liner would echo "haha" from the
+        # excerpt and the censor term would legitimately match it too (count 2).
+        clip = ClipCandidate(
+            video_id=1, start_ms=0, end_ms=1000,
+            transcript_excerpt="haha wow", description="a funny clip",
+        )
         hot_word = HotWord(phrase="haha", match_mode="exact", boost=0.2, target="funny", enabled=True)
         sensitive_term = SensitiveTerm(term="haha", category="censor", match_mode="exact", enabled=True)
         engine = ScoringEngine(

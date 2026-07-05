@@ -1426,3 +1426,34 @@ class TestBatchStatusPanel:
         page.goto(LIVE_URL)
         page.evaluate("() => { AppState.activeVideoId = null; AppState.clips = []; _renderClips(); }")
         expect(page.locator("#batch-status-panel")).to_be_hidden()
+
+
+@skip_no_server
+class TestBasicDescriptionChip:
+    """The 'Basic description' nudge under a clip whose one-liner is the non-LLM
+    template fallback (tagged desc_basic). Synthetic clip via renderDetail, the same
+    pattern as TestMultiFormatExportRows above — no analyze run needed."""
+
+    def _clip(self, clip_id, tags):
+        return {
+            "id": clip_id, "start_hms": "0:00", "duration_hms": "0:30",
+            "description": "Yuu & Alex — heist, getaway", "description_is_edited": False,
+            "description_long": "", "description_long_is_edited": False,
+            "status": "pending", "tags": tags, "user_tags": [],
+            "start_offset": 0, "end_offset": 0, "has_export": False, "exports": [],
+        }
+
+    def test_chip_shown_for_basic_description(self, page: Page):
+        page.goto(LIVE_URL)
+        page.wait_for_selector("#video-list li[data-video-id]", timeout=5000)
+        page.evaluate("(clip) => renderDetail(clip)", self._clip(9401, ["desc_basic"]))
+        chip = page.locator(".basic-desc-chip")
+        expect(chip).to_be_visible()
+        expect(chip).to_contain_text("Basic description")
+        expect(chip.locator("a")).to_contain_text("install a local model")
+
+    def test_no_chip_for_llm_description(self, page: Page):
+        page.goto(LIVE_URL)
+        page.wait_for_selector("#video-list li[data-video-id]", timeout=5000)
+        page.evaluate("(clip) => renderDetail(clip)", self._clip(9402, []))
+        expect(page.locator(".basic-desc-chip")).to_have_count(0)

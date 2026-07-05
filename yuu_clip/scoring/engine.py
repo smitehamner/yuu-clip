@@ -20,6 +20,12 @@ HOTWORD_BOOST_MAX = 0.5
 _HOTWORD_TARGET_CLAMP = 0.3
 _HOTWORD_SUB_SCORE_TARGETS = ("funny", "dramatic", "action")
 
+# Marks a clip whose one-liner is the non-LLM template fallback (Stage 02), so the
+# UI can offer the "install a model for richer descriptions" nudge. Managed by
+# _apply_basic_description below — deliberately NOT in _SCORER_TAGS (which is reset
+# every run), so it survives a re-score that has no LLM to replace it.
+DESC_BASIC_TAG = "desc_basic"
+
 
 def _compute_overall(cfg: "Config", funny: float, dramatic: float, action: float) -> float | None:
     """Return the weighted overall score, or None when all dimension weights are zero."""
@@ -202,6 +208,7 @@ class ScoringEngine:
         num    = {"funny": 0.0, "dramatic": 0.0, "action": 0.0}
         weight = {"funny": 0.0, "dramatic": 0.0, "action": 0.0}
 
+        scorer_described = False
         for scorer in self._scorers:
             result: ScoreResult = scorer.score(clip, session)
             # Store the laugh scorer's raw, unweighted result as its own attribute
@@ -218,6 +225,8 @@ class ScoringEngine:
                 if value is not None:
                     num[dim]    += value * scorer.weight
                     weight[dim] += scorer.weight
+            if result.description:
+                scorer_described = True
             self._apply_descriptions(clip, result)
             self._merge_tags(clip, result.tags)
 
@@ -233,6 +242,8 @@ class ScoringEngine:
         if overall is not None:
             clip.score_overall = overall
 
+        self._apply_basic_description(clip, scorer_described)
+
         if self._hot_words is not None:
             apply_hotword_boosts(clip, self._hot_words, self._config)
 
@@ -247,6 +258,31 @@ class ScoringEngine:
             clip.description = result.description
         if result.description_long:
             clip.description_long = result.description_long
+
+    @staticmethod
+    def _apply_basic_description(clip: "ClipCandidate", scorer_described: bool) -> None:
+        """Fill a template one-liner when no scorer (i.e. no LLM) described the clip,
+        so a clip is never left blank. Tags it desc_basic; strips that tag whenever a
+        real description supersedes the template.
+
+        Only writes when the current description is empty or was itself a template —
+        an existing non-basic description (e.g. from a prior LLM run) is preserved.
+        Never touches description_user (effective_description already prefers it)."""
+        from yuu_clip.scoring.describe_basic import build_basic_description
+
+        was_basic = DESC_BASIC_TAG in clip.tags
+        if was_basic:
+            clip.tags = [t for t in clip.tags if t != DESC_BASIC_TAG]
+
+        if scorer_described or not clip.transcript_excerpt:
+            return
+        if clip.description and not was_basic:
+            return
+
+        description, _ = build_basic_description(clip)
+        if description:
+            clip.description = description
+            clip.tags = clip.tags + [DESC_BASIC_TAG]
 
     @staticmethod
     def _merge_tags(clip: "ClipCandidate", tags: list[str]) -> None:

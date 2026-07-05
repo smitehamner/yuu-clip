@@ -103,6 +103,55 @@ class TestRedescribeClipsGuard:
 
 
 # ---------------------------------------------------------------------------
+# needs_model empty state (Stage 02) — summary/timeline without a language model
+# ---------------------------------------------------------------------------
+
+def _seed_transcript(project_dir):
+    """Attach a transcript segment to the seeded video's track so summary/timeline
+    get past their 'no transcript' guard and reach the LLM-availability check."""
+    from yuu_clip.db.models import AudioTrack, Transcript, TranscriptSegment, make_session
+    session = make_session(project_dir / ".yuu-clip" / "project.db")
+    try:
+        track = session.query(AudioTrack).first()
+        tx = Transcript(audio_track_id=track.id, model_name="base")
+        session.add(tx)
+        session.flush()
+        session.add(TranscriptSegment(
+            transcript_id=tx.id, start_ms=0, end_ms=5_000, text="we pulled off the heist",
+        ))
+        session.commit()
+    finally:
+        session.close()
+
+
+class TestNeedsModelEmptyState:
+    def test_summarize_returns_needs_model_when_llm_unavailable(self, project_dir, client):
+        _seed_transcript(project_dir)
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        r = client.post(f"/api/videos/{vid_id}/summarize")
+        assert r.status_code == 200
+        body = r.json()
+        assert body["needs_model"] is True
+        assert body["show_cta"] is True
+        assert body["heading"]
+
+    def test_timeline_streams_needs_model_when_llm_unavailable(self, project_dir, client):
+        _seed_transcript(project_dir)
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        r = client.get(f"/api/videos/{vid_id}/timeline")
+        assert r.status_code == 200
+        assert '"needs_model": true' in r.text
+        assert "__DONE__" in r.text
+
+    def test_regenerate_summary_streams_needs_model_when_llm_unavailable(self, project_dir, client):
+        _seed_transcript(project_dir)
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        r = client.get(f"/api/videos/{vid_id}/regenerate-summary")
+        assert r.status_code == 200
+        assert '"needs_model": true' in r.text
+
+
+# ---------------------------------------------------------------------------
 # rescore_clip 404 guard
 # ---------------------------------------------------------------------------
 
