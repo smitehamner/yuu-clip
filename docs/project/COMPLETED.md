@@ -6,6 +6,41 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) — see the
 
 ---
 
+## Caption style options (done 2026-07-04)
+
+Closed the Phase 6 "Subtitle style options" item (plan 05). Font, size, and position for
+**burned-in** captions, on top of the per-speaker colour that shipped earlier.
+
+- **Config.** New `caption_font_name` (`""` = renderer default), `caption_font_size`
+  (`0` = default, else 12–96), `caption_position` (`bottom`/`top`) on `Config`, sanitized
+  on load (`_sanitize_caption_style_fields`, WARN + fall back) and strict-validated in the
+  `PATCH /api/config` route. `validate_caption_font_name` rejects `'`, `,`, `\` — validation
+  is the filtergraph-escaping strategy.
+- **Filter builder.** New frozen `CaptionStyle` dataclass + shared `_subtitles_filter()`
+  helper in `analyze/extract.py`, refactored into both burn-in sites (the plain
+  `_build_clip_cmd` re-encode path and `_preset_video_filter`). Non-default fields become a
+  libass `force_style='FontName=…,FontSize=…,Alignment=…'`; empty/default fields emit no
+  `force_style` at all (zero change for existing exports). **`PrimaryColour` is never set** —
+  per-speaker `<font color>` tags in the SRT keep winning. Windows drive-colon escaping
+  preserved.
+- **Plumbing.** `cli/export.py` gains `--caption-font/--caption-size/--caption-position`
+  (default to config; validated), builds a `CaptionStyle`, threads it to
+  `export_clip`/`export_clip_with_preset`, and records non-default style into
+  `ClipExport.settings` when captions are baked in. The single-clip export SSE route
+  (`web/routes/analyze.py`) forwards per-export overrides from the dialog; batch/bulk exports
+  inherit the config default via the CLI.
+- **UI.** Global defaults under **Settings → Export** (Caption font / size / position, with a
+  "burned-in only" note); a collapsed **Caption style** group in the Export dialog prefilled
+  from config, sent only when "Burn in captions" is chosen.
+- **Verified.** Reel does **not** burn captions (only a `.srt` sidecar via
+  `build_reel_caption_srt`) — no style plumbing needed there. Caption *colour* was
+  deliberately left out (speaker colours own it). No new DB columns; no migration.
+- **Tests.** `_subtitles_filter`/`CaptionStyle` unit tests + both-export-path assertions
+  (`tests/test_export.py`); config PATCH accept/reject + load-sanitize
+  (`tests/test_config.py`); settings render + dirty-marking (`tests/test_ui_settings.py`).
+
+---
+
 ## Multi-session grouping + unified timeline (done 2026-07-04)
 
 Closed the Phase 5 "Multi-session grouping" item (plan 04). Multiple OBS files from one

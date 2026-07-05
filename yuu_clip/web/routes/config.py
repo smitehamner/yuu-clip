@@ -60,6 +60,10 @@ class ConfigPatch(BaseModel):
     title_card_scale:             Optional[float] = None
     title_card_template:          Optional[str]   = None
     title_card_duration_s:        Optional[float] = None
+    # Caption style (Settings -> Export) — burned-in captions only
+    caption_font_name:            Optional[str]   = None
+    caption_font_size:            Optional[int]   = None
+    caption_position:             Optional[str]   = None
     # Hardware — GPU thermal monitoring
     thermal_warn_c:                Optional[int]   = None
     thermal_pause_c:               Optional[int]   = None
@@ -80,6 +84,7 @@ _CONFIG_FIELDS = (
     "export_name_template",
     "title_card_bg_color", "title_card_font_color", "title_card_scale",
     "title_card_template", "title_card_duration_s",
+    "caption_font_name", "caption_font_size", "caption_position",
     "thermal_warn_c", "thermal_pause_c", "thermal_autopause_enabled",
 )
 
@@ -142,6 +147,22 @@ def _title_card_template_validator(v: str) -> str:
         raise HTTPException(400, str(e))
 
 
+def _caption_font_name_validator(v: str) -> str:
+    from yuu_clip.config import validate_caption_font_name
+    try:
+        return validate_caption_font_name(v)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+def _caption_font_size_validator(v: int) -> int:
+    from yuu_clip.config import validate_caption_font_size
+    try:
+        return validate_caption_font_size(v)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
 def _hex_color_validator(label: str):
     from yuu_clip.config import validate_hex_color
 
@@ -191,6 +212,9 @@ _CONFIG_PATCH_RULES: list[tuple[str, object]] = [
     ("title_card_scale",             _range_validator(0.5, 2.0, "title_card_scale")),
     ("title_card_template",          _title_card_template_validator),
     ("title_card_duration_s",        _range_validator(1.0, 10.0, "title_card_duration_s")),
+    ("caption_font_name",            _caption_font_name_validator),
+    ("caption_font_size",            _caption_font_size_validator),
+    ("caption_position",             _enum_validator({"bottom", "top"}, "caption_position")),
     ("thermal_warn_c",               _range_validator(40, 110, "thermal_warn_c")),
     ("thermal_pause_c",              _range_validator(40, 110, "thermal_pause_c")),
     ("thermal_autopause_enabled",    lambda v: v),

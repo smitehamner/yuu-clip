@@ -58,6 +58,79 @@ class TestExportClipCmd:
         assert cmd[cmd.index("-t") + 1] == "42.0"
 
 
+class TestSubtitlesFilter:
+    """The burn-in filter builder — force_style is added only for non-default
+    fields, PrimaryColour is never set (per-speaker <font color> tags must win),
+    and Windows drive-colon escaping is preserved."""
+
+    def _filter(self, style=None, path="subs.srt"):
+        from yuu_clip.analyze.extract import _subtitles_filter
+        return _subtitles_filter(Path(path), style)
+
+    def _style(self, **kw):
+        from yuu_clip.analyze.extract import CaptionStyle
+        return CaptionStyle(**kw)
+
+    def test_no_style_emits_no_force_style(self):
+        assert self._filter() == "subtitles=subs.srt"
+
+    def test_default_style_emits_no_force_style(self):
+        assert self._filter(self._style()) == "subtitles=subs.srt"
+        assert self._style().is_default()
+
+    def test_font_name_fragment(self):
+        assert self._filter(self._style(font_name="Arial")) == \
+            "subtitles=subs.srt:force_style='FontName=Arial'"
+
+    def test_font_size_fragment(self):
+        assert self._filter(self._style(font_size=32)) == \
+            "subtitles=subs.srt:force_style='FontSize=32'"
+
+    def test_top_position_emits_alignment_8(self):
+        assert self._filter(self._style(position="top")) == \
+            "subtitles=subs.srt:force_style='Alignment=8'"
+
+    def test_bottom_position_is_default_no_fragment(self):
+        assert self._filter(self._style(position="bottom")) == "subtitles=subs.srt"
+
+    def test_all_fields_joined_with_commas(self):
+        result = self._filter(self._style(font_name="Segoe UI", font_size=40, position="top"))
+        assert result == "subtitles=subs.srt:force_style='FontName=Segoe UI,FontSize=40,Alignment=8'"
+
+    def test_never_sets_primary_colour(self):
+        result = self._filter(self._style(font_name="Arial", font_size=40, position="top"))
+        assert "PrimaryColour" not in result
+
+    def test_windows_drive_colon_escaped(self):
+        result = self._filter(self._style(font_name="Arial"), path="C:/videos/subs.srt")
+        assert result == "subtitles=C\\:/videos/subs.srt:force_style='FontName=Arial'"
+
+
+class TestCaptionStyleInExportCmd:
+    """Both burn-in export paths (plain _build_clip_cmd and preset
+    _preset_video_filter) route through _subtitles_filter, so a CaptionStyle
+    reaches the built ffmpeg -vf argument."""
+
+    def test_plain_burn_in_applies_style(self):
+        from yuu_clip.analyze.extract import CaptionStyle, _build_clip_cmd
+        cmd = _build_clip_cmd(
+            ffmpeg="ffmpeg", video_path=Path("in.mkv"), start_s=1.0, duration_s=5.0,
+            output_path=Path("out.mkv"), reencode=False, subtitle_path=Path("subs.srt"),
+            subtitle_track_path=None, audio_stream_index=None,
+            caption_style=CaptionStyle(font_size=48, position="top"),
+        )
+        vf = cmd[cmd.index("-vf") + 1]
+        assert vf == "subtitles=subs.srt:force_style='FontSize=48,Alignment=8'"
+
+    def test_preset_burn_in_applies_style_after_scale(self):
+        from types import SimpleNamespace
+
+        from yuu_clip.analyze.extract import CaptionStyle, _preset_video_filter
+        preset = SimpleNamespace(height=1080)
+        vf = _preset_video_filter(preset, Path("subs.srt"), CaptionStyle(font_name="Arial"))
+        assert vf == "scale=-2:'min(ih,1080)',subtitles=subs.srt:force_style='FontName=Arial'"
+
+
 class TestComputeExportWindow:
     """cand.start_ms/end_ms/video.duration_ms are segment-relative for a split
     recording, but video.path (the file export_clip actually opens) is always the

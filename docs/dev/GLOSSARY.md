@@ -782,6 +782,25 @@ Text overlaid on exported clips showing what was said, derived from the transcri
 
 ---
 
+### Caption Style
+
+The font, size, and position applied to **burned-in** captions. Set as a global
+default in Settings → Export and overridable per clip export in the Export dialog.
+
+- **Code:** config `caption_font_name`, `caption_font_size`, `caption_position`;
+  `CaptionStyle` dataclass and `_subtitles_filter()` (`yuu_clip/analyze/extract.py`);
+  applied via libass `force_style` on the `subtitles=` burn-in filter
+- **UI label:** "Caption style" (Settings → Export subsection and the Export dialog
+  group) — fields "Caption font", "Caption size", "Caption position"
+- **Notes:** Applies to **burned-in captions only** — embedded caption tracks and
+  sidecar `.srt` files are styled by the player, not here. Empty font / zero size /
+  "bottom" position all mean the renderer default and add no `force_style`, so
+  existing exports are unchanged until a field is set. Per-speaker colours are
+  never overridden (they arrive as inline `<font color>` tags in the SRT and keep
+  winning) — colour is deliberately not a caption-style option.
+
+---
+
 ### Highlight Reel
 
 A compiled video assembled from multiple approved clips, with optional transitions and title cards.

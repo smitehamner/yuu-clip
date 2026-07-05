@@ -10,6 +10,7 @@ from __future__ import annotations
 import subprocess
 import sys
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
@@ -20,6 +21,54 @@ if TYPE_CHECKING:
     from yuu_clip.export_presets import ExportPreset
 
 _log = get_logger(__name__)
+
+# libass Alignment codes for the numpad-style caption position. Only bottom/top
+# center are exposed; bottom (2) is the renderer default so it emits nothing.
+_CAPTION_ALIGNMENT = {"bottom": 2, "top": 8}
+
+
+@dataclass(frozen=True)
+class CaptionStyle:
+    """Burned-in caption styling applied via libass force_style.
+
+    Empty font_name / zero font_size / "bottom" position each mean "renderer
+    default" and contribute no force_style fragment. PrimaryColour is never set —
+    per-speaker colours arrive as inline <font color> tags in the SRT and must win.
+    """
+    font_name: str = ""
+    font_size: int = 0
+    position: str = "bottom"
+
+    def is_default(self) -> bool:
+        return not self.font_name and not self.font_size and self.position == "bottom"
+
+    def force_style(self) -> Optional[str]:
+        """Return the libass force_style value, or None when every field is default."""
+        fragments: list[str] = []
+        if self.font_name:
+            fragments.append(f"FontName={self.font_name}")
+        if self.font_size:
+            fragments.append(f"FontSize={self.font_size}")
+        alignment = _CAPTION_ALIGNMENT.get(self.position, 2)
+        if alignment != 2:
+            fragments.append(f"Alignment={alignment}")
+        return ",".join(fragments) if fragments else None
+
+
+def _subtitles_filter(subtitle_path: Path, style: Optional[CaptionStyle] = None) -> str:
+    """Build the `subtitles=` burn-in filter fragment, with optional force_style.
+
+    FFmpeg filtergraph uses ':' as option separator; Windows drive-letter colons
+    (C:/) must be escaped as C\\:/ within the filter string. The force_style value
+    is wrapped in single quotes so its own commas are not parsed as filter
+    separators (font names with commas are rejected upstream by validation).
+    """
+    escaped = subtitle_path.as_posix().replace(":", "\\:")
+    base = f"subtitles={escaped}"
+    force = style.force_style() if style is not None else None
+    if force is None:
+        return base
+    return f"{base}:force_style='{force}'"
 
 
 def _ffmpeg_path(p: Path) -> str:
@@ -104,6 +153,7 @@ def _build_clip_cmd(
     subtitle_path: Optional[Path],
     subtitle_track_path: Optional[Path],
     audio_stream_index: Optional[int],
+    caption_style: Optional[CaptionStyle] = None,
 ) -> list[str]:
     if subtitle_path is not None or reencode:
         # Frame-accurate: seek after -i (slow but exact)
@@ -120,10 +170,7 @@ def _build_clip_cmd(
             "-c:a", "aac",     "-b:a", "192k",
         ]
         if subtitle_path is not None:
-            # FFmpeg filtergraph uses ':' as option separator; Windows drive-letter
-            # colons (C:/) must be escaped as C\:/ within the filter string.
-            escaped = subtitle_path.as_posix().replace(":", "\\:")
-            cmd += ["-vf", f"subtitles={escaped}"]
+            cmd += ["-vf", _subtitles_filter(subtitle_path, caption_style)]
         cmd.append(_ffmpeg_path(output_path))
         return cmd
 
@@ -197,6 +244,7 @@ def export_clip(
     subtitle_path: Optional[Path] = None,
     subtitle_track_path: Optional[Path] = None,
     audio_stream_index: Optional[int] = None,
+    caption_style: Optional[CaptionStyle] = None,
 ) -> Path:
     """
     Cut a clip from *video_path* between *start_ms* and *end_ms*.
@@ -226,6 +274,7 @@ def export_clip(
     cmd = _build_clip_cmd(
         ffmpeg, video_path, start_s, duration_s, output_path,
         reencode, subtitle_path, subtitle_track_path, audio_stream_index,
+        caption_style,
     )
 
     result = subprocess.run(cmd, capture_output=True, text=True)
@@ -251,17 +300,18 @@ def _run_ffmpeg(cmd: list[str]) -> None:
         raise RuntimeError(f"FFmpeg encode failed:\n{result.stderr.strip()}")
 
 
-def _preset_video_filter(preset: "ExportPreset", subtitle_path: Optional[Path]) -> Optional[str]:
+def _preset_video_filter(
+    preset: "ExportPreset",
+    subtitle_path: Optional[Path],
+    caption_style: Optional[CaptionStyle] = None,
+) -> Optional[str]:
     """Build the -vf filter chain for a preset encode: scale-down-only (never
     upscales a smaller source) plus burned-in captions, if requested."""
     parts: list[str] = []
     if preset.height is not None:
         parts.append(f"scale=-2:'min(ih,{preset.height})'")
     if subtitle_path is not None:
-        # FFmpeg filtergraph uses ':' as option separator; Windows drive-letter
-        # colons (C:/) must be escaped as C\:/ within the filter string.
-        escaped = subtitle_path.as_posix().replace(":", "\\:")
-        parts.append(f"subtitles={escaped}")
+        parts.append(_subtitles_filter(subtitle_path, caption_style))
     return ",".join(parts) if parts else None
 
 
@@ -273,6 +323,7 @@ def export_clip_with_preset(
     preset: "ExportPreset",
     subtitle_path: Optional[Path] = None,
     audio_stream_index: Optional[int] = None,
+    caption_style: Optional[CaptionStyle] = None,
 ) -> Path:
     """Cut a clip from *video_path* using an Export preset's container/resolution/
     bitrate recipe. Always re-encodes (no stream-copy path — a preset's whole
@@ -296,7 +347,7 @@ def export_clip_with_preset(
 
     start_s    = start_ms / 1000.0
     duration_s = (end_ms - start_ms) / 1000.0
-    vf = _preset_video_filter(preset, subtitle_path)
+    vf = _preset_video_filter(preset, subtitle_path, caption_style)
     map_args = ["-map", "0:v:0", "-map", f"0:{audio_stream_index}"] if audio_stream_index is not None else []
 
     if preset.target_size_mb is not None:

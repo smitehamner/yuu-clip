@@ -338,6 +338,40 @@ class TestTitleCardSettings:
         expect(page.locator("#s-title-card-contrast-warning")).to_be_hidden()
 
 
+@skip_no_server
+class TestCaptionStyleSettings:
+    """Never clicks Save — that would PATCH the live project's real config.json."""
+
+    def _open_settings(self, page: Page) -> None:
+        page.goto(LIVE_URL)
+        page.wait_for_selector("#video-list li[data-video-id]", timeout=5000)
+        page.click("#btn-settings-header")
+        page.wait_for_selector("#settings-panel.visible", timeout=3000)
+        page.wait_for_function(
+            "document.getElementById('s-paths-display').textContent.trim().length > 0",
+            timeout=3000,
+        )
+
+    def test_fields_render_with_saved_config_values(self, page: Page):
+        self._open_settings(page)
+        cfg = page.evaluate("() => fetch('/api/config').then(r => r.json())")
+        expected_font = cfg["caption_font_name"] or ""
+        expected_size = "" if not cfg["caption_font_size"] else str(cfg["caption_font_size"])
+        assert page.locator("#s-caption-font-name").input_value() == expected_font
+        assert page.locator("#s-caption-font-size").input_value() == expected_size
+        assert page.locator("#s-caption-position").input_value() == cfg["caption_position"]
+
+    def test_changing_position_marks_settings_dirty(self, page: Page):
+        self._open_settings(page)
+        expect(page.locator("#btn-settings-save")).to_be_disabled()
+        current = page.locator("#s-caption-position").input_value()
+        other = "top" if current != "top" else "bottom"
+        page.locator("#s-caption-position").select_option(other)
+        expect(page.locator("#btn-settings-save")).to_be_enabled()
+        page.locator("#s-caption-position").select_option(current)
+        expect(page.locator("#btn-settings-save")).to_be_disabled()
+
+
 # ---------------------------------------------------------------------------
 # Glossary modal — filter input (L9-3)
 # ---------------------------------------------------------------------------

@@ -25,7 +25,7 @@ and the locked design decisions. Implement one plan per session.
 | ~~Laugh score as separate attribute~~ (done 2026-07-04) | 02 |
 | ~~Project switcher~~ (done 2026-07-04) | 03 |
 | ~~Multi-session grouping (full unified timeline)~~ (done 2026-07-04) | 04 |
-| Caption style options | 05 |
+| ~~Caption style options~~ (done 2026-07-04) | 05 |
 | Vertical crop / Shorts export | 06 |
 | Clip export editor | 07 |
 | SpeechBrain diarization backend | 08 |
@@ -202,10 +202,10 @@ Complex, specialized, or AI-heavy features that are valuable but don't need to b
   surfaced as a reviewable diff before committing. *Fed by* the speaker→name map from Speaker naming
   above (which provides the reliable speaker scoping) — not subsumed by it.
 
-- [ ] **Subtitle style options** — font, size, position for burned-in subtitles. Per-speaker
-  *colour* has shipped (`Speaker.display_color`, auto-assigned palette + user override, rendered
-  in burned captions via `<font color>` and in the on-screen transcript) — see COMPLETED-archive.md. Font,
-  size, and position remain.
+- [x] **Subtitle style options** — font, size, position for burned-in captions (done 2026-07-04,
+  plan 05). Global default in Settings → Export + per-export override, applied via libass
+  `force_style`; per-speaker *colour* (shipped earlier via `Speaker.display_color` and inline
+  `<font color>`) is never overridden. See COMPLETED.md.
 
 ### Export and delivery
 

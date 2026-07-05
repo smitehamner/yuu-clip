@@ -654,6 +654,41 @@
         &#9888; Text may be hard to read on this background
       </div>
     </div>
+
+    <div class="settings-row" style="margin-top:20px">
+      <div class="settings-col">
+        <div class="settings-label">Caption style</div>
+        <div class="settings-note">
+          Font, size, and position for <strong>burned-in</strong> captions. Embedded caption
+          tracks and sidecar <code>.srt</code> files are styled by the player, not here.
+          Each clip export can override these defaults.
+        </div>
+      </div>
+    </div>
+    <div class="settings-row">
+      <label class="settings-label" for="s-caption-font-name">Caption font</label>
+      <input class="settings-input" id="s-caption-font-name" type="text" maxlength="64"
+             placeholder="Renderer default" style="flex:1;min-width:0">
+    </div>
+    <div class="settings-note" style="margin-bottom:6px">
+      Must be installed on this PC — e.g. Arial, Segoe UI. Leave blank for the renderer default.
+    </div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <label class="settings-label" for="s-caption-font-size">Caption size</label>
+      </div>
+      <input class="settings-input" id="s-caption-font-size" type="number" min="12" max="96"
+             placeholder="Default" style="flex:0 0 auto;width:90px">
+    </div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <label class="settings-label" for="s-caption-position">Caption position</label>
+      </div>
+      <select class="settings-input" id="s-caption-position" style="flex:0 0 auto;width:auto">
+        <option value="bottom">Bottom</option>
+        <option value="top">Top</option>
+      </select>
+    </div>
   </div>
 
   <!-- Notification sounds -->
@@ -1519,6 +1554,30 @@
           <option value="hardsub">Burn in captions (hardsub, re-encode)</option>
         </select>
       </div>
+      <details id="export-caption-style" style="border-top:1px solid var(--border);padding-top:10px">
+        <summary style="font-size:13px;cursor:pointer;color:var(--muted)">Caption style</summary>
+        <div style="display:flex;flex-direction:column;gap:10px;margin-top:10px">
+          <div style="font-size:11px;color:var(--muted)">Applies to burned-in captions only. Embedded tracks and sidecar files are styled by the player.</div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <label for="export-caption-font" style="font-size:13px;color:var(--muted);min-width:110px">Font</label>
+            <input id="export-caption-font" type="text" placeholder="Renderer default" maxlength="64"
+                   style="flex:1;padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px">
+          </div>
+          <div style="font-size:11px;color:var(--muted);padding-left:120px;margin-top:-4px">Must be installed on this PC — e.g. Arial, Segoe UI.</div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <label for="export-caption-size" style="font-size:13px;color:var(--muted);min-width:110px">Size</label>
+            <input id="export-caption-size" type="number" min="12" max="96" placeholder="Default"
+                   style="flex:0 0 auto;width:90px;padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px">
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <label for="export-caption-position" style="font-size:13px;color:var(--muted);min-width:110px">Position</label>
+            <select id="export-caption-position" style="flex:0 0 auto;padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px">
+              <option value="bottom">Bottom</option>
+              <option value="top">Top</option>
+            </select>
+          </div>
+        </div>
+      </details>
       <div style="display:flex;align-items:center;gap:10px">
         <label style="display:flex;align-items:center;gap:10px;cursor:pointer;flex:1">
           <input type="checkbox" id="export-retranscribe" onchange="_onExportRetranscribeChange(this.checked)">

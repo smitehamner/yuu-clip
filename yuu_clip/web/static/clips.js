@@ -1250,6 +1250,18 @@ async function _loadExportSpeakerDefault() {
   _onExportRetranscribeChange(document.getElementById('export-retranscribe').checked);
 }
 
+// Prefill the export dialog's Caption style group from the global defaults so the
+// per-export override starts where Settings -> Export left it. Failures are
+// non-fatal — the fields just stay empty (renderer default).
+async function _prefillExportCaptionStyle() {
+  try {
+    const cfg = await fetch('/api/config').then(r => r.json());
+    document.getElementById('export-caption-font').value = cfg.caption_font_name || '';
+    document.getElementById('export-caption-size').value = cfg.caption_font_size ? cfg.caption_font_size : '';
+    document.getElementById('export-caption-position').value = cfg.caption_position || 'bottom';
+  } catch { /* leave fields at their defaults */ }
+}
+
 async function exportClip(id) {
   _exportOpener = document.activeElement;
   _exportClipId = id;
@@ -1261,6 +1273,7 @@ async function exportClip(id) {
   retx.checked = false;
   document.getElementById('export-retranscribe-model').disabled = true;
   document.getElementById('export-title-card').checked = false;
+  await _prefillExportCaptionStyle();
   await populateExportPresetSelect('');
   _onExportPresetChange('');
   _updateExportModeSummary();
@@ -1313,6 +1326,14 @@ async function confirmExport() {
     params.set('speaker_labels', speakerLabels ? 'true' : 'false');
   }
   if (titleCard)  params.set('title_card', 'true');
+  if (burnSubs) {
+    // Caption style only affects burned-in captions; send the dialog's values so
+    // the export is pinned to what the creator saw, independent of later config edits.
+    params.set('caption_font', document.getElementById('export-caption-font').value.trim());
+    const sizeRaw = document.getElementById('export-caption-size').value.trim();
+    params.set('caption_size', sizeRaw === '' ? '0' : sizeRaw);
+    params.set('caption_position', document.getElementById('export-caption-position').value);
+  }
   const qs = params.toString() ? `?${params}` : '';
 
   const steps = [{label: 'Export', patterns: ['Exporting', 'OK Saved']}];

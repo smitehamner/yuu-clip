@@ -33,6 +33,7 @@ from yuu_clip.web.deps import ProjectContext
 from yuu_clip.web.routes._shared import (
     _analyze_in_flight,
     _reject_if_analyzing,
+    _validate_caption_style_query,
     _validate_export_preset_query,
 )
 from yuu_clip.web.sse import subprocess_sse, terminate_process_tree
@@ -489,6 +490,9 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         speaker_labels: bool = Query(True),
         title_card: bool = Query(False),
         preset: Optional[str] = Query(None, description="Export preset id (built-in or custom); omit for original quality"),
+        caption_font: Optional[str] = Query(None, description="Burned-in caption font override; omit for the configured default"),
+        caption_size: Optional[int] = Query(None, description="Burned-in caption size override (0 or 12-96); omit for the configured default"),
+        caption_position: Optional[str] = Query(None, description="Burned-in caption position override: bottom or top"),
     ):
         """Export a clip to a video file and stream ffmpeg progress as SSE."""
         allowed_containers = {"mkv", "mp4"}
@@ -500,6 +504,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             except ValueError as e:
                 raise HTTPException(400, str(e))
         _validate_export_preset_query(ctx, preset, embed_subs)
+        _validate_caption_style_query(caption_font, caption_size, caption_position)
         cmd = [
             sys.executable, "-m", "yuu_clip.cli", "export", str(clip_id),
             "--captions", "--project", str(ctx.project_dir),
@@ -517,6 +522,12 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             cmd.append("--title-card")
         if preset:
             cmd.extend(["--preset", preset])
+        if caption_font is not None:
+            cmd.extend(["--caption-font", caption_font])
+        if caption_size is not None:
+            cmd.extend(["--caption-size", str(caption_size)])
+        if caption_position is not None:
+            cmd.extend(["--caption-position", caption_position])
         return await subprocess_sse(cmd, ctx.project_dir, ctx)
 
     @router.get("/api/clips/{clip_id}/retranscribe")

@@ -244,6 +244,9 @@ Extract a single clip to MKV.
 | `--captions` / `--no-captions` | Write SRT caption sidecar files (default: on) |
 | `--bake-captions` | Burn captions into video frames (hardsub; forces re-encode) |
 | `--embed-subs` | Add captions as a subtitle track (softsub; stream copy, fast) |
+| `--caption-font NAME` | Burned-in caption font (must be installed; default from config) |
+| `--caption-size N` | Burned-in caption size, 12–96 (0 = renderer default) |
+| `--caption-position bottom\|top` | Burned-in caption position (default from config) |
 | `--container mkv\|mp4` | Override output container |
 | `--output PATH` | Output path; default: `.yuu-clip/exports/` |
 
@@ -389,6 +392,11 @@ only flagged clips.
 - **Captions — None** (default): SRT sidecar written alongside the export for later use
 - **Captions — Softsub** (`--embed-subs`): SRT added as a subtitle track in the container; stream copy, fast; use MKV for broadest player support
 - **Captions — Hardsub** (`--bake-captions`): subtitles burned into video frames; forces re-encode
+- **Caption style** (hardsub only): font (`--caption-font`), size (`--caption-size`, 12–96), and
+  position (`--caption-position`, bottom/top) for burned-in captions. Set a default in
+  Settings → Export and override it per export in the Export dialog's collapsible "Caption style"
+  group. Empty/default values use the renderer default. Per-speaker colours are always kept.
+  Embedded tracks and SRT sidecars are unstyled — players control their rendering.
 - **Output**: `.yuu-clip/exports/`
 - **File name**: configurable template in Settings → Export (default `{video}_clip{clip_id}_{start}`); placeholders: `{video}`, `{clip_id}`, `{start}`, `{end}`, `{score}`, `{date}`
 - **Add title card**: prepends a title card (see Highlight reel below for the customizable style) with text built from your template — the clip's description and/or timecode by default

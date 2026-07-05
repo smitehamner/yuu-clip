@@ -171,6 +171,18 @@ _TITLE_CARD_DEFAULTS: dict[str, object] = {
     "title_card_duration_s": 3.0,
 }
 
+# Burned-in caption styling (Settings -> Export + per-export override). Empty/zero
+# values mean "libass renderer default" and emit no force_style — zero behavior
+# change until the creator touches a field. font_size 0 = default, else 12-96.
+CAPTION_FONT_SIZE_RANGE = (12, 96)
+CAPTION_FONT_NAME_MAX_LEN = 64
+CAPTION_POSITIONS: frozenset[str] = frozenset({"bottom", "top"})
+_CAPTION_STYLE_DEFAULTS: dict[str, object] = {
+    "caption_font_name": "",
+    "caption_font_size": 0,
+    "caption_position": "bottom",
+}
+
 
 def validate_hex_color(value: str, label: str) -> str:
     """
@@ -254,6 +266,74 @@ def _sanitize_title_card_fields(merged: dict) -> None:
             merged["title_card_duration_s"], _TITLE_CARD_DEFAULTS["title_card_duration_s"],
         )
         merged["title_card_duration_s"] = _TITLE_CARD_DEFAULTS["title_card_duration_s"]
+
+
+def validate_caption_font_name(value: str) -> str:
+    """
+    Raise ValueError unless *value* is a safe libass FontName.
+
+    Empty is allowed (renderer default). Otherwise it must be printable, at most
+    CAPTION_FONT_NAME_MAX_LEN chars, and free of the characters that would break
+    the FFmpeg filtergraph quoting of force_style (',' separates fields, '\\'
+    escapes, and "'" closes the quoted value). Validation is the escaping
+    strategy — we reject rather than escape so the burn-in filter stays simple.
+    """
+    if not isinstance(value, str):
+        raise ValueError("caption_font_name must be text")
+    if value == "":
+        return value
+    if len(value) > CAPTION_FONT_NAME_MAX_LEN:
+        raise ValueError(
+            f"caption_font_name must be {CAPTION_FONT_NAME_MAX_LEN} characters or fewer"
+        )
+    if not value.isprintable():
+        raise ValueError("caption_font_name must contain only printable characters")
+    for bad in ("'", ",", "\\"):
+        if bad in value:
+            raise ValueError(f"caption_font_name must not contain {bad!r}")
+    return value
+
+
+def validate_caption_font_size(value: int) -> int:
+    """Raise ValueError unless *value* is 0 (renderer default) or within CAPTION_FONT_SIZE_RANGE."""
+    lo, hi = CAPTION_FONT_SIZE_RANGE
+    if value != 0 and not (lo <= value <= hi):
+        raise ValueError(f"caption_font_size must be 0 (default) or between {lo} and {hi}")
+    return value
+
+
+def _sanitize_caption_style_fields(merged: dict) -> None:
+    """Guard the load path against a hand-edited config with bad caption-style values.
+
+    Mirrors _sanitize_title_card_fields: log a WARN and fall back to the default
+    rather than crash. PATCH /api/config enforces the same rules but rejects.
+    """
+    if "caption_font_name" in merged:
+        try:
+            validate_caption_font_name(merged["caption_font_name"])
+        except ValueError:
+            _log.warning(
+                "Config: caption_font_name invalid (%r) — using default %r",
+                merged["caption_font_name"], _CAPTION_STYLE_DEFAULTS["caption_font_name"],
+            )
+            merged["caption_font_name"] = _CAPTION_STYLE_DEFAULTS["caption_font_name"]
+
+    if "caption_font_size" in merged:
+        try:
+            validate_caption_font_size(merged["caption_font_size"])
+        except (ValueError, TypeError):
+            _log.warning(
+                "Config: caption_font_size invalid (%r) — using default %s",
+                merged["caption_font_size"], _CAPTION_STYLE_DEFAULTS["caption_font_size"],
+            )
+            merged["caption_font_size"] = _CAPTION_STYLE_DEFAULTS["caption_font_size"]
+
+    if "caption_position" in merged and merged["caption_position"] not in CAPTION_POSITIONS:
+        _log.warning(
+            "Config: caption_position invalid (%r) — using default %r",
+            merged["caption_position"], _CAPTION_STYLE_DEFAULTS["caption_position"],
+        )
+        merged["caption_position"] = _CAPTION_STYLE_DEFAULTS["caption_position"]
 
 
 def validate_whisper_language(lang: Optional[str]) -> Optional[str]:
@@ -403,6 +483,14 @@ class Config:
     title_card_template: str = "{description}\n{start} · {duration}"
     title_card_duration_s: float = 3.0
 
+    # Burned-in caption styling (Settings -> Export + per-export override). Empty
+    # font name / zero size / "bottom" position all mean "libass default" and emit
+    # no force_style. Applies to baked-in captions only — sidecar and embedded
+    # tracks are styled by the player. See analyze/extract.CaptionStyle.
+    caption_font_name: str = ""
+    caption_font_size: int = 0
+    caption_position: str = "bottom"
+
     # Pre-import estimate total (hours) above which the Analyze panel shows a
     # long-run warning suggesting the recording be split or analyzed in smaller batches.
     analyze_warn_hours: float = 2.0
@@ -430,6 +518,7 @@ class Config:
             _log.debug("Loaded project config from %s", project_cfg)
 
         _sanitize_title_card_fields(merged)
+        _sanitize_caption_style_fields(merged)
 
         known = {f for f in cls.__dataclass_fields__}
         unknown = set(merged) - known

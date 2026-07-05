@@ -158,6 +158,60 @@ class TestUiConfig:
 
 
 # ---------------------------------------------------------------------------
+# Caption style — GET defaults + PATCH validation (burned-in captions)
+# ---------------------------------------------------------------------------
+
+class TestCaptionStyleConfig:
+    def test_defaults(self, client):
+        cfg = client.get("/api/config").json()
+        assert cfg["caption_font_name"] == ""
+        assert cfg["caption_font_size"] == 0
+        assert cfg["caption_position"] == "bottom"
+
+    def test_patch_accepts_valid_values(self, client):
+        r = client.patch("/api/config", json={
+            "caption_font_name": "Segoe UI", "caption_font_size": 36, "caption_position": "top",
+        })
+        assert r.status_code == 200
+        body = r.json()
+        assert body["caption_font_name"] == "Segoe UI"
+        assert body["caption_font_size"] == 36
+        assert body["caption_position"] == "top"
+
+    def test_patch_accepts_size_zero_as_default(self, client):
+        assert client.patch("/api/config", json={"caption_font_size": 0}).status_code == 200
+
+    def test_patch_accepts_empty_font_name(self, client):
+        assert client.patch("/api/config", json={"caption_font_name": ""}).status_code == 200
+
+    def test_patch_rejects_size_out_of_range(self, client):
+        assert client.patch("/api/config", json={"caption_font_size": 8}).status_code == 400
+        assert client.patch("/api/config", json={"caption_font_size": 200}).status_code == 400
+
+    def test_patch_rejects_bad_position(self, client):
+        assert client.patch("/api/config", json={"caption_position": "middle"}).status_code == 400
+
+    def test_patch_rejects_quote_comma_backslash_in_font_name(self, client):
+        for bad in ["Ari'al", "Ari,al", "Ari\\al"]:
+            assert client.patch("/api/config", json={"caption_font_name": bad}).status_code == 400
+
+    def test_load_sanitizes_bad_values(self, tmp_path, monkeypatch):
+        import json as _json
+
+        from yuu_clip.config import Config
+        monkeypatch.setattr("yuu_clip.config._global_config_dir", lambda: tmp_path / "global")
+        proj = tmp_path / "proj"
+        (proj / ".yuu-clip").mkdir(parents=True)
+        (proj / ".yuu-clip" / "config.json").write_text(_json.dumps({
+            "caption_font_name": "bad,name", "caption_font_size": 999, "caption_position": "sideways",
+        }), encoding="utf-8")
+        cfg = Config.load(proj)
+        assert cfg.caption_font_name == ""
+        assert cfg.caption_font_size == 0
+        assert cfg.caption_position == "bottom"
+
+
+# ---------------------------------------------------------------------------
 # Config — new llm_backend / llm_model_path defaults
 # ---------------------------------------------------------------------------
 

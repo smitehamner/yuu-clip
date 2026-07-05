@@ -240,7 +240,7 @@ def _finalize_export(cand, session, video_path: Path, output: Path, config, *,
                      precise: bool, title_card: bool, audio_stream_idx: Optional[int],
                      subtitle_path: Optional[Path], subtitle_track_path: Optional[Path],
                      bake_captions: bool, preset_name: str = "default",
-                     preset=None) -> None:
+                     preset=None, caption_style=None) -> None:
     """Cut the clip, optionally prepend a title card, record the export on the clip row.
 
     preset (export_presets.ExportPreset | None) drives the encode through
@@ -266,6 +266,7 @@ def _finalize_export(cand, session, video_path: Path, output: Path, config, *,
                 preset=preset,
                 subtitle_path=subtitle_path,
                 audio_stream_index=audio_stream_idx,
+                caption_style=caption_style,
             )
         else:
             result = export_clip(
@@ -277,6 +278,7 @@ def _finalize_export(cand, session, video_path: Path, output: Path, config, *,
                 subtitle_path=subtitle_path,
                 subtitle_track_path=subtitle_track_path,
                 audio_stream_index=audio_stream_idx,
+                caption_style=caption_style,
             )
         if title_card:
             result = _apply_title_card(result, cand, output, config)
@@ -292,6 +294,12 @@ def _finalize_export(cand, session, video_path: Path, output: Path, config, *,
             "embed_subs": subtitle_track_path is not None,
             "title_card": title_card,
         }
+        if bake_captions and caption_style is not None and not caption_style.is_default():
+            settings.update(
+                caption_font=caption_style.font_name,
+                caption_size=caption_style.font_size,
+                caption_position=caption_style.position,
+            )
         if preset is not None:
             settings.update(
                 height=preset.height, crf=preset.crf,
@@ -335,6 +343,34 @@ def _resolve_audio_stream_index(session, cand) -> Optional[int]:
     return audio_track.stream_index if audio_track else None
 
 
+def _resolve_caption_style(config, font: Optional[str], size: Optional[int], position: Optional[str]):
+    """Merge per-export caption-style overrides over the configured defaults.
+
+    A None override falls back to config. Values are validated (raising typer.Exit
+    on bad input) so a hand-typed CLI flag can't slip an unescaped font name into
+    the filtergraph — the same rules the PATCH route enforces.
+    """
+    from yuu_clip.analyze.extract import CaptionStyle
+    from yuu_clip.config import (
+        CAPTION_POSITIONS,
+        validate_caption_font_name,
+        validate_caption_font_size,
+    )
+
+    resolved_font = config.caption_font_name if font is None else font
+    resolved_size = config.caption_font_size if size is None else size
+    resolved_position = config.caption_position if position is None else position
+    try:
+        validate_caption_font_name(resolved_font)
+        validate_caption_font_size(resolved_size)
+        if resolved_position not in CAPTION_POSITIONS:
+            raise ValueError(f"caption_position must be one of: {sorted(CAPTION_POSITIONS)}")
+    except (ValueError, TypeError) as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(1)
+    return CaptionStyle(font_name=resolved_font, font_size=resolved_size, position=resolved_position)
+
+
 def _emit_caption_sidecars(cand, output: Path, base: str) -> None:
     from yuu_clip.subtitles import export_srt_sidecars
     srt_files = export_srt_sidecars(cand, output.parent, base)
@@ -370,6 +406,9 @@ def export(
     speaker_labels: bool = typer.Option(True, "--speaker-labels/--no-speaker-labels", help="Add speaker labels during retranscription (no-op without a diarization backend)"),
     title_card: bool = typer.Option(False, "--title-card", help="Prepend a title card with the clip description"),
     preset: Optional[str] = typer.Option(None, "--preset", help="Export preset id (built-in or custom); omit for original quality"),
+    caption_font: Optional[str] = typer.Option(None, "--caption-font", help="Burned-in caption font name (must be installed); omit to use the configured default"),
+    caption_size: Optional[int] = typer.Option(None, "--caption-size", help="Burned-in caption font size (12-96, or 0 for renderer default); omit to use the configured default"),
+    caption_position: Optional[str] = typer.Option(None, "--caption-position", help="Burned-in caption position: bottom or top; omit to use the configured default"),
 ):
     """Export a clip to a video file."""
     from yuu_clip.config import Config, project_exports_dir, validate_whisper_model
@@ -428,12 +467,14 @@ def export(
     subtitle_path, subtitle_track_path = _write_export_subs(
         cand, bake_captions, embed_subs, lines_to_srt, merged_srt_lines
     )
+    caption_style = _resolve_caption_style(config, caption_font, caption_size, caption_position)
     _finalize_export(
         cand, session, video_path, output, config,
         precise=precise, title_card=title_card,
         audio_stream_idx=_resolve_audio_stream_index(session, cand),
         subtitle_path=subtitle_path, subtitle_track_path=subtitle_track_path,
         bake_captions=bake_captions, preset_name=preset_name, preset=resolved_preset,
+        caption_style=caption_style,
     )
 
     if captions:

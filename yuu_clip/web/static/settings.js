@@ -15,6 +15,7 @@ const _settingsFieldIds = [
   's-export-name-template',
   's-title-card-bg-color','s-title-card-font-color','s-title-card-scale',
   's-title-card-template','s-title-card-duration',
+  's-caption-font-name','s-caption-font-size','s-caption-position',
 ];
 // [element id, config key, default] — single source for apply + Reset to defaults.
 const _weightFields = [
@@ -221,6 +222,9 @@ function _applySettingsToUI(cfg) {
   setVal('s-title-card-template', cfg.title_card_template ?? '{description}\n{start} · {duration}');
   setVal('s-title-card-duration', cfg.title_card_duration_s ?? 3.0);
   _updateTitleCardPreview();
+  setVal('s-caption-font-name', cfg.caption_font_name || '');
+  setVal('s-caption-font-size', cfg.caption_font_size ? cfg.caption_font_size : '');
+  setVal('s-caption-position', cfg.caption_position || 'bottom');
   _snapshotSettings();
   _checkSettingsDirty();
   ['pyannote', 'llamacpp', 'anthropic', 'laugh-deps', 'cuda-libs'].forEach(_refreshInstallStatus);
@@ -525,6 +529,14 @@ function _updateLlmRemoteIndicator(backend, llmEnabled) {
   if (badge) badge.style.display = (llmEnabled && backend === 'claude') ? '' : 'none';
 }
 
+// Blank caption size means "renderer default", stored as 0. A non-numeric entry
+// also collapses to 0 so the PATCH never sends NaN.
+function _captionSizeValue(raw) {
+  if (raw === null || raw.trim() === '') return 0;
+  const n = parseInt(raw, 10);
+  return Number.isNaN(n) ? 0 : n;
+}
+
 async function saveSettings() {
   const getVal = id => { const el = document.getElementById(id); return el ? el.value : null; };
   const getChk = id => { const el = document.getElementById(id); return el ? el.checked : null; };
@@ -578,6 +590,9 @@ async function saveSettings() {
     title_card_scale:           getNum('s-title-card-scale', parseFloat),
     title_card_template:        getVal('s-title-card-template'),
     title_card_duration_s:      getNum('s-title-card-duration', parseFloat),
+    caption_font_name:          getVal('s-caption-font-name') ?? '',
+    caption_font_size:          _captionSizeValue(getVal('s-caption-font-size')),
+    caption_position:           getVal('s-caption-position'),
     ...(tlSec ? {ui_timeline_interval_seconds: tlSec, ui_timeline_interval_unit: tlUnit} : {}),
   };
 

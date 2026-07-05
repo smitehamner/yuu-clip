@@ -249,6 +249,27 @@ def _validate_export_preset_query(ctx, preset: Optional[str], embed_subs: bool) 
         raise HTTPException(400, f"Unknown export preset '{preset}'")
 
 
+def _validate_caption_style_query(
+    caption_font: Optional[str], caption_size: Optional[int], caption_position: Optional[str],
+) -> None:
+    """Shared 400 checks for the per-export caption-style overrides on the single
+    export route — same rules the config PATCH route and the CLI resolver enforce."""
+    from yuu_clip.config import (
+        CAPTION_POSITIONS,
+        validate_caption_font_name,
+        validate_caption_font_size,
+    )
+    try:
+        if caption_font is not None:
+            validate_caption_font_name(caption_font)
+        if caption_size is not None:
+            validate_caption_font_size(caption_size)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    if caption_position is not None and caption_position not in CAPTION_POSITIONS:
+        raise HTTPException(400, f"caption_position must be one of: {sorted(CAPTION_POSITIONS)}")
+
+
 def _clip_export_row_files(clip: ClipCandidate) -> list[Path]:
     """Existing on-disk files referenced by this clip's clip_exports rows (every
     tracked Export preset format) — the per-format counterpart to _export_paths'
