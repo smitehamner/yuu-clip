@@ -865,7 +865,11 @@ function onInstallProgress(data) {
     updateLaunchBtn();
   } else if (data.error) {
     installing[data.slug] = false;
-    if (msg) msg.textContent = `Install failed: ${data.error}`;
+    // GPU acceleration is never required — reassure the user they can still launch.
+    const cpuNote = data.slug === 'cuda-libs'
+      ? ' You can still launch — transcription will run on the CPU.'
+      : '';
+    if (msg) msg.textContent = `Install failed: ${data.error}${cpuNote}`;
     if (btn) btn.disabled = false;
     updateLaunchBtn();
   } else if (data.status) {

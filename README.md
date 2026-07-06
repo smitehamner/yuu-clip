@@ -28,6 +28,24 @@ Everything runs locally. It works out of the box with **no language model at all
 
 **From source (developers).** Clone and `pip install` as below. This path expects FFmpeg and Python on your machine.
 
+### Installing the desktop app on Windows
+
+The installer isn't code-signed yet, so Windows SmartScreen will show a blue
+**"Windows protected your PC"** box that says the publisher is unknown. This is
+expected for a small indie app that hasn't paid for a signing certificate — it is
+not a virus warning. To continue:
+
+1. Click **More info**.
+2. Click **Run anyway**.
+
+If your antivirus quarantines the installer or a file during setup, allow/restore it
+and run again — the app bundles Python, FFmpeg, and (on first launch) installs its
+dependencies from files inside the installer, which some antivirus tools flag by
+reputation. Everything runs locally; nothing is uploaded.
+
+If the first-run setup ever fails, the setup log is at
+`%APPDATA%\yuu-clip\yuu-clip_install.log` — send it along when reporting a problem.
+
 ---
 
 ## Requirements (from source)

@@ -27,3 +27,32 @@ test('non-network failures get an honest next step, not a bogus connection hint'
   assert.doesNotMatch(msg, /internet connection/i);
   assert.match(msg, /Ollama|setup log/i);
 });
+
+test('out-of-disk-space failures point at freeing space, not the network', () => {
+  const msg = describeInstallFailure('OSError: [Errno 28] No space left on device');
+  assert.doesNotMatch(msg, /internet connection/i);
+  assert.match(msg, /space/i);
+});
+
+test('blocked/locked-file failures point at antivirus, not the network', () => {
+  const msg = describeInstallFailure('ERROR: Could not install packages ... [WinError 5] Access is denied');
+  assert.doesNotMatch(msg, /internet connection/i);
+  assert.match(msg, /antivirus/i);
+});
+
+test('a missing wheel (GPU tag mismatch) offers the CPU fallback, not a connection hint', () => {
+  const msg = describeInstallFailure('ERROR: Could not find a version that satisfies the requirement');
+  assert.doesNotMatch(msg, /internet connection/i);
+  assert.match(msg, /CPU/i);
+});
+
+test('a CUDA load failure reassures the user CPU still works', () => {
+  const msg = describeInstallFailure('OSError: [WinError 126] cublas64_12.dll could not be found');
+  assert.match(msg, /CPU/i);
+});
+
+test('a build error (MSVC/"could not build wheels") falls through to the generic step', () => {
+  // Must NOT hit the missing-wheel branch (which keys on "could not find a version").
+  const msg = describeInstallFailure('ERROR: Could not build wheels for llama-cpp-python');
+  assert.match(msg, /Ollama|setup log/i);
+});

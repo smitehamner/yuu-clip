@@ -774,9 +774,7 @@ async function ensureVenv() {
     logSetup(`Venv setup failed: ${err.message}${detail ? '\n' + detail : ''}`);
     const wrapped = new Error(err.message);
     wrapped.userMessage =
-      'yuu-clip couldn’t finish setting itself up.\n\n' +
-      'You can start yuu-clip again to retry.\n\n' +
-      'If it keeps happening, open the setup log and send it to us.';
+      'yuu-clip couldn’t finish setting itself up — ' + describeInstallFailure(detail);
     wrapped.logPath = SETUP_LOG;
     throw wrapped;
   } finally {
