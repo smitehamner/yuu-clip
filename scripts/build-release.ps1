@@ -63,6 +63,12 @@ $buildInfoPath = "$root\yuu_clip\_build_info.py"
 Write-Host "Build date stamped: $buildDate"
 
 Write-Host "`nBuilding Python wheel..."
+python -c "import build" 2>$null
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Installing missing build backend (pip install build)..."
+    python -m pip install build
+    if ($LASTEXITCODE -ne 0) { Write-Error "Failed to install 'build'"; exit 1 }
+}
 $wheelDir = "$root\build\wheel"
 Remove-Item "$wheelDir\*.whl" -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path $wheelDir | Out-Null
