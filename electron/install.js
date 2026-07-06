@@ -139,6 +139,7 @@ module.exports = {
   runCmd,
   downloadFileWithProgress,
   pipStatusReporter,
+  formatPipLine,
   WIZARD_INSTALLABLE,
   checkVenvModule,
 };

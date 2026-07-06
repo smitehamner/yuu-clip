@@ -13,6 +13,10 @@ const { selectLlamaWheelUrl } = require('./llamacpp-cuda');
 const { buildPipUpgradeArgs, buildWheelInstallArgs } = require('./venv-setup');
 const { describeInstallFailure } = require('./install-error');
 const diskSpace = require('./disk-space');
+const { recommendWhisperModel } = require('./whisper-select');
+const { mimeTypeFor, isPathInside, rangeResponseInit } = require('./media-serve');
+const { buildProjectConfigFromWizard } = require('./wizard-config');
+const { decideSetupMode } = require('./startup-mode');
 const {
   VENV_DIR, VENV_PYTHON, VENV_PIP, BUNDLED_PYTHON, BUNDLED_FFMPEG_DIR,
   SETUP_LOG, SETUP_COMPLETE_MARKER, WHEEL_MARKER,
@@ -260,14 +264,6 @@ function detectCUDA() {
   } catch (_) {
     return { available: false, version: null };
   }
-}
-
-function recommendWhisperModel(vramMB) {
-  if (vramMB >= 10000) return { model: 'large-v3', reason: '10 GB+ VRAM — best accuracy'      };
-  if (vramMB >=  5000) return { model: 'medium',   reason: '5 GB+ VRAM — good accuracy'       };
-  if (vramMB >=  2000) return { model: 'small',    reason: '2 GB+ VRAM — balanced'            };
-  if (vramMB >=  1000) return { model: 'base',     reason: '1 GB+ VRAM — fast'                };
-  return                      { model: 'base',     reason: 'CPU mode — base model recommended' };
 }
 
 // ---------------------------------------------------------------------------
@@ -577,23 +573,10 @@ function showSetupWizard({ rerun = false, updated = false } = {}) {
 
     ipcMain.once('setup:complete', (_, cfg) => {
       saveElectronConfig({ projectDir: cfg.projectDir, setupSchemaVersion: SETUP_SCHEMA_VERSION });
-      const pyCfg = {
-        whisper_model:    cfg.whisperModel,
-        whisper_language: cfg.whisperLanguage || '',
-        ai_privacy_mode:  cfg.aiPrivacyMode || 'local_only',
-        llm_backend:      cfg.llmBackend,
-        diarization_backend: cfg.diarizationEnabled ? 'pyannote' : 'null',
-        content_preset:   cfg.contentPreset || 'generic',
-      };
-      if (cfg.diarizationEnabled) pyCfg.huggingface_token = cfg.hfToken || '';
-      if (cfg.llmBackend === 'llamacpp') {
-        pyCfg.llm_model_path = cfg.llmModelPath || '';
-      } else if (cfg.llmBackend === 'claude') {
-        pyCfg.claude_api_key = cfg.claudeApiKey || '';
-        pyCfg.claude_model   = cfg.claudeModel  || DEFAULT_CLAUDE_MODEL;
-      } else {
-        pyCfg.ollama_model = cfg.ollamaModel || DEFAULT_OLLAMA_MODEL;
-      }
+      const pyCfg = buildProjectConfigFromWizard(cfg, {
+        defaultClaudeModel: DEFAULT_CLAUDE_MODEL,
+        defaultOllamaModel: DEFAULT_OLLAMA_MODEL,
+      });
       writeProjectConfig(cfg.projectDir, pyCfg);
       logSetup(`Setup complete — projectDir:${cfg.projectDir} whisperModel:${cfg.whisperModel} llmBackend:${cfg.llmBackend} diarization:${pyCfg.diarization_backend}`);
       fs.mkdirSync(path.dirname(SETUP_COMPLETE_MARKER), { recursive: true });
@@ -884,15 +867,6 @@ function spawnBackend(port) {
 // rather than trusting net.fetch to cover it.
 // ---------------------------------------------------------------------------
 
-const MEDIA_MIME_TYPES = {
-  '.mp4':  'video/mp4',
-  '.m4v':  'video/mp4',
-  '.mkv':  'video/x-matroska',
-  '.mov':  'video/quicktime',
-  '.avi':  'video/x-msvideo',
-  '.webm': 'video/webm',
-};
-
 // Renderer input is untrusted: a path is only served if it's inside the
 // project's proxies dir (deterministic, always true for generated proxies) or
 // it exactly matches a source/proxy path the backend has told us about for a
@@ -924,11 +898,6 @@ async function refreshKnownMediaPaths() {
   }
 }
 
-function isPathInside(candidate, root) {
-  const rel = path.relative(root, candidate);
-  return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
-}
-
 async function isAllowedMediaPath(resolvedPath) {
   const proxiesRoot = path.join(projectDir, '.yuu-clip', 'proxies');
   if (isPathInside(resolvedPath, proxiesRoot)) return true;
@@ -940,44 +909,18 @@ async function isAllowedMediaPath(resolvedPath) {
   return false;
 }
 
-// Parses a single "bytes=start-end" Range header (the only form <video> emits)
-// and returns the serviceable [start, end] pair, or null if malformed/out of range.
-function parseRange(rangeHeader, fileSize) {
-  const match = /^bytes=(\d*)-(\d*)$/.exec((rangeHeader || '').trim());
-  if (!match || (!match[1] && !match[2])) return null;
-  const start = match[1] ? parseInt(match[1], 10) : fileSize - parseInt(match[2], 10);
-  const end   = match[1] && match[2] ? parseInt(match[2], 10) : fileSize - 1;
-  if (Number.isNaN(start) || Number.isNaN(end) || start < 0 || start > end || end >= fileSize) return null;
-  return { start, end };
-}
-
 function serveFileWithRange(filePath, stat, rangeHeader) {
   const fileSize = stat.size;
-  const mimeType = MEDIA_MIME_TYPES[path.extname(filePath).toLowerCase()] || 'application/octet-stream';
+  const mimeType = mimeTypeFor(path.extname(filePath));
+  const init = rangeResponseInit(rangeHeader, fileSize, mimeType);
 
-  if (!rangeHeader) {
-    const body = Readable.toWeb(fs.createReadStream(filePath));
-    return new Response(body, {
-      status: 200,
-      headers: { 'Content-Type': mimeType, 'Content-Length': String(fileSize), 'Accept-Ranges': 'bytes' },
-    });
+  if (init.status === 416) {
+    return new Response(null, { status: init.status, headers: init.headers });
   }
 
-  const range = parseRange(rangeHeader, fileSize);
-  if (!range) {
-    return new Response(null, { status: 416, headers: { 'Content-Range': `bytes */${fileSize}` } });
-  }
-
-  const body = Readable.toWeb(fs.createReadStream(filePath, { start: range.start, end: range.end }));
-  return new Response(body, {
-    status: 206,
-    headers: {
-      'Content-Type':   mimeType,
-      'Content-Length': String(range.end - range.start + 1),
-      'Content-Range':  `bytes ${range.start}-${range.end}/${fileSize}`,
-      'Accept-Ranges':  'bytes',
-    },
-  });
+  const streamOpts = init.range ? { start: init.range.start, end: init.range.end } : undefined;
+  const body = Readable.toWeb(fs.createReadStream(filePath, streamOpts));
+  return new Response(body, { status: init.status, headers: init.headers });
 }
 
 function registerMediaProtocol() {
@@ -1171,10 +1114,13 @@ app.whenReady().then(async () => {
     // Setups completed before schema versioning existed count as version 1.
     const storedSchema  = loadElectronConfig().setupSchemaVersion || 1;
     const setupOutdated = !firstRun && storedSchema < SETUP_SCHEMA_VERSION;
+    const { show: showWizard, mode: setupMode } = decideSetupMode({
+      firstRun, ffmpegOk, storedSchema, schemaVersion: SETUP_SCHEMA_VERSION,
+    });
 
-    if (firstRun || !ffmpegOk || setupOutdated) {
+    if (showWizard) {
       if (setupOutdated) logSetup(`Setup schema ${storedSchema} < ${SETUP_SCHEMA_VERSION} — showing wizard with new options`);
-      const cfg = await showSetupWizard({ rerun: false, updated: setupOutdated && ffmpegOk && !firstRun });
+      const cfg = await showSetupWizard({ rerun: false, updated: setupMode === 'update' });
       projectDir = cfg.projectDir;
       if (cfg.whisperModel) await prefetchWhisperModel(cfg.whisperModel, wizardWin);
     } else {
