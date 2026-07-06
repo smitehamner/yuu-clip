@@ -92,6 +92,12 @@ Write-Host "Dependency lock present: $lockPath"
 Write-Host "`nFetching bundled Python runtime..."
 & "$root\scripts\fetch-python-runtime.ps1"
 
+# ── 4a. Build the offline dependency wheelhouse (cached; needs the runtime) ──
+# So first-run installs the base pipeline offline (--no-index) instead of hitting
+# PyPI at launch. Uses the bundled runtime's python for matching wheels.
+Write-Host "`nBuilding offline dependency wheelhouse..."
+& "$root\scripts\fetch-wheelhouse.ps1"
+
 # ── 4b. Fetch the bundled GPL FFmpeg runtime + matching source archives ────
 Write-Host "`nFetching bundled FFmpeg runtime..."
 & "$root\scripts\fetch-ffmpeg-runtime.ps1"

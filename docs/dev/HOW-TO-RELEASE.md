@@ -53,11 +53,28 @@ This script:
 4. Verifies `requirements.lock` is present (bundled to pin user installs — see below)
 5. Fetches the pinned standalone Python runtime bundled into the installer (see
    below) — cached after the first build, so this is a no-op on later runs
-6. Fetches the pinned GPL FFmpeg runtime + matching source archives (see below) —
+6. Builds the **offline dependency wheelhouse** (`build/wheelhouse/`) with the
+   bundled runtime's Python (see below) — cached on the `requirements.lock` hash,
+   so it only rebuilds when the lock changes
+7. Fetches the pinned GPL FFmpeg runtime + matching source archives (see below) —
    also cached after the first build — and copies the source archives into
    `build/installer/` so they ship alongside the `.exe`
-7. Runs `npm run dist` in `electron/` → `build/installer/yuu-clip-X.Y.Z-Setup.exe`
-8. Prints the installer path
+8. Runs `npm run dist` in `electron/` → `build/installer/yuu-clip-X.Y.Z-Setup.exe`
+9. Prints the installer path
+
+### Offline dependency wheelhouse
+
+`scripts/fetch-wheelhouse.ps1` pre-downloads every base dependency as a wheel into
+`build/wheelhouse/`, which `electron/package.json` bundles into the installer. First-run
+setup then installs the base pipeline with `pip install --no-index --find-links
+<wheelhouse> -c requirements.lock <wheel>` — **fully offline**, so a slow, firewalled, or
+proxied network can't fail the very first launch (it previously resolved
+faster-whisper / CTranslate2 / av / scipy from PyPI at launch). The download uses the
+**bundled** runtime's Python so the wheels match its platform/abi, and `--only-binary=:all:`
+guarantees no sdist sneaks in (an sdist would try to compile on the user's machine). If a
+dependency ever lacks a wheel for the target, `fetch-wheelhouse.ps1` fails at build time —
+fix that before shipping. If the wheelhouse is absent (e.g. a dev/unpackaged run), first-run
+setup falls back to installing from PyPI online.
 
 ### Dependency lock
 

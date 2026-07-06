@@ -10,7 +10,7 @@ const { Readable } = require('stream');
 const { parseNvidiaVramMB, selectGPU } = require('./gpu-detect');
 const { resolveBundledFfmpegDir } = require('./ffmpeg-detect');
 const { selectLlamaWheelUrl } = require('./llamacpp-cuda');
-const { buildPipUpgradeArgs, buildWheelInstallArgs } = require('./venv-setup');
+const { buildWheelInstallArgs } = require('./venv-setup');
 const { describeInstallFailure } = require('./install-error');
 const diskSpace = require('./disk-space');
 const { recommendWhisperModel } = require('./whisper-select');
@@ -656,14 +656,13 @@ function showVenvSetupWindow() {
     <h3>Setting up yuu-clip</h3>
     <ul class="steps" id="steps">
       <li id="s0">Create virtual environment</li>
-      <li id="s1">Upgrade pip</li>
-      <li id="s2">Install yuu-clip</li>
+      <li id="s1">Install yuu-clip</li>
     </ul>
     <div class="status" id="status"></div>
     <div class="note">This can take a few minutes — please don't close this window.</div>
   </div><script>
     if(window.venvAPI) window.venvAPI.onProgress(function(msg){
-      var steps=['s0','s1','s2'];
+      var steps=['s0','s1'];
       var idx=steps.indexOf(msg.id);
       if(idx<0)return;
       if(msg.state==='active'){document.getElementById(msg.id).className='active';}
@@ -747,25 +746,27 @@ async function ensureVenv() {
       await runCmd(pythonBin, ['-m', 'venv', VENV_DIR]);
       logSetup('Venv created');
       progress('s0', 'done');
-      progress('s1', 'active');
-      logSetup('Upgrading pip…');
-      await runCmd(VENV_PYTHON, buildPipUpgradeArgs());
-      progress('s1', 'done');
     }
-    progress('s2', 'active');
+    progress('s1', 'active');
     logSetup('Installing wheel…');
     const lockPath = path.join(resourcesDir, 'requirements.lock');
     const lockOk   = fs.existsSync(lockPath);
+    const wheelhouseDir = path.join(resourcesDir, 'wheelhouse');
+    const wheelhouseOk  = fs.existsSync(wheelhouseDir)
+      && fs.readdirSync(wheelhouseDir).some(f => f.endsWith('.whl'));
+    logSetup(wheelhouseOk
+      ? `Installing offline from bundled wheelhouse: ${wheelhouseDir}`
+      : 'Wheelhouse not bundled — installing base deps from PyPI (online)');
     logSetup(lockOk ? `Constraining deps to ${lockPath}`
                     : 'requirements.lock not bundled — installing without a constraint');
     await runCmd(
       VENV_PIP,
-      buildWheelInstallArgs(wheelPath, lockOk ? lockPath : null),
+      buildWheelInstallArgs(wheelPath, lockOk ? lockPath : null, wheelhouseOk ? wheelhouseDir : null),
       pipStatusReporter(statusText => {
         try { setupWin.webContents.send('venv:status', statusText); } catch (_) {}
       })
     );
-    progress('s2', 'done');
+    progress('s1', 'done');
     logSetup('Wheel installed');
     if (bundledVersion) fs.writeFileSync(WHEEL_MARKER, bundledVersion);
   } catch (err) {
@@ -774,8 +775,7 @@ async function ensureVenv() {
     const wrapped = new Error(err.message);
     wrapped.userMessage =
       'yuu-clip couldn’t finish setting itself up.\n\n' +
-      'The first launch downloads a few things from the internet, and that download ' +
-      'was interrupted. Check your connection and start yuu-clip again.\n\n' +
+      'You can start yuu-clip again to retry.\n\n' +
       'If it keeps happening, open the setup log and send it to us.';
     wrapped.logPath = SETUP_LOG;
     throw wrapped;

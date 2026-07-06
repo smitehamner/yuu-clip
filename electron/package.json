@@ -33,6 +33,7 @@
     },
     "extraResources": [
       { "from": "../build/wheel", "to": ".", "filter": ["*.whl"] },
+      { "from": "../build/wheelhouse", "to": "wheelhouse", "filter": ["*.whl"] },
       { "from": "../requirements.lock", "to": "requirements.lock" },
       { "from": "../build/python-runtime", "to": "python", "filter": ["**/*", "!.version"] },
       { "from": "../build/ffmpeg-runtime", "to": "ffmpeg", "filter": ["**/*", "!.version"] },
