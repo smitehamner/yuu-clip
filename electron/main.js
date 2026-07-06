@@ -4,7 +4,6 @@ const { app, BrowserWindow, Menu, MenuItem, clipboard, dialog, ipcMain, protocol
 const { execFileSync, spawn } = require('child_process');
 const fs     = require('fs');
 const http   = require('http');
-const https  = require('https');
 const net    = require('net');
 const path   = require('path');
 const { Readable } = require('stream');
@@ -14,6 +13,15 @@ const { selectLlamaWheelUrl } = require('./llamacpp-cuda');
 const { buildPipUpgradeArgs, buildWheelInstallArgs } = require('./venv-setup');
 const { describeInstallFailure } = require('./install-error');
 const diskSpace = require('./disk-space');
+const {
+  VENV_DIR, VENV_PYTHON, VENV_PIP, BUNDLED_PYTHON, BUNDLED_FFMPEG_DIR,
+  SETUP_LOG, SETUP_COMPLETE_MARKER, WHEEL_MARKER,
+  DEFAULT_PROJECT_DIR, BASE_PORT, DEFAULT_OLLAMA_MODEL, DEFAULT_CLAUDE_MODEL,
+  DEFAULT_OLLAMA_MODEL_SIZE_GB, DEFAULT_LLAMACPP_MODEL, MODELS_DIR, SETUP_SCHEMA_VERSION,
+} = require('./constants');
+const { rotateLogs, logSetup } = require('./logging');
+const { loadElectronConfig, saveElectronConfig, writeProjectConfig } = require('./electron-config');
+const { runCmd, downloadFileWithProgress, pipStatusReporter, WIZARD_INSTALLABLE, checkVenvModule } = require('./install');
 
 // Roadmap plan 10 — the "yuu-media" scheme must be registered as privileged
 // before app.ready fires (Electron requirement); the actual request handler
@@ -23,55 +31,8 @@ protocol.registerSchemesAsPrivileged([
 ]);
 
 // ---------------------------------------------------------------------------
-// Paths
+// Mutable runtime state
 // ---------------------------------------------------------------------------
-
-const VENV_DIR    = path.join(process.env.LOCALAPPDATA, 'yuu-clip', 'venv');
-const VENV_PYTHON = path.join(VENV_DIR, 'Scripts', 'python.exe');
-const VENV_PIP    = path.join(VENV_DIR, 'Scripts', 'pip.exe');
-
-// Pinned CPython bundled into the installer (see scripts/fetch-python-runtime.ps1)
-// so end users never need a system Python. Only present in packaged builds —
-// dev mode (running unpackaged) falls back to a system Python on PATH.
-const BUNDLED_PYTHON = path.join(process.resourcesPath || '', 'python', 'python.exe');
-
-// Pinned GPL FFmpeg bundled into the installer (see
-// scripts/fetch-ffmpeg-runtime.ps1 and docs/dev/THIRD-PARTY-NOTICES-FFMPEG.md)
-// so end users never need to install FFmpeg themselves. Only present in
-// packaged builds — dev mode keeps resolving FFmpeg from PATH.
-const BUNDLED_FFMPEG_DIR = path.join(process.resourcesPath || '', 'ffmpeg');
-const SETUP_LOG   = path.join(process.env.APPDATA, 'yuu-clip', 'yuu-clip_install.log');
-const SETUP_COMPLETE_MARKER = path.join(process.env.APPDATA, 'yuu-clip', 'setup-complete');
-const WHEEL_MARKER          = path.join(process.env.APPDATA, 'yuu-clip', 'installed-wheel-version');
-const ELECTRON_CONFIG_PATH  = path.join(process.env.APPDATA, 'yuu-clip', 'electron-config.json');
-
-const DEFAULT_PROJECT_DIR = path.join(process.env.USERPROFILE, 'Videos', 'yuu-clip');
-const BASE_PORT = 8080;
-
-const DEFAULT_OLLAMA_MODEL = 'qwen2.5:7b';  // Apache-2.0 (monetization-safe)
-const DEFAULT_CLAUDE_MODEL = 'claude-haiku-4-5-20251001';
-// Approx on-disk size of DEFAULT_OLLAMA_MODEL (qwen2.5:7b), for the disk precheck.
-const DEFAULT_OLLAMA_MODEL_SIZE_GB = 4.7;
-
-// Cross-checked against yuu_clip/model_catalog.py by
-// tests/test_model_catalog.py::test_electron_wizard_default_llamacpp_model_matches_the_catalog
-// — keep id/repoUrl/filename in sync with that catalog entry.
-const DEFAULT_LLAMACPP_MODEL = {
-  id: 'qwen2.5-7b-instruct',
-  repoUrl: 'https://huggingface.co/bartowski/Qwen2.5-7B-Instruct-GGUF',
-  filename: 'Qwen2.5-7B-Instruct-Q4_K_M.gguf',
-  sizeGb: 4.7,
-};
-
-// One-click .gguf downloads land here, out of the user's way (same spirit as
-// the venv/runtime dirs) — never a folder picker for this.
-const MODELS_DIR = path.join(process.env.LOCALAPPDATA, 'yuu-clip', 'models');
-
-// Bump ONLY when the setup wizard gains new settings or steps. A completed
-// setup stores this number; an older stored number re-shows the wizard once
-// after updating, so existing users discover the new options. Routine app
-// updates that don't change setup stay silent.
-const SETUP_SCHEMA_VERSION = 3;
 
 let projectDir      = DEFAULT_PROJECT_DIR;
 let pyProc          = null;
@@ -85,172 +46,6 @@ let isQuitting      = false;
 let activeGgufController = null;  // AbortController for the .gguf download
 let activePullReq       = null;  // http.ClientRequest for the Ollama pull
 let pullCancelled       = false;
-
-// ---------------------------------------------------------------------------
-// Electron config persistence (project dir choice etc.)
-// ---------------------------------------------------------------------------
-
-function loadElectronConfig() {
-  try {
-    return JSON.parse(fs.readFileSync(ELECTRON_CONFIG_PATH, 'utf8'));
-  } catch (_) {
-    return {};
-  }
-}
-
-function saveElectronConfig(updates) {
-  const current = loadElectronConfig();
-  const merged  = { ...current, ...updates };
-  fs.mkdirSync(path.dirname(ELECTRON_CONFIG_PATH), { recursive: true });
-  fs.writeFileSync(ELECTRON_CONFIG_PATH, JSON.stringify(merged, null, 2));
-}
-
-// Write whisper_model into the project's .yuu-clip/config.json so the backend
-// picks it up. Merges with any existing config rather than overwriting.
-function writeProjectConfig(dir, config) {
-  const cfgDir  = path.join(dir, '.yuu-clip');
-  const cfgPath = path.join(cfgDir, 'config.json');
-  fs.mkdirSync(cfgDir, { recursive: true });
-  let existing = {};
-  try { existing = JSON.parse(fs.readFileSync(cfgPath, 'utf8')); } catch (_) {}
-  fs.writeFileSync(cfgPath, JSON.stringify({ ...existing, ...config }, null, 2));
-}
-
-// ---------------------------------------------------------------------------
-// Logging
-// ---------------------------------------------------------------------------
-
-const MAX_LOG_FILES = 5;
-
-function rotateLogs() {
-  const dir = path.dirname(SETUP_LOG);
-  fs.mkdirSync(dir, { recursive: true });
-  try {
-    const oldest = `${SETUP_LOG}.${MAX_LOG_FILES - 1}`;
-    if (fs.existsSync(oldest)) fs.unlinkSync(oldest);
-    for (let i = MAX_LOG_FILES - 2; i >= 1; i--) {
-      const src = `${SETUP_LOG}.${i}`;
-      if (fs.existsSync(src)) fs.renameSync(src, `${SETUP_LOG}.${i + 1}`);
-    }
-    if (fs.existsSync(SETUP_LOG)) fs.renameSync(SETUP_LOG, `${SETUP_LOG}.1`);
-  } catch (_) {}
-}
-
-function logSetup(msg) {
-  fs.mkdirSync(path.dirname(SETUP_LOG), { recursive: true });
-  // Write a UTF-8 BOM when starting a fresh log (first line, or first after a
-  // rotation) so PowerShell 5.1 / ANSI-default tools don't decode the em-dashes
-  // our copy uses as cp1252 (which renders "—" as "â€”").
-  if (!fs.existsSync(SETUP_LOG)) fs.writeFileSync(SETUP_LOG, '﻿');
-  fs.appendFileSync(SETUP_LOG, `[${new Date().toISOString()}] ${msg}\n`);
-}
-
-// ---------------------------------------------------------------------------
-// Async command runner — keeps the event loop free during long pip installs
-// ---------------------------------------------------------------------------
-
-function runCmd(cmd, args, onLine = null) {
-  return new Promise((resolve, reject) => {
-    const proc = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
-    let stdout = '', stderr = '';
-    const feed = (text, isErr) => {
-      if (isErr) stderr += text; else stdout += text;
-      if (!onLine) return;
-      for (const piece of text.split(/[\r\n]+/)) {
-        const line = piece.trim();
-        if (line) onLine(line);
-      }
-    };
-    proc.stdout.on('data', d => feed(d.toString(), false));
-    proc.stderr.on('data', d => feed(d.toString(), true));
-    proc.on('close', code => {
-      if (code === 0) { resolve({ stdout, stderr }); return; }
-      const err = new Error(`Exited with code ${code}: ${cmd} ${args.join(' ')}`);
-      err.stdout = stdout;
-      err.stderr = stderr;
-      reject(err);
-    });
-    proc.on('error', reject);
-  });
-}
-
-// Streams a large binary download (GGUF model files) to disk with percentage
-// progress. Unlike the pip installs elsewhere in this file, there's no package
-// manager doing this for us, so redirects, progress accounting, and a
-// truncated-download check are handled by hand. Writes to a `.part` sibling
-// and renames on success, so a half-finished download can never be mistaken
-// for a complete model file.
-// `opts.signal` (an AbortSignal) makes the download cancellable — aborting
-// fires an ABORT_ERR on the request, and the .part file is removed so a
-// cancelled download never leaves a stray file behind.
-function downloadFileWithProgress(url, destPath, onProgress, opts = {}) {
-  const { signal, redirectsLeft = 5 } = opts;
-  return new Promise((resolve, reject) => {
-    const tmpPath = `${destPath}.part`;
-    const cleanupAndReject = (err) => { fs.unlink(tmpPath, () => {}); reject(err); };
-    const req = https.get(url, { headers: { 'User-Agent': 'yuu-clip' }, signal }, res => {
-      if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location) {
-        res.resume();
-        if (redirectsLeft <= 0) { reject(new Error('Too many redirects')); return; }
-        downloadFileWithProgress(res.headers.location, destPath, onProgress,
-                                 { signal, redirectsLeft: redirectsLeft - 1 }).then(resolve, reject);
-        return;
-      }
-      if (res.statusCode !== 200) {
-        res.resume();
-        reject(new Error(`Download failed with HTTP ${res.statusCode}`));
-        return;
-      }
-      const total = parseInt(res.headers['content-length'] || '0', 10);
-      let received = 0;
-      const fileStream = fs.createWriteStream(tmpPath);
-      res.on('data', chunk => {
-        received += chunk.length;
-        if (total > 0) onProgress(Math.round((received / total) * 100));
-      });
-      res.pipe(fileStream);
-      fileStream.on('finish', () => {
-        if (total > 0 && received !== total) {
-          cleanupAndReject(new Error(`Downloaded size (${received}) doesn't match expected (${total}) — try again`));
-          return;
-        }
-        fs.rename(tmpPath, destPath, err => (err ? reject(err) : resolve()));
-      });
-      fileStream.on('error', cleanupAndReject);
-      res.on('error', cleanupAndReject);
-    });
-    req.on('error', cleanupAndReject);
-  });
-}
-
-// Wraps an onStatus callback so a pip run only reports each condensed status
-// line once (raw pip repeats download-progress lines many times per second).
-function pipStatusReporter(onStatus) {
-  let lastStatus = '';
-  return line => {
-    const statusText = formatPipLine(line);
-    if (statusText && statusText !== lastStatus) {
-      lastStatus = statusText;
-      onStatus(statusText);
-    }
-  };
-}
-
-// Condense a raw pip output line into a short, human-readable status, or null
-// for noise. `--progress-bar raw` emits "Progress <done> of <total>" lines even
-// when stdout is not a TTY, which is what gives us a live percentage.
-function formatPipLine(line) {
-  const prog = line.match(/^Progress\s+(\d+)\s+of\s+(\d+)/i);
-  if (prog) {
-    const total = parseInt(prog[2]);
-    if (total > 0) return `Downloading… ${Math.round((parseInt(prog[1]) / total) * 100)}%`;
-    return null;
-  }
-  if (/^(Collecting|Downloading|Using cached|Building wheel|Preparing metadata|Installing collected)/i.test(line)) {
-    return line.length > 60 ? line.slice(0, 59) + '…' : line;
-  }
-  return null;
-}
 
 // ---------------------------------------------------------------------------
 // Python discovery
@@ -410,27 +205,6 @@ function refreshPathFromRegistry() {
   if (!machine && !user) return;
   const expand = s => s.replace(/%([^%]+)%/g, (_, name) => process.env[name] || `%${name}%`);
   process.env.PATH = [expand(machine), expand(user)].filter(Boolean).join(';');
-}
-
-// Optional packages the wizard can install into the venv. The backend exposes
-// the same installs via /api/install/{slug}, but it isn't running yet during
-// first-run setup, so the wizard drives pip directly.
-const WIZARD_INSTALLABLE = {
-  pyannote:    { packages: ['pyannote.audio'],   importName: 'pyannote.audio' },
-  llamacpp:    { packages: ['llama-cpp-python'], importName: 'llama_cpp' },
-  // Both wheels install together, so nvidia.cublas is a sufficient presence proxy.
-  'cuda-libs': { packages: ['nvidia-cublas-cu12', 'nvidia-cudnn-cu12'], importName: 'nvidia.cublas' },
-};
-
-function checkVenvModule(importName) {
-  const code =
-    'import importlib.util, sys\n' +
-    'try:\n' +
-    `    found = importlib.util.find_spec(${JSON.stringify(importName)}) is not None\n` +
-    'except ModuleNotFoundError:\n' +
-    '    found = False\n' +
-    'sys.exit(0 if found else 1)\n';
-  return runCmd(VENV_PYTHON, ['-c', code]).then(() => true).catch(() => false);
 }
 
 async function checkOllama() {

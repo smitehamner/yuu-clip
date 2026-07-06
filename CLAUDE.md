@@ -104,7 +104,7 @@ yuu_clip/
     static/index.html      # Single-page UI shell (vanilla JS, no build step)
     static/*.js            # Feature modules: analyze, boot, clips, contexts, reel, settings, sounds, speakers, split, transcript, ui, utils, videos
     static/app.css         # Stylesheet
-electron/                  # Desktop wrapper: main.js, preload.js, setup wizard (setup.html + setup-preload.js)
+electron/                  # Desktop wrapper: main.js (window/menu/IPC + server spawn + wizard + lifecycle), constants.js, logging.js, electron-config.js, install.js (runCmd/download/pip helpers), preload.js, setup wizard (setup.html + setup-preload.js)
 tests/
   conftest.py              # project_dir + client fixtures; UI test session helpers
   test_*.py                # API unit tests (TestClient, no live server)

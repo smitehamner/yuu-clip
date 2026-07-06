@@ -125,22 +125,22 @@ class TestDefaultsMatchCatalog:
         assert Config().claude_model in _recommended_claude_ids()
 
     def test_electron_wizard_default_ollama_model_is_recommended(self):
-        main_js = (_REPO_ROOT / "electron" / "main.js").read_text(encoding="utf-8")
-        match = re.search(r"DEFAULT_OLLAMA_MODEL\s*=\s*'([^']+)'", main_js)
-        assert match, "DEFAULT_OLLAMA_MODEL constant not found in electron/main.js"
+        constants_js = (_REPO_ROOT / "electron" / "constants.js").read_text(encoding="utf-8")
+        match = re.search(r"DEFAULT_OLLAMA_MODEL\s*=\s*'([^']+)'", constants_js)
+        assert match, "DEFAULT_OLLAMA_MODEL constant not found in electron/constants.js"
         assert match.group(1) in _recommended_ollama_tags()
 
     def test_electron_wizard_default_llamacpp_model_matches_the_catalog(self):
-        main_js = (_REPO_ROOT / "electron" / "main.js").read_text(encoding="utf-8")
+        constants_js = (_REPO_ROOT / "electron" / "constants.js").read_text(encoding="utf-8")
         match = re.search(
             r"DEFAULT_LLAMACPP_MODEL\s*=\s*\{\s*"
             r"id:\s*'([^']+)',\s*"
             r"repoUrl:\s*'([^']+)',\s*"
             r"filename:\s*'([^']+)',\s*"
             r"sizeGb:\s*([\d.]+),?\s*\}",
-            main_js,
+            constants_js,
         )
-        assert match, "DEFAULT_LLAMACPP_MODEL constant not found (or shape changed) in electron/main.js"
+        assert match, "DEFAULT_LLAMACPP_MODEL constant not found (or shape changed) in electron/constants.js"
         model_id, repo_url, filename, size_gb = match.groups()
 
         entry = mc.model_by_id(model_id)
