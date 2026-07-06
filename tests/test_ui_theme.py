@@ -39,7 +39,7 @@ COLOR_TOKENS = [
     "--border", "--text", "--muted", "--text-secondary",
     "--accent", "--accent-text", "--accent2", "--on-accent",
     "--green", "--on-green", "--red", "--on-red",
-    "--warning", "--warn-hot",
+    "--warning", "--on-warning", "--warn-hot",
     "--funny", "--dramatic", "--action", "--laugh",
 ]
 
@@ -115,6 +115,10 @@ class TestContrastTokens:
 
     def test_warning_text_on_surface(self, page: Page, theme: str):
         assert self._ratio(page, theme, "--warning", "--surface") >= AA_NORMAL_TEXT
+
+    def test_on_warning_on_warning_fill(self, page: Page, theme: str):
+        # dark-on-amber "Remote LLM" badge: text is --on-warning over a --warning fill
+        assert self._ratio(page, theme, "--on-warning", "--warning") >= AA_NORMAL_TEXT
 
     def test_accent2_text_on_bg(self, page: Page, theme: str):
         # .description, .video-title, .timeline-stamp render accent2 as body text
@@ -261,11 +265,7 @@ def test_app_css_has_no_color_literals_outside_theme_blocks():
 # Adding a new literal outside these classes breaks this test.
 _OVER_VIDEO_HEX = {"#000", "#fff", "#e6e6e6"}
 _SCORE_GRADIENT_STOPS = {"#6b6b80", "#4fc3f7", "#4caf7d", "#f0c060", "#f7a85a"}
-# Grandfathered: dark text on the amber "Remote LLM" badge. Proper fix is an
-# --on-warning theme token (tracked in ROADMAP frontend-polish). Guard prevents
-# any *new* literal while this one stays enumerated rather than silently ignored.
-_GRANDFATHERED = {"#1a1a1a"}
-_ALLOWED_HEX = _OVER_VIDEO_HEX | _SCORE_GRADIENT_STOPS | _GRANDFATHERED
+_ALLOWED_HEX = _OVER_VIDEO_HEX | _SCORE_GRADIENT_STOPS
 
 _HTML_ENTITY_RE = re.compile(r"&#\d+;?")
 _VAR_FALLBACK_RE = re.compile(r"var\(\s*--[\w-]+\s*,[^)]*\)")

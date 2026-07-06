@@ -20,6 +20,7 @@
   --red:      #e05c5c;
   --on-red:   var(--bg); /* text on red fills — white on this red is only ~3.6:1 */
   --warning:  #f0c060; /* the only warning color — no --amber/--warn/--yellow (CC-7) */
+  --on-warning: #1a1a1a; /* text on --warning fills (e.g. Remote LLM badge) */
   --warn-hot: #f0603c; /* over-threshold time estimates only */
   --funny:    #f7a85a;
   --dramatic: #b06af7;
@@ -63,6 +64,7 @@ html[data-theme="light"] {
   --red:      #c53030;
   --on-red:   #ffffff;
   --warning:  #8a5d00;
+  --on-warning: #ffffff;
   --warn-hot: #c2410c;
   --funny:    #c26a12;
   --dramatic: #8b3fd6;
@@ -93,6 +95,7 @@ html[data-theme="high-contrast"] {
   --red:      #ff7b7b;
   --on-red:   #000000;
   --warning:  #ffd54f;
+  --on-warning: #000000;
   --warn-hot: #ff8a50;
   --funny:    #ffb066;
   --dramatic: #d09aff;

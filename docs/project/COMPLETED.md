@@ -6,6 +6,17 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) — see the
 
 ---
 
+## `--on-warning` theme token (done 2026-07-06)
+
+Closed the last grandfathered color literal: the "Remote LLM" billing badge hardcoded
+`color:#1a1a1a` for dark text on the amber `var(--warning)` fill. Introduced a per-theme
+`--on-warning` token (dark `#1a1a1a`, light `#ffffff`, high-contrast `#000000`) and pointed
+the badge at it. `tests/test_ui_theme.py` now requires every theme to define `--on-warning`
+(COLOR_TOKENS) and asserts its AA contrast against `--warning`; the `#1a1a1a` grandfather
+clause is removed. Closes ROADMAP §1.
+
+---
+
 ## Backlog-notes batch — filter counts, Ollama vision model, playback speed (done 2026-07-06)
 
 Three small features from a backlog note dump (the fourth, a collected setup page, went to
