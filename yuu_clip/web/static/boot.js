@@ -1,6 +1,8 @@
 // Infrastructure — first-paint boot wiring (a11y init, event hookup, initial load).
-//   Not a feature module; loaded last in index.html.
+//   Not a feature module; loaded last in index.html. Entry point: exports nothing,
+//   so it is a bare IIFE with no Object.assign(window, ...) list.
 // ── accessibility init ────────────────────────────────────────────────────────
+(function () {
 document.querySelectorAll('.modal-bg').forEach((bg, i) => {
   const inner = bg.querySelector('.modal, [class*="modal"]');
   if (!inner) return;
@@ -66,3 +68,4 @@ document.getElementById('log-panel').classList.add('visible', 'minimized');
 document.getElementById('log-toggle').textContent = '▼';
 
 if (!localStorage.getItem('yuu-getting-started-seen')) openGettingStartedModal();
+})();

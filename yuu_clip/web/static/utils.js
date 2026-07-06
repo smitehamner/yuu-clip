@@ -6,6 +6,7 @@
 // Reflects a sort-direction toggle's current state onto its button: arrow glyph,
 // aria-pressed, and a self-describing aria-label. 'desc' is the sort option's
 // natural order (highest/newest first); 'asc' reverses it.
+(function () {
 function _syncSortDirBtn(btnId, dir) {
   const btn = document.getElementById(btnId);
   if (!btn) return;
@@ -166,3 +167,9 @@ async function copyText(text, label) {
     showToast(`Could not copy ${label.toLowerCase()}: ${err.message}`, 'error');
   }
 }
+
+Object.assign(window, {
+  _syncSortDirBtn, _diarizationReason, _diarizationReadiness, _diarizationNoteHtml,
+  openLog, toggleLog, clearLog, appendLog, showToast, revealInFolder, copyText,
+});
+})();

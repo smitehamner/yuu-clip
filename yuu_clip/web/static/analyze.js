@@ -1,9 +1,16 @@
 // Feature-map — Analyze (start + SSE progress) + Import from URL, both in the New Recording panel.
 //   API: routes/analyze.py, routes/imports.py · Tests: tests/test_ui_analyze.py
-// ── new recording panel ───────────────────────────────────────────────────────
-let _probeTimer    = null;
+// ── shared live panel state ───────────────────────────────────────────────────
+// _probedInfo and _panelDirty are read cross-file by videos.js (analyze-button
+// enablement, dirty-guard on view switch). Kept at top level, outside the IIFE
+// below, so the global lexical binding stays live — an Object.assign export
+// would snapshot the value and readers would see stale data.
 let _probedInfo    = null;
 let _panelDirty    = false;
+
+(function () {
+// ── new recording panel ───────────────────────────────────────────────────────
+let _probeTimer    = null;
 
 function _isNewRecordingPanelOpen() {
   return document.getElementById('new-recording-panel').style.display !== 'none';
@@ -964,3 +971,15 @@ document.addEventListener('drop', async e => {
   document.getElementById('analyze-path').value = path;
   scheduleProbe();
 });
+
+Object.assign(window, {
+  _isNewRecordingPanelOpen, openNewRecordingPanel, closeNewRecordingPanel,
+  _doCloseNewRecordingPanel, _toggleCtxPill, scheduleProbe,
+  _renderSubtitleSourcePicker, _onSubtitleSourceChange,
+  runEstimate, renderEstimate, startAnalyze, _streamAnalyzeEvents, reattachAnalysis,
+  _showAnalysisToast, pickFile,
+  showImportUrlSection, hideImportUrlSection, checkImportUrl, startImportUrlDownload,
+  openProfileManager, closeProfileManager, openNewProfile, renderTrackRows,
+  onLabelChange, _clearPeNameError, saveProfile, deleteProfile, cancelProfileEdit,
+});
+})();

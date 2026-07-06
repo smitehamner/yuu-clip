@@ -4,7 +4,7 @@
 // Header dropdown to switch the server to another project folder in place (no
 // restart). On a successful switch the whole page reloads — AppState is bound to
 // the old project's data and is not hot-swapped. See routes/projects.py.
-
+(function () {
 let _openProjectOpener = null;
 
 function _projectDisplayName(pathStr) {
@@ -150,3 +150,9 @@ async function browseForProjectFolder() {
 document.getElementById('open-project-path').addEventListener('keydown', e => {
   if (e.key === 'Enter') { e.preventDefault(); _openProjectConfirm(); }
 });
+
+Object.assign(window, {
+  initProjectSwitcher, isProjectMenuOpen, toggleProjectMenu, closeProjectMenu,
+  closeOpenProjectModal, _openProjectConfirm, browseForProjectFolder,
+});
+})();

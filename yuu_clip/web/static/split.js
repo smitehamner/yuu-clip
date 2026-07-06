@@ -1,15 +1,29 @@
 // Feature-map — Split recording into segments (code: segment / segment_start_s).
 //   API: routes/videos.py (split) · Tests: tests/test_ui_split.py, tests/test_segments.py
-// ── split editor ─────────────────────────────────────────────────────────────
-
-let _splitVideoId   = null;
+// ── shared live split-editor state ────────────────────────────────────────────
+// Read cross-file: videos.js checks _splitPoints for the "has splits" badge,
+// analyze.js reads the segment plan, index.html's zoom buttons read _splitZoom,
+// and an inline onchange writes _splitNames[i]. Kept at top level, outside the
+// IIFE below, so the global lexical binding stays live — an Object.assign export
+// would snapshot the value and inline handlers / readers would go stale.
 let _splitDurationS = 0;
 let _splitPoints    = [];  // sorted list of seconds
 let _splitNames     = [];  // auto-names, editable
 let _splitIgnored   = new Set();  // indices of segments to skip
+let _splitZoom      = 1;
+
+// Suggestion-pin inputs/outputs. Not read by other production modules, but the
+// _computeSuggestionPins tests seed _splitEnergyFlat and read _suggestionPins
+// directly via page.evaluate (global lexical scope) — so they too stay outside
+// the IIFE rather than becoming closure-private.
+let _splitEnergyFlat = [];   // [{second, rms_db}, …] merged across tracks
+let _suggestionPins  = [];    // [sec, …]
+
+(function () {
+// ── split editor ─────────────────────────────────────────────────────────────
+let _splitVideoId   = null;
 
 // Overlay data fetched once when the editor opens
-let _splitEnergyFlat = [];   // [{second, rms_db}, …] merged across tracks
 let _splitSceneMs    = [];   // [ms, …] scene boundary timecodes
 let _splitClipRanges = [];   // [{start_ms, end_ms}, …] existing clips
 
@@ -17,13 +31,11 @@ let _splitClipRanges = [];   // [{start_ms, end_ms}, …] existing clips
 let _dragMarkerSec  = null;
 let _dragActive     = false;
 
-// Suggestion pins (energy-valley seconds)
-let _suggestionPins = [];    // [sec, …]
-
 // Timeline zoom (main split editor only): 1 = fit whole recording, higher =
 // wider bar inside a horizontal-scroll container. All overlay layers are
 // %-positioned so they scale for free; only the waveform canvas needs a redraw.
-let _splitZoom = 1;
+// (_splitZoom itself is hoisted to top level above — an inline zoom-button
+// handler in index.html reads it.)
 const _SPLIT_ZOOM_MIN = 1;
 const _SPLIT_ZOOM_MAX = 50;
 
@@ -919,3 +931,14 @@ function _preSplitMarkerPointerDown(e, sec) {
   window.addEventListener('pointermove', onMove);
   window.addEventListener('pointerup',   onUp);
 }
+
+Object.assign(window, {
+  isSplitEditorOpen, openSplitEditor, closeSplitEditor, _teardownSplitEditor,
+  _splitSeekTo, _generateWaveform, _computeSuggestionPins, _setSplitZoom,
+  _promoteSuggestionPin, _splitMarkerPointerDown, splitTimelineClick,
+  _removeSplitPoint, _updateSplitPoint, _updateSplitConfirmState, _parseSplitTime,
+  _toggleIgnored, _fmtSplitTime, _renderSplitEditor, _renderPreSplitEditor,
+  confirmSplit, onPreSplitToggle, initPreSplitDuration, hidePreSplitSection,
+  preSplitTimelineClick, _preSplitMarkerPointerDown,
+});
+})();

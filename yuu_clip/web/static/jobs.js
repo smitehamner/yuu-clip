@@ -2,6 +2,25 @@
 //   pause/resume + thermal auto-pause UI, the fetch-based SSE transport (_openSSE/streamSSE), the
 //   single-active-stream supersede contract, and the shared Cancel button.
 //   API: routes/analyze.py, routes/scoring.py (SSE endpoints) · Tests: tests/test_ui_utils.py, tests/test_ui_sse.py
+// ── shared live job-render state ──────────────────────────────────────────────
+// Read cross-file by videos.js's compact step strip (and _activeES by the SSE
+// teardown in tests). Kept at top level, outside the IIFE below, so the binding
+// stays live in the global lexical scope — an Object.assign export snapshots the
+// value at wrap time and later readers would see stale data.
+let _jobStepDefs   = [];
+let _activeES      = null;
+let _jobStartTime  = 0;
+let _activeStepIdx = -1;
+
+// Per-step progress accounting for the step-pill ETA heuristic. Not read by other
+// production modules, but the step-pill / ETA / live-panel tests seed them directly
+// via page.evaluate, which resolves against the global lexical scope — so they too
+// stay outside the IIFE rather than becoming closure-private.
+let _stepStartTime = 0;
+let _stepProgress  = {}; // stepIdx -> {current, total}, cleared per job
+let _stepRateAnchor = {}; // stepIdx -> {t, current} at first observed count, cleared per job
+
+(function () {
 // ── progress indicator ────────────────────────────────────────────────────────
 // estMatch: substrings that map this pill to a step name from /api/estimate, so
 // the progress pill can show its pre-run time estimate as a hover tooltip.
@@ -23,20 +42,13 @@ const SCORE_STEPS = [
   {label: 'Scoring', patterns: ['Scoring clips'], progressPattern: /Scoring (\d+)\/(\d+)/},
 ];
 
-let _jobStepDefs   = [];
-let _activeES      = null;
 let _activeJobCleanup = null;
-let _jobStartTime  = 0;
 let _jobTimer      = null;
 let _jobHideTimer  = null;
 let _jobPausable   = false;
 let _jobPaused     = false;
 let _jobThermalPollTimer = null;
 let _lastGpuState  = 'unavailable';
-let _activeStepIdx = -1;
-let _stepStartTime = 0;
-let _stepProgress  = {}; // stepIdx -> {current, total}, cleared per job
-let _stepRateAnchor = {}; // stepIdx -> {t, current} at first observed count, cleared per job
 
 // Best-effort lookup of a pill's pre-run time estimate (from the last
 // /api/estimate call, saved by renderEstimate) for use as a hover tooltip.
@@ -466,3 +478,13 @@ async function _doCancelJob() {
   AppState.analyzeFilename = null;
   loadVideos();
 }
+
+Object.assign(window, {
+  INGEST_STEPS, SCORE_STEPS,
+  startJobUI, updateJobUI, endJobUI, _stepPillLabel, _renderStepPill, _tickJobTimer,
+  _setPausedUIFromStatus, togglePauseJob, _pollThermalStatus,
+  _openSSE, streamSSE, _setActiveStream, _clearActiveStream, _supersedeActiveStream,
+  _blockedByAnalyze, _waitWhileAnalyzePaused,
+  setJobCancel, cancelJob,
+});
+})();

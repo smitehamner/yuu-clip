@@ -8,6 +8,7 @@
 // mode never has electronAPI, so it always gets the unchanged HTTP URL. absPath
 // may be null (e.g. a proxy that hasn't been generated/looked up yet), which
 // simply falls back to HTTP for that one request.
+(function () {
 function _buildMediaUrl(videoId, kind, absPath) {
   if (window.electronAPI?.mediaProtocol && absPath) {
     const normalized = absPath.replace(/\\/g, '/');
@@ -127,3 +128,6 @@ function _setPreviewBadge(badgeEl, mode, pct, onBuild) {
     badgeEl.title = 'Playing the original recording — seeking a long file can be slow.';
   }
 }
+
+Object.assign(window, { _buildMediaUrl, setupRecordingPreview });
+})();

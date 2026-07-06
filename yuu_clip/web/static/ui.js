@@ -1,6 +1,7 @@
 // Feature-map — Shared UI primitives (alert / confirm / prompt modals) used app-wide.
 //   API: none (client-only) · Tests: covered indirectly by the test_ui_*.py suites
 // ── alert modal (single-button, no cancel) ────────────────────────────────────
+(function () {
 let _alertOpener = null;
 function showAlert(title, body) {
   _alertOpener = document.activeElement;
@@ -547,3 +548,14 @@ function showUndoToast(message, undoFn) {
   container.appendChild(toast);
   setTimeout(() => toast.remove(), 5000);
 }
+
+Object.assign(window, {
+  showAlert, closeAlertModal, showConfirm, _confirmOk, _confirmCancel,
+  openActionsModal, closeActionsModal, topmostVisibleModal, _menuArrowKeydown,
+  isHamburgerOpen, toggleHamburger, closeHamburger,
+  openControlsModal, closeControlsModal,
+  openDiffModal, _diffAcceptNew, _diffAcceptEdit, _diffDiscard,
+  openFieldEditModal, closeFieldEditModal, _fieldEditSave,
+  closeKebab, showKebab, initResize, _applyPrereqWarnings, showUndoToast,
+});
+})();
