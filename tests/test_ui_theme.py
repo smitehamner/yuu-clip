@@ -1,5 +1,5 @@
 """
-Design-token and theme contract for app.css (CC-1 / CC-7 in UX_REVIEW_PLAN.md).
+Design-token and theme contract for app.css (CC-1 / CC-7).
 
 CC-1: muted text and the pill/button color pairs must meet WCAG AA 4.5:1 on
 the surfaces they actually appear on — in every theme, since each theme block

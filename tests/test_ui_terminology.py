@@ -1,6 +1,5 @@
 """
-Terminology and display-convention contract (CC-6 / CC-8 / CC-10 in
-UX_REVIEW_PLAN.md).
+Terminology and display-convention contract (CC-6 / CC-8 / CC-10).
 
 CC-6: user-facing scores always render as percentages — raw 0-1 fractions
 never appear. CC-8: user-facing labels say "Recording(s)", never "Video(s)"

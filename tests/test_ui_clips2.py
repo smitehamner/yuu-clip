@@ -199,7 +199,7 @@ class TestMultiFormatExportRows:
 
 @skip_no_server
 class TestRetranscribeRefresh:
-    """Journey 3 (docs/dev/USER_PATHS.md): retranscribe refreshes the clip's excerpt
+    """Retranscribe refreshes the clip's excerpt
     shown in the detail panel. The subprocess is stubbed at the network layer, same
     pattern as test_ui_sse.py, so no real Whisper model runs. Caption-sidecar refresh
     itself is covered at the API layer in test_export.py::TestRefreshCaptionSidecars."""
@@ -535,7 +535,7 @@ class TestClipActionsModalGroups:
         page.keyboard.press("Escape")
 
     def test_merge_confirm_can_be_cancelled_without_merging(self, page: Page):
-        """Journey 6 smoke test (docs/dev/USER_PATHS.md): the merge action prompts
+        """Smoke test: the merge action prompts
         for confirmation and Cancel does not call the (destructive) merge route.
         Uses fake clip IDs, matching test_merge_row_description_is_truncated above —
         merge permanently deletes a clip, so the round trip that actually executes

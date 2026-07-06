@@ -32,7 +32,7 @@ pipeline from PyPI** (`electron/main.js` upgrades pip and resolves faster-whispe
 CTranslate2 / av / scipy from PyPI at runtime), so the app's first launch can fail on a
 slow/firewalled/proxied network with cryptic pip output.
 
-- [ ] **Plan of record:** [docs/dev/plans/install-friction/INDEX.md](../dev/plans/install-friction/INDEX.md)
+- [ ] **Plan of record**
   — 5 stages: (1) offline deterministic first-run install via a bundled wheelhouse
   (`--no-index`) + stop the PyPI pip-upgrade; (2) plain-English error translation for
   all install failures; (3) GPU auto-detect + never-block-Launch + CPU fallback;
@@ -56,8 +56,7 @@ Implemented-but-unverified surfaces and latent traps to close before distributio
   serves local media via Electron's native file protocol instead of the Python
   byte-pump (implemented 2026-07-03, roadmap plan 10). It is unticked only because
   the packaged-app verification checklist has never been run — it can't be exercised
-  from browser-dev mode. Steps and expected results live in
-  [docs/dev/plans/consolidation-2026-07-05-manual-verification.md](../dev/plans/consolidation-2026-07-05-manual-verification.md).
+  from browser-dev mode.
 
 - [ ] **Analyze pipeline is not idempotent on a no-`--force` re-run** — `transcribe_track`
   (`whisper_runner.py`) always creates a *new* `Transcript`, and `generate_candidates`
@@ -129,8 +128,7 @@ Wanted before distributing beyond friends/trusted users.
   transcript-driven, so silent/visual gaming highlights never become candidates and
   score low. Extend toward the quiet, visual case without breaking the talk-heavy core,
   reusing existing seams (PySceneDetect content cuts, frame extraction, the `ScoreResult`
-  scorer protocol, opt-in vision-LLM). Plan of record:
-  [docs/dev/plans/video-heavy-analysis/INDEX.md](../dev/plans/video-heavy-analysis/INDEX.md).
+  scorer protocol, opt-in vision-LLM).
 
 - [ ] **Speaker identity beyond one recording** — the remaining Speaker-naming pieces, both
   weighed but deferred for v1:
@@ -158,7 +156,7 @@ Wanted before distributing beyond friends/trusted users.
   state is encapsulated in `AppState` and five feature modules are IIFE-scoped. **Remaining:**
   module-scope the deferred `analyze`/`split` modules and their global constants; extract the
   remaining inline `display`-toggling style strings to CSS classes where it won't change
-  behavior. See `docs/dev/REVIEW_DECISIONS.md`.
+  behavior.
 
 - [ ] **Custom colour-picker component + accent-colour theme variants** — replace the native
   `<input type="color">` (per-speaker caption colours in `speakers.js`) with a shared JS-built

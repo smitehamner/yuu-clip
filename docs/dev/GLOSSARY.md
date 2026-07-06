@@ -645,8 +645,7 @@ enabled Sensitive Terms match.
 - **UI label:** "Flagged" filter tab (alongside All / Unreviewed / Approved / Rejected);
   &#9888; badge on the clip's sidebar card
 - **Notes:** v1 flags clips only — a Highlight Reel built from flagged clips is not
-  itself marked; see the reel/export note in USER_PATHS (roadmap plan 02) for the
-  deferred follow-up.
+  itself marked; the reel/export follow-up is deferred.
 
 ---
 

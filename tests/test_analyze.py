@@ -509,8 +509,7 @@ class TestScoringIsolation:
         scorer that raises partway through a batch does not roll back the clips
         already scored — only video.clips_scored_at (the "fully scored" signal)
         stays null. This is the real contract behind the comment in
-        _analyze_one's scoring except-block; see docs/dev/REVIEW_DECISIONS.md
-        Phase 3 (763a718..HEAD) for the corrected comment."""
+        _analyze_one's scoring except-block."""
         from unittest.mock import patch
 
         from yuu_clip.config import Config

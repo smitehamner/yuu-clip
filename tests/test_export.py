@@ -1096,7 +1096,7 @@ class TestRefreshCaptionSidecars:
 
 
 # ---------------------------------------------------------------------------
-# export_stale staleness matrix — GET /api/clips/{id} (see docs/dev/USER_PATHS.md).
+# export_stale staleness matrix — GET /api/clips/{id}.
 #
 # Uses explicit before/after timestamps rather than wall-clock call ordering, so the
 # matrix isn't sensitive to how fast the test process happens to run.
