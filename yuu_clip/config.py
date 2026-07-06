@@ -488,6 +488,11 @@ class Config:
     llm_backend: str = "llamacpp"    # "llamacpp" | "ollama" | "claude"
     llm_model_path: str = ""         # path to .gguf file; required when backend is llamacpp
     llm_mmproj_path: str = ""        # path to the vision projector .gguf; enables vision on llamacpp
+    # The desktop installer ships a CUDA build of llama-cpp-python for NVIDIA cards,
+    # but offload is off unless n_gpu_layers is set — so with this False the GPU sits
+    # idle. True offloads all layers when the installed build supports it, and the
+    # client falls back to CPU if that load fails (e.g. insufficient VRAM).
+    llm_use_gpu: bool = True
 
     # Image-based clip analysis (plan 11): sample frames from a clip, send them to a
     # vision model, and store a short factual "what's on screen" summary that enriches

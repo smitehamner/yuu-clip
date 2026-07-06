@@ -6,6 +6,20 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) — see the
 
 ---
 
+## llama.cpp GPU offload (done 2026-07-06)
+
+The desktop installer already ships a CUDA build of `llama-cpp-python` for NVIDIA
+cards, but `LlamaCppClient` constructed `Llama()` with the default `n_gpu_layers=0`,
+so scoring always ran on the CPU and the GPU sat idle. `_new_llama()` now offloads
+all layers (`n_gpu_layers=-1`) when the new **Use GPU when available** setting
+(`llm_use_gpu`, on by default) is on, and retries on CPU if that load fails (e.g.
+insufficient VRAM), logging a warning. Both `chat()` and `chat_vision()` route
+through the helper. Added a Settings → LLM scoring toggle and corrected the stale
+"CPU-only inference" note. Covered by `test_vision.py::TestLlamaCppGpuOffload` and
+`test_config.py` (default + persist).
+
+---
+
 ## Code-quality review — post-9148305 slice (done 2026-07-05)
 
 A full 7-phase quality pass over everything shipped since the last review (the

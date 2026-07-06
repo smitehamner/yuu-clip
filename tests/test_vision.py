@@ -215,6 +215,56 @@ class TestVisionClientHelpers:
         assert attempts == [4, 2]  # retried with half the frames after the overflow
 
 
+class TestLlamaCppGpuOffload:
+    """The installer ships a CUDA build for NVIDIA cards, so the client must offload
+    to the GPU by default and fall back to CPU when that load fails."""
+
+    def _fake_llama_module(self, monkeypatch, on_construct):
+        import sys
+        import types
+        import unittest.mock as mock
+
+        def factory(**kwargs):
+            on_construct(kwargs)
+            inst = mock.MagicMock()
+            inst.create_chat_completion.return_value = {
+                "choices": [{"message": {"content": "ok"}}]
+            }
+            return inst
+
+        fake = types.ModuleType("llama_cpp")
+        fake.Llama = factory
+        monkeypatch.setitem(sys.modules, "llama_cpp", fake)
+
+    def _chat(self, cfg):
+        from yuu_clip.scoring.llm_client import LlamaCppClient
+        return LlamaCppClient(cfg).chat([{"role": "user", "content": "x"}])
+
+    def test_offloads_all_layers_when_gpu_enabled(self, monkeypatch):
+        seen = []
+        self._fake_llama_module(monkeypatch, lambda kw: seen.append(kw["n_gpu_layers"]))
+        assert self._chat(_cfg(llm_model_path="m.gguf", llm_use_gpu=True)) == "ok"
+        assert seen == [-1]
+
+    def test_stays_on_cpu_when_gpu_disabled(self, monkeypatch):
+        seen = []
+        self._fake_llama_module(monkeypatch, lambda kw: seen.append(kw["n_gpu_layers"]))
+        assert self._chat(_cfg(llm_model_path="m.gguf", llm_use_gpu=False)) == "ok"
+        assert seen == [0]
+
+    def test_falls_back_to_cpu_when_gpu_load_fails(self, monkeypatch):
+        seen = []
+
+        def on_construct(kwargs):
+            seen.append(kwargs["n_gpu_layers"])
+            if kwargs["n_gpu_layers"] == -1:
+                raise RuntimeError("CUDA out of memory")
+
+        self._fake_llama_module(monkeypatch, on_construct)
+        assert self._chat(_cfg(llm_model_path="m.gguf", llm_use_gpu=True)) == "ok"
+        assert seen == [-1, 0]  # tried GPU, then retried on CPU
+
+
 # ---------------------------------------------------------------------------
 # Routes — analyze-frames + rescore include_frames
 # ---------------------------------------------------------------------------

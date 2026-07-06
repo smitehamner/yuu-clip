@@ -142,6 +142,14 @@ class TestUiConfig:
     def test_patch_ai_privacy_mode_rejects_unknown(self, client):
         assert client.patch("/api/config", json={"ai_privacy_mode": "cloud"}).status_code == 400
 
+    def test_llm_use_gpu_defaults_true(self, client):
+        assert client.get("/api/config").json()["llm_use_gpu"] is True
+
+    def test_patch_llm_use_gpu_persists(self, client):
+        r = client.patch("/api/config", json={"llm_use_gpu": False})
+        assert r.status_code == 200 and r.json()["llm_use_gpu"] is False
+        assert client.get("/api/config").json()["llm_use_gpu"] is False
+
     # Regression: similarity_backend (plan 01) was dropped by ConfigPatch before Stage 07.
     def test_patch_similarity_backend_persists(self, client):
         r = client.patch("/api/config", json={"similarity_backend": "embeddings"})

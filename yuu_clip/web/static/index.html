@@ -242,7 +242,7 @@
       <div class="settings-row">
         <div class="settings-col">
           <div class="settings-label">Python package</div>
-          <div class="settings-note">llama-cpp-python is optional — installs CPU-only inference</div>
+          <div class="settings-note">llama-cpp-python is optional — the installer picks a GPU build for NVIDIA cards, otherwise CPU</div>
         </div>
         <div style="display:flex;gap:8px;align-items:center">
           <button class="btn-secondary" id="btn-install-llamacpp" onclick="installPackage('llamacpp')">Install llama-cpp-python</button>
@@ -263,6 +263,16 @@
           <div class="settings-note">Path to the model's mmproj .gguf — enables image analysis</div>
         </div>
         <input class="settings-input" id="s-llm-mmproj-path" type="text" placeholder="C:\models\model-mmproj.gguf" style="max-width:320px">
+      </div>
+      <div class="settings-row">
+        <div class="settings-col">
+          <label class="settings-label" for="s-llm-use-gpu">Use GPU when available</label>
+          <div class="settings-note">Offload the model to your graphics card for faster scoring. Falls back to CPU if the installed build or your GPU can't run it.</div>
+        </div>
+        <label class="settings-checkbox">
+          <input type="checkbox" id="s-llm-use-gpu" aria-label="Use GPU when available">
+          <span style="font-size:13px" aria-hidden="true">Enable</span>
+        </label>
       </div>
       <div id="s-llamacpp-recommended" class="settings-recommended"></div>
     </div>

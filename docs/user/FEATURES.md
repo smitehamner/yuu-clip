@@ -348,6 +348,8 @@ LLM scoring speed depends entirely on your LLM backend and model. Rough estimate
 
 A larger or slower Ollama model multiplies these times proportionally. Running Ollama on the same GPU as Whisper is fine — they run sequentially, not simultaneously.
 
+For the local **llama.cpp** backend, **Use GPU when available** (Settings → LLM scoring, on by default) offloads the model to your graphics card. On an NVIDIA machine the setup wizard installs a GPU build automatically, so scoring runs on the GPU with no extra steps; if the model is too large for your GPU's memory it falls back to the CPU and logs a note. Turn the setting off to force CPU.
+
 #### Recommended models and readiness
 
 Settings → LLM scoring lists a curated set of **recommended models** for each backend. Every recommended model is licensed so that clips you make with it can be monetized — Apache-2.0 or MIT for local models (Ollama / llama.cpp), and the Anthropic API's commercial terms for Claude. Models under Meta's Llama licence or Google's Gemma terms are deliberately **left out** of the recommendations because their use restrictions would need a case-by-case legal reading; they still work if you configure them by hand.

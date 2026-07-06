@@ -30,6 +30,7 @@ class ConfigPatch(BaseModel):
     llm_backend:                  Optional[str]   = None
     llm_model_path:               Optional[str]   = None
     llm_mmproj_path:              Optional[str]   = None
+    llm_use_gpu:                  Optional[bool]  = None
     # Image-based clip analysis (plan 11)
     vision_enabled:               Optional[bool]  = None
     vision_frames_per_clip:       Optional[int]   = None
@@ -94,7 +95,7 @@ _CONFIG_FIELDS = (
     "ui_timeline_interval_seconds", "ui_timeline_interval_unit",
     "whisper_model", "whisper_device", "whisper_compute_type", "whisper_language",
     "ai_privacy_mode",
-    "llm_backend", "llm_model_path", "llm_mmproj_path",
+    "llm_backend", "llm_model_path", "llm_mmproj_path", "llm_use_gpu",
     "vision_enabled", "vision_frames_per_clip",
     "ollama_host", "ollama_model", "ollama_timeout_s", "ollama_enabled",
     "claude_api_key", "claude_model", "claude_timeout_s",
@@ -218,6 +219,7 @@ _CONFIG_PATCH_RULES: list[tuple[str, object]] = [
     ("llm_backend",                  _enum_validator({"llamacpp", "ollama", "claude"}, "llm_backend")),
     ("llm_model_path",               lambda v: v),
     ("llm_mmproj_path",              lambda v: v),
+    ("llm_use_gpu",                  lambda v: v),
     ("vision_enabled",               lambda v: v),
     ("vision_frames_per_clip",       _range_validator(1, 10, "vision_frames_per_clip")),
     ("ollama_host",                  lambda v: v.strip()),

@@ -85,10 +85,27 @@ class LlamaCppClient(LLMClient):
         return True, ""
 
     def chat(self, messages: list[dict], temperature: float = 0.1) -> str:
-        from llama_cpp import Llama
-        llm = Llama(model_path=self._config.llm_model_path)
+        llm = self._new_llama()
         response = llm.create_chat_completion(messages=messages, temperature=temperature)
         return response["choices"][0]["message"]["content"]
+
+    def _new_llama(self, **kwargs):
+        """Construct a Llama, offloading to GPU when configured and available.
+
+        n_gpu_layers=-1 offloads every layer; on a CPU-only build it's a harmless
+        no-op, but on a GPU build with too little VRAM the load raises — so retry on
+        CPU rather than failing scoring outright."""
+        from llama_cpp import Llama
+        if not self._config.llm_use_gpu:
+            return Llama(model_path=self._config.llm_model_path, n_gpu_layers=0, **kwargs)
+        try:
+            return Llama(model_path=self._config.llm_model_path, n_gpu_layers=-1, **kwargs)
+        except Exception as exc:
+            _log.warning(
+                "llama.cpp GPU offload failed (%s) — falling back to CPU. Turn off "
+                "'Use GPU when available' in Settings to skip this attempt.", exc,
+            )
+            return Llama(model_path=self._config.llm_model_path, n_gpu_layers=0, **kwargs)
 
     def chat_vision(
         self, messages: list[dict], images: list[Path], temperature: float = 0.1,
@@ -99,9 +116,7 @@ class LlamaCppClient(LLMClient):
                 "llama.cpp image analysis needs a vision projector (mmproj .gguf) — "
                 "set 'Vision projector' under Settings → LLM scoring"
             )
-        from llama_cpp import Llama
-        llm = Llama(
-            model_path=self._config.llm_model_path,
+        llm = self._new_llama(
             chat_handler=_llamacpp_vision_handler(self._config.llm_model_path, mmproj),
             n_ctx=4096, verbose=False,
         )
