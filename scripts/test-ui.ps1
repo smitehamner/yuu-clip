@@ -1,6 +1,8 @@
 param(
     [switch]$Detailed,
     [switch]$Sequential,
+    [switch]$Changed,
+    [switch]$Smoke,
     [Parameter(ValueFromRemainingArguments = $true)]$PytestArgs
 )
 $ErrorActionPreference = "Stop"
@@ -52,13 +54,44 @@ $testExitCode = 0
 try {
     $env:PYTHONUNBUFFERED = "1"
     # PowerShell does not glob-expand args to native commands, so resolve the
-    # test files here and pass explicit paths to pytest.
-    $UiTests = Get-ChildItem -Path (Join-Path $RepoRoot "tests") -Filter "test_ui_*.py" | ForEach-Object { $_.FullName }
-    # 4 xdist workers (one Chromium each), whole files per worker: tests within a
+    # test files here and pass explicit paths to pytest. Three selection modes:
+    #   -Smoke    the small backstop file only (fastest sanity check)
+    #   -Changed  tests mapped from the working-tree diff + smoke (dev default)
+    #   (neither) the whole test_ui_*.py suite (pre-review / cross-cutting change)
+    $SmokeFile = Join-Path $RepoRoot "tests\test_ui_smoke.py"
+    if ($Smoke) {
+        $UiTests = @($SmokeFile)
+    } elseif ($Changed) {
+        # The mapper writes selected paths to stdout and advisories to stderr.
+        # Capture stderr to a temp file so PS 5.1 does not promote it to a
+        # terminating error, then echo the advisories for the developer.
+        $prevEAP = $ErrorActionPreference
+        $ErrorActionPreference = "Continue"
+        $noteFile = [System.IO.Path]::GetTempFileName()
+        $selected = & $Python (Join-Path $RepoRoot "scripts\select_ui_tests.py") 2>$noteFile
+        $ErrorActionPreference = $prevEAP
+        Get-Content $noteFile -ErrorAction SilentlyContinue | ForEach-Object { Write-Host $_ -ForegroundColor DarkYellow }
+        Remove-Item $noteFile -Force -ErrorAction SilentlyContinue
+        $UiTests = @($selected | Where-Object { $_ } | ForEach-Object { Join-Path $RepoRoot $_ })
+        if (-not $UiTests) { $UiTests = @($SmokeFile) }
+    } else {
+        $UiTests = Get-ChildItem -Path (Join-Path $RepoRoot "tests") -Filter "test_ui_*.py" | ForEach-Object { $_.FullName }
+    }
+    Write-Host ("Running {0} UI test file(s):" -f @($UiTests).Count) -ForegroundColor Cyan
+    @($UiTests) | ForEach-Object { Write-Host "  $(Split-Path $_ -Leaf)" -ForegroundColor DarkGray }
+
+    # xdist workers (one Chromium each), whole files per worker: tests within a
     # file share live-server state assumptions. Worker restarts are disabled so a
     # genuine worker death fails fast instead of cascading into a scheduler crash.
+    # Cap workers at the selected file count so a small targeted run does not
+    # spin up 4 browsers for 2 files; a single file runs in-process (no xdist).
     $ParallelArgs = @()
-    if (-not $Sequential) { $ParallelArgs = @("-n", "4", "--dist", "loadfile", "--max-worker-restart", "0") }
+    if (-not $Sequential) {
+        $workerCount = [Math]::Min(4, [Math]::Max(1, @($UiTests).Count))
+        if ($workerCount -ge 2) {
+            $ParallelArgs = @("-n", "$workerCount", "--dist", "loadfile", "--max-worker-restart", "0")
+        }
+    }
     # pytest-xdist writes "bringing up nodes..." to stderr; 2>&1 merges it, and
     # under $ErrorActionPreference='Stop' PS 5.1 promotes that merged stderr to a
     # terminating NativeCommandError that skips the `exit $testExitCode` below --

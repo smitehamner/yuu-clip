@@ -17,8 +17,17 @@ from __future__ import annotations
 import re
 import urllib.request
 
+import pytest
 from conftest import LIVE_URL, skip_no_server
 from playwright.sync_api import Page
+
+
+@pytest.fixture
+def page(logic_page):
+    """Only ``page.evaluate()`` against the served globals — share one
+    load-once page (see ``logic_page`` in conftest) instead of a fresh full
+    page load."""
+    return logic_page
 
 # Every served JS module. Handlers are built in JS template strings across all of
 # them, so the extractor must scan the full set — not just the feature files that

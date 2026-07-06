@@ -19,6 +19,15 @@ import pytest
 from conftest import skip_no_server
 from playwright.sync_api import Page, expect
 
+
+@pytest.fixture
+def page(logic_page):
+    """These behavior tests only read the DOM / evaluate ``plural()`` — no
+    mutation — so they share one load-once page (see ``logic_page`` in conftest)
+    instead of paying a fresh full page load per test."""
+    return logic_page
+
+
 STATIC_DIR = Path(__file__).resolve().parents[1] / "yuu_clip" / "web" / "static"
 INDEX_HTML = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
 VIDEOS_JS = (STATIC_DIR / "videos.js").read_text(encoding="utf-8")

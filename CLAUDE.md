@@ -68,14 +68,29 @@ HTML/JS edits to `yuu_clip/web/static/index.html` do **not** need a server resta
 No server restart needed. But before reporting a UI fix as complete:
 
 1. Confirm the fix works in the browser
-2. If the server is running, run `.\scripts\test-ui.ps1` to catch regressions
+2. If the server is running, run the UI tests to catch regressions
 
-The UI test suite is the only safety net against visual/interaction regressions —
-it is not run automatically on every edit (tests take ~3 min and require a live
-server). Run it any time you change JS, HTML, or CSS.
+**Run targeted, not the whole suite every time.** The full suite is ~655 tests
+/ ~3.7 min and is server-bound — its wall time is DB/server throughput divided
+across workers, so adding workers past 4 does not help and running it on every
+edit is the slow part of the loop. Pick the run by scope, using judgment:
 
-Also run `test-ui.ps1` during any UX/UI review pass (`/code-review` or
-`shqr-ux-ui-review`) as the final verification step.
+- **`.\scripts\test-ui.ps1 -Changed`** — the dev default. Maps your working-tree
+  diff to the affected `test_ui_*.py` file(s) via `scripts/select_ui_tests.py`
+  and always adds the smoke backstop (`tests/test_ui_smoke.py`). This is what to
+  run after most localized edits.
+- **`.\scripts\test-ui.ps1 -Smoke`** — just the ~6-test backstop, for a quick
+  "is the app fundamentally working?" check.
+- **`.\scripts\test-ui.ps1`** (full suite) — run when the change is
+  cross-cutting (`utils.js`, `ui.js`, `boot.js`, the app shell/`index.html`,
+  `tests/conftest.py`), when `-Changed` prints a cross-cutting/backend advisory,
+  before reporting a broad UI change complete, and as the final step of any
+  UX/UI review pass (`/code-review` or `shqr-ux-ui-review`). The user has also
+  OK'd leaving the full run for review passes rather than every "done".
+
+`-Changed` reflects **uncommitted** working-tree changes vs HEAD; if you have
+already committed the edit mid-session, run the relevant file(s) or the full
+suite explicitly.
 
 ## Project layout
 
@@ -114,17 +129,22 @@ tests/
 ## Running tests
 
 ```powershell
-.\scripts\test-api.ps1        # fast, no live server needed
-.\scripts\test-ui.ps1         # requires live server at http://127.0.0.1:8080
+.\scripts\test-api.ps1          # fast, no live server needed
+.\scripts\test-ui.ps1 -Changed  # dev default: tests around the diff + smoke
+.\scripts\test-ui.ps1 -Smoke    # ~6-test backstop only, quickest sanity check
+.\scripts\test-ui.ps1           # full suite (all test_ui_*.py) — see cadence above
 ```
 
-`test-ui.ps1` runs 4 pytest-xdist workers by default (~1.5 min on a healthy
-server). Pass `-Sequential` only when debugging suspected worker-parallelism
-flakes. The session `browser` fixture override in `tests/conftest.py` guards
-the Playwright teardown hang — see the comment there before touching the
-teardown watchdogs. If the suite (or the app) feels slow, check the server
-isn't degraded first: `curl` `/api/status` should answer in ~3ms, and the
-serve process should sit near 0% CPU when idle.
+`test-ui.ps1` (full) runs 4 pytest-xdist workers by default (~3.7 min); targeted
+runs scale workers down to the selected file count (a single file runs
+in-process). Pass `-Sequential` only when debugging suspected worker-parallelism
+flakes. `-Changed` calls `scripts/select_ui_tests.py`, which maps changed source
+files to their test files (fuzzy stem match, e.g. `videos.js` -> `test_ui_video`)
+and always includes `tests/test_ui_smoke.py`. The session `browser` fixture
+override in `tests/conftest.py` guards the Playwright teardown hang — see the
+comment there before touching the teardown watchdogs. If the suite (or the app)
+feels slow, check the server isn't degraded first: `curl` `/api/status` should
+answer in ~3ms, and the serve process should sit near 0% CPU when idle.
 
 Run at least `test-api.ps1` before reporting a backend fix as done.
 

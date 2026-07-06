@@ -167,9 +167,28 @@ def select_video_with_clips(page) -> None:
 
 
 def select_first_video_and_clip(page) -> None:
-    """Select a video that has clips, then open the first real clip's detail."""
+    """Select a video that has clips, then open the first real clip's detail.
+
+    Waits for the clip to finish loading — not just for the click. ``selectClip``
+    sets ``activeClipId`` synchronously but only fills ``activeClipData`` after
+    two awaited fetches (clip + media_url), and ``#detail`` is a static shell
+    element, so a bare ``wait_for_selector('.detail')`` is not a real gate. Under
+    parallel load those fetches lag and callers that read ``activeClipData``
+    immediately would race to a null. Gate on activeClipData matching the
+    now-active clip instead.
+    """
     select_video_with_clips(page)
     page.locator("#clip-list li:has(.clip-num)").first.click()
+    page.wait_for_function(
+        "() => AppState.activeClipData"
+        " && AppState.activeClipData.id === AppState.activeClipId",
+        timeout=5000,
+    )
+
+
+def _first_row(page):
+    """The first real clip row in the sidebar list (skips the empty-state <li>)."""
+    return page.locator("#clip-list li:has(.clip-num)").first
 
 
 _had_failure = False
@@ -237,16 +256,21 @@ def _close_browser_unhang(browser) -> None:
     os._exit watchdogs — is not viable under xdist: a force-exited worker reads
     as a crashed node and its last test is falsely marked failed.
 
-    Instead, give close() a few seconds, then kill the node driver: the broken
-    pipe wakes the event loop and close() raises 'Connection closed while
+    Instead, give close() a couple of seconds, then kill the node driver: the
+    broken pipe wakes the event loop and close() raises 'Connection closed while
     reading from the driver', which we swallow. Teardown then completes
     normally, so workers shut down cleanly and pytest prints its real summary.
+
+    The 2s grace is a pure tail tax paid once per worker at session end. When
+    close() genuinely hangs (the common case here) it always burns the full
+    grace, so keep it short — the taskkill is the real recovery path, not a
+    last resort. A clean close (rare on this platform) still returns early.
     """
     driver_pid = _playwright_driver_pid(browser)
     close_finished = threading.Event()
 
     def _kill_driver_if_stuck() -> None:
-        if close_finished.wait(5) or driver_pid is None:
+        if close_finished.wait(2) or driver_pid is None:
             return
         subprocess.run(
             ["taskkill", "/F", "/PID", str(driver_pid)],
@@ -270,6 +294,33 @@ def browser(launch_browser):
     _close_browser_unhang(browser)
 
 
+@pytest.fixture(scope="session")
+def logic_page(browser):
+    """One page, loaded once, shared by the pure-logic UI test files.
+
+    test_ui_utils / test_ui_terminology / test_ui_globals only ever call
+    ``page.evaluate(...)`` against the served JS globals — no DOM interaction,
+    no navigation, no server-state mutation. Any test that reads ``AppState``
+    seeds exactly what it needs first, so one shared page is safe and skips
+    ~115 redundant full page loads (each ~0.3s of fetching + parsing 36
+    scripts). Those files opt in by overriding ``page`` to return this fixture.
+
+    Overlays (e.g. the Getting Started modal boot.js may open) are irrelevant:
+    page.evaluate runs regardless of what covers the DOM, and these tests never
+    click. So, unlike the ``page`` fixture, this one skips the seen-flag seed.
+    """
+    context = browser.new_context()
+    shared = context.new_page()
+    shared.set_default_timeout(10_000)
+    shared.set_default_navigation_timeout(30_000)
+    shared.goto(LIVE_URL, wait_until="domcontentloaded")
+    yield shared
+    try:
+        context.close()
+    except Exception:
+        pass
+
+
 @pytest.fixture
 def page(page):
     """Override pytest-playwright's page fixture to set default timeouts.
@@ -278,26 +329,35 @@ def page(page):
     selector miss silently hangs for half a minute before the test fails.
     10s gives faster feedback on a genuine miss.
 
-    Navigation keeps the full 30s, though: page.goto waits for the ``load``
-    event, i.e. all ~20 static JS files served by the single shared dev server.
-    Under a full parallel run (4 browsers re-fetching them while /api/videos
-    queries contend on the one SQLite DB) that occasionally stalls past 10s and
-    failed unrelated tests at their fixture goto. 30s absorbs the transient
-    contention without hiding a real hang (the teardown watchdog still bounds
-    those).
+    Navigation waits for ``domcontentloaded`` rather than the default ``load``:
+    all ~36 static JS files are parser-blocking (no defer/async), so the app's
+    globals are already defined at DOMContentLoaded — waiting for ``load`` only
+    adds the trailing sub-resources (favicon, etc.), pure latency × every test.
+    The nav timeout stays at 30s (not the 10s action default): under a full
+    parallel run (4 browsers re-fetching the scripts while /api/videos queries
+    contend on the one SQLite DB) even DOMContentLoaded occasionally stalls past
+    10s and would fail unrelated tests at their fixture goto. 30s absorbs the
+    transient contention without hiding a real hang (the teardown watchdog still
+    bounds those).
 
     Also seeds the Getting Started seen-flag via an init script so the modal
     never auto-opens — the script runs before boot.js on *every* navigation,
     including the fixture's own first load. (Seeding with page.evaluate after
     goto is not enough: boot.js has already opened the modal by then, and the
     overlay intercepts all clicks until a test happens to re-navigate.)
+
+    A shared, cache-warm context was tried here to cut the per-test page load
+    (deferred lever #5) and measured to give no gain: on localhost the ~0.3s
+    setup is page creation + V8 parse/execute of the scripts + DOMContentLoaded,
+    not the (already ~1ms) fetch, so caching the fetch saves nothing. Reverted to
+    a fresh context per test to keep full state isolation.
     """
     page.set_default_timeout(10_000)
     page.set_default_navigation_timeout(30_000)
     page.add_init_script(
         "try { localStorage.setItem('yuu-getting-started-seen', '1'); } catch (e) {}"
     )
-    page.goto(LIVE_URL)
+    page.goto(LIVE_URL, wait_until="domcontentloaded")
     yield page
     try:
         page.evaluate("if (window._activeES) { window._activeES.close(); window._activeES = null; }")

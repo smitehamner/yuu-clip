@@ -11,8 +11,18 @@ helpers.
 """
 from __future__ import annotations
 
+import pytest
 from conftest import skip_no_server
 from playwright.sync_api import Page
+
+
+@pytest.fixture
+def page(logic_page):
+    """These tests only ``page.evaluate()`` pure JS helpers, so they share one
+    load-once page (see ``logic_page`` in conftest) instead of paying a fresh
+    full page load per test."""
+    return logic_page
+
 
 # ---------------------------------------------------------------------------
 # Format / date helpers (utils.js)
