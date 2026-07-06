@@ -26,7 +26,8 @@ from playwright.sync_api import Page
 # escapes this net. Keep in sync with the <script> list in index.html.
 _JS_MODULES = [
     "state.js", "format.js", "jobs.js", "preview.js", "utils.js",
-    "ui.js", "panelnav.js", "videos.js", "clips.js", "clipbulk.js",
+    "ui.js", "helpmodals.js", "shortcuts.js", "panelnav.js", "videos.js",
+    "clips.js", "clipbulk.js",
     "clipexport.js", "clipcreate.js", "exporteditor.js", "exportpresets.js",
     "analyze.js", "reel.js", "contexts.js", "settings.js", "split.js",
     "projects.js", "sessions.js", "sounds.js", "speakers.js", "transcript.js",
