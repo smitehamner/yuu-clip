@@ -276,7 +276,7 @@ class TestUnlinkWithRetry:
     """Deleting a just-closed export retries through the brief handle-release window."""
 
     def test_succeeds_after_transient_lock(self, tmp_path, monkeypatch):
-        from yuu_clip.web.routes import _shared
+        from yuu_clip.web import file_deletion
         target = tmp_path / "clip.mkv"
         target.write_bytes(b"x")
         real_unlink = Path.unlink
@@ -289,13 +289,13 @@ class TestUnlinkWithRetry:
             return real_unlink(self, *args, **kwargs)
 
         monkeypatch.setattr(Path, "unlink", flaky_unlink)
-        monkeypatch.setattr(_shared.time, "sleep", lambda _s: None)
-        _shared._unlink_with_retry(target, attempts=5, delay_s=0)
+        monkeypatch.setattr(file_deletion.time, "sleep", lambda _s: None)
+        file_deletion.unlink_with_retry(target, attempts=5, delay_s=0)
         assert attempts["n"] == 3
         assert not target.exists()
 
     def test_raises_after_exhausting_attempts(self, tmp_path, monkeypatch):
-        from yuu_clip.web.routes import _shared
+        from yuu_clip.web import file_deletion
         target = tmp_path / "clip.mkv"
         target.write_bytes(b"x")
 
@@ -303,16 +303,16 @@ class TestUnlinkWithRetry:
             raise PermissionError("WinError 32")
 
         monkeypatch.setattr(Path, "unlink", always_locked)
-        monkeypatch.setattr(_shared.time, "sleep", lambda _s: None)
+        monkeypatch.setattr(file_deletion.time, "sleep", lambda _s: None)
         with pytest.raises(OSError):
-            _shared._unlink_with_retry(target, attempts=3, delay_s=0)
+            file_deletion.unlink_with_retry(target, attempts=3, delay_s=0)
 
     def test_missing_file_is_noop(self, tmp_path):
-        from yuu_clip.web.routes import _shared
-        _shared._unlink_with_retry(tmp_path / "gone.mkv")
+        from yuu_clip.web import file_deletion
+        file_deletion.unlink_with_retry(tmp_path / "gone.mkv")
 
     def test_delete_files_reports_locked_paths(self, tmp_path, monkeypatch):
-        from yuu_clip.web.routes import _shared
+        from yuu_clip.web import file_deletion
         ok = tmp_path / "ok.mkv"
         ok.write_bytes(b"x")
         stuck = tmp_path / "stuck.mkv"
@@ -326,9 +326,9 @@ class TestUnlinkWithRetry:
             return real_unlink(self, *args, **kwargs)
 
         monkeypatch.setattr(Path, "unlink", selective)
-        monkeypatch.setattr(_shared, "_unlink_with_retry",
-                            lambda p: _shared.Path.unlink(p))  # single attempt, no retry/sleep
-        locked = _shared._delete_files([ok, stuck])
+        monkeypatch.setattr(file_deletion, "unlink_with_retry",
+                            lambda p: file_deletion.Path.unlink(p))  # single attempt, no retry/sleep
+        locked = file_deletion.delete_files([ok, stuck])
         assert [p.name for p in locked] == ["stuck.mkv"]
         assert not ok.exists()
 
@@ -337,23 +337,23 @@ class TestLockedFilesError:
     """The 409 names the holding process when the Restart Manager can identify it."""
 
     def test_names_holding_process(self, tmp_path, monkeypatch):
-        from yuu_clip.web.routes import _shared
-        monkeypatch.setattr(_shared, "_locking_processes", lambda path: ["Acme Backup"])
-        exc = _shared._locked_files_error([tmp_path / "clip.mkv"])
+        from yuu_clip.web import file_deletion
+        monkeypatch.setattr(file_deletion, "locking_processes", lambda path: ["Acme Backup"])
+        exc = file_deletion.locked_files_error([tmp_path / "clip.mkv"])
         assert exc.status_code == 409
         assert "open in: Acme Backup" in exc.detail
 
     def test_falls_back_when_holder_unknown(self, tmp_path, monkeypatch):
-        from yuu_clip.web.routes import _shared
-        monkeypatch.setattr(_shared, "_locking_processes", lambda path: [])
-        exc = _shared._locked_files_error([tmp_path / "clip.mkv"])
+        from yuu_clip.web import file_deletion
+        monkeypatch.setattr(file_deletion, "locking_processes", lambda path: [])
+        exc = file_deletion.locked_files_error([tmp_path / "clip.mkv"])
         assert exc.status_code == 409
         assert "another program" in exc.detail
 
     def test_locking_processes_empty_off_windows(self, monkeypatch):
-        from yuu_clip.web.routes import _shared
-        monkeypatch.setattr(_shared.sys, "platform", "linux")
-        assert _shared._locking_processes(Path("/tmp/x.mkv")) == []
+        from yuu_clip.web import file_deletion
+        monkeypatch.setattr(file_deletion.sys, "platform", "linux")
+        assert file_deletion.locking_processes(Path("/tmp/x.mkv")) == []
 
 
 # ---------------------------------------------------------------------------

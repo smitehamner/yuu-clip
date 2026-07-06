@@ -16,14 +16,10 @@ from fastapi import APIRouter, HTTPException, Query
 
 from yuu_clip.config import validate_whisper_model
 from yuu_clip.db.models import ClipCandidate, Video
+from yuu_clip.export.paths import export_paths, validate_export_preset_query
 from yuu_clip.log import get_logger
 from yuu_clip.web.deps import ProjectContext
-from yuu_clip.web.routes._shared import (
-    _active_job,
-    _export_paths,
-    _sse_response,
-    _validate_export_preset_query,
-)
+from yuu_clip.web.routes.common import active_job, sse_response
 
 _log = get_logger(__name__)
 
@@ -35,7 +31,7 @@ def _clip_has_export_file(ctx: "ProjectContext", clip_id: int) -> bool:
         clip = db.get(ClipCandidate, clip_id)
         vid  = db.get(Video, clip.video_id) if clip else None
         if clip and vid:
-            return any(p.exists() for p in _export_paths(clip, vid, ctx.export_dir, ctx.config.export_name_template))
+            return any(p.exists() for p in export_paths(clip, vid, ctx.export_dir, ctx.config.export_name_template))
         return False
     finally:
         db.close()
@@ -84,7 +80,7 @@ def _clip_export_stream_response(
     """Stream sequential per-clip exports as SSE. Shared by the video-scoped batch
     export (filtered by approval/score) and the explicit-selection bulk export."""
     async def event_stream():
-        async with _active_job(ctx):
+        async with active_job(ctx):
             total = len(clip_ids)
             exported = 0
             skipped  = 0
@@ -125,7 +121,7 @@ def _clip_export_stream_response(
             yield f"data: {json_lib.dumps(f'Export complete: {exported} exported, {skipped} skipped')}\n\n"
             yield f"data: {json_lib.dumps('__DONE__')}\n\n"
 
-    return _sse_response(event_stream())
+    return sse_response(event_stream())
 
 
 def register(router: APIRouter, ctx: ProjectContext) -> None:
@@ -151,7 +147,7 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
                 validate_whisper_model(retranscribe_model)
             except ValueError as e:
                 raise HTTPException(400, str(e))
-        _validate_export_preset_query(ctx, preset, embed_subs)
+        validate_export_preset_query(ctx, preset, embed_subs)
 
         db = ctx.get_db()
         try:

@@ -13,7 +13,7 @@ from fastapi import HTTPException
 
 from yuu_clip.db.models import ClipCandidate, ClipExport, Video
 from yuu_clip.export.naming import DEFAULT_EXPORT_NAME_TEMPLATE
-from yuu_clip.web.routes._shared import _export_paths, _srt_path
+from yuu_clip.export.paths import export_paths, srt_path
 
 _MAX_TAG_LEN = 40
 _MAX_TAGS = 25
@@ -24,7 +24,7 @@ def _subtitle_status(
 ) -> str:
     if clip.exported_burn_subs:
         return "baked-in"
-    if export_dir and video and _srt_path(clip, video, export_dir, name_template) is not None:
+    if export_dir and video and srt_path(clip, video, export_dir, name_template) is not None:
         return "srt-sidecar"
     return "none"
 
@@ -111,7 +111,7 @@ def _clip_dict(
     has_export = (
         export_dir is not None
         and video is not None
-        and any(p.exists() for p in _export_paths(clip, video, export_dir, name_template))
+        and any(p.exists() for p in export_paths(clip, video, export_dir, name_template))
     ) or any(row["exists"] for row in export_rows)
     export_stale, export_stale_reasons = _export_stale(clip) if has_export else (False, [])
     d = {

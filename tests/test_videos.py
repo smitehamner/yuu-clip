@@ -2292,7 +2292,7 @@ class TestBulkDeleteClips:
         # for the other clips rather than aborting.
         from pathlib import Path
 
-        from yuu_clip.web.routes import _shared
+        from yuu_clip.web import file_deletion
 
         ids = self._clip_ids(client)
         vid_id = client.get("/api/videos").json()[0]["id"]
@@ -2306,7 +2306,7 @@ class TestBulkDeleteClips:
             raise PermissionError("WinError 32")
 
         monkeypatch.setattr(Path, "unlink", always_locked)
-        monkeypatch.setattr(_shared.time, "sleep", lambda _s: None)
+        monkeypatch.setattr(file_deletion.time, "sleep", lambda _s: None)
 
         r = client.post("/api/clips/bulk-delete", json={"clip_ids": [ids[0], ids[1]]})
         assert r.status_code == 200

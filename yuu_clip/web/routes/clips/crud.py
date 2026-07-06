@@ -12,16 +12,15 @@ from sqlalchemy import case
 
 from yuu_clip.config import run_ffmpeg
 from yuu_clip.db.models import ClipCandidate, Video
+from yuu_clip.export.paths import (
+    clip_export_row_files,
+    export_paths,
+    srt_path,
+    srt_sidecar_paths,
+)
 from yuu_clip.log import get_logger
 from yuu_clip.web.deps import ProjectContext
 from yuu_clip.web.media import media_file_response
-from yuu_clip.web.routes._shared import (
-    _clip_export_row_files,
-    _export_paths,
-    _require_clip,
-    _srt_path,
-    _srt_sidecar_paths,
-)
 from yuu_clip.web.routes.clips.schemas import (
     _VALID_STATUSES,
     ManualClipCreate,
@@ -29,6 +28,7 @@ from yuu_clip.web.routes.clips.schemas import (
     TagsBody,
 )
 from yuu_clip.web.routes.clips.serialize import _clip_dict, _normalize_tags
+from yuu_clip.web.routes.common import require_clip
 
 _log = get_logger(__name__)
 
@@ -123,7 +123,7 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
     def get_clip(clip_id: int):
         db = ctx.get_db()
         try:
-            clip = _require_clip(db, clip_id)
+            clip = require_clip(db, clip_id)
             video = db.get(Video, clip.video_id)
             return _clip_dict(clip, full=True, export_dir=ctx.export_dir, video=video, name_template=ctx.config.export_name_template)
         finally:
@@ -156,7 +156,7 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
     def set_clip_tags(clip_id: int, body: TagsBody):
         db = ctx.get_db()
         try:
-            clip = _require_clip(db, clip_id)
+            clip = require_clip(db, clip_id)
             clip.user_tags = _normalize_tags(body.tags)
             db.commit()
             _log.info("Clip %d user tags set: %s", clip_id, clip.user_tags)
@@ -170,7 +170,7 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
             raise HTTPException(400, f"status must be one of: {' | '.join(_VALID_STATUSES)}")
         db = ctx.get_db()
         try:
-            clip = _require_clip(db, clip_id)
+            clip = require_clip(db, clip_id)
             clip.status = body.status
             db.commit()
             return {"id": clip_id, "status": body.status}
@@ -186,23 +186,23 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
         yet backfilled, or a row deleted without deleting its file)."""
         db = ctx.get_db()
         try:
-            clip = _require_clip(db, clip_id)
+            clip = require_clip(db, clip_id)
             video = db.get(Video, clip.video_id)
             if not video:
                 raise HTTPException(404, "Video not found")
             files: list[str] = []
             seen_names: set[str] = set()
-            for row_path in _clip_export_row_files(clip):
+            for row_path in clip_export_row_files(clip):
                 if row_path.name not in seen_names:
                     files.append(row_path.name)
                     seen_names.add(row_path.name)
             legacy_export = next(
-                (p for p in _export_paths(clip, video, ctx.export_dir, ctx.config.export_name_template)
+                (p for p in export_paths(clip, video, ctx.export_dir, ctx.config.export_name_template)
                  if p.exists() and p.name not in seen_names), None
             )
             if legacy_export:
                 files.append(legacy_export.name)
-            files.extend(p.name for p in _srt_sidecar_paths(clip, video, ctx.export_dir, ctx.config.export_name_template))
+            files.extend(p.name for p in srt_sidecar_paths(clip, video, ctx.export_dir, ctx.config.export_name_template))
             return {"files": files}
         finally:
             db.close()
@@ -212,12 +212,12 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
         """Return the web-accessible URL for this clip's exported video, or null if not yet exported."""
         db = ctx.get_db()
         try:
-            clip = _require_clip(db, clip_id)
+            clip = require_clip(db, clip_id)
             video = db.get(Video, clip.video_id)
             export_file = next(
-                (p for p in _export_paths(clip, video, ctx.export_dir, ctx.config.export_name_template) if p.exists()), None
+                (p for p in export_paths(clip, video, ctx.export_dir, ctx.config.export_name_template) if p.exists()), None
             )
-            srt = _srt_path(clip, video, ctx.export_dir, ctx.config.export_name_template)
+            srt = srt_path(clip, video, ctx.export_dir, ctx.config.export_name_template)
             if export_file:
                 return {"url": f"/media/exports/{export_file.name}", "filename": export_file.name, "has_captions": srt is not None}
             return {"url": None, "filename": None, "has_captions": False}
@@ -234,7 +234,7 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
 
         db = ctx.get_db()
         try:
-            clip = _require_clip(db, clip_id)
+            clip = require_clip(db, clip_id)
             video = db.get(Video, clip.video_id)
         finally:
             db.close()

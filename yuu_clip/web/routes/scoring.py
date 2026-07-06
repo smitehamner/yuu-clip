@@ -18,12 +18,12 @@ from yuu_clip.contexts import extract_context_weights, format_context_block, loa
 from yuu_clip.db.models import AudioTrack, ClipCandidate, HotWord, SensitiveTerm, Video
 from yuu_clip.log import get_logger
 from yuu_clip.web.deps import ProjectContext
-from yuu_clip.web.routes._shared import (
-    _active_job,
-    _json_list,
-    _reject_if_analyzing,
-    _require_clip,
-    _sse_response,
+from yuu_clip.web.routes.common import (
+    active_job,
+    json_list,
+    reject_if_analyzing,
+    require_clip,
+    sse_response,
 )
 
 _log = get_logger(__name__)
@@ -206,7 +206,7 @@ def _register_hotword_scan_route(router: APIRouter, ctx: ProjectContext) -> None
         """
         from yuu_clip.scoring.similarity import make_backend
 
-        _reject_if_analyzing(ctx)
+        reject_if_analyzing(ctx)
         db = ctx.get_db()
         try:
             video = db.get(Video, video_id)
@@ -233,7 +233,7 @@ def _register_hotword_scan_route(router: APIRouter, ctx: ProjectContext) -> None
             from yuu_clip.scoring.engine import apply_hotword_boosts
             from yuu_clip.scoring.textmatch import strip_speaker_prefixes
 
-            async with _active_job(ctx):
+            async with active_job(ctx):
                 total = len(clip_ids)
                 plural = "s" if total != 1 else ""
                 yield f"data: {json_lib.dumps(f'[Scanning {total} clip{plural} for hot-word meaning…]')}\n\n"
@@ -271,7 +271,7 @@ def _register_hotword_scan_route(router: APIRouter, ctx: ProjectContext) -> None
 
                 yield f"data: {json_lib.dumps('__DONE__')}\n\n"
 
-        return _sse_response(event_stream())
+        return sse_response(event_stream())
 
 
 async def _maybe_analyze_frames(ctx, score_db, clip, config, context_text: str) -> None:
@@ -297,7 +297,7 @@ async def _maybe_analyze_frames(ctx, score_db, clip, config, context_text: str) 
 def _rescore_video_clips(
     ctx: ProjectContext, video_id: int, failed_only: bool, include_frames: bool = False,
 ):
-    _reject_if_analyzing(ctx)
+    reject_if_analyzing(ctx)
     if include_frames:
         from yuu_clip.scoring.llm import check_vision_available
         vision_ok, reason = check_vision_available(ctx.config)
@@ -308,7 +308,7 @@ def _rescore_video_clips(
         video = db.get(Video, video_id)
         if not video:
             raise HTTPException(404, "Video not found")
-        context_names = _json_list(video.context_names_json)
+        context_names = json_list(video.context_names_json)
         query = (
             db.query(ClipCandidate)
             .filter_by(video_id=video_id)
@@ -328,7 +328,7 @@ def _rescore_video_clips(
         from yuu_clip.scoring.engine import ScoringEngine
         from yuu_clip.scoring.llm import LLMScorer
 
-        async with _active_job(ctx):
+        async with active_job(ctx):
             total = len(clip_ids)
             plural = "s" if total != 1 else ""
             yield f"data: {json_lib.dumps(f'[Starting LLM scoring for {total} clip{plural}…]')}\n\n"
@@ -372,7 +372,7 @@ def _rescore_video_clips(
 
             yield f"data: {json_lib.dumps('__DONE__')}\n\n"
 
-    return _sse_response(event_stream())
+    return sse_response(event_stream())
 
 
 def _register_rescore_routes(router: APIRouter, ctx: ProjectContext) -> None:
@@ -403,7 +403,7 @@ def _register_rescore_routes(router: APIRouter, ctx: ProjectContext) -> None:
             if not all_segs:
                 raise HTTPException(400, "No transcript available — analyze the recording first")
 
-            context_names = _json_list(video.context_names_json)
+            context_names = json_list(video.context_names_json)
             seg_data = [(s.start_ms, s.end_ms, s.text) for s in all_segs]
             clips = (
                 db.query(ClipCandidate)
@@ -426,7 +426,7 @@ def _register_rescore_routes(router: APIRouter, ctx: ProjectContext) -> None:
                 yield f"data: {json_lib.dumps(payload)}\n\n"
                 yield f"data: {json_lib.dumps('__DONE__')}\n\n"
 
-            return _sse_response(needs_model_stream())
+            return sse_response(needs_model_stream())
 
         context_text = format_context_block(load_contexts(ctx.project_dir), context_names)
 
@@ -435,7 +435,7 @@ def _register_rescore_routes(router: APIRouter, ctx: ProjectContext) -> None:
 
         async def event_stream():
             from yuu_clip.scoring.llm import generate_timeline_chunk
-            async with _active_job(ctx):
+            async with active_job(ctx):
                 chunk_ms = effective_interval_s * 1000
                 entries = []
 
@@ -475,7 +475,7 @@ def _register_rescore_routes(router: APIRouter, ctx: ProjectContext) -> None:
 
                 yield f"data: {json_lib.dumps('__DONE__')}\n\n"
 
-        return _sse_response(event_stream())
+        return sse_response(event_stream())
 
 
 def _register_summary_routes(router: APIRouter, ctx: ProjectContext) -> None:
@@ -493,7 +493,7 @@ def _register_summary_routes(router: APIRouter, ctx: ProjectContext) -> None:
             if not video:
                 raise HTTPException(404, "Video not found")
 
-            context_names = _json_list(video.context_names_json)
+            context_names = json_list(video.context_names_json)
             full_text = _video_transcript_text(db, video_id)
 
             if not full_text:
@@ -529,13 +529,13 @@ def _register_summary_routes(router: APIRouter, ctx: ProjectContext) -> None:
         """Regenerate title + summary and auto-commit to DB. Streams one log line as SSE."""
         from yuu_clip.scoring.llm import summarize_transcript
 
-        _reject_if_analyzing(ctx)
+        reject_if_analyzing(ctx)
         db = ctx.get_db()
         try:
             video = db.get(Video, video_id)
             if not video:
                 raise HTTPException(404, "Video not found")
-            context_names = _json_list(video.context_names_json)
+            context_names = json_list(video.context_names_json)
             full_text = _video_transcript_text(db, video_id)
         finally:
             db.close()
@@ -552,12 +552,12 @@ def _register_summary_routes(router: APIRouter, ctx: ProjectContext) -> None:
                 yield f"data: {json_lib.dumps(payload)}\n\n"
                 yield f"data: {json_lib.dumps('__DONE__')}\n\n"
 
-            return _sse_response(needs_model_stream())
+            return sse_response(needs_model_stream())
 
         context_text = format_context_block(load_contexts(ctx.project_dir), context_names)
 
         async def event_stream():
-            async with _active_job(ctx):
+            async with active_job(ctx):
                 yield f"data: {json_lib.dumps('[Generating summary…]')}\n\n"
                 try:
                     title_new, summary_new = await asyncio.to_thread(
@@ -586,20 +586,20 @@ def _register_summary_routes(router: APIRouter, ctx: ProjectContext) -> None:
                 yield f"data: {json_lib.dumps('[Summary regenerated]')}\n\n"
                 yield f"data: {json_lib.dumps('__DONE__')}\n\n"
 
-        return _sse_response(event_stream())
+        return sse_response(event_stream())
 
 
 def _register_clip_scoring_routes(router: APIRouter, ctx: ProjectContext) -> None:
     @router.get("/api/clips/{clip_id}/rescore")
     async def rescore_clip(clip_id: int):
-        _reject_if_analyzing(ctx)
+        reject_if_analyzing(ctx)
         db = ctx.get_db()
         try:
-            clip = _require_clip(db, clip_id)
+            clip = require_clip(db, clip_id)
             video = db.get(Video, clip.video_id)
             if not video:
                 raise HTTPException(404, "Video not found")
-            context_names = _json_list(video.context_names_json)
+            context_names = json_list(video.context_names_json)
             hot_words = _load_hot_words(db)
             sensitive_terms = _load_sensitive_terms(db)
         finally:
@@ -611,7 +611,7 @@ def _register_clip_scoring_routes(router: APIRouter, ctx: ProjectContext) -> Non
             from yuu_clip.scoring.engine import ScoringEngine
             from yuu_clip.scoring.llm import LLMScorer
 
-            async with _active_job(ctx):
+            async with active_job(ctx):
                 yield f"data: {json_lib.dumps('[Starting LLM scoring for 1 clip…]')}\n\n"
                 engine = ScoringEngine(
                     config, [LLMScorer(config, context_text=context_text)],
@@ -653,7 +653,7 @@ def _register_clip_scoring_routes(router: APIRouter, ctx: ProjectContext) -> Non
                 }
                 yield f"data: {json_lib.dumps(done_payload)}\n\n"
 
-        return _sse_response(event_stream())
+        return sse_response(event_stream())
 
     @router.get("/api/videos/{video_id}/redescribe-clips")
     async def redescribe_clips(video_id: int):
@@ -661,13 +661,13 @@ def _register_clip_scoring_routes(router: APIRouter, ctx: ProjectContext) -> Non
         from yuu_clip.scoring.llm import check_llm_available
         from yuu_clip.scoring.llm import describe_clip as _describe_clip
 
-        _reject_if_analyzing(ctx)
+        reject_if_analyzing(ctx)
         db = ctx.get_db()
         try:
             video = db.get(Video, video_id)
             if not video:
                 raise HTTPException(404, "Video not found")
-            context_names = _json_list(video.context_names_json)
+            context_names = json_list(video.context_names_json)
             clip_ids = [
                 c.id for c in
                 db.query(ClipCandidate)
@@ -686,7 +686,7 @@ def _register_clip_scoring_routes(router: APIRouter, ctx: ProjectContext) -> Non
         context_text, config = _resolve_context(ctx, context_names)
 
         async def event_stream():
-            async with _active_job(ctx):
+            async with active_job(ctx):
                 total = len(clip_ids)
                 plural = "s" if total != 1 else ""
                 yield f"data: {json_lib.dumps(f'[Re-generating descriptions for {total} clip{plural}…]')}\n\n"
@@ -721,7 +721,7 @@ def _register_clip_scoring_routes(router: APIRouter, ctx: ProjectContext) -> Non
 
                 yield f"data: {json_lib.dumps('__DONE__')}\n\n"
 
-        return _sse_response(event_stream())
+        return sse_response(event_stream())
 
     @router.get("/api/clips/{clip_id}/related-clips")
     async def find_related_clips(clip_id: int, video_ids: str = Query("")):
@@ -737,7 +737,7 @@ def _register_clip_scoring_routes(router: APIRouter, ctx: ProjectContext) -> Non
 
         db = ctx.get_db()
         try:
-            clip = _require_clip(db, clip_id)
+            clip = require_clip(db, clip_id)
             video = db.get(Video, clip.video_id)
             if not video:
                 raise HTTPException(404, "Video not found")
@@ -747,7 +747,7 @@ def _register_clip_scoring_routes(router: APIRouter, ctx: ProjectContext) -> Non
             if not ref_desc:
                 raise HTTPException(400, "Clip has no description — re-score first")
 
-            context_names = _json_list(video.context_names_json)
+            context_names = json_list(video.context_names_json)
 
             scope_ids = _parse_scope_ids(video_ids, clip.video_id)
             candidates = _load_related_candidates(db, scope_ids, clip_id)
@@ -758,7 +758,7 @@ def _register_clip_scoring_routes(router: APIRouter, ctx: ProjectContext) -> Non
         backend = make_backend(config, context_text)
 
         async def event_stream():
-            async with _active_job(ctx):
+            async with active_job(ctx):
                 total = len(candidates)
                 yield f"data: {json_lib.dumps(f'[Searching {total} clips for similar moments…]')}\n\n"
 
@@ -788,4 +788,4 @@ def _register_clip_scoring_routes(router: APIRouter, ctx: ProjectContext) -> Non
 
                 yield f"data: {json_lib.dumps({'type': '__DONE__', 'results': results})}\n\n"
 
-        return _sse_response(event_stream())
+        return sse_response(event_stream())

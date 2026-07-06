@@ -24,19 +24,12 @@ from yuu_clip.db.models import (
     Video,
 )
 from yuu_clip.export.naming import DEFAULT_EXPORT_NAME_TEMPLATE
+from yuu_clip.export.paths import all_sidecar_paths, clip_export_row_files, clip_stem
 from yuu_clip.log import get_logger
 from yuu_clip.web.deps import ProjectContext
+from yuu_clip.web.file_deletion import delete_files, locked_files_error
 from yuu_clip.web.media import media_file_response
-from yuu_clip.web.routes._shared import (
-    _active_job,
-    _all_sidecar_paths,
-    _clip_export_row_files,
-    _clip_stem,
-    _delete_files,
-    _json_list,
-    _locked_files_error,
-    _sse_response,
-)
+from yuu_clip.web.routes.common import active_job, json_list, sse_response
 
 _log = get_logger(__name__)
 
@@ -276,7 +269,7 @@ def _register_split_and_edit_routes(router: APIRouter, ctx: ProjectContext) -> N
                     video.summary_user = None
                     video.summarized_at        = datetime.now(timezone.utc)
                     video.summary_context_json = json_lib.dumps(
-                        _json_list(video.context_names_json)
+                        json_list(video.context_names_json)
                     )
             elif body.action == "accept_edit":
                 if touch_title:
@@ -376,7 +369,7 @@ def _register_media_routes(router: APIRouter, ctx: ProjectContext) -> None:
         audio_dir = project_audio_dir(ctx.project_dir)
 
         async def event_stream():
-            async with _active_job(ctx):
+            async with active_job(ctx):
                 yield f"data: {json_lib.dumps('[Inspecting audio streams…]')}\n\n"
 
                 try:
@@ -443,7 +436,7 @@ def _register_media_routes(router: APIRouter, ctx: ProjectContext) -> None:
                 yield f"data: {json_lib.dumps('Waveform ready')}\n\n"
                 yield f"data: {json_lib.dumps('__DONE__')}\n\n"
 
-        return _sse_response(event_stream())
+        return sse_response(event_stream())
 
     @router.get("/api/videos/{video_id}/proxy")
     def video_proxy(video_id: int, request: Request):
@@ -521,7 +514,7 @@ def _register_media_routes(router: APIRouter, ctx: ProjectContext) -> None:
         source_key = str(source.resolve())
 
         async def event_stream():
-            async with _active_job(ctx):
+            async with active_job(ctx):
                 if already_fresh:
                     yield f"data: {json_lib.dumps('[Preview already prepared]')}\n\n"
                     yield f"data: {json_lib.dumps('__DONE__')}\n\n"
@@ -578,7 +571,7 @@ def _register_media_routes(router: APIRouter, ctx: ProjectContext) -> None:
                         break
                 yield f"data: {json_lib.dumps('__DONE__')}\n\n"
 
-        return _sse_response(event_stream())
+        return sse_response(event_stream())
 
 
 def _register_video_data_routes(router: APIRouter, ctx: ProjectContext) -> None:
@@ -668,12 +661,12 @@ def _register_video_data_routes(router: APIRouter, ctx: ProjectContext) -> None:
             clips = db.query(ClipCandidate).filter_by(video_id=video_id).all()
             locked: list[Path] = []
             for clip in clips:
-                locked += _delete_files([
-                    *_all_sidecar_paths(clip, video, ctx.export_dir, ctx.config.export_name_template),
-                    *_clip_export_row_files(clip),
+                locked += delete_files([
+                    *all_sidecar_paths(clip, video, ctx.export_dir, ctx.config.export_name_template),
+                    *clip_export_row_files(clip),
                 ])
             if locked:
-                raise _locked_files_error(locked)
+                raise locked_files_error(locked)
 
             # AudioEnergy and SceneBoundary have no Python-level cascade; delete explicitly
             track_ids = [t.id for t in video.audio_tracks]
@@ -742,17 +735,17 @@ def _shift_clip_times(
 ) -> None:
     """Shift a clip's window by *delta_ms*, renaming its exported files to match.
 
-    Export/sidecar filenames embed the clip's start time (_clip_stem), so a clip
+    Export/sidecar filenames embed the clip's start time (clip_stem), so a clip
     migrated between a recording and its segments must have its files renamed or
     every export lookup (exported badge, download, delete) misses them.
     A failed rename is logged, not fatal — the clip is then merely back to
     "file not found", same as if the rename hadn't been attempted.
     """
-    existing_files = [p for p in _all_sidecar_paths(clip, video, export_dir, name_template) if p.exists()]
-    old_stem = _clip_stem(clip, video, name_template)
+    existing_files = [p for p in all_sidecar_paths(clip, video, export_dir, name_template) if p.exists()]
+    old_stem = clip_stem(clip, video, name_template)
     clip.start_ms += delta_ms
     clip.end_ms += delta_ms
-    new_stem = _clip_stem(clip, video, name_template)
+    new_stem = clip_stem(clip, video, name_template)
     if new_stem == old_stem:
         return
     for old_file in existing_files:
@@ -1005,17 +998,17 @@ def _video_dict(video: Video, stats: dict) -> dict:
         "summary_original": video.summary or "",
         "summary_is_edited": video.summary_user is not None,
         "has_timeline": bool(video.timeline_json),
-        "context_names": _json_list(video.context_names_json),
+        "context_names": json_list(video.context_names_json),
         "parent_video_id": video.parent_video_id,
         "segment_start_s": video.segment_start_s,
         "segment_end_s": video.segment_end_s,
         "session_id": video.session_id,
         "clips_scored_at": video.clips_scored_at.isoformat() if video.clips_scored_at else None,
-        "clips_scored_context": _json_list(video.clips_scored_context_json),
+        "clips_scored_context": json_list(video.clips_scored_context_json),
         "summarized_at": video.summarized_at.isoformat() if video.summarized_at else None,
-        "summary_context": _json_list(video.summary_context_json),
+        "summary_context": json_list(video.summary_context_json),
         "timeline_generated_at": video.timeline_generated_at.isoformat() if video.timeline_generated_at else None,
-        "timeline_context": _json_list(video.timeline_context_json),
+        "timeline_context": json_list(video.timeline_context_json),
         "analyze_started_at": video.analyze_started_at.isoformat() if video.analyze_started_at else None,
         "analyze_run": json_lib.loads(video.analyze_run_json) if video.analyze_run_json else None,
         "source_url": video.source_url,

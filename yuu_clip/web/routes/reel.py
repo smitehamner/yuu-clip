@@ -20,9 +20,11 @@ from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 
 from yuu_clip.db.models import ClipCandidate
+from yuu_clip.export.paths import export_paths
 from yuu_clip.log import get_logger
 from yuu_clip.web.deps import ProjectContext
-from yuu_clip.web.routes._shared import _delete_files, _export_paths, _locked_files_error, _srt_to_vtt
+from yuu_clip.web.file_deletion import delete_files, locked_files_error
+from yuu_clip.web.routes.common import srt_to_vtt
 from yuu_clip.web.sse import subprocess_sse
 
 _log = get_logger(__name__)
@@ -185,7 +187,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                 export_file = None
                 if video:
                     export_file = next(
-                        (p for p in _export_paths(c, video, ctx.export_dir, ctx.config.export_name_template) if p.exists()),
+                        (p for p in export_paths(c, video, ctx.export_dir, ctx.config.export_name_template) if p.exists()),
                         None,
                     )
                 result.append({
@@ -277,9 +279,9 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         from yuu_clip.reel import reel_caption_path, reel_composition_path
         reel_path = _resolve_reel(filename)
         targets = [reel_path, reel_caption_path(reel_path), reel_composition_path(reel_path)]
-        locked = _delete_files(targets)
+        locked = delete_files(targets)
         if locked:
-            raise _locked_files_error(locked)
+            raise locked_files_error(locked)
         _log.info("Deleted reel %s (with sidecars)", reel_path.name)
         return {"deleted": reel_path.name}
 
@@ -314,7 +316,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         if not srt_path.exists():
             raise HTTPException(404, "No captions for this reel")
         return PlainTextResponse(
-            _srt_to_vtt(srt_path.read_text(encoding="utf-8", errors="replace")),
+            srt_to_vtt(srt_path.read_text(encoding="utf-8", errors="replace")),
             media_type="text/vtt",
         )
 

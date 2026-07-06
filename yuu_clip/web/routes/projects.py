@@ -20,7 +20,7 @@ from pydantic import BaseModel
 from yuu_clip.config import load_known_projects, record_known_project
 from yuu_clip.log import get_logger, redirect_logging
 from yuu_clip.web.deps import ProjectContext
-from yuu_clip.web.routes._shared import _analyze_in_flight
+from yuu_clip.web.routes.common import analyze_in_flight
 
 _log = get_logger(__name__)
 
@@ -50,7 +50,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     @router.post("/api/projects/switch")
     def switch_project(body: SwitchRequest):
         """Rebuild the ProjectContext against *path* in place (no restart)."""
-        if _analyze_in_flight(ctx) or ctx.active_jobs > 0 or ctx.proxy_generating:
+        if analyze_in_flight(ctx) or ctx.active_jobs > 0 or ctx.proxy_generating:
             raise HTTPException(
                 409,
                 "Analysis is running — wait for it to finish or cancel it before "

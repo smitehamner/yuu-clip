@@ -10,15 +10,14 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Query
 
 from yuu_clip.db.models import ClipCandidate, Video
+from yuu_clip.export.paths import (
+    all_sidecar_paths,
+    clip_export_row_files,
+    validate_export_preset_query,
+)
 from yuu_clip.log import get_logger
 from yuu_clip.web.deps import ProjectContext
-from yuu_clip.web.routes._shared import (
-    _all_sidecar_paths,
-    _clip_export_row_files,
-    _delete_files,
-    _missing_ids,
-    _validate_export_preset_query,
-)
+from yuu_clip.web.file_deletion import delete_files
 from yuu_clip.web.routes.clips.export import _clip_export_stream_response
 from yuu_clip.web.routes.clips.schemas import (
     _VALID_STATUSES,
@@ -27,6 +26,7 @@ from yuu_clip.web.routes.clips.schemas import (
     BulkStatusUpdate,
 )
 from yuu_clip.web.routes.clips.serialize import _parse_clip_ids
+from yuu_clip.web.routes.common import missing_ids
 
 _log = get_logger(__name__)
 
@@ -47,7 +47,7 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
             for clip in clips:
                 clip.status = body.status
             db.commit()
-            missing = _missing_ids(body.clip_ids, found_ids)
+            missing = missing_ids(body.clip_ids, found_ids)
             _log.info(
                 "Bulk status update: %d clip(s) set to %s, %d missing",
                 len(clips), body.status, len(missing),
@@ -80,7 +80,7 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
             db.commit()
             found_ids = {c.id for c in clips}
             _log.info("Bulk status restore (undo): %d clip(s) reverted", len(clips))
-            return {"restored": sorted(found_ids), "missing": _missing_ids(list(by_id), found_ids)}
+            return {"restored": sorted(found_ids), "missing": missing_ids(list(by_id), found_ids)}
         finally:
             db.close()
 
@@ -101,9 +101,9 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
             locked_ids: list[int] = []
             for clip in clips:
                 video = db.get(Video, clip.video_id)
-                locked = _delete_files([
-                    *_all_sidecar_paths(clip, video, ctx.export_dir, ctx.config.export_name_template),
-                    *_clip_export_row_files(clip),
+                locked = delete_files([
+                    *all_sidecar_paths(clip, video, ctx.export_dir, ctx.config.export_name_template),
+                    *clip_export_row_files(clip),
                 ])
                 if locked:
                     locked_ids.append(clip.id)
@@ -111,7 +111,7 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
                 db.delete(clip)
                 deleted.append(clip.id)
             db.commit()
-            missing = _missing_ids(body.clip_ids, found_ids)
+            missing = missing_ids(body.clip_ids, found_ids)
             _log.info(
                 "Bulk delete: %d clip(s) deleted, %d locked, %d missing",
                 len(deleted), len(locked_ids), len(missing),
@@ -137,7 +137,7 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
         allowed_containers = {"mkv", "mp4"}
         if container is not None and container not in allowed_containers:
             raise HTTPException(400, f"container must be one of {sorted(allowed_containers)}")
-        _validate_export_preset_query(ctx, preset, embed_subs)
+        validate_export_preset_query(ctx, preset, embed_subs)
 
         db = ctx.get_db()
         try:
@@ -146,7 +146,7 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
             }
         finally:
             db.close()
-        missing = _missing_ids(ids, found_ids)
+        missing = missing_ids(ids, found_ids)
         if missing:
             raise HTTPException(404, f"Clip(s) not found: {', '.join(map(str, missing))}")
 

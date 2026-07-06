@@ -22,7 +22,7 @@ from yuu_clip.db.models import ClipCandidate, RecordingSession, Video
 from yuu_clip.log import get_logger
 from yuu_clip.sessions import SessionCandidate, recording_start_time, suggest_session_groups
 from yuu_clip.web.deps import ProjectContext
-from yuu_clip.web.routes._shared import _active_job, _json_list, _reject_if_analyzing, _sse_response
+from yuu_clip.web.routes.common import active_job, json_list, reject_if_analyzing, sse_response
 
 _log = get_logger(__name__)
 
@@ -276,7 +276,7 @@ def _register_detail_routes(router: APIRouter, ctx: ProjectContext) -> None:
         """Roll up a session title + summary from members and auto-commit. SSE-wrapped."""
         from yuu_clip.scoring.llm import summarize_session
 
-        _reject_if_analyzing(ctx)
+        reject_if_analyzing(ctx)
         db = ctx.get_db()
         try:
             session = db.get(RecordingSession, session_id)
@@ -294,7 +294,7 @@ def _register_detail_routes(router: APIRouter, ctx: ProjectContext) -> None:
         context_text = format_context_block(load_contexts(ctx.project_dir), context_names)
 
         async def event_stream():
-            async with _active_job(ctx):
+            async with active_job(ctx):
                 yield f"data: {json_lib.dumps('[Generating session summary…]')}\n\n"
                 try:
                     title_new, summary_new = await asyncio.to_thread(
@@ -323,14 +323,14 @@ def _register_detail_routes(router: APIRouter, ctx: ProjectContext) -> None:
                 yield f"data: {json_lib.dumps('[Session summary generated]')}\n\n"
                 yield f"data: {json_lib.dumps('__DONE__')}\n\n"
 
-        return _sse_response(event_stream())
+        return sse_response(event_stream())
 
 
 def _merged_context_names(members: list[Video]) -> list[str]:
     """Union of the members' assigned world-context ids, order-stable."""
     seen: list[str] = []
     for video in members:
-        for name in _json_list(video.context_names_json):
+        for name in json_list(video.context_names_json):
             if name not in seen:
                 seen.append(name)
     return seen
@@ -363,7 +363,7 @@ def _session_detail_dict(db, session: RecordingSession, members: list[Video]) ->
         "summary_original": session.summary or "",
         "summary_is_edited": session.summary_user is not None,
         "summarized_at": session.summarized_at.isoformat() if session.summarized_at else None,
-        "summary_context": _json_list(session.summary_context_json),
+        "summary_context": json_list(session.summary_context_json),
         "total_ms": offset_ms,
         "members": member_dicts,
     }

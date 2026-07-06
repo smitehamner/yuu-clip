@@ -12,16 +12,10 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException
 
 from yuu_clip.db.models import ClipCandidate, Video
+from yuu_clip.export.paths import all_sidecar_paths, clip_export_row_files
 from yuu_clip.log import get_logger
 from yuu_clip.web.deps import ProjectContext
-from yuu_clip.web.routes._shared import (
-    _all_sidecar_paths,
-    _clip_export_row_files,
-    _delete_files,
-    _json_list,
-    _reject_if_analyzing,
-    _require_clip,
-)
+from yuu_clip.web.file_deletion import delete_files
 from yuu_clip.web.routes.clips.schemas import (
     ClipFieldsUpdate,
     ClipFramingUpdate,
@@ -30,6 +24,7 @@ from yuu_clip.web.routes.clips.schemas import (
     ClipTimingUpdate,
 )
 from yuu_clip.web.routes.clips.serialize import _clip_dict
+from yuu_clip.web.routes.common import json_list, reject_if_analyzing, require_clip
 
 _log = get_logger(__name__)
 
@@ -44,7 +39,7 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
             raise HTTPException(400, "field must be description | description_long | both")
         db = ctx.get_db()
         try:
-            clip = _require_clip(db, clip_id)
+            clip = require_clip(db, clip_id)
             video = db.get(Video, clip.video_id)
 
             touch_desc      = body.field in ("description",      "both")
@@ -95,7 +90,7 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
             val = None
         db = ctx.get_db()
         try:
-            clip = _require_clip(db, clip_id)
+            clip = require_clip(db, clip_id)
             clip.score_overall_user = val
             db.commit()
             video = db.get(Video, clip.video_id)
@@ -108,8 +103,8 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
         """Merge clip_b into clip_a: extends clip_a's end to clip_b's end, then deletes clip_b."""
         db = ctx.get_db()
         try:
-            clip_a = _require_clip(db, clip_id)
-            clip_b = _require_clip(db, body.clip_b_id)
+            clip_a = require_clip(db, clip_id)
+            clip_b = require_clip(db, body.clip_b_id)
             if clip_a.video_id != clip_b.video_id:
                 raise HTTPException(400, "Clips must belong to the same recording")
             if clip_a.id == clip_b.id:
@@ -129,13 +124,13 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
             clip_a.exported_title_card = None
 
             video = db.get(Video, clip_a.video_id)
-            _delete_files([
-                *_all_sidecar_paths(clip_b, video, ctx.export_dir, ctx.config.export_name_template),
-                *_clip_export_row_files(clip_b),
+            delete_files([
+                *all_sidecar_paths(clip_b, video, ctx.export_dir, ctx.config.export_name_template),
+                *clip_export_row_files(clip_b),
             ])
-            _delete_files([
-                *_all_sidecar_paths(clip_a, video, ctx.export_dir, ctx.config.export_name_template),
-                *_clip_export_row_files(clip_a),
+            delete_files([
+                *all_sidecar_paths(clip_a, video, ctx.export_dir, ctx.config.export_name_template),
+                *clip_export_row_files(clip_a),
             ])
             # clip_b's rows cascade with its delete below; clip_a keeps its id but its
             # merged window invalidates every format it had, same as the legacy fields above.
@@ -159,7 +154,7 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
         """Set start_offset and end_offset (seconds) on a clip."""
         db = ctx.get_db()
         try:
-            clip = _require_clip(db, clip_id)
+            clip = require_clip(db, clip_id)
             clip.start_offset = body.start_offset
             clip.end_offset   = body.end_offset
             clip.trim_edited_at = datetime.now(timezone.utc)
@@ -180,7 +175,7 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
         crop_x = None if body.crop_x is None else round(max(0.0, min(1.0, body.crop_x)), 4)
         db = ctx.get_db()
         try:
-            clip = _require_clip(db, clip_id)
+            clip = require_clip(db, clip_id)
             clip.crop_x = crop_x
             clip.trim_edited_at = datetime.now(timezone.utc)
             db.commit()
@@ -206,7 +201,7 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
             )
         db = ctx.get_db()
         try:
-            clip = _require_clip(db, clip_id)
+            clip = require_clip(db, clip_id)
             video = db.get(Video, clip.video_id)
             if not video:
                 raise HTTPException(404, "Video not found")
@@ -250,14 +245,14 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
         from yuu_clip.scoring.llm import check_vision_available
         from yuu_clip.scoring.llm_client import VisionNotSupportedError
 
-        _reject_if_analyzing(ctx)
+        reject_if_analyzing(ctx)
         vision_ok, reason = check_vision_available(ctx.config)
         if not vision_ok:
             raise HTTPException(503, f"Image analysis unavailable — {reason}")
 
         db = ctx.get_db()
         try:
-            clip = _require_clip(db, clip_id)
+            clip = require_clip(db, clip_id)
             video = db.get(Video, clip.video_id)
             if not video:
                 raise HTTPException(404, "Video not found")
@@ -265,7 +260,7 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
                 raise HTTPException(404, "Source video file not found on disk")
             encode_src, start_s, end_s = resolve_frame_window(video, clip, ctx.proxy_dir)
             frame_count = clamp_frame_count(ctx.config)
-            context_names = _json_list(video.context_names_json)
+            context_names = json_list(video.context_names_json)
         finally:
             db.close()
 

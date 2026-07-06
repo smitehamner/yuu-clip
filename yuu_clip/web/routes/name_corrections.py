@@ -26,7 +26,7 @@ from yuu_clip.scoring.textmatch import (
     find_name_corrections,
 )
 from yuu_clip.web.deps import ProjectContext
-from yuu_clip.web.routes._shared import _json_list, stage_segment_text_edit
+from yuu_clip.web.routes.common import json_list, stage_segment_text_edit
 
 _log = get_logger(__name__)
 
@@ -122,7 +122,7 @@ def _build_lexicon(ctx: ProjectContext, video: Video, speakers: list[Speaker]) -
                 entries.append(LexiconName(speaker.name, owner_speaker_id=speaker.id))
 
     contexts = load_contexts(ctx.project_dir)
-    for context_id in _json_list(video.context_names_json):
+    for context_id in json_list(video.context_names_json):
         context = contexts.get(context_id, {})
         free_text = f"{context.get('your_characters', '')}\n{context.get('other_characters', '')}"
         for name in extract_character_names(free_text):

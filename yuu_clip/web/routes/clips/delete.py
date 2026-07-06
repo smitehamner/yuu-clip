@@ -6,15 +6,11 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException
 
 from yuu_clip.db.models import ClipExport, Video
+from yuu_clip.export.paths import all_sidecar_paths, clip_export_row_files
 from yuu_clip.log import get_logger
 from yuu_clip.web.deps import ProjectContext
-from yuu_clip.web.routes._shared import (
-    _all_sidecar_paths,
-    _clip_export_row_files,
-    _delete_files,
-    _locked_files_error,
-    _require_clip,
-)
+from yuu_clip.web.file_deletion import delete_files, locked_files_error
+from yuu_clip.web.routes.common import require_clip
 
 _log = get_logger(__name__)
 
@@ -29,16 +25,16 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
         """
         db = ctx.get_db()
         try:
-            clip = _require_clip(db, clip_id)
+            clip = require_clip(db, clip_id)
             video = db.get(Video, clip.video_id)
             targets = [
-                *(p for p in _all_sidecar_paths(clip, video, ctx.export_dir, ctx.config.export_name_template) if p.exists()),
-                *_clip_export_row_files(clip),
+                *(p for p in all_sidecar_paths(clip, video, ctx.export_dir, ctx.config.export_name_template) if p.exists()),
+                *clip_export_row_files(clip),
             ]
             targets = list(dict.fromkeys(targets))  # de-dupe, preserve order
-            locked = _delete_files(targets)
+            locked = delete_files(targets)
             if locked:
-                raise _locked_files_error(locked)
+                raise locked_files_error(locked)
             for row in list(clip.exports):
                 db.delete(row)
             db.commit()
@@ -57,9 +53,9 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
                 raise HTTPException(404, "Export not found")
             path = Path(row.path)
             if path.exists():
-                locked = _delete_files([path])
+                locked = delete_files([path])
                 if locked:
-                    raise _locked_files_error(locked)
+                    raise locked_files_error(locked)
             clip_id = row.clip_id
             db.delete(row)
             db.commit()
@@ -73,16 +69,16 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
         """Remove a clip record and its exported file from the exports folder."""
         db = ctx.get_db()
         try:
-            clip = _require_clip(db, clip_id)
+            clip = require_clip(db, clip_id)
             video = db.get(Video, clip.video_id)
             video_id = clip.video_id
 
-            locked = _delete_files([
-                *_all_sidecar_paths(clip, video, ctx.export_dir, ctx.config.export_name_template),
-                *_clip_export_row_files(clip),
+            locked = delete_files([
+                *all_sidecar_paths(clip, video, ctx.export_dir, ctx.config.export_name_template),
+                *clip_export_row_files(clip),
             ])
             if locked:
-                raise _locked_files_error(locked)
+                raise locked_files_error(locked)
 
             db.delete(clip)  # cascades clip_exports rows via the ORM relationship
             db.commit()

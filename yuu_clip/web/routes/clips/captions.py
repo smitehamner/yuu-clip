@@ -7,15 +7,11 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import PlainTextResponse
 
 from yuu_clip.db.models import TranscriptSegment, Video
+from yuu_clip.export.paths import srt_path
 from yuu_clip.log import get_logger
 from yuu_clip.web.deps import ProjectContext
-from yuu_clip.web.routes._shared import (
-    _require_clip,
-    _srt_path,
-    _srt_to_vtt,
-    stage_segment_text_edit,
-)
 from yuu_clip.web.routes.clips.schemas import CaptionSegmentUpdate
+from yuu_clip.web.routes.common import require_clip, srt_to_vtt, stage_segment_text_edit
 
 _log = get_logger(__name__)
 
@@ -31,7 +27,7 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
         from yuu_clip.subtitles import clip_transcript_lines
         db = ctx.get_db()
         try:
-            clip = _require_clip(db, clip_id)
+            clip = require_clip(db, clip_id)
             return {"lines": clip_transcript_lines(clip)}
         finally:
             db.close()
@@ -47,7 +43,7 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
         from yuu_clip.subtitles import clip_context_transcript_lines
         db = ctx.get_db()
         try:
-            clip = _require_clip(db, clip_id)
+            clip = require_clip(db, clip_id)
             video = db.get(Video, clip.video_id)
             if not video:
                 raise HTTPException(404, "Video not found")
@@ -96,11 +92,11 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
         """Convert the exported SRT sidecar to WebVTT and return it for browser <track> use."""
         db = ctx.get_db()
         try:
-            clip = _require_clip(db, clip_id)
+            clip = require_clip(db, clip_id)
             video = db.get(Video, clip.video_id)
-            srt = _srt_path(clip, video, ctx.export_dir, ctx.config.export_name_template)
+            srt = srt_path(clip, video, ctx.export_dir, ctx.config.export_name_template)
             if srt is None:
                 raise HTTPException(404, "No SRT file found for this clip")
-            return PlainTextResponse(_srt_to_vtt(srt.read_text(encoding="utf-8", errors="replace")), media_type="text/vtt")
+            return PlainTextResponse(srt_to_vtt(srt.read_text(encoding="utf-8", errors="replace")), media_type="text/vtt")
         finally:
             db.close()

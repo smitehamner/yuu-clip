@@ -209,18 +209,18 @@ class TestRejectWhileAnalyzing:
     def test_reject_helper_only_fires_while_in_flight(self):
         from fastapi import HTTPException
 
-        from yuu_clip.web.routes._shared import _reject_if_analyzing
+        from yuu_clip.web.routes.common import reject_if_analyzing
 
         class _Ctx:
             analyze_job = None
             analyze_proc = None
 
         ctx = _Ctx()
-        _reject_if_analyzing(ctx)  # idle → no raise
+        reject_if_analyzing(ctx)  # idle → no raise
 
         ctx.analyze_job = _RunningJob()
         with pytest.raises(HTTPException) as exc:
-            _reject_if_analyzing(ctx)
+            reject_if_analyzing(ctx)
         assert exc.value.status_code == 409
 
     def test_score_all_rejected(self, project_dir):

@@ -29,7 +29,7 @@ from yuu_clip.db.models import (
 from yuu_clip.log import get_logger
 from yuu_clip.segments.windower import _build_excerpt, rebuild_clip_excerpt
 from yuu_clip.web.deps import ProjectContext
-from yuu_clip.web.routes._shared import _active_job, _json_list, _sse_response
+from yuu_clip.web.routes.common import active_job, json_list, sse_response
 
 _log = get_logger(__name__)
 
@@ -98,7 +98,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             if not speakers:
                 raise HTTPException(400, "No speakers detected — detect speakers first")
             labeled = _labeled_transcript(db, video_id, {s.id: s for s in speakers})
-            context_names = _json_list(video.context_names_json)
+            context_names = json_list(video.context_names_json)
         finally:
             db.close()
 
@@ -111,7 +111,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         context_text = format_context_block(load_contexts(ctx.project_dir), context_names)
 
         async def event_stream():
-            async with _active_job(ctx):
+            async with active_job(ctx):
                 yield f"data: {json_lib.dumps('[Suggesting speaker names…]')}\n\n"
                 try:
                     raw = await asyncio.to_thread(
@@ -142,7 +142,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                 yield f"data: {json_lib.dumps(summary)}\n\n"
                 yield f"data: {json_lib.dumps({'type': '__DONE__', 'suggested': applied})}\n\n"
 
-        return _sse_response(event_stream())
+        return sse_response(event_stream())
 
     @router.put("/api/speakers/{speaker_id}")
     def rename_speaker(speaker_id: int, body: SpeakerRename):

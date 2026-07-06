@@ -83,7 +83,7 @@ Also run `test-ui.ps1` during any UX/UI review pass (`/code-review` or
 yuu_clip/
   cli/                     # Thin Typer adapters — analyze, export, reel, review, serve (+ _base). Commands parse args and call into pipeline/ and export/.
   pipeline/                # The analyze engine: ingest (per-video orchestration + stages), run_meta (per-run timing/settings capture)
-  export/                  # The export feature: render (engine — cut, retranscribe, title card, captions), naming (filename stem), presets (definitions + size-cap math)
+  export/                  # The export feature: render (engine — cut, retranscribe, title card, captions), naming (filename stem), presets (definitions + size-cap math), paths (on-disk export/sidecar path resolution + export-query validation)
   console.py               # Shared Rich console + BYTES_PER_MB (used by cli/ and the engine; lives outside cli/ so the engine never imports cli)
   config.py                # Config + profile management
   db/models.py             # SQLAlchemy ORM (SQLite, NullPool)
@@ -99,7 +99,8 @@ yuu_clip/
     sse.py                 # subprocess → SSE streaming helper
     analyze_job.py         # in-process analyze job tracking (AnalyzeJob)
     media.py               # video/media file streaming helpers
-    routes/                # videos, clips, analyze, scoring, speakers, sounds, profiles, reel, contexts, config, logs, _shared
+    file_deletion.py       # resilient file deletion + Windows file-lock diagnosis (Restart Manager)
+    routes/                # videos, clips, analyze, scoring, speakers, sounds, profiles, reel, contexts, config, logs, common (small cross-cutting route helpers)
     static/index.html      # Single-page UI shell (vanilla JS, no build step)
     static/*.js            # Feature modules: analyze, boot, clips, contexts, reel, settings, sounds, speakers, split, transcript, ui, utils, videos
     static/app.css         # Stylesheet

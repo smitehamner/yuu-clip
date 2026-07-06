@@ -262,13 +262,13 @@ class TestClipEffectiveProperties:
 
 
 # ---------------------------------------------------------------------------
-# _shared.py — _json_list
+# common.py — json_list
 # ---------------------------------------------------------------------------
 
 class TestJsonList:
     def _fn(self, s):
-        from yuu_clip.web.routes._shared import _json_list
-        return _json_list(s)
+        from yuu_clip.web.routes.common import json_list
+        return json_list(s)
 
     def test_none_returns_empty(self):
         assert self._fn(None) == []

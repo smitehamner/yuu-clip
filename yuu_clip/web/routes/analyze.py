@@ -31,14 +31,10 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from yuu_clip.config import validate_whisper_model
+from yuu_clip.export.paths import validate_caption_style_query, validate_export_preset_query
 from yuu_clip.log import get_logger
 from yuu_clip.web.deps import ProjectContext
-from yuu_clip.web.routes._shared import (
-    _analyze_in_flight,
-    _reject_if_analyzing,
-    _validate_caption_style_query,
-    _validate_export_preset_query,
-)
+from yuu_clip.web.routes.common import analyze_in_flight, reject_if_analyzing
 from yuu_clip.web.sse import subprocess_sse, terminate_process_tree
 
 _log = get_logger(__name__)
@@ -48,7 +44,7 @@ def _analyze_running(ctx: ProjectContext) -> bool:
     """Whether an analyze operation is currently in flight, across both the
     reattachable AnalyzeJob (ctx.analyze_job) and the legacy bare-subprocess
     tracking (ctx.analyze_proc) that other short jobs still use."""
-    return _analyze_in_flight(ctx)
+    return analyze_in_flight(ctx)
 
 # Optional packages installable from Settings. _INSTALLABLE maps a UI slug to its
 # pip package name(s); _IMPORT_NAMES maps the slug to the import module name(s)
@@ -483,7 +479,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     @router.post("/api/score")
     async def score_all():
         """Re-score all videos and stream progress as SSE."""
-        _reject_if_analyzing(ctx)
+        reject_if_analyzing(ctx)
         cmd = [
             sys.executable, "-m", "yuu_clip.cli", "score", "--all",
             "--project", str(ctx.project_dir),
@@ -514,8 +510,8 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                 validate_whisper_model(retranscribe_model)
             except ValueError as e:
                 raise HTTPException(400, str(e))
-        _validate_export_preset_query(ctx, preset, embed_subs)
-        _validate_caption_style_query(caption_font, caption_size, caption_position)
+        validate_export_preset_query(ctx, preset, embed_subs)
+        validate_caption_style_query(caption_font, caption_size, caption_position)
         cmd = [
             sys.executable, "-m", "yuu_clip.cli", "export", str(clip_id),
             "--captions", "--project", str(ctx.project_dir),
@@ -545,7 +541,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     async def retranscribe_clip(clip_id: int, model: str = Query("large-v3"),
                                 speaker_labels: bool = Query(True)):
         """Re-transcribe a clip's time window with the given Whisper model."""
-        _reject_if_analyzing(ctx)
+        reject_if_analyzing(ctx)
         try:
             validate_whisper_model(model)
         except ValueError as e:
@@ -566,7 +562,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         voices (the way voiceprint re-attach is validated). Streams progress as SSE.
         """
         from yuu_clip.db.models import Video
-        _reject_if_analyzing(ctx)
+        reject_if_analyzing(ctx)
         db = ctx.get_db()
         try:
             if not db.get(Video, video_id):
