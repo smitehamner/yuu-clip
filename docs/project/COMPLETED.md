@@ -6,6 +6,39 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) — see the
 
 ---
 
+## Code-quality review — post-9148305 slice (done 2026-07-05)
+
+A full 7-phase quality pass over everything shipped since the last review (the
+non-LLM scoring tiers, the `web/routes/clips/` package, `routes/llm.py`, the new
+JS modules, and the legibility refactor). The suite was green throughout; the pass
+was mostly confirmation that the new code was already well-decomposed and
+well-covered, plus a few concrete fixes.
+
+- **Vision analyze-frames returns 404 instead of a 500 on a mid-analysis delete.**
+  `clips/edit.py::analyze_frames` bound `analyzed_at` only inside `if stored:`; a clip
+  deleted during the seconds-long vision call left it unbound → `UnboundLocalError` → an
+  opaque 500. It now raises a clean 404 when the save-back session finds the clip gone
+  (covered by `test_vision.py::TestAnalyzeFramesRoute::test_clip_deleted_mid_analysis_returns_404`).
+- **Restart Manager lock-diagnosis failures are no longer silent.**
+  `file_deletion.py::locking_processes` swallowed every exception; that helper runs
+  precisely while a user is hitting a 409 file-lock, so its own failure was invisible
+  when it mattered most. It now logs the path + exception at DEBUG (matching the
+  settled degraded-probe philosophy).
+- **`wav_access.py` gained direct test coverage** (`test_scoring_wav_access.py`, 12
+  tests) for `best_wav_track` selection rules and `WavCache` decode-once / failure-contract
+  behavior.
+- **README + FEATURES accuracy.** The README predated the lightweight-first direction —
+  it described LLM/Ollama scoring as central, listed the wrong default Whisper model
+  ("medium" vs. the actual `base`), and used pre-glossary terms. Rewritten to lead with
+  lightweight mode, the llamacpp default, the desktop-app path, and current features.
+  FEATURES.md's Scoring section gained a "Lightweight signal scorers (no model)"
+  subsection documenting the lexicon/speech-rate/prosody/speaker-overlap/audio-event tiers.
+- Keep-as-is rulings for the slice (decomposition, logging, docs, UX) recorded in
+  `docs/dev/REVIEW_DECISIONS.md`, including a re-assessment of `electron/main.js`
+  (grown to 1168 lines but pure logic already extracted to 15 tested modules — keep-as-is
+  stands). Large SPA files (`index.html`, `settings.js`, `videos.js`) were surfaced as
+  staged-plan decomposition candidates rather than split as drive-bys.
+
 ## First-run reliability + wizard defaults — E2E UX review stages 01–02 (done 2026-07-05)
 
 The install→daily-use UX review was performed by actually building

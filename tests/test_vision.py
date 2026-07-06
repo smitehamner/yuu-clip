@@ -268,6 +268,27 @@ class TestAnalyzeFramesRoute:
         assert clip["vision_summary"] == "On screen: two players defuse a bomb."
         assert clip["vision_analyzed_at"]
 
+    def test_clip_deleted_mid_analysis_returns_404(
+        self, client: TestClient, project_dir: Path, monkeypatch,
+    ):
+        # If the clip is deleted while the (seconds-long) vision call runs, the
+        # save-back session finds nothing — that must be a clean 404, not a 500.
+        import yuu_clip.analyze.frames as frames_mod
+        from yuu_clip.db.models import ClipCandidate, make_session
+        _enable_ollama_vision(client)
+        (project_dir / "session.mkv").write_bytes(b"x")
+
+        def delete_then_describe(*a, **k):
+            session = make_session(project_dir / ".yuu-clip" / "project.db")
+            session.delete(session.get(ClipCandidate, 1))
+            session.commit()
+            session.close()
+            return "On screen: the clip is already gone."
+
+        monkeypatch.setattr(frames_mod, "sample_and_describe", delete_then_describe)
+        resp = client.post("/api/clips/1/analyze-frames")
+        assert resp.status_code == 404
+
 
 class TestRescoreIncludeFrames:
     def test_include_frames_without_vision_returns_503(self, client: TestClient):

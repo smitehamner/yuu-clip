@@ -283,11 +283,12 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
         save_db = ctx.get_db()
         try:
             stored = save_db.get(ClipCandidate, clip_id)
-            if stored:
-                stored.vision_summary = summary
-                stored.vision_analyzed_at = datetime.now(timezone.utc)
-                save_db.commit()
-                analyzed_at = stored.vision_analyzed_at
+            if not stored:
+                raise HTTPException(404, "Clip not found")
+            stored.vision_summary = summary
+            stored.vision_analyzed_at = datetime.now(timezone.utc)
+            save_db.commit()
+            analyzed_at = stored.vision_analyzed_at
         finally:
             save_db.close()
         _log.info("Analyzed %d frame(s) for clip %d in %.1fs", frame_count, clip_id, elapsed_s)

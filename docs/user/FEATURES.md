@@ -307,6 +307,19 @@ Three modes:
 
 Scene cuts are stored as database records and influence candidate boundaries.
 
+### Lightweight signal scorers (no model)
+
+These run with zero extra downloads and are what makes clip scoring work in lightweight mode. Each nudges the funny / dramatic / action scores; their weights are set in Settings → Scoring weights.
+
+- **Laughter** — detects laughter in the audio; nudges funny.
+- **Lexicon** — curated keyword-density matching; nudges funny / dramatic / action.
+- **Speech-rate** — words-per-second bursts; nudges funny / action.
+- **Prosody** — loudness and pitch delivery dynamics; nudges dramatic / action.
+- **Speaker-overlap** — rapid speaker turn-taking and cross-talk; nudges funny / action. Requires speaker detection.
+- **Audio-event** *(heavy, opt-in, off by default)* — gunshot / explosion / cheer detection via an AudioSet model; nudges action / funny.
+
+Without a language model installed, these signals plus audio energy and scene cuts still rank clips; the LLM scorer below only adds written descriptions and a semantic score on top.
+
 ### LLM scorer
 
 Sends each candidate's transcript excerpt to the configured LLM backend — a local `.gguf`

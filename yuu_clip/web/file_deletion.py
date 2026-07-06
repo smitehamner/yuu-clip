@@ -68,7 +68,8 @@ def locking_processes(path: Path) -> list[str]:
         return []
     try:
         return _rm_locking_processes(path)
-    except Exception:  # ctypes/RM is best-effort diagnostics, never fatal
+    except Exception as exc:  # ctypes/RM is best-effort diagnostics, never fatal
+        _log.debug("Restart Manager lock diagnosis failed for %s: %s", path, exc)
         return []
 
 

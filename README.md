@@ -1,28 +1,36 @@
 # yuu-clip
 
-A local-first video session clip extraction pipeline. Ingests OBS recordings, transcribes all audio tracks with Whisper, scores clip candidates with a local LLM, and surfaces the best moments through a web review UI.
+A local-first tool for turning long gaming/session recordings into shareable highlights. It analyzes a recording — transcribes every audio track with Whisper, measures audio energy and scene cuts, and scores clip candidates — then surfaces the best moments in a web review UI for approve/reject and export.
 
-Everything runs locally — no cloud APIs, no internet required after first model download.
+Everything runs locally. It works out of the box with **no language model at all** (lightweight mode); installing a local model adds richer LLM scoring and descriptions. No cloud APIs are required.
 
 ---
 
 ## What it does
 
-- Probes video files and detects multiple OBS audio tracks
+- Inspects video files and detects multiple OBS audio tracks
 - Assigns each track a role (mic, voice chat, game sounds, combined) with saved track layouts
 - Extracts audio tracks to 16 kHz mono WAV
 - Transcribes with [faster-whisper](https://github.com/SYSTRAN/faster-whisper) (GPU accelerated via CTranslate2)
-- Detects when specialized tracks duplicate a combined track and falls back automatically
-- Groups transcript segments into clip candidates using silence gaps
-- Scores clips via audio energy, scene-cut density, and a local LLM (Ollama)
-- Generates a one-sentence description of each clip
-- Web UI to review clips, approve/reject, and export
-- Exports clips via FFmpeg with optional SRT subtitle sidecars
-- `yuuclip reel` command to compile approved clips into a highlight reel with transitions
+- Optionally labels who is speaking (speaker detection) with no account or token required
+- Groups transcript segments into clips using silence gaps
+- Scores clips with a stack of signals that need **no model** — audio energy, scene-cut density, laughter, a curated keyword lexicon, speech-rate bursts, speaker-overlap, and prosody — plus optional heavier tiers (audio-event detection) and, if a model is installed, LLM scoring with a written description
+- Web UI to review clips, approve/reject, edit captions, and export
+- Exports clips via FFmpeg with optional caption (SRT) sidecars or baked-in captions
+- Compiles approved clips into a highlight reel with transitions
+- Extra tools: import from a URL, world contexts, hot-words, sensitive-term flagging, name correction, and image-based (vision) analysis
 
 ---
 
-## Requirements
+## Two ways to run it
+
+**Desktop app (recommended for most people).** A packaged Windows build bundles a pinned Python runtime and FFmpeg, walks you through a first-run setup wizard, and offers a one-click download of a recommended local scoring model. No manual Python or FFmpeg install needed.
+
+**From source (developers).** Clone and `pip install` as below. This path expects FFmpeg and Python on your machine.
+
+---
+
+## Requirements (from source)
 
 ### FFmpeg
 Must be on PATH.
@@ -37,16 +45,16 @@ sudo apt install ffmpeg           # Ubuntu/Debian
 winget install Python.Python.3.12   # Windows
 ```
 
-### Ollama (optional — for LLM scoring)
-Download from [ollama.ai](https://ollama.ai). After installing, pull the model:
-```
-ollama pull qwen2.5:7b
-```
-Ollama must be running (`ollama serve`) when you ingest or score.
+### A language model — optional
+LLM scoring and written clip descriptions are optional. Without a model, yuu-clip still finds and scores clips using the no-model signals above. To enable LLM scoring, pick a backend in the setup wizard or Settings:
+
+- **Local model file (default)** — a local `.gguf` run via llama.cpp. The desktop app can download a recommended, monetization-safe model for you.
+- **Ollama** — if you already run [Ollama](https://ollama.ai): `ollama pull qwen2.5:7b`, and keep `ollama serve` running during analysis.
+- **Claude API** — remote, billed per token.
 
 ---
 
-## Install
+## Install (from source)
 
 ```bash
 git clone https://github.com/you/yuu-clip
@@ -78,7 +86,10 @@ Then navigate to `http://127.0.0.1:8080`. Use the **+ Analyze** button to add a 
 # Analyze a video (auto-assigns tracks via a saved track layout)
 yuuclip analyze session.mkv --track-layout my_obs_setup
 
-# Re-score all clips (useful after changing the AI model or world contexts)
+# Analyze a video downloaded from a URL
+yuuclip import-url https://example.com/vod
+
+# Re-score all clips (useful after changing the model or world contexts)
 yuuclip score --all
 
 # Export a clip by ID
@@ -95,14 +106,9 @@ yuuclip serve --project /path/to/recordings
 
 ## GPU acceleration
 
-faster-whisper uses CTranslate2, which detects CUDA automatically. No PyTorch needed.
+faster-whisper uses CTranslate2, which detects CUDA automatically. No PyTorch is needed for transcription.
 
-For best results, install CUDA drivers for your GPU. The tool will automatically use `float16` compute on CUDA and fall back to CPU `int8` otherwise.
-
-```bash
-# Check which device is being used — shown in analyze output
-yuuclip analyze session.mkv
-```
+For best results, install CUDA drivers for your GPU. The tool automatically uses `float16` compute on CUDA and falls back to CPU `int8` otherwise. The device in use is shown in the analyze output.
 
 ---
 
@@ -111,9 +117,9 @@ yuuclip analyze session.mkv
 | Model    | VRAM   | Speed (GPU) | Notes                        |
 |----------|--------|-------------|------------------------------|
 | tiny     | ~0.5 GB | Very fast  | Rough — good for scouting    |
-| base     | ~1 GB   | Fast       | Decent quality               |
+| base     | ~1 GB   | Fast       | Default — decent quality     |
 | small    | ~2 GB   | Fast       | Good balance                 |
-| medium   | ~5 GB   | Moderate   | Default — great for noisy audio |
+| medium   | ~5 GB   | Moderate   | Great for noisy audio        |
 | large-v3 | ~10 GB  | Moderate   | Best quality                 |
 
 Models are downloaded from HuggingFace on first use and cached locally (`~/.cache/huggingface`).
@@ -125,7 +131,7 @@ Models are downloaded from HuggingFace on first use and cached locally (`~/.cach
 ```
 recordings-folder/
 └── .yuu-clip/
-    ├── project.db        ← SQLite (all metadata, transcripts, candidates, scores)
+    ├── project.db        ← SQLite (all metadata, transcripts, clips, scores)
     ├── config.toml       ← project config (overrides global defaults)
     ├── audio/
     │   ├── session_stream0.wav
@@ -134,7 +140,7 @@ recordings-folder/
         └── session_clip42_0-23-15.mkv
 ```
 
-Global config and profiles:
+Global config and track layouts:
 - **Windows:** `%APPDATA%\yuu-clip\`
 - **Linux:**   `~/.config/yuu-clip/`
 - **macOS:**   `~/Library/Application Support/yuu-clip/`
@@ -143,8 +149,8 @@ Global config and profiles:
 
 ## Offline use
 
-After the initial model downloads (Whisper via HuggingFace, LLM via `ollama pull`), the entire pipeline runs with no internet connection.
+After the initial model downloads (Whisper via HuggingFace, and a scoring model if you choose one), the entire pipeline runs with no internet connection. In lightweight mode there is nothing extra to download at all.
 
 ---
 
-See [docs/project/ROADMAP.md](docs/project/ROADMAP.md) for what's in progress and what's planned.
+See [docs/user/FEATURES.md](docs/user/FEATURES.md) for the full feature reference and [docs/project/ROADMAP.md](docs/project/ROADMAP.md) for what's in progress and planned.
