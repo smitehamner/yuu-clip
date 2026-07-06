@@ -1,0 +1,265 @@
+(function () {
+// Feature-map — the recommended-model catalog, model-readiness row, and the
+// capabilities overview ("what scoring/vision power is installed and how do I
+// get more"). Extracted out of settings.js (which grew into a catch-all) —
+// these read backend/model config to decide what to render, but the save/dirty
+// engine that persists config stays in settings.js.
+//   API: routes/llm.py, routes/config.py (capabilities/tiers) · Tests: tests/test_ui_model_catalog.py, tests/test_ui_settings.py
+// ── model catalog (recommended text + vision models) ────────────────────────
+// Loaded once per session. Fills the Claude model dropdown and the per-backend
+// recommended lists; the capabilities line reflects the *saved* active model.
+let _modelCatalog = null;
+
+async function _ensureModelCatalog() {
+  if (_modelCatalog) return;
+  try {
+    const data = await fetch('/api/llm/catalog').then(r => r.json());
+    _modelCatalog = data.models || [];
+  } catch { _modelCatalog = []; return; }
+  _populateClaudeModelSelect();
+  _renderRecommendedModels('s-llamacpp-recommended', 'llamacpp');
+  _renderRecommendedModels('s-ollama-recommended', 'ollama');
+}
+
+function _populateClaudeModelSelect() {
+  const sel = document.getElementById('s-claude-model');
+  if (!sel || !_modelCatalog) return;
+  const claude = _modelCatalog.filter(m => m.backends.includes('claude') && m.api_model_id);
+  if (!claude.length) return;  // keep the HTML fallback options on empty catalog
+  sel.innerHTML = claude.map(m =>
+    `<option value="${escHtml(m.api_model_id)}">${escHtml(m.display_name)}</option>`
+  ).join('');
+}
+
+// Show *value* even when it isn't a catalog option (a legacy or manually-typed
+// model id) so opening Settings never silently rewrites the saved model.
+function _setClaudeModelValue(value) {
+  const sel = document.getElementById('s-claude-model');
+  if (!sel) return;
+  if (!Array.from(sel.options).some(o => o.value === value)) {
+    const opt = document.createElement('option');
+    opt.value = value;
+    opt.textContent = value + ' (configured)';
+    sel.insertBefore(opt, sel.firstChild);
+  }
+  sel.value = value;
+}
+
+function _renderRecommendedModels(containerId, backend) {
+  const el = document.getElementById(containerId);
+  if (!el || !_modelCatalog) return;
+  const models = _modelCatalog.filter(m => m.backends.includes(backend));
+  if (!models.length) { el.innerHTML = ''; return; }
+  const label = backend === 'ollama'
+    ? 'Recommended models — pull one, then set it as the model above.'
+    : 'Recommended models — download a .gguf, then point the paths above at it.';
+  el.innerHTML =
+    `<div class="settings-note" style="margin-bottom:2px">${label}</div>` +
+    models.map(m => _recModelHtml(m, backend)).join('');
+  el.querySelectorAll('.rec-model').forEach(card => {
+    const tag = card.getAttribute('data-tag');
+    card.querySelector('[data-act="use"]')?.addEventListener('click', () => _useOllamaModel(tag));
+    card.querySelector('[data-act="pull"]')?.addEventListener('click', () => pullOllamaModel(tag));
+  });
+}
+
+function _recModelHtml(m, backend) {
+  const meta = [
+    m.size_gb ? `~${m.size_gb} GB` : null,
+    m.licence,
+    m.kinds.includes('vision') ? 'vision' : 'text',
+  ].filter(Boolean).join(' · ');
+  let actions = '';
+  if (backend === 'ollama' && m.ollama_tag) {
+    actions =
+      `<button type="button" class="btn-secondary" data-act="use">Use this model</button>` +
+      `<button type="button" class="btn-secondary" data-act="pull">Pull with Ollama</button>` +
+      `<code class="rec-model-meta">${escHtml(m.ollama_tag)}</code>`;
+  } else if (backend === 'llamacpp' && m.gguf_url) {
+    const proj = (m.mmproj_url && m.mmproj_url !== m.gguf_url)
+      ? ` · <a href="${escHtml(m.mmproj_url)}" target="_blank" rel="noopener">vision projector</a>` : '';
+    actions = `<a href="${escHtml(m.gguf_url)}" target="_blank" rel="noopener">Download page</a>${proj}`;
+  }
+  return (
+    `<div class="rec-model" data-tag="${escHtml(m.ollama_tag || '')}">` +
+      `<div class="rec-model-head"><span class="rec-model-name">${escHtml(m.display_name)}</span>` +
+      `<span class="rec-model-meta">${escHtml(meta)}</span></div>` +
+      `<div class="rec-model-why">${escHtml(m.why)}</div>` +
+      `<div class="rec-model-actions">${actions}</div>` +
+    `</div>`
+  );
+}
+
+function _useOllamaModel(tag) {
+  const el = document.getElementById('s-ollama-model');
+  if (!el) return;
+  el.value = tag;
+  _checkSettingsDirty();
+}
+
+// Abort controller for the active pull, so a Cancel button can close the SSE
+// stream. Closing it disconnects the request, which makes the server terminate
+// the `ollama pull` subprocess (subprocess_sse's finally block).
+let _pullAbort = null;
+
+function _setPullCancel(show, onCancel) {
+  const log = document.getElementById('ollama-pull-log');
+  if (!log) return;
+  let btn = document.getElementById('ollama-pull-cancel');
+  if (show) {
+    if (!btn) {
+      btn = document.createElement('button');
+      btn.id = 'ollama-pull-cancel';
+      btn.type = 'button';
+      btn.className = 'btn-secondary';
+      btn.textContent = 'Cancel download';
+      log.parentNode.insertBefore(btn, log);
+    }
+    btn.disabled = false;
+    btn.onclick = onCancel;
+    btn.style.display = '';
+  } else if (btn) {
+    btn.style.display = 'none';
+  }
+}
+
+async function pullOllamaModel(tag) {
+  const log = document.getElementById('ollama-pull-log');
+  if (!log) return;
+  log.style.display = 'block';
+  log.textContent = `Pulling ${tag} — this can take several minutes…\n`;
+  const controller = new AbortController();
+  _pullAbort = controller;
+  _setPullCancel(true, () => { controller.abort(); });
+  try {
+    const resp = await fetch(`/api/llm/ollama/pull?tag=${encodeURIComponent(tag)}`,
+                             { method: 'POST', signal: controller.signal });
+    if (!resp.ok) {
+      let detail = '';
+      try { detail = (await resp.json()).detail || ''; } catch { detail = await resp.text(); }
+      log.textContent += `✗ ${detail || 'Pull could not start.'}\n`;
+      return;
+    }
+    const reader = resp.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      const lines = buf.split('\n');
+      buf = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const msg = JSON.parse(line.slice(6));
+        if (msg === '__DONE__') { log.textContent += '✓ Done — set it as the model above and Save.\n'; return; }
+        log.textContent += msg + '\n';
+        log.scrollTop = log.scrollHeight;
+      }
+    }
+  } catch (err) {
+    if (err && err.name === 'AbortError') log.textContent += '■ Download cancelled.\n';
+    else log.textContent += '✗ Pull failed — is Ollama installed and running?\n';
+  } finally {
+    _pullAbort = null;
+    _setPullCancel(false);
+  }
+}
+
+// ── model readiness ──────────────────────────────────────────────────────────
+// Readiness of the *saved* active model. Reflects config on disk, not unsaved
+// edits — refreshed on open and after Save.
+async function _updateLlmCapabilities() {
+  const el = document.getElementById('s-llm-capabilities');
+  if (!el) return;
+  let cap;
+  try {
+    cap = await fetch('/api/llm/capabilities').then(r => r.json());
+  } catch { el.textContent = 'Could not check model readiness.'; return; }
+  const mark = ok => ok ? '✓' : '○';
+  el.innerHTML =
+    `<span style="margin-right:14px">${mark(cap.text)} Text scoring</span>` +
+    `<span>${mark(cap.vision)} Image analysis</span>` +
+    `<div class="settings-note" style="margin-top:4px">${escHtml(cap.detail || '')}</div>`;
+  el.style.color = cap.text ? 'var(--green, #22c55e)' : 'var(--muted)';
+}
+
+// ── capabilities overview (Stage 06) ────────────────────────────────────────
+// A read-only, at-a-glance map of the non-LLM upgrade tiers. Sources each tier's
+// active state + install guidance from the backend's availability() reasons via
+// /api/capabilities/tiers — it never installs anything itself; each row links to
+// the section where the real install/enable control lives.
+async function _renderCapabilityTiers() {
+  const list = document.getElementById('s-capabilities-list');
+  const intro = document.getElementById('s-capabilities-intro');
+  if (!list) return;
+  let data;
+  try {
+    data = await fetch('/api/capabilities/tiers').then(r => r.json());
+  } catch {
+    if (intro) intro.textContent = '';
+    list.innerHTML = '<div class="settings-note">Could not check capabilities.</div>';
+    return;
+  }
+  if (intro) {
+    intro.textContent = data.lightweight
+      ? "You're running in lightweight mode — transcription, scoring, and clip descriptions all work right now. Install a local model anytime for richer AI descriptions and smarter scoring."
+      : "Here's what each part of yuu-clip is using right now, and what you can upgrade.";
+  }
+  list.innerHTML = (data.tiers || []).map(_capabilityTierHtml).join('');
+  list.querySelectorAll('[data-section]').forEach(btn => {
+    btn.addEventListener('click', () => _scrollToSettingsSection(btn.getAttribute('data-section')));
+  });
+}
+
+function _capabilityTierHtml(tier) {
+  const action = tier.ready ? '' :
+    `<button type="button" class="settings-jump-link" data-section="${escHtml(tier.section)}" style="margin-top:2px">Set up &rarr;</button>`;
+  return (
+    `<div class="capability-tier">` +
+      `<div class="capability-tier-head">` +
+        `<span class="capability-mark${tier.ready ? ' ready' : ''}" aria-hidden="true">${tier.ready ? '✓' : '○'}</span>` +
+        `<span class="capability-tier-name">${escHtml(tier.name)}</span>` +
+        `<span class="capability-tier-active">${escHtml(tier.active)}</span>` +
+      `</div>` +
+      `<div class="settings-note">${escHtml(tier.purpose)}</div>` +
+      `<div class="settings-note">${escHtml(tier.upgrade)}</div>` +
+      (tier.detail ? `<div class="settings-note">${escHtml(tier.detail)}</div>` : '') +
+      action +
+    `</div>`
+  );
+}
+
+// Gate a control on a model capability ("text" | "vision") from
+// /api/llm/capabilities. Disables the element and appends a linked explanation
+// when the capability is unavailable; used by image-analysis controls (plan 11).
+// Returns the resolved capabilities object.
+async function gateOnCapability(el, capability, message) {
+  let cap;
+  try {
+    cap = await fetch('/api/llm/capabilities').then(r => r.json());
+  } catch { cap = { text: false, vision: false, detail: '' }; }
+  const ok = !!cap[capability];
+  el.disabled = !ok;
+  let note = el.parentElement?.querySelector('.gate-note');
+  if (!ok) {
+    if (!note) {
+      note = document.createElement('div');
+      note.className = 'gate-note';
+      el.parentElement?.appendChild(note);
+    }
+    note.innerHTML = `${escHtml(message)} <a href="#" onclick="openSettings();return false">Open Settings</a>`;
+  } else if (note) {
+    note.remove();
+  }
+  return cap;
+}
+
+// Public API — symbols referenced cross-module, by an inline handler, or by a
+// test. Internal helpers above stay private to this module's closure.
+Object.assign(window, {
+  _ensureModelCatalog, _setClaudeModelValue,
+  _updateLlmCapabilities, _renderCapabilityTiers,
+  gateOnCapability, pullOllamaModel,
+});
+})();
