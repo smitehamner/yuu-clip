@@ -29,7 +29,8 @@ _JS_MODULES = [
     "ui.js", "helpmodals.js", "shortcuts.js", "panelnav.js", "videos.js",
     "clips.js", "clipbulk.js",
     "clipexport.js", "clipcreate.js", "exporteditor.js", "exportpresets.js",
-    "analyze.js", "reel.js", "contexts.js", "settings.js", "modelcatalog.js", "split.js",
+    "analyze.js", "reel.js", "contexts.js", "settings.js", "settings-previews.js",
+    "settings-installs.js", "modelcatalog.js", "split.js",
     "projects.js", "sessions.js", "sounds.js", "speakers.js", "transcript.js",
     "hotwords.js", "namecorrections.js", "sensitive.js", "boot.js",
 ]
