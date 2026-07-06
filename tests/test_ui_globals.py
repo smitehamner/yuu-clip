@@ -27,6 +27,7 @@ from playwright.sync_api import Page
 _JS_MODULES = [
     "state.js", "format.js", "jobs.js", "preview.js", "utils.js",
     "ui.js", "helpmodals.js", "shortcuts.js", "panelnav.js", "videos.js",
+    "videos-timeline.js", "videos-summary.js", "videos-runmeta.js",
     "clips.js", "clipbulk.js",
     "clipexport.js", "clipcreate.js", "exporteditor.js", "exportpresets.js",
     "analyze.js", "reel.js", "contexts.js", "settings.js", "settings-previews.js",
