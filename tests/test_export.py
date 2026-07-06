@@ -190,18 +190,18 @@ class TestComputeExportWindow:
         )
 
     def test_non_segment_video_unaffected(self):
-        from yuu_clip.cli.export import _compute_export_window
+        from yuu_clip.export.render import _compute_export_window
         cand = self._cand(10_000, 20_000, duration_ms=600_000, segment_start_s=None)
         assert _compute_export_window(cand) == (10_000, 20_000)
 
     def test_split_segment_adds_segment_offset(self):
-        from yuu_clip.cli.export import _compute_export_window
+        from yuu_clip.export.render import _compute_export_window
         # Segment starts at 300s into the parent; clip is 10-20s into the segment.
         cand = self._cand(10_000, 20_000, duration_ms=120_000, segment_start_s=300.0)
         assert _compute_export_window(cand) == (310_000, 320_000)
 
     def test_split_segment_clamp_uses_segment_relative_duration(self):
-        from yuu_clip.cli.export import _compute_export_window
+        from yuu_clip.export.render import _compute_export_window
         # end_ms would exceed the 120s segment before the offset is added; clamp
         # against the segment-relative duration, then shift into parent coordinates.
         cand = self._cand(100_000, 150_000, duration_ms=120_000, segment_start_s=300.0)
@@ -1074,7 +1074,7 @@ class TestRefreshCaptionSidecars:
         return exports
 
     def test_refreshes_existing_sidecar(self, tmp_path):
-        from yuu_clip.cli.export import _refresh_caption_sidecars
+        from yuu_clip.export.render import _refresh_caption_sidecars
         exports = self._exports_dir(tmp_path)
         srt = exports / "session_clip7_00-00-00.srt"
         srt.write_text("1\n00:00:00,000 --> 00:00:01,000\nstale\n\n", encoding="utf-8")
@@ -1087,7 +1087,7 @@ class TestRefreshCaptionSidecars:
         assert "stale" not in content
 
     def test_noop_when_no_sidecar_exists(self, tmp_path):
-        from yuu_clip.cli.export import _refresh_caption_sidecars
+        from yuu_clip.export.render import _refresh_caption_sidecars
         exports = self._exports_dir(tmp_path)
 
         _refresh_caption_sidecars(self._make_clip("SPEAKER_00"), tmp_path)
@@ -1234,7 +1234,7 @@ class TestClipExportRows:
         return p
 
     def _record(self, project_dir: Path, clip_id: int, preset_name: str, filename: str):
-        from yuu_clip.cli.export import _record_clip_export
+        from yuu_clip.export.render import _record_clip_export
 
         path = self._write_export_file(project_dir, filename)
         db = make_session(project_dir / ".yuu-clip" / "project.db")
@@ -1401,7 +1401,7 @@ class TestExportBaseStemPreset:
         )
 
     def test_default_preset_is_unchanged_from_pre_plan07_naming(self):
-        from yuu_clip.export_naming import DEFAULT_EXPORT_NAME_TEMPLATE, export_base_stem
+        from yuu_clip.export.naming import DEFAULT_EXPORT_NAME_TEMPLATE, export_base_stem
         cand = self._cand()
         assert (
             export_base_stem(cand, DEFAULT_EXPORT_NAME_TEMPLATE)
@@ -1409,14 +1409,14 @@ class TestExportBaseStemPreset:
         )
 
     def test_non_default_preset_appends_suffix(self):
-        from yuu_clip.export_naming import DEFAULT_EXPORT_NAME_TEMPLATE, export_base_stem
+        from yuu_clip.export.naming import DEFAULT_EXPORT_NAME_TEMPLATE, export_base_stem
         cand = self._cand()
         base = export_base_stem(cand, DEFAULT_EXPORT_NAME_TEMPLATE)
         with_preset = export_base_stem(cand, DEFAULT_EXPORT_NAME_TEMPLATE, preset="youtube-1080p")
         assert with_preset == f"{base}_youtube-1080p"
 
     def test_preset_placeholder_renders_directly(self):
-        from yuu_clip.export_naming import export_base_stem
+        from yuu_clip.export.naming import export_base_stem
         cand = self._cand()
         stem = export_base_stem(cand, "{video}_{preset}", preset="discord-10mb")
         assert stem == "session_discord-10mb"
@@ -1424,7 +1424,7 @@ class TestExportBaseStemPreset:
         assert not stem.endswith("discord-10mb_discord-10mb")
 
     def test_two_presets_never_collide(self):
-        from yuu_clip.export_naming import DEFAULT_EXPORT_NAME_TEMPLATE, export_base_stem
+        from yuu_clip.export.naming import DEFAULT_EXPORT_NAME_TEMPLATE, export_base_stem
         cand = self._cand()
         a = export_base_stem(cand, DEFAULT_EXPORT_NAME_TEMPLATE, preset="youtube-1080p")
         b = export_base_stem(cand, DEFAULT_EXPORT_NAME_TEMPLATE, preset="discord-10mb")

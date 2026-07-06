@@ -18,7 +18,7 @@ from yuu_clip.config import find_ffmpeg
 from yuu_clip.log import get_logger
 
 if TYPE_CHECKING:
-    from yuu_clip.export_presets import ExportPreset
+    from yuu_clip.export.presets import ExportPreset
 
 _log = get_logger(__name__)
 
@@ -370,7 +370,7 @@ def export_clip_with_preset(
     Export; there is no soft-subtitle (embed) path for a preset export (that
     combination is not offered by the export UI).
     """
-    from yuu_clip.export_presets import resolve_video_kbps
+    from yuu_clip.export.presets import resolve_video_kbps
 
     ffmpeg, ffprobe = find_ffmpeg()
     output_path.parent.mkdir(parents=True, exist_ok=True)

@@ -5,7 +5,7 @@ sub-only or otherwise gated content (a plain "requires a login" error instead).
 Quality is capped at 1080p. yt-dlp (Unlicense) does the actual extraction and
 downloading; this module wraps it with validation, plain-English error mapping,
 filename sanitization, disk-space checks, and the metadata sidecar that hands
-source information off to the analyze pipeline (see cli/_pipeline.py::
+source information off to the analyze pipeline (see pipeline/ingest.py::
 _apply_source_metadata).
 """
 from __future__ import annotations

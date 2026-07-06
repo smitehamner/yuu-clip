@@ -681,7 +681,7 @@ The curated list of text and vision models yuu-clip suggests for the LLM backend
 
 - **Code:** `yuu_clip/model_catalog.py` (`ModelEntry`, `recommended_models()`, `text_models()`, `vision_models()`, `catalog_for_backend()`); route `GET /api/llm/catalog`
 - **Also called in codebase:** "model catalog"
-- **Notes:** A static, hand-maintained list (pattern: `export_presets.py`), not a live registry. Licences are re-verified against the model cards when the list changes.
+- **Notes:** A static, hand-maintained list (pattern: `export/presets.py`), not a live registry. Licences are re-verified against the model cards when the list changes.
 
 ---
 
@@ -864,7 +864,7 @@ Export mode that copies audio and video without re-encoding, cutting at the near
 A named recipe of container/resolution/bitrate settings a creator picks instead
 of exporting at original quality — e.g. to fit a platform's upload limits.
 
-- **Code:** `ExportPreset` (`yuu_clip/export_presets.py`), `export_presets` (custom
+- **Code:** `ExportPreset` (`yuu_clip/export/presets.py`), `export_presets` (custom
   presets, stored in global config — they're a user preference, not project data)
 - **Built-ins:** "YouTube 1080p" (`youtube-1080p`), "Discord (≤10 MB)"
   (`discord-10mb`), and "TikTok / Shorts (9:16)" (`tiktok-9x16`) — always

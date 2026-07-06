@@ -445,7 +445,7 @@ class TestSelectClipExportFile:
         return clip, video
 
     def _select(self, export_dir):
-        from yuu_clip.export_naming import DEFAULT_EXPORT_NAME_TEMPLATE
+        from yuu_clip.export.naming import DEFAULT_EXPORT_NAME_TEMPLATE
         from yuu_clip.reel import _select_clip_export_file
         clip, video = self._clip_and_video()
         return _select_clip_export_file(clip, video, export_dir, DEFAULT_EXPORT_NAME_TEMPLATE)

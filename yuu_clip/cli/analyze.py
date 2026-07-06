@@ -1,4 +1,4 @@
-"""Analysis commands: probe, analyze, score. The per-video pipeline lives in _pipeline."""
+"""Analysis commands: probe, analyze, score. The per-video pipeline lives in yuu_clip.pipeline."""
 from __future__ import annotations
 
 import json
@@ -12,14 +12,13 @@ from rich.table import Table
 
 from yuu_clip.analyze.pause import pause_flag_path
 from yuu_clip.cli._base import (
-    AnalyzeOptions,
     _load_project,
     _require_ffmpeg,
     _resolve_videos,
     app,
     console,
 )
-from yuu_clip.cli._pipeline import _analyze_one, _rediarize_video, _run_scoring
+from yuu_clip.pipeline.ingest import AnalyzeOptions, _analyze_one, _rediarize_video, _run_scoring
 
 _PAUSE_POLL_INTERVAL_S = 3.0
 

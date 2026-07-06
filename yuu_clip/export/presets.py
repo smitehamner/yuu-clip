@@ -4,7 +4,7 @@ Export preset definitions, validation, and the size-cap bitrate math.
 Built-in presets ("youtube-1080p", "discord-10mb") are always available and
 not editable. Custom presets are user preferences, stored in global config
 (Config.export_presets) rather than project data — see web/routes/export_presets.py
-for the CRUD routes and cli/export.py for how a preset drives the actual encode.
+for the CRUD routes and export/render.py for how a preset drives the actual encode.
 """
 from __future__ import annotations
 

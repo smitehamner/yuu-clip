@@ -206,7 +206,7 @@ def refresh_export_sidecars(clip, exports_dir: Path, name_template: str) -> list
     was exported, its sidecars were written under the old stem and won't be found. Shared by
     the CLI retranscribe command and the caption-edit/speaker-rename/reassign web routes.
     """
-    from yuu_clip.export_naming import export_base_stem
+    from yuu_clip.export.naming import export_base_stem
 
     base = export_base_stem(clip, name_template)
     if not any(exports_dir.glob(f"{base}*.srt")):

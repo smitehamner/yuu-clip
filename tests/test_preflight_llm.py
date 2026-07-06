@@ -9,8 +9,8 @@ from __future__ import annotations
 import pytest
 
 from yuu_clip import config as config_mod
-from yuu_clip.cli import _pipeline
-from yuu_clip.cli._base import AnalyzeOptions
+from yuu_clip.pipeline import ingest as _pipeline
+from yuu_clip.pipeline.ingest import AnalyzeOptions
 
 
 def _config(**overrides) -> config_mod.Config:

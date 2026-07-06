@@ -307,8 +307,8 @@ class TestApplyTitleCardThreadsConfig:
 
     def test_uses_config_colors_duration_and_36_24_base_sizes(self, monkeypatch, tmp_path):
         import yuu_clip.reel as reel_mod
-        from yuu_clip.cli.export import _apply_title_card
         from yuu_clip.config import Config
+        from yuu_clip.export.render import _apply_title_card
 
         captured = {}
 

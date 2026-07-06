@@ -25,7 +25,7 @@ from typing import Optional
 
 from platformdirs import user_config_dir
 
-from yuu_clip.export_naming import (  # noqa: F401 (re-exported for routes/config.py)
+from yuu_clip.export.naming import (  # noqa: F401 (re-exported for routes/config.py)
     DEFAULT_EXPORT_NAME_TEMPLATE,
     validate_export_name_template,
 )
@@ -597,7 +597,7 @@ class Config:
     # Creator-defined Export presets (raw dicts matching export_presets.ExportPreset's
     # fields) — a user preference, not project data, so this lives in global config
     # even though most other settings here can be overridden per-project. Built-in
-    # presets (youtube-1080p, discord-10mb) are not stored here; see export_presets.py.
+    # presets (youtube-1080p, discord-10mb) are not stored here; see export/presets.py.
     export_presets: list[dict] = field(default_factory=list)
 
     # Title card customization (Settings -> Export). Applies to both the reel's

@@ -6,7 +6,7 @@ import subprocess
 import pytest
 
 import yuu_clip.config as _config_module
-from yuu_clip.export_presets import (
+from yuu_clip.export.presets import (
     BUILTIN_PRESET_NAMES,
     BUILTIN_PRESETS,
     MIN_VIDEO_KBPS,
@@ -306,7 +306,7 @@ class TestPresetEncodeIntegration:
 
     def test_youtube_preset_scales_down_to_1080(self, tiny_source_video, tmp_path):
         from yuu_clip.analyze.extract import export_clip_with_preset
-        from yuu_clip.export_presets import BUILTIN_PRESETS
+        from yuu_clip.export.presets import BUILTIN_PRESETS
 
         preset = next(p for p in BUILTIN_PRESETS if p.name == "youtube-1080p")
         output = tmp_path / "out.mp4"
@@ -317,7 +317,7 @@ class TestPresetEncodeIntegration:
 
     def test_discord_preset_stays_near_target_size(self, tiny_source_video, tmp_path):
         from yuu_clip.analyze.extract import export_clip_with_preset
-        from yuu_clip.export_presets import BUILTIN_PRESETS
+        from yuu_clip.export.presets import BUILTIN_PRESETS
 
         preset = next(p for p in BUILTIN_PRESETS if p.name == "discord-10mb")
         output = tmp_path / "out.mp4"
@@ -331,7 +331,7 @@ class TestPresetEncodeIntegration:
 
     def test_never_upscales_a_smaller_source(self, tmp_path):
         from yuu_clip.analyze.extract import export_clip_with_preset
-        from yuu_clip.export_presets import ExportPreset
+        from yuu_clip.export.presets import ExportPreset
 
         small_source = tmp_path / "small.mp4"
         subprocess.run(

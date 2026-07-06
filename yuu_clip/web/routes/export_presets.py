@@ -1,6 +1,6 @@
 # Feature-map — Export preset (code: ExportPreset)
 #   UI: static/exportpresets.js (Settings → Export editor) + export options picker
-#   Siblings: export_presets.py (built-ins + validation) · tests/test_export_presets.py
+#   Siblings: export/presets.py (built-ins + validation) · tests/test_export_presets.py
 """Export preset routes — built-ins are read-only; custom presets are a
 per-user (global config) preference, edited from Settings -> Export."""
 from __future__ import annotations
@@ -11,7 +11,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from yuu_clip.export_presets import BUILTIN_PRESET_NAMES, BUILTIN_PRESETS, validate_preset_dict
+from yuu_clip.export.presets import BUILTIN_PRESET_NAMES, BUILTIN_PRESETS, validate_preset_dict
 from yuu_clip.log import get_logger
 from yuu_clip.web.deps import ProjectContext
 

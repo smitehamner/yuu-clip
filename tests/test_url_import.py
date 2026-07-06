@@ -251,8 +251,8 @@ class TestCheckDiskSpace:
 
 class TestSourceMetadataSidecar:
     def test_sidecar_populates_source_columns_and_seeds_title(self, tmp_path: Path):
-        from yuu_clip.cli._pipeline import _apply_source_metadata
         from yuu_clip.db.models import Video
+        from yuu_clip.pipeline.ingest import _apply_source_metadata
         from yuu_clip.url_import import _write_source_sidecar
 
         video_path = tmp_path / "downloaded.mkv"
@@ -273,8 +273,8 @@ class TestSourceMetadataSidecar:
         assert video.title_user == "Scraped Title"
 
     def test_no_sidecar_leaves_source_fields_null(self, tmp_path: Path):
-        from yuu_clip.cli._pipeline import _apply_source_metadata
         from yuu_clip.db.models import Video
+        from yuu_clip.pipeline.ingest import _apply_source_metadata
 
         video_path = tmp_path / "local_recording.mkv"
         video_path.write_bytes(b"")
@@ -285,8 +285,8 @@ class TestSourceMetadataSidecar:
         assert video.title_user is None
 
     def test_existing_title_user_is_not_overwritten(self, tmp_path: Path):
-        from yuu_clip.cli._pipeline import _apply_source_metadata
         from yuu_clip.db.models import Video
+        from yuu_clip.pipeline.ingest import _apply_source_metadata
         from yuu_clip.url_import import _write_source_sidecar
 
         video_path = tmp_path / "downloaded2.mkv"

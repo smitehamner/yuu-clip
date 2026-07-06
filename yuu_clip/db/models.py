@@ -44,7 +44,7 @@ from sqlalchemy.orm import (
 )
 from sqlalchemy.pool import NullPool
 
-from yuu_clip.export_naming import DEFAULT_EXPORT_NAME_TEMPLATE, candidate_export_paths, export_base_stem
+from yuu_clip.export.naming import DEFAULT_EXPORT_NAME_TEMPLATE, candidate_export_paths, export_base_stem
 
 
 class Base(DeclarativeBase):
@@ -370,7 +370,7 @@ class Video(Base):
     # Set at download time (see url_import.py) for a recording brought in via
     # Import from URL; NULL for a recording added from a local file. Populated
     # from the metadata sidecar when the Video row is first created — see
-    # cli/_pipeline.py::_apply_source_metadata.
+    # pipeline/ingest.py::_apply_source_metadata.
     source_url:         Mapped[Optional[str]]      = mapped_column(Text, nullable=True)
     source_title:       Mapped[Optional[str]]      = mapped_column(Text, nullable=True)
     source_uploader:    Mapped[Optional[str]]      = mapped_column(Text, nullable=True)
@@ -815,7 +815,7 @@ class ClipExport(Base):
     aggregate "exported" counts still read them) — retiring them is a separate
     follow-up. This table adds the richer, per-format tracking: re-exporting
     the same preset_name replaces this row's path/settings/created_at in
-    place; a different preset_name adds a new row (see cli/export.py's
+    place; a different preset_name adds a new row (see export/render.py's
     _record_clip_export).
     """
     __tablename__ = "clip_exports"

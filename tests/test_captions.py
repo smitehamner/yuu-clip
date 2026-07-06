@@ -573,7 +573,7 @@ class TestRefreshExportSidecars:
         )
 
     def test_no_op_when_clip_was_never_exported(self, tmp_path):
-        from yuu_clip.export_naming import DEFAULT_EXPORT_NAME_TEMPLATE
+        from yuu_clip.export.naming import DEFAULT_EXPORT_NAME_TEMPLATE
         from yuu_clip.subtitles import refresh_export_sidecars
 
         written = refresh_export_sidecars(self._make_clip(), tmp_path, DEFAULT_EXPORT_NAME_TEMPLATE)
@@ -581,7 +581,7 @@ class TestRefreshExportSidecars:
         assert list(tmp_path.glob("*.srt")) == []
 
     def test_regenerates_when_a_matching_sidecar_already_exists(self, tmp_path):
-        from yuu_clip.export_naming import DEFAULT_EXPORT_NAME_TEMPLATE
+        from yuu_clip.export.naming import DEFAULT_EXPORT_NAME_TEMPLATE
         from yuu_clip.subtitles import refresh_export_sidecars
 
         (tmp_path / "session_clip1_0-05.srt").write_text("stale\n", encoding="utf-8")
@@ -590,7 +590,7 @@ class TestRefreshExportSidecars:
         assert "hello" in (tmp_path / "session_clip1_0-05.srt").read_text(encoding="utf-8")
 
     def test_no_op_when_only_a_different_stem_sidecar_exists(self, tmp_path):
-        from yuu_clip.export_naming import DEFAULT_EXPORT_NAME_TEMPLATE
+        from yuu_clip.export.naming import DEFAULT_EXPORT_NAME_TEMPLATE
         from yuu_clip.subtitles import refresh_export_sidecars
 
         (tmp_path / "old_template_name.srt").write_text("1\n", encoding="utf-8")

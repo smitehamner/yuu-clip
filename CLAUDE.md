@@ -81,7 +81,10 @@ Also run `test-ui.ps1` during any UX/UI review pass (`/code-review` or
 
 ```
 yuu_clip/
-  cli/                     # Typer CLI package — analyze, export, reel, review, serve (+ _pipeline, _run_meta, _base)
+  cli/                     # Thin Typer adapters — analyze, export, reel, review, serve (+ _base). Commands parse args and call into pipeline/ and export/.
+  pipeline/                # The analyze engine: ingest (per-video orchestration + stages), run_meta (per-run timing/settings capture)
+  export/                  # The export feature: render (engine — cut, retranscribe, title card, captions), naming (filename stem), presets (definitions + size-cap math)
+  console.py               # Shared Rich console + BYTES_PER_MB (used by cli/ and the engine; lives outside cli/ so the engine never imports cli)
   config.py                # Config + profile management
   db/models.py             # SQLAlchemy ORM (SQLite, NullPool)
   analyze/                 # probe, labeler, extract, overlap

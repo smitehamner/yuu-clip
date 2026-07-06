@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
 from yuu_clip.config import run_ffmpeg
-from yuu_clip.export_naming import (
+from yuu_clip.export.naming import (
     DEFAULT_EXPORT_NAME_TEMPLATE,
     EXPORT_VIDEO_EXTENSIONS,
     candidate_export_paths,

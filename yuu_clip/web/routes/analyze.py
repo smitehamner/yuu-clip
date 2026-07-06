@@ -1,6 +1,6 @@
 # Feature-map — Analyze (code: ingest / run_ingest) + Import from URL
 #   UI: static/analyze.js (New Recording panel) · export/retranscribe from clips.js
-#   Siblings: cli/_pipeline.py (engine) · web/analyze_job.py · tests/test_analyze.py, tests/test_ui_analyze.py
+#   Siblings: pipeline/ingest.py (engine) · web/analyze_job.py · tests/test_analyze.py, tests/test_ui_analyze.py
 """
 Analysis-pipeline routes.
 
@@ -113,8 +113,8 @@ _ENERGY_MODE: dict[str, tuple[float, str]] = {
 _DIARIZATION_RT_SPEED = {"gpu": 18.0, "cpu": 3.0}
 
 # ── Measured-rate estimate (from past analyze_run_json timings) ────────────
-# StageRecorder stage names (yuu_clip/cli/_run_meta.py) this estimator can use.
-# "Score" is one combined energy+scenes+LLM-scoring pass (see _pipeline._run_scoring) —
+# StageRecorder stage names (yuu_clip/pipeline/run_meta.py) this estimator can use.
+# "Score" is one combined energy+scenes+LLM-scoring pass (see pipeline.ingest._run_scoring) —
 # there is no per-substage timing, so it grounds only the "LLM scoring" display step
 # (energy/scene detection keep their static, mode-driven formulas).
 _STAGE_NAME_TO_KEY = {

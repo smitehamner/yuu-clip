@@ -158,7 +158,7 @@ def _whisper_language_validator(v: str) -> str:
 
 
 def _export_name_template_validator(v: str) -> str:
-    from yuu_clip.export_naming import validate_export_name_template
+    from yuu_clip.export.naming import validate_export_name_template
     try:
         return validate_export_name_template(v)
     except ValueError as e:

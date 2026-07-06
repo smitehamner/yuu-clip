@@ -11,7 +11,7 @@ from datetime import date
 
 import pytest
 
-from yuu_clip.export_naming import (
+from yuu_clip.export.naming import (
     DEFAULT_EXPORT_NAME_TEMPLATE,
     export_base_stem,
     validate_export_name_template,

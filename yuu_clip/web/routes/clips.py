@@ -1,6 +1,6 @@
 # Feature-map — Clips (code: ClipCandidate)
 #   UI: static/clips.js (list, detail, player, tags, score override, export modal, bulk ops)
-#   Siblings: scoring/engine.py · cli/export.py · tests/test_videos.py, tests/test_ui_clips.py
+#   Siblings: scoring/engine.py · export/render.py (engine) · cli/export.py (command) · tests/test_videos.py, tests/test_ui_clips.py
 """Clip management routes — CRUD, preview, approval, export."""
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ from sqlalchemy import case
 
 from yuu_clip.config import run_ffmpeg, validate_whisper_model
 from yuu_clip.db.models import ClipCandidate, ClipExport, TranscriptSegment, Video
-from yuu_clip.export_naming import DEFAULT_EXPORT_NAME_TEMPLATE
+from yuu_clip.export.naming import DEFAULT_EXPORT_NAME_TEMPLATE
 from yuu_clip.log import get_logger
 from yuu_clip.web.deps import ProjectContext
 from yuu_clip.web.media import media_file_response

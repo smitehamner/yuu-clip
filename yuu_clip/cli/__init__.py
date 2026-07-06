@@ -8,12 +8,8 @@ from __future__ import annotations
 
 # Importing these modules registers their @app.command() handlers on ``app``.
 from yuu_clip.cli import analyze, export, import_url, reel, review, serve  # noqa: E402,F401
-from yuu_clip.cli._base import (  # noqa: F401  (re-exported for the entry point and tests)
-    AnalyzeOptions,
-    _resolve_videos,
-    app,
-    console,
-)
+from yuu_clip.cli._base import _resolve_videos, app, console  # noqa: F401  (re-exported for the entry point and tests)
+from yuu_clip.pipeline import AnalyzeOptions  # noqa: F401  (re-exported for back-compat)
 
 
 def main():

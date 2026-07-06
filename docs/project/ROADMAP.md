@@ -38,7 +38,7 @@ Implemented-but-unverified surfaces and latent traps to close before distributio
   (`whisper_runner.py`) always creates a *new* `Transcript`, and `generate_candidates`
   (`segments/windower.py`) always *appends* new `ClipCandidate` rows; neither skips or
   replaces existing output. Nothing duplicates today because the `status == "done"` skip
-  in `_pipeline._resolve_existing_video` short-circuits any completed video on re-run.
+  in `pipeline.ingest._resolve_existing_video` short-circuits any completed video on re-run.
   It is a latent trap: any future change that loosens that skip (stage-level resume, or
   marking `"done"` only after scoring) would silently duplicate transcripts and clips.
   Proper fix when stage-level resume is wanted: make transcription and clip-generation
@@ -55,6 +55,13 @@ Implemented-but-unverified surfaces and latent traps to close before distributio
   `color:#1a1a1a` for dark text on `var(--warning)` (grandfathered in
   `tests/test_ui_theme.py`). Introduce an `--on-warning` token defined per theme, with a
   contrast assertion, and drop the literal. Surfaced by the 2026-07-05 guard-rail pass.
+
+- [ ] **Engine still speaks in `console.print` (Rich markup)** — the `pipeline/` and
+  `export/` engines emit progress by printing Rich-markup strings to stdout, which the
+  web UI streams verbatim over SSE (stdout *is* the progress interface). Left as-is in
+  repo-legibility stage 05 (deliberate — "printing is the interface, don't redesign").
+  If the engine ever needs to run in-process (no subprocess) or emit structured
+  progress, replace the `console.print` calls with a progress-callback/event seam.
 
 ---
 

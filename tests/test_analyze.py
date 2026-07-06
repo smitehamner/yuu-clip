@@ -467,10 +467,10 @@ class TestScoringIsolation:
     def test_scoring_failure_keeps_clips_and_marks_processed(self, tmp_path):
         from unittest.mock import patch
 
-        from yuu_clip.cli import _pipeline
-        from yuu_clip.cli._base import AnalyzeOptions
         from yuu_clip.config import Config
         from yuu_clip.db.models import ClipCandidate, Video, make_session
+        from yuu_clip.pipeline import ingest as _pipeline
+        from yuu_clip.pipeline.ingest import AnalyzeOptions
 
         session = make_session(tmp_path / "project.db")
         video = Video(path=str(tmp_path / "s.mkv"), filename="s.mkv", status="probed", duration_ms=60_000)
@@ -513,10 +513,10 @@ class TestScoringIsolation:
         Phase 3 (763a718..HEAD) for the corrected comment."""
         from unittest.mock import patch
 
-        from yuu_clip.cli import _pipeline
-        from yuu_clip.cli._base import AnalyzeOptions
         from yuu_clip.config import Config
         from yuu_clip.db.models import ClipCandidate, Video, make_session
+        from yuu_clip.pipeline import ingest as _pipeline
+        from yuu_clip.pipeline.ingest import AnalyzeOptions
         from yuu_clip.scoring.engine import ScoringEngine
         from yuu_clip.scoring.protocol import ScoreResult
 
@@ -597,8 +597,8 @@ class TestPipelineTrackProgressLogging:
         # (the success/OK path only prints the label, no index).
         import unittest.mock as mock
 
-        from yuu_clip.cli import _pipeline
         from yuu_clip.config import Config
+        from yuu_clip.pipeline import ingest as _pipeline
 
         session, video, tracks = self._make_video_and_tracks(tmp_path, 3)
         audio_dir = tmp_path / "audio"
@@ -625,8 +625,8 @@ class TestPipelineTrackProgressLogging:
     def test_transcribe_logs_track_i_of_n(self, tmp_path, capsys):
         import unittest.mock as mock
 
-        from yuu_clip.cli import _pipeline
         from yuu_clip.config import Config
+        from yuu_clip.pipeline import ingest as _pipeline
 
         session, video, tracks = self._make_video_and_tracks(tmp_path, 2)
         for i, track in enumerate(tracks):

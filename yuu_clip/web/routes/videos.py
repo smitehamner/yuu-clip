@@ -23,7 +23,7 @@ from yuu_clip.db.models import (
     TranscriptSegment,
     Video,
 )
-from yuu_clip.export_naming import DEFAULT_EXPORT_NAME_TEMPLATE
+from yuu_clip.export.naming import DEFAULT_EXPORT_NAME_TEMPLATE
 from yuu_clip.log import get_logger
 from yuu_clip.web.deps import ProjectContext
 from yuu_clip.web.media import media_file_response

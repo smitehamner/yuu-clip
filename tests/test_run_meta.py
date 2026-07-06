@@ -3,8 +3,8 @@ from __future__ import annotations
 import json
 from types import SimpleNamespace
 
-from yuu_clip.cli._base import AnalyzeOptions
-from yuu_clip.cli._run_meta import StageRecorder, _run_settings, build_run_json
+from yuu_clip.pipeline.ingest import AnalyzeOptions
+from yuu_clip.pipeline.run_meta import StageRecorder, _run_settings, build_run_json
 
 
 def _cfg(**over):

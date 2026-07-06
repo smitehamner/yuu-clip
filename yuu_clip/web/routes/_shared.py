@@ -16,7 +16,7 @@ from fastapi import HTTPException
 from fastapi.responses import StreamingResponse
 
 from yuu_clip.db.models import ClipCandidate, Video
-from yuu_clip.export_naming import DEFAULT_EXPORT_NAME_TEMPLATE, candidate_export_paths, export_base_stem
+from yuu_clip.export.naming import DEFAULT_EXPORT_NAME_TEMPLATE, candidate_export_paths, export_base_stem
 from yuu_clip.log import get_logger
 
 _log = get_logger(__name__)
@@ -279,7 +279,7 @@ def _validate_export_preset_query(ctx, preset: Optional[str], embed_subs: bool) 
         return
     if embed_subs:
         raise HTTPException(400, "embed_subs isn't supported together with a preset export")
-    from yuu_clip.export_presets import resolve_preset
+    from yuu_clip.export.presets import resolve_preset
     if resolve_preset(preset, ctx.config.export_presets) is None:
         raise HTTPException(400, f"Unknown export preset '{preset}'")
 

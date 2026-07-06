@@ -6,18 +6,61 @@ Used by the ``analyze`` command (full run via ``_analyze_one``) and the
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from yuu_clip.cli._base import (
-    BYTES_PER_MB,
-    AnalyzeOptions,
-    _parse_srt,
-    console,
-    log,
-)
-from yuu_clip.cli._run_meta import StageRecorder, build_run_json
+from yuu_clip.console import BYTES_PER_MB, console
+from yuu_clip.log import get_logger
+from yuu_clip.pipeline.run_meta import StageRecorder, build_run_json
+
+log = get_logger(__name__)
+
+
+@dataclass
+class AnalyzeOptions:
+    profile: Optional[str] = None
+    no_transcribe: bool = False
+    no_segment: bool = False
+    no_score: bool = False
+    force: bool = False
+    language: Optional[str] = None
+    energy_mode: str = "fast"
+    non_interactive: bool = False
+    context_names: list[str] = field(default_factory=list)
+    context_text: str = ""
+    # Path to an .srt file, or "stream:<index>" for an embedded subtitle stream.
+    # When set, transcription is skipped and the subtitles are imported directly.
+    subtitle_source: Optional[str] = None
+    # When set, the video row is looked up by ID rather than by path; path arg is ignored.
+    video_id: Optional[int] = None
+    # Time window for pre-analysis splits: trim audio extraction to this range.
+    segment_start_s: Optional[float] = None
+    segment_end_s: Optional[float] = None
+
+
+def _parse_srt(text: str) -> list[tuple[int, int, str]]:
+    """Parse SRT subtitle text into (start_ms, end_ms, text) triples."""
+    import re as _re
+    segments = []
+    for block in _re.split(r"\n\n+", text.strip()):
+        lines = block.strip().splitlines()
+        if len(lines) < 3:
+            continue
+        m = _re.match(
+            r"(\d+):(\d+):(\d+)[,.](\d+)\s*-->\s*(\d+):(\d+):(\d+)[,.](\d+)",
+            lines[1].strip(),
+        )
+        if not m:
+            continue
+        g = [int(x) for x in m.groups()]
+        start_ms = (g[0] * 3600 + g[1] * 60 + g[2]) * 1000 + g[3]
+        end_ms   = (g[4] * 3600 + g[5] * 60 + g[6]) * 1000 + g[7]
+        text_body = " ".join(lines[2:]).strip()
+        if text_body:
+            segments.append((start_ms, end_ms, text_body))
+    return segments
 
 
 def _llm_unavailable_notice(reason: str) -> None:

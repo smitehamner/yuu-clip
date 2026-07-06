@@ -328,7 +328,7 @@ class TestRetranscribeDiarization:
     def test_shifts_turns_by_clip_offset(self, monkeypatch):
         from pathlib import Path
 
-        from yuu_clip.cli import export as export_cli
+        from yuu_clip.export import render as export_cli
 
         class FakeClient:
             def available(self):
@@ -349,7 +349,7 @@ class TestRetranscribeDiarization:
     def test_attaches_voiceprints_with_configured_threshold(self, monkeypatch):
         from pathlib import Path
 
-        from yuu_clip.cli import export as export_cli
+        from yuu_clip.export import render as export_cli
 
         embeddings = {"SPEAKER_00": [1.0, 0.0]}
 
@@ -374,7 +374,7 @@ class TestRetranscribeDiarization:
     def test_noop_when_diarization_unavailable(self, monkeypatch):
         from pathlib import Path
 
-        from yuu_clip.cli import export as export_cli
+        from yuu_clip.export import render as export_cli
 
         class FakeClient:
             def available(self):
@@ -515,7 +515,7 @@ class TestRediarizeVideo:
         return tx
 
     def test_rediarizes_latest_transcript_and_skips_non_transcribed(self, tmp_path, monkeypatch):
-        from yuu_clip.cli._pipeline import _rediarize_video
+        from yuu_clip.pipeline.ingest import _rediarize_video
         from yuu_clip.transcribe import whisper_runner
 
         wav = tmp_path / "t.wav"
@@ -539,7 +539,7 @@ class TestRediarizeVideo:
         session.close()
 
     def test_rediarize_no_transcripts_returns_zero(self, tmp_path, monkeypatch):
-        from yuu_clip.cli._pipeline import _rediarize_video
+        from yuu_clip.pipeline.ingest import _rediarize_video
         from yuu_clip.transcribe import whisper_runner
 
         wav = tmp_path / "t.wav"
