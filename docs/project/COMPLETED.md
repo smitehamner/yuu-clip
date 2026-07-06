@@ -28,6 +28,31 @@ ROADMAP.md for a design pass):
 
 ---
 
+## SPA decomposition — settings.js + videos.js carved into modules (done 2026-07-05)
+
+The three large no-build SPA files were surfaced by the 2026-07-05 code-quality review
+as staged-plan decomposition candidates. The plan set (`docs/dev/plans/spa-decomposition/`,
+now retired) split them in risk order, one commit per stage, each ending green on the full
+UI suite + `test_ui_globals.py`:
+
+- **Stage 01** (`72bc3b0`) — help modals → `helpmodals.js`, keyboard shortcuts → `shortcuts.js`.
+- **Stage 02** (`ccaeeed`) — model catalog + readiness + capabilities → `modelcatalog.js`.
+- **Stage 03** (`0bbf33d`) — export previews + optional-package installs extracted; `settings.js`
+  left as the cohesive save/dirty/apply engine.
+- **Stage 04** (`f0e25a9`) — `videos.js` timeline / summary / run-metadata sub-features carved out.
+
+`settings.js` (1436 → core engine + 4 modules) and `videos.js` (1191 → list/detail + 3 modules)
+are now newcomer-navigable. Behavior and served HTML stayed byte-identical (pure move/re-scope);
+the IIFE `Object.assign(window, {…})` export blocks and `// ── section ──` dividers were preserved.
+
+**Stage 05 (index.html → server-side partials) was run as its go/no-go gate and declined — NO-GO**
+(`9d2ebdc`). `index.html` stays a single file: the boundaries split cleanly but a bespoke
+server-side include layer does not earn its keep for inert, already-well-banded markup in a
+deliberately no-build app. Full reasoning in `docs/dev/REVIEW_DECISIONS.md` (2026-07-05 — SPA
+decomposition Stage 05).
+
+---
+
 ## llama.cpp GPU offload (done 2026-07-06)
 
 The desktop installer already ships a CUDA build of `llama-cpp-python` for NVIDIA
