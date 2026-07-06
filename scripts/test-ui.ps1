@@ -59,9 +59,17 @@ try {
     # genuine worker death fails fast instead of cascading into a scheduler crash.
     $ParallelArgs = @()
     if (-not $Sequential) { $ParallelArgs = @("-n", "4", "--dist", "loadfile", "--max-worker-restart", "0") }
+    # pytest-xdist writes "bringing up nodes..." to stderr; 2>&1 merges it, and
+    # under $ErrorActionPreference='Stop' PS 5.1 promotes that merged stderr to a
+    # terminating NativeCommandError that skips the `exit $testExitCode` below --
+    # so the script would report exit 1 even on a fully green run, decoupling its
+    # exit code from the real pytest result. Drop to Continue around just the
+    # native call so pytest's actual exit code propagates.
+    $ErrorActionPreference = "Continue"
     & $Python -u -m pytest $UiTests $Verbosity --tb=short --no-header -p no:warnings --timeout=60 -r fE @ParallelArgs @PytestArgs 2>&1 |
         Tee-Object -FilePath $LogFile
     $testExitCode = $LASTEXITCODE
+    $ErrorActionPreference = "Stop"
 } finally {
     Pop-Location
     if ($LockAcquired) { Remove-Item $LockFile -Force -ErrorAction SilentlyContinue }
@@ -69,8 +77,8 @@ try {
     $lines = Get-Content $LogFile -ErrorAction SilentlyContinue
     if ($lines) {
         # Summary file = everything from the first failure section onward
-        # (FAILURES + short test summary + result line). Falls back to the
-        # last 5 lines on an all-green run.
+        # (FAILURES + short test summary + result line). Falls back to the lines
+        # ending at pytest's result line on an all-green run.
         $summaryStart = $null
         for ($i = 0; $i -lt $lines.Length; $i++) {
             if ($lines[$i] -match '^=+ (FAILURES|ERRORS) =+$') { $summaryStart = $i; break }
@@ -80,8 +88,15 @@ try {
                 if ($lines[$i] -match 'short test summary info') { $summaryStart = $i; break }
             }
         }
-        if ($null -eq $summaryStart) { $summaryStart = [Math]::Max(0, $lines.Length - 5) }
-        $summaryLines = $lines[$summaryStart..($lines.Length - 1)]
+        # pytest's result line ("N passed in Xs") is the authoritative end of real
+        # output; the 2>&1 stderr merge can append PowerShell NativeCommandError
+        # noise after it, so end the summary there instead of at the raw last line.
+        $summaryEnd = $lines.Length - 1
+        for ($i = $lines.Length - 1; $i -ge 0; $i--) {
+            if ($lines[$i] -match '\d+ (passed|failed|error|skipped).* in ') { $summaryEnd = $i; break }
+        }
+        if ($null -eq $summaryStart) { $summaryStart = [Math]::Max(0, $summaryEnd - 4) }
+        $summaryLines = $lines[$summaryStart..$summaryEnd]
         $summaryLines | Out-File -FilePath $SummaryFile -Encoding utf8
 
         Write-Host ""
