@@ -6,6 +6,7 @@ __pycache__/
 *.pyc
 /personal-notes
 /exports
+docs/dev/plans/
 .claude
 /test-api-last.log
 /test-ui-last.log
