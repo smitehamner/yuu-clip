@@ -135,6 +135,16 @@ Wanted before distributing beyond friends/trusted users.
   Dark / Light / High-contrast themes, since those themes are already pure token swaps. Decide
   palette persistence (localStorage vs per-project DB) as part of the design.
 
+- [ ] **Decompose the large SPA files** *(staged plan, not started)* — `settings.js` (~1436),
+  `videos.js` (~1191), and `index.html` (~2057) are each a mini-project to split, not a
+  drive-by. Full plan set at
+  [`docs/dev/plans/spa-decomposition/INDEX.md`](../dev/plans/spa-decomposition/INDEX.md):
+  five risk-ordered stages (settings help-modals/shortcuts → model-catalog → previews/installs
+  → videos.js carve → index.html server-side partials, the last a go/no-go). Each split keeps
+  the IIFE `Object.assign(window, {...})` export lists intact (guarded by
+  `tests/test_ui_globals.py`) and re-runs the full UI suite. Run in a fresh session, one stage
+  per commit.
+
 - [ ] **Sidebar grouping for split segments** — a collapsible parent row
   "session.mkv (3 segments)" with indented children, as an alternative to the flat list.
   Deferred until the flat list proves insufficient in practice.
