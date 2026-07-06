@@ -23,6 +23,31 @@ remaining open work below is what did **not** have a plan in that set.
 
 ---
 
+## 0 — Install friction (friends round) — DO NOW
+
+Reduce first-run install friction before sending the installer to more non-developer
+friends. The first tester hit **untranslated GPU-library errors**, and a grounding pass
+found a bigger latent problem: **first launch still pip-installs the whole base
+pipeline from PyPI** (`electron/main.js` upgrades pip and resolves faster-whisper /
+CTranslate2 / av / scipy from PyPI at runtime), so the app's first launch can fail on a
+slow/firewalled/proxied network with cryptic pip output.
+
+- [ ] **Plan of record:** [docs/dev/plans/install-friction/INDEX.md](../dev/plans/install-friction/INDEX.md)
+  — 5 stages: (1) offline deterministic first-run install via a bundled wheelhouse
+  (`--no-index`) + stop the PyPI pip-upgrade; (2) plain-English error translation for
+  all install failures; (3) GPU auto-detect + never-block-Launch + CPU fallback;
+  (4) keep Speaker-ID/HuggingFace-token out of the required path; (5) SmartScreen
+  friend-facing note (code signing itself deferred — §2).
+
+**Positioning note (context for §0 and §3):** yuu-clip today is a **talk-heavy
+analyzer** (transcript-driven candidate generation + scoring). That is its real sweet
+spot — RP/VC/podcast/narrative content — and it is a weakness for silent, visual
+gaming highlights. Marketing and onboarding copy should lean into the talk-heavy
+strength honestly rather than claim general "gaming highlights"; the visual case is
+tracked in §3 below.
+
+---
+
 ## 1 — Verification & known-issue debt
 
 Implemented-but-unverified surfaces and latent traps to close before distribution.
@@ -43,18 +68,6 @@ Implemented-but-unverified surfaces and latent traps to close before distributio
   marking `"done"` only after scoring) would silently duplicate transcripts and clips.
   Proper fix when stage-level resume is wanted: make transcription and clip-generation
   skip-if-already-present (gated on `not force`).
-
-- [ ] **Modal keyboard trap** — Escape closes all open modals simultaneously instead of
-  only the topmost one. Fixing properly requires a modal stack so Escape pops one layer
-  at a time. Low UX impact for a single-user tool. *(Partially addressed 2026-07-01: the
-  confirm modal — the only layer that actually stacks on other modals today — is popped
-  alone by Escape; the flat close-all cascade remains for the rest, and the dirty-editor
-  modals now confirm before discarding.)*
-
-- [ ] **`--on-warning` theme token** — the "Remote LLM" billing badge still hardcodes
-  `color:#1a1a1a` for dark text on `var(--warning)` (grandfathered in
-  `tests/test_ui_theme.py`). Introduce an `--on-warning` token defined per theme, with a
-  contrast assertion, and drop the literal. Surfaced by the 2026-07-05 guard-rail pass.
 
 - [ ] **Engine still speaks in `console.print` (Rich markup)** — the `pipeline/` and
   `export/` engines emit progress by printing Rich-markup strings to stdout, which the
@@ -110,6 +123,14 @@ Wanted before distributing beyond friends/trusted users.
 ---
 
 ## 3 — Speaker & scoring depth
+
+- [ ] **Video-heavy / quiet-moment analysis** *(captured — needs a scope Q&A session)* —
+  candidate generation (`segments/windower.py`, silence-gap based) and scoring are both
+  transcript-driven, so silent/visual gaming highlights never become candidates and
+  score low. Extend toward the quiet, visual case without breaking the talk-heavy core,
+  reusing existing seams (PySceneDetect content cuts, frame extraction, the `ScoreResult`
+  scorer protocol, opt-in vision-LLM). Plan of record:
+  [docs/dev/plans/video-heavy-analysis/INDEX.md](../dev/plans/video-heavy-analysis/INDEX.md).
 
 - [ ] **Speaker identity beyond one recording** — the remaining Speaker-naming pieces, both
   weighed but deferred for v1:
