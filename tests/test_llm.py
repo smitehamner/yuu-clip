@@ -89,6 +89,21 @@ class TestCapabilities:
         cap = client.get("/api/llm/capabilities").json()
         assert cap["text"] is True and cap["vision"] is True
 
+    def test_ollama_separate_vision_model_enables_vision(self, client: TestClient):
+        # A text-only text model plus a vision model in the dedicated slot is ready
+        # for both, without forcing the text model to also be vision-capable.
+        _patch(client, ollama_enabled=True, llm_backend="ollama",
+               ollama_model="qwen2.5:7b", ollama_vision_model="moondream")
+        cap = client.get("/api/llm/capabilities").json()
+        assert cap["text"] is True and cap["vision"] is True
+        assert cap["model"] == "qwen2.5:7b"  # text model still reported
+
+    def test_ollama_text_only_vision_model_leaves_vision_off(self, client: TestClient):
+        _patch(client, ollama_enabled=True, llm_backend="ollama",
+               ollama_model="moondream", ollama_vision_model="qwen2.5:7b")
+        cap = client.get("/api/llm/capabilities").json()
+        assert cap["vision"] is False  # the vision slot overrides the model for vision
+
     def test_ollama_no_model_is_not_ready(self, client: TestClient):
         _patch(client, ollama_enabled=True, llm_backend="ollama", ollama_model="")
         cap = client.get("/api/llm/capabilities").json()

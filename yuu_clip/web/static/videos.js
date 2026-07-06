@@ -64,9 +64,29 @@ function _applyVideoFilters(videos) {
   return result;
 }
 
+// Per-filter counts shown inline on the recording filter chips ("Unscored 4").
+// Counts reflect every loaded recording, not the search-narrowed subset, and use
+// the same predicates as _applyVideoFilters. Blank when there are no recordings.
+function _renderVideoFilterCounts() {
+  const setCount = (key, value) => {
+    const badge = document.querySelector(`.clip-chip-count[data-vcount="${key}"]`);
+    if (badge) badge.textContent = value == null ? '' : String(value);
+  };
+  const videos = AppState.videos || [];
+  if (!videos.length) {
+    for (const key of ['all', 'has-clips', 'unscored', 'errors']) setCount(key, null);
+    return;
+  }
+  setCount('all', videos.length);
+  setCount('has-clips', videos.filter(v => v.clip_count > 0).length);
+  setCount('unscored', videos.filter(v => !v.clips_scored_at).length);
+  setCount('errors', videos.filter(v => (v.clips_llm_error || 0) > 0).length || null);
+}
+
 // Rebuilds the sidebar video list from AppState.videos, applying the active
 // search/filter/sort. Called by loadVideos (after fetch) and by the controls.
 function _renderVideoList() {
+  _renderVideoFilterCounts();
   const list = document.getElementById('video-list');
   list.innerHTML = '';
   const analyzingName = AppState.analyzeFilename;

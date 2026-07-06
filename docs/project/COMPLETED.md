@@ -6,6 +6,28 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) — see the
 
 ---
 
+## Backlog-notes batch — filter counts, Ollama vision model, playback speed (done 2026-07-06)
+
+Three small features from a backlog note dump (the fourth, a collected setup page, went to
+ROADMAP.md for a design pass):
+
+- **Count badges on the recording filter chips.** The recording filter bar (All / Has clips /
+  Unscored / ⚠ Errors) now shows per-filter counts derived from `AppState.videos`, mirroring
+  the clip filter chips (keyed `data-vcount` to keep them distinct from the clip chips'
+  `data-count`). `videos.js::_renderVideoFilterCounts`, called from `_renderVideoList`. Errors
+  badge blanks at zero. Covered by `test_ui_video.py::TestRecordingFilterCounts`.
+- **Separate Ollama vision model.** `chat_vision` and the capability gate used the single
+  `ollama_model` for both text and images, so image analysis forced the one model to be
+  vision-capable. New `ollama_vision_model` (empty = reuse `ollama_model`) lets a strong
+  text model pair with a dedicated vision model. Settings field added. Covered by
+  `test_llm.py` (capabilities) and `test_vision.py` (client uses the vision slot).
+- **Playback-speed preference.** A global `yuuclip-playback-rate` (Settings → Playback,
+  0.5×–2×) applied to every `<video>` via one capture-phase `loadedmetadata` listener plus
+  `applyPlaybackRate` for live videos (`ui.js`, wired at boot). Covered by
+  `test_ui_settings.py::TestPlaybackSpeed`.
+
+---
+
 ## llama.cpp GPU offload (done 2026-07-06)
 
 The desktop installer already ships a CUDA build of `llama-cpp-python` for NVIDIA

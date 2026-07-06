@@ -549,6 +549,25 @@ function showUndoToast(message, undoFn) {
   setTimeout(() => toast.remove(), 5000);
 }
 
+// Global playback-speed preference — one capture-phase listener applies the saved
+// rate to every <video> as it loads, so all players (clip preview, recording,
+// split/export editors, reels) honor it without per-player wiring. Client-only,
+// stored in localStorage like the other playback prefs.
+function playbackRatePref() {
+  const rate = parseFloat(localStorage.getItem('yuuclip-playback-rate'));
+  return Number.isFinite(rate) && rate > 0 ? rate : 1;
+}
+
+function applyPlaybackRate(rate) {
+  document.querySelectorAll('video').forEach(video => { video.playbackRate = rate; });
+}
+
+function initPlaybackRate() {
+  document.addEventListener('loadedmetadata', e => {
+    if (e.target && e.target.tagName === 'VIDEO') e.target.playbackRate = playbackRatePref();
+  }, true);
+}
+
 Object.assign(window, {
   showAlert, closeAlertModal, showConfirm, _confirmOk, _confirmCancel,
   openActionsModal, closeActionsModal, topmostVisibleModal, _menuArrowKeydown,
@@ -557,5 +576,6 @@ Object.assign(window, {
   openDiffModal, _diffAcceptNew, _diffAcceptEdit, _diffDiscard,
   openFieldEditModal, closeFieldEditModal, _fieldEditSave,
   closeKebab, showKebab, initResize, _applyPrereqWarnings, showUndoToast,
+  playbackRatePref, applyPlaybackRate, initPlaybackRate,
 });
 })();

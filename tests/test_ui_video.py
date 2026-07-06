@@ -420,3 +420,47 @@ class TestNativeMediaProtocolUrlBuilder:
         page.evaluate("window.electronAPI = { mediaProtocol: true }")
         url = page.evaluate("(p) => _buildMediaUrl(7, 'source', p)", "C:\\Users\\me\\Videos\\clip.mp4")
         assert url == f"yuu-media://media/{'C%3A%2FUsers%2Fme%2FVideos%2Fclip.mp4'}"
+
+
+@skip_no_server
+class TestRecordingFilterCounts:
+    """The recording filter chips carry per-filter counts derived from
+    AppState.videos, mirroring the clip filter chips (but keyed data-vcount)."""
+
+    def _badge(self, page: Page, key: str):
+        return page.locator(f".clip-chip-count[data-vcount='{key}']")
+
+    def _seed(self, page: Page, videos: list) -> None:
+        page.goto(LIVE_URL)
+        page.wait_for_selector("#video-list li[data-video-id]", timeout=5000)
+        page.evaluate(
+            """(videos) => {
+              AppState.videos = videos;
+              AppState.sessions = [];
+              _renderVideoList();
+            }""",
+            videos,
+        )
+
+    def test_counts_reflect_videos(self, page: Page):
+        self._seed(page, [
+            {"id": 1, "filename": "a.mkv", "clip_count": 3, "clips_scored_at": "2026-01-01", "clips_llm_error": 0},
+            {"id": 2, "filename": "b.mkv", "clip_count": 0, "clips_scored_at": None, "clips_llm_error": 0},
+            {"id": 3, "filename": "c.mkv", "clip_count": 5, "clips_scored_at": "2026-01-01", "clips_llm_error": 2},
+        ])
+        expect(self._badge(page, "all")).to_have_text("3")
+        expect(self._badge(page, "has-clips")).to_have_text("2")
+        expect(self._badge(page, "unscored")).to_have_text("1")
+        expect(self._badge(page, "errors")).to_have_text("1")
+
+    def test_errors_badge_blank_when_none(self, page: Page):
+        self._seed(page, [
+            {"id": 1, "filename": "a.mkv", "clip_count": 1, "clips_scored_at": "2026-01-01", "clips_llm_error": 0},
+        ])
+        expect(self._badge(page, "all")).to_have_text("1")
+        expect(self._badge(page, "errors")).to_have_text("")
+
+    def test_all_badges_blank_when_no_videos(self, page: Page):
+        self._seed(page, [])
+        for key in ("all", "has-clips", "unscored", "errors"):
+            expect(self._badge(page, key)).to_have_text("")

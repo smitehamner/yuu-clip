@@ -289,6 +289,13 @@
       <div id="ollama-pull-log" class="settings-install-log"></div>
       <div class="settings-row">
         <div class="settings-col">
+          <label class="settings-label" for="s-ollama-vision-model">Vision model (optional)</label>
+          <div class="settings-note">A separate model for image analysis, e.g. qwen2.5-vl. Leave blank to reuse the model above.</div>
+        </div>
+        <input class="settings-input" id="s-ollama-vision-model" type="text" placeholder="qwen2.5-vl:7b" style="max-width:200px">
+      </div>
+      <div class="settings-row">
+        <div class="settings-col">
           <label class="settings-label" for="s-ollama-host">Host</label>
           <div class="settings-note">Default: http://localhost:11434</div>
         </div>
@@ -768,6 +775,21 @@
     </div>
     <div class="settings-row">
       <div class="settings-col">
+        <label class="settings-label" for="s-playback-rate">Playback speed</label>
+        <div class="settings-note">Applies to every video and clip preview</div>
+      </div>
+      <select class="settings-input" id="s-playback-rate" style="max-width:120px">
+        <option value="0.5">0.5&times;</option>
+        <option value="0.75">0.75&times;</option>
+        <option value="1">Normal (1&times;)</option>
+        <option value="1.25">1.25&times;</option>
+        <option value="1.5">1.5&times;</option>
+        <option value="1.75">1.75&times;</option>
+        <option value="2">2&times;</option>
+      </select>
+    </div>
+    <div class="settings-row">
+      <div class="settings-col">
         <label class="settings-label" for="s-timeline-interval">Timeline interval</label>
         <div class="settings-note">Bucket size used when generating session timeline</div>
       </div>
@@ -986,10 +1008,10 @@
       </div>
       <div class="clip-filter-tabs" aria-label="Recording filters">
         <span style="font-size:10px;color:var(--muted);padding:2px 4px;line-height:1.8;flex-shrink:0" aria-hidden="true">Filter</span>
-        <button class="clip-chip active" aria-pressed="true"  data-vfilter="all"       onclick="toggleVideoFilter('all')">All</button>
-        <button class="clip-chip"        aria-pressed="false" data-vfilter="has-clips" onclick="toggleVideoFilter('has-clips')">Has clips</button>
-        <button class="clip-chip"        aria-pressed="false" data-vfilter="unscored"  onclick="toggleVideoFilter('unscored')">Unscored</button>
-        <button class="clip-chip"        aria-pressed="false" data-vfilter="errors"    onclick="toggleVideoFilter('errors')" title="Recordings with clip scoring errors">&#9888; Errors</button>
+        <button class="clip-chip active" aria-pressed="true"  data-vfilter="all"       onclick="toggleVideoFilter('all')">All<span class="clip-chip-count" data-vcount="all"></span></button>
+        <button class="clip-chip"        aria-pressed="false" data-vfilter="has-clips" onclick="toggleVideoFilter('has-clips')">Has clips<span class="clip-chip-count" data-vcount="has-clips"></span></button>
+        <button class="clip-chip"        aria-pressed="false" data-vfilter="unscored"  onclick="toggleVideoFilter('unscored')">Unscored<span class="clip-chip-count" data-vcount="unscored"></span></button>
+        <button class="clip-chip"        aria-pressed="false" data-vfilter="errors"    onclick="toggleVideoFilter('errors')" title="Recordings with clip scoring errors">&#9888; Errors<span class="clip-chip-count" data-vcount="errors"></span></button>
       </div>
       <div class="session-toolbar" id="session-toolbar" aria-label="Session grouping">
         <button class="btn ghost" style="font-size:11px;padding:2px 8px" onclick="enterGroupingMode()" title="Select recordings to group into one session">&#8862; Group</button>

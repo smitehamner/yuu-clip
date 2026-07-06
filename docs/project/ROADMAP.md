@@ -87,6 +87,18 @@ Wanted before distributing beyond friends/trusted users.
   `CSC_KEY_PASSWORD`; remove the `CSC_IDENTITY_AUTO_DISCOVERY=false` override in
   `build-release.ps1` when a cert is in place.
 
+- [ ] **Collected setup / dependencies page** *(needs a design pass — plan in a fresh session)* —
+  optional dependencies are surfaced piecemeal today: FFmpeg + CUDA in the Electron setup
+  wizard, llama.cpp / Ollama / pyannote / SpeechBrain / laugh-model / embeddings / MediaPipe
+  as individual "Install" buttons scattered through Settings (`settings.js` `_refreshInstallStatus`
+  list), and one-click model downloads in yet another place. A non-developer can't see at a
+  glance what's installed, what's missing, and what each thing unlocks. Scope: one "Setup"
+  view that lists every optional dependency + recommended model with a live installed/missing
+  state and an install action inline, grouped by the capability it enables (transcription,
+  LLM scoring, image analysis, speaker ID, laughter). Reuses the existing install/pull IPC
+  and `/api/*/install-status` checks — mostly a consolidation + presentation layer, but the
+  grouping and copy need a real design pass. Overlaps the setup wizard (shared component?).
+
 - [ ] **Project backup / restore** — there is no way today to back up or move a project short
   of manually copying folders. As distribution grows, a corrupted DB or a reinstalled machine
   with no recovery path is a bad first impression. Scope: a "Backup project" action that

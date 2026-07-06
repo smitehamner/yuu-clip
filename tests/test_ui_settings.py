@@ -699,3 +699,68 @@ class TestExportPresetSettingsSection:
             expect(row.locator(".ep-size")).to_be_enabled()
         finally:
             _delete_export_preset(page, preset.get("name"))
+
+
+@skip_no_server
+class TestPlaybackSpeed:
+    """A single global preference (yuuclip-playback-rate) drives playbackRate on
+    every <video>: read via playbackRatePref, pushed to loaded videos by a
+    capture-phase loadedmetadata listener and to live videos by applyPlaybackRate."""
+
+    def test_pref_defaults_to_one(self, page: Page):
+        page.goto(LIVE_URL)
+        rate = page.evaluate(
+            "() => { localStorage.removeItem('yuuclip-playback-rate'); return playbackRatePref(); }"
+        )
+        assert rate == 1
+
+    def test_pref_reads_stored_value(self, page: Page):
+        page.goto(LIVE_URL)
+        rate = page.evaluate(
+            """() => {
+              localStorage.setItem('yuuclip-playback-rate', '1.5');
+              const r = playbackRatePref();
+              localStorage.removeItem('yuuclip-playback-rate');
+              return r;
+            }"""
+        )
+        assert rate == 1.5
+
+    def test_apply_sets_rate_on_live_videos(self, page: Page):
+        page.goto(LIVE_URL)
+        rate = page.evaluate(
+            """() => {
+              const v = document.createElement('video');
+              document.body.appendChild(v);
+              applyPlaybackRate(1.25);
+              const r = v.playbackRate;
+              v.remove();
+              return r;
+            }"""
+        )
+        assert rate == 1.25
+
+    def test_loaded_video_gets_saved_rate(self, page: Page):
+        page.goto(LIVE_URL)
+        rate = page.evaluate(
+            """() => {
+              localStorage.setItem('yuuclip-playback-rate', '2');
+              const v = document.createElement('video');
+              document.body.appendChild(v);
+              v.dispatchEvent(new Event('loadedmetadata'));
+              const r = v.playbackRate;
+              v.remove();
+              localStorage.removeItem('yuuclip-playback-rate');
+              return r;
+            }"""
+        )
+        assert rate == 2
+
+    def test_settings_select_populates_from_storage(self, page: Page):
+        page.goto(LIVE_URL)
+        page.evaluate("() => localStorage.setItem('yuuclip-playback-rate', '1.75')")
+        page.wait_for_selector("#video-list li[data-video-id]", timeout=5000)
+        page.click("#btn-settings-header")
+        page.wait_for_selector("#settings-panel.visible", timeout=3000)
+        expect(page.locator("#s-playback-rate")).to_have_value("1.75")
+        page.evaluate("() => localStorage.removeItem('yuuclip-playback-rate')")

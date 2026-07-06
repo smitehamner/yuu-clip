@@ -7,7 +7,7 @@ const _settingsFieldIds = [
   's-ai-privacy-value',
   's-ollama-enabled','s-llm-backend','s-llm-model-path','s-llm-mmproj-path','s-llm-use-gpu',
   's-vision-enabled','s-vision-frames',
-  's-ollama-model','s-ollama-host','s-ollama-timeout',
+  's-ollama-model','s-ollama-vision-model','s-ollama-host','s-ollama-timeout',
   's-claude-api-key','s-claude-model','s-claude-timeout',
   's-diarization-backend','s-hf-token','s-speaker-match-threshold',
   's-similarity-backend',
@@ -18,7 +18,7 @@ const _settingsFieldIds = [
   's-scene-mode','s-energy-mode','s-silence-ms','s-min-clip-ms',
   's-thermal-autopause','s-thermal-warn-c','s-thermal-pause-c',
   's-audio-event-enabled',
-  's-timeline-interval','s-timeline-unit','s-autoplay','s-play-next','s-loop-clip',
+  's-timeline-interval','s-timeline-unit','s-autoplay','s-play-next','s-loop-clip','s-playback-rate',
   's-export-name-template',
   's-title-card-bg-color','s-title-card-font-color','s-title-card-scale',
   's-title-card-template','s-title-card-duration',
@@ -192,6 +192,7 @@ function _applySettingsToUI(cfg) {
   setVal('s-vision-frames',  cfg.vision_frames_per_clip ?? 4);
   window._visionEnabled = cfg.vision_enabled === true;
   setVal('s-ollama-model',   cfg.ollama_model    || '');
+  setVal('s-ollama-vision-model', cfg.ollama_vision_model || '');
   setVal('s-ollama-host',    cfg.ollama_host     || '');
   setVal('s-ollama-timeout', cfg.ollama_timeout_s|| 120);
   setVal('s-claude-api-key', cfg.claude_api_key  || '');
@@ -240,6 +241,7 @@ function _applySettingsToUI(cfg) {
   setChk('s-autoplay', localStorage.getItem('yuuclip-autoplay') === 'true');
   setChk('s-play-next', localStorage.getItem('yuuclip-play-next') === 'true');
   setChk('s-loop-clip', localStorage.getItem('yuuclip-loop-clip') === 'true');
+  setVal('s-playback-rate', String(playbackRatePref()));
   setVal('s-theme', localStorage.getItem('yuuclip-theme') || 'dark');
   setVal('s-export-name-template', cfg.export_name_template || '{video}_clip{clip_id}_{start}');
   _updateExportNameTemplatePreview();
@@ -573,6 +575,7 @@ async function saveSettings() {
     vision_enabled:             getChk('s-vision-enabled'),
     vision_frames_per_clip:     getNum('s-vision-frames', v => parseInt(v, 10)),
     ollama_model:               getVal('s-ollama-model'),
+    ollama_vision_model:        getVal('s-ollama-vision-model'),
     ollama_host:                getVal('s-ollama-host'),
     ollama_timeout_s:           getNum('s-ollama-timeout', parseFloat),
     claude_api_key:             getVal('s-claude-api-key'),
@@ -619,6 +622,8 @@ async function saveSettings() {
   localStorage.setItem('yuuclip-autoplay', getChk('s-autoplay'));
   localStorage.setItem('yuuclip-play-next', getChk('s-play-next'));
   localStorage.setItem('yuuclip-loop-clip', getChk('s-loop-clip'));
+  localStorage.setItem('yuuclip-playback-rate', getVal('s-playback-rate'));
+  applyPlaybackRate(playbackRatePref());
 
   const btn = document.getElementById('btn-settings-save');
   if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }

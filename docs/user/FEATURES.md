@@ -356,6 +356,8 @@ Settings → LLM scoring lists a curated set of **recommended models** for each 
 
 For Ollama, each recommended model has a one-click **Pull** button and a **Use this model** button. For a local `.gguf` file, you get a link to the model's download page. A **Model readiness** line shows whether the model you've set up can score **text** and analyze **images** right now, and explains what's missing if not (for example, a Claude API key, or — for the local llama.cpp backend — a separate *vision projector* `.gguf` file, which is what enables image analysis).
 
+On Ollama you can also set an optional **Vision model** separate from your main model — so a strong text-only model (e.g. `qwen2.5:7b`) can handle scoring while a vision model (e.g. `qwen2.5-vl`) handles image analysis. Leave it blank to reuse the main model for both.
+
 ### Laughs score
 
 A separate 0–1 measure of laughter density, produced by the laughter detector (transcript,

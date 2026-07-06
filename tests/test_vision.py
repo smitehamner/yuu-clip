@@ -214,6 +214,48 @@ class TestVisionClientHelpers:
         assert result == "described"
         assert attempts == [4, 2]  # retried with half the frames after the overflow
 
+    def test_ollama_vision_uses_dedicated_vision_model(self, monkeypatch, tmp_path):
+        import unittest.mock as mock
+
+        from yuu_clip.scoring.llm_client import OllamaClient
+        (tmp_path / "a.jpg").write_bytes(b"x")
+
+        used_models = []
+
+        def fake_chat(model, messages, options):
+            used_models.append(model)
+            return mock.MagicMock(message=mock.MagicMock(content="described"))
+
+        fake_client = mock.MagicMock()
+        fake_client.chat.side_effect = fake_chat
+        cfg = _cfg(ollama_model="qwen2.5:7b", ollama_vision_model="moondream")
+        with mock.patch("ollama.Client", return_value=fake_client):
+            OllamaClient(cfg).chat_vision(
+                [{"role": "user", "content": "describe"}], [tmp_path / "a.jpg"],
+            )
+        assert used_models == ["moondream"]  # vision slot, not the text model
+
+    def test_ollama_vision_falls_back_to_text_model_when_unset(self, monkeypatch, tmp_path):
+        import unittest.mock as mock
+
+        from yuu_clip.scoring.llm_client import OllamaClient
+        (tmp_path / "a.jpg").write_bytes(b"x")
+
+        used_models = []
+
+        def fake_chat(model, messages, options):
+            used_models.append(model)
+            return mock.MagicMock(message=mock.MagicMock(content="described"))
+
+        fake_client = mock.MagicMock()
+        fake_client.chat.side_effect = fake_chat
+        cfg = _cfg(ollama_model="moondream", ollama_vision_model="")
+        with mock.patch("ollama.Client", return_value=fake_client):
+            OllamaClient(cfg).chat_vision(
+                [{"role": "user", "content": "describe"}], [tmp_path / "a.jpg"],
+            )
+        assert used_models == ["moondream"]
+
 
 class TestLlamaCppGpuOffload:
     """The installer ships a CUDA build for NVIDIA cards, so the client must offload

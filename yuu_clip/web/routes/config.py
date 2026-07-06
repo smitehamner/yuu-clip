@@ -37,6 +37,7 @@ class ConfigPatch(BaseModel):
     # Ollama (local)
     ollama_host:                  Optional[str]   = None
     ollama_model:                 Optional[str]   = None
+    ollama_vision_model:          Optional[str]   = None
     ollama_timeout_s:             Optional[float] = None
     ollama_enabled:               Optional[bool]  = None
     # Claude API (remote — billed per token)
@@ -97,7 +98,7 @@ _CONFIG_FIELDS = (
     "ai_privacy_mode",
     "llm_backend", "llm_model_path", "llm_mmproj_path", "llm_use_gpu",
     "vision_enabled", "vision_frames_per_clip",
-    "ollama_host", "ollama_model", "ollama_timeout_s", "ollama_enabled",
+    "ollama_host", "ollama_model", "ollama_vision_model", "ollama_timeout_s", "ollama_enabled",
     "claude_api_key", "claude_model", "claude_timeout_s",
     "scorer_energy_weight", "scorer_scene_weight", "scorer_llm_weight",
     "scorer_laugh_weight", "scorer_laugh_mode", "scorer_laugh_model_id",
@@ -224,6 +225,7 @@ _CONFIG_PATCH_RULES: list[tuple[str, object]] = [
     ("vision_frames_per_clip",       _range_validator(1, 10, "vision_frames_per_clip")),
     ("ollama_host",                  lambda v: v.strip()),
     ("ollama_model",                 lambda v: v.strip()),
+    ("ollama_vision_model",          lambda v: v.strip()),
     ("ollama_timeout_s",             _min_validator(1,    "ollama_timeout_s")),
     ("ollama_enabled",               lambda v: v),
     ("claude_api_key",               lambda v: v.strip()),

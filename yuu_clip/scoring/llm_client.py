@@ -161,6 +161,7 @@ class OllamaClient(LLMClient):
     ) -> str:
         import ollama
         client = ollama.Client(host=self._config.ollama_host, timeout=self._config.ollama_timeout_s)
+        vision_model = self._config.ollama_vision_model or self._config.ollama_model
         # Each frame costs a fixed ~700 tokens. Capable models (Qwen2.5-VL) honor a
         # larger num_ctx, but a tiny captioner like moondream is hard-capped at 2048
         # and ignores num_ctx, so a 4-frame request overflows. Degrade gracefully:
@@ -170,7 +171,7 @@ class OllamaClient(LLMClient):
         while True:
             try:
                 response = client.chat(
-                    model=self._config.ollama_model,
+                    model=vision_model,
                     messages=_attach_images_to_last_user(messages, b64_images),
                     options={"temperature": temperature, "num_ctx": _vision_num_ctx(len(b64_images))},
                 )

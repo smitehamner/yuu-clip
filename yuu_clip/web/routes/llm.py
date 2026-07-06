@@ -134,14 +134,15 @@ def _capabilities(cfg) -> dict:
         }
     # ollama
     model = (cfg.ollama_model or "").strip()
+    vision_model = (cfg.ollama_vision_model or "").strip() or model
     text_ok = bool(model)
-    vision_ok = text_ok and _ollama_tag_base(model) in _OLLAMA_VISION_BASES
+    vision_ok = text_ok and _ollama_tag_base(vision_model) in _OLLAMA_VISION_BASES
     if not text_ok:
         detail = "No Ollama model set — choose one under Settings → LLM scoring."
     elif vision_ok:
         detail = "A vision-capable Ollama model is set — image analysis is available."
     else:
-        detail = "Text scoring is ready; pick a vision model to enable image analysis."
+        detail = "Text scoring is ready; set a vision model to enable image analysis."
     return {
         "backend": backend, "model": model or None,
         "text": text_ok, "vision": vision_ok, "detail": detail,

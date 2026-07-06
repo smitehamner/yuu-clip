@@ -503,6 +503,10 @@ class Config:
 
     ollama_host: str = "http://localhost:11434"
     ollama_model: str = "qwen2.5:7b"  # Apache-2.0 (monetization-safe); see model_catalog.py
+    # Optional separate vision model for image analysis — lets a text-only text model
+    # (e.g. qwen2.5:7b) pair with a vision model (e.g. qwen2.5-vl). Empty = reuse
+    # ollama_model for vision too, matching the previous single-model behaviour.
+    ollama_vision_model: str = ""
     ollama_timeout_s: float = 120.0
     ollama_enabled: bool = True
 
