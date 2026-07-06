@@ -51,10 +51,10 @@ def _closes_in_finally(func: ast.AST) -> bool:
 
 def test_every_route_that_opens_a_session_closes_it_in_finally():
     offenders = []
-    for path in sorted(ROUTES_DIR.glob("*.py")):
+    for path in sorted(ROUTES_DIR.rglob("*.py")):
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for func in ast.walk(tree):
             if isinstance(func, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 if _opens_session(func) and not _closes_in_finally(func):
-                    offenders.append(f"{path.name}:{func.name}")
+                    offenders.append(f"{path.relative_to(ROUTES_DIR).as_posix()}:{func.name}")
     assert offenders == [], f"route handlers open a DB session without try/finally close: {offenders}"

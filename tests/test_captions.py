@@ -38,7 +38,7 @@ class TestSrtToVtt:
     """_srt_to_vtt converts SRT comma separators to VTT dot separators."""
 
     def _convert(self, srt):
-        from yuu_clip.web.routes.clips import _srt_to_vtt
+        from yuu_clip.web.routes._shared import _srt_to_vtt
         return _srt_to_vtt(srt)
 
     def test_prepends_webvtt_header(self):

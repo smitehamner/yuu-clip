@@ -1,6 +1,6 @@
 (function () {
 // Feature-map — Bulk clip actions (multi-select in the clip list → status / delete / export).
-//   API: routes/clips.py (bulk-status, bulk-status-restore, bulk-delete, bulk-export) · Tests: tests/test_ui_clips.py
+//   API: routes/clips/bulk.py (bulk-status, bulk-status-restore, bulk-delete, bulk-export) · Tests: tests/test_ui_clips.py
 // The selection set lives in AppState.selectedClipIds; the clip list (clips.js)
 // renders the checkboxes and calls _toggleClipSelection / _updateBulkToolbar as
 // rows are drawn, and _pruneClipSelection on every re-render.
