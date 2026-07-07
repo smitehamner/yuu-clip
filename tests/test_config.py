@@ -297,6 +297,36 @@ class TestVisionConfig:
 
 
 # ---------------------------------------------------------------------------
+# Config — packaging-strategy overhaul Wave 2 default flips
+# ---------------------------------------------------------------------------
+
+class TestPackagingWave2Defaults:
+    """These packages/models are now bundled (Tier A) or auto-fetched (Tier B),
+    so the features they power run out of the box instead of requiring an
+    explicit opt-in. See docs/dev/PACKAGING-TIERS.md."""
+
+    def test_diarization_backend_defaults_to_speechbrain(self):
+        from yuu_clip.config import Config
+        assert Config().diarization_backend == "speechbrain"
+
+    def test_similarity_backend_defaults_to_embeddings(self):
+        from yuu_clip.config import Config
+        assert Config().similarity_backend == "embeddings"
+
+    def test_audio_event_scoring_defaults_on(self):
+        from yuu_clip.config import Config
+        assert Config().scorer_audio_event_enabled is True
+
+    def test_laugh_mode_and_vision_are_not_flipped_by_wave_2(self):
+        # Explicitly out of scope: laugh_mode stays transcript-only (a laugh_mode
+        # flip needs its own decision) and vision is Wave 6's call.
+        from yuu_clip.config import Config
+        cfg = Config()
+        assert cfg.scorer_laugh_mode == "transcript"
+        assert cfg.vision_enabled is False
+
+
+# ---------------------------------------------------------------------------
 # Config — new llm_backend / llm_model_path defaults
 # ---------------------------------------------------------------------------
 

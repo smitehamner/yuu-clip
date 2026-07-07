@@ -112,9 +112,10 @@ def analyze(
     config.scene_detection_mode = scene_mode
     if diarize is True:
         # Turn speaker labels on for this run using the project's configured
-        # backend; only fall back to pyannote when no backend was configured.
+        # backend; only fall back to speechbrain (tokenless) when no backend
+        # was configured — never pyannote, which requires a HF token.
         if config.diarization_backend == "null":
-            config.diarization_backend = "pyannote"
+            config.diarization_backend = "speechbrain"
     elif diarize is False:
         config.diarization_backend = "null"
 
@@ -163,9 +164,9 @@ def rediarize(
     proj_dir, session, config = _load_project(project)
     # The whole point of this command is to diarize, so force a backend on even
     # when the project config has it disabled — but respect a configured backend
-    # (e.g. speechbrain) rather than always forcing pyannote.
+    # (e.g. pyannote) rather than always forcing the tokenless speechbrain default.
     if config.diarization_backend == "null":
-        config.diarization_backend = "pyannote"
+        config.diarization_backend = "speechbrain"
 
     video = session.get(Video, video_id)
     if not video:

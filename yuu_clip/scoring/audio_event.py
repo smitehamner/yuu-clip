@@ -8,9 +8,11 @@ applause, …), so one classifier feeds two dimensions:
   action sounds  → score_action
   crowd/reaction → score_funny
 
-This is the heaviest tier in the non-LLM set (needs transformers + torch, ~350 MB
-model download on first use), so unlike the Stage 03/04 signals it is OFF by default
-(scorer_audio_event_enabled). It shares scorer_laugh_model_id — no separate model id.
+transformers + torch are bundled by default (packaging-strategy overhaul); the AST
+checkpoint itself (~350 MB) is a Tier-B model auto-fetched on first use. Degrades to a
+no-op per clip (never raises) if the model isn't downloaded yet or can't be fetched
+(e.g. offline first run) — see the `_load_failed` short-circuit in `score()`. It shares
+scorer_laugh_model_id — no separate model id.
 """
 from __future__ import annotations
 
@@ -64,6 +66,10 @@ class AudioEventScorer:
         self.weight = config.scorer_audio_event_weight
         self._wav_cache = WavCache()
         self._classifier = None
+        # Set once the model fails to load (e.g. offline and not yet downloaded),
+        # so a run with many clips doesn't retry — and re-fail — the same
+        # multi-second HuggingFace fetch attempt on every single clip.
+        self._load_failed = False
 
     def is_available(self) -> bool:
         return self.availability()[0]
@@ -110,11 +116,19 @@ class AudioEventScorer:
         if len(clip_audio) == 0:
             return ScoreResult(tags=["audio_event_no_wav"])
 
+        if self._load_failed:
+            return ScoreResult(tags=["audio_event_no_wav"])
+
         try:
             classifier = self._get_classifier()
             results = classifier({"array": clip_audio, "sampling_rate": sr}, top_k=_TOP_K)
         except Exception as exc:
             log.warning("AudioEventScorer: inference failed for clip %d: %s", clip.id, exc)
+            if self._classifier is None:
+                # Failed during model load (not a per-clip inference error) —
+                # remember it so the rest of this run skips straight to no-op
+                # instead of retrying the same doomed download every clip.
+                self._load_failed = True
             return ScoreResult(tags=["audio_event_no_wav"])
 
         action = _group_score(results, _ACTION_LABELS)

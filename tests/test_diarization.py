@@ -483,6 +483,23 @@ class TestDiarizeTrack:
 
         assert "assign" not in captured
 
+    def test_speechbrain_model_load_failure_is_swallowed(self, monkeypatch):
+        """The now-default backend: an offline machine without the ECAPA model
+        cached must skip speaker labels for the track, not abort the analyze."""
+        from pathlib import Path
+
+        from yuu_clip.transcribe.whisper_runner import diarize_track
+
+        captured = self._wire(
+            monkeypatch, None,
+            diarize_side_effect=OSError("could not download model (offline)"),
+        )
+        cfg = Config(diarization_backend="speechbrain")
+        diarize_track(cfg, None, self._fake_transcript(), Path("a.wav"), self._fake_track())
+
+        assert "assign" not in captured
+        assert "attach" not in captured
+
 
 # ---------------------------------------------------------------------------
 # _rediarize_video — non-destructive re-run of the diarization stage
@@ -652,6 +669,29 @@ class TestSpeechBrainAvailable:
         assert reason == ""
 
 
+class TestSpeechBrainModelLoadFailure:
+    """A model that can't be fetched (offline, not cached) must propagate a plain
+    exception rather than hang or silently return empty — diarize_track (the
+    caller) is what actually swallows it and skips speaker labels for the track."""
+
+    def test_load_encoder_failure_propagates_from_diarize_with_embeddings(self, monkeypatch):
+        import numpy as np
+
+        client = SpeechBrainDiarizationClient(Config(diarization_backend="speechbrain"))
+        monkeypatch.setattr(
+            "yuu_clip.transcribe.diarization_client._load_mono_waveform",
+            lambda audio_path: (np.ones(16000 * 3, dtype=np.float32), 16000),
+        )
+
+        def _boom():
+            raise OSError("could not download model (offline)")
+
+        monkeypatch.setattr(client, "_load_encoder", _boom)
+
+        with pytest.raises(OSError):
+            client.diarize_with_embeddings("a.wav")
+
+
 class TestSpeechBrainPipeline:
     def test_slice_windows_only_full_length(self):
         # 3.0 s at 16 kHz, 1.5 s window, 0.75 s hop → starts at 0, 0.75, 1.5 s.
@@ -715,9 +755,12 @@ class TestSpeechBrainPipeline:
 # ---------------------------------------------------------------------------
 
 class TestFactory:
-    def test_null_default(self):
+    def test_speechbrain_is_default(self):
+        # packaging-strategy overhaul: the tokenless speechbrain backend is now
+        # the out-of-the-box default (was "null").
         cfg = Config()
-        assert isinstance(make_diarization_client(cfg), NullDiarizationClient)
+        assert cfg.diarization_backend == "speechbrain"
+        assert isinstance(make_diarization_client(cfg), SpeechBrainDiarizationClient)
 
     def test_null_explicit(self):
         cfg = Config(diarization_backend="null")

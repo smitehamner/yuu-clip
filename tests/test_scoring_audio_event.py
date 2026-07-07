@@ -139,3 +139,22 @@ class TestScore:
         with mock.patch("yuu_clip.scoring.audio_event.best_wav_track", return_value=mock.MagicMock()):
             result = scorer.score(_clip(start_ms=5000, end_ms=5000), None)
         assert "audio_event_no_wav" in result.tags
+
+    def test_model_load_failure_never_raises_and_is_cached(self):
+        """The AST model is a Tier-B download — an offline machine without it
+        cached must skip the audio-event boost for every clip in the run, not
+        retry the same doomed fetch (and its network timeout) per clip."""
+        scorer = _make_scorer()
+        scorer._wav_cache = mock.MagicMock()
+        scorer._wav_cache.load.return_value = (np.ones(16000 * 3, dtype=np.float32), 16000)
+        load_attempts = mock.MagicMock(side_effect=OSError("could not download model (offline)"))
+        scorer._get_classifier = load_attempts
+
+        with mock.patch("yuu_clip.scoring.audio_event.best_wav_track", return_value=mock.MagicMock()):
+            first = scorer.score(_clip(), None)
+            second = scorer.score(_clip(), None)
+
+        assert "audio_event_no_wav" in first.tags
+        assert first.score_action is None
+        assert "audio_event_no_wav" in second.tags
+        assert load_attempts.call_count == 1

@@ -516,7 +516,7 @@ class Config:
     claude_timeout_s: float = 30.0                   # per-request timeout
 
     # Speaker diarization — identifies who is speaking within a track
-    diarization_backend: str = "null"  # "null" | "pyannote" | "speechbrain"
+    diarization_backend: str = "speechbrain"  # "null" | "pyannote" | "speechbrain"
     huggingface_token: str = ""        # required for pyannote backend (not speechbrain)
     # Cosine similarity above which a re-diarization cluster is treated as the same
     # voice as an existing named Speaker and re-attached to it (preserving the name).
@@ -541,11 +541,12 @@ class Config:
     scorer_speech_rate_enabled: bool = True
     scorer_churn_enabled: bool = True
     scorer_prosody_enabled: bool = True
-    # Audio-event detection (plan non-llm-tiers/05) — the heaviest tier: reuses the
-    # AudioSet AST model (scorer_laugh_model_id, transformers+torch) to detect action
-    # sounds → action and crowd/cheer → funny. OFF by default so a lightweight install
-    # never downloads the ~350 MB model; the user opts in from Settings.
-    scorer_audio_event_enabled: bool = False
+    # Audio-event detection (plan non-llm-tiers/05, promoted to default by the
+    # packaging-strategy overhaul) — reuses the AudioSet AST model
+    # (scorer_laugh_model_id, transformers+torch, both bundled) to detect action
+    # sounds → action and crowd/cheer → funny. The AST model itself is a Tier-B
+    # auto-fetched download; degrades gracefully (skip) if it isn't present yet.
+    scorer_audio_event_enabled: bool = True
     # "transcript" — regex patterns in Whisper output, no extra deps (default)
     # "audio"      — spectral rhythm analysis via PyAV + numpy
     # "model"      — HuggingFace audio-classification (requires transformers+torch)
@@ -557,11 +558,12 @@ class Config:
 
     # Similarity engine backend (plan non-llm-tiers/01) — powers "Find related clips"
     # and "Meaning" hot-words without requiring an LLM:
-    #   "tfidf"      — pure-Python keyword cosine, zero extra deps (default)
-    #   "embeddings" — local paraphrase matching via fastembed (opt-in extra)
+    #   "tfidf"      — pure-Python keyword cosine, zero extra deps (fallback)
+    #   "embeddings" — local paraphrase matching via fastembed + bge-small (default;
+    #                  fastembed is bundled, bge-small is a Tier-B auto-fetched model)
     #   "llm"        — the language-model path (find_related_clips / scan_hotwords_semantic)
     # Unknown/unavailable values fall back to "tfidf" at make_backend time.
-    similarity_backend: str = "tfidf"
+    similarity_backend: str = "embeddings"
 
     # Scene detection mode: "transcript" | "fast" | "full"
     # transcript = silence gaps only (instant, no extra deps)

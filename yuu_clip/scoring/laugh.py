@@ -112,6 +112,9 @@ class LaughScorer:
         # Cache loaded WAV data per track_id across clips in a single scoring run.
         self._wav_cache  = WavCache()
         self._classifier = None
+        # Set once the "model" mode classifier fails to load, so a run with many
+        # clips doesn't retry the same doomed model fetch on every single clip.
+        self._load_failed = False
 
     def is_available(self) -> bool:
         if not self._config.scorer_laugh_enabled:
@@ -216,6 +219,9 @@ class LaughScorer:
         if len(clip_audio) == 0:
             return ScoreResult(tags=["laugh_no_wav"])
 
+        if self._load_failed:
+            return ScoreResult(tags=["laugh_no_wav"])
+
         try:
             classifier = self._get_classifier()
             results = classifier({"array": clip_audio, "sampling_rate": sr}, top_k=20)
@@ -225,6 +231,8 @@ class LaughScorer:
             )
         except Exception as exc:
             log.warning("LaughScorer (model): inference failed for clip %d: %s", clip.id, exc)
+            if self._classifier is None:
+                self._load_failed = True
             return ScoreResult(tags=["laugh_no_wav"])
 
         return ScoreResult(

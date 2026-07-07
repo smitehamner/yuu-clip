@@ -1,6 +1,7 @@
 """Tiered similarity engine (scoring/similarity.py) — plan non-llm-tiers/01."""
 from __future__ import annotations
 
+import sys
 import unittest.mock as mock
 
 from yuu_clip.config import Config
@@ -122,14 +123,40 @@ class TestLlmBackend:
 
 
 class TestMakeBackend:
-    def test_default_is_tfidf(self):
+    def test_config_default_is_embeddings(self):
+        # packaging-strategy overhaul: fastembed + bge-small are now the default
+        # similarity backend (was "tfidf").
+        assert Config().similarity_backend == "embeddings"
+
+    def test_falls_back_to_tfidf_when_fastembed_package_missing(self):
+        # fastembed is not installed in the test env, so availability() is False
+        # and the default-configured "embeddings" backend falls back to tfidf —
+        # this is also the real behavior on a machine mid-install.
         from yuu_clip.scoring.similarity import TfidfBackend, make_backend
         assert isinstance(make_backend(_cfg()), TfidfBackend)
-
-    def test_unavailable_embeddings_falls_back_to_tfidf(self):
-        # fastembed is not installed in the test env, so availability() is False.
-        from yuu_clip.scoring.similarity import TfidfBackend, make_backend
         assert isinstance(make_backend(_cfg(similarity_backend="embeddings")), TfidfBackend)
+
+    def test_falls_back_to_tfidf_when_model_cannot_be_fetched(self):
+        # fastembed the package is present (bundled), but the bge-small model
+        # itself is a Tier-B download — an offline machine without it cached
+        # must still fall back to tfidf rather than fail per-clip later.
+        from yuu_clip.scoring import similarity
+        from yuu_clip.scoring.similarity import TfidfBackend, make_backend
+        with mock.patch.dict(sys.modules, {"fastembed": mock.MagicMock()}):
+            with mock.patch.object(
+                similarity, "_get_embed_model",
+                side_effect=OSError("could not download model (offline)"),
+            ):
+                backend = make_backend(_cfg(similarity_backend="embeddings"))
+        assert isinstance(backend, TfidfBackend)
+
+    def test_selects_embeddings_when_package_and_model_available(self):
+        from yuu_clip.scoring import similarity
+        from yuu_clip.scoring.similarity import EmbeddingsBackend, make_backend
+        with mock.patch.dict(sys.modules, {"fastembed": mock.MagicMock()}):
+            with mock.patch.object(similarity, "_get_embed_model", return_value=mock.MagicMock()):
+                backend = make_backend(_cfg(similarity_backend="embeddings"))
+        assert isinstance(backend, EmbeddingsBackend)
 
     def test_llm_backend_used_when_available(self):
         from yuu_clip.scoring.similarity import LlmBackend, make_backend

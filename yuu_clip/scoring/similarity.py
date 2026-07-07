@@ -4,9 +4,11 @@ without requiring a language model.
 
 Three backends, chosen by config.similarity_backend:
   "tfidf"      — pure-Python TF-IDF cosine over the small candidate set. Zero extra
-                 dependencies, deterministic. Default; always available.
-  "embeddings" — fastembed (ONNX, no PyTorch); local paraphrase-aware matching.
-                 Opt-in via the `embeddings` pyproject extra.
+                 dependencies, deterministic. Always available; the fallback.
+  "embeddings" — fastembed (ONNX, no PyTorch) + the bge-small model; local
+                 paraphrase-aware matching. Default (packaging-strategy overhaul):
+                 fastembed is bundled (Tier A), bge-small auto-fetches on first use
+                 (Tier B).
   "llm"        — wraps scoring/llm.py's find_related_clips / scan_hotwords_semantic
                  so a user with a language model keeps the LLM path.
 
@@ -172,7 +174,7 @@ def _shared_terms_reason(query_vec: dict[str, float], cand_vec: dict[str, float]
     return "shared: " + ", ".join(top) if top else "similar wording"
 
 
-# ── Embeddings (opt-in, fastembed) ────────────────────────────────────────────
+# ── Embeddings (default, fastembed) ───────────────────────────────────────────
 
 _embed_model = None
 
@@ -192,11 +194,17 @@ class EmbeddingsBackend:
         self._config = config
 
     def availability(self) -> tuple[bool, str]:
+        # Cheap, side-effect-free: only checks that fastembed (Tier A, bundled) is
+        # importable. It must NOT load or download the bge-small model — the
+        # Settings status UI calls this on every render, and probing the model here
+        # would trigger a ~130 MB download just to report availability. The actual
+        # model-load probe (with tfidf fallback) lives in make_backend(), the
+        # scoring path where a first-use fetch is expected.
         try:
             import fastembed  # noqa: F401
-            return True, ""
         except ImportError:
             return False, "the embeddings engine needs the fastembed package (install it from Settings)"
+        return True, ""
 
     def rank_similar(self, query: str, candidates: list[dict], top_k: int = 5) -> list[dict]:
         described = [c for c in candidates if (c.get("description") or "").strip()]
@@ -297,6 +305,16 @@ def make_backend(config: "Config", context_text: str = ""):
     requested = (getattr(config, "similarity_backend", "tfidf") or "tfidf").strip()
     backend = _construct(requested, config, context_text)
     available, reason = backend.availability()
+    if available and isinstance(backend, EmbeddingsBackend):
+        # bge-small is a Tier-B model fetched on first use. Verify it actually
+        # loads now so an offline/uncached machine falls back to keyword matching
+        # here, rather than throwing per-clip during scoring. (availability() stays
+        # cheap so the Settings status UI never triggers this fetch.)
+        try:
+            _get_embed_model()
+        except Exception as exc:
+            log.warning("Embeddings model unavailable (%s)", exc)
+            available, reason = False, "the embeddings model isn't downloaded yet"
     if available:
         return backend
     if requested != "tfidf":
