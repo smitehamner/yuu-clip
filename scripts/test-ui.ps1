@@ -15,6 +15,33 @@ $SummaryFile = Join-Path $RepoRoot "test-ui-last-summary.log"
 Write-Host "UI tests require a live server at http://127.0.0.1:8080 (run scripts\serve.ps1 first)" -ForegroundColor Yellow
 Write-Host "Log: $LogFile" -ForegroundColor DarkGray
 
+# Preflight: exactly ONE dev server must be serving :8080. The suite runs against
+# that single shared server; a second stray server (e.g. one left by another
+# session, or a subagent that restarted via the system Python instead of the venv)
+# fights over the SQLite DB and slows every request, silently turning a ~3.7-min run
+# into 16+ min of spurious timeout failures that look like real regressions. Fail
+# fast with the offending PIDs instead. Placed before the lock so an early exit here
+# never leaves a stale lock behind.
+#
+# NOTE on the expected count: one server is TWO processes, not one. The venv
+# python.exe is a launcher stub that spawns a base-interpreter worker child, both
+# carrying the "yuu_clip.cli serve" command line (see the matching note in
+# serve.ps1). So a healthy single server = 2 matches here; >2 means a second server
+# (another stub+worker pair) is running.
+$ServeProcs = @(Get-CimInstance Win32_Process -Filter "Name='python.exe'" -ErrorAction SilentlyContinue |
+    Where-Object { $_.CommandLine -match 'yuu_clip\.cli serve' })
+if ($ServeProcs.Count -eq 0) {
+    Write-Host "No yuu-clip server is running. Start one with scripts\serve.ps1, then retry." -ForegroundColor Red
+    exit 3
+}
+if ($ServeProcs.Count -gt 2) {
+    Write-Host "More than one yuu-clip server is running ($($ServeProcs.Count) serve processes; one server is 2 - a stub + worker):" -ForegroundColor Red
+    $ServeProcs | ForEach-Object { Write-Host "  PID $($_.ProcessId)  $($_.ExecutablePath)" -ForegroundColor Red }
+    Write-Host "Multiple servers contend for the :8080 DB and degrade the suite into spurious timeouts." -ForegroundColor Red
+    Write-Host "Run scripts\serve.ps1 (it stops all stray servers and starts a single fresh one), then retry." -ForegroundColor Red
+    exit 3
+}
+
 # The UI suite runs against the single shared dev server on :8080, so two runs
 # at once (e.g. two Claude sessions) corrupt each other's DB state and produce
 # spurious failures. Guard with an atomic lock file. CreateNew is atomic, so
