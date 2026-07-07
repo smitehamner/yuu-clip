@@ -240,9 +240,18 @@ class LaughScorer:
                 default=0.0,
             )
         except Exception as exc:
-            log.warning("LaughScorer (model): inference failed for clip %d: %s", clip.id, exc)
             if self._classifier is None:
+                # Load failure (offline / model not yet cached), not per-clip
+                # inference — log once with the model id so a silent "always
+                # scores zero" run is diagnosable, then no-op the rest of the run.
                 self._load_failed = True
+                log.warning(
+                    "LaughScorer (model): model %r failed to load — laughter "
+                    "scoring disabled for the rest of this run: %s",
+                    self._config.scorer_laugh_model_id, exc,
+                )
+            else:
+                log.warning("LaughScorer (model): inference failed for clip %d: %s", clip.id, exc)
             return ScoreResult(tags=["laugh_no_wav"])
 
         return ScoreResult(

@@ -342,6 +342,41 @@ class TestPackagingWave6VisionDefaults:
         assert Config().vision_frames_per_clip == 2
 
 
+class TestValidateVisionFramesPerClip:
+    """Direct unit coverage of the shared validator behind both the /api/config
+    reject path and the hand-edited-config sanitizer."""
+
+    def test_accepts_both_range_boundaries(self):
+        from yuu_clip.config import validate_vision_frames_per_clip
+        assert validate_vision_frames_per_clip(1) == 1
+        assert validate_vision_frames_per_clip(10) == 10
+
+    def test_rejects_just_outside_each_boundary(self):
+        import pytest
+
+        from yuu_clip.config import validate_vision_frames_per_clip
+        with pytest.raises(ValueError):
+            validate_vision_frames_per_clip(0)
+        with pytest.raises(ValueError):
+            validate_vision_frames_per_clip(11)
+
+    def test_rejects_a_bool_even_though_true_equals_one(self):
+        # True == 1 would slip through a bare range check; the explicit bool
+        # guard keeps a JSON `true` from being read as a frame count.
+        import pytest
+
+        from yuu_clip.config import validate_vision_frames_per_clip
+        with pytest.raises(ValueError):
+            validate_vision_frames_per_clip(True)
+
+    def test_rejects_a_non_integer(self):
+        import pytest
+
+        from yuu_clip.config import validate_vision_frames_per_clip
+        with pytest.raises(ValueError):
+            validate_vision_frames_per_clip(3.0)
+
+
 # ---------------------------------------------------------------------------
 # Config — new llm_backend / llm_model_path defaults
 # ---------------------------------------------------------------------------

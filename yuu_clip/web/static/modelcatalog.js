@@ -181,7 +181,7 @@ async function _updateLlmCapabilities() {
     `<span style="margin-right:14px">${mark(cap.text)} Text scoring</span>` +
     `<span>${mark(cap.vision)} Image analysis</span>` +
     `<div class="settings-note" style="margin-top:4px">${escHtml(cap.detail || '')}</div>`;
-  el.style.color = cap.text ? 'var(--green, #22c55e)' : 'var(--muted)';
+  el.style.color = cap.text ? 'var(--green)' : 'var(--muted)';
 }
 
 // ── capabilities overview (Stage 06) ────────────────────────────────────────

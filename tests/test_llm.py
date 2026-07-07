@@ -110,6 +110,30 @@ class TestCapabilities:
         assert cap["text"] is False and cap["vision"] is False
 
 
+class TestModuleFindable:
+    """The tier tests above monkeypatch module_findable; these pin its real
+    behavior so the monkeypatch can never mask a regression. Its whole reason to
+    exist is the dotted-parent-absent case: find_spec raises ModuleNotFoundError
+    (not returns None) when a dotted name's parent package is entirely missing,
+    which must still read as 'not installed', not crash the tiers route."""
+
+    def test_true_for_a_present_top_level_module(self):
+        from yuu_clip.web.routes.common import module_findable
+        assert module_findable("os") is True
+
+    def test_true_for_a_present_dotted_submodule(self):
+        from yuu_clip.web.routes.common import module_findable
+        assert module_findable("os.path") is True
+
+    def test_false_for_an_absent_top_level_module(self):
+        from yuu_clip.web.routes.common import module_findable
+        assert module_findable("yuu_clip_no_such_module_xyz") is False
+
+    def test_false_for_a_dotted_name_whose_parent_is_absent(self):
+        from yuu_clip.web.routes.common import module_findable
+        assert module_findable("yuu_clip_no_such_module_xyz.submodule") is False
+
+
 class TestOllamaPullGuard:
     def test_unknown_tag_is_rejected(self, client: TestClient):
         resp = client.post("/api/llm/ollama/pull", params={"tag": "evil:latest"})

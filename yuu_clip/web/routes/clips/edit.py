@@ -234,7 +234,7 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
         """Sample frames from the clip window, send them to the vision model, and store
         a short 'what's on screen' summary that enriches descriptions and gives the text
         scorer visual context. In-process (asyncio.to_thread) — seconds, not minutes, so
-        no SSE. Off by default; 503 when no vision-capable model is configured. Re-running
+        no SSE. 503 when no vision-capable model is configured. Re-running
         overwrites the previous summary.
         """
         from yuu_clip.analyze.frames import (

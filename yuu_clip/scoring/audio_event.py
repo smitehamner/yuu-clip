@@ -1,4 +1,4 @@
-"""AudioEventScorer — sound-event detection via the AudioSet AST model (heavy opt-in).
+"""AudioEventScorer — sound-event detection via the AudioSet AST model.
 
 Reuses the same Audio-Spectrogram-Transformer already wired for laugh 'model' mode
 (MIT/ast-finetuned-audioset-10-10-0.4593). AudioSet's ~527 classes include action
@@ -167,12 +167,20 @@ class AudioEventScorer:
             classifier = self._get_classifier()
             results = classifier({"array": clip_audio, "sampling_rate": sr}, top_k=_TOP_K)
         except Exception as exc:
-            log.warning("AudioEventScorer: inference failed for clip %d: %s", clip.id, exc)
             if self._classifier is None:
-                # Failed during model load (not a per-clip inference error) —
-                # remember it so the rest of this run skips straight to no-op
-                # instead of retrying the same doomed download every clip.
+                # Failed during model load (not a per-clip inference error) — e.g.
+                # offline with the Tier-B checkpoint not yet cached. Remember it so
+                # the rest of this run skips straight to no-op instead of retrying
+                # the same doomed download every clip, and log once with the model
+                # id + cause so a silent "always scores zero" run is diagnosable.
                 self._load_failed = True
+                log.warning(
+                    "AudioEventScorer: model %r failed to load — audio-event "
+                    "scoring disabled for the rest of this run: %s",
+                    self._config.scorer_laugh_model_id, exc,
+                )
+            else:
+                log.warning("AudioEventScorer: inference failed for clip %d: %s", clip.id, exc)
             return ScoreResult(tags=["audio_event_no_wav"])
 
         action = _group_score(results, _ACTION_LABELS)

@@ -44,7 +44,11 @@ if (-not (Test-Path $runtimePython)) {
 }
 
 $lockHash = (Get-FileHash -Path $lockPath -Algorithm SHA256).Hash.ToLower()
-if ((Test-Path $marker) -and (Get-Content $marker -Raw).Trim() -eq $lockHash) {
+# Key the cache marker on the lock hash AND the pinned llama CPU wheel version: that
+# wheel lives in the wheelhouse but is intentionally NOT in requirements.lock, so a
+# $llamaCpuVersion bump alone must still invalidate the cache and re-fetch it.
+$markerValue = "$lockHash|$llamaCpuVersion"
+if ((Test-Path $marker) -and (Get-Content $marker -Raw).Trim() -eq $markerValue) {
     Write-Host "Wheelhouse already built for this requirements.lock at $wheelhouseDir"
     exit 0
 }
@@ -82,5 +86,5 @@ if (-not (Test-Path $llamaDest) -or (Get-Item $llamaDest).Length -eq 0) {
 }
 
 $wheelCount = (Get-ChildItem "$wheelhouseDir\*.whl" | Measure-Object).Count
-Set-Content -Path $marker -Value $lockHash -NoNewline
+Set-Content -Path $marker -Value $markerValue -NoNewline
 Write-Host "Wheelhouse ready: $wheelCount wheels in $wheelhouseDir"
