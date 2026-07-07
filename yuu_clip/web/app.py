@@ -25,6 +25,7 @@ from yuu_clip.web.deps import ProjectContext
 from yuu_clip.web.media import media_file_response, resolve_within
 from yuu_clip.web.routes import (
     analyze,
+    backup,
     clips,
     config,
     content_presets,
@@ -69,7 +70,7 @@ else:
 _ROUTE_MODULES = (
     videos, clips, analyze, profiles, reel, reveal, logs, contexts, config,
     scoring, sounds, speakers, hotwords, sensitive, export_presets, imports,
-    projects, sessions, name_corrections, llm, content_presets, models,
+    projects, sessions, name_corrections, llm, content_presets, models, backup,
 )
 
 
