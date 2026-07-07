@@ -33,6 +33,7 @@ from starlette.background import BackgroundTask
 from yuu_clip.config import record_known_project
 from yuu_clip.log import get_logger, redirect_logging
 from yuu_clip.project_archive import (
+    ProjectExistsError,
     RestoreError,
     apply_repoint,
     build_backup,
@@ -125,6 +126,10 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         target = Path(body.target_dir).expanduser()
         try:
             db_path = restore_into(archive, target, overwrite=body.overwrite)
+        except ProjectExistsError as exc:
+            # Structured 409 so the UI can offer "replace it?" rather than parsing
+            # the message (analysis-in-flight is also 409 but with a plain string).
+            raise HTTPException(409, detail={"code": "project_exists", "message": str(exc)})
         except RestoreError as exc:
             raise HTTPException(400, str(exc))
 

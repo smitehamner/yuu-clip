@@ -55,11 +55,21 @@ _SAMPLE_LIMIT = 5
 class RestoreError(Exception):
     """A backup that can't be restored, with a message safe to show the user."""
 
-# Large regenerable subdirectories under .yuu-clip/ that are NOT backed up. Pinned
-# to the config.py project_*_dir helpers by tests/test_backup.py so a fifth derived
-# dir can't be silently swept into the backup, and a new *state* file can't be
-# silently excluded (the guard forces a conscious edit here).
-EXCLUDED_DIRNAMES = frozenset({"audio", "exports", "proxies", "downloads"})
+
+class ProjectExistsError(RestoreError):
+    """The restore target already holds a project and overwrite wasn't requested —
+    a recoverable condition the UI turns into a 'replace it?' confirm."""
+
+# Small state subdirectories under .yuu-clip/ that ARE backed up. This is an
+# allowlist, not a skip-list, and deliberately so: .yuu-clip/ holds several large
+# regenerable media dirs (audio/, exports/, proxies/, downloads/, reels/,
+# preview_cache/) and can accumulate more, so a skip-list would keep sweeping new
+# multi-GB dirs into a "small" backup (a real 53 GB dir was caught this way).
+# An allowlist bounds the backup to known state. Top-level *files* are always
+# captured (project.db, config.json, contexts.json, any future small state file),
+# so a new state file is never silently dropped - only a new state *subdir* would
+# need adding here.
+INCLUDED_SUBDIRS = frozenset({"sounds"})
 
 # SQLite runtime sidecars. We checkpoint the WAL into the main DB before archiving
 # (so project.db is self-contained), then skip these — they are regenerated on the
@@ -94,17 +104,24 @@ def _is_sqlite_sidecar(name: str) -> bool:
     return any(name.endswith(suffix) for suffix in _SQLITE_SIDECAR_SUFFIXES)
 
 
+def _is_runtime_file(name: str) -> bool:
+    """Top-level files that aren't durable state and must stay out of a backup:
+    SQLite runtime sidecars and the (unbounded, non-state) log file + rotations."""
+    return _is_sqlite_sidecar(name) or ".log" in name
+
+
 def _state_files(project_dir: Path) -> list[Path]:
-    """Every file under .yuu-clip/ worth backing up: excludes the four derived
-    dirs and the SQLite runtime sidecars, keeps everything else."""
+    """Durable state to back up: every top-level file under .yuu-clip/ (minus the
+    SQLite runtime sidecars and the log) plus the files inside each allowlisted
+    state subdir. Large derived-media dirs are skipped - see INCLUDED_SUBDIRS."""
     root = project_dir / ".yuu-clip"
     collected: list[Path] = []
-    for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = [d for d in dirnames if d not in EXCLUDED_DIRNAMES]
-        for name in filenames:
-            if _is_sqlite_sidecar(name):
-                continue
-            collected.append(Path(dirpath) / name)
+    for entry in sorted(root.iterdir()):
+        if entry.is_file():
+            if not _is_runtime_file(entry.name):
+                collected.append(entry)
+        elif entry.is_dir() and entry.name in INCLUDED_SUBDIRS:
+            collected.extend(sorted(p for p in entry.rglob("*") if p.is_file()))
     return collected
 
 
@@ -299,7 +316,7 @@ def restore_into(archive_path: Path, target_dir: Path, overwrite: bool = False) 
     existing_db = target_dir / ".yuu-clip" / "project.db"
     if existing_db.exists() and existing_db.stat().st_size > 0:
         if not overwrite:
-            raise RestoreError(
+            raise ProjectExistsError(
                 "The target folder already contains a project. Confirm overwrite to "
                 "replace it."
             )

@@ -18,6 +18,12 @@ Paste a public Twitch VOD or YouTube link instead of picking a local file — yu
 ### Imported from
 The line in a recording's detail view showing where a URL-imported recording came from — the channel/uploader, upload date, and a link back to the original video.
 
+### Backup
+A single file that saves a project's clips, review decisions, settings, and World Contexts, from Settings > Backup & Restore. It stays small because it does not include your original video files or the large working files yuu-clip can rebuild on its own. Keep it somewhere safe, or copy it to another computer.
+
+### Restore
+Rebuild a project from a Backup file. If your original videos have moved (a new drive, a new computer), Restore shows which folders it could not find and lets you point each one to its new location, so your clips still play. A safety copy of the existing database is kept if you restore over a project that already has one.
+
 ---
 
 ## Audio Tracks

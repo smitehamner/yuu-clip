@@ -17,6 +17,8 @@ Most lookups only need this table: the authoritative user-facing term, the code 
 | User-facing term | Code | What it is |
 |---|---|---|
 | Project | `project_dir` | A folder yuu-clip stores one body of work in (its `.yuu-clip/` holds the DB, exports, reels). The Project switcher moves the server between them without a restart |
+| Backup | `build_backup`, `/api/backup` | A single portable `.zip` of a project's own state (clips DB, settings, world contexts) - not the large derived media or the source videos. Made from Settings > Backup & Restore |
+| Restore | `restore_into`, `/api/restore/*` | Rebuild a project from a Backup file. Re-points source-video folders that no longer resolve on this machine so restored clips still play |
 | Recording | `video`, `video_path` | A video file input — not "session" (that's the gameplay period) |
 | Session | — | The gameplay period captured in a recording |
 | Import from URL | `import-url` (CLI/API path), `url_import.py` | Download a public Twitch VOD or YouTube video to use as a Recording, instead of picking a local file |

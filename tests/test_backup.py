@@ -6,32 +6,33 @@ import json
 import zipfile
 from types import SimpleNamespace
 
-from yuu_clip.config import (
-    project_audio_dir,
-    project_downloads_dir,
-    project_exports_dir,
-    project_proxies_dir,
-)
 from yuu_clip.project_archive import (
     BACKUP_SCHEMA_VERSION,
-    EXCLUDED_DIRNAMES,
+    INCLUDED_SUBDIRS,
     build_backup,
+)
+
+# Every large derived-media dir that can live under .yuu-clip/ (config helpers,
+# deps.reels_dir, clips/crud.py preview_cache) plus a rogue dir a user might drop
+# there. None of these belongs in a backup.
+_DERIVED_DIRS = (
+    "audio", "exports", "proxies", "downloads", "reels", "preview_cache", "testvideos",
 )
 
 
 def _seed_state_and_derived(project_dir) -> None:
-    """Add the two state files the bare project_dir fixture omits, plus a junk file
-    in each derived dir so exclusion is actually exercised."""
+    """Add the state the bare project_dir fixture omits (config.json, contexts.json,
+    a custom sound) plus a junk file in each derived/media dir so the include-list
+    is actually exercised."""
     data = project_dir / ".yuu-clip"
     (data / "config.json").write_text('{"theme": "dark"}', encoding="utf-8")
     (data / "contexts.json").write_text('{"my-world": {}}', encoding="utf-8")
-    for make_dir in (
-        project_audio_dir,
-        project_exports_dir,
-        project_proxies_dir,
-        project_downloads_dir,
-    ):
-        (make_dir(project_dir) / "junk.bin").write_bytes(b"x" * 1024)
+    (data / "sounds").mkdir(exist_ok=True)
+    (data / "sounds" / "ding.mp3").write_bytes(b"snd")
+    for name in _DERIVED_DIRS:
+        d = data / name
+        d.mkdir(exist_ok=True)
+        (d / "junk.bin").write_bytes(b"x" * 1024)
 
 
 def _names_in(archive_path) -> set[str]:
@@ -47,26 +48,38 @@ def test_backup_contains_project_state(project_dir, tmp_path):
     assert ".yuu-clip/project.db" in names
     assert ".yuu-clip/config.json" in names
     assert ".yuu-clip/contexts.json" in names
+    # Custom notification sounds are small user state and are backed up.
+    assert ".yuu-clip/sounds/ding.mp3" in names
 
 
-def test_backup_excludes_derived_dirs(project_dir, tmp_path):
+def test_backup_excludes_all_derived_media_dirs(project_dir, tmp_path):
     _seed_state_and_derived(project_dir)
     archive = build_backup(project_dir, tmp_path / "out.zip")
     names = _names_in(archive)
-    for excluded in EXCLUDED_DIRNAMES:
-        prefix = f".yuu-clip/{excluded}/"
-        assert not any(name.startswith(prefix) for name in names), excluded
+    for derived in _DERIVED_DIRS:
+        prefix = f".yuu-clip/{derived}/"
+        assert not any(name.startswith(prefix) for name in names), derived
 
 
-def test_backup_excludes_sqlite_sidecars(project_dir, tmp_path):
+def test_included_subdirs_never_contain_a_media_dir():
+    """Guard: the state-subdir allowlist must never pick up a large derived dir,
+    or a backup would balloon (the failure that motivated the allowlist)."""
+    assert INCLUDED_SUBDIRS.isdisjoint(_DERIVED_DIRS)
+
+
+def test_backup_excludes_sqlite_sidecars_and_logs(project_dir, tmp_path):
     data = project_dir / ".yuu-clip"
     (data / "project.db-wal").write_bytes(b"wal")
     (data / "project.db-shm").write_bytes(b"shm")
+    (data / "yuu-clip.log").write_text("runtime log", encoding="utf-8")
+    (data / "yuu-clip.log.1").write_text("rotated log", encoding="utf-8")
     archive = build_backup(project_dir, tmp_path / "out.zip")
     names = _names_in(archive)
     assert ".yuu-clip/project.db" in names
     assert ".yuu-clip/project.db-wal" not in names
     assert ".yuu-clip/project.db-shm" not in names
+    assert ".yuu-clip/yuu-clip.log" not in names
+    assert ".yuu-clip/yuu-clip.log.1" not in names
 
 
 def test_backup_manifest_shape_and_source_paths(project_dir, tmp_path):
@@ -100,18 +113,6 @@ def test_source_paths_dedup_distinct_parents(project_dir, tmp_path):
     with zipfile.ZipFile(archive) as zf:
         manifest = json.loads(zf.read("manifest.json"))
     assert manifest["source_paths"] == sorted([str(project_dir), str(other)])
-
-
-def test_exclude_list_pinned_to_config_helpers(tmp_path):
-    """Guard: the exclude-list must equal the basenames of the config.py derived-dir
-    helpers, so a fifth derived dir forces a conscious edit to EXCLUDED_DIRNAMES."""
-    helper_names = {
-        project_audio_dir(tmp_path).name,
-        project_exports_dir(tmp_path).name,
-        project_proxies_dir(tmp_path).name,
-        project_downloads_dir(tmp_path).name,
-    }
-    assert helper_names == set(EXCLUDED_DIRNAMES)
 
 
 def test_backup_route_streams_zip(client):
