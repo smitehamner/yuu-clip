@@ -84,5 +84,17 @@ remain catalog alternatives.
 | GPU acceleration | — | CUDA wheels | Tier C — opt-in |
 | Remote Claude | anthropic | — | Tier C — privacy choice |
 
+## Installer-size impact (Wave 1)
+
+Bundling the Tier-A default-feature packages into the base dependencies grows the
+offline wheelhouse by **~272 MB** (uncompressed wheels), from 53 wheels / ~135 MB to
+~105 wheels / ~407 MB. The biggest contributors: `torch` CPU build (~117 MB),
+`opencv-contrib-python` (~51 MB, pulled by mediapipe — note base already ships
+`opencv-python` for scenedetect, so the two OpenCV builds coexist), `scipy` (~35 MB),
+`transformers` (~11 MB), `mediapipe` (~10 MB). The prebuilt llama-cpp-python CPU wheel
+adds another ~6.5 MB. Larger installer is an accepted tradeoff per the plan's locked
+decisions. Every added wheel resolves to a cp312 win_amd64 binary (verified with
+`--only-binary=:all:`, zero sdist fallbacks).
+
 The full wave plan lives outside the repo at
 `000_project_planning/finalized_plans/yuu-clip_plans/plans/packaging-strategy-overhaul/INDEX.md`.

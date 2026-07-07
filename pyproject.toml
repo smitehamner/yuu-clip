@@ -45,6 +45,42 @@ dependencies = [
     # URL import (Twitch VOD / YouTube downloads). Unlicense (public domain) -- fine
     # for the licensing policy. See web/routes/imports.py and imports_dl.py.
     "yt-dlp>=2025.1,<2027.0",
+
+    # ---- Tier A: default-feature packages, bundled in the box ----
+    # packaging-strategy-overhaul Wave 1 moved these out of the old optional
+    # extras (embeddings / audio-model) and per-feature installs into the base
+    # set so a fresh install has zero "install this too" prompts. See
+    # docs/dev/PACKAGING-TIERS.md. All are permissively licensed; the models they
+    # pull at first use are licence-cleared (Wave 0 verdicts in that doc). Every
+    # one resolves to a cp312 win_amd64 wheel for the offline wheelhouse.
+    #
+    # Speaker labels (diarization_backend = "speechbrain"): ECAPA-TDNN via
+    # SpeechBrain (Apache-2.0). scikit-learn does the speaker clustering.
+    "speechbrain>=1.0,<2.0",
+    "scikit-learn>=1.3,<2.0",
+
+    # Laugh / audio-event scoring: HuggingFace AST classifier
+    # (MIT/ast-finetuned-audioset-10-10-0.4593, BSD-3-Clause -- "MIT" is the HF
+    # org namespace, not the licence). transformers runs it; torch/torchaudio are
+    # its backend; soundfile decodes audio. CPU torch/torchaudio are the base
+    # build -- GPU (CUDA) wheels stay Tier C (opt-in, force-reinstalled).
+    "transformers>=4.30,<6.0",
+    "torch>=2.0,<3.0",
+    "torchaudio>=2.0,<3.0",
+    "soundfile>=0.12,<1.0",
+
+    # Better similarity (similarity_backend = "embeddings"): fastembed runs
+    # BAAI/bge-small-en-v1.5 (MIT) on onnxruntime -- no PyTorch. Replaces tfidf.
+    "fastembed>=0.3,<1.0",
+
+    # Vertical auto-framing: mediapipe face detection for reframing exports.
+    # Apache-2.0. cp312 win_amd64 wheel confirmed (0.10.35).
+    "mediapipe>=0.10,<1.0",
+
+    # Remote AI backend (Tier C privacy choice, but the client library is tiny
+    # and pure-Python, so bundling it costs ~nothing and avoids an install prompt
+    # when a user opts into the hosted Claude backend).
+    "anthropic>=0.40,<1.0",
 ]
 
 [project.optional-dependencies]
@@ -59,24 +95,13 @@ dev = [
 llamacpp = [
     "llama-cpp-python>=0.3,<1.0",
 ]
-embeddings = [
-    # Required for similarity_backend = "embeddings" (Find related clips + "Meaning"
-    # hot-words). ONNX runtime, no PyTorch. Model BAAI/bge-small-en-v1.5 (MIT, ~130 MB)
-    # downloads on first use. fastembed is Apache-2.0; onnxruntime is MIT.
-    "fastembed>=0.3,<1.0",
-]
-audio-model = [
-    # Required for the HuggingFace audio classifier â€” scorer_laugh_mode = "model"
-    # (laughter) and scorer_audio_event_enabled (gunshot/explosion/cheer events).
-    # Both reuse MIT/ast-finetuned-audioset-10-10-0.4593 (~350 MB, auto-downloads;
-    # BSD-3-Clause -- "MIT" is the HF org namespace, not the licence).
-    "transformers>=4.30,<6.0",
-    "torch>=2.0",
-    "torchaudio>=2.0",
-    "soundfile>=0.12",
-]
-# Backwards-compatible alias for the pre-Stage-05 name.
-laugh-model = ["yuu-clip[audio-model]"]
+# These features' packages are now bundled in the base dependencies (Tier A,
+# packaging-strategy-overhaul Wave 1). The extras remain as empty no-op aliases so
+# any older `pip install yuu-clip[embeddings|audio-model|laugh-model]` invocation
+# still resolves without pinning the packages a second time.
+embeddings = []
+audio-model = []
+laugh-model = []
 
 [project.scripts]
 yuuclip = "yuu_clip.cli:app"

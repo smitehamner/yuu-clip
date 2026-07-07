@@ -31,9 +31,12 @@ $header = @(
     '#',
     '# Regenerate with scripts\lock-deps.ps1 whenever pyproject base deps change.',
     '# The packaged first-run installer passes this as `pip install -c requirements.lock',
-    '# <wheel>` so every user gets exactly the versions we tested. Covers base deps only;',
-    '# optional/dev extras (llamacpp, laugh-model, speechbrain/pyannote/mediapipe installed',
-    '# on demand) are intentionally NOT pinned here.'
+    '# <wheel>` so every user gets exactly the versions we tested. Covers base deps only',
+    '# (which now include the Tier-A default-feature packages: speechbrain, scikit-learn,',
+    '# transformers, torch/torchaudio, soundfile, fastembed, mediapipe, anthropic -- all',
+    '# pinned here). Still NOT pinned: dev extras; the llamacpp backend (installed from a',
+    '# prebuilt CPU/CUDA wheel, not PyPI -- see scripts\fetch-wheelhouse.ps1); and the',
+    '# optional pyannote diarization extra.'
 )
 ($header + '' + $pins) -join "`n" | Set-Content -Path $lockOut -Encoding utf8 -NoNewline
 
