@@ -70,6 +70,14 @@ if ($LASTEXITCODE -ne 0) {
     if ($LASTEXITCODE -ne 0) { Write-Error "Failed to install 'build'"; exit 1 }
 }
 $wheelDir = "$root\build\wheel"
+# Warn (don't block) if the wheel we're about to delete was stale — a wheel built
+# before a dependency changed silently omits new packages, so a hand-run install
+# test with it would have been misleading. The rebuild below always produces fresh.
+$staleWhl = Get-ChildItem "$wheelDir\*.whl" -ErrorAction SilentlyContinue | Select-Object -First 1
+if ($staleWhl) {
+    $staleMsg = python "$root\scripts\check_wheel_deps.py" $staleWhl.FullName "$root\pyproject.toml"
+    if ($LASTEXITCODE -ne 0) { Write-Warning $staleMsg }
+}
 Remove-Item "$wheelDir\*.whl" -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path $wheelDir | Out-Null
 Push-Location $root
