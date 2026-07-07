@@ -18,10 +18,9 @@ Write-Host "Log: $LogFile" -ForegroundColor DarkGray
 # Preflight: exactly ONE dev server must be serving :8080. The suite runs against
 # that single shared server; a second stray server (e.g. one left by another
 # session, or a subagent that restarted via the system Python instead of the venv)
-# fights over the SQLite DB and slows every request, silently turning a ~3.7-min run
-# into 16+ min of spurious timeout failures that look like real regressions. Fail
-# fast with the offending PIDs instead. Placed before the lock so an early exit here
-# never leaves a stale lock behind.
+# fights over the SQLite DB and slows every request. This preflight guards against
+# that specific case; see Preflight 3 below for the (more common in practice)
+# empty-seed-data cause of a suite that "degrades" into mass timeouts.
 #
 # NOTE on the expected count: one server is TWO processes, not one. The venv
 # python.exe is a launcher stub that spawns a base-interpreter worker child, both
@@ -39,6 +38,45 @@ if ($ServeProcs.Count -gt 2) {
     $ServeProcs | ForEach-Object { Write-Host "  PID $($_.ProcessId)  $($_.ExecutablePath)" -ForegroundColor Red }
     Write-Host "Multiple servers contend for the :8080 DB and degrade the suite into spurious timeouts." -ForegroundColor Red
     Write-Host "Run scripts\serve.ps1 (it stops all stray servers and starts a single fresh one), then retry." -ForegroundColor Red
+    exit 3
+}
+
+# Preflight 2: no leftover pytest/Playwright processes from a prior run. A run
+# killed from outside pytest (e.g. the harness stopping a background task)
+# bypasses the normal xdist/Playwright teardown and can leave workers or
+# browser drivers alive, still hammering the shared :8080 server and DB
+# alongside the new run. A live run's own processes obviously match too, so
+# this must run before we spawn anything.
+$OrphanProcs = @(Get-CimInstance Win32_Process -Filter "Name='python.exe' or Name='node.exe'" -ErrorAction SilentlyContinue |
+    Where-Object { $_.CommandLine -match '-m\s+pytest|playwright[/\\]driver[/\\]package[/\\]cli\.js' })
+if ($OrphanProcs.Count -gt 0) {
+    Write-Host "Leftover pytest/Playwright process(es) from a prior run are still alive:" -ForegroundColor Red
+    $OrphanProcs | ForEach-Object { Write-Host "  PID $($_.ProcessId)  $($_.Name)  $($_.CommandLine)" -ForegroundColor Red }
+    Write-Host "These will contend with this run for the shared server/DB and can look like spurious failures." -ForegroundColor Red
+    Write-Host "Stop-Process each PID above, then retry." -ForegroundColor Red
+    exit 3
+}
+
+# Preflight 3: the shared dev project must actually have a seeded, analyzed
+# video. Most UI tests select a sidebar video with clips (conftest.py's
+# select_video_with_clips); on an empty project that wait_for_selector times
+# out after 15s on every single one of them, which reads exactly like the
+# "suite degraded into mass timeouts" symptom above but is a data problem,
+# not a process/contention one - a wiped or fresh-install dev DB reproduces
+# this 100% of the time, not intermittently. Confirmed by reproducing it on a
+# freshly restarted, otherwise-idle server: still failed every video-dependent
+# test. Check this before spending 15+ minutes on a run that cannot pass.
+try {
+    $VideoCount = (Invoke-RestMethod "http://127.0.0.1:8080/api/videos" -TimeoutSec 10).Count
+} catch {
+    Write-Host "Could not reach http://127.0.0.1:8080/api/videos to check for seed data: $_" -ForegroundColor Red
+    exit 3
+}
+if ($VideoCount -eq 0) {
+    Write-Host "The dev project has no analyzed videos - most UI tests will fail waiting for a" -ForegroundColor Red
+    Write-Host "sidebar video that never appears (not a real regression)." -ForegroundColor Red
+    Write-Host "Analyze a test video into this project first, e.g.:" -ForegroundColor Red
+    Write-Host "  .venv\Scripts\python.exe -m yuu_clip.cli analyze <path-to-a-video> --project `"$RepoRoot`"" -ForegroundColor Red
     exit 3
 }
 
