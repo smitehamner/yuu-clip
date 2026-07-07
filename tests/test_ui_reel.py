@@ -91,7 +91,11 @@ class TestReelBuilderCuration:
                    lambda route: route.fulfill(content_type="application/json", body="[]"))
         page.evaluate("AppState.videos = [{id: 1, filename: 's.mkv', approved: 3}]")
         page.evaluate("openHighlightReelsModal('build')")
-        page.locator(".reel-clip-row").first.wait_for()
+        # 15s (not the 10s default): clip data here is stubbed, but under a full
+        # parallel run the page's own boot fetches (e.g. /api/videos) can stall
+        # the event loop past 10s contending on the single SQLite DB (see the
+        # same reasoning in select_first_video_and_clip above).
+        page.locator(".reel-clip-row").first.wait_for(timeout=15000)
 
     def _names(self, page: Page) -> list:
         return page.locator(".reel-clip-name").all_inner_texts()
