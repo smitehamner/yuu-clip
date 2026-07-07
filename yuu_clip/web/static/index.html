@@ -241,15 +241,10 @@
     <div id="s-llamacpp-fields">
       <div class="settings-row">
         <div class="settings-col">
-          <div class="settings-label">Python package</div>
-          <div class="settings-note">llama-cpp-python is optional — the installer picks a GPU build for NVIDIA cards, otherwise CPU</div>
-        </div>
-        <div style="display:flex;gap:8px;align-items:center">
-          <button class="btn-secondary" id="btn-install-llamacpp" onclick="installPackage('llamacpp')">Install llama-cpp-python</button>
-          <span id="install-status-llamacpp" style="font-size:12px"></span>
+          <div class="settings-label">Local engine</div>
+          <div class="settings-note">llama-cpp-python is included with yuu-clip — point it at a .gguf model file below to start scoring. GPU acceleration for it is set up automatically when your hardware supports it.</div>
         </div>
       </div>
-      <div id="install-log-llamacpp" class="settings-install-log"></div>
       <div class="settings-row">
         <div class="settings-col">
           <label class="settings-label" for="s-llm-model-path">Model file path</label>
@@ -311,17 +306,6 @@
     </div>
     <!-- Claude API fields -->
     <div id="s-claude-fields" style="display:none">
-      <div class="settings-row">
-        <div class="settings-col">
-          <div class="settings-label">Python package</div>
-          <div class="settings-note">anthropic is optional — required for the Claude backend</div>
-        </div>
-        <div style="display:flex;gap:8px;align-items:center">
-          <button class="btn-secondary" id="btn-install-anthropic" onclick="installPackage('anthropic')">Install anthropic</button>
-          <span id="install-status-anthropic" style="font-size:12px"></span>
-        </div>
-      </div>
-      <div id="install-log-anthropic" class="settings-install-log"></div>
       <div class="settings-row">
         <div class="settings-col">
           <label class="settings-label" for="s-claude-api-key">Anthropic API key</label>
@@ -399,15 +383,10 @@
     <div id="s-similarity-embeddings-fields" style="display:none">
       <div class="settings-row">
         <div class="settings-col">
-          <div class="settings-label">Python package</div>
-          <div class="settings-note">The Smart engine needs the fastembed package. The model (~130 MB) downloads on first use.</div>
-        </div>
-        <div style="display:flex;gap:8px;align-items:center">
-          <button class="btn-secondary" id="btn-install-embeddings" onclick="installPackage('embeddings')">Install fastembed</button>
-          <span id="install-status-embeddings" style="font-size:12px"></span>
+          <div class="settings-label">Model</div>
+          <div class="settings-note">The Smart engine is included with yuu-clip (fastembed). Its model (~130 MB) downloads automatically the first time you use it.</div>
         </div>
       </div>
-      <div id="install-log-embeddings" class="settings-install-log"></div>
     </div>
   </div>
 
@@ -421,50 +400,49 @@
       </div>
       <select class="settings-select" id="s-diarization-backend" onchange="_onDiarizationBackendChange(this.value)">
         <option value="null">Off</option>
-        <option value="speechbrain">SpeechBrain (no account or token needed)</option>
-        <option value="pyannote">Pyannote (requires HuggingFace token)</option>
+        <option value="speechbrain">SpeechBrain (default — no account or token needed)</option>
+        <option value="pyannote">Pyannote (advanced — requires HuggingFace token)</option>
       </select>
     </div>
-    <!-- pyannote fields -->
+    <!-- pyannote fields — demoted behind a collapsed <details>: it's the token-gated
+         alternative to the default, bundled SpeechBrain backend, not a primary CTA. -->
     <div id="s-pyannote-fields" style="display:none">
-      <div class="settings-row">
-        <div class="settings-col">
-          <div class="settings-label">Python package</div>
-          <div class="settings-note">pyannote.audio is not included by default — install it once here</div>
-        </div>
-        <div style="display:flex;gap:8px;align-items:center">
-          <button class="btn-secondary" id="btn-install-pyannote" onclick="installPackage('pyannote')">Install pyannote.audio</button>
-          <span id="install-status-pyannote" style="font-size:12px"></span>
-        </div>
-      </div>
-      <div id="install-log-pyannote" class="settings-install-log"></div>
-      <div class="settings-row">
-        <div class="settings-col">
-          <label class="settings-label" for="s-hf-token">HuggingFace token</label>
-          <div class="settings-note">Required to download the diarization model. Create a <a href="https://huggingface.co/settings/tokens" target="_blank" style="color:var(--accent)">token</a> with <strong>Read</strong> access, then — signed in with that account — accept the gated model terms for <a href="https://huggingface.co/pyannote/speaker-diarization-community-1" target="_blank" style="color:var(--accent)">speaker-diarization-community-1</a>.</div>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:4px;max-width:280px">
-          <div style="display:flex;gap:6px;align-items:center">
-            <input class="settings-input" id="s-hf-token" type="password" placeholder="hf_..." style="flex:1" oninput="_onHfTokenInput()">
-            <button type="button" class="btn-secondary" id="btn-toggle-hf-token" onclick="_toggleSecretVisibility('s-hf-token', this)" aria-label="Show token" style="font-size:11px;padding:4px 8px">Show</button>
+      <details class="settings-advanced">
+        <summary>Advanced: Pyannote setup</summary>
+        <div class="settings-row">
+          <div class="settings-col">
+            <div class="settings-label">Python package</div>
+            <div class="settings-note">pyannote.audio is not included by default — SpeechBrain above is the recommended, token-free backend. Install pyannote only if you specifically need it.</div>
           </div>
-          <div id="s-hf-token-feedback" style="font-size:11px;min-height:14px" aria-live="polite"></div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button class="btn-secondary" id="btn-install-pyannote" onclick="installPackage('pyannote')">Install pyannote.audio</button>
+            <span id="install-status-pyannote" style="font-size:12px"></span>
+          </div>
         </div>
-      </div>
+        <div id="install-log-pyannote" class="settings-install-log"></div>
+        <div class="settings-row">
+          <div class="settings-col">
+            <label class="settings-label" for="s-hf-token">HuggingFace token</label>
+            <div class="settings-note">Required to download the diarization model. Create a <a href="https://huggingface.co/settings/tokens" target="_blank" style="color:var(--accent)">token</a> with <strong>Read</strong> access, then — signed in with that account — accept the gated model terms for <a href="https://huggingface.co/pyannote/speaker-diarization-community-1" target="_blank" style="color:var(--accent)">speaker-diarization-community-1</a>.</div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:4px;max-width:280px">
+            <div style="display:flex;gap:6px;align-items:center">
+              <input class="settings-input" id="s-hf-token" type="password" placeholder="hf_..." style="flex:1" oninput="_onHfTokenInput()">
+              <button type="button" class="btn-secondary" id="btn-toggle-hf-token" onclick="_toggleSecretVisibility('s-hf-token', this)" aria-label="Show token" style="font-size:11px;padding:4px 8px">Show</button>
+            </div>
+            <div id="s-hf-token-feedback" style="font-size:11px;min-height:14px" aria-live="polite"></div>
+          </div>
+        </div>
+      </details>
     </div>
     <!-- speechbrain fields -->
     <div id="s-speechbrain-fields" style="display:none">
       <div class="settings-row">
         <div class="settings-col">
-          <div class="settings-label">Python package</div>
-          <div class="settings-note">SpeechBrain is not included by default — install it once here. No HuggingFace account or token needed; the speaker model (~80 MB) downloads automatically on first use.</div>
-        </div>
-        <div style="display:flex;gap:8px;align-items:center">
-          <button class="btn-secondary" id="btn-install-speechbrain" onclick="installPackage('speechbrain')">Install SpeechBrain</button>
-          <span id="install-status-speechbrain" style="font-size:12px"></span>
+          <div class="settings-label">Speaker model</div>
+          <div class="settings-note">SpeechBrain is included with yuu-clip — no HuggingFace account or token needed. The speaker model (~80 MB) downloads automatically the first time you run Detect Speakers.</div>
         </div>
       </div>
-      <div id="install-log-speechbrain" class="settings-install-log"></div>
     </div>
     <!-- shared fields (shown whenever a backend is selected) -->
     <div id="s-diarization-common-fields" style="display:none">
@@ -539,13 +517,8 @@
       <input type="text" id="s-laugh-model-id" class="settings-input" style="width:100%;box-sizing:border-box"
              placeholder="MIT/ast-finetuned-audioset-10-10-0.4593">
       <div style="font-size:11px;color:var(--muted);margin-top:4px;margin-bottom:6px">
-        Recommended: <code>MIT/ast-finetuned-audioset-10-10-0.4593</code> (~350 MB, downloads on first use)
+        Recommended: <code>MIT/ast-finetuned-audioset-10-10-0.4593</code> (~350 MB, downloads automatically the first time you use Model mode)
       </div>
-      <div style="display:flex;gap:8px;align-items:center">
-        <button class="btn-secondary" id="btn-install-laugh-deps" onclick="installPackage('laugh-deps')">Install deps</button>
-        <span id="install-status-laugh-deps" style="font-size:12px"></span>
-      </div>
-      <div id="install-log-laugh-deps" class="settings-install-log" style="margin-top:6px"></div>
     </div>
     <div style="margin-bottom:16px" id="s-laugh-model-fields-spacer"></div>
     <div class="settings-weight-row">
@@ -586,14 +559,9 @@
     <div style="margin-bottom:16px">
       <div style="font-size:11px;color:var(--muted);margin-bottom:6px">
         Off by default. Reuses the same HuggingFace audio model as Laugh &ldquo;Model&rdquo; mode
-        (<code>MIT/ast-finetuned-audioset-10-10-0.4593</code>, ~350 MB, downloads on first use).
+        (<code>MIT/ast-finetuned-audioset-10-10-0.4593</code>, ~350 MB, downloads automatically the first time it's needed).
         Action sounds boost Action; crowd cheers boost Funny.
       </div>
-      <div style="display:flex;gap:8px;align-items:center">
-        <button class="btn-secondary" id="btn-install-audio-model" onclick="installPackage('audio-model')">Install deps</button>
-        <span id="install-status-audio-model" style="font-size:12px"></span>
-      </div>
-      <div id="install-log-audio-model" class="settings-install-log" style="margin-top:6px"></div>
     </div>
     <div style="font-size:12px;color:var(--muted);margin-bottom:8px;font-weight:600">Sub-score weights</div>
     <div class="settings-weight-row">
@@ -834,15 +802,12 @@
       <div class="settings-col">
         <div class="settings-label">Vertical framing (auto-frame)</div>
         <div class="settings-note">
-          Optional. When exporting with a vertical (9:16) preset, "Auto-frame on faces"
-          suggests where to place the crop by finding faces in the clip. Needs the
-          MediaPipe package (~50 MB, Apache-2.0) — you can still set the crop by hand without it.
+          When exporting with a vertical (9:16) preset, "Auto-frame on faces"
+          suggests where to place the crop by finding faces in the clip. Included
+          with yuu-clip (MediaPipe, Apache-2.0) — its face-detector model (~230 KB)
+          downloads automatically the first time you use it. You can still set the
+          crop by hand instead.
         </div>
-        <div style="display:flex;gap:8px;align-items:center;margin-top:6px">
-          <button class="btn-secondary" id="btn-install-mediapipe" onclick="installPackage('mediapipe')">Install MediaPipe</button>
-          <span id="install-status-mediapipe" style="font-size:12px"></span>
-        </div>
-        <div id="install-log-mediapipe" class="settings-install-log" style="margin-top:6px"></div>
       </div>
     </div>
 
@@ -1397,6 +1362,12 @@
         <tr><td>uvicorn</td><td>ASGI server</td><td>BSD-3</td></tr>
         <tr><td>platformdirs</td><td>Cross-platform config paths</td><td>MIT</td></tr>
         <tr><td>FFmpeg</td><td>Audio/video extraction &amp; export</td><td>GPL v3 (full licence text + source archive included in the install folder)</td></tr>
+        <tr><td>llama-cpp-python</td><td>Local LLM via .gguf model files</td><td>MIT</td></tr>
+        <tr><td>anthropic</td><td>Claude API LLM backend</td><td>MIT</td></tr>
+        <tr><td>speechbrain / scikit-learn</td><td>Speaker labels (default backend)</td><td>Apache-2 / BSD-3</td></tr>
+        <tr><td>transformers / torch</td><td>Laugh detection &amp; audio-event scoring (model mode)</td><td>Apache-2 / BSD-3</td></tr>
+        <tr><td>fastembed</td><td>Smart (embeddings) similarity matching</td><td>Apache-2</td></tr>
+        <tr><td>mediapipe</td><td>Vertical auto-framing (face detection)</td><td>Apache-2</td></tr>
       </tbody>
     </table>
     <div class="section-title" style="margin-bottom:4px">External tools <span style="font-size:11px;font-weight:400;color:var(--muted)">(install separately — set up via the wizard)</span></div>
@@ -1410,10 +1381,7 @@
     <table style="width:100%;font-size:12px;border-collapse:collapse;color:var(--muted)">
       <thead><tr style="color:var(--text)"><th scope="col" class="col-head">Package</th><th scope="col" class="col-head">Purpose</th><th scope="col" class="col-head">Licence</th></tr></thead>
       <tbody>
-        <tr><td>llama-cpp-python</td><td>Local LLM via .gguf model files</td><td>MIT</td></tr>
-        <tr><td>anthropic</td><td>Claude API LLM backend</td><td>MIT</td></tr>
-        <tr><td>pyannote.audio</td><td>Speaker diarization</td><td>MIT (model: HF gated)</td></tr>
-        <tr><td>transformers / torch</td><td>Laugh detection (model mode)</td><td>Apache-2 / BSD</td></tr>
+        <tr><td>pyannote.audio</td><td>Speaker labels — advanced, token-gated alternative</td><td>MIT (model: HF gated)</td></tr>
         <tr><td>nvidia-cublas-cu12 / nvidia-cudnn-cu12</td><td>GPU acceleration for transcription (NVIDIA)</td><td>NVIDIA proprietary (redistributable)</td></tr>
       </tbody>
     </table>

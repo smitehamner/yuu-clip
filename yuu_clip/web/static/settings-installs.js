@@ -1,7 +1,12 @@
 (function () {
 // Feature-map — Settings optional-package install controls + remote-LLM badge.
-//   API: routes/install.py · Tests: tests/test_ui_settings.py
-// ── optional-package installs (hardware / model dependencies) ────────────────
+//   API: routes/analyze.py (install status/POST) · Tests: tests/test_ui_settings.py
+// ── optional-package installs ────────────────────────────────────────────────
+// Only two install actions remain (packaging-strategy overhaul, Wave 3): Pyannote
+// (the advanced, token-gated alternative to the default SpeechBrain speaker-labels
+// backend) and the CUDA libraries for GPU-accelerated transcription. Everything
+// else the app needs is bundled by default — see the Capabilities overview
+// (_renderCapabilityTiers) for their Ready / "fetches on first use" status.
 async function _refreshInstallStatus(slug) {
   const btn    = document.getElementById(`btn-install-${slug}`);
   const status = document.getElementById(`install-status-${slug}`);
@@ -12,7 +17,7 @@ async function _refreshInstallStatus(slug) {
     const { installed } = await resp.json();
     if (installed) {
       status.textContent = '✓ Installed';
-      status.style.color = 'var(--green, #22c55e)';
+      status.style.color = 'var(--green)';
       btn.textContent = 'Reinstall';
     }
   } catch { /* leave default "Install" label on network error */ }
@@ -44,10 +49,10 @@ async function installPackage(slug) {
         const msg = JSON.parse(line.slice(6));
         if (msg === '__DONE__') {
           status.textContent = '✓ Installed';
-          status.style.color = 'var(--green, #22c55e)';
+          status.style.color = 'var(--green)';
           btn.textContent = 'Reinstall';
           btn.disabled = false;
-          if (slug === 'pyannote' || slug === 'speechbrain') _updateDiarizationStatus();
+          if (slug === 'pyannote') _updateDiarizationStatus();
           return;
         }
         log.textContent += msg + '\n';
@@ -56,7 +61,7 @@ async function installPackage(slug) {
     }
   } catch (e) {
     status.textContent = '✗ Failed — check log above';
-    status.style.color = 'var(--red, #ef4444)';
+    status.style.color = 'var(--red)';
   }
   btn.textContent = 'Retry';
   btn.disabled = false;

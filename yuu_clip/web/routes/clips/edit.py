@@ -189,15 +189,16 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
         position across sampled frames (MediaPipe). Returns {crop_x: float|null}
         — null when no face is found; the creator still confirms before it sticks.
 
-        503 when the optional MediaPipe package isn't installed (Settings →
-        Export → Auto-framing). The detection runs off the event loop via
-        asyncio.to_thread — it is CPU-bound frame extraction + inference.
+        503 when the MediaPipe package isn't present — it's bundled with yuu-clip
+        by default, so this only fires on a broken/partial install. The detection
+        runs off the event loop via asyncio.to_thread — it is CPU-bound frame
+        extraction + inference.
         """
         if importlib.util.find_spec("mediapipe") is None:
             raise HTTPException(
                 503,
-                "Auto-framing needs the MediaPipe package — install it under "
-                "Settings → Export → Vertical framing (auto-frame).",
+                "Auto-framing needs the MediaPipe package, which should be bundled "
+                "with yuu-clip — try reinstalling if this persists.",
             )
         db = ctx.get_db()
         try:

@@ -460,14 +460,19 @@ header h1 { font-size: 16px; font-weight: 700; letter-spacing: .5px; color: var(
 .path-row input { flex: 1; }
 .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
 
-/* advanced options disclosure in analyze modal */
-details.advanced { border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
-details.advanced > summary { padding: 8px 12px; cursor: pointer; font-size: 12px; color: var(--text); user-select: none; list-style: none; display: flex; align-items: center; gap: 6px; }
-details.advanced > summary:hover { background: var(--border); }
-details.advanced > summary::before { content: '▶'; font-size: 10px; transition: transform .15s; }
-details.advanced[open] > summary::before { transform: rotate(90deg); }
+/* advanced options disclosure in analyze modal, and Settings' demoted advanced
+   controls (e.g. Pyannote setup) — a distinct class from .advanced so the two
+   don't collide under a bare "details.advanced" selector (both live in the DOM
+   at once; test_ui_analyze.py's New Recording panel tests select by that class). */
+details.advanced, details.settings-advanced { border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+details.advanced > summary, details.settings-advanced > summary { padding: 8px 12px; cursor: pointer; font-size: 12px; color: var(--text); user-select: none; list-style: none; display: flex; align-items: center; gap: 6px; }
+details.advanced > summary:hover, details.settings-advanced > summary:hover { background: var(--border); }
+details.advanced > summary::before, details.settings-advanced > summary::before { content: '▶'; font-size: 10px; transition: transform .15s; }
+details.advanced[open] > summary::before, details.settings-advanced[open] > summary::before { transform: rotate(90deg); }
 details.advanced .field { padding: 10px 12px 4px; }
 details.advanced .field:last-child { padding-bottom: 12px; }
+details.settings-advanced .settings-row { padding: 10px 12px 4px; }
+details.settings-advanced .settings-row:last-child { padding-bottom: 12px; }
 
 /* time estimate table */
 .estimate-box { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; font-size: 12px; }

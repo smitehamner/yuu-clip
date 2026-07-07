@@ -203,7 +203,10 @@ class EmbeddingsBackend:
         try:
             import fastembed  # noqa: F401
         except ImportError:
-            return False, "the embeddings engine needs the fastembed package (install it from Settings)"
+            return False, (
+                "the embeddings engine needs the fastembed package — this should be "
+                "bundled with yuu-clip, so try reinstalling if this persists"
+            )
         return True, ""
 
     def rank_similar(self, query: str, candidates: list[dict], top_k: int = 5) -> list[dict]:

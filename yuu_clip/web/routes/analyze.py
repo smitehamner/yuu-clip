@@ -20,7 +20,6 @@ streams that command's stdout as SSE.
 from __future__ import annotations
 
 import asyncio
-import importlib.util
 import json
 import statistics
 import sys
@@ -34,7 +33,7 @@ from yuu_clip.config import validate_whisper_model
 from yuu_clip.export.paths import validate_caption_style_query, validate_export_preset_query
 from yuu_clip.log import get_logger
 from yuu_clip.web.deps import ProjectContext
-from yuu_clip.web.routes.common import analyze_in_flight, reject_if_analyzing
+from yuu_clip.web.routes.common import analyze_in_flight, module_findable, reject_if_analyzing
 from yuu_clip.web.sse import subprocess_sse, terminate_process_tree
 
 _log = get_logger(__name__)
@@ -46,30 +45,25 @@ def _analyze_running(ctx: ProjectContext) -> bool:
     tracking (ctx.analyze_proc) that other short jobs still use."""
     return analyze_in_flight(ctx)
 
-# Optional packages installable from Settings. _INSTALLABLE maps a UI slug to its
-# pip package name(s); _IMPORT_NAMES maps the slug to the import module name(s)
-# used to detect whether it is already present (pip name ≠ import name for some).
+# Optional packages installable from Settings. Everything else the app needs is
+# bundled by default (packaging-strategy overhaul, Tier A) — only two things remain
+# a genuine pip-install action: Pyannote (the token-gated alternative to the
+# default, bundled SpeechBrain speaker-labels backend) and the CUDA libraries for
+# GPU-accelerated transcription (hardware-dependent, opt-in).
+#
+# _INSTALLABLE maps a UI slug to its pip package name(s) — what POST /api/install
+# will actually install. _IMPORT_NAMES maps a slug to the import module name(s)
+# used to report install status (pip name ≠ import name for some) — it also covers
+# "speechbrain", which has no install action anymore but still needs a read-only
+# status check (the analyze/export panels gate the speaker-labels checkbox on it).
 _INSTALLABLE: dict[str, str | list[str]] = {
-    "pyannote":    "pyannote.audio",
-    "speechbrain": ["speechbrain", "scikit-learn"],
-    "llamacpp":    "llama-cpp-python",
-    "anthropic":   "anthropic",
-    "laugh-deps":  ["transformers", "torch", "torchaudio", "soundfile"],
-    "audio-model": ["transformers", "torch", "torchaudio", "soundfile"],
-    "cuda-libs":   ["nvidia-cublas-cu12", "nvidia-cudnn-cu12"],
-    "mediapipe":   "mediapipe",
-    "embeddings":  "fastembed",
+    "pyannote":  "pyannote.audio",
+    "cuda-libs": ["nvidia-cublas-cu12", "nvidia-cudnn-cu12"],
 }
 _IMPORT_NAMES: dict[str, list[str]] = {
     "pyannote":    ["pyannote.audio"],
     "speechbrain": ["speechbrain", "sklearn"],
-    "llamacpp":    ["llama_cpp"],
-    "anthropic":   ["anthropic"],
-    "laugh-deps":  ["transformers", "torch", "torchaudio", "soundfile"],
-    "audio-model": ["transformers", "torch", "torchaudio", "soundfile"],
     "cuda-libs":   ["nvidia.cublas", "nvidia.cudnn"],
-    "mediapipe":   ["mediapipe"],
-    "embeddings":  ["fastembed"],
 }
 
 # ── Whisper real-time speed ratios ──────────────────────────────────────────
@@ -578,12 +572,9 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     @router.get("/api/install/{slug}")
     async def install_status(slug: str):
         """Report whether an optional package's import modules are present."""
-        if slug not in _INSTALLABLE:
-            raise HTTPException(400, f"Unknown package slug '{slug}' — allowed: {sorted(_INSTALLABLE)}")
-        installed = all(
-            importlib.util.find_spec(module) is not None
-            for module in _IMPORT_NAMES[slug]
-        )
+        if slug not in _IMPORT_NAMES:
+            raise HTTPException(400, f"Unknown package slug '{slug}' — allowed: {sorted(_IMPORT_NAMES)}")
+        installed = all(module_findable(module) for module in _IMPORT_NAMES[slug])
         return {"installed": installed}
 
     @router.post("/api/install/{slug}")

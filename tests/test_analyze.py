@@ -334,37 +334,43 @@ class TestLogs:
 # ---------------------------------------------------------------------------
 
 class TestInstallStatus:
+    # Only Pyannote (advanced speaker-labels alternative) and the CUDA libraries
+    # (GPU acceleration) remain real pip-install actions (packaging-strategy
+    # overhaul, Wave 3) — everything else is bundled by default. SpeechBrain keeps
+    # a read-only status check (no install action) because the analyze/export
+    # panels gate the speaker-labels checkbox on it.
     def test_unknown_slug_returns_400(self, client):
         r = client.get("/api/install/not-a-package")
         assert r.status_code == 400
 
     def test_reports_installed_for_present_package(self, client):
-        # 'anthropic' detects the importable 'anthropic' module; patch find_spec
+        # 'pyannote' detects the importable 'pyannote.audio' module; patch find_spec
         # so the test does not depend on whether the dep is actually installed.
         from unittest.mock import patch
 
-        with patch("yuu_clip.web.routes.analyze.importlib.util.find_spec", return_value=object()):
-            r = client.get("/api/install/anthropic")
+        with patch("yuu_clip.web.routes.common.importlib.util.find_spec", return_value=object()):
+            r = client.get("/api/install/pyannote")
         assert r.status_code == 200
         assert r.json() == {"installed": True}
 
     def test_reports_not_installed_when_module_absent(self, client):
         from unittest.mock import patch
 
-        with patch("yuu_clip.web.routes.analyze.importlib.util.find_spec", return_value=None):
+        with patch("yuu_clip.web.routes.common.importlib.util.find_spec", return_value=None):
             r = client.get("/api/install/pyannote")
         assert r.status_code == 200
         assert r.json() == {"installed": False}
 
     def test_multi_module_slug_requires_all_present(self, client):
-        # laugh-deps needs four modules; a single missing one means not installed.
+        # cuda-libs needs both nvidia.cublas and nvidia.cudnn; a single missing one
+        # means not installed.
         from unittest.mock import patch
 
-        def only_torch_missing(module):
-            return None if module == "torch" else object()
+        def only_cudnn_missing(module):
+            return None if module == "nvidia.cudnn" else object()
 
-        with patch("yuu_clip.web.routes.analyze.importlib.util.find_spec", side_effect=only_torch_missing):
-            r = client.get("/api/install/laugh-deps")
+        with patch("yuu_clip.web.routes.common.importlib.util.find_spec", side_effect=only_cudnn_missing):
+            r = client.get("/api/install/cuda-libs")
         assert r.json() == {"installed": False}
 
     def test_speechbrain_slug_requires_speechbrain_and_sklearn(self, client):
@@ -373,10 +379,20 @@ class TestInstallStatus:
         def only_sklearn_missing(module):
             return None if module == "sklearn" else object()
 
-        with patch("yuu_clip.web.routes.analyze.importlib.util.find_spec", side_effect=only_sklearn_missing):
+        with patch("yuu_clip.web.routes.common.importlib.util.find_spec", side_effect=only_sklearn_missing):
             assert client.get("/api/install/speechbrain").json() == {"installed": False}
-        with patch("yuu_clip.web.routes.analyze.importlib.util.find_spec", return_value=object()):
+        with patch("yuu_clip.web.routes.common.importlib.util.find_spec", return_value=object()):
             assert client.get("/api/install/speechbrain").json() == {"installed": True}
+
+    def test_speechbrain_has_no_post_install_action(self, client):
+        # Bundled (Tier A) — no install action, only the read-only status check above.
+        r = client.post("/api/install/speechbrain")
+        assert r.status_code == 400
+
+    def test_bundled_slugs_are_not_postable(self, client):
+        for slug in ("anthropic", "embeddings", "mediapipe", "llamacpp", "laugh-deps", "audio-model"):
+            r = client.post(f"/api/install/{slug}")
+            assert r.status_code == 400, slug
 
 
 # ---------------------------------------------------------------------------

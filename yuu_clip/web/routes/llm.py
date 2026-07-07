@@ -22,6 +22,7 @@ from fastapi import APIRouter, HTTPException
 
 from yuu_clip import model_catalog
 from yuu_clip.web.deps import ProjectContext
+from yuu_clip.web.routes.common import module_findable
 from yuu_clip.web.sse import subprocess_sse
 
 # Only tags from the curated catalog may be pulled — the tag becomes a
@@ -167,15 +168,6 @@ def _sentence(reason: str) -> str:
     return reason[:1].upper() + reason[1:] if reason else ""
 
 
-def _audio_model_deps_installed() -> bool:
-    try:
-        import torch  # noqa: F401
-        import transformers  # noqa: F401
-        return True
-    except ImportError:
-        return False
-
-
 def _similarity_tier(cfg, text_ok: bool) -> dict:
     from yuu_clip.scoring.similarity import EmbeddingsBackend
 
@@ -192,10 +184,11 @@ def _similarity_tier(cfg, text_ok: bool) -> dict:
         "name": "Similarity engine",
         "purpose": 'Powers Find related clips and "Meaning" hot-words.',
         "active": _SIMILARITY_LABELS.get(active, active),
-        "upgrade": "Smart (embeddings) adds paraphrase-aware matching with a small on-device model.",
+        "upgrade": "Smart (embeddings) adds paraphrase-aware matching with a small on-device model, bundled by default.",
         "ready": embed_ok,
-        "detail": "The Smart (embeddings) engine is installed and ready." if embed_ok else _sentence(embed_reason),
-        "install_slug": None if embed_ok else "embeddings",
+        "detail": "The Smart (embeddings) engine is ready." if embed_ok else _sentence(embed_reason),
+        # fastembed is bundled (Tier A) — nothing to install from here anymore.
+        "install_slug": None,
         "section": "settings-sec-llm",
     }
 
@@ -214,21 +207,96 @@ def _descriptions_tier(text_ok: bool, detail: str) -> dict:
     }
 
 
+def _speaker_labels_tier(cfg) -> dict:
+    from yuu_clip.transcribe.diarization_client import speechbrain_model_cached
+
+    backend = (getattr(cfg, "diarization_backend", "speechbrain") or "speechbrain").strip()
+    purpose = "Identifies who is speaking and prefixes transcripts accordingly."
+    if backend == "null":
+        return {
+            "id": "speaker_labels", "name": "Speaker labels", "purpose": purpose,
+            "active": "Off",
+            "upgrade": "Turn on Speaker labels below to identify who is speaking in transcripts.",
+            "ready": True, "detail": "Speaker labels are turned off.",
+            "install_slug": None, "section": "settings-sec-speakers",
+        }
+    if backend == "pyannote":
+        installed = module_findable("pyannote.audio")
+        has_token = bool(getattr(cfg, "huggingface_token", "") or "")
+        ready = installed and has_token
+        if not installed:
+            detail = "Pyannote (advanced) isn't installed yet."
+        elif not has_token:
+            detail = "Pyannote is installed — add a HuggingFace token to finish setup."
+        else:
+            detail = "Pyannote is installed and ready."
+        return {
+            "id": "speaker_labels", "name": "Speaker labels", "purpose": purpose,
+            "active": "Pyannote (advanced)",
+            "upgrade": "SpeechBrain is the default, token-free backend — Pyannote is an advanced, optional alternative.",
+            "ready": ready, "detail": detail,
+            "install_slug": None if installed else "pyannote",
+            "section": "settings-sec-speakers",
+        }
+    # speechbrain (default) — bundled package; the ECAPA model is Tier B.
+    model_ready = speechbrain_model_cached()
+    return {
+        "id": "speaker_labels", "name": "Speaker labels", "purpose": purpose,
+        "active": "SpeechBrain",
+        "upgrade": "Bundled by default — no HuggingFace account or token needed.",
+        "ready": model_ready,
+        "detail": (
+            "Ready." if model_ready else
+            "The ECAPA speaker model (~80 MB) downloads automatically the first "
+            "time you run Detect Speakers."
+        ),
+        "install_slug": None,
+        "section": "settings-sec-speakers",
+    }
+
+
 def _audio_events_tier(cfg) -> dict:
     from yuu_clip.scoring.audio_event import AudioEventScorer
 
     available, reason = AudioEventScorer(cfg).availability()
-    deps_ok = _audio_model_deps_installed()
     return {
         "id": "audio_events",
         "name": "Audio-event detection",
         "purpose": "Boosts Action on gunshots and explosions, Funny on crowd cheers.",
         "active": "On" if available else "Off",
-        "upgrade": "Install the audio model to score sound events (heaviest tier, opt-in).",
+        "upgrade": "Bundled and on by default — the audio model downloads automatically the first time you analyze.",
         "ready": available,
         "detail": "Audio-event detection is on and ready." if available else _sentence(reason),
-        "install_slug": None if deps_ok else "audio-model",
+        # transformers/torch are bundled (Tier A) — nothing to install from here.
+        "install_slug": None,
         "section": "settings-sec-weights",
+    }
+
+
+def _vertical_framing_tier() -> dict:
+    from yuu_clip.analyze.framing import face_model_cached
+
+    installed = module_findable("mediapipe")
+    model_ready = installed and face_model_cached()
+    if not installed:
+        detail = "MediaPipe isn't available — this should be bundled with yuu-clip, so try reinstalling if this persists."
+    elif model_ready:
+        detail = "Ready."
+    else:
+        detail = (
+            "The face-detector model (~230 KB) downloads automatically the first "
+            "time you use Auto-frame on faces."
+        )
+    return {
+        "id": "vertical_framing",
+        "name": "Auto-frame on faces",
+        "purpose": "Suggests where to place the Vertical framing crop on vertical exports by finding faces.",
+        "active": "Available" if installed else "Unavailable",
+        "upgrade": "Bundled by default — used only when you export with a vertical preset.",
+        "ready": model_ready,
+        "detail": detail,
+        "install_slug": None,
+        "section": "settings-sec-export",
     }
 
 
@@ -249,7 +317,9 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             "tiers": [
                 _similarity_tier(cfg, text_ok),
                 _descriptions_tier(text_ok, llm["detail"]),
+                _speaker_labels_tier(cfg),
                 _audio_events_tier(cfg),
+                _vertical_framing_tier(),
             ],
         }
 

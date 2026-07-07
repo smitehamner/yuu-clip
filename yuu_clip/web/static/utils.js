@@ -20,13 +20,14 @@ function _syncSortDirBtn(btnId, dir) {
 }
 
 // ── speaker labels (diarization) readiness ────────────────────────────────────
-// Speaker labels need their configured backend's package installed. Pyannote also
-// needs a HuggingFace token; SpeechBrain needs neither an account nor a token. The
-// per-run checkboxes in the analyze and export panels both gate on this single
-// check. Centralized here so the three surfaces (Settings, analyze, export) can't
-// drift to different rules.
+// SpeechBrain (the default backend) is bundled — its package should always be
+// present, so an unready result there means a broken install, not a missing
+// optional download. Pyannote is the advanced, token-gated alternative and still
+// needs a real install + a HuggingFace token. The per-run checkboxes in the
+// analyze and export panels both gate on this single check. Centralized here so
+// the three surfaces (Settings, analyze, export) can't drift to different rules.
 function _diarizationReason(backend, installed, hasToken) {
-  if (backend === 'speechbrain') return installed ? '' : 'Install SpeechBrain';
+  if (backend === 'speechbrain') return installed ? '' : 'SpeechBrain is unavailable — try reinstalling yuu-clip';
   if (!installed) return 'Install pyannote.audio';
   if (!hasToken)  return 'Requires a HuggingFace token';
   return '';
@@ -34,7 +35,7 @@ function _diarizationReason(backend, installed, hasToken) {
 
 async function _diarizationReadiness() {
   const cfg = await fetch('/api/config').then(r => r.json()).catch(() => ({}));
-  const backend = cfg.diarization_backend || 'null';
+  const backend = cfg.diarization_backend || 'speechbrain';
   const slug = backend === 'speechbrain' ? 'speechbrain' : 'pyannote';
   const install = await fetch(`/api/install/${slug}`).then(r => r.json()).catch(() => ({installed: false}));
   const installed = !!install.installed;

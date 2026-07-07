@@ -349,6 +349,27 @@ def _cluster_centroids(embeddings, labels) -> dict[str, list[float]]:
     return centroids
 
 
+def speechbrain_model_dir():
+    """Where the SpeechBrain ECAPA encoder is cached once downloaded.
+
+    Module-level (not tied to a client instance) so the Settings capabilities
+    overview can do a cheap, side-effect-free existence check without
+    constructing a full SpeechBrainDiarizationClient.
+    """
+    from pathlib import Path
+
+    from platformdirs import user_cache_dir
+
+    return Path(user_cache_dir("yuu-clip")) / "models" / "spkrec-ecapa-voxceleb"
+
+
+def speechbrain_model_cached() -> bool:
+    """Whether the ECAPA model has already been downloaded (filesystem-only,
+    no network) — used to distinguish "ready" from "downloads on first use"."""
+    model_dir = speechbrain_model_dir()
+    return model_dir.exists() and any(model_dir.iterdir())
+
+
 class SpeechBrainDiarizationClient(DiarizationClient):
     """Token-free diarization via SpeechBrain ECAPA embeddings + clustering."""
 
@@ -365,17 +386,13 @@ class SpeechBrainDiarizationClient(DiarizationClient):
         ]
         if missing:
             return False, (
-                "SpeechBrain speaker labels aren't installed — open Settings (⚙) and "
-                "click Install under Speaker labels"
+                "SpeechBrain speaker labels aren't available — this should be bundled "
+                "with yuu-clip, so try reinstalling if this persists"
             )
         return True, ""
 
     def _model_dir(self):
-        from pathlib import Path
-
-        from platformdirs import user_cache_dir
-
-        return Path(user_cache_dir("yuu-clip")) / "models" / "spkrec-ecapa-voxceleb"
+        return speechbrain_model_dir()
 
     def _load_encoder(self):
         if self._encoder is not None:

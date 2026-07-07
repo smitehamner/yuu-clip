@@ -644,7 +644,10 @@ class TestBestVoiceprintMatch:
 # ---------------------------------------------------------------------------
 
 class TestSpeechBrainAvailable:
-    def test_missing_reports_install_hint(self, monkeypatch):
+    def test_missing_reports_reinstall_hint(self, monkeypatch):
+        # SpeechBrain is bundled by default (packaging-strategy overhaul) — this
+        # branch means a broken/partial install, not a missing optional package,
+        # so the reason points at reinstalling rather than a Settings button.
         import importlib.util
         real = importlib.util.find_spec
 
@@ -656,7 +659,7 @@ class TestSpeechBrainAvailable:
         monkeypatch.setattr(importlib.util, "find_spec", _absent)
         ok, reason = SpeechBrainDiarizationClient(Config(diarization_backend="speechbrain")).available()
         assert ok is False
-        assert "Settings" in reason
+        assert "reinstalling" in reason
 
     def test_present_when_both_installed(self, monkeypatch):
         import importlib.util

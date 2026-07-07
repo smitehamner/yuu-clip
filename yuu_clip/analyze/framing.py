@@ -86,6 +86,13 @@ def _model_path() -> Path:
     return Path(user_cache_dir("yuu-clip")) / "models" / _MODEL_FILENAME
 
 
+def face_model_cached() -> bool:
+    """Whether the BlazeFace detector model has already been downloaded
+    (filesystem-only, no network) — lets the Settings capabilities overview
+    distinguish "ready" from "downloads on first use"."""
+    return _model_path().exists()
+
+
 def _ensure_face_model() -> Path:
     """Return the cached BlazeFace model path, downloading it on first use.
 

@@ -155,7 +155,9 @@ class TestCapabilityTiers:
         _patch(client, ollama_enabled=False)
         tiers, lightweight = self._tiers(client)
         assert lightweight is True
-        assert set(tiers) == {"similarity", "descriptions", "audio_events"}
+        assert set(tiers) == {
+            "similarity", "descriptions", "speaker_labels", "audio_events", "vertical_framing",
+        }
         assert tiers["descriptions"]["active"] == "Basic (template)"
         assert tiers["descriptions"]["ready"] is False
 
@@ -170,7 +172,11 @@ class TestCapabilityTiers:
         tiers, _ = self._tiers(client)
         assert tiers["similarity"]["active"] == "Fast (keyword)"
 
-    def test_audio_events_off_by_default(self, client: TestClient):
+    def test_audio_events_reports_off_when_model_deps_unavailable(self, client: TestClient):
+        # Audio-event scoring is ON by default post-Wave-2 (asserted in
+        # test_config.py); the tier still reports "Off"/not-ready here because the
+        # bundled transformers/torch aren't synced into the test venv, so the
+        # scorer's availability() is False. This covers that degradation state.
         tiers, _ = self._tiers(client)
         assert tiers["audio_events"]["active"] == "Off"
         assert tiers["audio_events"]["ready"] is False
@@ -186,3 +192,75 @@ class TestCapabilityTiers:
         assert lightweight is False
         assert tiers["descriptions"]["active"] == "AI (language model)"
         assert tiers["descriptions"]["ready"] is True
+
+    # ── packaging-strategy overhaul (Wave 3): bundled tiers never offer an
+    # install action anymore — install_slug is always None for them.
+    def test_similarity_and_audio_events_never_offer_install(self, client: TestClient):
+        tiers, _ = self._tiers(client)
+        assert tiers["similarity"]["install_slug"] is None
+        assert tiers["audio_events"]["install_slug"] is None
+
+    def test_speaker_labels_off_reports_ready(self, client: TestClient):
+        _patch(client, diarization_backend="null")
+        tiers, _ = self._tiers(client)
+        assert tiers["speaker_labels"]["active"] == "Off"
+        assert tiers["speaker_labels"]["ready"] is True
+        assert tiers["speaker_labels"]["install_slug"] is None
+
+    def test_speaker_labels_speechbrain_never_offers_install(self, client: TestClient, monkeypatch):
+        monkeypatch.setattr(
+            "yuu_clip.transcribe.diarization_client.speechbrain_model_cached",
+            lambda: False,
+        )
+        _patch(client, diarization_backend="speechbrain")
+        tiers, _ = self._tiers(client)
+        assert tiers["speaker_labels"]["active"] == "SpeechBrain"
+        assert tiers["speaker_labels"]["ready"] is False
+        assert tiers["speaker_labels"]["install_slug"] is None
+        assert "downloads automatically" in tiers["speaker_labels"]["detail"]
+
+    def test_speaker_labels_speechbrain_ready_when_model_cached(self, client: TestClient, monkeypatch):
+        monkeypatch.setattr(
+            "yuu_clip.transcribe.diarization_client.speechbrain_model_cached",
+            lambda: True,
+        )
+        _patch(client, diarization_backend="speechbrain")
+        tiers, _ = self._tiers(client)
+        assert tiers["speaker_labels"]["ready"] is True
+        assert tiers["speaker_labels"]["detail"] == "Ready."
+
+    def test_speaker_labels_pyannote_not_installed_offers_install(self, client: TestClient, monkeypatch):
+        monkeypatch.setattr("yuu_clip.web.routes.llm.module_findable", lambda name: False)
+        _patch(client, diarization_backend="pyannote", huggingface_token="")
+        tiers, _ = self._tiers(client)
+        assert tiers["speaker_labels"]["active"] == "Pyannote (advanced)"
+        assert tiers["speaker_labels"]["ready"] is False
+        assert tiers["speaker_labels"]["install_slug"] == "pyannote"
+
+    def test_speaker_labels_pyannote_installed_needs_token(self, client: TestClient, monkeypatch):
+        monkeypatch.setattr("yuu_clip.web.routes.llm.module_findable", lambda name: True)
+        _patch(client, diarization_backend="pyannote", huggingface_token="")
+        tiers, _ = self._tiers(client)
+        assert tiers["speaker_labels"]["ready"] is False
+        assert tiers["speaker_labels"]["install_slug"] is None
+        assert "token" in tiers["speaker_labels"]["detail"].lower()
+
+    def test_vertical_framing_never_offers_install(self, client: TestClient, monkeypatch):
+        monkeypatch.setattr("yuu_clip.web.routes.llm.module_findable", lambda name: False)
+        tiers, _ = self._tiers(client)
+        assert tiers["vertical_framing"]["active"] == "Unavailable"
+        assert tiers["vertical_framing"]["ready"] is False
+        assert tiers["vertical_framing"]["install_slug"] is None
+
+    def test_vertical_framing_ready_when_model_cached(self, client: TestClient, monkeypatch):
+        monkeypatch.setattr(
+            "yuu_clip.web.routes.llm.module_findable",
+            lambda name: True,
+        )
+        monkeypatch.setattr(
+            "yuu_clip.analyze.framing.face_model_cached",
+            lambda: True,
+        )
+        tiers, _ = self._tiers(client)
+        assert tiers["vertical_framing"]["active"] == "Available"
+        assert tiers["vertical_framing"]["ready"] is True

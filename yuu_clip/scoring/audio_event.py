@@ -90,7 +90,10 @@ class AudioEventScorer:
                 "AudioEventScorer: missing deps — run: "
                 "pip install transformers torch torchaudio soundfile"
             )
-            return False, "its model dependencies aren't installed (install them from Settings)"
+            return False, (
+                "its model dependencies aren't installed — this should be bundled "
+                "with yuu-clip, so try reinstalling if this persists"
+            )
 
     def _get_classifier(self):
         if self._classifier is None:

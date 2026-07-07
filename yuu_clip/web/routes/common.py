@@ -5,6 +5,7 @@
 """Cross-cutting helpers shared by two or more route modules."""
 from __future__ import annotations
 
+import importlib.util
 import json as json_lib
 import re
 from contextlib import asynccontextmanager
@@ -16,6 +17,21 @@ from fastapi.responses import StreamingResponse
 from yuu_clip.db.models import ClipCandidate
 
 _SSE_HEADERS = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
+
+
+def module_findable(module: str) -> bool:
+    """Whether *module* can be imported, without importing it.
+
+    importlib.util.find_spec raises ModuleNotFoundError (rather than returning
+    None) for a dotted name whose parent package is entirely absent — e.g.
+    find_spec("pyannote.audio") raises when "pyannote" itself isn't installed.
+    A completely-absent parent means "not installed" just as much as a present
+    parent with a missing submodule, so both cases report False here.
+    """
+    try:
+        return importlib.util.find_spec(module) is not None
+    except ModuleNotFoundError:
+        return False
 
 
 def analyze_in_flight(ctx) -> bool:

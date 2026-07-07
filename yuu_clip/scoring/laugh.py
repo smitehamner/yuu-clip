@@ -147,7 +147,10 @@ class LaughScorer:
                     "LaughScorer (model): missing deps — run: "
                     "pip install transformers torch torchaudio soundfile"
                 )
-                return False, "its model dependencies aren't installed (install them from Settings)"
+                return False, (
+                    "its model dependencies aren't installed — this should be bundled "
+                    "with yuu-clip, so try reinstalling if this persists"
+                )
         log.warning("LaughScorer: unknown mode %r — scorer disabled", mode)
         return False, f"unknown laughter mode {mode!r}"
 

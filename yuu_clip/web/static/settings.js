@@ -198,14 +198,14 @@ function _applySettingsToUI(cfg) {
   setVal('s-claude-api-key', cfg.claude_api_key  || '');
   _setClaudeModelValue(cfg.claude_model || 'claude-haiku-4-5-20251001');
   setVal('s-claude-timeout', cfg.claude_timeout_s ?? 30);
-  setVal('s-similarity-backend', cfg.similarity_backend || 'tfidf');
+  setVal('s-similarity-backend', cfg.similarity_backend || 'embeddings');
   // After the backend + similarity selects are populated: applies the privacy mode,
   // which re-evaluates backend visibility, the remote badge, and option filtering.
   _setPrivacyMode(cfg.ai_privacy_mode || 'local_only');
-  _onSimilarityBackendChange(cfg.similarity_backend || 'tfidf');
+  _onSimilarityBackendChange(cfg.similarity_backend || 'embeddings');
   _updateLlmCapabilities();
   _renderCapabilityTiers();
-  const diarBackend = cfg.diarization_backend || 'null';
+  const diarBackend = cfg.diarization_backend || 'speechbrain';
   setVal('s-diarization-backend', diarBackend);
   _onDiarizationBackendChange(diarBackend);
   setVal('s-hf-token', cfg.huggingface_token || '');
@@ -256,7 +256,7 @@ function _applySettingsToUI(cfg) {
   setVal('s-caption-position', cfg.caption_position || 'bottom');
   _snapshotSettings();
   _checkSettingsDirty();
-  ['pyannote', 'speechbrain', 'llamacpp', 'anthropic', 'laugh-deps', 'audio-model', 'cuda-libs', 'mediapipe', 'embeddings'].forEach(_refreshInstallStatus);
+  ['pyannote', 'cuda-libs'].forEach(_refreshInstallStatus);
 }
 
 // Applies instantly (outside the Save flow) so the user sees the theme while
@@ -349,6 +349,12 @@ function _onDiarizationBackendChange(backend) {
   if (pyannoteEl)    pyannoteEl.style.display    = backend === 'pyannote'    ? '' : 'none';
   if (speechbrainEl) speechbrainEl.style.display = backend === 'speechbrain' ? '' : 'none';
   if (commonEl)      commonEl.style.display      = backend !== 'null'        ? '' : 'none';
+  // Pyannote's setup stays a collapsed <details> even when it's the active
+  // backend (demoted — SpeechBrain is the default) — the install/token status
+  // is still visible via #s-diarization-common-fields below, outside the
+  // disclosure. Auto-expanding here was tried and reverted: it resized content
+  // above the settings panel's current scroll position, and Chrome's scroll
+  // anchoring then silently shifted scrollTop to compensate.
   _updateDiarizationStatus();
 }
 
@@ -372,7 +378,7 @@ function _onHfTokenInput() {
       fb.style.color = 'var(--warning)';
     } else {
       fb.textContent = '✓ Looks like a valid token format';
-      fb.style.color = 'var(--green, #22c55e)';
+      fb.style.color = 'var(--green)';
     }
   }
   _updateDiarizationStatus();
@@ -397,7 +403,7 @@ async function _updateDiarizationStatus() {
       installed = !!(await fetch('/api/install/speechbrain').then(r => r.json())).installed;
     } catch { /* treat unknown as not installed */ }
     el.innerHTML = `<span>${installed ? '✓' : '○'} SpeechBrain installed — no token needed</span>`;
-    el.style.color = installed ? 'var(--green, #22c55e)' : 'var(--muted, #888)';
+    el.style.color = installed ? 'var(--green)' : 'var(--muted)';
     return;
   }
   const tokenSet = !!document.getElementById('s-hf-token').value.trim();
@@ -408,7 +414,7 @@ async function _updateDiarizationStatus() {
   el.innerHTML =
     `<span style="margin-right:14px">${installed ? '✓' : '○'} pyannote.audio installed</span>` +
     `<span>${tokenSet ? '✓' : '○'} HuggingFace token set</span>`;
-  el.style.color = installed && tokenSet ? 'var(--green, #22c55e)' : 'var(--muted, #888)';
+  el.style.color = installed && tokenSet ? 'var(--green)' : 'var(--muted)';
 }
 
 // ── scoring, similarity & playback section handlers ──────────────────────────

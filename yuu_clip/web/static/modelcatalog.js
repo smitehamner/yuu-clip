@@ -212,13 +212,21 @@ async function _renderCapabilityTiers() {
   });
 }
 
+// Three visual states, not two: a tier can be fully Ready (green check), waiting
+// on a Tier-B model that downloads automatically (neutral — no action needed, so
+// no CTA), or genuinely need a real setup step (install_slug set — e.g. Pyannote
+// needs a pip install + HuggingFace token). Only the last shows "Set up →": a
+// Tier-B "fetches on first use" state is not something the user needs to click.
 function _capabilityTierHtml(tier) {
-  const action = tier.ready ? '' :
-    `<button type="button" class="settings-jump-link" data-section="${escHtml(tier.section)}" style="margin-top:2px">Set up &rarr;</button>`;
+  const needsSetup = !tier.ready && !!tier.install_slug;
+  const mark = tier.ready ? '✓' : (needsSetup ? '○' : '&#8943;');
+  const markClass = tier.ready ? ' ready' : '';
+  const action = needsSetup ?
+    `<button type="button" class="settings-jump-link" data-section="${escHtml(tier.section)}" style="margin-top:2px">Set up &rarr;</button>` : '';
   return (
     `<div class="capability-tier">` +
       `<div class="capability-tier-head">` +
-        `<span class="capability-mark${tier.ready ? ' ready' : ''}" aria-hidden="true">${tier.ready ? '✓' : '○'}</span>` +
+        `<span class="capability-mark${markClass}" aria-hidden="true">${mark}</span>` +
         `<span class="capability-tier-name">${escHtml(tier.name)}</span>` +
         `<span class="capability-tier-active">${escHtml(tier.active)}</span>` +
       `</div>` +

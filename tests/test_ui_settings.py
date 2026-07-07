@@ -255,12 +255,13 @@ class TestSettingsPanelChrome:
         assert page.evaluate("document.getElementById('s-similarity-backend').disabled") is False
 
     def test_similarity_embeddings_fields_toggle_on_smart_tier(self, page: Page):
+        # fastembed is bundled by default (packaging-strategy overhaul) — no install
+        # button anymore, just an info note about the model download.
         self._open_settings(page)
         page.select_option("#s-similarity-backend", "tfidf")
         expect(page.locator("#s-similarity-embeddings-fields")).to_be_hidden()
         page.select_option("#s-similarity-backend", "embeddings")
         expect(page.locator("#s-similarity-embeddings-fields")).to_be_visible()
-        expect(page.locator("#btn-install-embeddings")).to_be_visible()
 
     def test_claude_api_key_has_show_hide_toggle(self, page: Page):
         self._open_settings(page)
@@ -293,18 +294,24 @@ class TestCapabilitiesSection:
         # The tier rows are rendered async by _renderCapabilityTiers during
         # _applySettingsToUI; wait for them rather than racing the fetch.
         page.wait_for_function(
-            "document.querySelectorAll('#s-capabilities-list .capability-tier').length === 3",
+            "document.querySelectorAll('#s-capabilities-list .capability-tier').length === 5",
             timeout=3000,
         )
 
-    def test_renders_three_tier_rows_with_intro(self, page: Page):
+    def test_renders_five_tier_rows_with_intro(self, page: Page):
+        # packaging-strategy overhaul (Wave 3): Speaker labels and Vertical
+        # auto-framing joined the overview once their install buttons were
+        # replaced by Ready / "fetches on first use" status here.
         self._open_settings(page)
-        expect(page.locator("#s-capabilities-list .capability-tier")).to_have_count(3)
+        expect(page.locator("#s-capabilities-list .capability-tier")).to_have_count(5)
         names = page.eval_on_selector_all(
             "#s-capabilities-list .capability-tier-name",
             "els => els.map(e => e.textContent)",
         )
-        assert names == ["Similarity engine", "Descriptions & summaries", "Audio-event detection"]
+        assert names == [
+            "Similarity engine", "Descriptions & summaries", "Speaker labels",
+            "Audio-event detection", "Auto-frame on faces",
+        ]
         assert page.locator("#s-capabilities-intro").inner_text().strip() != ""
 
     def test_jump_link_scrolls_to_capabilities(self, page: Page):
