@@ -6,6 +6,29 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) — see the
 
 ---
 
+## Project backup / restore (done 2026-07-07)
+
+A single-file backup and a recovery path for a corrupted DB, a reinstall, or a move
+to a new machine - without hand-copying folders.
+
+- **Backup** (`Settings > Backup & Restore`, `POST /api/backup`, `project_archive.build_backup`)
+  writes a portable `.zip` of the project's own state (DB, config, world contexts, custom
+  sounds). Contents are an allowlist of small state, not a skip-list of media - top-level
+  state files plus known state subdirs only - so a large derived dir (audio/exports/proxies/
+  downloads/reels/preview_cache) or a stray folder can never balloon the archive. The WAL is
+  checkpointed first so `project.db` is a self-contained snapshot.
+- **Restore** (in-app + `POST /api/restore/*`, `restore_into`) validates the manifest schema,
+  refuses to clobber an existing project unless confirmed (keeping a `project.db.pre-restore`
+  safety copy), and runs the **re-point engine**: source-video folders that don't resolve on
+  the target machine are grouped by parent dir and the user maps each to its new location;
+  a file that isn't present at the new location stays missing and is counted, never guessed.
+- **First-run wizard** gains a "Restore from a backup instead" choice that unpacks via the
+  `yuuclip restore` CLI before the server spawns and launches straight into the restored
+  project, keeping its saved settings. Wizard re-point is deferred to the in-app flow.
+
+Four stages shipped 2026-07-07 (backup core, restore + re-point engine, in-app UI, wizard);
+the wizard's manual first-run restore is the only unautomated check.
+
 ## Packaging-strategy overhaul - batteries-included install (done 2026-07-06/07)
 
 Killed the "installed program that keeps asking to install more things" UX. Every

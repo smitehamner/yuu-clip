@@ -85,13 +85,13 @@ Wanted before distributing beyond friends/trusted users.
   `CSC_KEY_PASSWORD`; remove the `CSC_IDENTITY_AUTO_DISCOVERY=false` override in
   `build-release.ps1` when a cert is in place.
 
-- [ ] **Project backup / restore** — there is no way today to back up or move a project short
-  of manually copying folders. As distribution grows, a corrupted DB or a reinstalled machine
-  with no recovery path is a bad first impression. Scope: a "Backup project" action that
-  archives the SQLite DB plus configured media roots (source videos excluded by default — too
-  large; exports/audio cache included) into a single file, and a "Restore from backup" path in
-  the setup wizard. Now unblocked — the Project switcher settled how project directories are
-  addressed.
+- [x] **Project backup / restore** — Settings > Backup & Restore backs a project's own state
+  (SQLite DB, config, world contexts, custom sounds) into a single portable `.zip`; large
+  regenerable media (audio/exports/proxies/downloads/reels/preview_cache) and the source videos
+  are excluded. Restore is available both in-app and as a first-run wizard choice, and re-points
+  source-video folders that don't resolve on the target machine so restored clips still play.
+  Shipped 2026-07-07 (in-app + wizard + re-point engine); the wizard's manual first-run gate is
+  the only unautomated check.
 
 ---
 

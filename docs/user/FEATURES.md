@@ -276,6 +276,9 @@ Compiles a highlight reel from approved clips with title cards and transitions.
 ### `yuuclip serve [options]`
 Starts the web server and opens the browser. Options: `--host`, `--port` (default 8080), `--open`/`--no-open`, `--reload`. Preferred entry point for day-to-day use.
 
+### `yuuclip restore --archive <backup.zip> --project <folder>`
+Unpacks a backup `.zip` into a project folder. Add `--overwrite` to replace a project that already exists there (a `project.db.pre-restore` safety copy is kept). This is the command the setup wizard runs for its "Restore from a backup" choice; for day-to-day restores use Settings > Backup & Restore in the web UI, which also handles re-pointing moved source videos.
+
 ---
 
 ## Scoring
@@ -474,6 +477,14 @@ All state is stored in `.yuu-clip/` next to your video files (or in the director
   proxies/           # cached 720p preview copies (safe to delete; rebuilt on demand)
   sounds/            # custom notification sounds you've added
 ```
+
+### Backing up and restoring a project
+
+**Settings > Backup & Restore** saves a project to a single portable `.zip` file, and rebuilds one from that file.
+
+- **Back up project** downloads a small `.zip` containing the project's own state: the database (your clips, review decisions, descriptions), your settings, world contexts, and any custom notification sounds. It deliberately does **not** include your original video files or the large working files yuu-clip can rebuild on its own (extracted audio, exported clips, preview proxies, compiled reels), so the backup stays small. Keep it somewhere safe, or copy it to another computer.
+- **Restore from backup** rebuilds a project from a backup file. You pick the `.zip` and a folder to restore into (restoring over an existing project asks first and keeps a safety copy of its database). If your original videos have moved - a new drive, a new computer - Restore lists the folders it couldn't find and lets you point each one to its new location, so your clips still play. Folders you leave blank stay marked as missing rather than being guessed.
+- **First-run restore** - the setup wizard offers "Restore from a backup instead" so a fresh install or a new machine can start from a backup rather than an empty project.
 
 ### Track layouts
 
