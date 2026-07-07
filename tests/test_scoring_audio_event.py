@@ -158,3 +158,35 @@ class TestScore:
         assert first.score_action is None
         assert "audio_event_no_wav" in second.tags
         assert load_attempts.call_count == 1
+
+    def test_load_failed_property_reflects_state(self):
+        scorer = _make_scorer()
+        assert scorer.load_failed is False
+        scorer._wav_cache = mock.MagicMock()
+        scorer._wav_cache.load.return_value = (np.ones(16000 * 3, dtype=np.float32), 16000)
+        scorer._get_classifier = mock.MagicMock(side_effect=OSError("offline"))
+        with mock.patch("yuu_clip.scoring.audio_event.best_wav_track", return_value=mock.MagicMock()):
+            scorer.score(_clip(), None)
+        assert scorer.load_failed is True
+
+
+class TestAudioEventModelCached:
+    def test_delegates_to_repo_cached_with_the_configured_model_id(self):
+        from yuu_clip.scoring import audio_event
+
+        with mock.patch.dict(sys.modules, {"yuu_clip.hf_cache": mock.MagicMock(repo_cached=lambda repo_id: repo_id == "my/model")}):
+            assert audio_event.audio_event_model_cached("my/model") is True
+            assert audio_event.audio_event_model_cached("other/model") is False
+
+
+class TestPrefetchAudioEventModel:
+    def test_prefetch_builds_the_classification_pipeline(self):
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.audio_event import prefetch_audio_event_model
+
+        cfg = Config()
+        cfg.scorer_laugh_model_id = "my/model"
+        fake_transformers = mock.MagicMock()
+        with mock.patch.dict(sys.modules, {"transformers": fake_transformers}):
+            prefetch_audio_event_model(cfg)
+        fake_transformers.pipeline.assert_called_once_with("audio-classification", model="my/model")

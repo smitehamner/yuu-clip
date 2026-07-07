@@ -22,7 +22,7 @@ runner = CliRunner()
 class TestHelp:
     @pytest.mark.parametrize("command", [
         "probe", "analyze", "score", "export", "reel",
-        "status", "clips", "serve", "retranscribe",
+        "status", "clips", "serve", "retranscribe", "prefetch-model",
     ])
     def test_help_exits_zero(self, command):
         result = runner.invoke(app, [command, "--help"])
@@ -55,6 +55,62 @@ class TestScore:
         result = runner.invoke(app, ["score", "--all", "--project", str(tmp_path)])
         # No videos, but command should complete cleanly
         assert result.exit_code == 0
+
+
+# ---------------------------------------------------------------------------
+# prefetch-model: downloads one Tier-B model on demand (packaging-strategy
+# overhaul Wave 4) — invoked as a subprocess by POST /api/models/prefetch.
+# ---------------------------------------------------------------------------
+
+class TestPrefetchModel:
+    def test_unknown_slug_exits_nonzero(self, tmp_path):
+        (tmp_path / ".yuu-clip").mkdir()
+        result = runner.invoke(app, ["prefetch-model", "bogus", "--project", str(tmp_path)])
+        assert result.exit_code != 0
+        assert "Unknown model slug" in result.output
+
+    def test_speaker_slug_calls_the_speechbrain_prefetcher(self, tmp_path, monkeypatch):
+        (tmp_path / ".yuu-clip").mkdir()
+        from yuu_clip.transcribe import diarization_client
+        calls = []
+        monkeypatch.setattr(diarization_client, "prefetch_speechbrain_model", lambda config: calls.append(config))
+        result = runner.invoke(app, ["prefetch-model", "speaker", "--project", str(tmp_path)])
+        assert result.exit_code == 0, result.output
+        assert len(calls) == 1
+        assert "Done" in result.output
+
+    def test_audio_event_slug_calls_the_ast_prefetcher(self, tmp_path, monkeypatch):
+        (tmp_path / ".yuu-clip").mkdir()
+        from yuu_clip.scoring import audio_event
+        calls = []
+        monkeypatch.setattr(audio_event, "prefetch_audio_event_model", lambda config: calls.append(config))
+        result = runner.invoke(app, ["prefetch-model", "audio_event", "--project", str(tmp_path)])
+        assert result.exit_code == 0, result.output
+        assert len(calls) == 1
+
+    def test_embeddings_slug_calls_the_fastembed_prefetcher(self, tmp_path, monkeypatch):
+        (tmp_path / ".yuu-clip").mkdir()
+        from yuu_clip.scoring import similarity
+        calls = []
+        monkeypatch.setattr(similarity, "prefetch_embeddings_model", lambda: calls.append(1))
+        result = runner.invoke(app, ["prefetch-model", "embeddings", "--project", str(tmp_path)])
+        assert result.exit_code == 0, result.output
+        assert calls == [1]
+
+    def test_download_failure_exits_nonzero_with_a_friendly_message(self, tmp_path, monkeypatch):
+        """An offline machine must fail cleanly with a readable message, not a
+        raw traceback — the message becomes the last SSE line the UI shows."""
+        (tmp_path / ".yuu-clip").mkdir()
+        from yuu_clip.transcribe import diarization_client
+
+        def _boom(config):
+            raise OSError("could not download model (offline)")
+
+        monkeypatch.setattr(diarization_client, "prefetch_speechbrain_model", _boom)
+        result = runner.invoke(app, ["prefetch-model", "speaker", "--project", str(tmp_path)])
+        assert result.exit_code != 0
+        assert "Download failed" in result.output
+        assert "could not download model (offline)" in result.output
 
 
 # ---------------------------------------------------------------------------

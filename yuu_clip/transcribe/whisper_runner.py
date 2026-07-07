@@ -33,7 +33,11 @@ from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeEl
 from yuu_clip.config import Config, validate_whisper_language, validate_whisper_model
 from yuu_clip.db.models import AudioTrack, Speaker, Transcript, TranscriptSegment
 from yuu_clip.log import get_logger
-from yuu_clip.transcribe.diarization_client import DiarizationError, make_diarization_client
+from yuu_clip.transcribe.diarization_client import (
+    DiarizationError,
+    make_diarization_client,
+    speechbrain_model_cached,
+)
 
 _log = get_logger(__name__)
 
@@ -512,6 +516,12 @@ def diarize_track(
             _log.warning("Diarization skipped for track %d [%s]: %s", track.id, track.label, reason)
             console.print(f"[yellow]Speaker labels skipped for [{track.label}]: {reason}[/yellow]")
         return
+
+    if config.diarization_backend == "speechbrain" and not speechbrain_model_cached():
+        console.print(
+            f"  [dim]Downloading the speaker model (~80 MB) so speaker labels can run "
+            f"for [{track.label}] — this happens once...[/dim]"
+        )
 
     _log.info("Running diarization for track %d [%s]…", track.id, track.label)
     try:

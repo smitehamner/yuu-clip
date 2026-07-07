@@ -172,6 +172,35 @@ class TestCapabilityTiers:
         tiers, _ = self._tiers(client)
         assert tiers["similarity"]["active"] == "Fast (keyword)"
 
+    def test_similarity_not_ready_when_fastembed_missing(self, client: TestClient):
+        # fastembed isn't installed in the test venv — not-ready, and nothing to
+        # prefetch (a click would just fail the same way).
+        tiers, _ = self._tiers(client)
+        assert tiers["similarity"]["ready"] is False
+        assert tiers["similarity"]["prefetch_slug"] is None
+
+    def test_similarity_offers_prefetch_when_package_ready_but_model_not_cached(
+        self, client: TestClient, monkeypatch,
+    ):
+        from yuu_clip.scoring.similarity import EmbeddingsBackend
+
+        monkeypatch.setattr(EmbeddingsBackend, "availability", lambda self: (True, ""))
+        monkeypatch.setattr("yuu_clip.scoring.similarity.embeddings_model_cached", lambda: False)
+        tiers, _ = self._tiers(client)
+        assert tiers["similarity"]["ready"] is False
+        assert tiers["similarity"]["prefetch_slug"] == "embeddings"
+        assert "downloads automatically" in tiers["similarity"]["detail"]
+
+    def test_similarity_ready_and_no_prefetch_when_model_cached(self, client: TestClient, monkeypatch):
+        from yuu_clip.scoring.similarity import EmbeddingsBackend
+
+        monkeypatch.setattr(EmbeddingsBackend, "availability", lambda self: (True, ""))
+        monkeypatch.setattr("yuu_clip.scoring.similarity.embeddings_model_cached", lambda: True)
+        tiers, _ = self._tiers(client)
+        assert tiers["similarity"]["ready"] is True
+        assert tiers["similarity"]["prefetch_slug"] is None
+        assert tiers["similarity"]["detail"] == "The Smart (embeddings) engine is ready."
+
     def test_audio_events_reports_off_when_model_deps_unavailable(self, client: TestClient):
         # Audio-event scoring is ON by default post-Wave-2 (asserted in
         # test_config.py); the tier still reports "Off"/not-ready here because the
@@ -180,6 +209,29 @@ class TestCapabilityTiers:
         tiers, _ = self._tiers(client)
         assert tiers["audio_events"]["active"] == "Off"
         assert tiers["audio_events"]["ready"] is False
+        # No deps -> nothing to prefetch either (a "Download now" click would
+        # just fail the same way).
+        assert tiers["audio_events"]["prefetch_slug"] is None
+
+    def test_audio_events_offers_prefetch_when_deps_ready_but_model_not_cached(self, client: TestClient, monkeypatch):
+        from yuu_clip.scoring.audio_event import AudioEventScorer
+
+        monkeypatch.setattr(AudioEventScorer, "availability", lambda self: (True, ""))
+        monkeypatch.setattr("yuu_clip.scoring.audio_event.audio_event_model_cached", lambda model_id: False)
+        tiers, _ = self._tiers(client)
+        assert tiers["audio_events"]["ready"] is False
+        assert tiers["audio_events"]["prefetch_slug"] == "audio_event"
+        assert "downloads automatically" in tiers["audio_events"]["detail"]
+
+    def test_audio_events_ready_and_no_prefetch_when_model_cached(self, client: TestClient, monkeypatch):
+        from yuu_clip.scoring.audio_event import AudioEventScorer
+
+        monkeypatch.setattr(AudioEventScorer, "availability", lambda self: (True, ""))
+        monkeypatch.setattr("yuu_clip.scoring.audio_event.audio_event_model_cached", lambda model_id: True)
+        tiers, _ = self._tiers(client)
+        assert tiers["audio_events"]["ready"] is True
+        assert tiers["audio_events"]["prefetch_slug"] is None
+        assert tiers["audio_events"]["detail"] == "Audio-event detection is on and ready."
 
     def test_ready_llamacpp_model_flips_descriptions_and_lightweight(
         self, client: TestClient, project_dir: Path,
@@ -217,6 +269,7 @@ class TestCapabilityTiers:
         assert tiers["speaker_labels"]["active"] == "SpeechBrain"
         assert tiers["speaker_labels"]["ready"] is False
         assert tiers["speaker_labels"]["install_slug"] is None
+        assert tiers["speaker_labels"]["prefetch_slug"] == "speaker"
         assert "downloads automatically" in tiers["speaker_labels"]["detail"]
 
     def test_speaker_labels_speechbrain_ready_when_model_cached(self, client: TestClient, monkeypatch):
@@ -227,6 +280,7 @@ class TestCapabilityTiers:
         _patch(client, diarization_backend="speechbrain")
         tiers, _ = self._tiers(client)
         assert tiers["speaker_labels"]["ready"] is True
+        assert tiers["speaker_labels"]["prefetch_slug"] is None
         assert tiers["speaker_labels"]["detail"] == "Ready."
 
     def test_speaker_labels_pyannote_not_installed_offers_install(self, client: TestClient, monkeypatch):
@@ -264,3 +318,11 @@ class TestCapabilityTiers:
         tiers, _ = self._tiers(client)
         assert tiers["vertical_framing"]["active"] == "Available"
         assert tiers["vertical_framing"]["ready"] is True
+
+    # ── packaging-strategy overhaul (Wave 4): the GGUF/Ollama model and the
+    # sub-second BlazeFace asset keep their own download flows — never a
+    # "Download now" button from this generic Tier-B prefetch mechanism.
+    def test_descriptions_and_vertical_framing_never_offer_prefetch(self, client: TestClient):
+        tiers, _ = self._tiers(client)
+        assert tiers["descriptions"]["prefetch_slug"] is None
+        assert tiers["vertical_framing"]["prefetch_slug"] is None

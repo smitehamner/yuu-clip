@@ -210,19 +210,29 @@ async function _renderCapabilityTiers() {
   list.querySelectorAll('[data-section]').forEach(btn => {
     btn.addEventListener('click', () => _scrollToSettingsSection(btn.getAttribute('data-section')));
   });
+  list.querySelectorAll('[data-prefetch]').forEach(btn => {
+    btn.addEventListener('click', () => prefetchModel(btn.getAttribute('data-prefetch'), btn.getAttribute('data-tier-id')));
+  });
 }
 
-// Three visual states, not two: a tier can be fully Ready (green check), waiting
-// on a Tier-B model that downloads automatically (neutral — no action needed, so
-// no CTA), or genuinely need a real setup step (install_slug set — e.g. Pyannote
-// needs a pip install + HuggingFace token). Only the last shows "Set up →": a
-// Tier-B "fetches on first use" state is not something the user needs to click.
+// Four visual states, not two: a tier can be fully Ready (green check), waiting
+// on a Tier-B model it can fetch right now (prefetch_slug set — "Download now"),
+// waiting on a Tier-B model too small to bother with a progress UI (neutral, no
+// CTA), or genuinely need a real setup step (install_slug set — e.g. Pyannote
+// needs a pip install + HuggingFace token, shown as "Set up →").
 function _capabilityTierHtml(tier) {
   const needsSetup = !tier.ready && !!tier.install_slug;
-  const mark = tier.ready ? '✓' : (needsSetup ? '○' : '&#8943;');
+  const needsPrefetch = !tier.ready && !needsSetup && !!tier.prefetch_slug;
+  const mark = tier.ready ? '✓' : (needsSetup || needsPrefetch ? '○' : '&#8943;');
   const markClass = tier.ready ? ' ready' : '';
-  const action = needsSetup ?
-    `<button type="button" class="settings-jump-link" data-section="${escHtml(tier.section)}" style="margin-top:2px">Set up &rarr;</button>` : '';
+  let action = '';
+  if (needsSetup) {
+    action = `<button type="button" class="settings-jump-link" data-section="${escHtml(tier.section)}" style="margin-top:2px">Set up &rarr;</button>`;
+  } else if (needsPrefetch) {
+    action =
+      `<button type="button" class="btn-secondary" data-prefetch="${escHtml(tier.prefetch_slug)}" data-tier-id="${escHtml(tier.id)}" style="margin-top:4px">Download now</button>` +
+      `<div id="cap-prefetch-log-${escHtml(tier.id)}" class="settings-install-log"></div>`;
+  }
   return (
     `<div class="capability-tier">` +
       `<div class="capability-tier-head">` +
@@ -236,6 +246,90 @@ function _capabilityTierHtml(tier) {
       action +
     `</div>`
   );
+}
+
+// ── Tier-B model prefetch ("Download now") ──────────────────────────────────
+// One flow for every non-LLM Tier-B model (speaker/audio-event/embeddings) —
+// mirrors pullOllamaModel's SSE + Cancel + log pattern above. The GGUF/Ollama
+// model keeps its own separate "Pull with Ollama" / download-page flow.
+const _PREFETCH_LABELS = {
+  speaker: 'the speaker model (~80 MB)',
+  audio_event: 'the audio-event model (~350 MB)',
+  embeddings: 'the embeddings model (~130 MB)',
+};
+
+let _prefetchAbort = null;
+
+function _setPrefetchCancel(tierId, show, onCancel) {
+  const log = document.getElementById(`cap-prefetch-log-${tierId}`);
+  if (!log) return;
+  let btn = document.getElementById(`cap-prefetch-cancel-${tierId}`);
+  if (show) {
+    if (!btn) {
+      btn = document.createElement('button');
+      btn.id = `cap-prefetch-cancel-${tierId}`;
+      btn.type = 'button';
+      btn.className = 'btn-secondary';
+      btn.textContent = 'Cancel download';
+      btn.style.marginTop = '4px';
+      log.parentNode.insertBefore(btn, log);
+    }
+    btn.disabled = false;
+    btn.onclick = onCancel;
+    btn.style.display = '';
+  } else if (btn) {
+    btn.style.display = 'none';
+  }
+}
+
+async function prefetchModel(slug, tierId) {
+  const log = document.getElementById(`cap-prefetch-log-${tierId}`);
+  const button = document.querySelector(`[data-prefetch="${CSS.escape(slug)}"]`);
+  if (!log) return;
+  log.style.display = 'block';
+  log.textContent = `Downloading ${_PREFETCH_LABELS[slug] || slug}…\n`;
+  if (button) { button.disabled = true; button.textContent = 'Downloading…'; }
+  const controller = new AbortController();
+  _prefetchAbort = controller;
+  _setPrefetchCancel(tierId, true, () => { controller.abort(); });
+  try {
+    const resp = await fetch(`/api/models/prefetch?slug=${encodeURIComponent(slug)}`,
+                             { method: 'POST', signal: controller.signal });
+    if (!resp.ok) {
+      let detail = '';
+      try { detail = (await resp.json()).detail || ''; } catch { detail = await resp.text(); }
+      log.textContent += `✗ ${detail || 'Download could not start.'}\n`;
+      return;
+    }
+    const reader = resp.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      const lines = buf.split('\n');
+      buf = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const msg = JSON.parse(line.slice(6));
+        if (msg === '__DONE__') {
+          log.textContent += '✓ Ready.\n';
+          _renderCapabilityTiers();
+          return;
+        }
+        log.textContent += msg + '\n';
+        log.scrollTop = log.scrollHeight;
+      }
+    }
+  } catch (err) {
+    if (err && err.name === 'AbortError') log.textContent += '■ Download cancelled.\n';
+    else log.textContent += '✗ Download failed — check your connection and try again.\n';
+  } finally {
+    _prefetchAbort = null;
+    _setPrefetchCancel(tierId, false);
+    if (button) { button.disabled = false; button.textContent = 'Download now'; }
+  }
 }
 
 // Gate a control on a model capability ("text" | "vision") from
@@ -268,6 +362,6 @@ async function gateOnCapability(el, capability, message) {
 Object.assign(window, {
   _ensureModelCatalog, _setClaudeModelValue,
   _updateLlmCapabilities, _renderCapabilityTiers,
-  gateOnCapability, pullOllamaModel,
+  gateOnCapability, pullOllamaModel, prefetchModel,
 });
 })();

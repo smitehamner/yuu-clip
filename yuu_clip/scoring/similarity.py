@@ -25,8 +25,11 @@ from __future__ import annotations
 
 import logging
 import math
+import os
 import re
+import tempfile
 from collections import Counter
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -178,6 +181,13 @@ def _shared_terms_reason(query_vec: dict[str, float], cand_vec: dict[str, float]
 
 _embed_model = None
 
+# fastembed's own registry (pinned fastembed==0.8.0) resolves the friendly name
+# "BAAI/bge-small-en-v1.5" to this pre-quantized ONNX repo -- the actual thing it
+# downloads from HuggingFace Hub, and the id the cache-scan check below must
+# match. Re-verify against fastembed's `onnx_embedding.py` registry if the
+# fastembed pin ever moves.
+_EMBED_HF_SOURCE_REPO = "qdrant/bge-small-en-v1.5-onnx-q"
+
 
 def _get_embed_model():
     global _embed_model
@@ -185,6 +195,31 @@ def _get_embed_model():
         from fastembed import TextEmbedding
         _embed_model = TextEmbedding(model_name=_EMBED_MODEL_ID)
     return _embed_model
+
+
+def _fastembed_cache_dir() -> Path:
+    """Where fastembed downloads its ONNX models by default.
+
+    Mirrors fastembed.common.utils.define_cache_dir(None) without importing
+    fastembed, so the cache check stays side-effect-free (that function also
+    creates the directory as a side effect of merely computing the path).
+    """
+    default = Path(tempfile.gettempdir()) / "fastembed_cache"
+    return Path(os.environ.get("FASTEMBED_CACHE_PATH", str(default)))
+
+
+def embeddings_model_cached() -> bool:
+    """Whether bge-small has already been downloaded (filesystem-only, no
+    network) -- lets the Settings capabilities overview distinguish "ready"
+    from "downloads on first use"."""
+    from yuu_clip.hf_cache import repo_cached
+    return repo_cached(_EMBED_HF_SOURCE_REPO, cache_dir=_fastembed_cache_dir())
+
+
+def prefetch_embeddings_model() -> None:
+    """Download bge-small now, for the Settings "Download now" prefetch flow --
+    the same load EmbeddingsBackend triggers lazily on first use."""
+    _get_embed_model()
 
 
 class EmbeddingsBackend:

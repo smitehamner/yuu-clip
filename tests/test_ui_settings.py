@@ -188,6 +188,14 @@ class TestSettingsPanelChrome:
             "document.getElementById('s-paths-display').textContent.trim().length > 0",
             timeout=3000,
         )
+        # The Capabilities tiers render from a *separate* async fetch
+        # (/api/capabilities/tiers) into a section above Paths. If that lands
+        # after we've asserted scrollTop, its reflow trips Chrome scroll
+        # anchoring and shifts the panel — wait for it to settle too.
+        page.wait_for_function(
+            "document.getElementById('s-capabilities-list').children.length > 0",
+            timeout=3000,
+        )
 
     def test_header_is_sticky_and_holds_save(self, page: Page):
         self._open_settings(page)

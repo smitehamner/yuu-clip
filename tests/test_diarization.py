@@ -500,6 +500,52 @@ class TestDiarizeTrack:
         assert "assign" not in captured
         assert "attach" not in captured
 
+    def test_downloading_notice_shown_when_model_not_cached(self, monkeypatch, capsys):
+        """A first-time speechbrain run must say *why* it's slow instead of
+        looking hung (packaging-strategy Wave 4's analyze-log surfacing)."""
+        from pathlib import Path
+
+        from yuu_clip.transcribe import whisper_runner
+        from yuu_clip.transcribe.whisper_runner import diarize_track
+
+        monkeypatch.setattr(whisper_runner, "speechbrain_model_cached", lambda: False)
+        self._wire(monkeypatch, None, embeddings_result=([], {}))
+        cfg = Config(diarization_backend="speechbrain")
+        diarize_track(cfg, None, self._fake_transcript(), Path("a.wav"), self._fake_track())
+
+        out = capsys.readouterr().out
+        assert "Downloading the speaker model" in out
+
+    def test_downloading_notice_omitted_when_model_cached(self, monkeypatch, capsys):
+        from pathlib import Path
+
+        from yuu_clip.transcribe import whisper_runner
+        from yuu_clip.transcribe.whisper_runner import diarize_track
+
+        monkeypatch.setattr(whisper_runner, "speechbrain_model_cached", lambda: True)
+        self._wire(monkeypatch, None, embeddings_result=([], {}))
+        cfg = Config(diarization_backend="speechbrain")
+        diarize_track(cfg, None, self._fake_transcript(), Path("a.wav"), self._fake_track())
+
+        out = capsys.readouterr().out
+        assert "Downloading the speaker model" not in out
+
+    def test_downloading_notice_omitted_for_pyannote(self, monkeypatch, capsys):
+        """Pyannote has its own gated-model access-error messaging — the
+        speechbrain-specific download notice must not leak onto it."""
+        from pathlib import Path
+
+        from yuu_clip.transcribe import whisper_runner
+        from yuu_clip.transcribe.whisper_runner import diarize_track
+
+        monkeypatch.setattr(whisper_runner, "speechbrain_model_cached", lambda: False)
+        self._wire(monkeypatch, None, embeddings_result=([], {}))
+        cfg = Config(diarization_backend="pyannote", huggingface_token="hf_abc")
+        diarize_track(cfg, None, self._fake_transcript(), Path("a.wav"), self._fake_track())
+
+        out = capsys.readouterr().out
+        assert "Downloading the speaker model" not in out
+
 
 # ---------------------------------------------------------------------------
 # _rediarize_video — non-destructive re-run of the diarization stage
@@ -693,6 +739,19 @@ class TestSpeechBrainModelLoadFailure:
 
         with pytest.raises(OSError):
             client.diarize_with_embeddings("a.wav")
+
+
+class TestPrefetchSpeechbrainModel:
+    """The Settings "Download now" prefetch flow (packaging-strategy Wave 4)
+    triggers the same encoder load diarization would on first use."""
+
+    def test_prefetch_loads_the_encoder(self, monkeypatch):
+        from yuu_clip.transcribe.diarization_client import prefetch_speechbrain_model
+
+        calls = []
+        monkeypatch.setattr(SpeechBrainDiarizationClient, "_load_encoder", lambda self: calls.append(1))
+        prefetch_speechbrain_model(Config(diarization_backend="speechbrain"))
+        assert calls == [1]
 
 
 class TestSpeechBrainPipeline:

@@ -215,6 +215,21 @@ class TestLaughScorerModel:
         with mock.patch.dict(sys.modules, {"transformers": fake_tr, "torch": fake_th}):
             assert scorer.is_available() is True
 
+    def test_load_failed_property_reflects_state(self):
+        import unittest.mock as mock
+
+        import numpy as np
+
+        scorer = self._make_scorer()
+        assert scorer.load_failed is False
+        scorer._wav_cache = mock.MagicMock()
+        scorer._wav_cache.load.return_value = (np.ones(16000 * 3, dtype=np.float32), 16000)
+        scorer._get_classifier = mock.MagicMock(side_effect=OSError("offline"))
+        clip = mock.MagicMock(id=1, start_ms=0, end_ms=3000)
+        with mock.patch("yuu_clip.scoring.laugh.best_wav_track", return_value=mock.MagicMock()):
+            scorer.score(clip, None)
+        assert scorer.load_failed is True
+
 class TestDetectLaughRhythm:
     """_detect_laugh_rhythm pure function unit tests."""
 

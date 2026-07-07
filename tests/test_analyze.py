@@ -585,6 +585,93 @@ class TestScoringIsolation:
 
 
 # ---------------------------------------------------------------------------
+# _run_scoring — visible "downloading the model" notice (packaging-strategy
+# Wave 4). The AST checkpoint is a Tier-B download; a first-time analyze must
+# say why scoring pauses instead of looking hung.
+# ---------------------------------------------------------------------------
+
+class TestRunScoringModelDownloadNotice:
+    def _video(self, tmp_path):
+        from yuu_clip.db.models import Video, make_session
+        session = make_session(tmp_path / "project.db")
+        video = Video(path=str(tmp_path / "s.mkv"), filename="s.mkv", status="probed", duration_ms=60_000)
+        session.add(video)
+        session.commit()
+        return session, video
+
+    def _cfg(self):
+        from yuu_clip.config import Config
+        return Config(
+            scorer_audio_event_enabled=True, scorer_energy_enabled=False,
+            scorer_scenes_enabled=False, ollama_enabled=False,
+        )
+
+    def test_notice_shown_when_model_not_cached(self, tmp_path, monkeypatch, capsys):
+        from yuu_clip.pipeline.ingest import _run_scoring
+        from yuu_clip.scoring.audio_event import AudioEventScorer
+
+        monkeypatch.setattr(AudioEventScorer, "availability", lambda self: (True, ""))
+        monkeypatch.setattr("yuu_clip.scoring.audio_event.audio_event_model_cached", lambda model_id: False)
+
+        session, video = self._video(tmp_path)
+        _run_scoring(video, [], self._cfg(), session)
+        session.close()
+
+        out = capsys.readouterr().out
+        assert "Downloading the audio-event model" in out
+
+    def test_notice_omitted_when_model_already_cached(self, tmp_path, monkeypatch, capsys):
+        from yuu_clip.pipeline.ingest import _run_scoring
+        from yuu_clip.scoring.audio_event import AudioEventScorer
+
+        monkeypatch.setattr(AudioEventScorer, "availability", lambda self: (True, ""))
+        monkeypatch.setattr("yuu_clip.scoring.audio_event.audio_event_model_cached", lambda model_id: True)
+
+        session, video = self._video(tmp_path)
+        _run_scoring(video, [], self._cfg(), session)
+        session.close()
+
+        out = capsys.readouterr().out
+        assert "Downloading the audio-event model" not in out
+
+    def test_notice_omitted_when_audio_event_disabled(self, tmp_path, monkeypatch, capsys):
+        from yuu_clip.config import Config
+        from yuu_clip.pipeline.ingest import _run_scoring
+        from yuu_clip.scoring.audio_event import AudioEventScorer
+
+        monkeypatch.setattr(AudioEventScorer, "availability", lambda self: (True, ""))
+        monkeypatch.setattr("yuu_clip.scoring.audio_event.audio_event_model_cached", lambda model_id: False)
+
+        session, video = self._video(tmp_path)
+        cfg = Config(
+            scorer_audio_event_enabled=False, scorer_energy_enabled=False,
+            scorer_scenes_enabled=False, ollama_enabled=False,
+        )
+        _run_scoring(video, [], cfg, session)
+        session.close()
+
+        out = capsys.readouterr().out
+        assert "Downloading the audio-event model" not in out
+
+    def test_load_failed_notice_shown_after_scoring(self, tmp_path, monkeypatch, capsys):
+        """An offline first run whose model fetch actually fails must say so
+        after scoring, not just silently score every clip zero."""
+        from yuu_clip.pipeline.ingest import _run_scoring
+        from yuu_clip.scoring.audio_event import AudioEventScorer
+
+        monkeypatch.setattr(AudioEventScorer, "availability", lambda self: (True, ""))
+        monkeypatch.setattr("yuu_clip.scoring.audio_event.audio_event_model_cached", lambda model_id: True)
+        monkeypatch.setattr(AudioEventScorer, "load_failed", property(lambda self: True))
+
+        session, video = self._video(tmp_path)
+        _run_scoring(video, [], self._cfg(), session)
+        session.close()
+
+        out = capsys.readouterr().out
+        assert "couldn't be downloaded" in out
+
+
+# ---------------------------------------------------------------------------
 # Extract/Transcribe stage progress logging — "Track i/N" lines drive the
 # web UI's live progress pill (yuu_clip/web/static/utils.js progressPattern).
 # ---------------------------------------------------------------------------

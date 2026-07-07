@@ -169,9 +169,10 @@ def _sentence(reason: str) -> str:
 
 
 def _similarity_tier(cfg, text_ok: bool) -> dict:
-    from yuu_clip.scoring.similarity import EmbeddingsBackend
+    from yuu_clip.scoring.similarity import EmbeddingsBackend, embeddings_model_cached
 
     embed_ok, embed_reason = EmbeddingsBackend(cfg).availability()
+    model_ready = embed_ok and embeddings_model_cached()
     configured = (getattr(cfg, "similarity_backend", "tfidf") or "tfidf").strip()
     if configured == "embeddings" and embed_ok:
         active = "embeddings"
@@ -179,16 +180,26 @@ def _similarity_tier(cfg, text_ok: bool) -> dict:
         active = "llm"
     else:
         active = "tfidf"
+    if not embed_ok:
+        detail = _sentence(embed_reason)
+    elif model_ready:
+        detail = "The Smart (embeddings) engine is ready."
+    else:
+        detail = (
+            "The embeddings model (~130 MB) downloads automatically the first "
+            "time you use Find related clips or a Meaning hot-word."
+        )
     return {
         "id": "similarity",
         "name": "Similarity engine",
         "purpose": 'Powers Find related clips and "Meaning" hot-words.',
         "active": _SIMILARITY_LABELS.get(active, active),
         "upgrade": "Smart (embeddings) adds paraphrase-aware matching with a small on-device model, bundled by default.",
-        "ready": embed_ok,
-        "detail": "The Smart (embeddings) engine is ready." if embed_ok else _sentence(embed_reason),
+        "ready": model_ready,
+        "detail": detail,
         # fastembed is bundled (Tier A) — nothing to install from here anymore.
         "install_slug": None,
+        "prefetch_slug": "embeddings" if embed_ok and not model_ready else None,
         "section": "settings-sec-llm",
     }
 
@@ -203,6 +214,9 @@ def _descriptions_tier(text_ok: bool, detail: str) -> dict:
         "ready": text_ok,
         "detail": detail,
         "install_slug": None,
+        # The GGUF/Ollama model has its own download flow (the recommended-models
+        # catalog's "Pull with Ollama" / download-page link) — not this button.
+        "prefetch_slug": None,
         "section": "settings-sec-llm",
     }
 
@@ -218,7 +232,7 @@ def _speaker_labels_tier(cfg) -> dict:
             "active": "Off",
             "upgrade": "Turn on Speaker labels below to identify who is speaking in transcripts.",
             "ready": True, "detail": "Speaker labels are turned off.",
-            "install_slug": None, "section": "settings-sec-speakers",
+            "install_slug": None, "prefetch_slug": None, "section": "settings-sec-speakers",
         }
     if backend == "pyannote":
         installed = module_findable("pyannote.audio")
@@ -236,6 +250,7 @@ def _speaker_labels_tier(cfg) -> dict:
             "upgrade": "SpeechBrain is the default, token-free backend — Pyannote is an advanced, optional alternative.",
             "ready": ready, "detail": detail,
             "install_slug": None if installed else "pyannote",
+            "prefetch_slug": None,
             "section": "settings-sec-speakers",
         }
     # speechbrain (default) — bundled package; the ECAPA model is Tier B.
@@ -251,24 +266,36 @@ def _speaker_labels_tier(cfg) -> dict:
             "time you run Detect Speakers."
         ),
         "install_slug": None,
+        "prefetch_slug": None if model_ready else "speaker",
         "section": "settings-sec-speakers",
     }
 
 
 def _audio_events_tier(cfg) -> dict:
-    from yuu_clip.scoring.audio_event import AudioEventScorer
+    from yuu_clip.scoring.audio_event import AudioEventScorer, audio_event_model_cached
 
     available, reason = AudioEventScorer(cfg).availability()
+    model_ready = available and audio_event_model_cached(cfg.scorer_laugh_model_id)
+    if not available:
+        detail = _sentence(reason)
+    elif model_ready:
+        detail = "Audio-event detection is on and ready."
+    else:
+        detail = (
+            "The audio-event model (~350 MB) downloads automatically the first "
+            "time you analyze."
+        )
     return {
         "id": "audio_events",
         "name": "Audio-event detection",
         "purpose": "Boosts Action on gunshots and explosions, Funny on crowd cheers.",
         "active": "On" if available else "Off",
         "upgrade": "Bundled and on by default — the audio model downloads automatically the first time you analyze.",
-        "ready": available,
-        "detail": "Audio-event detection is on and ready." if available else _sentence(reason),
+        "ready": model_ready,
+        "detail": detail,
         # transformers/torch are bundled (Tier A) — nothing to install from here.
         "install_slug": None,
+        "prefetch_slug": "audio_event" if available and not model_ready else None,
         "section": "settings-sec-weights",
     }
 
@@ -296,6 +323,8 @@ def _vertical_framing_tier() -> dict:
         "ready": model_ready,
         "detail": detail,
         "install_slug": None,
+        # The BlazeFace asset is ~230 KB — effectively instant, no progress UI needed.
+        "prefetch_slug": None,
         "section": "settings-sec-export",
     }
 

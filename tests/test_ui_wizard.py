@@ -47,12 +47,12 @@ window.__mockStatus = {
   gpu: { name: 'NVIDIA GeForce RTX 3080', vramMB: 10240, vendor: 'nvidia' },
   cuda: { available: true, version: '12.4' },
   ollamaRunning: false, ollamaModel: 'qwen2.5:7b', ollamaModelPulled: false,
-  llamacppInstalled: false, pyannoteInstalled: false,
+  llamacppInstalled: false,
   recommendedWhisper: { model: 'large-v3', reason: '10 GB+ VRAM' },
   projectDir: 'C:/Users/test/Videos/yuu-clip',
   llmBackend: 'ollama', llmModelPath: '',
   claudeApiKey: '', claudeModel: 'claude-haiku-4-5-20251001',
-  whisperLanguage: '', diarizationEnabled: false, hfToken: '',
+  whisperLanguage: '',
   contentPreset: 'generic',
 };
 """
@@ -153,40 +153,16 @@ class TestWizardLlmBackends:
 
 
 @skip_no_server
-class TestWizardSpeakerLabels:
-    def test_checkbox_reveals_setup_fields(self, page: Page):
-        _open_wizard(page)
-        expect(page.locator("#diar-fields")).to_be_hidden()
-        page.check("#diar-enabled")
-        expect(page.locator("#diar-fields")).to_be_visible()
-        expect(page.locator("#pyannote-slot")).to_contain_text("Speaker detection not installed")
-        expect(page.locator("#diar-status")).to_contain_text("○ speaker detection installed")
-
-    def test_token_format_feedback(self, page: Page):
-        _open_wizard(page)
-        page.check("#diar-enabled")
-        page.fill("#hf-token", "not-a-token")
-        expect(page.locator("#hf-token-feedback")).to_contain_text("normally start")
-        page.fill("#hf-token", "hf_abc123")
-        expect(page.locator("#hf-token-feedback")).to_contain_text("valid token format")
-        expect(page.locator("#diar-status")).to_contain_text("✓ token set")
-
-
-@skip_no_server
 class TestWizardModes:
     def test_launch_collects_full_config(self, page: Page):
         _open_wizard(page)
         page.select_option("#whisper-lang-sel", "de")
-        page.check("#diar-enabled")
-        page.fill("#hf-token", "hf_abc123")
         page.select_option("#content-preset-sel", "podcast")
         page.click("#launch-btn")
         completed = page.evaluate("window.__events.completed")
         assert completed["whisperModel"] == "large-v3"
         assert completed["whisperLanguage"] == "de"
         assert completed["llmBackend"] == "ollama"
-        assert completed["diarizationEnabled"] is True
-        assert completed["hfToken"] == "hf_abc123"
         assert completed["contentPreset"] == "podcast"
         assert completed["projectDir"] == "C:/Users/test/Videos/yuu-clip"
 

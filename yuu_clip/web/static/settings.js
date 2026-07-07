@@ -97,7 +97,10 @@ async function openSettings() {
     await initExportPresetSettings();
     await initContentPresetSettings();
     _applySettingsToUI(cfg);
-    setTimeout(() => document.getElementById('s-whisper-model')?.focus(), 50);
+    // preventScroll: the panel should open at the top (showing the Capabilities
+    // overview); a plain focus() scrolls this mid-panel control into view, yanking
+    // the panel down — visibly so since Wave 4's taller Capabilities section.
+    setTimeout(() => document.getElementById('s-whisper-model')?.focus({ preventScroll: true }), 50);
   } catch (e) {
     showToast('Failed to load settings', 'error');
   }

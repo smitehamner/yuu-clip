@@ -370,6 +370,13 @@ def speechbrain_model_cached() -> bool:
     return model_dir.exists() and any(model_dir.iterdir())
 
 
+def prefetch_speechbrain_model(config: Config) -> None:
+    """Download the ECAPA encoder now, for the Settings "Download now" prefetch
+    flow — the same load SpeechBrainDiarizationClient triggers lazily on first
+    use."""
+    SpeechBrainDiarizationClient(config)._load_encoder()
+
+
 class SpeechBrainDiarizationClient(DiarizationClient):
     """Token-free diarization via SpeechBrain ECAPA embeddings + clustering."""
 

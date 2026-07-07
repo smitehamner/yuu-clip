@@ -173,3 +173,49 @@ class TestMakeBackend:
     def test_unknown_backend_falls_back_to_tfidf(self):
         from yuu_clip.scoring.similarity import TfidfBackend, make_backend
         assert isinstance(make_backend(_cfg(similarity_backend="nonsense")), TfidfBackend)
+
+
+# ── embeddings model cache detection + prefetch (packaging-strategy Wave 4) ──
+
+
+class TestFastembedCacheDir:
+    def test_defaults_to_tempdir_fastembed_cache(self, monkeypatch):
+        import tempfile
+        from pathlib import Path
+
+        from yuu_clip.scoring.similarity import _fastembed_cache_dir
+        monkeypatch.delenv("FASTEMBED_CACHE_PATH", raising=False)
+        assert _fastembed_cache_dir() == Path(tempfile.gettempdir()) / "fastembed_cache"
+
+    def test_honours_fastembed_cache_path_override(self, monkeypatch):
+        from pathlib import Path
+
+        from yuu_clip.scoring.similarity import _fastembed_cache_dir
+        monkeypatch.setenv("FASTEMBED_CACHE_PATH", "/custom/cache")
+        assert _fastembed_cache_dir() == Path("/custom/cache")
+
+
+class TestEmbeddingsModelCached:
+    def test_delegates_to_repo_cached_with_the_qdrant_onnx_repo(self, monkeypatch):
+        from yuu_clip.scoring import similarity
+
+        seen = {}
+
+        def _fake_repo_cached(repo_id, cache_dir=None):
+            seen["repo_id"] = repo_id
+            seen["cache_dir"] = cache_dir
+            return True
+
+        with mock.patch.dict(sys.modules, {"yuu_clip.hf_cache": mock.MagicMock(repo_cached=_fake_repo_cached)}):
+            assert similarity.embeddings_model_cached() is True
+        assert seen["repo_id"] == "qdrant/bge-small-en-v1.5-onnx-q"
+        assert seen["cache_dir"] == similarity._fastembed_cache_dir()
+
+
+class TestPrefetchEmbeddingsModel:
+    def test_prefetch_loads_the_model(self):
+        from yuu_clip.scoring import similarity
+
+        with mock.patch.object(similarity, "_get_embed_model") as m:
+            similarity.prefetch_embeddings_model()
+        m.assert_called_once()

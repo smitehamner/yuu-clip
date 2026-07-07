@@ -121,6 +121,13 @@ class LaughScorer:
             return False
         return self.availability()[0]
 
+    @property
+    def load_failed(self) -> bool:
+        """Whether the "model" mode classifier failed to load during this run
+        (e.g. offline with the model not yet cached) -- lets the caller surface
+        a visible one-time notice instead of a silent "always scores zero" run."""
+        return self._load_failed
+
     def availability(self) -> tuple[bool, str]:
         """(available, reason) — reason is a user-facing explanation when unavailable."""
         mode = self._config.scorer_laugh_mode

@@ -42,6 +42,23 @@ _CROWD_LABELS = ("cheering", "applause", "crowd", "clapping")
 _TOP_K = 20   # how many of the 527 classes to inspect per clip (matches laugh model mode)
 
 
+def audio_event_model_cached(model_id: str) -> bool:
+    """Whether the AST checkpoint has already been downloaded (filesystem-only,
+    no network) -- lets the Settings capabilities overview and the analyze
+    pipeline distinguish "ready" from "downloads on first use". Shared by
+    LaughScorer's "model" mode, which uses the same checkpoint."""
+    from yuu_clip.hf_cache import repo_cached
+    return repo_cached(model_id)
+
+
+def prefetch_audio_event_model(config: "Config") -> None:
+    """Download the AST checkpoint now, for the Settings "Download now" prefetch
+    flow -- the same transformers pipeline load AudioEventScorer/LaughScorer
+    trigger lazily on first use."""
+    from transformers import pipeline
+    pipeline("audio-classification", model=config.scorer_laugh_model_id)
+
+
 def _group_score(results: list[dict], substrings: tuple[str, ...]) -> float:
     """Highest classifier probability among results whose label matches *substrings*.
 
@@ -73,6 +90,13 @@ class AudioEventScorer:
 
     def is_available(self) -> bool:
         return self.availability()[0]
+
+    @property
+    def load_failed(self) -> bool:
+        """Whether the classifier failed to load during this run (e.g. offline
+        with the model not yet cached) -- lets the caller surface a visible
+        one-time notice instead of a silent "always scores zero" run."""
+        return self._load_failed
 
     def availability(self) -> tuple[bool, str]:
         """(available, reason) — reason is a user-facing explanation when unavailable."""

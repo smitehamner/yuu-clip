@@ -643,7 +643,7 @@ def _summarize_video(video, transcripts, config, session, context_text: str = ""
 
 def _run_scoring(video, track_objs, config, session, energy_mode: str = "fast", context_text: str = "") -> None:
     """Run Phase 2 scoring (energy, scenes, LLM) for all candidates belonging to *video*."""
-    from yuu_clip.scoring.audio_event import AudioEventScorer
+    from yuu_clip.scoring.audio_event import AudioEventScorer, audio_event_model_cached
     from yuu_clip.scoring.churn import SpeakerChurnScorer
     from yuu_clip.scoring.energy import AudioEnergyScorer, compute_energy
     from yuu_clip.scoring.engine import ScoringEngine
@@ -690,6 +690,7 @@ def _run_scoring(video, track_objs, config, session, energy_mode: str = "fast", 
             _llm_unavailable_notice(llm_reason)
 
     laugh_scorer = LaughScorer(config)
+    laugh_ok = True
     if config.scorer_laugh_mode in ("audio", "model"):
         laugh_ok, laugh_reason = laugh_scorer.availability()
         if not laugh_ok:
@@ -699,6 +700,7 @@ def _run_scoring(video, track_objs, config, session, energy_mode: str = "fast", 
             )
 
     audio_event_scorer = AudioEventScorer(config)
+    audio_ok = True
     if config.scorer_audio_event_enabled:
         audio_ok, audio_reason = audio_event_scorer.availability()
         if not audio_ok:
@@ -706,6 +708,21 @@ def _run_scoring(video, track_objs, config, session, energy_mode: str = "fast", 
                 f"  [yellow]Audio-event detection unavailable — {audio_reason}. "
                 f"Clips are still scored using the other signals.[/yellow]"
             )
+
+    # The audio-event scorer and LaughScorer's "model" mode share the same AST
+    # checkpoint — one visible notice covers both instead of printing it twice.
+    uses_ast_model = (
+        (config.scorer_audio_event_enabled and audio_ok) or
+        (config.scorer_laugh_mode == "model" and laugh_ok)
+    )
+    if (
+        uses_ast_model and config.scorer_laugh_model_id
+        and not audio_event_model_cached(config.scorer_laugh_model_id)
+    ):
+        console.print(
+            "  [dim]Downloading the audio-event model (~350 MB) so laughter/action-sound "
+            "detection can run — this happens once...[/dim]"
+        )
 
     from yuu_clip.db.models import HotWord, SensitiveTerm
     hot_words = session.query(HotWord).all()
@@ -730,6 +747,12 @@ def _run_scoring(video, track_objs, config, session, energy_mode: str = "fast", 
         video, session,
         progress_cb=lambda i, total: console.print(f"  Scoring {i}/{total}..."),
     )
+    if audio_event_scorer.load_failed or laugh_scorer.load_failed:
+        console.print(
+            "  [yellow]The audio-event model couldn't be downloaded — clips were scored "
+            "without it. Check your connection, then use Rescore once you're back "
+            "online.[/yellow]"
+        )
     console.print(f"  [green]  OK[/green] {n} clips scored")
     video.clips_scored_at = datetime.now(timezone.utc)
     video.clips_scored_context_json = video.context_names_json or "[]"
