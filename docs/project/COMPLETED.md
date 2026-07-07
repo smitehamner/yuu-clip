@@ -6,6 +6,60 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) — see the
 
 ---
 
+## Packaging-strategy overhaul - batteries-included install (done 2026-07-06/07)
+
+Killed the "installed program that keeps asking to install more things" UX. Every
+optional feature that used to be a pip-install-and-a-button is now bundled and on
+by default; only genuine hardware/privacy choices (GPU acceleration, remote AI)
+still ask. Six waves, each committed separately:
+
+- **Speaker labels** - SpeechBrain (ECAPA-TDNN) moved from an opt-in package into
+  the base install and is now the **default diarization backend** (`diarization_backend:
+  "speechbrain"`), replacing the old off-by-default/pyannote setup. Pyannote remains
+  available as a demoted, collapsed alternative for users who specifically want it.
+- **Laugh / audio-event scoring** - the AST (AudioSet) gunshot/explosion/cheer
+  detector is bundled and **on by default** (`scorer_audio_event_enabled: true`).
+- **Similarity** - local embeddings (fastembed + bge-small-en-v1.5) replaced
+  keyword/TF-IDF as the **default similarity backend**.
+- **Vertical auto-framing** - MediaPipe face detection is bundled; the "Auto-frame
+  on faces" button in vertical export no longer needs a separate install.
+- **Vision / image analysis** - bundled and **on by default** (`vision_enabled: true`),
+  but stays conservatively inactive until a vision model (moondream2 recommended,
+  1.8 GB) is downloaded, so a fresh install never gets a surprise-slow first analyze.
+  Never runs automatically during analysis - only the explicit "Analyze frames"
+  button or an opt-in re-score checkbox.
+- **Unified Settings -> Capabilities view** - replaces the old piecemeal
+  install-button sprawl with one place that shows every optional dependency's
+  installed/missing state, grouped by the capability it unlocks
+  (`/api/capabilities/tiers`). Closes the former ROADMAP "Collected setup /
+  dependencies page" item. The setup wizard was simplified to match - the
+  speaker-detection step (HuggingFace account/token flow) was dropped entirely
+  since SpeechBrain needs neither.
+- **Offline-first-run hardening** - a fresh install now pulls the entire default
+  feature set from the bundled wheelhouse with `--no-index`; verified in a
+  throwaway venv with the network off.
+
+Every model promoted to a default carries a licence that permits monetizing the
+output (Apache-2.0, MIT, or BSD-3-Clause - see `docs/dev/PACKAGING-TIERS.md` and
+`yuu_clip/model_catalog.py`); Llama- and Gemma-licensed models stay out of
+recommendations. Two real bugs were caught and fixed along the way: SpeechBrain
+1.x poisons `transformers.pipeline` if imported first (order-of-imports fix in
+`_analyze_one`, documented in `CLAUDE.md`), and `opencv-python` /
+`opencv-contrib-python` (pulled in by two different bundled packages) could
+install in either order - the installer now forces `opencv-contrib-python` last
+so its superset build always wins.
+
+Commits: Wave 0 (licensing) `bdd93d1`, Wave 1 (bundle deps) `68dbf7e` +
+OpenCV dedupe `c6f42e4`, Wave 2 (flip defaults) `c6519fc`, Wave 3a (Settings
+Capabilities view) `be3ee23`, Wave 3b (wizard simplification) `aa42022`, Wave 4
+(model-fetch UX) `f8ce2b7`, Wave 5 (offline hardening) `498d3cc`, stale-wheel
+guard `65f0b75`, Wave 6 (vision default) `b6868c7`. A follow-up code-quality
+review (`0fbbd7b`, `e4fb73b`) fixed a wheelhouse cache-key gap, added tests, and
+a test-ui.ps1 preflight guard against contending dev servers. Decisions kept
+as-is during the review are recorded in `docs/dev/REVIEW_DECISIONS.md`.
+
+---
+
 ## `--on-warning` theme token (done 2026-07-06)
 
 Closed the last grandfathered color literal: the "Remote LLM" billing badge hardcoded

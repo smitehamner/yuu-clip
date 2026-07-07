@@ -45,7 +45,7 @@ Each clip detail view shows:
 
 - **Score bars** (0–1 scale): Overall, Funny, Dramatic, Action, and Laughs — shown once the clip has been scored; a clip that hasn't been scored yet (e.g. a failed analysis run) shows "Not yet scored" instead of a misleading 0%. The Laughs bar only appears when laughter was actually measured for the clip (see the Laughs score section)
 - **One-liner description** and **long description** (paragraph)
-- **What's on screen** (image analysis) — optional and off by default. Enable it under Settings → LLM scoring (needs a vision-capable model), then each clip gets an **Analyze frames** button that samples a few frames from the clip and asks the vision model to describe what's on screen (the game/scene, on-screen events, HUD or text). The summary shows in a "What's on screen" card and is added to the scorer's prompt as visual context — it never sets the score by itself. You choose how many frames to sample (1–10). You can also tick **Include frame analysis** when re-scoring a whole recording. It's never run automatically during analysis, since it adds time per clip
+- **What's on screen** (image analysis) — on by default (Settings → LLM scoring → Image analysis), but stays inactive until you download a vision-capable model (moondream2 is the recommended default). Once ready, each clip gets an **Analyze frames** button that samples a few frames from the clip and asks the vision model to describe what's on screen (the game/scene, on-screen events, HUD or text). The summary shows in a "What's on screen" card and is added to the scorer's prompt as visual context — it never sets the score by itself. You choose how many frames to sample (1–10). You can also tick **Include frame analysis** when re-scoring a whole recording. It's never run automatically during analysis, since it adds time per clip
 - **Tags**: auto-generated labels such as `llm_scored`, `energy_scored`, `long_silence_after`
 - **Transcript excerpt** in a monospace box
 - **Timed transcript** — a per-line view (grouped by speaker when diarized) where each line has a ▶ to jump the player to that moment. Click any line to **edit its caption text** in place — fix a mis-heard character name or piece of jargon, press Save (Enter), and the change is written back to the caption segment. Editing a caption rebuilds the excerpt of every clip that overlaps it; clips that were already scored show a **"Captions edited since last scoring"** notice with a Re-score shortcut so their scores and descriptions can be refreshed against the corrected text. The same editable view appears under **Full transcript** on the recording detail.
@@ -316,7 +316,7 @@ These run with zero extra downloads and are what makes clip scoring work in ligh
 - **Speech-rate** — words-per-second bursts; nudges funny / action.
 - **Prosody** — loudness and pitch delivery dynamics; nudges dramatic / action.
 - **Speaker-overlap** — rapid speaker turn-taking and cross-talk; nudges funny / action. Requires speaker detection.
-- **Audio-event** *(heavy, opt-in, off by default)* — gunshot / explosion / cheer detection via an AudioSet model; nudges action / funny.
+- **Audio-event** *(heavy, on by default)* — gunshot / explosion / cheer detection via an AudioSet model; nudges action / funny.
 
 Without a language model installed, these signals plus audio energy and scene cuts still rank clips; the LLM scorer below only adds written descriptions and a semantic score on top.
 
@@ -510,15 +510,11 @@ When enabled, yuu-clip runs speaker diarization after transcription and labels e
 
 | Backend | Default | Requirement |
 |---------|---------|-------------|
-| Off | ✓ | No extra setup |
-| SpeechBrain | — | `pip install speechbrain scikit-learn` (one-click install button in Settings) — **no account or token** |
+| SpeechBrain | ✓ | Bundled - no install step, no account or token |
 | Pyannote | — | HuggingFace account + `pip install pyannote.audio` (one-click install button in Settings) |
+| Off | — | Disable diarization entirely |
 
-**SpeechBrain** is the easiest to set up — it needs no account and no token. To enable it:
-1. Open Settings → Speaker labels and click **Install SpeechBrain**
-2. Change the backend to **SpeechBrain** and save
-
-The speaker model (~80 MB) downloads automatically the first time you analyze a recording.
+**SpeechBrain** is on by default and needs no setup - it ships with yuu-clip. The speaker model (~80 MB) downloads automatically the first time you analyze a recording.
 
 To enable **Pyannote** instead (slightly higher accuracy, but requires an account):
 1. Create a free account at [HuggingFace](https://huggingface.co) and, while signed in, accept the gated model terms for [speaker-diarization-community-1](https://huggingface.co/pyannote/speaker-diarization-community-1)
@@ -567,11 +563,11 @@ This controls what Whisper *hears* — the app interface itself stays in English
 
 ### Setup wizard
 
-The first-run setup wizard groups everything by how necessary it is: **Required** (FFmpeg — bundled with yuu-clip and shown as "Included", so there's nothing to install), **LLM scoring — choose one** (a local `.gguf` model file with a one-click guided download — the default — or Ollama, or the Claude API), **Optional** (speaker labels, GPU acceleration), and **Basics** (project folder, speech-to-text model, transcription language). After installing something outside the app, click **Check again** to re-detect it without closing the wizard — or **Restart app** for driver-level installs like CUDA. The wizard re-appears once after an update only when it gained new options; you can always reopen it from the hamburger menu (**Re-run Setup Wizard**).
+The first-run setup wizard groups everything by how necessary it is: **Required** (FFmpeg — bundled with yuu-clip and shown as "Included", so there's nothing to install), **LLM scoring — choose one** (a local `.gguf` model file with a one-click guided download — the default — or Ollama, or the Claude API), **Content type**, **Optional** (GPU acceleration), and **Basics** (project folder, speech-to-text model, transcription language). Speaker labels, laugh/audio-event scoring, similarity embeddings, and vision are bundled and need no wizard step. After installing something outside the app, click **Check again** to re-detect it without closing the wizard — or **Restart app** for driver-level installs like CUDA. The wizard re-appears once after an update only when it gained new options; you can always reopen it from the hamburger menu (**Re-run Setup Wizard**).
 
 ### Optional dependency install
 
-Settings sections for llamacpp, Claude API, and speaker labels each include an **Install** button that runs `pip install <package>` in a subprocess and streams the pip output live. If an install fails, the full log is shown inline.
+Bundled features (speaker labels' SpeechBrain backend, laugh/audio-event scoring, similarity embeddings, vertical auto-framing, vision) ship in the box and need no install step. Settings still has **Install** buttons for the handful of things that are a genuine choice: Pyannote (an alternative speaker-labels backend), Claude API, and GPU acceleration (`cuda-libs`). Each runs `pip install <package>` (or the CUDA library fetch) in a subprocess and streams progress live; if an install fails, the full log is shown inline.
 
 ### Notification sounds
 

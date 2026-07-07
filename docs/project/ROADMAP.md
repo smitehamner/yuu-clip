@@ -23,23 +23,9 @@ remaining open work below is what did **not** have a plan in that set.
 
 ---
 
-## 0 — Install friction (friends round) — DO NOW
+## 0 — Positioning note
 
-Reduce first-run install friction before sending the installer to more non-developer
-friends. The first tester hit **untranslated GPU-library errors**, and a grounding pass
-found a bigger latent problem: **first launch still pip-installs the whole base
-pipeline from PyPI** (`electron/main.js` upgrades pip and resolves faster-whisper /
-CTranslate2 / av / scipy from PyPI at runtime), so the app's first launch can fail on a
-slow/firewalled/proxied network with cryptic pip output.
-
-- [ ] **Plan of record**
-  — 5 stages: (1) offline deterministic first-run install via a bundled wheelhouse
-  (`--no-index`) + stop the PyPI pip-upgrade; (2) plain-English error translation for
-  all install failures; (3) GPU auto-detect + never-block-Launch + CPU fallback;
-  (4) keep Speaker-ID/HuggingFace-token out of the required path; (5) SmartScreen
-  friend-facing note (code signing itself deferred — §2).
-
-**Positioning note (context for §0 and §3):** yuu-clip today is a **talk-heavy
+Context for §3: yuu-clip today is a **talk-heavy
 analyzer** (transcript-driven candidate generation + scoring). That is its real sweet
 spot — RP/VC/podcast/narrative content — and it is a weakness for silent, visual
 gaming highlights. Marketing and onboarding copy should lean into the talk-heavy
@@ -98,18 +84,6 @@ Wanted before distributing beyond friends/trusted users.
   builds reputation over time). electron-builder supports both via `CSC_LINK` /
   `CSC_KEY_PASSWORD`; remove the `CSC_IDENTITY_AUTO_DISCOVERY=false` override in
   `build-release.ps1` when a cert is in place.
-
-- [ ] **Collected setup / dependencies page** *(needs a design pass — plan in a fresh session)* —
-  optional dependencies are surfaced piecemeal today: FFmpeg + CUDA in the Electron setup
-  wizard, llama.cpp / Ollama / pyannote / SpeechBrain / laugh-model / embeddings / MediaPipe
-  as individual "Install" buttons scattered through Settings (`settings.js` `_refreshInstallStatus`
-  list), and one-click model downloads in yet another place. A non-developer can't see at a
-  glance what's installed, what's missing, and what each thing unlocks. Scope: one "Setup"
-  view that lists every optional dependency + recommended model with a live installed/missing
-  state and an install action inline, grouped by the capability it enables (transcription,
-  LLM scoring, image analysis, speaker ID, laughter). Reuses the existing install/pull IPC
-  and `/api/*/install-status` checks — mostly a consolidation + presentation layer, but the
-  grouping and copy need a real design pass. Overlaps the setup wizard (shared component?).
 
 - [ ] **Project backup / restore** — there is no way today to back up or move a project short
   of manually copying folders. As distribution grows, a corrupted DB or a reinstalled machine
