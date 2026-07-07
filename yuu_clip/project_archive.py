@@ -1,7 +1,9 @@
 # Feature-map — Project backup / restore (code: project_archive)
-#   Backup core only (Stage 1). Restore + re-point engine land in Stage 2.
+#   Archive core: backup (build_backup), restore (restore_into), and the re-point
+#   engine (plan_repoint / apply_repoint) that fixes source-media paths that don't
+#   resolve on the target machine.
 #   Siblings: web/routes/backup.py (routes) · config.py (project layout helpers)
-#   Tests: tests/test_backup.py
+#   Tests: tests/test_backup.py, tests/test_restore.py
 """Portable backup archive for a yuu-clip project.
 
 Backs up the project's own durable state under ``.yuu-clip/`` — ``project.db``,
@@ -23,22 +25,35 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import tempfile
 import zipfile
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _pkg_version
 from pathlib import Path
 
 from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 from yuu_clip.config import project_db_path
-from yuu_clip.db.models import Video, make_session
+from yuu_clip.db.models import Video, make_engine, make_session
 from yuu_clip.log import get_logger
 
 _log = get_logger(__name__)
 
 BACKUP_SCHEMA_VERSION = 1
+
+# Arcname of the SQLite DB inside the archive (see build_backup's layout).
+_DB_ARCNAME = ".yuu-clip/project.db"
+
+# Cap on the example filenames shown per missing-directory group in the re-point UI.
+_SAMPLE_LIMIT = 5
+
+
+class RestoreError(Exception):
+    """A backup that can't be restored, with a message safe to show the user."""
 
 # Large regenerable subdirectories under .yuu-clip/ that are NOT backed up. Pinned
 # to the config.py project_*_dir helpers by tests/test_backup.py so a fifth derived
@@ -147,3 +162,157 @@ def build_backup(project_dir: Path, dest_path: Path | None = None) -> Path:
             archive.write(file_path, arcname)
     _log.info("Wrote project backup: %s", dest_path)
     return dest_path
+
+
+# ---------------------------------------------------------------------------
+# Restore + re-point engine (Stage 2)
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class RepointGroup:
+    """A source directory that no longer resolves on this machine, with the count
+    of videos under it and a few example filenames for the re-point prompt."""
+
+    missing_dir: str
+    file_count: int
+    sample_filenames: list[str] = field(default_factory=list)
+
+
+@dataclass
+class RepointResult:
+    remapped: int
+    still_missing: int
+    skipped_groups: int
+
+
+def _validate_manifest(manifest: dict) -> None:
+    version = manifest.get("schema_version")
+    if version != BACKUP_SCHEMA_VERSION:
+        raise RestoreError(
+            "This backup was made by a different version of yuu-clip "
+            f"(backup format {version!r}, this app expects {BACKUP_SCHEMA_VERSION}) "
+            "and can't be restored here."
+        )
+
+
+def inspect_backup(archive_path: Path) -> dict:
+    """Read and validate the manifest without unpacking the archive."""
+    try:
+        with zipfile.ZipFile(archive_path) as archive:
+            raw = archive.read("manifest.json")
+    except (zipfile.BadZipFile, KeyError, OSError) as exc:
+        raise RestoreError("This file is not a valid yuu-clip backup.") from exc
+    try:
+        manifest = json.loads(raw)
+    except ValueError as exc:
+        raise RestoreError("This backup's manifest is unreadable.") from exc
+    _validate_manifest(manifest)
+    return manifest
+
+
+def plan_repoint(db_path: Path) -> list[RepointGroup]:
+    """Group every Video whose source path doesn't resolve on this machine by its
+    parent directory (case-insensitively), preserving the original spelling."""
+    engine = make_engine(Path(db_path))
+    groups: dict[str, RepointGroup] = {}
+    try:
+        with Session(engine) as session:
+            for video in session.query(Video).all():
+                if Path(video.path).exists():
+                    continue
+                parent = os.path.dirname(video.path)
+                key = os.path.normcase(parent)
+                group = groups.get(key)
+                if group is None:
+                    group = RepointGroup(missing_dir=parent, file_count=0)
+                    groups[key] = group
+                group.file_count += 1
+                if len(group.sample_filenames) < _SAMPLE_LIMIT:
+                    group.sample_filenames.append(os.path.basename(video.path))
+    finally:
+        engine.dispose()
+    return sorted(groups.values(), key=lambda g: g.missing_dir)
+
+
+def apply_repoint(db_path: Path, mapping: dict[str, str]) -> RepointResult:
+    """Rewrite Video.path for each unresolved video whose parent dir the user mapped
+    to a new location, but only when the file actually exists at that new location —
+    a renamed (not just moved) file stays missing and is counted, never guessed."""
+    normalized = {os.path.normcase(old): new for old, new in mapping.items()}
+    engine = make_engine(Path(db_path))
+    remapped = still_missing = 0
+    unresolved_keys: set[str] = set()
+    try:
+        with Session(engine) as session:
+            for video in session.query(Video).all():
+                if Path(video.path).exists():
+                    continue
+                key = os.path.normcase(os.path.dirname(video.path))
+                unresolved_keys.add(key)
+                new_dir = normalized.get(key)
+                if new_dir is None:
+                    continue
+                candidate = Path(new_dir) / os.path.basename(video.path)
+                if candidate.exists():
+                    video.path = str(candidate)
+                    remapped += 1
+                else:
+                    still_missing += 1
+            session.commit()
+    finally:
+        engine.dispose()
+    skipped_groups = len(unresolved_keys - set(normalized))
+    return RepointResult(
+        remapped=remapped, still_missing=still_missing, skipped_groups=skipped_groups
+    )
+
+
+def plan_repoint_from_archive(archive_path: Path) -> tuple[dict, list[RepointGroup]]:
+    """Manifest + missing-source-dir groups for a backup, computed against the
+    *current* filesystem without unpacking into the target (the restore preview)."""
+    manifest = inspect_backup(archive_path)
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        # Mirror the real layout (<proj>/.yuu-clip/project.db) so make_engine's
+        # backfill, which derives the project dir as db_path.parent.parent, keeps
+        # its stray exports-dir mkdir inside this temp tree instead of %TEMP% root.
+        db_dest = Path(tmp) / ".yuu-clip" / "project.db"
+        db_dest.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            with zipfile.ZipFile(archive_path) as archive, \
+                    archive.open(_DB_ARCNAME) as src, open(db_dest, "wb") as dst:
+                shutil.copyfileobj(src, dst)
+        except KeyError as exc:
+            raise RestoreError("This backup is missing its project database.") from exc
+        groups = plan_repoint(db_dest)
+    return manifest, groups
+
+
+def restore_into(archive_path: Path, target_dir: Path, overwrite: bool = False) -> Path:
+    """Unpack a validated backup into *target_dir* and return the restored DB path.
+
+    Refuses a target that already holds a non-empty project unless *overwrite* is
+    set; when overwriting, the existing project.db is first copied to
+    project.db.pre-restore so a restore can never be the thing that loses data."""
+    inspect_backup(archive_path)  # validates schema before we touch the target
+    target_dir = Path(target_dir)
+    existing_db = target_dir / ".yuu-clip" / "project.db"
+    if existing_db.exists() and existing_db.stat().st_size > 0:
+        if not overwrite:
+            raise RestoreError(
+                "The target folder already contains a project. Confirm overwrite to "
+                "replace it."
+            )
+        shutil.copy2(existing_db, existing_db.with_name("project.db.pre-restore"))
+        # Drop the old project's WAL sidecars — replaying them onto the restored DB
+        # would corrupt it (the backup carries a fully checkpointed project.db).
+        for suffix in _SQLITE_SIDECAR_SUFFIXES:
+            existing_db.with_name(existing_db.name + suffix).unlink(missing_ok=True)
+
+    with zipfile.ZipFile(archive_path) as archive:
+        for name in archive.namelist():
+            if name == "manifest.json":
+                continue
+            archive.extract(name, target_dir)
+    _log.info("Restored project into %s", target_dir)
+    return project_db_path(target_dir)

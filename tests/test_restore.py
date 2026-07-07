@@ -1,0 +1,177 @@
+"""Stage 2 restore core + re-point engine: round-trip, path re-pointing, safety."""
+from __future__ import annotations
+
+import json
+import os
+import zipfile
+from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
+
+from yuu_clip.db.models import ClipCandidate, Video, make_session
+from yuu_clip.project_archive import (
+    RestoreError,
+    apply_repoint,
+    build_backup,
+    inspect_backup,
+    plan_repoint,
+    restore_into,
+)
+
+
+def _seed_db(db_path: Path, video_paths: list[Path]) -> None:
+    session = make_session(db_path)
+    for path in video_paths:
+        session.add(Video(
+            path=str(path), filename=os.path.basename(str(path)), status="done",
+        ))
+    session.commit()
+    session.close()
+
+
+# --- re-point engine (the crux) --------------------------------------------
+
+
+def test_plan_repoint_groups_unresolved_by_parent(tmp_path):
+    missing_dir = tmp_path / "gone"  # never created
+    db = tmp_path / "p.db"
+    _seed_db(db, [missing_dir / "a.mkv", missing_dir / "b.mkv"])
+    groups = plan_repoint(db)
+    assert len(groups) == 1
+    assert groups[0].missing_dir == str(missing_dir)
+    assert groups[0].file_count == 2
+    assert set(groups[0].sample_filenames) == {"a.mkv", "b.mkv"}
+
+
+def test_plan_repoint_zero_groups_when_all_resolve(tmp_path):
+    real = tmp_path / "vid.mkv"
+    real.write_bytes(b"x")
+    db = tmp_path / "p.db"
+    _seed_db(db, [real])
+    assert plan_repoint(db) == []
+
+
+def test_apply_repoint_remaps_only_files_present_at_new_location(tmp_path):
+    old_dir = tmp_path / "old"  # missing
+    new_dir = tmp_path / "new"
+    new_dir.mkdir()
+    (new_dir / "moved.mkv").write_bytes(b"x")  # moved, present at new dir
+    db = tmp_path / "p.db"
+    _seed_db(db, [old_dir / "moved.mkv", old_dir / "renamed.mkv"])
+
+    result = apply_repoint(db, {str(old_dir): str(new_dir)})
+
+    assert result.remapped == 1
+    assert result.still_missing == 1  # renamed.mkv isn't at the new dir -> not guessed
+    assert result.skipped_groups == 0
+    session = make_session(db)
+    paths = {v.filename: v.path for v in session.query(Video).all()}
+    session.close()
+    assert paths["moved.mkv"] == str(new_dir / "moved.mkv")
+    assert paths["renamed.mkv"] == str(old_dir / "renamed.mkv")  # left as missing
+
+
+def test_apply_repoint_counts_unmapped_groups_as_skipped(tmp_path):
+    db = tmp_path / "p.db"
+    _seed_db(db, [tmp_path / "d1" / "a.mkv", tmp_path / "d2" / "b.mkv"])
+    result = apply_repoint(db, {})  # user skipped both groups
+    assert (result.remapped, result.still_missing, result.skipped_groups) == (0, 0, 2)
+
+
+# --- round-trip + safety ----------------------------------------------------
+
+
+def test_backup_restore_round_trip_preserves_rows(project_dir, tmp_path):
+    archive = build_backup(project_dir, tmp_path / "out.zip")
+    target = tmp_path / "restored"
+    db_path = restore_into(archive, target)
+    session = make_session(db_path)
+    video_count = session.query(Video).count()
+    clip_count = session.query(ClipCandidate).count()
+    session.close()
+    assert video_count == 1
+    assert clip_count == 3
+
+
+def test_restore_refuses_existing_project_without_overwrite(project_dir, tmp_path):
+    archive = build_backup(project_dir, tmp_path / "out.zip")
+    target = tmp_path / "existing"
+    (target / ".yuu-clip").mkdir(parents=True)
+    (target / ".yuu-clip" / "project.db").write_bytes(b"OLD")
+    with pytest.raises(RestoreError):
+        restore_into(archive, target, overwrite=False)
+
+
+def test_restore_overwrite_writes_pre_restore_safety_copy(project_dir, tmp_path):
+    archive = build_backup(project_dir, tmp_path / "out.zip")
+    target = tmp_path / "existing"
+    (target / ".yuu-clip").mkdir(parents=True)
+    existing_db = target / ".yuu-clip" / "project.db"
+    existing_db.write_bytes(b"OLD-DB-CONTENT")
+
+    restore_into(archive, target, overwrite=True)
+
+    safety = target / ".yuu-clip" / "project.db.pre-restore"
+    assert safety.exists()
+    assert safety.read_bytes() == b"OLD-DB-CONTENT"
+
+
+# --- manifest / schema validation ------------------------------------------
+
+
+def test_inspect_rejects_unsupported_schema(tmp_path):
+    bad = tmp_path / "bad.zip"
+    with zipfile.ZipFile(bad, "w") as archive:
+        archive.writestr("manifest.json", json.dumps({"schema_version": 999}))
+    with pytest.raises(RestoreError, match="different version"):
+        inspect_backup(bad)
+
+
+def test_inspect_rejects_non_zip(tmp_path):
+    junk = tmp_path / "junk.zip"
+    junk.write_bytes(b"not a zip file at all")
+    with pytest.raises(RestoreError, match="not a valid"):
+        inspect_backup(junk)
+
+
+# --- routes -----------------------------------------------------------------
+
+
+def test_restore_inspect_route_returns_manifest_and_missing_group(client, project_dir, tmp_path):
+    archive = build_backup(project_dir, tmp_path / "out.zip")
+    resp = client.post("/api/restore/inspect", content=archive.read_bytes())
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["manifest"]["schema_version"] == 1
+    assert data["staging_path"]
+    # The fixture's one video lives at <project_dir>/session.mkv, which is never
+    # written to disk, so it surfaces as a single unresolved-source group.
+    assert len(data["groups"]) == 1
+    assert data["groups"][0]["missing_dir"] == str(project_dir)
+
+
+def test_restore_inspect_route_rejects_bad_upload(client):
+    resp = client.post("/api/restore/inspect", content=b"garbage")
+    assert resp.status_code == 400
+
+
+def test_restore_apply_route_switches_to_restored_project(client, project_dir, tmp_path):
+    archive = build_backup(project_dir, tmp_path / "out.zip")
+    target = tmp_path / "restored"
+    resp = client.post("/api/restore/apply", json={
+        "archive_path": str(archive),
+        "target_dir": str(target),
+        "mapping": {},
+        "overwrite": False,
+    })
+    assert resp.status_code == 200
+    data = resp.json()
+    assert Path(data["current"]) == target.resolve()
+    assert data["repoint"]["skipped_groups"] == 1  # unresolved fixture video dir
+
+
+def test_restore_inspect_refused_while_analyzing(client):
+    client.app.state.ctx.analyze_proc = SimpleNamespace(returncode=None)
+    resp = client.post("/api/restore/inspect", content=b"whatever")
+    assert resp.status_code == 409
