@@ -25,4 +25,20 @@ function buildWheelInstallArgs(wheelPath, lockPath = null, wheelhouseDir = null)
   return args;
 }
 
-module.exports = { buildWheelInstallArgs };
+// mediapipe (vertical auto-framing) hard-depends on opencv-contrib-python while
+// scenedetect hard-depends on opencv-python. pip has no "provides" mechanism, so
+// BOTH install into the same site-packages/cv2 dir and whichever pip writes last
+// wins. If plain opencv-python wins it strips the contrib-only modules back out
+// from under mediapipe. Re-install the contrib superset LAST with --no-deps (so it
+// touches nothing else) to make the outcome deterministic: contrib's cv2 always
+// survives on disk and satisfies both packages. -c requirements.lock keeps it on
+// the same version we pinned; the wheelhouse makes this offline-safe too.
+function buildOpencvDedupeArgs(lockPath = null, wheelhouseDir = null) {
+  const args = ['install', '--force-reinstall', '--no-deps', '--progress-bar', 'raw'];
+  if (wheelhouseDir) args.push('--no-index', '--find-links', wheelhouseDir);
+  if (lockPath) args.push('-c', lockPath);
+  args.push('opencv-contrib-python');
+  return args;
+}
+
+module.exports = { buildWheelInstallArgs, buildOpencvDedupeArgs };

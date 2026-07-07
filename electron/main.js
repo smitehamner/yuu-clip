@@ -10,7 +10,7 @@ const { Readable } = require('stream');
 const { parseNvidiaVramMB, selectGPU } = require('./gpu-detect');
 const { resolveBundledFfmpegDir } = require('./ffmpeg-detect');
 const { selectLlamaWheelUrl } = require('./llamacpp-cuda');
-const { buildWheelInstallArgs } = require('./venv-setup');
+const { buildWheelInstallArgs, buildOpencvDedupeArgs } = require('./venv-setup');
 const { describeInstallFailure } = require('./install-error');
 const diskSpace = require('./disk-space');
 const { recommendWhisperModel } = require('./whisper-select');
@@ -762,6 +762,14 @@ async function ensureVenv() {
     await runCmd(
       VENV_PIP,
       buildWheelInstallArgs(wheelPath, lockOk ? lockPath : null, wheelhouseOk ? wheelhouseDir : null),
+      pipStatusReporter(statusText => {
+        try { setupWin.webContents.send('venv:status', statusText); } catch (_) {}
+      })
+    );
+    logSetup('Ensuring a single OpenCV build (contrib superset wins)…');
+    await runCmd(
+      VENV_PIP,
+      buildOpencvDedupeArgs(lockOk ? lockPath : null, wheelhouseOk ? wheelhouseDir : null),
       pipStatusReporter(statusText => {
         try { setupWin.webContents.send('venv:status', statusText); } catch (_) {}
       })

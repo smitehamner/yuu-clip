@@ -89,12 +89,25 @@ remain catalog alternatives.
 Bundling the Tier-A default-feature packages into the base dependencies grows the
 offline wheelhouse by **~272 MB** (uncompressed wheels), from 53 wheels / ~135 MB to
 ~105 wheels / ~407 MB. The biggest contributors: `torch` CPU build (~117 MB),
-`opencv-contrib-python` (~51 MB, pulled by mediapipe — note base already ships
-`opencv-python` for scenedetect, so the two OpenCV builds coexist), `scipy` (~35 MB),
+`opencv-contrib-python` (~51 MB, pulled by mediapipe — base already ships
+`opencv-python` for scenedetect), `scipy` (~35 MB),
 `transformers` (~11 MB), `mediapipe` (~10 MB). The prebuilt llama-cpp-python CPU wheel
 adds another ~6.5 MB. Larger installer is an accepted tradeoff per the plan's locked
 decisions. Every added wheel resolves to a cp312 win_amd64 binary (verified with
 `--only-binary=:all:`, zero sdist fallbacks).
+
+### OpenCV: two distributions, one on-disk build
+
+`scenedetect` hard-requires `opencv-python` and `mediapipe` hard-requires
+`opencv-contrib-python`, both by name. pip has no "provides", so both wheels ship in
+the wheelhouse (the ~51 MB cannot be reclaimed without forking scenedetect — its
+offline `--no-index` resolve needs the `opencv-python` wheel present). They install to
+the same `cv2/` dir at the same pinned version (5.0.0.93), so the *installed* footprint
+is ~one build, not two. To stop the non-deterministic "whichever pip writes last wins"
+(plain `opencv-python` winning would strip contrib's extra modules out from under
+mediapipe), the packaged first-run installer re-installs `opencv-contrib-python` LAST
+with `--no-deps` (`electron/venv-setup.js buildOpencvDedupeArgs`), so the superset's
+`cv2` deterministically survives and satisfies both packages.
 
 The full wave plan lives outside the repo at
 `000_project_planning/finalized_plans/yuu-clip_plans/plans/packaging-strategy-overhaul/INDEX.md`.
