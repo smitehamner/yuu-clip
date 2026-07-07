@@ -469,14 +469,20 @@ All state is stored in `.yuu-clip/` next to your video files (or in the director
 
 ```
 .yuu-clip/
-  project.db         # SQLite database
-  yuu-clip.log       # rolling log
-  exports/           # exported clips
-  reels/             # compiled highlight reels (timestamp-named MKVs)
-  audio/             # extracted WAV files (temporary; reused across runs)
-  proxies/           # cached 720p preview copies (safe to delete; rebuilt on demand)
-  sounds/            # custom notification sounds you've added
+  project.db         # SQLite database          (in a backup)
+  config.json        # project settings          (in a backup)
+  contexts.json      # world contexts            (in a backup)
+  sounds/            # custom notification sounds (in a backup)
+  yuu-clip.log       # rolling log               (not backed up)
+  exports/           # exported clips            (not backed up; regenerable)
+  reels/             # compiled highlight reels  (not backed up; regenerable)
+  audio/             # extracted WAV files       (not backed up; reused across runs)
+  proxies/           # cached 720p preview copies (not backed up; rebuilt on demand)
+  downloads/         # Import-from-URL downloads  (not backed up)
+  preview_cache/     # cached clip preview frames (not backed up; rebuilt on demand)
 ```
+
+See **Backing up and restoring a project** below for what a backup includes and why.
 
 ### Backing up and restoring a project
 
