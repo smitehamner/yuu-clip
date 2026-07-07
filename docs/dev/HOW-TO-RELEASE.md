@@ -169,6 +169,11 @@ Copy `dist/yuu-clip-X.Y.Z-Setup.exe` directly to your friend. They double-click 
 
 To update: build a new `.exe` and send the new file. They run the new installer over the old one (NSIS handles the upgrade).
 
+**There is no crash reporting yet** — if something breaks on their machine, your only
+diagnostic is the log file. Tell them up front: "if anything breaks, zip up and send me
+`%APPDATA%\yuu-clip\yuu-clip_install.log` (install/setup failures) and
+`%USERPROFILE%\Videos\yuu-clip\.yuu-clip\yuu-clip.log` (app/runtime failures)."
+
 ### GitHub release (future)
 
 1. Tag the commit: `git tag v0.1.0 && git push origin v0.1.0`
