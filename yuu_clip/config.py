@@ -357,10 +357,10 @@ def _sanitize_vision_fields(merged: dict) -> None:
             validate_vision_frames_per_clip(merged["vision_frames_per_clip"])
         except (ValueError, TypeError):
             _log.warning(
-                "Config: vision_frames_per_clip invalid (%r) — using default 4",
+                "Config: vision_frames_per_clip invalid (%r) — using default 2",
                 merged["vision_frames_per_clip"],
             )
-            merged["vision_frames_per_clip"] = 4
+            merged["vision_frames_per_clip"] = 2
 
 
 def _sanitize_content_preset_field(merged: dict) -> None:
@@ -496,10 +496,13 @@ class Config:
 
     # Image-based clip analysis (plan 11): sample frames from a clip, send them to a
     # vision model, and store a short factual "what's on screen" summary that enriches
-    # the clip's descriptions and gives the text scorer visual context. Off by default —
-    # opt in per clip ("Analyze frames") or in the batch Re-score flow; never automatic.
-    vision_enabled: bool = False
-    vision_frames_per_clip: int = 4  # frames evenly sampled across the clip window (1–10)
+    # the clip's descriptions and gives the text scorer visual context. Available and
+    # conservatively-on by default (packaging-strategy-overhaul Wave 6): the master
+    # switch is on and frame count is low, but nothing actually runs unless a
+    # vision-capable model is configured (see check_vision_available) — it's still
+    # opt in per clip ("Analyze frames") or in the batch Re-score flow, never automatic.
+    vision_enabled: bool = True
+    vision_frames_per_clip: int = 2  # frames evenly sampled across the clip window (1–10)
 
     ollama_host: str = "http://localhost:11434"
     ollama_model: str = "qwen2.5:7b"  # Apache-2.0 (monetization-safe); see model_catalog.py

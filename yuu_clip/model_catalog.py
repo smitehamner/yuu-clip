@@ -126,24 +126,15 @@ CATALOG: tuple[ModelEntry, ...] = (
         gguf_filename="phi-4-Q4_K_M.gguf",
     ),
     # ── Local vision models (consumed by plan 11's image analysis) ──────────
-    ModelEntry(
-        id="qwen2.5-vl-7b-instruct",
-        display_name="Qwen2.5-VL 7B Instruct",
-        kinds=_VISION,
-        licence="Apache-2.0",
-        why="Best open vision model for describing what's on screen.",
-        backends=frozenset({BACKEND_OLLAMA, BACKEND_LLAMACPP}),
-        size_gb=6.0,
-        ollama_tag="qwen2.5vl:7b",
-        gguf_url="https://huggingface.co/unsloth/Qwen2.5-VL-7B-Instruct-GGUF",
-        mmproj_url="https://huggingface.co/unsloth/Qwen2.5-VL-7B-Instruct-GGUF",
-    ),
+    # moondream2 listed first: it's the steered default (packaging-strategy-overhaul
+    # Wave 6) — smallest download, runs on both backends, recommended-model pickers
+    # render the catalog in this order so it's the first vision option a user sees.
     ModelEntry(
         id="moondream2",
         display_name="moondream2",
         kinds=_VISION,
         licence="Apache-2.0",
-        why="Tiny and fast — runs on low VRAM for quick frame checks.",
+        why="Recommended default — tiny and fast, runs on low VRAM for quick frame checks.",
         backends=frozenset({BACKEND_OLLAMA, BACKEND_LLAMACPP}),
         size_gb=1.8,
         ollama_tag="moondream",
@@ -160,6 +151,18 @@ CATALOG: tuple[ModelEntry, ...] = (
         size_gb=2.2,
         gguf_url="https://huggingface.co/ggml-org/SmolVLM2-2.2B-Instruct-GGUF",
         mmproj_url="https://huggingface.co/ggml-org/SmolVLM2-2.2B-Instruct-GGUF",
+    ),
+    ModelEntry(
+        id="qwen2.5-vl-7b-instruct",
+        display_name="Qwen2.5-VL 7B Instruct",
+        kinds=_VISION,
+        licence="Apache-2.0",
+        why="Higher-quality descriptions when you have the VRAM for a 7B model.",
+        backends=frozenset({BACKEND_OLLAMA, BACKEND_LLAMACPP}),
+        size_gb=6.0,
+        ollama_tag="qwen2.5vl:7b",
+        gguf_url="https://huggingface.co/unsloth/Qwen2.5-VL-7B-Instruct-GGUF",
+        mmproj_url="https://huggingface.co/unsloth/Qwen2.5-VL-7B-Instruct-GGUF",
     ),
     # ── Hosted Claude models (multimodal → text + vision) ───────────────────
     ModelEntry(

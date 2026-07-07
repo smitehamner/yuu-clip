@@ -61,6 +61,14 @@ class TestCatalogHelpers:
         expected = {e.ollama_tag.split(":", 1)[0].lower() for e in mc.vision_models() if e.ollama_tag}
         assert bases == frozenset(expected)
 
+    def test_moondream2_is_the_steered_default_vision_model(self):
+        # Wave 6 (packaging-strategy-overhaul): moondream2 is the recommended
+        # vision default — smallest download, both backends, Apache-2.0. Catalog
+        # order drives the Settings/wizard model pickers (they render in this
+        # order), so it must be first among vision entries.
+        vision = mc.vision_models()
+        assert vision[0].id == "moondream2"
+
     def test_claude_models_are_both_text_and_vision(self):
         claude = mc.catalog_for_backend(mc.BACKEND_CLAUDE)
         assert claude, "expected Claude entries"

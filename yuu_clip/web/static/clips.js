@@ -551,8 +551,9 @@ function renderDetail(clip) {
 
 // ── image-based clip analysis (What's on screen) ─────────────────────────────
 function _visionDetailHTML(clip) {
-  // Master switch (Settings → Image analysis). Off by default: no vision UI until
-  // the creator opts in. window._visionEnabled is seeded at boot and on settings save.
+  // Master switch (Settings → Image analysis). On by default; the button itself is
+  // still gated on a vision-capable model being configured (gateOnCapability above).
+  // window._visionEnabled is seeded at boot and on settings save.
   if (!window._visionEnabled) return '';
   const summary = clip.vision_summary;
   const btnLabel = summary ? 'Re-analyze frames' : 'Analyze frames';

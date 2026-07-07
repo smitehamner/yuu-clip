@@ -192,7 +192,7 @@ function _applySettingsToUI(cfg) {
   setVal('s-llm-mmproj-path', cfg.llm_mmproj_path || '');
   setChk('s-llm-use-gpu', cfg.llm_use_gpu !== false);
   setChk('s-vision-enabled', cfg.vision_enabled === true);
-  setVal('s-vision-frames',  cfg.vision_frames_per_clip ?? 4);
+  setVal('s-vision-frames',  cfg.vision_frames_per_clip ?? 2);
   window._visionEnabled = cfg.vision_enabled === true;
   setVal('s-ollama-model',   cfg.ollama_model    || '');
   setVal('s-ollama-vision-model', cfg.ollama_vision_model || '');

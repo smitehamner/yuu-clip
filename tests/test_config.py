@@ -267,10 +267,12 @@ class TestCaptionStyleConfig:
 
 
 class TestVisionConfig:
-    def test_defaults_off(self, client):
+    def test_defaults_conservatively_on(self, client):
+        # Wave 6: available + on by default, but a low frame count (nothing runs
+        # unless a vision-capable model is also configured — see check_vision_available).
         cfg = client.get("/api/config").json()
-        assert cfg["vision_enabled"] is False
-        assert cfg["vision_frames_per_clip"] == 4
+        assert cfg["vision_enabled"] is True
+        assert cfg["vision_frames_per_clip"] == 2
 
     def test_patch_accepts_valid(self, client):
         assert client.patch("/api/config", json={
@@ -293,7 +295,7 @@ class TestVisionConfig:
         (proj / ".yuu-clip" / "config.json").write_text(
             _json.dumps({"vision_frames_per_clip": 999}), encoding="utf-8",
         )
-        assert Config.load(proj).vision_frames_per_clip == 4
+        assert Config.load(proj).vision_frames_per_clip == 2
 
 
 # ---------------------------------------------------------------------------
@@ -317,13 +319,27 @@ class TestPackagingWave2Defaults:
         from yuu_clip.config import Config
         assert Config().scorer_audio_event_enabled is True
 
-    def test_laugh_mode_and_vision_are_not_flipped_by_wave_2(self):
+    def test_laugh_mode_not_flipped_by_wave_2(self):
         # Explicitly out of scope: laugh_mode stays transcript-only (a laugh_mode
-        # flip needs its own decision) and vision is Wave 6's call.
+        # flip needs its own decision). Vision was Wave 6's call — see
+        # TestPackagingWave6VisionDefaults below for its (now-flipped) defaults.
         from yuu_clip.config import Config
-        cfg = Config()
-        assert cfg.scorer_laugh_mode == "transcript"
-        assert cfg.vision_enabled is False
+        assert Config().scorer_laugh_mode == "transcript"
+
+
+class TestPackagingWave6VisionDefaults:
+    """Vision is available + conservatively-on by default (Wave 6): the master
+    switch is on and the frame count is low, but nothing runs unless a
+    vision-capable model is configured — see check_vision_available /
+    TestCheckVisionAvailable in test_vision.py for the capability gate."""
+
+    def test_vision_enabled_defaults_true(self):
+        from yuu_clip.config import Config
+        assert Config().vision_enabled is True
+
+    def test_vision_frames_per_clip_defaults_low(self):
+        from yuu_clip.config import Config
+        assert Config().vision_frames_per_clip == 2
 
 
 # ---------------------------------------------------------------------------

@@ -158,6 +158,18 @@ class TestCheckVisionAvailable:
             llm_backend="llamacpp", llm_model_path=str(model), llm_mmproj_path=str(mmproj),
         )[0] is True
 
+    def test_fresh_install_defaults_are_inactive_not_crashing(self):
+        # Wave 6: vision_enabled defaults True, but a fresh install has no vision
+        # model downloaded yet. The gate must degrade to "unavailable" with a
+        # plain-English reason — never raise — so a first analyze is silent.
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.llm import check_vision_available
+        cfg = Config()
+        assert cfg.vision_enabled is True
+        ok, reason = check_vision_available(cfg)
+        assert ok is False
+        assert reason
+
 
 # ---------------------------------------------------------------------------
 # Vision client helpers + chat_vision behavior
@@ -320,11 +332,12 @@ def _enable_ollama_vision(client: TestClient):
 
 
 class TestAnalyzeFramesRoute:
-    def test_off_by_default_returns_503(self, client: TestClient):
-        # vision_enabled defaults False → master switch off.
+    def test_no_vision_model_configured_returns_503(self, client: TestClient):
+        # vision_enabled defaults True (Wave 6), but the default llm_backend
+        # (llamacpp) has no model/mmproj path set, so it's inactive, not crashing.
         resp = client.post("/api/clips/1/analyze-frames")
         assert resp.status_code == 503
-        assert "turned off" in resp.json()["detail"]
+        assert "vision projector" in resp.json()["detail"]
 
     def test_non_vision_model_returns_503(self, client: TestClient):
         client.patch("/api/config", json={
@@ -383,7 +396,8 @@ class TestAnalyzeFramesRoute:
 
 
 class TestRescoreIncludeFrames:
-    def test_include_frames_without_vision_returns_503(self, client: TestClient):
-        # vision off by default → the batch checkbox path is refused up front.
+    def test_include_frames_without_vision_model_returns_503(self, client: TestClient):
+        # vision_enabled defaults True (Wave 6), but no vision-capable model is
+        # configured by default → the batch checkbox path is refused up front.
         resp = client.get("/api/videos/1/rescore-clips?include_frames=1")
         assert resp.status_code == 503
