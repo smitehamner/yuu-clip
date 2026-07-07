@@ -22,7 +22,7 @@ runner = CliRunner()
 class TestHelp:
     @pytest.mark.parametrize("command", [
         "probe", "analyze", "score", "export", "reel",
-        "status", "clips", "serve", "retranscribe", "prefetch-model",
+        "status", "clips", "serve", "retranscribe", "prefetch-model", "restore",
     ])
     def test_help_exits_zero(self, command):
         result = runner.invoke(app, [command, "--help"])

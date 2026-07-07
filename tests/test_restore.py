@@ -175,3 +175,53 @@ def test_restore_inspect_refused_while_analyzing(client):
     client.app.state.ctx.analyze_proc = SimpleNamespace(returncode=None)
     resp = client.post("/api/restore/inspect", content=b"whatever")
     assert resp.status_code == 409
+
+
+# --- CLI restore command (used by the first-run wizard) ---------------------
+
+
+def test_cli_restore_unpacks_into_fresh_folder(project_dir, tmp_path):
+    from typer.testing import CliRunner
+
+    from yuu_clip.cli import app
+
+    archive = build_backup(project_dir, tmp_path / "out.zip")
+    target = tmp_path / "restored"
+    result = CliRunner().invoke(
+        app, ["restore", "--archive", str(archive), "--project", str(target)]
+    )
+    assert result.exit_code == 0, result.output
+    assert (target / ".yuu-clip" / "project.db").exists()
+
+
+def test_cli_restore_exits_2_when_project_exists(project_dir, tmp_path):
+    from typer.testing import CliRunner
+
+    from yuu_clip.cli import app
+
+    archive = build_backup(project_dir, tmp_path / "out.zip")
+    target = tmp_path / "existing"
+    (target / ".yuu-clip").mkdir(parents=True)
+    (target / ".yuu-clip" / "project.db").write_bytes(b"OLD")
+
+    result = CliRunner().invoke(
+        app, ["restore", "--archive", str(archive), "--project", str(target)]
+    )
+    assert result.exit_code == 2, result.output
+    # --overwrite proceeds and keeps the safety copy.
+    result = CliRunner().invoke(
+        app, ["restore", "--archive", str(archive), "--project", str(target), "--overwrite"]
+    )
+    assert result.exit_code == 0, result.output
+    assert (target / ".yuu-clip" / "project.db.pre-restore").exists()
+
+
+def test_cli_restore_exits_1_when_archive_missing(tmp_path):
+    from typer.testing import CliRunner
+
+    from yuu_clip.cli import app
+
+    result = CliRunner().invoke(
+        app, ["restore", "--archive", str(tmp_path / "nope.zip"), "--project", str(tmp_path / "t")]
+    )
+    assert result.exit_code == 1

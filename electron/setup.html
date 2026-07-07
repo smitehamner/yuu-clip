@@ -343,6 +343,11 @@ footer {
         <input type="text" id="project-dir" readonly>
         <button class="sm" id="browse-btn">Browse…</button>
       </div>
+      <div class="cfg-row" id="restore-row" style="display:none">
+        <span class="cfg-label"></span>
+        <button class="sm" id="restore-backup-btn">Restore from a backup instead…</button>
+        <span class="inline-note" style="margin:0">Rebuild this project from a backup .zip. Its saved settings are kept.</span>
+      </div>
       <div class="cfg-row">
         <span class="cfg-label">Speech-to-text model</span>
         <select id="whisper-sel">
@@ -828,6 +833,39 @@ document.addEventListener('click', e => {
 document.getElementById('browse-btn').addEventListener('click', async () => {
   const dir = await api.pickFolder();
   if (dir) document.getElementById('project-dir').value = dir;
+});
+
+// Restore-from-backup is a first-run choice only: rerun/update already have a
+// live project, and restoring over it belongs in the in-app Settings flow.
+if (mode === 'initial') document.getElementById('restore-row').style.display = '';
+
+document.getElementById('restore-backup-btn').addEventListener('click', async () => {
+  const archive = await api.pickFile({
+    title:   'Choose a yuu-clip backup',
+    filters: [{ name: 'yuu-clip backup', extensions: ['zip'] }],
+  });
+  if (!archive) return;
+  const target = document.getElementById('project-dir').value;
+  const btn = document.getElementById('restore-backup-btn');
+  btn.disabled = true;
+  btn.textContent = 'Restoring…';
+  let result;
+  try {
+    result = await api.restoreBackup({ archive, project: target });
+  } catch (e) {
+    result = { ok: false, error: String(e && e.message || e) };
+  }
+  if (result.ok) {
+    // Launch straight into the restored project; complete() skips the wizard
+    // config write so the backup's own settings survive (main.js: cfg.restored).
+    btn.textContent = 'Restored — starting…';
+    api.complete({ projectDir: target, restored: true });
+    return;
+  }
+  // On failure (not a cancelled replace) main.js has already shown an error
+  // dialog; just reset the button so the user can try another file.
+  btn.disabled = false;
+  btn.textContent = 'Restore from a backup instead…';
 });
 
 document.getElementById('llm-browse-btn').addEventListener('click', async () => {

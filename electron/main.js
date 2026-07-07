@@ -17,6 +17,7 @@ const { recommendWhisperModel } = require('./whisper-select');
 const { mimeTypeFor, isPathInside, rangeResponseInit } = require('./media-serve');
 const { buildProjectConfigFromWizard } = require('./wizard-config');
 const { decideSetupMode } = require('./startup-mode');
+const { buildRestoreArgs, parseRestoreExit } = require('./restore-backup');
 const {
   VENV_DIR, VENV_PYTHON, VENV_PIP, BUNDLED_PYTHON, BUNDLED_FFMPEG_DIR,
   SETUP_LOG, SETUP_COMPLETE_MARKER, WHEEL_MARKER,
@@ -430,6 +431,41 @@ function registerWizardIPC(wizardWin) {
     return canceled ? null : filePaths[0];
   });
 
+  // Restore a backup into the chosen project folder before the server spawns
+  // (Stage 4). Re-pointing of moved source media is deferred to the in-app
+  // Restore flow. Exit code 2 means "folder already has a project" — offer to
+  // replace it (a project.db.pre-restore safety copy is kept) and retry.
+  ipcMain.handle('setup:restore-backup', async (_, opts = {}) => {
+    const { archive, project } = opts;
+    if (!archive || !project) {
+      return { ok: false, error: 'Choose a backup file and a project folder first.' };
+    }
+    let result = await runRestore(archive, project, false);
+    if (result.code === 'project_exists') {
+      const { response } = await dialog.showMessageBox(wizardWin, {
+        type: 'warning',
+        title: 'Folder already has a project',
+        message: 'That folder already contains a project.',
+        detail: 'Replace it with the backup? A safety copy of the existing database is kept.',
+        buttons: ['Replace', 'Cancel'],
+        defaultId: 1,
+        cancelId: 1,
+      });
+      if (response !== 0) return { ok: false, cancelled: true };
+      result = await runRestore(archive, project, true);
+    }
+    if (!result.ok && !result.cancelled) {
+      await dialog.showMessageBox(wizardWin, {
+        type: 'error',
+        title: 'Restore failed',
+        message: 'The backup could not be restored.',
+        detail: result.error || 'Check that the file is a yuu-clip backup.',
+        buttons: ['OK'],
+      });
+    }
+    return result;
+  });
+
   ipcMain.on('setup:open-url', (_, url) => shell.openExternal(url));
 
   ipcMain.on('setup:copy-text', (_, text) => clipboard.writeText(String(text || '')));
@@ -570,12 +606,18 @@ function showSetupWizard({ rerun = false, updated = false } = {}) {
 
     ipcMain.once('setup:complete', (_, cfg) => {
       saveElectronConfig({ projectDir: cfg.projectDir, setupSchemaVersion: SETUP_SCHEMA_VERSION });
-      const pyCfg = buildProjectConfigFromWizard(cfg, {
-        defaultClaudeModel: DEFAULT_CLAUDE_MODEL,
-        defaultOllamaModel: DEFAULT_OLLAMA_MODEL,
-      });
-      writeProjectConfig(cfg.projectDir, pyCfg);
-      logSetup(`Setup complete — projectDir:${cfg.projectDir} whisperModel:${cfg.whisperModel} llmBackend:${cfg.llmBackend} diarization:${pyCfg.diarization_backend}`);
+      // A restored project already carries its own config.json — writing the
+      // wizard defaults over it would wipe the user's saved settings.
+      if (cfg.restored) {
+        logSetup(`Setup complete via restore — projectDir:${cfg.projectDir} (kept restored settings)`);
+      } else {
+        const pyCfg = buildProjectConfigFromWizard(cfg, {
+          defaultClaudeModel: DEFAULT_CLAUDE_MODEL,
+          defaultOllamaModel: DEFAULT_OLLAMA_MODEL,
+        });
+        writeProjectConfig(cfg.projectDir, pyCfg);
+        logSetup(`Setup complete — projectDir:${cfg.projectDir} whisperModel:${cfg.whisperModel} llmBackend:${cfg.llmBackend} diarization:${pyCfg.diarization_backend}`);
+      }
       fs.mkdirSync(path.dirname(SETUP_COMPLETE_MARKER), { recursive: true });
       fs.writeFileSync(SETUP_COMPLETE_MARKER, new Date().toISOString());
       if (!rerun) {
@@ -815,6 +857,26 @@ async function resolvePort() {
 // ---------------------------------------------------------------------------
 // Spawn Python backend
 // ---------------------------------------------------------------------------
+
+// Run the Python restore CLI once and resolve to a plain result object
+// (see restore-backup.js parseRestoreExit). Never rejects — the wizard shows the
+// error message rather than crashing.
+function runRestore(archive, project, overwrite) {
+  return new Promise((resolve) => {
+    const args = buildRestoreArgs(archive, project, overwrite);
+    const env = { ...process.env };
+    if (app.isPackaged) env.YUU_CLIP_FFMPEG_DIR = BUNDLED_FFMPEG_DIR;
+    logSetup(`Running restore: ${VENV_PYTHON} ${args.join(' ')}`);
+    let stderr = '';
+    const proc = spawn(VENV_PYTHON, args, { windowsHide: true, env });
+    proc.stderr.on('data', d => { stderr += d.toString(); });
+    proc.on('error', err => resolve({ ok: false, error: err.message }));
+    proc.on('exit', code => {
+      logSetup(`Restore exited with code ${code}`);
+      resolve(parseRestoreExit(code, stderr));
+    });
+  });
+}
 
 function spawnBackend(port) {
   const args = ['-m', 'yuu_clip.cli', 'serve', '--project', projectDir, '--no-open'];

@@ -17,6 +17,7 @@ contextBridge.exposeInMainWorld('setupAPI', {
   copyText:          (text)   => ipcRenderer.send('setup:copy-text', text),
   pickFolder:        ()       => ipcRenderer.invoke('setup:pick-folder'),
   pickFile:          (opts)   => ipcRenderer.invoke('setup:pick-file', opts),
+  restoreBackup:     (opts)   => ipcRenderer.invoke('setup:restore-backup', opts),
   complete:          (config) => ipcRenderer.send('setup:complete', config),
   quit:              ()       => ipcRenderer.send('setup:quit'),
   close:             ()       => ipcRenderer.send('setup:close'),
