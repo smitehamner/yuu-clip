@@ -118,7 +118,6 @@ function formatPipLine(line) {
 // the same installs via /api/install/{slug}, but it isn't running yet during
 // first-run setup, so the wizard drives pip directly.
 const WIZARD_INSTALLABLE = {
-  pyannote:    { packages: ['pyannote.audio'],   importName: 'pyannote.audio' },
   llamacpp:    { packages: ['llama-cpp-python'], importName: 'llama_cpp' },
   // Both wheels install together, so nvidia.cublas is a sufficient presence proxy.
   'cuda-libs': { packages: ['nvidia-cublas-cu12', 'nvidia-cudnn-cu12'], importName: 'nvidia.cublas' },

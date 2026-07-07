@@ -295,10 +295,9 @@ function registerWizardIPC(wizardWin) {
     const ffmpegOk      = checkFFmpeg();
     const gpu           = detectGPU();
     const cuda          = detectCUDA();
-    const [ollamaRunning, llamacppInstalled, pyannoteInstalled, cudaLibsInstalled] = await Promise.all([
+    const [ollamaRunning, llamacppInstalled, cudaLibsInstalled] = await Promise.all([
       checkOllama(),
       checkVenvModule(WIZARD_INSTALLABLE.llamacpp.importName),
-      checkVenvModule(WIZARD_INSTALLABLE.pyannote.importName),
       checkVenvModule(WIZARD_INSTALLABLE['cuda-libs'].importName),
     ]);
     const ollamaModelPulled = ollamaRunning ? await checkOllamaModel(ollamaModel) : false;
@@ -307,13 +306,13 @@ function registerWizardIPC(wizardWin) {
     const existingModelPath = projCfg.llm_model_path || '';
     const defaultBackend    = existingBackend || 'llamacpp';
 
-    logSetup(`Status check — FFmpeg:${ffmpegOk} GPU:${gpu.name} CUDA:${cuda.available} cudaLibs:${cudaLibsInstalled} Ollama:${ollamaRunning} Model:${ollamaModelPulled} llamacpp:${llamacppInstalled} pyannote:${pyannoteInstalled}`);
+    logSetup(`Status check — FFmpeg:${ffmpegOk} GPU:${gpu.name} CUDA:${cuda.available} cudaLibs:${cudaLibsInstalled} Ollama:${ollamaRunning} Model:${ollamaModelPulled} llamacpp:${llamacppInstalled}`);
     return {
       ffmpegOk,
       ffmpegBundled: app.isPackaged,
       gpu, cuda,
       ollamaRunning, ollamaModel, ollamaModelPulled,
-      llamacppInstalled, pyannoteInstalled, cudaLibsInstalled,
+      llamacppInstalled, cudaLibsInstalled,
       recommendedWhisper: recommendWhisperModel(gpu.vramMB),
       whisperModel:  projCfg.whisper_model || '',
       projectDir: pDir,
@@ -323,8 +322,6 @@ function registerWizardIPC(wizardWin) {
       claudeApiKey:  projCfg.claude_api_key  || '',
       claudeModel:   projCfg.claude_model    || DEFAULT_CLAUDE_MODEL,
       whisperLanguage:    projCfg.whisper_language || '',
-      diarizationEnabled: projCfg.diarization_backend === 'pyannote',
-      hfToken:            projCfg.huggingface_token || '',
       contentPreset:      projCfg.content_preset || 'generic',
     };
   });

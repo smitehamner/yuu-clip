@@ -11,10 +11,15 @@ function buildProjectConfigFromWizard(cfg, defaults) {
     whisper_language: cfg.whisperLanguage || '',
     ai_privacy_mode:  cfg.aiPrivacyMode || 'local_only',
     llm_backend:      cfg.llmBackend,
-    diarization_backend: cfg.diarizationEnabled ? 'pyannote' : 'null',
+    // Speaker labels are bundled and on by default (tokenless speechbrain) —
+    // the wizard no longer offers a per-feature choice here. Set explicitly
+    // (rather than omit) so re-running the wizard on a project that had an
+    // old "pyannote" choice actually clears it back to the current default;
+    // writeProjectConfig() merges onto the existing config.json, so an
+    // omitted key would leave a stale value in place.
+    diarization_backend: 'speechbrain',
     content_preset:   cfg.contentPreset || 'generic',
   };
-  if (cfg.diarizationEnabled) pyCfg.huggingface_token = cfg.hfToken || '';
   if (cfg.llmBackend === 'llamacpp') {
     pyCfg.llm_model_path = cfg.llmModelPath || '';
   } else if (cfg.llmBackend === 'claude') {

@@ -53,21 +53,17 @@ test('ollama backend falls back to the default model when ollamaModel is empty',
   assert.equal(pyCfg.ollama_model, defaults.defaultOllamaModel);
 });
 
-test('diarizationEnabled true sets pyannote backend and huggingface_token', () => {
+test('speaker labels always resolve to the bundled speechbrain backend', () => {
+  const pyCfg = buildProjectConfigFromWizard(baseCfg, defaults);
+  assert.equal(pyCfg.diarization_backend, 'speechbrain');
+});
+
+test('the wizard never emits a pyannote backend or a huggingface token, even if stray fields are passed in', () => {
   const pyCfg = buildProjectConfigFromWizard(
     { ...baseCfg, diarizationEnabled: true, hfToken: 'hf-test' },
     defaults
   );
-  assert.equal(pyCfg.diarization_backend, 'pyannote');
-  assert.equal(pyCfg.huggingface_token, 'hf-test');
-});
-
-test('diarizationEnabled false sets null backend and omits huggingface_token', () => {
-  const pyCfg = buildProjectConfigFromWizard(
-    { ...baseCfg, diarizationEnabled: false },
-    defaults
-  );
-  assert.equal(pyCfg.diarization_backend, 'null');
+  assert.equal(pyCfg.diarization_backend, 'speechbrain');
   assert.equal('huggingface_token' in pyCfg, false);
 });
 

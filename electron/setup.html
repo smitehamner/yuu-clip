@@ -331,37 +331,6 @@ footer {
     <section>
       <div class="sec-title">Optional</div>
 
-      <div class="chk-row">
-        <input type="checkbox" id="diar-enabled">
-        <div style="flex:1">
-          <label class="chk-title" for="diar-enabled">Speaker labels</label>
-          <div class="desc">
-            Detects who is speaking, so transcripts and captions can show names
-            ("Yuu: nice shot!"). Uses a free model that needs a HuggingFace account.
-            You can also set this up later in Settings (⚙).
-          </div>
-          <div id="diar-fields" style="display:none;margin-top:6px">
-            <div class="desc">
-              1. Create a free HuggingFace token with <strong>Read</strong> access.<br>
-              2. While signed in with that account, accept the model's terms.<br>
-              3. Paste the token below and install speaker detection.
-            </div>
-            <div class="action">
-              <button class="sm" onclick="api.openURL('https://huggingface.co/settings/tokens')">Create token</button>
-              <button class="sm" onclick="api.openURL('https://huggingface.co/pyannote/speaker-diarization-community-1')">Accept model terms</button>
-            </div>
-            <div class="cfg-row" style="margin-top:6px">
-              <span class="cfg-label" style="width:110px">HuggingFace token</span>
-              <input type="password" id="hf-token" placeholder="hf_...">
-              <button class="sm" id="hf-token-toggle" type="button">Show</button>
-            </div>
-            <div class="field-note" id="hf-token-feedback" style="padding-left:118px"></div>
-            <div id="pyannote-slot" style="margin-top:6px"></div>
-            <div class="status-line" id="diar-status"></div>
-          </div>
-        </div>
-      </div>
-
       <div id="cuda-slot"></div>
     </section>
 
@@ -436,7 +405,7 @@ const WHISPER_LANGUAGES = [
 
 let status  = null;
 let pulling = false;
-let installing = { llamacpp: false, pyannote: false, 'cuda-libs': false };
+let installing = { llamacpp: false, 'cuda-libs': false };
 let downloadingGguf = false;
 let defaultsApplied = false;
 
@@ -448,7 +417,7 @@ function esc(s) {
     .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-function anyInstalling() { return installing.llamacpp || installing.pyannote || installing['cuda-libs']; }
+function anyInstalling() { return installing.llamacpp || installing['cuda-libs']; }
 
 function updateLaunchBtn() {
   const btn  = document.getElementById('launch-btn');
@@ -598,18 +567,6 @@ function renderGgufDownloadSlot(s) {
      <div class="pull-msg" id="gguf-download-msg"></div>`);
 }
 
-function renderPyannoteSlot(s) {
-  const el = document.getElementById('pyannote-slot');
-  if (s.pyannoteInstalled) {
-    el.innerHTML = row('pyannote', 'ok', '✓', 'Speaker detection installed', 'pyannote.audio is ready.');
-  } else {
-    el.innerHTML = row('pyannote', 'warn', '○', 'Speaker detection not installed',
-      'One-time install, ~2–3 GB download (includes PyTorch). You can keep using this window while it runs.',
-      `<button class="sm" id="install-btn-pyannote" onclick="startInstall('pyannote')">Install (~2–3 GB)</button>
-       <div class="pull-msg" id="install-msg-pyannote"></div>`);
-  }
-}
-
 function renderSlots(s) {
   status = s;
   renderFfmpegSlot(s);
@@ -618,8 +575,6 @@ function renderSlots(s) {
   renderOllamaStatus(s);
   renderLlamacppPkgSlot(s);
   renderGgufDownloadSlot(s);
-  renderPyannoteSlot(s);
-  updateDiarStatus();
   document.getElementById('subtitle').textContent =
     mode === 'update' ? 'This update added new setup options — review, then launch.'
     : s.ffmpegOk ? 'System check complete.'
@@ -657,15 +612,11 @@ function applyDefaults(s) {
   document.getElementById('ollama-model-input').value = s.ollamaModel;
   document.getElementById('claude-api-key').value   = s.claudeApiKey || '';
   document.getElementById('claude-model-sel').value = s.claudeModel  || 'claude-haiku-4-5-20251001';
-  document.getElementById('diar-enabled').checked   = !!s.diarizationEnabled;
-  document.getElementById('hf-token').value         = s.hfToken || '';
   document.getElementById('content-preset-sel').value = s.contentPreset || 'generic';
   document.getElementById('content-preset-note').textContent =
     'Applied on launch. You can fine-tune every scoring weight later in Settings.';
 
   onPrivacyModeChange(document.getElementById('ai-privacy-sel').value);
-  onDiarToggle();
-  onHfTokenInput();
 
   document.getElementById('item-init').style.display = 'none';
   document.getElementById('sections').style.display  = '';
@@ -717,40 +668,6 @@ function updateClaudeWarn() {
   const key     = (document.getElementById('claude-api-key').value || '').trim();
   document.getElementById('claude-warn').style.display =
     (backend === 'claude' && !key) ? 'block' : 'none';
-}
-
-// ── Speaker labels ─────────────────────────────────────────────────────────
-
-function onDiarToggle() {
-  const enabled = document.getElementById('diar-enabled').checked;
-  document.getElementById('diar-fields').style.display = enabled ? '' : 'none';
-  updateDiarStatus();
-}
-
-function onHfTokenInput() {
-  const val = (document.getElementById('hf-token').value || '').trim();
-  const fb  = document.getElementById('hf-token-feedback');
-  if (!val) {
-    fb.textContent = '';
-  } else if (!val.startsWith('hf_')) {
-    fb.textContent = '⚠ HuggingFace tokens normally start with "hf_" — double-check this value';
-    fb.style.color = '#d4902a';
-  } else {
-    fb.textContent = '✓ Looks like a valid token format';
-    fb.style.color = '#4caf7d';
-  }
-  updateDiarStatus();
-}
-
-function updateDiarStatus() {
-  const el = document.getElementById('diar-status');
-  if (!el || !status) return;
-  if (!document.getElementById('diar-enabled').checked) { el.innerHTML = ''; return; }
-  const tokenSet  = !!(document.getElementById('hf-token').value || '').trim();
-  const installed = !!status.pyannoteInstalled;
-  el.innerHTML =
-    `<span class="${installed ? 'on' : 'off'}" style="margin-right:14px">${installed ? '✓' : '○'} speaker detection installed</span>` +
-    `<span class="${tokenSet ? 'on' : 'off'}">${tokenSet ? '✓' : '○'} token set</span>`;
 }
 
 // ── Ollama model pull ──────────────────────────────────────────────────────
@@ -865,7 +782,6 @@ function onInstallProgress(data) {
   if (data.done) {
     installing[data.slug] = false;
     if (data.slug === 'llamacpp') { status.llamacppInstalled = true; renderLlamacppPkgSlot(status); }
-    if (data.slug === 'pyannote') { status.pyannoteInstalled = true; renderPyannoteSlot(status); updateDiarStatus(); }
     if (data.slug === 'cuda-libs') { status.cudaLibsInstalled = true; renderCudaSlot(status); }
     updateLaunchBtn();
   } else if (data.error) {
@@ -929,8 +845,6 @@ document.getElementById('ai-privacy-sel').addEventListener('change', e => onPriv
 document.getElementById('llm-backend-sel').addEventListener('change', e => onLlmBackendChange(e.target.value));
 document.getElementById('llm-model-path').addEventListener('input', updateLlmWarn);
 document.getElementById('claude-api-key').addEventListener('input', updateClaudeWarn);
-document.getElementById('diar-enabled').addEventListener('change', onDiarToggle);
-document.getElementById('hf-token').addEventListener('input', onHfTokenInput);
 
 function wireVisibilityToggle(btnId, inputId) {
   document.getElementById(btnId).addEventListener('click', () => {
@@ -941,7 +855,6 @@ function wireVisibilityToggle(btnId, inputId) {
   });
 }
 wireVisibilityToggle('claude-key-toggle', 'claude-api-key');
-wireVisibilityToggle('hf-token-toggle', 'hf-token');
 
 document.getElementById('recheck-btn').addEventListener('click', recheck);
 document.getElementById('restart-btn').addEventListener('click', () => {
@@ -962,8 +875,6 @@ function collectConfig() {
     ollamaModel:     (document.getElementById('ollama-model-input').value || '').trim() || 'qwen2.5:7b',
     claudeApiKey:    (document.getElementById('claude-api-key').value || '').trim(),
     claudeModel:     document.getElementById('claude-model-sel').value,
-    diarizationEnabled: document.getElementById('diar-enabled').checked,
-    hfToken:         (document.getElementById('hf-token').value || '').trim(),
     contentPreset:   document.getElementById('content-preset-sel').value,
   };
 }
