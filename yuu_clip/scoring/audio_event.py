@@ -59,6 +59,23 @@ def prefetch_audio_event_model(config: "Config") -> None:
     pipeline("audio-classification", model=config.scorer_laugh_model_id)
 
 
+def prewarm_transformers_pipeline() -> None:
+    """Resolve transformers.pipeline BEFORE SpeechBrain is imported in this process.
+
+    SpeechBrain 1.x registers a transformers plugin whose k2_fsa integration
+    hard-imports the (unbundled) `k2` package. If `transformers.pipeline` is first
+    resolved *after* speechbrain has been imported, that resolution force-loads the
+    integration and dies with `ModuleNotFoundError: k2` — silently killing
+    audio-event/laugh scoring whenever speaker labels (speechbrain) ran first in the
+    same analyze subprocess (both are default-on). Importing pipeline first pins the
+    good state; a later speechbrain import can no longer poison it. Best-effort — the
+    scorer's own load guard still covers anything unexpected."""
+    try:
+        from transformers import pipeline  # noqa: F401
+    except Exception as exc:
+        log.debug("transformers pipeline pre-warm skipped: %s", exc)
+
+
 def _group_score(results: list[dict], substrings: tuple[str, ...]) -> float:
     """Highest classifier probability among results whose label matches *substrings*.
 

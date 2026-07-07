@@ -190,3 +190,11 @@ class TestPrefetchAudioEventModel:
         with mock.patch.dict(sys.modules, {"transformers": fake_transformers}):
             prefetch_audio_event_model(cfg)
         fake_transformers.pipeline.assert_called_once_with("audio-classification", model="my/model")
+
+
+def test_prewarm_transformers_pipeline_never_raises():
+    """Best-effort: pre-warming must swallow any import failure (transformers is
+    absent in the test venv, exercising exactly that path) so it can never break
+    an analyze run — the scorer's own load guard is the real safety net."""
+    from yuu_clip.scoring.audio_event import prewarm_transformers_pipeline
+    prewarm_transformers_pipeline()

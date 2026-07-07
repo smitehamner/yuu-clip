@@ -126,6 +126,18 @@ def _obtain_transcripts(opts: AnalyzeOptions, video_path: Path, track_objs, sess
     return []
 
 
+def _should_prewarm_transformers(config, opts: "AnalyzeOptions") -> bool:
+    """Whether to resolve transformers.pipeline before diarization imports
+    speechbrain. Only speechbrain triggers the k2 poisoning, and only a
+    transformers-backed scorer (audio-event, or laugh in "model" mode) needs
+    pipeline — so pre-warm exactly when both are in play this run."""
+    if config.diarization_backend != "speechbrain":
+        return False
+    if opts.no_score:
+        return False
+    return bool(config.scorer_audio_event_enabled) or config.scorer_laugh_mode == "model"
+
+
 def _analyze_one(
     video_path: Path,
     session,
@@ -187,6 +199,12 @@ def _analyze_one(
 
     transcribed = not opts.subtitle_source and not opts.no_transcribe
     diarized = bool(transcripts) and config.diarization_backend != "null"
+    # SpeechBrain poisons a not-yet-resolved transformers.pipeline (see
+    # prewarm_transformers_pipeline). Resolve pipeline before diarization imports
+    # speechbrain, or audio-event/laugh scoring dies silently this run.
+    if diarized and _should_prewarm_transformers(config, opts):
+        from yuu_clip.scoring.audio_event import prewarm_transformers_pipeline
+        prewarm_transformers_pipeline()
     if diarized:
         with recorder.stage("Speakers"):
             _run_speaker_diarization(config, session, transcripts)

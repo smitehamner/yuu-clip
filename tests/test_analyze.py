@@ -2177,3 +2177,41 @@ class TestEstimateRouteMeasured:
         assert d["source"] == "estimated"
         assert "warn_hours" in d
         assert "long_run_warning" in d
+
+
+class TestShouldPrewarmTransformers:
+    """Guards the gate that resolves transformers.pipeline before diarization
+    imports speechbrain. SpeechBrain 1.x poisons a not-yet-resolved
+    transformers.pipeline (its k2 integration hard-imports the unbundled k2), so
+    audio-event/laugh scoring must warm pipeline first — but only when both a
+    speechbrain diarization and a transformers-backed scorer will run this run."""
+
+    def _gate(self, **cfg):
+        from yuu_clip.config import Config
+        from yuu_clip.pipeline.ingest import AnalyzeOptions, _should_prewarm_transformers
+        no_score = cfg.pop("no_score", False)
+        return _should_prewarm_transformers(Config(**cfg), AnalyzeOptions(no_score=no_score))
+
+    def test_speechbrain_plus_audio_event_prewarms(self):
+        assert self._gate(diarization_backend="speechbrain", scorer_audio_event_enabled=True) is True
+
+    def test_speechbrain_plus_laugh_model_prewarms(self):
+        assert self._gate(
+            diarization_backend="speechbrain",
+            scorer_audio_event_enabled=False, scorer_laugh_mode="model",
+        ) is True
+
+    def test_pyannote_backend_never_prewarms(self):
+        # Only speechbrain poisons transformers — pyannote doesn't, so no pre-warm.
+        assert self._gate(diarization_backend="pyannote", scorer_audio_event_enabled=True) is False
+
+    def test_no_transformers_backed_scorer_skips_prewarm(self):
+        assert self._gate(
+            diarization_backend="speechbrain",
+            scorer_audio_event_enabled=False, scorer_laugh_mode="transcript",
+        ) is False
+
+    def test_no_score_skips_prewarm(self):
+        assert self._gate(
+            diarization_backend="speechbrain", scorer_audio_event_enabled=True, no_score=True,
+        ) is False

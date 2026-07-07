@@ -299,6 +299,17 @@ use track 0 as combined and mark the rest unlabeled without prompting.
 `[Analysis cancelled]` message to SSE subscribers after the process exits. The
 legacy `ctx.analyze_proc` path (flag: `ctx.analyze_cancelled`) is also covered.
 
+### SpeechBrain poisons transformers.pipeline (import order)
+Importing `speechbrain` before `transformers.pipeline` is first resolved makes that
+resolution force-load speechbrain's k2_fsa integration, which hard-imports the
+unbundled `k2` package → `ModuleNotFoundError: k2`. In the analyze subprocess
+diarization (speechbrain) runs before scoring (transformers), so audio-event/laugh
+scoring would silently die. `_analyze_one` pre-warms via
+`prewarm_transformers_pipeline()` (audio_event.py) before diarization; keep that call
+ahead of any speechbrain import if you reorder the pipeline. Only surfaces with the
+real packages installed — the pytest venv mocks both, so re-verify against a real
+offline install (see the packaging-strategy overhaul Wave 5).
+
 ### HTML safety
 `escHtml` in `utils.js` escapes `& < > "`. Always run track layout names, context
 names, and filenames through it before embedding in HTML attributes.
