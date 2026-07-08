@@ -85,6 +85,24 @@ class ProjectContext:
         # so a second open of the same recording does not launch a duplicate encode.
         self.proxy_generating: set[str] = set()
 
+        # Shared "a required model is downloading right now" registry, keyed by a
+        # logical model kind ("llm" for the background local-model handoff; Stage 6
+        # adds "whisper"). The value is the catalog model id being fetched. This is
+        # the single source of truth both the download banner and the analyze
+        # coordination read — the download route registers/deregisters the key
+        # around its SSE stream, and it also guards against a duplicate download.
+        self.model_downloads: dict[str, str] = {}
+
+    def reload_config(self) -> None:
+        """Re-read config.json from disk into ``self.config``.
+
+        A model-download subprocess writes ``llm_model_path`` straight to
+        config.json; the running server's in-memory config would otherwise stay
+        stale until a restart. Reloading picks up that write (and any other
+        on-disk change) without hand-rolling a second config source of truth.
+        """
+        self.config = Config.load(self.project_dir)
+
     def switch_project(self, project_dir: Path) -> None:
         """Tear down the current project's resources and rebind to *project_dir*
         in place, bumping project_generation.

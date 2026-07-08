@@ -69,4 +69,9 @@ document.getElementById('log-panel').classList.add('visible', 'minimized');
 document.getElementById('log-toggle').textContent = '▼';
 
 if (!localStorage.getItem('yuu-getting-started-seen')) openGettingStartedModal();
+
+// Background local-model download handoff (first-run-friction Stage 4): if the
+// wizard queued a local model and none is ready yet, fetch it in the background
+// with an in-app progress banner. Non-blocking — the app stays fully usable.
+initModelDownload();
 })();

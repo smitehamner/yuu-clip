@@ -35,6 +35,26 @@ _PULLABLE_OLLAMA_TAGS = frozenset(
     if entry.ollama_tag and model_catalog.BACKEND_OLLAMA in entry.backends
 )
 
+# Logical key for the background local-LLM download in ctx.model_downloads (the
+# shared "a required model is downloading" registry). Stage 6 adds "whisper".
+_LLM_DOWNLOAD_KEY = "llm"
+
+
+def _deregister_when_done(inner, ctx):
+    """Wrap the download stream so the shared in-progress flag is cleared when the
+    stream ends — on normal completion, on subprocess exit, or on client
+    disconnect (StreamingResponse cancels the iterator, running the finally)."""
+
+    async def _gen():
+        try:
+            async for chunk in inner:
+                yield chunk
+        finally:
+            ctx.model_downloads.pop(_LLM_DOWNLOAD_KEY, None)
+
+    return _gen()
+
+
 # Headroom beyond the model's own on-disk size — Ollama writes temporary blobs
 # and a manifest during a pull, so a pull needs more than the final weight size.
 # The .gguf download reuses it (a .part temp file needs the same slack).
@@ -411,6 +431,10 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                 400,
                 f"Unknown model id '{model_id}' — allowed: {sorted(_DOWNLOADABLE_GGUF_IDS)}",
             )
+        # Reject a duplicate before the disk precheck — a second trigger (another
+        # tab, a double boot) must never spawn a second download into the same file.
+        if _LLM_DOWNLOAD_KEY in ctx.model_downloads:
+            raise HTTPException(409, "A local model download is already in progress.")
         disk = _preflight_gguf_download(entry)
         if not disk["sufficient"]:
             raise HTTPException(
@@ -423,6 +447,37 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             sys.executable, "-m", "yuu_clip.cli", "download-gguf",
             "--model-id", model_id, "--project", str(ctx.project_dir),
         ]
-        return await subprocess_sse(cmd, ctx.project_dir)
+        ctx.model_downloads[_LLM_DOWNLOAD_KEY] = model_id
+        try:
+            response = await subprocess_sse(cmd, ctx.project_dir)
+        except Exception:
+            ctx.model_downloads.pop(_LLM_DOWNLOAD_KEY, None)
+            raise
+        iterator = getattr(response, "body_iterator", None)
+        if iterator is not None:
+            response.body_iterator = _deregister_when_done(iterator, ctx)
+        else:
+            ctx.model_downloads.pop(_LLM_DOWNLOAD_KEY, None)
+        return response
+
+    @router.get("/api/llm/download-status")
+    def download_status():
+        return {
+            "pending_model_id": ctx.config.pending_local_model or "",
+            "downloading": _LLM_DOWNLOAD_KEY in ctx.model_downloads,
+            "downloading_model_id": ctx.model_downloads.get(_LLM_DOWNLOAD_KEY),
+        }
+
+    @router.post("/api/llm/download-status/clear")
+    def clear_download_status():
+        # Reload first so a just-finished download's llm_model_path (written to
+        # config.json by the subprocess) survives, then drop the pending flag.
+        ctx.reload_config()
+        ctx.config.pending_local_model = ""
+        ctx.config.save_project(ctx.project_dir)
+        return {
+            "pending_model_id": "",
+            "downloading": _LLM_DOWNLOAD_KEY in ctx.model_downloads,
+        }
 
     return router

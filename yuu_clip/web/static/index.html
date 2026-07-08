@@ -91,6 +91,10 @@
   </div>
 </header>
 
+<!-- Background local-model download banner (first-run-friction Stage 4). Non-blocking
+     top-of-app chrome; content + visibility are driven by modeldownload.js. -->
+<div id="model-download-banner" class="model-download-banner" role="status" aria-live="polite" style="display:none"></div>
+
 <!-- Settings panel (replaces main layout when active) -->
 <div class="settings-panel" id="settings-panel">
   <div class="settings-header">
@@ -2076,6 +2080,7 @@
 <script src="/static/namecorrections.js"></script>
 <script src="/static/clipcreate.js"></script>
 <script src="/static/exporteditor.js"></script>
+<script src="/static/modeldownload.js"></script>
 <script src="/static/boot.js"></script>
 </body>
 </html>

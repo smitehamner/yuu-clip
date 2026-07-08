@@ -807,3 +807,23 @@ details summary:focus-visible { outline: 2px solid var(--accent); outline-offset
   border: 1px solid var(--border); border-radius: 4px; }
 .framing-btn:hover { background: var(--surface-raised); }
 .framing-btn.active { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+
+/* Background local-model download banner (first-run-friction Stage 4). Non-blocking
+   chrome under the header; content is built by modeldownload.js. */
+.model-download-banner { display: flex; align-items: center; gap: 12px;
+  padding: 8px 16px; background: var(--surface-raised);
+  border-bottom: 1px solid var(--border); font-size: 13px; color: var(--text); }
+.mdl-body { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; }
+.mdl-text { color: var(--text); }
+.mdl-text-warn { color: var(--warning); }
+.mdl-bar { flex: 1; max-width: 320px; height: 6px; border-radius: 3px;
+  background: color-mix(in srgb, var(--accent) 20%, transparent); overflow: hidden; }
+.mdl-bar-fill { height: 100%; background: var(--accent); border-radius: 3px;
+  transition: width .3s ease; }
+.mdl-bar-fill.indeterminate { width: 35%; animation: mdlIndeterminate 1.2s ease-in-out infinite; }
+.mdl-pct { color: var(--muted); font-variant-numeric: tabular-nums; min-width: 34px; }
+.mdl-cancel { flex-shrink: 0; font-size: 12px; padding: 3px 10px; }
+@keyframes mdlIndeterminate {
+  0%   { transform: translateX(-120%); }
+  100% { transform: translateX(320%); }
+}

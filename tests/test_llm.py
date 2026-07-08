@@ -168,6 +168,71 @@ class TestOllamaPullDiskPrecheck:
         assert "disk space" in resp.json()["detail"].lower()
 
 
+class TestDownloadStatus:
+    """The background local-model handoff surface (first-run-friction Stage 4):
+    the boot banner reads pending + in-progress state here, and clears the pending
+    flag (reloading config so a finished download's llm_model_path lands) after a
+    success or a cancel."""
+
+    def test_status_reports_empty_when_nothing_pending(self, client: TestClient):
+        body = client.get("/api/llm/download-status").json()
+        assert body == {
+            "pending_model_id": "",
+            "downloading": False,
+            "downloading_model_id": None,
+        }
+
+    def test_status_reports_pending_model(self, client: TestClient):
+        client.app.state.ctx.config.pending_local_model = "qwen2.5-7b-instruct"
+        body = client.get("/api/llm/download-status").json()
+        assert body["pending_model_id"] == "qwen2.5-7b-instruct"
+        assert body["downloading"] is False
+
+    def test_status_reflects_in_progress_download(self, client: TestClient):
+        client.app.state.ctx.model_downloads["llm"] = "qwen2.5-7b-instruct"
+        body = client.get("/api/llm/download-status").json()
+        assert body["downloading"] is True
+        assert body["downloading_model_id"] == "qwen2.5-7b-instruct"
+
+    def test_clear_empties_pending_and_reloads_config_from_disk(
+        self, client: TestClient, project_dir: Path,
+    ):
+        ctx = client.app.state.ctx
+        # Simulate the download subprocess having written llm_model_path to disk
+        # while pending is still set from the wizard.
+        model_file = project_dir / "downloaded.gguf"
+        model_file.write_bytes(b"gguf")
+        ctx.config.pending_local_model = "qwen2.5-7b-instruct"
+        ctx.config.llm_model_path = str(model_file)
+        ctx.config.save_project(project_dir)
+        # In-memory config is now stale (a restart would be needed without reload).
+        ctx.config.llm_model_path = "/stale/in-memory/path"
+
+        resp = client.post("/api/llm/download-status/clear")
+        assert resp.status_code == 200
+        assert resp.json()["pending_model_id"] == ""
+        # Reloaded from disk: the subprocess's llm_model_path is now live, and the
+        # pending flag is cleared both in memory and on disk.
+        assert ctx.config.llm_model_path == str(model_file)
+        assert ctx.config.pending_local_model == ""
+        from yuu_clip.config import Config
+        assert Config.load(project_dir).pending_local_model == ""
+
+
+class TestGgufDownloadGuard:
+    def test_double_start_is_rejected_with_409(self, client: TestClient):
+        client.app.state.ctx.model_downloads["llm"] = "qwen2.5-7b-instruct"
+        resp = client.post(
+            "/api/llm/gguf/download", params={"model_id": "qwen2.5-7b-instruct"}
+        )
+        assert resp.status_code == 409
+        assert "already in progress" in resp.json()["detail"].lower()
+
+    def test_unknown_model_id_is_rejected_with_400(self, client: TestClient):
+        resp = client.post("/api/llm/gguf/download", params={"model_id": "evil-model"})
+        assert resp.status_code == 400
+
+
 class TestCapabilityTiers:
     def _tiers(self, client: TestClient) -> tuple[dict, bool]:
         resp = client.get("/api/capabilities/tiers")
