@@ -14,6 +14,7 @@ const { buildWheelInstallArgs, buildOpencvDedupeArgs } = require('./venv-setup')
 const { describeInstallFailure } = require('./install-error');
 const diskSpace = require('./disk-space');
 const { recommendWhisperModel } = require('./whisper-select');
+const { recommendLocalModel } = require('./recommend-model');
 const { mimeTypeFor, isPathInside, rangeResponseInit } = require('./media-serve');
 const { buildProjectConfigFromWizard } = require('./wizard-config');
 const { decideSetupMode } = require('./startup-mode');
@@ -307,6 +308,9 @@ function registerWizardIPC(wizardWin) {
     const existingModelPath = projCfg.llm_model_path || '';
     const defaultBackend    = existingBackend || 'llamacpp';
 
+    let freeDiskGB;
+    try { freeDiskGB = diskSpace.freeBytesAt(pDir) / 1e9; } catch (_) { freeDiskGB = undefined; }
+
     logSetup(`Status check — FFmpeg:${ffmpegOk} GPU:${gpu.name} CUDA:${cuda.available} cudaLibs:${cudaLibsInstalled} Ollama:${ollamaRunning} Model:${ollamaModelPulled} llamacpp:${llamacppInstalled}`);
     return {
       ffmpegOk,
@@ -315,6 +319,7 @@ function registerWizardIPC(wizardWin) {
       ollamaRunning, ollamaModel, ollamaModelPulled,
       llamacppInstalled, cudaLibsInstalled,
       recommendedWhisper: recommendWhisperModel(gpu.vramMB),
+      localModelRecommendation: recommendLocalModel({ vramMB: gpu.vramMB, freeDiskGB, gpuVendor: gpu.vendor }),
       whisperModel:  projCfg.whisper_model || '',
       projectDir: pDir,
       aiPrivacyMode: projCfg.ai_privacy_mode || 'local_only',
