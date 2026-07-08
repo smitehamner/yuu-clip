@@ -6,11 +6,40 @@ helpers.
 """
 from __future__ import annotations
 
+import json
 import time
 from pathlib import Path
 
 from conftest import LIVE_URL, skip_no_server
 from playwright.sync_api import Page, expect
+
+
+def _open_reel_build_with_stubbed_pool(page: Page, approved_clips_handler, *, video_approved: int = 3) -> None:
+    """Open the reel builder on the Build tab with its data fully stubbed.
+
+    The Build tab only renders clip rows when AppState.videos reports approved
+    clips. boot.js fires loadVideos() at DOMContentLoaded - a real /api/videos
+    fetch the page fixture does not await - and under a full parallel run it can
+    resolve mid-test and overwrite an injected AppState.videos with the live DB's
+    videos (0 approved). switchReelTab then short-circuits to the empty state and
+    no rows ever render, which is the FLAKE-1 timeout on .reel-clip-row. Stubbing
+    /api/videos (+ /api/sessions) and re-navigating makes boot's own one-shot
+    loadVideos produce the approved video, so AppState.videos is deterministic and
+    nothing later clobbers it - matching these tests' intent of not depending on
+    the live project's DB contents.
+    """
+    page.route("**/api/videos", lambda route: route.fulfill(
+        content_type="application/json",
+        body=json.dumps([{"id": 1, "filename": "s.mkv", "approved": video_approved}])))
+    page.route("**/api/sessions",
+               lambda route: route.fulfill(content_type="application/json", body="[]"))
+    page.route("**/api/demo/list",
+               lambda route: route.fulfill(content_type="application/json", body="[]"))
+    page.route("**/api/demo/approved-clips*", approved_clips_handler)
+    page.goto(LIVE_URL, wait_until="domcontentloaded")
+    page.wait_for_selector("#video-list li[data-video-id]", timeout=15000)
+    page.evaluate("openHighlightReelsModal('build')")
+    page.locator(".reel-clip-row").first.wait_for(timeout=15000)
 
 
 @skip_no_server
@@ -83,19 +112,11 @@ class TestReelBuilderCuration:
     layer so the tests don't depend on the live project's DB contents."""
 
     def _open_build(self, page: Page) -> None:
-        import json
-        page.route("**/api/demo/approved-clips*",
-                   lambda route: route.fulfill(content_type="application/json",
-                                               body=json.dumps(_FAKE_REEL_CLIPS)))
-        page.route("**/api/demo/list",
-                   lambda route: route.fulfill(content_type="application/json", body="[]"))
-        page.evaluate("AppState.videos = [{id: 1, filename: 's.mkv', approved: 3}]")
-        page.evaluate("openHighlightReelsModal('build')")
-        # 15s (not the 10s default): clip data here is stubbed, but under a full
-        # parallel run the page's own boot fetches (e.g. /api/videos) can stall
-        # the event loop past 10s contending on the single SQLite DB (see the
-        # same reasoning in select_first_video_and_clip above).
-        page.locator(".reel-clip-row").first.wait_for(timeout=15000)
+        _open_reel_build_with_stubbed_pool(
+            page,
+            lambda route: route.fulfill(content_type="application/json",
+                                        body=json.dumps(_FAKE_REEL_CLIPS)),
+        )
 
     def _names(self, page: Page) -> list:
         return page.locator(".reel-clip-name").all_inner_texts()
@@ -166,16 +187,13 @@ class TestReelBuilderFooterVisible:
     footer being half-clipped below the fold."""
 
     def test_build_button_within_viewport_with_many_clips(self, page: Page):
-        import json
         page.set_viewport_size({"width": 1280, "height": 900})
-        page.route("**/api/demo/approved-clips*",
-                   lambda route: route.fulfill(content_type="application/json",
-                                               body=json.dumps(_MANY_REEL_CLIPS)))
-        page.route("**/api/demo/list",
-                   lambda route: route.fulfill(content_type="application/json", body="[]"))
-        page.evaluate("AppState.videos = [{id: 1, filename: 's.mkv', approved: 8}]")
-        page.evaluate("openHighlightReelsModal('build')")
-        page.locator(".reel-clip-row").first.wait_for()
+        _open_reel_build_with_stubbed_pool(
+            page,
+            lambda route: route.fulfill(content_type="application/json",
+                                        body=json.dumps(_MANY_REEL_CLIPS)),
+            video_approved=8,
+        )
         btn = page.locator("#reel-tab-build .modal-actions button:has-text('Build Reel')")
         box = btn.bounding_box()
         assert box is not None
@@ -198,7 +216,6 @@ class TestReelPoolStatusFilters:
     toggling a chip is observable without a live DB."""
 
     def _open_build_with_status_routing(self, page: Page) -> None:
-        import json
         from urllib.parse import parse_qs, urlparse
 
         def handler(route):
@@ -209,12 +226,7 @@ class TestReelPoolStatusFilters:
                 pool.append(_FAKE_PENDING_CLIP)
             route.fulfill(content_type="application/json", body=json.dumps(pool))
 
-        page.route("**/api/demo/approved-clips*", handler)
-        page.route("**/api/demo/list",
-                   lambda route: route.fulfill(content_type="application/json", body="[]"))
-        page.evaluate("AppState.videos = [{id: 1, filename: 's.mkv', approved: 3}]")
-        page.evaluate("openHighlightReelsModal('build')")
-        page.locator(".reel-clip-row").first.wait_for()
+        _open_reel_build_with_stubbed_pool(page, handler)
 
     def test_approved_chip_active_by_default(self, page: Page):
         self._open_build_with_status_routing(page)
