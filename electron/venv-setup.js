@@ -14,8 +14,8 @@
 // installs wheels from a find-links dir, and upgrading pip from PyPI reintroduced a
 // network dependency on the very first launch (the thing this offline path exists to
 // remove). If a pip upgrade is ever genuinely needed, it MUST go through
-// `python -m pip` — pip.exe cannot replace itself on Windows (it exits 1 with
-// "To modify pip, please run python -m pip", observed 2026-07-05) — and pull from the
+// `python -m pip` - pip.exe cannot replace itself on Windows (it exits 1 with
+// "To modify pip, please run python -m pip", observed 2026-07-05) - and pull from the
 // wheelhouse, never PyPI.
 function buildWheelInstallArgs(wheelPath, lockPath = null, wheelhouseDir = null) {
   const args = ['install', '--force-reinstall', '--progress-bar', 'raw'];

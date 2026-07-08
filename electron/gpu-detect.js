@@ -18,7 +18,7 @@ function parseNvidiaVramMB(smiOutput) {
   return Number.isFinite(mb) ? mb : 0;
 }
 
-// cimJson: `Get-CimInstance Win32_VideoController | ConvertTo-Json` output — an
+// cimJson: `Get-CimInstance Win32_VideoController | ConvertTo-Json` output - an
 // array of {Name, AdapterRAM}, or a bare object when there's a single adapter.
 // getNvidiaVramMB: lazily invoked only for NVIDIA cards, since AdapterRAM is a
 // 32-bit WMI field capped at ~4 GB and understates cards with more VRAM.

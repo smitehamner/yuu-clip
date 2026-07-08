@@ -28,7 +28,7 @@ function logSetup(msg) {
   fs.mkdirSync(path.dirname(SETUP_LOG), { recursive: true });
   // Write a UTF-8 BOM when starting a fresh log (first line, or first after a
   // rotation) so PowerShell 5.1 / ANSI-default tools don't decode the em-dashes
-  // our copy uses as cp1252 (which renders "—" as "â€”").
+  // our copy uses as cp1252 (which renders " - " as "â€”").
   if (!fs.existsSync(SETUP_LOG)) fs.writeFileSync(SETUP_LOG, '﻿');
   fs.appendFileSync(SETUP_LOG, `[${new Date().toISOString()}] ${msg}\n`);
 }

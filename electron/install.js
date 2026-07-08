@@ -3,7 +3,7 @@
 // Install-side plumbing for the desktop wrapper, split out of main.js: the async
 // command runner, the streaming binary downloader for GGUF models, pip-output
 // condensing, and the wizard's optional-package catalog + venv presence check.
-// Pure logic — no Electron, no shared main.js state — so main.js drives these
+// Pure logic - no Electron, no shared main.js state - so main.js drives these
 // while owning the download-cancel controllers and the setup UI.
 
 const { spawn } = require('child_process');
@@ -11,7 +11,7 @@ const fs        = require('fs');
 const https     = require('https');
 const { VENV_PYTHON } = require('./constants');
 
-// Async command runner — keeps the event loop free during long pip installs.
+// Async command runner - keeps the event loop free during long pip installs.
 function runCmd(cmd, args, onLine = null) {
   return new Promise((resolve, reject) => {
     const proc = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
@@ -42,7 +42,7 @@ function runCmd(cmd, args, onLine = null) {
 // this for us, so redirects, progress accounting, and a truncated-download check
 // are handled by hand. Writes to a `.part` sibling and renames on success, so a
 // half-finished download can never be mistaken for a complete model file.
-// `opts.signal` (an AbortSignal) makes the download cancellable — aborting fires
+// `opts.signal` (an AbortSignal) makes the download cancellable - aborting fires
 // an ABORT_ERR on the request, and the .part file is removed so a cancelled
 // download never leaves a stray file behind.
 function downloadFileWithProgress(url, destPath, onProgress, opts = {}) {
@@ -73,7 +73,7 @@ function downloadFileWithProgress(url, destPath, onProgress, opts = {}) {
       res.pipe(fileStream);
       fileStream.on('finish', () => {
         if (total > 0 && received !== total) {
-          cleanupAndReject(new Error(`Downloaded size (${received}) doesn't match expected (${total}) — try again`));
+          cleanupAndReject(new Error(`Downloaded size (${received}) doesn't match expected (${total}) - try again`));
           return;
         }
         fs.rename(tmpPath, destPath, err => (err ? reject(err) : resolve()));

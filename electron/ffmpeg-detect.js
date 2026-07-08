@@ -2,7 +2,7 @@
 
 const path = require('path');
 
-// Packaged builds always use the bundled GPL FFmpeg — no "prefer system FFmpeg
+// Packaged builds always use the bundled GPL FFmpeg - no "prefer system FFmpeg
 // if present" logic (see docs/dev/THIRD-PARTY-NOTICES-FFMPEG.md). Split out from
 // main.js so it can be unit-tested without Electron or a real packaged build;
 // existsSync is injected the same way gpu-detect.js injects its OS-command runner.

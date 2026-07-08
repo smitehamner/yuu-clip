@@ -3,7 +3,7 @@
 // Prebuilt CUDA wheels for llama-cpp-python are published directly as GitHub
 // Release assets tagged `v<version>-cu<tag>` (abetlen's old pip index at
 // abetlen.github.io/llama-cpp-python/whl/ stopped at v0.2.69, which predates
-// yuu-clip's own `llama-cpp-python>=0.3,<1.0` pin in pyproject.toml — do not
+// yuu-clip's own `llama-cpp-python>=0.3,<1.0` pin in pyproject.toml - do not
 // resurrect that index). Re-pinning LLAMA_CPP_CUDA_VERSION or the available tag
 // list requires checking https://github.com/abetlen/llama-cpp-python/releases
 // for which cu<NNN> tags the target version actually published a win_amd64 wheel
@@ -19,7 +19,7 @@ const LOWEST_CUDA_TAG = AVAILABLE_CUDA_TAGS
   .map(tag => parseInt(tag.slice(2), 10))
   .reduce((lo, code) => Math.min(lo, code));
 
-// Each tag encodes major*10+minor (cu124 -> 12.4, cu130 -> 13.0) — the same scale
+// Each tag encodes major*10+minor (cu124 -> 12.4, cu130 -> 13.0) - the same scale
 // `nvidia-smi`'s reported "CUDA Version: 12.6" parses to, so tag and detected
 // version compare directly as integers.
 function pickCudaWheelTag(cudaVersionString, availableTags = AVAILABLE_CUDA_TAGS) {
@@ -49,7 +49,7 @@ function buildCudaWheelUrl(version, tag) {
 // The plain (no `-cu…` suffix) release tag also publishes a prebuilt CPU
 // win_amd64 wheel, so machines without a usable CUDA wheel still install from a
 // binary rather than triggering a from-source compile (which needs MSVC/CMake
-// and fails for essentially every end user — the whole reason this path exists).
+// and fails for essentially every end user - the whole reason this path exists).
 function buildCpuWheelUrl(version) {
   return `https://github.com/abetlen/llama-cpp-python/releases/download/v${version}/llama_cpp_python-${version}-py3-none-win_amd64.whl`;
 }

@@ -11,7 +11,7 @@ function buildProjectConfigFromWizard(cfg, defaults) {
     whisper_language: cfg.whisperLanguage || '',
     ai_privacy_mode:  cfg.aiPrivacyMode || 'local_only',
     llm_backend:      cfg.llmBackend,
-    // Speaker labels are bundled and on by default (tokenless speechbrain) —
+    // Speaker labels are bundled and on by default (tokenless speechbrain) -
     // the wizard no longer offers a per-feature choice here. Set explicitly
     // (rather than omit) so re-running the wizard on a project that had an
     // old "pyannote" choice actually clears it back to the current default;

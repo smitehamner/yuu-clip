@@ -9,7 +9,7 @@
 const fs = require('fs');
 const path = require('path');
 
-// Headroom beyond the model's own size — downloads write a .part file and
+// Headroom beyond the model's own size - downloads write a .part file and
 // (for Ollama) temporary blobs before the final rename.
 const DEFAULT_HEADROOM_GB = 2;
 
@@ -25,7 +25,7 @@ function formatGb(bytes) {
   return (Number(bytes) / 1e9).toFixed(1);
 }
 
-// Nearest existing ancestor — statfs needs a real path, and a models dir may
+// Nearest existing ancestor - statfs needs a real path, and a models dir may
 // not exist yet on a first run.
 function existingAncestor(target) {
   let dir = path.resolve(target);
@@ -42,7 +42,7 @@ function freeBytesAt(target) {
   return stats.bavail * stats.bsize;
 }
 
-// Returns null when there's room (or space can't be determined — never block on
+// Returns null when there's room (or space can't be determined - never block on
 // an unknowable), or an actionable message when the drive is too full.
 function diskShortfallMessage(target, sizeGb, headroomGb = DEFAULT_HEADROOM_GB) {
   const needed = bytesNeeded(sizeGb, headroomGb);

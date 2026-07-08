@@ -21,14 +21,14 @@ const DISK_HINTS = [
   'insufficient disk space', 'winerror 112',
 ];
 
-// A file was blocked or locked — usually antivirus or a file still in use,
+// A file was blocked or locked - usually antivirus or a file still in use,
 // not a bug in the install.
 const PERMISSION_HINTS = [
   'access is denied', 'permission denied', 'errno 13', 'winerror 5',
   'winerror 32', 'operation not permitted', 'used by another process',
 ];
 
-// pip found no wheel for this machine — most often a GPU/CUDA-tagged wheel whose
+// pip found no wheel for this machine - most often a GPU/CUDA-tagged wheel whose
 // tag doesn't match, or a package with no binary for this Python/platform.
 const NO_WHEEL_HINTS = [
   'no matching distribution', 'could not find a version',
@@ -60,15 +60,15 @@ function describeInstallFailure(stderr) {
     return 'your disk ran out of space. Free up some room, then try again.';
   }
   if (hasAny(text, PERMISSION_HINTS)) {
-    return 'a file was blocked — often by antivirus, or because a file was still in use. ' +
+    return 'a file was blocked - often by antivirus, or because a file was still in use. ' +
            'Allow yuu-clip in your antivirus (or close other apps that might be using it), then try again.';
   }
   if (hasAny(text, NO_WHEEL_HINTS)) {
     return 'the right package for your system wasn’t available. If this was GPU acceleration, ' +
-           'you can keep using the CPU instead — or try again.';
+           'you can keep using the CPU instead - or try again.';
   }
   if (hasAny(text, CUDA_HINTS)) {
-    return 'GPU acceleration couldn’t load — your graphics driver may be older than the CUDA build. ' +
+    return 'GPU acceleration couldn’t load - your graphics driver may be older than the CUDA build. ' +
            'yuu-clip will keep working on the CPU.';
   }
   return 'the install didn’t finish. You can try again, switch to Ollama, or open the setup log and send it to us.';

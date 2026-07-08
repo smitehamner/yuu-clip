@@ -31,7 +31,7 @@ const { rotateLogs, logSetup } = require('./logging');
 const { loadElectronConfig, saveElectronConfig, writeProjectConfig } = require('./electron-config');
 const { runCmd, downloadFileWithProgress, pipStatusReporter, WIZARD_INSTALLABLE, checkVenvModule } = require('./install');
 
-// Roadmap plan 10 — the "yuu-media" scheme must be registered as privileged
+// Roadmap plan 10 - the "yuu-media" scheme must be registered as privileged
 // before app.ready fires (Electron requirement); the actual request handler
 // is wired up in registerMediaProtocol(), called from app.whenReady().
 protocol.registerSchemesAsPrivileged([
@@ -135,7 +135,7 @@ function pollReady(port, attempts = 120, delayMs = 500) {
         logSetup(`Backend exited during startup (code ${pyProc.exitCode}) after ${i} poll attempts`);
         return reject(startupError(
           'yuu-clip started, but its engine stopped before it was ready.\n\n' +
-          'This is usually a temporary hiccup — start yuu-clip again. If it keeps ' +
+          'This is usually a temporary hiccup - start yuu-clip again. If it keeps ' +
           'happening, open the log and send it to us.', SETUP_LOG));
       }
       try {
@@ -313,7 +313,7 @@ function registerWizardIPC(wizardWin) {
     let freeDiskGB;
     try { freeDiskGB = diskSpace.freeBytesAt(pDir) / 1e9; } catch (_) { freeDiskGB = undefined; }
 
-    logSetup(`Status check — FFmpeg:${ffmpegOk} GPU:${gpu.name} CUDA:${cuda.available} cudaLibs:${cudaLibsInstalled} Ollama:${ollamaRunning} Model:${ollamaModelPulled} llamacpp:${llamacppInstalled}`);
+    logSetup(`Status check - FFmpeg:${ffmpegOk} GPU:${gpu.name} CUDA:${cuda.available} cudaLibs:${cudaLibsInstalled} Ollama:${ollamaRunning} Model:${ollamaModelPulled} llamacpp:${llamacppInstalled}`);
     return {
       ffmpegOk,
       ffmpegBundled: app.isPackaged,
@@ -343,8 +343,8 @@ function registerWizardIPC(wizardWin) {
     };
     if (!spec) { send({ error: `Unknown package '${slug}'` }); return; }
 
-    // The LLM engine always installs from a prebuilt win_amd64 wheel — a CUDA
-    // build for NVIDIA GPUs, else the CPU build — so an end user never triggers
+    // The LLM engine always installs from a prebuilt win_amd64 wheel - a CUDA
+    // build for NVIDIA GPUs, else the CPU build - so an end user never triggers
     // a from-source compile (which needs MSVC/CMake and fails for nearly all of
     // them). Same import name either way, so checkVenvModule()'s presence check
     // is unaffected.
@@ -367,7 +367,7 @@ function registerWizardIPC(wizardWin) {
     } catch (err) {
       const stderr = (err.stderr || '').trim();
       const tail   = stderr.split(/\r?\n/).filter(Boolean).slice(-3).join('\n');
-      logSetup(`Wizard install failed: ${slug} — ${err.message}${tail ? '\n' + tail : ''}`);
+      logSetup(`Wizard install failed: ${slug} - ${err.message}${tail ? '\n' + tail : ''}`);
       send({ error: describeInstallFailure(stderr) });
     }
   });
@@ -380,7 +380,7 @@ function registerWizardIPC(wizardWin) {
     };
     const shortfall = diskSpace.diskShortfallMessage(MODELS_DIR, DEFAULT_LLAMACPP_MODEL.sizeGb);
     if (shortfall) {
-      logSetup(`GGUF model download blocked — ${shortfall}`);
+      logSetup(`GGUF model download blocked - ${shortfall}`);
       send({ error: shortfall });
       return;
     }
@@ -440,7 +440,7 @@ function registerWizardIPC(wizardWin) {
 
   // Restore a backup into the chosen project folder before the server spawns
   // (Stage 4). Re-pointing of moved source media is deferred to the in-app
-  // Restore flow. Exit code 2 means "folder already has a project" — offer to
+  // Restore flow. Exit code 2 means "folder already has a project" - offer to
   // replace it (a project.db.pre-restore safety copy is kept) and retry.
   ipcMain.handle('setup:restore-backup', async (_, opts = {}) => {
     const { archive, project } = opts;
@@ -483,7 +483,7 @@ function registerWizardIPC(wizardWin) {
       || path.join(process.env.USERPROFILE, '.ollama', 'models');
     const shortfall = diskSpace.diskShortfallMessage(ollamaStore, DEFAULT_OLLAMA_MODEL_SIZE_GB);
     if (shortfall) {
-      logSetup(`Ollama model pull blocked — ${shortfall}`);
+      logSetup(`Ollama model pull blocked - ${shortfall}`);
       event.sender.send('setup:pull-progress', { status: 'error', error: shortfall });
       return;
     }
@@ -513,7 +513,7 @@ function registerWizardIPC(wizardWin) {
     req.on('error', err => {
       activePullReq = null;
       if (pullCancelled) return; // cancel event already sent
-      logSetup(`Ollama model pull failed: ${modelName} — ${err.message}`);
+      logSetup(`Ollama model pull failed: ${modelName} - ${err.message}`);
       event.sender.send('setup:pull-progress', { status: 'error', error: err.message });
     });
     req.write(JSON.stringify({ name: modelName }));
@@ -541,7 +541,7 @@ function showWizardLoadingScreen(win) {
 }
 
 // Updates the "Starting yuu-clip…" loading screen's status line from the main
-// process. No preload/IPC needed for one line of text — executeJavaScript is
+// process. No preload/IPC needed for one line of text - executeJavaScript is
 // simpler than wiring a context-bridged channel just for this.
 function updateLoadingStatus(win, text) {
   if (!win || win.isDestroyed()) return;
@@ -561,11 +561,11 @@ const WHISPER_MODEL_SIZES = {
 // download path production transcription already takes (see
 // yuu_clip/transcribe/whisper_runner.py _load_whisper_model) rather than
 // re-deriving the HuggingFace repo id ourselves. Failure is logged and
-// swallowed — analyze-time already has a clear retry message if this didn't
+// swallowed - analyze-time already has a clear retry message if this didn't
 // warm the cache (see _model_load_error in whisper_runner.py).
 async function prefetchWhisperModel(modelName, win) {
   const size = WHISPER_MODEL_SIZES[modelName];
-  const sizeNote = size ? `, ${size} — one-time` : ' — one-time';
+  const sizeNote = size ? `, ${size} - one-time` : ' - one-time';
   updateLoadingStatus(win, `Downloading the speech-to-text model (${modelName}${sizeNote})…`);
   logSetup(`Pre-fetching Whisper model: ${modelName}`);
   const code =
@@ -575,7 +575,7 @@ async function prefetchWhisperModel(modelName, win) {
     await runCmd(VENV_PYTHON, ['-c', code]);
     logSetup(`Whisper model pre-fetch complete: ${modelName}`);
   } catch (err) {
-    logSetup(`Whisper model pre-fetch failed (non-fatal, will retry on first Analyze): ${modelName} — ${err.message}`);
+    logSetup(`Whisper model pre-fetch failed (non-fatal, will retry on first Analyze): ${modelName} - ${err.message}`);
   }
   updateLoadingStatus(win, 'Waiting for backend');
 }
@@ -613,17 +613,17 @@ function showSetupWizard({ rerun = false, updated = false } = {}) {
 
     ipcMain.once('setup:complete', (_, cfg) => {
       saveElectronConfig({ projectDir: cfg.projectDir, setupSchemaVersion: SETUP_SCHEMA_VERSION });
-      // A restored project already carries its own config.json — writing the
+      // A restored project already carries its own config.json - writing the
       // wizard defaults over it would wipe the user's saved settings.
       if (cfg.restored) {
-        logSetup(`Setup complete via restore — projectDir:${cfg.projectDir} (kept restored settings)`);
+        logSetup(`Setup complete via restore - projectDir:${cfg.projectDir} (kept restored settings)`);
       } else {
         const pyCfg = buildProjectConfigFromWizard(cfg, {
           defaultClaudeModel: DEFAULT_CLAUDE_MODEL,
           defaultOllamaModel: DEFAULT_OLLAMA_MODEL,
         });
         writeProjectConfig(cfg.projectDir, pyCfg);
-        logSetup(`Setup complete — projectDir:${cfg.projectDir} whisperModel:${cfg.whisperModel} llmBackend:${cfg.llmBackend} diarization:${pyCfg.diarization_backend}`);
+        logSetup(`Setup complete - projectDir:${cfg.projectDir} whisperModel:${cfg.whisperModel} llmBackend:${cfg.llmBackend} diarization:${pyCfg.diarization_backend}`);
       }
       fs.mkdirSync(path.dirname(SETUP_COMPLETE_MARKER), { recursive: true });
       fs.writeFileSync(SETUP_COMPLETE_MARKER, new Date().toISOString());
@@ -647,11 +647,11 @@ function showSetupWizard({ rerun = false, updated = false } = {}) {
     });
 
     // Update mode only: launch with existing config. The schema version is
-    // still stored — the user saw the new options once and chose to move on;
+    // still stored - the user saw the new options once and chose to move on;
     // re-showing every launch would be nagging. Re-run remains in the menu.
     const skipUpdateWizard = () => {
       saveElectronConfig({ setupSchemaVersion: SETUP_SCHEMA_VERSION });
-      logSetup('Update-mode setup skipped — launching with existing config');
+      logSetup('Update-mode setup skipped - launching with existing config');
       resolve({ projectDir: loadElectronConfig().projectDir || DEFAULT_PROJECT_DIR });
       showWizardLoadingScreen(win);
     };
@@ -792,14 +792,14 @@ async function ensureVenv() {
   const venvExists = fs.existsSync(VENV_PYTHON);
   const versionOk  = !bundledVersion || installedVersion === bundledVersion;
   if (venvExists && versionOk) {
-    logSetup(`Venv OK — wheel ${bundledVersion || 'unknown'} already installed`);
+    logSetup(`Venv OK - wheel ${bundledVersion || 'unknown'} already installed`);
     return;
   }
 
   if (!venvExists) {
-    logSetup('Venv not found — running first-run setup');
+    logSetup('Venv not found - running first-run setup');
   } else {
-    logSetup(`Wheel update needed (installed: ${installedVersion || 'none'}, bundled: ${bundledVersion}) — reinstalling`);
+    logSetup(`Wheel update needed (installed: ${installedVersion || 'none'}, bundled: ${bundledVersion}) - reinstalling`);
   }
 
   const pythonBin = findPython();
@@ -813,7 +813,7 @@ async function ensureVenv() {
         buttons: ['Quit'], defaultId: 0,
       });
     } else {
-      logSetup('No Python 3.11+ found on PATH — aborting setup');
+      logSetup('No Python 3.11+ found on PATH - aborting setup');
       await dialog.showMessageBox({
         type: 'error', title: 'Python 3.11+ required',
         message:
@@ -854,9 +854,9 @@ async function ensureVenv() {
       && fs.readdirSync(wheelhouseDir).some(f => f.endsWith('.whl'));
     logSetup(wheelhouseOk
       ? `Installing offline from bundled wheelhouse: ${wheelhouseDir}`
-      : 'Wheelhouse not bundled — installing base deps from PyPI (online)');
+      : 'Wheelhouse not bundled - installing base deps from PyPI (online)');
     logSetup(lockOk ? `Constraining deps to ${lockPath}`
-                    : 'requirements.lock not bundled — installing without a constraint');
+                    : 'requirements.lock not bundled - installing without a constraint');
     const onPipLine = makePipLineHandler(setupWin);
     await runCmd(
       VENV_PIP,
@@ -877,7 +877,7 @@ async function ensureVenv() {
     logSetup(`Venv setup failed: ${err.message}${detail ? '\n' + detail : ''}`);
     const wrapped = new Error(err.message);
     wrapped.userMessage =
-      'yuu-clip couldn’t finish setting itself up — ' + describeInstallFailure(detail);
+      'yuu-clip couldn’t finish setting itself up - ' + describeInstallFailure(detail);
     wrapped.logPath = SETUP_LOG;
     throw wrapped;
   } finally {
@@ -915,7 +915,7 @@ async function resolvePort() {
 // ---------------------------------------------------------------------------
 
 // Run the Python restore CLI once and resolve to a plain result object
-// (see restore-backup.js parseRestoreExit). Never rejects — the wizard shows the
+// (see restore-backup.js parseRestoreExit). Never rejects - the wizard shows the
 // error message rather than crashing.
 function runRestore(archive, project, overwrite) {
   return new Promise((resolve) => {
@@ -939,7 +939,7 @@ function spawnBackend(port) {
   if (port !== BASE_PORT) args.push('--port', String(port));
 
   // Packaged builds always point the backend at the bundled FFmpeg, rather than
-  // relying on an inherited PATH — YUU_CLIP_FFMPEG_DIR set-but-broken raises a
+  // relying on an inherited PATH - YUU_CLIP_FFMPEG_DIR set-but-broken raises a
   // loud error in find_ffmpeg() instead of silently falling back to PATH, so a
   // packaging bug surfaces immediately (see yuu_clip/config.py find_ffmpeg()).
   const env = { ...process.env };
@@ -974,7 +974,7 @@ function spawnBackend(port) {
 }
 
 // ---------------------------------------------------------------------------
-// Native media protocol (roadmap plan 10) — serves the recording source/proxy
+// Native media protocol (roadmap plan 10) - serves the recording source/proxy
 // files directly from disk instead of proxying every byte through the Python
 // HTTP server. Startup-latency win only; seeking already works fine over HTTP
 // via the 720p proxy, so this is intentionally low-stakes and surgical.
@@ -982,7 +982,7 @@ function spawnBackend(port) {
 // Electron's protocol.handle() + net.fetch(pathToFileURL(...)) is the
 // documented pattern for this, but Range-request/video-seeking support on top
 // of it has been an unresolved Electron bug (electron/electron#38749) across
-// every version from 25 through at least 35 — still open as of our pinned
+// every version from 25 through at least 35 - still open as of our pinned
 // 33.2.1 (electron/package.json). Range handling is therefore done manually
 // here (parse header, fs.createReadStream(start, end), 206 + Content-Range)
 // rather than trusting net.fetch to cover it.
@@ -992,7 +992,7 @@ function spawnBackend(port) {
 // project's proxies dir (deterministic, always true for generated proxies) or
 // it exactly matches a source/proxy path the backend has told us about for a
 // known video. Source recordings live wherever the creator originally pointed
-// `analyze` at — often outside the project dir entirely — so an allowed-*root*
+// `analyze` at - often outside the project dir entirely - so an allowed-*root*
 // check alone (as for proxies) can't cover them; this whitelist of exact,
 // backend-confirmed paths does. The cache is refreshed at most once every
 // MEDIA_PATH_REFRESH_MIN_INTERVAL_MS so a burst of Range requests during
@@ -1013,7 +1013,7 @@ async function refreshKnownMediaPaths() {
     }
     knownMediaPaths = paths;
   } catch (_) {
-    // Backend not reachable (e.g. still starting) — leave the cache as-is.
+    // Backend not reachable (e.g. still starting) - leave the cache as-is.
   } finally {
     knownMediaPathsFetchedAt = Date.now();
   }
@@ -1052,7 +1052,7 @@ function registerMediaProtocol() {
       if (parsed.hostname !== 'media') return new Response('Not found', { status: 404 });
       resolvedPath = path.resolve(decodeURIComponent(parsed.pathname.replace(/^\/+/, '')));
     } catch (err) {
-      logSetup(`yuu-media: malformed request URL ${request.url} — ${err.message}`);
+      logSetup(`yuu-media: malformed request URL ${request.url} - ${err.message}`);
       return new Response('Bad request', { status: 400 });
     }
 
@@ -1153,7 +1153,7 @@ function buildMenu() {
         {
           label: 'Re-run Setup Wizard…',
           click: () => {
-            // Non-blocking — backend keeps running while wizard is open.
+            // Non-blocking - backend keeps running while wizard is open.
             showSetupWizard({ rerun: true }).catch(() => {});
           },
         },
@@ -1222,7 +1222,7 @@ async function handleClose() {
 
 app.whenReady().then(async () => {
   rotateLogs();
-  logSetup(`yuu-clip ${app.getVersion()} starting — ${process.platform} ${process.arch} node/${process.versions.node}`);
+  logSetup(`yuu-clip ${app.getVersion()} starting - ${process.platform} ${process.arch} node/${process.versions.node}`);
   registerMediaProtocol();
 
   const knownQuits = [
@@ -1246,7 +1246,7 @@ app.whenReady().then(async () => {
     });
 
     if (showWizard) {
-      if (setupOutdated) logSetup(`Setup schema ${storedSchema} < ${SETUP_SCHEMA_VERSION} — showing wizard with new options`);
+      if (setupOutdated) logSetup(`Setup schema ${storedSchema} < ${SETUP_SCHEMA_VERSION} - showing wizard with new options`);
       const cfg = await showSetupWizard({ rerun: false, updated: setupMode === 'update' });
       projectDir = cfg.projectDir;
       if (cfg.whisperModel) await prefetchWhisperModel(cfg.whisperModel, wizardWin);
@@ -1280,7 +1280,7 @@ app.on('window-all-closed', () => {
   app.quit();
 });
 
-// Kill the backend on any process exit — covers crashes, SIGTERM, and
+// Kill the backend on any process exit - covers crashes, SIGTERM, and
 // Task Manager kills that bypass the normal close flow.
 process.on('exit', () => {
   if (pyProc) try { pyProc.kill(); } catch (_) {}

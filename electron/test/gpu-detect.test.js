@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const { vendorFromName, parseNvidiaVramMB, selectGPU } = require('../gpu-detect');
 
 // Get-CimInstance ... | ConvertTo-Json returns an array for multiple adapters
-// and a bare object for a single one — cover both shapes.
+// and a bare object for a single one - cover both shapes.
 const twoAdapters = JSON.stringify([
   { Name: 'AMD Radeon(TM) Graphics', AdapterRAM: 536870912 },
   { Name: 'NVIDIA GeForce RTX 4050 Laptop GPU', AdapterRAM: 4293918720 },

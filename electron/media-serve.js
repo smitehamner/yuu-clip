@@ -37,7 +37,7 @@ function parseRange(rangeHeader, fileSize) {
   return { start, end };
 }
 
-// The pure status/headers decision behind serveFileWithRange — no fs, no
+// The pure status/headers decision behind serveFileWithRange - no fs, no
 // Response, so it stays testable without spinning up real files or streams.
 function rangeResponseInit(rangeHeader, fileSize, mimeType) {
   if (!rangeHeader) {

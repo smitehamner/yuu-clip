@@ -12,14 +12,14 @@ const VENV_PYTHON = path.join(VENV_DIR, 'Scripts', 'python.exe');
 const VENV_PIP    = path.join(VENV_DIR, 'Scripts', 'pip.exe');
 
 // Pinned CPython bundled into the installer (see scripts/fetch-python-runtime.ps1)
-// so end users never need a system Python. Only present in packaged builds —
+// so end users never need a system Python. Only present in packaged builds -
 // dev mode (running unpackaged) falls back to a system Python on PATH.
 const BUNDLED_PYTHON = path.join(process.resourcesPath || '', 'python', 'python.exe');
 
 // Pinned GPL FFmpeg bundled into the installer (see
 // scripts/fetch-ffmpeg-runtime.ps1 and docs/dev/THIRD-PARTY-NOTICES-FFMPEG.md)
 // so end users never need to install FFmpeg themselves. Only present in
-// packaged builds — dev mode keeps resolving FFmpeg from PATH.
+// packaged builds - dev mode keeps resolving FFmpeg from PATH.
 const BUNDLED_FFMPEG_DIR = path.join(process.resourcesPath || '', 'ffmpeg');
 const SETUP_LOG   = path.join(process.env.APPDATA, 'yuu-clip', 'yuu-clip_install.log');
 const SETUP_COMPLETE_MARKER = path.join(process.env.APPDATA, 'yuu-clip', 'setup-complete');
@@ -36,7 +36,7 @@ const DEFAULT_OLLAMA_MODEL_SIZE_GB = 4.7;
 
 // Cross-checked against yuu_clip/model_catalog.py by
 // tests/test_model_catalog.py::test_electron_wizard_default_llamacpp_model_matches_the_catalog
-// — keep id/repoUrl/filename in sync with that catalog entry.
+// - keep id/repoUrl/filename in sync with that catalog entry.
 const DEFAULT_LLAMACPP_MODEL = {
   id: 'qwen2.5-7b-instruct',
   repoUrl: 'https://huggingface.co/bartowski/Qwen2.5-7B-Instruct-GGUF',
@@ -45,7 +45,7 @@ const DEFAULT_LLAMACPP_MODEL = {
 };
 
 // One-click .gguf downloads land here, out of the user's way (same spirit as
-// the venv/runtime dirs) — never a folder picker for this.
+// the venv/runtime dirs) - never a folder picker for this.
 const MODELS_DIR = path.join(process.env.LOCALAPPDATA, 'yuu-clip', 'models');
 
 // Bump ONLY when the setup wizard gains new settings or steps. A completed

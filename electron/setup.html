@@ -257,9 +257,9 @@ footer {
       <div class="cfg-row">
         <span class="cfg-label">AI privacy</span>
         <select id="ai-privacy-sel">
-          <option value="none">No generative AI — no language model runs</option>
-          <option value="local_only">Local models only — nothing leaves your machine (recommended)</option>
-          <option value="remote_ok">Allow remote models — permits the paid Claude API</option>
+          <option value="none">No generative AI - no language model runs</option>
+          <option value="local_only">Local models only - nothing leaves your machine (recommended)</option>
+          <option value="remote_ok">Allow remote models - permits the paid Claude API</option>
         </select>
       </div>
       <div class="desc" id="ai-privacy-note" style="margin:-2px 0 6px"></div>
@@ -267,9 +267,9 @@ footer {
       <div class="cfg-row">
         <span class="cfg-label">How to run it</span>
         <select id="llm-backend-sel">
-          <option value="llamacpp">Local model file — no extra app, runs locally, free (recommended)</option>
-          <option value="ollama">Ollama — free, runs locally, if you already use Ollama</option>
-          <option value="claude">Claude API — paid, sends your transcript to Anthropic</option>
+          <option value="llamacpp">Local model file - no extra app, runs locally, free (recommended)</option>
+          <option value="ollama">Ollama - free, runs locally, if you already use Ollama</option>
+          <option value="claude">Claude API - paid, sends your transcript to Anthropic</option>
         </select>
       </div>
 
@@ -282,9 +282,9 @@ footer {
       </div>
 
       <div id="llm-llamacpp-fields" style="display:none">
-        <div class="desc" style="margin:4px 0 2px"><strong style="color:#8888aa">Step 1 — install the LLM engine</strong> (one-time)</div>
+        <div class="desc" style="margin:4px 0 2px"><strong style="color:#8888aa">Step 1 - install the LLM engine</strong> (one-time)</div>
         <div id="llamacpp-pkg-slot"></div>
-        <div class="desc" style="margin:8px 0 2px"><strong style="color:#8888aa">Step 2 — get a model file (.gguf)</strong></div>
+        <div class="desc" style="margin:8px 0 2px"><strong style="color:#8888aa">Step 2 - get a model file (.gguf)</strong></div>
         <div class="desc">
           A <code>.gguf</code> file is the AI model itself.
         </div>
@@ -303,7 +303,7 @@ footer {
           <button class="sm" id="llm-browse-btn">Browse…</button>
         </div>
         <div id="llm-warn" style="display:none" class="inline-warn">
-          ⚠ No model file chosen — LLM scoring will be skipped until one is set.
+          ⚠ No model file chosen - LLM scoring will be skipped until one is set.
         </div>
       </div>
 
@@ -317,7 +317,7 @@ footer {
           <button class="sm" id="claude-key-toggle" type="button">Show</button>
         </div>
         <div id="claude-warn" style="display:none" class="inline-warn">
-          ⚠ No API key entered — LLM scoring will be skipped until one is set.
+          ⚠ No API key entered - LLM scoring will be skipped until one is set.
         </div>
         <div class="cfg-row">
           <span class="cfg-label">Model</span>
@@ -338,18 +338,18 @@ footer {
       <div class="sec-note">
         Tune scoring for the kind of content you make. This sets sensible funny /
         dramatic / action weights and points the AI at what makes a good highlight
-        for that style. Leave it on Generic if you're not sure — you can change it
+        for that style. Leave it on Generic if you're not sure - you can change it
         any time in Settings.
       </div>
       <div class="cfg-row">
         <span class="cfg-label">Content type</span>
         <select id="content-preset-sel">
-          <option value="generic">Generic — balanced default (recommended)</option>
-          <option value="rp-narrative">RP / narrative — character and drama first</option>
-          <option value="competitive">Competitive gaming — clutches, comebacks, callouts</option>
-          <option value="casual">Casual / let's play — personality and funny failures</option>
-          <option value="speedrun">Speedrun — splits, PBs, heartbreak resets</option>
-          <option value="podcast">Podcast / conversation — quotes, hot takes, laughter</option>
+          <option value="generic">Generic - balanced default (recommended)</option>
+          <option value="rp-narrative">RP / narrative - character and drama first</option>
+          <option value="competitive">Competitive gaming - clutches, comebacks, callouts</option>
+          <option value="casual">Casual / let's play - personality and funny failures</option>
+          <option value="speedrun">Speedrun - splits, PBs, heartbreak resets</option>
+          <option value="podcast">Podcast / conversation - quotes, hot takes, laughter</option>
         </select>
       </div>
       <div class="inline-note" id="content-preset-note"></div>
@@ -379,11 +379,11 @@ footer {
       <div class="cfg-row">
         <span class="cfg-label">Speech-to-text model</span>
         <select id="whisper-sel">
-          <option value="tiny">tiny — fastest, lowest accuracy (~75 MB)</option>
-          <option value="base">base — fast, decent accuracy (~145 MB)</option>
-          <option value="small">small — balanced (~465 MB)</option>
-          <option value="medium">medium — good quality (~1.5 GB, 5 GB+ VRAM)</option>
-          <option value="large-v3">large-v3 — best quality (~3 GB, 10 GB+ VRAM)</option>
+          <option value="tiny">tiny - fastest, lowest accuracy (~75 MB)</option>
+          <option value="base">base - fast, decent accuracy (~145 MB)</option>
+          <option value="small">small - balanced (~465 MB)</option>
+          <option value="medium">medium - good quality (~1.5 GB, 5 GB+ VRAM)</option>
+          <option value="large-v3">large-v3 - best quality (~3 GB, 10 GB+ VRAM)</option>
         </select>
         <span class="rec" id="rec-tag"></span>
       </div>
@@ -395,7 +395,7 @@ footer {
         </label>
       </div>
       <div class="inline-note">
-        OpenAI Whisper — MIT licence (commercial use permitted).
+        OpenAI Whisper - MIT licence (commercial use permitted).
       </div>
       <div class="cfg-row">
         <span class="cfg-label">Transcription language</span>
@@ -412,7 +412,7 @@ footer {
 <div id="recheck-bar" style="display:none">
   <span>Installed something outside this window?</span>
   <button class="sm" id="recheck-btn">Check again</button>
-  <button class="sm" id="restart-btn" title="Restarts yuu-clip — needed for driver or service installs (e.g. CUDA)">Restart app</button>
+  <button class="sm" id="restart-btn" title="Restarts yuu-clip - needed for driver or service installs (e.g. CUDA)">Restart app</button>
 </div>
 
 <div id="rerun-note" style="display:none;font-size:11px;color:#87879f;padding:6px 20px 0">
@@ -512,7 +512,7 @@ function renderFfmpegSlot(s) {
   el.innerHTML = row('ffmpeg', 'err', '✗', 'FFmpeg not found',
     'yuu-clip needs FFmpeg to read and cut video files.<br>' +
     '<strong>Easiest:</strong> run this command in a terminal (Start → type <em>terminal</em>), ' +
-    'then click <em>Check again</em> below — no need to close this window.' +
+    'then click <em>Check again</em> below - no need to close this window.' +
     '<details><summary>Can\'t use winget? Manual install steps</summary>' +
     'Open gyan.dev (button below), download <em>ffmpeg-release-essentials.zip</em> (or a <em>CUDA</em> build for NVIDIA GPUs). ' +
     'Extract the zip to a permanent folder (e.g. <code>C:\\ffmpeg</code>), then add its <code>bin\\</code> subfolder to PATH:<br>' +
@@ -536,12 +536,12 @@ function renderGpuLine(s) {
     const hasVersion = s.cuda.version && s.cuda.version !== 'unknown';
     const cudaLabel = hasVersion ? `CUDA ${s.cuda.version}` : 'CUDA detected';
     el.textContent = s.cuda.available
-      ? `Detected GPU: ${s.gpu.name} (${s.gpu.vramMB.toLocaleString()} MB VRAM) — ${cudaLabel}, GPU acceleration active.`
-      : `Detected GPU: ${s.gpu.name} (${s.gpu.vramMB.toLocaleString()} MB VRAM) — CUDA not found, running on CPU.`;
+      ? `Detected GPU: ${s.gpu.name} (${s.gpu.vramMB.toLocaleString()} MB VRAM) - ${cudaLabel}, GPU acceleration active.`
+      : `Detected GPU: ${s.gpu.name} (${s.gpu.vramMB.toLocaleString()} MB VRAM) - CUDA not found, running on CPU.`;
   } else if (s.gpu.name !== 'Unknown') {
-    el.textContent = `Detected GPU: ${s.gpu.name} (${s.gpu.vramMB.toLocaleString()} MB VRAM) — transcription runs on CPU.`;
+    el.textContent = `Detected GPU: ${s.gpu.name} (${s.gpu.vramMB.toLocaleString()} MB VRAM) - transcription runs on CPU.`;
   } else {
-    el.textContent = 'No discrete GPU detected — transcription runs on CPU (slower, but works).';
+    el.textContent = 'No discrete GPU detected - transcription runs on CPU (slower, but works).';
   }
 }
 
@@ -550,7 +550,7 @@ function renderCudaSlot(s) {
   if (s.gpu.vendor !== 'nvidia') { el.innerHTML = ''; return; }
   if (s.cudaLibsInstalled || s.cuda.available) {
     el.innerHTML = row('cuda', 'ok', '✓', 'GPU acceleration ready',
-      'The CUDA support libraries are available — transcription runs on your NVIDIA GPU.');
+      'The CUDA support libraries are available - transcription runs on your NVIDIA GPU.');
     return;
   }
   el.innerHTML = row('cuda', 'warn', '○', 'GPU acceleration for transcription',
@@ -564,10 +564,10 @@ function renderCudaSlot(s) {
 function renderOllamaStatus(s) {
   const el = document.getElementById('ollama-status');
   if (s.ollamaRunning && s.ollamaModelPulled) {
-    el.innerHTML = row('ollama', 'ok', '✓', `Ollama — ${esc(s.ollamaModel)} ready`,
+    el.innerHTML = row('ollama', 'ok', '✓', `Ollama - ${esc(s.ollamaModel)} ready`,
       'LLM scoring is fully configured.');
   } else if (s.ollamaRunning) {
-    el.innerHTML = row('ollama', 'warn', '⚠', `Ollama running — ${esc(s.ollamaModel)} not downloaded`,
+    el.innerHTML = row('ollama', 'warn', '⚠', `Ollama running - ${esc(s.ollamaModel)} not downloaded`,
       'One more step: download the model (a few GB, one-time).',
       `<button class="sm" id="pull-btn" onclick="startPull()">Download ${esc(s.ollamaModel)}</button>
        <button class="sm" id="pull-cancel-btn" onclick="cancelPull()" style="display:none">Cancel</button>
@@ -575,16 +575,16 @@ function renderOllamaStatus(s) {
        <div class="pull-msg" id="pull-msg"></div>`);
   } else {
     el.innerHTML = row('ollama', 'warn', '⚠', 'Ollama not installed or not running',
-      `<a onclick="api.openURL('https://ollama.com/download')">Install Ollama</a> — after installing, it runs ` +
+      `<a onclick="api.openURL('https://ollama.com/download')">Install Ollama</a> - after installing, it runs ` +
       `silently in the background; you don't need to open it or do anything inside it. ` +
-      `Then click <em>Check again</em> below — a model download button will appear here.`);
+      `Then click <em>Check again</em> below - a model download button will appear here.`);
   }
 }
 
 function renderLlamacppPkgSlot(s) {
   const el = document.getElementById('llamacpp-pkg-slot');
   const gpuNote = s.gpu.vendor === 'nvidia'
-    ? ' Your NVIDIA GPU was detected — the GPU-accelerated build installs automatically.'
+    ? ' Your NVIDIA GPU was detected - the GPU-accelerated build installs automatically.'
     : '';
   if (s.llamacppInstalled) {
     el.innerHTML = row('llamacpp-pkg', 'ok', '✓', 'LLM engine installed', 'llama-cpp-python is ready.');
@@ -620,7 +620,7 @@ function renderSlots(s) {
   renderLlamacppPkgSlot(s);
   renderGgufDownloadSlot(s);
   document.getElementById('subtitle').textContent =
-    mode === 'update' ? 'This update added new setup options — review, then launch.'
+    mode === 'update' ? 'This update added new setup options - review, then launch.'
     : s.ffmpegOk ? 'System check complete.'
     : 'Action required before you can launch.';
   updateLaunchBtn();
@@ -695,7 +695,7 @@ function onLlmBackendChange(val) {
 // AI privacy mode governs which backends are even offered here (plan non-llm-tiers/07).
 const AI_PRIVACY_NOTES = {
   none: 'No language model runs. Clips are still found and searchable; scoring uses lightweight signals only.',
-  local_only: 'On-device models only. The remote Claude backend is hidden — nothing you record is sent anywhere.',
+  local_only: 'On-device models only. The remote Claude backend is hidden - nothing you record is sent anywhere.',
   remote_ok: 'The paid Claude API is available. Your transcript is sent to Anthropic when it runs.',
 };
 
@@ -767,13 +767,13 @@ function onPullProgress(data) {
     if (btn) btn.disabled = false;
     done();
   } else if (data.error) {
-    if (msg) msg.textContent = `Download failed: ${data.error} — check that Ollama is still running, then try again.`;
+    if (msg) msg.textContent = `Download failed: ${data.error} - check that Ollama is still running, then try again.`;
     if (btn) btn.disabled = false;
     done();
   } else if (data.total) {
     const pct = Math.round((data.completed / data.total) * 100);
     if (fill) fill.style.width = pct + '%';
-    if (msg)  msg.textContent  = `${data.status} — ${pct}%`;
+    if (msg)  msg.textContent  = `${data.status} - ${pct}%`;
   } else if (data.status) {
     if (msg) msg.textContent = data.status;
   }
@@ -816,7 +816,7 @@ function onGgufDownloadProgress(data) {
     if (btn) btn.disabled = false;
     done();
   } else if (data.error) {
-    if (msg) msg.textContent = `Download failed: ${data.error} — check your internet connection, then try again.`;
+    if (msg) msg.textContent = `Download failed: ${data.error} - check your internet connection, then try again.`;
     if (btn) btn.disabled = false;
     done();
   } else if (typeof data.progress === 'number') {
@@ -847,9 +847,9 @@ function onInstallProgress(data) {
     updateLaunchBtn();
   } else if (data.error) {
     installing[data.slug] = false;
-    // GPU acceleration is never required — reassure the user they can still launch.
+    // GPU acceleration is never required - reassure the user they can still launch.
     const cpuNote = data.slug === 'cuda-libs'
-      ? ' You can still launch — transcription will run on the CPU.'
+      ? ' You can still launch - transcription will run on the CPU.'
       : '';
     if (msg) msg.textContent = `Install failed: ${data.error}${cpuNote}`;
     if (btn) btn.disabled = false;
@@ -914,7 +914,7 @@ document.getElementById('restore-backup-btn').addEventListener('click', async ()
   if (result.ok) {
     // Launch straight into the restored project; complete() skips the wizard
     // config write so the backup's own settings survive (main.js: cfg.restored).
-    btn.textContent = 'Restored — starting…';
+    btn.textContent = 'Restored - starting…';
     api.complete({ projectDir: target, restored: true });
     return;
   }

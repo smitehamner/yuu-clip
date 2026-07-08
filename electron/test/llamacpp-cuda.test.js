@@ -50,8 +50,8 @@ test('buildCpuWheelUrl points at the plain (no -cu) release tag', () => {
   );
 });
 
-// selectLlamaWheelUrl must always return a prebuilt win_amd64 URL — never fall
-// through to a source build — across every machine shape.
+// selectLlamaWheelUrl must always return a prebuilt win_amd64 URL - never fall
+// through to a source build - across every machine shape.
 test('known CUDA version → the matching CUDA wheel', () => {
   const url = selectLlamaWheelUrl({ cudaVersion: '12.4', gpuVendor: 'nvidia' });
   assert.equal(url, buildCudaWheelUrl(LLAMA_CPP_CUDA_VERSION, 'cu124'));
