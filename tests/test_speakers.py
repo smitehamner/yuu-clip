@@ -216,6 +216,40 @@ class TestVoiceprintMatch:
         assert seg2.speaker_id == speakers[0].id  # name survived re-diarization
         session.close()
 
+    def test_force_replaced_transcript_reattaches_without_double_minting(self, tmp_path: Path):
+        # A `--force` re-run DELETES the prior track-level transcript (Stage 1 of
+        # the idempotency fix) before re-transcribing, unlike the re-diarize path
+        # which keeps it. Deleting the transcript cascade-deletes its segments but
+        # leaves the video-scoped Speaker rows intact, so re-attach by voiceprint
+        # must still land on the existing named Speaker — not mint a duplicate.
+        from yuu_clip.transcribe.whisper_runner import _attach_speakers
+
+        session = make_session(tmp_path / "v.db")
+        video = Video(path="x.mkv", filename="x.mkv", status="done")
+        session.add(video)
+        session.flush()
+
+        tx1 = self._seed_transcript(session, video.id, "SPEAKER_00")
+        _attach_speakers(session, video.id, tx1.id, {"SPEAKER_00": [1.0, 0.0, 0.0]})
+        session.query(Speaker).one().name = "Yuu"
+        session.flush()
+
+        session.delete(tx1)  # what _transcribe_and_check_overlap does under --force
+        session.flush()
+        tx2 = self._seed_transcript(session, video.id, "SPEAKER_00")
+        _attach_speakers(session, video.id, tx2.id, {"SPEAKER_00": [0.99, 0.02, 0.0]})
+
+        speakers = session.query(Speaker).all()
+        assert len(speakers) == 1  # no duplicate minted after the delete
+        assert speakers[0].name == "Yuu"
+        # tx1's segment was cascade-deleted; only tx2's remains (no orphans). A
+        # transcript_id filter can't distinguish them here because SQLite recycles
+        # tx1's rowid onto tx2, so assert on the total and where it points.
+        remaining = session.query(TranscriptSegment).all()
+        assert len(remaining) == 1
+        assert remaining[0].speaker_id == speakers[0].id
+        session.close()
+
     def test_cross_backend_voiceprint_is_not_matched(self, tmp_path: Path):
         from yuu_clip.transcribe.whisper_runner import _attach_speakers
 
