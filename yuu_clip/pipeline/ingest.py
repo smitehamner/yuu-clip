@@ -122,7 +122,7 @@ def _obtain_transcripts(opts: AnalyzeOptions, video_path: Path, track_objs, sess
     if opts.subtitle_source:
         return _import_subtitles(opts.subtitle_source, video_path, track_objs, session, video)
     if not opts.no_transcribe:
-        return _transcribe_and_check_overlap(track_objs, config, session, video, opts.language)
+        return _transcribe_and_check_overlap(track_objs, config, session, video, opts.language, opts.force)
     return []
 
 
@@ -513,9 +513,16 @@ def _extract_audio_and_check_rms_overlap(
         session.flush()
 
 
-def _transcribe_and_check_overlap(track_objs, config, session, video, language) -> list:
-    """Transcribe all eligible tracks and suppress duplicates found in combined-track content."""
+def _transcribe_and_check_overlap(track_objs, config, session, video, language, force=False) -> list:
+    """Transcribe all eligible tracks and suppress duplicates found in combined-track content.
+
+    Idempotent per track: an existing track-level transcript is reused on a normal
+    re-run and deleted-then-replaced under ``--force`` (mirrors the ClipCandidate
+    force-delete in ``_generate_candidates``). Without this, ``--force`` and resumed
+    partial runs mint a second Transcript per track (no unique constraint guards it).
+    """
     from yuu_clip.analyze.overlap import detect_transcript_overlap
+    from yuu_clip.db.models import Transcript
     from yuu_clip.transcribe.whisper_runner import transcribe_track
 
     console.print(f"  [bold]Transcribing (model: {config.whisper_model})...[/bold]")
@@ -530,6 +537,23 @@ def _transcribe_and_check_overlap(track_objs, config, session, video, language) 
         if not track.extracted_path:
             console.print(f"  [yellow]  Track {idx}/{total_tracks} — no extracted audio, skipping[/yellow]")
             continue
+
+        existing = (
+            session.query(Transcript)
+            .filter_by(audio_track_id=track.id, clip_id=None)
+            .order_by(Transcript.id)
+            .all()
+        )
+        if existing and not force:
+            console.print(f"  [dim]  Track {idx}/{total_tracks} already transcribed[/dim]")
+            transcripts.append(existing[-1])
+            continue
+        if existing and force:
+            for stale in existing:
+                session.delete(stale)
+            session.flush()
+            console.print(f"  [dim]  Cleared existing transcript for track {track.label} (--force)[/dim]")
+
         console.print(f"  [dim]  Track {idx}/{total_tracks} [{track.label}]...[/dim]")
         try:
             transcript = transcribe_track(track, config, session, language=language)

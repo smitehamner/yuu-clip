@@ -752,6 +752,118 @@ class TestPipelineTrackProgressLogging:
 
 
 # ---------------------------------------------------------------------------
+# Transcription idempotency — a re-run must not mint a second Transcript per
+# track. Without --force an existing track-level transcript is reused; with
+# --force it is deleted and replaced (mirrors ClipCandidate force-delete).
+# ---------------------------------------------------------------------------
+
+class TestTranscriptionIdempotency:
+    def _make_video_and_track(self, tmp_path):
+        from yuu_clip.db.models import AudioTrack, Video, make_session
+        session = make_session(tmp_path / "project.db")
+        video = Video(path=str(tmp_path / "s.mkv"), filename="s.mkv", status="probed", duration_ms=60_000)
+        session.add(video)
+        session.flush()
+        track = AudioTrack(
+            video_id=video.id, stream_index=0, label="combined",
+            do_transcribe=True, do_score=True, extracted_path=str(tmp_path / "t0.wav"),
+        )
+        session.add(track)
+        session.flush()
+        return session, video, track
+
+    def _seed_transcript(self, session, track, *, clip_id=None, text="original"):
+        from yuu_clip.db.models import Transcript, TranscriptSegment
+        transcript = Transcript(audio_track_id=track.id, clip_id=clip_id, model_name="medium", language="en")
+        session.add(transcript)
+        session.flush()
+        session.add(TranscriptSegment(transcript_id=transcript.id, start_ms=0, end_ms=1000, text=text))
+        session.flush()
+        return transcript
+
+    @staticmethod
+    def _fake_transcribe_track(track, config, session, language=None):
+        from yuu_clip.db.models import Transcript, TranscriptSegment
+        transcript = Transcript(audio_track_id=track.id, model_name=config.whisper_model, language="en")
+        session.add(transcript)
+        session.flush()
+        session.add(TranscriptSegment(transcript_id=transcript.id, start_ms=0, end_ms=1000, text="fresh"))
+        session.flush()
+        return transcript
+
+    def _run(self, session, video, tracks, *, force):
+        import unittest.mock as mock
+
+        from yuu_clip.config import Config
+        from yuu_clip.pipeline import ingest as _pipeline
+
+        with mock.patch(
+            "yuu_clip.transcribe.whisper_runner.transcribe_track",
+            side_effect=self._fake_transcribe_track,
+        ) as transcribe, mock.patch(
+            "yuu_clip.analyze.overlap.detect_transcript_overlap", return_value=False
+        ):
+            result = _pipeline._transcribe_and_check_overlap(
+                tracks, Config(), session, video, language=None, force=force,
+            )
+        return result, transcribe
+
+    def test_rerun_without_force_reuses_existing_transcript(self, tmp_path):
+        from yuu_clip.db.models import Transcript
+
+        session, video, track = self._make_video_and_track(tmp_path)
+        existing = self._seed_transcript(session, track)
+        existing_id = existing.id
+
+        try:
+            result, transcribe = self._run(session, video, [track], force=False)
+
+            transcribe.assert_not_called()
+            assert [t.id for t in result] == [existing_id]
+            track_level = session.query(Transcript).filter_by(audio_track_id=track.id, clip_id=None).all()
+            assert [t.id for t in track_level] == [existing_id]
+        finally:
+            session.close()
+
+    def test_rerun_with_force_replaces_existing_transcript(self, tmp_path):
+        # SQLite recycles the deleted rowid, so identity is asserted via segment
+        # content ("original" seeded vs "fresh" from the re-transcribe), not id.
+        from yuu_clip.db.models import Transcript
+
+        session, video, track = self._make_video_and_track(tmp_path)
+        self._seed_transcript(session, track, text="original")
+
+        try:
+            result, transcribe = self._run(session, video, [track], force=True)
+
+            transcribe.assert_called_once()
+            track_level = session.query(Transcript).filter_by(audio_track_id=track.id, clip_id=None).all()
+            assert len(track_level) == 1
+            assert [s.text for s in track_level[0].segments] == ["fresh"]
+            assert result == track_level
+        finally:
+            session.close()
+
+    def test_force_rerun_leaves_clip_specific_transcript_untouched(self, tmp_path):
+        from yuu_clip.db.models import ClipCandidate, Transcript
+
+        session, video, track = self._make_video_and_track(tmp_path)
+        clip = ClipCandidate(video_id=video.id, start_ms=0, end_ms=10_000, status="pending")
+        session.add(clip)
+        session.flush()
+        clip_transcript_id = self._seed_transcript(session, track, clip_id=clip.id, text="clip-level").id
+        self._seed_transcript(session, track)
+
+        try:
+            self._run(session, video, [track], force=True)
+
+            clip_level = session.query(Transcript).filter_by(audio_track_id=track.id, clip_id=clip.id).all()
+            assert [t.id for t in clip_level] == [clip_transcript_id]
+        finally:
+            session.close()
+
+
+# ---------------------------------------------------------------------------
 # Process-tree termination — cancel must kill ffmpeg grandchildren, not orphan them
 # ---------------------------------------------------------------------------
 
