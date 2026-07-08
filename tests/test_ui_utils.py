@@ -89,7 +89,7 @@ class TestJsUtils:
         result = page.evaluate(
             "() => [finiteOr(NaN), finiteOr(Infinity), finiteOr(undefined), finiteOr(NaN, 'n/a')]"
         )
-        assert result == [" - ", " - ", " - ", "n/a"]
+        assert result == ["N/A", "N/A", "N/A", "n/a"]
 
     def test_fmt_duration_formats_seconds_and_minutes(self, page: Page):
         result = page.evaluate("() => [fmtDuration(30), fmtDuration(90), fmtDuration(0)]")

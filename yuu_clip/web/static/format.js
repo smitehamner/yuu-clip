@@ -61,7 +61,7 @@ function plural(count, singular, pluralForm) {
 // or Infinity - usually from arithmetic on missing/partial data - must never
 // reach the UI as the literal "NaN"/"Infinity". Use this (or fmtDuration) at
 // every display site that formats a derived number.
-function finiteOr(value, fallback = ' - ') {
+function finiteOr(value, fallback = 'N/A') {
   return Number.isFinite(value) ? value : fallback;
 }
 
