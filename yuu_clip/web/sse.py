@@ -51,7 +51,7 @@ def terminate_process_tree(proc) -> None:
             )
             return
         except Exception as exc:
-            _log.warning("taskkill failed for pid %s (%s) — falling back to terminate()", proc.pid, exc)
+            _log.warning("taskkill failed for pid %s (%s) - falling back to terminate()", proc.pid, exc)
     proc.terminate()
 
 
@@ -81,9 +81,9 @@ async def subprocess_sse(
     stream finishes (e.g. ``'analyze_cmd'`` or ``'demo_cmd'``). Callers that
     own no queued-command slot (score, export, retranscribe) omit it.
 
-    *track_active_job* increments ``ctx.active_jobs`` for the run's duration —
+    *track_active_job* increments ``ctx.active_jobs`` for the run's duration -
     the same counter the in-process SSE jobs (rescore, timeline, summarize) use
-    — so ``/api/status``'s ``any_running`` reflects this job too. Opt-in: most
+    - so ``/api/status``'s ``any_running`` reflects this job too. Opt-in: most
     subprocess_sse callers are already reflected via ``ctx.analyze_proc``
     (misleadingly under the "analyze" name), so this only needs to be set where
     a distinct, correctly-named running flag matters (e.g. URL import's

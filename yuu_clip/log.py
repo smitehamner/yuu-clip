@@ -49,7 +49,7 @@ def _make_file_handler(project_dir: Path) -> logging.Handler:
 def configure_logging(project_dir: Path) -> None:
     """Wire up file and memory log handlers under the yuu_clip namespace.
 
-    Safe to call multiple times — subsequent calls are no-ops so tests that
+    Safe to call multiple times - subsequent calls are no-ops so tests that
     call create_app() repeatedly don't accumulate duplicate handlers. To point
     an already-configured logger at a different project (the in-place project
     switch), use redirect_logging.

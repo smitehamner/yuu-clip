@@ -1,5 +1,5 @@
 (function () {
-// Feature-map — World context (code: rp_context / Context; UI term "Contexts").
+// Feature-map - World context (code: rp_context / Context; UI term "Contexts").
 //   API: routes/contexts.py · Tests: tests/test_ui_contexts.py
 // ── context manager ───────────────────────────────────────────────────────────
 function _parseWeight(id) {
@@ -21,7 +21,7 @@ async function ensureContexts() {
 
 let _contextEditorDirty = false;
 let _contextModalOpener = null;
-// True once the user types in the Context ID field directly — from then on the
+// True once the user types in the Context ID field directly - from then on the
 // ID stops following the name so a hand-chosen ID is never overwritten.
 let _contextIdEdited = false;
 
@@ -60,14 +60,14 @@ async function _refreshContextList() {
   AppState.contexts = await fetch('/api/contexts').then(r => r.json()).catch(() => []);
   const el = document.getElementById('context-list-items');
   if (!AppState.contexts.length) {
-    el.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:4px 0">No contexts yet — create one.</div>';
+    el.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:4px 0">No contexts yet - create one.</div>';
     return;
   }
   el.innerHTML = AppState.contexts.map(c => `
     <button type="button" style="display:flex;align-items:center;gap:6px;padding:7px 10px;border:1px solid var(--border);border-radius:6px;cursor:pointer;background:none;color:var(--text);font:inherit;text-align:left;width:100%"
          data-edit-ctx="${escHtml(c.context_id)}">
       <span style="font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${escHtml(c.display_name || c.context_id)}</span>
-      ${c.builtin ? '<span style="font-size:10px;color:var(--muted);background:var(--border);border-radius:3px;padding:1px 5px;flex-shrink:0;pointer-events:none" title="Shipped starter content — edit it to fit your game, or use it as a base for a copy">Template</span>' : ''}
+      ${c.builtin ? '<span style="font-size:10px;color:var(--muted);background:var(--border);border-radius:3px;padding:1px 5px;flex-shrink:0;pointer-events:none" title="Shipped starter content - edit it to fit your game, or use it as a base for a copy">Template</span>' : ''}
     </button>`).join('');
   el.onclick = e => {
     const item = e.target.closest('[data-edit-ctx]');
@@ -120,7 +120,7 @@ function cancelContextEdit() {
 }
 
 // Keeps whatever is currently in the editor (including unsaved edits) and turns
-// it into a new, unsaved context — the "tailor a template without losing it" path.
+// it into a new, unsaved context - the "tailor a template without losing it" path.
 function duplicateContext() {
   const baseName = document.getElementById('ce-display-name').value.trim();
   const copyName = baseName ? `${baseName} copy` : '';
@@ -202,7 +202,7 @@ function deleteContext() {
   showConfirm(
     'Delete context?',
     `Delete context <strong>${escHtml(name)}</strong>?<br><br>` +
-    `Recordings already assigned to it will keep the Context ID — you can re-create the context to restore it.`,
+    `Recordings already assigned to it will keep the Context ID - you can re-create the context to restore it.`,
     'Delete',
     () => _doDeleteContext(name),
     true,
@@ -269,7 +269,7 @@ async function rescoreClips(videoId, btn) {
   showConfirm(
     'Re-score clips with context?',
     `This will run LLM scoring on <strong>${plural(count, 'clip')}</strong>.<br>` +
-    `GPU time varies with clip count — this may take several minutes.` + framesRow,
+    `GPU time varies with clip count - this may take several minutes.` + framesRow,
     'Re-score',
     () => {
       const inc = document.getElementById('rescore-include-frames');
@@ -308,7 +308,7 @@ function _doRescoreClips(videoId, btn, endpoint = 'rescore-clips', includeFrames
       _clearActiveStream(handle);
       resetBtn();
       if (errorCount > 0) {
-        showToast(`Re-scoring finished — ${plural(errorCount, 'clip')} failed (check log)`, 'error');
+        showToast(`Re-scoring finished - ${plural(errorCount, 'clip')} failed (check log)`, 'error');
         SoundFx.play('error');
       } else {
         showToast('Re-scoring complete');
@@ -327,7 +327,7 @@ function _doRescoreClips(videoId, btn, endpoint = 'rescore-clips', includeFrames
     errMsg => {
       _clearActiveStream(handle);
       resetBtn();
-      showToast(`Re-scoring failed — ${errMsg}`, 'error');
+      showToast(`Re-scoring failed - ${errMsg}`, 'error');
       SoundFx.play('error');
     },
   );
@@ -340,7 +340,7 @@ function rescoreAllClips(videoId, btn) {
   const hasContext = video && video.context_names && video.context_names.length > 0;
   const contextWarn = hasContext ? '' :
     `<div style="margin-top:8px;padding:6px 10px;background:color-mix(in srgb, var(--warning) 10%, transparent);border-left:3px solid var(--warning);border-radius:3px;font-size:12px">` +
-    `No world context assigned — descriptions will be generic.</div>`;
+    `No world context assigned - descriptions will be generic.</div>`;
   showConfirm(
     'Re-score all clips?',
     `Re-run LLM scoring on all <strong>${plural(count, 'clip')}</strong>. ` +
@@ -359,7 +359,7 @@ function redescribeAllClips(videoId, btn) {
   const hasContext = video && video.context_names && video.context_names.length > 0;
   const contextWarn = hasContext ? '' :
     `<div style="margin-top:8px;padding:6px 10px;background:color-mix(in srgb, var(--warning) 10%, transparent);border-left:3px solid var(--warning);border-radius:3px;font-size:12px">` +
-    `No world context assigned — descriptions will be generic.</div>`;
+    `No world context assigned - descriptions will be generic.</div>`;
   showConfirm(
     'Re-describe all clips?',
     `Regenerate LLM descriptions for all <strong>${plural(count, 'clip')}</strong>. ` +
@@ -390,7 +390,7 @@ function _doRedescribeClips(videoId, btn) {
       _clearActiveStream(handle);
       resetBtn();
       if (errorCount > 0) {
-        showToast(`Re-describe finished — ${plural(errorCount, 'clip')} failed (check log)`, 'error');
+        showToast(`Re-describe finished - ${plural(errorCount, 'clip')} failed (check log)`, 'error');
       } else {
         showToast('Descriptions regenerated');
       }
@@ -407,7 +407,7 @@ function _doRedescribeClips(videoId, btn) {
     errMsg => {
       _clearActiveStream(handle);
       resetBtn();
-      showToast(`Re-describe failed — ${errMsg}`, 'error');
+      showToast(`Re-describe failed - ${errMsg}`, 'error');
     },
   );
   _setActiveStream(handle, resetBtn);
@@ -573,7 +573,7 @@ function rescoreClip(clipId) {
       _clearActiveStream(handle);
       teardown();
       if (hadError) {
-        showToast('Re-score failed — check log for details', 'error');
+        showToast('Re-score failed - check log for details', 'error');
         SoundFx.play('error');
         selectClip(clipId);
         return;
@@ -601,7 +601,7 @@ function rescoreClip(clipId) {
     errMsg => {
       _clearActiveStream(handle);
       teardown();
-      showToast(`Re-score failed — ${errMsg}`, 'error');
+      showToast(`Re-score failed - ${errMsg}`, 'error');
       SoundFx.play('error');
     },
   );
@@ -624,7 +624,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
-// Public API — symbols referenced cross-module, by an inline handler, or by a
+// Public API - symbols referenced cross-module, by an inline handler, or by a
 // test. Internal helpers above stay private to this module's closure.
 Object.assign(window, {
   _loadContexts, ensureContexts, _parseWeight,

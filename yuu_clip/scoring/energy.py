@@ -1,5 +1,5 @@
 """
-AudioEnergyScorer — per-second RMS loudness curves from extracted WAV files.
+AudioEnergyScorer - per-second RMS loudness curves from extracted WAV files.
 
 Pre-computation: compute_energy(track, session) reads the WAV using PyAV (already
 a project dependency), computes RMS dB per second, and stores rows in audio_energy.
@@ -31,8 +31,8 @@ log = logging.getLogger(__name__)
 # IO-bound at typical SSD speeds so "fast" is only marginally quicker in
 # wall-clock time; the real quality difference is transient resolution.
 _ENERGY_DOWNSAMPLE: dict[str, int] = {
-    "fast": 4,   # 4 kHz effective — fine for loudness detection
-    "full": 1,   # 16 kHz — captures brief audio spikes more accurately
+    "fast": 4,   # 4 kHz effective - fine for loudness detection
+    "full": 1,   # 16 kHz - captures brief audio spikes more accurately
 }
 
 
@@ -40,13 +40,13 @@ def compute_energy(track: "AudioTrack", session: "Session", energy_mode: str = "
     """
     Compute per-second RMS energy for *track* and store AudioEnergy rows.
 
-    Idempotent — skips if rows already exist for this track.
+    Idempotent - skips if rows already exist for this track.
     Returns the number of seconds computed (0 if skipped).
     """
     from yuu_clip.db.models import AudioEnergy
 
     if not track.extracted_path:
-        log.warning("Track %d has no extracted_path — skipping energy computation", track.id)
+        log.warning("Track %d has no extracted_path - skipping energy computation", track.id)
         return 0
 
     existing_count = (
@@ -66,7 +66,7 @@ def compute_energy(track: "AudioTrack", session: "Session", energy_mode: str = "
         import av  # noqa: F401
         import numpy as np  # noqa: F401
     except ImportError:
-        log.warning("av or numpy not available — cannot compute audio energy")
+        log.warning("av or numpy not available - cannot compute audio energy")
         return 0
 
     downsample_factor = _ENERGY_DOWNSAMPLE.get(energy_mode, 4)
@@ -153,7 +153,7 @@ def _compute_baseline(series: list[float]) -> tuple[float, float] | None:
     """Return (mean_db, baseline_db) for normalising clip scores, or None.
 
     Returns None when there are fewer than 2 values (can't estimate spread) or
-    when std == 0 (all values identical — no meaningful spread to normalise
+    when std == 0 (all values identical - no meaningful spread to normalise
     against). baseline_db = mean + std; a clip at or above baseline scores 1.0.
     """
     if len(series) < 2:

@@ -4,7 +4,7 @@ Force UTF-8 on Windows stdout/stderr *before* creating the Console, so Rich
 never falls back to the cp1252 legacy renderer (which crashes on characters
 outside Latin-1). The pipeline/export engine prints progress to stdout that the
 web UI streams over SSE, so both the CLI commands and the engine share this
-console — it lives outside ``cli/`` so the engine never has to import ``cli``.
+console - it lives outside ``cli/`` so the engine never has to import ``cli``.
 """
 from __future__ import annotations
 

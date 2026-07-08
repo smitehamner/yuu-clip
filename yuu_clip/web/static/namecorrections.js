@@ -1,5 +1,5 @@
 (function () {
-// Feature-map — Name corrections (code: name_corrections; UI "Fix names").
+// Feature-map - Name corrections (code: name_corrections; UI "Fix names").
 //   API: routes/name_corrections.py · Tests: tests/test_ui_namecorrections.py
 // ── transcript name correction (Plan 09) ──────────────────────────────────────
 // A PanelNav takeover launched from the recording's transcript card. Scans the
@@ -9,7 +9,7 @@
 // a manual edit, so staleness badges and sidecars behave identically.
 
 let _ncVideoId = null;
-let _ncData = null;  // last scan result — the source for offsets/replacements at apply time
+let _ncData = null;  // last scan result - the source for offsets/replacements at apply time
 
 function isNameCorrectionsOpen() {
   return PanelNav.isOpen('name-corrections');
@@ -29,7 +29,7 @@ function openNameCorrections(videoId) {
 function _ncMount(container) {
   container.innerHTML = `
     <p class="nc-intro">Reviewing the transcript for mis-heard names. Nothing changes
-      until you press Apply — uncheck anything that isn't really a name.</p>
+      until you press Apply - uncheck anything that isn't really a name.</p>
     <div id="nc-results"><div class="transcript-empty">Scanning transcript&hellip;</div></div>
     <div id="nc-footer" class="nc-footer" hidden>
       <button class="btn primary" id="nc-apply">Apply</button>
@@ -58,7 +58,7 @@ function _ncRender(data) {
   if (!data.groups.length) {
     const noNames = !data.lexicon.length;
     results.innerHTML = `<div class="transcript-empty">${noNames
-      ? 'No known names yet — name your speakers or add characters to a world context, then scan again.'
+      ? 'No known names yet - name your speakers or add characters to a world context, then scan again.'
       : 'No likely name corrections found. Your transcript looks clean.'}</div>`;
     footer.hidden = true;
     return;

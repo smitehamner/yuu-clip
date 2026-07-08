@@ -1,4 +1,4 @@
-"""Core clip routes — list/filter, detail, manual create, tags, status, export
+"""Core clip routes - list/filter, detail, manual create, tags, status, export
 file listing, media URL, and on-demand preview generation.
 """
 from __future__ import annotations
@@ -82,7 +82,7 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
     def create_manual_clip(video_id: int, body: ManualClipCreate):
         """Create a clip from a creator-picked time window (the manual clip picker).
 
-        Scoring is not run here — an LLM call inside a request handler would block;
+        Scoring is not run here - an LLM call inside a request handler would block;
         the UI chains the existing per-clip rescore SSE immediately after creation.
         """
         from yuu_clip.segments.windower import build_excerpt_for_window
@@ -253,7 +253,7 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
         encode_src = proxy_file if proxy_is_fresh(video, proxy_file) else src
 
         # clip.start_ms/end_ms are segment-relative for a split recording, but the
-        # source/proxy is the untrimmed parent — add segment_start_s to land right.
+        # source/proxy is the untrimmed parent - add segment_start_s to land right.
         segment_offset_s = video.segment_start_s or 0
         start_s = segment_offset_s + clip.start_ms / 1000 + (clip.start_offset or 0)
         end_s = segment_offset_s + clip.end_ms / 1000 + (clip.end_offset or 0)
@@ -279,7 +279,7 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
             raise HTTPException(500, f"Preview generation failed: {exc}")
         if not out_path.exists():
             _log.error("Preview generation produced no file for clip %d (src=%s)", clip_id, src.name)
-            raise HTTPException(500, "Preview generation failed — no output produced")
+            raise HTTPException(500, "Preview generation failed - no output produced")
 
         ctx.preview_cache[clip_id] = out_path
         ctx.preview_cache.move_to_end(clip_id)

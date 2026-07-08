@@ -1,4 +1,4 @@
-// Infrastructure — PanelNav takeover framework (not a feature module).
+// Infrastructure - PanelNav takeover framework (not a feature module).
 //   Used by: split.js, clipcreate.js, exporteditor.js, namecorrections.js · Tests: tests/test_ui_panelnav.py
 // ── panel navigation framework ────────────────────────────────────────────────
 // Multi-step flows (Split Editor, and future pickers) take over the main
@@ -9,7 +9,7 @@
 //
 // The container is destroyed on close right after onClose() runs. If render()
 // reparented an existing static element (rather than building fresh DOM),
-// onClose() must move it back out to a stable, always-in-document location —
+// onClose() must move it back out to a stable, always-in-document location -
 // otherwise it goes with the container and getElementById can't find it on
 // the next open. See split.js's _teardownSplitEditor for the pattern.
 (function () {
@@ -91,7 +91,7 @@ function panelNavClose() {
   _closeTop();
 }
 
-// Force-close the topmost panel, bypassing the dirty gate — for callers that
+// Force-close the topmost panel, bypassing the dirty gate - for callers that
 // have already confirmed the discard through their own (differently worded)
 // prompt, e.g. switching recordings while the Split Editor is dirty.
 function panelNavForceClose() {

@@ -55,7 +55,7 @@ def load_known_projects() -> list[dict]:
     """Load the recent-projects list (most-recent first) from the global config dir.
 
     Each entry is ``{path, last_opened_at}``. Returns [] on a missing or
-    hand-corrupted file rather than raising — the switcher must still open.
+    hand-corrupted file rather than raising - the switcher must still open.
     """
     p = _known_projects_path()
     if not p.exists():
@@ -63,7 +63,7 @@ def load_known_projects() -> list[dict]:
     try:
         data = json.loads(p.read_text(encoding="utf-8"))
     except (ValueError, OSError):
-        _log.warning("projects.json is unreadable — ignoring recent-projects list")
+        _log.warning("projects.json is unreadable - ignoring recent-projects list")
         return []
     if not isinstance(data, list):
         return []
@@ -94,15 +94,15 @@ LABEL_WEIGHTS: dict[str, float] = {
 }
 
 LABEL_DESCRIPTIONS: dict[str, str] = {
-    "player_voice":    "Your own microphone — highest relevance",
+    "player_voice":    "Your own microphone - highest relevance",
     "ingame_voicechat": "Other players' in-game voice chat",
     "game_sounds":     "Game audio / ambient / music (usually skip transcription)",
-    "combined":        "Mixed track — all sources together",
-    "unlabeled":       "Unknown — default weight applied",
+    "combined":        "Mixed track - all sources together",
+    "unlabeled":       "Unknown - default weight applied",
 }
 
 # ---------------------------------------------------------------------------
-# Whisper allowlists — prevent unexpected HuggingFace downloads
+# Whisper allowlists - prevent unexpected HuggingFace downloads
 # ---------------------------------------------------------------------------
 
 # Only these model identifiers are accepted.  faster-whisper also accepts
@@ -173,7 +173,7 @@ _TITLE_CARD_DEFAULTS: dict[str, object] = {
 }
 
 # Burned-in caption styling (Settings -> Export + per-export override). Empty/zero
-# values mean "libass renderer default" and emit no force_style — zero behavior
+# values mean "libass renderer default" and emit no force_style - zero behavior
 # change until the creator touches a field. font_size 0 = default, else 12-96.
 CAPTION_FONT_SIZE_RANGE = (12, 96)
 CAPTION_FONT_NAME_MAX_LEN = 64
@@ -189,7 +189,7 @@ def validate_hex_color(value: str, label: str) -> str:
     """
     Raise ValueError unless *value* is a strict #RRGGBB hex color.
 
-    Rejects short (#RGB), alpha (#RRGGBBAA), and named colors ("red") — only
+    Rejects short (#RGB), alpha (#RRGGBBAA), and named colors ("red") - only
     the 6-digit form is accepted, matching what _make_title_card's ffmpeg
     color= / fontcolor= conversion expects.
     """
@@ -204,7 +204,7 @@ def validate_title_card_template(value: str) -> str:
 
     A template is free text with {placeholder} tokens drawn from
     TITLE_CARD_PLACEHOLDERS; newlines separate title-card lines. Empty is
-    allowed — the renderer falls back to a timecode line so a card is never
+    allowed - the renderer falls back to a timecode line so a card is never
     emitted blank (see reel.title_card_lines).
     """
     if not isinstance(value, str):
@@ -226,7 +226,7 @@ def _sanitize_title_card_fields(merged: dict) -> None:
     """
     Guard against a hand-edited config.json with garbage title-card values.
 
-    Config.load() must never crash on a bad color/scale/layout/duration — log a
+    Config.load() must never crash on a bad color/scale/layout/duration - log a
     WARN and fall back to the default instead. PATCH /api/config enforces the
     same rules but rejects the save outright (see web/routes/config.py); this
     function only protects the load path.
@@ -237,7 +237,7 @@ def _sanitize_title_card_fields(merged: dict) -> None:
                 validate_hex_color(merged[field_name], field_name)
             except ValueError:
                 _log.warning(
-                    "Config: %s invalid (%r) — using default %s",
+                    "Config: %s invalid (%r) - using default %s",
                     field_name, merged[field_name], _TITLE_CARD_DEFAULTS[field_name],
                 )
                 merged[field_name] = _TITLE_CARD_DEFAULTS[field_name]
@@ -247,7 +247,7 @@ def _sanitize_title_card_fields(merged: dict) -> None:
             validate_title_card_template(merged["title_card_template"])
         except ValueError:
             _log.warning(
-                "Config: title_card_template invalid (%r) — using default %r",
+                "Config: title_card_template invalid (%r) - using default %r",
                 merged["title_card_template"], _TITLE_CARD_DEFAULTS["title_card_template"],
             )
             merged["title_card_template"] = _TITLE_CARD_DEFAULTS["title_card_template"]
@@ -255,7 +255,7 @@ def _sanitize_title_card_fields(merged: dict) -> None:
     scale_min, scale_max = TITLE_CARD_SCALE_RANGE
     if "title_card_scale" in merged and not (scale_min <= merged["title_card_scale"] <= scale_max):
         _log.warning(
-            "Config: title_card_scale out of range (%r) — using default %s",
+            "Config: title_card_scale out of range (%r) - using default %s",
             merged["title_card_scale"], _TITLE_CARD_DEFAULTS["title_card_scale"],
         )
         merged["title_card_scale"] = _TITLE_CARD_DEFAULTS["title_card_scale"]
@@ -263,7 +263,7 @@ def _sanitize_title_card_fields(merged: dict) -> None:
     dur_min, dur_max = TITLE_CARD_DURATION_RANGE_S
     if "title_card_duration_s" in merged and not (dur_min <= merged["title_card_duration_s"] <= dur_max):
         _log.warning(
-            "Config: title_card_duration_s out of range (%r) — using default %s",
+            "Config: title_card_duration_s out of range (%r) - using default %s",
             merged["title_card_duration_s"], _TITLE_CARD_DEFAULTS["title_card_duration_s"],
         )
         merged["title_card_duration_s"] = _TITLE_CARD_DEFAULTS["title_card_duration_s"]
@@ -277,7 +277,7 @@ def validate_caption_font_name(value: str) -> str:
     CAPTION_FONT_NAME_MAX_LEN chars, and free of the characters that would break
     the FFmpeg filtergraph quoting of force_style (',' separates fields, '\\'
     escapes, and "'" closes the quoted value). Validation is the escaping
-    strategy — we reject rather than escape so the burn-in filter stays simple.
+    strategy - we reject rather than escape so the burn-in filter stays simple.
     """
     if not isinstance(value, str):
         raise ValueError("caption_font_name must be text")
@@ -314,7 +314,7 @@ def _sanitize_caption_style_fields(merged: dict) -> None:
             validate_caption_font_name(merged["caption_font_name"])
         except ValueError:
             _log.warning(
-                "Config: caption_font_name invalid (%r) — using default %r",
+                "Config: caption_font_name invalid (%r) - using default %r",
                 merged["caption_font_name"], _CAPTION_STYLE_DEFAULTS["caption_font_name"],
             )
             merged["caption_font_name"] = _CAPTION_STYLE_DEFAULTS["caption_font_name"]
@@ -324,14 +324,14 @@ def _sanitize_caption_style_fields(merged: dict) -> None:
             validate_caption_font_size(merged["caption_font_size"])
         except (ValueError, TypeError):
             _log.warning(
-                "Config: caption_font_size invalid (%r) — using default %s",
+                "Config: caption_font_size invalid (%r) - using default %s",
                 merged["caption_font_size"], _CAPTION_STYLE_DEFAULTS["caption_font_size"],
             )
             merged["caption_font_size"] = _CAPTION_STYLE_DEFAULTS["caption_font_size"]
 
     if "caption_position" in merged and merged["caption_position"] not in CAPTION_POSITIONS:
         _log.warning(
-            "Config: caption_position invalid (%r) — using default %r",
+            "Config: caption_position invalid (%r) - using default %r",
             merged["caption_position"], _CAPTION_STYLE_DEFAULTS["caption_position"],
         )
         merged["caption_position"] = _CAPTION_STYLE_DEFAULTS["caption_position"]
@@ -357,7 +357,7 @@ def _sanitize_vision_fields(merged: dict) -> None:
             validate_vision_frames_per_clip(merged["vision_frames_per_clip"])
         except (ValueError, TypeError):
             _log.warning(
-                "Config: vision_frames_per_clip invalid (%r) — using default 2",
+                "Config: vision_frames_per_clip invalid (%r) - using default 2",
                 merged["vision_frames_per_clip"],
             )
             merged["vision_frames_per_clip"] = 2
@@ -369,7 +369,7 @@ def _sanitize_content_preset_field(merged: dict) -> None:
         from yuu_clip.content_presets import is_valid_preset_id
         if not is_valid_preset_id(merged["content_preset"]):
             _log.warning(
-                "Config: content_preset invalid (%r) — using default 'generic'",
+                "Config: content_preset invalid (%r) - using default 'generic'",
                 merged["content_preset"],
             )
             merged["content_preset"] = "generic"
@@ -391,10 +391,10 @@ def validate_whisper_language(lang: Optional[str]) -> Optional[str]:
     return lang_lower
 
 
-# AI privacy mode (plan non-llm-tiers/07) — the single trust control over what the app
+# AI privacy mode (plan non-llm-tiers/07) - the single trust control over what the app
 # may do with a user's transcript. Enforced everywhere a language model could run, via
 # resolve_ai_permissions below. "none" = no generative language model runs at all
-# (embeddings/lexicon/energy still work — they're discriminative, not generative);
+# (embeddings/lexicon/energy still work - they're discriminative, not generative);
 # "local_only" = on-device LLM allowed, remote (Claude) backend blocked, nothing leaves
 # the machine; "remote_ok" = the Claude API backend is permitted.
 ALLOWED_AI_PRIVACY_MODES: frozenset[str] = frozenset({"none", "local_only", "remote_ok"})
@@ -422,7 +422,7 @@ def resolve_ai_permissions(config: "Config") -> AiPermissions:
     """The single choke point that turns ai_privacy_mode into concrete permissions.
 
     Fails safe: an unknown/garbage mode resolves to local_only (blocks the billed,
-    off-device remote path) — never to remote_ok.
+    off-device remote path) - never to remote_ok.
     """
     mode = (getattr(config, "ai_privacy_mode", "local_only") or "local_only").strip()
     if mode == "none":
@@ -452,7 +452,7 @@ class Config:
     whisper_language: str = ""
 
     # HuggingFace model revision (git commit SHA) for reproducible model downloads.
-    # When None, HuggingFace downloads the latest "main" branch — fine for development
+    # When None, HuggingFace downloads the latest "main" branch - fine for development
     # but not reproducible.  Set this to a specific commit SHA to pin the exact model
     # weights and prevent silent updates.
     #
@@ -461,7 +461,7 @@ class Config:
     #   2. Click "Files and versions" → "History" → copy the full commit SHA
     #   3. Paste it here, e.g. "dc0e87e9c32a0b59e0c4b502c45e5b78e3c59a1a"
     #
-    # Known good revisions (verify on HF before use — listed for reference only):
+    # Known good revisions (verify on HF before use - listed for reference only):
     #   base:     check https://huggingface.co/Systran/faster-whisper-base/commits/main
     #   small:    check https://huggingface.co/Systran/faster-whisper-small/commits/main
     #   large-v3: check https://huggingface.co/Systran/faster-whisper-large-v3/commits/main
@@ -481,18 +481,18 @@ class Config:
     silence_threshold_ms: int = 3_000   # gap that marks a clip boundary
     min_clip_ms: int = 15_000           # shortest candidate kept (15 s)
     hard_split_ms: int = 180_000        # force-split continuous speech (3 min)
-    # Drop candidates whose transcript text is too sparse for their length —
+    # Drop candidates whose transcript text is too sparse for their length -
     # mostly-silence windows (e.g. a Whisper runaway-timestamp segment stamping
     # one hallucinated line across many minutes). Measured in characters of
     # transcript text per second of clip. Real speech is ~10+ cps; 0.2 only
     # removes near-silent windows. Set 0 to keep every window (disable).
     min_clip_speech_cps: float = 0.2
 
-    # AI privacy mode (plan non-llm-tiers/07) — the trust control over transcript use.
+    # AI privacy mode (plan non-llm-tiers/07) - the trust control over transcript use.
     # "none" | "local_only" (default) | "remote_ok"; enforced via resolve_ai_permissions.
     ai_privacy_mode: str = "local_only"
 
-    # LOCAL backends — inference runs on your machine, no API costs
+    # LOCAL backends - inference runs on your machine, no API costs
     llm_backend: str = "llamacpp"    # "llamacpp" | "ollama" | "claude"
     llm_model_path: str = ""         # path to .gguf file; required when backend is llamacpp
     # Boot-time handoff flag (first-run-friction): the setup wizard sets this to a
@@ -502,7 +502,7 @@ class Config:
     pending_local_model: str = ""
     llm_mmproj_path: str = ""        # path to the vision projector .gguf; enables vision on llamacpp
     # The desktop installer ships a CUDA build of llama-cpp-python for NVIDIA cards,
-    # but offload is off unless n_gpu_layers is set — so with this False the GPU sits
+    # but offload is off unless n_gpu_layers is set - so with this False the GPU sits
     # idle. True offloads all layers when the installed build supports it, and the
     # client falls back to CPU if that load fails (e.g. insufficient VRAM).
     llm_use_gpu: bool = True
@@ -512,26 +512,26 @@ class Config:
     # the clip's descriptions and gives the text scorer visual context. Available and
     # conservatively-on by default (packaging-strategy-overhaul Wave 6): the master
     # switch is on and frame count is low, but nothing actually runs unless a
-    # vision-capable model is configured (see check_vision_available) — it's still
+    # vision-capable model is configured (see check_vision_available) - it's still
     # opt in per clip ("Analyze frames") or in the batch Re-score flow, never automatic.
     vision_enabled: bool = True
     vision_frames_per_clip: int = 2  # frames evenly sampled across the clip window (1–10)
 
     ollama_host: str = "http://localhost:11434"
     ollama_model: str = "qwen2.5:7b"  # Apache-2.0 (monetization-safe); see model_catalog.py
-    # Optional separate vision model for image analysis — lets a text-only text model
+    # Optional separate vision model for image analysis - lets a text-only text model
     # (e.g. qwen2.5:7b) pair with a vision model (e.g. qwen2.5-vl). Empty = reuse
     # ollama_model for vision too, matching the previous single-model behaviour.
     ollama_vision_model: str = ""
     ollama_timeout_s: float = 120.0
     ollama_enabled: bool = True
 
-    # REMOTE backend — sends transcript data to Anthropic; billed per token
+    # REMOTE backend - sends transcript data to Anthropic; billed per token
     claude_api_key: str = ""                         # Anthropic API key
     claude_model: str = "claude-haiku-4-5-20251001"  # model to use
     claude_timeout_s: float = 30.0                   # per-request timeout
 
-    # Speaker diarization — identifies who is speaking within a track
+    # Speaker diarization - identifies who is speaking within a track
     diarization_backend: str = "speechbrain"  # "null" | "pyannote" | "speechbrain"
     huggingface_token: str = ""        # required for pyannote backend (not speechbrain)
     # Cosine similarity above which a re-diarization cluster is treated as the same
@@ -544,40 +544,40 @@ class Config:
     scorer_scenes_enabled: bool = True
     scorer_llm_enabled: bool = True
     scorer_laugh_enabled: bool = True
-    # Lexicon scoring (plan non-llm-tiers/03) — curated funny/dramatic/action keyword
+    # Lexicon scoring (plan non-llm-tiers/03) - curated funny/dramatic/action keyword
     # density, zero-dep. Feeds the standard dimensions so content presets tune it via
     # score_*_weight; None for a dimension with no markers.
     scorer_lexicon_enabled: bool = True
     # Additional lightweight signals (plan non-llm-tiers/04), all feeding the standard
     # dimensions so content presets tune them via score_*_weight:
-    #   speech_rate — words-per-sec bursts → funny/action (zero-dep transcript timings)
-    #   churn       — rapid speaker turn-taking + cross-talk → funny/action (needs
+    #   speech_rate - words-per-sec bursts → funny/action (zero-dep transcript timings)
+    #   churn       - rapid speaker turn-taking + cross-talk → funny/action (needs
     #                 diarization; abstains when off)
-    #   prosody     — loudness + pitch delivery dynamics → dramatic/action (PyAV+numpy)
+    #   prosody     - loudness + pitch delivery dynamics → dramatic/action (PyAV+numpy)
     scorer_speech_rate_enabled: bool = True
     scorer_churn_enabled: bool = True
     scorer_prosody_enabled: bool = True
     # Audio-event detection (plan non-llm-tiers/05, promoted to default by the
-    # packaging-strategy overhaul) — reuses the AudioSet AST model
+    # packaging-strategy overhaul) - reuses the AudioSet AST model
     # (scorer_laugh_model_id, transformers+torch, both bundled) to detect action
     # sounds → action and crowd/cheer → funny. The AST model itself is a Tier-B
     # auto-fetched download; degrades gracefully (skip) if it isn't present yet.
     scorer_audio_event_enabled: bool = True
-    # "transcript" — regex patterns in Whisper output, no extra deps (default)
-    # "audio"      — spectral rhythm analysis via PyAV + numpy
-    # "model"      — HuggingFace audio-classification (requires transformers+torch)
+    # "transcript" - regex patterns in Whisper output, no extra deps (default)
+    # "audio"      - spectral rhythm analysis via PyAV + numpy
+    # "model"      - HuggingFace audio-classification (requires transformers+torch)
     scorer_laugh_mode: str = "transcript"
     # HuggingFace model ID or local path for mode="model".
     # Recommended: MIT/ast-finetuned-audioset-10-10-0.4593 (AudioSet, ~350 MB)
     # Install deps first: pip install transformers torch torchaudio soundfile
     scorer_laugh_model_id: str = "MIT/ast-finetuned-audioset-10-10-0.4593"
 
-    # Similarity engine backend (plan non-llm-tiers/01) — powers "Find related clips"
+    # Similarity engine backend (plan non-llm-tiers/01) - powers "Find related clips"
     # and "Meaning" hot-words without requiring an LLM:
-    #   "tfidf"      — pure-Python keyword cosine, zero extra deps (fallback)
-    #   "embeddings" — local paraphrase matching via fastembed + bge-small (default;
+    #   "tfidf"      - pure-Python keyword cosine, zero extra deps (fallback)
+    #   "embeddings" - local paraphrase matching via fastembed + bge-small (default;
     #                  fastembed is bundled, bge-small is a Tier-B auto-fetched model)
-    #   "llm"        — the language-model path (find_related_clips / scan_hotwords_semantic)
+    #   "llm"        - the language-model path (find_related_clips / scan_hotwords_semantic)
     # Unknown/unavailable values fall back to "tfidf" at make_backend time.
     similarity_backend: str = "embeddings"
 
@@ -606,7 +606,7 @@ class Config:
     score_dramatic_weight: float = 1.0
     score_action_weight: float = 1.0
 
-    # Content-type preset (plan 12) — records the last-applied preset id. Applying
+    # Content-type preset (plan 12) - records the last-applied preset id. Applying
     # a preset copies its dimension weights + laugh weight into the fields above;
     # this field only records which one, so scoring/summary/timeline prompts can read
     # its flavor paragraph live (see scoring/llm.py). "generic" == today's behavior.
@@ -622,7 +622,7 @@ class Config:
     export_name_template: str = DEFAULT_EXPORT_NAME_TEMPLATE
 
     # Creator-defined Export presets (raw dicts matching export_presets.ExportPreset's
-    # fields) — a user preference, not project data, so this lives in global config
+    # fields) - a user preference, not project data, so this lives in global config
     # even though most other settings here can be overridden per-project. Built-in
     # presets (youtube-1080p, discord-10mb) are not stored here; see export/presets.py.
     export_presets: list[dict] = field(default_factory=list)
@@ -640,7 +640,7 @@ class Config:
 
     # Burned-in caption styling (Settings -> Export + per-export override). Empty
     # font name / zero size / "bottom" position all mean "libass default" and emit
-    # no force_style. Applies to baked-in captions only — sidecar and embedded
+    # no force_style. Applies to baked-in captions only - sidecar and embedded
     # tracks are styled by the player. See analyze/extract.CaptionStyle.
     caption_font_name: str = ""
     caption_font_size: int = 0
@@ -652,7 +652,7 @@ class Config:
 
     # GPU thermal monitoring (Settings -> Hardware). Silently inert when no NVIDIA
     # GPU is detected (yuu_clip/analyze/thermal.py). thermal_warn_c must stay below
-    # thermal_pause_c — enforced in web/routes/config.py on save.
+    # thermal_pause_c - enforced in web/routes/config.py on save.
     thermal_warn_c: int = 85
     thermal_pause_c: int = 90
     thermal_autopause_enabled: bool = True
@@ -781,7 +781,7 @@ def find_ffmpeg() -> tuple[str, str]:
     Return (ffmpeg_exe, ffprobe_exe) paths.
 
     Packaged (Electron) builds set YUU_CLIP_FFMPEG_DIR to the bundled GPL FFmpeg
-    directory (see docs/dev/THIRD-PARTY-NOTICES-FFMPEG.md) and always use it — a
+    directory (see docs/dev/THIRD-PARTY-NOTICES-FFMPEG.md) and always use it - a
     packaging bug that leaves it unset or pointing at an incomplete directory must
     surface immediately, not silently fall through to whatever happens to be on
     PATH. When unset (dev mode, non-Windows contributors), falls back to PATH via
@@ -795,7 +795,7 @@ def find_ffmpeg() -> tuple[str, str]:
         if missing:
             raise RuntimeError(
                 f"YUU_CLIP_FFMPEG_DIR is set to {bundled_dir!r} but missing: {', '.join(missing)}\n\n"
-                "This indicates a broken packaged install, not a missing user dependency — "
+                "This indicates a broken packaged install, not a missing user dependency - "
                 "reinstalling yuu-clip should fix it."
             )
         return ffmpeg, ffprobe
@@ -838,7 +838,7 @@ def run_ffmpeg(args: list[str], timeout: Optional[float] = None) -> subprocess.C
     args[0] must be "ffmpeg" or "ffprobe"; it is replaced with the resolved binary
     from find_ffmpeg() so a missing install raises the friendly install-instructions
     error instead of a bare FileNotFoundError. stderr is captured and, on a non-zero
-    exit, surfaced in the raised RuntimeError — callers (and the user) get the reason
+    exit, surfaced in the raised RuntimeError - callers (and the user) get the reason
     rather than an opaque "returned non-zero exit status 1".
     """
     ffmpeg, ffprobe = find_ffmpeg()

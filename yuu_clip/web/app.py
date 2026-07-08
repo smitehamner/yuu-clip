@@ -1,5 +1,5 @@
 """
-yuu-clip web UI — application factory.
+yuu-clip web UI - application factory.
 
 Assembles the FastAPI app from domain-specific route modules. All business
 logic lives in yuu_clip/web/routes/*; this file is purely wiring.
@@ -60,7 +60,7 @@ try:
 except PackageNotFoundError:
     _PKG_VERSION = "unknown"
 
-# ASCII separators only — this string is surfaced via /api/status and gets
+# ASCII separators only - this string is surfaced via /api/status and gets
 # pasted into terminals, where a "·" mojibakes under PowerShell 5.1 / cp1252.
 if _BUILD_DATE == "dev":
     _VERSION_DISPLAY = f"{_PKG_VERSION}-dev - started {_SERVER_START}"
@@ -84,8 +84,8 @@ def _fail_interrupted_analyses(ctx: ProjectContext) -> None:
     """Mark videos left mid-analysis by a previous server as failed.
 
     A running analyze subprocess sets status='extracting' for the long
-    extract→transcribe phase. If the server (and its subprocess) died there —
-    a crash, a kill, or a restart — the row is stuck in that transient state
+    extract→transcribe phase. If the server (and its subprocess) died there -
+    a crash, a kill, or a restart - the row is stuck in that transient state
     with no job to advance it. On startup no analysis is running yet, so any
     such row is a leftover: flip it to 'failed' so the UI stops showing an
     eternal spinner and the user can re-run it.
@@ -116,7 +116,7 @@ def prepare_project(ctx: ProjectContext) -> None:
     seed_builtin_contexts(ctx.project_dir)
     _fail_interrupted_analyses(ctx)
     # A pause flag left by a server that died mid-analysis would otherwise hold
-    # the very first video of the next run — the job it belonged to is gone anyway.
+    # the very first video of the next run - the job it belonged to is gone anyway.
     from yuu_clip.analyze.pause import remove_pause_flag
     remove_pause_flag(ctx.project_dir)
 
@@ -124,11 +124,11 @@ def prepare_project(ctx: ProjectContext) -> None:
 def create_app(project_dir: Path) -> FastAPI:
     """Create a FastAPI app bound to *project_dir*.
 
-    Safe to call multiple times (e.g. in tests) — each call returns an
+    Safe to call multiple times (e.g. in tests) - each call returns an
     independent app with its own ProjectContext.
     """
     configure_logging(project_dir)
-    _log.info("Starting yuu-clip web server — project: %s", project_dir)
+    _log.info("Starting yuu-clip web server - project: %s", project_dir)
 
     ctx = ProjectContext(project_dir)
     prepare_project(ctx)
@@ -147,12 +147,12 @@ def create_app(project_dir: Path) -> FastAPI:
         for proc in procs:
             if proc.returncode is not None:
                 continue
-            _log.info("Server shutting down — terminating subprocess (pid %s)", proc.pid)
+            _log.info("Server shutting down - terminating subprocess (pid %s)", proc.pid)
             terminate_process_tree(proc)
             try:
                 await asyncio.wait_for(proc.wait(), timeout=5.0)
             except asyncio.TimeoutError:
-                _log.warning("Subprocess did not exit in 5 s — killing")
+                _log.warning("Subprocess did not exit in 5 s - killing")
                 proc.kill()
                 await proc.wait()
 

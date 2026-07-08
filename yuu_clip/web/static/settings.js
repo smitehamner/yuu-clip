@@ -1,5 +1,5 @@
 (function () {
-// Feature-map — Settings panel (all sections; see the per-section banners below).
+// Feature-map - Settings panel (all sections; see the per-section banners below).
 //   API: routes/config.py, llm.py, profiles.py, content_presets.py, export_presets.py · Tests: tests/test_ui_settings.py
 // ── settings panel ────────────────────────────────────────────────────────────
 const _settingsFieldIds = [
@@ -24,7 +24,7 @@ const _settingsFieldIds = [
   's-title-card-template','s-title-card-duration',
   's-caption-font-name','s-caption-font-size','s-caption-position',
 ];
-// [element id, config key, default] — single source for apply + Reset to defaults.
+// [element id, config key, default] - single source for apply + Reset to defaults.
 const _weightFields = [
   ['s-energy-weight',   'scorer_energy_weight',   1.0],
   ['s-scene-weight',    'scorer_scene_weight',    0.5],
@@ -99,7 +99,7 @@ async function openSettings() {
     _applySettingsToUI(cfg);
     // preventScroll: the panel should open at the top (showing the Capabilities
     // overview); a plain focus() scrolls this mid-panel control into view, yanking
-    // the panel down — visibly so since Wave 4's taller Capabilities section.
+    // the panel down - visibly so since Wave 4's taller Capabilities section.
     setTimeout(() => document.getElementById('s-whisper-model')?.focus({ preventScroll: true }), 50);
   } catch (e) {
     showToast('Failed to load settings', 'error');
@@ -155,7 +155,7 @@ async function _ensureWhisperLanguageOptions() {
     try {
       const dn = new Intl.DisplayNames(['en'], { type: 'language' });
       nameOf = code => { try { return dn.of(code) || code; } catch { return code; } };
-    } catch { /* Intl.DisplayNames unavailable — show raw codes */ }
+    } catch { /* Intl.DisplayNames unavailable - show raw codes */ }
     const named = languages
       .map(code => ({ code, name: nameOf(code) }))
       .sort((a, b) => a.name.localeCompare(b.name));
@@ -166,7 +166,7 @@ async function _ensureWhisperLanguageOptions() {
 }
 
 // Selects whose option values are numeric strings (e.g. "1.0") won't match a
-// JSON number reformatted by JS (1.0 -> "1") via plain .value assignment —
+// JSON number reformatted by JS (1.0 -> "1") via plain .value assignment -
 // match by parsed value instead so the saved scale selects the right option.
 function _setSelectByNumber(id, num) {
   const el = document.getElementById(id);
@@ -263,7 +263,7 @@ function _applySettingsToUI(cfg) {
 }
 
 // Applies instantly (outside the Save flow) so the user sees the theme while
-// choosing it. Deliberately not in _settingsFieldIds — must not flag dirty.
+// choosing it. Deliberately not in _settingsFieldIds - must not flag dirty.
 // The inline <head> script in index.html reads the same key before first paint.
 function applyTheme(theme) {
   if (theme === 'dark') delete document.documentElement.dataset.theme;
@@ -272,7 +272,7 @@ function applyTheme(theme) {
 }
 
 // ── LLM scoring section (enable toggle + backend selection) ──────────────────
-// Everything below the master toggle is inert while LLM scoring is off —
+// Everything below the master toggle is inert while LLM scoring is off -
 // inert (not disabled) so the fields keep their values for the save payload.
 function _onLlmEnabledChange(enabled) {
   const body = document.getElementById('s-llm-body');
@@ -312,7 +312,7 @@ function _onLlmBackendChange(backend) {
 
 // ── AI privacy mode (plan non-llm-tiers/07) ─────────────────────────────────
 // The UI mirror of the server-side trust guarantee. Hiding the remote option and
-// collapsing the generative block is presentation only — enforcement lives in
+// collapsing the generative block is presentation only - enforcement lives in
 // resolve_ai_permissions; these controls never *grant* a capability the server blocks.
 function _currentPrivacyMode() {
   const checked = document.querySelector('input[name="s-ai-privacy"]:checked');
@@ -353,7 +353,7 @@ function _onDiarizationBackendChange(backend) {
   if (speechbrainEl) speechbrainEl.style.display = backend === 'speechbrain' ? '' : 'none';
   if (commonEl)      commonEl.style.display      = backend !== 'null'        ? '' : 'none';
   // Pyannote's setup stays a collapsed <details> even when it's the active
-  // backend (demoted — SpeechBrain is the default) — the install/token status
+  // backend (demoted - SpeechBrain is the default) - the install/token status
   // is still visible via #s-diarization-common-fields below, outside the
   // disclosure. Auto-expanding here was tried and reverted: it resized content
   // above the settings panel's current scroll position, and Chrome's scroll
@@ -377,7 +377,7 @@ function _onHfTokenInput() {
     if (!val) {
       fb.textContent = '';
     } else if (!val.startsWith('hf_')) {
-      fb.textContent = '⚠ HuggingFace tokens normally start with "hf_" — double-check this value';
+      fb.textContent = '⚠ HuggingFace tokens normally start with "hf_" - double-check this value';
       fb.style.color = 'var(--warning)';
     } else {
       fb.textContent = '✓ Looks like a valid token format';
@@ -405,7 +405,7 @@ async function _updateDiarizationStatus() {
     try {
       installed = !!(await fetch('/api/install/speechbrain').then(r => r.json())).installed;
     } catch { /* treat unknown as not installed */ }
-    el.innerHTML = `<span>${installed ? '✓' : '○'} SpeechBrain installed — no token needed</span>`;
+    el.innerHTML = `<span>${installed ? '✓' : '○'} SpeechBrain installed - no token needed</span>`;
     el.style.color = installed ? 'var(--green)' : 'var(--muted)';
     return;
   }
@@ -431,7 +431,7 @@ function _onSimilarityBackendChange(backend) {
   if (fields) fields.style.display = backend === 'embeddings' ? '' : 'none';
 }
 
-// Play-next and loop-clip are mutually exclusive — looping a clip forever
+// Play-next and loop-clip are mutually exclusive - looping a clip forever
 // would make "play next" unreachable, so enabling one clears the other.
 function _onPlayNextChange(enabled) {
   if (!enabled) return;
@@ -520,11 +520,11 @@ async function _doApplyContentPreset(id, addHotwords) {
   if (addHotwords && body.hotwords_added) await initHotwordSettings();
   _renderContentPresetInfo();
   const added = body.hotwords_added ? ` · ${plural(body.hotwords_added, 'hot-word')} added` : '';
-  showToast(`Applied content type${added} — re-score to apply the new weighting`, 'success');
+  showToast(`Applied content type${added} - re-score to apply the new weighting`, 'success');
 }
 
 // The preset already persisted these weights server-side, so rebaseline the
-// settings snapshot for the weight fields — otherwise the panel's dirty check
+// settings snapshot for the weight fields - otherwise the panel's dirty check
 // would flag them and prompt a redundant "discard changes?" on close.
 function _applyPresetWeightsToUI(weights) {
   if (!weights) return;
@@ -701,7 +701,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // The settings panel is a fixed overlay pinned below the header (CSS reads
   // --header-height for `top`). The header grows/shrinks as badges appear (remote
-  // LLM), the job-progress row shows during analyze, or buttons wrap — so keep the
+  // LLM), the job-progress row shows during analyze, or buttons wrap - so keep the
   // token live rather than snapshotting it once, or a stale value lets the panel
   // ride up over the header buttons.
   const header = document.querySelector('header');
@@ -737,7 +737,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
-// Public API — symbols referenced cross-module, by an inline handler, or by a
+// Public API - symbols referenced cross-module, by an inline handler, or by a
 // test. Internal helpers above stay private to this module's closure.
 Object.assign(window, {
   openSettings, closeSettings, saveSettings, applyTheme,

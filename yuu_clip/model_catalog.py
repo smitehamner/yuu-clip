@@ -4,14 +4,14 @@ Curated catalog of recommended text and vision models for LLM scoring and
 
 Why a hand-maintained list instead of a live registry fetch: the point of the
 catalog is not "every model that exists" but "models we've vetted as a safe,
-good default for this tool". The load-bearing constraint is licensing — a user
+good default for this tool". The load-bearing constraint is licensing - a user
 of yuu-clip may monetize the clips it helps produce, so any model we *recommend*
 must carry a licence that permits monetizing model output without a user-side
 legal reading. Apache-2.0 and MIT qualify; the Anthropic API's commercial terms
 qualify for the hosted Claude backend. Llama's community licence and Google's
 Gemma terms impose acceptable-use restrictions that aren't worth pushing onto a
 non-lawyer solo user, so those models are recorded here as *rejected* (they keep
-working if a user configures them by hand — we simply don't recommend them).
+working if a user configures them by hand - we simply don't recommend them).
 
 Licences below were verified against the Hugging Face model cards at
 implementation time (2026-07-04). Model licences change and vary by parameter
@@ -32,7 +32,7 @@ BACKEND_OLLAMA = "ollama"
 BACKEND_LLAMACPP = "llamacpp"
 BACKEND_CLAUDE = "claude"
 
-# A recommended model must carry one of these — every one permits monetizing the
+# A recommended model must carry one of these - every one permits monetizing the
 # model's output. "Anthropic Commercial Terms" covers the hosted Claude backend.
 MONETIZATION_OK_LICENCES: frozenset[str] = frozenset(
     {"Apache-2.0", "MIT", "BSD-3-Clause", "Anthropic Commercial Terms"}
@@ -53,7 +53,7 @@ class ModelEntry:
     backends: frozenset[str]             # subset of the BACKEND_* values
     size_gb: Optional[float] = None      # approximate on-disk size (local weights)
     ollama_tag: Optional[str] = None     # `ollama pull` tag (ollama backend)
-    gguf_url: Optional[str] = None       # HF repo *page* for the .gguf (llamacpp backend) — not a direct download
+    gguf_url: Optional[str] = None       # HF repo *page* for the .gguf (llamacpp backend) - not a direct download
     gguf_filename: Optional[str] = None  # exact quant filename at gguf_url/resolve/main/<this>, for one-click download
     mmproj_url: Optional[str] = None     # HF repo page holding the vision projector (llamacpp vision) - usually the same repo as gguf_url
     mmproj_filename: Optional[str] = None  # exact projector filename at mmproj_url/resolve/main/<this>, for one-click vision download
@@ -87,7 +87,7 @@ _TEXT_VISION = frozenset({"text", "vision"})
 
 
 # Curated built-ins. Local text/vision models first, then the hosted Claude
-# models (multimodal — they satisfy both text and vision), then the recorded
+# models (multimodal - they satisfy both text and vision), then the recorded
 # rejections so a future session doesn't re-litigate them.
 CATALOG: tuple[ModelEntry, ...] = (
     # ── Local text models ──────────────────────────────────────────────────
@@ -96,7 +96,7 @@ CATALOG: tuple[ModelEntry, ...] = (
         display_name="Qwen2.5 7B Instruct",
         kinds=_TEXT,
         licence="Apache-2.0",
-        why="Strong all-round 7B — the best local default for clip scoring.",
+        why="Strong all-round 7B - the best local default for clip scoring.",
         backends=frozenset({BACKEND_OLLAMA, BACKEND_LLAMACPP}),
         size_gb=4.7,
         ollama_tag="qwen2.5:7b",
@@ -129,14 +129,14 @@ CATALOG: tuple[ModelEntry, ...] = (
     ),
     # ── Local vision models (consumed by plan 11's image analysis) ──────────
     # moondream2 listed first: it's the steered default (packaging-strategy-overhaul
-    # Wave 6) — smallest download, runs on both backends, recommended-model pickers
+    # Wave 6) - smallest download, runs on both backends, recommended-model pickers
     # render the catalog in this order so it's the first vision option a user sees.
     ModelEntry(
         id="moondream2",
         display_name="moondream2",
         kinds=_VISION,
         licence="Apache-2.0",
-        why="Recommended default — tiny and fast, runs on low VRAM for quick frame checks.",
+        why="Recommended default - tiny and fast, runs on low VRAM for quick frame checks.",
         backends=frozenset({BACKEND_OLLAMA, BACKEND_LLAMACPP}),
         size_gb=1.8,
         ollama_tag="moondream",
@@ -178,7 +178,7 @@ CATALOG: tuple[ModelEntry, ...] = (
         display_name="Claude Haiku 4.5",
         kinds=_TEXT_VISION,
         licence="Anthropic Commercial Terms",
-        why="Fast and cheap — a good default for the Claude backend.",
+        why="Fast and cheap - a good default for the Claude backend.",
         backends=frozenset({BACKEND_CLAUDE}),
         api_model_id="claude-haiku-4-5-20251001",
     ),
@@ -196,11 +196,11 @@ CATALOG: tuple[ModelEntry, ...] = (
         display_name="Claude Opus 4.8",
         kinds=_TEXT_VISION,
         licence="Anthropic Commercial Terms",
-        why="Most capable Claude model — highest cost, best judgement.",
+        why="Most capable Claude model - highest cost, best judgement.",
         backends=frozenset({BACKEND_CLAUDE}),
         api_model_id="claude-opus-4-8",
     ),
-    # ── Recorded rejections (licence — do not re-litigate) ──────────────────
+    # ── Recorded rejections (licence - do not re-litigate) ──────────────────
     ModelEntry(
         id="llama-3.1-8b-instruct",
         display_name="Llama 3.1 8B Instruct",
@@ -254,7 +254,7 @@ def catalog_for_backend(backend: str) -> list[ModelEntry]:
 
 
 def ollama_vision_tag_bases() -> frozenset[str]:
-    """Tag bases (the part before ':') of recommended Ollama vision models — the
+    """Tag bases (the part before ':') of recommended Ollama vision models - the
     single source of truth for "is this Ollama model vision-capable". Consumed by
     the /api/llm/capabilities check and plan 11's vision-availability gate."""
     return frozenset(

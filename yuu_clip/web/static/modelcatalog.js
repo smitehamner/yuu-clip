@@ -1,7 +1,7 @@
 (function () {
-// Feature-map — the recommended-model catalog, model-readiness row, and the
+// Feature-map - the recommended-model catalog, model-readiness row, and the
 // capabilities overview ("what scoring/vision power is installed and how do I
-// get more"). Extracted out of settings.js (which grew into a catch-all) —
+// get more"). Extracted out of settings.js (which grew into a catch-all) -
 // these read backend/model config to decide what to render, but the save/dirty
 // engine that persists config stays in settings.js.
 //   API: routes/llm.py, routes/config.py (capabilities/tiers) · Tests: tests/test_ui_model_catalog.py, tests/test_ui_settings.py
@@ -239,7 +239,7 @@ async function pullOllamaModel(tag) {
   const log = document.getElementById('ollama-pull-log');
   if (!log) return;
   log.style.display = 'block';
-  log.textContent = `Pulling ${tag} — this can take several minutes…\n`;
+  log.textContent = `Pulling ${tag} - this can take several minutes…\n`;
   const controller = new AbortController();
   _pullAbort = controller;
   _setPullCancel(true, () => { controller.abort(); });
@@ -264,14 +264,14 @@ async function pullOllamaModel(tag) {
       for (const line of lines) {
         if (!line.startsWith('data: ')) continue;
         const msg = JSON.parse(line.slice(6));
-        if (msg === '__DONE__') { log.textContent += '✓ Done — set it as the model above and Save.\n'; return; }
+        if (msg === '__DONE__') { log.textContent += '✓ Done - set it as the model above and Save.\n'; return; }
         log.textContent += msg + '\n';
         log.scrollTop = log.scrollHeight;
       }
     }
   } catch (err) {
     if (err && err.name === 'AbortError') log.textContent += '■ Download cancelled.\n';
-    else log.textContent += '✗ Pull failed — is Ollama installed and running?\n';
+    else log.textContent += '✗ Pull failed - is Ollama installed and running?\n';
   } finally {
     _pullAbort = null;
     _setPullCancel(false);
@@ -395,7 +395,7 @@ async function downloadGgufModel(modelId, card) {
 
 // ── model readiness ──────────────────────────────────────────────────────────
 // Readiness of the *saved* active model. Reflects config on disk, not unsaved
-// edits — refreshed on open and after Save.
+// edits - refreshed on open and after Save.
 async function _updateLlmCapabilities() {
   const el = document.getElementById('s-llm-capabilities');
   if (!el) return;
@@ -414,7 +414,7 @@ async function _updateLlmCapabilities() {
 // ── capabilities overview (Stage 06) ────────────────────────────────────────
 // A read-only, at-a-glance map of the non-LLM upgrade tiers. Sources each tier's
 // active state + install guidance from the backend's availability() reasons via
-// /api/capabilities/tiers — it never installs anything itself; each row links to
+// /api/capabilities/tiers - it never installs anything itself; each row links to
 // the section where the real install/enable control lives.
 async function _renderCapabilityTiers() {
   const list = document.getElementById('s-capabilities-list');
@@ -430,7 +430,7 @@ async function _renderCapabilityTiers() {
   }
   if (intro) {
     intro.textContent = data.lightweight
-      ? "You're running in lightweight mode — transcription, scoring, and clip descriptions all work right now. Install a local model anytime for richer AI descriptions and smarter scoring."
+      ? "You're running in lightweight mode - transcription, scoring, and clip descriptions all work right now. Install a local model anytime for richer AI descriptions and smarter scoring."
       : "Here's what each part of yuu-clip is using right now, and what you can upgrade.";
   }
   list.innerHTML = (data.tiers || []).map(_capabilityTierHtml).join('');
@@ -443,9 +443,9 @@ async function _renderCapabilityTiers() {
 }
 
 // Four visual states, not two: a tier can be fully Ready (green check), waiting
-// on a Tier-B model it can fetch right now (prefetch_slug set — "Download now"),
+// on a Tier-B model it can fetch right now (prefetch_slug set - "Download now"),
 // waiting on a Tier-B model too small to bother with a progress UI (neutral, no
-// CTA), or genuinely need a real setup step (install_slug set — e.g. Pyannote
+// CTA), or genuinely need a real setup step (install_slug set - e.g. Pyannote
 // needs a pip install + HuggingFace token, shown as "Set up →").
 function _capabilityTierHtml(tier) {
   const needsSetup = !tier.ready && !!tier.install_slug;
@@ -476,7 +476,7 @@ function _capabilityTierHtml(tier) {
 }
 
 // ── Tier-B model prefetch ("Download now") ──────────────────────────────────
-// One flow for every non-LLM Tier-B model (speaker/audio-event/embeddings) —
+// One flow for every non-LLM Tier-B model (speaker/audio-event/embeddings) -
 // mirrors pullOllamaModel's SSE + Cancel + log pattern above. The GGUF/Ollama
 // model keeps its own separate "Pull with Ollama" / download-page flow.
 const _PREFETCH_LABELS = {
@@ -551,7 +551,7 @@ async function prefetchModel(slug, tierId) {
     }
   } catch (err) {
     if (err && err.name === 'AbortError') log.textContent += '■ Download cancelled.\n';
-    else log.textContent += '✗ Download failed — check your connection and try again.\n';
+    else log.textContent += '✗ Download failed - check your connection and try again.\n';
   } finally {
     _prefetchAbort = null;
     _setPrefetchCancel(tierId, false);
@@ -584,7 +584,7 @@ async function gateOnCapability(el, capability, message) {
   return cap;
 }
 
-// Public API — symbols referenced cross-module, by an inline handler, or by a
+// Public API - symbols referenced cross-module, by an inline handler, or by a
 // test. Internal helpers above stay private to this module's closure.
 Object.assign(window, {
   _ensureModelCatalog, refreshModelCatalog, _setClaudeModelValue,

@@ -1,11 +1,11 @@
 (function () {
-// Feature-map — Clip export (the Export modal flow + per-format export-file actions).
+// Feature-map - Clip export (the Export modal flow + per-format export-file actions).
 //   API: routes/clips/ (export.py, delete.py clip-exports, crud.py export-files, edit.py suggest-framing) · Tests: tests/test_ui_clips.py, tests/test_ui_exporteditor.py
 // Renders and drives the Export dialog and the per-format rows in the clip
 // detail's Export card. The rows themselves are built by _exportFormatsHtml in
 // clips.js (it renders inside the detail pane); the actions they dispatch live here.
 
-// ── per-format export row actions (Export presets — Plan 07) ───────────────
+// ── per-format export row actions (Export presets - Plan 07) ───────────────
 function _downloadFile(filename) {
   const a = document.createElement('a');
   a.href = `/media/exports/${encodeURIComponent(filename)}`;
@@ -55,7 +55,7 @@ async function _copyClipExportPaths(clipId) {
 }
 
 function _handleExportFormatAction(action, data) {
-  // Read from the row's own dataset rather than AppState.activeClipId — the
+  // Read from the row's own dataset rather than AppState.activeClipId - the
   // Export card can be rendered for a clip before it's the globally "active"
   // one (e.g. in tests, or a future non-selection preview), so each row must
   // be self-contained.
@@ -149,7 +149,7 @@ let _exportCropX = 0.5;  // vertical-framing crop position for the active export
 const _VERT_BOX_W_PCT = 31.64;
 const _VERT_BOX_TRAVEL_PCT = 100 - _VERT_BOX_W_PCT;
 
-// One always-visible line answering "will this be quick or slow, and why" —
+// One always-visible line answering "will this be quick or slow, and why" -
 // the terms match the Getting Started guide and glossary (Quick/Precise export).
 function _exportModeSummary(hardsub, titleCard, retranscribe) {
   const reencodeReasons = [];
@@ -159,12 +159,12 @@ function _exportModeSummary(hardsub, titleCard, retranscribe) {
   if (reencodeReasons.length) {
     return {
       precise: true,
-      text: `Precise export — re-encodes for ${reencodeReasons.join(' and ')} (slower).${retxNote}`,
+      text: `Precise export - re-encodes for ${reencodeReasons.join(' and ')} (slower).${retxNote}`,
     };
   }
   return {
     precise: false,
-    text: `Quick export — copies the video without re-encoding (seconds). Cuts may land up to ~1 s off the exact mark.${retxNote}`,
+    text: `Quick export - copies the video without re-encoding (seconds). Cuts may land up to ~1 s off the exact mark.${retxNote}`,
   };
 }
 
@@ -188,7 +188,7 @@ function _onExportCaptionsChange() {
 }
 
 // Preset exports always re-encode and don't support the soft-subtitle (embed)
-// track or a container override — the preset dictates both. Reflect that in
+// track or a container override - the preset dictates both. Reflect that in
 // the rest of the modal so a creator never hits the server-side 400 for the
 // unsupported combination.
 function _onExportPresetChange(presetName) {
@@ -232,13 +232,13 @@ async function _autoFrameExport() {
   try {
     const res = await fetch(`/api/clips/${_exportClipId}/suggest-framing`, {method: 'POST'});
     if (res.status === 503) {
-      note.innerHTML = 'Needs MediaPipe — <a href="#" onclick="closeExportModal();openSettings();return false">install it in Settings</a>.';
+      note.innerHTML = 'Needs MediaPipe - <a href="#" onclick="closeExportModal();openSettings();return false">install it in Settings</a>.';
       return;
     }
     if (!res.ok) throw new Error(formatApiError(await res.json().catch(() => ({}))) || `HTTP ${res.status}`);
     const {crop_x} = await res.json();
     if (crop_x == null) {
-      note.textContent = 'No face found — set the crop manually.';
+      note.textContent = 'No face found - set the crop manually.';
       return;
     }
     _setExportFraming(crop_x);
@@ -281,7 +281,7 @@ async function _loadExportSpeakerDefault() {
 
 // Prefill the export dialog's Caption style group from the global defaults so the
 // per-export override starts where Settings -> Export left it. Failures are
-// non-fatal — the fields just stay empty (renderer default).
+// non-fatal - the fields just stay empty (renderer default).
 async function _prefillExportCaptionStyle() {
   try {
     const cfg = await fetch('/api/config').then(r => r.json());
@@ -393,7 +393,7 @@ async function confirmExport() {
       AppState.activeClipData = clip;
       AppState.activeMediaFilename = media.filename;
       // A takeover panel (e.g. Split Editor) may have opened while the export
-      // was streaming — don't clobber it by re-rendering the covered detail pane.
+      // was streaming - don't clobber it by re-rendering the covered detail pane.
       if (!PanelNav.isOpen()) {
         const captionsUrl = media.has_captions ? `/api/clips/${id}/captions.vtt` : null;
         renderPlayer(media.url, captionsUrl, id);
@@ -409,7 +409,7 @@ async function confirmExport() {
   );
 }
 
-// Public API — symbols referenced cross-module, by an inline handler, or by a
+// Public API - symbols referenced cross-module, by an inline handler, or by a
 // test. Internal helpers above stay private to this module's closure.
 Object.assign(window, {
   exportClip, closeExportModal, confirmExport,

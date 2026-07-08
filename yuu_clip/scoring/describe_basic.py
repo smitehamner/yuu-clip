@@ -1,5 +1,5 @@
 """
-Basic description — a template one-liner built from data already on a clip, so a
+Basic description - a template one-liner built from data already on a clip, so a
 clip is never left blank when no language model is available (Stage 02).
 
 It combines three cheap signals: the speaker names present in the clip's transcript
@@ -18,13 +18,13 @@ from yuu_clip.scoring.similarity import top_keywords
 if TYPE_CHECKING:
     from yuu_clip.db.models import ClipCandidate
 
-# Transcript excerpts prefix each line with "Name: " — the same shape textmatch
+# Transcript excerpts prefix each line with "Name: " - the same shape textmatch
 # strips before matching. Captured here to read the speaker names back out.
 _SPEAKER_PREFIX_RE = re.compile(r"^([^\n:]{1,40}):\s", re.MULTILINE)
 
 _MAX_SPEAKERS = 3
 _MAX_KEYWORDS = 3
-# A dimension only earns a mention when it clears this — below it, the signal is too
+# A dimension only earns a mention when it clears this - below it, the signal is too
 # weak to characterize the clip and would just add noise.
 _DIMENSION_FLOOR = 0.34
 
@@ -38,7 +38,7 @@ _DIMENSION_LABELS = (
 def _speaker_names(excerpt: str) -> list[str]:
     """Unique speaker names from the excerpt's line prefixes, in first-seen order.
 
-    A bare 'Speaker N' label carries no real name, so those are dropped — naming the
+    A bare 'Speaker N' label carries no real name, so those are dropped - naming the
     anonymous index adds nothing a reader wants."""
     names: list[str] = []
     for raw in _SPEAKER_PREFIX_RE.findall(excerpt):
@@ -74,7 +74,7 @@ def _leading_dimension(clip: "ClipCandidate") -> str:
 def build_basic_description(clip: "ClipCandidate") -> tuple[str, str]:
     """Build a template ``(description, description_long)`` for *clip*.
 
-    ``description_long`` is always empty — a paragraph is what an LLM adds. Returns
+    ``description_long`` is always empty - a paragraph is what an LLM adds. Returns
     ``("", "")`` when the excerpt has no usable content (nothing worth showing)."""
     excerpt = (clip.transcript_excerpt or "").strip()
     if not excerpt:
@@ -86,7 +86,7 @@ def build_basic_description(clip: "ClipCandidate") -> tuple[str, str]:
     keywords = ", ".join(top_keywords(strip_speaker_prefixes(excerpt), _MAX_KEYWORDS))
     dimension = _leading_dimension(clip)
 
-    lead = " — ".join(part for part in (speakers, keywords) if part)
+    lead = " - ".join(part for part in (speakers, keywords) if part)
     if lead and dimension:
         return f"{lead} · {dimension}", ""
     if lead:

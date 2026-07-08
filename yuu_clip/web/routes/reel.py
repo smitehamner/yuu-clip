@@ -1,4 +1,4 @@
-# Feature-map — Highlight reel (code: demo_reel / build_reel)
+# Feature-map - Highlight reel (code: demo_reel / build_reel)
 #   UI: static/reel.js (Build + View modal)
 #   Siblings: reel.py (build_reel, title_card_lines) · tests/test_reel.py, tests/test_ui_reel.py
 """
@@ -153,7 +153,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     ):
         """Return clips (timeline order) for the reel builder pool, with export status.
 
-        Scope: `video_ids` (comma-separated) supersedes `video_id` when present —
+        Scope: `video_ids` (comma-separated) supersedes `video_id` when present -
         used for a session-scoped pool spanning several recordings. With neither,
         the pool is project-wide. `statuses` is a comma-separated subset of
         {approved, pending, rejected}; defaults to "approved" (historical behavior)."""
@@ -296,7 +296,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         if not reel_composition_path(reel_path).exists():
             raise HTTPException(
                 409,
-                "This reel was built before captions were supported — rebuild it "
+                "This reel was built before captions were supported - rebuild it "
                 "with captions enabled to generate them.",
             )
         db = ctx.get_db()

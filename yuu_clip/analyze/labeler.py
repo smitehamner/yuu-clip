@@ -47,7 +47,7 @@ def label_tracks(
 
     If *profile_name* is given and exists, it is applied without prompting.
     If the video has only one audio track, it is auto-labeled "combined".
-    If *non_interactive* is True, the function never blocks on stdin — it
+    If *non_interactive* is True, the function never blocks on stdin - it
     applies the profile if possible, otherwise labels track 0 as combined and
     marks the rest unlabeled (no transcription or scoring).
     Otherwise the user is prompted interactively.
@@ -56,9 +56,9 @@ def label_tracks(
 
     if len(streams) == 1:
         s = streams[0]
-        _log.info("Single audio track (stream %d) — auto-labeled as combined", s.stream_index)
+        _log.info("Single audio track (stream %d) - auto-labeled as combined", s.stream_index)
         console.print(
-            "  [dim]Single audio track detected — labeling as[/dim] [bold]combined[/bold]"
+            "  [dim]Single audio track detected - labeling as[/dim] [bold]combined[/bold]"
         )
         return [{
             "stream_index": s.stream_index,
@@ -76,13 +76,13 @@ def label_tracks(
         if result:
             return result
         _log.warning(
-            "Track layout '%s' not found or track count mismatch (%d tracks) — "
+            "Track layout '%s' not found or track count mismatch (%d tracks) - "
             "falling back to interactive labeling",
             profile_name, len(streams),
         )
         console.print(
             f"  [yellow]Track layout '{profile_name}' not found or track count mismatch "
-            f"— falling back to interactive labeling.[/yellow]"
+            f" -  falling back to interactive labeling.[/yellow]"
         )
 
     return _label_interactive(video_info)
@@ -99,13 +99,13 @@ def _label_non_interactive(streams, profile_name: Optional[str]) -> list[dict]:
         if result:
             return result
         _log.warning(
-            "Track layout '%s' not found or track count mismatch (%d tracks) — "
+            "Track layout '%s' not found or track count mismatch (%d tracks) - "
             "falling back to track 0 as combined",
             profile_name, len(streams),
         )
         console.print(
             f"  [yellow]Track layout '{profile_name}' not found or track count mismatch "
-            f"({len(streams)} tracks) — using track 1 as combined.[/yellow]"
+            f"({len(streams)} tracks) - using track 1 as combined.[/yellow]"
         )
 
     s = streams[0]
@@ -170,7 +170,7 @@ def _prompt_saved_layout(profiles, streams) -> Optional[list[dict]]:
         if result:
             _print_assignment_summary(result)
             return result
-        console.print("  [yellow]Track count mismatch — labeling manually.[/yellow]")
+        console.print("  [yellow]Track count mismatch - labeling manually.[/yellow]")
     return None
 
 
@@ -244,7 +244,7 @@ def _apply_profile(name: str, streams) -> Optional[list[dict]]:
     profile = profiles[name]
     expected = profile.get("num_tracks", 0)
     if expected != len(streams):
-        return None  # mismatch — caller falls back to interactive
+        return None  # mismatch - caller falls back to interactive
 
     assignments: list[dict] = []
     for pos_assign in profile["assignments"]:
@@ -289,7 +289,7 @@ def _print_stream_table(video_info: VideoInfo) -> None:
             s.codec_name,
             f"{s.sample_rate // 1000}kHz",
             str(s.channels),
-            s.title_tag or "[dim]—[/dim]",
+            s.title_tag or "[dim] - [/dim]",
         )
 
     console.print(table)
@@ -320,5 +320,5 @@ def _guess_label_index(stream) -> int:
     if any(kw in title for kw in ("mic", "voice", "vocal", "player")):
         return 1  # player_voice
     if any(kw in title for kw in ("desktop", "game", "sound", "audio")):
-        return 4  # combined or game_sounds — default to combined
+        return 4  # combined or game_sounds - default to combined
     return 5  # unlabeled

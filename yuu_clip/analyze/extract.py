@@ -2,7 +2,7 @@
 Audio extraction and clip export via FFmpeg.
 
 All paths are handled as pathlib.Path objects and converted to strings
-only at subprocess call time — Path.as_posix() is used on Windows to
+only at subprocess call time - Path.as_posix() is used on Windows to
 avoid backslash confusion in FFmpeg's argument parser.
 """
 from __future__ import annotations
@@ -32,7 +32,7 @@ class CaptionStyle:
     """Burned-in caption styling applied via libass force_style.
 
     Empty font_name / zero font_size / "bottom" position each mean "renderer
-    default" and contribute no force_style fragment. PrimaryColour is never set —
+    default" and contribute no force_style fragment. PrimaryColour is never set -
     per-speaker colours arrive as inline <font color> tags in the SRT and must win.
     """
     font_name: str = ""
@@ -142,7 +142,7 @@ def extract_audio_track(
 # Building the arg list is split out into _build_clip_cmd so the ordering of -ss/-t
 # relative to each -i can be unit-tested: an earlier bug placed -t between the two
 # inputs in the softsub branch, where FFmpeg treats it as an input option for the
-# subtitle file instead of an output duration limit — which copied the entire source.
+# subtitle file instead of an output duration limit - which copied the entire source.
 def _build_clip_cmd(
     ffmpeg: str,
     video_path: Path,
@@ -222,7 +222,7 @@ def _verify_export_duration(ffprobe: str, output_path: Path, expected_s: float) 
 
     Stream-copy keyframe seeking can overshoot the requested length slightly, so we
     allow generous slack. A result far longer than requested means the trim arguments
-    were not applied — fail loudly rather than hand back a multi-hour file.
+    were not applied - fail loudly rather than hand back a multi-hour file.
     """
     actual_s = _probe_duration_s(ffprobe, output_path)
     if actual_s is None:
@@ -231,7 +231,7 @@ def _verify_export_duration(ffprobe: str, output_path: Path, expected_s: float) 
     if actual_s > expected_s + tolerance_s:
         raise RuntimeError(
             f"Exported clip is {actual_s:.0f}s but the requested window was "
-            f"{expected_s:.0f}s — the trim was not applied. Output left at {output_path}."
+            f"{expected_s:.0f}s - the trim was not applied. Output left at {output_path}."
         )
 
 
@@ -249,7 +249,7 @@ def export_clip(
     """
     Cut a clip from *video_path* between *start_ms* and *end_ms*.
 
-    Default (reencode=False): stream-copy — extremely fast, lossless,
+    Default (reencode=False): stream-copy - extremely fast, lossless,
     but seeks to the nearest keyframe so the actual start may be up to
     ~2 seconds early.  For highlight clips this is almost always fine.
 
@@ -290,7 +290,7 @@ def export_clip(
 
 
 def _null_sink() -> str:
-    """ffmpeg's null-muxer output target — platform-specific bit bucket for pass 1."""
+    """ffmpeg's null-muxer output target - platform-specific bit bucket for pass 1."""
     return "NUL" if sys.platform == "win32" else "/dev/null"
 
 
@@ -310,7 +310,7 @@ def _vertical_crop_filters(crop_x: Optional[float]) -> list[str]:
 
     The crop width is min(iw, ih*9/16) so a source already narrower than 9:16 (a
     portrait clip, e.g. a re-imported Short) is never asked for more pixels than it
-    has — it takes the full width and gets letterboxed by the pad instead of failing
+    has - it takes the full width and gets letterboxed by the pad instead of failing
     the encode. The comma inside min() is escaped (\\,) so libavfilter doesn't read
     it as a filter separator. Scale uses decrease+pad so the exact-9:16 case fits
     with no padding and the narrow case is padded rather than distorted.
@@ -356,7 +356,7 @@ def export_clip_with_preset(
     crop_x: Optional[float] = None,
 ) -> Path:
     """Cut a clip from *video_path* using an Export preset's container/resolution/
-    bitrate recipe. Always re-encodes (no stream-copy path — a preset's whole
+    bitrate recipe. Always re-encodes (no stream-copy path - a preset's whole
     purpose is to change the encode).
 
     Two encode modes, chosen by which of preset.crf / preset.target_size_mb is

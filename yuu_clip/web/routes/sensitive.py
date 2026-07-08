@@ -1,8 +1,8 @@
-# Feature-map — Sensitive Terms (code: sensitive_terms / SensitiveTerm; Privacy Terms + Censor Words)
+# Feature-map - Sensitive Terms (code: sensitive_terms / SensitiveTerm; Privacy Terms + Censor Words)
 #   UI: static/sensitive.js (Settings → Sensitive Content) · "Flagged" clip filter
 #   Siblings: scoring/textmatch.py · scoring/engine.py (apply_sensitive_scan) · tests/test_sensitive.py, tests/test_ui_sensitive.py
 """Sensitive-content (Privacy Terms / Censor Words) CRUD + rescan routes
-(roadmap plan 06). Term text is user PII by definition — never log a `term`
+(roadmap plan 06). Term text is user PII by definition - never log a `term`
 value anywhere in this module; log only counts and ids.
 """
 from __future__ import annotations
@@ -53,7 +53,7 @@ def _validate_sensitive_term_body(body: SensitiveTermBody, term: str) -> None:
     if body.match_mode == "fuzzy" and len(term) < FUZZY_MIN_TERM_LENGTH:
         raise HTTPException(
             400,
-            f"Close spelling matching needs a term of at least {FUZZY_MIN_TERM_LENGTH} characters — "
+            f"Close spelling matching needs a term of at least {FUZZY_MIN_TERM_LENGTH} characters - "
             "shorter terms match too many unrelated words. Use Exact or Ignore case instead.",
         )
 
@@ -62,7 +62,7 @@ def _rescan_all_clips(db) -> tuple[int, int]:
     """Full project rescan: re-derive sensitive_matches for every clip in the
     project from its already-stored transcript/descriptions. Synchronous and
     text-only (no LLM call), so it's cheap enough to run inline whenever the
-    term list changes — a saved edit is reflected everywhere immediately, not
+    term list changes - a saved edit is reflected everywhere immediately, not
     just on whichever recording happens to be open."""
     sensitive_terms = db.query(SensitiveTerm).all()
     clips = db.query(ClipCandidate).all()
@@ -101,7 +101,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             db.refresh(row)
             clips_scanned, clips_flagged = _rescan_all_clips(db)
             _log.info(
-                "Sensitive term %d created (category=%s mode=%s) — rescanned %d clips, %d flagged",
+                "Sensitive term %d created (category=%s mode=%s) - rescanned %d clips, %d flagged",
                 row.id, row.category, row.match_mode, clips_scanned, clips_flagged,
             )
             result = _sensitive_term_dict(row)
@@ -127,7 +127,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             db.refresh(row)
             clips_scanned, clips_flagged = _rescan_all_clips(db)
             _log.info(
-                "Sensitive term %d updated (category=%s mode=%s) — rescanned %d clips, %d flagged",
+                "Sensitive term %d updated (category=%s mode=%s) - rescanned %d clips, %d flagged",
                 row.id, row.category, row.match_mode, clips_scanned, clips_flagged,
             )
             result = _sensitive_term_dict(row)
@@ -148,7 +148,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             db.commit()
             clips_scanned, clips_flagged = _rescan_all_clips(db)
             _log.info(
-                "Sensitive term %d deleted (category=%s) — rescanned %d clips, %d flagged",
+                "Sensitive term %d deleted (category=%s) - rescanned %d clips, %d flagged",
                 term_id, category, clips_scanned, clips_flagged,
             )
             return {"deleted": term_id, "clips_scanned": clips_scanned, "clips_flagged": clips_flagged}
@@ -158,7 +158,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     @router.post("/api/videos/{video_id}/sensitive-rescan")
     def sensitive_rescan_video(video_id: int):
         """Recompute sensitive-term matches for every clip of *video_id* from
-        their already-stored transcript/descriptions — no LLM call, synchronous.
+        their already-stored transcript/descriptions - no LLM call, synchronous.
         Symmetric with POST /api/videos/{video_id}/hotword-rescan."""
         db = ctx.get_db()
         try:

@@ -1,7 +1,7 @@
-# Feature-map — Settings / configuration (code: Config)
+# Feature-map - Settings / configuration (code: Config)
 #   UI: static/settings.js (whole Settings panel)
 #   Siblings: config.py (load/save_project) · tests/test_config.py, tests/test_ui_settings.py
-"""Config get/patch routes — GET /api/config, PATCH /api/config."""
+"""Config get/patch routes - GET /api/config, PATCH /api/config."""
 from __future__ import annotations
 
 from typing import Optional
@@ -24,7 +24,7 @@ class ConfigPatch(BaseModel):
     whisper_device:               Optional[str]   = None
     whisper_compute_type:         Optional[str]   = None
     whisper_language:             Optional[str]   = None
-    # AI privacy mode (plan non-llm-tiers/07) — none | local_only | remote_ok
+    # AI privacy mode (plan non-llm-tiers/07) - none | local_only | remote_ok
     ai_privacy_mode:              Optional[str]   = None
     # LLM backend
     llm_backend:                  Optional[str]   = None
@@ -40,7 +40,7 @@ class ConfigPatch(BaseModel):
     ollama_vision_model:          Optional[str]   = None
     ollama_timeout_s:             Optional[float] = None
     ollama_enabled:               Optional[bool]  = None
-    # Claude API (remote — billed per token)
+    # Claude API (remote - billed per token)
     claude_api_key:               Optional[str]   = None
     claude_model:                 Optional[str]   = None
     claude_timeout_s:             Optional[float] = None
@@ -53,7 +53,7 @@ class ConfigPatch(BaseModel):
     scorer_laugh_model_id:        Optional[str]   = None
     # Lightweight scorer weights + toggles (plans non-llm-tiers/03–05) and the similarity
     # engine (plan 01). Previously sent by settings.js but dropped here, so they never
-    # persisted — wired through in Stage 07.
+    # persisted - wired through in Stage 07.
     scorer_lexicon_weight:        Optional[float] = None
     scorer_speech_rate_weight:    Optional[float] = None
     scorer_churn_weight:          Optional[float] = None
@@ -82,11 +82,11 @@ class ConfigPatch(BaseModel):
     title_card_scale:             Optional[float] = None
     title_card_template:          Optional[str]   = None
     title_card_duration_s:        Optional[float] = None
-    # Caption style (Settings -> Export) — burned-in captions only
+    # Caption style (Settings -> Export) - burned-in captions only
     caption_font_name:            Optional[str]   = None
     caption_font_size:            Optional[int]   = None
     caption_position:             Optional[str]   = None
-    # Hardware — GPU thermal monitoring
+    # Hardware - GPU thermal monitoring
     thermal_warn_c:                Optional[int]   = None
     thermal_pause_c:               Optional[int]   = None
     thermal_autopause_enabled:     Optional[bool]  = None
@@ -287,7 +287,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     @router.patch("/api/config")
     def patch_config(body: ConfigPatch):
         cfg = ctx.config
-        # Transform first, apply after the cross-field check passes — a failed
+        # Transform first, apply after the cross-field check passes - a failed
         # validation must leave cfg (the live in-memory config) untouched, not
         # partially mutated with fields that were processed before the failure.
         transformed: dict[str, object] = {}

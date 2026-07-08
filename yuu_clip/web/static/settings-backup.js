@@ -1,5 +1,5 @@
 (function () {
-// Feature-map — Settings > Backup & Restore (code: backup)
+// Feature-map - Settings > Backup & Restore (code: backup)
 //   API: routes/backup.py (/api/backup, /api/restore/inspect, /api/restore/apply)
 //   Siblings: project_archive.py (archive + re-point core) · projects.js (switchProject reload pattern)
 //   Tests: tests/test_ui_backup.py
@@ -105,7 +105,7 @@ function _renderRestorePlan() {
     return `
       <div class="restore-repoint-row" style="border-top:1px solid var(--border);padding:10px 0">
         <div style="font-size:12px;color:var(--text)"><code>${escHtml(group.missing_dir)}</code></div>
-        <div class="settings-note">${plural(group.file_count, 'file')}${samples ? ` — e.g. ${samples}` : ''}</div>
+        <div class="settings-note">${plural(group.file_count, 'file')}${samples ? ` - e.g. ${samples}` : ''}</div>
         <div style="display:flex;gap:8px;align-items:center;margin-top:6px">
           <input type="text" id="repoint-${i}" class="settings-input" style="flex:1"
                  placeholder="New location for these files (leave blank to skip)">

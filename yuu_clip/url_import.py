@@ -1,4 +1,4 @@
-"""Import from URL (roadmap plan 08) — Twitch VOD / YouTube download support.
+"""Import from URL (roadmap plan 08) - Twitch VOD / YouTube download support.
 
 Public YouTube and Twitch links only in v1: no cookies/browser-profile auth for
 sub-only or otherwise gated content (a plain "requires a login" error instead).
@@ -27,7 +27,7 @@ ALLOWED_HOSTS = frozenset({
     "twitch.tv", "www.twitch.tv",
 })
 
-# Videos over 1080p are skipped — smaller files, faster downloads, and no need
+# Videos over 1080p are skipped - smaller files, faster downloads, and no need
 # for a quality picker in v1 (see roadmap plan 08's locked decisions).
 FORMAT_SELECTOR = "bestvideo[height<=1080]+bestaudio/best[height<=1080]"
 
@@ -38,7 +38,7 @@ _SIDECAR_SUFFIX = ".yuuclip-source.json"
 
 
 class ImportUrlError(ValueError):
-    """A user-facing error — the message is safe to show as-is (no stack trace)."""
+    """A user-facing error - the message is safe to show as-is (no stack trace)."""
 
 
 def validate_import_url(url: str) -> None:
@@ -62,9 +62,9 @@ def _is_auth_error(message: str) -> bool:
 
 def _friendly_extractor_error(message: str) -> str:
     if _is_auth_error(message):
-        return "This video requires a login — only public videos can be imported"
+        return "This video requires a login - only public videos can be imported"
     return (
-        "Could not read this link — it may be unavailable, or yt-dlp needs "
+        "Could not read this link - it may be unavailable, or yt-dlp needs "
         "updating for a recent site change."
     )
 
@@ -101,7 +101,7 @@ def inspect_url(url: str, timeout_s: float = 30.0) -> dict:
     if info.get("entries") is not None:
         raise ImportUrlError("Link a single video, not a playlist or channel")
     if info.get("is_live"):
-        raise ImportUrlError("This stream is still live — import it after the VOD is available.")
+        raise ImportUrlError("This stream is still live - import it after the VOD is available.")
 
     return {
         "title":                 info.get("title") or "(untitled)",
@@ -157,7 +157,7 @@ def check_disk_space(target_dir: Path, estimated_size_bytes: Optional[int]) -> N
     required = estimated_size_bytes * _DISK_SPACE_SAFETY_FACTOR
     if free < required:
         raise ImportUrlError(
-            f"Not enough free disk space — need about {_human_bytes(required)}, "
+            f"Not enough free disk space - need about {_human_bytes(required)}, "
             f"only {_human_bytes(free)} free."
         )
 
@@ -170,7 +170,7 @@ def _human_bytes(n: Optional[float]) -> Optional[str]:
         if size < 1024 or unit == "GiB":
             return f"{int(size)}{unit}" if unit == "B" else f"{size:.1f}{unit}"
         size /= 1024
-    return f"{size:.1f}TiB"  # pragma: no cover — effectively unreachable for real files
+    return f"{size:.1f}TiB"  # pragma: no cover - effectively unreachable for real files
 
 
 def _human_eta(seconds: Optional[float]) -> Optional[str]:
@@ -187,7 +187,7 @@ def format_progress_line(hook_data: dict) -> str:
 
     Printed to stdout by the CLI subprocess and streamed to the browser as SSE.
     parse_progress_line (below, for tests) and the JS regex in analyze.js both
-    parse this exact format — keep all three in sync if it ever changes.
+    parse this exact format - keep all three in sync if it ever changes.
     """
     downloaded = hook_data.get("downloaded_bytes") or 0
     total = hook_data.get("total_bytes") or hook_data.get("total_bytes_estimate")
@@ -275,7 +275,7 @@ def download_video(url: str, output_dir: Path, *, progress_line_cb=print) -> Pat
     lines through *progress_line_cb*.
 
     Returns the downloaded file's path and writes a metadata sidecar alongside it
-    (picked up by the analyze pipeline — see cli/_pipeline.py::_apply_source_metadata).
+    (picked up by the analyze pipeline - see cli/_pipeline.py::_apply_source_metadata).
 
     Raises ImportUrlError for validation/live/auth/playlist failures (checked
     again right before downloading, in case something changed since Inspect) and

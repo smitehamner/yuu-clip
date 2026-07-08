@@ -1,4 +1,4 @@
-"""Bulk clip operations — multi-clip status set/restore, delete, and export.
+"""Bulk clip operations - multi-clip status set/restore, delete, and export.
 
 Registered before the crud routes: these use static paths like /api/clips/bulk-export
 that would otherwise be matched as /api/clips/{clip_id}.
@@ -61,7 +61,7 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
 
     @router.post("/api/clips/bulk-status-restore")
     def bulk_restore_clip_status(body: BulkStatusRestore):
-        """Restore each clip to its own previous status — undo for bulk_set_clip_status.
+        """Restore each clip to its own previous status - undo for bulk_set_clip_status.
 
         Unlike bulk-status, clips may end up on different statuses, so this takes
         a per-clip mapping rather than one status for the whole batch.

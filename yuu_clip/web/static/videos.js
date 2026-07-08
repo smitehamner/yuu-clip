@@ -1,5 +1,5 @@
 (function () {
-// Feature-map — Recordings list + detail (code: video / Video).
+// Feature-map - Recordings list + detail (code: video / Video).
 //   API: routes/videos.py · Tests: tests/test_ui_video.py, tests/test_videos.py
 // ── videos ────────────────────────────────────────────────────────────────────
 async function loadVideos() {
@@ -19,8 +19,8 @@ async function loadVideos() {
   }
   AppState.videos = videos;
 
-  // While a brand-new recording is analyzing, show it in the sidebar right away —
-  // before its DB row exists — so the user gets immediate feedback. Suppressed
+  // While a brand-new recording is analyzing, show it in the sidebar right away -
+  // before its DB row exists - so the user gets immediate feedback. Suppressed
   // once the real row appears (matched by filename).
   const analyzingName = AppState.analyzeFilename;
   const showPlaceholder = analyzingName && !videos.some(v => v.filename === analyzingName);
@@ -97,7 +97,7 @@ function _renderVideoList() {
   if (!shown.length && !showPlaceholder) {
     const hasFilter = AppState.videoSearch || (AppState.videoFilters && AppState.videoFilters.size);
     list.innerHTML = hasFilter
-      ? `<li style="padding:10px 14px;color:var(--muted)">No recordings match — <a href="#" style="color:var(--accent);text-decoration:underline" onclick="event.preventDefault();_clearVideoFilters()">Clear filters</a></li>`
+      ? `<li style="padding:10px 14px;color:var(--muted)">No recordings match - <a href="#" style="color:var(--accent);text-decoration:underline" onclick="event.preventDefault();_clearVideoFilters()">Clear filters</a></li>`
       : '<li style="padding:10px 14px;color:var(--muted)">No recordings yet</li>';
     return;
   }
@@ -163,7 +163,7 @@ function _videoItemLi(v, analyzingName, inSession) {
     : '';
   const errCount = v.clips_llm_error || 0;
   const errBadge = errCount > 0
-    ? `<div class="meta" style="margin-top:2px;color:var(--warning)" title="LLM scoring failed for ${plural(errCount, 'clip')} — re-score to retry">&#9888; ${plural(errCount, 'scoring error')}</div>`
+    ? `<div class="meta" style="margin-top:2px;color:var(--warning)" title="LLM scoring failed for ${plural(errCount, 'clip')} - re-score to retry">&#9888; ${plural(errCount, 'scoring error')}</div>`
     : '';
   const checkbox = selectable
     ? `<input type="checkbox" class="session-select-box" aria-label="Select for grouping" ${SessionUI.selected.has(v.id) ? 'checked' : ''}>`
@@ -324,7 +324,7 @@ async function selectVideo(id) {
   const clipsPromise = fetch(`/api/videos/${id}/clips?sort=${_clipsSortParam()}`).then(r => r.json());
   await ensureContexts();
   const clips = await clipsPromise;
-  // Guard against a slower earlier fetch resolving after a newer selection —
+  // Guard against a slower earlier fetch resolving after a newer selection -
   // otherwise clicking B while A's clips are in flight renders A into B's detail.
   if (AppState.activeVideoId !== id) return;
   AppState.clips = clips;
@@ -334,7 +334,7 @@ async function selectVideo(id) {
   else clearDetail();
 }
 
-// "Imported from" line (roadmap plan 08) — shown only for a recording brought
+// "Imported from" line (roadmap plan 08) - shown only for a recording brought
 // in via Import from URL; a recording added from a local file has no source_url.
 function _renderImportedFromLine(video) {
   if (!video.source_url) return '';
@@ -393,7 +393,7 @@ function renderVideoDetail(video, savedTimeline) {
       </div>
       <div id="summary-body">${video.summary
         ? `<div class="description-long">${escHtml(video.summary)}</div>`
-        : `<div style="color:var(--muted);font-size:12px">No summary yet — generate a title and summary from the transcript.</div>`}</div>
+        : `<div style="color:var(--muted);font-size:12px">No summary yet - generate a title and summary from the transcript.</div>`}</div>
     </div>
 
     ${_isVideoBeingAnalyzed(video) ? _analysisLivePanelHTML() : ''}
@@ -458,7 +458,7 @@ function openVideoActionsModal(videoId) {
     ]},
     { heading: 'Regenerate', rows: [
       { label: 'Re-score All Clips', description: 'Regenerate scores and descriptions for every clip in this recording.', action: () => rescoreAllClips(videoId, document.createElement('button')) },
-      { label: 'Re-describe All Clips', description: 'Regenerate descriptions only — scores are kept as-is.', action: () => redescribeAllClips(videoId, document.createElement('button')) },
+      { label: 'Re-describe All Clips', description: 'Regenerate descriptions only - scores are kept as-is.', action: () => redescribeAllClips(videoId, document.createElement('button')) },
       { label: 'Re-detect Speakers', description: 'Re-run speaker detection on the existing transcript. Clips and scores are kept; named speakers re-attach to matching voices.', action: () => rediarizeVideo(videoId) },
       ...(hasEnabledSemanticHotwords() ? [
         { label: 'Scan for Hot-words', description: 'Check every clip against your "Meaning" hot-words using the Similarity engine.', action: () => confirmScanHotwordsForVideo(videoId, document.createElement('button')) },
@@ -480,7 +480,7 @@ function openVideoActionsModal(videoId) {
     ]},
   ];
 
-  openActionsModal(`${video.title || video.filename} — Additional Actions`, groups);
+  openActionsModal(`${video.title || video.filename} - Additional Actions`, groups);
 }
 
 // ── recording removal + transcript export ─────────────────────────────────────
@@ -567,7 +567,7 @@ function _analysisLivePanelHTML() {
         </span>
       </div>
       <div id="analysis-live-steps" class="job-steps-detail"></div>
-      <div class="muted" style="font-size:11px;margin-top:8px">Runs in the background — you can leave or refresh this page without interrupting it.</div>
+      <div class="muted" style="font-size:11px;margin-top:8px">Runs in the background - you can leave or refresh this page without interrupting it.</div>
     </div>`;
 }
 
@@ -620,13 +620,13 @@ function _renderContextSection(video) {
     const when = _fmtDate(video.clips_scored_at);
     const ctxNames = scoredCtx.map(s => { const c = AppState.contexts.find(x => x.context_id === s); return c ? c.display_name : s; });
     const ctxStr = ctxNames.length ? ' · ' + ctxNames.map(escHtml).join(', ') : ' · no context';
-    provLines.push(`<span class="${stale ? 'provenance-stale' : ''}">Clips scored ${escHtml(when)}${ctxStr}${stale ? ' — ⚠ contexts changed since last score' : ''}</span>`);
+    provLines.push(`<span class="${stale ? 'provenance-stale' : ''}">Clips scored ${escHtml(when)}${ctxStr}${stale ? ' - ⚠ contexts changed since last score' : ''}</span>`);
   }
   if (video.analyze_run) provLines.push(`<span>${escHtml(_runTimingLine(video.analyze_run))}</span>`);
 
   const noContextsDefined = AppState.contexts.length === 0;
   const emptyMsg = noContextsDefined
-    ? `<span style="color:var(--muted);font-size:12px">No contexts defined — <button class="btn ghost" style="padding:0;display:inline;font-size:12px" onclick="openContextManager()">create one</button></span>`
+    ? `<span style="color:var(--muted);font-size:12px">No contexts defined - <button class="btn ghost" style="padding:0;display:inline;font-size:12px" onclick="openContextManager()">create one</button></span>`
     : (!assigned.length ? `<span style="color:var(--muted);font-size:12px">None assigned</span>` : '');
 
   const rescoreBtn = (assigned.length && video.clips_scored_at)
@@ -654,7 +654,7 @@ function _renderContextSection(video) {
 }
 
 // Friendly empty state for the AI summary/timeline features when no language model is
-// installed — the backend returns a needs_model payload instead of a hard error, and
+// installed - the backend returns a needs_model payload instead of a hard error, and
 // this renders it as an inviting "install a local model" call to action. The install
 // nudge is hidden when the payload asks for it (Stage 07 privacy mode).
 function _needsModelCtaHTML(payload) {
@@ -676,8 +676,8 @@ async function _refreshVideoDetail(videoId) {
 
 // ── re-analysis ───────────────────────────────────────────────────────────────
 // Two ways to re-run analysis on an already-analyzed recording:
-//   reanalyzeVideo  — full pipeline with --force (destructive: replaces clips/scores).
-//   rediarizeVideo  — speaker detection only (non-destructive: keeps clips/scores).
+//   reanalyzeVideo  - full pipeline with --force (destructive: replaces clips/scores).
+//   rediarizeVideo  - speaker detection only (non-destructive: keeps clips/scores).
 function reanalyzeVideo(id) {
   const video = AppState.videos.find(v => v.id === id);
   const exportedNote = (video && video.exported > 0)
@@ -685,7 +685,7 @@ function reanalyzeVideo(id) {
     : '';
   showConfirm(
     'Re-analyze this recording?',
-    `This re-runs the full pipeline — re-transcribe, re-detect speakers, regenerate clips, and re-score. All current clips, including your approvals and any edited descriptions, will be replaced.${exportedNote}`,
+    `This re-runs the full pipeline - re-transcribe, re-detect speakers, regenerate clips, and re-score. All current clips, including your approvals and any edited descriptions, will be replaced.${exportedNote}`,
     'Re-analyze',
     () => _doReanalyzeVideo(video || {id}),
     true,
@@ -775,7 +775,7 @@ function unsplitVideo(videoId) {
   const clipTotal = siblings.reduce((sum, v) => sum + (v.clip_count || 0), 0);
   showConfirm(
     'Undo split?',
-    `This merges ${plural(siblings.length, 'segment')} — and ${plural(clipTotal, 'clip')} on them — ` +
+    `This merges ${plural(siblings.length, 'segment')} - and ${plural(clipTotal, 'clip')} on them - ` +
     `back into the original recording, restoring each clip's original timing. ` +
     `The segments are removed and the original recording becomes visible again.`,
     'Undo Split',
@@ -798,7 +798,7 @@ async function _doUnsplitVideo(videoId) {
     return;
   }
   const data = await res.json();
-  showToast(`Split undone — ${plural(data.merged_clips, 'clip')} restored to the original recording`);
+  showToast(`Split undone - ${plural(data.merged_clips, 'clip')} restored to the original recording`);
   await loadVideos();
   selectVideo(data.parent_id);
 }
@@ -857,7 +857,7 @@ async function onClipsSortChange() {
   _renderClips();
 }
 
-// Public API — symbols referenced cross-module, by an inline handler, or by a
+// Public API - symbols referenced cross-module, by an inline handler, or by a
 // test. Internal helpers above stay private to this module's closure.
 Object.assign(window, {
   loadVideos, selectVideo, renderVideoDetail, deleteVideo,

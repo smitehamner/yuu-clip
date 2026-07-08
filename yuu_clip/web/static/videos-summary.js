@@ -1,6 +1,6 @@
 (function () {
-// Feature-map — Recording detail: session title + summary generation (code:
-// video / Video). Extracted out of videos.js (which grew into a catch-all) —
+// Feature-map - Recording detail: session title + summary generation (code:
+// video / Video). Extracted out of videos.js (which grew into a catch-all) -
 // the list/filter/detail-render/re-analysis core stays there.
 //   API: routes/videos.py (summarize, regenerate-summary, fields) · Tests: tests/test_ui_video.py
 // ── video summary ─────────────────────────────────────────────────────────────
@@ -83,7 +83,7 @@ function _doRegenSummaryAuto(id, btn) {
         return;
       }
       if (hadError) {
-        showToast('Summary generation failed — check log for details', 'error');
+        showToast('Summary generation failed - check log for details', 'error');
         return;
       }
       loadVideos().then(() => {
@@ -95,13 +95,13 @@ function _doRegenSummaryAuto(id, btn) {
     errMsg => {
       _clearActiveStream(handle);
       resetBtn();
-      showToast(`Summary generation failed — ${errMsg}`, 'error');
+      showToast(`Summary generation failed - ${errMsg}`, 'error');
     },
   );
   _setActiveStream(handle, resetBtn);
 }
 
-// Public API — symbols referenced cross-module, by an inline handler, or by a
+// Public API - symbols referenced cross-module, by an inline handler, or by a
 // test. Internal helpers above stay private to this module's closure.
 Object.assign(window, {
   summarizeVideo, regenSummaryAuto, _doRegenSummaryAuto,

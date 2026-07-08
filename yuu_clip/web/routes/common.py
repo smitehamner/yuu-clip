@@ -1,4 +1,4 @@
-# Feature-map — NOT a feature: small cross-cutting helpers shared by two or more
+# Feature-map - NOT a feature: small cross-cutting helpers shared by two or more
 #   route modules (clip lookup, SSE response, JSON-list column decode, analyze-in-
 #   flight guards, transcript-segment edit staging). Bigger concerns that used to
 #   live here now have named homes: web/file_deletion.py, export/paths.py.
@@ -23,7 +23,7 @@ def module_findable(module: str) -> bool:
     """Whether *module* can be imported, without importing it.
 
     importlib.util.find_spec raises ModuleNotFoundError (rather than returning
-    None) for a dotted name whose parent package is entirely absent — e.g.
+    None) for a dotted name whose parent package is entirely absent - e.g.
     find_spec("pyannote.audio") raises when "pyannote" itself isn't installed.
     A completely-absent parent means "not installed" just as much as a present
     parent with a missing submodule, so both cases report False here.
@@ -47,12 +47,12 @@ def analyze_in_flight(ctx) -> bool:
 
 def reject_if_analyzing(ctx) -> None:
     """Guard heavy DB-writing jobs (score/rescore/redescribe/rediarize) from
-    running while an analysis is in flight — two writers on the same SQLite file
+    running while an analysis is in flight - two writers on the same SQLite file
     would contend on the single-writer lock and stall each other."""
     if analyze_in_flight(ctx):
         raise HTTPException(
             409,
-            "An analysis is still running — wait for it to finish or cancel it "
+            "An analysis is still running - wait for it to finish or cancel it "
             "before starting another job.",
         )
 
@@ -71,7 +71,7 @@ def sse_response(generator) -> StreamingResponse:
 
 
 def register_model_download(response, ctx, key: str):
-    """Clear ``ctx.model_downloads[key]`` when *response*'s SSE stream ends — on
+    """Clear ``ctx.model_downloads[key]`` when *response*'s SSE stream ends - on
     normal completion, subprocess exit, or client disconnect (StreamingResponse
     cancels the iterator, running the finally). The caller registers the key
     *before* building the stream so the shared "a required model is downloading"
@@ -110,7 +110,7 @@ def stage_segment_text_edit(db, seg, new_text: str) -> list[ClipCandidate]:
 
     Rebuilds the transcript excerpt of every clip overlapping the segment and stamps
     each with a fresh ``transcript_edited_at`` (so staleness badges fire). Does NOT
-    commit and does NOT refresh export sidecars — the caller must ``db.commit()``
+    commit and does NOT refresh export sidecars - the caller must ``db.commit()``
     then ``refresh_export_sidecars`` per returned clip (sidecar rewriting reads the
     committed state). Shared by the caption-edit route and name-correction apply so
     a corrected name flows through the exact same path as a manual caption edit.

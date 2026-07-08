@@ -1,10 +1,10 @@
-# Feature-map — Reveal in Explorer / "Show in folder"
+# Feature-map - Reveal in Explorer / "Show in folder"
 #   UI: invoked from static/clips.js, videos.js, reel.js (per-file "Show in folder")
 #   Siblings: web/media.py · tests/test_reveal.py
 """Reveal-in-Explorer route.
 
 Windows-only: opens Explorer with the target file pre-selected. Never shells
-out with a user-controlled string — subprocess.Popen receives an argument
+out with a user-controlled string - subprocess.Popen receives an argument
 list, and the target path is required to live inside a project-owned
 directory before Explorer ever sees it.
 """
@@ -38,7 +38,7 @@ def _is_within(target: Path, base: Path) -> bool:
 
 def _path_allowed(target: Path, ctx: ProjectContext) -> bool:
     """*target* must resolve inside the exports/reels/proxies dirs or the
-    directory of a recording tracked in this project — never an arbitrary path."""
+    directory of a recording tracked in this project - never an arbitrary path."""
     for base in (ctx.export_dir, ctx.reels_dir, ctx.proxy_dir):
         if _is_within(target, base.resolve()):
             return True

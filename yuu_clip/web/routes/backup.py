@@ -1,4 +1,4 @@
-# Feature-map — Project backup / restore (code: backup)
+# Feature-map - Project backup / restore (code: backup)
 #   UI: static/settings-backup.js (Stage 3, not yet built)
 #   Siblings: project_archive.py (archive + re-point core) · routes/projects.py (switch, restore reuses it)
 #   Tests: tests/test_backup.py, tests/test_restore.py
@@ -66,7 +66,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         if analyze_in_flight(ctx):
             raise HTTPException(
                 409,
-                "An analysis is still running — wait for it to finish or cancel it "
+                "An analysis is still running - wait for it to finish or cancel it "
                 "before backing up or restoring the project.",
             )
 
@@ -95,7 +95,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     async def restore_inspect(request: Request, archive_path: Optional[str] = None):
         """Preview a restore: manifest + the source dirs that don't resolve here.
 
-        Nothing is written to the target. Returns ``staging_path`` — the server-side
+        Nothing is written to the target. Returns ``staging_path`` - the server-side
         path of the archive to pass back to /api/restore/apply, so the browser
         upload isn't re-sent."""
         _guard_idle()
@@ -116,12 +116,12 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     def restore_apply(body: RestoreApplyRequest):
         """Unpack the staged archive into the target, apply the re-point mapping,
         then switch the live server to the restored project (as a project switch
-        does — the client reloads afterwards)."""
+        does - the client reloads afterwards)."""
         _guard_idle()
         archive = Path(body.archive_path)
         if not archive.is_file():
             raise HTTPException(
-                400, "The backup file is no longer available — start the restore again."
+                400, "The backup file is no longer available - start the restore again."
             )
         target = Path(body.target_dir).expanduser()
         try:

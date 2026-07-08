@@ -50,7 +50,7 @@ def _transcript_stale(clip: ClipCandidate, video: Optional[Video]) -> bool:
 def _export_stale(clip: ClipCandidate) -> tuple[bool, list[str]]:
     """Whether the exported video file for *clip* no longer reflects its current state.
 
-    Only concerns the encoded file itself — cheap text artifacts (transcript excerpt,
+    Only concerns the encoded file itself - cheap text artifacts (transcript excerpt,
     SRT caption sidecar) auto-refresh in place and are never "stale". A caption edit only
     stales the file when captions are actually part of the file's bytes (baked-in or
     muxed as a soft subtitle track); a plain cut is unaffected by transcript changes.

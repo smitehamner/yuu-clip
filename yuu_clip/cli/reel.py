@@ -80,7 +80,7 @@ def _select_reel_clips(session, clip_ids, video_ids, video_id, status_filter, mi
 
 
 def _print_reel_plan(all_clips, video_map, output: Path, transition: str) -> None:
-    console.print(f"\n[bold]Building highlight reel[/bold] — {len(all_clips)} clip(s), transition=[cyan]{transition}[/cyan]")
+    console.print(f"\n[bold]Building highlight reel[/bold] - {len(all_clips)} clip(s), transition=[cyan]{transition}[/cyan]")
     for c in all_clips:
         vid  = video_map[c.video_id]
         desc = f"  {c.description}" if c.description else ""
@@ -115,11 +115,11 @@ def _compile_reel(all_clips, video_map, export_dir: Path, output: Path,
 def _burn_reel_captions(output: Path, srt_path: Optional[Path], config) -> None:
     """Burn the stitched reel SRT into the reel video using the configured Caption style.
 
-    Skips (with a note) when there was no transcript data to stitch — an empty SRT
+    Skips (with a note) when there was no transcript data to stitch - an empty SRT
     would be a wasteful no-op re-encode.
     """
     if srt_path is None or not srt_path.exists() or srt_path.stat().st_size == 0:
-        console.print("  [yellow]No transcript data — burn-in skipped[/yellow]")
+        console.print("  [yellow]No transcript data - burn-in skipped[/yellow]")
         return
     from yuu_clip.analyze.extract import CaptionStyle
     from yuu_clip.reel import burn_reel_captions

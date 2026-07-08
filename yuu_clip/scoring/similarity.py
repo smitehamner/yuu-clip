@@ -1,15 +1,15 @@
 """
-Tiered similarity engine — powers "Find related clips" and "Meaning" hot-words
+Tiered similarity engine - powers "Find related clips" and "Meaning" hot-words
 without requiring a language model.
 
 Three backends, chosen by config.similarity_backend:
-  "tfidf"      — pure-Python TF-IDF cosine over the small candidate set. Zero extra
+  "tfidf"      - pure-Python TF-IDF cosine over the small candidate set. Zero extra
                  dependencies, deterministic. Always available; the fallback.
-  "embeddings" — fastembed (ONNX, no PyTorch) + the bge-small model; local
+  "embeddings" - fastembed (ONNX, no PyTorch) + the bge-small model; local
                  paraphrase-aware matching. Default (packaging-strategy overhaul):
                  fastembed is bundled (Tier A), bge-small auto-fetches on first use
                  (Tier B).
-  "llm"        — wraps scoring/llm.py's find_related_clips / scan_hotwords_semantic
+  "llm"        - wraps scoring/llm.py's find_related_clips / scan_hotwords_semantic
                  so a user with a language model keeps the LLM path.
 
 Every backend exposes availability() -> (bool, reason) (mirroring
@@ -19,7 +19,7 @@ LaughScorer.availability) and the two operations the routes need:
 
 make_backend() resolves to the requested backend only when it is available and
 otherwise falls back to TfidfBackend, so the routes never hard-fail for a missing
-optional dependency — the Settings install hint is where a user is nudged to add it.
+optional dependency - the Settings install hint is where a user is nudged to add it.
 """
 from __future__ import annotations
 
@@ -39,7 +39,7 @@ log = logging.getLogger(__name__)
 
 _TOKEN_RE = re.compile(r"[a-z0-9']+")
 
-# Small English stopword set — enough to keep TF-IDF weight on content words without
+# Small English stopword set - enough to keep TF-IDF weight on content words without
 # pulling a dependency. Not exhaustive by design.
 _STOPWORDS = frozenset({
     "the", "a", "an", "and", "or", "but", "if", "of", "to", "in", "on", "at", "for",
@@ -150,7 +150,7 @@ def _compute_idf(docs: list[list[str]]) -> dict[str, float]:
         for term in set(tokens):
             doc_freq[term] += 1
     # Smoothed IDF, always positive so a term shared by every doc still carries a
-    # little weight (the candidate sets are tiny — a hard zero would discard signal).
+    # little weight (the candidate sets are tiny - a hard zero would discard signal).
     return {term: math.log((doc_count + 1) / (freq + 1)) + 1.0 for term, freq in doc_freq.items()}
 
 
@@ -230,7 +230,7 @@ class EmbeddingsBackend:
 
     def availability(self) -> tuple[bool, str]:
         # Cheap, side-effect-free: only checks that fastembed (Tier A, bundled) is
-        # importable. It must NOT load or download the bge-small model — the
+        # importable. It must NOT load or download the bge-small model - the
         # Settings status UI calls this on every render, and probing the model here
         # would trigger a ~130 MB download just to report availability. The actual
         # model-load probe (with tfidf fallback) lives in make_backend(), the
@@ -239,7 +239,7 @@ class EmbeddingsBackend:
             import fastembed  # noqa: F401
         except ImportError:
             return False, (
-                "the embeddings engine needs the fastembed package — this should be "
+                "the embeddings engine needs the fastembed package - this should be "
                 "bundled with yuu-clip, so try reinstalling if this persists"
             )
         return True, ""
@@ -338,7 +338,7 @@ def make_backend(config: "Config", context_text: str = ""):
     """Return the configured similarity backend, or TfidfBackend if it's unavailable.
 
     Falling back (rather than raising) keeps related-clips and hot-word scans working
-    with no optional deps installed — the default tier is zero-dep and always available.
+    with no optional deps installed - the default tier is zero-dep and always available.
     """
     requested = (getattr(config, "similarity_backend", "tfidf") or "tfidf").strip()
     backend = _construct(requested, config, context_text)
@@ -357,7 +357,7 @@ def make_backend(config: "Config", context_text: str = ""):
         return backend
     if requested != "tfidf":
         log.warning(
-            "Similarity backend %r unavailable (%s) — falling back to keyword matching",
+            "Similarity backend %r unavailable (%s) - falling back to keyword matching",
             requested, reason,
         )
     return TfidfBackend(config)

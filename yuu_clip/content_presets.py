@@ -1,5 +1,5 @@
 """
-Content-type presets (plan 12) — one-choice tuning for different streaming styles.
+Content-type presets (plan 12) - one-choice tuning for different streaming styles.
 
 Each preset bundles recommended scoring-dimension weights, a laugh weight, a short
 LLM "flavor" paragraph that steers scoring / summary / timeline prompts, and a few
@@ -8,10 +8,10 @@ inserts the hot-words once; the flavor is read *live* from Config.content_preset
 prompt-assembly time (see scoring/llm.py) so flavor text stays improvable in updates
 without a re-apply.
 
-Built-in only — no user-defined content presets in v1. Pattern mirrors
+Built-in only - no user-defined content presets in v1. Pattern mirrors
 export_presets.py / model_catalog.py: frozen dataclasses, a static tuple, and small
 unit-testable lookup helpers. The "generic" preset is exactly today's default
-behavior — empty flavor plus the shipped Config() default weights — so selecting it
+behavior - empty flavor plus the shipped Config() default weights - so selecting it
 is a true no-op (asserted against Config() in tests/test_content_presets.py).
 """
 from __future__ import annotations
@@ -61,11 +61,11 @@ def _weights(funny: float, dramatic: float, action: float) -> dict:
 
 
 # Generic is defined from the same numbers as Config()'s defaults so that
-# selecting it changes nothing — the test pins this against Config() exactly.
+# selecting it changes nothing - the test pins this against Config() exactly.
 _GENERIC = ContentPreset(
     id="generic",
     name="Generic",
-    description="Balanced default — no content-specific tuning.",
+    description="Balanced default - no content-specific tuning.",
     dimension_weights=_weights(1.0, 1.0, 1.0),
     laugh_weight=1.5,
     flavor="",
@@ -74,13 +74,13 @@ _GENERIC = ContentPreset(
 _RP_NARRATIVE = ContentPreset(
     id="rp-narrative",
     name="RP / narrative",
-    description="Roleplay or story-driven sessions — character and drama first.",
+    description="Roleplay or story-driven sessions - character and drama first.",
     dimension_weights=_weights(1.0, 1.6, 0.8),
     laugh_weight=1.2,
     flavor=(
         "This is a roleplay or story-driven session. The best highlights are dramatic "
         "confrontations, character revelations and relationship moments, lore drops, and "
-        "emotional payoffs — use character names whenever the transcript gives them. Weigh "
+        "emotional payoffs - use character names whenever the transcript gives them. Weigh "
         "dramatic, character-driven beats above raw mechanical action."
     ),
     starter_hotwords=(
@@ -95,13 +95,13 @@ _RP_NARRATIVE = ContentPreset(
 _COMPETITIVE = ContentPreset(
     id="competitive",
     name="Competitive gaming",
-    description="Ranked or competitive play — clutches, comebacks, and callouts.",
+    description="Ranked or competitive play - clutches, comebacks, and callouts.",
     dimension_weights=_weights(1.0, 1.1, 1.8),
     laugh_weight=1.4,
     flavor=(
         "This is competitive multiplayer gameplay. The best highlights are clutch plays, "
         "comebacks from a losing position, high-skill mechanical moments, sharp callouts, and "
-        "big swings in momentum — plus the tilt, trash talk, and celebration around them. Weigh "
+        "big swings in momentum - plus the tilt, trash talk, and celebration around them. Weigh "
         "decisive in-game action and the reactions to it above quiet stretches."
     ),
     starter_hotwords=(
@@ -116,13 +116,13 @@ _COMPETITIVE = ContentPreset(
 _CASUAL = ContentPreset(
     id="casual",
     name="Casual / let's play",
-    description="Relaxed let's-plays — personality, reactions, and funny failures.",
+    description="Relaxed let's-plays - personality, reactions, and funny failures.",
     dimension_weights=_weights(1.6, 0.8, 1.0),
     laugh_weight=1.8,
     flavor=(
         "This is a casual let's-play session where the streamer's personality carries the "
         "highlights. The best moments are genuine reactions, funny failures, running gags, "
-        "surprise, and off-hand commentary — more than mechanical skill. Weigh humor and "
+        "surprise, and off-hand commentary - more than mechanical skill. Weigh humor and "
         "reaction over competitive stakes."
     ),
     starter_hotwords=(
@@ -137,7 +137,7 @@ _CASUAL = ContentPreset(
 _SPEEDRUN = ContentPreset(
     id="speedrun",
     name="Speedrun",
-    description="Runs against the clock — splits, PBs, and heartbreak resets.",
+    description="Runs against the clock - splits, PBs, and heartbreak resets.",
     dimension_weights=_weights(0.9, 1.4, 1.5),
     laugh_weight=1.2,
     flavor=(
@@ -158,14 +158,14 @@ _SPEEDRUN = ContentPreset(
 _PODCAST = ContentPreset(
     id="podcast",
     name="Podcast / conversation",
-    description="Talk-driven sessions — quotes, hot takes, and shared laughter.",
+    description="Talk-driven sessions - quotes, hot takes, and shared laughter.",
     dimension_weights=_weights(1.6, 1.3, 0.2),
     laugh_weight=1.8,
     flavor=(
         "This is a conversation or podcast-style session where talk, not gameplay, drives the "
         "highlights. The best moments are topic changes, memorable quotes and hot takes, genuine "
         "disagreements, funny tangents, and shared laughter. On-screen action barely matters "
-        "here — weigh what is said and the chemistry between people."
+        "here - weigh what is said and the chemistry between people."
     ),
     starter_hotwords=(
         HotWordSpec("hot take", "overall", 0.12),

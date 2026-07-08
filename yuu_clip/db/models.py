@@ -216,7 +216,7 @@ def _migrate(engine) -> None:
             # so reuse it rather than leaving pre-existing clips looking unscored.
             # Clips whose video was never fully scored (including any left with
             # partial per-clip scores by a mid-batch failure) are intentionally
-            # left NULL — Re-score corrects them either way.
+            # left NULL - Re-score corrects them either way.
             _log.info("Migration: backfilling clip_candidates.scored_at from parent video's clips_scored_at")
             conn.execute(text(
                 "UPDATE clip_candidates SET scored_at = ("
@@ -227,7 +227,7 @@ def _migrate(engine) -> None:
                 ")"
             ))
 
-        # Drop the UNIQUE(path) constraint — segments share their parent's path, so a
+        # Drop the UNIQUE(path) constraint - segments share their parent's path, so a
         # per-path unique index breaks re-analysis after segments exist.
         # SQLite can't DROP CONSTRAINT; recreate the table without it.
         videos_ddl = (conn.execute(text(
@@ -237,7 +237,7 @@ def _migrate(engine) -> None:
             _log.info("Migration: dropping UNIQUE(path) from videos (segments share parent path)")
             all_cols = ", ".join(row[1] for row in conn.execute(text("PRAGMA table_info(videos)")))
             # Derive the new DDL from the live schema by stripping only the
-            # UNIQUE (path) fragment — never a hardcoded column list, which drifts
+            # UNIQUE (path) fragment - never a hardcoded column list, which drifts
             # as new columns are added by the ADD-COLUMN migrations above.
             new_ddl = re.sub(r",\s*UNIQUE\s*\(\s*path\s*\)", "", videos_ddl)
             new_ddl = re.sub(r"UNIQUE\s*\(\s*path\s*\)\s*,", "", new_ddl)
@@ -369,7 +369,7 @@ class Video(Base):
 
     # Set at download time (see url_import.py) for a recording brought in via
     # Import from URL; NULL for a recording added from a local file. Populated
-    # from the metadata sidecar when the Video row is first created — see
+    # from the metadata sidecar when the Video row is first created - see
     # pipeline/ingest.py::_apply_source_metadata.
     source_url:         Mapped[Optional[str]]      = mapped_column(Text, nullable=True)
     source_title:       Mapped[Optional[str]]      = mapped_column(Text, nullable=True)
@@ -435,7 +435,7 @@ class RecordingSession(Base):
     User-facing term: "Session". Named RecordingSession in code to avoid colliding
     with SQLAlchemy's orm.Session (imported in this module). Members are top-level
     recordings (videos.session_id); a split segment belongs via its parent and is
-    never a direct member. Dissolving a session nulls members' session_id — it
+    never a direct member. Dissolving a session nulls members' session_id - it
     never deletes recordings (the delete route does this explicitly; there is no
     cascade).
     """
@@ -480,7 +480,7 @@ class AudioTrack(Base):
 
     label: Mapped[str] = mapped_column(String, default="unlabeled")
     relevance_weight: Mapped[float] = mapped_column(Float, default=1.0)
-    # False for game_sounds by default — prevents unnecessary transcription/scoring
+    # False for game_sounds by default - prevents unnecessary transcription/scoring
     do_transcribe: Mapped[bool] = mapped_column(Boolean, default=True)
     do_score: Mapped[bool] = mapped_column(Boolean, default=True)
 
@@ -535,7 +535,7 @@ class TranscriptSegment(Base):
     confidence: Mapped[Optional[float]] = mapped_column(Float)
 
     # Raw pyannote cluster id, e.g. "SPEAKER_00". Set by whisper_runner when
-    # diarization is enabled; None otherwise. NOT stable across runs — kept only
+    # diarization is enabled; None otherwise. NOT stable across runs - kept only
     # as provenance and as the fallback display when speaker_id is unset.
     speaker_label: Mapped[Optional[str]] = mapped_column(String)
     # Durable per-recording Speaker this segment was attributed to. Carries the
@@ -581,7 +581,7 @@ class Speaker(Base):
     # Inferred names start unconfirmed until the creator accepts them.
     confirmed: Mapped[bool] = mapped_column(Boolean, default=True)
     # User-picked subtitle colour ("#RRGGBB"). NULL until the user overrides the
-    # auto-assigned default — see display_color.
+    # auto-assigned default - see display_color.
     color: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
     # Borderline voiceprint match recorded at diarization time: this freshly-minted
@@ -604,7 +604,7 @@ class Speaker(Base):
 
         An unconfirmed inferred name (source='inferred', confirmed=False) is a
         suggestion the user has not accepted yet, so it must not surface in
-        captions, excerpts, or exports — only the Speakers card shows it.
+        captions, excerpts, or exports - only the Speakers card shows it.
         """
         return self.name if (self.name and self.confirmed) else f"Speaker {self.display_index}"
 
@@ -651,8 +651,8 @@ class ClipCandidate(Base):
     score_laugh: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
 
     reasons_json: Mapped[Optional[str]] = mapped_column(Text)   # JSON list of strings
-    tags_json: Mapped[Optional[str]] = mapped_column(Text)       # JSON list — system tags (llm_error, silence_Ns, …)
-    user_tags_json: Mapped[Optional[str]] = mapped_column(Text)  # JSON list — user-defined tags
+    tags_json: Mapped[Optional[str]] = mapped_column(Text)       # JSON list - system tags (llm_error, silence_Ns, …)
+    user_tags_json: Mapped[Optional[str]] = mapped_column(Text)  # JSON list - user-defined tags
 
     transcript_excerpt: Mapped[Optional[str]] = mapped_column(Text)
     description: Mapped[Optional[str]] = mapped_column(Text)
@@ -677,17 +677,17 @@ class ClipCandidate(Base):
     exported_burn_subs: Mapped[Optional[bool]] = mapped_column(Boolean)
     exported_title_card: Mapped[Optional[bool]] = mapped_column(Boolean)
     # True when captions were muxed in as a soft subtitle stream (--embed-subs). Distinct
-    # from exported_burn_subs (captions composited into the video pixels themselves) —
+    # from exported_burn_subs (captions composited into the video pixels themselves) -
     # both mean the exported file's bytes depend on the transcript, for staleness purposes.
     exported_embed_subs: Mapped[Optional[bool]] = mapped_column(Boolean)
 
     # Hot-word matches found in this clip's transcript_excerpt, and the score boosts
-    # actually applied — see HotWord and scoring/engine.py::apply_hotword_boosts.
+    # actually applied - see HotWord and scoring/engine.py::apply_hotword_boosts.
     hotword_matches_json: Mapped[Optional[str]] = mapped_column(Text)
     hotword_boost_json:   Mapped[Optional[str]] = mapped_column(Text)
 
     # Sensitive-content matches found in this clip's transcript_excerpt and
-    # descriptions — see SensitiveTerm and scoring/engine.py::apply_sensitive_scan.
+    # descriptions - see SensitiveTerm and scoring/engine.py::apply_sensitive_scan.
     # Warning-only: never affects score_* (contrast with hotword_boost_json above).
     sensitive_matches_json: Mapped[Optional[str]] = mapped_column(Text)
 
@@ -705,11 +705,11 @@ class ClipCandidate(Base):
     # was last scored (same provenance pattern as related_clips_at).
     transcript_edited_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
 
-    # Set whenever start_offset/end_offset change (the trim/timing route) — compared
+    # Set whenever start_offset/end_offset change (the trim/timing route) - compared
     # against exported_at to flag an exported file whose cut window has since moved.
     trim_edited_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
 
-    # Set whenever description/description_user actually changes value — compared
+    # Set whenever description/description_user actually changes value - compared
     # against exported_at to flag a title-card export whose burned-in text is stale.
     description_edited_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
 
@@ -812,7 +812,7 @@ class ClipExport(Base):
     Before Plan 07 a clip could have only a single tracked export, recorded in
     ClipCandidate.exported_at/exported_container/exported_burn_subs/etc. Those
     columns stay in place and keep being written (the sidebar export pill and
-    aggregate "exported" counts still read them) — retiring them is a separate
+    aggregate "exported" counts still read them) - retiring them is a separate
     follow-up. This table adds the richer, per-format tracking: re-exporting
     the same preset_name replaces this row's path/settings/created_at in
     place; a different preset_name adds a new row (see export/render.py's
@@ -823,7 +823,7 @@ class ClipExport(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     clip_id: Mapped[int] = mapped_column(Integer, ForeignKey("clip_candidates.id"), nullable=False)
 
-    # "default" (no preset — original quality), a built-in preset id
+    # "default" (no preset - original quality), a built-in preset id
     # ("youtube-1080p", "discord-10mb"), or "custom:<name>" for a user preset.
     preset_name: Mapped[str] = mapped_column(String, nullable=False, default="default")
     path: Mapped[str] = mapped_column(Text, nullable=False)
@@ -883,7 +883,7 @@ class SceneBoundary(Base):
 
 class HotWord(Base):
     """A creator-defined phrase that boosts a clip's score when it appears in the
-    transcript. Project-wide (not per-video) — see scoring/textmatch.py for the
+    transcript. Project-wide (not per-video) - see scoring/textmatch.py for the
     matcher and scoring/engine.py::apply_hotword_boosts for how boosts are applied.
     """
     __tablename__ = "hot_words"
@@ -901,7 +901,7 @@ class HotWord(Base):
 
 class SensitiveTerm(Base):
     """A creator-defined Privacy Term or Censor Word flagged (never scored) when it
-    appears in a clip's transcript or descriptions. Project-wide (not per-video) —
+    appears in a clip's transcript or descriptions. Project-wide (not per-video) -
     see scoring/textmatch.py for the matcher and scoring/engine.py::apply_sensitive_scan
     for how the flag is applied. Term text is user PII by definition: never log the
     `term` value anywhere (routes/sensitive.py logs counts/ids only).

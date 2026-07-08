@@ -25,7 +25,7 @@
      "Feature-map" header at the top of each static/*.js and routes/*.py.
 
        · Header bar (brand, project switcher, job status, action buttons, hamburger)
-       · Settings panel (replaces the main layout when active — all Settings sections)
+       · Settings panel (replaces the main layout when active - all Settings sections)
        · Sidebar (Recordings list + Clips list)
        · Main panel (player + clip detail; New Recording panel; Progress log)
        · Panel-nav takeover (breadcrumb + Split Editor panel content)
@@ -59,14 +59,14 @@
     <div class="job-steps" id="job-steps"></div>
     <span class="gpu-temp-readout" id="job-gpu-temp" style="display:none"></span>
     <span class="paused-badge" id="job-paused-badge" style="display:none"
-          title="Paused — will hold before the next video">&#9208; Paused</span>
+          title="Paused - will hold before the next video">&#9208; Paused</span>
     <button class="btn" id="btn-pause-job" onclick="togglePauseJob()"
             style="padding:2px 10px;font-size:12px;display:none">Pause after current video</button>
     <button class="btn" id="btn-cancel-job" onclick="cancelJob()"
             style="padding:2px 10px;font-size:12px;display:none">Cancel</button>
   </div>
   <div class="header-spacer" id="header-spacer"></div>
-  <span id="llm-remote-badge" title="LLM scoring is using a remote API — requests are billed per token" style="display:none;font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;background:var(--warning);color:var(--on-warning);cursor:default">&#9729; Remote LLM</span>
+  <span id="llm-remote-badge" title="LLM scoring is using a remote API - requests are billed per token" style="display:none;font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;background:var(--warning);color:var(--on-warning);cursor:default">&#9729; Remote LLM</span>
   <button class="btn primary" id="btn-analyze" onclick="openNewRecordingPanel()">+ Analyze</button>
   <button class="btn" id="btn-highlight-reels" onclick="openHighlightReelsModal('build')">Highlight Reels</button>
   <button class="btn ghost" id="btn-settings-header" onclick="openSettings()" title="Settings" aria-label="Settings" style="font-size:15px;padding:5px 10px">&#9881;</button>
@@ -123,7 +123,7 @@
   </div>
 <div class="settings-inner">
 
-  <!-- Capabilities overview — the tiered "lightweight mode" story (Stage 06).
+  <!-- Capabilities overview - the tiered "lightweight mode" story (Stage 06).
        Read-only: sources each non-LLM upgrade tier's active state + guidance from
        the backend's availability() via /api/capabilities/tiers; "Set up" links jump
        to the section that holds the real install/enable control. -->
@@ -142,11 +142,11 @@
         <div class="settings-note">Takes effect on next analysis</div>
       </div>
       <select class="settings-select" id="s-whisper-model">
-        <option value="tiny">tiny — fastest, lowest quality</option>
-        <option value="base">base — fast, lower quality</option>
-        <option value="small">small — fast, decent quality (~500 MB VRAM)</option>
-        <option value="medium">medium — good balance (~1.5 GB VRAM)</option>
-        <option value="large-v3">large-v3 — best quality (~3 GB VRAM)</option>
+        <option value="tiny">tiny - fastest, lowest quality</option>
+        <option value="base">base - fast, lower quality</option>
+        <option value="small">small - fast, decent quality (~500 MB VRAM)</option>
+        <option value="medium">medium - good balance (~1.5 GB VRAM)</option>
+        <option value="large-v3">large-v3 - best quality (~3 GB VRAM)</option>
       </select>
     </div>
     <div class="settings-row">
@@ -186,12 +186,12 @@
   <!-- LLM scoring section -->
   <div class="settings-section" id="settings-sec-llm">
     <div class="settings-section-title">LLM scoring</div>
-    <!-- AI privacy mode (plan non-llm-tiers/07) — the trust control. Enforced server-side
+    <!-- AI privacy mode (plan non-llm-tiers/07) - the trust control. Enforced server-side
          at every point a language model could run, not just a UI hint. -->
     <div class="settings-row" id="s-privacy-row">
       <div class="settings-col">
         <label class="settings-label">AI privacy</label>
-        <div class="settings-note">What yuu-clip may do with your transcript. This is enforced everywhere — it is a guarantee, not just a preference.</div>
+        <div class="settings-note">What yuu-clip may do with your transcript. This is enforced everywhere - it is a guarantee, not just a preference.</div>
       </div>
       <div id="s-ai-privacy-options" role="radiogroup" aria-label="AI privacy mode"
            onchange="_onPrivacyModeChange(this.querySelector('input:checked').value)"
@@ -228,7 +228,7 @@
     <div class="settings-row">
       <div class="settings-col">
         <label class="settings-label" for="s-llm-backend">LLM backend</label>
-        <div class="settings-note">Local backends run on your machine and are free. Claude is a paid remote API — most people should pick a local backend.</div>
+        <div class="settings-note">Local backends run on your machine and are free. Claude is a paid remote API - most people should pick a local backend.</div>
       </div>
       <select class="settings-select" id="s-llm-backend" onchange="_onLlmBackendChange(this.value)">
         <option value="llamacpp">Local model file (offline, free)</option>
@@ -238,7 +238,7 @@
     </div>
     <div id="s-llm-current-summary" class="settings-current-model" style="display:none"></div>
     <div id="s-backend-remote-warning" style="display:none;margin:0 0 8px;padding:8px 12px;border-radius:6px;background:color-mix(in srgb, var(--warning) 12%, transparent);border:1px solid color-mix(in srgb, var(--warning) 40%, transparent);font-size:12px;color:var(--warning)">
-      &#x26A0; <strong>Remote backend</strong> — transcript data is sent to an external API and <strong>billed per token</strong>. Every analyze run, re-score, timeline, and session summary will incur costs.
+      &#x26A0; <strong>Remote backend</strong> - transcript data is sent to an external API and <strong>billed per token</strong>. Every analyze run, re-score, timeline, and session summary will incur costs.
     </div>
     <div id="s-remote-blocked-notice" style="display:none;margin:0 0 8px;padding:8px 12px;border-radius:6px;background:color-mix(in srgb, var(--warning) 12%, transparent);border:1px solid color-mix(in srgb, var(--warning) 40%, transparent);font-size:12px;color:var(--warning)">
       &#x26A0; The Claude backend is saved but <strong>turned off by AI privacy mode</strong> (Local models only). Choose <strong>Allow remote models</strong> above to use it, or switch to a local backend.
@@ -248,7 +248,7 @@
       <div class="settings-row">
         <div class="settings-col">
           <div class="settings-label">Local engine</div>
-          <div class="settings-note">llama-cpp-python is included with yuu-clip — pick a model below and it downloads with one click. GPU acceleration is set up automatically when your hardware supports it.</div>
+          <div class="settings-note">llama-cpp-python is included with yuu-clip - pick a model below and it downloads with one click. GPU acceleration is set up automatically when your hardware supports it.</div>
         </div>
       </div>
       <div class="settings-row">
@@ -277,7 +277,7 @@
         <div class="settings-row">
           <div class="settings-col">
             <label class="settings-label" for="s-llm-mmproj-path">Vision projector file (optional)</label>
-            <div class="settings-note">Path to the model's mmproj .gguf — enables image analysis</div>
+            <div class="settings-note">Path to the model's mmproj .gguf - enables image analysis</div>
           </div>
           <div class="settings-path-field">
             <input class="settings-input" id="s-llm-mmproj-path" type="text" placeholder="C:\models\model-mmproj.gguf">
@@ -353,7 +353,7 @@
     <div class="settings-row">
       <div class="settings-col">
         <label class="settings-label" for="s-vision-enabled">Image analysis</label>
-        <div class="settings-note">Let the "Analyze frames" button sample frames from a clip and describe what's on screen. On by default — download a vision model above (moondream2 is recommended) to actually use it; until then this stays inactive.</div>
+        <div class="settings-note">Let the "Analyze frames" button sample frames from a clip and describe what's on screen. On by default - download a vision model above (moondream2 is recommended) to actually use it; until then this stays inactive.</div>
       </div>
       <label class="settings-checkbox">
         <input type="checkbox" id="s-vision-enabled" aria-label="Enable image analysis">
@@ -377,12 +377,12 @@
     </div><!-- /#s-llm-body -->
     </div><!-- /#s-llm-generative-block -->
     <div id="s-privacy-none-summary" style="display:none;margin:0 0 4px;padding:10px 12px;border-radius:6px;background:var(--surface-2);font-size:13px">
-      Generative AI is turned off. Clip finding, related-clip search, "Meaning" hot-words, and lightweight scoring (lexicon, energy, laughs) all still work — nothing is disabled that doesn't need a language model.
+      Generative AI is turned off. Clip finding, related-clip search, "Meaning" hot-words, and lightweight scoring (lexicon, energy, laughs) all still work - nothing is disabled that doesn't need a language model.
       <div style="margin-top:8px">
         <button type="button" class="btn-secondary" onclick="_setPrivacyMode('local_only')">Turn on local models</button>
       </div>
     </div>
-    <!-- Similarity engine — powers Find related clips + "Meaning" hot-words. Outside
+    <!-- Similarity engine - powers Find related clips + "Meaning" hot-words. Outside
          #s-llm-body on purpose: the keyword/embeddings tiers work with LLM scoring off. -->
     <div class="settings-row" id="s-similarity-row">
       <div class="settings-col">
@@ -415,11 +415,11 @@
       </div>
       <select class="settings-select" id="s-diarization-backend" onchange="_onDiarizationBackendChange(this.value)">
         <option value="null">Off</option>
-        <option value="speechbrain">SpeechBrain (default — no account or token needed)</option>
-        <option value="pyannote">Pyannote (advanced — requires HuggingFace token)</option>
+        <option value="speechbrain">SpeechBrain (default - no account or token needed)</option>
+        <option value="pyannote">Pyannote (advanced - requires HuggingFace token)</option>
       </select>
     </div>
-    <!-- pyannote fields — demoted behind a collapsed <details>: it's the token-gated
+    <!-- pyannote fields - demoted behind a collapsed <details>: it's the token-gated
          alternative to the default, bundled SpeechBrain backend, not a primary CTA. -->
     <div id="s-pyannote-fields" style="display:none">
       <details class="settings-advanced">
@@ -427,7 +427,7 @@
         <div class="settings-row">
           <div class="settings-col">
             <div class="settings-label">Python package</div>
-            <div class="settings-note">pyannote.audio is not included by default — SpeechBrain above is the recommended, token-free backend. Install pyannote only if you specifically need it.</div>
+            <div class="settings-note">pyannote.audio is not included by default - SpeechBrain above is the recommended, token-free backend. Install pyannote only if you specifically need it.</div>
           </div>
           <div style="display:flex;gap:8px;align-items:center">
             <button class="btn-secondary" id="btn-install-pyannote" onclick="installPackage('pyannote')">Install pyannote.audio</button>
@@ -438,7 +438,7 @@
         <div class="settings-row">
           <div class="settings-col">
             <label class="settings-label" for="s-hf-token">HuggingFace token</label>
-            <div class="settings-note">Required to download the diarization model. Create a <a href="https://huggingface.co/settings/tokens" target="_blank" style="color:var(--accent)">token</a> with <strong>Read</strong> access, then — signed in with that account — accept the gated model terms for <a href="https://huggingface.co/pyannote/speaker-diarization-community-1" target="_blank" style="color:var(--accent)">speaker-diarization-community-1</a>.</div>
+            <div class="settings-note">Required to download the diarization model. Create a <a href="https://huggingface.co/settings/tokens" target="_blank" style="color:var(--accent)">token</a> with <strong>Read</strong> access, then - signed in with that account - accept the gated model terms for <a href="https://huggingface.co/pyannote/speaker-diarization-community-1" target="_blank" style="color:var(--accent)">speaker-diarization-community-1</a>.</div>
           </div>
           <div style="display:flex;flex-direction:column;gap:4px;max-width:280px">
             <div style="display:flex;gap:6px;align-items:center">
@@ -455,7 +455,7 @@
       <div class="settings-row">
         <div class="settings-col">
           <div class="settings-label">Speaker model</div>
-          <div class="settings-note">SpeechBrain is included with yuu-clip — no HuggingFace account or token needed. The speaker model (~80 MB) downloads automatically the first time you run Detect Speakers.</div>
+          <div class="settings-note">SpeechBrain is included with yuu-clip - no HuggingFace account or token needed. The speaker model (~80 MB) downloads automatically the first time you run Detect Speakers.</div>
         </div>
       </div>
     </div>
@@ -464,7 +464,7 @@
       <div class="settings-row">
         <div class="settings-col">
           <label class="settings-label" for="s-speaker-match-threshold">Speaker match strictness</label>
-          <div class="settings-note">How similar a voice must be to re-attach to an already-named speaker on <strong>Re-detect Speakers</strong>. Higher is stricter — fewer wrong matches, but more voices re-listed as new "Speaker N" to re-confirm. 0.75 is a safe default; lower it if named speakers keep coming back unnamed.</div>
+          <div class="settings-note">How similar a voice must be to re-attach to an already-named speaker on <strong>Re-detect Speakers</strong>. Higher is stricter - fewer wrong matches, but more voices re-listed as new "Speaker N" to re-confirm. 0.75 is a safe default; lower it if named speakers keep coming back unnamed.</div>
         </div>
         <input class="settings-input" id="s-speaker-match-threshold" type="number" min="0" max="1" step="0.05" style="max-width:100px">
       </div>
@@ -478,7 +478,7 @@
       <span>Scoring weights <span style="font-size:11px;font-weight:400;color:var(--muted)">(takes effect on next re-score)</span></span>
       <button type="button" class="btn-secondary" id="btn-reset-weights" onclick="_resetScoringWeights()" style="margin-left:auto;font-size:11px;padding:3px 8px;text-transform:none;letter-spacing:normal;font-weight:400">Reset to defaults</button>
     </div>
-    <!-- Content type preset (plan 12) — one-choice tuning applied on top of the sliders below -->
+    <!-- Content type preset (plan 12) - one-choice tuning applied on top of the sliders below -->
     <div id="s-content-preset-block" style="margin:0 0 16px;padding:10px 12px;border:1px solid var(--border);border-radius:8px">
       <label class="settings-label" for="s-content-preset" style="display:block;margin-bottom:2px">Content type</label>
       <div class="settings-note" style="margin-bottom:8px">Pick the kind of content you make to tune the weights and starter hot-words below in one step. You can fine-tune everything afterwards.</div>
@@ -522,7 +522,7 @@
     <div style="margin-bottom:4px;display:flex;gap:8px;align-items:center">
       <label class="settings-label" for="s-laugh-mode" style="white-space:nowrap;min-width:90px">Laugh mode</label>
       <select id="s-laugh-mode" class="settings-input" style="flex:1" onchange="_onLaughModeChange(this.value)">
-        <option value="transcript">Transcript (default — pattern matching)</option>
+        <option value="transcript">Transcript (default - pattern matching)</option>
         <option value="audio">Audio (spectral rhythm, no extra deps)</option>
         <option value="model">Model (HuggingFace classifier, best accuracy)</option>
       </select>
@@ -603,7 +603,7 @@
   <div class="settings-section" id="settings-sec-hotwords">
     <div class="settings-section-title">Hot-words</div>
     <div class="settings-note" style="margin-bottom:8px">
-      Boost a clip's score when a phrase is spoken — great for running gags or catchphrases.
+      Boost a clip's score when a phrase is spoken - great for running gags or catchphrases.
       Saved instantly; use <strong>Rescan current recording</strong> from the confirmation toast
       to apply changes to a recording's existing clips without a full re-score.
     </div>
@@ -615,7 +615,7 @@
   <div class="settings-section" id="settings-sec-sensitive">
     <div class="settings-section-title">Sensitive Content</div>
     <div class="settings-note" style="margin-bottom:8px">
-      Flag clips containing names, personal info, or language you want to catch before sharing —
+      Flag clips containing names, personal info, or language you want to catch before sharing -
       kept completely separate from scoring, so it never changes a clip's score, only warns.
       <strong>Privacy Terms</strong> are names or personal info you don't want in shared clips;
       <strong>Censor Words</strong> are language to flag before posting to restricted platforms.
@@ -633,9 +633,9 @@
         <label class="settings-label" for="s-scene-mode">Scene detection mode</label>
       </div>
       <select class="settings-select" id="s-scene-mode">
-        <option value="transcript">Transcript — silence gaps only (instant)</option>
-        <option value="fast">Fast — keyframes + transcript gaps (recommended)</option>
-        <option value="full">Full — every frame, most accurate (slow)</option>
+        <option value="transcript">Transcript - silence gaps only (instant)</option>
+        <option value="fast">Fast - keyframes + transcript gaps (recommended)</option>
+        <option value="full">Full - every frame, most accurate (slow)</option>
       </select>
     </div>
     <div class="settings-row">
@@ -643,9 +643,9 @@
         <label class="settings-label" for="s-energy-mode">Audio energy mode</label>
       </div>
       <select class="settings-select" id="s-energy-mode">
-        <option value="none">None — skip (fastest)</option>
-        <option value="fast">Fast — 4 kHz numpy (recommended)</option>
-        <option value="full">Full — 16 kHz numpy (most accurate)</option>
+        <option value="none">None - skip (fastest)</option>
+        <option value="fast">Fast - 4 kHz numpy (recommended)</option>
+        <option value="full">Full - 16 kHz numpy (most accurate)</option>
       </select>
     </div>
     <div class="settings-row">
@@ -674,11 +674,11 @@
 
   <!-- Hardware section -->
   <div class="settings-section" id="settings-sec-hardware">
-    <div class="settings-section-title">Hardware <span style="font-size:11px;font-weight:400;color:var(--muted)">(GPU temperature — NVIDIA only, hidden automatically otherwise)</span></div>
+    <div class="settings-section-title">Hardware <span style="font-size:11px;font-weight:400;color:var(--muted)">(GPU temperature - NVIDIA only, hidden automatically otherwise)</span></div>
     <div class="settings-row">
       <div class="settings-col">
         <label class="settings-label">GPU acceleration for transcription</label>
-        <div class="settings-note">On an NVIDIA GPU, installs the CUDA support libraries (cuBLAS + cuDNN) so transcription runs on the GPU — much faster than CPU. About 1&nbsp;GB. Re-run analysis after installing.</div>
+        <div class="settings-note">On an NVIDIA GPU, installs the CUDA support libraries (cuBLAS + cuDNN) so transcription runs on the GPU - much faster than CPU. About 1&nbsp;GB. Re-run analysis after installing.</div>
       </div>
       <div style="display:flex;gap:8px;align-items:center">
         <button class="btn-secondary" id="btn-install-cuda-libs" onclick="installPackage('cuda-libs')">Enable GPU acceleration</button>
@@ -804,7 +804,7 @@
       <div class="settings-col">
         <div class="settings-label">Export presets</div>
         <div class="settings-note">
-          Named recipes for export — container, resolution, and quality/size — instead of
+          Named recipes for export - container, resolution, and quality/size - instead of
           exporting at original quality. "YouTube 1080p" and "Discord (&le;10 MB)" are
           always available; add your own below.
         </div>
@@ -819,7 +819,7 @@
         <div class="settings-note">
           When exporting with a vertical (9:16) preset, "Auto-frame on faces"
           suggests where to place the crop by finding faces in the clip. Included
-          with yuu-clip (MediaPipe, Apache-2.0) — its face-detector model (~230 KB)
+          with yuu-clip (MediaPipe, Apache-2.0) - its face-detector model (~230 KB)
           downloads automatically the first time you use it. You can still set the
           crop by hand instead.
         </div>
@@ -869,7 +869,7 @@
     <div class="settings-note" style="display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;margin-bottom:6px">
       <span>Placeholders:</span>
       <code>{description}</code> <code>{start}</code> <code>{duration}</code>
-      <span>— each line becomes a line on the card; blank placeholders are skipped.</span>
+      <span> -  each line becomes a line on the card; blank placeholders are skipped.</span>
     </div>
     <div id="s-title-card-template-warning" style="display:none;font-size:12px;color:var(--warning);margin-bottom:6px"></div>
     <div class="settings-row">
@@ -882,7 +882,7 @@
     <div class="settings-row">
       <div class="settings-col">
         <div class="settings-label">Preview (approximate)</div>
-        <div class="settings-note">Not to scale — shows colors, size, and content, not the actual render.</div>
+        <div class="settings-note">Not to scale - shows colors, size, and content, not the actual render.</div>
       </div>
       <div id="s-title-card-preview"
            style="width:220px;height:124px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;border-radius:4px;overflow:hidden;padding:8px;box-sizing:border-box;flex:0 0 auto"></div>
@@ -910,7 +910,7 @@
              placeholder="Renderer default" style="flex:1;min-width:0">
     </div>
     <div class="settings-note" style="margin-bottom:6px">
-      Must be installed on this PC — e.g. Arial, Segoe UI. Leave blank for the renderer default.
+      Must be installed on this PC - e.g. Arial, Segoe UI. Leave blank for the renderer default.
     </div>
     <div class="settings-row">
       <div class="settings-col">
@@ -973,7 +973,7 @@
 
   <!-- Paths section (read-only for now) -->
   <div class="settings-section" id="settings-sec-paths">
-    <div class="settings-section-title">Paths <span style="font-size:11px;font-weight:400;color:var(--muted)">(read-only — set via --project flag)</span></div>
+    <div class="settings-section-title">Paths <span style="font-size:11px;font-weight:400;color:var(--muted)">(read-only - set via --project flag)</span></div>
     <div id="s-paths-display" style="font-size:12px;color:var(--muted);line-height:2"></div>
   </div>
 </div><!-- /.settings-inner -->
@@ -1091,7 +1091,7 @@
       <div class="detail-empty">Select a recording on the left</div>
     </div>
 
-    <!-- New Recording panel — replaces player+detail when active -->
+    <!-- New Recording panel - replaces player+detail when active -->
     <div class="new-recording-panel" id="new-recording-panel" style="display:none">
       <div class="new-recording-inner">
         <div class="new-recording-header">
@@ -1142,11 +1142,11 @@
           <div class="field">
             <label for="analyze-model">Whisper model</label>
             <select id="analyze-model" onchange="runEstimate()">
-              <option value="tiny">tiny — fastest, lowest quality</option>
-              <option value="base">base — fast, lower quality</option>
-              <option value="small">small — fast, decent quality (~500 MB VRAM)</option>
-              <option value="medium" selected>medium — good balance (~1.5 GB VRAM)</option>
-              <option value="large-v3">large-v3 — best quality (~3 GB VRAM)</option>
+              <option value="tiny">tiny - fastest, lowest quality</option>
+              <option value="base">base - fast, lower quality</option>
+              <option value="small">small - fast, decent quality (~500 MB VRAM)</option>
+              <option value="medium" selected>medium - good balance (~1.5 GB VRAM)</option>
+              <option value="large-v3">large-v3 - best quality (~3 GB VRAM)</option>
             </select>
           </div>
           <div class="field" id="analyze-diarize-field">
@@ -1160,17 +1160,17 @@
           <div class="field">
             <label for="analyze-scene-mode">Scene detection</label>
             <select id="analyze-scene-mode" onchange="runEstimate()">
-              <option value="transcript">Transcript only — silence gaps, instant</option>
-              <option value="fast" selected>Fast — keyframes + transcript gaps (recommended)</option>
-              <option value="full">Full — every frame, most accurate (slow)</option>
+              <option value="transcript">Transcript only - silence gaps, instant</option>
+              <option value="fast" selected>Fast - keyframes + transcript gaps (recommended)</option>
+              <option value="full">Full - every frame, most accurate (slow)</option>
             </select>
           </div>
           <div class="field">
             <label for="analyze-energy-mode">Audio energy</label>
             <select id="analyze-energy-mode" onchange="runEstimate()">
-              <option value="none">None — skip (fastest)</option>
-              <option value="fast" selected>Fast — 4 kHz numpy (recommended)</option>
-              <option value="full">Full — 16 kHz numpy (most accurate)</option>
+              <option value="none">None - skip (fastest)</option>
+              <option value="fast" selected>Fast - 4 kHz numpy (recommended)</option>
+              <option value="full">Full - 16 kHz numpy (most accurate)</option>
             </select>
           </div>
         </details>
@@ -1203,7 +1203,7 @@
       </div>
     </div>
 
-    <!-- Progress log — inside .main so the sidebar extends full height beside it -->
+    <!-- Progress log - inside .main so the sidebar extends full height beside it -->
     <div class="log-panel" id="log-panel">
       <div class="resize-handle resize-handle-v" id="log-resize-handle" title="Drag to resize log" role="separator" aria-orientation="horizontal" aria-label="Resize log panel"></div>
       <div class="log-header">
@@ -1220,14 +1220,14 @@
   </div>
 </div>
 
-<!-- Panel navigation takeover (breadcrumb + stacked panel content) — replaces
+<!-- Panel navigation takeover (breadcrumb + stacked panel content) - replaces
      main content for multi-step flows like the Split Editor. See panelnav.js. -->
 <div id="panelnav-root" style="display:none;position:absolute;inset:0;min-height:480px;background:var(--bg);z-index:10;flex-direction:column;overflow-y:auto">
   <div id="panelnav-breadcrumb" style="display:flex;align-items:center;gap:10px;padding:20px 24px 0;flex-shrink:0"></div>
   <div id="panelnav-content" style="padding:16px 24px 20px"></div>
 </div>
 
-<!-- Split Editor panel content — mounted into #panelnav-content by split.js -->
+<!-- Split Editor panel content - mounted into #panelnav-content by split.js -->
 <div id="split-editor-panel" style="display:none;flex-direction:column;gap:16px">
   <!-- Video preview -->
   <div id="split-preview-wrap" style="display:none;position:relative">
@@ -1263,14 +1263,14 @@
   <!-- Overlay legend (M6-1) -->
   <div id="split-legend" style="display:flex;flex-wrap:wrap;gap:14px;align-items:center;font-size:11px;color:var(--muted)">
     <span style="display:inline-flex;align-items:center;gap:5px"><span style="width:2px;height:12px;background:var(--accent);border-radius:1px"></span>Split point (yours)</span>
-    <span style="display:inline-flex;align-items:center;gap:5px"><span style="width:0;height:12px;border-left:1.5px dashed rgba(255,255,255,0.45)"></span>Suggested split — click to place</span>
+    <span style="display:inline-flex;align-items:center;gap:5px"><span style="width:0;height:12px;border-left:1.5px dashed rgba(255,255,255,0.45)"></span>Suggested split - click to place</span>
     <span style="display:inline-flex;align-items:center;gap:5px"><span style="width:1px;height:12px;background:rgba(255,255,255,0.4)"></span>Scene cut</span>
     <span style="display:inline-flex;align-items:center;gap:5px"><span style="width:16px;height:4px;background:rgba(255,255,255,0.35);border-radius:2px"></span>Existing clip</span>
     <span style="display:inline-flex;align-items:center;gap:5px"><span style="width:16px;height:12px;background:var(--accent);opacity:0.25;border-radius:2px;border-right:2px solid var(--accent)"></span>Segment</span>
   </div>
   <!-- Waveform notice (shown when no energy data and not computing) -->
   <div id="split-waveform-notice" style="display:none;font-size:12px;color:var(--muted);align-items:center;gap:10px">
-    <span>No waveform data — energy was not computed during analysis.</span>
+    <span>No waveform data - energy was not computed during analysis.</span>
     <button class="btn" style="padding:3px 10px;font-size:12px" onclick="_generateWaveform()">Generate Waveform</button>
   </div>
 
@@ -1285,15 +1285,15 @@
          onchange="_updateSplitConfirmState()" style="display:flex;flex-direction:column;gap:6px;font-size:13px">
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
         <input type="radio" name="split-action" value="partition" checked>
-        Split only — keep all existing clips, just divide them between segments
+        Split only - keep all existing clips, just divide them between segments
       </label>
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
         <input type="radio" name="split-action" value="reanalyze-all">
-        Re-analyze — delete all clips and run analysis fresh on each segment
+        Re-analyze - delete all clips and run analysis fresh on each segment
       </label>
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
         <input type="radio" name="split-action" value="reanalyze-keep">
-        Re-analyze but keep exported clips — deletes only clips that were never exported, then runs analysis fresh on each segment
+        Re-analyze but keep exported clips - deletes only clips that were never exported, then runs analysis fresh on each segment
       </label>
     </div>
     <div style="display:flex;gap:10px">
@@ -1326,15 +1326,15 @@
     <h3>Getting Started</h3>
 
     <div style="margin:0 0 16px;padding:10px 12px;border:1px solid color-mix(in srgb, var(--accent) 40%, transparent);border-radius:8px;background:color-mix(in srgb, var(--accent) 8%, transparent);font-size:13px;line-height:1.6;color:var(--text)">
-      <strong>You're in lightweight mode.</strong> Transcription, scoring, and clip descriptions all work right now — no extra setup, nothing to download. Install a local language model anytime for richer AI descriptions, summaries, and smarter scoring. See <em>Settings &rarr; Capabilities</em> to check what's active and what you can upgrade.
+      <strong>You're in lightweight mode.</strong> Transcription, scoring, and clip descriptions all work right now - no extra setup, nothing to download. Install a local language model anytime for richer AI descriptions, summaries, and smarter scoring. See <em>Settings &rarr; Capabilities</em> to check what's active and what you can upgrade.
     </div>
 
     <div class="section-title" style="margin-bottom:6px">Your workflow</div>
     <ol style="margin:0 0 16px;padding-left:20px;font-size:13px;line-height:1.9;color:var(--text)">
-      <li><strong>Analyze</strong> — click <em>+ Analyze</em> and select a recording. yuu-clip transcribes the audio, detects scene changes, and scores every clip.</li>
-      <li><strong>Review</strong> — step through the clip list. Watch the preview, read the description, and press <kbd>A</kbd> to approve or <kbd>R</kbd> to reject.</li>
-      <li><strong>Export</strong> — click <em>Export</em> on any clip to extract it. Quick export copies the video out in seconds; Precise re-encodes for frame-accurate cuts. The export window tells you which one you'll get.</li>
-      <li><strong>Build a reel</strong> — click <em>Highlight Reels</em> in the header, then <em>Build Reel</em> to compile approved clips into a single highlight reel with title cards and transitions.</li>
+      <li><strong>Analyze</strong> - click <em>+ Analyze</em> and select a recording. yuu-clip transcribes the audio, detects scene changes, and scores every clip.</li>
+      <li><strong>Review</strong> - step through the clip list. Watch the preview, read the description, and press <kbd>A</kbd> to approve or <kbd>R</kbd> to reject.</li>
+      <li><strong>Export</strong> - click <em>Export</em> on any clip to extract it. Quick export copies the video out in seconds; Precise re-encodes for frame-accurate cuts. The export window tells you which one you'll get.</li>
+      <li><strong>Build a reel</strong> - click <em>Highlight Reels</em> in the header, then <em>Build Reel</em> to compile approved clips into a single highlight reel with title cards and transitions.</li>
     </ol>
 
     <div class="section-title" style="margin-bottom:6px">What the scores mean</div>
@@ -1351,7 +1351,7 @@
     <table style="width:100%;font-size:13px;border-collapse:collapse;margin-bottom:16px">
       <tbody>
         <tr><td style="padding:3px 8px 3px 0;color:var(--text);white-space:nowrap">Track layout</td><td style="color:var(--muted)">Maps your OBS audio tracks to roles (player voice, game sounds, etc.) so yuu-clip knows what to transcribe</td></tr>
-        <tr><td style="padding:3px 8px 3px 0;color:var(--text);white-space:nowrap">World context</td><td style="color:var(--muted)">Tells the LLM scorer who's in your recordings and what the setting is — improves descriptions and scores for your specific game</td></tr>
+        <tr><td style="padding:3px 8px 3px 0;color:var(--text);white-space:nowrap">World context</td><td style="color:var(--muted)">Tells the LLM scorer who's in your recordings and what the setting is - improves descriptions and scores for your specific game</td></tr>
       </tbody>
     </table>
 
@@ -1376,7 +1376,7 @@
     <p style="color:var(--muted);font-size:13px;margin:0 0 12px">
       <span id="about-version">Version unknown</span><br>
       Built by <strong>smitehamner</strong>. Provided as-is with absolutely no warranty.<br>
-      Licencing: <em>unlicensed — all rights reserved</em> until a licence is chosen.
+      Licencing: <em>unlicensed - all rights reserved</em> until a licence is chosen.
     </p>
     <div class="section-title" style="margin-bottom:4px">Included with yuu-clip</div>
     <table style="width:100%;font-size:12px;border-collapse:collapse;color:var(--muted);margin-bottom:12px">
@@ -1399,18 +1399,18 @@
         <tr><td>mediapipe</td><td>Vertical auto-framing (face detection)</td><td>Apache-2</td></tr>
       </tbody>
     </table>
-    <div class="section-title" style="margin-bottom:4px">External tools <span style="font-size:11px;font-weight:400;color:var(--muted)">(install separately — set up via the wizard)</span></div>
+    <div class="section-title" style="margin-bottom:4px">External tools <span style="font-size:11px;font-weight:400;color:var(--muted)">(install separately - set up via the wizard)</span></div>
     <table style="width:100%;font-size:12px;border-collapse:collapse;color:var(--muted);margin-bottom:12px">
       <thead><tr style="color:var(--text)"><th scope="col" class="col-head">Tool</th><th scope="col" class="col-head">Purpose</th><th scope="col" class="col-head">Licence</th></tr></thead>
       <tbody>
-        <tr><td>Ollama</td><td>Local LLM server — optional, improves clip scoring</td><td>MIT</td></tr>
+        <tr><td>Ollama</td><td>Local LLM server - optional, improves clip scoring</td><td>MIT</td></tr>
       </tbody>
     </table>
     <div class="section-title" style="margin-bottom:4px">Optional add-ons <span style="font-size:11px;font-weight:400;color:var(--muted)">(install from Settings)</span></div>
     <table style="width:100%;font-size:12px;border-collapse:collapse;color:var(--muted)">
       <thead><tr style="color:var(--text)"><th scope="col" class="col-head">Package</th><th scope="col" class="col-head">Purpose</th><th scope="col" class="col-head">Licence</th></tr></thead>
       <tbody>
-        <tr><td>pyannote.audio</td><td>Speaker labels — advanced, token-gated alternative</td><td>MIT (model: HF gated)</td></tr>
+        <tr><td>pyannote.audio</td><td>Speaker labels - advanced, token-gated alternative</td><td>MIT (model: HF gated)</td></tr>
         <tr><td>nvidia-cublas-cu12 / nvidia-cudnn-cu12</td><td>GPU acceleration for transcription (NVIDIA)</td><td>NVIDIA proprietary (redistributable)</td></tr>
       </tbody>
     </table>
@@ -1534,7 +1534,7 @@
       <div class="modal-actions">
         <button class="btn" onclick="closeHighlightReelsModal()">Cancel</button>
         <button class="btn" onclick="previewReelPlaylist()" title="Play exported clips in sequence">&#9654; Preview</button>
-        <button class="btn" id="reel-export-btn" style="display:none" onclick="exportUnexportedReelClips()" title="Export the selected clips that aren't exported yet — the reel skips clips with no export"></button>
+        <button class="btn" id="reel-export-btn" style="display:none" onclick="exportUnexportedReelClips()" title="Export the selected clips that aren't exported yet - the reel skips clips with no export"></button>
         <button class="btn primary" onclick="startDemo()">Build Reel</button>
       </div>
     </div>
@@ -1606,11 +1606,11 @@
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
       <label for="batch-retranscribe-model" style="font-size:13px;color:var(--muted);min-width:110px">Caption model</label>
       <select id="batch-retranscribe-model" disabled style="flex:1;padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px">
-        <option value="tiny">tiny — fastest, lowest quality</option>
-        <option value="base">base — fast, lower quality</option>
-        <option value="small">small — fast, decent quality (~500 MB VRAM)</option>
-        <option value="medium">medium — good balance (~1.5 GB VRAM)</option>
-        <option value="large-v3" selected>large-v3 — best quality (~3 GB VRAM)</option>
+        <option value="tiny">tiny - fastest, lowest quality</option>
+        <option value="base">base - fast, lower quality</option>
+        <option value="small">small - fast, decent quality (~500 MB VRAM)</option>
+        <option value="medium">medium - good balance (~1.5 GB VRAM)</option>
+        <option value="large-v3" selected>large-v3 - best quality (~3 GB VRAM)</option>
       </select>
     </div>
     <div id="batch-mode-summary" style="font-size:12px;border-top:1px solid var(--border);padding-top:10px;margin-bottom:14px"></div>
@@ -1629,11 +1629,11 @@
     <div class="field">
       <label for="retranscribe-model">Caption model</label>
       <select id="retranscribe-model">
-        <option value="tiny">tiny — fastest, lowest quality</option>
-        <option value="base">base — fast, lower quality</option>
-        <option value="small">small — fast, decent quality (~500 MB VRAM)</option>
-        <option value="medium">medium — good balance (~1.5 GB VRAM)</option>
-        <option value="large-v3" selected>large-v3 — best quality (~3 GB VRAM)</option>
+        <option value="tiny">tiny - fastest, lowest quality</option>
+        <option value="base">base - fast, lower quality</option>
+        <option value="small">small - fast, decent quality (~500 MB VRAM)</option>
+        <option value="medium">medium - good balance (~1.5 GB VRAM)</option>
+        <option value="large-v3" selected>large-v3 - best quality (~3 GB VRAM)</option>
       </select>
     </div>
     <div class="field">
@@ -1657,7 +1657,7 @@
 <div class="modal-bg" id="context-modal" onclick="if(event.target===this)closeContextManager()">
   <div class="modal" style="width:680px;max-height:85vh">
     <h3>World Contexts</h3>
-    <p style="font-size:12px;color:var(--muted);margin-top:-6px">Named knowledge injected into LLM prompts — people, setting, and notes.</p>
+    <p style="font-size:12px;color:var(--muted);margin-top:-6px">Named knowledge injected into LLM prompts - people, setting, and notes.</p>
     <div style="display:flex;gap:16px;min-height:300px">
       <div style="width:180px;flex-shrink:0;display:flex;flex-direction:column;gap:6px">
         <div id="context-list-items" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:4px"></div>
@@ -1669,12 +1669,12 @@
           <input type="text" id="ce-display-name" placeholder="My Game">
         </div>
         <div class="field">
-          <label for="ce-context-id" style="color:var(--muted)">Context ID <span style="font-weight:400">(auto-filled from the name — edit if you like)</span></label>
+          <label for="ce-context-id" style="color:var(--muted)">Context ID <span style="font-weight:400">(auto-filled from the name - edit if you like)</span></label>
           <input type="text" id="ce-context-id" placeholder="my-game" style="font-size:12px">
         </div>
         <div class="field">
           <label for="ce-setting">Setting</label>
-          <textarea class="ctx-textarea" id="ce-setting" rows="2" placeholder="Tactical FPS — squad-based competitive matches. Win by eliminating the enemy team or completing objectives."></textarea>
+          <textarea class="ctx-textarea" id="ce-setting" rows="2" placeholder="Tactical FPS - squad-based competitive matches. Win by eliminating the enemy team or completing objectives."></textarea>
         </div>
         <div class="field">
           <label for="ce-your-chars">Your players</label>
@@ -1686,10 +1686,10 @@
         </div>
         <div class="field">
           <label for="ce-notes">Notes</label>
-          <textarea class="ctx-textarea" id="ce-notes" rows="2" placeholder="Anything else useful — win conditions, running gags, recurring bits, what makes a great clip here."></textarea>
+          <textarea class="ctx-textarea" id="ce-notes" rows="2" placeholder="Anything else useful - win conditions, running gags, recurring bits, what makes a great clip here."></textarea>
         </div>
         <div class="field">
-          <label>LLM scoring weights <span style="color:var(--muted);font-weight:400">(overrides global — leave blank to use global defaults)</span></label>
+          <label>LLM scoring weights <span style="color:var(--muted);font-weight:400">(overrides global - leave blank to use global defaults)</span></label>
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:4px">
             <div>
               <label for="ce-weight-funny" style="font-size:12px;color:var(--muted)">Funny</label>
@@ -1823,7 +1823,7 @@
             <input id="export-caption-font" type="text" placeholder="Renderer default" maxlength="64"
                    style="flex:1;padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px">
           </div>
-          <div style="font-size:11px;color:var(--muted);padding-left:120px;margin-top:-4px">Must be installed on this PC — e.g. Arial, Segoe UI.</div>
+          <div style="font-size:11px;color:var(--muted);padding-left:120px;margin-top:-4px">Must be installed on this PC - e.g. Arial, Segoe UI.</div>
           <div style="display:flex;align-items:center;gap:10px">
             <label for="export-caption-size" style="font-size:13px;color:var(--muted);min-width:110px">Size</label>
             <input id="export-caption-size" type="number" min="12" max="96" placeholder="Default"
@@ -1840,7 +1840,7 @@
       </details>
       <div id="export-framing" style="display:none;border-top:1px solid var(--border);padding-top:10px">
         <div style="font-size:13px;color:var(--muted);margin-bottom:8px">Vertical framing
-          <span style="font-size:11px">— which slice of the frame fills the 9:16 video</span></div>
+          <span style="font-size:11px"> -  which slice of the frame fills the 9:16 video</span></div>
         <div style="display:flex;gap:12px;align-items:center">
           <div class="framing-preview" title="16:9 source frame; the box is the 9:16 crop">
             <div id="export-framing-box" class="framing-box"></div>
@@ -1870,11 +1870,11 @@
       <div style="display:flex;align-items:center;gap:10px">
         <label for="export-retranscribe-model" style="font-size:13px;color:var(--muted);min-width:110px">Caption model</label>
         <select id="export-retranscribe-model" disabled style="flex:1;padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px">
-          <option value="tiny">tiny — fastest, lowest quality</option>
-          <option value="base">base — fast, lower quality</option>
-          <option value="small">small — fast, decent quality (~500 MB VRAM)</option>
-          <option value="medium">medium — good balance (~1.5 GB VRAM)</option>
-          <option value="large-v3" selected>large-v3 — best quality (~3 GB VRAM)</option>
+          <option value="tiny">tiny - fastest, lowest quality</option>
+          <option value="base">base - fast, lower quality</option>
+          <option value="small">small - fast, decent quality (~500 MB VRAM)</option>
+          <option value="medium">medium - good balance (~1.5 GB VRAM)</option>
+          <option value="large-v3" selected>large-v3 - best quality (~3 GB VRAM)</option>
         </select>
       </div>
       <div id="export-speaker-row" style="display:flex;align-items:center;gap:10px;padding-left:28px;opacity:.5">

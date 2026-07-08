@@ -1,5 +1,5 @@
 (function () {
-// Feature-map — Clip export editor (Trim + Vertical framing + Caption Style over a live preview).
+// Feature-map - Clip export editor (Trim + Vertical framing + Caption Style over a live preview).
 //   API: routes/clips/ (captions.py context-transcript, export.py) · Tests: tests/test_ui_exporteditor.py
 // ── clip export editor (Plan 07) ──────────────────────────────────────────────
 // A PanelNav takeover launched before final export: transcript-driven trim with
@@ -9,7 +9,7 @@
 // single-clip export SSE the dialog uses.
 //
 // Own inline preview <video>: PanelNav's panel visually covers #player-area
-// (known coverage bug), so the editor never relies on the main player — it
+// (known coverage bug), so the editor never relies on the main player - it
 // embeds its own, proxy-preferred, exactly like the manual-clip picker.
 
 let _edClipId       = null;
@@ -17,7 +17,7 @@ let _edClip         = null;   // saved baseline (start_offset/end_offset/crop_x)
 let _edVideo        = null;   // parent recording (from AppState.videos)
 let _edConfig       = {};     // caption-style defaults from /api/config
 let _edLines        = [];     // context transcript (recording-relative ms)
-let _edSeekOffsetS  = 0;      // segment_start_s — added to seek the parent player
+let _edSeekOffsetS  = 0;      // segment_start_s - added to seek the parent player
 let _edAspect       = 16 / 9; // source frame aspect (iw/ih), refined on metadata
 
 let _edStartOffset  = 0;
@@ -80,7 +80,7 @@ function _edIsDirty() {
 function _edMount(container) {
   container.innerHTML = `
     <div style="font-size:12px;color:var(--muted)">
-      Trim with the transcript, frame the vertical crop, preview captions, then export — in one place.
+      Trim with the transcript, frame the vertical crop, preview captions, then export - in one place.
     </div>
     <div id="ed-preview-wrap" style="position:relative;height:42vh;aspect-ratio:16/9;max-width:100%;margin:0 auto;background:#000;border-radius:6px;overflow:hidden">
       <video id="ed-video" controls preload="metadata" aria-label="Clip preview"
@@ -205,7 +205,7 @@ function _edRenderTranscript() {
   const el = document.getElementById('ed-transcript');
   if (!el) return;
   if (!_edLines.length) {
-    el.innerHTML = '<div class="transcript-empty">No transcript for this recording — trim with the nudge buttons above.</div>';
+    el.innerHTML = '<div class="transcript-empty">No transcript for this recording - trim with the nudge buttons above.</div>';
     return;
   }
   const effStart = _edEffStartMs(), effEnd = _edEffEndMs();
@@ -399,7 +399,7 @@ function _edCropPointerDown(e) {
   e.preventDefault();
   const wrap  = document.getElementById('ed-preview-wrap');
   const wFrac = _edCropWFrac();
-  if (wFrac >= 0.999 || !wrap) return;  // source already ≤9:16 — nothing to pan
+  if (wFrac >= 0.999 || !wrap) return;  // source already ≤9:16 - nothing to pan
   function onMove(ev) {
     const rect = wrap.getBoundingClientRect();
     const centerFrac = (ev.clientX - rect.left) / rect.width;
@@ -420,10 +420,10 @@ async function _edAutoFrame() {
   note.textContent = 'Finding faces…';
   try {
     const res = await fetch(`/api/clips/${_edClipId}/suggest-framing`, { method: 'POST' });
-    if (res.status === 503) { note.textContent = 'Needs MediaPipe — install it in Settings → Export.'; return; }
+    if (res.status === 503) { note.textContent = 'Needs MediaPipe - install it in Settings → Export.'; return; }
     if (!res.ok) throw new Error(formatApiError(await res.json().catch(() => ({}))) || `HTTP ${res.status}`);
     const { crop_x } = await res.json();
-    if (crop_x == null) { note.textContent = 'No face found — set the crop manually.'; return; }
+    if (crop_x == null) { note.textContent = 'No face found - set the crop manually.'; return; }
     _edSetCropX(crop_x);
     note.textContent = 'Framed on faces.';
   } catch (err) {

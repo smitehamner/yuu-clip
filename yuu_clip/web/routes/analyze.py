@@ -1,4 +1,4 @@
-# Feature-map — Analyze (code: ingest / run_ingest) + Import from URL
+# Feature-map - Analyze (code: ingest / run_ingest) + Import from URL
 #   UI: static/analyze.js (New Recording panel) · export/retranscribe from clips.js
 #   Siblings: pipeline/ingest.py (engine) · web/analyze_job.py · tests/test_analyze.py, tests/test_ui_analyze.py
 """
@@ -46,14 +46,14 @@ def _analyze_running(ctx: ProjectContext) -> bool:
     return analyze_in_flight(ctx)
 
 # Optional packages installable from Settings. Everything else the app needs is
-# bundled by default (packaging-strategy overhaul, Tier A) — only two things remain
+# bundled by default (packaging-strategy overhaul, Tier A) - only two things remain
 # a genuine pip-install action: Pyannote (the token-gated alternative to the
 # default, bundled SpeechBrain speaker-labels backend) and the CUDA libraries for
 # GPU-accelerated transcription (hardware-dependent, opt-in).
 #
-# _INSTALLABLE maps a UI slug to its pip package name(s) — what POST /api/install
+# _INSTALLABLE maps a UI slug to its pip package name(s) - what POST /api/install
 # will actually install. _IMPORT_NAMES maps a slug to the import module name(s)
-# used to report install status (pip name ≠ import name for some) — it also covers
+# used to report install status (pip name ≠ import name for some) - it also covers
 # "speechbrain", which has no install action anymore but still needs a read-only
 # status check (the analyze/export panels gate the speaker-labels checkbox on it).
 _INSTALLABLE: dict[str, str | list[str]] = {
@@ -70,7 +70,7 @@ _IMPORT_NAMES: dict[str, list[str]] = {
 # Seconds of video processed per second of wall-clock time. Recalibrated against
 # real analyze_run_json timings across 0.5h–7.9h recordings on this GPU (single
 # transcribed track, cuda float16): base ≈20×, medium ≈9–29× (wide, speech-density
-# dependent — kept conservative), large-v3 ≈4× (one short overhead-heavy sample).
+# dependent - kept conservative), large-v3 ≈4× (one short overhead-heavy sample).
 _WHISPER_GPU_SPEED: dict[str, float] = {
     "large-v3": 5, "large-v2": 5, "large": 5,
     "medium": 15, "small": 17, "base": 20, "tiny": 35,
@@ -104,7 +104,7 @@ _DIARIZATION_RT_SPEED = {"gpu": 18.0, "cpu": 3.0}
 
 # ── Measured-rate estimate (from past analyze_run_json timings) ────────────
 # StageRecorder stage names (yuu_clip/pipeline/run_meta.py) this estimator can use.
-# "Score" is one combined energy+scenes+LLM-scoring pass (see pipeline.ingest._run_scoring) —
+# "Score" is one combined energy+scenes+LLM-scoring pass (see pipeline.ingest._run_scoring) -
 # there is no per-substage timing, so it grounds only the "LLM scoring" display step
 # (energy/scene detection keep their static, mode-driven formulas).
 _STAGE_NAME_TO_KEY = {
@@ -121,7 +121,7 @@ _MEASURED_MIN_SAMPLES  = 2   # matching samples required before trusting the med
 def _measured_rates(db, model: str, has_gpu: bool) -> dict[str, float]:
     """Median seconds-of-processing per second-of-video, per pipeline stage,
     from the last _MEASURED_SAMPLE_LIMIT completed runs whose recorded model
-    and device match the requested run — a model or device change would
+    and device match the requested run - a model or device change would
     otherwise poison the estimate with an unrelated speed.
 
     A stage key is only returned once at least _MEASURED_MIN_SAMPLES matching
@@ -144,7 +144,7 @@ def _measured_rates(db, model: str, has_gpu: bool) -> dict[str, float]:
             device = run["device"]
             stages = run["stages"]
         except (TypeError, ValueError, KeyError):
-            continue  # malformed/legacy run_json — skip, never raise
+            continue  # malformed/legacy run_json - skip, never raise
         if settings.get("model") != model or bool(device.get("has_gpu")) != has_gpu:
             continue
         duration_s = duration_ms / 1000
@@ -194,7 +194,7 @@ class IngestRequest(BaseModel):
     # running Whisper.  None = use Whisper (default).
     subtitle_source: Optional[str] = None
     # Target an existing video record by ID (reanalyze after split).
-    # When provided, path is ignored — the video's stored path is used.
+    # When provided, path is ignored - the video's stored path is used.
     video_id: Optional[int] = None
     # For pre-analysis split: trim the source file to this time window.
     segment_start_s: Optional[float] = None
@@ -278,12 +278,12 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         if _analyze_running(ctx):
             running = ctx.analyze_job.filename if ctx.analyze_job else ctx.analyze_pending_filename
             _log.warning(
-                "Analyze start rejected — job already running (running=%s, requested=%s)",
+                "Analyze start rejected - job already running (running=%s, requested=%s)",
                 running, req.path or req.video_id,
             )
             raise HTTPException(
                 409,
-                "Another job is still running — wait for it to finish or cancel it "
+                "Another job is still running - wait for it to finish or cancel it "
                 "before starting a new analysis.",
             )
         from yuu_clip.analyze.pause import remove_pause_flag
@@ -352,14 +352,14 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             # reconnect to an analysis already in progress. Null for score/export jobs.
             "analyze_filename": job.filename if job_running else None,
             "analyze_video_id": job.video_id if job_running else None,
-            # Requires a live job — a pause requested during the last video must not
+            # Requires a live job - a pause requested during the last video must not
             # keep showing "paused" once the job has already finished.
             "analyze_paused": job_running and pause_flag_exists(ctx.project_dir),
             # Raw flag state, independent of a live job. The JS sequential-segment
             # runners (each segment is its own separate AnalyzeJob) poll this between
             # segments, when there is briefly no "running" job for analyze_paused to key off.
             "pause_flag_set": pause_flag_exists(ctx.project_dir),
-            # GPU thermal monitoring — null/"unavailable" when no NVIDIA GPU is present.
+            # GPU thermal monitoring - null/"unavailable" when no NVIDIA GPU is present.
             "gpu_temp_c": job.gpu_temp_c if job_running else None,
             "gpu_state": job.gpu_state if job_running else "unavailable",
             # Auto-pause config so the "running hot" warning can tell the user what
@@ -411,7 +411,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     async def pause_analyze():
         """Request a pause before the next video in the running batch starts.
 
-        The video currently in progress always finishes — this only holds the
+        The video currently in progress always finishes - this only holds the
         loop before it starts the next one. No-op with a clear message when no
         job is running (including single-video runs, where it simply never fires).
         """
@@ -421,7 +421,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         from yuu_clip.analyze.pause import create_pause_flag
         create_pause_flag(ctx.project_dir)
         job.pause_requested = True
-        _log.info("Analyze pause requested — will hold before the next video")
+        _log.info("Analyze pause requested - will hold before the next video")
         return {"status": "pause-requested"}
 
     @router.post("/api/analyze/resume")
@@ -435,10 +435,10 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             remove_pause_flag(ctx.project_dir)
         except OSError as e:
             _log.error("Failed to remove pause flag: %s", e)
-            raise HTTPException(500, f"Could not resume — the pause flag file could not be removed: {e}")
+            raise HTTPException(500, f"Could not resume - the pause flag file could not be removed: {e}")
         job.pause_requested = False
         if job.thermal_trigger is not None:
-            # Suppress auto-pause from immediately re-firing on a still-hot GPU —
+            # Suppress auto-pause from immediately re-firing on a still-hot GPU -
             # see ThermalTrigger.note_resumed.
             job.thermal_trigger.note_resumed()
         _log.info("Analyze resumed")
@@ -459,13 +459,13 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         ctx.analyze_cmd = None
         ctx.analyze_pending_filename = None
         ctx.analyze_pending_video_id = None
-        # Cancel always wins over a pending pause — leaving the flag would start
+        # Cancel always wins over a pending pause - leaving the flag would start
         # the next run already paused.
         from yuu_clip.analyze.pause import remove_pause_flag
         remove_pause_flag(ctx.project_dir)
         # Flip the killed run's row out of the transient 'extracting' state (the
         # long extract+transcribe phase) so the sidebar stops showing an eternal
-        # spinner — same cleanup the server runs on startup for crashed runs.
+        # spinner - same cleanup the server runs on startup for crashed runs.
         from yuu_clip.web.app import _fail_interrupted_analyses
         _fail_interrupted_analyses(ctx)
         return {"status": "cancelled"}
@@ -573,7 +573,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     async def install_status(slug: str):
         """Report whether an optional package's import modules are present."""
         if slug not in _IMPORT_NAMES:
-            raise HTTPException(400, f"Unknown package slug '{slug}' — allowed: {sorted(_IMPORT_NAMES)}")
+            raise HTTPException(400, f"Unknown package slug '{slug}' - allowed: {sorted(_IMPORT_NAMES)}")
         installed = all(module_findable(module) for module in _IMPORT_NAMES[slug])
         return {"installed": installed}
 
@@ -581,7 +581,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     async def install_package(slug: str):
         """Install an optional pip package into the current Python environment."""
         if slug not in _INSTALLABLE:
-            raise HTTPException(400, f"Unknown package slug '{slug}' — allowed: {sorted(_INSTALLABLE)}")
+            raise HTTPException(400, f"Unknown package slug '{slug}' - allowed: {sorted(_INSTALLABLE)}")
         pkgs = _INSTALLABLE[slug]
         packages = pkgs if isinstance(pkgs, list) else [pkgs]
         cmd = [sys.executable, "-m", "pip", "install", *packages]
@@ -598,7 +598,7 @@ async def _thermal_poll_loop(ctx: ProjectContext, job) -> None:
     sustained high temperature (see analyze.thermal.ThermalTrigger). Cancelled
     from AnalyzeJob._pump's finally block when the job ends.
 
-    A no-op (returns immediately) when no NVIDIA GPU is available — the
+    A no-op (returns immediately) when no NVIDIA GPU is available - the
     monitor itself already logged one WARN explaining why.
     """
     from yuu_clip.analyze.pause import create_pause_flag
@@ -612,7 +612,7 @@ async def _thermal_poll_loop(ctx: ProjectContext, job) -> None:
     job.gpu_state = "ok"
     try:
         while not job.done:
-            cfg = ctx.config  # read thresholds fresh each poll — may change mid-run
+            cfg = ctx.config  # read thresholds fresh each poll - may change mid-run
             result = trigger.poll(cfg.thermal_warn_c, cfg.thermal_pause_c, cfg.thermal_autopause_enabled)
             job.gpu_temp_c = result.temp_c
             job.gpu_state = result.state
@@ -625,14 +625,14 @@ async def _thermal_poll_loop(ctx: ProjectContext, job) -> None:
             if result.pause_triggered:
                 _log.warning(
                     "Auto-paused analysis: GPU reached %.0f°C sustained "
-                    "(pause threshold %.0f°C) — holding before the next video",
+                    "(pause threshold %.0f°C) - holding before the next video",
                     result.temp_c, cfg.thermal_pause_c,
                 )
                 create_pause_flag(ctx.project_dir)
                 job.pause_requested = True
                 job._emit(
                     f"[Auto-paused: GPU reached {result.temp_c:.0f}°C "
-                    "— will hold before the next video]"
+                    " -  will hold before the next video]"
                 )
             await asyncio.sleep(_THERMAL_POLL_INTERVAL_S)
     except asyncio.CancelledError:
@@ -779,7 +779,7 @@ def _compute_time_estimate(req: EstimateRequest, db=None, warn_hours: float = 2.
         },
     ]
     if "score" in measured:
-        # "Score" is the one combined energy+scenes+LLM-scoring StageRecorder timing —
+        # "Score" is the one combined energy+scenes+LLM-scoring StageRecorder timing -
         # ground the roughest guess (LLM scoring) in it, net of this run's own energy/
         # scene estimates so the two aren't double-counted against the measured total.
         energy_seconds = steps[2]["seconds"]

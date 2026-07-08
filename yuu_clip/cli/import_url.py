@@ -1,4 +1,4 @@
-"""Import from URL command — download a public Twitch VOD or YouTube video."""
+"""Import from URL command - download a public Twitch VOD or YouTube video."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -31,7 +31,7 @@ def import_url_cmd(
         raise typer.Exit(1)
 
     # Machine-readable marker the web UI's SSE stream looks for to grab the
-    # downloaded path — printed plain (not via console.print) so the literal
+    # downloaded path - printed plain (not via console.print) so the literal
     # brackets aren't misread as Rich markup.
     print(f"[Imported] {path}")
     console.print("\n[bold green]Download complete.[/bold green] Open New Recording to analyze it.\n")

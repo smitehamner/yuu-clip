@@ -1,4 +1,4 @@
-// Feature-map — Pure formatters and score helpers: no DOM, no fetch. HTML-escape, API-error text,
+// Feature-map - Pure formatters and score helpers: no DOM, no fetch. HTML-escape, API-error text,
 //   duration/date/offset formatting, video-status labels, and the score color/icon encoding.
 //   API: none (client-only) · Tests: tests/test_ui_utils.py
 // ── score utils ───────────────────────────────────────────────────────────────
@@ -58,10 +58,10 @@ function plural(count, singular, pluralForm) {
 
 // Standard guard for any computed number shown to the user: returns *value*
 // only when it is a finite number, otherwise a plain-English *fallback*. NaN
-// or Infinity — usually from arithmetic on missing/partial data — must never
+// or Infinity - usually from arithmetic on missing/partial data - must never
 // reach the UI as the literal "NaN"/"Infinity". Use this (or fmtDuration) at
 // every display site that formats a derived number.
-function finiteOr(value, fallback = '—') {
+function finiteOr(value, fallback = ' - ') {
   return Number.isFinite(value) ? value : fallback;
 }
 

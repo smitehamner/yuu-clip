@@ -1,4 +1,4 @@
-"""Caption/transcript routes — per-clip transcript lines, context transcript for the
+"""Caption/transcript routes - per-clip transcript lines, context transcript for the
 export editor, caption-segment text edits, and the WebVTT sidecar for the player.
 """
 from __future__ import annotations
@@ -22,7 +22,7 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
         """Timed transcript lines for the clip, clip-relative (0 = clip start).
 
         Each line carries start/end ms, the diarized speaker name (or null), and
-        text — drives the per-line play-to-seek transcript view.
+        text - drives the per-line play-to-seek transcript view.
         """
         from yuu_clip.subtitles import clip_transcript_lines
         db = ctx.get_db()
@@ -59,7 +59,7 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
         """Edit a caption segment's text, then rebuild the excerpt of every clip that
         overlaps it and flag those clips as needing a re-score.
 
-        Preserves the segment's speaker and timing — only the text changes.
+        Preserves the segment's speaker and timing - only the text changes.
         """
         from yuu_clip.subtitles import refresh_export_sidecars
         new_text = body.text.strip()
@@ -76,7 +76,7 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
             for clip in affected:
                 refresh_export_sidecars(clip, ctx.export_dir, ctx.config.export_name_template)
             _log.info(
-                "Edited caption segment %d (video %d) — rebuilt %d clip excerpt(s)",
+                "Edited caption segment %d (video %d) - rebuilt %d clip excerpt(s)",
                 seg_id, video_id, len(affected),
             )
             return {

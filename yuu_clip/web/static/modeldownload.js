@@ -1,4 +1,4 @@
-// Feature-map — Background model-download handoffs + in-app progress banners
+// Feature-map - Background model-download handoffs + in-app progress banners
 //   (first-run-friction Stages 4 + 6). On boot two independent background
 //   downloads can start: the local LLM the wizard queued (config.pending_local_model)
 //   and the analysis-model prefetch - speech + speaker (unless model_prefetch_disabled). Each
@@ -64,7 +64,7 @@ async function initModelDownload() {
     status = await fetch('/api/llm/download-status').then(r => r.json());
   } catch { return; }
   if (!status || !status.pending_model_id) return;
-  // Another tab/stream already owns the download — do not start a second one.
+  // Another tab/stream already owns the download - do not start a second one.
   if (status.downloading) return;
   let cap;
   try {
@@ -72,7 +72,7 @@ async function initModelDownload() {
   } catch { cap = {text: false}; }
   if (cap && cap.text) {
     // A working model already exists (e.g. the wizard downloaded it, or a manual
-    // path was set) — the pending flag is stale, so clear it and show nothing.
+    // path was set) - the pending flag is stale, so clear it and show nothing.
     await _clearPending();
     return;
   }

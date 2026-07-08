@@ -27,14 +27,14 @@ _FIELDS = [
 BUILTIN_CONTEXTS: dict[str, dict] = {
     "fantasy-rp": {
         "display_name": "Fantasy RP",
-        "setting": "Fantasy roleplay session — tabletop RPG over VTT, or MMORPG RP. Players speak in-character and react to story events and each other.",
+        "setting": "Fantasy roleplay session - tabletop RPG over VTT, or MMORPG RP. Players speak in-character and react to story events and each other.",
         "your_characters": "",
         "other_characters": "",
         "notes": "Add your character name, other player names, and DM/GM. Great highlights: dramatic reveals, character deaths or near-deaths, emotional payoffs, funny in-character misunderstandings, and recurring group bits.",
     },
     "multiplayer-shooter": {
         "display_name": "Multiplayer Shooter",
-        "setting": "Multiplayer shooter — FPS, TPS, or hero shooter (e.g. Apex, Overwatch, Valorant, Call of Duty). Players react in real-time to gunfights, team plays, and match events.",
+        "setting": "Multiplayer shooter - FPS, TPS, or hero shooter (e.g. Apex, Overwatch, Valorant, Call of Duty). Players react in real-time to gunfights, team plays, and match events.",
         "your_characters": "",
         "other_characters": "",
         "notes": "Add your game, role or agent, and squad names. Great highlights: clutch multi-kills, comeback rounds, funny team comms, impossible survival moments, ace or squad-wipe reactions.",
@@ -55,7 +55,7 @@ BUILTIN_CONTEXTS: dict[str, dict] = {
     },
     "horror-game": {
         "display_name": "Horror Game",
-        "setting": "Horror game session. The key highlight shape is reaction — buildup of dread, the scare itself, and the immediate aftermath. Co-op horror adds group panic and blame.",
+        "setting": "Horror game session. The key highlight shape is reaction - buildup of dread, the scare itself, and the immediate aftermath. Co-op horror adds group panic and blame.",
         "your_characters": "",
         "other_characters": "",
         "notes": "Add your game and any co-op partners. Great highlights: jump scare reactions, tense survival close-calls, funny nervous commentary, unexpected deaths, first enemy encounters.",
@@ -76,7 +76,7 @@ BUILTIN_CONTEXTS: dict[str, dict] = {
     },
     "speedrun": {
         "display_name": "Speedrun",
-        "setting": "Speedrun attempt or routing practice. The highlight arc runs split-by-split — ahead of pace creates tension, a death or reset is a dramatic beat, a PB or WR finish is the payoff.",
+        "setting": "Speedrun attempt or routing practice. The highlight arc runs split-by-split - ahead of pace creates tension, a death or reset is a dramatic beat, a PB or WR finish is the payoff.",
         "your_characters": "",
         "other_characters": "",
         "notes": "Add your game, category (e.g. 'Any%', 'All Dungeons'), and current PB and WR to compare against. Great highlights: PB splits, WR-pace moments, hype routing decisions, heartbreak resets, finish-line reactions.",
@@ -93,7 +93,7 @@ BUILTIN_CONTEXTS: dict[str, dict] = {
         "setting": "Game with self-imposed challenge rules that raise stakes (e.g. Pokémon Nuzlocke, randomizer, Ironman mode). Losses are permanent or heavily penalized, making failures and survival equally dramatic.",
         "your_characters": "",
         "other_characters": "",
-        "notes": "Add your game, full ruleset (e.g. 'Nuzlocke — faint = release'), and any named party members or key units. Great highlights: unexpected loss of a beloved team member, low-HP clutch survival, restrictions creating funny situations, gym or boss victories against the odds.",
+        "notes": "Add your game, full ruleset (e.g. 'Nuzlocke - faint = release'), and any named party members or key units. Great highlights: unexpected loss of a beloved team member, low-HP clutch survival, restrictions creating funny situations, gym or boss victories against the odds.",
     },
     "podcast": {
         "display_name": "Podcast / Talk Show",
@@ -104,7 +104,7 @@ BUILTIN_CONTEXTS: dict[str, dict] = {
     },
     "just-chatting": {
         "display_name": "Just Chatting / IRL",
-        "setting": "Talking-to-chat or IRL stream — reactions, Q&A, stories, and community interaction rather than a specific game. Personality carries the session.",
+        "setting": "Talking-to-chat or IRL stream - reactions, Q&A, stories, and community interaction rather than a specific game. Personality carries the session.",
         "your_characters": "",
         "other_characters": "",
         "notes": "Add your handle and any frequent chatters, mods, or guests. Great highlights: genuine reactions, funny stories, community callbacks, spicy takes, and anything worth clipping for social media.",
@@ -125,7 +125,7 @@ def load_contexts(project_dir: Path) -> dict:
     try:
         return json.loads(p.read_text(encoding="utf-8"))
     except Exception as exc:
-        _log.error("contexts.json is corrupt and could not be loaded: %s — returning empty set", exc)
+        _log.error("contexts.json is corrupt and could not be loaded: %s - returning empty set", exc)
         return {}
 
 

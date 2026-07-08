@@ -7,7 +7,7 @@ clip candidates.  Candidates shorter than `min_clip_ms` are dropped;
 those longer than `hard_split_ms` are force-split regardless of silence.
 
 This produces far more natural candidate boundaries than a fixed
-sliding window — recorded sessions have natural conversational rhythms
+sliding window - recorded sessions have natural conversational rhythms
 that align with these gaps.
 """
 from __future__ import annotations
@@ -45,7 +45,7 @@ def generate_candidates(
             all_segments.extend(t.segments)
 
     if not all_segments:
-        _log.info("generate_candidates: no transcribable segments for video %d — returning empty", video.id)
+        _log.info("generate_candidates: no transcribable segments for video %d - returning empty", video.id)
         return []
 
     all_segments.sort(key=lambda s: s.start_ms)
@@ -74,7 +74,7 @@ def generate_candidates(
         candidates.append(cand)
 
     _log.info(
-        "generate_candidates: video %d — %d segments → %d candidates (silence=%dms, min=%dms, hard=%dms)",
+        "generate_candidates: video %d - %d segments → %d candidates (silence=%dms, min=%dms, hard=%dms)",
         video.id, len(all_segments), len(candidates),
         config.silence_threshold_ms, config.min_clip_ms, config.hard_split_ms,
     )
@@ -126,8 +126,8 @@ def _build_excerpt(segs: list[TranscriptSegment]) -> str:
 def clip_window_segments(video: Video, start_ms: int, end_ms: int) -> list[TranscriptSegment]:
     """Segments from the video's transcribable tracks that overlap [start_ms, end_ms).
 
-    Uses the newest transcript per track — the same source generate_candidates
-    built the excerpt from — so a rebuild reproduces the original grouping.
+    Uses the newest transcript per track - the same source generate_candidates
+    built the excerpt from - so a rebuild reproduces the original grouping.
     """
     segs: list[TranscriptSegment] = []
     for track in video.audio_tracks:
@@ -145,8 +145,8 @@ def clip_window_segments(video: Video, start_ms: int, end_ms: int) -> list[Trans
 def rebuild_clip_excerpt(clip: ClipCandidate) -> None:
     """Recompute ``clip.transcript_excerpt`` from the current segments in its window.
 
-    Call after a caption edit or speaker rename so the excerpt — and any re-score
-    that reads it — reflects the change. Mirrors the excerpt build in
+    Call after a caption edit or speaker rename so the excerpt - and any re-score
+    that reads it - reflects the change. Mirrors the excerpt build in
     generate_candidates so an untouched clip's excerpt is unchanged.
     """
     clip.transcript_excerpt = build_excerpt_for_window(clip.video, clip.start_ms, clip.end_ms)
@@ -177,8 +177,8 @@ def _silence_window(
 
     Windows whose transcript text is sparser than *min_speech_cps* characters
     per second are dropped as mostly-silence (0 disables the check). This is what
-    keeps a Whisper runaway-timestamp segment — one hallucinated line stamped
-    across many minutes — from becoming a long, near-empty clip.
+    keeps a Whisper runaway-timestamp segment - one hallucinated line stamped
+    across many minutes - from becoming a long, near-empty clip.
     """
     if not segments:
         return []

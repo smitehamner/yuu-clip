@@ -29,7 +29,7 @@ def serve(
     console.print(f"  Project:  [dim]{proj_dir}[/dim]")
     console.print(f"  Serving at [cyan]http://{host}:{port}[/cyan]  (Ctrl+C to stop)")
     if reload:
-        console.print("  [yellow]Reload mode on — server restarts when source files change[/yellow]")
+        console.print("  [yellow]Reload mode on - server restarts when source files change[/yellow]")
 
     if open_browser:
         def _open_after_delay() -> None:

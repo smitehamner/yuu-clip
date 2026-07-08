@@ -1,13 +1,13 @@
-# Feature-map — World context (code: rp_context / Context; UI term "Contexts")
+# Feature-map - World context (code: rp_context / Context; UI term "Contexts")
 #   UI: static/contexts.js (context manager modal + chips)
 #   Siblings: contexts.py (storage + prompt formatting) · tests/test_profiles_contexts.py, tests/test_ui_contexts.py
 """
 World context CRUD routes.
 
-GET    /api/contexts                    — list all contexts
-POST   /api/contexts                    — create or update a context (upsert by context ID)
-DELETE /api/contexts/{context_id}       — delete a context
-POST   /api/contexts/{context_id}/reset — restore a template context to its shipped content
+GET    /api/contexts                    - list all contexts
+POST   /api/contexts                    - create or update a context (upsert by context ID)
+DELETE /api/contexts/{context_id}       - delete a context
+POST   /api/contexts/{context_id}/reset - restore a template context to its shipped content
 """
 from __future__ import annotations
 
@@ -75,7 +75,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     @router.delete("/api/contexts/{context_id}")
     def delete_context(context_id: str):
         if context_id in BUILTIN_IDS:
-            raise HTTPException(400, "Template contexts cannot be deleted — reset them to the shipped version instead")
+            raise HTTPException(400, "Template contexts cannot be deleted - reset them to the shipped version instead")
         contexts = load_contexts(ctx.project_dir)
         if context_id not in contexts:
             raise HTTPException(404, f"Context '{context_id}' not found")

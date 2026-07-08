@@ -1,11 +1,11 @@
 (function () {
-// Feature-map — Settings optional-package install controls + remote-LLM badge.
+// Feature-map - Settings optional-package install controls + remote-LLM badge.
 //   API: routes/analyze.py (install status/POST) · Tests: tests/test_ui_settings.py
 // ── optional-package installs ────────────────────────────────────────────────
 // Only two install actions remain (packaging-strategy overhaul, Wave 3): Pyannote
 // (the advanced, token-gated alternative to the default SpeechBrain speaker-labels
 // backend) and the CUDA libraries for GPU-accelerated transcription. Everything
-// else the app needs is bundled by default — see the Capabilities overview
+// else the app needs is bundled by default - see the Capabilities overview
 // (_renderCapabilityTiers) for their Ready / "fetches on first use" status.
 async function _refreshInstallStatus(slug) {
   const btn    = document.getElementById(`btn-install-${slug}`);
@@ -60,7 +60,7 @@ async function installPackage(slug) {
       }
     }
   } catch (e) {
-    status.textContent = '✗ Failed — check log above';
+    status.textContent = '✗ Failed - check log above';
     status.style.color = 'var(--red)';
   }
   btn.textContent = 'Retry';
@@ -73,7 +73,7 @@ function _updateLlmRemoteIndicator(backend, llmEnabled) {
   if (badge) badge.style.display = remoteActive ? '' : 'none';
 }
 
-// Public API — installPackage is wired to inline install-button handlers in
+// Public API - installPackage is wired to inline install-button handlers in
 // index.html; _refreshInstallStatus is called from settings.js's
 // _applySettingsToUI; _updateLlmRemoteIndicator from settings.js save + boot.js.
 // _updateDiarizationStatus and _currentPrivacyMode resolve through window

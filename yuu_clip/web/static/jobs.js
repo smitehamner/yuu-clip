@@ -1,11 +1,11 @@
-// Feature-map — Long-running-job machinery: the job-status header (step pills, timer, ETA), the
+// Feature-map - Long-running-job machinery: the job-status header (step pills, timer, ETA), the
 //   pause/resume + thermal auto-pause UI, the fetch-based SSE transport (_openSSE/streamSSE), the
 //   single-active-stream supersede contract, and the shared Cancel button.
 //   API: routes/analyze.py, routes/scoring.py (SSE endpoints) · Tests: tests/test_ui_utils.py, tests/test_ui_sse.py
 // ── shared live job-render state ──────────────────────────────────────────────
 // Read cross-file by videos.js's compact step strip (and _activeES by the SSE
 // teardown in tests). Kept at top level, outside the IIFE below, so the binding
-// stays live in the global lexical scope — an Object.assign export snapshots the
+// stays live in the global lexical scope - an Object.assign export snapshots the
 // value at wrap time and later readers would see stale data.
 let _jobStepDefs   = [];
 let _activeES      = null;
@@ -14,7 +14,7 @@ let _activeStepIdx = -1;
 
 // Per-step progress accounting for the step-pill ETA heuristic. Not read by other
 // production modules, but the step-pill / ETA / live-panel tests seed them directly
-// via page.evaluate, which resolves against the global lexical scope — so they too
+// via page.evaluate, which resolves against the global lexical scope - so they too
 // stay outside the IIFE rather than becoming closure-private.
 let _stepStartTime = 0;
 let _stepProgress  = {}; // stepIdx -> {current, total}, cleared per job
@@ -103,7 +103,7 @@ function startJobUI(stepDefs, jobLabel, cancellable = false, pausable = false) {
   if (window._renderClipFilterCounts) _renderClipFilterCounts();
 }
 
-// Polled every 5s (only while a pausable — i.e. analyze-type — job is active) to
+// Polled every 5s (only while a pausable - i.e. analyze-type - job is active) to
 // drive the job-header GPU temperature readout and the warn/auto-pause notices.
 // Uses /api/status rather than SSE log-line matching so it also works correctly
 // across the JS sequential-segment runners' gaps between per-segment jobs.
@@ -123,13 +123,13 @@ async function _pollThermalStatus() {
   if (status.gpu_state === 'warn' && _lastGpuState !== 'warn' && _lastGpuState !== 'pause') {
     const next = status.thermal_autopause_enabled
       ? `Analysis will auto-pause if it reaches ${Math.round(status.thermal_pause_c)}°C.`
-      : `Auto-pause is off — pause the job manually if it keeps climbing.`;
-    showToast(`GPU running hot — ${Math.round(status.gpu_temp_c)}°C. ${next}`, 'warning');
+      : `Auto-pause is off - pause the job manually if it keeps climbing.`;
+    showToast(`GPU running hot - ${Math.round(status.gpu_temp_c)}°C. ${next}`, 'warning');
   }
   if (status.gpu_state === 'pause' && _lastGpuState !== 'pause') {
     _jobPaused = true;
     _renderPauseUI();
-    showToast(`Auto-paused: GPU reached ${Math.round(status.gpu_temp_c)}°C — will hold before the next video`, 'warning', {
+    showToast(`Auto-paused: GPU reached ${Math.round(status.gpu_temp_c)}°C - will hold before the next video`, 'warning', {
       durationMs: 20000,
       action: {label: 'Resume now', onClick: togglePauseJob},
     });
@@ -137,7 +137,7 @@ async function _pollThermalStatus() {
   _lastGpuState = status.gpu_state;
 }
 
-// "Pause after current video" toggle in the job header — only shown for jobs
+// "Pause after current video" toggle in the job header - only shown for jobs
 // backed by the pause flag file (the single analyze stream and the JS
 // sequential-segment runners; see togglePauseJob).
 function _renderPauseUI() {
@@ -149,7 +149,7 @@ function _renderPauseUI() {
   badge.style.display = _jobPaused ? '' : 'none';
 }
 
-// Reflects an already-paused job discovered via /api/status (page reconnect) —
+// Reflects an already-paused job discovered via /api/status (page reconnect) -
 // does not itself call the pause/resume API.
 function _setPausedUIFromStatus(paused) {
   _jobPaused = !!paused;
@@ -198,7 +198,7 @@ function updateJobUI(line) {
     // When the pipeline advances a stage, refresh the sidebar so a newly-analyzing
     // recording appears (replacing its placeholder) and its status stays current.
     _debouncedSidebarRefresh();
-    // Also refresh the open clip list — picks up the batch "Generate Clips" just
+    // Also refresh the open clip list - picks up the batch "Generate Clips" just
     // committed, and clears any stale progress text from the stage just left.
     _debouncedClipListRefresh();
   }
@@ -210,7 +210,7 @@ function updateJobUI(line) {
   if (activeDef && activeDef.progressPattern) {
     const m = line.match(activeDef.progressPattern);
     if (m) {
-      // Real progress means the model is ready and transcription is running —
+      // Real progress means the model is ready and transcription is running -
       // drop any waiting message so the pill switches back to live counts.
       delete _stepWaitingMsg[_activeStepIdx];
       const current = parseInt(m[1], 10);
@@ -269,7 +269,7 @@ function _stepPillLabel(idx) {
   const {current, total} = progress;
   const pct    = Math.round(current / total * 100);
   // ETA from throughput since the rate anchor (first observed count), not from
-  // elapsed/current — the latter let a slow cold first item project absurd
+  // elapsed/current - the latter let a slow cold first item project absurd
   // figures (e.g. "77 min left" that vanished when the step finished seconds later).
   const anchor = _stepRateAnchor[idx];
   let eta = '';
@@ -286,7 +286,7 @@ function _stepPillLabel(idx) {
 
 // Paints one step pill's text and, for an in-progress step with known counts,
 // a two-tone gradient fill standing in for a progress bar (done/pending pills
-// keep their flat CSS class color — no fill). Shared by the header pill row
+// keep their flat CSS class color - no fill). Shared by the header pill row
 // and (via _syncAnalysisLivePanel) the in-detail mirror panel.
 function _renderStepPill(idx) {
   const el = document.getElementById(`step-${idx}`);
@@ -334,9 +334,9 @@ function endJobUI() {
 // Low-level SSE reader using fetch + ReadableStream so non-200 HTTP responses
 // can be read for their error detail (EventSource.onerror cannot do this).
 //
-// onLine(msg)  — called for each parsed SSE payload before __DONE__
-// onDone(msg)  — called with the full __DONE__ payload (string or object)
-// onError(str) — called with a plain-language message on HTTP error or network loss
+// onLine(msg)  - called for each parsed SSE payload before __DONE__
+// onDone(msg)  - called with the full __DONE__ payload (string or object)
+// onError(str) - called with a plain-language message on HTTP error or network loss
 //
 // opts (optional): extra fetch init, e.g. {method: 'POST'} for the model-download
 // endpoints, which are POST-only (a GET 405s). Defaults to a GET, as the analyze
@@ -373,16 +373,16 @@ function _openSSE(url, onLine, onDone, onError, opts = {}) {
         }
       }
     } catch (err) {
-      if (!ctrl.signal.aborted) onError('Connection lost — server disconnected');
+      if (!ctrl.signal.aborted) onError('Connection lost - server disconnected');
     }
   }).catch(err => {
-    if (!ctrl.signal.aborted) onError(`Could not connect — ${err.message}`);
+    if (!ctrl.signal.aborted) onError(`Could not connect - ${err.message}`);
   });
   return handle;
 }
 
 // Only one job stream is live at a time. Starting a new job aborts the previous
-// one — but aborting suppresses its onDone/onError, so its UI teardown (button
+// one - but aborting suppresses its onDone/onError, so its UI teardown (button
 // re-enable, progress pill) would never run. Each job registers that teardown as
 // a cleanup so a superseding job can run it. See _supersedeActiveStream.
 function _setActiveStream(handle, cleanup = null) {
@@ -438,14 +438,14 @@ function streamSSE(url, onDone, stepDefs, jobLabel, cancellable = false, onLine 
 // Polled by the JS sequential-segment runners (analyze.js's pre-split loop,
 // split.js's re-split loop) before firing off each segment's own analyze job.
 // Each segment is a separate AnalyzeJob, so there is a gap between segments
-// with no "running" job for /api/status's analyze_paused to key off — this
+// with no "running" job for /api/status's analyze_paused to key off - this
 // checks the raw pause flag file instead (pause_flag_set).
 async function _waitWhileAnalyzePaused() {
   let toasted = false;
   while (true) {
     const status = await fetch('/api/status').then(r => r.json()).catch(() => null);
     if (!status || !status.pause_flag_set) return;
-    if (!toasted) { showToast('Paused — will hold before the next segment', 'info'); toasted = true; }
+    if (!toasted) { showToast('Paused - will hold before the next segment', 'info'); toasted = true; }
     await new Promise(resolve => setTimeout(resolve, 3000));
   }
 }
@@ -477,13 +477,13 @@ function cancelJob() {
 
 async function _doCancelJob() {
   const cancel = _activeCancel;
-  // Cancel on the server FIRST — if it fails, the job is still running, so
+  // Cancel on the server FIRST - if it fails, the job is still running, so
   // keep the stream attached and the job UI up instead of pretending it stopped.
   try {
     const res = await fetch(cancel.url, {method: 'POST'});
     if (!res.ok) throw new Error(`Server error ${res.status}`);
   } catch (err) {
-    showToast(`Could not cancel — ${err.message}`, 'error');
+    showToast(`Could not cancel - ${err.message}`, 'error');
     return;
   }
   _supersedeActiveStream();

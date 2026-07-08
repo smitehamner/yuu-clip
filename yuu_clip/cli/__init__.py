@@ -1,5 +1,5 @@
 """
-yuuclip  —  YuuClip — video session clip extraction CLI.
+yuuclip  -  YuuClip - video session clip extraction CLI.
 
 The Typer app and shared helpers live in ``_base``; each command group is a
 submodule that registers its commands on the shared ``app`` at import time.

@@ -1,11 +1,11 @@
 """
-Reattachable analyze job — decouples the analyze subprocess from the HTTP stream.
+Reattachable analyze job - decouples the analyze subprocess from the HTTP stream.
 
 The analyze subprocess is launched once and its stdout is pumped into an
 in-memory broadcast buffer. Any number of SSE clients can attach (and reattach,
 e.g. after a browser refresh): each first replays everything emitted so far,
 then continues live. The subprocess is terminated ONLY on an explicit cancel or
-on server shutdown — never when an SSE client disconnects. This is what lets a
+on server shutdown - never when an SSE client disconnects. This is what lets a
 running analysis survive a page refresh.
 
 Contrast with sse.subprocess_sse (used by score/export/retranscribe/install):
@@ -47,11 +47,11 @@ class AnalyzeJob:
         self.cancelled = False
         self.returncode: Optional[int] = None
         self._pump_task: Optional[asyncio.Task] = None
-        # Set/cleared by POST /api/analyze/pause|resume — mirrors the pause flag
+        # Set/cleared by POST /api/analyze/pause|resume - mirrors the pause flag
         # file's existence so /api/status can report state without a filesystem
         # check on every poll.
         self.pause_requested = False
-        # GPU thermal monitoring — set by the poll task started in
+        # GPU thermal monitoring - set by the poll task started in
         # /api/analyze/events (web/routes/analyze.py::_thermal_poll_loop) and read
         # by /api/status. thermal_trigger holds this run's ThermalTrigger so a
         # resume can call note_resumed() for auto-pause hysteresis.
@@ -109,7 +109,7 @@ class AnalyzeJob:
         return StreamingResponse(self._stream(), media_type="text/event-stream")
 
     async def _stream(self) -> AsyncGenerator[str, None]:
-        # Snapshot the buffer and register as a subscriber atomically — no await
+        # Snapshot the buffer and register as a subscriber atomically - no await
         # between the two lines means the pump cannot interleave, so every line is
         # delivered exactly once (replayed OR queued, never both, never dropped).
         queue: asyncio.Queue = asyncio.Queue()

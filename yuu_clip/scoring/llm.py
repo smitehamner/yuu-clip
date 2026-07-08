@@ -1,10 +1,10 @@
 """
-LLMScorer — sends the transcript excerpt to an LLM and parses dimension scores.
+LLMScorer - sends the transcript excerpt to an LLM and parses dimension scores.
 
 Supports three backends (config: llm_backend):
-  "llamacpp" — llama-cpp-python; local, no API costs.
-  "ollama"   — Ollama HTTP API; local, no API costs.
-  "claude"   — Anthropic Claude API; REMOTE, billed per token.
+  "llamacpp" - llama-cpp-python; local, no API costs.
+  "ollama"   - Ollama HTTP API; local, no API costs.
+  "claude"   - Anthropic Claude API; REMOTE, billed per token.
 
 Gracefully degrades: if the backend is unreachable or returns bad output,
 logs a warning and returns a zero ScoreResult so ingest is never blocked.
@@ -29,10 +29,10 @@ log = logging.getLogger(__name__)
 
 # User-facing reasons for the two AI-privacy-mode blocks (Stage non-llm-tiers/07).
 _GENERATIVE_OFF_REASON = (
-    "Generative AI is turned off — change it under Settings → AI privacy"
+    "Generative AI is turned off - change it under Settings → AI privacy"
 )
 _REMOTE_BLOCKED_REASON = (
-    "The remote (Claude) backend is blocked by AI privacy mode — switch to a local model "
+    "The remote (Claude) backend is blocked by AI privacy mode - switch to a local model "
     "or allow remote models under Settings → AI privacy"
 )
 
@@ -44,7 +44,7 @@ def _prepend_context(system_prompt: str, context_text: str) -> str:
 def _active_flavor(config: "Config") -> str:
     """The active content preset's flavor paragraph (plan 12), '' for generic.
 
-    Read live at prompt-assembly time — the applied preset only stores its id in
+    Read live at prompt-assembly time - the applied preset only stores its id in
     Config.content_preset; the flavor text itself lives in content_presets.py so it
     stays improvable in updates without re-applying a preset.
     """
@@ -76,7 +76,7 @@ def _repair_request(bad_raw: str, exc: Exception) -> list[dict]:
         {"role": "assistant", "content": bad_raw},
         {"role": "user", "content": (
             f"That response was not valid JSON ({exc}). Reply again with ONLY "
-            "the corrected JSON — no markdown, no extra text."
+            "the corrected JSON - no markdown, no extra text."
         )},
     ]
 
@@ -135,7 +135,7 @@ _VIDEO_SUMMARY_SYSTEM = """\
 You summarize video session recordings for a clip extraction tool.
 Given a session transcript (or excerpt), return JSON with exactly two keys:
   "title":   a 5-8 word headline capturing the session's defining moment or theme
-  "summary": a 3-5 sentence paragraph describing what happened — the key moments and
+  "summary": a 3-5 sentence paragraph describing what happened - the key moments and
              turning points, memorable or funny incidents, and who was involved.
 Return ONLY valid JSON. No markdown, no extra text.\
 """
@@ -146,7 +146,7 @@ You summarize a multi-recording play session for a clip extraction tool.
 You are given the per-recording titles and summaries of every recording in the
 session, in order. Return JSON with exactly two keys:
   "title":   a 5-8 word headline capturing the whole session's arc or defining theme
-  "summary": a 3-5 sentence paragraph describing the session across all recordings —
+  "summary": a 3-5 sentence paragraph describing the session across all recordings -
              how it developed, standout moments, and who was involved.
 Treat the recordings as one continuous session, not separate videos.
 Return ONLY valid JSON. No markdown, no extra text.\
@@ -200,7 +200,7 @@ You are summarizing a 15-minute segment of a video session recording.
 Write 2-4 sentences describing what happened in this time window: key events, turning points,
 memorable moments, who was involved, and how it flowed. Use names if mentioned in the transcript.
 Be specific and grounded in the transcript. Skip filler phrases like "In this segment."
-Return ONLY the paragraph — no JSON, no headings, no extra formatting.\
+Return ONLY the paragraph - no JSON, no headings, no extra formatting.\
 """
 
 
@@ -281,7 +281,7 @@ often address one another directly ("Hey Yuu, watch out", "Nice shot, Alex") or
 identify themselves ("I'm Alex"). Infer each speaker's real name from that evidence.
 
 Rules:
-- Suggest a name only when the evidence is clear. Omit any speaker you cannot identify —
+- Suggest a name only when the evidence is clear. Omit any speaker you cannot identify -
   never guess or invent a name.
 - A name spoken TO someone is usually the name of a DIFFERENT speaker, not the talker.
 - Never assign the same name to two different speaker numbers.
@@ -338,7 +338,7 @@ def describe_clip(
 _VISION_USER_PROMPT = """\
 These images are frames sampled from a single video clip, in time order.
 In 2-3 sentences, describe what is visible on screen: the game or scene, any on-screen
-action or events, and notable UI, HUD, popups, or text. Describe only what you can see —
+action or events, and notable UI, HUD, popups, or text. Describe only what you can see -
 do not guess at audio or dialogue. Reply with the description only, no preamble."""
 
 _VISION_SUMMARY_MAX_CHARS = 1500
@@ -373,7 +373,7 @@ def describe_frames(image_paths, config: "Config", context_text: str = "") -> st
 
 
 def check_vision_available(config: "Config") -> tuple[bool, str]:
-    """Return (available, reason) for image analysis on the active backend — the cheap
+    """Return (available, reason) for image analysis on the active backend - the cheap
     pre-check routes gate on, mirroring check_llm_available. The backstop is the
     client's chat_vision raising VisionNotSupportedError."""
     from yuu_clip.config import resolve_ai_permissions
@@ -384,13 +384,13 @@ def check_vision_available(config: "Config") -> tuple[bool, str]:
     if not permissions.allow_llm:
         return False, _GENERATIVE_OFF_REASON
     if not config.vision_enabled:
-        return False, "Image analysis is turned off — enable it under Settings → LLM scoring"
+        return False, "Image analysis is turned off - enable it under Settings → LLM scoring"
     backend = config.llm_backend
     if backend == "claude":
         if not permissions.allow_remote:
             return False, _REMOTE_BLOCKED_REASON
         ok = bool(config.claude_api_key)
-        return ok, "" if ok else "No Claude API key set — add one under Settings → LLM scoring"
+        return ok, "" if ok else "No Claude API key set - add one under Settings → LLM scoring"
     if backend == "llamacpp":
         from pathlib import Path
         ok = (
@@ -399,20 +399,20 @@ def check_vision_available(config: "Config") -> tuple[bool, str]:
         )
         return ok, "" if ok else (
             "llama.cpp image analysis needs a model file and a vision projector "
-            "(.gguf) — set both under Settings → LLM scoring"
+            "(.gguf) - set both under Settings → LLM scoring"
         )
     from yuu_clip.model_catalog import ollama_vision_tag_bases
     model = (config.ollama_model or "").strip()
     ok = bool(model) and model.split(":", 1)[0].strip().lower() in ollama_vision_tag_bases()
     return ok, "" if ok else (
-        "The current Ollama model can't analyze images — pick a vision model "
+        "The current Ollama model can't analyze images - pick a vision model "
         "under Settings → LLM scoring"
     )
 
 
 _HOTWORD_SEMANTIC_SYSTEM = """\
 You check whether a clip's transcript expresses the concept behind each of a list of
-phrases — not necessarily the literal words, but the same idea, theme, or moment.
+phrases - not necessarily the literal words, but the same idea, theme, or moment.
 
 Return ONLY valid JSON: a list containing the exact phrases (copied verbatim from the
 input list) whose concept is expressed in the transcript. Return [] if none apply.
@@ -423,7 +423,7 @@ No markdown, no extra text.\
 def scan_hotwords_semantic(transcript: str, phrases: list[str], config: "Config") -> list[str]:
     """Ask the LLM which of *phrases* have their concept expressed in *transcript*.
 
-    Returns the subset of *phrases* (verbatim) the model judged as matching — filtered
+    Returns the subset of *phrases* (verbatim) the model judged as matching - filtered
     against the input list so a model that invents a phrase not asked about is ignored.
     Truncates the transcript to 4 000 chars. Raises on failure.
     """

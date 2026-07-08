@@ -74,7 +74,7 @@ class LlamaCppClient(LLMClient):
     def available(self) -> tuple[bool, str]:
         path = self._config.llm_model_path
         if not path:
-            return False, "No model file path set — open Settings (⚙) and set 'Model file path' under LLM scoring"
+            return False, "No model file path set - open Settings (⚙) and set 'Model file path' under LLM scoring"
         from pathlib import Path
         if not Path(path).exists():
             return False, f"Model file not found: {path}"
@@ -93,7 +93,7 @@ class LlamaCppClient(LLMClient):
         """Construct a Llama, offloading to GPU when configured and available.
 
         n_gpu_layers=-1 offloads every layer; on a CPU-only build it's a harmless
-        no-op, but on a GPU build with too little VRAM the load raises — so retry on
+        no-op, but on a GPU build with too little VRAM the load raises - so retry on
         CPU rather than failing scoring outright."""
         from llama_cpp import Llama
         if not self._config.llm_use_gpu:
@@ -102,7 +102,7 @@ class LlamaCppClient(LLMClient):
             return Llama(model_path=self._config.llm_model_path, n_gpu_layers=-1, **kwargs)
         except Exception as exc:
             _log.warning(
-                "llama.cpp GPU offload failed (%s) — falling back to CPU. Turn off "
+                "llama.cpp GPU offload failed (%s) - falling back to CPU. Turn off "
                 "'Use GPU when available' in Settings to skip this attempt.", exc,
             )
             return Llama(model_path=self._config.llm_model_path, n_gpu_layers=0, **kwargs)
@@ -113,7 +113,7 @@ class LlamaCppClient(LLMClient):
         mmproj = self._config.llm_mmproj_path
         if not mmproj or not Path(mmproj).exists():
             raise VisionNotSupportedError(
-                "llama.cpp image analysis needs a vision projector (mmproj .gguf) — "
+                "llama.cpp image analysis needs a vision projector (mmproj .gguf) - "
                 "set 'Vision projector' under Settings → LLM scoring"
             )
         llm = self._new_llama(
@@ -180,7 +180,7 @@ class OllamaClient(LLMClient):
                 if "exceed_context_size" in str(exc) and len(b64_images) > 1:
                     b64_images = b64_images[: max(1, len(b64_images) // 2)]
                     _log.warning(
-                        "Ollama vision context overflow — retrying with %d frame(s)",
+                        "Ollama vision context overflow - retrying with %d frame(s)",
                         len(b64_images),
                     )
                     continue
@@ -188,7 +188,7 @@ class OllamaClient(LLMClient):
 
 
 class ClaudeClient(LLMClient):
-    """Sends requests to the Anthropic API — remote, billed per token."""
+    """Sends requests to the Anthropic API - remote, billed per token."""
     is_remote = True
 
     def __init__(self, config: Config) -> None:
@@ -196,7 +196,7 @@ class ClaudeClient(LLMClient):
 
     def available(self) -> tuple[bool, str]:
         if not self._config.claude_api_key:
-            return False, "No Claude API key set — open Settings (⚙) and enter your Anthropic API key under LLM scoring"
+            return False, "No Claude API key set - open Settings (⚙) and enter your Anthropic API key under LLM scoring"
         try:
             import anthropic
         except ImportError:
@@ -210,11 +210,11 @@ class ClaudeClient(LLMClient):
                 timeout=self._config.claude_timeout_s,
             ).models.list()
         except anthropic.AuthenticationError:
-            return False, "Claude API key was rejected — check the key in Settings (⚙)"
+            return False, "Claude API key was rejected - check the key in Settings (⚙)"
         except AttributeError:
-            return True, ""  # anthropic SDK too old for the Models API — trust the key
+            return True, ""  # anthropic SDK too old for the Models API - trust the key
         except Exception as exc:
-            return False, f"Couldn't reach the Claude API — check your connection: {exc}"
+            return False, f"Couldn't reach the Claude API - check your connection: {exc}"
         return True, ""
 
     def chat(self, messages: list[dict], temperature: float = 0.1) -> str:
@@ -293,7 +293,7 @@ def _system_messages(messages: list[dict]) -> list[dict]:
 def _llamacpp_vision_handler(model_path: str, mmproj_path: str):
     """Pick a llama-cpp-python multimodal chat handler for the model family, keyed on
     the model/projector filenames. Falls back to the LLaVA-1.5 handler, which covers
-    many LLaVA-derived projectors. Untested on this machine — no cp314 wheel and no
+    many LLaVA-derived projectors. Untested on this machine - no cp314 wheel and no
     C++ toolchain to build llama-cpp-python from source (see plan 11 close-out)."""
     from llama_cpp import llama_chat_format as fmt
 
@@ -327,7 +327,7 @@ def _client_class_for(config: Config) -> type[LLMClient]:
 
 
 def backend_is_remote(config: Config) -> bool:
-    """Whether the configured backend sends data off-device — read from the client
+    """Whether the configured backend sends data off-device - read from the client
     class's is_remote attribute without constructing it."""
     return _client_class_for(config).is_remote
 
@@ -344,7 +344,7 @@ def make_client(config: Config) -> LLMClient:
     client_class = _client_class_for(config)
     if client_class.is_remote and not permissions.allow_remote:
         _log.info(
-            "Remote LLM backend %r blocked by AI privacy mode — using NullLLMClient",
+            "Remote LLM backend %r blocked by AI privacy mode - using NullLLMClient",
             config.llm_backend,
         )
         return NullLLMClient()

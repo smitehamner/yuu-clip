@@ -1,4 +1,4 @@
-"""Clip edit routes — description accept/edit/revert, score override, merge,
+"""Clip edit routes - description accept/edit/revert, score override, merge,
 timing, vertical framing (manual + auto), and vision frame analysis.
 """
 from __future__ import annotations
@@ -71,7 +71,7 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
                 if touch_desc_long:
                     clip.description_long_user = None
 
-            # description_edited_at only tracks the short description — that's the
+            # description_edited_at only tracks the short description - that's the
             # only one burned into a title card export.
             if touch_desc:
                 clip.description_edited_at = datetime.now(timezone.utc)
@@ -187,18 +187,18 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
     async def suggest_framing(clip_id: int):
         """Suggest a vertical (9:16) crop position by finding the median face
         position across sampled frames (MediaPipe). Returns {crop_x: float|null}
-        — null when no face is found; the creator still confirms before it sticks.
+        - null when no face is found; the creator still confirms before it sticks.
 
-        503 when the MediaPipe package isn't present — it's bundled with yuu-clip
+        503 when the MediaPipe package isn't present - it's bundled with yuu-clip
         by default, so this only fires on a broken/partial install. The detection
-        runs off the event loop via asyncio.to_thread — it is CPU-bound frame
+        runs off the event loop via asyncio.to_thread - it is CPU-bound frame
         extraction + inference.
         """
         if importlib.util.find_spec("mediapipe") is None:
             raise HTTPException(
                 503,
                 "Auto-framing needs the MediaPipe package, which should be bundled "
-                "with yuu-clip — try reinstalling if this persists.",
+                "with yuu-clip - try reinstalling if this persists.",
             )
         db = ctx.get_db()
         try:
@@ -226,14 +226,14 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
             )
         except Exception as exc:
             _log.error("Auto-framing failed for clip %d: %s", clip_id, exc, exc_info=True)
-            raise HTTPException(500, "Auto-framing failed — see the log for details")
+            raise HTTPException(500, "Auto-framing failed - see the log for details")
         return {"crop_x": crop_x}
 
     @router.post("/api/clips/{clip_id}/analyze-frames")
     async def analyze_frames(clip_id: int):
         """Sample frames from the clip window, send them to the vision model, and store
         a short 'what's on screen' summary that enriches descriptions and gives the text
-        scorer visual context. In-process (asyncio.to_thread) — seconds, not minutes, so
+        scorer visual context. In-process (asyncio.to_thread) - seconds, not minutes, so
         no SSE. 503 when no vision-capable model is configured. Re-running
         overwrites the previous summary.
         """
@@ -249,7 +249,7 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
         reject_if_analyzing(ctx)
         vision_ok, reason = check_vision_available(ctx.config)
         if not vision_ok:
-            raise HTTPException(503, f"Image analysis unavailable — {reason}")
+            raise HTTPException(503, f"Image analysis unavailable - {reason}")
 
         db = ctx.get_db()
         try:
@@ -273,12 +273,12 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
                 frame_count, ctx.config, context_text,
             )
         except VisionNotSupportedError as exc:
-            raise HTTPException(503, f"Image analysis unavailable — {exc}")
+            raise HTTPException(503, f"Image analysis unavailable - {exc}")
         except Exception as exc:
             _log.error("Frame analysis failed for clip %d: %s", clip_id, exc, exc_info=True)
-            raise HTTPException(500, "Image analysis failed — see the log for details")
+            raise HTTPException(500, "Image analysis failed - see the log for details")
         if not summary:
-            raise HTTPException(502, "The vision model returned an empty description — try again")
+            raise HTTPException(502, "The vision model returned an empty description - try again")
         elapsed_s = round(time.monotonic() - started, 1)
 
         save_db = ctx.get_db()

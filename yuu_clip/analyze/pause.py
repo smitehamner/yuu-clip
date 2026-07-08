@@ -1,4 +1,4 @@
-"""Pause/resume flag file — cross-process signal for the analyze batch loop.
+"""Pause/resume flag file - cross-process signal for the analyze batch loop.
 
 The analyze subprocess is a separate process from the web server (AnalyzeJob),
 so pausing between videos is signalled via a flag file rather than in-memory

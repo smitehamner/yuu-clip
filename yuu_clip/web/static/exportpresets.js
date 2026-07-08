@@ -1,12 +1,12 @@
 (function () {
-// Feature-map — Export preset (code: ExportPreset; Settings → Export editor).
+// Feature-map - Export preset (code: ExportPreset; Settings → Export editor).
 //   API: routes/export_presets.py · Tests: tests/test_export_presets.py, tests/test_ui_settings.py
 // ── Export presets (Plan 07) ────────────────────────────────────────────────
 // Custom presets are a global-config preference (Config.export_presets), not
-// per-project DB rows like hot-words — but the Settings editor follows the
+// per-project DB rows like hot-words - but the Settings editor follows the
 // same server-backed-per-row-save table pattern (hotwords.js) against
 // /api/export-presets instead of /api/hotwords. AppState.exportPresets caches
-// {builtins, custom} — populated at boot so the export options picker never
+// {builtins, custom} - populated at boot so the export options picker never
 // needs an extra round trip, refreshed here when Settings opens.
 
 let _draftSeq = 0;
@@ -120,7 +120,7 @@ function _renderExportPresetRows() {
   const builtinRows = (presets.builtins || []).map(_builtinPresetRowHtml).join('');
   const customRows = (presets.custom || []).length
     ? presets.custom.map(_customPresetRowHtml).join('')
-    : '<div style="color:var(--muted);font-size:12px;padding:4px 0 8px">No custom presets yet — add one below.</div>';
+    : '<div style="color:var(--muted);font-size:12px;padding:4px 0 8px">No custom presets yet - add one below.</div>';
   host.innerHTML = builtinRows + customRows;
 }
 

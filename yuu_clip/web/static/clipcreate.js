@@ -1,15 +1,15 @@
 (function () {
-// Feature-map — Manual clip (code: "manual" tag on ClipCandidate).
+// Feature-map - Manual clip (code: "manual" tag on ClipCandidate).
 //   API: routes/clips/crud.py (create_manual_clip) · Tests: tests/test_ui_clipcreate.py, tests/test_clip_create.py
 // ── manual clip creation picker ───────────────────────────────────────────────
 // Lets the creator pick an arbitrary time window from a recording's transcript
 // (or, with no transcript, from typed times) and create a clip from it. The
 // clip then goes through the normal review pipeline: it's created "pending"
-// and LLM-scored right away via the existing rescoreClip() SSE flow — there is
+// and LLM-scored right away via the existing rescoreClip() SSE flow - there is
 // no separate "manual, unscored" state.
 //
 // The picker gets its own inline preview video (like split.js's split-preview-video)
-// rather than reusing #player-area — PanelNav's takeover panel visually covers
+// rather than reusing #player-area - PanelNav's takeover panel visually covers
 // #player-area while open, so seeking that hidden element would give no visible
 // feedback for "Play selection".
 
@@ -53,7 +53,7 @@ function _mountClipCreatePanel(container, video) {
             style="display:none;position:absolute;top:8px;left:8px;background:rgba(0,0,0,.7);color:#e6e6e6;font-size:11px;padding:3px 8px;border-radius:4px"></span>
     </div>
     <div style="font-size:12px;color:var(--muted)">
-      Click a transcript line to set the start, then click a later line to set the end — or type exact times below.
+      Click a transcript line to set the start, then click a later line to set the end - or type exact times below.
     </div>
     <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
       <div id="clipcreate-range-header" style="font-size:14px;font-weight:600"></div>
@@ -104,7 +104,7 @@ async function _ccLoadTranscript(videoId) {
     _ccSeekOffsetS = data.seek_offset_s || 0;
     const lines = data.lines || [];
     if (!lines.length) {
-      el.innerHTML = '<div class="transcript-empty">No transcript yet — the clip will have no excerpt ' +
+      el.innerHTML = '<div class="transcript-empty">No transcript yet - the clip will have no excerpt ' +
         'until this recording is (re)transcribed. Use the time inputs above to pick a range.</div>';
       return;
     }
@@ -128,7 +128,7 @@ function _ccOnTranscriptClick(e) {
 }
 
 // First click (or a click before the current start) sets the start and clears
-// any end; a click at or after the current start sets the end — clicking the
+// any end; a click at or after the current start sets the end - clicking the
 // same line twice yields a 1-line clip.
 function _ccPickLine(lineStartMs, lineEndMs) {
   if (_ccStartMs == null || lineStartMs < _ccStartMs) {
@@ -143,7 +143,7 @@ function _ccPickLine(lineStartMs, lineEndMs) {
 function _ccApplyTimeInput(which, raw) {
   const ms = _ccParseTimeToMs(raw);
   if (ms == null) {
-    showToast(`Couldn't read "${raw}" — use h:mm:ss or m:ss`, 'error');
+    showToast(`Couldn't read "${raw}" - use h:mm:ss or m:ss`, 'error');
     _ccRenderHeader();
     return;
   }
@@ -189,7 +189,7 @@ function _ccRenderHeader() {
       header.textContent = 'No range picked yet';
       header.style.color = 'var(--muted)';
     } else if (_ccEndMs == null) {
-      header.textContent = `Start ${_ccFmt(_ccStartMs)} — pick an end`;
+      header.textContent = `Start ${_ccFmt(_ccStartMs)} - pick an end`;
       header.style.color = 'var(--muted)';
     } else {
       const durationS = Math.round((_ccEndMs - _ccStartMs) / 1000);
@@ -262,7 +262,7 @@ async function _ccConfirmCreate() {
     PanelNav.forceClose();
     await _reloadClipList(videoId);
     selectClip(clip.id);
-    showToast('Clip created — scoring…');
+    showToast('Clip created - scoring…');
     rescoreClip(clip.id);
   } catch (err) {
     showToast(`Could not create clip: ${err.message}`, 'error');

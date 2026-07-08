@@ -1,10 +1,10 @@
 (function () {
-// Feature-map — Notification sounds (Settings → Notification sounds; state in localStorage).
+// Feature-map - Notification sounds (Settings → Notification sounds; state in localStorage).
 //   API: routes/sounds.py · Tests: tests/test_ui_sounds.py
 // ── notification sounds ───────────────────────────────────────────────────────
 // Plays a short audio cue when a long-running action finishes. All state lives
 // in localStorage; the backend only lists/serves audio bytes. Every event is
-// OFF by default — the user opts in per event from Settings.
+// OFF by default - the user opts in per event from Settings.
 
 const STORE_KEY = 'yuuclip-sounds';
 const EVENTS = [
@@ -16,7 +16,7 @@ const EVENTS = [
 ];
 
 let _sounds = null;                // {builtin:[], custom:[]} from the server
-const _player = new Audio();       // single shared element — one cue at a time
+const _player = new Audio();       // single shared element - one cue at a time
 let _stopPill = null;
 
 function _defaultState() {
@@ -44,7 +44,7 @@ function _loadState() {
 }
 
 function _saveState(state) {
-  try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch { /* storage full/blocked — non-fatal */ }
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch { /* storage full/blocked - non-fatal */ }
 }
 
 function _urlFor(choice) {
@@ -60,7 +60,7 @@ function _play(url, volume) {
     _player.volume = Math.max(0, Math.min(1, volume));
     _player.currentTime = 0;
     const started = _player.play();
-    if (started && started.catch) started.catch(() => { /* autoplay/codec refusal — ignore */ });
+    if (started && started.catch) started.catch(() => { /* autoplay/codec refusal - ignore */ });
     _showStopPill();
   } catch { /* never let a sound break the action it accompanies */ }
 }
@@ -102,7 +102,7 @@ function _hideStopPill() {
 // Sound choices follow the panel's standard dirty/Save model: interacting with
 // the rows only changes the DOM; localStorage is written by
 // commitSoundSettings(), called from saveSettings() on a successful save.
-// Preview (▶) is the exception — it plays the pending UI selection immediately,
+// Preview (▶) is the exception - it plays the pending UI selection immediately,
 // since it's an inspection, not a setting.
 async function initSoundSettings() {
   const state = _loadState();
@@ -141,7 +141,7 @@ function _uiSoundState() {
   return state;
 }
 
-// Called from settings.js _checkSettingsDirty — also maintains the per-row
+// Called from settings.js _checkSettingsDirty - also maintains the per-row
 // dirty markers, mirroring what _checkSettingsDirty does for its own fields.
 function _soundSettingsDirty() {
   const ui = _uiSoundState();
@@ -237,7 +237,7 @@ async function _onSoundUpload(input) {
     const pending = _uiSoundState() || _loadState();
     _sounds = await fetch('/api/sounds').then(r => r.json());
     _renderSoundRows(pending);
-    if (status) { status.textContent = `✓ Added "${file.name}" — pick it in a dropdown above`; status.style.color = 'var(--green, #22c55e)'; }
+    if (status) { status.textContent = `✓ Added "${file.name}" - pick it in a dropdown above`; status.style.color = 'var(--green, #22c55e)'; }
   } catch (e) {
     if (status) { status.textContent = `✗ ${e.message}`; status.style.color = 'var(--red, #ef4444)'; }
   } finally {

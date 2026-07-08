@@ -1,12 +1,12 @@
 """
-LaughScorer — detects laughter in clip audio or transcript.
+LaughScorer - detects laughter in clip audio or transcript.
 
 Three modes (config: scorer_laugh_mode):
-  "transcript" — pattern-match Whisper markers ([laughs], haha, etc.) in
+  "transcript" - pattern-match Whisper markers ([laughs], haha, etc.) in
                  clip.transcript_excerpt.  No extra dependencies.  Default.
-  "audio"      — rhythm-based spectral analysis on the extracted WAV file.
+  "audio"      - rhythm-based spectral analysis on the extracted WAV file.
                  Uses PyAV + numpy (both already project dependencies).
-  "model"      — HuggingFace audio-classification pipeline.  Requires:
+  "model"      - HuggingFace audio-classification pipeline.  Requires:
                    pip install transformers torch torchaudio soundfile
 
 For "model" mode, set scorer_laugh_model_id to a HuggingFace model that
@@ -129,7 +129,7 @@ class LaughScorer:
         return self._load_failed
 
     def availability(self) -> tuple[bool, str]:
-        """(available, reason) — reason is a user-facing explanation when unavailable."""
+        """(available, reason) - reason is a user-facing explanation when unavailable."""
         mode = self._config.scorer_laugh_mode
         if mode == "transcript":
             return True, ""
@@ -151,14 +151,14 @@ class LaughScorer:
                 return True, ""
             except ImportError:
                 log.warning(
-                    "LaughScorer (model): missing deps — run: "
+                    "LaughScorer (model): missing deps - run: "
                     "pip install transformers torch torchaudio soundfile"
                 )
                 return False, (
-                    "its model dependencies aren't installed — this should be bundled "
+                    "its model dependencies aren't installed - this should be bundled "
                     "with yuu-clip, so try reinstalling if this persists"
                 )
-        log.warning("LaughScorer: unknown mode %r — scorer disabled", mode)
+        log.warning("LaughScorer: unknown mode %r - scorer disabled", mode)
         return False, f"unknown laughter mode {mode!r}"
 
     def score(self, clip: "ClipCandidate", session: "Session") -> ScoreResult:
@@ -242,11 +242,11 @@ class LaughScorer:
         except Exception as exc:
             if self._classifier is None:
                 # Load failure (offline / model not yet cached), not per-clip
-                # inference — log once with the model id so a silent "always
+                # inference - log once with the model id so a silent "always
                 # scores zero" run is diagnosable, then no-op the rest of the run.
                 self._load_failed = True
                 log.warning(
-                    "LaughScorer (model): model %r failed to load — laughter "
+                    "LaughScorer (model): model %r failed to load - laughter "
                     "scoring disabled for the rest of this run: %s",
                     self._config.scorer_laugh_model_id, exc,
                 )

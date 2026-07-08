@@ -1,5 +1,5 @@
 """
-LexiconScorer — nudges funny / dramatic / action from curated keyword density.
+LexiconScorer - nudges funny / dramatic / action from curated keyword density.
 
 Zero-dependency scorer that complements the audio-energy, scene-cut, laugh, and
 (optional) LLM signals: it scans a clip's transcript excerpt for genre-neutral
@@ -7,7 +7,7 @@ marker phrases and turns their per-minute density into a 0–1 score per dimensi
 A dimension with no markers returns None ("no opinion"), so it never drags that
 dimension's weighted average down.
 
-The lexicons below are deliberately editable and content-agnostic — a *starting*
+The lexicons below are deliberately editable and content-agnostic - a *starting*
 vocabulary, not an exhaustive classifier. Matching reuses
 scoring/textmatch.find_matches (word-boundary aware, case-insensitive) after
 stripping "Name:" speaker prefixes so a speaker whose name equals a marker word
@@ -31,7 +31,7 @@ log = logging.getLogger(__name__)
 
 # Marker phrases per scoring dimension. Genre-neutral by design (see plan 13 de-RP):
 # laughter/absurdity → funny, confrontation/emotion → dramatic, urgency/combat and
-# profanity intensity → action. Curated starting vocabulary — edit freely.
+# profanity intensity → action. Curated starting vocabulary - edit freely.
 _LEXICONS: dict[str, tuple[str, ...]] = {
     "funny": (
         "lol", "lmao", "lmfao", "rofl", "hilarious", "so funny", "too funny",
@@ -55,7 +55,7 @@ _LEXICONS: dict[str, tuple[str, ...]] = {
     ),
 }
 
-# 6+ marker occurrences per minute saturate a dimension at 1.0 — mirrors the
+# 6+ marker occurrences per minute saturate a dimension at 1.0 - mirrors the
 # per-minute normalisation LaughScorer uses, so lexicon density is comparable to it.
 _SATURATION_PER_MIN = 6.0
 
@@ -84,7 +84,7 @@ class LexiconScorer:
         return self.availability()[0]
 
     def availability(self) -> tuple[bool, str]:
-        """(available, reason) — reason is a user-facing explanation when unavailable."""
+        """(available, reason) - reason is a user-facing explanation when unavailable."""
         if not self._config.scorer_lexicon_enabled:
             return False, "lexicon scoring is turned off in Settings"
         return True, ""

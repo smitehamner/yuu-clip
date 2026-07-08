@@ -1,6 +1,6 @@
 (function () {
-// Feature-map — app-global keyboard shortcuts and the Escape-key layer cascade.
-// Extracted out of settings.js (which grew into a catch-all) — shortcuts are
+// Feature-map - app-global keyboard shortcuts and the Escape-key layer cascade.
+// Extracted out of settings.js (which grew into a catch-all) - shortcuts are
 // app-wide, not settings-specific.
 //   Tests: tests/test_ui_keyboard.py
 
@@ -9,7 +9,7 @@
 // Escape peels one layer per press, topmost first: floating menus (kebab z:500,
 // hamburger z:300) sit above modals (z:200), which sit above the settings panel
 // and the full-panel editors. topmostVisibleModal (ui.js) resolves modal
-// stacking — confirm/alert take priority, so a "Discard?" confirm cancels
+// stacking - confirm/alert take priority, so a "Discard?" confirm cancels
 // without also closing the still-dirty editor underneath it.
 const _modalEscapeClosers = {
   'confirm-modal':           () => _confirmCancel(),
@@ -50,13 +50,13 @@ function _closeTopmostLayer() {
 
 document.addEventListener('keydown', e => {
   // A focused list item (clip/video <li>) handles Enter/Space itself and calls
-  // preventDefault — don't ALSO run the global shortcut (e.g. Space toggling
+  // preventDefault - don't ALSO run the global shortcut (e.g. Space toggling
   // play/pause while the li activation is selecting a clip).
   if (e.defaultPrevented) return;
 
   const isTyping = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable;
 
-  // Escape must work with focus on a button/select/link — that's where every
+  // Escape must work with focus on a button/select/link - that's where every
   // modal places focus on open. Only typing surfaces keep Escape to themselves
   // (their own handlers, e.g. the inline caption editor, use it to cancel).
   if (e.key === 'Escape' && isTyping) return;
@@ -67,7 +67,7 @@ document.addEventListener('keydown', e => {
   // Ctrl/Cmd+Z (undo) is the only binding that intentionally uses a modifier.
   // Every other shortcut is a bare key, so let modifier chords fall through to
   // the browser/OS (Ctrl+R refresh, Cmd+A select-all, etc.) instead of hijacking
-  // them — running a bare-key handler here would also preventDefault the chord.
+  // them - running a bare-key handler here would also preventDefault the chord.
   if (e.key === 'z' && (e.ctrlKey || e.metaKey)) {
     e.preventDefault();
     undoLastStatus();
@@ -89,12 +89,12 @@ document.addEventListener('keydown', e => {
   }
 
   // A takeover panel (e.g. Split Editor) covers the detail pane but not the
-  // clip list beside it — without this guard J/K/A/R would silently act on a
+  // clip list beside it - without this guard J/K/A/R would silently act on a
   // clip the user can no longer see.
   if (_anyModalOpen() || PanelNav.isOpen()) return;
 
   // A/R/E must act on the clip the user is pointing at: when keyboard focus
-  // sits on a clip list row (Tab), that row is the subject — not the active
+  // sits on a clip list row (Tab), that row is the subject - not the active
   // clip, which can be a different row (focused-vs-active mismatch).
   const focusedRow = e.target instanceof Element ? e.target.closest('#clip-list li[data-clip-id]') : null;
   const subjectClipId = focusedRow ? Number(focusedRow.dataset.clipId) : AppState.activeClipId;
@@ -147,7 +147,7 @@ document.addEventListener('keydown', e => {
   }
 });
 
-// No window exports — this module's only public surface is the keydown
+// No window exports - this module's only public surface is the keydown
 // listener registration itself; _modalEscapeClosers/_closeTopmostLayer are
 // referenced only from within this closure.
 })();

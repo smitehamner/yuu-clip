@@ -1,4 +1,4 @@
-"""Delete routes — clear a clip's exports, delete one export format, delete a clip."""
+"""Delete routes - clear a clip's exports, delete one export format, delete a clip."""
 from __future__ import annotations
 
 from pathlib import Path

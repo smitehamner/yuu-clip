@@ -1,10 +1,10 @@
-// Feature-map — Recording preview player: picks the media transport (Electron native scheme vs HTTP),
+// Feature-map - Recording preview player: picks the media transport (Electron native scheme vs HTTP),
 //   prefers the fast 720p proxy over the source, and drives the click-to-build proxy badge.
 //   API: routes/videos.py (source/proxy/proxy-status/proxy-generate) · Tests: tests/test_ui_video.py
 // Single point that picks the transport for a recording's source/proxy stream
 // (roadmap plan 10). Inside the packaged Electron app, window.electronAPI.mediaProtocol
-// is set and playback goes straight through the native "yuu-media://" scheme —
-// bypassing the Python byte-pump — instead of the HTTP route. Plain browser-dev
+// is set and playback goes straight through the native "yuu-media://" scheme -
+// bypassing the Python byte-pump - instead of the HTTP route. Plain browser-dev
 // mode never has electronAPI, so it always gets the unchanged HTTP URL. absPath
 // may be null (e.g. a proxy that hasn't been generated/looked up yet), which
 // simply falls back to HTTP for that one request.
@@ -28,10 +28,10 @@ function _buildMediaUrl(videoId, kind, absPath) {
 //                       scrubbing surfaces), else the badge offers a click-to-build
 //   isCurrent         : guard so a late swap never lands on a since-changed view
 //   startS / endS     : a split segment's player streams the full untrimmed parent
-//                       file (source and proxy are both keyed by the parent path) —
+//                       file (source and proxy are both keyed by the parent path) -
 //                       these bound playback to the segment's own slice of it
 //   sourcePath        : the recording's absolute path (video.source_path from the
-//                       already-fetched video record) — only used to build the
+//                       already-fetched video record) - only used to build the
 //                       Electron native-protocol URL; ignored in browser-dev mode
 function setupRecordingPreview(videoEl, badgeEl, videoId, { autoBuild = false, isCurrent = () => true, startS = null, endS = null, sourcePath = null } = {}) {
   videoEl.src = _buildMediaUrl(videoId, 'source', sourcePath);
@@ -53,7 +53,7 @@ function setupRecordingPreview(videoEl, badgeEl, videoId, { autoBuild = false, i
     .catch(() => { /* leave the source playing with the original-quality badge */ });
 }
 
-// startS: falls back to it when currentTime is still 0 — the proxy-status fetch
+// startS: falls back to it when currentTime is still 0 - the proxy-status fetch
 // can resolve before the source's loadedmetadata seek (setupRecordingPreview) runs,
 // which would otherwise resume a segment's proxy at the parent's t=0.
 function _useRecordingProxy(videoEl, badgeEl, videoId, isCurrent, startS = null, proxyPath = null) {
@@ -79,11 +79,11 @@ function _buildRecordingProxy(videoEl, badgeEl, videoId, isCurrent, startS = nul
         .then(r => r.ok ? r.json() : null).catch(() => null);
       if (!isCurrent()) return;
       if (status?.available) _useRecordingProxy(videoEl, badgeEl, videoId, isCurrent, startS, status.proxy_path);
-      // Another open is still encoding — poll until its proxy lands.
+      // Another open is still encoding - poll until its proxy lands.
       else if (status?.generating) setTimeout(() => _buildRecordingProxy(videoEl, badgeEl, videoId, isCurrent, startS), 5000);
       else _setPreviewBadge(badgeEl, 'original', null, () => _buildRecordingProxy(videoEl, badgeEl, videoId, isCurrent, startS));
     },
-    null,        // no global job pill — this is a background convenience
+    null,        // no global job pill - this is a background convenience
     'Preview',
     false,
     line => {    // onLine: surface the encode percentage on the badge
@@ -108,7 +108,7 @@ function _setPreviewBadge(badgeEl, mode, pct, onBuild) {
   badgeEl.classList.remove('preview-badge-build');
   if (mode === 'proxy') {
     badgeEl.textContent = 'Preview quality (720p)';
-    badgeEl.title = 'Playing a downscaled 720p preview for fast seeking — not full quality. Exports use the original.';
+    badgeEl.title = 'Playing a downscaled 720p preview for fast seeking - not full quality. Exports use the original.';
   } else if (mode === 'building') {
     badgeEl.textContent = pct ? `Building 720p preview… ${pct}%` : 'Building 720p preview…';
     badgeEl.title = 'Encoding a fast-seeking 720p preview from the source recording.';
@@ -125,7 +125,7 @@ function _setPreviewBadge(badgeEl, mode, pct, onBuild) {
     badgeEl.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onBuild(); } };
   } else {
     badgeEl.textContent = 'Original quality · slower seeking';
-    badgeEl.title = 'Playing the original recording — seeking a long file can be slow.';
+    badgeEl.title = 'Playing the original recording - seeking a long file can be slow.';
   }
 }
 

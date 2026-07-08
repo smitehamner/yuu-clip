@@ -3,7 +3,7 @@ Video probing via ffprobe.
 
 ffprobe is part of the FFmpeg distribution and works identically on
 Windows, Linux, and macOS.  We call it as a subprocess and parse
-the JSON output — no ffmpeg-python wrapper needed.
+the JSON output - no ffmpeg-python wrapper needed.
 """
 from __future__ import annotations
 
@@ -87,7 +87,7 @@ def probe_video(path: Path) -> VideoInfo:
         )
     except subprocess.TimeoutExpired:
         raise RuntimeError(
-            f"ffprobe timed out after {_FFPROBE_TIMEOUT_S}s on {path.name} — "
+            f"ffprobe timed out after {_FFPROBE_TIMEOUT_S}s on {path.name} - "
             f"the file may be unreadable or on an unresponsive drive"
         )
 
@@ -152,5 +152,5 @@ def _parse_fps(fps_str: str) -> float:
             return round(int(num) / den_i, 3) if den_i else 30.0
         return float(fps_str)
     except (ValueError, ZeroDivisionError):
-        log.warning("Could not parse fps string %r — defaulting to 30.0", fps_str)
+        log.warning("Could not parse fps string %r - defaulting to 30.0", fps_str)
         return 30.0

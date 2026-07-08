@@ -2,7 +2,7 @@
 Analyze-run metadata capture.
 
 Records how long each pipeline stage took, the effective settings used, and
-whether transcription/diarization ran on CPU or GPU — persisted as JSON on the
+whether transcription/diarization ran on CPU or GPU - persisted as JSON on the
 Video row so the creator can later answer "how long did this take, what
 settings did I use, and did it use my GPU?".
 """

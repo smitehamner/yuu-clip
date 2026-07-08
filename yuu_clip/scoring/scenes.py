@@ -1,18 +1,18 @@
 """
-SceneCutScorer — counts visual scene transitions within a clip window.
+SceneCutScorer - counts visual scene transitions within a clip window.
 
 Three detection modes (config: scene_detection_mode):
 
   "transcript"  Gap-based: silence gaps >= scene_transcript_gap_s between
                 transcript segments are treated as scene boundaries.
-                Instant — uses data already in the DB.
+                Instant - uses data already in the DB.
 
   "fast"        Keyframe timestamps via ffprobe (I-frame index, no decoding)
                 + frame-skipped ContentDetector on a downscaled stream.
                 Takes seconds to minutes regardless of video length.
 
   "full"        Full-frame ContentDetector (original behaviour).
-                Most accurate, but O(duration × fps) — slow for long videos.
+                Most accurate, but O(duration × fps) - slow for long videos.
 
 Default is "fast".  Switch to "transcript" for 10h+ VODs on first pass.
 """
@@ -102,7 +102,7 @@ def _detect_content(video_path: str, frame_skip: int = 0) -> list[int]:
     try:
         from scenedetect import ContentDetector, detect
     except ImportError:
-        log.warning("scenedetect not installed — scene detection skipped")
+        log.warning("scenedetect not installed - scene detection skipped")
         return []
 
     try:
@@ -123,13 +123,13 @@ def compute_scenes(
     """
     Detect scene cuts for *video* and store SceneBoundary rows.
 
-    Idempotent — skips if rows already exist.
+    Idempotent - skips if rows already exist.
     Returns number of cuts stored (0 if skipped).
 
     mode:
-      "transcript" — gap-based using existing transcript segments
-      "fast"       — keyframes (ffprobe) merged with transcript gaps
-      "full"       — ContentDetector on every frame (original behaviour)
+      "transcript" - gap-based using existing transcript segments
+      "fast"       - keyframes (ffprobe) merged with transcript gaps
+      "full"       - ContentDetector on every frame (original behaviour)
     """
     from yuu_clip.db.models import SceneBoundary
 

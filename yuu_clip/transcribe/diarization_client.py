@@ -18,7 +18,7 @@ class DiarizationError(RuntimeError):
 # pyannote.audio 4.x's recommended pipeline. Unlike speaker-diarization-3.1 (which
 # chained in segmentation-3.0 plus a PLDA from community-1), this one is
 # self-contained: accepting the single repo's user conditions is enough. We still
-# don't assume the failing repo when access is denied — HF's own error names the
+# don't assume the failing repo when access is denied - HF's own error names the
 # exact repo and accept URL, so we pass that text through and append the account /
 # token guidance. The None branch covers older pyannote returning None instead of
 # raising.
@@ -27,7 +27,7 @@ _PIPELINE_ID = "pyannote/speaker-diarization-community-1"
 _ACCEPT_TERMS_HINT = (
     "To fix: sign in to HuggingFace with the SAME account as your token, open "
     "the gated model page named above, and accept its user conditions. The "
-    "token also needs 'Read' access — create one at https://hf.co/settings/tokens"
+    "token also needs 'Read' access - create one at https://hf.co/settings/tokens"
 )
 
 _ACCEPT_TERMS_HELP = (
@@ -42,7 +42,7 @@ def _load_waveform(audio_path: str) -> dict:
     """Decode a PCM WAV into pyannote's in-memory input dict.
 
     pyannote 4.x's community-1 pipeline decodes file paths through torchcodec, which
-    needs the FFmpeg shared libraries on the system PATH — frequently absent on
+    needs the FFmpeg shared libraries on the system PATH - frequently absent on
     Windows, where it fails with "torchcodec is not available". We always feed it our
     own 16 kHz mono PCM WAVs, so we decode them with the stdlib `wave` module and hand
     pyannote a {waveform, sample_rate} dict, sidestepping torchcodec entirely.
@@ -140,7 +140,7 @@ class PyannoteDiarizationClient(DiarizationClient):
     def available(self) -> tuple[bool, str]:
         if not self._config.huggingface_token:
             return False, (
-                "No HuggingFace token set — open Settings (⚙) and enter your token "
+                "No HuggingFace token set - open Settings (⚙) and enter your token "
                 "under Speaker labels"
             )
         try:
@@ -205,7 +205,7 @@ class PyannoteDiarizationClient(DiarizationClient):
         # community-1's DiarizeOutput exposes one centroid per speaker on
         # `speaker_embeddings`, a (num_speakers, dim) array whose rows align with
         # annotation.labels(). Older pipelines return a bare Annotation with no
-        # embeddings — degrade to turns-only.
+        # embeddings - degrade to turns-only.
         embeddings: dict[str, list[float]] = {}
         raw = getattr(result, "speaker_embeddings", None)
         if raw is not None and raw is not result:
@@ -220,7 +220,7 @@ class PyannoteDiarizationClient(DiarizationClient):
 # ── SpeechBrain diarization ──────────────────────────────────────────────────
 # A token-free backend: ECAPA-TDNN speaker embeddings (SpeechBrain, Apache-2.0)
 # over energy-active windows, clustered with agglomerative clustering. No fixed
-# speaker count and no HuggingFace account — the model downloads anonymously.
+# speaker count and no HuggingFace account - the model downloads anonymously.
 
 _SB_MODEL_SOURCE = "speechbrain/spkrec-ecapa-voxceleb"
 _SB_WINDOW_S = 1.5   # embedding window length
@@ -239,7 +239,7 @@ _SB_REL_MARGIN_DB = 15.0
 def _load_mono_waveform(audio_path: str):
     """Return (mono float32 numpy array, sample_rate) for a PCM WAV.
 
-    Reuses _load_waveform's decode, then downmixes to mono — SpeechBrain's ECAPA
+    Reuses _load_waveform's decode, then downmixes to mono - SpeechBrain's ECAPA
     encoder and the energy VAD both want a single channel. Our extracted track
     WAVs are already 16 kHz mono, so this is a no-op reshape in practice.
     """
@@ -365,14 +365,14 @@ def speechbrain_model_dir():
 
 def speechbrain_model_cached() -> bool:
     """Whether the ECAPA model has already been downloaded (filesystem-only,
-    no network) — used to distinguish "ready" from "downloads on first use"."""
+    no network) - used to distinguish "ready" from "downloads on first use"."""
     model_dir = speechbrain_model_dir()
     return model_dir.exists() and any(model_dir.iterdir())
 
 
 def prefetch_speechbrain_model(config: Config) -> None:
     """Download the ECAPA encoder now, for the Settings "Download now" prefetch
-    flow — the same load SpeechBrainDiarizationClient triggers lazily on first
+    flow - the same load SpeechBrainDiarizationClient triggers lazily on first
     use."""
     SpeechBrainDiarizationClient(config)._load_encoder()
 
@@ -393,7 +393,7 @@ class SpeechBrainDiarizationClient(DiarizationClient):
         ]
         if missing:
             return False, (
-                "SpeechBrain speaker labels aren't available — this should be bundled "
+                "SpeechBrain speaker labels aren't available - this should be bundled "
                 "with yuu-clip, so try reinstalling if this persists"
             )
         return True, ""
@@ -412,7 +412,7 @@ class SpeechBrainDiarizationClient(DiarizationClient):
         savedir.mkdir(parents=True, exist_ok=True)
         device = "cuda" if torch.cuda.is_available() else "cpu"
         _log.info(
-            "Loading SpeechBrain ECAPA encoder (%s) on %s — first run downloads "
+            "Loading SpeechBrain ECAPA encoder (%s) on %s - first run downloads "
             "~80 MB from HuggingFace (no token needed)", _SB_MODEL_SOURCE, device,
         )
         # LocalStrategy.COPY, not the default SYMLINK: symlinking the HF cache into

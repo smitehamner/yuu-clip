@@ -1,4 +1,4 @@
-// Feature-map — Shared UI primitives (alert / confirm / prompt modals) used app-wide.
+// Feature-map - Shared UI primitives (alert / confirm / prompt modals) used app-wide.
 //   API: none (client-only) · Tests: covered indirectly by the test_ui_*.py suites
 // ── alert modal (single-button, no cancel) ────────────────────────────────────
 (function () {
@@ -27,7 +27,7 @@ function showConfirm(title, body, okLabel, onOk, danger = false, cancelLabel = '
   ok.textContent = okLabel;
   ok.className = danger ? 'btn danger' : 'btn primary';
   // Every call sets it, so the default 'Cancel' is restored for callers that
-  // don't pass a custom label — no stale label leaks between confirms.
+  // don't pass a custom label - no stale label leaks between confirms.
   document.getElementById('confirm-cancel-btn').textContent = cancelLabel;
   AppState.confirmCallback = onOk;
   document.getElementById('confirm-modal').classList.add('visible');
@@ -215,7 +215,7 @@ function openDiffModal(title, fields, onCommit, opts = {}) {
           }</div>
         </div>
         <div class="diff-panel">
-          <div class="diff-panel-label">${revert ? 'Original (LLM)' : 'New — edit here, then choose below'}</div>
+          <div class="diff-panel-label">${revert ? 'Original (LLM)' : 'New - edit here, then choose below'}</div>
           ${revert
             ? `<div class="diff-current${f.proposed ? '' : ' empty'}">${f.proposed ? escHtml(f.proposed) : '(none)'}</div>`
             : `<textarea class="diff-new" id="diff-new-${i}" rows="4">${escHtml(f.proposed || '')}</textarea>`
@@ -339,7 +339,7 @@ function _fieldEditSave() {
   if (cb) cb(val);
 }
 
-// Refresh/close with a dirty editor open would silently lose the edit — the
+// Refresh/close with a dirty editor open would silently lose the edit - the
 // same protection closeFieldEditModal/_diffDiscard give Escape and Discard.
 window.addEventListener('beforeunload', e => {
   const fieldEditDirty =
@@ -386,7 +386,7 @@ function showKebab(anchorEl, items) {
     btn.textContent = item.label;
     if (item.disabled) btn.disabled = true;
     // Refocus the anchor before the action runs so anything the action opens
-    // records the anchor — not a removed menu item — as its return-focus target.
+    // records the anchor - not a removed menu item - as its return-focus target.
     btn.onclick = () => { closeKebab(true); item.action(); };
     menu.appendChild(btn);
   }
@@ -517,15 +517,15 @@ function _applyPrereqWarnings(prereqs) {
   if (!banner) return;
 
   if (!prereqs.ffmpeg_ok) {
-    banner.innerHTML = `<span>⚠ FFmpeg not found — analysis and export will fail.${wizardLink}</span>`;
+    banner.innerHTML = `<span>⚠ FFmpeg not found - analysis and export will fail.${wizardLink}</span>`;
     banner.style.display = '';
     const btn = document.getElementById('btn-start-analyze');
     if (btn) {
       btn.disabled = true;
-      btn.title = 'FFmpeg not found — Re-run Setup Wizard to install it';
+      btn.title = 'FFmpeg not found - Re-run Setup Wizard to install it';
     }
   } else if (!prereqs.llm_ok && inElectron) {
-    banner.innerHTML = `<span>ℹ LLM scoring is not configured — clips will be scored by energy and scenes only.${wizardLink}</span>`;
+    banner.innerHTML = `<span>ℹ LLM scoring is not configured - clips will be scored by energy and scenes only.${wizardLink}</span>`;
     banner.style.display = '';
   }
 }
@@ -552,7 +552,7 @@ function showUndoToast(message, undoFn) {
   setTimeout(() => toast.remove(), 5000);
 }
 
-// Global playback-speed preference — one capture-phase listener applies the saved
+// Global playback-speed preference - one capture-phase listener applies the saved
 // rate to every <video> as it loads, so all players (clip preview, recording,
 // split/export editors, reels) honor it without per-player wiring. Client-only,
 // stored in localStorage like the other playback prefs.

@@ -1,5 +1,5 @@
 (function () {
-// Feature-map — Highlight reel (code: demo_reel; UI "Highlight Reel").
+// Feature-map - Highlight reel (code: demo_reel; UI "Highlight Reel").
 //   API: routes/reel.py · Tests: tests/test_ui_reel.py
 // ── highlight reels (combined Build + View modal) ──────────────────────────────
 let _reelClips = [];
@@ -64,7 +64,7 @@ async function switchReelTab(tab) {
       _reelBuildLoaded = false;
       document.getElementById('demo-status').textContent = '';
       document.getElementById('reel-clip-list').innerHTML =
-        '<div style="padding:24px;text-align:center;color:var(--muted);font-size:12px">No approved clips yet — approve clips from the sidebar, then come back.</div>';
+        '<div style="padding:24px;text-align:center;color:var(--muted);font-size:12px">No approved clips yet - approve clips from the sidebar, then come back.</div>';
       document.getElementById('reel-estimate').textContent = '';
       return;
     }
@@ -83,7 +83,7 @@ async function switchReelTab(tab) {
     }
     sel.value = prevSource;
     if (sel.value !== prevSource) {
-      // Selected source lost its approved clips — fall back to all and reload
+      // Selected source lost its approved clips - fall back to all and reload
       sel.value = '';
       _reelBuildLoaded = false;
     }
@@ -93,7 +93,7 @@ async function switchReelTab(tab) {
     layout.innerHTML = '<div class="reels-empty">Loading&#x2026;</div>';
     const reels = await fetch('/api/demo/list').then(r => r.json()).catch(() => []);
     if (!reels.length) {
-      layout.innerHTML = '<div class="reels-empty">No highlight reels yet — build one first.</div>';
+      layout.innerHTML = '<div class="reels-empty">No highlight reels yet - build one first.</div>';
       return;
     }
     layout.innerHTML = `
@@ -107,7 +107,7 @@ async function switchReelTab(tab) {
       const item = document.createElement('div');
       item.className = 'reel-item' + (i === 0 ? ' active' : '');
       const capBadge = reel.has_captions ? ' &middot; <span style="color:var(--green)" title="Captions available">CC</span>' : '';
-      const staleBadge = reel.stale ? ' &middot; <span style="color:var(--warning)" title="A member clip was re-exported since this reel was built">Stale — rebuild to update</span>' : '';
+      const staleBadge = reel.stale ? ' &middot; <span style="color:var(--warning)" title="A member clip was re-exported since this reel was built">Stale - rebuild to update</span>' : '';
       item.innerHTML =
         `<div class="reel-name">${escHtml(reel.filename)}</div>` +
         `<div class="reel-meta">${escHtml(reel.date)} &middot; ${reel.size_mb} MB${capBadge}${staleBadge}</div>`;
@@ -153,7 +153,7 @@ function closeHighlightReelsModal() {
   if (opener?.focus) opener.focus();
 }
 
-// Status filter for the reel builder's clip pool — Approved only by default,
+// Status filter for the reel builder's clip pool - Approved only by default,
 // matching the historical /api/demo/approved-clips behavior.
 let _reelPoolStatuses = new Set(['approved']);
 
@@ -171,7 +171,7 @@ function _reelPoolQs() {
   return `?${params.toString()}`;
 }
 
-// Toggling a chip must never leave zero statuses selected — the API rejects
+// Toggling a chip must never leave zero statuses selected - the API rejects
 // an empty statuses param, and an empty pool with no way back out is a trap.
 function _toggleReelPoolStatus(status) {
   if (_reelPoolStatuses.has(status)) {
@@ -196,7 +196,7 @@ async function loadReelClips() {
 // Fetches the current status/video pool and merges it into _reelClips:
 // clips still in the pool keep their order and included/excluded state;
 // clips newly entering the pool are appended, defaulting to excluded unless
-// they're approved — so toggling on Unreviewed/Rejected can't silently stuff
+// they're approved - so toggling on Unreviewed/Rejected can't silently stuff
 // clips into the reel. Clips that fell out of the pool are dropped.
 async function _refetchReelPool() {
   const listEl = document.getElementById('reel-clip-list');
@@ -341,7 +341,7 @@ function updateReelEstimate() {
   const fmtS = s => s < 60 ? `${s.toFixed(0)}s` : `${Math.floor(s/60)}m ${(s%60).toFixed(0)}s`;
   el.innerHTML =
     `${plural(n, 'clip')} · ${fmtS(totalFootageS)} footage · encode ~${fmtS(encodeEtaS)}` +
-    (unexported ? `<div class="reel-no-export-warn">⚠ ${plural(unexported, 'clip')} not yet exported — export them first or they will be skipped</div>` : '');
+    (unexported ? `<div class="reel-no-export-warn">⚠ ${plural(unexported, 'clip')} not yet exported - export them first or they will be skipped</div>` : '');
 }
 
 async function exportUnexportedReelClips() {
@@ -390,7 +390,7 @@ let _reelPreviewIdx = 0;
 async function previewReelPlaylist() {
   const included = _reelClips.filter(c => c.included && c.has_export);
   if (!included.length) {
-    showToast('No exported clips selected — export clips first to preview them', 'warning');
+    showToast('No exported clips selected - export clips first to preview them', 'warning');
     return;
   }
   _reelPreviewOpener = document.activeElement;
@@ -457,7 +457,7 @@ async function startDemo() {
   }
   const unexported = included.filter(c => !c.has_export);
   if (unexported.length > 0 && included.length === unexported.length) {
-    showToast('None of the selected clips have been exported — export them first', 'warning');
+    showToast('None of the selected clips have been exported - export them first', 'warning');
     return;
   }
 
@@ -487,7 +487,7 @@ async function startDemo() {
     return;
   }
   const data = await res.json();
-  const skipNote = unexported.length ? ` — ${plural(unexported.length, 'unexported clip')} skipped` : '';
+  const skipNote = unexported.length ? ` - ${plural(unexported.length, 'unexported clip')} skipped` : '';
   statusEl.textContent = `Building reel from ${plural(data.clip_count, 'clip')}…${skipNote}`;
   closeDemoModal();
   openLog();
@@ -532,7 +532,7 @@ function openBatchExportModal(videoId) {
   _batchExportVideoId = videoId;
   const video = AppState.videos.find(v => v.id === videoId);
   const modalTitle = document.querySelector('#batch-export-modal h3');
-  if (modalTitle) modalTitle.textContent = video ? `Export Approved — ${video.filename}` : 'Export Approved Clips';
+  if (modalTitle) modalTitle.textContent = video ? `Export Approved - ${video.filename}` : 'Export Approved Clips';
   document.getElementById('batch-min-score').value = 0;
   document.getElementById('batch-min-score-val').textContent = '0%';
   document.getElementById('batch-skip-exported').checked = true;
@@ -615,7 +615,7 @@ function _deleteReel(reel) {
     `"${escHtml(reel.filename)}" will be permanently removed from disk, along with its captions. Your clips are not affected.`,
     'Delete Reel',
     async () => {
-      // Release the player's file handle first — on Windows the server keeps the
+      // Release the player's file handle first - on Windows the server keeps the
       // reel open while the <video> is connected, blocking the delete.
       const vid = document.getElementById('reels-video');
       if (vid) { vid.pause(); vid.removeAttribute('src'); vid.load(); }
@@ -656,7 +656,7 @@ async function _regenReelCaptions(reel, btn) {
   }
 }
 
-// Public API — symbols referenced cross-module, by an inline handler, or by a
+// Public API - symbols referenced cross-module, by an inline handler, or by a
 // test. Internal helpers above stay private to this module's closure.
 Object.assign(window, {
   openHighlightReelsModal, openReelForSession, closeHighlightReelsModal, switchReelTab,

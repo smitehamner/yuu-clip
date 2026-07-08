@@ -28,7 +28,7 @@ def _wait_while_paused(project_dir: Path, poll_interval_s: float = _PAUSE_POLL_I
     flag = pause_flag_path(project_dir)
     if not flag.exists():
         return
-    console.print("[yellow][Paused — waiting to start next video][/yellow]")
+    console.print("[yellow][Paused - waiting to start next video][/yellow]")
     while flag.exists():
         time.sleep(poll_interval_s)
 
@@ -71,7 +71,7 @@ def probe(
             stream.codec_name,
             f"{stream.sample_rate // 1000} kHz",
             str(stream.channels),
-            stream.title_tag or "[dim]—[/dim]",
+            stream.title_tag or "[dim] - [/dim]",
         )
     console.print(t)
 
@@ -91,7 +91,7 @@ def analyze(
     energy_mode: str = typer.Option("fast", "--energy-mode", help="Audio energy analysis: none|fast|full"),
     scene_mode: str = typer.Option("fast", "--scene-mode", help="Scene detection: transcript|fast|full"),
     diarize: Optional[bool] = typer.Option(None, "--diarize/--no-diarize", help="Override speaker diarization for this run (default: use config)"),
-    no_interact: bool = typer.Option(False, "--no-interact", help="Never prompt interactively — use defaults or fail cleanly (set automatically by the web UI)"),
+    no_interact: bool = typer.Option(False, "--no-interact", help="Never prompt interactively - use defaults or fail cleanly (set automatically by the web UI)"),
     context: list[str] = typer.Option([], "--context", help="World context IDs to apply (can repeat)"),
     subtitle_source: Optional[str] = typer.Option(None, "--subtitle-source", help="Use existing subtitles instead of Whisper: path/to/file.srt or stream:<index>"),
     video_id: Optional[int] = typer.Option(None, "--video-id", help="Target an existing Video DB record by ID (reanalyze after split)"),
@@ -113,7 +113,7 @@ def analyze(
     if diarize is True:
         # Turn speaker labels on for this run using the project's configured
         # backend; only fall back to speechbrain (tokenless) when no backend
-        # was configured — never pyannote, which requires a HF token.
+        # was configured - never pyannote, which requires a HF token.
         if config.diarization_backend == "null":
             config.diarization_backend = "speechbrain"
     elif diarize is False:
@@ -155,7 +155,7 @@ def rediarize(
 ):
     """Re-detect speakers only: re-run diarization on an existing recording's transcripts.
 
-    Non-destructive — clips, scores, and transcript text are untouched. Named speakers
+    Non-destructive - clips, scores, and transcript text are untouched. Named speakers
     re-attach to matching voices by voiceprint, so this is how voiceprint re-attach is
     validated after naming speakers.
     """
@@ -163,7 +163,7 @@ def rediarize(
 
     proj_dir, session, config = _load_project(project)
     # The whole point of this command is to diarize, so force a backend on even
-    # when the project config has it disabled — but respect a configured backend
+    # when the project config has it disabled - but respect a configured backend
     # (e.g. pyannote) rather than always forcing the tokenless speechbrain default.
     if config.diarization_backend == "null":
         config.diarization_backend = "speechbrain"
@@ -175,7 +175,7 @@ def rediarize(
 
     console.rule(f"[bold]{video.filename}[/bold]")
     n = _rediarize_video(session, config, video)
-    console.print(f"\n[bold green]Re-detection complete[/bold green] — {n} track(s) re-diarized.\n")
+    console.print(f"\n[bold green]Re-detection complete[/bold green] - {n} track(s) re-diarized.\n")
 
 
 @app.command()

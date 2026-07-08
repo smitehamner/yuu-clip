@@ -1,7 +1,7 @@
 (function () {
-// Feature-map — Recording detail: last-analysis run metadata card (per-stage
+// Feature-map - Recording detail: last-analysis run metadata card (per-stage
 // timing, effective settings, CPU/GPU device). Extracted out of videos.js
-// (which grew into a catch-all) — the list/filter/detail-render/re-analysis
+// (which grew into a catch-all) - the list/filter/detail-render/re-analysis
 // core stays there.
 //   API: routes/videos.py (analyze_run field) · Tests: tests/test_ui_video.py
 // ── analysis run metadata card ────────────────────────────────────────────────
@@ -79,7 +79,7 @@ function _runStageBars(stages) {
   return `<div class="run-stage-bars"><div class="run-meta-subtitle">Stage timing</div>${bars}</div>`;
 }
 
-// Public API — symbols referenced cross-module, by an inline handler, or by a
+// Public API - symbols referenced cross-module, by an inline handler, or by a
 // test. Internal helpers above stay private to this module's closure.
 Object.assign(window, {
   _renderRunMetaCard, _runTimingLine,

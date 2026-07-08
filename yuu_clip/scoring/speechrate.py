@@ -1,8 +1,8 @@
-"""SpeechRateScorer — words-per-second bursts as an excitement / chaos signal.
+"""SpeechRateScorer - words-per-second bursts as an excitement / chaos signal.
 
 Fast, dense talking (excited callouts, chaotic banter, rapid-fire reactions) marks
 a livelier moment than a slow, calm stretch. Computed from the transcript segments
-overlapping the clip window — zero extra dependencies. Feeds funny and action, and
+overlapping the clip window - zero extra dependencies. Feeds funny and action, and
 abstains (None) on ordinary, calm-paced speech so it only ever nudges a clip up,
 never down (the same "no signal → no opinion" contract the lexicon follows).
 """
@@ -67,7 +67,7 @@ class SpeechRateScorer:
         return self.availability()[0]
 
     def availability(self) -> tuple[bool, str]:
-        """(available, reason) — reason is a user-facing explanation when unavailable."""
+        """(available, reason) - reason is a user-facing explanation when unavailable."""
         if not self._config.scorer_speech_rate_enabled:
             return False, "speech-rate scoring is turned off in Settings"
         return True, ""

@@ -1,15 +1,15 @@
-# Feature-map — Model readiness + Recommended models (code: model_catalog, capabilities/tiers)
+# Feature-map - Model readiness + Recommended models (code: model_catalog, capabilities/tiers)
 #   UI: static/settings.js (Settings → LLM scoring readiness + catalog) · setup wizard
 #   Siblings: model_catalog.py · scoring/llm_client.py · tests/test_llm.py, tests/test_ui_model_catalog.py
 """LLM capability + model-catalog routes.
 
-GET /api/llm/capabilities — what the active backend/model can do right now
+GET /api/llm/capabilities - what the active backend/model can do right now
     ({backend, model, text, vision, detail}). A cheap static check only: file
     existence for llamacpp, model-name/tag presence for ollama, API-key presence
     for claude. No inference test-call. UI features gate on this (a control that
     needs vision links here rather than silently disabling itself).
 
-GET /api/llm/catalog — the curated recommended-model catalog, so Settings and
+GET /api/llm/catalog - the curated recommended-model catalog, so Settings and
     the setup wizard render the same vetted list from one source of truth.
 """
 from __future__ import annotations
@@ -26,7 +26,7 @@ from yuu_clip.web.deps import ProjectContext
 from yuu_clip.web.routes.common import module_findable, register_model_download
 from yuu_clip.web.sse import subprocess_sse
 
-# Only tags from the curated catalog may be pulled — the tag becomes a
+# Only tags from the curated catalog may be pulled - the tag becomes a
 # subprocess argument, so an allowlist keeps a stray query param from running
 # an arbitrary `ollama pull`.
 _PULLABLE_OLLAMA_TAGS = frozenset(
@@ -45,12 +45,12 @@ _WHISPER_DOWNLOAD_KEY = "whisper"
 _SPEAKER_DOWNLOAD_KEY = "speaker"
 
 
-# Headroom beyond the model's own on-disk size — Ollama writes temporary blobs
+# Headroom beyond the model's own on-disk size - Ollama writes temporary blobs
 # and a manifest during a pull, so a pull needs more than the final weight size.
 # The .gguf download reuses it (a .part temp file needs the same slack).
 _PULL_DISK_HEADROOM_GB = 2.0
 
-# Only these catalog ids may be downloaded as a local .gguf — the id becomes a
+# Only these catalog ids may be downloaded as a local .gguf - the id becomes a
 # subprocess argument, so an allowlist keeps a stray query param from driving the
 # download. Recommended, monetization-safe, local models (text or vision) with a
 # pinned quant filename; a vision entry also fetches its mmproj projector.
@@ -70,7 +70,7 @@ def _ollama_models_dir() -> Path:
 
 
 def _existing_ancestor(path: Path) -> Path:
-    """Nearest existing ancestor of *path* — disk_usage needs a real path, and
+    """Nearest existing ancestor of *path* - disk_usage needs a real path, and
     the models dir may not exist yet before the first pull."""
     for candidate in (path, *path.parents):
         if candidate.exists():
@@ -79,7 +79,7 @@ def _existing_ancestor(path: Path) -> Path:
 
 
 def _preflight_ollama_pull(tag: str) -> dict:
-    """Free vs needed space for pulling *tag*. Non-raising — callers decide."""
+    """Free vs needed space for pulling *tag*. Non-raising - callers decide."""
     entry = next(
         (e for e in model_catalog.recommended_models() if e.ollama_tag == tag), None
     )
@@ -123,7 +123,7 @@ _WHISPER_SIZE_GB: dict[str, float] = {
     "distil-large-v2": 1.5, "distil-large-v3": 1.5,
 }
 # Whisper models are downloaded file-by-file into the HF cache, so the slack a
-# .part temp file needs for a .gguf does not apply — a small buffer is enough.
+# .part temp file needs for a .gguf does not apply - a small buffer is enough.
 _WHISPER_DISK_HEADROOM_GB = 0.5
 
 
@@ -169,22 +169,22 @@ def _capabilities(cfg) -> dict:
     if not permissions.allow_llm:
         return {
             "backend": backend, "model": None, "text": False, "vision": False,
-            "detail": "Generative AI is turned off — change it under Settings → AI privacy.",
+            "detail": "Generative AI is turned off - change it under Settings → AI privacy.",
         }
     if backend == "claude" and not permissions.allow_remote:
         return {
             "backend": backend, "model": cfg.claude_model or None, "text": False, "vision": False,
             "detail": (
-                "The remote (Claude) backend is blocked by AI privacy mode — switch to a "
+                "The remote (Claude) backend is blocked by AI privacy mode - switch to a "
                 "local model or allow remote models under Settings → AI privacy."
             ),
         }
     if backend == "claude":
         has_key = bool(cfg.claude_api_key)
         detail = (
-            "Claude API key set — text and image analysis are available."
+            "Claude API key set - text and image analysis are available."
             if has_key else
-            "No Claude API key set — add one under Settings → LLM scoring."
+            "No Claude API key set - add one under Settings → LLM scoring."
         )
         return {
             "backend": backend, "model": cfg.claude_model or None,
@@ -196,11 +196,11 @@ def _capabilities(cfg) -> dict:
         mmproj = cfg.llm_mmproj_path
         vision_ok = text_ok and bool(mmproj) and Path(mmproj).exists()
         if not model_path:
-            detail = "No model file set — choose a .gguf under Settings → LLM scoring."
+            detail = "No model file set - choose a .gguf under Settings → LLM scoring."
         elif not text_ok:
             detail = f"Model file not found: {model_path}"
         elif vision_ok:
-            detail = "Model and vision projector are set — image analysis is available."
+            detail = "Model and vision projector are set - image analysis is available."
         elif mmproj:
             detail = f"Vision projector file not found: {mmproj}"
         else:
@@ -215,9 +215,9 @@ def _capabilities(cfg) -> dict:
     text_ok = bool(model)
     vision_ok = text_ok and _ollama_tag_base(vision_model) in _OLLAMA_VISION_BASES
     if not text_ok:
-        detail = "No Ollama model set — choose one under Settings → LLM scoring."
+        detail = "No Ollama model set - choose one under Settings → LLM scoring."
     elif vision_ok:
-        detail = "A vision-capable Ollama model is set — image analysis is available."
+        detail = "A vision-capable Ollama model is set - image analysis is available."
     else:
         detail = "Text scoring is ready; set a vision model to enable image analysis."
     return {
@@ -230,7 +230,7 @@ def _capabilities(cfg) -> dict:
 # A read-only map of the tiered "lightweight-by-default" design (Stage 06). Each
 # tier sources its active state + install guidance from the same availability()
 # functions the features use, so the panel can never drift from reality. Static
-# checks only, mirroring _capabilities — no live backend probe.
+# checks only, mirroring _capabilities - no live backend probe.
 
 _SIMILARITY_LABELS = {
     "tfidf": "Fast (keyword)",
@@ -273,7 +273,7 @@ def _similarity_tier(cfg, text_ok: bool) -> dict:
         "upgrade": "Smart (embeddings) adds paraphrase-aware matching with a small on-device model, bundled by default.",
         "ready": model_ready,
         "detail": detail,
-        # fastembed is bundled (Tier A) — nothing to install from here anymore.
+        # fastembed is bundled (Tier A) - nothing to install from here anymore.
         "install_slug": None,
         "prefetch_slug": "embeddings" if embed_ok and not model_ready else None,
         "section": "settings-sec-llm",
@@ -291,7 +291,7 @@ def _descriptions_tier(text_ok: bool, detail: str) -> dict:
         "detail": detail,
         "install_slug": None,
         # The GGUF/Ollama model has its own download flow (the recommended-models
-        # catalog's "Pull with Ollama" / download-page link) — not this button.
+        # catalog's "Pull with Ollama" / download-page link) - not this button.
         "prefetch_slug": None,
         "section": "settings-sec-llm",
     }
@@ -317,24 +317,24 @@ def _speaker_labels_tier(cfg) -> dict:
         if not installed:
             detail = "Pyannote (advanced) isn't installed yet."
         elif not has_token:
-            detail = "Pyannote is installed — add a HuggingFace token to finish setup."
+            detail = "Pyannote is installed - add a HuggingFace token to finish setup."
         else:
             detail = "Pyannote is installed and ready."
         return {
             "id": "speaker_labels", "name": "Speaker labels", "purpose": purpose,
             "active": "Pyannote (advanced)",
-            "upgrade": "SpeechBrain is the default, token-free backend — Pyannote is an advanced, optional alternative.",
+            "upgrade": "SpeechBrain is the default, token-free backend - Pyannote is an advanced, optional alternative.",
             "ready": ready, "detail": detail,
             "install_slug": None if installed else "pyannote",
             "prefetch_slug": None,
             "section": "settings-sec-speakers",
         }
-    # speechbrain (default) — bundled package; the ECAPA model is Tier B.
+    # speechbrain (default) - bundled package; the ECAPA model is Tier B.
     model_ready = speechbrain_model_cached()
     return {
         "id": "speaker_labels", "name": "Speaker labels", "purpose": purpose,
         "active": "SpeechBrain",
-        "upgrade": "Bundled by default — no HuggingFace account or token needed.",
+        "upgrade": "Bundled by default - no HuggingFace account or token needed.",
         "ready": model_ready,
         "detail": (
             "Ready." if model_ready else
@@ -366,10 +366,10 @@ def _audio_events_tier(cfg) -> dict:
         "name": "Audio-event detection",
         "purpose": "Boosts Action on gunshots and explosions, Funny on crowd cheers.",
         "active": "On" if available else "Off",
-        "upgrade": "Bundled and on by default — the audio model downloads automatically the first time you analyze.",
+        "upgrade": "Bundled and on by default - the audio model downloads automatically the first time you analyze.",
         "ready": model_ready,
         "detail": detail,
-        # transformers/torch are bundled (Tier A) — nothing to install from here.
+        # transformers/torch are bundled (Tier A) - nothing to install from here.
         "install_slug": None,
         "prefetch_slug": "audio_event" if available and not model_ready else None,
         "section": "settings-sec-weights",
@@ -382,7 +382,7 @@ def _vertical_framing_tier() -> dict:
     installed = module_findable("mediapipe")
     model_ready = installed and face_model_cached()
     if not installed:
-        detail = "MediaPipe isn't available — this should be bundled with yuu-clip, so try reinstalling if this persists."
+        detail = "MediaPipe isn't available - this should be bundled with yuu-clip, so try reinstalling if this persists."
     elif model_ready:
         detail = "Ready."
     else:
@@ -395,11 +395,11 @@ def _vertical_framing_tier() -> dict:
         "name": "Auto-frame on faces",
         "purpose": "Suggests where to place the Vertical framing crop on vertical exports by finding faces.",
         "active": "Available" if installed else "Unavailable",
-        "upgrade": "Bundled by default — used only when you export with a vertical preset.",
+        "upgrade": "Bundled by default - used only when you export with a vertical preset.",
         "ready": model_ready,
         "detail": detail,
         "install_slug": None,
-        # The BlazeFace asset is ~230 KB — effectively instant, no progress UI needed.
+        # The BlazeFace asset is ~230 KB - effectively instant, no progress UI needed.
         "prefetch_slug": None,
         "section": "settings-sec-export",
     }
@@ -409,7 +409,7 @@ def _vertical_framing_tier() -> dict:
 # Stage 7) ───────────────────────────────────────────────────────────────────
 # The catalog route enriches each entry with where its file would live, whether
 # that file is already downloaded, and whether the active backend is pointed at
-# it — so the UI can show an "Active"/"Downloaded" badge and a "Use this model"
+# it - so the UI can show an "Active"/"Downloaded" badge and a "Use this model"
 # shortcut without the browser reverse-engineering it from a path string.
 
 
@@ -436,7 +436,7 @@ def _entry_installed(entry, models_dir: Path) -> bool:
 
 
 def _entry_active(entry, cfg) -> bool:
-    """True when the active backend is configured to use this entry — scoped to
+    """True when the active backend is configured to use this entry - scoped to
     the current backend so a saved-but-inactive backend's models aren't flagged."""
     backend = cfg.llm_backend
     if backend == "llamacpp":
@@ -502,7 +502,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     @router.post("/api/llm/ollama/pull")
     async def ollama_pull(tag: str):
         if tag not in _PULLABLE_OLLAMA_TAGS:
-            raise HTTPException(400, f"Unknown model tag '{tag}' — allowed: {sorted(_PULLABLE_OLLAMA_TAGS)}")
+            raise HTTPException(400, f"Unknown model tag '{tag}' - allowed: {sorted(_PULLABLE_OLLAMA_TAGS)}")
         disk = _preflight_ollama_pull(tag)
         if not disk["sufficient"]:
             raise HTTPException(
@@ -519,9 +519,9 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         if model_id not in _DOWNLOADABLE_GGUF_IDS or entry is None:
             raise HTTPException(
                 400,
-                f"Unknown model id '{model_id}' — allowed: {sorted(_DOWNLOADABLE_GGUF_IDS)}",
+                f"Unknown model id '{model_id}' - allowed: {sorted(_DOWNLOADABLE_GGUF_IDS)}",
             )
-        # Reject a duplicate before the disk precheck — a second trigger (another
+        # Reject a duplicate before the disk precheck - a second trigger (another
         # tab, a double boot) must never spawn a second download into the same file.
         if _LLM_DOWNLOAD_KEY in ctx.model_downloads:
             raise HTTPException(409, "A local model download is already in progress.")
@@ -551,7 +551,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
 
         if whisper_model_cached(ctx.config):
             return {"status": "already-cached"}
-        # Reject a duplicate before spawning — a second trigger (another tab, a
+        # Reject a duplicate before spawning - a second trigger (another tab, a
         # second boot) must never launch a second download into the shared HF
         # cache while one is already running.
         if _WHISPER_DOWNLOAD_KEY in ctx.model_downloads:
@@ -588,7 +588,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         from yuu_clip.transcribe.whisper_runner import whisper_model_cached
 
         # Only prefetch the speaker model when its backend can actually run (the
-        # package is installed and speaker labels aren't turned off) — otherwise the
+        # package is installed and speaker labels aren't turned off) - otherwise the
         # boot prefetch would kick off a download for a feature that can't use it.
         speaker_available = make_diarization_client(ctx.config).available()[0]
         return {

@@ -1,6 +1,6 @@
 """720p H.264 preview-proxy generation and cache bookkeeping.
 
-Long recordings are multi-hour ``.mkv`` files that Chromium cannot seek — it
+Long recordings are multi-hour ``.mkv`` files that Chromium cannot seek - it
 linear-scans to reach a timestamp, so in-app scrubbing is unusable. The root
 cause is the container, not transport. A downscaled 720p H.264 MP4 (regular
 keyframes, ``+faststart``) is seekable and small, so all in-app playback points
@@ -8,7 +8,7 @@ at the proxy instead of the raw source.
 
 Generation prefers NVIDIA NVENC (``h264_nvenc``) and falls back to CPU
 ``libx264`` when no GPU/encoder is available. It uses the same FFmpeg as
-extract/export (``find_ffmpeg``) — packaged builds bundle a GPL FFmpeg (see
+extract/export (``find_ffmpeg``) - packaged builds bundle a GPL FFmpeg (see
 ``docs/dev/THIRD-PARTY-NOTICES-FFMPEG.md``); dev mode resolves it from PATH.
 A missing FFmpeg surfaces as a clear RuntimeError.
 
@@ -60,10 +60,10 @@ def nvenc_available(ffmpeg: Optional[str] = None) -> bool:
             capture_output=True, text=True, timeout=30,
         )
         _nvenc_cache = _NVENC_ENCODER in result.stdout
-    except Exception as exc:  # missing ffmpeg, timeout, etc. — treat as no NVENC
-        _log.warning("NVENC probe failed (%s) — assuming unavailable", exc)
+    except Exception as exc:  # missing ffmpeg, timeout, etc. - treat as no NVENC
+        _log.warning("NVENC probe failed (%s) - assuming unavailable", exc)
         _nvenc_cache = False
-    _log.info("NVENC %s", "available" if _nvenc_cache else "unavailable — using libx264")
+    _log.info("NVENC %s", "available" if _nvenc_cache else "unavailable - using libx264")
     return _nvenc_cache
 
 

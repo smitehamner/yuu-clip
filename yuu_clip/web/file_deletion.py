@@ -1,4 +1,4 @@
-# Feature-map — NOT a feature: the Windows file-lock deletion story.
+# Feature-map - NOT a feature: the Windows file-lock deletion story.
 #   Deleting a clip's backing files (exports, caption sidecars) can race the OS
 #   still holding a handle open after a <video> stops streaming; these helpers
 #   retry, and when a delete truly fails they name the process holding the lock.
@@ -21,7 +21,7 @@ def unlink_with_retry(path: Path, attempts: int = 10, delay_s: float = 0.2) -> N
     """Delete *path*, retrying briefly on OSError.
 
     A media stream that just closed can leave the OS file handle open for a short
-    window after the browser drops its connection to the StaticFiles mount — on
+    window after the browser drops its connection to the StaticFiles mount - on
     Windows the server process itself keeps the export file open while a <video>
     is still streaming it. Retrying absorbs that window so a delete right after
     closing the preview succeeds instead of failing with WinError 32.
@@ -60,8 +60,8 @@ def delete_files(paths: Iterable[Path]) -> list[Path]:
 def locking_processes(path: Path) -> list[str]:
     """Best-effort names of processes holding *path* open. Windows only; [] elsewhere.
 
-    Uses the Restart Manager API — the same mechanism Explorer's "file is open in
-    <app>" dialog relies on — so the error can name the real culprit (e.g. a backup
+    Uses the Restart Manager API - the same mechanism Explorer's "file is open in
+    <app>" dialog relies on - so the error can name the real culprit (e.g. a backup
     agent) instead of guessing. Any failure falls back to an empty list.
     """
     if sys.platform != "win32":
@@ -134,9 +134,9 @@ def locked_files_error(locked: list[Path]) -> HTTPException:
                 holders.append(name)
     count = len(locked)
     if holders:
-        detail = (f"Could not delete {count} file(s) — open in: {', '.join(holders)}. "
+        detail = (f"Could not delete {count} file(s) - open in: {', '.join(holders)}. "
                   f"Close it and try again.")
     else:
-        detail = (f"Could not delete {count} file(s) — they may still be open in the video "
+        detail = (f"Could not delete {count} file(s) - they may still be open in the video "
                   f"player or another program. Close it and try again.")
     return HTTPException(409, detail)

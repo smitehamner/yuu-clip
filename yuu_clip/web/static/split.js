@@ -1,10 +1,10 @@
-// Feature-map — Split recording into segments (code: segment / segment_start_s).
+// Feature-map - Split recording into segments (code: segment / segment_start_s).
 //   API: routes/videos.py (split) · Tests: tests/test_ui_split.py, tests/test_segments.py
 // ── shared live split-editor state ────────────────────────────────────────────
 // Read cross-file: videos.js checks _splitPoints for the "has splits" badge,
 // analyze.js reads the segment plan, index.html's zoom buttons read _splitZoom,
 // and an inline onchange writes _splitNames[i]. Kept at top level, outside the
-// IIFE below, so the global lexical binding stays live — an Object.assign export
+// IIFE below, so the global lexical binding stays live - an Object.assign export
 // would snapshot the value and inline handlers / readers would go stale.
 let _splitDurationS = 0;
 let _splitPoints    = [];  // sorted list of seconds
@@ -14,7 +14,7 @@ let _splitZoom      = 1;
 
 // Suggestion-pin inputs/outputs. Not read by other production modules, but the
 // _computeSuggestionPins tests seed _splitEnergyFlat and read _suggestionPins
-// directly via page.evaluate (global lexical scope) — so they too stay outside
+// directly via page.evaluate (global lexical scope) - so they too stay outside
 // the IIFE rather than becoming closure-private.
 let _splitEnergyFlat = [];   // [{second, rms_db}, …] merged across tracks
 let _suggestionPins  = [];    // [sec, …]
@@ -34,7 +34,7 @@ let _dragActive     = false;
 // Timeline zoom (main split editor only): 1 = fit whole recording, higher =
 // wider bar inside a horizontal-scroll container. All overlay layers are
 // %-positioned so they scale for free; only the waveform canvas needs a redraw.
-// (_splitZoom itself is hoisted to top level above — an inline zoom-button
+// (_splitZoom itself is hoisted to top level above - an inline zoom-button
 // handler in index.html reads it.)
 const _SPLIT_ZOOM_MIN = 1;
 const _SPLIT_ZOOM_MAX = 50;
@@ -153,7 +153,7 @@ async function _loadSplitEditorOverlays(videoId) {
   _renderSuggestionLayer();
 }
 
-// Force-closes the panel (bypasses PanelNav's dirty gate) — used by callers
+// Force-closes the panel (bypasses PanelNav's dirty gate) - used by callers
 // that already ran their own confirm (e.g. switching recordings) and by the
 // split editor's own post-confirm success paths.
 function closeSplitEditor() {
@@ -170,7 +170,7 @@ function _teardownSplitEditor() {
   const panel = document.getElementById('split-editor-panel');
   panel.style.display = 'none';
   // PanelNav removes its container (and everything still inside it) right
-  // after onClose() runs — move the panel's static markup back out first so
+  // after onClose() runs - move the panel's static markup back out first so
   // it survives to be reparented into the next PanelNav container on reopen.
   document.getElementById('panelnav-root').insertAdjacentElement('afterend', panel);
   document.getElementById('split-waveform-notice').style.display = 'none';
@@ -188,7 +188,7 @@ function _splitSeekTo(sec) {
 }
 
 // Preview proxy (720p, fast scrubbing) is handled by the shared
-// setupRecordingPreview() in utils.js — see openSplitEditor.
+// setupRecordingPreview() in utils.js - see openSplitEditor.
 
 async function _generateWaveform() {
   const btn = document.querySelector('#split-waveform-notice button');
@@ -383,7 +383,7 @@ function _renderSuggestionLayer() {
     const pct = (sec / _splitDurationS * 100).toFixed(3);
     return `<div data-pin="${sec}" class="split-suggestion-pin"
                  style="position:absolute;left:${pct}%;top:0;bottom:0;width:14px;transform:translateX(-50%);cursor:pointer;pointer-events:auto;display:flex;justify-content:center"
-                 title="Quiet valley at ${_fmtSplitTime(sec)} — click to place a split point here"
+                 title="Quiet valley at ${_fmtSplitTime(sec)} - click to place a split point here"
                  onclick="event.stopPropagation();_promoteSuggestionPin(${sec})">
                <div style="width:0;border-left:1.5px dashed color-mix(in srgb, var(--text) 40%, transparent)"></div>
              </div>`;
@@ -464,7 +464,7 @@ function splitTimelineClick(e) {
 
   if (sec <= 0 || sec >= _splitDurationS) return;
 
-  // Too close to an existing marker — ignore rather than stack a near-duplicate
+  // Too close to an existing marker - ignore rather than stack a near-duplicate
   // (removal is via the marker's × button).
   const threshold = _splitDurationS * 0.005;
   if (_splitPoints.some(p => Math.abs(p - sec) <= threshold)) return;
@@ -495,7 +495,7 @@ function _rebuildSplitNames() {
   const video = AppState.videos.find(v => v.id === _splitVideoId);
   const stem  = video ? video.filename.replace(/\.[^.]+$/, '') : 'Recording';
   const count = _splitPoints.length + 1;
-  _splitNames = Array.from({length: count}, (_, i) => `${stem} — Part ${i + 1}`);
+  _splitNames = Array.from({length: count}, (_, i) => `${stem} - Part ${i + 1}`);
 }
 
 function _renderSplitEditor() {
@@ -542,7 +542,7 @@ function _renderSplitTimeline() {
     const pct = (p / _splitDurationS * 100).toFixed(3);
     const timeLabel = _fmtSplitTime(p);
     return `<div class="split-marker" style="position:absolute;left:${pct}%;top:0;bottom:0;width:10px;transform:translateX(-50%);cursor:ew-resize;pointer-events:auto;display:flex;align-items:stretch;justify-content:center"
-                 title="${timeLabel} — drag to move, click to preview from here"
+                 title="${timeLabel} - drag to move, click to preview from here"
                  onpointerdown="event.stopPropagation();_splitMarkerPointerDown(event,${p})">
                <div style="width:2px;background:var(--accent);border-radius:1px"></div>
                <button type="button" class="split-marker-x" title="Remove split point"
@@ -565,7 +565,7 @@ function _parseSplitTime(str) {
 function _updateSplitPoint(idx, timeStr, onRerender) {
   const sec = _parseSplitTime(timeStr);
   if (sec === null) {
-    showToast(`Couldn't read "${timeStr}" — use h:mm:ss or m:ss`, 'error');
+    showToast(`Couldn't read "${timeStr}" - use h:mm:ss or m:ss`, 'error');
     onRerender();
     return;
   }
@@ -610,7 +610,7 @@ function _renderSegmentList(listId, onRerender, showPlayBtn, showIgnore = true) 
     const playBtn  = showPlayBtn
       ? `<button class="btn ghost" style="padding:2px 7px;font-size:12px;flex-shrink:0" title="Play from ${startStr}" onclick="_splitSeekTo(${start})">&#9654;</button>`
       : '';
-    const ignoreChk = showIgnore ? `<label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--muted);white-space:nowrap;cursor:pointer;flex-shrink:0" title="Ignore this segment — it will be split off but not analyzed">
+    const ignoreChk = showIgnore ? `<label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--muted);white-space:nowrap;cursor:pointer;flex-shrink:0" title="Ignore this segment - it will be split off but not analyzed">
         <input type="checkbox" ${ignored ? 'checked' : ''} onchange="_toggleIgnored(${i}, ${onRerender.name})"> Ignore
       </label>` : '';
     return `
@@ -635,7 +635,7 @@ function _toggleIgnored(idx, onRerender) {
 
 function _renderSplitSegmentList() {
   const action = document.querySelector('input[name="split-action"]:checked')?.value || 'partition';
-  // Ignore only matters when segments get reanalyzed independently — meaningless
+  // Ignore only matters when segments get reanalyzed independently - meaningless
   // for a plain partition, where every segment keeps whatever clips land in it.
   _renderSegmentList('split-segment-list', _renderSplitEditor, true, action !== 'partition');
 }
@@ -694,7 +694,7 @@ async function _doSplitPartitionOnly() {
     const data = await res.json();
     showToast(
       `Recording split into ${plural(data.segment_ids.length, 'segment')} ` +
-      `— ${plural(data.migrated_clips, 'clip')} moved over`
+      ` -  ${plural(data.migrated_clips, 'clip')} moved over`
     );
     closeSplitEditor();
     await loadVideos();
@@ -735,7 +735,7 @@ async function _doSplitAndReanalyze(keepExported) {
     return;
   }
 
-  // Filter out ignored segments — they are split off but not analyzed
+  // Filter out ignored segments - they are split off but not analyzed
   const activeIds = segmentIds.filter((_, i) => !_splitIgnored.has(i));
 
   // Clear existing clips on each active segment before reanalyzing
@@ -761,7 +761,7 @@ async function _doSplitAndReanalyze(keepExported) {
 async function _reanalyzeSegmentsSequentially(segmentIds, index, params) {
   if (index >= segmentIds.length) {
     loadVideos().then(() =>
-      showToast(`Reanalysis complete — ${plural(segmentIds.length, 'segment')}`)
+      showToast(`Reanalysis complete - ${plural(segmentIds.length, 'segment')}`)
     );
     return;
   }
@@ -863,7 +863,7 @@ function _renderPreSplitTimeline() {
     const pct = (p / _splitDurationS * 100).toFixed(3);
     const timeLabel = _fmtSplitTime(p);
     return `<div class="split-marker" style="position:absolute;left:${pct}%;top:0;bottom:0;width:10px;transform:translateX(-50%);cursor:ew-resize;pointer-events:auto;display:flex;align-items:stretch;justify-content:center"
-                 title="${timeLabel} — drag to move"
+                 title="${timeLabel} - drag to move"
                  onpointerdown="event.stopPropagation();_preSplitMarkerPointerDown(event,${p})">
                <div style="width:2px;background:var(--accent);border-radius:1px"></div>
                <button type="button" class="split-marker-x" title="Remove split point"

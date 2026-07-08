@@ -1,11 +1,11 @@
 (function () {
-// Feature-map — Sensitive Terms (Privacy Terms + Censor Words; code: sensitive_terms).
+// Feature-map - Sensitive Terms (Privacy Terms + Censor Words; code: sensitive_terms).
 //   API: routes/sensitive.py · Tests: tests/test_ui_sensitive.py
 // ── sensitive-content settings ──────────────────────────────────────────────
 // Server-backed CRUD, same per-row-save model as hot-words (hotwords.js). The
 // key difference: every save/delete triggers an immediate project-wide rescan
-// server-side (routes/sensitive.py — text-only, synchronous), so there's no
-// separate "Rescan current recording" follow-up action here — the toast just
+// server-side (routes/sensitive.py - text-only, synchronous), so there's no
+// separate "Rescan current recording" follow-up action here - the toast just
 // reports how many clips are flagged after the edit.
 // AppState.sensitiveTerms is the single cache, populated at Settings-open time.
 
@@ -37,7 +37,7 @@ function _sensitiveRowValues(rowEl) {
 }
 
 // Blocks "Close spelling" for a too-short term client-side, before it ever
-// reaches the server (which would 400 anyway) — matches the mode dropdown's
+// reaches the server (which would 400 anyway) - matches the mode dropdown's
 // own inline explanation rather than a round-trip error toast.
 function _sensitiveFuzzyGuardTripped(rowEl) {
   const body = _sensitiveRowValues(rowEl);
@@ -68,7 +68,7 @@ async function _saveSensitiveTermRow(rowEl) {
   if (idx !== -1) AppState.sensitiveTerms[idx] = saved;
   else AppState.sensitiveTerms.push(saved);
   _renderSensitiveTermRows();
-  showToast(`Sensitive term saved — ${plural(saved.clips_flagged, 'clip')} flagged`);
+  showToast(`Sensitive term saved - ${plural(saved.clips_flagged, 'clip')} flagged`);
   _refreshActiveVideoClipsForSensitive();
 }
 
@@ -88,7 +88,7 @@ async function _deleteSensitiveTermRow(rowEl) {
   const {clips_flagged} = await res.json();
   AppState.sensitiveTerms = AppState.sensitiveTerms.filter(t => String(t.id) !== key);
   _renderSensitiveTermRows();
-  showToast(`Sensitive term deleted — ${plural(clips_flagged, 'clip')} flagged`);
+  showToast(`Sensitive term deleted - ${plural(clips_flagged, 'clip')} flagged`);
   _refreshActiveVideoClipsForSensitive();
 }
 
@@ -101,7 +101,7 @@ function addSensitiveTermRow() {
   host?.querySelector('[data-sensitive-row^="draft-"]:last-of-type .st-term')?.focus();
 }
 
-// The CRUD routes already rescan the whole project — this just refreshes the
+// The CRUD routes already rescan the whole project - this just refreshes the
 // currently open recording's clip list so its badges/Flagged tab reflect it
 // without the user having to reselect the recording.
 async function _refreshActiveVideoClipsForSensitive() {
@@ -121,7 +121,7 @@ function _renderSensitiveTermRows() {
   if (!host) return;
   const terms = AppState.sensitiveTerms || [];
   if (!terms.length) {
-    host.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:4px 0 8px">No sensitive terms yet — add one below.</div>';
+    host.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:4px 0 8px">No sensitive terms yet - add one below.</div>';
     return;
   }
   host.innerHTML = terms.map(t => `
@@ -144,7 +144,7 @@ function _renderSensitiveTermRows() {
       <button type="button" class="btn ghost st-delete" title="Delete sensitive term"
               aria-label="Delete sensitive term ${escHtml(t.term || 'draft')}" style="font-size:13px;padding:2px 8px">&times;</button>
       <div class="st-fuzzy-warning" style="display:none;width:100%;font-size:10px;color:var(--warning)">
-        Close spelling needs a term of at least ${FUZZY_MIN_TERM_LENGTH} characters — shorter terms match too many unrelated words.
+        Close spelling needs a term of at least ${FUZZY_MIN_TERM_LENGTH} characters - shorter terms match too many unrelated words.
       </div>
     </div>`).join('');
 }

@@ -3,7 +3,7 @@ Export preset definitions, validation, and the size-cap bitrate math.
 
 Built-in presets ("youtube-1080p", "discord-10mb") are always available and
 not editable. Custom presets are user preferences, stored in global config
-(Config.export_presets) rather than project data — see web/routes/export_presets.py
+(Config.export_presets) rather than project data - see web/routes/export_presets.py
 for the CRUD routes and export/render.py for how a preset drives the actual encode.
 """
 from __future__ import annotations
@@ -20,7 +20,7 @@ MIN_AUDIO_KBPS = 32
 MAX_AUDIO_KBPS = 320
 
 # Below this, a two-pass size-capped encode would have essentially no video
-# bitrate left after subtracting audio — reject before wasting an encode on it.
+# bitrate left after subtracting audio - reject before wasting an encode on it.
 MIN_VIDEO_KBPS = 150
 
 _NAME_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
@@ -37,7 +37,7 @@ class ExportPreset:
     audio_kbps: int = 128
     # Vertical (9:16) output for TikTok / Shorts: the source is cropped to 9:16 at
     # the clip's crop_x position and scaled to 1080x1920. When True, `height` is
-    # informational only — the vertical filter owns the scale (see extract.py).
+    # informational only - the vertical filter owns the scale (see extract.py).
     vertical: bool = False
 
     def to_dict(self) -> dict:
@@ -68,7 +68,7 @@ def builtin_preset_by_name(name: str) -> Optional[ExportPreset]:
 def resolve_preset(name: Optional[str], custom_presets: list[dict]) -> Optional[ExportPreset]:
     """Look up an Export preset by name across built-ins and *custom_presets*
     (raw dicts as stored in Config.export_presets). Returns None for "default"/
-    empty/unknown — callers treat that as "original quality, no preset"."""
+    empty/unknown - callers treat that as "original quality, no preset"."""
     if not name or name == "default":
         return None
     builtin = builtin_preset_by_name(name)
@@ -91,7 +91,7 @@ def validate_preset_dict(data: dict, existing_names: set[str]) -> ExportPreset:
             "Preset name must be lowercase letters, numbers, and hyphens only (e.g. 'twitch-clip')"
         )
     if name in BUILTIN_PRESET_NAMES:
-        raise ValueError(f"'{name}' is a built-in preset name — choose a different name")
+        raise ValueError(f"'{name}' is a built-in preset name - choose a different name")
     if name in existing_names:
         raise ValueError(f"A custom preset named '{name}' already exists")
 
@@ -148,6 +148,6 @@ def resolve_video_kbps(preset: ExportPreset, duration_s: float) -> float:
     if video_kbps < MIN_VIDEO_KBPS:
         size_label = f"{preset.target_size_mb:g} MB"
         raise ClipTooLongForPresetError(
-            f"This clip is too long to fit under {size_label} — shorten the clip or pick another preset."
+            f"This clip is too long to fit under {size_label} - shorten the clip or pick another preset."
         )
     return video_kbps

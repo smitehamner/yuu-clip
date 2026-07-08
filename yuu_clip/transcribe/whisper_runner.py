@@ -12,7 +12,7 @@ Model storage:
     Linux:   ~/.cache/huggingface/hub
 
 Approximate VRAM / RAM usage:
-  tiny   ~75 MB     fast, rough — good for scouting
+  tiny   ~75 MB     fast, rough - good for scouting
   base   ~150 MB    good speed/quality balance (default)
   small  ~500 MB
   medium ~1.5 GB
@@ -189,10 +189,10 @@ def _report_attach_decision(video_id, speaker, score, threshold, matched,
                       f"(voice similarity {score:.2f})[/dim]")
     elif suggested:
         _log.info("Voiceprint near-miss: minted speaker %d (video %d, cosine %.3f in "
-                  "[%.2f, %.2f)) — suggested match to speaker %d",
+                  "[%.2f, %.2f)) - suggested match to speaker %d",
                   speaker.id, video_id, score, threshold - _CONFIRM_BAND_WIDTH,
                   threshold, speaker.suggested_match_id)
-        console.print(f"    [dim]New Speaker {speaker.display_index} — possible match "
+        console.print(f"    [dim]New Speaker {speaker.display_index} - possible match "
                       f"(voice similarity {score:.2f}, just below {threshold:.2f})[/dim]")
     elif has_candidates:
         _log.info("Voiceprint miss: minted speaker %d (video %d, best cosine %.3f < %.2f)",
@@ -219,7 +219,7 @@ def _attach_speakers(
     survives re-diarization. Otherwise a fresh Speaker is minted (storing the
     voiceprint when available). Matches are only made against Speakers that
     existed *before* this run, and each prior Speaker matches at most one current
-    cluster — pyannote already separated the current clusters, so two of them must
+    cluster - pyannote already separated the current clusters, so two of them must
     not collapse onto one identity. display_index continues from the recording's
     current max so "Speaker N" numbering never collides.
     """
@@ -344,7 +344,7 @@ def _register_cuda_dll_dirs() -> None:
 
 
 class TranscriptionModelError(RuntimeError):
-    """Whisper model could not be loaded — carries an end-user-actionable message."""
+    """Whisper model could not be loaded - carries an end-user-actionable message."""
 
 
 def _model_key(config: Config, device: str, compute_type: str) -> tuple:
@@ -356,7 +356,7 @@ def _model_load_error(config: Config, exc: Exception) -> TranscriptionModelError
         f"Couldn't load the transcription model '{config.whisper_model}'. "
         "The first time a model is used it is downloaded from the internet, so if this "
         "is a new model, check your connection and try again. If transcription worked "
-        f"before, the downloaded model may be corrupt — retry to re-download. (details: {exc})"
+        f"before, the downloaded model may be corrupt - retry to re-download. (details: {exc})"
     )
 
 
@@ -369,7 +369,7 @@ def _load_whisper_model(config: Config, device: str, compute_type: str):
     rev_note = f"  revision={config.whisper_model_revision}" if config.whisper_model_revision else "  revision=latest (not pinned)"
     console.print(
         f"  [dim]Loading Whisper model '[bold]{config.whisper_model}[/bold]' "
-        f"on {device} ({compute_type}){rev_note} — "
+        f"on {device} ({compute_type}){rev_note} - "
         f"first run downloads the model…[/dim]"
     )
     return WhisperModel(
@@ -403,13 +403,13 @@ def _get_model(config: Config):
             return _model_cache[key]
         except Exception as exc:
             _log.warning(
-                "Whisper model failed to load on CUDA (%s) — falling back to CPU. "
+                "Whisper model failed to load on CUDA (%s) - falling back to CPU. "
                 "To use the GPU, install the CUDA support libraries from "
                 "Settings -> Hardware (Enable GPU acceleration).",
                 exc,
             )
             console.print(
-                "[yellow]GPU transcription unavailable — the CUDA support libraries "
+                "[yellow]GPU transcription unavailable - the CUDA support libraries "
                 "(cuBLAS + cuDNN) are missing, so this run will use the CPU instead "
                 "(slower).[/yellow]"
             )
@@ -447,7 +447,7 @@ def transcribe_track(
     live progress even on long recordings.
     """
     if not track.extracted_path:
-        raise ValueError(f"Track {track.id} has no extracted_path — extract audio first.")
+        raise ValueError(f"Track {track.id} has no extracted_path - extract audio first.")
 
     audio_path = Path(track.extracted_path)
     if not audio_path.exists():
@@ -490,7 +490,7 @@ def transcribe_track(
             str(audio_path),  # faster-whisper expects a string path
             language=language,
             beam_size=5,
-            vad_filter=True,       # built-in silero VAD — skips silent regions
+            vad_filter=True,       # built-in silero VAD - skips silent regions
             vad_parameters={
                 "min_silence_duration_ms": 500,
                 "speech_pad_ms": 200,
@@ -536,7 +536,7 @@ def diarize_track(
     """Run diarization and assign speaker labels, if a backend is available.
 
     Called as its own pipeline stage (see ``_pipeline._run_speaker_diarization``),
-    not from ``transcribe_track`` — diarization is slow enough that it needs its
+    not from ``transcribe_track`` - diarization is slow enough that it needs its
     own visible step rather than hiding inside transcription.
     """
     diar_client = make_diarization_client(config)
@@ -550,7 +550,7 @@ def diarize_track(
     if config.diarization_backend == "speechbrain" and not speechbrain_model_cached():
         console.print(
             f"  [dim]Downloading the speaker model (~80 MB) so speaker labels can run "
-            f"for [{track.label}] — this happens once...[/dim]"
+            f"for [{track.label}] - this happens once...[/dim]"
         )
 
     _log.info("Running diarization for track %d [%s]…", track.id, track.label)

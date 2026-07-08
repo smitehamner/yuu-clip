@@ -1,11 +1,11 @@
-# Feature-map — Project switcher (code: project_dir)
+# Feature-map - Project switcher (code: project_dir)
 #   UI: static/projects.js (header project dropdown)
 #   Siblings: deps.py (ProjectContext.switch_project) · config.py (recent projects) · tests/test_projects.py, tests/test_ui_projects.py
 """
 Project switcher routes.
 
 Lists the recent-projects registry and switches the live server to another
-project directory *in place* — the shared ProjectContext is rebuilt without a
+project directory *in place* - the shared ProjectContext is rebuilt without a
 process restart (see deps.py::ProjectContext.switch_project). The frontend does
 a full page reload after a successful switch; there is no attempt to hot-swap
 client state.
@@ -53,7 +53,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         if analyze_in_flight(ctx) or ctx.active_jobs > 0 or ctx.proxy_generating:
             raise HTTPException(
                 409,
-                "Analysis is running — wait for it to finish or cancel it before "
+                "Analysis is running - wait for it to finish or cancel it before "
                 "switching projects.",
             )
         new_dir = Path(body.path).expanduser()

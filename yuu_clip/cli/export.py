@@ -1,6 +1,6 @@
 """Export commands: export a single clip, retranscribe a clip window.
 
-Thin Typer adapters — the engine they call lives in :mod:`yuu_clip.export.render`.
+Thin Typer adapters - the engine they call lives in :mod:`yuu_clip.export.render`.
 """
 from __future__ import annotations
 
@@ -67,7 +67,7 @@ def export(
             console.print(f"[red]Unknown export preset '{preset}'[/red]")
             raise typer.Exit(1)
         if embed_subs:
-            console.print("[red]--embed-subs isn't supported with --preset — use --bake-captions or --no-captions instead[/red]")
+            console.print("[red]--embed-subs isn't supported with --preset - use --bake-captions or --no-captions instead[/red]")
             raise typer.Exit(1)
         container = resolved_preset.container
 

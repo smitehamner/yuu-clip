@@ -64,16 +64,16 @@ def _parse_srt(text: str) -> list[tuple[int, int, str]]:
 
 
 def _llm_unavailable_notice(reason: str) -> None:
-    console.print(f"  [yellow]AI clip ranking unavailable — {reason}.[/yellow]")
+    console.print(f"  [yellow]AI clip ranking unavailable - {reason}.[/yellow]")
     console.print(
         "  [yellow]Clips will still be created and ranked, just without the AI score. "
-        "Start the LLM engine (e.g. run Ollama) to include it — do it now and it will be "
+        "Start the LLM engine (e.g. run Ollama) to include it - do it now and it will be "
         "used in this run; otherwise use Rescore later.[/yellow]"
     )
 
 
 def _preflight_llm_check(config, opts: AnalyzeOptions) -> None:
-    """Warn up front — before the slow transcription — if LLM scoring is wanted but the
+    """Warn up front - before the slow transcription - if LLM scoring is wanted but the
     backend isn't reachable, so the user can start it now instead of discovering
     unranked clips at the end. Silent when scoring is off or the LLM is intentionally
     disabled in Settings."""
@@ -111,14 +111,14 @@ def _resolve_existing_video(session, video_path: Path, opts: AnalyzeOptions):
         existing = session.query(Video).filter_by(path=abs_path, segment_start_s=None).first()
 
     if existing and existing.status == "done" and not opts.force:
-        console.print(f"[dim]Skipping {video_path.name} (already done — use --force to redo)[/dim]")
+        console.print(f"[dim]Skipping {video_path.name} (already done - use --force to redo)[/dim]")
         return None
 
     return video_path, existing
 
 
 def _obtain_transcripts(opts: AnalyzeOptions, video_path: Path, track_objs, session, video, config) -> list:
-    """Import subtitles, transcribe, or skip — depending on the run options."""
+    """Import subtitles, transcribe, or skip - depending on the run options."""
     if opts.subtitle_source:
         return _import_subtitles(opts.subtitle_source, video_path, track_objs, session, video)
     if not opts.no_transcribe:
@@ -130,7 +130,7 @@ def _should_prewarm_transformers(config, opts: "AnalyzeOptions") -> bool:
     """Whether to resolve transformers.pipeline before diarization imports
     speechbrain. Only speechbrain triggers the k2 poisoning, and only a
     transformers-backed scorer (audio-event, or laugh in "model" mode) needs
-    pipeline — so pre-warm exactly when both are in play this run."""
+    pipeline - so pre-warm exactly when both are in play this run."""
     if config.diarization_backend != "speechbrain":
         return False
     if opts.no_score:
@@ -225,14 +225,14 @@ def _analyze_one(
                 _run_scoring(video, track_objs, config, session, energy_mode=opts.energy_mode, context_text=opts.context_text)
         except Exception as exc:
             # ScoringEngine.score_video commits after every clip (so the web server can
-            # see scores as they land — see scoring/engine.py), so clips scored before
+            # see scores as they land - see scoring/engine.py), so clips scored before
             # the failure keep their committed scores; rollback only discards the
             # in-flight clip's uncommitted work. video.clips_scored_at is set only after
-            # the whole batch succeeds, so it stays null here — that flag, not per-clip
+            # the whole batch succeeds, so it stays null here - that flag, not per-clip
             # score presence, is the "fully scored" signal the UI's Rescore prompt uses.
             # Don't let one video's scoring failure abort the rest of the batch.
             session.rollback()
-            console.print(f"  [yellow]Scoring failed — clips kept, unscored. Use Rescore to retry: {exc}[/yellow]")
+            console.print(f"  [yellow]Scoring failed - clips kept, unscored. Use Rescore to retry: {exc}[/yellow]")
             log.exception("Scoring failed: video_id=%s", video.id)
 
     # Opportunistically build the 720p preview proxy so scrubbing is fast later.
@@ -240,7 +240,7 @@ def _analyze_one(
     _maybe_generate_proxy(video, audio_dir, session)
 
     video.processed_at = datetime.now(timezone.utc)
-    # Run metadata is informational only — never let recording it abort the run.
+    # Run metadata is informational only - never let recording it abort the run.
     try:
         video.analyze_run_json = build_run_json(
             recorder, config, opts, started_at,
@@ -319,7 +319,7 @@ def _import_subtitles(subtitle_source: str, video_path: Path, track_objs, sessio
 def _maybe_generate_proxy(video, audio_dir: Path, session) -> None:
     """Build the 720p preview proxy for a recording during analysis, if missing.
 
-    Keyed by source path, so a split recording's segments share one proxy — the
+    Keyed by source path, so a split recording's segments share one proxy - the
     first segment to reach here builds it and the rest see it fresh and skip.
     Non-fatal: proxy generation is a convenience, never a pipeline requirement.
     """
@@ -372,7 +372,7 @@ def _apply_source_metadata(video, video_path: Path) -> None:
     URL metadata sidecar next to *video_path*, if one exists (see url_import.py).
 
     Also pre-seeds title_user from the scraped title so the creator doesn't have
-    to retype one yt-dlp already found — they can still edit or clear it in the
+    to retype one yt-dlp already found - they can still edit or clear it in the
     recording detail view afterward. A no-op (all source_* stay NULL) for a
     recording added from a local file, which never has a sidecar.
     """
@@ -401,7 +401,7 @@ def _upsert_video_and_tracks(session, video_path: Path, info, existing, profile,
                              segment_end_s: Optional[float] = None):
     """Create or update the Video row and its AudioTrack rows.
 
-    Returns (video, track_objs) — the ORM objects for use by later stages.
+    Returns (video, track_objs) - the ORM objects for use by later stages.
     """
     from yuu_clip.analyze.labeler import label_tracks
     from yuu_clip.db.models import AudioTrack, Video
@@ -477,7 +477,7 @@ def _extract_audio_and_check_rms_overlap(
     total_tracks = len(track_objs)
     for idx, track in enumerate(track_objs, 1):
         if not track.do_transcribe and not track.do_score:
-            console.print(f"  [dim]  Track {idx}/{total_tracks} [{track.label}] — skipped (not transcribed or scored)[/dim]")
+            console.print(f"  [dim]  Track {idx}/{total_tracks} [{track.label}] - skipped (not transcribed or scored)[/dim]")
             continue
         if track.extracted_path and Path(track.extracted_path).exists() and not force:
             console.print(f"  [dim]  Track {idx}/{total_tracks} already extracted[/dim]")
@@ -504,7 +504,7 @@ def _extract_audio_and_check_rms_overlap(
 
     if detect_and_apply_overlap_fallback(track_objs):
         console.print(
-            "  [yellow]Track overlap detected[/yellow] — specialized tracks appear to "
+            "  [yellow]Track overlap detected[/yellow] - specialized tracks appear to "
             "duplicate combined audio. Falling back to combined track only."
         )
         for t in track_objs:
@@ -539,11 +539,11 @@ def _transcribe_and_check_overlap(track_objs, config, session, video, language, 
     for idx, track in enumerate(track_objs, 1):
         if not track.do_transcribe:
             console.print(
-                f"  [dim]  Track {idx}/{total_tracks} [{track.label}] — skipped (not marked for transcription)[/dim]"
+                f"  [dim]  Track {idx}/{total_tracks} [{track.label}] - skipped (not marked for transcription)[/dim]"
             )
             continue
         if not track.extracted_path:
-            console.print(f"  [yellow]  Track {idx}/{total_tracks} — no extracted audio, skipping[/yellow]")
+            console.print(f"  [yellow]  Track {idx}/{total_tracks} - no extracted audio, skipping[/yellow]")
             continue
 
         existing = (
@@ -579,7 +579,7 @@ def _transcribe_and_check_overlap(track_objs, config, session, video, language, 
 
     if detect_transcript_overlap(track_objs, session):
         console.print(
-            "  [yellow]Transcript overlap detected[/yellow] — specialized tracks share "
+            "  [yellow]Transcript overlap detected[/yellow] - specialized tracks share "
             "content with combined. Scoring combined track only."
         )
         session.flush()
@@ -588,7 +588,7 @@ def _transcribe_and_check_overlap(track_objs, config, session, video, language, 
 
 
 def _run_speaker_diarization(config, session, transcripts) -> None:
-    """Detect speakers on each transcribed track — a distinct pipeline stage.
+    """Detect speakers on each transcribed track - a distinct pipeline stage.
 
     Split out of transcription so the slow diarization pass (pipeline load +
     inference, often minutes) shows as its own "Detecting speakers" step instead
@@ -603,7 +603,7 @@ def _run_speaker_diarization(config, session, transcripts) -> None:
     for transcript in transcripts:
         track = transcript.audio_track
         if not track.extracted_path or not Path(track.extracted_path).exists():
-            console.print(f"  [dim]  Track {track.stream_index} [{track.label}] — no audio, skipping[/dim]")
+            console.print(f"  [dim]  Track {track.stream_index} [{track.label}] - no audio, skipping[/dim]")
             continue
         console.print(f"  [dim]  Track {track.stream_index} [{track.label}]...[/dim]")
         diarize_track(config, session, transcript, Path(track.extracted_path), track)
@@ -625,7 +625,7 @@ def _rediarize_video(session, config, video) -> int:
         transcripts.append(max(track.transcripts, key=lambda t: t.id))
 
     if not transcripts:
-        console.print("[yellow]No transcripts found — analyze the recording first.[/yellow]")
+        console.print("[yellow]No transcripts found - analyze the recording first.[/yellow]")
         return 0
 
     _run_speaker_diarization(config, session, transcripts)
@@ -639,7 +639,7 @@ def _generate_candidates(video, transcripts, config, session, no_segment, no_tra
 
     if no_segment or not transcripts:
         if not transcripts and not no_transcribe:
-            console.print("  [yellow]  No transcripts available — skipping clip generation[/yellow]")
+            console.print("  [yellow]  No transcripts available - skipping clip generation[/yellow]")
         else:
             video.status = "transcribed"
         session.flush()
@@ -745,7 +745,7 @@ def _run_scoring(video, track_objs, config, session, energy_mode: str = "fast", 
         laugh_ok, laugh_reason = laugh_scorer.availability()
         if not laugh_ok:
             console.print(
-                f"  [yellow]Laughter detection unavailable — {laugh_reason}. "
+                f"  [yellow]Laughter detection unavailable - {laugh_reason}. "
                 f"Clips are still scored using the other signals.[/yellow]"
             )
 
@@ -755,12 +755,12 @@ def _run_scoring(video, track_objs, config, session, energy_mode: str = "fast", 
         audio_ok, audio_reason = audio_event_scorer.availability()
         if not audio_ok:
             console.print(
-                f"  [yellow]Audio-event detection unavailable — {audio_reason}. "
+                f"  [yellow]Audio-event detection unavailable - {audio_reason}. "
                 f"Clips are still scored using the other signals.[/yellow]"
             )
 
     # The audio-event scorer and LaughScorer's "model" mode share the same AST
-    # checkpoint — one visible notice covers both instead of printing it twice.
+    # checkpoint - one visible notice covers both instead of printing it twice.
     uses_ast_model = (
         (config.scorer_audio_event_enabled and audio_ok) or
         (config.scorer_laugh_mode == "model" and laugh_ok)
@@ -771,7 +771,7 @@ def _run_scoring(video, track_objs, config, session, energy_mode: str = "fast", 
     ):
         console.print(
             "  [dim]Downloading the audio-event model (~350 MB) so laughter/action-sound "
-            "detection can run — this happens once...[/dim]"
+            "detection can run - this happens once...[/dim]"
         )
 
     from yuu_clip.db.models import HotWord, SensitiveTerm
@@ -790,7 +790,7 @@ def _run_scoring(video, track_objs, config, session, energy_mode: str = "fast", 
     ], hot_words=hot_words, sensitive_terms=sensitive_terms)
     if not engine.has_scorers:
         console.print(
-            "  [yellow]No scoring signals are available — clips were created but left "
+            "  [yellow]No scoring signals are available - clips were created but left "
             "unscored. Check Settings (LLM / laughter), then use Rescore.[/yellow]"
         )
     n = engine.score_video(
@@ -799,7 +799,7 @@ def _run_scoring(video, track_objs, config, session, energy_mode: str = "fast", 
     )
     if audio_event_scorer.load_failed or laugh_scorer.load_failed:
         console.print(
-            "  [yellow]The audio-event model couldn't be downloaded — clips were scored "
+            "  [yellow]The audio-event model couldn't be downloaded - clips were scored "
             "without it. Check your connection, then use Rescore once you're back "
             "online.[/yellow]"
         )

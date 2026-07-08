@@ -1,9 +1,9 @@
-// Feature-map — Analyze (start + SSE progress) + Import from URL, both in the New Recording panel.
+// Feature-map - Analyze (start + SSE progress) + Import from URL, both in the New Recording panel.
 //   API: routes/analyze.py, routes/imports.py · Tests: tests/test_ui_analyze.py
 // ── shared live panel state ───────────────────────────────────────────────────
 // _probedInfo and _panelDirty are read cross-file by videos.js (analyze-button
 // enablement, dirty-guard on view switch). Kept at top level, outside the IIFE
-// below, so the global lexical binding stays live — an Object.assign export
+// below, so the global lexical binding stays live - an Object.assign export
 // would snapshot the value and readers would see stale data.
 let _probedInfo    = null;
 let _panelDirty    = false;
@@ -53,7 +53,7 @@ async function _loadAnalysisDefaults() {
     _setSelectIfPresent('analyze-model',       cfg.whisper_model);
     _setSelectIfPresent('analyze-scene-mode',  cfg.scene_detection_mode);
     _setSelectIfPresent('analyze-energy-mode', cfg.energy_mode);
-  } catch { /* config unreachable — keep the static defaults */ }
+  } catch { /* config unreachable - keep the static defaults */ }
 }
 
 function _setSelectIfPresent(id, value) {
@@ -92,7 +92,7 @@ async function _loadIngestContextPicker() {
   const list = document.getElementById('analyze-context-list');
   if (!AppState.contexts.length) {
     list.innerHTML = `<div style="font-size:12px;color:var(--muted)">
-      No World Contexts set up — clip descriptions will be generic.
+      No World Contexts set up - clip descriptions will be generic.
       <button class="btn ghost" style="font-size:11px;padding:0 6px;color:var(--accent);display:inline-flex"
               onclick="closeNewRecordingPanel();openContextManager()">Add one →</button>
     </div>`;
@@ -105,7 +105,7 @@ async function _loadIngestContextPicker() {
                onclick="_toggleCtxPill(this)">${escHtml(c.display_name || c.context_id)}</button>`
     ).join('') +
     `</div>` +
-    `<div id="ctx-none-selected-note" style="font-size:11px;color:var(--muted);margin-top:6px">No context selected — descriptions will be generic</div>`;
+    `<div id="ctx-none-selected-note" style="font-size:11px;color:var(--muted);margin-top:6px">No context selected - descriptions will be generic</div>`;
 }
 
 function _toggleCtxPill(btn) {
@@ -284,7 +284,7 @@ async function runEstimate() {
 const _warnThresholdMin = 30;
 
 // Shared by the New Recording panel's own probe estimate (renderEstimate) and
-// the Import from URL inspect card (renderImportUrlEstimate) — both call
+// the Import from URL inspect card (renderImportUrlEstimate) - both call
 // /api/estimate and show the same per-step breakdown, just under a different
 // header (local file probe info vs. downloaded-video metadata).
 function _estimateBodyHTML(data) {
@@ -309,7 +309,7 @@ function _estimateBodyHTML(data) {
     ? `<div class="estimate-pct">&#8776; ${data.pct_of_video.toFixed(1)}% of recording duration</div>`
     : '';
   const sourceLine = `<div class="estimate-source">${
-    data.source === 'measured' ? 'Based on your last runs on this model/device' : 'Rough estimate — no matching past runs yet'
+    data.source === 'measured' ? 'Based on your last runs on this model/device' : 'Rough estimate - no matching past runs yet'
   }</div>`;
   const longRunWarning = data.long_run_warning ? `
     <div class="long-run-warning">
@@ -346,7 +346,7 @@ function renderEstimate(info, data) {
     </div>`;
 }
 
-// Before starting, warn if the speech model is still downloading — analysis will
+// Before starting, warn if the speech model is still downloading - analysis will
 // pause at the transcription step until it finishes (it waits on the same HF
 // download rather than starting a second one). Never silently block or duplicate.
 async function startAnalyze() {
@@ -355,7 +355,7 @@ async function startAnalyze() {
   let status = null;
   try {
     status = await fetch('/api/llm/download-status').then(r => r.json());
-  } catch { /* can't tell — don't block the user */ }
+  } catch { /* can't tell - don't block the user */ }
   if (status && status.whisper_downloading) {
     const pct = window.getWhisperDownloadPct ? getWhisperDownloadPct() : null;
     const pctText = (typeof pct === 'number' && pct >= 0) ? ` (${pct}%)` : '';
@@ -431,7 +431,7 @@ async function _doStartAnalyze() {
 }
 
 // Attach the header progress bar + in-detail panel to the analyze SSE stream.
-// Shared by a fresh start and by reattachAnalysis() after a page refresh — the
+// Shared by a fresh start and by reattachAnalysis() after a page refresh - the
 // stream replays everything so far, so both paths render the same live UI.
 function _streamAnalyzeEvents(filename) {
   streamSSE(
@@ -478,7 +478,7 @@ async function _analyzeSegmentsSequentially(
 ) {
   if (index >= segments.length) {
     loadVideos().then(() =>
-      showToast(`Analysis complete — ${plural(segments.length, 'segment')}`)
+      showToast(`Analysis complete - ${plural(segments.length, 'segment')}`)
     );
     SoundFx.play('analysis');
     return;
@@ -525,7 +525,7 @@ async function _analyzeSegmentsSequentially(
 function _showAnalysisToast(video) {
   const count = video ? video.clip_count : 0;
   const canJump = video && AppState.activeVideoId !== video.id;
-  showToast(`Analysis complete — ${plural(count, 'clip')} found`, 'success', {
+  showToast(`Analysis complete - ${plural(count, 'clip')} found`, 'success', {
     durationMs: 8000,
     ...(canJump ? {action: {label: 'Review', onClick: () => selectVideo(video.id)}} : {}),
   });
@@ -648,7 +648,7 @@ async function _renderImportUrlEstimate(durationS) {
   try {
     const res = await fetch('/api/estimate', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      // Downloaded VODs have exactly one audio track (see roadmap plan 08) —
+      // Downloaded VODs have exactly one audio track (see roadmap plan 08) -
       // the default one-track/one-transcribe estimate is trivially right.
       body:   JSON.stringify({duration_s: durationS, audio_tracks: 1, transcribe_tracks: 1, has_gpu: true}),
     });
@@ -700,7 +700,7 @@ async function startImportUrlDownload() {
   });
 }
 
-// Mirrors url_import.py's format_progress_line/parse_progress_line — keep the
+// Mirrors url_import.py's format_progress_line/parse_progress_line - keep the
 // three in sync if that format ever changes.
 const _IMPORT_PROGRESS_RE = /^\[Download\] ([\d.]+)% of (\S+)(?: at (\S+)\/s)?(?:, ETA (\S+))?$/;
 const _IMPORT_DONE_RE     = /^\[Imported\] (.+)$/;
@@ -725,13 +725,13 @@ function _onImportUrlDownloadDone(title) {
   showToast('Download complete', 'success');
   SoundFx.play('analysis');
   if (!_lastImportedPath) {
-    showToast('Download finished, but the file path was not reported — open it from the downloads folder.', 'warning');
+    showToast('Download finished, but the file path was not reported - open it from the downloads folder.', 'warning');
     return;
   }
   const path = _lastImportedPath;
   _lastImportedPath = null;
   // The job just finished, but endJobUI() only re-enables #btn-analyze after its
-  // cosmetic 2s "done" pill delay — force it open now instead of waiting.
+  // cosmetic 2s "done" pill delay - force it open now instead of waiting.
   document.getElementById('btn-analyze').disabled = false;
   openNewRecordingPanel().then(() => {
     document.getElementById('analyze-path').value = path;
@@ -793,7 +793,7 @@ async function _refreshProfileList() {
   }
   el.innerHTML = _allProfiles.map(p => `
     <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border)">
-      <span style="flex:1;font-size:13px">${p.builtin ? '<span title="Built-in layout — cannot be edited or deleted">&#128274;</span> ' : ''}${escHtml(p.display_name)}</span>
+      <span style="flex:1;font-size:13px">${p.builtin ? '<span title="Built-in layout - cannot be edited or deleted">&#128274;</span> ' : ''}${escHtml(p.display_name)}</span>
       <span style="color:var(--muted);font-size:12px">${plural(p.num_tracks, 'track')}</span>
       ${!p.builtin ? `
         <button class="btn" style="padding:4px 10px;font-size:12px" data-edit-profile="${escHtml(p.name)}">Edit</button>
@@ -977,16 +977,16 @@ document.addEventListener('drop', async e => {
   if (!files.length) return;
 
   if (!window.electronAPI || typeof window.electronAPI.getPathForFile !== 'function') {
-    showToast('Drag and drop needs the desktop app — use Analyze and enter the file path instead.', 'info');
+    showToast('Drag and drop needs the desktop app - use Analyze and enter the file path instead.', 'info');
     return;
   }
   if (files.length > 1) {
-    showToast('Drop one recording at a time — using the first file.', 'warning');
+    showToast('Drop one recording at a time - using the first file.', 'warning');
   }
   const file = files[0];
   const ext = '.' + (file.name.split('.').pop() || '').toLowerCase();
   if (!DROP_VIDEO_EXTENSIONS.includes(ext)) {
-    showToast(`Unsupported file type "${ext}" — expected a video file.`, 'error');
+    showToast(`Unsupported file type "${ext}" - expected a video file.`, 'error');
     return;
   }
   const path = window.electronAPI.getPathForFile(file);

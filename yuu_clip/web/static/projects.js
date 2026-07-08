@@ -1,14 +1,14 @@
-// Feature-map — Project switcher (code: project_dir).
+// Feature-map - Project switcher (code: project_dir).
 //   API: routes/projects.py · Tests: tests/test_ui_projects.py
 // ── Project switcher ──────────────────────────────────────────────────────────
 // Header dropdown to switch the server to another project folder in place (no
-// restart). On a successful switch the whole page reloads — AppState is bound to
+// restart). On a successful switch the whole page reloads - AppState is bound to
 // the old project's data and is not hot-swapped. See routes/projects.py.
 (function () {
 let _openProjectOpener = null;
 
 function _projectDisplayName(pathStr) {
-  // Basename of a Windows or POSIX path — the folder name is the project name (v1).
+  // Basename of a Windows or POSIX path - the folder name is the project name (v1).
   const parts = String(pathStr).split(/[\\/]/).filter(Boolean);
   return parts.length ? parts[parts.length - 1] : pathStr;
 }
@@ -22,7 +22,7 @@ async function initProjectSwitcher() {
     btn.style.display = '';
     _renderProjectMenu(data);
   } catch (e) {
-    // Switcher stays hidden if the list can't load — the server is still usable.
+    // Switcher stays hidden if the list can't load - the server is still usable.
   }
 }
 
@@ -88,7 +88,7 @@ document.getElementById('project-menu').addEventListener('keydown', e => {
 document.addEventListener('click', e => {
   if (!document.getElementById('project-switcher-wrap').contains(e.target)) closeProjectMenu();
 });
-// Close when focus leaves the switcher — covers a panel/modal (or its focus
+// Close when focus leaves the switcher - covers a panel/modal (or its focus
 // trap) opening while the menu is up, which would otherwise float over it.
 document.getElementById('project-switcher-wrap').addEventListener('focusout', e => {
   if (!isProjectMenuOpen()) return;

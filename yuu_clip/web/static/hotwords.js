@@ -1,11 +1,11 @@
 (function () {
-// Feature-map — Hot-word (code: hot_words; Settings → Hot-words).
+// Feature-map - Hot-word (code: hot_words; Settings → Hot-words).
 //   API: routes/hotwords.py · Tests: tests/test_ui_hotwords.py
 // ── hot-words settings ────────────────────────────────────────────────────────
 // Server-backed CRUD (unlike the rest of the Settings panel, which batches into
 // one Save): each row change persists immediately via POST/PUT/DELETE against
 // /api/hotwords, mirroring the world-context manager's per-action save model.
-// AppState.hotWords is the single cache — populated at boot (so the recording
+// AppState.hotWords is the single cache - populated at boot (so the recording
 // detail's Scan button can gate on it without an extra fetch) and refreshed here.
 
 let _draftSeq = 0;
@@ -90,7 +90,7 @@ function addHotwordRow() {
   host?.querySelector('[data-hotword-row^="draft-"]:last-of-type .hw-phrase')?.focus();
 }
 
-// A hot-word save affects scores only after a rescan — surface a one-click path
+// A hot-word save affects scores only after a rescan - surface a one-click path
 // to refresh the currently open recording without forcing every video to rescan.
 function _notifyHotwordSaved() {
   const videoId = window.AppState?.activeVideoId;
@@ -108,7 +108,7 @@ async function _rescanHotwords(videoId) {
     return;
   }
   const {clips_changed} = await res.json();
-  showToast(clips_changed ? `Rescan complete — ${plural(clips_changed, 'clip')} updated` : 'Rescan complete — no changes');
+  showToast(clips_changed ? `Rescan complete - ${plural(clips_changed, 'clip')} updated` : 'Rescan complete - no changes');
   await _refreshActiveVideoClips(videoId);
 }
 
@@ -138,7 +138,7 @@ function scanHotwordsForVideo(videoId, btn) {
       _clearActiveStream(handle);
       resetBtn();
       if (errorCount > 0) {
-        showToast(`Scan finished — ${plural(errorCount, 'clip')} failed (check log)`, 'error');
+        showToast(`Scan finished - ${plural(errorCount, 'clip')} failed (check log)`, 'error');
       } else {
         showToast('Hot-word scan complete');
       }
@@ -147,7 +147,7 @@ function scanHotwordsForVideo(videoId, btn) {
     errMsg => {
       _clearActiveStream(handle);
       resetBtn();
-      showToast(`Scan failed — ${errMsg}`, 'error');
+      showToast(`Scan failed - ${errMsg}`, 'error');
     },
   );
   _setActiveStream(handle, resetBtn);
@@ -170,7 +170,7 @@ function _renderHotwordRows() {
   if (!host) return;
   const hotWords = AppState.hotWords || [];
   if (!hotWords.length) {
-    host.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:4px 0 8px">No hot-words yet — add one below.</div>';
+    host.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:4px 0 8px">No hot-words yet - add one below.</div>';
     return;
   }
   host.innerHTML = hotWords.map(hw => `

@@ -19,7 +19,7 @@ EXPORT_NAME_PLACEHOLDERS: frozenset[str] = frozenset(
     {"video", "clip_id", "start", "end", "score", "date", "preset"}
 )
 
-# Container extensions a clip's exported video file may have been written with —
+# Container extensions a clip's exported video file may have been written with -
 # shared by every caller that locates an already-exported file by its base stem
 # (web routes, the reel builder, the clip_exports backfill migration).
 EXPORT_VIDEO_EXTENSIONS: tuple[str, ...] = (".mkv", ".mp4", ".mov", ".avi", ".webm")
@@ -51,7 +51,7 @@ def validate_export_name_template(template: str) -> str:
         template.format(**{name: "" for name in EXPORT_NAME_PLACEHOLDERS})
     except (ValueError, IndexError, KeyError) as exc:
         raise ValueError(
-            "Export filename template has an unbalanced or misplaced brace — "
+            "Export filename template has an unbalanced or misplaced brace - "
             "use { and } only around a placeholder name."
         ) from exc
     return template
@@ -75,14 +75,14 @@ def export_base_stem(
 ) -> str:
     """Render *template* into a sanitized export filename stem for *cand*.
 
-    video_filename overrides cand.video.filename — callers that already have the
+    video_filename overrides cand.video.filename - callers that already have the
     Video row in hand (the web routes locating already-exported files) pass it
     explicitly rather than relying on the ORM relationship lazy-loading it.
 
     preset is the Export preset name ("default"/None for the original-quality
     export). When the template doesn't reference {preset} itself, a non-default
     preset name is appended as a "_{preset}" suffix so two formats of the same
-    clip never collide on disk — the default export's filename is unchanged
+    clip never collide on disk - the default export's filename is unchanged
     (back-compat with every pre-Plan-07 lookup and exported file).
 
     Only computes the placeholder values the template actually references, so a
@@ -91,7 +91,7 @@ def export_base_stem(
 
     Placeholders are validated when the template is saved (see
     validate_export_name_template), so a KeyError/IndexError here means a
-    stale/hand-edited template — fall back to the default rather than break a
+    stale/hand-edited template - fall back to the default rather than break a
     lookup or an export. The rendered stem is stripped of filesystem-unsafe
     characters and guaranteed non-empty (also falling back to the default).
     """

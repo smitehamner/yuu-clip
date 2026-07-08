@@ -1,4 +1,4 @@
-// Infrastructure — first-paint boot wiring (a11y init, event hookup, initial load).
+// Infrastructure - first-paint boot wiring (a11y init, event hookup, initial load).
 //   Not a feature module; loaded last in index.html. Entry point: exports nothing,
 //   so it is a bare IIFE with no Object.assign(window, ...) list.
 // ── accessibility init ────────────────────────────────────────────────────────
@@ -34,7 +34,7 @@ fetch('/api/status').then(r => r.json()).then(d => {
   AppState.reelsDir = d.reels_dir || null;
   AppState.canReveal = !!d.can_reveal;
   // Reconnect to an analysis that was already running when this page loaded
-  // (e.g. after a refresh) — the subprocess survives independently of the stream.
+  // (e.g. after a refresh) - the subprocess survives independently of the stream.
   if (d.analyze_filename) reattachAnalysis(d.analyze_filename, d.analyze_paused);
 }).catch(() => {});
 
@@ -73,7 +73,7 @@ if (!localStorage.getItem('yuu-getting-started-seen')) openGettingStartedModal()
 // Background model-download handoffs (first-run-friction Stages 4 + 6): if the
 // wizard queued a local model and none is ready yet, and/or the always-needed
 // analysis models (speech + speaker) are not cached and prefetch is enabled, fetch
-// them in the background with in-app progress banners that stack. Non-blocking —
+// them in the background with in-app progress banners that stack. Non-blocking -
 // the app stays fully usable.
 initModelDownload();
 initModelPrefetch();

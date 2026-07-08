@@ -1,12 +1,12 @@
-"""GPU thermal monitoring — warn/auto-pause a running analysis before sustained
+"""GPU thermal monitoring - warn/auto-pause a running analysis before sustained
 high temperatures become a hardware risk.
 
 Two pieces, deliberately separate:
   - GpuThermalMonitor: lazy pynvml wrapper that reads the hottest GPU's
-    temperature. Singleton (one per ProjectContext) — pynvml init is not free
+    temperature. Singleton (one per ProjectContext) - pynvml init is not free
     and only needs to happen once.
   - ThermalTrigger: the consecutive-sample debounce/hysteresis state machine
-    over a monitor's readings. A fresh instance per analyze run — its streak
+    over a monitor's readings. A fresh instance per analyze run - its streak
     counters must not leak between separate jobs.
 """
 from __future__ import annotations
@@ -26,12 +26,12 @@ class GpuThermalMonitor:
 
     Lazily initializes on first use. If NVML is missing, fails to init (no
     NVIDIA GPU, broken/missing driver), or reports zero devices, logs one WARN
-    and goes silent thereafter — available() returns False and
+    and goes silent thereafter - available() returns False and
     read_max_temp_c() returns None without raising or logging again.
     """
 
     def __init__(self, sampler: Optional[Callable[[], Optional[float]]] = None) -> None:
-        # sampler overrides pynvml entirely — used by tests to inject a fake reading
+        # sampler overrides pynvml entirely - used by tests to inject a fake reading
         # without needing real NVIDIA hardware.
         self._sampler = sampler
         self._nvml = None
@@ -80,7 +80,7 @@ class GpuThermalMonitor:
             return float(max(temps)) if temps else None
         except Exception as exc:
             # A transient read failure (driver hiccup) must not disable monitoring
-            # for the rest of the run — just skip this one sample.
+            # for the rest of the run - just skip this one sample.
             _log.debug("GPU temperature read failed: %s", exc)
             return None
 
@@ -97,7 +97,7 @@ class ThermalTrigger:
     """Per-run debounce/hysteresis over a GpuThermalMonitor's readings.
 
     A temperature read failure (monitor returns None) skips the sample without
-    resetting either streak — a single transient read glitch mid-run must not
+    resetting either streak - a single transient read glitch mid-run must not
     erase real consecutive-hot-sample progress.
     """
 
@@ -110,7 +110,7 @@ class ThermalTrigger:
     def note_resumed(self) -> None:
         """Call after any resume (manual or auto-pause's 'Resume now'). Suppresses
         auto-pause from firing again until a poll observes the temperature back
-        below the warn threshold — otherwise a still-hot GPU immediately re-pauses
+        below the warn threshold - otherwise a still-hot GPU immediately re-pauses
         on the next sample and the Resume action fights the monitor."""
         self._suppress_autopause = True
 

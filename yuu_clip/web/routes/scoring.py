@@ -1,4 +1,4 @@
-# Feature-map — LLM scoring / Rescore · Session summary · Session timeline (code: score, summary, timeline)
+# Feature-map - LLM scoring / Rescore · Session summary · Session timeline (code: score, summary, timeline)
 #   UI: static/clips.js (rescore) · videos.js (Summarize / Timeline cards)
 #   Siblings: scoring/llm.py, scoring/engine.py · tests/test_scoring_routes.py, tests/test_scoring_llm.py
 """LLM scoring, timeline, and summary routes."""
@@ -32,14 +32,14 @@ _log = get_logger(__name__)
 def _install_ctas_ok(config) -> bool:
     """Whether "install a local model" nudges should be shown at all.
 
-    Suppressed under the "No generative AI" privacy mode — never nag a user who
+    Suppressed under the "No generative AI" privacy mode - never nag a user who
     deliberately opted out of language models (Stage 07)."""
     from yuu_clip.config import resolve_ai_permissions
     return resolve_ai_permissions(config).allow_llm
 
 
 # Structured empty state the summary/timeline features return instead of hard-failing
-# with a 503 when no language model is available — the frontend renders it as a
+# with a 503 when no language model is available - the frontend renders it as a
 # friendly "install a local model" invitation (Stage 02).
 _NEEDS_MODEL_STATES = {
     "summary": {
@@ -104,7 +104,7 @@ def _load_hot_words(db) -> list:
     """Snapshot the project's hot-words as plain objects, safe to use after *db* closes.
 
     ScoringEngine/apply_hotword_boosts only read scalar attributes (no relationships),
-    so a detached ORM instance would work too — but this file's routes query hot-words
+    so a detached ORM instance would work too - but this file's routes query hot-words
     before closing the session and construct the engine afterward (mirroring clip_ids
     below), so a snapshot avoids relying on SQLAlchemy detached-instance behavior.
     """
@@ -119,7 +119,7 @@ def _load_hot_words(db) -> list:
 
 def _load_sensitive_terms(db) -> list:
     """Snapshot the project's sensitive terms as plain objects, safe to use after
-    *db* closes — mirrors _load_hot_words above. Never log the .term values read
+    *db* closes - mirrors _load_hot_words above. Never log the .term values read
     here (see SensitiveTerm docstring)."""
     return [
         SimpleNamespace(
@@ -171,7 +171,7 @@ def _register_hotword_rescan_route(router: APIRouter, ctx: ProjectContext) -> No
     @router.post("/api/videos/{video_id}/hotword-rescan")
     def hotword_rescan(video_id: int):
         """Recompute hot-word matches and score boosts for every clip of *video_id*
-        from their already-stored transcript excerpts — no LLM call, synchronous."""
+        from their already-stored transcript excerpts - no LLM call, synchronous."""
         from yuu_clip.scoring.engine import apply_hotword_boosts
 
         db = ctx.get_db()
@@ -199,7 +199,7 @@ def _register_hotword_scan_route(router: APIRouter, ctx: ProjectContext) -> None
     async def hotword_scan(video_id: int):
         """Run the "Meaning" hot-word check against every clip's transcript excerpt.
 
-        Only enabled match_mode='semantic' entries are scanned — exact/case-insensitive
+        Only enabled match_mode='semantic' entries are scanned - exact/case-insensitive
         matches are untouched (they run via hotword-rescan instead). Concept matching
         goes through the similarity engine (config.similarity_backend), so this works
         with no LLM installed. Streams progress as SSE, one backend call per clip.
@@ -248,7 +248,7 @@ def _register_hotword_scan_route(router: APIRouter, ctx: ProjectContext) -> None
                             matched = await asyncio.to_thread(backend.match_concepts, text, phrases)
                             # apply_hotword_boosts recomputes exact/case-insensitive matches
                             # fresh from the transcript itself, so only the semantic result
-                            # needs writing here — it reads this back to apply the boost and
+                            # needs writing here - it reads this back to apply the boost and
                             # preserve it against a later text-only rescan.
                             clip.hotword_matches = [
                                 {"phrase": p, "mode": "semantic", "count": 1} for p in matched
@@ -277,7 +277,7 @@ def _register_hotword_scan_route(router: APIRouter, ctx: ProjectContext) -> None
 async def _maybe_analyze_frames(ctx, score_db, clip, config, context_text: str) -> None:
     """Run image analysis for one clip during a batch Re-score, storing its summary so
     the scoring pass that follows sees the visual context. A vision failure is logged
-    and swallowed — it must never block the clip's LLM scoring."""
+    and swallowed - it must never block the clip's LLM scoring."""
     from yuu_clip.analyze.frames import analyze_clip_frames
 
     try:
@@ -302,7 +302,7 @@ def _rescore_video_clips(
         from yuu_clip.scoring.llm import check_vision_available
         vision_ok, reason = check_vision_available(ctx.config)
         if not vision_ok:
-            raise HTTPException(503, f"Image analysis unavailable — {reason}")
+            raise HTTPException(503, f"Image analysis unavailable - {reason}")
     db = ctx.get_db()
     try:
         video = db.get(Video, video_id)
@@ -347,7 +347,7 @@ def _rescore_video_clips(
                             await _maybe_analyze_frames(ctx, score_db, clip, config, context_text)
                         await asyncio.to_thread(engine.score_clip, clip, score_db)
                         if engine.has_scorers and "llm_error" in clip.tags:
-                            error = "LLM scoring failed — see yuu-clip.log for details"
+                            error = "LLM scoring failed - see yuu-clip.log for details"
                         score_db.commit()
                 except Exception as exc:
                     score_db.rollback()
@@ -380,7 +380,7 @@ def _register_rescore_routes(router: APIRouter, ctx: ProjectContext) -> None:
     async def rescore_clips(video_id: int, include_frames: bool = Query(False)):
         """Re-run LLM scoring for all clips using the video's current context. Streams
         progress as SSE. With include_frames, each clip is image-analyzed first (slower)
-        so its scores/descriptions reflect what's on screen — 503 if no vision model."""
+        so its scores/descriptions reflect what's on screen - 503 if no vision model."""
         return _rescore_video_clips(ctx, video_id, failed_only=False, include_frames=include_frames)
 
     @router.get("/api/videos/{video_id}/rescore-failed-clips")
@@ -401,7 +401,7 @@ def _register_rescore_routes(router: APIRouter, ctx: ProjectContext) -> None:
             all_segs = _collect_transcript_segments(db, video_id)
 
             if not all_segs:
-                raise HTTPException(400, "No transcript available — analyze the recording first")
+                raise HTTPException(400, "No transcript available - analyze the recording first")
 
             context_names = json_list(video.context_names_json)
             seg_data = [(s.start_ms, s.end_ms, s.text) for s in all_segs]
@@ -483,7 +483,7 @@ def _register_summary_routes(router: APIRouter, ctx: ProjectContext) -> None:
     def summarize_video(video_id: int):
         """Generate title + summary via LLM and return them for the compare modal.
 
-        Does NOT write to the DB — the caller commits via PATCH /fields after the
+        Does NOT write to the DB - the caller commits via PATCH /fields after the
         user accepts the result in the diff modal.
         """
         from yuu_clip.scoring.llm import check_llm_available, summarize_transcript
@@ -497,7 +497,7 @@ def _register_summary_routes(router: APIRouter, ctx: ProjectContext) -> None:
             full_text = _video_transcript_text(db, video_id)
 
             if not full_text:
-                raise HTTPException(400, "No transcript available — analyze the recording first")
+                raise HTTPException(400, "No transcript available - analyze the recording first")
 
             llm_ok, llm_reason = check_llm_available(ctx.config)
             if not llm_ok:
@@ -541,7 +541,7 @@ def _register_summary_routes(router: APIRouter, ctx: ProjectContext) -> None:
             db.close()
 
         if not full_text:
-            raise HTTPException(400, "No transcript available — analyze the recording first")
+            raise HTTPException(400, "No transcript available - analyze the recording first")
 
         from yuu_clip.scoring.llm import check_llm_available
         llm_ok, llm_reason = check_llm_available(ctx.config)
@@ -623,13 +623,13 @@ def _register_clip_scoring_routes(router: APIRouter, ctx: ProjectContext) -> Non
                 try:
                     clip = score_db.get(ClipCandidate, clip_id)
                     if clip:
-                        # Snapshot existing descriptions before scoring so we can restore them —
+                        # Snapshot existing descriptions before scoring so we can restore them -
                         # scores are committed but descriptions go back via the compare modal.
                         old_desc      = clip.description
                         old_desc_long = clip.description_long
                         await asyncio.to_thread(engine.score_clip, clip, score_db)
                         if engine.has_scorers and "llm_error" in clip.tags:
-                            error = "LLM scoring failed — see yuu-clip.log for details"
+                            error = "LLM scoring failed - see yuu-clip.log for details"
                         desc_new      = clip.description
                         desc_long_new = clip.description_long
                         clip.description      = old_desc
@@ -681,7 +681,7 @@ def _register_clip_scoring_routes(router: APIRouter, ctx: ProjectContext) -> Non
 
         llm_ok, llm_reason = check_llm_available(ctx.config)
         if not llm_ok:
-            raise HTTPException(503, f"LLM unavailable — {llm_reason}")
+            raise HTTPException(503, f"LLM unavailable - {llm_reason}")
 
         context_text, config = _resolve_context(ctx, context_names)
 
@@ -745,7 +745,7 @@ def _register_clip_scoring_routes(router: APIRouter, ctx: ProjectContext) -> Non
             ref_desc = (clip.description_long_user or clip.description_long or
                         clip.description_user or clip.description or "")
             if not ref_desc:
-                raise HTTPException(400, "Clip has no description — re-score first")
+                raise HTTPException(400, "Clip has no description - re-score first")
 
             context_names = json_list(video.context_names_json)
 

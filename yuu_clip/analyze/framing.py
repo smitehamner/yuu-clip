@@ -2,17 +2,17 @@
 
 Optional feature: `mediapipe` (Apache-2.0) is installed on demand from Settings.
 Everything that touches it imports it lazily, so this module loads fine without
-the package — only `suggest_crop_x` (which the route calls behind an
+the package - only `suggest_crop_x` (which the route calls behind an
 `importlib.util.find_spec` gate) requires it to be present.
 
 The MediaPipe wheel that installs on current Python ships only the Tasks API
-(`mediapipe.tasks.python.vision.FaceDetector`), which needs a model asset — the
+(`mediapipe.tasks.python.vision.FaceDetector`), which needs a model asset - the
 ~230 KB BlazeFace short-range model, downloaded to the user cache on first use
 (same "downloads on first use" pattern as the laugh scorer's model).
 
 The detector samples a handful of frames across a clip's window, finds the median
 face position, and converts that to a `crop_x` (0-1) that centers the 9:16 crop on
-the face. A static position per clip — no per-frame keyframed panning in v1.
+the face. A static position per clip - no per-frame keyframed panning in v1.
 """
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ from yuu_clip.log import get_logger
 _log = get_logger(__name__)
 
 _SAMPLE_COUNT = 5
-# Downscale frames before detection — face-center x is a normalized fraction, so
+# Downscale frames before detection - face-center x is a normalized fraction, so
 # it is unaffected by scale, and 360p is plenty for a face-detector while keeping
 # the ffmpeg extraction cheap.
 _FRAME_HEIGHT = 360
@@ -88,7 +88,7 @@ def _model_path() -> Path:
 
 def face_model_cached() -> bool:
     """Whether the BlazeFace detector model has already been downloaded
-    (filesystem-only, no network) — lets the Settings capabilities overview
+    (filesystem-only, no network) - lets the Settings capabilities overview
     distinguish "ready" from "downloads on first use"."""
     return _model_path().exists()
 
@@ -155,7 +155,7 @@ def suggest_crop_x(
 ) -> Optional[float]:
     """Sample frames across the clip window, run MediaPipe face detection, and
     return a `crop_x` (0-1) that centers the 9:16 crop on the median face position
-    — or None when no face is found in any sampled frame.
+    - or None when no face is found in any sampled frame.
 
     Imports mediapipe lazily; callers must ensure the package is installed.
     """

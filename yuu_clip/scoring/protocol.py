@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 
 @dataclass
 class ScoreResult:
-    # None means "this scorer has no opinion on the dimension" — distinct from a
+    # None means "this scorer has no opinion on the dimension" - distinct from a
     # real 0.0 ("scored, and it's a zero"). The engine normalises each dimension
     # only over the scorers that emit a value for it, so a scorer that doesn't
     # measure a dimension never drags that dimension's average down.

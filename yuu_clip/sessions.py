@@ -57,7 +57,7 @@ def suggest_session_groups(candidates: list[SessionCandidate]) -> list[list[int]
 
     Orders by start time, then greedily extends a run while the gap between the
     previous recording's end and the next one's start is under the threshold.
-    Only groups of two or more recordings are returned — a lone recording is
+    Only groups of two or more recordings are returned - a lone recording is
     never a "session" worth suggesting.
     """
     ordered = sorted(candidates, key=lambda c: c.start_time)

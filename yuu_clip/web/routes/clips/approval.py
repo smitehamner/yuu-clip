@@ -1,4 +1,4 @@
-"""Approval routes — threshold auto-approve and reset for a video's clips."""
+"""Approval routes - threshold auto-approve and reset for a video's clips."""
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException

@@ -1,7 +1,7 @@
-# Feature-map — Speaker labels / Speaker naming (code: Speaker; also "Suggest names", voice match)
+# Feature-map - Speaker labels / Speaker naming (code: Speaker; also "Suggest names", voice match)
 #   UI: static/speakers.js (Speakers card in the recording detail view)
 #   Siblings: transcribe/diarization_client.py · scoring/llm.py (infer_speaker_names) · tests/test_speakers.py, tests/test_ui_speakers.py
-"""Speaker naming routes — list the voices detected in a recording and rename them.
+"""Speaker naming routes - list the voices detected in a recording and rename them.
 
 Speakers are durable, per-recording identities (see `Speaker` in db/models). Naming
 one refreshes the transcript excerpts that show the name; caption sidecars and reels
@@ -81,9 +81,9 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     async def infer_names(video_id: int):
         """Suggest speaker names from direct address in the transcript (LLM-assisted).
 
-        Streams progress as SSE — the LLM pass over the whole transcript can be slow.
+        Streams progress as SSE - the LLM pass over the whole transcript can be slow.
         Writes each suggestion as an unconfirmed inferred name (source='inferred',
-        confirmed=False) so it surfaces in the Speakers card for the user to accept —
+        confirmed=False) so it surfaces in the Speakers card for the user to accept -
         it never silently reaches captions or excerpts (see Speaker.display_name).
         The done sentinel carries the number of suggestions applied.
         """
@@ -96,7 +96,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                 raise HTTPException(404, "Video not found")
             speakers = db.query(Speaker).filter_by(video_id=video_id).all()
             if not speakers:
-                raise HTTPException(400, "No speakers detected — detect speakers first")
+                raise HTTPException(400, "No speakers detected - detect speakers first")
             labeled = _labeled_transcript(db, video_id, {s.id: s for s in speakers})
             context_names = json_list(video.context_names_json)
         finally:
@@ -136,7 +136,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                     video_id, len(raw), applied,
                 )
                 summary = (
-                    f"[{applied} name suggestion(s) — review and accept]" if applied
+                    f"[{applied} name suggestion(s) - review and accept]" if applied
                     else "[No names could be inferred from the transcript]"
                 )
                 yield f"data: {json_lib.dumps(summary)}\n\n"
@@ -191,7 +191,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
 
         Marks the segment as user-edited, rebuilds the excerpt of every clip that
         overlaps it (the excerpt groups by speaker), and flags those clips for
-        re-score — mirrors the caption-edit route.
+        re-score - mirrors the caption-edit route.
         """
         from yuu_clip.subtitles import refresh_export_sidecars
         db = ctx.get_db()
@@ -228,7 +228,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
 
             speaker = db.get(Speaker, seg.speaker_id) if seg.speaker_id is not None else None
             _log.info(
-                "Reassigned segment %d (video %d) to speaker %s — rebuilt %d clip excerpt(s)",
+                "Reassigned segment %d (video %d) to speaker %s - rebuilt %d clip excerpt(s)",
                 seg_id, video_id, seg.speaker_id, len(affected),
             )
             return {
@@ -329,7 +329,7 @@ def _mean_voiceprint(a: Optional[bytes], b: Optional[bytes]) -> Optional[bytes]:
     """Element-wise mean of two serialized voiceprint centroids.
 
     Falls back to whichever side is present when the other is missing or the two
-    have mismatched dimensions (never raises — a bad merge must not lose a print).
+    have mismatched dimensions (never raises - a bad merge must not lose a print).
     """
     from yuu_clip.transcribe.whisper_runner import _deserialize_voiceprint, _serialize_voiceprint
     if not a:
@@ -386,7 +386,7 @@ def _labeled_transcript(db, video_id: int, speakers_by_id: dict[int, Speaker]) -
 
     Uses only track-level transcripts (clip_id is None). Consecutive segments from the
     same speaker are merged onto one line to keep the prompt compact. Unattributed
-    segments are dropped — direct-address inference needs a known speaker to attach to.
+    segments are dropped - direct-address inference needs a known speaker to attach to.
     """
     video = db.get(Video, video_id)
     track_ids = [t.id for t in video.audio_tracks if t.do_transcribe] if video else []
@@ -459,7 +459,7 @@ def _rebuild_video_excerpts(db, video_id: int) -> int:
 
     Rebuilt from the recording's track-level transcripts (the same source clip
     generation used). Clips that were individually retranscribed keep their own
-    excerpt — their per-clip transcripts are a separate source. Returns the count
+    excerpt - their per-clip transcripts are a separate source. Returns the count
     of clips whose excerpt was rebuilt.
     """
     video = db.get(Video, video_id)

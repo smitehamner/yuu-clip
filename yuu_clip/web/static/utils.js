@@ -1,4 +1,4 @@
-// Feature-map — Cross-cutting UI feedback helpers with no home in a single feature: toasts, the
+// Feature-map - Cross-cutting UI feedback helpers with no home in a single feature: toasts, the
 //   bottom log panel, sort-direction buttons, speaker-labels (diarization) readiness, "reveal in
 //   folder", and clipboard copy. State/format/job-SSE/preview machinery split out in stage 02.
 //   API: routes/config.py, routes/logs.py (indirectly) · Tests: tests/test_ui_utils.py
@@ -14,20 +14,20 @@ function _syncSortDirBtn(btnId, dir) {
   btn.innerHTML = asc ? '&#8593;' : '&#8595;';
   btn.setAttribute('aria-pressed', asc ? 'true' : 'false');
   btn.setAttribute('aria-label', asc
-    ? 'Sorted ascending — click to sort descending'
-    : 'Sorted descending — click to sort ascending');
+    ? 'Sorted ascending - click to sort descending'
+    : 'Sorted descending - click to sort ascending');
   btn.title = asc ? 'Ascending order' : 'Descending order';
 }
 
 // ── speaker labels (diarization) readiness ────────────────────────────────────
-// SpeechBrain (the default backend) is bundled — its package should always be
+// SpeechBrain (the default backend) is bundled - its package should always be
 // present, so an unready result there means a broken install, not a missing
 // optional download. Pyannote is the advanced, token-gated alternative and still
 // needs a real install + a HuggingFace token. The per-run checkboxes in the
 // analyze and export panels both gate on this single check. Centralized here so
 // the three surfaces (Settings, analyze, export) can't drift to different rules.
 function _diarizationReason(backend, installed, hasToken) {
-  if (backend === 'speechbrain') return installed ? '' : 'SpeechBrain is unavailable — try reinstalling yuu-clip';
+  if (backend === 'speechbrain') return installed ? '' : 'SpeechBrain is unavailable - try reinstalling yuu-clip';
   if (!installed) return 'Install pyannote.audio';
   if (!hasToken)  return 'Requires a HuggingFace token';
   return '';
@@ -53,7 +53,7 @@ async function _diarizationReadiness() {
 // button that jumps to Settings. settingsOnclick closes the host surface first
 // (the analyze panel or export modal) so Settings isn't opened behind it.
 function _diarizationNoteHtml(reason, settingsOnclick) {
-  return escHtml(reason) + ' — set up in ' +
+  return escHtml(reason) + ' - set up in ' +
     '<button class="btn ghost" style="font-size:11px;padding:0 4px;color:var(--accent);' +
     `display:inline-flex" onclick="${escHtml(settingsOnclick)}">Settings</button>`;
 }
@@ -99,7 +99,7 @@ function appendLog(raw) {
 
 // ── toast notifications ───────────────────────────────────────────────────────
 // Types: success | info | warning (guard/guidance) | error (actual failures).
-// Error toasts persist until dismissed — durationMs is ignored for them.
+// Error toasts persist until dismissed - durationMs is ignored for them.
 // opts: { durationMs, action: {label, onClick} }
 const TOAST_STACK_MAX = 4;
 
@@ -159,7 +159,7 @@ async function revealInFolder(path) {
 
 // ── clipboard ─────────────────────────────────────────────────────────────────
 // The app only ever runs on localhost or inside Electron, so navigator.clipboard
-// is always available — a failure toast is enough, no execCommand fallback.
+// is always available - a failure toast is enough, no execCommand fallback.
 async function copyText(text, label) {
   try {
     await navigator.clipboard.writeText(text);

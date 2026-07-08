@@ -2,7 +2,7 @@
 Highlight reel compilation.
 
 Combines exported clip files into a single highlight reel with:
-  - Title cards between clips (color, size, and content configurable — see
+  - Title cards between clips (color, size, and content configurable - see
     Config.title_card_* in config.py)
   - Optional crossfade / wipe transitions via ffmpeg xfade filter
 
@@ -70,7 +70,7 @@ def _to_ffmpeg_color(hex_color: str) -> str:
 
 def _truncate_description(text: str) -> str:
     """Cap a title-card description line so drawtext (which never wraps) doesn't
-    render it off-card — a 300-char description already renders off-card today,
+    render it off-card - a 300-char description already renders off-card today,
     so this is a strict improvement over the previous unbounded behavior."""
     if len(text) <= _TITLE_CARD_DESCRIPTION_MAX_CHARS:
         return text
@@ -106,7 +106,7 @@ def title_card_lines(
     config.title_card_template, honoring config.title_card_scale.
 
     The first rendered line uses *primary_size*, remaining lines use
-    *secondary_size* — clip exports and reels pass different base sizes but share
+    *secondary_size* - clip exports and reels pass different base sizes but share
     the template, scale multiplier, and this headline/body hierarchy. Uses
     effective_description (the user-edited value, if any) rather than the raw LLM
     description. A template that renders no lines (empty, or every line collapsed
@@ -241,7 +241,7 @@ def _probe_duration(path: Path) -> float:
 
 
 def _compile_concat(segments: list[Path], output: Path) -> None:
-    """Fast concat using the concat demuxer — stream-copies, no re-encode."""
+    """Fast concat using the concat demuxer - stream-copies, no re-encode."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False,
                                     encoding="utf-8") as f:
         list_path = Path(f.name)
@@ -270,7 +270,7 @@ def _build_xfade_cmd(
 ) -> list[str]:
     """Build an ffmpeg command that re-encodes segments with xfade/acrossfade transitions.
 
-    *per_cut_transitions* must have exactly len(segments)-1 entries — one
+    *per_cut_transitions* must have exactly len(segments)-1 entries - one
     transition name per cut. Callers that want a single uniform transition
     pass a list of the same value repeated; callers that want random
     transitions pass a list built by sampling the pool with rng.choice per cut.
@@ -351,7 +351,7 @@ def _compile_xfade_random(
 def _select_clip_export_file(clip, video, export_dir: Path, name_template: str) -> Optional[Path]:
     """Pick one exported file for *clip* when several per-preset formats exist.
 
-    A clip can now have multiple exported formats (Export presets — Plan 07).
+    A clip can now have multiple exported formats (Export presets - Plan 07).
     Prefers the default (presetless, original-quality) export so a reel always
     uses that file when available; otherwise falls back to the most recently
     modified preset format on disk. Deterministic so a reel build never
@@ -393,7 +393,7 @@ def _resolve_clip_files(
             try:
                 detected_fps = _probe_fps(clip_file)
             except Exception as exc:
-                _log.warning("Could not probe fps for %s: %s — using 30 fps", clip_file, exc)
+                _log.warning("Could not probe fps for %s: %s - using 30 fps", clip_file, exc)
                 detected_fps = 30.0
         clip_files.append(clip_file)
         clip_durations.append(_probe_duration(clip_file))
@@ -412,7 +412,7 @@ def _build_segment_list(
 ) -> tuple[list[Path], list[float]]:
     """Render title cards and interleave them with clip files.
 
-    Returns (segments, durations) — alternating title card, clip file for each clip.
+    Returns (segments, durations) - alternating title card, clip file for each clip.
     """
     n = len(clips)
     scale = config.title_card_scale
@@ -471,10 +471,10 @@ def compile_demo(
     total_footage = sum(clip_durations)
 
     if transition == "none":
-        msg = f"Compiling {n} clip(s) — {total_footage:.0f}s footage — stream copy (fast)"
+        msg = f"Compiling {n} clip(s) - {total_footage:.0f}s footage - stream copy (fast)"
     else:
         eta = (total_footage + n * title_dur) / 3.0
-        msg = f"Compiling {n} clip(s) — {total_footage:.0f}s footage — estimated encode ~{eta:.0f}s"
+        msg = f"Compiling {n} clip(s) - {total_footage:.0f}s footage - estimated encode ~{eta:.0f}s"
     _log.info(msg)
     print(msg, flush=True)
 
@@ -537,7 +537,7 @@ def _segment_start_times(durations: list[float], trans_dur: float) -> list[float
 
     Segments alternate [title, clip, title, clip, …]. With an xfade transition
     each cut overlaps the previous segment by *trans_dur*, so every segment after
-    the first starts *trans_dur* earlier than a plain concat would place it —
+    the first starts *trans_dur* earlier than a plain concat would place it -
     matching the offsets _build_xfade_cmd feeds ffmpeg.
     """
     starts = [0.0]
@@ -552,7 +552,7 @@ def build_reel_caption_srt(session: "Session", reel_path: Path) -> Optional[Path
     Reads the composition sidecar written at build time, offsets every clip's
     lines by its segment start, and writes ``<reel>.srt``. Returns the SRT path,
     or None when the reel has no composition sidecar (built before captions
-    existed — it must be rebuilt to enable them).
+    existed - it must be rebuilt to enable them).
     """
     from yuu_clip.db.models import ClipCandidate
     from yuu_clip.subtitles import lines_to_srt, merged_srt_lines
@@ -596,7 +596,7 @@ def burn_reel_captions(reel_path: Path, srt_path: Path, caption_style=None) -> N
     Reuses the clip-export burn-in filter (`analyze.extract._subtitles_filter`) so
     reel captions honor the same global Caption style (font/size/position) and never
     override per-speaker colours (they arrive as inline <font color> tags in the SRT).
-    Audio is stream-copied — only the video is re-encoded.
+    Audio is stream-copied - only the video is re-encoded.
     """
     from yuu_clip.analyze.extract import _subtitles_filter
 

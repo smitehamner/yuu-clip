@@ -1,5 +1,5 @@
 (function () {
-// Feature-map — Bulk clip actions (multi-select in the clip list → status / delete / export).
+// Feature-map - Bulk clip actions (multi-select in the clip list → status / delete / export).
 //   API: routes/clips/bulk.py (bulk-status, bulk-status-restore, bulk-delete, bulk-export) · Tests: tests/test_ui_clips.py
 // The selection set lives in AppState.selectedClipIds; the clip list (clips.js)
 // renders the checkboxes and calls _toggleClipSelection / _updateBulkToolbar as
@@ -7,7 +7,7 @@
 
 // ── multi-select ─────────────────────────────────────────────────────────────
 // Drops selected IDs for clips that no longer exist (e.g. after a delete).
-// Deliberately does NOT drop IDs just because a filter hides them — switching
+// Deliberately does NOT drop IDs just because a filter hides them - switching
 // filter tabs shouldn't silently lose the user's selection.
 function _pruneClipSelection() {
   const existingIds = new Set(AppState.clips.map(c => c.id));
@@ -16,7 +16,7 @@ function _pruneClipSelection() {
   }
 }
 
-// The set of currently-selected clips that also pass the active filters — the
+// The set of currently-selected clips that also pass the active filters - the
 // only clips a bulk action may touch, so a hidden-but-checked clip from before
 // a filter change is never silently included.
 function _visibleSelectedClips() {
@@ -135,7 +135,7 @@ async function _doBulkDeleteClips(ids) {
   await loadVideos();
   const n = data.deleted.length;
   if (data.locked.length) {
-    showToast(`Deleted ${plural(n, 'clip')} — ${data.locked.length} could not be deleted (file in use)`, 'error');
+    showToast(`Deleted ${plural(n, 'clip')} - ${data.locked.length} could not be deleted (file in use)`, 'error');
   } else {
     showToast(`Deleted ${plural(n, 'clip')}`);
   }
@@ -177,7 +177,7 @@ function _doBulkExportClips(ids) {
   );
 }
 
-// Public API — symbols referenced cross-module, by an inline handler, or by a
+// Public API - symbols referenced cross-module, by an inline handler, or by a
 // test. Internal helpers above stay private to this module's closure.
 Object.assign(window, {
   _pruneClipSelection, _updateBulkToolbar, _toggleClipSelection, _clearClipSelection,

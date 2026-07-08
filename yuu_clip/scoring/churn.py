@@ -1,8 +1,8 @@
-"""SpeakerChurnScorer — rapid speaker turn-taking and cross-talk as a chaos signal.
+"""SpeakerChurnScorer - rapid speaker turn-taking and cross-talk as a chaos signal.
 
 Fast back-and-forth between speakers, and cross-talk where two people speak at
 once, mark lively, chaotic banter. Computed from the transcript segments overlapping
-the clip window and their diarized speaker attribution — zero extra dependencies, but
+the clip window and their diarized speaker attribution - zero extra dependencies, but
 it needs diarization: it abstains (None) when fewer than two speakers are attributed
 in the window (diarization off, or a solo stretch). Feeds funny and action.
 """
@@ -28,7 +28,7 @@ _SATURATION_SWITCHES_PER_MIN = 24.0
 
 def _segment_speaker_key(seg: "TranscriptSegment") -> str | None:
     """A durable per-speaker key: the attributed Speaker id, else the raw diarization
-    label, else None (undiarized — the abstain signal)."""
+    label, else None (undiarized - the abstain signal)."""
     if seg.speaker_id is not None:
         return f"id:{seg.speaker_id}"
     if seg.speaker_label:
@@ -82,7 +82,7 @@ class SpeakerChurnScorer:
         return self.availability()[0]
 
     def availability(self) -> tuple[bool, str]:
-        """(available, reason) — reason is a user-facing explanation when unavailable."""
+        """(available, reason) - reason is a user-facing explanation when unavailable."""
         if not self._config.scorer_churn_enabled:
             return False, "speaker-overlap scoring is turned off in Settings"
         return True, ""

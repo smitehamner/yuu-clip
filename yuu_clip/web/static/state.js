@@ -1,4 +1,4 @@
-// Feature-map — Shared application state: the single AppState object every feature module reads/writes.
+// Feature-map - Shared application state: the single AppState object every feature module reads/writes.
 //   API: none (client-only) · Tests: covered indirectly by the test_ui_*.py suites
 // ── shared application state ──────────────────────────────────────────────────
 // Mutable state shared across feature modules. Centralized in one explicit object

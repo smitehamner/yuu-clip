@@ -1,7 +1,7 @@
-# Feature-map — Recording (code: video / Video) + Split (recording segments)
+# Feature-map - Recording (code: video / Video) + Split (recording segments)
 #   UI: static/videos.js (Recordings sidebar + detail) · static/split.js (Split Editor)
 #   Siblings: analyze/proxy.py (preview proxy) · tests/test_videos.py, tests/test_segments.py, tests/test_ui_video.py
-"""Video CRUD routes — listing, detail, split, waveform computation, and deletion."""
+"""Video CRUD routes - listing, detail, split, waveform computation, and deletion."""
 from __future__ import annotations
 
 import asyncio
@@ -40,7 +40,7 @@ _EMPTY_STATS = {
 }
 
 # Live proxy-encode futures, held only to keep the executor task from being GC'd
-# while the browser that started it has disconnected — the encode finishes and
+# while the browser that started it has disconnected - the encode finishes and
 # records its own metadata regardless (see generate_video_proxy).
 _PROXY_WORKERS: set = set()
 
@@ -119,7 +119,7 @@ def _register_split_and_edit_routes(router: APIRouter, ctx: ProjectContext) -> N
         and each transcribable audio track's transcript is copied onto every segment
         it overlaps (also segment-relative; the parent's own track/transcript rows are
         left untouched). Otherwise clips and transcript are left on the now-hidden
-        parent — callers that reanalyze each segment generate fresh ones there instead.
+        parent - callers that reanalyze each segment generate fresh ones there instead.
         """
         db = ctx.get_db()
         try:
@@ -127,12 +127,12 @@ def _register_split_and_edit_routes(router: APIRouter, ctx: ProjectContext) -> N
             if not video:
                 raise HTTPException(404, "Video not found")
             if video.parent_video_id is not None:
-                raise HTTPException(400, "Cannot split a segment — split the parent recording instead")
+                raise HTTPException(400, "Cannot split a segment - split the parent recording instead")
             _reject_if_video_analyzing(ctx, video, "splitting it")
 
             duration_s = (video.duration_ms or 0) / 1000.0
             if duration_s <= 0:
-                raise HTTPException(400, "Recording has no duration — analyze it first")
+                raise HTTPException(400, "Recording has no duration - analyze it first")
 
             pts = sorted(set(body.split_points))
             _validate_split_points(pts, duration_s)
@@ -208,7 +208,7 @@ def _register_split_and_edit_routes(router: APIRouter, ctx: ProjectContext) -> N
 
         Used by the reanalyze-after-split flow to clear stale clips before
         re-running the analysis pipeline on each segment. Only DB records are
-        removed — export files on disk are intentionally left in place.
+        removed - export files on disk are intentionally left in place.
         """
         db = ctx.get_db()
         try:
@@ -311,7 +311,7 @@ def _register_media_routes(router: APIRouter, ctx: ProjectContext) -> None:
         media_type = _EXT_TYPE.get(src.suffix.lower(), 'video/mp4')
         # media_file_response (StreamingResponse), never FileResponse: starlette
         # cancels a StreamingResponse when the client disconnects, but streams a
-        # FileResponse to completion — an abandoned <video> element kept pumping
+        # FileResponse to completion - an abandoned <video> element kept pumping
         # the whole multi-GB recording into a dead socket at full CPU. Bonus:
         # the share-delete handle lets Remove Video work mid-preview.
         return media_file_response(src, request, media_type)
@@ -351,7 +351,7 @@ def _register_media_routes(router: APIRouter, ctx: ProjectContext) -> None:
     async def compute_waveform(video_id: int):
         """Extract audio and compute per-second RMS energy for a video that was never analyzed.
 
-        Streams SSE progress. Idempotent — skips tracks that already have energy data.
+        Streams SSE progress. Idempotent - skips tracks that already have energy data.
         """
         db = ctx.get_db()
         try:
@@ -382,7 +382,7 @@ def _register_media_routes(router: APIRouter, ctx: ProjectContext) -> None:
                     return
 
                 if not info.audio_streams:
-                    yield f"data: {json_lib.dumps('[No audio streams found — waveform unavailable]')}\n\n"
+                    yield f"data: {json_lib.dumps('[No audio streams found - waveform unavailable]')}\n\n"
                     yield f"data: {json_lib.dumps('__DONE__')}\n\n"
                     return
 
@@ -471,7 +471,7 @@ def _register_media_routes(router: APIRouter, ctx: ProjectContext) -> None:
                 "generating": str(Path(video.path).resolve()) in ctx.proxy_generating,
                 "height": PROXY_HEIGHT,
                 "generated_at": video.proxy_generated_at.isoformat() if video.proxy_generated_at else None,
-                # Absolute path of the proxy file itself — the Electron shell only
+                # Absolute path of the proxy file itself - the Electron shell only
                 # trusts a "yuu-media://" build once it has this, since the proxy
                 # may not have existed yet when the recording's own detail response
                 # was fetched (e.g. it was just generated on demand).
@@ -693,7 +693,7 @@ def _delete_orphaned_proxy(db, ctx: ProjectContext, source_path: str) -> None:
 
     The proxy is keyed by source path and shared across split segments, so it is
     only safe to delete after the last row referencing that path is gone. Best-
-    effort disk hygiene — a locked file (mid-preview) is logged, never fatal.
+    effort disk hygiene - a locked file (mid-preview) is logged, never fatal.
     """
     from yuu_clip.analyze.proxy import proxy_file_for
 
@@ -710,7 +710,7 @@ def _reject_if_video_analyzing(ctx: ProjectContext, video: Video, action: str) -
     """Fail closed when *video* is mid-analysis: mutating or deleting it would leave
     the ingest subprocess writing rows for a video that changed under it.
 
-    Match by id (reanalyze) or filename (fresh analysis — no video_id until the
+    Match by id (reanalyze) or filename (fresh analysis - no video_id until the
     subprocess creates the row). Split segments share the parent's filename, so a
     sibling segment's mutation is also blocked while one is analyzing.
     """
@@ -719,12 +719,12 @@ def _reject_if_video_analyzing(ctx: ProjectContext, video: Video, action: str) -
         return
     if job.video_id == video.id or (job.filename is not None and job.filename == video.filename):
         _log.warning(
-            "Rejected %s: video %d (%s) — analysis in progress (job video_id=%s)",
+            "Rejected %s: video %d (%s) - analysis in progress (job video_id=%s)",
             action, video.id, video.filename, job.video_id,
         )
         raise HTTPException(
             409,
-            "This recording is currently being analyzed — cancel the "
+            "This recording is currently being analyzed - cancel the "
             f"analysis before {action}.",
         )
 
@@ -738,7 +738,7 @@ def _shift_clip_times(
     Export/sidecar filenames embed the clip's start time (clip_stem), so a clip
     migrated between a recording and its segments must have its files renamed or
     every export lookup (exported badge, download, delete) misses them.
-    A failed rename is logged, not fatal — the clip is then merely back to
+    A failed rename is logged, not fatal - the clip is then merely back to
     "file not found", same as if the rename hadn't been attempted.
     """
     existing_files = [p for p in all_sidecar_paths(clip, video, export_dir, name_template) if p.exists()]
@@ -799,8 +799,8 @@ def _create_segments(db, video: Video, boundaries: list[float], segment_names: l
             parent_video_id=video.id,
             segment_start_s=start,
             segment_end_s=end,
-            title=name or f"{stem} — Part {i + 1}",
-            # Segments share the parent's source file and its one proxy — inherit
+            title=name or f"{stem} - Part {i + 1}",
+            # Segments share the parent's source file and its one proxy - inherit
             # the pointer so a segment's player finds it without rebuilding.
             proxy_path=video.proxy_path,
             proxy_generated_at=video.proxy_generated_at,
@@ -820,7 +820,7 @@ def _migrate_clips_to_segments(
     """Reassign each of the parent's clips to the segment containing its start time.
 
     A clip that straddles a split point keeps its full original duration and is
-    owned by the segment its start falls in — its end_ms may then run past that
+    owned by the segment its start falls in - its end_ms may then run past that
     segment's own length, which is fine since segments share the parent's file.
     """
     clips = db.query(ClipCandidate).filter_by(video_id=parent.id).all()
@@ -840,7 +840,7 @@ def _migrate_transcript_to_segments(
     db, parent_video_id: int, boundaries: list[float], segment_ids: list[int],
 ) -> int:
     """Copy each transcribable track's transcript onto every segment it overlaps,
-    with segment-relative timing — same start-time ownership rule as clips.
+    with segment-relative timing - same start-time ownership rule as clips.
 
     The parent's own AudioTrack/Transcript/TranscriptSegment rows are untouched;
     each segment gets its own copy, so deleting a segment (re-split, unsplit)
@@ -1016,7 +1016,7 @@ def _video_dict(video: Video, stats: dict) -> dict:
         "source_uploader": video.source_uploader,
         "source_upload_date": video.source_upload_date.strftime("%Y-%m-%d") if video.source_upload_date else None,
         "source_category": video.source_category,
-        # Absolute path to the recording on disk — lets the Electron shell build a
+        # Absolute path to the recording on disk - lets the Electron shell build a
         # yuu-media:// URL for direct native playback instead of proxying bytes
         # through this HTTP server (plain-browser dev mode ignores this field).
         "source_path": str(Path(video.path).resolve()),

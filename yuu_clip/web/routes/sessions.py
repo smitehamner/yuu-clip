@@ -1,10 +1,10 @@
-# Feature-map — Session (code: RecordingSession / session_id)
+# Feature-map - Session (code: RecordingSession / session_id)
 #   UI: static/sessions.js (sidebar grouping, suggest, session detail view)
 #   Siblings: sessions.py (auto-suggest) · tests/test_sessions.py, tests/test_api_sessions.py, tests/test_ui_sessions.py
-"""Session routes — grouping recordings into a play session with a unified timeline.
+"""Session routes - grouping recordings into a play session with a unified timeline.
 
 A Session (ORM: RecordingSession) groups top-level recordings that belong to one
-play session. Segments are never direct members — they belong via their parent.
+play session. Segments are never direct members - they belong via their parent.
 """
 from __future__ import annotations
 
@@ -206,7 +206,7 @@ def _register_crud_routes(router: APIRouter, ctx: ProjectContext) -> None:
     def session_suggestions():
         """Suggest recordings that look like one session (gap-based auto-grouping).
 
-        Only ungrouped top-level recordings are considered — a recording already in
+        Only ungrouped top-level recordings are considered - a recording already in
         a session is left out so an accepted suggestion is never re-proposed."""
         db = ctx.get_db()
         try:
@@ -289,7 +289,7 @@ def _register_detail_routes(router: APIRouter, ctx: ProjectContext) -> None:
             db.close()
 
         if not any(t or s for t, s in member_pairs):
-            raise HTTPException(400, "No recording titles or summaries yet — summarize the recordings first")
+            raise HTTPException(400, "No recording titles or summaries yet - summarize the recordings first")
 
         context_text = format_context_block(load_contexts(ctx.project_dir), context_names)
 

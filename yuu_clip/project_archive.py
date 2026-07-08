@@ -1,4 +1,4 @@
-# Feature-map — Project backup / restore (code: project_archive)
+# Feature-map - Project backup / restore (code: project_archive)
 #   Archive core: backup (build_backup), restore (restore_into), and the re-point
 #   engine (plan_repoint / apply_repoint) that fixes source-media paths that don't
 #   resolve on the target machine.
@@ -6,8 +6,8 @@
 #   Tests: tests/test_backup.py, tests/test_restore.py
 """Portable backup archive for a yuu-clip project.
 
-Backs up the project's own durable state under ``.yuu-clip/`` — ``project.db``,
-``config.json``, ``contexts.json``, and any other small state file — but not the
+Backs up the project's own durable state under ``.yuu-clip/`` - ``project.db``,
+``config.json``, ``contexts.json``, and any other small state file - but not the
 large regenerable derived media (``audio/``, ``exports/``, ``proxies/``,
 ``downloads/``). Source videos live *outside* the project and are never included;
 restore re-points their paths on the target machine instead.
@@ -57,7 +57,7 @@ class RestoreError(Exception):
 
 
 class ProjectExistsError(RestoreError):
-    """The restore target already holds a project and overwrite wasn't requested —
+    """The restore target already holds a project and overwrite wasn't requested -
     a recoverable condition the UI turns into a 'replace it?' confirm."""
 
 # Small state subdirectories under .yuu-clip/ that ARE backed up. This is an
@@ -72,7 +72,7 @@ class ProjectExistsError(RestoreError):
 INCLUDED_SUBDIRS = frozenset({"sounds"})
 
 # SQLite runtime sidecars. We checkpoint the WAL into the main DB before archiving
-# (so project.db is self-contained), then skip these — they are regenerated on the
+# (so project.db is self-contained), then skip these - they are regenerated on the
 # target and a stale copy alongside a checkpointed DB is only noise.
 _SQLITE_SIDECAR_SUFFIXES = ("-wal", "-shm", "-journal")
 
@@ -88,7 +88,7 @@ def _checkpoint_wal(db_path: Path) -> None:
     """Fold the write-ahead log into the main DB so the backed-up project.db is a
     complete point-in-time snapshot without its -wal sidecar. Best-effort: a
     checkpoint that loses the race for the write lock (busy_timeout guards it)
-    should not abort the backup — the -wal is captured on the next attempt."""
+    should not abort the backup - the -wal is captured on the next attempt."""
     if not db_path.exists():
         return
     session = make_session(db_path)
@@ -254,7 +254,7 @@ def plan_repoint(db_path: Path) -> list[RepointGroup]:
 
 def apply_repoint(db_path: Path, mapping: dict[str, str]) -> RepointResult:
     """Rewrite Video.path for each unresolved video whose parent dir the user mapped
-    to a new location, but only when the file actually exists at that new location —
+    to a new location, but only when the file actually exists at that new location -
     a renamed (not just moved) file stays missing and is counted, never guessed."""
     normalized = {os.path.normcase(old): new for old, new in mapping.items()}
     engine = make_engine(Path(db_path))
@@ -321,7 +321,7 @@ def restore_into(archive_path: Path, target_dir: Path, overwrite: bool = False) 
                 "replace it."
             )
         shutil.copy2(existing_db, existing_db.with_name("project.db.pre-restore"))
-        # Drop the old project's WAL sidecars — replaying them onto the restored DB
+        # Drop the old project's WAL sidecars - replaying them onto the restored DB
         # would corrupt it (the backup carries a fully checkpointed project.db).
         for suffix in _SQLITE_SIDECAR_SUFFIXES:
             existing_db.with_name(existing_db.name + suffix).unlink(missing_ok=True)

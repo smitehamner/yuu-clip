@@ -51,7 +51,7 @@ class WavCache:
     def load(self, track: "AudioTrack") -> tuple:
         """Return (samples, sample_rate) for *track*, decoding once and caching.
 
-        Returns (None, None) when the file can't be read — callers treat that the
+        Returns (None, None) when the file can't be read - callers treat that the
         same as a missing WAV.
         """
         if track.id not in self._samples_by_track:

@@ -1,4 +1,4 @@
-# Feature-map — Track layout (code: profile; UI term "Track layout")
+# Feature-map - Track layout (code: profile; UI term "Track layout")
 #   UI: static/settings.js (Settings → Track layouts + Profile Manager modal)
 #   Siblings: config.py (load/save_profiles) · tests/test_profiles_contexts.py
 """
@@ -47,7 +47,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         from yuu_clip.config import save_profile as _save
         name = body.name.strip()
         if not name or name.startswith("__"):
-            raise HTTPException(400, "Invalid track layout name — names beginning with __ are reserved")
+            raise HTTPException(400, "Invalid track layout name - names beginning with __ are reserved")
         _save(name, body.assignments)
         _log.info("Track layout saved: %r (%d track(s))", name, len(body.assignments))
         return {"name": name}

@@ -1,5 +1,5 @@
 (function () {
-// Feature-map — Session (code: RecordingSession / session_id).
+// Feature-map - Session (code: RecordingSession / session_id).
 //   API: routes/sessions.py · Tests: tests/test_ui_sessions.py
 // ── Sessions: sidebar grouping, auto-suggest, and the session detail view ─────
 // A Session groups top-level recordings from one play session. This module owns
@@ -93,7 +93,7 @@ function _dissolveSession(sessionId) {
   if (!session) return;
   showConfirm(
     'Ungroup this session?',
-    `The ${plural(session.member_count, 'recording')} stay — they are just no longer grouped as a session. This cannot group them back automatically.`,
+    `The ${plural(session.member_count, 'recording')} stay - they are just no longer grouped as a session. This cannot group them back automatically.`,
     'Ungroup',
     async () => {
       const res = await fetch(`/api/sessions/${sessionId}`, {method: 'DELETE'});
@@ -202,7 +202,7 @@ async function suggestSessions() {
   } catch { showToast('Could not load suggestions', 'error'); return; }
   const fresh = groups.filter(g => !SessionUI.dismissed.has(_groupKey(g.video_ids)));
   if (!fresh.length) {
-    showToast('No new session suggestions — recordings look separate.', 'info');
+    showToast('No new session suggestions - recordings look separate.', 'info');
     return;
   }
   _showSuggestionModal(fresh);
@@ -350,7 +350,7 @@ function _renderSessionDetail(session) {
       </div>
       ${session.summary
         ? `<div class="description-long">${escHtml(session.summary)}</div>`
-        : `<div style="color:var(--muted);font-size:12px">No summary yet — roll one up from the recordings' summaries.</div>`}
+        : `<div style="color:var(--muted);font-size:12px">No summary yet - roll one up from the recordings' summaries.</div>`}
     </div>
 
     <div class="vid-actions">
@@ -385,7 +385,7 @@ function _renderUnifiedTimeline(session) {
       </div>`;
     let body;
     if (!m.has_timeline && !m.clips.length) {
-      body = `<div class="meta" style="padding:4px 0 8px">No timeline yet — <a href="#" data-open-video="${m.id}">open to generate one</a>.</div>`;
+      body = `<div class="meta" style="padding:4px 0 8px">No timeline yet - <a href="#" data-open-video="${m.id}">open to generate one</a>.</div>`;
     } else {
       const rows = _mergeTimelineRows(m).map(r => r.html).join('');
       body = `<div class="session-timeline-rows">${rows}</div>`;
@@ -470,7 +470,7 @@ function _fmtGap(ms) {
   return m ? `${h}h ${m}m` : plural(h, 'hr');
 }
 
-// Public API — referenced by videos.js sidebar rendering, index.html handlers,
+// Public API - referenced by videos.js sidebar rendering, index.html handlers,
 // and UI tests. Internal helpers stay private to this closure.
 Object.assign(window, {
   SessionUI, loadSessions, isSessionCollapsed, sessionGroupHeaderLi,

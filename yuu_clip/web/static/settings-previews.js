@@ -1,8 +1,8 @@
 (function () {
-// Feature-map — Settings > Export live previews (filename template + title card).
+// Feature-map - Settings > Export live previews (filename template + title card).
 //   API: routes/config.py · Tests: tests/test_ui_settings.py
 // ── export section (filename template preview) ───────────────────────────────
-// Sample values for the export-filename-template live preview — a plausible
+// Sample values for the export-filename-template live preview - a plausible
 // clip, not real data. Mirrors export_naming.export_base_stem's placeholder
 // set and sanitization so the preview matches what the server would produce.
 const _EXPORT_PREVIEW_SAMPLE = {
@@ -26,15 +26,15 @@ function _updateExportNameTemplatePreview() {
     return;
   }
   rendered = rendered.replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, ' ').trim();
-  el.textContent = `Preview: ${rendered || '(empty — falls back to the default template)'}.mkv`;
+  el.textContent = `Preview: ${rendered || '(empty - falls back to the default template)'}.mkv`;
 }
 
 // ── title card preview + contrast warning (Settings -> Export) ────────────────
-// A pure-CSS/HTML mock, not an ffmpeg render — "approximate" is called out in
+// A pure-CSS/HTML mock, not an ffmpeg render - "approximate" is called out in
 // the UI copy. Colors here are the user's own chosen values (like the
 // score-gradient exception in utils.js), not UI chrome, so they're applied
 // directly rather than through a theme token.
-// Sample values for the title-card template live preview — mirrors the
+// Sample values for the title-card template live preview - mirrors the
 // placeholder set and per-line truncation of reel.title_card_lines so the mock
 // matches what ffmpeg would render.
 const _TITLE_CARD_PREVIEW_SAMPLE = {
@@ -122,7 +122,7 @@ function _updateTitleCardPreview() {
   }
 }
 
-// Public API — the two entry points are wired to field `oninput` handlers in
+// Public API - the two entry points are wired to field `oninput` handlers in
 // index.html and called from settings.js's _applySettingsToUI. The sample
 // constants and pure helpers stay private to this closure.
 Object.assign(window, {

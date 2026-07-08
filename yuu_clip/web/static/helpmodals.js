@@ -1,6 +1,6 @@
 (function () {
-// Feature-map — the three app-global help/info modals (Getting Started, About,
-// Glossary). Extracted out of settings.js (which grew into a catch-all) — these
+// Feature-map - the three app-global help/info modals (Getting Started, About,
+// Glossary). Extracted out of settings.js (which grew into a catch-all) - these
 // have no coupling to the settings save/dirty machinery.
 //   API: routes/config.py (glossary) · Tests: tests/test_ui_settings.py, tests/test_ui_page.py, tests/test_ui_keyboard.py
 
@@ -93,7 +93,7 @@ function _renderGlossaryMd(md) {
   const closeList  = () => { if (inList)  { html += '</ul>';   inList  = false; } };
   const closeTable = () => { if (inTable) { html += '</tbody></table>'; inTable = false; tableHead = false; } };
   // Section (##) and term (###) wrapper divs are the units the glossary filter
-  // shows/hides — every ### block must land inside exactly one .glossary-term.
+  // shows/hides - every ### block must land inside exactly one .glossary-term.
   const closeTerm    = () => { if (inTerm)    { html += '</div>'; inTerm    = false; } };
   const closeSection = () => { closeTerm(); if (inSection) { html += '</div>'; inSection = false; } };
 
@@ -143,7 +143,7 @@ function _renderGlossaryMd(md) {
   return html;
 }
 
-// Public API — symbols referenced cross-module, by an inline handler, or by a
+// Public API - symbols referenced cross-module, by an inline handler, or by a
 // test. Internal helpers above stay private to this module's closure.
 Object.assign(window, {
   openAboutModal, closeAboutModal,

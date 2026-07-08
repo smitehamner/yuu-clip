@@ -83,7 +83,7 @@ def _pearson(a: list[float], b: list[float]) -> float:
     da = math.sqrt(sum((x - ma) ** 2 for x in a))
     db = math.sqrt(sum((x - mb) ** 2 for x in b))
     if da == 0 or db == 0:
-        # A flat curve (silence) has no variance to correlate against — treating
+        # A flat curve (silence) has no variance to correlate against - treating
         # two silent tracks as "identical" (1.0) would wrongly suppress a
         # specialized track that's silent only in the sampled window.
         return 0.0
@@ -122,7 +122,7 @@ def detect_and_apply_overlap_fallback(
 
     for t in overlapping:
         log.warning(
-            "Track overlap: track %d [%s] duplicates combined audio — disabling transcription/scoring",
+            "Track overlap: track %d [%s] duplicates combined audio - disabling transcription/scoring",
             t.id, t.label,
         )
         t.do_transcribe = False
@@ -183,7 +183,7 @@ def detect_transcript_overlap(
         overlap = len(spec_words & combined_words) / len(spec_words)
         if overlap >= threshold:
             log.warning(
-                "Transcript overlap: track %d [%s] %.0f%% overlap with combined — disabling scoring",
+                "Transcript overlap: track %d [%s] %.0f%% overlap with combined - disabling scoring",
                 spec.id, spec.label, overlap * 100,
             )
             spec.do_score = False

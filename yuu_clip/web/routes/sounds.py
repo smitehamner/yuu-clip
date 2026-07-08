@@ -1,4 +1,4 @@
-# Feature-map — Notification sounds
+# Feature-map - Notification sounds
 #   UI: static/sounds.js (Settings → Notification sounds; playback state in localStorage)
 #   Siblings: tests/test_sounds.py, tests/test_ui_sounds.py
 """
@@ -9,7 +9,7 @@ Serves short audio cues the UI can play when a long-running action finishes
 Windows system sound folder (%SystemRoot%\\Media); the user can also upload
 their own audio file, which is stored under the project's data dir so the
 choice survives a reload. All playback and enable/disable state lives on the
-client (localStorage) — this router only lists and serves the audio bytes.
+client (localStorage) - this router only lists and serves the audio bytes.
 """
 from __future__ import annotations
 
@@ -56,7 +56,7 @@ def _media_dir() -> Path:
 
 
 def _safe_name(name: str) -> str:
-    # Only a bare filename is allowed — reject anything that could escape the dir.
+    # Only a bare filename is allowed - reject anything that could escape the dir.
     if not name or name in (".", "..") or "/" in name or "\\" in name:
         raise HTTPException(400, "Invalid file name")
     return name

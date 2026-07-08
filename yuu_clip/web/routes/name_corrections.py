@@ -1,4 +1,4 @@
-# Feature-map — Name corrections (code: name_corrections; UI "Fix names")
+# Feature-map - Name corrections (code: name_corrections; UI "Fix names")
 #   UI: static/namecorrections.js (PanelNav takeover from the transcript card)
 #   Siblings: scoring/textmatch.py (find_name_corrections) · tests/test_name_corrections.py, tests/test_ui_namecorrections.py
 """Transcript name-correction routes (Plan 09).
@@ -35,7 +35,7 @@ class ApplyItem(BaseModel):
     segment_id: int
     token_start: int
     token_end: int
-    token: str          # the original text expected at [start:end] — drift check
+    token: str          # the original text expected at [start:end] - drift check
     replacement: str
 
 

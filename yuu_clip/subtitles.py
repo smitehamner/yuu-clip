@@ -15,14 +15,14 @@ class SubLine(NamedTuple):
     end_ms: int
     text: str
     speaker: str = ""
-    # Source TranscriptSegment id — carried only for the editable on-screen view;
+    # Source TranscriptSegment id - carried only for the editable on-screen view;
     # ignored by the SRT/caption path.
     seg_id: int | None = None
     # Diarized speaker's subtitle colour ("#RRGGBB"), or "" for track-label-only
     # lines (no durable Speaker attached). Renders as a <font> tag in SRT output.
     color: str = ""
     # Durable Speaker id this line is attributed to (None when unattributed) and
-    # whether a user hand-reassigned it — carried only for the editable view.
+    # whether a user hand-reassigned it - carried only for the editable view.
     speaker_id: int | None = None
     speaker_edited: bool = False
 
@@ -63,7 +63,7 @@ def _segment_speaker(seg) -> str:
 def _segment_speaker_color(seg) -> str:
     """Subtitle colour for a segment's durable Speaker, or "" when none is attached.
 
-    Unlike _segment_speaker, there is no raw-label fallback — colour is a Speaker
+    Unlike _segment_speaker, there is no raw-label fallback - colour is a Speaker
     attribute, not something a diarization cluster label alone can carry.
     """
     speaker = getattr(seg, "speaker", None)
@@ -93,7 +93,7 @@ def _merge_with_speakers(groups: dict[str, list[SubLine]]) -> list[SubLine]:
 def lines_to_srt(lines: Iterable[SubLine]) -> str:
     """Render SubLine objects as an SRT-format string.
 
-    A line with a speaker colour is wrapped in a <font color="#RRGGBB"> tag —
+    A line with a speaker colour is wrapped in a <font color="#RRGGBB"> tag -
     libass (ffmpeg's `subtitles=` burn-in filter) and most SRT players support
     this basic HTML subset.
     """
@@ -265,7 +265,7 @@ def _lines_to_view(sublines: Iterable[SubLine]) -> list[dict]:
     """JSON-friendly transcript lines for the on-screen transcript view.
 
     Unlike the SRT/caption path, this keeps ``speaker`` as the diarized display
-    name only (or None) — no track-label fallback, since the view is not a
+    name only (or None) - no track-label fallback, since the view is not a
     caption file and a lone "Combined:" on every line would be noise.
     """
     return [
@@ -297,7 +297,7 @@ def clip_context_transcript_lines(clip, video, pad_ms: int) -> list[dict]:
 
     Draws from the parent recording's transcript, clipped to the clip's current
     (offset-adjusted) window padded by *pad_ms* on each side, and flags each line
-    ``in_clip`` when it overlaps that window. Times are recording-relative — for a
+    ``in_clip`` when it overlaps that window. Times are recording-relative - for a
     split segment they are segment-relative (0 = segment start), matching
     ``clip.start_ms``; the caller adds ``segment_start_s`` to seek the parent player.
     """

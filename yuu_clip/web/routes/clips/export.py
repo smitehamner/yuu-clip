@@ -1,4 +1,4 @@
-"""Export HTTP wiring — build the CLI export command, stream per-clip export
+"""Export HTTP wiring - build the CLI export command, stream per-clip export
 progress as SSE, and the video-scoped batch-export route.
 
 This is transport only: the actual cut/encode lives in ``yuu_clip/export/render.py``,

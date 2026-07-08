@@ -1,4 +1,4 @@
-# Feature-map — Export: on-disk path resolution for a clip's export + sidecars,
+# Feature-map - Export: on-disk path resolution for a clip's export + sidecars,
 #   plus the shared 400-validation for the ?preset= / caption-style query params.
 #   Siblings: naming.py (stem template), presets.py (preset defs), render.py (engine)
 """Where a clip's exported files live on disk, and query-param validation for exports."""
@@ -36,7 +36,7 @@ def srt_sidecar_paths(
     clip: ClipCandidate, video: Video, export_dir: Path, name_template: str = DEFAULT_EXPORT_NAME_TEMPLATE,
 ) -> list[Path]:
     """Existing SRT sidecars for a clip: per-label ({stem}.player_voice.srt) plus
-    the merged {stem}.srt. Video files are excluded — this is captions only."""
+    the merged {stem}.srt. Video files are excluded - this is captions only."""
     stem = clip_stem(clip, video, name_template)
     files = list(export_dir.glob(f"{stem}.*.srt"))
     merged = export_dir / f"{stem}.srt"
@@ -63,7 +63,7 @@ def all_sidecar_paths(
 
 def clip_export_row_files(clip: ClipCandidate) -> list[Path]:
     """Existing on-disk files referenced by this clip's clip_exports rows (every
-    tracked Export preset format) — the per-format counterpart to export_paths'
+    tracked Export preset format) - the per-format counterpart to export_paths'
     single-file, glob-based "default" lookup."""
     return [p for p in (Path(row.path) for row in clip.exports) if p.exists()]
 
@@ -85,7 +85,7 @@ def validate_caption_style_query(
     caption_font: Optional[str], caption_size: Optional[int], caption_position: Optional[str],
 ) -> None:
     """Shared 400 checks for the per-export caption-style overrides on the single
-    export route — same rules the config PATCH route and the CLI resolver enforce."""
+    export route - same rules the config PATCH route and the CLI resolver enforce."""
     from yuu_clip.config import (
         CAPTION_POSITIONS,
         validate_caption_font_name,

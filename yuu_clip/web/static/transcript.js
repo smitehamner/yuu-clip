@@ -1,5 +1,5 @@
 (function () {
-// Feature-map — Transcript views + click-to-edit captions (code: TranscriptSegment).
+// Feature-map - Transcript views + click-to-edit captions (code: TranscriptSegment).
 //   API: routes/videos.py, routes/scoring.py · Tests: tests/test_ui_transcript.py, tests/test_transcript_edit.py
 // ── timed transcript views ────────────────────────────────────────────────────
 // Per-line transcript for a clip (clip-relative time) and for a whole recording
@@ -26,11 +26,11 @@ function _clock(ms) {
   return h ? `${h}:${mm}:${ss}` : `${m}:${ss}`;
 }
 
-// opts.seekOffsetS is added to each line's play target — 0 for a clip (its player
+// opts.seekOffsetS is added to each line's play target - 0 for a clip (its player
 // is trimmed to the clip) and the segment start for a split recording (whose player
 // streams the untrimmed parent file). opts.videoId enables the per-line speaker
 // control (rename / reassign); omit it to render a read-only transcript. opts.readOnly
-// suppresses the click-to-edit-caption affordance even when a line carries a seg_id —
+// suppresses the click-to-edit-caption affordance even when a line carries a seg_id -
 // used by the manual clip picker, where a line click selects a range instead.
 function renderTranscriptLines(lines, opts) {
   opts = opts || {};
@@ -57,7 +57,7 @@ function renderTranscriptLines(lines, opts) {
     const spk = (videoId != null && line.speaker_id != null)
       ? `<button class="tline-spk${line.speaker_edited ? ' edited' : ''}"
                  data-seg-id="${line.seg_id}" data-speaker-id="${line.speaker_id}" data-video-id="${videoId}"
-                 title="${line.speaker_edited ? 'Reassigned by you — c' : 'C'}hange or name this speaker"
+                 title="${line.speaker_edited ? 'Reassigned by you - c' : 'C'}hange or name this speaker"
                  aria-label="Change speaker">
            <span class="tline-spk-dot" style="background:${escHtml(line.color || '#888')}"></span></button>`
       : '';
@@ -92,7 +92,7 @@ async function loadVideoTranscript(videoId) {
   if (!el) return;
   // Skip the fetch only when this video's transcript is still rendered. A bare
   // videoId match isn't enough: renderVideoDetail rebuilds #detail, leaving a
-  // fresh empty #video-transcript-view while the flag still points here — that
+  // fresh empty #video-transcript-view while the flag still points here - that
   // combination is what left the panel silently blank on reopen.
   if (_videoTranscriptLoadedFor === videoId && el.childElementCount > 0) return;
   el.innerHTML = '<div class="transcript-empty">Loading…</div>';
@@ -212,7 +212,7 @@ async function _reassignLine(segId, speakerId, videoId) {
     const data = await res.json();
     _closeSpeakerMenu();
     const n = (data.affected_clip_ids || []).length;
-    showToast(n ? `Speaker reassigned — ${plural(n, 'clip')} affected; re-score to refresh` : 'Speaker reassigned');
+    showToast(n ? `Speaker reassigned - ${plural(n, 'clip')} affected; re-score to refresh` : 'Speaker reassigned');
     _refreshAfterSpeakerChange(videoId, data.affected_clip_ids);
   } catch (err) {
     showToast(`Could not reassign speaker: ${err.message}`, 'error');
@@ -307,7 +307,7 @@ function startEditCaption(span) {
 function _onCaptionEdited(data) {
   const affected = data.affected_clip_ids || [];
   showToast(affected.length
-    ? `Caption updated — ${plural(affected.length, 'clip')} affected; re-score to refresh`
+    ? `Caption updated - ${plural(affected.length, 'clip')} affected; re-score to refresh`
     : 'Caption updated');
   // Refresh the open clip's detail so its excerpt and the re-score notice update.
   const openId = AppState.activeClipId;
@@ -330,7 +330,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const text = e.target.closest && e.target.closest('.tline-text.editable');
     if (text && !text.classList.contains('editing')) { e.preventDefault(); startEditCaption(text); }
   });
-  // 'toggle' does not bubble — listen in the capture phase to catch it on the
+  // 'toggle' does not bubble - listen in the capture phase to catch it on the
   // <details> element, and lazy-load the full-video transcript on first expand.
   detail.addEventListener('toggle', e => {
     const d = e.target;

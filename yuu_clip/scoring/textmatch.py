@@ -1,6 +1,6 @@
 """
 Text matching shared by hot-word scoring (Plan 03) and sensitive-content scanning
-(Plan 06). Handles the "exact", "case_insensitive", and "fuzzy" match modes —
+(Plan 06). Handles the "exact", "case_insensitive", and "fuzzy" match modes -
 LLM-semantic matching is a separate path (scoring/llm.py) and never goes through
 this module.
 
@@ -15,11 +15,11 @@ from typing import Optional
 
 from rapidfuzz import fuzz
 
-# Transcript excerpts prefix each line with "Name: " — stripped before matching so a
+# Transcript excerpts prefix each line with "Name: " - stripped before matching so a
 # speaker named e.g. "Fire" can't spuriously match the hot-word "fire".
 _SPEAKER_PREFIX_RE = re.compile(r"^[^\n:]{1,40}:\s*", re.MULTILINE)
 
-# Fuzzy mode (rapidfuzz partial_ratio) — locked decisions from roadmap plan 06.
+# Fuzzy mode (rapidfuzz partial_ratio) - locked decisions from roadmap plan 06.
 FUZZY_MATCH_THRESHOLD = 85
 FUZZY_MIN_TERM_LENGTH = 4
 
@@ -39,7 +39,7 @@ class Match:
     phrase: str
     mode: str
     count: int
-    # Only set by fuzzy matches — the actual text that tripped the match (e.g.
+    # Only set by fuzzy matches - the actual text that tripped the match (e.g.
     # "Jonh" for term "John"), so the user can see *what* matched, not just that
     # something did. Exact/case-insensitive matches leave this None; the phrase
     # itself is what was found.
@@ -50,7 +50,7 @@ def _phrase_pattern(phrase: str) -> str:
     """Build a word-boundary-aware regex for a (possibly multi-word) phrase.
 
     Uses (?<!\\w)/(?!\\w) rather than \\b so phrases ending in punctuation (e.g. the
-    literal phrase "c++") still get a correct trailing boundary — \\b only fires at a
+    literal phrase "c++") still get a correct trailing boundary - \\b only fires at a
     word/non-word transition, which a non-word phrase ending followed by a non-word
     character (space, end of string) would fail. Words within the phrase are joined by
     a run of non-word characters so "oh no" also matches "oh, no" or "oh-no".
@@ -62,7 +62,7 @@ def _phrase_pattern(phrase: str) -> str:
 
 def find_matches(text: str, terms: list[MatchTerm]) -> list[Match]:
     """Find each term's occurrences in *text*. Returns one Match per term that occurs
-    at least once, with `count` set to the number of occurrences (display-only —
+    at least once, with `count` set to the number of occurrences (display-only -
     callers that apply a boost must count a match once per clip regardless of count)."""
     if not text:
         return []
@@ -83,7 +83,7 @@ def find_fuzzy_matches(
 
     Slides a window of *term*'s word-count across *text*'s words and scores each
     window against the term with rapidfuzz's `partial_ratio` (case-folded).
-    Terms shorter than `FUZZY_MIN_TERM_LENGTH` are skipped — callers (the
+    Terms shorter than `FUZZY_MIN_TERM_LENGTH` are skipped - callers (the
     sensitive-terms CRUD route) reject these before they ever reach here, but this
     is a defensive backstop against noisy single/double-character matches.
 
@@ -124,16 +124,16 @@ def find_fuzzy_matches(
 # ── transcript name correction (Plan 09) ──────────────────────────────────────
 # Whisper mis-hears spoken names ("You" for "Yuu"). We fuzzy-match transcript
 # tokens against a lexicon of *known* names (confirmed speakers + world-context
-# characters) and surface a reviewable diff — nothing is auto-applied.
+# characters) and surface a reviewable diff - nothing is auto-applied.
 #
-# Cutoff design (tuned empirically — the plan's "ratio >= 90 common / >= 80 normal"
+# Cutoff design (tuned empirically - the plan's "ratio >= 90 common / >= 80 normal"
 # is wrong for the marquee case: fuzz.ratio("you", "yuu") is only 66.7, so a 90
 # floor would never catch it). Instead:
 #   - Ordinary (long/rare) tokens need a high similarity (>= 80): a big edit
 #     distance on a long word is unlikely to be the same name.
 #   - Short / common tokens can never clear 80 against a 3-letter name even when
 #     they ARE the mis-hearing, so they use a lower floor (>= 65) but must appear
-#     Capitalized in context — capitalization is the precision lever a bare
+#     Capitalized in context - capitalization is the precision lever a bare
 #     similarity score can't provide for short words.
 # Precision is further protected by: known-names-only lexicon, own-name exclusion
 # (a speaker rarely mis-says their own name), and mandatory per-group review.
@@ -168,7 +168,7 @@ class LexiconName:
     """A known name to look for mis-transcriptions of.
 
     ``owner_speaker_id`` is the Speaker this name belongs to (so their own lines
-    are excluded — people rarely mis-say their own name); None for world-context
+    are excluded - people rarely mis-say their own name); None for world-context
     character names, which have no owning voice.
     """
     name: str
@@ -209,7 +209,7 @@ def find_name_corrections(segments, lexicon: list[LexiconName]) -> list[NameCorr
     """Find likely mis-transcriptions of known names across transcript *segments*.
 
     *segments* is any iterable of objects with ``id``, ``text``, and ``speaker_id``.
-    Pure and deterministic — the primary test surface for Plan 09. Emits at most one
+    Pure and deterministic - the primary test surface for Plan 09. Emits at most one
     correction per token (its best-scoring lexicon name); nothing is applied here.
     """
     names = [(entry.name, entry.owner_speaker_id) for entry in lexicon
@@ -237,7 +237,7 @@ def find_name_corrections(segments, lexicon: list[LexiconName]) -> list[NameCorr
                 if owner_speaker_id is not None and owner_speaker_id == speaker_id:
                     continue
                 # Short/common words match longer names too loosely at the lower
-                # cutoff ("All" vs "Sally"), so require near-equal length there — a
+                # cutoff ("All" vs "Sally"), so require near-equal length there - a
                 # genuine one-word mis-hearing barely changes length ("You"/"Yuu").
                 if common and abs(len(token) - len(name)) > 1:
                     continue

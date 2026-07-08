@@ -1,4 +1,4 @@
-"""AudioEventScorer — sound-event detection via the AudioSet AST model.
+"""AudioEventScorer - sound-event detection via the AudioSet AST model.
 
 Reuses the same Audio-Spectrogram-Transformer already wired for laugh 'model' mode
 (MIT/ast-finetuned-audioset-10-10-0.4593). AudioSet's ~527 classes include action
@@ -11,8 +11,8 @@ applause, …), so one classifier feeds two dimensions:
 transformers + torch are bundled by default (packaging-strategy overhaul); the AST
 checkpoint itself (~350 MB) is a Tier-B model auto-fetched on first use. Degrades to a
 no-op per clip (never raises) if the model isn't downloaded yet or can't be fetched
-(e.g. offline first run) — see the `_load_failed` short-circuit in `score()`. It shares
-scorer_laugh_model_id — no separate model id.
+(e.g. offline first run) - see the `_load_failed` short-circuit in `score()`. It shares
+scorer_laugh_model_id - no separate model id.
 """
 from __future__ import annotations
 
@@ -65,10 +65,10 @@ def prewarm_transformers_pipeline() -> None:
     SpeechBrain 1.x registers a transformers plugin whose k2_fsa integration
     hard-imports the (unbundled) `k2` package. If `transformers.pipeline` is first
     resolved *after* speechbrain has been imported, that resolution force-loads the
-    integration and dies with `ModuleNotFoundError: k2` — silently killing
+    integration and dies with `ModuleNotFoundError: k2` - silently killing
     audio-event/laugh scoring whenever speaker labels (speechbrain) ran first in the
     same analyze subprocess (both are default-on). Importing pipeline first pins the
-    good state; a later speechbrain import can no longer poison it. Best-effort — the
+    good state; a later speechbrain import can no longer poison it. Best-effort - the
     scorer's own load guard still covers anything unexpected."""
     try:
         from transformers import pipeline  # noqa: F401
@@ -79,7 +79,7 @@ def prewarm_transformers_pipeline() -> None:
 def _group_score(results: list[dict], substrings: tuple[str, ...]) -> float:
     """Highest classifier probability among results whose label matches *substrings*.
 
-    0.0 when no result matches — an event detector reporting "this sound is absent",
+    0.0 when no result matches - an event detector reporting "this sound is absent",
     which is real information for the dimension (mirrors LaughScorer's default=0.0).
     """
     return max(
@@ -101,7 +101,7 @@ class AudioEventScorer:
         self._wav_cache = WavCache()
         self._classifier = None
         # Set once the model fails to load (e.g. offline and not yet downloaded),
-        # so a run with many clips doesn't retry — and re-fail — the same
+        # so a run with many clips doesn't retry - and re-fail - the same
         # multi-second HuggingFace fetch attempt on every single clip.
         self._load_failed = False
 
@@ -116,7 +116,7 @@ class AudioEventScorer:
         return self._load_failed
 
     def availability(self) -> tuple[bool, str]:
-        """(available, reason) — reason is a user-facing explanation when unavailable."""
+        """(available, reason) - reason is a user-facing explanation when unavailable."""
         if not self._config.scorer_audio_event_enabled:
             return False, "audio-event detection is turned off in Settings"
         if not self._config.scorer_laugh_model_id:
@@ -128,11 +128,11 @@ class AudioEventScorer:
             return True, ""
         except ImportError:
             log.warning(
-                "AudioEventScorer: missing deps — run: "
+                "AudioEventScorer: missing deps - run: "
                 "pip install transformers torch torchaudio soundfile"
             )
             return False, (
-                "its model dependencies aren't installed — this should be bundled "
+                "its model dependencies aren't installed - this should be bundled "
                 "with yuu-clip, so try reinstalling if this persists"
             )
 
@@ -168,14 +168,14 @@ class AudioEventScorer:
             results = classifier({"array": clip_audio, "sampling_rate": sr}, top_k=_TOP_K)
         except Exception as exc:
             if self._classifier is None:
-                # Failed during model load (not a per-clip inference error) — e.g.
+                # Failed during model load (not a per-clip inference error) - e.g.
                 # offline with the Tier-B checkpoint not yet cached. Remember it so
                 # the rest of this run skips straight to no-op instead of retrying
                 # the same doomed download every clip, and log once with the model
                 # id + cause so a silent "always scores zero" run is diagnosable.
                 self._load_failed = True
                 log.warning(
-                    "AudioEventScorer: model %r failed to load — audio-event "
+                    "AudioEventScorer: model %r failed to load - audio-event "
                     "scoring disabled for the rest of this run: %s",
                     self._config.scorer_laugh_model_id, exc,
                 )

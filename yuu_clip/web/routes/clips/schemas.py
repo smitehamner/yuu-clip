@@ -1,4 +1,4 @@
-"""Request bodies for the clip API — one pydantic model per mutating route."""
+"""Request bodies for the clip API - one pydantic model per mutating route."""
 from __future__ import annotations
 
 from typing import Optional

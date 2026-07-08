@@ -1,6 +1,6 @@
 (function () {
-// Feature-map — Recording detail: session timeline generation (code: video / Video).
-// Extracted out of videos.js (which grew into a catch-all) — the list/filter/
+// Feature-map - Recording detail: session timeline generation (code: video / Video).
+// Extracted out of videos.js (which grew into a catch-all) - the list/filter/
 // detail-render/re-analysis core stays there; _needsModelCtaHTML is shared with
 // the summary feature and stays in videos.js core too.
 //   API: routes/videos.py (timeline SSE) · Tests: tests/test_ui_video.py, tests/test_scoring_routes.py
@@ -17,7 +17,7 @@ function _renderTimelineHTML(entries) {
 }
 
 function _timelineEmptyNoteHTML() {
-  return `<div style="color:var(--muted);font-size:12px">No timeline yet — generate a time-stamped outline of the session.</div>`;
+  return `<div style="color:var(--muted);font-size:12px">No timeline yet - generate a time-stamped outline of the session.</div>`;
 }
 
 // ── timeline generation ───────────────────────────────────────────────────────
@@ -79,9 +79,9 @@ function updateTimelineIntervalHint(video) {
     const durMin = Math.round(dur / 60);
     const entries = Math.max(1, Math.ceil(dur / intervalS));
     if (intervalS >= dur) {
-      hint.textContent = `Recording is ${durMin} min — this produces 1 entry covering the whole session.`;
+      hint.textContent = `Recording is ${durMin} min - this produces 1 entry covering the whole session.`;
     } else {
-      hint.textContent = `Recording is ${durMin} min — produces ~${plural(entries, 'entry', 'entries')}.`;
+      hint.textContent = `Recording is ${durMin} min - produces ~${plural(entries, 'entry', 'entries')}.`;
     }
   } else {
     hint.textContent = '';
@@ -110,7 +110,7 @@ function _startGenerateTimeline(id, intervalS) {
   const intervalLabel = intervalS >= 60
     ? `${Math.round(intervalS / 60)}-minute`
     : `${intervalS}-second`;
-  section.innerHTML = `<div style="color:var(--muted);font-size:12px;padding:4px 0">Generating timeline — entries will appear as each ${intervalLabel} window completes…</div>`;
+  section.innerHTML = `<div style="color:var(--muted);font-size:12px;padding:4px 0">Generating timeline - entries will appear as each ${intervalLabel} window completes…</div>`;
   const btn = document.getElementById('btn-generate-timeline');
   btn.disabled = true;
   btn.textContent = 'Generating Timeline…';
@@ -155,18 +155,18 @@ function _startGenerateTimeline(id, intervalS) {
       _clearActiveStream(handle);
       resetBtn();
       // A failed regenerate leaves the stored timeline intact server-side, so
-      // don't claim "No timeline yet" — leave the section blank instead.
+      // don't claim "No timeline yet" - leave the section blank instead.
       if (firstEntry) {
         const video = AppState.videos.find(v => v.id === id);
         section.innerHTML = video?.has_timeline ? '' : _timelineEmptyNoteHTML();
       }
-      showToast(`Timeline generation failed — ${errMsg}`, 'error');
+      showToast(`Timeline generation failed - ${errMsg}`, 'error');
     },
   );
   _setActiveStream(handle, resetBtn);
 }
 
-// Public API — symbols referenced cross-module, by an inline handler, or by a
+// Public API - symbols referenced cross-module, by an inline handler, or by a
 // test. Internal helpers above stay private to this module's closure.
 Object.assign(window, {
   generateTimeline, confirmGenerateTimeline, closeTimelineIntervalModal,

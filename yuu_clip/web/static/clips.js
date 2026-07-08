@@ -36,7 +36,7 @@ function toggleClipSortDir() {
 
 // Canonical clip re-render entry point. Always routes through _applyFilters()
 // so a re-render can't accidentally bypass the active search/status/score
-// filters. Call this — never _renderClipItems directly — after mutating AppState.clips.
+// filters. Call this - never _renderClipItems directly - after mutating AppState.clips.
 function _renderClips() {
   _pruneClipSelection();
   const shown = _applyFilters();
@@ -46,12 +46,12 @@ function _renderClips() {
 }
 
 // Per-status counts shown inline on the filter chips ("Unreviewed 30"). Counts
-// reflect the whole selected recording, not the filtered/shown subset — see the
+// reflect the whole selected recording, not the filtered/shown subset - see the
 // stats line for that. Derived entirely from AppState.clips; blank when no
 // recording is selected so the chips read as a plain filter bar.
 function _renderClipFilterCounts() {
   // Badges live only on the clip filter chips (data-count is unique to them), so
-  // query the document directly — the recordings filter row shares the
+  // query the document directly - the recordings filter row shares the
   // .clip-filter-tabs class but carries no counts.
   const setCount = (key, value) => {
     const badge = document.querySelector(`.clip-chip-count[data-count="${key}"]`);
@@ -116,7 +116,7 @@ function _syncFilterChips() {
   });
 }
 
-// Export (has-file) chips are mutually exclusive — "Exported" and "Not exported"
+// Export (has-file) chips are mutually exclusive - "Exported" and "Not exported"
 // can't both hold. Everything else toggles independently; "All" clears the set.
 const _EXPORT_FILTER_TOKENS = ['exported', 'not-exported'];
 function toggleClipFilter(token) {
@@ -164,10 +164,10 @@ function _renderClipItems(clips) {
     const isFlaggedOnly = AppState.clipFilters.size === 1 && AppState.clipFilters.has('flagged') &&
       !AppState.clipSearch && AppState.clipScoreMin === 0;
     const filterMsg = isFlaggedOnly
-      ? `No flagged clips — add Sensitive Terms in <a href="#" style="color:var(--accent);text-decoration:underline" onclick="event.preventDefault();openSettings()">Settings</a>`
+      ? `No flagged clips - add Sensitive Terms in <a href="#" style="color:var(--accent);text-decoration:underline" onclick="event.preventDefault();openSettings()">Settings</a>`
       : hasActiveFilter
-      ? `No clips match the current filters — <a href="#" style="color:var(--accent);text-decoration:underline" onclick="event.preventDefault();_clearClipFilters()">Clear filters</a>`
-      : `No clips found — <a href="#" style="color:var(--accent);text-decoration:underline" onclick="event.preventDefault();openNewRecordingPanel()">Analyze another recording</a>`;
+      ? `No clips match the current filters - <a href="#" style="color:var(--accent);text-decoration:underline" onclick="event.preventDefault();_clearClipFilters()">Clear filters</a>`
+      : `No clips found - <a href="#" style="color:var(--accent);text-decoration:underline" onclick="event.preventDefault();openNewRecordingPanel()">Analyze another recording</a>`;
     list.innerHTML = `<li style="padding:10px 14px;color:var(--muted)">${filterMsg}</li>`;
     _updateBulkToolbar();
     return;
@@ -185,7 +185,7 @@ function _renderClipItems(clips) {
         <span class="clip-time">${c.start_hms} &middot; ${c.duration_hms}</span>
         ${c.has_export
           ? (c.export_stale
-              ? `<span class="export-pill is-stale" title="Stale — re-export to update (${escHtml((c.export_stale_reasons || []).join(', '))})">Stale</span>`
+              ? `<span class="export-pill is-stale" title="Stale - re-export to update (${escHtml((c.export_stale_reasons || []).join(', '))})">Stale</span>`
               : `<span class="export-pill is-exported" title="Clip has been exported">${(() => {
                   const n = (c.exports || []).filter(e => e.exists).length;
                   return n > 1 ? `Exported &times;${n}` : 'Exported';
@@ -222,8 +222,8 @@ function _renderClipItems(clips) {
 
 async function selectClip(id) {
   AppState.activeClipId = id;
-  // Sync the sidebar highlight here so every caller — row click, arrow-key
-  // navigation, related-clip links, post-retranscribe restore — moves it.
+  // Sync the sidebar highlight here so every caller - row click, arrow-key
+  // navigation, related-clip links, post-retranscribe restore - moves it.
   document.querySelectorAll('#clip-list li[data-clip-id]').forEach(l =>
     l.classList.toggle('active', Number(l.dataset.clipId) === id));
   document.querySelector('#clip-list li.active')?.scrollIntoView({block: 'nearest'});
@@ -296,8 +296,8 @@ function renderPlayer(url, captionsUrl, clipId) {
   if (playNext) area.querySelector('video')?.addEventListener('ended', _playNextClip);
 }
 
-// Advances to the next clip in the current filtered/sorted order — same path
-// arrow-key navigation uses — and stops silently at the end of the list.
+// Advances to the next clip in the current filtered/sorted order - same path
+// arrow-key navigation uses - and stops silently at the end of the list.
 function _playNextClip() {
   const idx = AppState.clips.findIndex(c => c.id === AppState.activeClipId);
   if (idx === -1 || idx >= AppState.clips.length - 1) return;
@@ -323,7 +323,7 @@ async function _markPreviewQuality(badge, clipId) {
 // Fully tear down any <video> in the player so the browser aborts its streaming
 // connection to /media/exports/*. Until that connection closes, the server's
 // StaticFiles handle on the file stays open and Windows refuses to delete it.
-// Removing the element alone is not enough — the media resource must be released
+// Removing the element alone is not enough - the media resource must be released
 // via pause + clear src + load() before the connection actually closes.
 function _releasePlayerMedia() {
   const area = document.getElementById('player-area');
@@ -349,7 +349,7 @@ function _fmtSizeMb(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-// One row per exported format (Export presets — Plan 07). Falls back to the
+// One row per exported format (Export presets - Plan 07). Falls back to the
 // legacy single-block display when a clip has has_export but no clip_exports
 // rows yet (a project not backfilled, or a clip mutated directly in a test).
 function _exportFormatsHtml(clip) {
@@ -367,7 +367,7 @@ function _exportFormatsHtml(clip) {
         }</strong></span>
         ${clip.exported_at ? `<span>When: <strong style="color:var(--text)">${_fmtAgo(clip.exported_at)}</strong></span>` : ''}
       </div>
-      ${clip.export_stale ? `<div class="transcript-stale-note" style="margin-top:8px">&#9888; Stale — re-export to update (${escHtml((clip.export_stale_reasons || []).join(', '))})</div>` : ''}`;
+      ${clip.export_stale ? `<div class="transcript-stale-note" style="margin-top:8px">&#9888; Stale - re-export to update (${escHtml((clip.export_stale_reasons || []).join(', '))})</div>` : ''}`;
   }
   return `
     <div style="margin-top:8px;margin-bottom:4px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.6px">Exported formats</div>
@@ -383,7 +383,7 @@ function _exportFormatsHtml(clip) {
             <span>${_fmtSizeMb(row.size_bytes)}</span>
             <span>${_fmtAgo(row.created_at)}</span>
           </div>
-          ${row.export_stale ? `<div class="transcript-stale-note" style="margin-top:4px">&#9888; Stale — re-export to update (${escHtml((row.export_stale_reasons || []).join(', '))})</div>` : ''}
+          ${row.export_stale ? `<div class="transcript-stale-note" style="margin-top:4px">&#9888; Stale - re-export to update (${escHtml((row.export_stale_reasons || []).join(', '))})</div>` : ''}
           <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:6px">
             <button class="btn ghost" data-export-action="download">Download</button>
             ${AppState.canReveal ? `<button class="btn ghost" data-export-action="reveal">Show in folder</button>` : ''}
@@ -401,15 +401,15 @@ function _exportFormatsHtml(clip) {
 // richer AI descriptions; absent once an LLM description or a creator edit lands.
 function _basicDescChipHTML(clip) {
   if (!clip.tags || !clip.tags.includes('desc_basic')) return '';
-  // Under "No generative AI" the user opted out of language models — show a neutral
+  // Under "No generative AI" the user opted out of language models - show a neutral
   // note, never an install nudge (Stage 07).
   if ((window._aiPrivacyMode || 'local_only') === 'none') {
     return `<div class="basic-desc-chip" title="This one-liner was built from the transcript without a language model">
-      Basic description — generative AI is turned off
+      Basic description - generative AI is turned off
     </div>`;
   }
   return `<div class="basic-desc-chip" title="This one-liner was built from the transcript without a language model">
-    Basic description — <a href="#" onclick="event.preventDefault();openSettings();setTimeout(()=>_scrollToSettingsSection('settings-sec-llm'),120)">install a local model</a> for richer AI descriptions
+    Basic description - <a href="#" onclick="event.preventDefault();openSettings();setTimeout(()=>_scrollToSettingsSection('settings-sec-llm'),120)">install a local model</a> for richer AI descriptions
   </div>`;
 }
 
@@ -439,7 +439,7 @@ function renderDetail(clip) {
             : ''}
         </div>
         <div class="scores">
-          ${!clip.scored_at ? `<span style="color:var(--muted);font-size:13px">Not yet scored — Re-score to generate</span>` :
+          ${!clip.scored_at ? `<span style="color:var(--muted);font-size:13px">Not yet scored - Re-score to generate</span>` :
             clip.score_overall_user != null
             ? scoreRowOverride('Overall', clip.score_overall, clip.score_overall_user, 'overall')
             : scoreRow('Overall', clip.score_overall, 'overall')}
@@ -482,7 +482,7 @@ function renderDetail(clip) {
           <button class="kebab-btn" title="Edit or regenerate description" aria-label="Edit or regenerate description" onclick="openDescKebab(${clip.id}, this)">&#8942;</button>
         </div>
       </div>
-      <div class="description">${clip.description ? `"${escHtml(clip.description)}"` : `<span style="color:var(--muted);font-size:13px">No description yet — Re-score to generate</span>`}</div>
+      <div class="description">${clip.description ? `"${escHtml(clip.description)}"` : `<span style="color:var(--muted);font-size:13px">No description yet - Re-score to generate</span>`}</div>
       ${_basicDescChipHTML(clip)}
 
       ${clip.description_long ? `
@@ -518,7 +518,7 @@ function renderDetail(clip) {
       <div class="detail-card" id="related-clips-section">
         <div class="detail-card-header" style="justify-content:flex-start;gap:8px">
           <span class="detail-card-title">Related Clips</span>
-          ${clip.related_clips_stale ? `<span style="font-size:11px;color:var(--warning);font-style:italic">stale — re-score updated</span>` : ''}
+          ${clip.related_clips_stale ? `<span style="font-size:11px;color:var(--warning);font-style:italic">stale - re-score updated</span>` : ''}
           <span style="font-size:11px;color:var(--muted);margin-left:auto">${clip.related_clips_at ? _fmtAgo(clip.related_clips_at) : ''}</span>
         </div>
         ${clip.related_clips.length ? clip.related_clips.map(r => `
@@ -534,7 +534,7 @@ function renderDetail(clip) {
           <span class="detail-card-title">Transcript</span>
           <button class="copy-icon-btn" title="Copy transcript" aria-label="Copy transcript" data-copy="transcript">&#128203;</button>
         </div>
-        ${clip.transcript_stale ? `<div class="transcript-stale-note">&#9888; Captions edited since last scoring — <button class="btn ghost" style="font-size:11px;padding:2px 8px" onclick="rescoreClip(${clip.id})">Re-score</button> to refresh.</div>` : ''}
+        ${clip.transcript_stale ? `<div class="transcript-stale-note">&#9888; Captions edited since last scoring - <button class="btn ghost" style="font-size:11px;padding:2px 8px" onclick="rescoreClip(${clip.id})">Re-score</button> to refresh.</div>` : ''}
         <div id="clip-transcript-view" class="transcript">${escHtml(clip.transcript_excerpt)}</div>
       </div>` : ''}
   `;
@@ -560,7 +560,7 @@ function _visionDetailHTML(clip) {
   const body = summary
     ? `<div class="description-long">${escHtml(summary)}</div>
        <div style="font-size:11px;color:var(--muted);margin-top:4px">Analyzed ${_fmtAgo(clip.vision_analyzed_at)}</div>`
-    : `<div style="color:var(--muted);font-size:13px">Sample frames from this clip and describe what's on screen — it enriches the description and gives scoring visual context.</div>`;
+    : `<div style="color:var(--muted);font-size:13px">Sample frames from this clip and describe what's on screen - it enriches the description and gives scoring visual context.</div>`;
   return `
     <div class="detail-card">
       <div class="detail-card-header"><span class="detail-card-title">What's on screen</span></div>
@@ -588,7 +588,7 @@ async function analyzeFrames(clipId, btn) {
     AppState.activeClipData = clip;
     if (!PanelNav.isOpen()) renderDetail(clip);
   } catch (e) {
-    showToast('Frame analysis failed — check the log', 'error');
+    showToast('Frame analysis failed - check the log', 'error');
   } finally {
     btn.disabled = false;
     btn.textContent = orig;
@@ -613,7 +613,7 @@ function _hotwordDetailHTML(clip) {
         ${matches.map(m => `
           <div>
             <strong>${escHtml(m.phrase)}</strong>
-            <span style="color:var(--muted)"> — ${escHtml(_HOTWORD_MODE_LABELS[m.mode] || m.mode)}${m.count > 1 ? `, ${m.count}×` : ''}</span>
+            <span style="color:var(--muted)"> - ${escHtml(_HOTWORD_MODE_LABELS[m.mode] || m.mode)}${m.count > 1 ? `, ${m.count}×` : ''}</span>
           </div>`).join('')}
         ${boostLine ? `<div style="color:var(--muted);font-size:11px;margin-top:2px">Boost applied: ${escHtml(boostLine)}</div>` : ''}
       </div>
@@ -635,7 +635,7 @@ function _sensitiveDetailHTML(clip) {
           <div>
             <span class="sensitive-category sensitive-category-${m.category}">${escHtml(_SENSITIVE_CATEGORY_LABELS[m.category] || m.category)}</span>
             <strong>${escHtml(m.matched_text)}</strong>
-            <span style="color:var(--muted)"> — ${escHtml(_SENSITIVE_MODE_LABELS[m.mode] || m.mode)}${m.count > 1 ? `, ${m.count}×` : ''}</span>
+            <span style="color:var(--muted)"> - ${escHtml(_SENSITIVE_MODE_LABELS[m.mode] || m.mode)}${m.count > 1 ? `, ${m.count}×` : ''}</span>
           </div>`).join('')}
       </div>
     </div>`;
@@ -647,7 +647,7 @@ function _sensitiveDetailHTML(clip) {
 // card and "Last scored with" already convey that a scorer ran).
 const _GENERATED_TAG_INFO = {
   manual:              { name: 'Manually created', tip: 'You created this clip by hand, not automatic clip generation' },
-  llm_error:           { name: 'Score error', tip: 'LLM scoring failed for this clip — Re-score to retry' },
+  llm_error:           { name: 'Score error', tip: 'LLM scoring failed for this clip - Re-score to retry' },
   llm_no_transcript:   { name: 'No speech to score', tip: "No transcript text in this clip's time range, so LLM scoring was skipped" },
   energy_no_tracks:    { name: 'No audio data', tip: 'No audio track was available for energy scoring' },
   energy_no_data:      { name: 'No audio data', tip: "The audio track had no data in this clip's time range" },
@@ -845,7 +845,7 @@ function openClipActionsModal(clipId) {
     { label: 'Delete Clip', description: 'Permanently remove this clip record and its exported file.', danger: true, action: () => deleteClip(clipId) },
   ]});
 
-  openActionsModal(`Clip #${clip.id} — Additional Actions`, groups);
+  openActionsModal(`Clip #${clip.id} - Additional Actions`, groups);
 }
 
 async function _reloadClipList(videoId) {
@@ -1036,7 +1036,7 @@ async function setStatus(id, status) {
   }
 }
 
-// Ctrl/Cmd+Z dispatch (settings.js) — prefers whichever of single/bulk status
+// Ctrl/Cmd+Z dispatch (settings.js) - prefers whichever of single/bulk status
 // change is still pending; setting either clears the other, so at most one is
 // ever live and this never has to arbitrate between the two.
 function undoLastStatus() {
@@ -1055,10 +1055,10 @@ function undoLastStatus() {
 function deleteExport(id) {
   showConfirm(
     'Delete exported file?',
-    'The exported video file will be removed from disk. The clip record stays — you can re-export any time.',
+    'The exported video file will be removed from disk. The clip record stays - you can re-export any time.',
     'Delete Export',
     async () => {
-      // Release the streaming connection first — on Windows the server's StaticFiles
+      // Release the streaming connection first - on Windows the server's StaticFiles
       // handle stays open while the <video> is connected, blocking the delete.
       await _releasePlayerBeforeDelete();
       const res = await fetch(`/api/clips/${id}/export`, {method: 'DELETE'});
@@ -1183,7 +1183,7 @@ function startFindSimilar() {
     errMsg => {
       _clearActiveStream(handle);
       resetBtn();
-      showToast(`Find Similar failed — ${errMsg}`, 'error');
+      showToast(`Find Similar failed - ${errMsg}`, 'error');
     },
   );
   _setActiveStream(handle, resetBtn);
@@ -1204,7 +1204,7 @@ function scoreAll() {
   );
 }
 
-// Public API — symbols referenced cross-module, by an inline handler, or by a
+// Public API - symbols referenced cross-module, by an inline handler, or by a
 // test. Internal helpers above stay private to this module's closure.
 Object.assign(window, {
   selectClip, setStatus, undoLastStatus, renderDetail, renderPlayer, clearDetail, refreshClipDetail,

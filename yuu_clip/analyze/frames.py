@@ -8,7 +8,7 @@ unit-tested without a real video (pattern: analyze/framing.py).
 Frames come from the 720p proxy when it is fresh (plenty for a vision model and
 much faster to seek); the source file is the fallback. The proxy shares the
 untrimmed parent timeline, so a split segment's clip times get the parent
-segment offset added — the same maths the preview and auto-framing routes use.
+segment offset added - the same maths the preview and auto-framing routes use.
 """
 from __future__ import annotations
 
@@ -62,7 +62,7 @@ def sample_clip_frames(
 ) -> list[Path]:
     """Extract up to *count* JPEG frames across [start_s, end_s] into *out_dir*.
 
-    Returns the frames that were written, in time order — a timestamp ffmpeg
+    Returns the frames that were written, in time order - a timestamp ffmpeg
     could not seek to is skipped rather than aborting the whole set.
     """
     ffmpeg, _ = find_ffmpeg()
@@ -81,7 +81,7 @@ def resolve_frame_window(
 
     Prefers the fresh proxy; adds the parent segment offset so a split segment's
     segment-relative clip times land on the parent-keyed proxy/source. Call this
-    inside the DB session — it only reads already-loaded scalar attributes, so
+    inside the DB session - it only reads already-loaded scalar attributes, so
     the returned primitives can be handed to a worker thread after the session
     closes (same pattern as the auto-framing route).
     """
@@ -102,7 +102,7 @@ def sample_and_describe(
 ) -> str:
     """Sample frames across the window and return the vision model's summary.
 
-    CPU/IO/network-bound (ffmpeg + a vision inference call) — callers run it off
+    CPU/IO/network-bound (ffmpeg + a vision inference call) - callers run it off
     the event loop via asyncio.to_thread. Raises on a vision failure or when no
     frame could be sampled; the caller surfaces that to the user.
     """

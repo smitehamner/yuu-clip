@@ -22,7 +22,7 @@ _HOTWORD_SUB_SCORE_TARGETS = ("funny", "dramatic", "action")
 
 # Marks a clip whose one-liner is the non-LLM template fallback (Stage 02), so the
 # UI can offer the "install a model for richer descriptions" nudge. Managed by
-# _apply_basic_description below — deliberately NOT in _SCORER_TAGS (which is reset
+# _apply_basic_description below - deliberately NOT in _SCORER_TAGS (which is reset
 # every run), so it survives a re-score that has no LLM to replace it.
 DESC_BASIC_TAG = "desc_basic"
 
@@ -81,7 +81,7 @@ def apply_hotword_boosts(clip: "ClipCandidate", hot_words: list["HotWord"], conf
     clip regardless of repeat count; multiple distinct phrases stack, clamped to
     ±0.3 per target. score_overall_user (the manual override) is never touched.
 
-    LLM-semantic matches (mode="semantic") are produced only by the Stage 2 scan —
+    LLM-semantic matches (mode="semantic") are produced only by the Stage 2 scan -
     this function never runs the text matcher against them, but does preserve any
     already stored on the clip (recomputing their boost from the current hot_words
     list, and dropping them if their entry was since deleted) so a text-only rescan
@@ -101,7 +101,7 @@ def apply_hotword_boosts(clip: "ClipCandidate", hot_words: list["HotWord"], conf
         setattr(clip, f"score_{target}", max(0.0, min(1.0, updated)))
 
     # Only re-derive overall from the (possibly just-boosted) sub-scores when a
-    # sub-score boost actually changed — a cheap rescan with nothing to update must
+    # sub-score boost actually changed - a cheap rescan with nothing to update must
     # leave score_overall byte-for-byte untouched, not silently re-average it against
     # the *current* scoring weights (which may differ from whatever produced the
     # stored value, e.g. after the user edits Settings weights separately).
@@ -120,7 +120,7 @@ def apply_hotword_boosts(clip: "ClipCandidate", hot_words: list["HotWord"], conf
 
 def apply_sensitive_scan(clip: "ClipCandidate", sensitive_terms: list["SensitiveTerm"]) -> None:
     """Match enabled sensitive terms against *clip*'s transcript excerpt and
-    descriptions, storing the result on clip.sensitive_matches. Warning-only —
+    descriptions, storing the result on clip.sensitive_matches. Warning-only -
     unlike apply_hotword_boosts, this never touches score_*.
 
     Speaker prefixes are stripped from the excerpt first (same as hot-words), so a
@@ -169,20 +169,20 @@ class ScoringEngine:
     ) -> None:
         self._config  = config
         self._scorers = [s for s in scorers if s.is_available()]
-        # None (the default) means "caller didn't opt in" — skip hot-word/sensitive
+        # None (the default) means "caller didn't opt in" - skip hot-word/sensitive
         # matching entirely rather than treating it the same as an explicitly empty
         # list, so callers that don't care about these features (most existing
         # tests) see no change.
         self._hot_words = hot_words
         self._sensitive_terms = sensitive_terms
         if not self._scorers:
-            _log.warning("ScoringEngine: no scorers are available — clips will not be scored")
+            _log.warning("ScoringEngine: no scorers are available - clips will not be scored")
 
     @property
     def has_scorers(self) -> bool:
         return bool(self._scorers)
 
-    # All tags a scorer may emit — stripped before each re-score so stale
+    # All tags a scorer may emit - stripped before each re-score so stale
     # results from a previous partial run don't accumulate.
     _SCORER_TAGS: frozenset[str] = frozenset({
         "energy_scored", "energy_no_tracks", "energy_no_data",
@@ -219,7 +219,7 @@ class ScoringEngine:
             # Store the laugh scorer's raw, unweighted result as its own attribute
             # so laugh density can be sorted/displayed apart from its weighted
             # contribution to score_funny. "No data" results carry only tags
-            # (score_funny is None) — leave score_laugh None in that case.
+            # (score_funny is None) - leave score_laugh None in that case.
             if scorer.name == "laugh" and result.score_funny is not None:
                 clip.score_laugh = result.score_funny
             for dim, value in (
@@ -236,7 +236,7 @@ class ScoringEngine:
             self._merge_tags(clip, result.tags)
 
         if not any(weight.values()):
-            _log.warning("score_clip: no scorer contributed a weighted dimension — clip %s not scored", getattr(clip, "id", "?"))
+            _log.warning("score_clip: no scorer contributed a weighted dimension - clip %s not scored", getattr(clip, "id", "?"))
             return
 
         clip.score_funny    = num["funny"]    / weight["funny"]    if weight["funny"]    else 0.0
@@ -270,7 +270,7 @@ class ScoringEngine:
         so a clip is never left blank. Tags it desc_basic; strips that tag whenever a
         real description supersedes the template.
 
-        Only writes when the current description is empty or was itself a template —
+        Only writes when the current description is empty or was itself a template -
         an existing non-basic description (e.g. from a prior LLM run) is preserved.
         Never touches description_user (effective_description already prefers it)."""
         from yuu_clip.scoring.describe_basic import build_basic_description
@@ -293,7 +293,7 @@ class ScoringEngine:
     def _merge_tags(clip: "ClipCandidate", tags: list[str]) -> None:
         for tag in tags:
             if tag not in clip.tags:
-                # Full reassignment — SQLAlchemy JSON column needs a new list
+                # Full reassignment - SQLAlchemy JSON column needs a new list
                 # object to detect the mutation; in-place .append() is invisible.
                 clip.tags = clip.tags + [tag]
 
@@ -309,8 +309,8 @@ class ScoringEngine:
         _log.info("Scoring %d clip(s) for video %d using %d scorer(s)", total, video.id, len(self._scorers))
         for i, clip in enumerate(candidates, 1):
             self.score_clip(clip, session)
-            # Commit per clip (not just flush) so the web server — a separate
-            # process/connection — can see each score as soon as it's ready,
+            # Commit per clip (not just flush) so the web server - a separate
+            # process/connection - can see each score as soon as it's ready,
             # instead of only after the whole video finishes scoring.
             session.commit()
             if progress_cb:

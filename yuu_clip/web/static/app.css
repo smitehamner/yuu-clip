@@ -1,5 +1,5 @@
 /* Default theme: Dark. Alternate themes override these vars via
-   html[data-theme="..."] blocks below — every color in the app must come from
+   html[data-theme="..."] blocks below - every color in the app must come from
    a var here (or a color-mix of one) so themes stay complete. */
 :root {
   --bg:       #0f0f11;
@@ -12,14 +12,14 @@
   --muted:    #9595aa; /* ≥4.5:1 on --surface and --border (CC-1) */
   --text-secondary: #c4c4d8;
   --accent:   #6f5df5; /* dark enough for 4.5:1 white-on-accent (CC-1) */
-  --accent-text: #9a8cff; /* accent as running text on bg/surface — --accent itself is only ~3.9:1 there */
+  --accent-text: #9a8cff; /* accent as running text on bg/surface - --accent itself is only ~3.9:1 there */
   --accent2:  #4fc3f7;
   --on-accent: #ffffff;   /* text on accent fills */
   --green:    #4caf7d;
-  --on-green: var(--bg); /* text on green fills — dark themes use dark-on-green */
+  --on-green: var(--bg); /* text on green fills - dark themes use dark-on-green */
   --red:      #e05c5c;
-  --on-red:   var(--bg); /* text on red fills — white on this red is only ~3.6:1 */
-  --warning:  #f0c060; /* the only warning color — no --amber/--warn/--yellow (CC-7) */
+  --on-red:   var(--bg); /* text on red fills - white on this red is only ~3.6:1 */
+  --warning:  #f0c060; /* the only warning color - no --amber/--warn/--yellow (CC-7) */
   --on-warning: #1a1a1a; /* text on --warning fills (e.g. Remote LLM badge) */
   --warn-hot: #f0603c; /* over-threshold time estimates only */
   --funny:    #f7a85a;
@@ -30,7 +30,7 @@
   --shadow-pop:  0 4px 20px rgba(0,0,0,.5);
   --shadow-menu: 0 8px 24px rgba(0,0,0,.5);
   --modal-backdrop: rgba(0,0,0,.7);
-  /* pane sizes — updated by drag resize, saved to localStorage */
+  /* pane sizes - updated by drag resize, saved to localStorage */
   --sidebar-width:       240px;
   --videos-group-height: 35%;
   --player-max-height:   42vh;
@@ -57,7 +57,7 @@ html[data-theme="light"] {
   --text-secondary: #3c3c4e;
   --accent:   #5b49e0;
   --accent-text: #5b49e0; /* dark enough to double as text */
-  --accent2:  #0e7490; /* darkened cyan — used as body text (descriptions, timestamps) */
+  --accent2:  #0e7490; /* darkened cyan - used as body text (descriptions, timestamps) */
   --on-accent: #ffffff;
   --green:    #2e7d4f;
   --on-green: #ffffff;
@@ -82,7 +82,7 @@ html[data-theme="high-contrast"] {
   --surface:  #0a0a0e;
   --surface-raised: #14141c;
   --selection: #2b2b50;
-  --border:   #52525f; /* doubles as pill/hover fill — must keep 4.5:1 under --muted text */
+  --border:   #52525f; /* doubles as pill/hover fill - must keep 4.5:1 under --muted text */
   --text:     #ffffff;
   --muted:    #d0d0e4;
   --text-secondary: #ececff;
@@ -145,7 +145,7 @@ header h1 { font-size: 16px; font-weight: 700; letter-spacing: .5px; color: var(
 /* Ghost: de-emphasised, for utility actions like log export */
 .btn.ghost { background: transparent; border-color: transparent; color: var(--muted); font-size: 12px; padding: 6px 10px; }
 .btn.ghost:hover:not(:disabled) { background: var(--border); color: var(--text); }
-/* Primary review actions — larger targets (Fitts's Law); outlined until chosen, filled when active */
+/* Primary review actions - larger targets (Fitts's Law); outlined until chosen, filled when active */
 .btn.approve { border-color: var(--green); color: var(--green); background: transparent; padding: 9px 22px; font-size: 14px; font-weight: 600; }
 .btn.approve:hover:not(:disabled) { background: color-mix(in srgb, var(--green) 15%, transparent); }
 .btn.approve.active { background: var(--green); border-color: var(--green); color: var(--on-green); }
@@ -253,7 +253,7 @@ header h1 { font-size: 16px; font-weight: 700; letter-spacing: .5px; color: var(
 .detail-type-badge.clip-badge  { background: color-mix(in srgb, var(--accent) 10%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); color: var(--accent-text); }
 
 /* 720p preview-proxy indicator: a subtle warning outline signals "not full
-   quality" without alarming — exports still use the original. */
+   quality" without alarming - exports still use the original. */
 .preview-badge-proxy { box-shadow: inset 0 0 0 1px var(--warning); }
 
 /* When the badge offers to build a proxy, the action reads as a real button so
@@ -307,13 +307,13 @@ header h1 { font-size: 16px; font-weight: 700; letter-spacing: .5px; color: var(
 .review-actions .btn { flex: 1; justify-content: center; }
 /* Operations row */
 .op-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-/* Danger zone — separated with a faint red-tinted border-top */
+/* Danger zone - separated with a faint red-tinted border-top */
 .danger-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding-top: 8px; border-top: 1px solid color-mix(in srgb, var(--red) 20%, transparent); }
 
 /* tags */
 .tags { display: flex; flex-wrap: wrap; gap: 5px; }
 .tag { padding: 2px 8px; border-radius: 10px; background: var(--border); font-size: 11px; color: var(--muted); }
-/* User tags (editable) — distinct from system .tag pills above. */
+/* User tags (editable) - distinct from system .tag pills above. */
 .clip-tags { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-height: 26px; margin-bottom: 8px; }
 .user-tag { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 12px; background: color-mix(in srgb, var(--accent2) 12%, transparent); border: 1px solid color-mix(in srgb, var(--accent2) 40%, transparent); color: var(--accent2); font-size: 12px; }
 .user-tag-x { cursor: pointer; color: var(--muted); line-height: 1; background: none; border: none; padding: 0; font-size: 14px; }
@@ -360,7 +360,7 @@ header h1 { font-size: 16px; font-weight: 700; letter-spacing: .5px; color: var(
 /* timed transcript view (clip + full recording) */
 .transcript-lines { display: flex; flex-direction: column; gap: 2px; }
 .tline { display: flex; align-items: baseline; gap: 8px; padding: 2px 0; }
-/* manual clip picker — highlights the transcript lines within the picked range */
+/* manual clip picker - highlights the transcript lines within the picked range */
 .tline.cc-selected { background: color-mix(in srgb, var(--accent) 16%, transparent); border-radius: 4px; }
 .tline.cc-pickable { cursor: pointer; }
 .tline.cc-pickable:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); border-radius: 4px; }
@@ -461,7 +461,7 @@ header h1 { font-size: 16px; font-weight: 700; letter-spacing: .5px; color: var(
 .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
 
 /* advanced options disclosure in analyze modal, and Settings' demoted advanced
-   controls (e.g. Pyannote setup) — a distinct class from .advanced so the two
+   controls (e.g. Pyannote setup) - a distinct class from .advanced so the two
    don't collide under a bare "details.advanced" selector (both live in the DOM
    at once; test_ui_analyze.py's New Recording panel tests select by that class). */
 details.advanced, details.settings-advanced { border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
@@ -613,7 +613,7 @@ kbd { background: var(--surface); border: 1px solid var(--border); border-radius
 
 /* ── settings panel ── */
 /* Settings takes over the detail area (right of the sidebar), not the whole
-   window — a fixed overlay anchored below the header, left of the footer, and
+   window - a fixed overlay anchored below the header, left of the footer, and
    past the (resizable) sidebar. top is set in JS to the live header height. */
 .settings-panel { display: none; flex-direction: column; overflow-y: auto; padding: 0 32px 24px; gap: 0; }
 .settings-panel.visible {
@@ -815,7 +815,7 @@ details summary:focus-visible { outline: 2px solid var(--accent); outline-offset
 .session-tl-text { font-size: 13px; color: var(--text); }
 .session-tl-clip .session-tl-text { color: var(--text-secondary); }
 
-/* Vertical-framing control (Shorts export) — a schematic 16:9 frame with a
+/* Vertical-framing control (Shorts export) - a schematic 16:9 frame with a
    movable 9:16 crop box. Not a real video frame; just shows crop position. */
 .framing-preview { position: relative; width: 160px; height: 90px; flex: 0 0 auto;
   background: var(--bg); border: 1px solid var(--border); border-radius: 4px; overflow: hidden; }

@@ -1,5 +1,5 @@
 (function () {
-// Feature-map — Speaker naming (code: Speaker; UI "Speakers" card).
+// Feature-map - Speaker naming (code: Speaker; UI "Speakers" card).
 //   API: routes/speakers.py · Tests: tests/test_ui_speakers.py
 // ── speaker naming ────────────────────────────────────────────────────────────
 // Renders the "Speakers" card in the recording detail view and saves names.
@@ -43,7 +43,7 @@ function _renderSpeakersCard(speakers) {
     // and shows an Accept/Dismiss prompt instead.
     const inputValue = _isSuggestion(s) ? '' : escHtml(s.name || '');
     const suggestion = _isSuggestion(s)
-      ? `<span class="speaker-suggestion" title="Suggested from how others address this voice — accept to apply it">
+      ? `<span class="speaker-suggestion" title="Suggested from how others address this voice - accept to apply it">
            Suggested: <strong>${escHtml(s.name)}</strong>
            <button class="speaker-accept" data-speaker-id="${s.id}" data-name="${escHtml(s.name)}"
                    title="Use this name">Accept</button>
@@ -54,7 +54,7 @@ function _renderSpeakersCard(speakers) {
     // A borderline voiceprint near-miss: this new voice was close to an existing
     // speaker but under the re-attach threshold, so we ask instead of guessing.
     const voiceMatch = (s.suggested_match_id && s.suggested_match_name)
-      ? `<span class="speaker-voicematch" title="This voice is close to an existing speaker — confirm if it's the same person">
+      ? `<span class="speaker-voicematch" title="This voice is close to an existing speaker - confirm if it's the same person">
            Might be <strong>${escHtml(s.suggested_match_name)}</strong>
            (${Math.round((s.suggested_match_score || 0) * 100)}% voice match)
            <button class="speaker-samevoice" data-speaker-id="${s.id}" data-match-name="${escHtml(s.suggested_match_name)}"
@@ -115,24 +115,24 @@ function _suggestSpeakerNames() {
     async msg => {
       _clearActiveStream(handle);
       resetBtn();
-      if (hadError) { showToast('Name suggestion failed — check log for details', 'error'); return; }
+      if (hadError) { showToast('Name suggestion failed - check log for details', 'error'); return; }
       const n = (msg && typeof msg === 'object' && msg.suggested) || 0;
       showToast(n > 0
-        ? `${plural(n, 'name suggestion')} — review and accept`
+        ? `${plural(n, 'name suggestion')} - review and accept`
         : 'No names could be inferred from the transcript');
       await loadSpeakers(videoId);
     },
     errMsg => {
       _clearActiveStream(handle);
       resetBtn();
-      showToast(`Name suggestion failed — ${errMsg}`, 'error');
+      showToast(`Name suggestion failed - ${errMsg}`, 'error');
     },
   );
   _setActiveStream(handle, resetBtn);
 }
 
 // Play a short sample of a speaker's voice by seeking the recording's own video
-// player — no separate audio route needed. Stops after the sample segment (capped
+// player - no separate audio route needed. Stops after the sample segment (capped
 // at 6s so a long turn doesn't play in full).
 let _sampleStopTimer = null;
 function _playSpeakerSample(startMs, endMs) {
@@ -229,7 +229,7 @@ async function _resolveVoiceMatch(speakerId, sameVoice, matchName) {
 }
 
 // Event delegation on the persistent #detail element (its innerHTML is replaced
-// each render, so per-row handlers would be lost — the container listener isn't).
+// each render, so per-row handlers would be lost - the container listener isn't).
 document.addEventListener('DOMContentLoaded', () => {
   const detail = document.getElementById('detail');
   if (!detail) return;

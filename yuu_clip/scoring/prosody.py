@@ -1,8 +1,8 @@
-"""ProsodyScorer — vocal delivery dynamics (loudness swings + pitch movement).
+"""ProsodyScorer - vocal delivery dynamics (loudness swings + pitch movement).
 
 Extends the energy-envelope + FFT approach in laugh._detect_laugh_rhythm to a broader
-prosody signal: a monotone, flat delivery scores low; an expressive one — rising and
-falling intensity, shifting pitch — scores high. Unlike the two excitement-nudge
+prosody signal: a monotone, flat delivery scores low; an expressive one - rising and
+falling intensity, shifting pitch - scores high. Unlike the two excitement-nudge
 signals it is a *continuous* delivery-quality measure (like audio energy), so it emits
 a real 0–1 whenever the clip has present, non-silent audio, giving the dramatic
 dimension a genuine non-LLM baseline. Feeds dramatic and action; needs the player-voice
@@ -85,7 +85,7 @@ class ProsodyScorer:
         return self.availability()[0]
 
     def availability(self) -> tuple[bool, str]:
-        """(available, reason) — reason is a user-facing explanation when unavailable."""
+        """(available, reason) - reason is a user-facing explanation when unavailable."""
         if not self._config.scorer_prosody_enabled:
             return False, "prosody scoring is turned off in Settings"
         try:

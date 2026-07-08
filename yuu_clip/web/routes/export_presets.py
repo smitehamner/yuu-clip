@@ -1,7 +1,7 @@
-# Feature-map — Export preset (code: ExportPreset)
+# Feature-map - Export preset (code: ExportPreset)
 #   UI: static/exportpresets.js (Settings → Export editor) + export options picker
 #   Siblings: export/presets.py (built-ins + validation) · tests/test_export_presets.py
-"""Export preset routes — built-ins are read-only; custom presets are a
+"""Export preset routes - built-ins are read-only; custom presets are a
 per-user (global config) preference, edited from Settings -> Export."""
 from __future__ import annotations
 
@@ -35,7 +35,7 @@ def _slugify(label: str) -> str:
 
 def _unique_name(label: str, taken: set[str]) -> str:
     """Derive a stable kebab-case id from *label*, the first time a custom preset
-    is created — the id then never changes even if the label is edited later
+    is created - the id then never changes even if the label is edited later
     (it's what clip_exports.preset_name and the export filename suffix key on)."""
     base = _slugify(label)
     name = base
@@ -80,7 +80,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             raise HTTPException(404, "Custom preset not found")
         existing_names = {p["name"] for p in customs if p["name"] != name} | BUILTIN_PRESET_NAMES
         data = body.model_dump()
-        data["name"] = name  # the id is immutable once created — only its fields change
+        data["name"] = name  # the id is immutable once created - only its fields change
         try:
             preset = validate_preset_dict(data, existing_names)
         except ValueError as e:

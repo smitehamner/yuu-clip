@@ -1,7 +1,7 @@
-"""Tier-B model prefetch command — downloads one auto-fetched model on demand.
+"""Tier-B model prefetch command - downloads one auto-fetched model on demand.
 
 Invoked as a subprocess by POST /api/models/prefetch (routes/models.py), which
-streams this command's output as SSE — the same "download <model> so <feature>
+streams this command's output as SSE - the same "download <model> so <feature>
 works" pattern as /api/llm/ollama/pull, generalized to the other Tier-B models
 (packaging-strategy overhaul, Wave 4). The GGUF/Ollama LLM model keeps its own
 existing path and isn't handled here.
@@ -43,7 +43,7 @@ def prefetch_model_cmd(
 ) -> None:
     """Download one Tier-B model now, instead of waiting for its feature's first use."""
     if slug not in _PREFETCH_DESCRIPTIONS:
-        console.print(f"[red]Unknown model slug '{slug}' — allowed: {sorted(_PREFETCH_DESCRIPTIONS)}[/red]")
+        console.print(f"[red]Unknown model slug '{slug}' - allowed: {sorted(_PREFETCH_DESCRIPTIONS)}[/red]")
         raise typer.Exit(1)
 
     from yuu_clip.config import Config
@@ -60,7 +60,7 @@ def prefetch_model_cmd(
         console.print(f"[red]Download failed: {exc}[/red]")
         raise typer.Exit(1)
 
-    console.print("[green]Done — ready.[/green]")
+    console.print("[green]Done - ready.[/green]")
 
 
 @app.command("prefetch-whisper")
@@ -84,7 +84,7 @@ def prefetch_whisper_cmd(
         console.print(f"[red]Download failed: {exc}[/red]")
         raise typer.Exit(1)
 
-    console.print("[green]Done — the speech model is ready.[/green]")
+    console.print("[green]Done - the speech model is ready.[/green]")
 
 
 # ── One-click local (.gguf) model download ──────────────────────────────────
@@ -123,7 +123,7 @@ def _gguf_url(entry) -> str:
 
 
 def _download_targets(entry) -> list[tuple[str, str]]:
-    """[(filename, config_field)] to fetch for *entry* — the main weights, then
+    """[(filename, config_field)] to fetch for *entry* - the main weights, then
     the vision projector for a vision entry. A vision projector that lives in the
     same file as the weights (mmproj_filename == gguf_filename) is not repeated,
     so the caller downloads it once and points both paths at the one file."""
@@ -241,4 +241,4 @@ def download_gguf_cmd(
         console.print(f"[red]Download failed: {exc}[/red]")
         raise typer.Exit(1)
 
-    console.print("[green]Done — the local model is ready for LLM scoring.[/green]")
+    console.print("[green]Done - the local model is ready for LLM scoring.[/green]")

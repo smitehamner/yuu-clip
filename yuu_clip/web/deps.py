@@ -20,7 +20,7 @@ class ProjectContext:
     """Resolved paths and factories for a single yuu-clip project directory."""
 
     def __init__(self, project_dir: Path) -> None:
-        # GPU thermal monitoring — one lazily-initialised monitor per project context
+        # GPU thermal monitoring - one lazily-initialised monitor per project context
         # (pynvml init is not free); the analyze job lifecycle owns a fresh
         # ThermalTrigger (streak/hysteresis state) per run. See analyze/thermal.py.
         # Project-independent hardware state, so it is created once and kept across
@@ -44,7 +44,7 @@ class ProjectContext:
         self.proxy_dir   = self.data_dir / "proxies"
 
         # make_engine opens (and creates) the SQLite file, which fails if the
-        # parent dir is absent — true when switching to a project that has never
+        # parent dir is absent - true when switching to a project that has never
         # been opened. On first boot configure_logging already created it.
         self.data_dir.mkdir(parents=True, exist_ok=True)
 
@@ -89,7 +89,7 @@ class ProjectContext:
         # logical model kind ("llm" for the background local-model handoff; Stage 6
         # adds "whisper"). The value is the catalog model id being fetched. This is
         # the single source of truth both the download banner and the analyze
-        # coordination read — the download route registers/deregisters the key
+        # coordination read - the download route registers/deregisters the key
         # around its SSE stream, and it also guards against a duplicate download.
         self.model_downloads: dict[str, str] = {}
 
@@ -108,7 +108,7 @@ class ProjectContext:
         in place, bumping project_generation.
 
         Every route handler closure-captures this object, so the swap mutates it
-        rather than replacing it. thermal_monitor is deliberately kept — it is
+        rather than replacing it. thermal_monitor is deliberately kept - it is
         project-independent hardware state. Callers must have already refused the
         switch while any job is running (see routes/projects.py).
         """
