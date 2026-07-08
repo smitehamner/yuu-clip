@@ -10,16 +10,18 @@ speech model is downloading, analyze.js shows a heads-up confirm. When the pipel
 reaches transcription before the model is ready, the Transcribe step pill shows a
 "waiting" status.
 
-Every fetch the asserted render awaits is stubbed (hermetic-stubbing rule). The tests
-call _resetModelDownloads() first so the fixture's own boot (against the real dev
-config) can't leave a stream or row that races the assertions. Read-only against the
-live dev server on port 8080. See tests/conftest.py.
+Every fetch the asserted render awaits is stubbed (hermetic-stubbing rule). The banner
+tests register their stubs and then re-navigate (_reboot_against_stubs) so boot.js runs
+its one initModelPrefetch/initModelDownload pass against those stubs - the fixture's own
+boot (against the real dev config) is torn down with the old page, so it can't leave a
+stream or row that races the assertions. Read-only against the live dev server on port
+8080. See tests/conftest.py.
 """
 from __future__ import annotations
 
 import json
 
-from conftest import skip_no_server
+from conftest import LIVE_URL, skip_no_server
 from playwright.sync_api import Page
 
 _MODEL_ID = "qwen2.5-7b-instruct"
@@ -61,19 +63,28 @@ def _hold(page: Page, pattern: str, sink: list) -> None:
     page.route(pattern, lambda route: sink.append(route))
 
 
-def _reset(page: Page) -> None:
-    page.evaluate("() => _resetModelDownloads()")
+def _reboot_against_stubs(page: Page) -> None:
+    """Re-navigate so boot.js runs initModelDownload()+initModelPrefetch() against
+    the routes registered just above, not the live dev config.
+
+    The page fixture navigates once and does NOT await boot's prefetch fetches, so
+    boot's real-config initModelPrefetch can still be in flight when the test body
+    runs. The old approach (_resetModelDownloads() then a manual initModelPrefetch)
+    could not win that race: under load boot's in-flight call resolved AFTER the
+    reset and added real banner rows before the assertion - FLAKE-2. Re-navigating
+    with the stubs already registered tears down the old page context (abandoning
+    that in-flight call) and makes boot's single run fully deterministic."""
+    page.goto(LIVE_URL, wait_until="domcontentloaded")
 
 
 @skip_no_server
 class TestModelPrefetchBanner:
     def test_speech_banner_appears_when_missing_and_enabled(self, page: Page):
-        _reset(page)
         _route_config(page, prefetch_disabled=False)
         _route_download_status(page, whisper_cached=False, speaker_cached=True)
         _hold(page, "**/api/whisper/prefetch", [])
 
-        page.evaluate("() => initModelPrefetch()")
+        _reboot_against_stubs(page)
         page.wait_for_selector('#model-download-banner .mdl-row[data-mdl-kind="whisper"]', timeout=4000)
         row = page.locator('.mdl-row[data-mdl-kind="whisper"]')
         assert "speech model" in row.inner_text().lower()
@@ -82,35 +93,33 @@ class TestModelPrefetchBanner:
         assert page.locator('.mdl-row[data-mdl-kind="whisper"] .mdl-cancel').count() == 1
 
     def test_speaker_banner_appears_when_missing_and_enabled(self, page: Page):
-        _reset(page)
         _route_config(page, prefetch_disabled=False)
         _route_download_status(page, whisper_cached=True, speaker_cached=False)
         _hold(page, "**/api/models/prefetch*", [])
 
-        page.evaluate("() => initModelPrefetch()")
+        _reboot_against_stubs(page)
         page.wait_for_selector('#model-download-banner .mdl-row[data-mdl-kind="speaker"]', timeout=4000)
         assert "speaker" in page.locator('.mdl-row[data-mdl-kind="speaker"]').inner_text().lower()
         # Only the speaker banner - the cached speech model must not start one.
         assert page.locator('.mdl-row[data-mdl-kind="whisper"]').count() == 0
 
     def test_no_banner_when_prefetch_disabled(self, page: Page):
-        _reset(page)
         _route_config(page, prefetch_disabled=True)
         _route_download_status(page, whisper_cached=False, speaker_cached=False)
-        page.evaluate("() => initModelPrefetch()")
+        _reboot_against_stubs(page)
+        # Disabled config makes boot's initModelPrefetch early-return, so no row is
+        # ever created; the count/hidden assertions hold regardless of boot timing.
         assert page.locator("#model-download-banner .mdl-row").count() == 0
         assert page.locator("#model-download-banner").is_hidden()
 
     def test_no_banner_when_models_already_cached(self, page: Page):
-        _reset(page)
         _route_config(page, prefetch_disabled=False)
         _route_download_status(page, whisper_cached=True, speaker_cached=True)
-        page.evaluate("() => initModelPrefetch()")
+        _reboot_against_stubs(page)
         assert page.locator("#model-download-banner .mdl-row").count() == 0
         assert page.locator("#model-download-banner").is_hidden()
 
     def test_three_banners_stack(self, page: Page):
-        _reset(page)
         _route_config(page, prefetch_disabled=False)
         _route_download_status(
             page, pending_model_id=_MODEL_ID, downloading=False,
@@ -127,7 +136,7 @@ class TestModelPrefetchBanner:
         _hold(page, "**/api/whisper/prefetch", [])
         _hold(page, "**/api/models/prefetch*", [])
 
-        page.evaluate("() => { initModelDownload(); initModelPrefetch(); }")
+        _reboot_against_stubs(page)
         page.wait_for_function(
             "() => document.querySelectorAll('#model-download-banner .mdl-row').length === 3",
             timeout=4000,
