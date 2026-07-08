@@ -678,18 +678,14 @@ async function _refreshVideoDetail(videoId) {
 // Two ways to re-run analysis on an already-analyzed recording:
 //   reanalyzeVideo  - full pipeline with --force (destructive: replaces clips/scores).
 //   rediarizeVideo  - speaker detection only (non-destructive: keeps clips/scores).
+// Opens the New Recording panel in re-analyze mode: settings default to this
+// recording's original run but stay editable, and the destructive warning plus
+// the explicit "Re-analyze" button stand in for the old confirm dialog.
 function reanalyzeVideo(id) {
+  if (_blockedByAnalyze('re-analyze this recording')) return;
   const video = AppState.videos.find(v => v.id === id);
-  const exportedNote = (video && video.exported > 0)
-    ? ` Files you already exported for this recording stay on disk, but the ${plural(video.exported, 'exported clip')} will be regenerated.`
-    : '';
-  showConfirm(
-    'Re-analyze this recording?',
-    `This re-runs the full pipeline - re-transcribe, re-detect speakers, regenerate clips, and re-score. All current clips, including your approvals and any edited descriptions, will be replaced.${exportedNote}`,
-    'Re-analyze',
-    () => _doReanalyzeVideo(video || {id}),
-    true,
-  );
+  if (!video) return;
+  openReanalyzePanel(video);
 }
 
 // Rebuild an analyze request the way the recording was originally analyzed
@@ -719,30 +715,6 @@ async function _reanalyzeParams(video) {
     diarize:       null,
     context_names: currentContexts,
   };
-}
-
-async function _doReanalyzeVideo(video) {
-  const params = await _reanalyzeParams(video);
-  let res;
-  try {
-    res = await fetch('/api/analyze/start', {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({video_id: video.id, force: true, ...params}),
-    });
-  } catch (err) {
-    showToast(`Network error: ${err.message}`, 'error');
-    return;
-  }
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    showToast(formatApiError(err) || 'Failed to start re-analysis', 'error');
-    return;
-  }
-  AppState.analyzeFilename = video.filename || null;
-  loadVideos();  // surface the spinner on the recording immediately
-  openLog();
-  appendLog(`Re-analyzing: ${video.filename || video.id}`);
-  _streamAnalyzeEvents(video.filename || '');
 }
 
 function rediarizeVideo(id) {

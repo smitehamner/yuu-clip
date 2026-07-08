@@ -11,9 +11,51 @@ let _panelDirty    = false;
 (function () {
 // ── new recording panel ───────────────────────────────────────────────────────
 let _probeTimer    = null;
+// When set, the New Recording panel is re-analyzing an existing recording rather
+// than ingesting a new file: the source picker / pre-split are hidden, settings
+// default to the recording's original run, and Start submits {video_id, force}.
+let _reanalyzeTarget = null;
 
 function _isNewRecordingPanelOpen() {
   return document.getElementById('new-recording-panel').style.display !== 'none';
+}
+
+function _revealRecordingPanel() {
+  document.getElementById('player-area').style.display = 'none';
+  document.getElementById('player-resize-handle').style.display = 'none';
+  document.getElementById('detail').style.display = 'none';
+  document.getElementById('new-recording-panel').style.display = '';
+  document.getElementById('btn-analyze').setAttribute('aria-pressed', 'true');
+}
+
+// Toggle the panel chrome between "new recording" and "re-analyze" modes.
+function _applyPanelMode() {
+  const reanalyze = !!_reanalyzeTarget;
+  const src = document.getElementById('recording-source-field');
+  if (src) src.style.display = reanalyze ? 'none' : '';
+  const title = document.getElementById('new-recording-title');
+  if (title) title.textContent = reanalyze ? 'Re-analyze recording' : 'New Recording';
+  const warn = document.getElementById('reanalyze-warning');
+  if (warn) {
+    warn.style.display = reanalyze ? '' : 'none';
+    warn.innerHTML = reanalyze ? _reanalyzeWarningHtml(_reanalyzeTarget) : '';
+  }
+  const btn = document.getElementById('btn-start-analyze');
+  if (btn) {
+    btn.textContent = reanalyze ? 'Re-analyze' : 'Start Analysis';
+    btn.classList.toggle('danger', reanalyze);
+    btn.classList.toggle('primary', !reanalyze);
+  }
+}
+
+function _reanalyzeWarningHtml(target) {
+  const exportedNote = target.exported > 0
+    ? ` Files you already exported stay on disk, but the ${plural(target.exported, 'exported clip')} will be regenerated.`
+    : '';
+  return `<span aria-hidden="true">&#9888;</span>
+    <span>Re-analyzing <strong>${escHtml(target.filename)}</strong> re-runs the full pipeline and replaces all
+    current clips, including your approvals and any edited descriptions.${exportedNote}
+    Adjust the settings below, then choose Re-analyze.</span>`;
 }
 
 async function openNewRecordingPanel() {
@@ -23,11 +65,8 @@ async function openNewRecordingPanel() {
     closeSettings(openNewRecordingPanel);
     return;
   }
-  document.getElementById('player-area').style.display = 'none';
-  document.getElementById('player-resize-handle').style.display = 'none';
-  document.getElementById('detail').style.display = 'none';
-  document.getElementById('new-recording-panel').style.display = '';
-  document.getElementById('btn-analyze').setAttribute('aria-pressed', 'true');
+  _reanalyzeTarget = null;
+  _revealRecordingPanel();
 
   document.getElementById('analyze-path').value = '';
   document.getElementById('estimate-area').innerHTML = '';
@@ -38,11 +77,67 @@ async function openNewRecordingPanel() {
   _updateStartIngestButton();
   hidePreSplitSection();
   hideImportUrlSection();
+  _applyPanelMode();
   await _loadAnalysisDefaults();
   await _loadProfileDropdown();
   await _loadIngestContextPicker();
   await _loadDiarizationDefault();
   document.getElementById('analyze-path').focus();
+}
+
+// Re-analyze an already-analyzed recording: reuse the New Recording panel with
+// its settings defaulted to the original run (editable), the source picker and
+// pre-split hidden, and the existing file re-probed so the time estimate and
+// captions picker still work.
+async function openReanalyzePanel(video) {
+  if (document.getElementById('btn-analyze').disabled) return;
+  if (document.getElementById('settings-panel').classList.contains('visible')) {
+    closeSettings(() => openReanalyzePanel(video));
+    return;
+  }
+  _reanalyzeTarget = {
+    id: video.id, filename: video.filename, path: video.path, exported: video.exported || 0,
+  };
+  _revealRecordingPanel();
+
+  document.getElementById('estimate-area').innerHTML = '';
+  const stEl = document.getElementById('subtitle-source-field');
+  if (stEl) stEl.style.display = 'none';
+  _probedInfo   = null;
+  _panelDirty   = false;
+  _updateStartIngestButton();
+  hidePreSplitSection();
+  hideImportUrlSection();
+  _applyPanelMode();
+  await _loadProfileDropdown();
+  await _loadIngestContextPicker();
+  await _loadDiarizationDefault();
+  await _applyReanalyzeSettings(video);
+  document.getElementById('analyze-path').value = video.path;
+  runProbe(video.path);
+}
+
+// Default the panel's controls to how this recording was originally analyzed.
+async function _applyReanalyzeSettings(video) {
+  const params = await _reanalyzeParams(video);
+  _setSelectIfPresent('analyze-model',       params.model);
+  _setSelectIfPresent('analyze-scene-mode',  params.scene_mode);
+  _setSelectIfPresent('analyze-energy-mode', params.energy_mode);
+  _setSelectIfPresent('analyze-profile',     params.profile || '__default__');
+  const diarBox = document.getElementById('analyze-diarize');
+  if (diarBox && !diarBox.disabled && typeof params.diarize === 'boolean') {
+    diarBox.checked = params.diarize;
+  }
+  _preselectContexts(params.context_names);
+}
+
+function _preselectContexts(ids) {
+  const wanted = new Set(ids || []);
+  document.querySelectorAll('.ctx-pill').forEach(pill => {
+    pill.classList.toggle('selected', wanted.has(pill.dataset.ctxId));
+  });
+  const note = document.getElementById('ctx-none-selected-note');
+  if (note) note.style.display = document.querySelectorAll('.ctx-pill.selected').length ? 'none' : '';
 }
 
 // Pre-fill the panel's model/scene/energy selects from the Settings-managed
@@ -85,6 +180,7 @@ function _doCloseNewRecordingPanel() {
   document.getElementById('detail').style.display = '';
   document.getElementById('btn-analyze').setAttribute('aria-pressed', 'false');
   _panelDirty = false;
+  _reanalyzeTarget = null;
 }
 
 async function _loadIngestContextPicker() {
@@ -180,7 +276,7 @@ async function runProbe(path) {
     _updateStartIngestButton();
     _renderSubtitleSourcePicker(_probedInfo);
     runEstimate();
-    initPreSplitDuration(_probedInfo.duration_s);
+    if (!_reanalyzeTarget) initPreSplitDuration(_probedInfo.duration_s);
   } catch (err) {
     _probedInfo = null;
     _updateStartIngestButton();
@@ -402,31 +498,38 @@ async function _doStartAnalyze() {
     return;
   }
 
+  const target = _reanalyzeTarget;
   const btn = document.getElementById('btn-start-analyze');
   btn.disabled = true;
-  btn.textContent = 'Starting…';
+  btn.textContent = target ? 'Starting re-analysis…' : 'Starting…';
+
+  const payload = {
+    path, model, profile, energy_mode: energyMode, scene_mode: sceneMode,
+    diarize, context_names: contextNames, subtitle_source: subtitleSource,
+  };
+  if (target) { payload.video_id = target.id; payload.force = true; }
 
   const startRes = await fetch('/api/analyze/start', {
     method:  'POST',
     headers: {'Content-Type': 'application/json'},
-    body:    JSON.stringify({path, model, profile, energy_mode: energyMode, scene_mode: sceneMode, diarize, context_names: contextNames, subtitle_source: subtitleSource}),
+    body:    JSON.stringify(payload),
   });
 
   if (!startRes.ok) {
     const err = await startRes.json().catch(() => ({}));
-    showToast(formatApiError(err) || 'Failed to start analysis', 'error');
+    showToast(formatApiError(err) || `Failed to start ${target ? 're-analysis' : 'analysis'}`, 'error');
     btn.disabled = false;
-    btn.textContent = 'Start Analysis';
+    btn.textContent = target ? 'Re-analyze' : 'Start Analysis';
     return;
   }
 
-  const filename = path.split(/[\\/]/).pop();
+  const filename = target ? target.filename : path.split(/[\\/]/).pop();
   AppState.analyzeFilename = filename;
   _panelDirty = false;
   _doCloseNewRecordingPanel();
   loadVideos();  // surface the recording in the sidebar immediately (placeholder until its row exists)
   openLog();
-  appendLog(`Analyzing: ${filename}`);
+  appendLog(`${target ? 'Re-analyzing' : 'Analyzing'}: ${filename}`);
   _streamAnalyzeEvents(filename);
 }
 
@@ -1000,7 +1103,7 @@ document.addEventListener('drop', async e => {
 });
 
 Object.assign(window, {
-  _isNewRecordingPanelOpen, openNewRecordingPanel, closeNewRecordingPanel,
+  _isNewRecordingPanelOpen, openNewRecordingPanel, openReanalyzePanel, closeNewRecordingPanel,
   _doCloseNewRecordingPanel, _toggleCtxPill, scheduleProbe,
   _renderSubtitleSourcePicker, _onSubtitleSourceChange,
   runEstimate, renderEstimate, startAnalyze, _doStartAnalyze, _streamAnalyzeEvents, reattachAnalysis,

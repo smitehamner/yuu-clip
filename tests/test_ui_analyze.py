@@ -765,3 +765,99 @@ class TestImportFromUrl:
         expect(page.locator("#toast-container .toast.success")).to_contain_text("Download complete")
         page.locator("#new-recording-panel").wait_for(state="visible")
         expect(page.locator("#analyze-path")).to_have_value(fake_path)
+
+
+# ---------------------------------------------------------------------------
+# Re-analyze panel - the New Recording panel reused in re-analyze mode, with
+# settings defaulted to the recording's original run (but editable).
+# ---------------------------------------------------------------------------
+
+_REANALYZE_VIDEO = {
+    "id": 4242,
+    "filename": "old-session.mkv",
+    "path": "/does/not/exist/old-session.mkv",
+    "duration_ms": 3_600_000,
+    "exported": 2,
+    "context_names": [],
+    "analyze_run": {
+        "settings": {
+            "model": "large-v3",
+            "track_layout": "default",
+            "energy_mode": "full",
+            "scene_mode": "full",
+            "speaker_labels": False,
+            "contexts": [],
+        }
+    },
+}
+
+
+@skip_no_server
+class TestReanalyzePanel:
+    def _open_reanalyze(self, page: Page, video: dict | None = None) -> None:
+        page.goto(LIVE_URL)
+        # The prefilled path points at no real file; stub the probe so it fails
+        # quietly (button stays disabled) instead of hitting the estimate error path.
+        page.route("**/api/probe", _fulfill_json({"detail": "File not found"}, status=400))
+        page.evaluate("(v) => openReanalyzePanel(v)", video or _REANALYZE_VIDEO)
+        page.locator("#new-recording-panel").wait_for(state="visible")
+
+    def test_panel_opens_in_reanalyze_mode(self, page: Page):
+        self._open_reanalyze(page)
+        expect(page.locator("#new-recording-title")).to_have_text("Re-analyze recording")
+        expect(page.locator("#recording-source-field")).to_be_hidden()
+        expect(page.locator("#btn-start-analyze")).to_have_text("Re-analyze")
+
+    def test_warning_names_the_recording_and_exported_clips(self, page: Page):
+        self._open_reanalyze(page)
+        warning = page.locator("#reanalyze-warning")
+        expect(warning).to_be_visible()
+        expect(warning).to_contain_text("old-session.mkv")
+        expect(warning).to_contain_text("2 exported clips")
+
+    def test_settings_default_to_the_original_run(self, page: Page):
+        self._open_reanalyze(page)
+        assert page.locator("#analyze-model").input_value() == "large-v3"
+        assert page.locator("#analyze-scene-mode").input_value() == "full"
+        assert page.locator("#analyze-energy-mode").input_value() == "full"
+        assert page.locator("#analyze-profile").input_value() == "__default__"
+
+    def test_reopening_new_recording_clears_reanalyze_chrome(self, page: Page):
+        self._open_reanalyze(page)
+        page.click("#btn-close-new-recording")
+        page.click("#btn-analyze")
+        page.locator("#new-recording-panel").wait_for(state="visible")
+        expect(page.locator("#new-recording-title")).to_have_text("New Recording")
+        expect(page.locator("#reanalyze-warning")).to_be_hidden()
+        expect(page.locator("#recording-source-field")).to_be_visible()
+        expect(page.locator("#btn-start-analyze")).to_have_text("Start Analysis")
+
+    def test_start_submits_video_id_and_force(self, page: Page):
+        page.goto(LIVE_URL)
+        # A valid probe (set before opening) so the panel's own re-probe of the
+        # existing file succeeds and enables the Re-analyze button.
+        page.route("**/api/probe", _fulfill_json({
+            "filename": "old-session.mkv", "duration_s": 3600, "duration_hms": "1:00:00",
+            "width": 1920, "height": 1080, "fps": 60, "audio_tracks": 1,
+            "subtitle_streams": [], "srt_sidecar": None,
+        }))
+        page.evaluate("(v) => openReanalyzePanel(v)", _REANALYZE_VIDEO)
+        page.locator("#new-recording-panel").wait_for(state="visible")
+        expect(page.locator("#btn-start-analyze")).to_be_enabled()
+
+        # startAnalyze() first probes the speech-model download state; stub it
+        # so no "still downloading" confirm can intercept the click.
+        page.route("**/api/llm/download-status", _fulfill_json({"whisper_downloading": False}))
+        captured: dict = {}
+        def _capture(route):
+            captured.update(json.loads(route.request.post_data))
+            route.fulfill(status=200, content_type="application/json", body=json.dumps({"status": "started"}))
+        page.route("**/api/analyze/start", _capture)
+        page.route("**/api/analyze/events", lambda route: route.fulfill(
+            status=200, content_type="text/event-stream", body=_sse_body([])))
+
+        page.click("#btn-start-analyze")
+        expect(page.locator("#new-recording-panel")).to_be_hidden()
+        assert captured.get("video_id") == 4242
+        assert captured.get("force") is True
+        assert captured.get("model") == "large-v3"

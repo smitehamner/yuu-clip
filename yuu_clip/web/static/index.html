@@ -1108,10 +1108,12 @@
     <div class="new-recording-panel" id="new-recording-panel" style="display:none">
       <div class="new-recording-inner">
         <div class="new-recording-header">
-          <h2>New Recording</h2>
+          <h2 id="new-recording-title">New Recording</h2>
           <button class="btn ghost" id="btn-close-new-recording" onclick="closeNewRecordingPanel()"
                   aria-label="Close" style="font-size:16px">&#x2715;</button>
         </div>
+
+        <div id="reanalyze-warning" class="reanalyze-warning" style="display:none"></div>
 
         <div class="field" id="recording-source-field">
           <label for="analyze-path">Recording file</label>
