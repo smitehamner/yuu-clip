@@ -73,3 +73,62 @@ test('defaults apply for whisper_language, ai_privacy_mode, and content_preset',
   assert.equal(pyCfg.ai_privacy_mode, 'local_only');
   assert.equal(pyCfg.content_preset, 'generic');
 });
+
+// ── local-vs-lightweight opt-out framing (first-run-friction Stage 3) ─────────
+
+const localOptInCfg = {
+  whisperModel: 'base',
+  llmBackend: 'llamacpp',
+  llmModelPath: '',
+  localModelChoice: 'local',
+  recommendedModelId: 'qwen2.5-7b-instruct',
+};
+
+test('local opt-in with no model file records pending_local_model and leaves llm_model_path empty', () => {
+  const pyCfg = buildProjectConfigFromWizard(localOptInCfg, defaults);
+  assert.equal(pyCfg.llm_backend, 'llamacpp');
+  assert.equal(pyCfg.llm_model_path, '');
+  assert.equal(pyCfg.pending_local_model, 'qwen2.5-7b-instruct');
+});
+
+test('lightweight choice clears pending_local_model explicitly', () => {
+  const pyCfg = buildProjectConfigFromWizard(
+    { ...localOptInCfg, localModelChoice: 'lightweight' },
+    defaults
+  );
+  assert.equal(pyCfg.llm_model_path, '');
+  assert.equal(pyCfg.pending_local_model, '');
+});
+
+test('an in-hand model file wins over the pending flag even when local is chosen', () => {
+  const pyCfg = buildProjectConfigFromWizard(
+    { ...localOptInCfg, llmModelPath: 'C:\\models\\model.gguf' },
+    defaults
+  );
+  assert.equal(pyCfg.llm_model_path, 'C:\\models\\model.gguf');
+  assert.equal(pyCfg.pending_local_model, '');
+});
+
+test('local opt-in with generative AI disabled does not queue a download', () => {
+  const pyCfg = buildProjectConfigFromWizard(
+    { ...localOptInCfg, aiPrivacyMode: 'none' },
+    defaults
+  );
+  assert.equal(pyCfg.pending_local_model, '');
+});
+
+test('claude backend never sets pending_local_model', () => {
+  const pyCfg = buildProjectConfigFromWizard(
+    { ...localOptInCfg, llmBackend: 'claude', claudeApiKey: 'sk-test' },
+    defaults
+  );
+  assert.equal(pyCfg.pending_local_model, '');
+});
+
+test('ollama backend never sets pending_local_model', () => {
+  const pyCfg = buildProjectConfigFromWizard(
+    { ...localOptInCfg, llmBackend: 'ollama', ollamaModel: 'llama3:8b' },
+    defaults
+  );
+  assert.equal(pyCfg.pending_local_model, '');
+});

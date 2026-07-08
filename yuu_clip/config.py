@@ -487,6 +487,11 @@ class Config:
     # LOCAL backends — inference runs on your machine, no API costs
     llm_backend: str = "llamacpp"    # "llamacpp" | "ollama" | "claude"
     llm_model_path: str = ""         # path to .gguf file; required when backend is llamacpp
+    # Boot-time handoff flag (first-run-friction): the setup wizard sets this to a
+    # catalog model id when the user opts into local AI but has not downloaded a
+    # model yet, so the app can fetch it in the background after launch. Empty once
+    # a model file exists or the user chose lightweight mode.
+    pending_local_model: str = ""
     llm_mmproj_path: str = ""        # path to the vision projector .gguf; enables vision on llamacpp
     # The desktop installer ships a CUDA build of llama-cpp-python for NVIDIA cards,
     # but offload is off unless n_gpu_layers is set — so with this False the GPU sits

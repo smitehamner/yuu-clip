@@ -94,6 +94,29 @@ class TestConfigLoad:
         config = Config.load(project_dir)
         assert config.whisper_model == "small"
 
+    def test_pending_local_model_defaults_empty(self, tmp_path, monkeypatch):
+        """The wizard handoff flag is empty by default."""
+        import yuu_clip.config as cfg_mod
+        from yuu_clip.config import Config
+        monkeypatch.setattr(cfg_mod, "_global_config_dir", lambda: tmp_path / "global_cfg")
+        project_dir = tmp_path / "proj"
+        project_dir.mkdir()
+        assert Config.load(project_dir).pending_local_model == ""
+
+    def test_pending_local_model_survives_save_load_round_trip(self, tmp_path, monkeypatch):
+        """A wizard-set pending model id persists through save_project -> load."""
+        import dataclasses
+
+        import yuu_clip.config as cfg_mod
+        from yuu_clip.config import Config
+        monkeypatch.setattr(cfg_mod, "_global_config_dir", lambda: tmp_path / "global_cfg")
+        project_dir = tmp_path / "proj"
+        project_dir.mkdir()
+        dataclasses.replace(
+            Config.load(project_dir), pending_local_model="qwen2.5-7b-instruct"
+        ).save_project(project_dir)
+        assert Config.load(project_dir).pending_local_model == "qwen2.5-7b-instruct"
+
 
 # ---------------------------------------------------------------------------
 # UI config endpoint — GET/PATCH /api/config

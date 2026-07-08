@@ -213,18 +213,45 @@ footer {
       <div id="ffmpeg-slot"></div>
     </section>
 
-    <!-- ═══ LLM scoring — choose one ═══ -->
+    <!-- LLM scoring -->
     <section>
-      <div class="sec-title">LLM scoring <span class="tag">— choose one</span></div>
+      <div class="sec-title">LLM scoring</div>
       <div class="sec-note">
-        An AI model reads the transcript to rate how funny, dramatic, or action-packed each
+        An LLM reads the transcript to rate how funny, dramatic, or action-packed each
         clip is, and writes descriptions. Without it, clips are still found using audio
-        energy and scene detection — but they won't get quality scores or descriptions.
-        Not ready to decide? You can set this up any time in Settings (⚙).
+        energy and scene detection - they just won't get quality scores or descriptions.
       </div>
+      <div class="sec-note" id="llm-rec-headline" style="color:#b8b8d0;font-weight:600"></div>
+
+      <div class="chk-row">
+        <input type="radio" name="local-ai-choice" id="local-ai-yes" value="local">
+        <div class="body">
+          <label class="chk-title" for="local-ai-yes">Set up local AI (Recommended)</label>
+          <div class="desc">
+            Downloads a model that runs on your own machine - free, private, and the
+            source of the best results. The download happens in the background after
+            you launch, so you can start using yuu-clip right away.
+          </div>
+        </div>
+      </div>
+      <div class="chk-row">
+        <input type="radio" name="local-ai-choice" id="local-ai-no" value="lightweight">
+        <div class="body">
+          <label class="chk-title" for="local-ai-no">Lightweight mode (no download)</label>
+          <div class="desc">
+            Skip the model download. Clips are still found and searchable, just
+            without LLM quality scores or descriptions. You can set up local AI
+            anytime in Settings.
+          </div>
+        </div>
+      </div>
+      <div class="field-note" id="llm-rec-reason" style="margin:4px 0 2px"></div>
+
+      <details id="advanced-ai">
+        <summary>Advanced AI options</summary>
       <div class="sec-note" style="color:#d4902a">
         <strong>Heads-up on download size:</strong> running a model on your own machine is a
-        one-time download of roughly <strong>4–9 GB</strong> (the recommended model is ~4.7 GB).
+        one-time download of roughly <strong>4-9 GB</strong> (the recommended model is ~4.7 GB).
         The Claude API needs no download but sends transcripts to Anthropic and is billed per use.
       </div>
       <div class="cfg-row">
@@ -302,6 +329,7 @@ footer {
         </div>
       </div>
       </div><!-- /#llm-generative-block -->
+      </details><!-- /#advanced-ai -->
     </section>
 
     <!-- ═══ Content type ═══ -->
@@ -316,7 +344,7 @@ footer {
       <div class="cfg-row">
         <span class="cfg-label">Content type</span>
         <select id="content-preset-sel">
-          <option value="generic">Generic — balanced default</option>
+          <option value="generic">Generic — balanced default (recommended)</option>
           <option value="rp-narrative">RP / narrative — character and drama first</option>
           <option value="competitive">Competitive gaming — clutches, comebacks, callouts</option>
           <option value="casual">Casual / let's play — personality and funny failures</option>
@@ -382,6 +410,10 @@ footer {
 
 <div id="rerun-note" style="display:none;font-size:11px;color:#87879f;padding:6px 20px 0">
   Project folder changes take effect on next restart.
+</div>
+
+<div id="lightweight-note" style="display:none;font-size:11px;color:#87879f;padding:6px 20px 0">
+  Launching in lightweight mode - you can set up local AI anytime in Settings.
 </div>
 
 <footer>
@@ -619,7 +651,19 @@ function applyDefaults(s) {
   document.getElementById('claude-model-sel').value = s.claudeModel  || 'claude-haiku-4-5-20251001';
   document.getElementById('content-preset-sel').value = s.contentPreset || 'generic';
   document.getElementById('content-preset-note').textContent =
-    'Applied on launch. You can fine-tune every scoring weight later in Settings.';
+    'Not sure? Generic is a good default. You can fine-tune every scoring weight later in Settings.';
+
+  const rec = s.localModelRecommendation || {};
+  document.getElementById('llm-rec-headline').textContent = rec.headline || '';
+  document.getElementById('llm-rec-reason').textContent   = rec.reason || '';
+  // Pre-select local AI as the recommended path unless the machine can't fit the
+  // model (push 'none'); an existing model file also keeps local selected (the
+  // build step won't re-queue a download when a path is already set).
+  const hasExistingModel = Boolean((s.llmModelPath || '').trim());
+  const preferLocal = hasExistingModel || rec.push === 'strong' || rec.push === 'soft';
+  document.getElementById('local-ai-yes').checked = preferLocal;
+  document.getElementById('local-ai-no').checked  = !preferLocal;
+  onLocalAiChoiceChange();
 
   onPrivacyModeChange(document.getElementById('ai-privacy-sel').value);
 
@@ -673,6 +717,11 @@ function updateClaudeWarn() {
   const key     = (document.getElementById('claude-api-key').value || '').trim();
   document.getElementById('claude-warn').style.display =
     (backend === 'claude' && !key) ? 'block' : 'none';
+}
+
+function onLocalAiChoiceChange() {
+  const lightweight = document.getElementById('local-ai-no').checked;
+  document.getElementById('lightweight-note').style.display = lightweight ? '' : 'none';
 }
 
 // ── Ollama model pull ──────────────────────────────────────────────────────
@@ -881,6 +930,8 @@ document.getElementById('llm-browse-btn').addEventListener('click', async () => 
 
 document.getElementById('ai-privacy-sel').addEventListener('change', e => onPrivacyModeChange(e.target.value));
 document.getElementById('llm-backend-sel').addEventListener('change', e => onLlmBackendChange(e.target.value));
+document.getElementById('local-ai-yes').addEventListener('change', onLocalAiChoiceChange);
+document.getElementById('local-ai-no').addEventListener('change', onLocalAiChoiceChange);
 document.getElementById('llm-model-path').addEventListener('input', updateLlmWarn);
 document.getElementById('claude-api-key').addEventListener('input', updateClaudeWarn);
 
@@ -903,6 +954,8 @@ document.getElementById('restart-btn').addEventListener('click', () => {
 });
 
 function collectConfig() {
+  const choiceEl = document.querySelector('input[name="local-ai-choice"]:checked');
+  const rec = (status && status.localModelRecommendation) || {};
   return {
     projectDir:      document.getElementById('project-dir').value,
     whisperModel:    document.getElementById('whisper-sel').value,
@@ -910,6 +963,8 @@ function collectConfig() {
     aiPrivacyMode:   document.getElementById('ai-privacy-sel').value,
     llmBackend:      document.getElementById('llm-backend-sel').value,
     llmModelPath:    (document.getElementById('llm-model-path').value || '').trim(),
+    localModelChoice: choiceEl ? choiceEl.value : 'local',
+    recommendedModelId: rec.modelId || '',
     ollamaModel:     (document.getElementById('ollama-model-input').value || '').trim() || 'qwen2.5:7b',
     claudeApiKey:    (document.getElementById('claude-api-key').value || '').trim(),
     claudeModel:     document.getElementById('claude-model-sel').value,
