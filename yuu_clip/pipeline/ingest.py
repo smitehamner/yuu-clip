@@ -523,9 +523,17 @@ def _transcribe_and_check_overlap(track_objs, config, session, video, language, 
     """
     from yuu_clip.analyze.overlap import detect_transcript_overlap
     from yuu_clip.db.models import Transcript
-    from yuu_clip.transcribe.whisper_runner import transcribe_track
+    from yuu_clip.transcribe.whisper_runner import transcribe_track, whisper_model_cached
 
     console.print(f"  [bold]Transcribing (model: {config.whisper_model})...[/bold]")
+    if not whisper_model_cached(config):
+        # The model isn't in the cache yet, so the first transcribe_track below
+        # will block while it downloads. Surface that as a legible status line the
+        # web UI promotes into the Transcribe step, rather than a silent stall.
+        # huggingface_hub holds a per-repo .lock in the shared cache, so if the
+        # background prefetch (Stage 6) is mid-download this load waits on that
+        # same lock instead of starting a second, cache-corrupting download.
+        console.print("Waiting for the speech-to-text model to finish downloading...")
     transcripts = []
     total_tracks = len(track_objs)
     for idx, track in enumerate(track_objs, 1):

@@ -215,6 +215,22 @@ class TestWizardModes:
         assert completed["contentPreset"] == "podcast"
         assert completed["projectDir"] == "C:/Users/test/Videos/yuu-clip"
 
+    def test_model_prefetch_checkbox_default_checked_and_collected(self, page: Page):
+        _open_wizard(page)
+        # Default-ON (first-run-friction Stage 6): one checkbox covers the speech
+        # and speaker models, checked by default.
+        expect(page.locator("#model-prefetch-chk")).to_be_checked()
+        page.click("#launch-btn")
+        completed = page.evaluate("window.__events.completed")
+        assert completed["modelPrefetch"] is True
+
+    def test_model_prefetch_unchecked_is_collected(self, page: Page):
+        _open_wizard(page)
+        page.uncheck("#model-prefetch-chk")
+        page.click("#launch-btn")
+        completed = page.evaluate("window.__events.completed")
+        assert completed["modelPrefetch"] is False
+
     def test_rerun_mode_close_discards_without_saving(self, page: Page):
         _open_wizard(page, query="?mode=rerun")
         expect(page.locator("#quit-btn")).to_have_text("Close")

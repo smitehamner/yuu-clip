@@ -29,7 +29,7 @@ let _stepRateAnchor = {}; // stepIdx -> {t, current} at first observed count, cl
 // "3/12 (25%)" and a live ETA instead of just elapsed time.
 const INGEST_STEPS = [
   {label: 'Extract',        patterns: ['Extracting audio'],      estMatch: ['extract audio'],  progressPattern: /Track (\d+)\/(\d+)/},
-  {label: 'Transcribe',     patterns: ['Transcribing'],          estMatch: ['transcribe', 'load captions'], progressPattern: /Track (\d+)\/(\d+)/},
+  {label: 'Transcribe',     patterns: ['Transcribing'],          estMatch: ['transcribe', 'load captions'], progressPattern: /Track (\d+)\/(\d+)/, waitPattern: /Waiting for the speech-to-text model/},
   {label: 'Speakers',       patterns: ['Detecting speakers'],    estMatch: ['speaker labels']},
   {label: 'Generate Clips', patterns: ['Generating clip']},
   {label: 'Energy',         patterns: ['Computing audio energy'], estMatch: ['audio energy']},
@@ -42,6 +42,10 @@ const SCORE_STEPS = [
   {label: 'Scoring', patterns: ['Scoring clips'], progressPattern: /Scoring (\d+)\/(\d+)/},
 ];
 
+// stepIdx -> a transient status message shown in place of the step's timing
+// label (e.g. "waiting for the speech model to finish downloading"). Set when a
+// step's waitPattern matches, cleared when that step reports real progress.
+let _stepWaitingMsg = {};
 let _activeJobCleanup = null;
 let _jobTimer      = null;
 let _jobHideTimer  = null;
@@ -68,6 +72,7 @@ function startJobUI(stepDefs, jobLabel, cancellable = false, pausable = false) {
   _stepStartTime = Date.now();
   _stepProgress  = {};
   _stepRateAnchor = {};
+  _stepWaitingMsg = {};
   _jobPausable   = pausable;
   _jobPaused     = false;
   _activeCancel  = _ANALYZE_CANCEL;
@@ -198,9 +203,16 @@ function updateJobUI(line) {
     _debouncedClipListRefresh();
   }
   const activeDef = _jobStepDefs[_activeStepIdx];
+  if (activeDef && activeDef.waitPattern && activeDef.waitPattern.test(line)) {
+    _stepWaitingMsg[_activeStepIdx] = 'waiting for the speech model to finish downloading';
+    _renderStepPill(_activeStepIdx);
+  }
   if (activeDef && activeDef.progressPattern) {
     const m = line.match(activeDef.progressPattern);
     if (m) {
+      // Real progress means the model is ready and transcription is running —
+      // drop any waiting message so the pill switches back to live counts.
+      delete _stepWaitingMsg[_activeStepIdx];
       const current = parseInt(m[1], 10);
       _stepProgress[_activeStepIdx] = {current, total: parseInt(m[2], 10)};
       // Anchor the rate at the first observed count so the cold first item
@@ -243,6 +255,8 @@ function _debouncedClipListRefresh() {
 function _stepPillLabel(idx) {
   const def = _jobStepDefs[idx];
   if (!def) return {text: '', pct: null};
+  const waiting = _stepWaitingMsg[idx];
+  if (waiting) return {text: `${def.label} · ${waiting}`, pct: null};
   const elapsedMs = Date.now() - _stepStartTime;
   const progress  = _stepProgress[idx];
   if (!progress || !progress.current) {
@@ -324,11 +338,14 @@ function endJobUI() {
 // onDone(msg)  — called with the full __DONE__ payload (string or object)
 // onError(str) — called with a plain-language message on HTTP error or network loss
 //
+// opts (optional): extra fetch init, e.g. {method: 'POST'} for the model-download
+// endpoints, which are POST-only (a GET 405s). Defaults to a GET, as the analyze
+// and score SSE streams use.
 // Returns a handle with .close() that aborts the in-flight request.
-function _openSSE(url, onLine, onDone, onError) {
+function _openSSE(url, onLine, onDone, onError, opts = {}) {
   const ctrl = new AbortController();
   const handle = {close: () => ctrl.abort()};
-  fetch(url, {signal: ctrl.signal}).then(async res => {
+  fetch(url, {signal: ctrl.signal, ...opts}).then(async res => {
     if (!res.ok) {
       const errData = await res.json().catch(() => ({}));
       onError(formatApiError(errData) || `Server error ${res.status}`);

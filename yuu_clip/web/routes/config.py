@@ -95,6 +95,7 @@ class ConfigPatch(BaseModel):
 _CONFIG_FIELDS = (
     "ui_timeline_interval_seconds", "ui_timeline_interval_unit",
     "whisper_model", "whisper_device", "whisper_compute_type", "whisper_language",
+    "model_prefetch_disabled",
     "ai_privacy_mode",
     "llm_backend", "llm_model_path", "llm_mmproj_path", "llm_use_gpu",
     "vision_enabled", "vision_frames_per_clip",

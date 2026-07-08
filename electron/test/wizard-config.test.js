@@ -132,3 +132,21 @@ test('ollama backend never sets pending_local_model', () => {
   );
   assert.equal(pyCfg.pending_local_model, '');
 });
+
+// ── model prefetch checkbox (first-run-friction Stage 6, default-ON) ──────────
+// One checkbox covers the speech + speaker models via a single config flag.
+
+test('model prefetch checked (default) maps to model_prefetch_disabled false', () => {
+  const pyCfg = buildProjectConfigFromWizard({ ...baseCfg, modelPrefetch: true }, defaults);
+  assert.equal(pyCfg.model_prefetch_disabled, false);
+});
+
+test('model prefetch unchecked maps to model_prefetch_disabled true', () => {
+  const pyCfg = buildProjectConfigFromWizard({ ...baseCfg, modelPrefetch: false }, defaults);
+  assert.equal(pyCfg.model_prefetch_disabled, true);
+});
+
+test('absent modelPrefetch keeps prefetch enabled (default-on)', () => {
+  const pyCfg = buildProjectConfigFromWizard(baseCfg, defaults);
+  assert.equal(pyCfg.model_prefetch_disabled, false);
+});

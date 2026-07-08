@@ -25,6 +25,11 @@ function buildProjectConfigFromWizard(cfg, defaults) {
     // switching to lightweight/claude/ollama clears a stale value - see the
     // diarization_backend note above on why an omitted key would not.
     pending_local_model: '',
+    // Background model prefetch is default-ON (first-run-friction Stage 6): one
+    // wizard checkbox covers the speech + speaker models, checked unless the user
+    // opts out. Only an explicit `false` disables it; an absent field keeps the
+    // default-on behaviour.
+    model_prefetch_disabled: cfg.modelPrefetch === false,
   };
   if (cfg.llmBackend === 'llamacpp') {
     pyCfg.llm_model_path = cfg.llmModelPath || '';

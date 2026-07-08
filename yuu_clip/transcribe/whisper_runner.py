@@ -54,6 +54,36 @@ def resolve_transcription_language(explicit: Optional[str], config: Config) -> O
     return validate_whisper_language(explicit or config.whisper_language)
 
 
+def _whisper_repo_id(model: str) -> str:
+    """HuggingFace repo id faster-whisper resolves a size name to. Mirrors
+    faster_whisper.utils._MODELS' naming (Systran/faster-whisper-<size>, and the
+    distil variants under faster-distil-whisper-*) so the cache check needs no
+    faster_whisper import."""
+    if model.startswith("distil-"):
+        return f"Systran/faster-distil-whisper-{model[len('distil-'):]}"
+    return f"Systran/faster-whisper-{model}"
+
+
+def whisper_model_cached(config: Config) -> bool:
+    """Whether the configured Whisper model is already in the shared HF cache
+    (filesystem-only, no network). Lets the analyze pipeline tell "ready" from
+    "still downloading / downloads on first use" so it can show a legible status."""
+    from yuu_clip.hf_cache import repo_cached
+    return repo_cached(_whisper_repo_id(config.whisper_model))
+
+
+def prefetch_whisper_model(config: Config) -> None:
+    """Download the configured Whisper model into the shared HF cache now.
+
+    Uses faster-whisper's own download_model so the background prefetch and the
+    lazy analyze-time load share one cache and one huggingface_hub .lock: a
+    concurrent analyze never starts a second, cache-corrupting download - it
+    blocks on the same lock until this download finishes.
+    """
+    from faster_whisper import download_model
+    download_model(config.whisper_model, revision=config.whisper_model_revision)
+
+
 def _assign_speakers(
     session: "Session",
     transcript_id: int,

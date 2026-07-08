@@ -63,6 +63,30 @@ def prefetch_model_cmd(
     console.print("[green]Done — ready.[/green]")
 
 
+@app.command("prefetch-whisper")
+def prefetch_whisper_cmd(
+    project: Optional[Path] = typer.Option(None, "-p", "--project", help="Project directory (default: cwd)"),
+) -> None:
+    """Download the configured speech-to-text model now, so the first analysis
+    doesn't stall on a first-use download (first-run-friction Stage 6)."""
+    from yuu_clip.config import Config
+    from yuu_clip.log import configure_logging
+    from yuu_clip.transcribe.whisper_runner import prefetch_whisper_model
+
+    proj_dir = _project_dir(project)
+    configure_logging(proj_dir)
+    config = Config.load(proj_dir)
+
+    console.print(f"Downloading the speech model ({config.whisper_model})...")
+    try:
+        prefetch_whisper_model(config)
+    except Exception as exc:
+        console.print(f"[red]Download failed: {exc}[/red]")
+        raise typer.Exit(1)
+
+    console.print("[green]Done — the speech model is ready.[/green]")
+
+
 # ── One-click local (.gguf) model download ──────────────────────────────────
 # Server-owned download so the web UI (and, later, the post-launch background
 # handoff) can fetch a recommended local LLM natively, instead of only linking

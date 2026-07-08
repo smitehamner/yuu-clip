@@ -23,7 +23,7 @@ from fastapi import APIRouter, HTTPException
 
 from yuu_clip import model_catalog
 from yuu_clip.web.deps import ProjectContext
-from yuu_clip.web.routes.common import module_findable
+from yuu_clip.web.routes.common import module_findable, register_model_download
 from yuu_clip.web.sse import subprocess_sse
 
 # Only tags from the curated catalog may be pulled — the tag becomes a
@@ -35,24 +35,14 @@ _PULLABLE_OLLAMA_TAGS = frozenset(
     if entry.ollama_tag and model_catalog.BACKEND_OLLAMA in entry.backends
 )
 
-# Logical key for the background local-LLM download in ctx.model_downloads (the
-# shared "a required model is downloading" registry). Stage 6 adds "whisper".
+# Logical keys for background downloads in ctx.model_downloads (the shared
+# "a required model is downloading" registry the download banners and the
+# analyze coordination both read). Stage 4 = the local LLM; Stage 6 = the speech
+# model (whisper) and the speaker-labeling model (registered by routes/models.py's
+# prefetch under this same slug, so download-status can surface it here).
 _LLM_DOWNLOAD_KEY = "llm"
-
-
-def _deregister_when_done(inner, ctx):
-    """Wrap the download stream so the shared in-progress flag is cleared when the
-    stream ends — on normal completion, on subprocess exit, or on client
-    disconnect (StreamingResponse cancels the iterator, running the finally)."""
-
-    async def _gen():
-        try:
-            async for chunk in inner:
-                yield chunk
-        finally:
-            ctx.model_downloads.pop(_LLM_DOWNLOAD_KEY, None)
-
-    return _gen()
+_WHISPER_DOWNLOAD_KEY = "whisper"
+_SPEAKER_DOWNLOAD_KEY = "speaker"
 
 
 # Headroom beyond the model's own on-disk size — Ollama writes temporary blobs
@@ -114,6 +104,43 @@ def _preflight_gguf_download(entry) -> dict:
     size_gb = float(entry.size_gb) if entry.size_gb else 0.0
     needed_gb = round(size_gb + _PULL_DISK_HEADROOM_GB, 1)
     target = _existing_ancestor(models_dir())
+    free_gb = round(shutil.disk_usage(target).free / 1e9, 1)
+    return {
+        "sufficient": free_gb >= needed_gb,
+        "free_gb": free_gb,
+        "needed_gb": needed_gb,
+        "target": str(target),
+    }
+
+
+# Approximate on-disk sizes (GB) of the allowed whisper models, for the prefetch
+# disk precheck. Values match the setup wizard's model-picker size labels.
+_WHISPER_SIZE_GB: dict[str, float] = {
+    "tiny": 0.075, "tiny.en": 0.075,
+    "base": 0.145, "base.en": 0.145,
+    "small": 0.465, "small.en": 0.465, "distil-small.en": 0.35,
+    "medium": 1.5, "medium.en": 1.5, "distil-medium.en": 0.8,
+    "large-v1": 3.0, "large-v2": 3.0, "large-v3": 3.0,
+    "distil-large-v2": 1.5, "distil-large-v3": 1.5,
+}
+# Whisper models are downloaded file-by-file into the HF cache, so the slack a
+# .part temp file needs for a .gguf does not apply — a small buffer is enough.
+_WHISPER_DISK_HEADROOM_GB = 0.5
+
+
+def _hf_cache_root() -> Path:
+    """Nearest existing ancestor of the HuggingFace hub cache, for the free-space
+    measurement. Falls back to the user home before the cache dir first exists."""
+    override = os.environ.get("HF_HOME")
+    root = Path(override) / "hub" if override else Path.home() / ".cache" / "huggingface" / "hub"
+    return _existing_ancestor(root)
+
+
+def _preflight_whisper_prefetch(model: str) -> dict:
+    """Free vs needed space for prefetching the *model* whisper weights. Non-raising."""
+    size_gb = _WHISPER_SIZE_GB.get(model, 3.0)
+    needed_gb = round(size_gb + _WHISPER_DISK_HEADROOM_GB, 1)
+    target = _hf_cache_root()
     free_gb = round(shutil.disk_usage(target).free / 1e9, 1)
     return {
         "sufficient": free_gb >= needed_gb,
@@ -453,19 +480,65 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         except Exception:
             ctx.model_downloads.pop(_LLM_DOWNLOAD_KEY, None)
             raise
-        iterator = getattr(response, "body_iterator", None)
-        if iterator is not None:
-            response.body_iterator = _deregister_when_done(iterator, ctx)
-        else:
-            ctx.model_downloads.pop(_LLM_DOWNLOAD_KEY, None)
-        return response
+        return register_model_download(response, ctx, _LLM_DOWNLOAD_KEY)
+
+    @router.post("/api/whisper/prefetch")
+    async def whisper_prefetch():
+        from yuu_clip.transcribe.whisper_runner import whisper_model_cached
+
+        if whisper_model_cached(ctx.config):
+            return {"status": "already-cached"}
+        # Reject a duplicate before spawning — a second trigger (another tab, a
+        # second boot) must never launch a second download into the shared HF
+        # cache while one is already running.
+        if _WHISPER_DOWNLOAD_KEY in ctx.model_downloads:
+            raise HTTPException(409, "The speech model is already downloading.")
+        disk = _preflight_whisper_prefetch(ctx.config.whisper_model)
+        if not disk["sufficient"]:
+            raise HTTPException(
+                507,
+                f"Not enough disk space: about {disk['needed_gb']} GB is needed on "
+                f"{disk['target']} but only {disk['free_gb']} GB is free. "
+                "Free up space and try again.",
+            )
+        cmd = [
+            sys.executable, "-m", "yuu_clip.cli", "prefetch-whisper",
+            "--project", str(ctx.project_dir),
+        ]
+        ctx.model_downloads[_WHISPER_DOWNLOAD_KEY] = ctx.config.whisper_model
+        try:
+            response = await subprocess_sse(cmd, ctx.project_dir)
+        except Exception:
+            ctx.model_downloads.pop(_WHISPER_DOWNLOAD_KEY, None)
+            raise
+        return register_model_download(response, ctx, _WHISPER_DOWNLOAD_KEY)
 
     @router.get("/api/llm/download-status")
     def download_status():
+        # One read surface for every in-flight required-model download, so the
+        # download banners (llm + speech + speaker) and the analyze-start
+        # coordination read from the same place, not a second overlapping endpoint.
+        from yuu_clip.transcribe.diarization_client import (
+            make_diarization_client,
+            speechbrain_model_cached,
+        )
+        from yuu_clip.transcribe.whisper_runner import whisper_model_cached
+
+        # Only prefetch the speaker model when its backend can actually run (the
+        # package is installed and speaker labels aren't turned off) — otherwise the
+        # boot prefetch would kick off a download for a feature that can't use it.
+        speaker_available = make_diarization_client(ctx.config).available()[0]
         return {
             "pending_model_id": ctx.config.pending_local_model or "",
             "downloading": _LLM_DOWNLOAD_KEY in ctx.model_downloads,
             "downloading_model_id": ctx.model_downloads.get(_LLM_DOWNLOAD_KEY),
+            "whisper_downloading": _WHISPER_DOWNLOAD_KEY in ctx.model_downloads,
+            "whisper_model_id": ctx.model_downloads.get(_WHISPER_DOWNLOAD_KEY),
+            "whisper_cached": whisper_model_cached(ctx.config),
+            "speaker_downloading": _SPEAKER_DOWNLOAD_KEY in ctx.model_downloads,
+            "speaker_cached": speechbrain_model_cached(),
+            "speaker_available": speaker_available,
+            "model_prefetch_disabled": bool(ctx.config.model_prefetch_disabled),
         }
 
     @router.post("/api/llm/download-status/clear")

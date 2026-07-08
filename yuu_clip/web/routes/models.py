@@ -15,6 +15,7 @@ import sys
 from fastapi import APIRouter, HTTPException
 
 from yuu_clip.web.deps import ProjectContext
+from yuu_clip.web.routes.common import register_model_download
 from yuu_clip.web.sse import subprocess_sse
 
 # Only these slugs may be prefetched — becomes a subprocess argument, so an
@@ -33,6 +34,15 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             sys.executable, "-m", "yuu_clip.cli", "prefetch-model", slug,
             "--project", str(ctx.project_dir),
         ]
-        return await subprocess_sse(cmd, ctx.project_dir)
+        # Register the slug in the shared "a required model is downloading"
+        # registry so the analyze-start coordination and the boot prefetch banner
+        # (first-run-friction Stage 6, the speaker model) see it in progress.
+        ctx.model_downloads[slug] = slug
+        try:
+            response = await subprocess_sse(cmd, ctx.project_dir)
+        except Exception:
+            ctx.model_downloads.pop(slug, None)
+            raise
+        return register_model_download(response, ctx, slug)
 
     return router

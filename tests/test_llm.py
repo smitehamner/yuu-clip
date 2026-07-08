@@ -176,11 +176,16 @@ class TestDownloadStatus:
 
     def test_status_reports_empty_when_nothing_pending(self, client: TestClient):
         body = client.get("/api/llm/download-status").json()
-        assert body == {
-            "pending_model_id": "",
-            "downloading": False,
-            "downloading_model_id": None,
-        }
+        assert body["pending_model_id"] == ""
+        assert body["downloading"] is False
+        assert body["downloading_model_id"] is None
+        # The generalized read surface also reports the speech-model download state
+        # (first-run-friction Stage 6); nothing is downloading here. whisper_cached
+        # reflects the real HF cache, so it isn't asserted (env-dependent).
+        assert body["whisper_downloading"] is False
+        assert body["whisper_model_id"] is None
+        assert body["speaker_downloading"] is False
+        assert body["model_prefetch_disabled"] is False
 
     def test_status_reports_pending_model(self, client: TestClient):
         client.app.state.ctx.config.pending_local_model = "qwen2.5-7b-instruct"

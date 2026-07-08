@@ -70,6 +70,30 @@ def sse_response(generator) -> StreamingResponse:
     return StreamingResponse(generator, media_type="text/event-stream", headers=_SSE_HEADERS)
 
 
+def register_model_download(response, ctx, key: str):
+    """Clear ``ctx.model_downloads[key]`` when *response*'s SSE stream ends — on
+    normal completion, subprocess exit, or client disconnect (StreamingResponse
+    cancels the iterator, running the finally). The caller registers the key
+    *before* building the stream so the shared "a required model is downloading"
+    registry (read by the download banners and the analyze-start coordination) is
+    already set while the stream runs. A non-streaming response (e.g. a test stub)
+    is deregistered immediately."""
+    iterator = getattr(response, "body_iterator", None)
+    if iterator is None:
+        ctx.model_downloads.pop(key, None)
+        return response
+
+    async def _gen():
+        try:
+            async for chunk in iterator:
+                yield chunk
+        finally:
+            ctx.model_downloads.pop(key, None)
+
+    response.body_iterator = _gen()
+    return response
+
+
 def srt_to_vtt(srt: str) -> str:
     """Convert SRT text to WebVTT (comma→dot in timestamps, WEBVTT header) for
     <track> use in the browser."""

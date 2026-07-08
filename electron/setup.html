@@ -217,9 +217,9 @@ footer {
     <section>
       <div class="sec-title">LLM scoring</div>
       <div class="sec-note">
-        An LLM reads the transcript to rate how funny, dramatic, or action-packed each
-        clip is, and writes descriptions. Without it, clips are still found using audio
-        energy and scene detection - they just won't get quality scores or descriptions.
+        An LLM reads the transcript to score and describe each clip. Without it, clips are
+        still found using audio energy and scene detection - just without quality scores or
+        descriptions.
       </div>
       <div class="sec-note" id="llm-rec-headline" style="color:#b8b8d0;font-weight:600"></div>
 
@@ -387,8 +387,15 @@ footer {
         </select>
         <span class="rec" id="rec-tag"></span>
       </div>
+      <div class="cfg-row">
+        <span class="cfg-label"></span>
+        <label style="display:flex;align-items:flex-start;gap:8px;font-size:12px;line-height:1.5;cursor:pointer;margin:0">
+          <input type="checkbox" id="model-prefetch-chk" checked style="margin-top:2px">
+          <span>Download the AI models in the background on first launch (recommended) so your first analysis is instant.</span>
+        </label>
+      </div>
       <div class="inline-note">
-        Downloads automatically on first analysis. OpenAI Whisper — MIT licence (commercial use permitted).
+        OpenAI Whisper — MIT licence (commercial use permitted).
       </div>
       <div class="cfg-row">
         <span class="cfg-label">Transcription language</span>
@@ -960,6 +967,7 @@ function collectConfig() {
     projectDir:      document.getElementById('project-dir').value,
     whisperModel:    document.getElementById('whisper-sel').value,
     whisperLanguage: document.getElementById('whisper-lang-sel').value,
+    modelPrefetch:   document.getElementById('model-prefetch-chk').checked,
     aiPrivacyMode:   document.getElementById('ai-privacy-sel').value,
     llmBackend:      document.getElementById('llm-backend-sel').value,
     llmModelPath:    (document.getElementById('llm-model-path').value || '').trim(),

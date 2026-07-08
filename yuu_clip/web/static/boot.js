@@ -70,8 +70,11 @@ document.getElementById('log-toggle').textContent = '▼';
 
 if (!localStorage.getItem('yuu-getting-started-seen')) openGettingStartedModal();
 
-// Background local-model download handoff (first-run-friction Stage 4): if the
-// wizard queued a local model and none is ready yet, fetch it in the background
-// with an in-app progress banner. Non-blocking — the app stays fully usable.
+// Background model-download handoffs (first-run-friction Stages 4 + 6): if the
+// wizard queued a local model and none is ready yet, and/or the always-needed
+// analysis models (speech + speaker) are not cached and prefetch is enabled, fetch
+// them in the background with in-app progress banners that stack. Non-blocking —
+// the app stays fully usable.
 initModelDownload();
+initModelPrefetch();
 })();

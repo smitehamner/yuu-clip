@@ -32,13 +32,31 @@ _MODEL_ID = "qwen2.5-7b-instruct"
 
 
 def _route_status(page: Page, *, pending: str) -> None:
+    # whisper_cached + speaker_available neutralize the Stage 6 boot prefetch
+    # (initModelPrefetch), so these LLM-banner tests exercise only the local-model
+    # row and no speech/speaker row can race into the shared banner container.
     page.route(
         "**/api/llm/download-status",
         lambda route: route.fulfill(
             content_type="application/json",
             body=json.dumps(
-                {"pending_model_id": pending, "downloading": False, "downloading_model_id": None}
+                {"pending_model_id": pending, "downloading": False, "downloading_model_id": None,
+                 "whisper_cached": True, "speaker_available": False}
             ),
+        ),
+    )
+
+
+def _isolate_prefetch(page: Page) -> None:
+    """Make an LLM-banner test hermetic against the Stage 6 boot prefetch: clear any
+    row the fixture's own boot started, and disable model prefetch so a late
+    initModelPrefetch bails before touching the banner container."""
+    page.evaluate("() => _resetModelDownloads()")
+    page.route(
+        "**/api/config",
+        lambda route: route.fulfill(
+            content_type="application/json",
+            body=json.dumps({"model_prefetch_disabled": True, "whisper_model": "base"}),
         ),
     )
 
@@ -57,6 +75,7 @@ def _fulfill_sse(route, body: str) -> None:
 @skip_no_server
 class TestModelDownloadBanner:
     def test_banner_shows_parsed_progress_when_pending_and_model_missing(self, page: Page):
+        _isolate_prefetch(page)
         _route_status(page, pending=_MODEL_ID)
         _route_caps_text_false(page)
         page.route(
@@ -76,6 +95,7 @@ class TestModelDownloadBanner:
         assert page.locator(".mdl-cancel").count() == 1
 
     def test_success_hides_banner_clears_and_refreshes_capabilities(self, page: Page):
+        _isolate_prefetch(page)
         calls = {"clear": 0, "cap": 0}
         _route_status(page, pending=_MODEL_ID)
 
@@ -108,6 +128,7 @@ class TestModelDownloadBanner:
         )
 
     def test_error_line_before_done_shows_failure_and_does_not_clear(self, page: Page):
+        _isolate_prefetch(page)
         calls = {"clear": 0}
         _route_status(page, pending=_MODEL_ID)
         _route_caps_text_false(page)
@@ -133,6 +154,7 @@ class TestModelDownloadBanner:
         assert calls["clear"] == 0
 
     def test_cancel_closes_banner_clears_and_app_stays_usable(self, page: Page):
+        _isolate_prefetch(page)
         calls = {"clear": 0}
         _route_status(page, pending=_MODEL_ID)
         _route_caps_text_false(page)
@@ -155,6 +177,7 @@ class TestModelDownloadBanner:
         assert page.locator("#btn-analyze").is_enabled()
 
     def test_no_banner_when_nothing_pending(self, page: Page):
+        _isolate_prefetch(page)
         _route_status(page, pending="")
         _route_caps_text_false(page)
         page.evaluate("() => initModelDownload()")

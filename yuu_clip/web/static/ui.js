@@ -19,13 +19,16 @@ function closeAlertModal() {
 
 // ── confirm modal ─────────────────────────────────────────────────────────────
 let _confirmOpener = null;
-function showConfirm(title, body, okLabel, onOk, danger = false) {
+function showConfirm(title, body, okLabel, onOk, danger = false, cancelLabel = 'Cancel') {
   _confirmOpener = document.activeElement;
   document.getElementById('confirm-title').textContent = title;
   document.getElementById('confirm-body').innerHTML = body;
   const ok = document.getElementById('confirm-ok-btn');
   ok.textContent = okLabel;
   ok.className = danger ? 'btn danger' : 'btn primary';
+  // Every call sets it, so the default 'Cancel' is restored for callers that
+  // don't pass a custom label — no stale label leaks between confirms.
+  document.getElementById('confirm-cancel-btn').textContent = cancelLabel;
   AppState.confirmCallback = onOk;
   document.getElementById('confirm-modal').classList.add('visible');
   setTimeout(() => document.getElementById('confirm-cancel-btn').focus(), 50);

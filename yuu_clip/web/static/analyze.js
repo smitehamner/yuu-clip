@@ -346,7 +346,34 @@ function renderEstimate(info, data) {
     </div>`;
 }
 
+// Before starting, warn if the speech model is still downloading — analysis will
+// pause at the transcription step until it finishes (it waits on the same HF
+// download rather than starting a second one). Never silently block or duplicate.
 async function startAnalyze() {
+  const path = document.getElementById('analyze-path').value.trim();
+  if (!path) return;
+  let status = null;
+  try {
+    status = await fetch('/api/llm/download-status').then(r => r.json());
+  } catch { /* can't tell — don't block the user */ }
+  if (status && status.whisper_downloading) {
+    const pct = window.getWhisperDownloadPct ? getWhisperDownloadPct() : null;
+    const pctText = (typeof pct === 'number' && pct >= 0) ? ` (${pct}%)` : '';
+    showConfirm(
+      'Speech model still downloading',
+      `The speech-to-text model is still downloading${pctText}. Analysis will pause at the ` +
+        `transcription step until it finishes. Start anyway, or wait for the download to complete?`,
+      'Start anyway',
+      _doStartAnalyze,
+      false,
+      'Wait',
+    );
+    return;
+  }
+  _doStartAnalyze();
+}
+
+async function _doStartAnalyze() {
   const path       = document.getElementById('analyze-path').value.trim();
   const model      = document.getElementById('analyze-model').value;
   const profileVal = document.getElementById('analyze-profile').value;
@@ -976,7 +1003,7 @@ Object.assign(window, {
   _isNewRecordingPanelOpen, openNewRecordingPanel, closeNewRecordingPanel,
   _doCloseNewRecordingPanel, _toggleCtxPill, scheduleProbe,
   _renderSubtitleSourcePicker, _onSubtitleSourceChange,
-  runEstimate, renderEstimate, startAnalyze, _streamAnalyzeEvents, reattachAnalysis,
+  runEstimate, renderEstimate, startAnalyze, _doStartAnalyze, _streamAnalyzeEvents, reattachAnalysis,
   _showAnalysisToast, pickFile,
   showImportUrlSection, hideImportUrlSection, checkImportUrl, startImportUrlDownload,
   openProfileManager, closeProfileManager, openNewProfile, renderTrackRows,

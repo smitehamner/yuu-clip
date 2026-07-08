@@ -467,6 +467,14 @@ class Config:
     #   large-v3: check https://huggingface.co/Systran/faster-whisper-large-v3/commits/main
     whisper_model_revision: Optional[str] = None
 
+    # First-run-friction Stage 6: the analysis models needed for every run (the
+    # speech-to-text model and the speaker-labeling model) prefetch in the
+    # background on first launch so the first analysis isn't a surprise wait. The
+    # setup wizard exposes this as one checkbox that is checked (prefetch on) by
+    # default; unchecking it sets this True. When True, no background prefetch runs
+    # and each model still downloads lazily the first time its feature is used.
+    model_prefetch_disabled: bool = False
+
     audio_sample_rate: int = 16_000  # Whisper expects 16 kHz
     audio_channels: int = 1           # Whisper expects mono
 

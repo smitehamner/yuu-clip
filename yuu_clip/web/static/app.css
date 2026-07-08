@@ -808,9 +808,11 @@ details summary:focus-visible { outline: 2px solid var(--accent); outline-offset
 .framing-btn:hover { background: var(--surface-raised); }
 .framing-btn.active { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
 
-/* Background local-model download banner (first-run-friction Stage 4). Non-blocking
-   chrome under the header; content is built by modeldownload.js. */
-.model-download-banner { display: flex; align-items: center; gap: 12px;
+/* Background model-download banners (first-run-friction Stages 4 + 6). Non-blocking
+   chrome under the header; rows are built by modeldownload.js. The container stacks
+   one .mdl-row per in-flight download (local LLM + speech model) so both fit. */
+.model-download-banner { display: flex; flex-direction: column; align-items: stretch; }
+.mdl-row { display: flex; align-items: center; gap: 12px;
   padding: 8px 16px; background: var(--surface-raised);
   border-bottom: 1px solid var(--border); font-size: 13px; color: var(--text); }
 .mdl-body { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; }
