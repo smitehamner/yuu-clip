@@ -11,6 +11,7 @@ const { parseNvidiaVramMB, selectGPU } = require('./gpu-detect');
 const { resolveBundledFfmpegDir } = require('./ffmpeg-detect');
 const { selectLlamaWheelUrl } = require('./llamacpp-cuda');
 const { buildWheelInstallArgs, buildOpencvDedupeArgs } = require('./venv-setup');
+const { parsePipRawProgress } = require('./pip-progress');
 const { describeInstallFailure } = require('./install-error');
 const diskSpace = require('./disk-space');
 const { recommendWhisperModel } = require('./whisper-select');
@@ -683,6 +684,7 @@ function showVenvSetupWindow() {
   });
   const html = `<!DOCTYPE html><html><head><style>
     @keyframes spin{to{transform:rotate(360deg)}}
+    @keyframes indeterminate-slide{0%{left:-30%}100%{left:100%}}
     body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;margin:0;display:flex;align-items:center;justify-content:center;height:100vh;background:#12121e;color:#d8d8e8;text-align:center}
     h3{margin:0 0 12px;font-size:14px;color:#e8e8f8}
     .spin{display:inline-block;width:28px;height:28px;border:3px solid #1e1e30;border-top-color:#5b8ef0;border-radius:50%;animation:spin 0.65s linear infinite;margin:0 auto 14px}
@@ -693,8 +695,13 @@ function showVenvSetupWindow() {
     .steps li::before{content:'·';position:absolute;left:4px}
     .steps li.done::before{content:'✓';color:#4caf7d}
     .steps li.active::before{content:'›';color:#5b8ef0}
-    .status{font-size:11px;color:#5b8ef0;margin-top:14px;min-height:14px;padding:0 16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .note{font-size:11px;color:#87879f;margin-top:4px}
+    .bar-track{position:relative;overflow:hidden;width:260px;height:6px;background:#1e1e30;border-radius:3px;margin:12px auto 0}
+    .bar-fill{position:absolute;left:0;top:0;height:100%;width:0%;background:#5b8ef0;border-radius:3px;transition:width 0.25s ease}
+    .bar-fill.indeterminate{width:30%;transition:none;animation:indeterminate-slide 1.1s ease-in-out infinite}
+    .bar-label{font-size:10px;color:#87879f;margin-top:4px}
+    .elapsed{font-size:10px;color:#5b8ef0;margin-top:2px}
+    .status{font-size:11px;color:#5b8ef0;margin-top:10px;min-height:14px;padding:0 16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .note{font-size:11px;color:#87879f;margin-top:4px;padding:0 16px}
   </style></head><body><div>
     <div class="spin"></div>
     <h3>Setting up yuu-clip</h3>
@@ -702,8 +709,11 @@ function showVenvSetupWindow() {
       <li id="s0">Create virtual environment</li>
       <li id="s1">Install yuu-clip</li>
     </ul>
+    <div class="bar-track"><div class="bar-fill indeterminate" id="barFill"></div></div>
+    <div class="bar-label" id="barLabel">working...</div>
+    <div class="elapsed" id="elapsed">elapsed 0:00</div>
     <div class="status" id="status"></div>
-    <div class="note">This can take a few minutes — please don't close this window.</div>
+    <div class="note">Installing the analysis engine - first time only, this can take a few minutes. Please don't close this window.</div>
   </div><script>
     if(window.venvAPI) window.venvAPI.onProgress(function(msg){
       var steps=['s0','s1'];
@@ -712,12 +722,55 @@ function showVenvSetupWindow() {
       if(msg.state==='active'){document.getElementById(msg.id).className='active';}
       else if(msg.state==='done'){document.getElementById(msg.id).className='done';}
     });
-    if(window.venvAPI&&window.venvAPI.onStatus) window.venvAPI.onStatus(function(text){
-      document.getElementById('status').textContent=text;
+    var barFill=document.getElementById('barFill');
+    var barLabel=document.getElementById('barLabel');
+    var lastFractionAt=0;
+    var WATCHDOG_MS=3500;
+    setInterval(function(){
+      if(lastFractionAt&&Date.now()-lastFractionAt>WATCHDOG_MS){
+        barFill.className='bar-fill indeterminate';
+        barLabel.textContent='working...';
+      }
+    },500);
+    var startedAt=Date.now();
+    setInterval(function(){
+      var secs=Math.floor((Date.now()-startedAt)/1000);
+      var m=Math.floor(secs/60), s=secs%60;
+      document.getElementById('elapsed').textContent='elapsed '+m+':'+(s<10?'0':'')+s;
+    },1000);
+    if(window.venvAPI&&window.venvAPI.onStatus) window.venvAPI.onStatus(function(msg){
+      if(msg.text) document.getElementById('status').textContent=msg.text;
+      if(typeof msg.fraction==='number'){
+        lastFractionAt=Date.now();
+        barFill.className='bar-fill';
+        barFill.style.width=Math.round(msg.fraction*100)+'%';
+        barLabel.textContent=msg.label||'';
+      }
     });
   </script></body></html>`;
   win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
   return win;
+}
+
+// Feeds every raw pip stdout/stderr line to both the condensed status text
+// (pipStatusReporter) and the raw progress-bar parser, over the single
+// 'venv:status' bridge. Byte counts in pip's raw progress reset to 0 for each
+// new package it downloads within the same install - peakFraction is a
+// running high-water mark so the bar only ever moves forward, never back.
+function makePipLineHandler(setupWin) {
+  const reportStatus = pipStatusReporter(statusText => {
+    try { setupWin.webContents.send('venv:status', { text: statusText }); } catch (_) {}
+  });
+  let peakFraction = 0;
+  return line => {
+    reportStatus(line);
+    const parsed = parsePipRawProgress(line);
+    if (!parsed) return;
+    peakFraction = Math.max(peakFraction, parsed.fraction);
+    try {
+      setupWin.webContents.send('venv:status', { fraction: peakFraction, label: parsed.label });
+    } catch (_) {}
+  };
 }
 
 async function ensureVenv() {
@@ -803,20 +856,17 @@ async function ensureVenv() {
       : 'Wheelhouse not bundled — installing base deps from PyPI (online)');
     logSetup(lockOk ? `Constraining deps to ${lockPath}`
                     : 'requirements.lock not bundled — installing without a constraint');
+    const onPipLine = makePipLineHandler(setupWin);
     await runCmd(
       VENV_PIP,
       buildWheelInstallArgs(wheelPath, lockOk ? lockPath : null, wheelhouseOk ? wheelhouseDir : null),
-      pipStatusReporter(statusText => {
-        try { setupWin.webContents.send('venv:status', statusText); } catch (_) {}
-      })
+      onPipLine
     );
     logSetup('Ensuring a single OpenCV build (contrib superset wins)…');
     await runCmd(
       VENV_PIP,
       buildOpencvDedupeArgs(lockOk ? lockPath : null, wheelhouseOk ? wheelhouseDir : null),
-      pipStatusReporter(statusText => {
-        try { setupWin.webContents.send('venv:status', statusText); } catch (_) {}
-      })
+      onPipLine
     );
     progress('s1', 'done');
     logSetup('Wheel installed');
