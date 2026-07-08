@@ -109,5 +109,4 @@ mediapipe), the packaged first-run installer re-installs `opencv-contrib-python`
 with `--no-deps` (`electron/venv-setup.js buildOpencvDedupeArgs`), so the superset's
 `cv2` deterministically survives and satisfies both packages.
 
-The full wave plan lives outside the repo at
-`000_project_planning/finalized_plans/yuu-clip_plans/plans/packaging-strategy-overhaul/INDEX.md`.
+The full wave plan lives in internal planning notes kept outside this repo.
