@@ -43,6 +43,18 @@ test('weak GPU (below VRAM threshold) with ample disk gets soft, no false strong
   assert.equal(rec.push, 'soft');
 });
 
+test('AMD GPU with ample VRAM is not treated as accelerated (CUDA-only app)', () => {
+  const rec = recommendLocalModel({ vramMB: 8000, freeDiskGB: 20, gpuVendor: 'amd' });
+  assert.equal(rec.push, 'soft');
+  assert.match(rec.reason, /Runs on CPU, will be slower/);
+});
+
+test('Intel GPU with ample VRAM is not treated as accelerated (CUDA-only app)', () => {
+  const rec = recommendLocalModel({ vramMB: 8000, freeDiskGB: 20, gpuVendor: 'intel' });
+  assert.equal(rec.push, 'soft');
+  assert.match(rec.reason, /Runs on CPU, will be slower/);
+});
+
 test('low disk exactly at the bytesNeeded boundary is not none', () => {
   const rec = recommendLocalModel({ vramMB: 0, freeDiskGB: NEEDED_GB, gpuVendor: 'unknown' });
   assert.notEqual(rec.push, 'none');

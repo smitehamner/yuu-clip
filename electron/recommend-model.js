@@ -33,7 +33,10 @@ function buildRecommendation(push, reason) {
 }
 
 function recommendLocalModel({ vramMB, freeDiskGB, gpuVendor } = {}) {
-  const isCpuOnly = !vramMB || gpuVendor === 'unknown';
+  // This app only accelerates NVIDIA (the bundled llama.cpp build is CUDA, and
+  // the wizard's GPU-acceleration step is NVIDIA-only). AMD/Intel GPUs run
+  // llama.cpp on CPU here, so they get the same honest CPU-speed treatment.
+  const isCpuOnly = !vramMB || gpuVendor !== 'nvidia';
   const neededBytes = bytesNeeded(MODEL_SIZE_GB);
 
   // Never block on an unknowable disk check - fall back to soft, matching
@@ -58,7 +61,7 @@ function recommendLocalModel({ vramMB, freeDiskGB, gpuVendor } = {}) {
   }
 
   const reason = isCpuOnly
-    ? `No capable GPU detected. ${CPU_NOTE}`
+    ? `No CUDA-capable GPU detected. ${CPU_NOTE}`
     : `GPU has limited VRAM (${vramMB} MB) or disk space is tight; local AI will work but may run slower.`;
   return buildRecommendation('soft', reason);
 }
