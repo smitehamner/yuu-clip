@@ -44,7 +44,7 @@ class TestCatalogIntegrity:
         for entry in rejected:
             assert entry.rejected_reason, f"{entry.id} rejected without a reason"
             assert not mc.licence_permits_monetization(entry.licence), (
-                f"{entry.id} is rejected but its licence is monetizable — recommend it instead"
+                f"{entry.id} is rejected but its licence is monetizable - recommend it instead"
             )
 
 
@@ -63,7 +63,7 @@ class TestCatalogHelpers:
 
     def test_moondream2_is_the_steered_default_vision_model(self):
         # Wave 6 (packaging-strategy-overhaul): moondream2 is the recommended
-        # vision default — smallest download, both backends, Apache-2.0. Catalog
+        # vision default - smallest download, both backends, Apache-2.0. Catalog
         # order drives the Settings/wizard model pickers (they render in this
         # order), so it must be first among vision entries.
         vision = mc.vision_models()
@@ -95,7 +95,7 @@ class TestCatalogHelpers:
                 assert entry.gguf_url, f"{entry.id} runs on llamacpp but has no gguf_url"
 
     def test_recommended_text_models_declare_an_exact_gguf_filename(self):
-        # gguf_url is an HF *repo page*, not a direct download — the setup wizard's
+        # gguf_url is an HF *repo page*, not a direct download - the setup wizard's
         # one-click model download needs the exact quant filename to resolve a real
         # file URL (gguf_url + "/resolve/main/" + gguf_filename).
         for entry in mc.text_models():
@@ -112,7 +112,7 @@ class TestCatalogHelpers:
 class TestDefaultsMatchCatalog:
     """The out-of-box default models must be *recommended* catalog entries, so a
     default can't silently drift to a non-monetization-safe model (the way the
-    old llama3.2 default lagged the licence policy — see COMPLETED.md plan 10)."""
+    old llama3.2 default lagged the licence policy - see COMPLETED.md plan 10)."""
 
     def test_config_default_backend_is_llamacpp(self):
         # Locked user decision 2026-07-05: the offline local model file is the

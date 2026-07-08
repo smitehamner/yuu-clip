@@ -1,4 +1,4 @@
-"""GPU thermal monitoring — yuu_clip/analyze/thermal.py (roadmap plan 01, Stage 3).
+"""GPU thermal monitoring - yuu_clip/analyze/thermal.py (roadmap plan 01, Stage 3).
 
 GpuThermalMonitor wraps pynvml directly; tests inject a fake sampler so they
 never depend on real NVIDIA hardware being present in CI.
@@ -117,7 +117,7 @@ class TestGpuThermalMonitorUnavailable:
 
 
 # ---------------------------------------------------------------------------
-# ThermalTrigger — consecutive-sample debounce, thresholds, hysteresis
+# ThermalTrigger - consecutive-sample debounce, thresholds, hysteresis
 # ---------------------------------------------------------------------------
 
 class TestThermalTrigger:
@@ -148,7 +148,7 @@ class TestThermalTrigger:
 
     def test_warn_triggered_only_on_the_edge_not_every_poll(self):
         """The debounce fires once when the streak first reaches 3, not on
-        every subsequent poll while still hot — avoids toast/log spam."""
+        every subsequent poll while still hot - avoids toast/log spam."""
         trigger = self._trigger([86.0] * 5)
         results = [trigger.poll(85, 90, True) for _ in range(5)]
         assert [r.warn_triggered for r in results] == [False, False, True, False, False]
@@ -159,7 +159,7 @@ class TestThermalTrigger:
         for _ in range(5):
             trigger.poll(85, 90, True)
         result = trigger.poll(85, 90, True)
-        # Only 3 consecutive hot samples after the cool-down reset — must fire again
+        # Only 3 consecutive hot samples after the cool-down reset - must fire again
         assert result.warn_triggered is True
 
     def test_pause_requires_three_consecutive_samples_above_pause_threshold(self):
@@ -186,14 +186,14 @@ class TestThermalTrigger:
         for _ in range(3):
             trigger.poll(85, 90, True)  # first pause trigger
         trigger.note_resumed()
-        # Still hot immediately after resume — must NOT re-trigger despite reaching streak 3 again
+        # Still hot immediately after resume - must NOT re-trigger despite reaching streak 3 again
         r4 = trigger.poll(85, 90, True)
         r5 = trigger.poll(85, 90, True)
         r6 = trigger.poll(85, 90, True)
         assert r4.pause_triggered is False
         assert r5.pause_triggered is False
         assert r6.pause_triggered is False
-        # Temp drops below warn once — suppression lifts
+        # Temp drops below warn once - suppression lifts
         trigger.poll(85, 90, True)  # 80.0, cools down, resets streak too
         # Now three fresh hot samples must trigger again
         r8 = trigger.poll(85, 90, True)
@@ -211,5 +211,5 @@ class TestThermalTrigger:
         assert skipped.state == "unavailable"
         result = trigger.poll(85, 90, True)
         # This is only the 3rd real hot sample (the None was skipped, not counted
-        # as cool) — streak must still be intact at 3, not reset to 1.
+        # as cool) - streak must still be intact at 3, not reset to 1.
         assert result.warn_triggered is True

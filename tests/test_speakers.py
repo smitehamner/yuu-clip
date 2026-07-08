@@ -221,7 +221,7 @@ class TestVoiceprintMatch:
         # the idempotency fix) before re-transcribing, unlike the re-diarize path
         # which keeps it. Deleting the transcript cascade-deletes its segments but
         # leaves the video-scoped Speaker rows intact, so re-attach by voiceprint
-        # must still land on the existing named Speaker — not mint a duplicate.
+        # must still land on the existing named Speaker - not mint a duplicate.
         from yuu_clip.transcribe.whisper_runner import _attach_speakers
 
         session = make_session(tmp_path / "v.db")
@@ -337,7 +337,7 @@ class TestVoiceprintMatch:
         prior.name = "Yuu"
         session.flush()
 
-        # Cosine ≈ 0.697 — inside the [0.65, 0.75) band below the 0.75 default.
+        # Cosine ≈ 0.697 - inside the [0.65, 0.75) band below the 0.75 default.
         near_vector = [0.7, 0.72]
         expected = _cosine_similarity(near_vector, [1.0, 0.0])
         assert 0.65 <= expected < 0.75  # guards the test's own premise
@@ -365,7 +365,7 @@ class TestVoiceprintMatch:
         session.query(Speaker).one().name = "Yuu"
         session.flush()
 
-        # Cosine ≈ 0.5 — below the band, so a clean mint with no suggestion.
+        # Cosine ≈ 0.5 - below the band, so a clean mint with no suggestion.
         tx2 = self._seed_transcript(session, video.id, "SPEAKER_00")
         _attach_speakers(session, video.id, tx2.id, {"SPEAKER_00": [0.5, 0.87]})
 
@@ -410,7 +410,7 @@ class TestVoiceprintMatch:
         session.query(Speaker).one().name = "Yuu"
         session.flush()
 
-        # New run with two clusters both similar to Yuu — only one may re-attach.
+        # New run with two clusters both similar to Yuu - only one may re-attach.
         track = AudioTrack(video_id=video.id, stream_index=2, label="combined")
         session.add(track)
         session.flush()
@@ -589,7 +589,7 @@ class TestSpeakerRoutes:
         db.close()
 
     def test_color_only_rename_does_not_set_transcript_edited_at(self, client, project_dir):
-        """Color is cosmetic — it doesn't change any transcript text, so no clip
+        """Color is cosmetic - it doesn't change any transcript text, so no clip
         should be flagged as needing a re-score or export refresh."""
         _video_id, speaker_id, clip_id = self._seed_speaker(project_dir)
 

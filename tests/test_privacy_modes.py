@@ -1,8 +1,8 @@
-"""AI privacy modes (plan non-llm-tiers/07) — the trust choke-point.
+"""AI privacy modes (plan non-llm-tiers/07) - the trust choke-point.
 
 These assert the enforcement *directly*, not via UI state: no LLM client is
 constructed under "No generative AI", and no remote (Claude) client is ever
-constructed under "Local models only" — for both chat and vision paths.
+constructed under "Local models only" - for both chat and vision paths.
 """
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ def _cfg(**overrides):
 
 
 # ---------------------------------------------------------------------------
-# resolve_ai_permissions — the single resolver
+# resolve_ai_permissions - the single resolver
 # ---------------------------------------------------------------------------
 
 class TestResolveAiPermissions:
@@ -46,7 +46,7 @@ class TestResolveAiPermissions:
 
 
 # ---------------------------------------------------------------------------
-# make_client — the construction choke-point (trust guarantee)
+# make_client - the construction choke-point (trust guarantee)
 # ---------------------------------------------------------------------------
 
 class TestMakeClientEnforcement:
@@ -132,7 +132,7 @@ class TestGatesHonorMode:
 
 
 # ---------------------------------------------------------------------------
-# Vision hard backstop — describe_frames never reaches a remote client
+# Vision hard backstop - describe_frames never reaches a remote client
 # ---------------------------------------------------------------------------
 
 class TestVisionBackstop:

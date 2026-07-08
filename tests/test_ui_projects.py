@@ -1,5 +1,5 @@
 """
-Playwright UI tests — project switcher.
+Playwright UI tests - project switcher.
 
 Render/interaction only. These deliberately never POST /api/projects/switch: the
 live suite shares one server across xdist workers, so an actual switch would swap
@@ -21,7 +21,7 @@ class TestProjectSwitcher:
     def test_button_shows_current_project_name(self, page: Page):
         page.goto(LIVE_URL)
         expect(page.locator("#btn-project-switcher")).to_be_visible()
-        # The live dev server runs the repo root project — basename "yuu-clip".
+        # The live dev server runs the repo root project - basename "yuu-clip".
         expect(page.locator("#project-current-name")).to_have_text("yuu-clip")
 
     def test_menu_opens_with_open_another_item(self, page: Page):

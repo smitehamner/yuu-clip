@@ -59,7 +59,7 @@ class TestScore:
 
 # ---------------------------------------------------------------------------
 # prefetch-model: downloads one Tier-B model on demand (packaging-strategy
-# overhaul Wave 4) — invoked as a subprocess by POST /api/models/prefetch.
+# overhaul Wave 4) - invoked as a subprocess by POST /api/models/prefetch.
 # ---------------------------------------------------------------------------
 
 class TestPrefetchModel:
@@ -99,7 +99,7 @@ class TestPrefetchModel:
 
     def test_download_failure_exits_nonzero_with_a_friendly_message(self, tmp_path, monkeypatch):
         """An offline machine must fail cleanly with a readable message, not a
-        raw traceback — the message becomes the last SSE line the UI shows."""
+        raw traceback - the message becomes the last SSE line the UI shows."""
         (tmp_path / ".yuu-clip").mkdir()
         from yuu_clip.transcribe import diarization_client
 

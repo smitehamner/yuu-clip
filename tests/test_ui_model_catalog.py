@@ -1,12 +1,12 @@
 """
-Playwright UI tests — Settings → LLM scoring model catalog + capability gating.
+Playwright UI tests - Settings → LLM scoring model catalog + capability gating.
 
 Covers plan 10: the Claude model dropdown and the per-backend "recommended
 models" lists are populated from GET /api/llm/catalog at panel-open time, and
 gateOnCapability() disables a control with a linked explanation when the active
 model lacks the needed capability (the pattern plan 11's image controls use).
 
-Read-only against the live dev server on port 8080 — no Save is clicked.
+Read-only against the live dev server on port 8080 - no Save is clicked.
 /api/llm/capabilities is an on-demand endpoint, so it is route-mocked after
 goto, right before the interaction that reads it. See tests/conftest.py.
 """
@@ -59,7 +59,7 @@ class TestModelCatalogSettings:
 
 @skip_no_server
 class TestOllamaPullUI:
-    """Stage 08 — the one-click pull surfaces a disk-precheck failure and a
+    """Stage 08 - the one-click pull surfaces a disk-precheck failure and a
     cancel control. The pull endpoint is route-mocked so no real Ollama runs."""
 
     def _pull(self, page: Page, tag: str = "qwen2.5:7b") -> str:
@@ -147,7 +147,7 @@ class TestCapabilityGating:
 
 @skip_no_server
 class TestModelPrefetchUI:
-    """packaging-strategy overhaul Wave 4 — the "Download now" flow shared by
+    """packaging-strategy overhaul Wave 4 - the "Download now" flow shared by
     every non-LLM Tier-B model (speaker/audio-event/embeddings). Both
     /api/capabilities/tiers and /api/models/prefetch are route-mocked so no
     real download runs; the tiers route is stateful (not-ready, then ready)
@@ -198,7 +198,7 @@ class TestModelPrefetchUI:
             lambda route: route.fulfill(status=200, content_type="text/event-stream", body=sse_body),
         )
         page.click('[data-prefetch="speaker"]')
-        # The tiers list re-fetches and re-renders on __DONE__ — wait for the
+        # The tiers list re-fetches and re-renders on __DONE__ - wait for the
         # button to disappear (tier is now reported ready) rather than racing
         # the transient "Ready." log line the re-render immediately replaces.
         page.wait_for_function('document.querySelector(\'[data-prefetch="speaker"]\') === null', timeout=3000)
@@ -223,7 +223,7 @@ class TestModelPrefetchUI:
         assert btn.inner_text() == "Download now"
         assert btn.is_enabled()
         # The cancel control (provisioned while the request was in flight) is
-        # hidden again once the stream ends — the tier row itself is not
+        # hidden again once the stream ends - the tier row itself is not
         # re-rendered on failure, so unlike the success path this element stays.
         assert page.locator("#cap-prefetch-cancel-speaker_labels").count() == 1
         assert not page.locator("#cap-prefetch-cancel-speaker_labels").is_visible()

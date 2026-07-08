@@ -1,5 +1,5 @@
 """
-Playwright UI tests — analyze modal, track-layout manager, and the time
+Playwright UI tests - analyze modal, track-layout manager, and the time
 estimate display.
 
 Run against the live dev server on port 8080. See tests/conftest.py for shared
@@ -21,7 +21,7 @@ def _get_config() -> dict:
         return json.loads(r.read())
 
 
-# Every layout name a test creates via track_layout_cleanup — including names
+# Every layout name a test creates via track_layout_cleanup - including names
 # older test versions used. Setup deletes these too, so debris from a hard-killed
 # prior run (watchdog force-exit skips teardown) can't make the create step flake.
 _UI_TEST_LAYOUT_NAMES = ("ui_test_profile", "ui_test_profile1")
@@ -32,7 +32,7 @@ def _delete_track_layout(name: str) -> None:
     try:
         urllib.request.urlopen(req, timeout=5)
     except Exception:
-        pass  # 404 for a layout that doesn't exist — nothing to clean
+        pass  # 404 for a layout that doesn't exist - nothing to clean
 
 
 @pytest.fixture
@@ -217,14 +217,14 @@ class TestProfileManager:
         page.fill("#pe-numtracks", "1")
         page.wait_for_selector("#pe-tracks div", state="visible", timeout=2000)
 
-        # Save — register for teardown before asserting so a mid-test failure
+        # Save - register for teardown before asserting so a mid-test failure
         # still cleans up the created layout.
         page.click("#profile-editor button:has-text('Save')")
         track_layout_cleanup.append(name)
         delete_btn = f"button[data-delete-profile='{name}']"
         page.wait_for_selector(delete_btn, timeout=3000)
 
-        # Delete it — deleteProfile() shows a confirm modal before deleting.
+        # Delete it - deleteProfile() shows a confirm modal before deleting.
         # Match the delete button by exact name attribute (not a substring of
         # the list text) so a superstring layout can't mask removal.
         page.locator(delete_btn).click()
@@ -270,7 +270,7 @@ def _inject_estimate(
     page: "Page", energy_mode: str = "fast", pct: float = 18.7,
     source: str = "estimated", long_run_warning: bool = False, warn_hours: float = 2.0,
 ) -> None:
-    """Directly call renderEstimate() with controlled data — no file probe needed."""
+    """Directly call renderEstimate() with controlled data - no file probe needed."""
     steps = _make_steps(energy_mode)
     total_s = sum(s["seconds"] for s in steps)
     page.evaluate(f"""() => {{
@@ -361,7 +361,7 @@ class TestEstimateDisplay:
 
 
 # ---------------------------------------------------------------------------
-# Drag-and-drop analyze (quick-wins Stage 9) — Electron-first
+# Drag-and-drop analyze (quick-wins Stage 9) - Electron-first
 # ---------------------------------------------------------------------------
 
 _MOCK_ELECTRON_API = (
@@ -443,8 +443,8 @@ class TestDragAndDropAnalyzeBrowser:
 # ---------------------------------------------------------------------------
 # Pause / resume analysis (roadmap-2026-07 plan 01, Stage 1)
 #
-# startJobUI/endJobUI are driven directly (not via a real analyze job) — same
-# pattern as TestProgressPill in test_ui_clips.py — so these don't depend on a
+# startJobUI/endJobUI are driven directly (not via a real analyze job) - same
+# pattern as TestProgressPill in test_ui_clips.py - so these don't depend on a
 # real subprocess's timing.
 # ---------------------------------------------------------------------------
 
@@ -543,11 +543,11 @@ class TestPauseResumeUI:
 
 
 # ---------------------------------------------------------------------------
-# GPU thermal monitoring — job-header readout, warn toast, auto-pause
+# GPU thermal monitoring - job-header readout, warn toast, auto-pause
 # (roadmap-2026-07 plan 01, Stage 3)
 #
 # /api/status is stubbed so these exercise _pollThermalStatus() (utils.js)
-# purely off its documented gpu_temp_c/gpu_state contract — no real GPU or
+# purely off its documented gpu_temp_c/gpu_state contract - no real GPU or
 # subprocess involved.
 # ---------------------------------------------------------------------------
 
@@ -623,7 +623,7 @@ class TestThermalJobHeaderUI:
         expect(page.locator("#job-gpu-temp")).to_be_hidden()
 
     def test_non_pausable_job_never_polls_thermal_status(self, page: Page):
-        """A non-pausable job (e.g. Rescore) must not show the GPU readout —
+        """A non-pausable job (e.g. Rescore) must not show the GPU readout -
         thermal monitoring is scoped to analyze-type jobs only."""
         self._ready(page)
         _stub_status(page, gpu_temp_c=72.0, gpu_state="ok")
@@ -633,7 +633,7 @@ class TestThermalJobHeaderUI:
 
 
 # ---------------------------------------------------------------------------
-# Import from URL (roadmap plan 08) — URL field, stubbed inspect card,
+# Import from URL (roadmap plan 08) - URL field, stubbed inspect card,
 # stubbed-SSE download completion prefilling the analyze form.
 # ---------------------------------------------------------------------------
 
@@ -757,7 +757,7 @@ class TestImportFromUrl:
                 f"[Imported] {fake_path}",
             ]),
         ))
-        # Downloaded VODs have no real file on disk — stub the probe the
+        # Downloaded VODs have no real file on disk - stub the probe the
         # prefilled path triggers so it fails quietly instead of erroring.
         page.route("**/api/probe", _fulfill_json({"detail": "File not found"}, status=400))
 

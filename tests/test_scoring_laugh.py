@@ -1,4 +1,4 @@
-"""yuu_clip/scoring/laugh.py — laugh detection (transcript, audio, model)."""
+"""yuu_clip/scoring/laugh.py - laugh detection (transcript, audio, model)."""
 
 from __future__ import annotations
 

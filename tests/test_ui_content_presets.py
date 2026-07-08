@@ -1,5 +1,5 @@
 """
-Playwright UI tests — Settings → Scoring weights → Content type (plan 12).
+Playwright UI tests - Settings → Scoring weights → Content type (plan 12).
 
 The preset select and info line render from the live GET /api/content-presets at
 panel-open time (read-only, no mock). The Apply flow is exercised against a

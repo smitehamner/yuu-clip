@@ -7,7 +7,7 @@ import pytest
 
 class TestAnalyzeCommand:
     def test_web_analyze_cmd_is_non_interactive(self, tmp_path: Path):
-        """The web UI must never launch analyze interactively — label_tracks()
+        """The web UI must never launch analyze interactively - label_tracks()
         would block the subprocess forever waiting on stdin (CLAUDE.md)."""
         from yuu_clip.web.routes.analyze import IngestRequest, _build_analyze_cmd
 
@@ -261,11 +261,11 @@ class TestIngestStart:
 
 
 # ---------------------------------------------------------------------------
-# Ingest start — rejected while another job is running (double-submit guard)
+# Ingest start - rejected while another job is running (double-submit guard)
 # ---------------------------------------------------------------------------
 
 class TestIngestStartWhileRunning:
-    """A second /api/analyze/start while a job is in flight must 409 — otherwise
+    """A second /api/analyze/start while a job is in flight must 409 - otherwise
     /api/analyze/events overwrites ctx.analyze_job and orphans the running
     subprocess (cancel and shutdown can no longer reach it)."""
 
@@ -319,7 +319,7 @@ class TestLogs:
         disposition = r.headers.get("content-disposition", "")
         assert "yuu-clip-" in disposition
         assert ".log" in disposition
-        # Filename must contain an ISO date (YYYY-MM-DD) — exact value is not asserted
+        # Filename must contain an ISO date (YYYY-MM-DD) - exact value is not asserted
         # to avoid a midnight-boundary race where test and server disagree on the date.
         assert re.search(r"\d{4}-\d{2}-\d{2}", disposition)
 
@@ -336,7 +336,7 @@ class TestLogs:
 class TestInstallStatus:
     # Only Pyannote (advanced speaker-labels alternative) and the CUDA libraries
     # (GPU acceleration) remain real pip-install actions (packaging-strategy
-    # overhaul, Wave 3) — everything else is bundled by default. SpeechBrain keeps
+    # overhaul, Wave 3) - everything else is bundled by default. SpeechBrain keeps
     # a read-only status check (no install action) because the analyze/export
     # panels gate the speaker-labels checkbox on it.
     def test_unknown_slug_returns_400(self, client):
@@ -385,7 +385,7 @@ class TestInstallStatus:
             assert client.get("/api/install/speechbrain").json() == {"installed": True}
 
     def test_speechbrain_has_no_post_install_action(self, client):
-        # Bundled (Tier A) — no install action, only the read-only status check above.
+        # Bundled (Tier A) - no install action, only the read-only status check above.
         r = client.post("/api/install/speechbrain")
         assert r.status_code == 400
 
@@ -415,7 +415,7 @@ class TestGlossary:
 
 
 # ---------------------------------------------------------------------------
-# Probe (file not found case — no real video needed)
+# Probe (file not found case - no real video needed)
 # ---------------------------------------------------------------------------
 
 class TestProbe:
@@ -475,7 +475,7 @@ class TestProbe:
 
 
 # ---------------------------------------------------------------------------
-# Scoring isolation — a scoring crash must not abort the analyze run or
+# Scoring isolation - a scoring crash must not abort the analyze run or
 # discard the clips that were already generated and committed.
 # ---------------------------------------------------------------------------
 
@@ -507,7 +507,7 @@ class TestScoringIsolation:
              patch.object(_pipeline, "_generate_candidates", return_value=[object()]), \
              patch.object(_pipeline, "_summarize_video", return_value=None), \
              patch.object(_pipeline, "_run_scoring", side_effect=boom):
-            # Must not raise — a per-video scoring crash cannot abort the batch.
+            # Must not raise - a per-video scoring crash cannot abort the batch.
             _pipeline._analyze_one(
                 tmp_path / "s.mkv", session, Config(ollama_enabled=False), tmp_path, AnalyzeOptions()
             )
@@ -523,7 +523,7 @@ class TestScoringIsolation:
     def test_clips_scored_before_mid_batch_failure_keep_their_committed_scores(self, tmp_path):
         """ScoringEngine.score_video commits after every clip (engine.py), so a
         scorer that raises partway through a batch does not roll back the clips
-        already scored — only video.clips_scored_at (the "fully scored" signal)
+        already scored - only video.clips_scored_at (the "fully scored" signal)
         stays null. This is the real contract behind the comment in
         _analyze_one's scoring except-block."""
         from unittest.mock import patch
@@ -579,13 +579,13 @@ class TestScoringIsolation:
         verify = make_session(tmp_path / "project.db")
         reloaded_video = verify.get(Video, video_id)
         reloaded_clip_ok = verify.get(ClipCandidate, clip_ok_id)
-        assert reloaded_video.clips_scored_at is None       # batch never finished — UI still offers Rescore
+        assert reloaded_video.clips_scored_at is None       # batch never finished - UI still offers Rescore
         assert reloaded_clip_ok.score_overall == pytest.approx((0.9 + 0.5 + 0.5) / 3)  # kept, not rolled back
         verify.close()
 
 
 # ---------------------------------------------------------------------------
-# _run_scoring — visible "downloading the model" notice (packaging-strategy
+# _run_scoring - visible "downloading the model" notice (packaging-strategy
 # Wave 4). The AST checkpoint is a Tier-B download; a first-time analyze must
 # say why scoring pauses instead of looking hung.
 # ---------------------------------------------------------------------------
@@ -672,7 +672,7 @@ class TestRunScoringModelDownloadNotice:
 
 
 # ---------------------------------------------------------------------------
-# Extract/Transcribe stage progress logging — "Track i/N" lines drive the
+# Extract/Transcribe stage progress logging - "Track i/N" lines drive the
 # web UI's live progress pill (yuu_clip/web/static/utils.js progressPattern).
 # ---------------------------------------------------------------------------
 
@@ -752,7 +752,7 @@ class TestPipelineTrackProgressLogging:
 
 
 # ---------------------------------------------------------------------------
-# Transcription idempotency — a re-run must not mint a second Transcript per
+# Transcription idempotency - a re-run must not mint a second Transcript per
 # track. Without --force an existing track-level transcript is reused; with
 # --force it is deleted and replaced (mirrors ClipCandidate force-delete).
 # ---------------------------------------------------------------------------
@@ -864,7 +864,7 @@ class TestTranscriptionIdempotency:
 
 
 # ---------------------------------------------------------------------------
-# Process-tree termination — cancel must kill ffmpeg grandchildren, not orphan them
+# Process-tree termination - cancel must kill ffmpeg grandchildren, not orphan them
 # ---------------------------------------------------------------------------
 
 class TestTerminateProcessTree:
@@ -916,7 +916,7 @@ class TestTerminateProcessTree:
 
 
 # ---------------------------------------------------------------------------
-# DB session cleanup — proves no connection lingers after route handlers
+# DB session cleanup - proves no connection lingers after route handlers
 # ---------------------------------------------------------------------------
 
 class TestDbSessionCleanup:
@@ -995,7 +995,7 @@ class TestDbSessionCleanup:
 
 
 # ---------------------------------------------------------------------------
-# Graceful shutdown — lifespan terminates running analyze subprocess
+# Graceful shutdown - lifespan terminates running analyze subprocess
 # ---------------------------------------------------------------------------
 
 class TestGracefulShutdown:
@@ -1051,7 +1051,7 @@ class TestGracefulShutdown:
 
 
 # ---------------------------------------------------------------------------
-# Analyze cancel — no-op when nothing running
+# Analyze cancel - no-op when nothing running
 # ---------------------------------------------------------------------------
 
 class TestAnalyzeCancel:
@@ -1067,7 +1067,7 @@ class TestAnalyzeCancel:
 
 
 # ---------------------------------------------------------------------------
-# Summarize — 400 when no transcript
+# Summarize - 400 when no transcript
 # ---------------------------------------------------------------------------
 
 class TestSummarize:
@@ -1114,7 +1114,7 @@ class TestStatus:
 
 
 # ---------------------------------------------------------------------------
-# GPU thermal monitoring — status payload + poll-loop integration (roadmap
+# GPU thermal monitoring - status payload + poll-loop integration (roadmap
 # plan 01, Stage 3)
 # ---------------------------------------------------------------------------
 
@@ -1271,7 +1271,7 @@ class TestThermalPollLoopIntegration:
 
 
 # ---------------------------------------------------------------------------
-# Rescore-clips SSE — 404 guard
+# Rescore-clips SSE - 404 guard
 # ---------------------------------------------------------------------------
 
 class TestRescoreClipsSSE:
@@ -1405,7 +1405,7 @@ class TestSseCommandCleared:
 
     def test_second_call_to_analyze_events_replays_finished_job(self, project_dir):
         """After the stream finishes, a second call to /api/analyze/events must NOT
-        re-run the old command — it reattaches to the finished job and replays its
+        re-run the old command - it reattaches to the finished job and replays its
         buffered output (this is what lets a page refresh reconnect)."""
         import json as _json
         import sys
@@ -1420,7 +1420,7 @@ class TestSseCommandCleared:
             ctx.analyze_cmd = [sys.executable, "-c", "print('marker-line')"]
             with tc.stream("GET", "/api/analyze/events") as resp:
                 list(resp.iter_lines())
-            # Second call — no new command queued: replay the finished job, don't re-run.
+            # Second call - no new command queued: replay the finished job, don't re-run.
             with tc.stream("GET", "/api/analyze/events") as resp:
                 lines = list(resp.iter_lines())
         data_values = [_json.loads(ln.removeprefix("data: ")) for ln in lines if ln.startswith("data: ")]
@@ -1467,14 +1467,14 @@ class TestSseCommandCleared:
             ctx.analyze_cancelled = True  # stale flag from a previous cancel
             with tc.stream("GET", "/api/score") as resp:
                 lines = list(resp.iter_lines())
-            # Flag must be consumed only by analyze runs — score must leave it or ignore it
+            # Flag must be consumed only by analyze runs - score must leave it or ignore it
             assert "[Analysis cancelled]" not in " ".join(lines)
             # Flag should remain True since score did not consume it
             assert ctx.analyze_cancelled is True
 
 
 # ---------------------------------------------------------------------------
-# SSE output paths — error exit, cancellation message, __DONE__ sentinel
+# SSE output paths - error exit, cancellation message, __DONE__ sentinel
 # ---------------------------------------------------------------------------
 
 class TestSseOutputPaths:
@@ -1516,7 +1516,7 @@ class TestSseOutputPaths:
         assert "__DONE__" in data_values
 
 # ---------------------------------------------------------------------------
-# Cancel endpoint — state side-effects
+# Cancel endpoint - state side-effects
 # ---------------------------------------------------------------------------
 
 class TestAnalyzeCancelSideEffects:
@@ -1741,7 +1741,7 @@ class TestEstimateEdgeCases:
         assert explicit["total_seconds"] < auto["total_seconds"]
 
     def test_unknown_model_falls_back_to_default_gpu_speed(self, client):
-        """An unrecognised model string should not raise — it falls back to speed=6."""
+        """An unrecognised model string should not raise - it falls back to speed=6."""
         # Use the internal function directly to avoid the validate_whisper_model guard
         from yuu_clip.web.routes.analyze import EstimateRequest, _compute_time_estimate
         req = EstimateRequest(duration_s=3600, model="custom:tag", has_gpu=True, scene_mode="fast")
@@ -1757,7 +1757,7 @@ class TestEstimateEdgeCases:
 
 
 # ---------------------------------------------------------------------------
-# analyze/start with video_id — reanalyze-after-split entry point
+# analyze/start with video_id - reanalyze-after-split entry point
 # ---------------------------------------------------------------------------
 
 class TestAnalyzeStartWithVideoId:
@@ -1810,7 +1810,7 @@ class TestAnalyzeStartWithVideoId:
 
 
 # ---------------------------------------------------------------------------
-# probe._parse_fps — branch coverage
+# probe._parse_fps - branch coverage
 # ---------------------------------------------------------------------------
 
 class TestParseFps:
@@ -1829,7 +1829,7 @@ class TestParseFps:
 
 
 # ---------------------------------------------------------------------------
-# labeler.label_tracks — single-stream auto-label
+# labeler.label_tracks - single-stream auto-label
 # ---------------------------------------------------------------------------
 
 class TestLabelTracksSingleStream:
@@ -1861,7 +1861,7 @@ def _make_mock_stream(stream_index: int, title: str | None = None):
 
 
 # ---------------------------------------------------------------------------
-# labeler._label_non_interactive — profile and fallback paths
+# labeler._label_non_interactive - profile and fallback paths
 # ---------------------------------------------------------------------------
 
 class TestLabelNonInteractive:
@@ -1885,7 +1885,7 @@ class TestLabelNonInteractive:
         with patch("yuu_clip.analyze.labeler.load_profiles") as mock_lp:
             mock_lp.return_value = {"__default__": {}}
             result = _label_non_interactive(self._streams(2), profile_name="__default__")
-        # __default__ must not be applied — falls back to track 0 as combined
+        # __default__ must not be applied - falls back to track 0 as combined
         assert result[0]["label"] == "combined"
         mock_lp.assert_not_called()
 
@@ -2060,7 +2060,7 @@ class TestWhisperStep:
 
 
 # ---------------------------------------------------------------------------
-# Measured-rate estimate — roadmap-2026-07 plan 01 Stage 2
+# Measured-rate estimate - roadmap-2026-07 plan 01 Stage 2
 # ---------------------------------------------------------------------------
 
 def _run_json(*, model="medium", has_gpu=True, stages):
@@ -2136,7 +2136,7 @@ class TestMeasuredRates:
             _seed_run(db, model="medium", stages=[{"name": "Extract", "seconds": 36.0}])
             _seed_run(db, model="large-v3", stages=[{"name": "Extract", "seconds": 36.0}])
             db.commit()
-            # Only one "medium" sample — below the trust threshold
+            # Only one "medium" sample - below the trust threshold
             assert "extract" not in _measured_rates(db, "medium", True)
         finally:
             db.close()
@@ -2167,7 +2167,7 @@ class TestMeasuredRates:
             db.close()
 
     def test_missing_stage_excluded_not_zero(self, project_dir):
-        """A --no-score run has no 'Score' stage — it must be excluded from that
+        """A --no-score run has no 'Score' stage - it must be excluded from that
         stage's sample set, not counted as a zero-second sample (which would
         corrupt the median toward under-estimating)."""
         from yuu_clip.web.routes.analyze import _measured_rates
@@ -2181,7 +2181,7 @@ class TestMeasuredRates:
             db.close()
 
     def test_zero_duration_video_excluded(self, project_dir):
-        """Guards the seconds/duration division — a zero-duration row must not raise."""
+        """Guards the seconds/duration division - a zero-duration row must not raise."""
         from yuu_clip.web.routes.analyze import _measured_rates
         db = self._db(project_dir)
         try:
@@ -2295,7 +2295,7 @@ class TestShouldPrewarmTransformers:
     """Guards the gate that resolves transformers.pipeline before diarization
     imports speechbrain. SpeechBrain 1.x poisons a not-yet-resolved
     transformers.pipeline (its k2 integration hard-imports the unbundled k2), so
-    audio-event/laugh scoring must warm pipeline first — but only when both a
+    audio-event/laugh scoring must warm pipeline first - but only when both a
     speechbrain diarization and a transformers-backed scorer will run this run."""
 
     def _gate(self, **cfg):
@@ -2314,7 +2314,7 @@ class TestShouldPrewarmTransformers:
         ) is True
 
     def test_pyannote_backend_never_prewarms(self):
-        # Only speechbrain poisons transformers — pyannote doesn't, so no pre-warm.
+        # Only speechbrain poisons transformers - pyannote doesn't, so no pre-warm.
         assert self._gate(diarization_backend="pyannote", scorer_audio_event_enabled=True) is False
 
     def test_no_transformers_backed_scorer_skips_prewarm(self):

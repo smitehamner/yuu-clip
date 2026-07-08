@@ -1,4 +1,4 @@
-"""yuu_clip/scoring/engine.py — scorer orchestration, weights, auto-approve."""
+"""yuu_clip/scoring/engine.py - scorer orchestration, weights, auto-approve."""
 
 from __future__ import annotations
 
@@ -199,7 +199,7 @@ class TestScoringEngine:
         assert clip.scored_at is not None
 
     def _make_partial_scorer(self, weight=1.0, **dims):
-        """Scorer that emits ONLY the named dimensions (others stay None — no opinion)."""
+        """Scorer that emits ONLY the named dimensions (others stay None - no opinion)."""
         from unittest.mock import MagicMock
 
         from yuu_clip.scoring.protocol import ScoreResult
@@ -287,7 +287,7 @@ class TestLaughScoreAttribute:
         assert clip.score_laugh is None
 
     def test_laugh_no_data_result_leaves_score_laugh_none(self):
-        # A "no data" laugh result carries only tags (score_funny is None) — the
+        # A "no data" laugh result carries only tags (score_funny is None) - the
         # column must stay None, not fall to a misleading 0.
         from unittest.mock import MagicMock
 
@@ -353,7 +353,7 @@ class TestScoringEngineWeightEdgeCases:
 
 
 # ---------------------------------------------------------------------------
-# Basic description fallback (Stage 02) — no-LLM template so clips aren't blank
+# Basic description fallback (Stage 02) - no-LLM template so clips aren't blank
 # ---------------------------------------------------------------------------
 
 class TestBasicDescriptionFallback:
@@ -440,7 +440,7 @@ class TestAutoApprove:
 
     def test_does_not_re_approve_already_approved(self, client):
         vid_id = self._vid_id(client)
-        # conftest seeds one approved clip (score 0.60) — threshold 0.5 would match it
+        # conftest seeds one approved clip (score 0.60) - threshold 0.5 would match it
         # but it's already approved, not pending, so it should be ignored
         r = client.post(f"/api/videos/{vid_id}/auto-approve", json={"threshold": 0.5})
         assert r.status_code == 200
@@ -549,7 +549,7 @@ class TestScoringEngineScoreVideo:
 
     def test_score_video_commits_once_per_clip(self, tmp_path):
         # Commits must land per-clip (not once for the whole batch) so the web
-        # server — a separate process/connection — can see scores as they finish.
+        # server - a separate process/connection - can see scores as they finish.
         import unittest.mock as mock
 
         from yuu_clip.config import Config

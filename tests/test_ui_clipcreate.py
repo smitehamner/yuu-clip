@@ -1,10 +1,10 @@
 """
-Playwright UI tests — manual clip creation picker (clipcreate.js).
+Playwright UI tests - manual clip creation picker (clipcreate.js).
 
 The transcript, clip-creation, clip-list-reload, clip-detail, media-url, and
 rescore endpoints are all mocked so the tests are deterministic and never
 create a real row or run live LLM scoring against the project's actual
-database — see test_ui_clips.py's TestRescoreClipProgressPill for the same
+database - see test_ui_clips.py's TestRescoreClipProgressPill for the same
 rule applied to the existing rescore action.
 
 Run against the live dev server on port 8080. See tests/conftest.py for shared
@@ -101,7 +101,7 @@ class TestClipCreatePicking:
 
     def test_manual_time_inputs_accept_hms_and_ms(self, page: Page):
         # Small absolute times so the picked range fits inside any real recording
-        # in the live project regardless of its actual duration — "0:01:05" exercises
+        # in the live project regardless of its actual duration - "0:01:05" exercises
         # the h:mm:ss parse path while staying under two minutes.
         _open_picker_from_new_clip_button(page)
         page.fill("#clipcreate-start-input", "1:23")
@@ -157,7 +157,7 @@ class TestClipCreateConfirm:
     def test_confirm_button_disables_immediately_to_prevent_double_submit(self, page: Page):
         _open_picker_from_new_clip_button(page)
 
-        # Delay every fetch() in the page by 300ms — purely page-side JS, so
+        # Delay every fetch() in the page by 300ms - purely page-side JS, so
         # Playwright's own expect() polling (which shares the sync driver's single
         # thread with any Python-side delay) is unaffected and can still observe
         # the button's synchronous disable before the mocked create resolves.
@@ -208,7 +208,7 @@ class TestClipCreateDirtyGuardAndShortcuts:
         expect(page.locator("#clipcreate-transcript-view")).to_be_visible()
 
     def test_approve_shortcut_suppressed_while_picker_open(self, page: Page):
-        # Select a real clip first so AppState.activeClipId is set — otherwise
+        # Select a real clip first so AppState.activeClipId is set - otherwise
         # the shortcut would no-op anyway (no subject clip) and prove nothing
         # about the PanelNav guard specifically.
         select_first_video_and_clip(page)

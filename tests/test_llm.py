@@ -267,7 +267,7 @@ class TestCapabilityTiers:
         assert tiers["similarity"]["active"] == "Fast (keyword)"
 
     def test_similarity_not_ready_when_fastembed_missing(self, client: TestClient):
-        # fastembed isn't installed in the test venv — not-ready, and nothing to
+        # fastembed isn't installed in the test venv - not-ready, and nothing to
         # prefetch (a click would just fail the same way).
         tiers, _ = self._tiers(client)
         assert tiers["similarity"]["ready"] is False
@@ -340,7 +340,7 @@ class TestCapabilityTiers:
         assert tiers["descriptions"]["ready"] is True
 
     # ── packaging-strategy overhaul (Wave 3): bundled tiers never offer an
-    # install action anymore — install_slug is always None for them.
+    # install action anymore - install_slug is always None for them.
     def test_similarity_and_audio_events_never_offer_install(self, client: TestClient):
         tiers, _ = self._tiers(client)
         assert tiers["similarity"]["install_slug"] is None
@@ -414,7 +414,7 @@ class TestCapabilityTiers:
         assert tiers["vertical_framing"]["ready"] is True
 
     # ── packaging-strategy overhaul (Wave 4): the GGUF/Ollama model and the
-    # sub-second BlazeFace asset keep their own download flows — never a
+    # sub-second BlazeFace asset keep their own download flows - never a
     # "Download now" button from this generic Tier-B prefetch mechanism.
     def test_descriptions_and_vertical_framing_never_offer_prefetch(self, client: TestClient):
         tiers, _ = self._tiers(client)

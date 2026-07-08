@@ -141,7 +141,7 @@ class TestContexts:
 
 
 # ---------------------------------------------------------------------------
-# Profile delete — nonexistent name is a no-op
+# Profile delete - nonexistent name is a no-op
 # ---------------------------------------------------------------------------
 
 class TestProfileDeleteNonexistent:
@@ -152,7 +152,7 @@ class TestProfileDeleteNonexistent:
 
 
 # ---------------------------------------------------------------------------
-# contexts.py — load/save/seed unit tests
+# contexts.py - load/save/seed unit tests
 # ---------------------------------------------------------------------------
 
 class TestLoadSaveContexts:
@@ -204,7 +204,7 @@ class TestLoadSaveContexts:
 
 
 # ---------------------------------------------------------------------------
-# contexts.py — extract_context_weights unit tests
+# contexts.py - extract_context_weights unit tests
 # ---------------------------------------------------------------------------
 
 class TestExtractContextWeights:
@@ -247,7 +247,7 @@ class TestExtractContextWeights:
 
 
 # ---------------------------------------------------------------------------
-# contexts route — weight fields and display_name fallback
+# contexts route - weight fields and display_name fallback
 # ---------------------------------------------------------------------------
 
 class TestContextWeightFields:
@@ -302,7 +302,7 @@ class TestContextWeightFields:
 
 
 # ---------------------------------------------------------------------------
-# config.py — load_profiles / save_profile / delete_profile unit tests
+# config.py - load_profiles / save_profile / delete_profile unit tests
 # ---------------------------------------------------------------------------
 
 class TestProfileFunctions:

@@ -1,4 +1,4 @@
-"""yuu_clip/segments/windower.py + yuu_clip/analyze/overlap.py — clip generation and transcript-overlap detection."""
+"""yuu_clip/segments/windower.py + yuu_clip/analyze/overlap.py - clip generation and transcript-overlap detection."""
 
 from __future__ import annotations
 
@@ -55,7 +55,7 @@ class TestSilenceWindow:
         assert result[0][1] == 21_000
 
     def test_hard_split_breaks_long_window(self):
-        # Two segments forming a 200 s window — exceeds hard_split_ms=180_000
+        # Two segments forming a 200 s window - exceeds hard_split_ms=180_000
         segs = [
             self._seg(0, 100_000, "long first part"),
             self._seg(101_000, 201_000, "long second part"),
@@ -88,7 +88,7 @@ class TestSilenceWindow:
 
     def test_low_speech_density_window_dropped(self):
         # One hallucinated line ("Thanks for watching") stamped across 5 min is
-        # ~0.06 chars/s — kept with the floor off, dropped with a 0.2 cps floor.
+        # ~0.06 chars/s - kept with the floor off, dropped with a 0.2 cps floor.
         from yuu_clip.segments.windower import _silence_window
         segs = [self._seg(0, 300_000, "Thanks for watching")]
         assert len(_silence_window(segs, 3000, 5000, 180_000, 0.0)) == 1
@@ -100,7 +100,7 @@ class TestSilenceWindow:
         assert len(_silence_window(segs, 3000, 5000, 180_000, 0.2)) == 1
 
     def test_overlapping_segment_does_not_shrink_win_end(self):
-        # Segment B overlaps and ends before segment A — win_end must not go backwards.
+        # Segment B overlaps and ends before segment A - win_end must not go backwards.
         # Without the fix, win_end drops to 4000 and the subsequent gap becomes
         # 6000-4000=2000 ms which is below silence_ms=3000, merging what should split.
         segs = [
@@ -114,7 +114,7 @@ class TestSilenceWindow:
         assert result[1][0] == 14_000
 
 # ---------------------------------------------------------------------------
-# windower.generate_candidates — public API with a real DB session
+# windower.generate_candidates - public API with a real DB session
 # ---------------------------------------------------------------------------
 
 class TestGenerateCandidates:
@@ -168,7 +168,7 @@ class TestGenerateCandidates:
         from yuu_clip.config import Config
         from yuu_clip.segments.windower import generate_candidates
         session, v, tx = self._setup_db(tmp_path, do_transcribe=False)
-        # Add segments — they should be ignored because do_transcribe=False
+        # Add segments - they should be ignored because do_transcribe=False
         self._add_seg(session, tx.id, 0, 10_000)
         session.flush()
         try:
@@ -234,7 +234,7 @@ class TestGenerateCandidates:
         from yuu_clip.segments.windower import generate_candidates
         session, v, tx = self._setup_db(tmp_path)
         # A single hallucinated line stamped across 10 min (~0.03 chars/s) must not
-        # become a 10-minute clip — the default speech-density floor drops it.
+        # become a 10-minute clip - the default speech-density floor drops it.
         self._add_seg(session, tx.id, 0, 600_000, "Thanks for watching")
         session.flush()
         try:
@@ -283,7 +283,7 @@ class TestGenerateCandidates:
 # ---------------------------------------------------------------------------
 
 class TestClipTiming:
-    """PATCH /api/clips/{id}/timing — stores start_offset and end_offset."""
+    """PATCH /api/clips/{id}/timing - stores start_offset and end_offset."""
 
     def _first_clip_id(self, client) -> int:
         vid_id = client.get("/api/videos").json()[0]["id"]
@@ -317,7 +317,7 @@ class TestClipTiming:
         assert r.status_code == 404
 
 # ---------------------------------------------------------------------------
-# _silence_window — tag content
+# _silence_window - tag content
 # ---------------------------------------------------------------------------
 
 class TestSilenceWindowTags:
@@ -395,7 +395,7 @@ class TestDetectTranscriptOverlapIntegration:
         tx = Transcript(audio_track_id=track_id, model_name="base")
         session.add(tx)
         session.flush()
-        # One segment per word group — space out timestamps
+        # One segment per word group - space out timestamps
         for i, word in enumerate(words):
             session.add(TranscriptSegment(
                 transcript_id=tx.id,
@@ -421,7 +421,7 @@ class TestDetectTranscriptOverlapIntegration:
         session, v = self._setup(tmp_path)
         comb = self._add_track(session, v.id, "combined")
         spec = self._add_track(session, v.id, "player_voice")
-        # Only 5 unique words in combined — below the 20-word threshold
+        # Only 5 unique words in combined - below the 20-word threshold
         self._add_transcript(session, comb.id, ["one", "two", "three", "four", "five"])
         self._add_transcript(session, spec.id, ["one", "two", "three"] * 10)
         try:
@@ -435,7 +435,7 @@ class TestDetectTranscriptOverlapIntegration:
         session, v = self._setup(tmp_path)
         comb = self._add_track(session, v.id, "combined")
         spec = self._add_track(session, v.id, "player_voice")
-        # 25 purely alphabetic unique words — _word_set only keeps [a-z'] tokens
+        # 25 purely alphabetic unique words - _word_set only keeps [a-z'] tokens
         combined_words = [chr(ord('a') + i) * 4 for i in range(25)]  # aaaa, bbbb, ...
         self._add_transcript(session, comb.id, combined_words)
         # Specialized transcript is 100% contained in combined
@@ -454,7 +454,7 @@ class TestDetectTranscriptOverlapIntegration:
         session, v = self._setup(tmp_path)
         comb = self._add_track(session, v.id, "combined")
         spec = self._add_track(session, v.id, "player_voice")
-        # Disjoint vocabularies: "ca" prefix vs "sb" prefix — zero word overlap
+        # Disjoint vocabularies: "ca" prefix vs "sb" prefix - zero word overlap
         combined_words = ["ca" + chr(ord('a') + i) for i in range(25)]
         spec_words     = ["sb" + chr(ord('a') + i) for i in range(25)]
         self._add_transcript(session, comb.id, combined_words)
@@ -502,7 +502,7 @@ class TestPearsonCorrelation:
 
     def test_constant_sequences_returns_zero(self):
         # Both all-same (e.g. two tracks silent over the sampled window): no
-        # variance to correlate against, so this is undetermined, not "identical" —
+        # variance to correlate against, so this is undetermined, not "identical" -
         # returning 1.0 here would wrongly suppress a track that's only silent
         # during the sample.
         a = [0.5, 0.5, 0.5, 0.5, 0.5]

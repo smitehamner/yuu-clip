@@ -1,4 +1,4 @@
-"""Playwright UI tests — timed transcript views (clip + collapsible full recording).
+"""Playwright UI tests - timed transcript views (clip + collapsible full recording).
 
 The transcript endpoints are mocked so the test is deterministic, but it drives
 the real render + lazy-load flow in transcript.js.

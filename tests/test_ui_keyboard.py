@@ -1,8 +1,8 @@
 """
-Playwright UI tests — keyboard layering (CC-2/CC-3/CC-4).
+Playwright UI tests - keyboard layering (CC-2/CC-3/CC-4).
 
 CC-2: Escape closes only the topmost open layer per press (menus, then modals,
-      then panels — the Split Editor joins the cascade with its dirty guard).
+      then panels - the Split Editor joins the cascade with its dirty guard).
 CC-3: Tab is trapped inside the topmost visible modal.
 CC-4: Hamburger and kebab menus focus their first item on open, traverse with
       ArrowUp/Down, and return focus to their trigger on Escape.

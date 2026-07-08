@@ -1,5 +1,5 @@
 """
-Playwright UI tests — toast standards (CC-5).
+Playwright UI tests - toast standards (CC-5).
 
 Warning type, error persistence, stack cap, and the optional action button.
 Run against the live dev server on port 8080. Skipped automatically if the
@@ -67,12 +67,12 @@ class TestToastActionButton:
         page.evaluate("AppState.activeVideoId = null")
         page.evaluate("_showAnalysisToast({id: -1, clip_count: 3})")
         toast = page.locator("#toast-container .toast.success")
-        expect(toast).to_contain_text("Analysis complete — 3 clips found")
+        expect(toast).to_contain_text("Analysis complete - 3 clips found")
         expect(toast.get_by_role("button", name="Review")).to_be_visible()
 
     def test_analysis_complete_toast_omits_review_when_already_active(self, page: Page):
         page.evaluate("AppState.activeVideoId = -1")
         page.evaluate("_showAnalysisToast({id: -1, clip_count: 1})")
         toast = page.locator("#toast-container .toast.success")
-        expect(toast).to_contain_text("Analysis complete — 1 clip found")
+        expect(toast).to_contain_text("Analysis complete - 1 clip found")
         expect(toast.get_by_role("button", name="Review")).to_have_count(0)

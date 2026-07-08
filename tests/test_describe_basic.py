@@ -1,4 +1,4 @@
-"""yuu_clip/scoring/describe_basic.py — the non-LLM template one-liner (Stage 02)."""
+"""yuu_clip/scoring/describe_basic.py - the non-LLM template one-liner (Stage 02)."""
 from __future__ import annotations
 
 from types import SimpleNamespace
@@ -52,7 +52,7 @@ class TestBuildBasicDescription:
 
     def test_dimension_only_when_no_text_content(self):
         # Stopword-only excerpt yields no keywords/speakers, so a strong dimension
-        # is the honest floor — capitalized, never blank.
+        # is the honest floor - capitalized, never blank.
         from yuu_clip.scoring.describe_basic import build_basic_description
         clip = _clip("the and of to", action=0.9)
         description, _ = build_basic_description(clip)

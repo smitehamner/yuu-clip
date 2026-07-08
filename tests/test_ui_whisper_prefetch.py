@@ -1,4 +1,4 @@
-"""Playwright UI tests — background model prefetch banners + analyze coordination
+"""Playwright UI tests - background model prefetch banners + analyze coordination
 (first-run-friction Stage 6).
 
 On boot, initModelPrefetch reads /api/config and /api/llm/download-status; for each

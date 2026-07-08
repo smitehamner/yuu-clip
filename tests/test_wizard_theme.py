@@ -3,7 +3,7 @@ startup screens in electron/main.js.
 
 Unlike the web UI (app.css, guarded by test_ui_theme.py), the wizard is a
 self-contained Electron surface with hardcoded hex colors and no theme-token
-system — so nothing else enforces contrast on it. A 2026-07 review measured its
+system - so nothing else enforces contrast on it. A 2026-07 review measured its
 muted grays at 2.5–3.3:1 on the #12121e background. This test statically parses
 the wizard's CSS and asserts every text color clears AA normal-text (4.5:1)
 against the surface it renders on. Pure-python, no server or browser needed.
@@ -23,7 +23,7 @@ AA_NORMAL_TEXT = 4.5
 # screens (loading + venv-setup). All muted text renders on this surface.
 _WIZARD_BG = "#12121e"
 
-# `color:` only — not `background`, `border-top-color`, `background-color`, etc.
+# `color:` only - not `background`, `border-top-color`, `background-color`, etc.
 _TEXT_COLOR_RE = re.compile(r"(?<![-\w])color\s*:\s*(#[0-9a-fA-F]{3,6})")
 
 
@@ -53,7 +53,7 @@ def test_setup_html_text_meets_aa_on_wizard_background():
     style = re.search(r"<style>(.*?)</style>", _SETUP_HTML.read_text(encoding="utf-8"), re.S)
     assert style, "setup.html <style> block not found"
     body_bg = re.search(r"body\s*\{[^}]*?background:\s*(#[0-9a-fA-F]{3,6})", style.group(1))
-    assert body_bg and body_bg.group(1).lower() == _WIZARD_BG, "wizard base background changed — update _WIZARD_BG"
+    assert body_bg and body_bg.group(1).lower() == _WIZARD_BG, "wizard base background changed - update _WIZARD_BG"
 
     failing = {
         color: round(_contrast(color, _WIZARD_BG), 2)

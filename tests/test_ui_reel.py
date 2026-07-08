@@ -1,5 +1,5 @@
 """
-Playwright UI tests — highlight reel ("demo") modal.
+Playwright UI tests - highlight reel ("demo") modal.
 
 Run against the live dev server on port 8080. See tests/conftest.py for shared
 helpers.
@@ -125,7 +125,7 @@ class TestReelBuilderCuration:
     def test_drag_reorders_and_commits(self, page: Page):
         # Playwright's mouse API can't drive native HTML5 DnD, so dispatch the
         # DragEvents directly: grab row 0 by its handle, hover past the last
-        # row, and drop — the row should land at the end and the order commit.
+        # row, and drop - the row should land at the end and the order commit.
         self._open_build(page)
         page.evaluate("""() => {
           const rows = [...document.querySelectorAll('.reel-clip-row')];
@@ -162,7 +162,7 @@ _MANY_REEL_CLIPS = [
 @skip_no_server
 class TestReelBuilderFooterVisible:
     """The Build Reel action row stays on-screen (sticky footer) even with a
-    long clip list at the Electron default 1280x900 window — regression for the
+    long clip list at the Electron default 1280x900 window - regression for the
     footer being half-clipped below the fold."""
 
     def test_build_button_within_viewport_with_many_clips(self, page: Page):
@@ -193,7 +193,7 @@ _FAKE_PENDING_CLIP = {
 
 @skip_no_server
 class TestReelPoolStatusFilters:
-    """Quick-wins Stage 5 — Approved/Unreviewed/Rejected pool chips in the
+    """Quick-wins Stage 5 - Approved/Unreviewed/Rejected pool chips in the
     Build tab. The mocked route branches on the `statuses` query param so
     toggling a chip is observable without a live DB."""
 
@@ -292,7 +292,7 @@ class TestReelStaleness:
     """Plan 02 (staleness) journey 8: a reel built from a clip that is later
     re-exported (or never/no-longer exported) shows a stale badge. End-to-end
     against the live project: a real .reel.json manifest referencing a real
-    clip ID, read back by the real GET /api/demo/list staleness computation —
+    clip ID, read back by the real GET /api/demo/list staleness computation -
     no network stubbing, matching the TestReelDelete/TestReelShowInFolder
     pattern of writing throwaway files into the live project's reels dir."""
 
@@ -311,7 +311,7 @@ class TestReelStaleness:
         return reel
 
     def _find_unexported_clip_id(self, page: Page):
-        """First clip in the live project with no export on disk — a reel
+        """First clip in the live project with no export on disk - a reel
         manifest pointing at it should always compute as stale."""
         return page.evaluate("""async () => {
             const videos = await fetch('/api/videos').then(r => r.json());

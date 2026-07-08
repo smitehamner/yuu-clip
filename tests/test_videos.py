@@ -112,7 +112,7 @@ class TestClips:
 
 
 # ---------------------------------------------------------------------------
-# Clips — sort and has_export
+# Clips - sort and has_export
 # ---------------------------------------------------------------------------
 
 class TestClipsExtended:
@@ -148,7 +148,7 @@ class TestClipsExtended:
         start_hms_dashes = c["start_hms"].replace(":", "-")
         export_file = export_dir / f"session_clip{c['id']}_{start_hms_dashes}.mkv"
         export_file.write_bytes(b"fake video content")
-        # Re-fetch — file now exists on disk
+        # Re-fetch - file now exists on disk
         clips2 = client.get(f"/api/videos/{vid_id}/clips").json()
         match = next(x for x in clips2 if x["id"] == c["id"])
         assert match["has_export"] is True
@@ -319,7 +319,7 @@ class TestDelete:
 
 
 class TestDeleteVideoDuringAnalysis:
-    """Removing a recording while it is being analyzed must 409 — the ingest
+    """Removing a recording while it is being analyzed must 409 - the ingest
     subprocess would otherwise keep writing rows for a deleted video."""
 
     def _vid_id(self, client) -> int:
@@ -338,7 +338,7 @@ class TestDeleteVideoDuringAnalysis:
         assert any(v["id"] == vid_id for v in client.get("/api/videos").json())
 
     def test_delete_blocked_when_job_matches_filename(self, client):
-        # Fresh analyses have no video_id until the subprocess creates the row —
+        # Fresh analyses have no video_id until the subprocess creates the row -
         # the guard falls back to the job's source filename.
         vid_id = self._vid_id(client)
         self._set_job(client, filename="session.mkv")
@@ -444,7 +444,7 @@ class TestVideoDetailFields:
         assert videos[0]["has_timeline"] is False
 
     def test_video_detail_includes_absolute_source_path(self, client, project_dir):
-        # Roadmap plan 10 — the Electron shell needs the absolute source path to
+        # Roadmap plan 10 - the Electron shell needs the absolute source path to
         # build a native "yuu-media://" URL instead of proxying bytes over HTTP.
         vid_id = client.get("/api/videos").json()[0]["id"]
         d = client.get(f"/api/videos/{vid_id}").json()
@@ -492,7 +492,7 @@ class TestVideoListEditableFields:
 
 
 class TestEditableVideoFields:
-    """PATCH /api/videos/{id}/fields — accept_new, accept_edit, revert."""
+    """PATCH /api/videos/{id}/fields - accept_new, accept_edit, revert."""
 
     def _vid_id(self, client) -> int:
         return client.get("/api/videos").json()[0]["id"]
@@ -613,7 +613,7 @@ class TestEditableVideoFields:
 
 
 class TestEditableClipFields:
-    """PATCH /api/clips/{id}/fields — accept_new, accept_edit, revert."""
+    """PATCH /api/clips/{id}/fields - accept_new, accept_edit, revert."""
 
     def _first_clip_id(self, client) -> int:
         vid_id = client.get("/api/videos").json()[0]["id"]
@@ -688,7 +688,7 @@ class TestEditableClipFields:
         db.close()
 
     def test_description_long_only_edit_does_not_set_description_edited_at(self, client, project_dir):
-        """description_edited_at only tracks the short description — that's the only
+        """description_edited_at only tracks the short description - that's the only
         one burned into a title card export."""
         from yuu_clip.db.models import ClipCandidate, make_session
         clip_id = self._first_clip_id(client)
@@ -1000,7 +1000,7 @@ class TestSplitVideo:
         r1 = client.post(f"/api/videos/{vid_id}/split", json={"split_points": [120.0]})
         assert r1.status_code == 200
         assert len(r1.json()["segment_ids"]) == 2
-        # Re-split with different points — should succeed and produce new segment count
+        # Re-split with different points - should succeed and produce new segment count
         r2 = client.post(f"/api/videos/{vid_id}/split", json={"split_points": [180.0, 360.0]})
         assert r2.status_code == 200
         assert len(r2.json()["segment_ids"]) == 3
@@ -1088,8 +1088,8 @@ class TestSplitVideoFields:
         seg_ids = r.json()["segment_ids"]
         segs = {s["id"]: s for s in client.get("/api/videos").json()}
         # filename is "session.mkv", stem is "session"
-        assert segs[seg_ids[0]]["title"] == "session — Part 1"
-        assert segs[seg_ids[1]]["title"] == "session — Part 2"
+        assert segs[seg_ids[0]]["title"] == "session - Part 1"
+        assert segs[seg_ids[1]]["title"] == "session - Part 2"
 
     def test_segment_named_title_from_request(self, client):
         vid_id = self._video_id(client)
@@ -1112,7 +1112,7 @@ class TestSplitVideoFields:
         seg_ids = r.json()["segment_ids"]
         segs = {s["id"]: s for s in client.get("/api/videos").json()}
         assert segs[seg_ids[0]]["title"] == "Intro"
-        assert segs[seg_ids[1]]["title"] == "session — Part 2"
+        assert segs[seg_ids[1]]["title"] == "session - Part 2"
 
     def test_duplicate_split_points_deduplicated(self, client):
         vid_id = self._video_id(client)
@@ -1376,7 +1376,7 @@ class TestSplitExportFileMigration:
         assert parent_clip["has_export"] is True
 
     def test_split_leaves_unshifted_segment_zero_files_alone(self, client, project_dir):
-        """A clip in segment 0 shifts by 0ms — its files must not be touched."""
+        """A clip in segment 0 shifts by 0ms - its files must not be touched."""
         from datetime import datetime, timezone
 
         from yuu_clip.db.models import ClipCandidate, make_session
@@ -1402,7 +1402,7 @@ class TestSplitExportFileMigration:
 
 
 class TestSplitDuringAnalysis:
-    """Splitting or unsplitting a recording mid-analysis must 409 — the ingest
+    """Splitting or unsplitting a recording mid-analysis must 409 - the ingest
     subprocess would otherwise write rows onto a video that changed under it."""
 
     def _vid_id(self, client) -> int:
@@ -1525,7 +1525,7 @@ class TestSplitVideoOrphanCleanup:
         finally:
             db.close()
 
-        # Re-split — should not raise FK violation or leave orphan clips
+        # Re-split - should not raise FK violation or leave orphan clips
         r = client.post(
             f"/api/videos/{vid_id}/split", json={"split_points": [180.0, 360.0]}
         )
@@ -1562,7 +1562,7 @@ class TestClearClips:
         clips = client.get(f"/api/videos/{vid_id}/clips").json()
         clip_id = clips[0]["id"]
 
-        # Mark one clip as exported the way the real export flow does — by
+        # Mark one clip as exported the way the real export flow does - by
         # stamping exported_at, not by inventing a status the pipeline never sets.
         from datetime import datetime, timezone
         db = make_session(project_db_path(project_dir))
@@ -1640,7 +1640,7 @@ class TestAutoApprove:
     def test_auto_approve_only_touches_pending_clips(self, client):
         vid_id = self._vid_id(client)
         # Low threshold: would nominally match all scores, but auto_approve only
-        # touches pending clips — the 0.60 approved and 0.20 rejected are skipped.
+        # touches pending clips - the 0.60 approved and 0.20 rejected are skipped.
         r = client.post(f"/api/videos/{vid_id}/auto-approve", json={"threshold": 0.0})
         assert r.status_code == 200
         assert r.json()["approved"] == 1  # only the 0.85 pending clip qualifies
@@ -2073,7 +2073,7 @@ class TestEditableFieldsBothBranch:
 
 class TestClipPreviewSplitSegmentOffset:
     """clip_preview seeks into video.path, which for a split segment is always the
-    untrimmed parent file — segment_start_s must be added to the segment-relative
+    untrimmed parent file - segment_start_s must be added to the segment-relative
     clip.start_ms/end_ms or the preview grabs the wrong window of the parent."""
 
     def test_ss_includes_segment_offset(self, client, project_dir, monkeypatch):
@@ -2150,7 +2150,7 @@ class TestMergeClipsPreviewCleanup:
 
 
 # ---------------------------------------------------------------------------
-# Bulk clip actions — multi-select approve/reject/export/delete
+# Bulk clip actions - multi-select approve/reject/export/delete
 # ---------------------------------------------------------------------------
 
 class TestBulkClipStatus:
@@ -2288,7 +2288,7 @@ class TestBulkDeleteClips:
 
     def test_bulk_delete_reports_locked_and_keeps_record(self, client, project_dir, monkeypatch):
         # A clip whose export file is held open (e.g. by the in-page player) must
-        # be reported in `locked` and skipped, not deleted — the batch continues
+        # be reported in `locked` and skipped, not deleted - the batch continues
         # for the other clips rather than aborting.
         from pathlib import Path
 
@@ -2386,7 +2386,7 @@ class TestVideoSourceFile:
 
 
 # ---------------------------------------------------------------------------
-# Compute-waveform guards (SSE happy path needs real ffmpeg — not exercised here)
+# Compute-waveform guards (SSE happy path needs real ffmpeg - not exercised here)
 # ---------------------------------------------------------------------------
 
 class TestComputeWaveformGuards:
@@ -2408,7 +2408,7 @@ class TestVideoSource:
 
     Must stay on media_file_response (StreamingResponse), not FileResponse:
     starlette cancels a StreamingResponse when the client disconnects, while
-    FileResponse streams to completion — an abandoned <video> element left it
+    FileResponse streams to completion - an abandoned <video> element left it
     pumping the whole multi-GB recording into a dead socket at full CPU.
     """
 
@@ -2439,7 +2439,7 @@ class TestVideoSource:
 
 
 class TestVideoProxy:
-    """/api/videos/{id}/proxy — status, on-demand generation, and serving.
+    """/api/videos/{id}/proxy - status, on-demand generation, and serving.
 
     generate_proxy is stubbed so no real FFmpeg/GPU is needed; the route's
     threading, metadata recording, and freshness gating are what's under test.
@@ -2472,7 +2472,7 @@ class TestVideoProxy:
         assert body["proxy_path"] is None
 
     def test_status_includes_absolute_proxy_path_once_generated(self, client, project_dir, monkeypatch):
-        # Roadmap plan 10 — the Electron shell only trusts a "yuu-media://" build
+        # Roadmap plan 10 - the Electron shell only trusts a "yuu-media://" build
         # for the proxy once this field confirms one actually exists on disk.
         self._write_source(project_dir)
         self._stub_generate(monkeypatch)
@@ -2558,6 +2558,6 @@ class TestVideoProxy:
                               json={"split_points": [300.0], "segment_names": []}).json()["segment_ids"]
         proxy_file = self._proxy_file(project_dir)
 
-        # Parent and the other segment still reference the file — keep the proxy.
+        # Parent and the other segment still reference the file - keep the proxy.
         assert client.delete(f"/api/videos/{seg_ids[0]}").status_code == 200
         assert proxy_file.exists()

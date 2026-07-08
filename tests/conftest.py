@@ -23,12 +23,12 @@ from yuu_clip.db.models import (
 from yuu_clip.web.app import create_app
 
 # ---------------------------------------------------------------------------
-# Global config isolation — Config.load() always reads the real OS-level
+# Global config isolation - Config.load() always reads the real OS-level
 # global config dir (platformdirs), so without this every test run picks up
 # whatever settings are saved on the machine actually running the suite.
 # Autouse so every test gets an isolated, empty global config dir by default;
 # tests that need specific global values still monkeypatch _global_config_dir
-# themselves (that continues to work — it just overrides this default).
+# themselves (that continues to work - it just overrides this default).
 # ---------------------------------------------------------------------------
 
 @pytest.fixture(autouse=True)
@@ -39,7 +39,7 @@ def isolate_global_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> No
 
 
 # ---------------------------------------------------------------------------
-# Minimal project dir fixture — isolated temp dir with a seeded DB
+# Minimal project dir fixture - isolated temp dir with a seeded DB
 # ---------------------------------------------------------------------------
 
 @pytest.fixture()
@@ -106,7 +106,7 @@ def client(project_dir: Path) -> TestClient:
 
 
 # ---------------------------------------------------------------------------
-# Playwright — connect to the already-running dev server
+# Playwright - connect to the already-running dev server
 # ---------------------------------------------------------------------------
 
 LIVE_URL = "http://127.0.0.1:8080"
@@ -131,12 +131,12 @@ def select_video_with_clips(page) -> None:
     clip list to render.
 
     Iterating instead of clicking ``#video-list li.first`` keeps the clip tests
-    independent of sidebar ordering — a 0-clip video at the top of the list would
+    independent of sidebar ordering - a 0-clip video at the top of the list would
     otherwise leave the clip list showing only its empty-state row and time out
     every clip test. Real clip rows carry a ``.clip-num`` badge; the empty-state
     ``<li>`` does not, which is what we wait on.
 
-    Split segments are skipped even when they have clips — most tests assume a
+    Split segments are skipped even when they have clips - most tests assume a
     plain top-level recording (e.g. split tests expect 'Split Recording', not
     'Undo Split', in Additional Actions), and a segment sorting first in a
     recent-created project would otherwise hijack every caller of this helper.
@@ -146,7 +146,7 @@ def select_video_with_clips(page) -> None:
     if not page.url.startswith(LIVE_URL):
         page.goto(LIVE_URL)
     # 15s (not 5s): /api/videos can stall for several seconds under a full
-    # parallel run when its query contends on the single SQLite DB — a 5s wait
+    # parallel run when its query contends on the single SQLite DB - a 5s wait
     # here failed this shared helper for reasons unrelated to the test.
     page.wait_for_selector("#video-list li[data-video-id]", timeout=15000)
     videos = page.locator("#video-list li[data-video-id]")
@@ -169,7 +169,7 @@ def select_video_with_clips(page) -> None:
 def select_first_video_and_clip(page) -> None:
     """Select a video that has clips, then open the first real clip's detail.
 
-    Waits for the clip to finish loading — not just for the click. ``selectClip``
+    Waits for the clip to finish loading - not just for the click. ``selectClip``
     sets ``activeClipId`` synchronously but only fills ``activeClipData`` after
     two awaited fetches (clip + media_url), and ``#detail`` is a static shell
     element, so a bare ``wait_for_selector('.detail')`` is not a real gate. Under
@@ -220,7 +220,7 @@ def _force_exit_after(seconds: float, exit_code_fn) -> None:
 def pytest_runtest_teardown(item, nextitem) -> None:
     # Fallback for the Playwright teardown hang (see _close_browser_unhang, which
     # normally resolves it). Only fires if the process is still alive 20s after
-    # the last test's teardown started — i.e. the driver kill failed too.
+    # the last test's teardown started - i.e. the driver kill failed too.
     # Skipped under xdist: nextitem is None between work units too, and killing an
     # idle worker crashes the run. Workers get their own watchdog in sessionfinish.
     if not _is_ui_session or nextitem is not None or os.environ.get("PYTEST_XDIST_WORKER"):
@@ -252,8 +252,8 @@ def _close_browser_unhang(browser) -> None:
 
     Upstream bug (playwright-python #818 family): at session teardown Chromium
     exits, but the driver's response to Browser.close is lost, leaving the sync
-    event loop parked in GetQueuedCompletionStatus forever. The old escape —
-    os._exit watchdogs — is not viable under xdist: a force-exited worker reads
+    event loop parked in GetQueuedCompletionStatus forever. The old escape -
+    os._exit watchdogs - is not viable under xdist: a force-exited worker reads
     as a crashed node and its last test is falsely marked failed.
 
     Instead, give close() a couple of seconds, then kill the node driver: the
@@ -263,7 +263,7 @@ def _close_browser_unhang(browser) -> None:
 
     The 2s grace is a pure tail tax paid once per worker at session end. When
     close() genuinely hangs (the common case here) it always burns the full
-    grace, so keep it short — the taskkill is the real recovery path, not a
+    grace, so keep it short - the taskkill is the real recovery path, not a
     last resort. A clean close (rare on this platform) still returns early.
     """
     driver_pid = _playwright_driver_pid(browser)
@@ -299,7 +299,7 @@ def logic_page(browser):
     """One page, loaded once, shared by the pure-logic UI test files.
 
     test_ui_utils / test_ui_terminology / test_ui_globals only ever call
-    ``page.evaluate(...)`` against the served JS globals — no DOM interaction,
+    ``page.evaluate(...)`` against the served JS globals - no DOM interaction,
     no navigation, no server-state mutation. Any test that reads ``AppState``
     seeds exactly what it needs first, so one shared page is safe and skips
     ~115 redundant full page loads (each ~0.3s of fetching + parsing 36
@@ -331,7 +331,7 @@ def page(page):
 
     Navigation waits for ``domcontentloaded`` rather than the default ``load``:
     all ~36 static JS files are parser-blocking (no defer/async), so the app's
-    globals are already defined at DOMContentLoaded — waiting for ``load`` only
+    globals are already defined at DOMContentLoaded - waiting for ``load`` only
     adds the trailing sub-resources (favicon, etc.), pure latency × every test.
     The nav timeout stays at 30s (not the 10s action default): under a full
     parallel run (4 browsers re-fetching the scripts while /api/videos queries
@@ -341,7 +341,7 @@ def page(page):
     bounds those).
 
     Also seeds the Getting Started seen-flag via an init script so the modal
-    never auto-opens — the script runs before boot.js on *every* navigation,
+    never auto-opens - the script runs before boot.js on *every* navigation,
     including the fixture's own first load. (Seeding with page.evaluate after
     goto is not enough: boot.js has already opened the modal by then, and the
     overlay intercepts all clicks until a test happens to re-navigate.)

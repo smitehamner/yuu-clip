@@ -1,12 +1,12 @@
 """
-Smoke backstop — a small, fast, high-signal set covering the core surfaces
+Smoke backstop - a small, fast, high-signal set covering the core surfaces
 (page load, sidebar, clip open + detail, settings, export). It runs on every
 targeted `test-ui.ps1 -Changed` regardless of what changed, so a broad break
 in a shared file (utils.js, the app shell) is caught even when no feature test
 maps to the edit.
 
 Deliberately reuses the proven conftest helpers rather than novel selectors so
-the backstop itself stays robust. Keep it small — this is a "is the app
+the backstop itself stays robust. Keep it small - this is a "is the app
 fundamentally working?" check, not feature coverage. Run against the live dev
 server on port 8080. See tests/conftest.py for the shared helpers.
 """

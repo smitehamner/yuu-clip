@@ -133,7 +133,7 @@ class TestStatusAnalyzeIdentity:
 
 
 # ---------------------------------------------------------------------------
-# Startup reconciliation — interrupted 'extracting' rows become 'failed'
+# Startup reconciliation - interrupted 'extracting' rows become 'failed'
 # ---------------------------------------------------------------------------
 
 class TestFailInterruptedAnalyses:
@@ -175,7 +175,7 @@ class TestFailInterruptedAnalyses:
 class TestCancelCleansStuckRow:
     def test_cancel_flips_extracting_row_to_failed(self, project_dir):
         """A cancelled run's row shouldn't be left spinning at 'extracting' until
-        the next server restart — the cancel route runs the same cleanup."""
+        the next server restart - the cancel route runs the same cleanup."""
         from yuu_clip.db.models import Video, make_session
 
         app = create_app(project_dir)

@@ -1,6 +1,6 @@
 """Guard: every web route handler that opens a DB session must close it in a
-finally block (CLAUDE.md — "SQLAlchemy sessions must be explicitly closed in
-route handlers — always use try/finally: db.close()"). A leaked session holds a
+finally block (CLAUDE.md - "SQLAlchemy sessions must be explicitly closed in
+route handlers - always use try/finally: db.close()"). A leaked session holds a
 SQLite connection open and can starve the ingest subprocess of the write lock.
 
 This is a static AST check: any function that itself calls `.get_db()` must also

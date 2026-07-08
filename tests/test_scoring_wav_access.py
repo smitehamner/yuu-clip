@@ -1,7 +1,7 @@
-"""yuu_clip/scoring/wav_access.py — audio-track selection + per-run decode cache.
+"""yuu_clip/scoring/wav_access.py - audio-track selection + per-run decode cache.
 
 Every audio scorer (laugh 'audio', prosody, audio_event) reaches its samples
-through these two helpers, but their own tests mock the helpers away — so the
+through these two helpers, but their own tests mock the helpers away - so the
 track-selection rules and the cache's decode-once / read-failure contract are
 exercised here directly.
 """

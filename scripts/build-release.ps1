@@ -1,4 +1,4 @@
-﻿# build-release.ps1 — build the yuu-clip installer
+﻿# build-release.ps1 - build the yuu-clip installer
 # Usage: .\scripts\build-release.ps1 [-Version 0.2.0]
 param(
     [string]$Version = ""
@@ -70,7 +70,7 @@ if ($LASTEXITCODE -ne 0) {
     if ($LASTEXITCODE -ne 0) { Write-Error "Failed to install 'build'"; exit 1 }
 }
 $wheelDir = "$root\build\wheel"
-# Warn (don't block) if the wheel we're about to delete was stale — a wheel built
+# Warn (don't block) if the wheel we're about to delete was stale - a wheel built
 # before a dependency changed silently omits new packages, so a hand-run install
 # test with it would have been misleading. The rebuild below always produces fresh.
 $staleWhl = Get-ChildItem "$wheelDir\*.whl" -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -97,7 +97,7 @@ Write-Host "Build date reset to dev"
 # ── 3b. Ensure the dependency lock is present (bundled to constrain user installs) ──
 $lockPath = "$root\requirements.lock"
 if (-not (Test-Path $lockPath)) {
-    Write-Error "requirements.lock missing — run scripts\lock-deps.ps1 first (packaged installs are constrained to it)."
+    Write-Error "requirements.lock missing - run scripts\lock-deps.ps1 first (packaged installs are constrained to it)."
     exit 1
 }
 Write-Host "Dependency lock present: $lockPath"

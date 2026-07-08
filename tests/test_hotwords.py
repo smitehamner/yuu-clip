@@ -1,4 +1,4 @@
-"""Hot-word / phrase config (roadmap plan 03) — matcher, boost application, CRUD."""
+"""Hot-word / phrase config (roadmap plan 03) - matcher, boost application, CRUD."""
 from __future__ import annotations
 
 # ---------------------------------------------------------------------------
@@ -192,7 +192,7 @@ class TestApplyHotwordBoosts:
         hw = self._hotword("haha", boost=0.2, target="funny")
         apply_hotword_boosts(clip, [hw], Config())
         assert abs(clip.score_funny - 0.5) < 1e-6
-        apply_hotword_boosts(clip, [], Config())  # term deleted — none passed in on rescan
+        apply_hotword_boosts(clip, [], Config())  # term deleted - none passed in on rescan
         assert abs(clip.score_funny - 0.3) < 1e-6
         assert clip.hotword_matches == []
 
@@ -225,7 +225,7 @@ class TestScoringEngineHotwordIntegration:
         assert abs(clip.score_funny - 0.5) < 1e-6
 
     def test_score_clip_skips_hotwords_when_not_opted_in(self):
-        # hot_words=None (default) — engine must not touch hotword_matches/boost at all,
+        # hot_words=None (default) - engine must not touch hotword_matches/boost at all,
         # so callers that don't care about the feature see zero behavior change.
         from yuu_clip.config import Config
         from yuu_clip.db.models import ClipCandidate
@@ -383,7 +383,7 @@ class TestHotwordRescanRoute:
 
 
 # ---------------------------------------------------------------------------
-# Stage 2 — LLM-semantic matching
+# Stage 2 - LLM-semantic matching
 # ---------------------------------------------------------------------------
 
 class TestSemanticExcludedFromTextMatching:
@@ -533,7 +533,7 @@ class TestHotwordScanRoute:
 
     def test_scan_applies_semantic_match_and_boost(self, client):
         # The default keyword backend matches "big win" when both content words
-        # appear in the excerpt — no LLM needed.
+        # appear in the excerpt - no LLM needed.
         vid_id, clip_id = self._seed_clip_with_excerpt(client, "That was such a big win, we won it all!")
         client.post("/api/hotwords", json={
             "phrase": "big win", "match_mode": "semantic", "boost": 0.2, "target": "funny", "enabled": True,

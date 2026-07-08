@@ -1,4 +1,4 @@
-"""yuu_clip/analyze/frames.py — frame timestamp maths, clamp, window resolution.
+"""yuu_clip/analyze/frames.py - frame timestamp maths, clamp, window resolution.
 
 The ffmpeg extraction itself isn't exercised here (it needs a real video); the
 timestamp maths and window resolution are pure and are what the correctness of a

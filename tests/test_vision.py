@@ -1,4 +1,4 @@
-"""Image-based clip analysis (plan 11) — prompt assembly, vision clients,
+"""Image-based clip analysis (plan 11) - prompt assembly, vision clients,
 capability gate, and the analyze-frames + include-frames routes."""
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ def _cfg(**overrides):
 
 
 # ---------------------------------------------------------------------------
-# Prompt assembly — visual context block
+# Prompt assembly - visual context block
 # ---------------------------------------------------------------------------
 
 class TestVisualBlock:
@@ -94,7 +94,7 @@ class TestCleanVisionSummary:
 
 
 # ---------------------------------------------------------------------------
-# describe_frames — delegates to the client's chat_vision
+# describe_frames - delegates to the client's chat_vision
 # ---------------------------------------------------------------------------
 
 class TestDescribeFrames:
@@ -113,7 +113,7 @@ class TestDescribeFrames:
         frames = [tmp_path / "a.jpg", tmp_path / "b.jpg"]
         result = llm_mod.describe_frames(frames, _cfg(), context_text="CTX")
         assert result == "A vault heist scene."
-        # Instruction goes in the user turn (no system role — small vision models
+        # Instruction goes in the user turn (no system role - small vision models
         # ignore a system prompt), and world context is prepended.
         assert captured["messages"][0]["role"] == "user"
         assert captured["messages"][0]["content"].startswith("CTX")
@@ -121,7 +121,7 @@ class TestDescribeFrames:
 
 
 # ---------------------------------------------------------------------------
-# check_vision_available — the capability gate routes use
+# check_vision_available - the capability gate routes use
 # ---------------------------------------------------------------------------
 
 class TestCheckVisionAvailable:
@@ -161,7 +161,7 @@ class TestCheckVisionAvailable:
     def test_fresh_install_defaults_are_inactive_not_crashing(self):
         # Wave 6: vision_enabled defaults True, but a fresh install has no vision
         # model downloaded yet. The gate must degrade to "unavailable" with a
-        # plain-English reason — never raise — so a first analyze is silent.
+        # plain-English reason - never raise - so a first analyze is silent.
         from yuu_clip.config import Config
         from yuu_clip.scoring.llm import check_vision_available
         cfg = Config()
@@ -320,7 +320,7 @@ class TestLlamaCppGpuOffload:
 
 
 # ---------------------------------------------------------------------------
-# Routes — analyze-frames + rescore include_frames
+# Routes - analyze-frames + rescore include_frames
 # ---------------------------------------------------------------------------
 
 def _enable_ollama_vision(client: TestClient):
@@ -377,7 +377,7 @@ class TestAnalyzeFramesRoute:
         self, client: TestClient, project_dir: Path, monkeypatch,
     ):
         # If the clip is deleted while the (seconds-long) vision call runs, the
-        # save-back session finds nothing — that must be a clean 404, not a 500.
+        # save-back session finds nothing - that must be a clean 404, not a 500.
         import yuu_clip.analyze.frames as frames_mod
         from yuu_clip.db.models import ClipCandidate, make_session
         _enable_ollama_vision(client)

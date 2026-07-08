@@ -1,4 +1,4 @@
-"""Unit tests — Whisper model loading falls back to CPU when CUDA libraries are missing.
+"""Unit tests - Whisper model loading falls back to CPU when CUDA libraries are missing.
 
 A machine can report a CUDA device (GPU + driver) yet lack the cuBLAS/cuDNN runtime
 libraries CTranslate2 links against, failing with 'cublas64_12.dll is not found'.
@@ -107,7 +107,7 @@ def test_register_cuda_dll_dirs_adds_wheel_bin_dirs(tmp_path, monkeypatch):
     monkeypatch.setattr(whisper_runner.os, "add_dll_directory", lambda p: added.append(p))
 
     whisper_runner._register_cuda_dll_dirs()
-    whisper_runner._register_cuda_dll_dirs()  # idempotent — second call is a no-op
+    whisper_runner._register_cuda_dll_dirs()  # idempotent - second call is a no-op
 
     assert added == [str(cublas_bin), str(cudnn_bin)]
 

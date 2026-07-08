@@ -1,4 +1,4 @@
-"""Playwright UI tests — image-based clip analysis (plan 11).
+"""Playwright UI tests - image-based clip analysis (plan 11).
 
 Covers the "What's on screen" clip-detail card (shown only when the Image
 analysis master switch is on) and the Settings → LLM scoring fields. Read-only

@@ -1,4 +1,4 @@
-"""Pause/resume analysis — flag-file helpers, routes, /api/status, and the CLI
+"""Pause/resume analysis - flag-file helpers, routes, /api/status, and the CLI
 batch-loop poll (yuu_clip/analyze/pause.py, web/routes/analyze.py, cli/analyze.py)."""
 from __future__ import annotations
 
@@ -37,7 +37,7 @@ class TestPauseFlagHelpers:
 
 
 # ---------------------------------------------------------------------------
-# Startup cleanup — a stale flag from a crashed server must not hold the
+# Startup cleanup - a stale flag from a crashed server must not hold the
 # first video of the next run.
 # ---------------------------------------------------------------------------
 
@@ -128,7 +128,7 @@ class TestResumeRoute:
 
 
 # ---------------------------------------------------------------------------
-# /api/status — analyze_paused requires a live job
+# /api/status - analyze_paused requires a live job
 # ---------------------------------------------------------------------------
 
 class TestStatusPausedField:
@@ -154,7 +154,7 @@ class TestStatusPausedField:
 
 
 # ---------------------------------------------------------------------------
-# Cancel while paused — cancel wins, flag removed
+# Cancel while paused - cancel wins, flag removed
 # ---------------------------------------------------------------------------
 
 class TestCancelClearsPauseFlag:
@@ -181,7 +181,7 @@ class TestStartClearsStaleFlag:
 
 
 # ---------------------------------------------------------------------------
-# CLI batch loop — waits while the flag is present, resumes once it's gone
+# CLI batch loop - waits while the flag is present, resumes once it's gone
 # ---------------------------------------------------------------------------
 
 class TestCliPauseLoop:
@@ -207,7 +207,7 @@ class TestCliPauseLoop:
         assert time.monotonic() - start >= 0.1
 
     def test_second_video_processed_after_flag_removed(self, tmp_path):
-        """End-to-end poll contract: the loop must not skip the paused video —
+        """End-to-end poll contract: the loop must not skip the paused video -
         it must still process it once the flag disappears."""
         from yuu_clip.analyze.pause import create_pause_flag, remove_pause_flag
         from yuu_clip.cli.analyze import _wait_while_paused

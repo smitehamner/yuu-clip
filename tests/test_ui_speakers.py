@@ -1,4 +1,4 @@
-"""Playwright UI test — the Speakers card in the recording detail view.
+"""Playwright UI test - the Speakers card in the recording detail view.
 
 The /api/speakers endpoints are mocked via route interception so the test is
 deterministic and needs no diarized data on the live server, but it drives the
@@ -140,7 +140,7 @@ class TestSpeakerNaming:
         name_input.fill("Yuu")
         name_input.blur()
 
-        # The open transcript reloads with the new name — no manual refresh.
+        # The open transcript reloads with the new name - no manual refresh.
         expect(page.locator("#video-transcript-view .tline-speaker").first).to_have_text("Yuu")
 
     def test_voice_match_chip_renders_and_confirm_posts(self, page: Page):
@@ -211,5 +211,5 @@ class TestSpeakerNaming:
             ),
         )
         self._select_first_video(page)
-        # #speakers-section stays present but empty — no card rendered.
+        # #speakers-section stays present but empty - no card rendered.
         expect(page.locator("#speakers-section .detail-card")).to_have_count(0)

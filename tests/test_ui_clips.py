@@ -1,5 +1,5 @@
 """
-Playwright UI tests — clip review workflow, sorting, score override, the
+Playwright UI tests - clip review workflow, sorting, score override, the
 per-clip rescore progress pill, and multi-select bulk clip actions.
 
 Run against the live dev server on port 8080. See tests/conftest.py for shared
@@ -232,7 +232,7 @@ class TestScoreOverrideModal:
 
 
 # ---------------------------------------------------------------------------
-# Per-clip rescore — header progress pill
+# Per-clip rescore - header progress pill
 # ---------------------------------------------------------------------------
 
 @skip_no_server
@@ -240,7 +240,7 @@ class TestRescoreClipProgressPill:
     """Clicking Re-score on a clip shows the header progress pill (startJobUI / endJobUI)."""
 
     def _open_rescore(self, page: Page) -> None:
-        # Stub the rescore SSE response — the real endpoint runs live LLM scoring
+        # Stub the rescore SSE response - the real endpoint runs live LLM scoring
         # and commits new scores to the project DB, which a UI test must not trigger.
         page.route(
             "**/api/clips/*/rescore",
@@ -258,7 +258,7 @@ class TestRescoreClipProgressPill:
     def test_progress_pill_appears_on_rescore(self, page: Page):
         select_first_video_and_clip(page)
         self._open_rescore(page)
-        # startJobUI is synchronous — pill must be visible before the SSE completes
+        # startJobUI is synchronous - pill must be visible before the SSE completes
         expect(page.locator("#job-status")).to_be_visible()
 
     def test_progress_pill_shows_rescore_label(self, page: Page):
@@ -270,14 +270,14 @@ class TestRescoreClipProgressPill:
     def test_progress_pill_disappears_after_job(self, page: Page):
         select_first_video_and_clip(page)
         page.wait_for_selector(".detail", timeout=3000)
-        # Drive startJobUI/endJobUI directly — don't depend on real LLM job duration
+        # Drive startJobUI/endJobUI directly - don't depend on real LLM job duration
         page.evaluate("() => startJobUI(SCORE_STEPS, 'Re-scoring clip')")
         expect(page.locator("#job-status")).to_be_visible()
         page.evaluate("() => endJobUI()")
 
 
 # ---------------------------------------------------------------------------
-# Export modal — caption default
+# Export modal - caption default
 # ---------------------------------------------------------------------------
 
 @skip_no_server
@@ -294,7 +294,7 @@ class TestExportModalDefaults:
 
 
 # ---------------------------------------------------------------------------
-# Export modal — vertical (9:16 Shorts) framing control (plan 06)
+# Export modal - vertical (9:16 Shorts) framing control (plan 06)
 # ---------------------------------------------------------------------------
 
 @skip_no_server
@@ -339,7 +339,7 @@ class TestVerticalFramingControl:
 
 
 # ---------------------------------------------------------------------------
-# Export modal — Auto-frame button (plan 06 stage 2)
+# Export modal - Auto-frame button (plan 06 stage 2)
 # ---------------------------------------------------------------------------
 
 @skip_no_server
@@ -392,7 +392,7 @@ class TestAutoFrameButton:
 
 
 # ---------------------------------------------------------------------------
-# Export modal — Quick/Precise mode summary (M9-1)
+# Export modal - Quick/Precise mode summary (M9-1)
 # ---------------------------------------------------------------------------
 
 @skip_no_server
@@ -491,7 +491,7 @@ class TestBulkToolbar:
 @skip_no_server
 class TestBulkSelectionRespectsFilter:
     """A checked clip hidden by a filter change must not count toward the
-    toolbar or be included if a bulk action ran — only the visible+checked set."""
+    toolbar or be included if a bulk action ran - only the visible+checked set."""
 
     def test_hidden_selection_excluded_from_toolbar(self, page: Page):
         select_video_with_clips(page)
@@ -567,7 +567,7 @@ class TestBulkDelete:
 
 @skip_no_server
 class TestBulkExportStaleWarning:
-    """Bulk export must warn — not silently proceed — when a selected clip's
+    """Bulk export must warn - not silently proceed - when a selected clip's
     transcript was edited since it was last scored."""
 
     def test_stale_clip_shows_warning_before_export(self, page: Page):

@@ -1,10 +1,10 @@
 """
 Terminology and display-convention contract (CC-6 / CC-8 / CC-10).
 
-CC-6: user-facing scores always render as percentages — raw 0-1 fractions
+CC-6: user-facing scores always render as percentages - raw 0-1 fractions
 never appear. CC-8: user-facing labels say "Recording(s)", never "Video(s)"
 (code identifiers keep `video`). CC-10: counts pluralize via the plural()
-helper — no "(s)" shorthand in user-facing strings.
+helper - no "(s)" shorthand in user-facing strings.
 
 Static-file assertions run without a server; behavior tests run against the
 live dev server on port 8080. See tests/conftest.py for shared helpers.
@@ -21,8 +21,8 @@ from playwright.sync_api import Page, expect
 
 @pytest.fixture
 def page(logic_page):
-    """These behavior tests only read the DOM / evaluate ``plural()`` — no
-    mutation — so they share one load-once page (see ``logic_page`` in conftest)
+    """These behavior tests only read the DOM / evaluate ``plural()`` - no
+    mutation - so they share one load-once page (see ``logic_page`` in conftest)
     instead of paying a fresh full page load per test."""
     return logic_page
 
@@ -115,17 +115,17 @@ def test_sidebar_heading_reads_recordings(page: Page):
 
 
 # ---------------------------------------------------------------------------
-# M3-4 / L5-1: the speech-to-text model select is one concept everywhere —
+# M3-4 / L5-1: the speech-to-text model select is one concept everywhere -
 # identical option copy across all five surfaces, "Caption model" label and
 # large-v3 default on the three export/retranscribe surfaces.
 # ---------------------------------------------------------------------------
 
 CANONICAL_MODEL_OPTIONS = {
-    "tiny": "tiny — fastest, lowest quality",
-    "base": "base — fast, lower quality",
-    "small": "small — fast, decent quality (~500 MB VRAM)",
-    "medium": "medium — good balance (~1.5 GB VRAM)",
-    "large-v3": "large-v3 — best quality (~3 GB VRAM)",
+    "tiny": "tiny - fastest, lowest quality",
+    "base": "base - fast, lower quality",
+    "small": "small - fast, decent quality (~500 MB VRAM)",
+    "medium": "medium - good balance (~1.5 GB VRAM)",
+    "large-v3": "large-v3 - best quality (~3 GB VRAM)",
 }
 
 MODEL_SELECT_IDS = [

@@ -1,4 +1,4 @@
-"""API tests — caption segment editing (PUT /api/caption-segments/{id}).
+"""API tests - caption segment editing (PUT /api/caption-segments/{id}).
 
 Covers text update, speaker preservation, excerpt rebuild of overlapping clips,
 re-score staleness flagging, and the seek-offset field for split recordings.

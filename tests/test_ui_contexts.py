@@ -1,12 +1,12 @@
 """
-Playwright UI tests — World Context manager (M9-2, M9-3, M9-4).
+Playwright UI tests - World Context manager (M9-2, M9-3, M9-4).
 
 M9-2: context list rows are real buttons (keyboard-reachable).
 M9-3: shipped contexts are badged "Template", stay editable, hide Delete, and
       offer Reset-to-template + Use-as-base instead.
 M9-4: the Context ID auto-derives from the name while creating a new context.
 
-These tests only inspect the editor DOM — they never Save, Delete, or Reset,
+These tests only inspect the editor DOM - they never Save, Delete, or Reset,
 because the live server persists to the real project's contexts.json.
 """
 from __future__ import annotations
@@ -78,7 +78,7 @@ class TestTemplateEditorActions:
     def test_duplicate_becomes_new_unsaved_copy(self, page: Page):
         _open_manager(page)
         _edit_template(page)
-        # Read live values first — the user may have edited the template's content
+        # Read live values first - the user may have edited the template's content
         original_name = page.eval_on_selector("#ce-display-name", "el => el.value")
         original_setting = page.eval_on_selector("#ce-setting", "el => el.value")
         page.evaluate("duplicateContext()")

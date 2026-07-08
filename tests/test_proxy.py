@@ -1,6 +1,6 @@
 """Unit tests for the 720p preview-proxy helper (analyze/proxy.py).
 
-No real FFmpeg is invoked — the encode runner is stubbed so command shape,
+No real FFmpeg is invoked - the encode runner is stubbed so command shape,
 NVENC→libx264 fallback, cache freshness, and DB bookkeeping are all exercised
 deterministically.
 """

@@ -1,4 +1,4 @@
-"""yuu_clip/scoring/scenes.py — scene-cut detection and scorer."""
+"""yuu_clip/scoring/scenes.py - scene-cut detection and scorer."""
 
 from __future__ import annotations
 
@@ -131,7 +131,7 @@ class TestComputeScenesIdempotent:
         assert result == 0
 
 # ---------------------------------------------------------------------------
-# compute_scenes — transcript mode writes SceneBoundary rows
+# compute_scenes - transcript mode writes SceneBoundary rows
 # ---------------------------------------------------------------------------
 
 class TestComputeScenesTranscriptMode:

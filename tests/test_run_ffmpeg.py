@@ -1,4 +1,4 @@
-"""Unit tests — run_ffmpeg choke-point.
+"""Unit tests - run_ffmpeg choke-point.
 
 Every ffmpeg/ffprobe call outside the analyze pipeline routes through run_ffmpeg so a
 missing binary yields find_ffmpeg's actionable install message (not a bare
@@ -54,7 +54,7 @@ def test_ffprobe_resolves_probe_binary(monkeypatch):
 
 class TestFindFfmpegBundledDir:
     """YUU_CLIP_FFMPEG_DIR is set by packaged (Electron) builds so find_ffmpeg()
-    always resolves the bundled GPL FFmpeg instead of an inherited PATH — see
+    always resolves the bundled GPL FFmpeg instead of an inherited PATH - see
     docs/dev/THIRD-PARTY-NOTICES-FFMPEG.md and electron/main.js spawnBackend()."""
 
     def test_bundled_dir_with_both_binaries_is_used(self, tmp_path, monkeypatch):

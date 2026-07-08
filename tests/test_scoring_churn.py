@@ -1,4 +1,4 @@
-"""yuu_clip/scoring/churn.py — speaker turn-churn / overlap scoring (no model)."""
+"""yuu_clip/scoring/churn.py - speaker turn-churn / overlap scoring (no model)."""
 
 from __future__ import annotations
 
@@ -47,7 +47,7 @@ class TestChurnScore:
         assert self._score(turns, 30.0) is None
 
     def test_no_speakers_returns_none(self):
-        # diarization off — every key None
+        # diarization off - every key None
         turns = [(None, 0, 2000), (None, 2000, 4000)]
         assert self._score(turns, 30.0) is None
 

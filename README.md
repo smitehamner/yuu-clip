@@ -1,6 +1,6 @@
 # yuu-clip
 
-A local-first tool for turning long gaming/session recordings into shareable highlights. It analyzes a recording — transcribes every audio track with Whisper, measures audio energy and scene cuts, and scores clip candidates — then surfaces the best moments in a web review UI for approve/reject and export.
+A local-first tool for turning long gaming/session recordings into shareable highlights. It analyzes a recording - transcribes every audio track with Whisper, measures audio energy and scene cuts, and scores clip candidates - then surfaces the best moments in a web review UI for approve/reject and export.
 
 Everything runs locally. It works out of the box with **no language model at all** (lightweight mode); installing a local model adds richer LLM scoring and descriptions. No cloud APIs are required.
 
@@ -14,7 +14,7 @@ Everything runs locally. It works out of the box with **no language model at all
 - Transcribes with [faster-whisper](https://github.com/SYSTRAN/faster-whisper) (GPU accelerated via CTranslate2)
 - Optionally labels who is speaking (speaker detection) with no account or token required
 - Groups transcript segments into clips using silence gaps
-- Scores clips with a stack of signals that need **no model** — audio energy, scene-cut density, laughter, a curated keyword lexicon, speech-rate bursts, speaker-overlap, and prosody — plus optional heavier tiers (audio-event detection) and, if a model is installed, LLM scoring with a written description
+- Scores clips with a stack of signals that need **no model** - audio energy, scene-cut density, laughter, a curated keyword lexicon, speech-rate bursts, speaker-overlap, and prosody - plus optional heavier tiers (audio-event detection) and, if a model is installed, LLM scoring with a written description
 - Web UI to review clips, approve/reject, edit captions, and export
 - Exports clips via FFmpeg with optional caption (SRT) sidecars or baked-in captions
 - Compiles approved clips into a highlight reel with transitions
@@ -32,19 +32,19 @@ Everything runs locally. It works out of the box with **no language model at all
 
 The installer isn't code-signed yet, so Windows SmartScreen will show a blue
 **"Windows protected your PC"** box that says the publisher is unknown. This is
-expected for a small indie app that hasn't paid for a signing certificate — it is
+expected for a small indie app that hasn't paid for a signing certificate - it is
 not a virus warning. To continue:
 
 1. Click **More info**.
 2. Click **Run anyway**.
 
 If your antivirus quarantines the installer or a file during setup, allow/restore it
-and run again — the app bundles Python, FFmpeg, and (on first launch) installs its
+and run again - the app bundles Python, FFmpeg, and (on first launch) installs its
 dependencies from files inside the installer, which some antivirus tools flag by
 reputation. Everything runs locally; nothing is uploaded.
 
 If the first-run setup ever fails, the setup log is at
-`%APPDATA%\yuu-clip\yuu-clip_install.log` — send it along when reporting a problem.
+`%APPDATA%\yuu-clip\yuu-clip_install.log` - send it along when reporting a problem.
 
 ---
 
@@ -63,12 +63,12 @@ sudo apt install ffmpeg           # Ubuntu/Debian
 winget install Python.Python.3.12   # Windows
 ```
 
-### A language model — optional
+### A language model - optional
 LLM scoring and written clip descriptions are optional. Without a model, yuu-clip still finds and scores clips using the no-model signals above. To enable LLM scoring, pick a backend in the setup wizard or Settings:
 
-- **Local model file (default)** — a local `.gguf` run via llama.cpp. The desktop app can download a recommended, monetization-safe model for you.
-- **Ollama** — if you already run [Ollama](https://ollama.ai): `ollama pull qwen2.5:7b`, and keep `ollama serve` running during analysis.
-- **Claude API** — remote, billed per token.
+- **Local model file (default)** - a local `.gguf` run via llama.cpp. The desktop app can download a recommended, monetization-safe model for you.
+- **Ollama** - if you already run [Ollama](https://ollama.ai): `ollama pull qwen2.5:7b`, and keep `ollama serve` running during analysis.
+- **Claude API** - remote, billed per token.
 
 ---
 
@@ -134,8 +134,8 @@ For best results, install CUDA drivers for your GPU. The tool automatically uses
 
 | Model    | VRAM   | Speed (GPU) | Notes                        |
 |----------|--------|-------------|------------------------------|
-| tiny     | ~0.5 GB | Very fast  | Rough — good for scouting    |
-| base     | ~1 GB   | Fast       | Default — decent quality     |
+| tiny     | ~0.5 GB | Very fast  | Rough - good for scouting    |
+| base     | ~1 GB   | Fast       | Default - decent quality     |
 | small    | ~2 GB   | Fast       | Good balance                 |
 | medium   | ~5 GB   | Moderate   | Great for noisy audio        |
 | large-v3 | ~10 GB  | Moderate   | Best quality                 |

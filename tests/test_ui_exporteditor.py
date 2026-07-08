@@ -1,5 +1,5 @@
 """
-Playwright UI tests — clip export editor (exporteditor.js).
+Playwright UI tests - clip export editor (exporteditor.js).
 
 Every endpoint the editor touches is mocked so the tests are deterministic and
 never PATCH a real clip or run a live ffmpeg export against the project's actual

@@ -1,5 +1,5 @@
 """
-Playwright UI tests — clip review workflow (continued from test_ui_clips.py):
+Playwright UI tests - clip review workflow (continued from test_ui_clips.py):
 export staleness, preset/format pickers, retranscribe refresh, keyboard nav,
 tags, per-clip detail cards, playback options, and description chips.
 
@@ -24,7 +24,7 @@ from conftest import (
 from playwright.sync_api import Page, expect
 
 # ---------------------------------------------------------------------------
-# Plan 02 (staleness) — "Stale — re-export to update" badge on an exported
+# Plan 02 (staleness) - "Stale - re-export to update" badge on an exported
 # clip's file (export_stale), distinct from transcript_stale above (which is
 # about scores/descriptions vs. the transcript, not the exported file).
 # ---------------------------------------------------------------------------
@@ -66,7 +66,7 @@ class TestExportStaleBadge:
             renderDetail(AppState.activeClipData);
         }""")
         detail = page.locator("#detail")
-        expect(detail).to_contain_text("Stale — re-export to update")
+        expect(detail).to_contain_text("Stale - re-export to update")
         expect(detail).to_contain_text("clip window changed")
 
     def test_detail_panel_no_stale_note_when_not_stale(self, page: Page):
@@ -83,7 +83,7 @@ class TestExportStaleBadge:
 
 
 # ---------------------------------------------------------------------------
-# Export presets — Plan 07 Stage 3 (preset picker + per-format export rows)
+# Export presets - Plan 07 Stage 3 (preset picker + per-format export rows)
 # ---------------------------------------------------------------------------
 
 @skip_no_server
@@ -130,7 +130,7 @@ class TestExportPresetPicker:
 @skip_no_server
 class TestMultiFormatExportRows:
     """One row per clip_exports entry in the detail panel's Export section
-    (synthetic AppState.activeClipData — the established renderDetail pattern
+    (synthetic AppState.activeClipData - the established renderDetail pattern
     above; no real exported files needed)."""
 
     def _clip_with_formats(self, clip_id, exports):
@@ -259,7 +259,7 @@ class TestGlobalKeyboardGuard:
         page.on("request", lambda r: delete_requests.append(r) if "bulk-delete" in r.url else None)
         page.click(".clip-bulk-actions button:has-text('Delete')")
         page.wait_for_selector("#confirm-modal.visible", timeout=2000)
-        # showConfirm moves focus onto the Cancel <button> ~50ms after opening —
+        # showConfirm moves focus onto the Cancel <button> ~50ms after opening -
         # exactly where a keyboard user is when they press Escape.
         page.wait_for_function(
             "document.activeElement === document.getElementById('confirm-cancel-btn')",
@@ -288,7 +288,7 @@ class TestGlobalKeyboardGuard:
 
     def test_shortcut_acts_on_focused_clip_row_not_active_clip(self, page: Page):
         # 'A' pressed while keyboard focus sits on a different clip row must
-        # act on the focused row — not silently mutate the active clip.
+        # act on the focused row - not silently mutate the active clip.
         select_first_video_and_clip(page)
         page.wait_for_selector(".clip-actions", timeout=5000)
         if page.evaluate("() => AppState.clips.length") < 2:
@@ -414,7 +414,7 @@ def test_detail_cards_row_wraps():
 @skip_no_server
 class TestGeneratedTags:
     """M4-1: generated (pipeline) tags render inside the Tags card as read-only
-    pills with display names — internal tokens never leak, and bookkeeping
+    pills with display names - internal tokens never leak, and bookkeeping
     tags (scorer-ran markers) are hidden entirely."""
 
     def _render_with_tags(self, page: Page, tags: list):
@@ -493,8 +493,8 @@ class TestClipDetailCards:
 
 @skip_no_server
 class TestClipActionsModalGroups:
-    """L4-1: the clip Additional Actions modal groups actions by what they do —
-    Scoring / Transcript / Discover — not under a catch-all "Regenerate"."""
+    """L4-1: the clip Additional Actions modal groups actions by what they do -
+    Scoring / Transcript / Discover - not under a catch-all "Regenerate"."""
 
     def test_groups_are_scoring_transcript_discover(self, page: Page):
         select_first_video_and_clip(page)
@@ -506,7 +506,7 @@ class TestClipActionsModalGroups:
             }"""
         )
         page.wait_for_selector("#actions-modal.visible", timeout=2000)
-        # text_content, not inner_text — .section-title is CSS-uppercased
+        # text_content, not inner_text - .section-title is CSS-uppercased
         headings = page.locator("#actions-modal-body .section-title").all_text_contents()
         assert "Regenerate" not in headings
         assert {"Scoring", "Transcript", "Discover"} <= set(headings)
@@ -537,7 +537,7 @@ class TestClipActionsModalGroups:
     def test_merge_confirm_can_be_cancelled_without_merging(self, page: Page):
         """Smoke test: the merge action prompts
         for confirmation and Cancel does not call the (destructive) merge route.
-        Uses fake clip IDs, matching test_merge_row_description_is_truncated above —
+        Uses fake clip IDs, matching test_merge_row_description_is_truncated above -
         merge permanently deletes a clip, so the round trip that actually executes
         it is exercised only against a disposable fixture DB, in
         tests/test_videos.py::TestMergeClips."""
@@ -592,7 +592,7 @@ class TestClipFilterChips:
 
 
 # ---------------------------------------------------------------------------
-# Quick-wins Stage 1 — J/K navigation, clip stats line, shortcut hint,
+# Quick-wins Stage 1 - J/K navigation, clip stats line, shortcut hint,
 # Electron-only Refresh hamburger item
 # ---------------------------------------------------------------------------
 
@@ -647,7 +647,7 @@ class TestClipStatsLine:
 
     def test_stats_line_total_duration_is_nonzero(self, page: Page):
         # Regression: the total summed c.end_s - c.start_s, but clips carry
-        # start_ms/end_ms — every term was NaN, so a list of real clips still
+        # start_ms/end_ms - every term was NaN, so a list of real clips still
         # read "0 sec total". Compare against the ms-based duration.
         select_video_with_clips(page)
         page.wait_for_selector("#clip-stats-line", state="visible", timeout=3000)
@@ -704,7 +704,7 @@ class TestRefreshHamburgerItem:
 
 
 # ---------------------------------------------------------------------------
-# Quick-wins Stage 2 — playback options (play-next, loop clip)
+# Quick-wins Stage 2 - playback options (play-next, loop clip)
 # ---------------------------------------------------------------------------
 
 @skip_no_server
@@ -747,13 +747,13 @@ class TestPlaybackOptions:
 
 
 # ---------------------------------------------------------------------------
-# Quick-wins Stage 3 — copy-to-clipboard
+# Quick-wins Stage 3 - copy-to-clipboard
 # ---------------------------------------------------------------------------
 
 @skip_no_server
 class TestCopyToClipboard:
     """navigator.clipboard.writeText is stubbed for deterministic assertions
-    across xdist workers — a real clipboard read races with OS clipboard state
+    across xdist workers - a real clipboard read races with OS clipboard state
     shared by other workers."""
 
     def _stub_clipboard(self, page: Page) -> None:
@@ -813,7 +813,7 @@ class TestCopyToClipboard:
 
 
 # ---------------------------------------------------------------------------
-# Quick-wins Stage 4 — show in folder (Explorer reveal)
+# Quick-wins Stage 4 - show in folder (Explorer reveal)
 # ---------------------------------------------------------------------------
 
 @skip_no_server
@@ -864,7 +864,7 @@ class TestClipShowInFolder:
 
 
 # ---------------------------------------------------------------------------
-# Quick-wins Stage 6 — batch processing status panel
+# Quick-wins Stage 6 - batch processing status panel
 # ---------------------------------------------------------------------------
 
 @skip_no_server
@@ -898,12 +898,12 @@ class TestClipFilterCounts:
 class TestBasicDescriptionChip:
     """The 'Basic description' nudge under a clip whose one-liner is the non-LLM
     template fallback (tagged desc_basic). Synthetic clip via renderDetail, the same
-    pattern as TestMultiFormatExportRows above — no analyze run needed."""
+    pattern as TestMultiFormatExportRows above - no analyze run needed."""
 
     def _clip(self, clip_id, tags):
         return {
             "id": clip_id, "start_hms": "0:00", "duration_hms": "0:30",
-            "description": "Yuu & Alex — heist, getaway", "description_is_edited": False,
+            "description": "Yuu & Alex - heist, getaway", "description_is_edited": False,
             "description_long": "", "description_long_is_edited": False,
             "status": "pending", "tags": tags, "user_tags": [],
             "start_offset": 0, "end_offset": 0, "has_export": False, "exports": [],

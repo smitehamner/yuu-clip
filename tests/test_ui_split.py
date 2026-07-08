@@ -1,5 +1,5 @@
 """
-Playwright UI tests — Split Editor pass (H6-1, H6-2, M6-1/2/3/4, L6-1/2/3/4).
+Playwright UI tests - Split Editor pass (H6-1, H6-2, M6-1/2/3/4, L6-1/2/3/4).
 
 Covers the marker × remove affordance, the overlay legend, the re-analyze
 consequence confirm + danger styling, the Back dirty guard, disabled Confirm
@@ -7,7 +7,7 @@ with no split points, invalid boundary-time feedback, shared instruction copy,
 and the re-analyze parameter builder that reuses the original run's settings.
 
 All tests are non-destructive: no split is ever confirmed against the live
-server — confirms are cancelled and editors closed via the discard path.
+server - confirms are cancelled and editors closed via the discard path.
 
 Run against the live dev server on port 8080. See tests/conftest.py for shared
 helpers.
@@ -48,7 +48,7 @@ def split_editor(page: Page):
 @skip_no_server
 class TestSplitMarkers:
     def test_confirm_disabled_until_a_point_is_placed(self, split_editor: Page):
-        # L6-2 — "Split only" with zero points is a no-op; Confirm must be
+        # L6-2 - "Split only" with zero points is a no-op; Confirm must be
         # disabled until at least one split point exists.
         confirm = split_editor.locator("#btn-split-confirm")
         expect(confirm).to_be_disabled()
@@ -56,7 +56,7 @@ class TestSplitMarkers:
         expect(confirm).to_be_enabled()
 
     def test_marker_x_button_removes_the_point(self, split_editor: Page):
-        # H6-1 — each marker carries an explicit × remove button (hover-visible).
+        # H6-1 - each marker carries an explicit × remove button (hover-visible).
         _place_split_point(split_editor)
         marker = split_editor.locator("#split-markers-layer .split-marker")
         marker.hover()
@@ -65,7 +65,7 @@ class TestSplitMarkers:
         expect(split_editor.locator("#btn-split-confirm")).to_be_disabled()
 
     def test_clicking_a_marker_body_keeps_it(self, split_editor: Page):
-        # H6-1 — click-on-marker seeks the preview; it must NOT remove the
+        # H6-1 - click-on-marker seeks the preview; it must NOT remove the
         # marker (removal is only via the × button).
         _place_split_point(split_editor)
         marker = split_editor.locator("#split-markers-layer .split-marker")
@@ -73,7 +73,7 @@ class TestSplitMarkers:
         expect(split_editor.locator("#split-markers-layer .split-marker")).to_have_count(1)
 
     def test_back_button_guards_placed_points(self, split_editor: Page):
-        # M6-3 — Back gets the same dirty guard as sidebar navigation.
+        # M6-3 - Back gets the same dirty guard as sidebar navigation.
         _place_split_point(split_editor)
         split_editor.click("#panelnav-breadcrumb button:has-text('Back')")
         expect(split_editor.locator("#confirm-modal")).to_be_visible()
@@ -91,7 +91,7 @@ class TestSplitActions:
         assert options.get_attribute("aria-label")
 
     def test_reanalyze_selection_styles_confirm_as_danger(self, split_editor: Page):
-        # M6-2 — destructive choice gets destructive treatment.
+        # M6-2 - destructive choice gets destructive treatment.
         confirm = split_editor.locator("#btn-split-confirm")
         expect(confirm).not_to_have_class(re.compile(r"\bdanger\b"))
         split_editor.check("input[name='split-action'][value='reanalyze-all']")
@@ -100,7 +100,7 @@ class TestSplitActions:
         expect(confirm).not_to_have_class(re.compile(r"\bdanger\b"))
 
     def test_reanalyze_confirm_states_consequence_and_cancel_is_safe(self, split_editor: Page):
-        # M6-2 — confirming a re-analyze option first shows the concrete
+        # M6-2 - confirming a re-analyze option first shows the concrete
         # consequence; cancelling fires no split/clear/analyze request.
         _place_split_point(split_editor)
         split_editor.check("input[name='split-action'][value='reanalyze-all']")
@@ -117,7 +117,7 @@ class TestSplitActions:
         )
 
     def test_action_resets_to_partition_on_reopen(self, split_editor: Page):
-        # M6-2 — a previously chosen destructive option must not silently
+        # M6-2 - a previously chosen destructive option must not silently
         # persist into the next editing session.
         split_editor.check("input[name='split-action'][value='reanalyze-all']")
         split_editor.evaluate("closeSplitEditor()")
@@ -133,14 +133,14 @@ class TestSplitActions:
 @skip_no_server
 class TestSplitLegendAndLayout:
     def test_overlay_legend_is_visible(self, split_editor: Page):
-        # M6-1 — the five overlay vocabularies are named without hovering.
+        # M6-1 - the five overlay vocabularies are named without hovering.
         legend = split_editor.locator("#split-legend")
         expect(legend).to_be_visible()
         for term in ("Split point", "Suggested split", "Scene cut", "Existing clip", "Segment"):
             expect(legend).to_contain_text(term)
 
     def test_timeline_bars_do_not_flex_shrink(self, page: Page):
-        # M6-4 — the timeline must keep its height as the segment list grows.
+        # M6-4 - the timeline must keep its height as the segment list grows.
         # For the main editor the flex child is now the zoom scroll wrapper
         # (the bar lives inside it); the pre-split bar is still a direct child.
         for element_id in ("split-timeline-scroll", "pre-split-timeline-bar"):
@@ -150,7 +150,7 @@ class TestSplitLegendAndLayout:
             assert shrink == "0", f"#{element_id} flex-shrink is {shrink}, expected 0"
 
     def test_instruction_copy_shared_between_editors(self, page: Page):
-        # L6-3 + H6-1 — one base string in both editors, teaching the × remove
+        # L6-3 + H6-1 - one base string in both editors, teaching the × remove
         # affordance instead of the wrong "click a marker to remove it".
         pre_text = page.locator("#pre-split-instructions").text_content()
         main_text = page.locator("#split-instructions").text_content()
@@ -197,7 +197,7 @@ class TestSplitTimelineZoom:
 @skip_no_server
 class TestSplitTimeEdits:
     def test_invalid_time_entry_shows_error_and_reverts(self, split_editor: Page):
-        # L6-1 — a bad h:mm:ss entry explains itself instead of silently
+        # L6-1 - a bad h:mm:ss entry explains itself instead of silently
         # snapping back.
         _place_split_point(split_editor)
         end_input = split_editor.locator(
@@ -223,7 +223,7 @@ class TestSplitTimeEdits:
 
 @skip_no_server
 class TestReanalyzeParams:
-    """H6-2 — split re-analysis reuses the original run's recorded parameters
+    """H6-2 - split re-analysis reuses the original run's recorded parameters
     (Video.analyze_run.settings) and falls back to config defaults."""
 
     _RECORDED = {

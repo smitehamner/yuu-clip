@@ -40,14 +40,14 @@ class TestFetchScriptAndNoticesAgree:
         version = _pinned_ffmpeg_version()
         assert version in _notices_text(), (
             f"fetch-ffmpeg-runtime.ps1 pins FFmpeg {version} but "
-            f"THIRD-PARTY-NOTICES-FFMPEG.md doesn't mention it — update the notices doc"
+            f"THIRD-PARTY-NOTICES-FFMPEG.md doesn't mention it - update the notices doc"
         )
 
     def test_notices_doc_records_the_pinned_binary_hash(self):
         sha256 = _pinned_binary_sha256()
         assert sha256 in _notices_text(), (
             "fetch-ffmpeg-runtime.ps1's pinned binary SHA256 isn't recorded in "
-            "THIRD-PARTY-NOTICES-FFMPEG.md — update the notices doc"
+            "THIRD-PARTY-NOTICES-FFMPEG.md - update the notices doc"
         )
 
 
@@ -58,7 +58,7 @@ class TestNoNonfreeComponents:
 
     def test_pinned_asset_is_not_named_as_a_nonfree_build(self):
         # gyan.dev/BtbN both name nonfree-enabled assets with "nonfree" in the
-        # filename/tag — the one mechanical signal available without actually
+        # filename/tag - the one mechanical signal available without actually
         # downloading and inspecting the binary's build config.
         for identifier in _pinned_asset_identifiers():
             assert "nonfree" not in identifier.lower(), (
@@ -68,5 +68,5 @@ class TestNoNonfreeComponents:
     def test_notices_doc_records_no_nonfree_components(self):
         assert re.search(r"Nonfree components\s*\|\s*\*\*None\*\*", _notices_text()), (
             "THIRD-PARTY-NOTICES-FFMPEG.md's 'Nonfree components' row must read "
-            "'**None**' — update it (and re-verify the pinned build) if this changed"
+            "'**None**' - update it (and re-verify the pinned build) if this changed"
         )

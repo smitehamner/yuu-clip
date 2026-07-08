@@ -1,4 +1,4 @@
-﻿# lock-deps.ps1 — regenerate requirements.lock, the pinned base-runtime dependency
+﻿# lock-deps.ps1 - regenerate requirements.lock, the pinned base-runtime dependency
 # set the packaged installer constrains user installs to (reproducible installs).
 #
 # Run this whenever the base dependencies in pyproject.toml change. It resolves the

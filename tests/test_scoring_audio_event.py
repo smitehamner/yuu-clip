@@ -1,4 +1,4 @@
-"""yuu_clip/scoring/audio_event.py — AudioSet sound-event scoring (classifier mocked)."""
+"""yuu_clip/scoring/audio_event.py - AudioSet sound-event scoring (classifier mocked)."""
 
 from __future__ import annotations
 
@@ -89,7 +89,7 @@ def _clip(start_ms=0, end_ms=3000):
 
 
 def _scorer_with_classifier(classifier):
-    """A scorer whose WAV read and classifier are stubbed — no model download, no disk."""
+    """A scorer whose WAV read and classifier are stubbed - no model download, no disk."""
     scorer = _make_scorer()
     scorer._get_classifier = lambda: classifier
     scorer._wav_cache = mock.MagicMock()
@@ -141,7 +141,7 @@ class TestScore:
         assert "audio_event_no_wav" in result.tags
 
     def test_model_load_failure_never_raises_and_is_cached(self):
-        """The AST model is a Tier-B download — an offline machine without it
+        """The AST model is a Tier-B download - an offline machine without it
         cached must skip the audio-event boost for every clip in the run, not
         retry the same doomed fetch (and its network timeout) per clip."""
         scorer = _make_scorer()
@@ -195,6 +195,6 @@ class TestPrefetchAudioEventModel:
 def test_prewarm_transformers_pipeline_never_raises():
     """Best-effort: pre-warming must swallow any import failure (transformers is
     absent in the test venv, exercising exactly that path) so it can never break
-    an analyze run — the scorer's own load guard is the real safety net."""
+    an analyze run - the scorer's own load guard is the real safety net."""
     from yuu_clip.scoring.audio_event import prewarm_transformers_pipeline
     prewarm_transformers_pipeline()

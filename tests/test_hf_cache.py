@@ -66,7 +66,7 @@ class TestRepoCached:
 
     def test_false_on_unexpected_scan_error(self, monkeypatch):
         """Never let a huggingface_hub internals change turn a cheap status
-        check into a hard failure — degrade to "not cached" instead."""
+        check into a hard failure - degrade to "not cached" instead."""
         import huggingface_hub
 
         def _raise(cache_dir=None):

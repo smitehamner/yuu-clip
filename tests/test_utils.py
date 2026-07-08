@@ -128,7 +128,7 @@ class TestFormatDuration:
 
 
 # ---------------------------------------------------------------------------
-# analyze/probe.py — _parse_fps
+# analyze/probe.py - _parse_fps
 # ---------------------------------------------------------------------------
 
 class TestParseFps:
@@ -262,7 +262,7 @@ class TestClipEffectiveProperties:
 
 
 # ---------------------------------------------------------------------------
-# common.py — json_list
+# common.py - json_list
 # ---------------------------------------------------------------------------
 
 class TestJsonList:
@@ -286,7 +286,7 @@ class TestJsonList:
 
 
 # ---------------------------------------------------------------------------
-# Preview cache invalidation — regression test
+# Preview cache invalidation - regression test
 # ---------------------------------------------------------------------------
 
 class TestPreviewCacheInvalidation:
@@ -312,7 +312,7 @@ class TestPreviewCacheInvalidation:
         fake_preview.write_bytes(b"old preview content")
         preview_cache[clip_id] = fake_preview
 
-        # Update clip timing — this must evict the cache entry and delete the file.
+        # Update clip timing - this must evict the cache entry and delete the file.
         r = client.patch(f"/api/clips/{clip_id}/timing",
                          json={"start_offset": 2.0, "end_offset": -1.0})
         assert r.status_code == 200

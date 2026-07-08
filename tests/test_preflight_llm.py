@@ -1,4 +1,4 @@
-"""Unit tests — pre-flight LLM availability warning.
+"""Unit tests - pre-flight LLM availability warning.
 
 When LLM scoring is requested but the backend isn't reachable, the pipeline should
 warn up front (before the slow transcription) so the user can start the LLM engine,

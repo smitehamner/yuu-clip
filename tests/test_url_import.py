@@ -1,4 +1,4 @@
-"""Import from URL (roadmap plan 08) — validation, metadata inspection, filename
+"""Import from URL (roadmap plan 08) - validation, metadata inspection, filename
 sanitization, progress-line parsing, sidecar handoff, and the API routes.
 
 No real network calls: yt-dlp is always mocked.
@@ -448,7 +448,7 @@ class TestImportUrlRoutes:
 
     def test_status_reports_import_running_when_queued(self, client):
         # import_running flips true as soon as a download is queued (/start), even
-        # before /events launches the subprocess — any_running only reflects it once
+        # before /events launches the subprocess - any_running only reflects it once
         # the SSE stream is live (active_jobs), covered by the subprocess_sse tests.
         client.post("/api/import-url/start", json={"url": "https://www.youtube.com/watch?v=vid1"})
         r = client.get("/api/status")

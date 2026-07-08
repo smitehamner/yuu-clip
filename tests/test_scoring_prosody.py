@@ -1,4 +1,4 @@
-"""yuu_clip/scoring/prosody.py — vocal delivery dynamics scoring (numpy/av)."""
+"""yuu_clip/scoring/prosody.py - vocal delivery dynamics scoring (numpy/av)."""
 
 from __future__ import annotations
 

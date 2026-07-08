@@ -45,7 +45,7 @@ class TestCropXFromFaceCenter:
         assert crop_x_from_face_center(0.5, 0, 0) == pytest.approx(0.5)
 
     def test_source_narrower_than_9_16_returns_center(self):
-        # 480x1080 is taller than 9:16 — no horizontal slack, so centering is moot.
+        # 480x1080 is taller than 9:16 - no horizontal slack, so centering is moot.
         assert crop_x_from_face_center(0.2, 480, 1080) == 0.5
 
 

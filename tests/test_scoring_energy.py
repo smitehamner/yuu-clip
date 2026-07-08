@@ -1,13 +1,13 @@
-"""yuu_clip/scoring/energy.py — audio energy scorer."""
+"""yuu_clip/scoring/energy.py - audio energy scorer."""
 
 from __future__ import annotations
 
 # ---------------------------------------------------------------------------
-# AudioEnergyScorer — boundary test
+# AudioEnergyScorer - boundary test
 # ---------------------------------------------------------------------------
 
 class TestEnergyBoundary:
-    """AudioEnergyScorer clips window is [start_s, end_s) — end second is excluded."""
+    """AudioEnergyScorer clips window is [start_s, end_s) - end second is excluded."""
 
     def test_energy_query_excludes_end_second(self):
         """When the only energy row sits at second_offset == end_s (outside the window),
@@ -53,7 +53,7 @@ class TestEnergyBoundary:
                 session.add(AudioEnergy(
                     audio_track_id=track.id,
                     second_offset=120,  # == end_s, must be excluded
-                    rms_db=10.0,        # loud — would boost score if incorrectly included
+                    rms_db=10.0,        # loud - would boost score if incorrectly included
                 ))
                 session.commit()
 
@@ -74,7 +74,7 @@ class TestEnergyBoundary:
         )
 
 # ---------------------------------------------------------------------------
-# AudioEnergyScorer — no-scorable-tracks path
+# AudioEnergyScorer - no-scorable-tracks path
 # ---------------------------------------------------------------------------
 
 class TestAudioEnergyScorerNoTracks:
@@ -125,7 +125,7 @@ class TestAudioEnergyScorerNoTracks:
         assert AudioEnergyScorer(config).is_available() is False
 
 # ---------------------------------------------------------------------------
-# AudioEnergyScorer — happy path
+# AudioEnergyScorer - happy path
 # ---------------------------------------------------------------------------
 
 class TestAudioEnergyScorerHappyPath:
@@ -151,7 +151,7 @@ class TestAudioEnergyScorerHappyPath:
         session.flush()
 
         # Populate the whole track with mostly quiet rows, and louder rows in
-        # [loud_start, loud_end) — these are the ones the clip window covers.
+        # [loud_start, loud_end) - these are the ones the clip window covers.
         for s in range(n_rows):
             db = loud_db if loud_start <= s < loud_end else quiet_db
             session.add(AudioEnergy(audio_track_id=track.id, second_offset=s, rms_db=db))
@@ -239,11 +239,11 @@ class TestAudioEnergyScorerHappyPath:
         finally:
             session.close()
 
-        # Score should be 0.0 (below baseline) — quiet clip in a loud video
+        # Score should be 0.0 (below baseline) - quiet clip in a loud video
         assert result.score_action == 0.0
 
 # ---------------------------------------------------------------------------
-# AudioEnergy — weighted per-second series and baseline
+# AudioEnergy - weighted per-second series and baseline
 # ---------------------------------------------------------------------------
 
 class TestEnergyWeightedSeries:

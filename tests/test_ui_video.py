@@ -1,5 +1,5 @@
 """
-Playwright UI tests — per-video summary regeneration confirm flow, the
+Playwright UI tests - per-video summary regeneration confirm flow, the
 run-timing provenance line in the World Contexts section, and the video-level
 Additional Actions modal.
 
@@ -58,7 +58,7 @@ class TestRunTimingProvenanceLine:
 
 @skip_no_server
 class TestAnalysisLivePanel:
-    """The in-detail live panel mirrors the header bar — it has a Cancel button
+    """The in-detail live panel mirrors the header bar - it has a Cancel button
     and shows the same per-step progress fill."""
 
     def test_panel_has_cancel_button(self, page: Page):
@@ -322,7 +322,7 @@ class TestVideoActionsModal:
 
     def test_closing_modal_does_not_trigger_any_action(self, page: Page):
         # Clicking the close (X) button must dismiss the modal without invoking
-        # any row's action — only clicking a row itself should fire its action.
+        # any row's action - only clicking a row itself should fire its action.
         select_video_with_clips(page)
         page.click(".vid-actions button:has-text('Additional Actions')")
         page.wait_for_selector("#actions-modal.visible", timeout=2000)
@@ -333,7 +333,7 @@ class TestVideoActionsModal:
         assert not any("rescore" in u or "reanalyze" in u or "delete" in u for u in requests)
 
     def test_selecting_a_row_closes_modal_and_invokes_action(self, page: Page):
-        # Split Recording opens the split editor panel — a safe, non-destructive
+        # Split Recording opens the split editor panel - a safe, non-destructive
         # action to verify the row's onclick actually fires (closeActionsModal()
         # runs first, then row.action()).
         select_video_with_clips(page)
@@ -346,7 +346,7 @@ class TestVideoActionsModal:
 
 @skip_no_server
 class TestVideoShowInFolder:
-    """Quick-wins Stage 4 — Explorer reveal button on the recording detail's
+    """Quick-wins Stage 4 - Explorer reveal button on the recording detail's
     source-file row."""
 
     def test_button_visible_and_posts_reveal_with_video_path(self, page: Page):
@@ -373,7 +373,7 @@ class TestVideoShowInFolder:
 
 @skip_no_server
 class TestNativeMediaProtocolUrlBuilder:
-    """Roadmap plan 10 — utils.js:_buildMediaUrl is the single point that picks
+    """Roadmap plan 10 - utils.js:_buildMediaUrl is the single point that picks
     between the packaged app's native "yuu-media://" scheme and the unchanged
     HTTP route. Playwright can't exercise the real Electron protocol handler
     (electron/main.js), so this only covers the URL-builder logic itself, with

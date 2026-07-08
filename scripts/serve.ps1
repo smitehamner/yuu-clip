@@ -8,7 +8,7 @@ $Log      = Join-Path $RepoRoot ".yuu-clip\yuu-clip.log"
 # Kill every serve process for this project, not just the one bound to :8080.
 # The venv python.exe is a launcher stub that spawns a worker child (both carry
 # the same command line), and a worker that loses the port race can orphan and
-# keep an export file open — which blocks deletes. Matching on the command line
+# keep an export file open - which blocks deletes. Matching on the command line
 # clears parent, child, and any stray so each start is from a clean slate.
 $serveProcs = Get-CimInstance Win32_Process -Filter "name='python.exe'" |
     Where-Object { $_.CommandLine -like "*yuu_clip.cli serve*" -and $_.CommandLine -like "*$RepoRoot*" }
@@ -42,6 +42,6 @@ $psi.UseShellExecute = $true
 
 Write-Host "Server starting..." -ForegroundColor Cyan
 Start-Sleep -Seconds 2
-# -Encoding UTF8 so PowerShell 5.1 doesn't decode the log's em-dashes as cp1252
-# (the file is BOM-less UTF-8; without this "—" prints as "â€”").
+# -Encoding UTF8 so PowerShell 5.1 doesn't decode the log's non-ASCII characters
+# (arrows, checkmarks) as cp1252 mojibake (the file is BOM-less UTF-8).
 Get-Content $Log -Tail 3 -Encoding UTF8

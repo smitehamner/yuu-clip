@@ -19,7 +19,7 @@ Push-Location $RepoRoot
 $testExitCode = 0
 try {
     $env:PYTHONUNBUFFERED = "1"
-    # Exclude the Playwright UI suite (test_ui_*.py) — those need a live server
+    # Exclude the Playwright UI suite (test_ui_*.py) - those need a live server
     # and belong to test-ui.ps1. This keeps test-api.ps1 fast and server-free.
     # pytest-xdist writes "bringing up nodes..." to stderr; 2>&1 merges it, and
     # under $ErrorActionPreference='Stop' PS 5.1 promotes that merged stderr to a

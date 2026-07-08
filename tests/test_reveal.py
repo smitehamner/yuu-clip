@@ -1,7 +1,7 @@
 """
 Reveal-in-Explorer route (yuu_clip/web/routes/reveal.py).
 
-subprocess.Popen is patched in every accepted-path test — this must never
+subprocess.Popen is patched in every accepted-path test - this must never
 actually spawn Explorer during a test run.
 """
 from __future__ import annotations

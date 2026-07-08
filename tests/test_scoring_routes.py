@@ -1,4 +1,4 @@
-"""yuu_clip/web/routes/scoring.py — route guards and pure helpers.
+"""yuu_clip/web/routes/scoring.py - route guards and pure helpers.
 
 (_ms_to_hms is covered in test_utils.py.)
 """
@@ -93,7 +93,7 @@ class TestRedescribeClipsGuard:
     def test_redescribe_503_when_llm_disabled(self, client):
         vid_id = client.get("/api/videos").json()[0]["id"]
         r = client.get(f"/api/videos/{vid_id}/redescribe-clips")
-        # Default config has ollama_enabled=True but no real backend — check_llm_available
+        # Default config has ollama_enabled=True but no real backend - check_llm_available
         # returns False → 503
         assert r.status_code == 503
 
@@ -103,7 +103,7 @@ class TestRedescribeClipsGuard:
 
 
 # ---------------------------------------------------------------------------
-# needs_model empty state (Stage 02) — summary/timeline without a language model
+# needs_model empty state (Stage 02) - summary/timeline without a language model
 # ---------------------------------------------------------------------------
 
 def _seed_transcript(project_dir):

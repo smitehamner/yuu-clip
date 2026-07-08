@@ -67,7 +67,7 @@ class TestPyannoteAvailable:
 
 
 # ---------------------------------------------------------------------------
-# PyannoteDiarizationClient.diarize() — regression guard for the from_pretrained
+# PyannoteDiarizationClient.diarize() - regression guard for the from_pretrained
 # keyword. pyannote.audio 4.x renamed `use_auth_token` to `token`; passing the
 # old name raised TypeError and silently disabled speaker labels for every run.
 # ---------------------------------------------------------------------------
@@ -301,7 +301,7 @@ class TestPyannoteDiarize:
 
 
 # ---------------------------------------------------------------------------
-# Retranscribe diarization — clip-window turns must be shifted to absolute time
+# Retranscribe diarization - clip-window turns must be shifted to absolute time
 # ---------------------------------------------------------------------------
 
 class TestRetranscribeDiarization:
@@ -390,7 +390,7 @@ class TestRetranscribeDiarization:
 
 
 # ---------------------------------------------------------------------------
-# diarize_track — pipeline-stage orchestration + error paths
+# diarize_track - pipeline-stage orchestration + error paths
 # ---------------------------------------------------------------------------
 
 class TestDiarizeTrack:
@@ -465,7 +465,7 @@ class TestDiarizeTrack:
             diarize_side_effect=DiarizationError("accept model terms at hf.co/..."),
         )
         cfg = Config(diarization_backend="pyannote", huggingface_token="hf_abc")
-        # Must not raise — a diarization failure never aborts the run.
+        # Must not raise - a diarization failure never aborts the run.
         diarize_track(cfg, None, self._fake_transcript(), Path("a.wav"), self._fake_track())
 
         assert "assign" not in captured  # failure occurred before assignment
@@ -531,7 +531,7 @@ class TestDiarizeTrack:
         assert "Downloading the speaker model" not in out
 
     def test_downloading_notice_omitted_for_pyannote(self, monkeypatch, capsys):
-        """Pyannote has its own gated-model access-error messaging — the
+        """Pyannote has its own gated-model access-error messaging - the
         speechbrain-specific download notice must not leak onto it."""
         from pathlib import Path
 
@@ -548,7 +548,7 @@ class TestDiarizeTrack:
 
 
 # ---------------------------------------------------------------------------
-# _rediarize_video — non-destructive re-run of the diarization stage
+# _rediarize_video - non-destructive re-run of the diarization stage
 # ---------------------------------------------------------------------------
 
 class TestRediarizeVideo:
@@ -586,7 +586,7 @@ class TestRediarizeVideo:
         session, video = self._project(tmp_path)
         track = self._add_track(session, video, 1, do_transcribe=True, extracted_path=str(wav))
         self._add_transcript(session, track)            # older transcript
-        latest = self._add_transcript(session, track)   # newer — must win
+        latest = self._add_transcript(session, track)   # newer - must win
         self._add_track(session, video, 2, do_transcribe=False, extracted_path=str(wav))  # must be skipped
         session.commit()
 
@@ -620,7 +620,7 @@ class TestRediarizeVideo:
 
 
 # ---------------------------------------------------------------------------
-# _cosine_similarity — voiceprint comparison edge cases
+# _cosine_similarity - voiceprint comparison edge cases
 # ---------------------------------------------------------------------------
 
 class TestCosineSimilarity:
@@ -636,7 +636,7 @@ class TestCosineSimilarity:
 
     def test_mismatched_lengths_returns_zero(self):
         # A dimension mismatch (e.g. a stored voiceprint from a different model)
-        # must never raise or partially compare — it means "not the same voice".
+        # must never raise or partially compare - it means "not the same voice".
         assert self._cos([1.0, 0.0], [1.0, 0.0, 0.0]) == 0.0
 
     def test_zero_vector_returns_zero(self):
@@ -645,7 +645,7 @@ class TestCosineSimilarity:
 
 
 # ---------------------------------------------------------------------------
-# _best_voiceprint_match — threshold boundary + candidate filtering
+# _best_voiceprint_match - threshold boundary + candidate filtering
 # ---------------------------------------------------------------------------
 
 class TestBestVoiceprintMatch:
@@ -685,13 +685,13 @@ class TestBestVoiceprintMatch:
 
 
 # ---------------------------------------------------------------------------
-# SpeechBrainDiarizationClient — availability + pure pipeline helpers
+# SpeechBrainDiarizationClient - availability + pure pipeline helpers
 # (steps d–e are factored out so they test without importing SpeechBrain)
 # ---------------------------------------------------------------------------
 
 class TestSpeechBrainAvailable:
     def test_missing_reports_reinstall_hint(self, monkeypatch):
-        # SpeechBrain is bundled by default (packaging-strategy overhaul) — this
+        # SpeechBrain is bundled by default (packaging-strategy overhaul) - this
         # branch means a broken/partial install, not a missing optional package,
         # so the reason points at reinstalling rather than a Settings button.
         import importlib.util
@@ -720,7 +720,7 @@ class TestSpeechBrainAvailable:
 
 class TestSpeechBrainModelLoadFailure:
     """A model that can't be fetched (offline, not cached) must propagate a plain
-    exception rather than hang or silently return empty — diarize_track (the
+    exception rather than hang or silently return empty - diarize_track (the
     caller) is what actually swallows it and skips speaker labels for the track."""
 
     def test_load_encoder_failure_propagates_from_diarize_with_embeddings(self, monkeypatch):
@@ -838,7 +838,7 @@ class TestFactory:
 
 
 # ---------------------------------------------------------------------------
-# _assign_speakers (private helper — test via whisper_runner import)
+# _assign_speakers (private helper - test via whisper_runner import)
 # ---------------------------------------------------------------------------
 
 class TestAssignSpeakers:

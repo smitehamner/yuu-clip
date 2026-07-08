@@ -1,4 +1,4 @@
-"""yuu_clip/scoring/lexicon.py — curated keyword-density scoring (no model)."""
+"""yuu_clip/scoring/lexicon.py - curated keyword-density scoring (no model)."""
 
 from __future__ import annotations
 
@@ -71,7 +71,7 @@ class TestScore:
 
     def test_speaker_prefix_named_after_marker_does_not_self_trip(self):
         # A speaker literally named "Betray" must not match the dramatic marker on
-        # every line they speak — the "Name:" prefix is stripped before matching.
+        # every line they speak - the "Name:" prefix is stripped before matching.
         result = _make_scorer().score(_make_clip("Betray: hello there friend"), None)
         assert result.score_dramatic is None
         assert "lexicon_no_markers" in result.tags

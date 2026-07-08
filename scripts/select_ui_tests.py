@@ -9,7 +9,7 @@ human-readable advisories to stderr. With no args it derives changed files from
 git (working tree + index vs HEAD, plus untracked); explicit paths can be passed
 as args to override that.
 
-Mapping is intentionally over-inclusive — a false include just runs a few extra
+Mapping is intentionally over-inclusive - a false include just runs a few extra
 fast tests, while a miss is caught by the always-included smoke file. Feature
 test files are matched to source stems by shared prefix token (so ``videos.js``
 -> ``test_ui_video.py``, ``modelcatalog.js`` -> ``test_ui_model_catalog.py``,
@@ -25,7 +25,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 TESTS_DIR = REPO_ROOT / "tests"
 SMOKE = "tests/test_ui_smoke.py"
 
-# Shared infra whose stem doesn't map to one feature — a change here can break
+# Shared infra whose stem doesn't map to one feature - a change here can break
 # anything, so we flag it (the caller should consider a full run) and lean on
 # the smoke backstop rather than pretend a narrow mapping is enough.
 CROSS_CUTTING = {"boot", "state", "format", "jobs", "ui", "preview",
@@ -62,7 +62,7 @@ def _matches(token: str, test_stem: str) -> bool:
 
 
 def _map_static(stem: str, test_stems: dict[str, str]) -> set[str]:
-    if stem == "app":  # app.css — theme test enforces the token/contrast rules
+    if stem == "app":  # app.css - theme test enforces the token/contrast rules
         return {"tests/test_ui_theme.py"}
     tokens = [t for t in stem.split("-") if t]
     matched = set()

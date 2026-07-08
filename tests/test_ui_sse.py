@@ -1,5 +1,5 @@
 """
-Playwright UI test — SSE job happy path (analyze/score/export share one flow).
+Playwright UI test - SSE job happy path (analyze/score/export share one flow).
 
 Closes the ROADMAP gap: no live-server coverage exercised an SSE job's success
 flow, so the Phase 3 stuck-job-UI bug (progress pill stuck visible, buttons left
@@ -75,7 +75,7 @@ class TestSSEJobHappyPath:
         page.goto(LIVE_URL)
         self._start_job(page)
         page.wait_for_function("window.__sseDone === true", timeout=5000)
-        # endJobUI hides the pill and re-enables buttons after a 2 s delay —
+        # endJobUI hides the pill and re-enables buttons after a 2 s delay -
         # this is the exact teardown the stuck-job-UI bug skipped.
         expect(page.locator("#job-status")).not_to_have_class(re.compile(r"\bvisible\b"), timeout=4000)
         expect(page.locator("#btn-analyze")).to_be_enabled()

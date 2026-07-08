@@ -70,7 +70,7 @@ class TestJsUtils:
         assert label == "2h ago"
 
     def test_fmt_offset_handles_zero_and_sign(self, page: Page):
-        # Zero is a valid offset, not "missing" — must render as +0.0.
+        # Zero is a valid offset, not "missing" - must render as +0.0.
         result = page.evaluate(
             "() => [_fmtOffset(0), _fmtOffset(1.2), _fmtOffset(-3.5)]"
         )
@@ -89,14 +89,14 @@ class TestJsUtils:
         result = page.evaluate(
             "() => [finiteOr(NaN), finiteOr(Infinity), finiteOr(undefined), finiteOr(NaN, 'n/a')]"
         )
-        assert result == ["—", "—", "—", "n/a"]
+        assert result == [" - ", " - ", " - ", "n/a"]
 
     def test_fmt_duration_formats_seconds_and_minutes(self, page: Page):
         result = page.evaluate("() => [fmtDuration(30), fmtDuration(90), fmtDuration(0)]")
         assert result == ["30 sec", "2 min", "0 sec"]
 
     def test_fmt_duration_falls_back_for_non_finite(self, page: Page):
-        # A clip missing start/end yields NaN — must read "unknown", not "NaN sec".
+        # A clip missing start/end yields NaN - must read "unknown", not "NaN sec".
         result = page.evaluate("() => [fmtDuration(NaN), fmtDuration(Infinity, 'n/a')]")
         assert result == ["unknown", "n/a"]
 
@@ -166,13 +166,13 @@ class TestDiarizationReason:
         assert out == ""
 
     def test_speechbrain_missing_package(self, page: Page):
-        # SpeechBrain is bundled — an unready result here means a broken install,
+        # SpeechBrain is bundled - an unready result here means a broken install,
         # not a missing optional download, so the reason says "reinstall", not "Install".
         out = page.evaluate("() => _diarizationReason('speechbrain', false, false)")
-        assert out == "SpeechBrain is unavailable — try reinstalling yuu-clip"
+        assert out == "SpeechBrain is unavailable - try reinstalling yuu-clip"
 
     def test_speechbrain_ready_without_token(self, page: Page):
-        # No token needed — installed alone is fully ready.
+        # No token needed - installed alone is fully ready.
         out = page.evaluate("() => _diarizationReason('speechbrain', true, false)")
         assert out == ""
 
@@ -340,7 +340,7 @@ class TestApplyFilters:
     }"""
 
     def test_no_filters_returns_all_including_score_zero(self, page: Page):
-        # Score 0 is a real score, not "missing" — it must survive the no-filter pass.
+        # Score 0 is a real score, not "missing" - it must survive the no-filter pass.
         ids = page.evaluate(
             f"() => {{ ({self._SEED})();"
             "  return _applyFilters().map(c => c.id); }"
@@ -465,7 +465,7 @@ class TestComputeSuggestionPins:
     def test_picks_quietest_seconds(self, page: Page):
         # The two clear quiet valleys (lowest rms_db) well inside the duration
         # and far apart must both make the cut. (The greedy pick also fills
-        # remaining slots with other spaced seconds — we only assert the valleys
+        # remaining slots with other spaced seconds - we only assert the valleys
         # are present and the spacing/count invariants hold.)
         pins = self._run(
             page,
@@ -492,7 +492,7 @@ class TestComputeSuggestionPins:
         assert all(b - a >= 30 for a, b in zip(pins, pins[1:]))
 
     def test_excludes_endpoints(self, page: Page):
-        # The quietest seconds are the very first and last — both must be skipped
+        # The quietest seconds are the very first and last - both must be skipped
         # because a split at 0 or at the duration is meaningless.
         pins = self._run(
             page,
@@ -535,7 +535,7 @@ class TestComputeSuggestionPins:
         assert pins == [42]
 
     def test_zero_duration_is_a_noop(self, page: Page):
-        # A zero-length clip has no interior seconds — early return, pins untouched.
+        # A zero-length clip has no interior seconds - early return, pins untouched.
         pins = page.evaluate(
             "() => {"
             "  _splitDurationS = 0;"
@@ -566,7 +566,7 @@ class TestComputeSuggestionPins:
 # Active-stream supersede contract (utils.js)
 #
 # Regression: when a second long-running job starts while a first is mid-stream,
-# the first stream is aborted — but abort suppresses its onDone/onError, so its
+# the first stream is aborted - but abort suppresses its onDone/onError, so its
 # UI teardown (re-enabling the triggering button) must be run by the superseding
 # job via the registered cleanup. Without this the first button stays disabled.
 # ---------------------------------------------------------------------------
@@ -618,7 +618,7 @@ class TestActiveStreamSupersede:
 
 
 # ---------------------------------------------------------------------------
-# _fmtElapsed (utils.js) — short job-timer label
+# _fmtElapsed (utils.js) - short job-timer label
 # ---------------------------------------------------------------------------
 
 @skip_no_server
@@ -641,7 +641,7 @@ class TestFmtElapsed:
 
 
 # ---------------------------------------------------------------------------
-# _fmtVideoStatus (utils.js) — status-map with raw fallback
+# _fmtVideoStatus (utils.js) - status-map with raw fallback
 # ---------------------------------------------------------------------------
 
 @skip_no_server
@@ -658,7 +658,7 @@ class TestFmtVideoStatus:
 
 
 # ---------------------------------------------------------------------------
-# _sortScore (utils.js) — score dimension picked from the sort dropdown
+# _sortScore (utils.js) - score dimension picked from the sort dropdown
 # ---------------------------------------------------------------------------
 
 @skip_no_server
@@ -684,12 +684,12 @@ class TestSortScore:
         assert self._sort_by(page, "score") == 0.5
 
     def test_non_dimension_sort_falls_back_to_overall(self, page: Page):
-        # 'timeline' is a valid sort but not a score dimension — rank by overall.
+        # 'timeline' is a valid sort but not a score dimension - rank by overall.
         assert self._sort_by(page, "timeline") == 0.5
 
 
 # ---------------------------------------------------------------------------
-# _fmtDate (utils.js) — timezone-independent assertions only
+# _fmtDate (utils.js) - timezone-independent assertions only
 # ---------------------------------------------------------------------------
 
 @skip_no_server
@@ -715,7 +715,7 @@ class TestFmtDate:
 
 
 # ---------------------------------------------------------------------------
-# updateJobUI (utils.js) — step advancement marks prior done, current active
+# updateJobUI (utils.js) - step advancement marks prior done, current active
 # ---------------------------------------------------------------------------
 
 @skip_no_server
@@ -775,7 +775,7 @@ class TestUpdateJobUI:
 
 
 # ---------------------------------------------------------------------------
-# M1-1 — job pill must never displace the header buttons, however long the
+# M1-1 - job pill must never displace the header buttons, however long the
 # active-step live label grows (min-width:0 chain + active-pill ellipsis)
 # ---------------------------------------------------------------------------
 
@@ -804,14 +804,14 @@ class TestJobPillHeaderOverflow:
 
 
 # ---------------------------------------------------------------------------
-# _stepPillLabel / _renderStepPill (utils.js) — live "i/N (pct%)" + ETA text
+# _stepPillLabel / _renderStepPill (utils.js) - live "i/N (pct%)" + ETA text
 # ---------------------------------------------------------------------------
 
 @skip_no_server
 class TestStepPillProgress:
     def test_track_progress_line_renders_fraction_percent_and_eta(self, page: Page):
         # INGEST_STEPS[0] (Extract) has progressPattern /Track (\d+)\/(\d+)/.
-        # The ETA appears only after a second count arrives — the first count just
+        # The ETA appears only after a second count arrives - the first count just
         # anchors the rate (so a slow cold first item can't project an absurd ETA).
         text = page.evaluate(
             "() => {"
@@ -845,7 +845,7 @@ class TestStepPillProgress:
 
 
 # ---------------------------------------------------------------------------
-# _parseWeight (contexts.js) — input parse with NaN→null and negative clamp
+# _parseWeight (contexts.js) - input parse with NaN→null and negative clamp
 # ---------------------------------------------------------------------------
 
 @skip_no_server
@@ -910,7 +910,7 @@ class TestStepEtaHeuristic:
 
 
 # ---------------------------------------------------------------------------
-# _applyVideoFilters (videos.js) — sidebar search / filter / sort
+# _applyVideoFilters (videos.js) - sidebar search / filter / sort
 # ---------------------------------------------------------------------------
 
 @skip_no_server

@@ -11,10 +11,10 @@ from fastapi import HTTPException
 from yuu_clip.db.models import ClipCandidate, make_session
 
 # ---------------------------------------------------------------------------
-# export_clip FFmpeg command shape — the -t duration flag must land after every
+# export_clip FFmpeg command shape - the -t duration flag must land after every
 # -i input so FFmpeg treats it as an output limit. An earlier bug placed -t
 # between the two inputs of the softsub branch, where it bound to the subtitle
-# input and left the video uncut — exporting the entire multi-hour source.
+# input and left the video uncut - exporting the entire multi-hour source.
 # ---------------------------------------------------------------------------
 
 class TestExportClipCmd:
@@ -59,7 +59,7 @@ class TestExportClipCmd:
 
 
 class TestSubtitlesFilter:
-    """The burn-in filter builder — force_style is added only for non-default
+    """The burn-in filter builder - force_style is added only for non-default
     fields, PrimaryColour is never set (per-speaker <font color> tags must win),
     and Windows drive-colon escaping is preserved."""
 
@@ -179,7 +179,7 @@ class TestVerticalCropFilter:
 class TestComputeExportWindow:
     """cand.start_ms/end_ms/video.duration_ms are segment-relative for a split
     recording, but video.path (the file export_clip actually opens) is always the
-    untrimmed parent — segment_start_s must be added back in after clamping."""
+    untrimmed parent - segment_start_s must be added back in after clamping."""
 
     def _cand(self, start_ms, end_ms, *, start_offset=0.0, end_offset=0.0,
               duration_ms=None, segment_start_s=None):
@@ -421,7 +421,7 @@ class TestDemoListFiltering:
         older.write_bytes(b"old")
         newer = reels_dir / "new_20260102.mkv"
         newer.write_bytes(b"new")
-        # Set mtimes explicitly — sleeping between writes made ordering depend
+        # Set mtimes explicitly - sleeping between writes made ordering depend
         # on filesystem timestamp resolution.
         now = os.path.getmtime(newer)
         os.utime(older, (now - 60, now - 60))
@@ -491,7 +491,7 @@ class TestMultiExtensionExport:
 
 class TestExportNameTemplateAffectsWebLookup:
     """A custom export_name_template must be honored by the web routes that
-    locate already-exported files on disk (has_export, media_url, delete) —
+    locate already-exported files on disk (has_export, media_url, delete) -
     not just by the CLI export command that creates them."""
 
     def test_has_export_true_only_for_current_template_pattern(self, client, project_dir):
@@ -1096,7 +1096,7 @@ class TestRefreshCaptionSidecars:
 
 
 # ---------------------------------------------------------------------------
-# export_stale staleness matrix — GET /api/clips/{id}.
+# export_stale staleness matrix - GET /api/clips/{id}.
 #
 # Uses explicit before/after timestamps rather than wall-clock call ordering, so the
 # matrix isn't sensitive to how fast the test process happens to run.
@@ -1220,7 +1220,7 @@ class TestExportStaleness:
 
 
 # ---------------------------------------------------------------------------
-# clip_exports rows — Plan 07 Stage 1 (one-row-per-format export tracking).
+# clip_exports rows - Plan 07 Stage 1 (one-row-per-format export tracking).
 # ---------------------------------------------------------------------------
 
 class TestClipExportRows:
@@ -1329,7 +1329,7 @@ class TestClipExportRows:
 
 class TestClipExportBackfillMigration:
     """The one-time migration that backfills clip_exports from legacy exported_at
-    (Plan 07 Stage 1) — see db.models._backfill_clip_exports."""
+    (Plan 07 Stage 1) - see db.models._backfill_clip_exports."""
 
     def test_backfills_a_legacy_export_on_first_load(self, project_dir):
         exports_dir = project_dir / ".yuu-clip" / "exports"
@@ -1420,7 +1420,7 @@ class TestExportBaseStemPreset:
         cand = self._cand()
         stem = export_base_stem(cand, "{video}_{preset}", preset="discord-10mb")
         assert stem == "session_discord-10mb"
-        # Template already used {preset} — no double suffix appended.
+        # Template already used {preset} - no double suffix appended.
         assert not stem.endswith("discord-10mb_discord-10mb")
 
     def test_two_presets_never_collide(self):

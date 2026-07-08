@@ -2,10 +2,10 @@
 with a UTF-8 BOM (CLAUDE.md / memory feedback-powershell-bom-encoding).
 
 Windows PowerShell 5.1 with no BOM decodes a script as the OS legacy codepage
-(Windows-1252), not UTF-8. The UTF-8 bytes for `—` (U+2014) and `─` (U+2500)
-both contain 0x94, which cp1252 turns into `”` — a smart quote PowerShell treats
-as a real string delimiter, producing "missing terminator" parse errors far from
-the actual character. A BOM forces UTF-8 decoding and prevents this.
+(Windows-1252), not UTF-8. The UTF-8 bytes for the em-dash (U+2014) and `─`
+(U+2500) both contain 0x94, which cp1252 turns into `”` - a smart quote PowerShell
+treats as a real string delimiter, producing "missing terminator" parse errors far
+from the actual character. A BOM forces UTF-8 decoding and prevents this.
 
 ASCII-only scripts don't need a BOM, so this only flags files that would actually
 misparse.

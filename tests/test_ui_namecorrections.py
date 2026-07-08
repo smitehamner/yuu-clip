@@ -1,8 +1,8 @@
 """
-Playwright UI tests — transcript name correction (namecorrections.js).
+Playwright UI tests - transcript name correction (namecorrections.js).
 
 The scan/apply endpoints are on-demand (fired after the panel opens), so they are
-mocked with page.route right before opening the panel — the panel is opened by
+mocked with page.route right before opening the panel - the panel is opened by
 calling openNameCorrections() directly against a real selected recording. No real
 transcript is scanned or edited.
 

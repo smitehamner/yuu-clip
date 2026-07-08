@@ -40,7 +40,7 @@ def _run_drawtext(vf: str) -> tuple[bool, str]:
 
 
 # ---------------------------------------------------------------------------
-# Fontfile path format — verify the one format that works on Windows:
+# Fontfile path format - verify the one format that works on Windows:
 # single-quoted with the drive-letter colon escaped as \:
 # ---------------------------------------------------------------------------
 
@@ -56,7 +56,7 @@ def test_fontfile_single_quoted_escaped_colon() -> None:
 
 
 # ---------------------------------------------------------------------------
-# _esc unit tests (path escaping — single-quote mode)
+# _esc unit tests (path escaping - single-quote mode)
 # ---------------------------------------------------------------------------
 
 def test_esc_plain_path():
@@ -80,7 +80,7 @@ def test_esc_backslash_in_path():
 # ---------------------------------------------------------------------------
 
 def test_title_card_simple(tmp_path: Path) -> None:
-    """Plain ASCII text — the baseline case."""
+    """Plain ASCII text - the baseline case."""
     out = tmp_path / "title.mkv"
     _make_title_card([("Clip 1 of 5", 52), ("2026-03-07", 36)], out, **_SMALL)
     assert out.exists() and out.stat().st_size > 0
@@ -110,7 +110,7 @@ def test_title_card_single_quotes_in_text(tmp_path: Path) -> None:
 
 
 def test_title_card_three_lines(tmp_path: Path) -> None:
-    """Three-line card — the layout produced by compile_demo."""
+    """Three-line card - the layout produced by compile_demo."""
     out = tmp_path / "title.mkv"
     _make_title_card(
         [
@@ -132,7 +132,7 @@ def test_title_card_no_description(tmp_path: Path) -> None:
 
 def test_title_card_custom_colors_real_encode(tmp_path: Path) -> None:
     """Non-default bg/font colors must still produce a valid drawtext/lavfi command
-    (tiny real encode — guards the color= / fontcolor= ffmpeg syntax)."""
+    (tiny real encode - guards the color= / fontcolor= ffmpeg syntax)."""
     out = tmp_path / "title.mkv"
     _make_title_card(
         [("Clip 1 of 5", 52)], out, bg_color="#1a2b3c", font_color="#ffaa00", **_SMALL,
@@ -155,7 +155,7 @@ class TestToFfmpegColor:
 
 
 # ---------------------------------------------------------------------------
-# _make_title_card command construction — colors and fontsize appear in the
+# _make_title_card command construction - colors and fontsize appear in the
 # built ffmpeg args (mocked subprocess.run, no real encode)
 # ---------------------------------------------------------------------------
 
@@ -192,7 +192,7 @@ class TestMakeTitleCardCommandConstruction:
 
 
 # ---------------------------------------------------------------------------
-# title_card_lines — layout / scale / truncation / effective_description
+# title_card_lines - layout / scale / truncation / effective_description
 # ---------------------------------------------------------------------------
 
 class _FakeClip:
@@ -238,7 +238,7 @@ class TestTitleCardLines:
         assert lines == [("1:23 · 0:30", 36)]
 
     def test_empty_template_falls_back_to_timecode(self):
-        """A card must never be emitted empty — a template with nothing to show
+        """A card must never be emitted empty - a template with nothing to show
         falls back to the timecode line."""
         from yuu_clip.reel import title_card_lines
         clip = _FakeClip(description="ignored")
@@ -259,7 +259,7 @@ class TestTitleCardLines:
 
     def test_effective_description_user_override_wins(self):
         """cand.description_user (a user edit) must be used on the card, not the
-        raw LLM cand.description — the pre-plan09 clip-export path read the raw
+        raw LLM cand.description - the pre-plan09 clip-export path read the raw
         field directly, which ignored user edits."""
         from yuu_clip.reel import title_card_lines
         clip = _FakeClip(description="LLM text", description_user="Creator's version")
@@ -293,7 +293,7 @@ class TestTitleCardLines:
 
 # ---------------------------------------------------------------------------
 # Two call sites (clip export, reel) both pick up the config through the
-# shared title_card_lines helper — the helper is the guard.
+# shared title_card_lines helper - the helper is the guard.
 # ---------------------------------------------------------------------------
 
 class _FakeVideoForClipExport:

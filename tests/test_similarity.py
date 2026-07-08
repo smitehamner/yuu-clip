@@ -1,4 +1,4 @@
-"""Tiered similarity engine (scoring/similarity.py) — plan non-llm-tiers/01."""
+"""Tiered similarity engine (scoring/similarity.py) - plan non-llm-tiers/01."""
 from __future__ import annotations
 
 import sys
@@ -64,7 +64,7 @@ class TestTfidfMatchConcepts:
         assert self._backend().match_concepts(text, ["bank robbery"], threshold=0.5) == ["bank robbery"]
 
 
-# ── EmbeddingsBackend (fastembed mocked — no model download) ───────────────────
+# ── EmbeddingsBackend (fastembed mocked - no model download) ───────────────────
 
 
 class _FakeEmbedModel:
@@ -130,7 +130,7 @@ class TestMakeBackend:
 
     def test_falls_back_to_tfidf_when_fastembed_package_missing(self):
         # fastembed is not installed in the test env, so availability() is False
-        # and the default-configured "embeddings" backend falls back to tfidf —
+        # and the default-configured "embeddings" backend falls back to tfidf -
         # this is also the real behavior on a machine mid-install.
         from yuu_clip.scoring.similarity import TfidfBackend, make_backend
         assert isinstance(make_backend(_cfg()), TfidfBackend)
@@ -138,7 +138,7 @@ class TestMakeBackend:
 
     def test_falls_back_to_tfidf_when_model_cannot_be_fetched(self):
         # fastembed the package is present (bundled), but the bge-small model
-        # itself is a Tier-B download — an offline machine without it cached
+        # itself is a Tier-B download - an offline machine without it cached
         # must still fall back to tfidf rather than fail per-clip later.
         from yuu_clip.scoring import similarity
         from yuu_clip.scoring.similarity import TfidfBackend, make_backend

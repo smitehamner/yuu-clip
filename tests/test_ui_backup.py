@@ -1,4 +1,4 @@
-"""Playwright UI tests — Settings > Backup & Restore.
+"""Playwright UI tests - Settings > Backup & Restore.
 
 Every server call the render awaits is stubbed with page.route (hermetic): the
 live suite shares one server across xdist workers, so a real /api/restore/apply

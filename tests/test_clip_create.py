@@ -112,7 +112,7 @@ class TestCreateManualClipOnSegment:
             path=str(project_dir / "segment.mkv"),
             filename="segment.mkv",
             status="done",
-            duration_ms=60_000,  # segment-relative — much shorter than the parent
+            duration_ms=60_000,  # segment-relative - much shorter than the parent
             parent_video_id=parent.id,
             segment_start_s=100.0,
             segment_end_s=160.0,
@@ -196,7 +196,7 @@ class TestClipFramingPatch:
 
 class TestSuggestFraming:
     """POST /api/clips/{id}/suggest-framing returns a MediaPipe-suggested crop_x,
-    or 503 when the optional package is absent. The detector itself is mocked —
+    or 503 when the optional package is absent. The detector itself is mocked -
     the tests exercise the gate, the response shape, and the null-face path."""
 
     def _new_clip_id(self, client) -> int:

@@ -1,4 +1,4 @@
-"""Sensitive content detection (roadmap plan 06) — fuzzy matcher, apply_sensitive_scan,
+"""Sensitive content detection (roadmap plan 06) - fuzzy matcher, apply_sensitive_scan,
 ScoringEngine integration, and CRUD/rescan routes.
 
 Term values are user PII by definition, so a dedicated logging-safety test captures
@@ -62,7 +62,7 @@ class TestFindFuzzyMatches:
 
     def test_overlapping_windows_do_not_double_count_one_occurrence(self):
         # Regression guard: "wallaby way is" also scores above threshold right next
-        # to the true "42 wallaby way" hit — the non-overlapping scan must not
+        # to the true "42 wallaby way" hit - the non-overlapping scan must not
         # count both.
         from yuu_clip.scoring.textmatch import find_fuzzy_matches
         matches = find_fuzzy_matches(
@@ -160,7 +160,7 @@ class TestApplySensitiveScan:
 
     def test_speaker_prefix_is_stripped_before_matching(self):
         # A named Speaker equal to a Privacy Term would otherwise match on every
-        # line they speak — the same reason hot-words strips prefixes first.
+        # line they speak - the same reason hot-words strips prefixes first.
         from yuu_clip.scoring.engine import apply_sensitive_scan
         clip = self._clip(excerpt="John: watch out for the rocket")
         apply_sensitive_scan(clip, [self._term("John")])
@@ -174,7 +174,7 @@ class TestApplySensitiveScan:
 
     def test_multi_word_term_does_not_spuriously_match_across_field_boundary(self):
         # excerpt ends with the term's first word, description starts with its
-        # second word — scanning fields separately (not concatenated) must not
+        # second word - scanning fields separately (not concatenated) must not
         # let these join into a false multi-word match.
         from yuu_clip.scoring.engine import apply_sensitive_scan
         clip = self._clip(excerpt="he lives at 42", description="Wallaby Way is quiet")
@@ -195,7 +195,7 @@ class TestApplySensitiveScan:
 
 
 # ---------------------------------------------------------------------------
-# ScoringEngine integration — no score impact, hot-word independence
+# ScoringEngine integration - no score impact, hot-word independence
 # ---------------------------------------------------------------------------
 
 class TestScoringEngineSensitiveIntegration:
@@ -256,7 +256,7 @@ class TestScoringEngineSensitiveIntegration:
         from yuu_clip.db.models import ClipCandidate, HotWord, SensitiveTerm
         from yuu_clip.scoring.engine import ScoringEngine
         # A pre-set description keeps the non-LLM basic-description fallback (Stage 02)
-        # out of this test — otherwise the template one-liner would echo "haha" from the
+        # out of this test - otherwise the template one-liner would echo "haha" from the
         # excerpt and the censor term would legitimately match it too (count 2).
         clip = ClipCandidate(
             video_id=1, start_ms=0, end_ms=1000,
@@ -450,7 +450,7 @@ class TestSensitiveRescanRoute:
 
     def test_rescan_reports_checked_and_changed_counts(self, client):
         # Term-list saves already trigger their own project-wide rescan (see
-        # TestSensitiveTermSaveTriggersRescan) — this route is for the other
+        # TestSensitiveTermSaveTriggersRescan) - this route is for the other
         # trigger: a clip's transcript changing *after* the term list was last
         # saved (e.g. a caption edit or re-transcribe), with no term-list write
         # to piggyback on.
@@ -477,7 +477,7 @@ class TestSensitiveRescanRoute:
 
 
 # ---------------------------------------------------------------------------
-# Logging safety — term values must never appear in logs
+# Logging safety - term values must never appear in logs
 # ---------------------------------------------------------------------------
 
 class TestSensitiveTermValuesNeverLogged:

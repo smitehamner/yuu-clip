@@ -73,7 +73,7 @@ class TestSrtToVtt:
 
 
 # ---------------------------------------------------------------------------
-# subtitles.py — _label_display
+# subtitles.py - _label_display
 # ---------------------------------------------------------------------------
 
 class TestLabelDisplay:
@@ -98,7 +98,7 @@ class TestLabelDisplay:
 
 
 # ---------------------------------------------------------------------------
-# subtitles.py — _ms_to_srt_time
+# subtitles.py - _ms_to_srt_time
 # ---------------------------------------------------------------------------
 
 class TestMsToSrtTime:
@@ -131,7 +131,7 @@ class TestMsToSrtTime:
 
 
 # ---------------------------------------------------------------------------
-# subtitles.py — lines_to_srt
+# subtitles.py - lines_to_srt
 # ---------------------------------------------------------------------------
 
 class TestLinesToSrt:
@@ -184,7 +184,7 @@ class TestLinesToSrt:
 
 
 # ---------------------------------------------------------------------------
-# subtitles.py — collect_clip_subtitles (with mock DB objects)
+# subtitles.py - collect_clip_subtitles (with mock DB objects)
 # ---------------------------------------------------------------------------
 
 class TestCollectClipSubtitles:
@@ -320,7 +320,7 @@ class TestCollectClipSubtitles:
 
 
 # ---------------------------------------------------------------------------
-# subtitles.py — merged_srt_lines
+# subtitles.py - merged_srt_lines
 # ---------------------------------------------------------------------------
 
 class TestMergedSrtLines:
@@ -411,14 +411,14 @@ class TestClipDescriptionRawText:
     def test_description_with_html_chars_returned_unescaped(self, client, project_dir):
         """API must return raw HTML characters in description, not entity-encoded.
         The JavaScript renderDetail() must call escHtml(clip.description) before
-        writing to innerHTML — this test locks in the API contract so a regression
+        writing to innerHTML - this test locks in the API contract so a regression
         on either side is visible.
         """
         raw = '<script>alert("xss")</script>'
         clip_id = self._seed_clip_with_description(project_dir, raw)
         r = client.get(f"/api/clips/{clip_id}")
         assert r.status_code == 200
-        # API returns raw text — the JS must escape it
+        # API returns raw text - the JS must escape it
         assert r.json()["description"] == raw
 
     def test_description_with_quotes_returned_unescaped(self, client, project_dir):
@@ -431,7 +431,7 @@ class TestClipDescriptionRawText:
 
 
 # ---------------------------------------------------------------------------
-# subtitles.py — export_srt_sidecars
+# subtitles.py - export_srt_sidecars
 # ---------------------------------------------------------------------------
 
 class TestExportSrtSidecars:
@@ -552,7 +552,7 @@ class TestExportSrtSidecars:
 
 
 # ---------------------------------------------------------------------------
-# subtitles.py — refresh_export_sidecars: only rewrites captions the user
+# subtitles.py - refresh_export_sidecars: only rewrites captions the user
 # already has on disk, keyed to the current export filename template.
 # ---------------------------------------------------------------------------
 
@@ -600,7 +600,7 @@ class TestRefreshExportSidecars:
 
 
 # ---------------------------------------------------------------------------
-# subtitles.py — collect_clip_subtitles: clip_transcripts override
+# subtitles.py - collect_clip_subtitles: clip_transcripts override
 # ---------------------------------------------------------------------------
 
 class TestCollectClipSubtitlesClipTranscripts:
@@ -643,7 +643,7 @@ class TestCollectClipSubtitlesClipTranscripts:
 
 
 # ---------------------------------------------------------------------------
-# subtitles.py — clip_context_transcript_lines (export editor boundary context)
+# subtitles.py - clip_context_transcript_lines (export editor boundary context)
 # ---------------------------------------------------------------------------
 
 class TestClipContextTranscriptLines:
@@ -690,7 +690,7 @@ class TestClipContextTranscriptLines:
 
 
 # ---------------------------------------------------------------------------
-# subtitles.py — per-speaker (diarization) subtitle display
+# subtitles.py - per-speaker (diarization) subtitle display
 # ---------------------------------------------------------------------------
 
 class TestDiarizationSubtitles:
@@ -777,7 +777,7 @@ class TestDiarizationSubtitles:
 
 
 # ---------------------------------------------------------------------------
-# subtitles.py — _segment_speaker (durable Speaker name vs raw-label fallback)
+# subtitles.py - _segment_speaker (durable Speaker name vs raw-label fallback)
 # ---------------------------------------------------------------------------
 
 class TestSegmentSpeaker:
@@ -814,7 +814,7 @@ class TestSegmentSpeaker:
 
 
 # ---------------------------------------------------------------------------
-# subtitles.py — _segment_speaker_color (per-speaker subtitle colour)
+# subtitles.py - _segment_speaker_color (per-speaker subtitle colour)
 # ---------------------------------------------------------------------------
 
 class TestSegmentSpeakerColor:
@@ -845,7 +845,7 @@ class TestSegmentSpeakerColor:
 
 
 # ---------------------------------------------------------------------------
-# subtitles.py — lines_to_srt: per-speaker colour rendering
+# subtitles.py - lines_to_srt: per-speaker colour rendering
 # ---------------------------------------------------------------------------
 
 class TestLinesToSrtColor:
@@ -873,7 +873,7 @@ class TestLinesToSrtColor:
 
 
 # ---------------------------------------------------------------------------
-# subtitles.py — _labeled_lines preserves colour when falling back to track label
+# subtitles.py - _labeled_lines preserves colour when falling back to track label
 # ---------------------------------------------------------------------------
 
 class TestLabeledLinesPreservesColor:
@@ -893,7 +893,7 @@ class TestLabeledLinesPreservesColor:
 
 
 # ---------------------------------------------------------------------------
-# analyze/labeler.py — label_tracks single-track auto-label
+# analyze/labeler.py - label_tracks single-track auto-label
 # ---------------------------------------------------------------------------
 
 class TestLabelTracksSingleTrack:
@@ -936,7 +936,7 @@ class TestLabelTracksSingleTrack:
 
 
 # ---------------------------------------------------------------------------
-# analyze/labeler.py — _label_non_interactive
+# analyze/labeler.py - _label_non_interactive
 # ---------------------------------------------------------------------------
 
 class TestLabelNonInteractive:
@@ -982,7 +982,7 @@ class TestLabelNonInteractive:
 
 
 # ---------------------------------------------------------------------------
-# analyze/labeler.py — _guess_label_index
+# analyze/labeler.py - _guess_label_index
 # ---------------------------------------------------------------------------
 
 class TestGuessLabelIndex:
@@ -1017,7 +1017,7 @@ class TestGuessLabelIndex:
 
 
 # ---------------------------------------------------------------------------
-# analyze/overlap.py — detect_transcript_overlap (unit, no DB)
+# analyze/overlap.py - detect_transcript_overlap (unit, no DB)
 # ---------------------------------------------------------------------------
 
 class TestDetectTranscriptOverlapUnit:

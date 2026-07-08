@@ -1,9 +1,9 @@
 """POST /api/llm/gguf/download + the download-gguf CLI (first-run-friction
-Stage 2) — the server-owned one-click local .gguf download.
+Stage 2) - the server-owned one-click local .gguf download.
 
 The route tests stub subprocess_sse (as test_model_prefetch.py does) so no real
 subprocess runs. The CLI tests stub urllib.request.urlopen so no real multi-GB
-network download runs — they assert the .part temp file + atomic rename, the
+network download runs - they assert the .part temp file + atomic rename, the
 clean-restart-over-stale-.part decision, the size-mismatch rejection, and the
 llm_model_path config write.
 """
@@ -66,7 +66,7 @@ class TestGgufDownloadCommand:
         assert cmd[cmd.index("--model-id") + 1] == "qwen2.5-7b-instruct"
 
     def test_vision_model_id_is_accepted(self, client, monkeypatch, tmp_path):
-        # The allowlist widened to recommended vision entries — moondream2 now
+        # The allowlist widened to recommended vision entries - moondream2 now
         # downloads its weights + mmproj projector in one click.
         cmd = self._capture_cmd(client, monkeypatch, tmp_path, "moondream2")
         assert cmd[cmd.index("--model-id") + 1] == "moondream2"

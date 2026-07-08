@@ -55,7 +55,7 @@ class TestDemoEventsSSE:
         ctx = client.app.state.ctx
         ctx.demo_cmd = [sys.executable, "-c", "print('ok')"]
         _drain_sse(client)
-        # clear_cmd_attr="demo_cmd" — the queued command is consumed exactly once
+        # clear_cmd_attr="demo_cmd" - the queued command is consumed exactly once
         assert ctx.demo_cmd is None
         # subprocess_sse resets analyze_proc in its finally block
         assert ctx.analyze_proc is None
@@ -91,7 +91,7 @@ class TestSafeFilename:
         assert self._fn("", default="highlights.mkv") == "highlights.mkv"
 
     def test_directory_component_stripped_leaving_last_part(self):
-        # Path("some/dir/foo").name == "foo" — parent components are stripped
+        # Path("some/dir/foo").name == "foo" - parent components are stripped
         assert self._fn("some/dir/foo") == "foo"
 
     def test_windows_path_stripped(self):
@@ -116,7 +116,7 @@ class TestStartDemo:
         assert "transition" in r.json()["detail"].lower()
 
     def test_no_approved_clips_returns_400(self, client):
-        # conftest seeds one approved clip — reject it first so none remain approved
+        # conftest seeds one approved clip - reject it first so none remain approved
         vid_id = self._vid_id(client)
         clips = client.get(f"/api/videos/{vid_id}/clips").json()
         for c in clips:
@@ -387,7 +387,7 @@ class TestSegmentStartTimes:
 
 
 class TestBurnReelCaptions:
-    """reel.burn_reel_captions — the final burn-in pass reuses the clip-export
+    """reel.burn_reel_captions - the final burn-in pass reuses the clip-export
     subtitles filter (so the global Caption style applies), stream-copies audio,
     and replaces the reel file in place."""
 
@@ -434,7 +434,7 @@ class TestBurnReelCaptions:
 
 
 class TestSelectClipExportFile:
-    """reel._select_clip_export_file — which exported file a reel build uses when a
+    """reel._select_clip_export_file - which exported file a reel build uses when a
     clip has several per-preset formats. Must deterministically prefer the default
     (presetless) export and never silently change format between runs."""
 

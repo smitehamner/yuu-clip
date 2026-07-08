@@ -1,4 +1,4 @@
-"""Playwright UI tests — Sensitive Content Settings section and clip surfacing
+"""Playwright UI tests - Sensitive Content Settings section and clip surfacing
 (roadmap plan 06).
 
 Follows the same pattern as test_ui_hotwords.py: CRUD tests run against the live
@@ -101,7 +101,7 @@ class TestSensitiveContentSettingsSection:
         new_row.locator(".st-mode").select_option("fuzzy")
         expect(new_row.locator(".st-fuzzy-warning")).to_be_visible()
         expect(new_row.locator(".st-fuzzy-warning")).to_contain_text("at least 4 characters")
-        # Blocked client-side — no draft should have reached the server.
+        # Blocked client-side - no draft should have reached the server.
         terms = page.evaluate("() => fetch('/api/sensitive-terms').then(r => r.json())")
         assert not any(t["term"] == "Abc" for t in terms)
 

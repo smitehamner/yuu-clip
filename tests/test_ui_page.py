@@ -1,5 +1,5 @@
 """
-Playwright UI tests — page load and sidebar.
+Playwright UI tests - page load and sidebar.
 
 Run against the live dev server on port 8080. Skipped automatically if the
 server is not reachable. See tests/conftest.py for the shared helpers.
@@ -65,7 +65,7 @@ class TestJobGuardWhileAnalyzing:
 @skip_no_server
 class TestLogPanelPlacement:
     """The log lives inside the main column so the sidebar extends full height
-    beside it — no full-width bar (or body-background gap) under the sidebar."""
+    beside it - no full-width bar (or body-background gap) under the sidebar."""
 
     def test_log_panel_is_inside_main(self, page: Page):
         page.goto(LIVE_URL)
@@ -103,7 +103,7 @@ class TestLogPanelPlacement:
 @skip_no_server
 class TestDiffModalUnsavedEdits:
     """The diff modal's Discard/Escape must not silently throw away textarea
-    edits — same dirty-check confirm the field-edit modal already has."""
+    edits - same dirty-check confirm the field-edit modal already has."""
 
     def _open_diff(self, page: Page):
         page.goto(LIVE_URL)
@@ -137,7 +137,7 @@ class TestDiffModalUnsavedEdits:
         self._open_diff(page)
         page.fill("#diff-new-0", "my careful edit")
         # Escape from a button (where modal focus normally sits), not the
-        # textarea — typing surfaces keep Escape to themselves.
+        # textarea - typing surfaces keep Escape to themselves.
         page.locator("#diff-discard-btn").focus()
         page.keyboard.press("Escape")
         page.wait_for_selector("#confirm-modal.visible", timeout=2000)

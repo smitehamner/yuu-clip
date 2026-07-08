@@ -1,6 +1,6 @@
 # Manual Regression Checklist
 
-Run this before any release or after a significant change. Each item should pass or fail — no partial credit.
+Run this before any release or after a significant change. Each item should pass or fail - no partial credit.
 
 **Prerequisites:** Server running at `http://127.0.0.1:8080`. At least one already-analyzed recording in the project directory. Ollama running locally.
 

@@ -1,11 +1,11 @@
 """
-Playwright UI tests — Electron setup wizard (electron/setup.html).
+Playwright UI tests - Electron setup wizard (electron/setup.html).
 
 The wizard normally runs inside Electron with `window.setupAPI` injected by
 setup-preload.js. Here the page is loaded over file:// with a mocked setupAPI
 (installed via add_init_script before the page's scripts run), which lets the
-whole renderer side be exercised — section layout, backend panel switching,
-inline warnings, install/pull error retry, and the per-mode footer wiring —
+whole renderer side be exercised - section layout, backend panel switching,
+inline warnings, install/pull error retry, and the per-mode footer wiring -
 without launching Electron or touching a real venv/registry.
 
 Main-process behavior (PATH refresh, pip installs, schema-version re-show) is
@@ -165,7 +165,7 @@ class TestWizardLlmBackends:
         page.select_option("#llm-backend-sel", "llamacpp")
         expect(page.locator("#llm-llamacpp-fields")).to_be_visible()
         expect(page.locator("#install-btn-llamacpp")).to_be_visible()
-        # Recommends an Apache-2.0 model (Qwen2.5) — Llama is licence-excluded
+        # Recommends an Apache-2.0 model (Qwen2.5) - Llama is licence-excluded
         # from recommendations (see model_catalog.py).
         expect(page.locator("#llm-llamacpp-fields")).to_contain_text("Qwen2.5 7B Instruct")
         expect(page.locator("#llm-warn")).to_be_visible()  # no .gguf chosen yet

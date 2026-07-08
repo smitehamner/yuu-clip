@@ -2,7 +2,7 @@
 Design-token and theme contract for app.css (CC-1 / CC-7).
 
 CC-1: muted text and the pill/button color pairs must meet WCAG AA 4.5:1 on
-the surfaces they actually appear on — in every theme, since each theme block
+the surfaces they actually appear on - in every theme, since each theme block
 replaces the full palette. CC-7: exactly one semantic warning token
 (--warning) exists; the legacy --amber / --warn / --yellow names must stay
 dead, in token definitions and in references.
@@ -32,7 +32,7 @@ STATIC_DIR = Path(__file__).resolve().parents[1] / "yuu_clip" / "web" / "static"
 
 THEMES = ["dark", "light", "high-contrast"]
 
-# Every theme block must override each of these — a theme that inherits a
+# Every theme block must override each of these - a theme that inherits a
 # color from the dark defaults is almost certainly an unreadable accident.
 COLOR_TOKENS = [
     "--bg", "--bg-deep", "--surface", "--surface-raised", "--selection",
@@ -259,12 +259,12 @@ def test_app_css_has_no_color_literals_outside_theme_blocks():
 #
 # Legitimate non-token colors are stripped or allowlisted, by class:
 #   - HTML numeric entities (&#8230;) are not colors at all.
-#   - `var(--token, #fallback)` — the literal is a defensive CSS-var fallback
+#   - `var(--token, #fallback)` - the literal is a defensive CSS-var fallback
 #     that never fires (the token is always defined by a theme block).
-#   - `|| '#data'` — a JS fallback for user/data-supplied colors (speaker dot,
+#   - `|| '#data'` - a JS fallback for user/data-supplied colors (speaker dot,
 #     title-card color-picker default), not UI chrome.
 #   - Over-video overlays (#000/#fff/#e6e6e6 caption text, black/white scrims):
-#     drawn over video, theme-independent by design — same class as #000
+#     drawn over video, theme-independent by design - same class as #000
 #     letterboxing (the documented CLAUDE.md exemption).
 #   - The score-gradient stops in format.js: data encoding, not chrome.
 # Adding a new literal outside these classes breaks this test.

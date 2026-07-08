@@ -3,7 +3,7 @@ Export filename stem: template validation and rendering (yuu_clip/export_naming.
 
 export_base_stem duck-types on a ClipCandidate-shaped object (cand.video.filename,
 cand.id, cand.start_hms, cand.end_ms, cand.score_overall), so plain fakes stand in
-for the real SQLAlchemy models here — no DB needed for these pure-function tests.
+for the real SQLAlchemy models here - no DB needed for these pure-function tests.
 """
 from __future__ import annotations
 
@@ -125,7 +125,7 @@ class TestExportBaseStem:
 
     def test_malformed_brace_falls_back_to_default_instead_of_crashing(self):
         # A template saved before this validation existed (or hand-edited) must
-        # not crash the export / has-export lookup — fall back to the default stem.
+        # not crash the export / has-export lookup - fall back to the default stem.
         clip = _FakeClip(id=42, start_ms=15 * 60_000, end_ms=16 * 60_000)
         stem = export_base_stem(clip, "clip_{video}}")
         assert stem == export_base_stem(clip, DEFAULT_EXPORT_NAME_TEMPLATE)

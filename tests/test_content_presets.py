@@ -42,7 +42,7 @@ def test_starter_hotwords_valid():
             assert spec.phrase.strip(), preset.id
             assert spec.target in _VALID_TARGETS, (preset.id, spec.phrase)
             assert spec.match_mode in _VALID_MODES, (preset.id, spec.phrase)
-            # Presets nudge rather than dominate — modest, non-negative boosts.
+            # Presets nudge rather than dominate - modest, non-negative boosts.
             assert 0.0 < spec.boost <= 0.2, (preset.id, spec.phrase)
 
 
@@ -56,7 +56,7 @@ def test_non_generic_presets_have_flavor_and_hotwords():
 
 def test_generic_is_a_true_noop_vs_config_defaults():
     """Selecting Generic must change nothing relative to Config()'s shipped
-    defaults — drift in either place should fail here."""
+    defaults - drift in either place should fail here."""
     generic = preset_by_id("generic")
     defaults = Config()
     assert generic.flavor == ""
@@ -135,7 +135,7 @@ def test_apply_inserts_hotwords_once(client):
     after_first = client.get("/api/hotwords").json()
     assert len(after_first) == expected
 
-    # Re-applying is idempotent — the same phrases are skipped as duplicates.
+    # Re-applying is idempotent - the same phrases are skipped as duplicates.
     second = client.post("/api/content-presets/apply", json={"id": "competitive", "add_hotwords": True}).json()
     assert second["hotwords_added"] == 0
     assert len(client.get("/api/hotwords").json()) == expected

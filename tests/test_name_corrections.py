@@ -1,7 +1,7 @@
 """Transcript name-correction tests (Plan 09).
 
 The matcher (`find_name_corrections`) is the bulk of the value and is a pure function
-— most tests exercise it directly. A smaller set covers the scan/apply routes via the
+ -  most tests exercise it directly. A smaller set covers the scan/apply routes via the
 TestClient, including span-drift handling and the caption-edit bookkeeping.
 """
 from __future__ import annotations
@@ -112,7 +112,7 @@ def _project_with_transcript(tmp_path: Path, texts_and_speakers, *, context=None
     """Seed a project DB with one recording, a track, speakers, and a transcript.
 
     ``texts_and_speakers`` is a list of (text, speaker_display_index_or_None). Two
-    confirmed speakers always exist — Yuu (index 1) and Mara (index 2) — so the
+    confirmed speakers always exist - Yuu (index 1) and Mara (index 2) - so the
     lexicon carries both names regardless of which lines are attributed.
     """
     data = tmp_path / ".yuu-clip"

@@ -1,9 +1,9 @@
-"""yuu_clip/scoring/llm.py + llm_client.py — LLM scorer, clients, summaries, timeline."""
+"""yuu_clip/scoring/llm.py + llm_client.py - LLM scorer, clients, summaries, timeline."""
 
 from __future__ import annotations
 
 # ---------------------------------------------------------------------------
-# LLMScorer — is_available() branches
+# LLMScorer - is_available() branches
 # ---------------------------------------------------------------------------
 
 class TestLLMScorerIsAvailable:
@@ -89,7 +89,7 @@ class TestLLMScorerIsAvailable:
         assert call_count == 1
 
 # ---------------------------------------------------------------------------
-# LLMScorer — _parse() score clamping
+# LLMScorer - _parse() score clamping
 # ---------------------------------------------------------------------------
 
 class TestLLMScorerParse:
@@ -135,11 +135,11 @@ class TestLLMScorerParse:
         assert result["description_long"] == "Longer text here"
 
 # ---------------------------------------------------------------------------
-# LLMScorer — score() result paths
+# LLMScorer - score() result paths
 # ---------------------------------------------------------------------------
 
 class TestLLMScorerScore:
-    """score() — no-transcript, error, and success paths."""
+    """score() - no-transcript, error, and success paths."""
 
     def _make_scorer(self, backend_response=None):
         import unittest.mock as mock
@@ -285,7 +285,7 @@ class TestLLMScorerScore:
         assert result.notes.get("model") == "qwen2.5:7b"
 
 # ---------------------------------------------------------------------------
-# Coverage gaps — pure-function and edge-case paths
+# Coverage gaps - pure-function and edge-case paths
 # ---------------------------------------------------------------------------
 
 class TestStripJsonFence:
@@ -369,7 +369,7 @@ class TestPrependContext:
         assert self._pp("SYSTEM", None) == "SYSTEM"
 
 # ---------------------------------------------------------------------------
-# LLMClient factory — make_client() routing
+# LLMClient factory - make_client() routing
 # ---------------------------------------------------------------------------
 
 class TestMakeClient:
@@ -534,7 +534,7 @@ class TestCheckLlmAvailable:
 
 # ---------------------------------------------------------------------------
 # LLM module-level functions: summarize_transcript, generate_timeline_chunk,
-# find_related_clips — tested with a mocked _call_client
+# find_related_clips - tested with a mocked _call_client
 # ---------------------------------------------------------------------------
 
 class TestSummarizeTranscript:

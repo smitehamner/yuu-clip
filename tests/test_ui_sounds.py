@@ -1,11 +1,11 @@
 """
-Playwright UI tests — notification sound picker (sounds.js).
+Playwright UI tests - notification sound picker (sounds.js).
 
 Exercises the public surface only: `SoundFx.play`/`SoundFx.stop`, the Settings
 panel wiring (`initSoundSettings` + the dirty/Save model via
 `_soundSettingsDirty`/`commitSoundSettings`), and the `yuuclip-sounds`
 localStorage contract those talk through (the persistence format is
-effectively part of the public contract — it's how settings survive a
+effectively part of the public contract - it's how settings survive a
 reload). sounds.js is an IIFE that intentionally does not export its internal
 `_loadState`/`_saveState` helpers, matching the "wrapped feature module"
 convention documented for the rest of the frontend.
@@ -17,7 +17,7 @@ directly rather than clicking Save, because clicking Save would PATCH the live
 project's real config.json (same reason test_ui_settings.py never saves).
 
 Playback itself (HTMLAudioElement.play()) is not asserted beyond "a src got
-set" — autoplay policies make actual playback flaky in a headless browser,
+set" - autoplay policies make actual playback flaky in a headless browser,
 and the code already swallows play() rejection intentionally.
 
 Run against the live dev server on port 8080. See tests/conftest.py for shared
@@ -40,7 +40,7 @@ def _set_stored_state(page: Page, state: dict) -> None:
 
 
 # ---------------------------------------------------------------------------
-# playActionSound (SoundFx.play) — gates on the per-event enabled flag
+# playActionSound (SoundFx.play) - gates on the per-event enabled flag
 # ---------------------------------------------------------------------------
 
 @skip_no_server
@@ -102,7 +102,7 @@ class TestSoundFxPlay:
 
 
 # ---------------------------------------------------------------------------
-# Settings panel — sound rows render and wire up checkboxes/selects
+# Settings panel - sound rows render and wire up checkboxes/selects
 # ---------------------------------------------------------------------------
 
 @skip_no_server
@@ -222,7 +222,7 @@ class TestSoundSettingsPanel:
         expect(page.locator("#btn-settings-save")).to_be_disabled()
 
     def test_preview_plays_pending_unsaved_selection(self, page: Page):
-        # Preview is an inspection — it must reflect the pending UI choice
+        # Preview is an inspection - it must reflect the pending UI choice
         # immediately, even though nothing has been saved yet.
         page.evaluate("() => localStorage.removeItem('yuuclip-sounds')")
         self._open_settings(page)

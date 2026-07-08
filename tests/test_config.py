@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 
 # ---------------------------------------------------------------------------
-# Config.load() — project overrides global
+# Config.load() - project overrides global
 # ---------------------------------------------------------------------------
 
 class TestConfigLoad:
@@ -119,7 +119,7 @@ class TestConfigLoad:
 
 
 # ---------------------------------------------------------------------------
-# UI config endpoint — GET/PATCH /api/config
+# UI config endpoint - GET/PATCH /api/config
 # ---------------------------------------------------------------------------
 
 class TestUiConfig:
@@ -236,7 +236,7 @@ class TestUiConfig:
 
 
 # ---------------------------------------------------------------------------
-# Caption style — GET defaults + PATCH validation (burned-in captions)
+# Caption style - GET defaults + PATCH validation (burned-in captions)
 # ---------------------------------------------------------------------------
 
 class TestCaptionStyleConfig:
@@ -292,7 +292,7 @@ class TestCaptionStyleConfig:
 class TestVisionConfig:
     def test_defaults_conservatively_on(self, client):
         # Wave 6: available + on by default, but a low frame count (nothing runs
-        # unless a vision-capable model is also configured — see check_vision_available).
+        # unless a vision-capable model is also configured - see check_vision_available).
         cfg = client.get("/api/config").json()
         assert cfg["vision_enabled"] is True
         assert cfg["vision_frames_per_clip"] == 2
@@ -322,7 +322,7 @@ class TestVisionConfig:
 
 
 # ---------------------------------------------------------------------------
-# Config — packaging-strategy overhaul Wave 2 default flips
+# Config - packaging-strategy overhaul Wave 2 default flips
 # ---------------------------------------------------------------------------
 
 class TestPackagingWave2Defaults:
@@ -344,7 +344,7 @@ class TestPackagingWave2Defaults:
 
     def test_laugh_mode_not_flipped_by_wave_2(self):
         # Explicitly out of scope: laugh_mode stays transcript-only (a laugh_mode
-        # flip needs its own decision). Vision was Wave 6's call — see
+        # flip needs its own decision). Vision was Wave 6's call - see
         # TestPackagingWave6VisionDefaults below for its (now-flipped) defaults.
         from yuu_clip.config import Config
         assert Config().scorer_laugh_mode == "transcript"
@@ -353,7 +353,7 @@ class TestPackagingWave2Defaults:
 class TestPackagingWave6VisionDefaults:
     """Vision is available + conservatively-on by default (Wave 6): the master
     switch is on and the frame count is low, but nothing runs unless a
-    vision-capable model is configured — see check_vision_available /
+    vision-capable model is configured - see check_vision_available /
     TestCheckVisionAvailable in test_vision.py for the capability gate."""
 
     def test_vision_enabled_defaults_true(self):
@@ -401,7 +401,7 @@ class TestValidateVisionFramesPerClip:
 
 
 # ---------------------------------------------------------------------------
-# Config — new llm_backend / llm_model_path defaults
+# Config - new llm_backend / llm_model_path defaults
 # ---------------------------------------------------------------------------
 
 class TestConfigNewLlmFields:
@@ -433,7 +433,7 @@ class TestConfigNewLlmFields:
 
 
 # ---------------------------------------------------------------------------
-# /api/config — patch llm_backend and llm_model_path
+# /api/config - patch llm_backend and llm_model_path
 # ---------------------------------------------------------------------------
 
 class TestConfigApiLlmFields:
@@ -519,7 +519,7 @@ class TestValidateWhisperLanguage:
 
 
 # ---------------------------------------------------------------------------
-# whisper_language — config field, API, and pipeline resolution
+# whisper_language - config field, API, and pipeline resolution
 # ---------------------------------------------------------------------------
 
 class TestWhisperLanguageConfig:
@@ -696,7 +696,7 @@ class TestConfigPatchWhisperModel:
 
 
 # ---------------------------------------------------------------------------
-# Thermal config — GPU warn/pause temperatures (roadmap plan 01, Stage 3)
+# Thermal config - GPU warn/pause temperatures (roadmap plan 01, Stage 3)
 # ---------------------------------------------------------------------------
 
 class TestThermalConfig:
@@ -726,7 +726,7 @@ class TestThermalConfig:
         assert r.status_code == 400
 
     def test_rejected_patch_does_not_mutate_existing_config(self, client):
-        """A failed cross-field check must leave the live config untouched —
+        """A failed cross-field check must leave the live config untouched -
         not partially apply fields processed before the validation ran."""
         before = client.get("/api/config").json()
         r = client.patch("/api/config", json={"thermal_warn_c": 100, "thermal_pause_c": 95})
@@ -736,7 +736,7 @@ class TestThermalConfig:
         assert after["thermal_pause_c"] == before["thermal_pause_c"]
 
     def test_raising_pause_then_warn_together_is_valid(self, client):
-        # Only valid if applied together — proves the check uses the *new*
+        # Only valid if applied together - proves the check uses the *new*
         # combined values, not the stale cfg.thermal_pause_c mid-loop.
         r = client.patch("/api/config", json={"thermal_warn_c": 100, "thermal_pause_c": 105})
         assert r.status_code == 200
@@ -751,7 +751,7 @@ class TestThermalConfig:
 
 
 # ---------------------------------------------------------------------------
-# Title card config — colors, scale, text template, duration (roadmap plan 09)
+# Title card config - colors, scale, text template, duration (roadmap plan 09)
 # ---------------------------------------------------------------------------
 
 class TestTitleCardConfigDefaults:
@@ -814,7 +814,7 @@ class TestValidateHexColor:
 
 
 class TestTitleCardConfigLoadSanitization:
-    """Config.load() must never crash on a hand-edited config.json — bad
+    """Config.load() must never crash on a hand-edited config.json - bad
     title-card values fall back to defaults with a WARN log instead."""
 
     def _load_with(self, tmp_path, monkeypatch, project_values):

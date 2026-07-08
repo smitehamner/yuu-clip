@@ -1,12 +1,12 @@
 """
-Playwright UI tests — Settings panel: transcription language select.
+Playwright UI tests - Settings panel: transcription language select.
 
 The select's options are populated at panel-open time from
 GET /api/config/whisper-languages (single-sourced from ALLOWED_WHISPER_LANGUAGES
 in config.py) and rendered as English names via Intl.DisplayNames.
 
 Read-only by design: saving whisper_language goes through PATCH /api/config,
-which is covered by tests/test_config.py — clicking Save here would write the
+which is covered by tests/test_config.py - clicking Save here would write the
 live project's real config.json.
 
 Run against the live dev server on port 8080. See tests/conftest.py for shared
@@ -32,7 +32,7 @@ class TestTranscriptionLanguageSelect:
             timeout=3000,
         )
         # The language options are populated (above) *before* openSettings()'s
-        # _applySettingsToUI runs — that later call resets #s-whisper-language to
+        # _applySettingsToUI runs - that later call resets #s-whisper-language to
         # the saved value and takes the dirty snapshot. Interacting between those
         # two steps lets the async apply overwrite the test's selection and
         # re-snapshot, leaving Save disabled. #s-paths-display is populated last,
@@ -89,7 +89,7 @@ class TestTranscriptionLanguageSelect:
 @skip_no_server
 class TestAiPrivacyMode:
     """The AI privacy radios (plan non-llm-tiers/07). Read-only: these manipulate the
-    live DOM (radios, visibility) but never click Save — that would PATCH the real
+    live DOM (radios, visibility) but never click Save - that would PATCH the real
     config.json. Each test starts from a fresh page.goto so nothing persists."""
 
     def _open_settings(self, page: Page) -> None:
@@ -152,7 +152,7 @@ class TestSettingsPanelLayout:
     def test_sidebar_stays_visible_when_settings_open(self, page: Page):
         self._open_settings(page)
         expect(page.locator(".sidebar")).to_be_visible()
-        # The main layout is no longer hidden — settings is an overlay, not fullscreen.
+        # The main layout is no longer hidden - settings is an overlay, not fullscreen.
         display = page.evaluate(
             "getComputedStyle(document.getElementById('main-layout')).display"
         )
@@ -170,7 +170,7 @@ class TestSettingsPanelChrome:
     """Sticky header with Save + section jump links, weight reset, secret-field
     toggles, and the LLM master-toggle dim (UX review iteration 7).
 
-    None of these tests click Save — that would PATCH the live project's real
+    None of these tests click Save - that would PATCH the live project's real
     config.json. Pending UI changes are discarded by the fresh page.goto each
     test starts with.
     """
@@ -181,7 +181,7 @@ class TestSettingsPanelChrome:
         page.click("#btn-settings-header")
         page.wait_for_selector("#settings-panel.visible", timeout=3000)
         # openSettings() fetches and applies config async after the panel is
-        # already visible — interacting earlier gets overwritten by
+        # already visible - interacting earlier gets overwritten by
         # _applySettingsToUI. The paths display is rendered last, so its
         # content signals the panel is fully initialized.
         page.wait_for_function(
@@ -191,7 +191,7 @@ class TestSettingsPanelChrome:
         # The Capabilities tiers render from a *separate* async fetch
         # (/api/capabilities/tiers) into a section above Paths. If that lands
         # after we've asserted scrollTop, its reflow trips Chrome scroll
-        # anchoring and shifts the panel — wait for it to settle too.
+        # anchoring and shifts the panel - wait for it to settle too.
         page.wait_for_function(
             "document.getElementById('s-capabilities-list').children.length > 0",
             timeout=3000,
@@ -237,7 +237,7 @@ class TestSettingsPanelChrome:
             "s-action-weight": "1.0",
         }
         for field_id, default in defaults.items():
-            # Range inputs normalize "1.0" to "1" — compare numerically.
+            # Range inputs normalize "1.0" to "1" - compare numerically.
             assert float(page.locator(f"#{field_id}").input_value()) == float(default)
             expect(page.locator(f"#{field_id}-val")).to_have_text(default)
 
@@ -263,7 +263,7 @@ class TestSettingsPanelChrome:
         assert page.evaluate("document.getElementById('s-similarity-backend').disabled") is False
 
     def test_similarity_embeddings_fields_toggle_on_smart_tier(self, page: Page):
-        # fastembed is bundled by default (packaging-strategy overhaul) — no install
+        # fastembed is bundled by default (packaging-strategy overhaul) - no install
         # button anymore, just an info note about the model download.
         self._open_settings(page)
         page.select_option("#s-similarity-backend", "tfidf")
@@ -286,13 +286,13 @@ class TestSettingsPanelChrome:
 
 
 # ---------------------------------------------------------------------------
-# Capabilities overview — the tiered "lightweight mode" story (Stage 06)
+# Capabilities overview - the tiered "lightweight mode" story (Stage 06)
 # ---------------------------------------------------------------------------
 
 @skip_no_server
 class TestCapabilitiesSection:
     """The Capabilities section renders one row per non-LLM upgrade tier from
-    /api/capabilities/tiers. Read-only — never clicks Save."""
+    /api/capabilities/tiers. Read-only - never clicks Save."""
 
     def _open_settings(self, page: Page) -> None:
         page.goto(LIVE_URL)
@@ -329,12 +329,12 @@ class TestCapabilitiesSection:
 
 
 # ---------------------------------------------------------------------------
-# Export filename template — live preview (quick-wins Stage 8)
+# Export filename template - live preview (quick-wins Stage 8)
 # ---------------------------------------------------------------------------
 
 @skip_no_server
 class TestExportNameTemplatePreview:
-    """Preview line is pure client-side (utils.js's _updateExportNameTemplatePreview) —
+    """Preview line is pure client-side (utils.js's _updateExportNameTemplatePreview) -
     never clicks Save, which would write the live project's real config.json."""
 
     def _open_settings(self, page: Page) -> None:
@@ -372,17 +372,17 @@ class TestExportNameTemplatePreview:
 
 
 # ---------------------------------------------------------------------------
-# Title card customization — colors, size, layout, duration, preview, contrast
+# Title card customization - colors, size, layout, duration, preview, contrast
 # warning (roadmap plan 09)
 # ---------------------------------------------------------------------------
 
 @skip_no_server
 class TestTitleCardSettings:
-    """Never clicks Save — that would PATCH the live project's real config.json."""
+    """Never clicks Save - that would PATCH the live project's real config.json."""
 
     def _open_settings(self, page: Page) -> None:
         # openSettings() fetches and applies config async after the panel is
-        # already visible (see TestSettingsPanelChrome) — the paths display is
+        # already visible (see TestSettingsPanelChrome) - the paths display is
         # rendered last, so waiting on it means _applySettingsToUI (which would
         # otherwise overwrite an early fill with the fetched config value) has
         # already run.
@@ -476,7 +476,7 @@ class TestTitleCardSettings:
 
 @skip_no_server
 class TestCaptionStyleSettings:
-    """Never clicks Save — that would PATCH the live project's real config.json."""
+    """Never clicks Save - that would PATCH the live project's real config.json."""
 
     def _open_settings(self, page: Page) -> None:
         page.goto(LIVE_URL)
@@ -509,7 +509,7 @@ class TestCaptionStyleSettings:
 
 
 # ---------------------------------------------------------------------------
-# Glossary modal — filter input (L9-3)
+# Glossary modal - filter input (L9-3)
 # ---------------------------------------------------------------------------
 
 @skip_no_server
@@ -570,9 +570,9 @@ class TestGlossaryFilter:
 
 
 # ---------------------------------------------------------------------------
-# Hardware section — GPU thermal thresholds (roadmap-2026-07 plan 01, Stage 3)
+# Hardware section - GPU thermal thresholds (roadmap-2026-07 plan 01, Stage 3)
 #
-# Only the rejected-patch test clicks Save — a failed cross-field validation
+# Only the rejected-patch test clicks Save - a failed cross-field validation
 # is guaranteed by tests/test_config.py to leave the live config untouched, so
 # it can't write bad values into the project's real config.json. Every other
 # test here only inspects/dirties fields, same convention as
@@ -625,8 +625,8 @@ class TestHardwareSettingsSection:
 
 
 # ---------------------------------------------------------------------------
-# Export presets — Plan 07 Stage 3. Custom presets live in *global* config (a
-# user preference, not project data — see export_presets.py), so every test
+# Export presets - Plan 07 Stage 3. Custom presets live in *global* config (a
+# user preference, not project data - see export_presets.py), so every test
 # that creates one cleans it up via a direct DELETE in a ``finally`` block,
 # mirroring the hot-word CRUD cleanup pattern in test_ui_hotwords.py.
 # ---------------------------------------------------------------------------

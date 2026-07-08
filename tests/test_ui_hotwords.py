@@ -1,9 +1,9 @@
 """
-Playwright UI tests — Hot-words Settings section and clip surfacing (roadmap plan
+Playwright UI tests - Hot-words Settings section and clip surfacing (roadmap plan
 03, both stages).
 
 CRUD tests run against the live dev server's real project DB, so every test that
-creates a hot-word cleans it up via a direct API call in a ``finally`` block —
+creates a hot-word cleans it up via a direct API call in a ``finally`` block -
 mirroring the fake-reel-file cleanup pattern in test_ui_reel.py. Pill and detail-panel
 rendering tests use synthetic AppState.clips/renderDetail data (the established
 pattern in test_ui_clips.py) so they never touch real clip scores.

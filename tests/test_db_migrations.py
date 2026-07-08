@@ -155,7 +155,7 @@ class TestDropUniquePathMigration:
         engine = _build_legacy_videos_db(tmp_path / "legacy.db")
         created = datetime(2026, 1, 1, tzinfo=timezone.utc)
         # Distinct paths: a legacy DB that still enforces UNIQUE(path) cannot
-        # contain segment rows sharing their parent's path — those become
+        # contain segment rows sharing their parent's path - those become
         # possible only once the constraint is gone (asserted below).
         with engine.begin() as conn:
             conn.execute(text(

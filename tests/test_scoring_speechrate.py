@@ -1,4 +1,4 @@
-"""yuu_clip/scoring/speechrate.py — words-per-second burst scoring (no model)."""
+"""yuu_clip/scoring/speechrate.py - words-per-second burst scoring (no model)."""
 
 from __future__ import annotations
 
@@ -28,11 +28,11 @@ class TestSpeechRateScore:
         return speech_rate_score(pairs)
 
     def test_calm_speech_returns_none(self):
-        # ~2 words/sec — ordinary conversation
+        # ~2 words/sec - ordinary conversation
         assert self._score([(6, 3.0), (4, 2.0)]) is None
 
     def test_fast_speech_scores_positive(self):
-        # ~6 words/sec sustained — excited, rapid delivery
+        # ~6 words/sec sustained - excited, rapid delivery
         assert self._score([(12, 2.0), (18, 3.0)]) > 0.0
 
     def test_very_fast_saturates_at_one(self):

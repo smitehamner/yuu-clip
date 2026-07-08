@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# pin-deps.sh — generate requirements.lock with SHA256 hashes
+# pin-deps.sh - generate requirements.lock with SHA256 hashes
 # Run this whenever you want to update or initially generate the lockfile.
 #
 # Usage:

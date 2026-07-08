@@ -1,5 +1,5 @@
 """
-Playwright UI tests — background local-model download banner (first-run-friction
+Playwright UI tests - background local-model download banner (first-run-friction
 Stage 4).
 
 On boot, modeldownload.js reads /api/llm/download-status; if a local model is
@@ -12,7 +12,7 @@ closes the banner and the app stays usable.
 Every fetch the asserted render awaits is stubbed (hermetic-stubbing rule): the
 status/capabilities reads, the SSE download endpoint, the clear endpoint, and the
 capability-tiers refresh. The boot flow is driven by calling initModelDownload()
-after the routes are in place — the fixture's own initial boot ran against the
+after the routes are in place - the fixture's own initial boot ran against the
 real (empty) dev config, so it never renders a banner. Read-only against the live
 dev server on port 8080. See tests/conftest.py.
 """

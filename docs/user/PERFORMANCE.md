@@ -1,4 +1,4 @@
-# yuu-clip — Performance and Storage
+# yuu-clip - Performance and Storage
 
 ## Recommended specs
 
@@ -7,11 +7,11 @@
 | CPU | Any modern x64 | 8+ cores (speeds up audio extraction) |
 | RAM | 8 GB | 16 GB+ (large-v3 Whisper keeps ~3 GB in VRAM; RAM mostly not the bottleneck) |
 | GPU | None (CPU fallback) | NVIDIA GPU with 4 GB+ VRAM for GPU-accelerated Whisper |
-| Storage — project folder | HDD | **SSD strongly recommended** (see below) |
-| Storage — source files | HDD/external OK | HDD or external drive is fine |
+| Storage - project folder | HDD | **SSD strongly recommended** (see below) |
+| Storage - source files | HDD/external OK | HDD or external drive is fine |
 | OS | Windows 10 (updated) | Windows 11 |
 
-## Storage — what takes space
+## Storage - what takes space
 
 ### Install footprint
 
@@ -38,13 +38,13 @@ A 2-hour session with 2 audio tracks produces roughly 460 MB of audio extracts. 
 ### Cleanup
 
 yuu-clip does not auto-delete any files. To reclaim space:
-- **Audio extracts**: delete `.yuu-clip/audio/` — will be regenerated on next analysis
+- **Audio extracts**: delete `.yuu-clip/audio/` - will be regenerated on next analysis
 - **Exports / reels**: delete individual files from `.yuu-clip/exports/` and `.yuu-clip/reels/` via the UI (Delete Export button) or directly from disk
 - **Whisper models**: remove from the model cache to free 75 MB–3 GB per size
 
 ## SSD vs. external drive
 
-**Source video files** can live on an external drive or HDD — they are read sequentially during audio extraction, which is not latency-sensitive.
+**Source video files** can live on an external drive or HDD - they are read sequentially during audio extraction, which is not latency-sensitive.
 
 **The project folder** (`.yuu-clip/` containing the database, audio extracts, and exports) benefits from an SSD:
 - The SQLite database has many small random reads/writes during analysis and UI interaction; HDD latency can cause noticeable lag

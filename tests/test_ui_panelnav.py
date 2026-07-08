@@ -1,5 +1,5 @@
 """
-Playwright UI tests — panel navigation framework (roadmap plan 04).
+Playwright UI tests - panel navigation framework (roadmap plan 04).
 
 Split Editor is the framework's proving consumer, so these tests drive it
 through PanelNav rather than testing the framework in isolation. Complements
@@ -74,7 +74,7 @@ class TestPanelDirtyGuard:
 @skip_no_server
 class TestEscapeLayering:
     def test_escape_pops_a_modal_before_the_panel(self, split_editor: Page):
-        # A modal opened on top of the panel is the topmost layer — Escape
+        # A modal opened on top of the panel is the topmost layer - Escape
         # must close it first and leave the panel untouched. The panel covers
         # the sidebar "Additional Actions" trigger, so open a modal directly
         # rather than via a now-unreachable click.
@@ -92,7 +92,7 @@ class TestEscapeLayering:
 class TestKeyboardSuppression:
     def test_ajk_shortcuts_do_not_act_on_the_clip_list_behind_the_panel(self, page: Page):
         # Select a clip first so the dispatcher has a subject to (wrongly) act
-        # on if the guard were missing, then open the panel directly — opening
+        # on if the guard were missing, then open the panel directly - opening
         # it via the sidebar's "Additional Actions" would require the
         # recording-detail view, which selecting a clip replaces.
         select_first_video_and_clip(page)

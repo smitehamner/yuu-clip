@@ -1,5 +1,5 @@
 """
-Playwright UI tests — session grouping (sidebar groups, suggest prompt, detail
+Playwright UI tests - session grouping (sidebar groups, suggest prompt, detail
 view, reel scope). Uses route mocking so the tests don't depend on or mutate the
 live project's real recordings.
 
@@ -78,10 +78,10 @@ def _boot_with_sessions(page, videos=None, sessions=None, extra_routes=None):
     The ``page`` fixture has already navigated (against the real dev server). We
     do NOT navigate a second time: a full reload re-fetches ~20 static JS files
     from the single shared dev server, and under a full parallel run that
-    intermittently stalled the ``load`` event past the navigation timeout — a
+    intermittently stalled the ``load`` event past the navigation timeout - a
     flake that surfaced as the session-group tests (and unrelated tests) timing
     out. Instead we wait for the first boot's loadVideos() to finish, then
-    overwrite AppState and re-render directly — the same inject-and-render
+    overwrite AppState and re-render directly - the same inject-and-render
     approach the rest of the UI suite uses. This removes both the second-load
     dependency and the boot/render race entirely.
 
@@ -136,7 +136,7 @@ class TestGroupingMode:
         page.click("#session-toolbar button:has-text('Group')")
         expect(page.locator("#session-grouping-bar")).to_be_visible()
         assert page.locator("#video-list .session-select-box").count() >= 1
-        # Selecting the lone ungrouped recording is not enough (needs 2+) — the
+        # Selecting the lone ungrouped recording is not enough (needs 2+) - the
         # confirm button stays disabled at one selection.
         page.evaluate("toggleGroupSelect(9003)")
         expect(page.locator("#btn-confirm-group")).to_be_disabled()
