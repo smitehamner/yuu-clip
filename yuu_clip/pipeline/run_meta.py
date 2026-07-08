@@ -66,6 +66,10 @@ def _run_settings(config, opts, *, transcribed: bool, diarized: bool) -> dict:
         "scene_mode":      config.scene_detection_mode,
         "speaker_labels":  diarized,
         "captions_source": captions_source,
+        # The exact caption selection (SRT path or "stream:<index>"), so re-analyze
+        # can default the captions picker to what this run actually used. None when
+        # transcribed with Whisper.
+        "subtitle_source": opts.subtitle_source or None,
         "scoring":         not opts.no_score,
         "contexts":        list(opts.context_names or []),
         "weights": {

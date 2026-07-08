@@ -50,6 +50,15 @@ class TestRunSettings:
         s = _run_settings(_cfg(), opts, transcribed=False, diarized=False)
         assert s["captions_source"] == "external"
 
+    def test_subtitle_source_recorded_for_re_analyze_default(self):
+        opts = AnalyzeOptions(subtitle_source=r"C:\clips\session.srt")
+        s = _run_settings(_cfg(), opts, transcribed=False, diarized=False)
+        assert s["subtitle_source"] == r"C:\clips\session.srt"
+
+    def test_subtitle_source_is_null_when_transcribed(self):
+        s = _run_settings(_cfg(), AnalyzeOptions(), transcribed=True, diarized=False)
+        assert s["subtitle_source"] is None
+
     def test_whisper_captions_source_and_speaker_flag(self):
         s = _run_settings(_cfg(), AnalyzeOptions(), transcribed=True, diarized=True)
         assert s["captions_source"] == "whisper"

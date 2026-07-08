@@ -635,9 +635,10 @@ already been analyzed:
   analysis panel with every setting (Whisper model, track layout, scene/energy
   mode, speaker labels, world contexts) defaulted to how the recording was
   originally analyzed but fully editable, so you can change the model or options
-  before re-running. A warning at the top spells out that clips will be replaced,
-  and the panel's **Re-analyze** button is the confirmation. Files you already
-  exported stay on disk.
+  before re-running. Recordings analyzed with an external caption source (an SRT
+  file or embedded stream) also default the captions picker back to that source.
+  A warning at the top spells out that clips will be replaced, and the panel's
+  **Re-analyze** button is the confirmation. Files you already exported stay on disk.
 
 **Speaker match strictness** (Settings → Speaker labels) controls how strict
 Re-detect Speakers is when re-attaching a named speaker to a voice: higher is

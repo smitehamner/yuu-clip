@@ -97,6 +97,7 @@ async function openReanalyzePanel(video) {
   }
   _reanalyzeTarget = {
     id: video.id, filename: video.filename, path: video.path, exported: video.exported || 0,
+    subtitleSource: video.analyze_run?.settings?.subtitle_source || null,
   };
   _revealRecordingPanel();
 
@@ -275,6 +276,7 @@ async function runProbe(path) {
     _probedInfo = await res.json();
     _updateStartIngestButton();
     _renderSubtitleSourcePicker(_probedInfo);
+    if (_reanalyzeTarget) _selectSubtitleSource(_reanalyzeTarget.subtitleSource);
     runEstimate();
     if (!_reanalyzeTarget) initPreSplitDuration(_probedInfo.duration_s);
   } catch (err) {
@@ -310,6 +312,34 @@ function _renderSubtitleSourcePicker(info) {
     <select id="analyze-subtitle-source" onchange="_onSubtitleSourceChange(this)">${opts.join('')}</select>`;
 }
 
+// Add (or update) the "External SRT: name" option for an arbitrary picked/recorded
+// SRT path, inserted just before the "Choose SRT file…" entry.
+function _addExternalSrtOption(sel, srtPath) {
+  let ext = document.getElementById('subtitle-external-option');
+  if (!ext) {
+    ext = document.createElement('option');
+    ext.id = 'subtitle-external-option';
+    sel.insertBefore(ext, sel.querySelector('option[value="__pick-srt__"]'));
+  }
+  ext.value = srtPath;
+  ext.textContent = `External SRT: ${srtPath.split(/[\\/]/).pop()}`;
+}
+
+// Default the captions picker to a previously-used source (re-analyze). A path or
+// stream already listed is simply selected; an arbitrary external SRT path gets an
+// injected option first. An embedded stream absent from this file is left at default.
+function _selectSubtitleSource(srtSource) {
+  const sel = document.getElementById('analyze-subtitle-source');
+  if (!sel || !srtSource) return;
+  const known = Array.from(sel.options).some(o => o.value === srtSource);
+  if (!known) {
+    if (srtSource.startsWith('stream:')) return;
+    _addExternalSrtOption(sel, srtSource);
+  }
+  sel.value = srtSource;
+  sel.dataset.prev = srtSource;
+}
+
 // "Choose SRT file…" opens the native picker; a successful pick becomes a
 // selectable "External SRT: name" option, cancel restores the previous choice.
 async function _onSubtitleSourceChange(sel) {
@@ -322,14 +352,7 @@ async function _onSubtitleSourceChange(sel) {
   try {
     const data = await fetch('/api/pick-file?kind=captions').then(r => r.json());
     if (data.path) {
-      let ext = document.getElementById('subtitle-external-option');
-      if (!ext) {
-        ext = document.createElement('option');
-        ext.id = 'subtitle-external-option';
-        sel.insertBefore(ext, sel.querySelector('option[value="__pick-srt__"]'));
-      }
-      ext.value = data.path;
-      ext.textContent = `External SRT: ${data.path.split(/[\\/]/).pop()}`;
+      _addExternalSrtOption(sel, data.path);
       sel.value = data.path;
       sel.dataset.prev = data.path;
     } else {

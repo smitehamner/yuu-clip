@@ -861,3 +861,44 @@ class TestReanalyzePanel:
         assert captured.get("video_id") == 4242
         assert captured.get("force") is True
         assert captured.get("model") == "large-v3"
+
+    def _open_with_probe(self, page: Page, video: dict, probe: dict) -> None:
+        page.goto(LIVE_URL)
+        page.route("**/api/probe", _fulfill_json(probe))
+        page.evaluate("(v) => openReanalyzePanel(v)", video)
+        page.locator("#new-recording-panel").wait_for(state="visible")
+        page.locator("#analyze-subtitle-source").wait_for(state="attached", timeout=3000)
+
+    def test_defaults_captions_to_recorded_external_srt(self, page: Page):
+        video = dict(_REANALYZE_VIDEO, analyze_run={"settings": {
+            "model": "large-v3", "subtitle_source": r"C:\clips\old-session.srt",
+        }})
+        self._open_with_probe(page, video, {
+            "filename": "old-session.mkv", "duration_s": 3600, "duration_hms": "1:00:00",
+            "width": 1920, "height": 1080, "fps": 60, "audio_tracks": 1,
+            "subtitle_streams": [], "srt_sidecar": None,
+        })
+        sel = page.locator("#analyze-subtitle-source")
+        assert sel.input_value() == r"C:\clips\old-session.srt"
+        expect(page.locator("#subtitle-external-option")).to_contain_text("old-session.srt")
+
+    def test_defaults_captions_to_recorded_embedded_stream(self, page: Page):
+        video = dict(_REANALYZE_VIDEO, analyze_run={"settings": {
+            "model": "large-v3", "subtitle_source": "stream:2",
+        }})
+        self._open_with_probe(page, video, {
+            "filename": "old-session.mkv", "duration_s": 3600, "duration_hms": "1:00:00",
+            "width": 1920, "height": 1080, "fps": 60, "audio_tracks": 1,
+            "subtitle_streams": [{"index": 2, "codec": "subrip", "title": "English", "language": "eng"}],
+            "srt_sidecar": None,
+        })
+        assert page.locator("#analyze-subtitle-source").input_value() == "stream:2"
+
+    def test_captions_default_to_whisper_when_no_recorded_source(self, page: Page):
+        video = dict(_REANALYZE_VIDEO, analyze_run={"settings": {"model": "large-v3"}})
+        self._open_with_probe(page, video, {
+            "filename": "old-session.mkv", "duration_s": 3600, "duration_hms": "1:00:00",
+            "width": 1920, "height": 1080, "fps": 60, "audio_tracks": 1,
+            "subtitle_streams": [], "srt_sidecar": None,
+        })
+        assert page.locator("#analyze-subtitle-source").input_value() == ""
