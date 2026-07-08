@@ -6,6 +6,43 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) - see the
 
 ---
 
+## First-run friction reduction + local-model push (done 2026-07-08)
+
+Cut the packaged installer's first ~10 minutes from three separate waits plus one dense
+decision screen down to a click-through, and steered non-developer users toward a local
+LLM (the impressive path) without making them understand the AI-backend jargon. Seven
+stages:
+
+- **Adaptive local-model recommendation** - the wizard reads detected VRAM, GPU vendor,
+  and free disk and decides how hard to push the local model (strong / soft / none),
+  never recommending a multi-GB download onto a machine that can't hold it or would crawl.
+- **Server-owned one-click `.gguf` download** - a resumable, cancelable SSE download
+  endpoint (`POST /api/llm/gguf/download`) closes the old gap where the in-app llama.cpp
+  catalog only offered a "download page" link. Both the Settings catalog and the
+  background handoff use it.
+- **Wizard redesign** - the dense "LLM scoring - choose one" block became an opt-out
+  choice (**Set up local AI (Recommended)** vs **Lightweight mode**), with backend /
+  Ollama / Claude / manual-path controls collapsed into **Advanced AI options**. Opting
+  into local AI records intent (`pending_local_model`) rather than blocking on a download.
+- **Background download handoff** - the app opens immediately; if a local model is pending
+  and missing it auto-downloads in the background behind a dismissible in-app progress
+  banner, then points scoring at it and refreshes capabilities with no restart.
+- **Determinate venv-setup progress** - the "Setting up yuu-clip" window now shows a real
+  progress bar + elapsed timer parsed from pip's `--progress-bar raw` output, so the
+  one-time install never looks frozen.
+- **Default-on model pre-fetch + analyze coordination** - a single wizard checkbox
+  (checked by default) pre-fetches the speech-to-text and speaker-labelling models on
+  first launch. If an analysis starts while a required model is still downloading, the app
+  warns and waits on the running download instead of starting a duplicate into the shared
+  cache. Getting Started / wizard copy was de-duplicated.
+- **Settings model management** - recommended models split into **Text scoring** and
+  **Image analysis (vision)** groups, one-click **Download now** / **Use this model** with
+  an **Active** badge, vision entries fetching both the model and its projector, and a
+  native file picker in the packaged app (text-box fallback in browser mode).
+
+Also shipped alongside: a codebase-wide em-dash sweep (2,895 U+2014 -> spaced hyphen
+across 267 files) with a `tests/test_no_emdash.py` guard so they can't creep back.
+
 ## Analyze pipeline idempotency on `--force` re-run (done 2026-07-07)
 
 Re-running analyze on an already-analyzed recording no longer duplicates transcripts.
