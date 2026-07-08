@@ -6,6 +6,32 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) - see the
 
 ---
 
+## Per-stage re-runs: Re-extract / Re-transcribe / Regenerate Clips (done 2026-07-08)
+
+Filled the gaps in single-stage re-running so a recording no longer needs a full
+Re-analyze to redo one step. Previously only Speakers (Re-detect), Score (Re-score),
+and Summarize had standalone re-runs; Extract, Transcribe, and Generate Clips only ran
+inside the whole pipeline.
+
+- **Re-extract Audio** - rebuilds the WAV tracks from the source (force re-extract),
+  preserving the recording's status. Non-destructive; transcripts kept.
+- **Re-transcribe Recording** - re-runs speech-to-text for the whole recording with the
+  configured model, re-extracting missing audio first. Follows the house mark-stale
+  convention rather than cascading: existing clips are stamped `transcript_edited_at` so
+  the existing "captions changed since last scoring - Re-score" badge fires.
+- **Regenerate Clips** (Danger Zone) - re-windows clips from the existing transcript
+  (destructive: replaces all clips + their approvals/edits/scores) and clears the
+  video-level `clips_scored_at` marker so the fresh clips read as unscored.
+
+Each is a CLI command (`reextract`, `retranscribe-video`, `regenerate-clips`) fronted by
+an SSE route (`GET /api/videos/{id}/{reextract,retranscribe,regenerate-clips}`) and a
+button in the recording **Additional Actions** modal, mirroring the existing `rediarize`
+pattern. Engine functions `_reextract_video` / `_retranscribe_video` / `_regenerate_clips`
+live in `pipeline/ingest.py`. Tests: `TestStageRerunEndpoints` + `TestStageRerunEngine` in
+`tests/test_analyze.py`.
+
+---
+
 ## Settings reset-to-defaults + Ollama model-picker fix (done 2026-07-08)
 
 - **Reset to defaults** - every config-backed Settings section (Speech-to-text, LLM

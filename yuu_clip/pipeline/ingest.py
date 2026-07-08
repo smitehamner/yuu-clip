@@ -633,6 +633,77 @@ def _rediarize_video(session, config, video) -> int:
     return len(transcripts)
 
 
+def _reextract_video(session, config, video, audio_dir: Path) -> int:
+    """Re-run only the audio-extraction stage on a recording's tracks (force re-extract).
+
+    For when the source file or track layout changed. Downstream transcripts are left
+    untouched - they still describe the previous audio, so re-transcribe afterward to
+    pick up the new tracks. The recording's status is preserved (the extract stage
+    normally flips it to a transient "extracting" that would otherwise strand the UI
+    spinner on an already-analyzed recording). Returns the number of tracks with
+    extracted audio.
+    """
+    prior_status = video.status
+    _extract_audio_and_check_rms_overlap(
+        Path(video.path), video, video.audio_tracks, config, audio_dir, session,
+        force=True, segment_start_s=video.segment_start_s, segment_end_s=video.segment_end_s,
+    )
+    video.status = prior_status
+    session.commit()
+    return sum(1 for track in video.audio_tracks if track.extracted_path)
+
+
+def _retranscribe_video(session, config, video, audio_dir: Path, language=None) -> list:
+    """Re-run the transcription stage for a whole recording (force re-transcribe).
+
+    Re-extracts any missing audio first, then re-transcribes every do_transcribe track,
+    replacing its existing transcript. Existing clips keep their windows but are stamped
+    ``transcript_edited_at`` so the existing "captions changed since last scoring"
+    staleness badge fires - the mark-stale, don't-cascade convention. Regenerate clips
+    to rebuild windows/excerpts from the new transcript. Returns the new transcripts.
+    """
+    prior_status = video.status
+    _extract_audio_and_check_rms_overlap(
+        Path(video.path), video, video.audio_tracks, config, audio_dir, session,
+        force=False, segment_start_s=video.segment_start_s, segment_end_s=video.segment_end_s,
+    )
+    transcripts = _transcribe_and_check_overlap(
+        video.audio_tracks, config, session, video, language, force=True,
+    )
+    now = datetime.now(timezone.utc)
+    for clip in video.clip_candidates:
+        clip.transcript_edited_at = now
+    if video.clip_candidates:
+        video.status = prior_status
+    session.commit()
+    return transcripts
+
+
+def _regenerate_clips(session, config, video) -> list:
+    """Re-run only the clip-generation stage from the recording's existing transcripts.
+
+    Destructive to clips: replaces every existing clip (and its approvals, edits, tags,
+    and scores) with freshly windowed, unscored candidates. The transcript is untouched.
+    Clears the video-level "fully scored" marker since the new clips are unscored until a
+    re-score runs. Returns the new candidates.
+    """
+    transcripts = [
+        max(track.transcripts, key=lambda t: t.id)
+        for track in video.audio_tracks
+        if track.do_transcribe and track.transcripts
+    ]
+    if not transcripts:
+        console.print("[yellow]No transcripts found - analyze the recording first.[/yellow]")
+        return []
+    candidates = _generate_candidates(
+        video, transcripts, config, session,
+        no_segment=False, no_transcribe=False, force=True,
+    )
+    video.clips_scored_at = None
+    session.commit()
+    return candidates
+
+
 def _generate_candidates(video, transcripts, config, session, no_segment, no_transcribe, force) -> list:
     """Generate sliding-window clip candidates from the transcripts, if conditions are met."""
     from yuu_clip.segments.windower import generate_candidates

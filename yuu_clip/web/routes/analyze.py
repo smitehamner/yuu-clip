@@ -547,6 +547,22 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         ]
         return await subprocess_sse(cmd, ctx.project_dir, ctx)
 
+    def _require_video(video_id: int) -> None:
+        """404 if no recording with this ID exists. Shared by the single-stage re-run routes."""
+        from yuu_clip.db.models import Video
+        db = ctx.get_db()
+        try:
+            if not db.get(Video, video_id):
+                raise HTTPException(404, "Video not found")
+        finally:
+            db.close()
+
+    def _stage_rerun_cmd(command: str, video_id: int, *extra: str) -> list[str]:
+        return [
+            sys.executable, "-m", "yuu_clip.cli", command, str(video_id),
+            "--project", str(ctx.project_dir), *extra,
+        ]
+
     @router.get("/api/videos/{video_id}/rediarize")
     async def rediarize_video(video_id: int):
         """Re-run only speaker diarization on a recording's existing transcripts.
@@ -555,19 +571,40 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         _assign_speakers + _attach_speakers so named speakers re-attach to matching
         voices (the way voiceprint re-attach is validated). Streams progress as SSE.
         """
-        from yuu_clip.db.models import Video
         reject_if_analyzing(ctx)
-        db = ctx.get_db()
+        _require_video(video_id)
+        return await subprocess_sse(_stage_rerun_cmd("rediarize", video_id), ctx.project_dir, ctx)
+
+    @router.get("/api/videos/{video_id}/reextract")
+    async def reextract_video(video_id: int):
+        """Re-run only audio extraction on a recording's tracks. Streams progress as SSE."""
+        reject_if_analyzing(ctx)
+        _require_video(video_id)
+        return await subprocess_sse(_stage_rerun_cmd("reextract", video_id), ctx.project_dir, ctx)
+
+    @router.get("/api/videos/{video_id}/retranscribe")
+    async def retranscribe_video(video_id: int, model: Optional[str] = Query(None)):
+        """Re-run only transcription for a whole recording. Streams progress as SSE.
+
+        Model defaults to the project's configured speech-to-text model; existing clips
+        are flagged as needing a re-score rather than deleted.
+        """
+        reject_if_analyzing(ctx)
+        _require_video(video_id)
+        chosen_model = model or ctx.config.whisper_model
         try:
-            if not db.get(Video, video_id):
-                raise HTTPException(404, "Video not found")
-        finally:
-            db.close()
-        cmd = [
-            sys.executable, "-m", "yuu_clip.cli", "rediarize", str(video_id),
-            "--project", str(ctx.project_dir),
-        ]
+            validate_whisper_model(chosen_model)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+        cmd = _stage_rerun_cmd("retranscribe-video", video_id, "--model", chosen_model)
         return await subprocess_sse(cmd, ctx.project_dir, ctx)
+
+    @router.get("/api/videos/{video_id}/regenerate-clips")
+    async def regenerate_clips(video_id: int):
+        """Regenerate clips from the existing transcript (destructive). Streams progress as SSE."""
+        reject_if_analyzing(ctx)
+        _require_video(video_id)
+        return await subprocess_sse(_stage_rerun_cmd("regenerate-clips", video_id), ctx.project_dir, ctx)
 
     @router.get("/api/install/{slug}")
     async def install_status(slug: str):

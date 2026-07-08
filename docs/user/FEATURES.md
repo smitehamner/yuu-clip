@@ -631,13 +631,24 @@ This answers "how long did this one take, what settings did I use, and did it ru
 
 ### Re-analyzing a recording
 
-The recording detail panel has two ways to re-run analysis on a recording that's
-already been analyzed:
+The recording detail panel lets you re-run a single pipeline stage on a recording
+that's already been analyzed, without paying for the earlier stages:
 
 - **Re-detect Speakers** - re-runs *only* speaker detection on the existing
   transcript. Clips, scores, approvals, and descriptions are untouched. Names you
   assigned to speakers re-attach to the matching voices automatically. Use this
   after naming speakers to confirm they re-attach correctly.
+- **Re-extract Audio** - rebuilds the audio tracks from the source file, for after
+  you've changed the track layout or replaced the recording on disk. Transcripts are
+  kept as-is; re-transcribe afterward to pick up the new audio.
+- **Re-transcribe Recording** - re-runs *only* speech-to-text for the whole
+  recording, with the currently configured model. Existing clips are kept but
+  flagged as needing a re-score (their captions changed); regenerate clips to rebuild
+  them from the new transcript.
+- **Regenerate Clips** (Danger Zone) - rebuilds the clips from the existing
+  transcript. This **replaces** every clip - discarding approvals, edits, tags, and
+  scores - with fresh, unscored candidates, but skips the slow re-transcription. Use
+  it after changing clip-generation settings. Re-score afterward to populate scores.
 - **Re-analyze (full)** - re-runs the whole pipeline from scratch (re-transcribe,
   re-detect speakers, regenerate clips, re-score). This **replaces** all existing
   clips, including your approvals and any edited descriptions. It opens the

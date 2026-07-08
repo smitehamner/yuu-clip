@@ -1688,6 +1688,138 @@ class TestRediarizeEndpoint:
 
 
 # ---------------------------------------------------------------------------
+# Single-stage re-run endpoints (reextract / retranscribe / regenerate-clips)
+# ---------------------------------------------------------------------------
+
+class TestStageRerunEndpoints:
+    def _capture_cmd(self, client, monkeypatch, path):
+        from starlette.responses import PlainTextResponse
+
+        from yuu_clip.web.routes import analyze
+
+        captured = {}
+
+        async def fake_sse(cmd, *args, **kwargs):
+            captured["cmd"] = cmd
+            return PlainTextResponse("ok")
+
+        monkeypatch.setattr(analyze, "subprocess_sse", fake_sse)
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        assert client.get(path.format(id=vid_id)).status_code == 200
+        return captured["cmd"], vid_id
+
+    def test_reextract_builds_cli_command(self, client, monkeypatch):
+        cmd, vid_id = self._capture_cmd(client, monkeypatch, "/api/videos/{id}/reextract")
+        assert "reextract" in cmd
+        assert str(vid_id) in cmd
+
+    def test_retranscribe_builds_cli_command_with_model(self, client, monkeypatch):
+        cmd, _ = self._capture_cmd(client, monkeypatch, "/api/videos/{id}/retranscribe")
+        assert "retranscribe-video" in cmd
+        assert "--model" in cmd
+
+    def test_regenerate_clips_builds_cli_command(self, client, monkeypatch):
+        cmd, vid_id = self._capture_cmd(client, monkeypatch, "/api/videos/{id}/regenerate-clips")
+        assert "regenerate-clips" in cmd
+        assert str(vid_id) in cmd
+
+    def test_stage_reruns_404_for_missing_video(self, client):
+        for path in ("reextract", "retranscribe", "regenerate-clips"):
+            assert client.get(f"/api/videos/99999/{path}").status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Single-stage re-run engine functions
+# ---------------------------------------------------------------------------
+
+class TestStageRerunEngine:
+    def _seed(self, tmp_path, *, with_transcript, with_clip):
+        from yuu_clip.db.models import (
+            AudioTrack,
+            ClipCandidate,
+            Transcript,
+            Video,
+            make_session,
+        )
+
+        session = make_session(tmp_path / "project.db")
+        video = Video(path=str(tmp_path / "s.mkv"), filename="s.mkv", status="done", duration_ms=60_000)
+        session.add(video)
+        session.flush()
+        wav = tmp_path / "t.wav"
+        wav.write_bytes(b"x")
+        track = AudioTrack(video_id=video.id, stream_index=1, do_transcribe=True, extracted_path=str(wav))
+        session.add(track)
+        session.flush()
+        if with_transcript:
+            session.add(Transcript(audio_track_id=track.id, model_name="m"))
+        if with_clip:
+            session.add(ClipCandidate(video_id=video.id, start_ms=0, end_ms=10_000, status="approved"))
+        session.commit()
+        return session, video
+
+    def test_reextract_forces_and_preserves_status(self, tmp_path):
+        from unittest.mock import patch
+
+        from yuu_clip.config import Config
+        from yuu_clip.pipeline import ingest as _pipeline
+
+        session, video = self._seed(tmp_path, with_transcript=False, with_clip=False)
+        with patch.object(_pipeline, "_extract_audio_and_check_rms_overlap") as extract:
+            n = _pipeline._reextract_video(session, Config(), video, tmp_path)
+        assert extract.call_args.kwargs["force"] is True
+        assert video.status == "done"
+        assert n == 1
+        session.close()
+
+    def test_retranscribe_forces_stamps_clips_and_preserves_status(self, tmp_path):
+        from unittest.mock import patch
+
+        from yuu_clip.config import Config
+        from yuu_clip.pipeline import ingest as _pipeline
+
+        session, video = self._seed(tmp_path, with_transcript=True, with_clip=True)
+        with patch.object(_pipeline, "_extract_audio_and_check_rms_overlap"), \
+             patch.object(_pipeline, "_transcribe_and_check_overlap", return_value=[object()]) as transcribe:
+            transcripts = _pipeline._retranscribe_video(session, Config(), video, tmp_path)
+        assert transcribe.call_args.kwargs["force"] is True
+        assert len(transcripts) == 1
+        assert video.status == "done"
+        assert all(clip.transcript_edited_at is not None for clip in video.clip_candidates)
+        session.close()
+
+    def test_regenerate_clips_forces_and_clears_scored_marker(self, tmp_path):
+        from datetime import datetime, timezone
+        from unittest.mock import patch
+
+        from yuu_clip.config import Config
+        from yuu_clip.pipeline import ingest as _pipeline
+
+        session, video = self._seed(tmp_path, with_transcript=True, with_clip=True)
+        video.clips_scored_at = datetime.now(timezone.utc)
+        session.commit()
+        with patch.object(_pipeline, "_generate_candidates", return_value=[object(), object()]) as generate:
+            candidates = _pipeline._regenerate_clips(session, Config(), video)
+        assert generate.call_args.kwargs["force"] is True
+        assert len(candidates) == 2
+        assert video.clips_scored_at is None
+        session.close()
+
+    def test_regenerate_clips_without_transcripts_is_noop(self, tmp_path):
+        from unittest.mock import patch
+
+        from yuu_clip.config import Config
+        from yuu_clip.pipeline import ingest as _pipeline
+
+        session, video = self._seed(tmp_path, with_transcript=False, with_clip=True)
+        with patch.object(_pipeline, "_generate_candidates") as generate:
+            candidates = _pipeline._regenerate_clips(session, Config(), video)
+        assert candidates == []
+        generate.assert_not_called()
+        session.close()
+
+
+# ---------------------------------------------------------------------------
 # Version endpoint
 # ---------------------------------------------------------------------------
 

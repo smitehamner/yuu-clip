@@ -18,7 +18,15 @@ from yuu_clip.cli._base import (
     app,
     console,
 )
-from yuu_clip.pipeline.ingest import AnalyzeOptions, _analyze_one, _rediarize_video, _run_scoring
+from yuu_clip.pipeline.ingest import (
+    AnalyzeOptions,
+    _analyze_one,
+    _rediarize_video,
+    _reextract_video,
+    _regenerate_clips,
+    _retranscribe_video,
+    _run_scoring,
+)
 
 _PAUSE_POLL_INTERVAL_S = 3.0
 
@@ -176,6 +184,77 @@ def rediarize(
     console.rule(f"[bold]{video.filename}[/bold]")
     n = _rediarize_video(session, config, video)
     console.print(f"\n[bold green]Re-detection complete[/bold green] - {n} track(s) re-diarized.\n")
+
+
+def _load_video_or_exit(project, video_id):
+    """Shared prelude for the single-stage re-run commands: load the project and the
+    target recording, exiting cleanly when the ID is unknown."""
+    from yuu_clip.db.models import Video
+
+    proj_dir, session, config = _load_project(project)
+    video = session.get(Video, video_id)
+    if not video:
+        console.print(f"[red]No video with ID {video_id}[/red]")
+        raise typer.Exit(1)
+    return proj_dir, session, config, video
+
+
+@app.command()
+def reextract(
+    video_id: int = typer.Argument(..., help="Video ID to re-extract audio for"),
+    project: Optional[Path] = typer.Option(None, "--project", "-p", help="Project directory (default: cwd)"),
+):
+    """Re-extract audio only: rebuild the WAV tracks from the source file.
+
+    For after the source file or track layout changed. Transcripts are kept - re-transcribe
+    afterward to pick up the new audio.
+    """
+    from yuu_clip.config import project_audio_dir
+
+    _require_ffmpeg()
+    proj_dir, session, config, video = _load_video_or_exit(project, video_id)
+    console.rule(f"[bold]{video.filename}[/bold]")
+    n = _reextract_video(session, config, video, project_audio_dir(proj_dir))
+    console.print(f"\n[bold green]Re-extraction complete[/bold green] - {n} track(s).\n")
+
+
+@app.command("retranscribe-video")
+def retranscribe_video(
+    video_id: int = typer.Argument(..., help="Video ID to re-transcribe"),
+    project: Optional[Path] = typer.Option(None, "--project", "-p", help="Project directory (default: cwd)"),
+    model: str = typer.Option("base", "--model", "-m", help="Speech-to-text model: tiny|base|small|medium|large-v3"),
+    language: Optional[str] = typer.Option(None, "--language", "-l", help="Force speech-to-text language (e.g. en)"),
+):
+    """Re-transcribe only: re-run speech-to-text for the whole recording.
+
+    Re-extracts any missing audio first. Existing clips are kept but flagged as needing a
+    re-score (their captions changed); regenerate clips to rebuild them from the new
+    transcript.
+    """
+    from yuu_clip.config import project_audio_dir
+
+    _require_ffmpeg()
+    proj_dir, session, config, video = _load_video_or_exit(project, video_id)
+    config.whisper_model = model
+    console.rule(f"[bold]{video.filename}[/bold]")
+    transcripts = _retranscribe_video(session, config, video, project_audio_dir(proj_dir), language)
+    console.print(f"\n[bold green]Re-transcription complete[/bold green] - {len(transcripts)} track(s).\n")
+
+
+@app.command("regenerate-clips")
+def regenerate_clips(
+    video_id: int = typer.Argument(..., help="Video ID to regenerate clips for"),
+    project: Optional[Path] = typer.Option(None, "--project", "-p", help="Project directory (default: cwd)"),
+):
+    """Regenerate clips only: rebuild sliding-window clips from the existing transcript.
+
+    Destructive - replaces every existing clip (and its approvals, edits, tags, and scores)
+    with fresh, unscored candidates. Re-score afterward to populate their scores.
+    """
+    _, session, config, video = _load_video_or_exit(project, video_id)
+    console.rule(f"[bold]{video.filename}[/bold]")
+    candidates = _regenerate_clips(session, config, video)
+    console.print(f"\n[bold green]Clip regeneration complete[/bold green] - {len(candidates)} clip(s).\n")
 
 
 @app.command()

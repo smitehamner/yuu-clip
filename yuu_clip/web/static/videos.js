@@ -460,6 +460,8 @@ function openVideoActionsModal(videoId) {
       { label: 'Re-score All Clips', description: 'Regenerate scores and descriptions for every clip in this recording.', action: () => rescoreAllClips(videoId, document.createElement('button')) },
       { label: 'Re-describe All Clips', description: 'Regenerate descriptions only - scores are kept as-is.', action: () => redescribeAllClips(videoId, document.createElement('button')) },
       { label: 'Re-detect Speakers', description: 'Re-run speaker detection on the existing transcript. Clips and scores are kept; named speakers re-attach to matching voices.', action: () => rediarizeVideo(videoId) },
+      { label: 'Re-transcribe Recording', description: 'Re-run speech-to-text for the whole recording. Clips are kept but flagged for a re-score; regenerate clips to rebuild them from the new transcript.', action: () => retranscribeVideoRun(videoId) },
+      { label: 'Re-extract Audio', description: 'Rebuild the audio tracks from the source file, e.g. after changing the track layout. Re-transcribe afterward to update the transcript.', action: () => reextractVideoRun(videoId) },
       ...(hasEnabledSemanticHotwords() ? [
         { label: 'Scan for Hot-words', description: 'Check every clip against your "Meaning" hot-words using the Similarity engine.', action: () => confirmScanHotwordsForVideo(videoId, document.createElement('button')) },
       ] : []),
@@ -474,6 +476,7 @@ function openVideoActionsModal(videoId) {
       { label: 'Save Captions to SRT', description: 'Write the transcript as an SRT caption file next to the source recording.', action: () => exportVideoTranscript(videoId) },
     ]},
     { heading: 'Danger Zone', rows: [
+      { label: 'Regenerate Clips', description: 'Rebuild clips from the existing transcript. Replaces every clip - discarding approvals, edits, tags, and scores - with fresh, unscored candidates. Skips re-transcription.', danger: true, action: () => regenerateClipsRun(videoId) },
       { label: 'Re-analyze (full)', description: 'Re-run the entire pipeline from scratch. Replaces all clips, scores, and speakers for this recording.', danger: true, action: () => reanalyzeVideo(videoId) },
       { label: 'Reset Approvals', description: 'Clear the approve/reject status on every clip in this recording.', danger: true, action: () => resetApprovals(videoId) },
       { label: 'Remove Recording', description: 'Remove this recording from yuu-clip. The source file on disk is not deleted.', danger: true, action: () => deleteVideo(videoId) },
@@ -739,6 +742,79 @@ function rediarizeVideo(id) {
   );
 }
 
+// ── single-stage re-runs ──────────────────────────────────────────────────────
+// Re-run one pipeline stage without paying for the earlier ones. Downstream results
+// are marked stale (via the existing "captions changed" / unscored badges) rather than
+// cascaded - the user chooses when to re-score / regenerate.
+function reextractVideoRun(id) {
+  if (_blockedByAnalyze('re-extract audio')) return;
+  const video = AppState.videos.find(v => v.id === id);
+  const name = video ? video.filename : id;
+  openLog();
+  appendLog(`Re-extracting audio: ${name}`);
+  streamSSE(
+    `/api/videos/${id}/reextract`,
+    async () => {
+      await loadVideos();
+      const v = AppState.videos.find(x => x.id === id);
+      if (v && AppState.activeVideoId === id) renderVideoDetail(v, null);
+      showToast('Audio re-extracted - re-transcribe to update the transcript');
+      SoundFx.play('analysis');
+    },
+    [{label: 'Extract', patterns: ['Extracting audio']}],
+    'Re-extracting audio',
+    false,
+  );
+}
+
+function retranscribeVideoRun(id) {
+  if (_blockedByAnalyze('re-transcribe this recording')) return;
+  const video = AppState.videos.find(v => v.id === id);
+  const name = video ? video.filename : id;
+  openLog();
+  appendLog(`Re-transcribing: ${name}`);
+  streamSSE(
+    `/api/videos/${id}/retranscribe`,
+    async () => {
+      await loadVideos();
+      if (AppState.activeVideoId === id) await selectVideo(id);
+      showToast('Re-transcription complete - re-score to refresh clip scores');
+      SoundFx.play('analysis');
+    },
+    [{label: 'Extract', patterns: ['Extracting audio']}, {label: 'Transcribe', patterns: ['Transcribing']}],
+    'Re-transcribing',
+    false,
+  );
+}
+
+function regenerateClipsRun(id) {
+  if (_blockedByAnalyze('regenerate clips')) return;
+  const video = AppState.videos.find(v => v.id === id);
+  const name = video ? video.filename : id;
+  showConfirm(
+    'Regenerate clips?',
+    'This rebuilds every clip from the current transcript, discarding all approvals, edits, tags, and scores on this recording\'s existing clips. The transcript itself is kept. Re-score afterward to populate the new clips.',
+    'Regenerate Clips',
+    () => {
+      openLog();
+      appendLog(`Regenerating clips: ${name}`);
+      streamSSE(
+        `/api/videos/${id}/regenerate-clips`,
+        async () => {
+          await loadVideos();
+          if (AppState.activeVideoId === id) await selectVideo(id);
+          showToast('Clips regenerated - re-score to populate scores');
+          SoundFx.play('analysis');
+        },
+        [{label: 'Generate Clips', patterns: ['Generating clips']}],
+        'Regenerating clips',
+        false,
+      );
+    },
+    true,
+  );
+}
+
 // ── undo split ────────────────────────────────────────────────────────────────
 function unsplitVideo(videoId) {
   const video = AppState.videos.find(v => v.id === videoId);
@@ -835,6 +911,7 @@ Object.assign(window, {
   loadVideos, selectVideo, renderVideoDetail, deleteVideo,
   onClipsSortChange, _clipsSortParam,
   reanalyzeVideo, rediarizeVideo, _reanalyzeParams,
+  reextractVideoRun, retranscribeVideoRun, regenerateClipsRun,
   unsplitVideo, _doUnsplitVideo,
   openVideoSummaryKebab, openVideoTitleKebab,
   _needsModelCtaHTML,
