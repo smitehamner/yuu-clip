@@ -21,6 +21,52 @@ export editor, SpeechBrain diarization, name correction, model selection, image
 analysis, content presets, de-RP generalisation) all shipped 2026-07-04/05. The
 remaining open work below is what did **not** have a plan in that set.
 
+## Recommended working order (2026-07-07)
+
+The sections below (§1-§6) group items **by theme**, not by priority — this
+list gives the actual recommended sequence. Items with a staged implementation
+plan link to it; items still needing a scope decision or blocked on something
+external say so instead. Full detail/rationale for each in
+`C:\code\000_project_planning\finalized_plans\yuu-clip_plans\plans\`.
+
+1. **Distribution licence decision** (§2) — blocked only on your choice
+   (MIT/GPL-3/source-available/BSL), everything else is mechanical once
+   decided. Plan: `plans/distribution-licence/INDEX.md`.
+2. **Finish the JS module-scoping refactor** (§4) — small, mechanical,
+   closes long-standing tech debt with a settled design decision already
+   made. Plan: `plans/js-module-scoping-completion/INDEX.md`.
+3. **Clip deduplication** (§5) — now unblocked (transcript editing shipped),
+   scoped enough to stage directly, reuses the existing `merge_clips` route.
+   Plan: `plans/clip-deduplication/INDEX.md`.
+4. **Colour-picker component + accent-colour themes** (§4) — real feature
+   work, larger, needs a fresh session and careful WCAG-contrast handling
+   across the new theme matrix. Plan: `plans/colour-picker-accent-themes/INDEX.md`.
+5. **Clips vs Scenes** (§5) — now unblocked but needs a scope Q&A session
+   before staging (storage design has wide blast radius). Plan (captured, not
+   staged): `plans/clips-vs-scenes/INDEX.md`.
+6. **FFmpeg source-hosting once public** (§2) — short checklist, but blocked
+   on the repo going public; do alongside item 1 if/when that happens. Plan:
+   `plans/ffmpeg-source-hosting-public/INDEX.md`.
+7. **Linux compatibility** (§6) — large; split into a smaller "backend runs
+   on Linux" phase and a much larger "packaged Electron app" phase that's
+   only worth starting given real user demand. Plan:
+   `plans/linux-compatibility/INDEX.md`.
+8. **UI localization (i18n)** (§6) — large, and the roadmap already says
+   English-only is fine for now; scope captured but deliberately not staged.
+   Plan: `plans/ui-localization/INDEX.md`.
+
+(Done 2026-07-07: **analyze pipeline idempotency** — was item 1; the reachable
+`--force` `Transcript`-duplication bug is fixed. See COMPLETED.md.)
+
+Not re-ranked (already blocked on something outside this roadmap, or
+deliberately deferred/on-hold/shelved — see their entries below for why):
+Electron native-file-protocol verification, engine `console.print` design,
+code signing (needs a purchased cert), video-heavy/quiet-moment analysis
+(needs its own scope Q&A), speaker identity beyond one recording (needs its
+own scope Q&A), score learning loop (needs a corpus first), copyright
+detection (no implementation path), sidebar grouping for split segments,
+quality presets, export-time transcript upgrade, AMD/Intel GPU support.
+
 ---
 
 ## 0 — Positioning note
@@ -44,16 +90,6 @@ Implemented-but-unverified surfaces and latent traps to close before distributio
   the packaged-app verification checklist has never been run — it can't be exercised
   from browser-dev mode.
 
-- [ ] **Analyze pipeline is not idempotent on a no-`--force` re-run** — `transcribe_track`
-  (`whisper_runner.py`) always creates a *new* `Transcript`, and `generate_candidates`
-  (`segments/windower.py`) always *appends* new `ClipCandidate` rows; neither skips or
-  replaces existing output. Nothing duplicates today because the `status == "done"` skip
-  in `pipeline.ingest._resolve_existing_video` short-circuits any completed video on re-run.
-  It is a latent trap: any future change that loosens that skip (stage-level resume, or
-  marking `"done"` only after scoring) would silently duplicate transcripts and clips.
-  Proper fix when stage-level resume is wanted: make transcription and clip-generation
-  skip-if-already-present (gated on `not force`).
-
 - [ ] **Engine still speaks in `console.print` (Rich markup)** — the `pipeline/` and
   `export/` engines emit progress by printing Rich-markup strings to stdout, which the
   web UI streams verbatim over SSE (stdout *is* the progress interface). Left as-is in
@@ -70,13 +106,16 @@ Wanted before distributing beyond friends/trusted users.
 - [ ] **Distribution licence** — the preview `LICENSE` (all rights reserved, no
   redistribution) is intentionally restrictive. Before any public distribution, decide on
   a looser licence (MIT, GPL-3, source-available, or BSL). Update `LICENSE`,
-  `pyproject.toml`, and the About modal.
+  `pyproject.toml`, and the About modal. Plan (decision needed at Stage 0, then
+  mechanical): `C:\code\000_project_planning\finalized_plans\yuu-clip_plans\plans\distribution-licence\INDEX.md`.
 
 - [ ] **FFmpeg source-hosting once the repo is public** — the GPL-compliance story today
   ships the FFmpeg + libx264 source archives *side-by-side* with each installer. Once the
   yuu-clip GitHub repo goes public, attach the source archives to GitHub Releases as the
   canonical long-term host (in addition to, or instead of, the shipped zip). See
   `docs/dev/THIRD-PARTY-NOTICES-FFMPEG.md` and `HOW-TO-RELEASE.md § Bundled FFmpeg`.
+  Plan (checklist, blocked on repo going public):
+  `C:\code\000_project_planning\finalized_plans\yuu-clip_plans\plans\ffmpeg-source-hosting-public\INDEX.md`.
 
 - [ ] **Code signing for public distribution** — the installer is unsigned; Windows shows
   a SmartScreen "unknown publisher" warning on first run and some AV tools flag it. Options:
@@ -128,9 +167,11 @@ Wanted before distributing beyond friends/trusted users.
 
 - [ ] **Finish the JS module-scoping refactor** *(partially done 2026-06-29)* — shared mutable
   state is encapsulated in `AppState` and five feature modules are IIFE-scoped. **Remaining:**
-  module-scope the deferred `analyze`/`split` modules and their global constants; extract the
-  remaining inline `display`-toggling style strings to CSS classes where it won't change
-  behavior.
+  module-scope the deferred `analyze`/`split` modules and their global constants. The
+  "extract inline `display`-toggling style strings to CSS classes" half was reviewed and
+  rejected (`REVIEW_DECISIONS.md` 2026-06-29 — would change JS/CSS override behavior) — not
+  part of the remaining work. Plan (staged, ready to implement, per-variable design decision
+  already made): `C:\code\000_project_planning\finalized_plans\yuu-clip_plans\plans\js-module-scoping-completion\INDEX.md`.
 
 - [ ] **Custom colour-picker component + accent-colour theme variants** — replace the native
   `<input type="color">` (per-speaker caption colours in `speakers.js`) with a shared JS-built
@@ -138,7 +179,8 @@ Wanted before distributing beyond friends/trusted users.
   palette. Build it reusable from the start so the accent-colour theme variants below reuse it:
   alternative accent colours (e.g. blue vs the current amber/green) layered on the existing
   Dark / Light / High-contrast themes, since those themes are already pure token swaps. Decide
-  palette persistence (localStorage vs per-project DB) as part of the design.
+  palette persistence (localStorage vs per-project DB) as part of the design. Plan (staged,
+  design decisions locked): `C:\code\000_project_planning\finalized_plans\yuu-clip_plans\plans\colour-picker-accent-themes\INDEX.md`.
 
 - [ ] **Sidebar grouping for split segments** — a collapsible parent row
   "session.mkv (3 segments)" with indented children, as an alternative to the flat list.
@@ -150,12 +192,15 @@ Wanted before distributing beyond friends/trusted users.
 
 - [ ] **Clips vs Scenes** — a second candidate type: "Scenes" are longer contextual moments
   (1–5 min, may include pauses and story arc) vs. "clips" (15–90 s punchy bits). Design first:
-  separate pipeline? flag on `ClipCandidate`? separate table? separate review UI? Depends on
-  transcript editing being stable.
+  separate pipeline? flag on `ClipCandidate`? separate table? separate review UI?
+  Transcript editing is now stable (dependency satisfied) but this still needs its own
+  scope Q&A before staging. Plan (captured, not staged):
+  `C:\code\000_project_planning\finalized_plans\yuu-clip_plans\plans\clips-vs-scenes\INDEX.md`.
 
 - [ ] **Clip deduplication** — detect and merge near-duplicate clips (the same event captured in
-  overlapping windows from different segmentation passes). Design unclear; revisit after
-  transcript editing is stable.
+  overlapping windows from different segmentation passes), surfaced via the existing
+  `merge_clips` route. Transcript editing is now stable; this is scoped enough to stage
+  directly. Plan: `C:\code\000_project_planning\finalized_plans\yuu-clip_plans\plans\clip-deduplication\INDEX.md`.
 
 - [ ] **Quality presets** *(on hold)* — named compute bundles ("Fast draft" / "Balanced" /
   "Max quality") that pick a matched set of Whisper model, energy mode, scene mode, and scoring
@@ -175,14 +220,19 @@ Wanted before distributing beyond friends/trusted users.
   library support that doesn't exist on Windows for these vendors yet.
 
 - [ ] **Linux compatibility** — verify the full pipeline on Linux; audit Windows-only assumptions
-  in path handling (`LOCALAPPDATA`/`APPDATA`), `wmic` GPU detection, file pickers, and process
+  in path handling (`LOCALAPPDATA`/`APPDATA`), GPU detection, file pickers, and process
   management. The Electron wrapper is Windows-only; Linux would need a separate packaging path.
+  Full inventory done — larger than it looks (real gaps in process-tree kill on cancel, the
+  reveal-in-folder feature, and the entire packaging pipeline). Plan (phased — backend-only
+  vs. full packaged app): `C:\code\000_project_planning\finalized_plans\yuu-clip_plans\plans\linux-compatibility\INDEX.md`.
 
 - [ ] **UI localization (i18n)** — translate the web UI and setup wizard into other languages.
   Distinct from the shipped *transcription language* setting (what Whisper transcribes).
   Requires externalizing the hardcoded UI strings in `index.html` / the JS modules / `setup.html`
   into a string table first — batch it with any larger frontend rework. English-only is fine
-  while the user base is friends/trusted users.
+  while the user base is friends/trusted users. Scope captured (no existing i18n infra found,
+  ~16k lines of JS + 2k-line HTML shell to externalize) but deliberately not staged given the
+  low current priority: `C:\code\000_project_planning\finalized_plans\yuu-clip_plans\plans\ui-localization\INDEX.md`.
 
 ---
 

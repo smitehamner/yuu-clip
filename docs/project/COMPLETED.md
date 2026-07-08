@@ -6,6 +6,24 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) — see the
 
 ---
 
+## Analyze pipeline idempotency on `--force` re-run (done 2026-07-07)
+
+Re-running analyze on an already-analyzed recording no longer duplicates transcripts.
+`ClipCandidate` generation was already idempotent (force-deletes and regenerates), but
+`Transcript` generation had no guard: `analyze --force` on a `"done"` video - or a
+resumed partial run - minted a second track-level `Transcript` per track (there is no
+unique constraint on `audio_track_id`), and the duplicate segments then fed garbled
+input into clip generation.
+
+- `_transcribe_and_check_overlap` (`pipeline/ingest.py`) now checks for an existing
+  track-level transcript per track before transcribing: it reuses the existing one on a
+  normal re-run and deletes-then-replaces it under `--force`, mirroring the
+  `ClipCandidate` force-delete pattern. Clip-specific retranscriptions (`clip_id` set)
+  are left untouched.
+- Speaker diarization survives the replace cleanly: deleting a transcript cascade-deletes
+  its segments but leaves the video-scoped `Speaker` rows intact, so voiceprint re-attach
+  lands on the existing named speaker instead of minting a duplicate.
+
 ## Project backup / restore (done 2026-07-07)
 
 A single-file backup and a recovery path for a corrupted DB, a reinstall, or a move
