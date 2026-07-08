@@ -222,8 +222,10 @@ class TestSettingsPanelChrome:
 
     def test_speech_to_text_section_leads_with_plain_term(self, page: Page):
         self._open_settings(page)
+        # The title holds a "Reset to defaults" action button alongside the
+        # label span; assert on the label span, not the whole title node.
         expect(
-            page.locator("#settings-sec-stt .settings-section-title")
+            page.locator("#settings-sec-stt .settings-section-title > span").first
         ).to_have_text("Speech-to-text (Whisper)")
 
     def test_reset_restores_default_weights(self, page: Page):
@@ -785,3 +787,58 @@ class TestPlaybackSpeed:
         page.wait_for_selector("#settings-panel.visible", timeout=3000)
         expect(page.locator("#s-playback-rate")).to_have_value("1.75")
         page.evaluate("() => localStorage.removeItem('yuuclip-playback-rate')")
+
+
+@skip_no_server
+class TestResetToDefaults:
+    """Per-section and whole-panel "Reset to defaults" stage factory defaults
+    (GET /api/config/defaults) into the form and flag it dirty; nothing is saved
+    until Save. Tests never click Save - that would overwrite the live config."""
+
+    def _open_settings(self, page: Page) -> None:
+        page.goto(LIVE_URL)
+        page.wait_for_selector("#video-list li[data-video-id]", timeout=5000)
+        page.click("#btn-settings-header")
+        page.wait_for_selector("#settings-panel.visible", timeout=3000)
+        page.wait_for_function(
+            "document.getElementById('s-paths-display').textContent.trim().length > 0",
+            timeout=3000,
+        )
+
+    def _set(self, page: Page, field_id: str, value: str) -> None:
+        page.fill(f"#{field_id}", value)
+        page.dispatch_event(f"#{field_id}", "input")
+
+    def test_section_reset_restores_default_values(self, page: Page):
+        self._open_settings(page)
+        self._set(page, "s-silence-ms", "7500")
+        self._set(page, "s-min-clip-ms", "40000")
+        page.click("#settings-sec-analysis .settings-reset-btn")
+        expect(page.locator("#s-silence-ms")).to_have_value("3000")
+        expect(page.locator("#s-min-clip-ms")).to_have_value("15000")
+
+    def test_section_reset_leaves_other_sections_untouched(self, page: Page):
+        self._open_settings(page)
+        self._set(page, "s-silence-ms", "7500")     # analysis
+        self._set(page, "s-thermal-warn-c", "70")   # hardware
+        page.click("#settings-sec-analysis .settings-reset-btn")
+        expect(page.locator("#s-silence-ms")).to_have_value("3000")   # reverted
+        expect(page.locator("#s-thermal-warn-c")).to_have_value("70")  # preserved
+
+    def test_reset_all_restores_every_section(self, page: Page):
+        self._open_settings(page)
+        self._set(page, "s-silence-ms", "7500")     # analysis
+        self._set(page, "s-thermal-warn-c", "70")   # hardware
+        page.click("#btn-reset-all-settings")
+        page.wait_for_selector("#confirm-modal.visible", timeout=2000)
+        page.click("#confirm-ok-btn")
+        expect(page.locator("#s-silence-ms")).to_have_value("3000")
+        expect(page.locator("#s-thermal-warn-c")).to_have_value("85")
+
+    def test_reset_all_cancel_keeps_current_values(self, page: Page):
+        self._open_settings(page)
+        self._set(page, "s-silence-ms", "7500")
+        page.click("#btn-reset-all-settings")
+        page.wait_for_selector("#confirm-modal.visible", timeout=2000)
+        page.click("#confirm-cancel-btn")
+        expect(page.locator("#s-silence-ms")).to_have_value("7500")

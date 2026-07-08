@@ -94,19 +94,19 @@ function _renderRecommendedModels(containerId, backend) {
   const visionModels = models.filter(m => m.kinds.includes('vision'));
   el.innerHTML =
     _modelGroupHtml('Text scoring models',
-      'Score clips and write descriptions. Pick one to get started.', textModels, backend) +
+      'Score clips and write descriptions. Pick one to get started.', textModels, backend, 'text') +
     _modelGroupHtml('Image analysis (vision) models',
-      'Optional - let yuu-clip look at frames and describe what is on screen.', visionModels, backend);
+      'Optional - let yuu-clip look at frames and describe what is on screen.', visionModels, backend, 'vision');
   _wireModelCards(el);
 }
 
-function _modelGroupHtml(title, intro, models, backend) {
+function _modelGroupHtml(title, intro, models, backend, kind) {
   if (!models.length) return '';
   return (
     `<div class="rec-model-group">` +
       `<div class="rec-model-group-title">${escHtml(title)}</div>` +
       `<div class="settings-note">${escHtml(intro)}</div>` +
-      models.map(m => _recModelHtml(m, backend)).join('') +
+      models.map(m => _recModelHtml(m, backend, kind)).join('') +
     `</div>`
   );
 }
@@ -115,7 +115,8 @@ function _wireModelCards(el) {
   el.querySelectorAll('.rec-model').forEach(card => {
     const tag = card.getAttribute('data-tag');
     const modelId = card.getAttribute('data-model-id');
-    card.querySelector('[data-act="use"]')?.addEventListener('click', () => _useOllamaModel(tag));
+    const kind = card.getAttribute('data-kind');
+    card.querySelector('[data-act="use"]')?.addEventListener('click', () => _useOllamaModel(tag, kind));
     card.querySelector('[data-act="pull"]')?.addEventListener('click', () => pullOllamaModel(tag));
     card.querySelector('[data-act="download-gguf"]')?.addEventListener('click', () => downloadGgufModel(modelId, card));
     card.querySelector('[data-act="use-gguf"]')?.addEventListener('click', () => _useGgufModel(modelId));
@@ -137,10 +138,10 @@ function _modelBadge(m) {
   return '';
 }
 
-function _recModelHtml(m, backend) {
+function _recModelHtml(m, backend, kind) {
   const actions = backend === 'ollama' ? _ollamaActions(m) : _llamacppActions(m);
   return (
-    `<div class="rec-model${m.active ? ' active' : ''}" data-tag="${escHtml(m.ollama_tag || '')}" data-model-id="${escHtml(m.id)}">` +
+    `<div class="rec-model${m.active ? ' active' : ''}" data-tag="${escHtml(m.ollama_tag || '')}" data-model-id="${escHtml(m.id)}" data-kind="${escHtml(kind || 'text')}">` +
       `<div class="rec-model-head"><span class="rec-model-name">${escHtml(m.display_name)}</span>` +
       _modelBadge(m) +
       `<span class="rec-model-meta">${escHtml(_modelMetaLine(m))}</span></div>` +
@@ -184,8 +185,13 @@ function _llamacppActions(m) {
   return parts.join('');
 }
 
-function _useOllamaModel(tag) {
-  const el = document.getElementById('s-ollama-model');
+// Route to the field matching the card's group: a vision card sets the
+// (independent) Ollama vision model, a text card sets the scoring model. They
+// are separate config keys (ollama_model / ollama_vision_model), so one must
+// never overwrite the other.
+function _useOllamaModel(tag, kind) {
+  const fieldId = kind === 'vision' ? 's-ollama-vision-model' : 's-ollama-model';
+  const el = document.getElementById(fieldId);
   if (!el) return;
   el.value = tag;
   _checkSettingsDirty();

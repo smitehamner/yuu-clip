@@ -6,6 +6,25 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) - see the
 
 ---
 
+## Settings reset-to-defaults + Ollama model-picker fix (done 2026-07-08)
+
+- **Reset to defaults** - every config-backed Settings section (Speech-to-text, LLM
+  scoring, Speaker labels, Scoring weights, Analysis defaults, Hardware, UI, Export) now
+  has a **Reset to defaults** button in its header, plus a **Reset all to defaults** button
+  in the Settings header for the whole panel (guarded by a confirm). Reverting fills the
+  form with factory defaults and flags it dirty - nothing persists until Save, so it's
+  cancelable by closing without saving. Backed by a single source of truth,
+  `GET /api/config/defaults` (a fresh `Config`), instead of duplicating defaults in JS.
+  `_applySettingsToUI` was split into per-section field appliers reused by both the initial
+  load and the reset controls.
+- **Ollama vision/text picker fix** - in the Ollama model list, clicking **Use this model**
+  on a vision card (e.g. moondream) wrote the *text* scoring model field and vice versa,
+  because both cards routed through one handler. The click now targets the field matching
+  the card's group, so the two independent Ollama fields (`ollama_model` /
+  `ollama_vision_model`) never overwrite each other.
+
+---
+
 ## First-run friction reduction + local-model push (done 2026-07-08)
 
 Cut the packaged installer's first ~10 minutes from three separate waits plus one dense

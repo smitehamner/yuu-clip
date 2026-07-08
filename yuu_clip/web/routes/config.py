@@ -279,6 +279,15 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         c = ctx.config
         return {k: getattr(c, k) for k in _CONFIG_FIELDS}
 
+    @router.get("/api/config/defaults")
+    def config_defaults():
+        # Factory defaults from a fresh Config, so the Settings "Reset to
+        # defaults" controls have one source of truth instead of duplicating
+        # every default value in the frontend.
+        from yuu_clip.config import Config
+        defaults = Config()
+        return {k: getattr(defaults, k) for k in _CONFIG_FIELDS}
+
     @router.get("/api/config/whisper-languages")
     def whisper_languages():
         from yuu_clip.config import ALLOWED_WHISPER_LANGUAGES

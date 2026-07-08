@@ -153,6 +153,24 @@ class TestUiConfig:
     def test_get_config_includes_content_preset_default(self, client):
         assert client.get("/api/config").json()["content_preset"] == "generic"
 
+    def test_config_defaults_returns_factory_values(self, client):
+        d = client.get("/api/config/defaults").json()
+        assert d["whisper_model"] == "base"
+        assert d["llm_backend"] == "llamacpp"
+        assert d["ollama_model"] == "qwen2.5:7b"
+        assert d["ai_privacy_mode"] == "local_only"
+        assert d["ui_timeline_interval_seconds"] == 900
+
+    def test_config_defaults_ignores_saved_config(self, client):
+        # Changing the live config must not change what defaults reports.
+        client.patch("/api/config", json={"whisper_model": "large-v3"})
+        assert client.get("/api/config").json()["whisper_model"] == "large-v3"
+        assert client.get("/api/config/defaults").json()["whisper_model"] == "base"
+
+    def test_config_defaults_covers_every_config_field(self, client):
+        # Same key set as GET /api/config, so the frontend can revert any field.
+        assert set(client.get("/api/config/defaults").json()) == set(client.get("/api/config").json())
+
     # AI privacy mode (plan non-llm-tiers/07)
     def test_ai_privacy_mode_defaults_to_local_only(self, client):
         assert client.get("/api/config").json()["ai_privacy_mode"] == "local_only"

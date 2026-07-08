@@ -638,6 +638,9 @@ kbd { background: var(--surface); border: 1px solid var(--border); border-radius
 .settings-inner { max-width: 720px; width: 100%; display: flex; flex-direction: column; gap: 14px; margin: 0 auto; }
 .settings-section { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px; }
 .settings-section-title { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; color: var(--accent-text); margin-bottom: 14px; }
+.settings-section-title.has-action { display: flex; align-items: baseline; gap: 8px; }
+.settings-reset-btn { font-size: 11px; padding: 3px 8px; text-transform: none; letter-spacing: normal; font-weight: 400; }
+.settings-section-title.has-action .settings-reset-btn { margin-left: auto; }
 .settings-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
 .settings-row:last-child { margin-bottom: 0; }
 .settings-label { font-size: 13px; color: var(--text); min-width: 200px; flex-shrink: 0; }

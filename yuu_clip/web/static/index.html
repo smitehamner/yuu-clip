@@ -101,6 +101,7 @@
     <div class="settings-header-top">
       <h2 style="font-size:16px;font-weight:700">Settings</h2>
       <div style="display:flex;align-items:center;gap:10px">
+        <button type="button" class="btn-secondary settings-reset-btn" id="btn-reset-all-settings" onclick="revertAllSettings()">Reset all to defaults</button>
         <span class="settings-save-badge" id="settings-saved-badge">&#10003; Saved</span>
         <button class="btn primary" id="btn-settings-save" onclick="saveSettings()" disabled>Save</button>
         <button class="btn ghost" onclick="closeSettings()" aria-label="Close" style="font-size:16px">&#x2715;</button>
@@ -135,7 +136,7 @@
 
   <!-- Whisper section -->
   <div class="settings-section" id="settings-sec-stt">
-    <div class="settings-section-title">Speech-to-text (Whisper)</div>
+    <div class="settings-section-title has-action"><span>Speech-to-text (Whisper)</span><button type="button" class="btn-secondary settings-reset-btn" onclick="revertSection('settings-sec-stt')">Reset to defaults</button></div>
     <div class="settings-row">
       <div class="settings-col">
         <label class="settings-label" for="s-whisper-model">Model</label>
@@ -188,7 +189,7 @@
        engine choice, and manual model-file paths into "Advanced AI options" below,
        so a first-timer sees "pick a model", not "choose a backend". -->
   <div class="settings-section" id="settings-sec-llm">
-    <div class="settings-section-title">LLM scoring</div>
+    <div class="settings-section-title has-action"><span>LLM scoring</span><button type="button" class="btn-secondary settings-reset-btn" onclick="revertSection('settings-sec-llm')">Reset to defaults</button></div>
     <div class="settings-note" style="margin-bottom:10px">A local language model reads each clip's transcript to score it and write a description. Pick a model below to turn this on - leave it off and clips are still found by audio energy and scene detection, just without scores or descriptions.</div>
 
     <!-- Collapses to #s-privacy-none-summary when AI privacy = "No generative AI"
@@ -420,7 +421,7 @@
 
   <!-- Speaker labels section -->
   <div class="settings-section" id="settings-sec-speakers">
-    <div class="settings-section-title">Speaker labels</div>
+    <div class="settings-section-title has-action"><span>Speaker labels</span><button type="button" class="btn-secondary settings-reset-btn" onclick="revertSection('settings-sec-speakers')">Reset to defaults</button></div>
     <div class="settings-row">
       <div class="settings-col">
         <label class="settings-label" for="s-diarization-backend">Backend</label>
@@ -487,9 +488,9 @@
 
   <!-- Scoring weights section -->
   <div class="settings-section" id="settings-sec-weights">
-    <div class="settings-section-title" style="display:flex;align-items:baseline;gap:8px">
+    <div class="settings-section-title has-action">
       <span>Scoring weights <span style="font-size:11px;font-weight:400;color:var(--muted)">(takes effect on next re-score)</span></span>
-      <button type="button" class="btn-secondary" id="btn-reset-weights" onclick="_resetScoringWeights()" style="margin-left:auto;font-size:11px;padding:3px 8px;text-transform:none;letter-spacing:normal;font-weight:400">Reset to defaults</button>
+      <button type="button" class="btn-secondary settings-reset-btn" id="btn-reset-weights" onclick="revertSection('settings-sec-weights')">Reset to defaults</button>
     </div>
     <!-- Content type preset (plan 12) - one-choice tuning applied on top of the sliders below -->
     <div id="s-content-preset-block" style="margin:0 0 16px;padding:10px 12px;border:1px solid var(--border);border-radius:8px">
@@ -640,7 +641,7 @@
 
   <!-- Analysis defaults section -->
   <div class="settings-section" id="settings-sec-analysis">
-    <div class="settings-section-title">Analysis defaults <span style="font-size:11px;font-weight:400;color:var(--muted)">(pre-filled in Analyze modal)</span></div>
+    <div class="settings-section-title has-action"><span>Analysis defaults <span style="font-size:11px;font-weight:400;color:var(--muted)">(pre-filled in Analyze modal)</span></span><button type="button" class="btn-secondary settings-reset-btn" onclick="revertSection('settings-sec-analysis')">Reset to defaults</button></div>
     <div class="settings-row">
       <div class="settings-col">
         <label class="settings-label" for="s-scene-mode">Scene detection mode</label>
@@ -687,7 +688,7 @@
 
   <!-- Hardware section -->
   <div class="settings-section" id="settings-sec-hardware">
-    <div class="settings-section-title">Hardware <span style="font-size:11px;font-weight:400;color:var(--muted)">(GPU temperature - NVIDIA only, hidden automatically otherwise)</span></div>
+    <div class="settings-section-title has-action"><span>Hardware <span style="font-size:11px;font-weight:400;color:var(--muted)">(GPU temperature - NVIDIA only, hidden automatically otherwise)</span></span><button type="button" class="btn-secondary settings-reset-btn" onclick="revertSection('settings-sec-hardware')">Reset to defaults</button></div>
     <div class="settings-row">
       <div class="settings-col">
         <label class="settings-label">GPU acceleration for transcription</label>
@@ -727,7 +728,7 @@
 
   <!-- UI section -->
   <div class="settings-section" id="settings-sec-ui">
-    <div class="settings-section-title">UI</div>
+    <div class="settings-section-title has-action"><span>UI</span><button type="button" class="btn-secondary settings-reset-btn" onclick="revertSection('settings-sec-ui')">Reset to defaults</button></div>
     <div class="settings-row">
       <div class="settings-col">
         <label class="settings-label" for="s-theme">Theme</label>
@@ -801,7 +802,7 @@
 
   <!-- Export -->
   <div class="settings-section" id="settings-sec-export">
-    <div class="settings-section-title">Export</div>
+    <div class="settings-section-title has-action"><span>Export</span><button type="button" class="btn-secondary settings-reset-btn" onclick="revertSection('settings-sec-export')">Reset to defaults</button></div>
     <div class="settings-row">
       <label class="settings-label" for="s-export-name-template">Export file name</label>
       <input class="settings-input" id="s-export-name-template" type="text"

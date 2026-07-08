@@ -303,6 +303,54 @@ class TestModelGrouping:
 
 
 @skip_no_server
+class TestOllamaUseRouting:
+    """The Ollama backend has two independent model fields - ollama_model (text
+    scoring) and ollama_vision_model (image analysis). Clicking "Use this model"
+    on a card must set the field matching the card's group, never overwrite the
+    other. Regression: a vision card used to overwrite the text model."""
+
+    def _open_with_ollama_catalog(self, page: Page) -> None:
+        models = [
+            _model(id="qwen", display_name="Qwen 2.5 7B", kinds=["text"],
+                   backends=["ollama"], ollama_tag="qwen2.5:7b",
+                   gguf_url=None, gguf_filename=None),
+            _model(id="moondream", display_name="Moondream", kinds=["vision"],
+                   backends=["ollama"], ollama_tag="moondream",
+                   gguf_url=None, gguf_filename=None),
+        ]
+        page.route("**/api/llm/catalog", lambda route: route.fulfill(
+            content_type="application/json", body=_catalog_body(models, "ollama")))
+        _open_settings(page)
+        # The Ollama recommended cards render into #s-ollama-fields, which is
+        # hidden unless the Ollama backend is selected - reveal it so the
+        # "Use this model" buttons are clickable.
+        page.evaluate("() => _onLlmBackendChange('ollama')")
+        page.wait_for_selector(
+            "#s-ollama-recommended .rec-model[data-kind='vision'] [data-act='use']",
+            state="visible", timeout=3000)
+
+    def _clear_fields(self, page: Page) -> None:
+        page.eval_on_selector("#s-ollama-model", "el => el.value = '<unset>'")
+        page.eval_on_selector("#s-ollama-vision-model", "el => el.value = '<unset>'")
+
+    def test_vision_card_sets_only_vision_field(self, page: Page):
+        self._open_with_ollama_catalog(page)
+        self._clear_fields(page)
+        page.click(
+            "#s-ollama-recommended .rec-model[data-kind='vision'] [data-act='use']")
+        assert page.eval_on_selector("#s-ollama-vision-model", "el => el.value") == "moondream"
+        assert page.eval_on_selector("#s-ollama-model", "el => el.value") == "<unset>"
+
+    def test_text_card_sets_only_text_field(self, page: Page):
+        self._open_with_ollama_catalog(page)
+        self._clear_fields(page)
+        page.click(
+            "#s-ollama-recommended .rec-model[data-kind='text'] [data-act='use']")
+        assert page.eval_on_selector("#s-ollama-model", "el => el.value") == "qwen2.5:7b"
+        assert page.eval_on_selector("#s-ollama-vision-model", "el => el.value") == "<unset>"
+
+
+@skip_no_server
 class TestGgufDownloadUI:
     """Stage 7: the one-click .gguf download drives a determinate bar and, on
     completion, fills the (advanced) path fields so a Save activates the model.

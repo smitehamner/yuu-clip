@@ -85,6 +85,7 @@ async function openSettings() {
   panel.classList.add('visible');
   try {
     const cfg = await fetch('/api/config').then(r => r.json());
+    await _ensureDefaults();  // so the Reset controls work without a per-click fetch
     await _ensureWhisperLanguageOptions();
     // Populate catalog-driven pickers before _applySettingsToUI so the saved
     // claude_model matches a rendered option rather than falling to option 0.
@@ -175,91 +176,189 @@ function _setSelectByNumber(id, num) {
   if (opt) el.value = opt.value;
 }
 
-function _applySettingsToUI(cfg) {
-  const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
-  const setChk = (id, val) => { const el = document.getElementById(id); if (el) el.checked = val; };
-  const setTxt = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
-  setVal('s-whisper-model',  cfg.whisper_model   || 'base');
-  setVal('s-whisper-device', cfg.whisper_device  || 'auto');
-  setVal('s-whisper-compute',cfg.whisper_compute_type || 'int8');
-  setVal('s-whisper-language', cfg.whisper_language || '');
-  setChk('s-ollama-enabled',  cfg.ollama_enabled   !== false);
+function _setFieldVal(id, val) { const el = document.getElementById(id); if (el) el.value = val; }
+function _setFieldChk(id, val) { const el = document.getElementById(id); if (el) el.checked = val; }
+function _setFieldTxt(id, val) { const el = document.getElementById(id); if (el) el.textContent = val; }
+
+// Per-section field appliers - the single source for rendering a config into
+// each section's controls, shared by the initial load (_applySettingsToUI) and
+// the per-section / whole-panel "Reset to defaults" controls (revertSection).
+// The `?? default` fallbacks handle a partial/legacy saved config on load;
+// reverts pass a complete factory config from /api/config/defaults.
+function _applySttFields(cfg) {
+  _setFieldVal('s-whisper-model',  cfg.whisper_model   || 'base');
+  _setFieldVal('s-whisper-device', cfg.whisper_device  || 'auto');
+  _setFieldVal('s-whisper-compute',cfg.whisper_compute_type || 'int8');
+  _setFieldVal('s-whisper-language', cfg.whisper_language || '');
+}
+
+function _applyLlmFields(cfg) {
+  _setFieldChk('s-ollama-enabled',  cfg.ollama_enabled   !== false);
   _onLlmEnabledChange(cfg.ollama_enabled !== false);
   const backend = cfg.llm_backend || 'llamacpp';
-  setVal('s-llm-backend',    backend);
+  _setFieldVal('s-llm-backend',    backend);
   _onLlmBackendChange(backend);
-  setVal('s-llm-model-path', cfg.llm_model_path  || '');
-  setVal('s-llm-mmproj-path', cfg.llm_mmproj_path || '');
-  setChk('s-llm-use-gpu', cfg.llm_use_gpu !== false);
-  setChk('s-vision-enabled', cfg.vision_enabled === true);
-  setVal('s-vision-frames',  cfg.vision_frames_per_clip ?? 2);
+  _setFieldVal('s-llm-model-path', cfg.llm_model_path  || '');
+  _setFieldVal('s-llm-mmproj-path', cfg.llm_mmproj_path || '');
+  _setFieldChk('s-llm-use-gpu', cfg.llm_use_gpu !== false);
+  _setFieldChk('s-vision-enabled', cfg.vision_enabled === true);
+  _setFieldVal('s-vision-frames',  cfg.vision_frames_per_clip ?? 2);
   window._visionEnabled = cfg.vision_enabled === true;
-  setVal('s-ollama-model',   cfg.ollama_model    || '');
-  setVal('s-ollama-vision-model', cfg.ollama_vision_model || '');
-  setVal('s-ollama-host',    cfg.ollama_host     || '');
-  setVal('s-ollama-timeout', cfg.ollama_timeout_s|| 120);
-  setVal('s-claude-api-key', cfg.claude_api_key  || '');
+  _setFieldVal('s-ollama-model',   cfg.ollama_model    || '');
+  _setFieldVal('s-ollama-vision-model', cfg.ollama_vision_model || '');
+  _setFieldVal('s-ollama-host',    cfg.ollama_host     || '');
+  _setFieldVal('s-ollama-timeout', cfg.ollama_timeout_s|| 120);
+  _setFieldVal('s-claude-api-key', cfg.claude_api_key  || '');
   _setClaudeModelValue(cfg.claude_model || 'claude-haiku-4-5-20251001');
-  setVal('s-claude-timeout', cfg.claude_timeout_s ?? 30);
-  setVal('s-similarity-backend', cfg.similarity_backend || 'embeddings');
+  _setFieldVal('s-claude-timeout', cfg.claude_timeout_s ?? 30);
+  _setFieldVal('s-similarity-backend', cfg.similarity_backend || 'embeddings');
   // After the backend + similarity selects are populated: applies the privacy mode,
   // which re-evaluates backend visibility, the remote badge, and option filtering.
   _setPrivacyMode(cfg.ai_privacy_mode || 'local_only');
   _onSimilarityBackendChange(cfg.similarity_backend || 'embeddings');
   _updateLlmCapabilities();
   _renderCapabilityTiers();
+}
+
+function _applySpeakerFields(cfg) {
   const diarBackend = cfg.diarization_backend || 'speechbrain';
-  setVal('s-diarization-backend', diarBackend);
+  _setFieldVal('s-diarization-backend', diarBackend);
   _onDiarizationBackendChange(diarBackend);
-  setVal('s-hf-token', cfg.huggingface_token || '');
-  setVal('s-speaker-match-threshold', (cfg.speaker_match_threshold ?? 0.75).toFixed(2));
+  _setFieldVal('s-hf-token', cfg.huggingface_token || '');
+  _setFieldVal('s-speaker-match-threshold', (cfg.speaker_match_threshold ?? 0.75).toFixed(2));
   _onHfTokenInput();
+}
+
+function _applyWeightFields(cfg) {
   for (const [id, key, def] of _weightFields) {
     const weight = (cfg[key] ?? def).toFixed(1);
-    setVal(id, weight);
-    setTxt(`${id}-val`, weight);
+    _setFieldVal(id, weight);
+    _setFieldTxt(`${id}-val`, weight);
   }
-  setVal('s-laugh-mode',    cfg.scorer_laugh_mode     || 'transcript');
-  setVal('s-laugh-model-id',cfg.scorer_laugh_model_id || 'MIT/ast-finetuned-audioset-10-10-0.4593');
+  _setFieldVal('s-laugh-mode',    cfg.scorer_laugh_mode     || 'transcript');
+  _setFieldVal('s-laugh-model-id',cfg.scorer_laugh_model_id || 'MIT/ast-finetuned-audioset-10-10-0.4593');
   _onLaughModeChange(cfg.scorer_laugh_mode || 'transcript');
-  setChk('s-audio-event-enabled', cfg.scorer_audio_event_enabled === true);
-  setVal('s-scene-mode',    cfg.scene_detection_mode || 'fast');
-  setVal('s-energy-mode',   cfg.energy_mode          || 'fast');
-  setVal('s-silence-ms',    cfg.silence_threshold_ms ?? 3000);
-  setVal('s-min-clip-ms',   cfg.min_clip_ms          ?? 15000);
-  setChk('s-thermal-autopause', cfg.thermal_autopause_enabled !== false);
-  setVal('s-thermal-warn-c',    cfg.thermal_warn_c  ?? 85);
-  setVal('s-thermal-pause-c',   cfg.thermal_pause_c ?? 90);
-  const _silenceEl = document.getElementById('s-silence-ms');
-  const _minClipEl = document.getElementById('s-min-clip-ms');
-  const _silenceHint = document.getElementById('s-silence-ms-hint');
-  const _minClipHint = document.getElementById('s-min-clip-ms-hint');
-  if (_silenceEl && _silenceHint) _silenceHint.textContent = (_silenceEl.value / 1000).toFixed(1) + ' s';
-  if (_minClipEl && _minClipHint) _minClipHint.textContent = (_minClipEl.value / 1000).toFixed(1) + ' s';
-  const _tlUnit = cfg.ui_timeline_interval_unit || 'minutes';
-  const _tlSec  = cfg.ui_timeline_interval_seconds ?? 900;
-  const _tlVal  = _tlUnit === 'minutes' ? Math.round(_tlSec / 60) : _tlSec;
-  setVal('s-timeline-interval', _tlVal);
-  setVal('s-timeline-unit',     _tlUnit);
-  setChk('s-autoplay', localStorage.getItem('yuuclip-autoplay') === 'true');
-  setChk('s-play-next', localStorage.getItem('yuuclip-play-next') === 'true');
-  setChk('s-loop-clip', localStorage.getItem('yuuclip-loop-clip') === 'true');
-  setVal('s-playback-rate', String(playbackRatePref()));
-  setVal('s-theme', localStorage.getItem('yuuclip-theme') || 'dark');
-  setVal('s-export-name-template', cfg.export_name_template || '{video}_clip{clip_id}_{start}');
+  _setFieldChk('s-audio-event-enabled', cfg.scorer_audio_event_enabled === true);
+}
+
+function _applyAnalysisFields(cfg) {
+  _setFieldVal('s-scene-mode',    cfg.scene_detection_mode || 'fast');
+  _setFieldVal('s-energy-mode',   cfg.energy_mode          || 'fast');
+  _setFieldVal('s-silence-ms',    cfg.silence_threshold_ms ?? 3000);
+  _setFieldVal('s-min-clip-ms',   cfg.min_clip_ms          ?? 15000);
+  const silenceEl = document.getElementById('s-silence-ms');
+  const minClipEl = document.getElementById('s-min-clip-ms');
+  const silenceHint = document.getElementById('s-silence-ms-hint');
+  const minClipHint = document.getElementById('s-min-clip-ms-hint');
+  if (silenceEl && silenceHint) silenceHint.textContent = (silenceEl.value / 1000).toFixed(1) + ' s';
+  if (minClipEl && minClipHint) minClipHint.textContent = (minClipEl.value / 1000).toFixed(1) + ' s';
+}
+
+function _applyHardwareFields(cfg) {
+  _setFieldChk('s-thermal-autopause', cfg.thermal_autopause_enabled !== false);
+  _setFieldVal('s-thermal-warn-c',    cfg.thermal_warn_c  ?? 85);
+  _setFieldVal('s-thermal-pause-c',   cfg.thermal_pause_c ?? 90);
+}
+
+// Timeline is a saved config field; the playback/theme prefs below it are
+// browser-local (localStorage), applied by saveSettings, not the config PATCH.
+function _applyUiFields(cfg) {
+  const tlUnit = cfg.ui_timeline_interval_unit || 'minutes';
+  const tlSec  = cfg.ui_timeline_interval_seconds ?? 900;
+  const tlVal  = tlUnit === 'minutes' ? Math.round(tlSec / 60) : tlSec;
+  _setFieldVal('s-timeline-interval', tlVal);
+  _setFieldVal('s-timeline-unit',     tlUnit);
+  _setFieldChk('s-autoplay', localStorage.getItem('yuuclip-autoplay') === 'true');
+  _setFieldChk('s-play-next', localStorage.getItem('yuuclip-play-next') === 'true');
+  _setFieldChk('s-loop-clip', localStorage.getItem('yuuclip-loop-clip') === 'true');
+  _setFieldVal('s-playback-rate', String(playbackRatePref()));
+  _setFieldVal('s-theme', localStorage.getItem('yuuclip-theme') || 'dark');
+}
+
+function _applyExportFields(cfg) {
+  _setFieldVal('s-export-name-template', cfg.export_name_template || '{video}_clip{clip_id}_{start}');
   _updateExportNameTemplatePreview();
-  setVal('s-title-card-bg-color', cfg.title_card_bg_color || '#000000');
-  setVal('s-title-card-font-color', cfg.title_card_font_color || '#ffffff');
+  _setFieldVal('s-title-card-bg-color', cfg.title_card_bg_color || '#000000');
+  _setFieldVal('s-title-card-font-color', cfg.title_card_font_color || '#ffffff');
   _setSelectByNumber('s-title-card-scale', cfg.title_card_scale ?? 1.0);
-  setVal('s-title-card-template', cfg.title_card_template ?? '{description}\n{start} · {duration}');
-  setVal('s-title-card-duration', cfg.title_card_duration_s ?? 3.0);
+  _setFieldVal('s-title-card-template', cfg.title_card_template ?? '{description}\n{start} · {duration}');
+  _setFieldVal('s-title-card-duration', cfg.title_card_duration_s ?? 3.0);
   _updateTitleCardPreview();
-  setVal('s-caption-font-name', cfg.caption_font_name || '');
-  setVal('s-caption-font-size', cfg.caption_font_size ? cfg.caption_font_size : '');
-  setVal('s-caption-position', cfg.caption_position || 'bottom');
+  _setFieldVal('s-caption-font-name', cfg.caption_font_name || '');
+  _setFieldVal('s-caption-font-size', cfg.caption_font_size ? cfg.caption_font_size : '');
+  _setFieldVal('s-caption-position', cfg.caption_position || 'bottom');
+}
+
+// section id -> the applier that renders that section's fields from a config.
+const _SECTION_APPLIERS = {
+  'settings-sec-stt':      _applySttFields,
+  'settings-sec-llm':      _applyLlmFields,
+  'settings-sec-speakers': _applySpeakerFields,
+  'settings-sec-weights':  _applyWeightFields,
+  'settings-sec-analysis': _applyAnalysisFields,
+  'settings-sec-hardware': _applyHardwareFields,
+  'settings-sec-ui':       _applyUiFields,
+  'settings-sec-export':   _applyExportFields,
+};
+
+function _applySettingsToUI(cfg) {
+  _applySttFields(cfg);
+  _applyLlmFields(cfg);
+  _applySpeakerFields(cfg);
+  _applyWeightFields(cfg);
+  _applyAnalysisFields(cfg);
+  _applyHardwareFields(cfg);
+  _applyUiFields(cfg);
+  _applyExportFields(cfg);
   _snapshotSettings();
   _checkSettingsDirty();
   ['pyannote', 'cuda-libs'].forEach(_refreshInstallStatus);
+}
+
+// Factory defaults, fetched once per session and reused by every reset control.
+let _defaultsCfg = null;
+async function _ensureDefaults() {
+  if (_defaultsCfg) return _defaultsCfg;
+  _defaultsCfg = await fetch('/api/config/defaults').then(r => r.json());
+  return _defaultsCfg;
+}
+
+// The playback/theme prefs are browser-local, not in the config, so their
+// defaults live here rather than in the backend defaults payload.
+function _resetUiPrefsToDefaults() {
+  _setFieldChk('s-autoplay', false);
+  _setFieldChk('s-play-next', false);
+  _setFieldChk('s-loop-clip', false);
+  _setFieldVal('s-playback-rate', '1');
+  _setFieldVal('s-theme', 'dark');
+  applyTheme('dark');
+}
+
+// Fill one section's controls with factory defaults, leaving every other
+// section untouched. Stages into the form (flags dirty); nothing persists
+// until the user clicks Save. Defaults are prefetched when Settings opens.
+function revertSection(sectionId) {
+  const applier = _SECTION_APPLIERS[sectionId];
+  if (!applier || !_defaultsCfg) return;
+  applier(_defaultsCfg);
+  if (sectionId === 'settings-sec-ui') _resetUiPrefsToDefaults();
+  _checkSettingsDirty();
+}
+
+function revertAllSettings() {
+  if (!_defaultsCfg) return;
+  showConfirm(
+    'Reset all settings to defaults?',
+    'Every setting will be replaced with its default value. Nothing is saved until you click Save, so you can cancel by closing Settings without saving.',
+    'Reset all',
+    () => {
+      for (const applier of Object.values(_SECTION_APPLIERS)) applier(_defaultsCfg);
+      _resetUiPrefsToDefaults();
+      _checkSettingsDirty();
+      showToast('Settings reset to defaults - review and click Save to apply', 'info');
+    },
+    true,
+  );
 }
 
 // Applies instantly (outside the Save flow) so the user sees the theme while
@@ -279,17 +378,6 @@ function _onLlmEnabledChange(enabled) {
   if (!body) return;
   body.classList.toggle('settings-dimmed', !enabled);
   body.inert = !enabled;
-}
-
-function _resetScoringWeights() {
-  for (const [id, , def] of _weightFields) {
-    const el = document.getElementById(id);
-    const valEl = document.getElementById(`${id}-val`);
-    if (!el || !valEl) continue;
-    el.value = def.toFixed(1);
-    valEl.textContent = def.toFixed(1);
-  }
-  _checkSettingsDirty();
 }
 
 function _onLlmBackendChange(backend) {
@@ -749,7 +837,7 @@ Object.assign(window, {
   _onSimilarityBackendChange, _onPrivacyModeChange, _setPrivacyMode, _currentPrivacyMode,
   _onPlayNextChange, _onLoopClipChange,
   _toggleSecretVisibility, _onHfTokenInput, _updateDiarizationStatus,
-  _scrollToSettingsSection, _resetScoringWeights, _checkSettingsDirty,
+  _scrollToSettingsSection, revertSection, revertAllSettings, _checkSettingsDirty,
   applyContentPreset, _onContentPresetChange,
 });
 })();

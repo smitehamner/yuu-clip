@@ -506,6 +506,15 @@ Per-context overrides can be set in the World Context editor. When a video is re
 
 ## Settings
 
+### Reset to defaults
+
+Each Settings section (Speech-to-text, LLM scoring, Speaker labels, Scoring weights,
+Analysis defaults, Hardware, UI, Export) has a **Reset to defaults** button in its header
+that returns just that section's controls to the shipped defaults. The Settings header
+also has a **Reset all to defaults** button that resets every section at once (it asks for
+confirmation first). Reverting only fills in the form - nothing is saved until you click
+**Save**, so you can review the changes or back out by closing Settings without saving.
+
 ### Theme
 
 Settings → UI → **Theme** switches the app's color scheme. Three themes ship:
