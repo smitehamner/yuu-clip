@@ -6,6 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "yuu-clip"
 version = "0.1.16"
 description = "Video session clip extraction pipeline"
+license = {text = "Apache-2.0"}
 requires-python = ">=3.11,<3.14"
 dependencies = [
     # Transcription - GPU-accelerated Whisper via CTranslate2.

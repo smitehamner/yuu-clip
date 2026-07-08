@@ -103,11 +103,11 @@ Implemented-but-unverified surfaces and latent traps to close before distributio
 
 Wanted before distributing beyond friends/trusted users.
 
-- [ ] **Distribution licence** - the preview `LICENSE` (all rights reserved, no
-  redistribution) is intentionally restrictive. Before any public distribution, decide on
-  a looser licence (MIT, GPL-3, source-available, or BSL). Update `LICENSE`,
-  `pyproject.toml`, and the About modal. Plan (decision needed at Stage 0, then
-  mechanical): `C:\code\000_project_planning\finalized_plans\yuu-clip_plans\plans\distribution-licence\INDEX.md`.
+- [x] **Distribution licence** - chose **Apache-2.0** (2026-07-08). `LICENSE` now carries
+  the full Apache-2.0 text, `pyproject.toml` declares `license = {text = "Apache-2.0"}`,
+  and the About modal reflects it. Replaced the old preview "all rights reserved,
+  no redistribution" text. Plan:
+  `C:\code\000_project_planning\finalized_plans\yuu-clip_plans\plans\distribution-licence\INDEX.md`.
 
 - [ ] **FFmpeg source-hosting once the repo is public** - the GPL-compliance story today
   ships the FFmpeg + libx264 source archives *side-by-side* with each installer. Once the
