@@ -50,10 +50,16 @@ window.__mockStatus = {
   llamacppInstalled: false,
   recommendedWhisper: { model: 'large-v3', reason: '10 GB+ VRAM' },
   projectDir: 'C:/Users/test/Videos/yuu-clip',
+  aiPrivacyMode: 'local_only',
   llmBackend: 'ollama', llmModelPath: '',
   claudeApiKey: '', claudeModel: 'claude-haiku-4-5-20251001',
   whisperLanguage: '',
   contentPreset: 'generic',
+  localModelRecommendation: {
+    push: 'strong', modelId: 'qwen2.5-7b-instruct', sizeGb: 4.7,
+    headline: 'Set up local AI - this PC can run it well',
+    reason: 'Capable GPU detected (10240 MB VRAM) with plenty of free disk space.',
+  },
 };
 """
 
@@ -66,6 +72,13 @@ def _open_wizard(page: Page, status_overrides: str = "", query: str = "") -> Non
     page.wait_for_selector("#sections", state="visible")
 
 
+def _expand_advanced(page: Page) -> None:
+    """The backend/privacy controls live inside a collapsed <details> now
+    (first-run-friction Stage 3) - open it before interacting with them."""
+    page.click("#advanced-ai > summary")
+    page.wait_for_selector("#llm-backend-sel", state="visible")
+
+
 @skip_no_server
 class TestWizardLayout:
     def test_sections_ordered_required_llm_optional_basics(self, page: Page):
@@ -75,7 +88,6 @@ class TestWizardLayout:
         )
         assert titles[0] == "Required"
         assert titles[1].startswith("LLM scoring")
-        assert "choose one" in titles[1]
         assert titles[2] == "Content type"
         assert titles[3] == "Optional"
         assert titles[4] == "Basics"
@@ -107,15 +119,49 @@ class TestWizardLayout:
 
 
 @skip_no_server
+class TestWizardLocalModelChoice:
+    def test_strong_recommendation_preselects_local_and_collapses_advanced(self, page: Page):
+        _open_wizard(page)
+        expect(page.locator("#local-ai-yes")).to_be_checked()
+        expect(page.locator("#llm-rec-headline")).to_contain_text("this PC can run it well")
+        # advanced backend controls stay hidden behind the collapsed disclosure
+        expect(page.locator("#llm-backend-sel")).to_be_hidden()
+
+    def test_low_disk_recommendation_preselects_lightweight(self, page: Page):
+        _open_wizard(page, "{ localModelRecommendation: { push: 'none', modelId: null, "
+                           "sizeGb: null, headline: 'Lightweight mode is the best fit for this PC', "
+                           "reason: 'Not enough disk space for the 4.7 GB model.' } }")
+        expect(page.locator("#local-ai-no")).to_be_checked()
+
+    def test_lightweight_choice_recorded_in_collected_config(self, page: Page):
+        _open_wizard(page)
+        page.check("#local-ai-no")
+        expect(page.locator("#lightweight-note")).to_be_visible()
+        page.click("#launch-btn")
+        completed = page.evaluate("window.__events.completed")
+        assert completed["localModelChoice"] == "lightweight"
+
+    def test_local_choice_carries_recommended_model_id(self, page: Page):
+        _open_wizard(page)
+        page.check("#local-ai-yes")
+        page.click("#launch-btn")
+        completed = page.evaluate("window.__events.completed")
+        assert completed["localModelChoice"] == "local"
+        assert completed["recommendedModelId"] == "qwen2.5-7b-instruct"
+
+
+@skip_no_server
 class TestWizardLlmBackends:
     def test_default_backend_panel_matches_status(self, page: Page):
         _open_wizard(page)
+        _expand_advanced(page)
         expect(page.locator("#llm-ollama-fields")).to_be_visible()
         expect(page.locator("#llm-llamacpp-fields")).to_be_hidden()
         expect(page.locator("#llm-claude-fields")).to_be_hidden()
 
     def test_llamacpp_panel_guides_install_and_gguf_download(self, page: Page):
         _open_wizard(page)
+        _expand_advanced(page)
         page.select_option("#llm-backend-sel", "llamacpp")
         expect(page.locator("#llm-llamacpp-fields")).to_be_visible()
         expect(page.locator("#install-btn-llamacpp")).to_be_visible()
@@ -128,6 +174,7 @@ class TestWizardLlmBackends:
 
     def test_claude_panel_warns_until_key_entered(self, page: Page):
         _open_wizard(page)
+        _expand_advanced(page)
         page.select_option("#ai-privacy-sel", "remote_ok")  # claude backend is hidden in local-only mode
         page.select_option("#llm-backend-sel", "claude")
         expect(page.locator("#claude-warn")).to_be_visible()
@@ -136,6 +183,7 @@ class TestWizardLlmBackends:
 
     def test_install_error_reenables_button_for_retry(self, page: Page):
         _open_wizard(page)
+        _expand_advanced(page)
         page.select_option("#llm-backend-sel", "llamacpp")
         page.click("#install-btn-llamacpp")
         expect(page.locator("#install-btn-llamacpp")).to_be_disabled()
@@ -145,6 +193,7 @@ class TestWizardLlmBackends:
 
     def test_pull_error_reenables_button_for_retry(self, page: Page):
         _open_wizard(page, "{ ollamaRunning: true, ollamaModelPulled: false }")
+        _expand_advanced(page)
         page.click("#pull-btn")
         expect(page.locator("#pull-btn")).to_be_disabled()
         page.evaluate("window.__pullCb({ error: 'connection lost' })")
