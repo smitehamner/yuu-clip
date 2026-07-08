@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import sys
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
@@ -36,7 +37,20 @@ _PULLABLE_OLLAMA_TAGS = frozenset(
 
 # Headroom beyond the model's own on-disk size — Ollama writes temporary blobs
 # and a manifest during a pull, so a pull needs more than the final weight size.
+# The .gguf download reuses it (a .part temp file needs the same slack).
 _PULL_DISK_HEADROOM_GB = 2.0
+
+# Only these catalog ids may be downloaded as a local .gguf — the id becomes a
+# subprocess argument, so an allowlist keeps a stray query param from driving the
+# download. Recommended, monetization-safe, local text models with a pinned quant
+# filename only (vision-only entries carry a gguf_url page but no gguf_filename).
+_DOWNLOADABLE_GGUF_IDS = frozenset(
+    entry.id
+    for entry in model_catalog.recommended_models()
+    if entry.gguf_filename
+    and model_catalog.BACKEND_LLAMACPP in entry.backends
+    and "text" in entry.kinds
+)
 
 
 def _ollama_models_dir() -> Path:
@@ -69,6 +83,22 @@ def _preflight_ollama_pull(tag: str) -> dict:
         "free_gb": free_gb,
         "needed_gb": needed_gb,
         "size_gb": size_gb,
+        "target": str(target),
+    }
+
+
+def _preflight_gguf_download(entry) -> dict:
+    """Free vs needed space for downloading *entry*'s .gguf. Non-raising."""
+    from yuu_clip.config import models_dir
+
+    size_gb = float(entry.size_gb) if entry.size_gb else 0.0
+    needed_gb = round(size_gb + _PULL_DISK_HEADROOM_GB, 1)
+    target = _existing_ancestor(models_dir())
+    free_gb = round(shutil.disk_usage(target).free / 1e9, 1)
+    return {
+        "sufficient": free_gb >= needed_gb,
+        "free_gb": free_gb,
+        "needed_gb": needed_gb,
         "target": str(target),
     }
 
@@ -372,5 +402,27 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                 "Free up space and try again.",
             )
         return await subprocess_sse(["ollama", "pull", tag], ctx.project_dir)
+
+    @router.post("/api/llm/gguf/download")
+    async def gguf_download(model_id: str):
+        entry = model_catalog.model_by_id(model_id)
+        if model_id not in _DOWNLOADABLE_GGUF_IDS or entry is None:
+            raise HTTPException(
+                400,
+                f"Unknown model id '{model_id}' — allowed: {sorted(_DOWNLOADABLE_GGUF_IDS)}",
+            )
+        disk = _preflight_gguf_download(entry)
+        if not disk["sufficient"]:
+            raise HTTPException(
+                507,
+                f"Not enough disk space: about {disk['needed_gb']} GB is needed on "
+                f"{disk['target']} but only {disk['free_gb']} GB is free. "
+                "Free up space and try again.",
+            )
+        cmd = [
+            sys.executable, "-m", "yuu_clip.cli", "download-gguf",
+            "--model-id", model_id, "--project", str(ctx.project_dir),
+        ]
+        return await subprocess_sse(cmd, ctx.project_dir)
 
     return router

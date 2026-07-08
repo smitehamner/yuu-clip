@@ -58,8 +58,10 @@ function _renderRecommendedModels(containerId, backend) {
     models.map(m => _recModelHtml(m, backend)).join('');
   el.querySelectorAll('.rec-model').forEach(card => {
     const tag = card.getAttribute('data-tag');
+    const modelId = card.getAttribute('data-model-id');
     card.querySelector('[data-act="use"]')?.addEventListener('click', () => _useOllamaModel(tag));
     card.querySelector('[data-act="pull"]')?.addEventListener('click', () => pullOllamaModel(tag));
+    card.querySelector('[data-act="download-gguf"]')?.addEventListener('click', () => downloadGgufModel(modelId, card));
   });
 }
 
@@ -78,10 +80,17 @@ function _recModelHtml(m, backend) {
   } else if (backend === 'llamacpp' && m.gguf_url) {
     const proj = (m.mmproj_url && m.mmproj_url !== m.gguf_url)
       ? ` · <a href="${escHtml(m.mmproj_url)}" target="_blank" rel="noopener">vision projector</a>` : '';
-    actions = `<a href="${escHtml(m.gguf_url)}" target="_blank" rel="noopener">Download page</a>${proj}`;
+    if (m.gguf_filename) {
+      actions =
+        `<button type="button" class="btn-secondary" data-act="download-gguf">Download now</button>` +
+        `<a href="${escHtml(m.gguf_url)}" target="_blank" rel="noopener">Choose a different file</a>${proj}` +
+        `<div class="settings-install-log" data-gguf-log></div>`;
+    } else {
+      actions = `<a href="${escHtml(m.gguf_url)}" target="_blank" rel="noopener">Download page</a>${proj}`;
+    }
   }
   return (
-    `<div class="rec-model" data-tag="${escHtml(m.ollama_tag || '')}">` +
+    `<div class="rec-model" data-tag="${escHtml(m.ollama_tag || '')}" data-model-id="${escHtml(m.id)}">` +
       `<div class="rec-model-head"><span class="rec-model-name">${escHtml(m.display_name)}</span>` +
       `<span class="rec-model-meta">${escHtml(meta)}</span></div>` +
       `<div class="rec-model-why">${escHtml(m.why)}</div>` +
@@ -163,6 +172,86 @@ async function pullOllamaModel(tag) {
   } finally {
     _pullAbort = null;
     _setPullCancel(false);
+  }
+}
+
+// ── one-click local (.gguf) download ────────────────────────────────────────
+// Server-owned download (POST /api/llm/gguf/download) for a recommended local
+// text model, so llama.cpp gets the same one-click flow the Ollama/Tier-B models
+// already have instead of only a "Download page" link. Same SSE + Cancel-via-
+// abort shape as pullOllamaModel; on success the server has already written
+// llm_model_path, so we just refresh the readiness line and prompt a Save.
+let _ggufAbort = null;
+
+function _setGgufCancel(card, show, onCancel) {
+  const log = card.querySelector('[data-gguf-log]');
+  if (!log) return;
+  let btn = card.querySelector('[data-gguf-cancel]');
+  if (show) {
+    if (!btn) {
+      btn = document.createElement('button');
+      btn.setAttribute('data-gguf-cancel', '');
+      btn.type = 'button';
+      btn.className = 'btn-secondary';
+      btn.textContent = 'Cancel download';
+      btn.style.marginTop = '4px';
+      log.parentNode.insertBefore(btn, log);
+    }
+    btn.disabled = false;
+    btn.onclick = onCancel;
+    btn.style.display = '';
+  } else if (btn) {
+    btn.style.display = 'none';
+  }
+}
+
+async function downloadGgufModel(modelId, card) {
+  const log = card.querySelector('[data-gguf-log]');
+  const button = card.querySelector('[data-act="download-gguf"]');
+  if (!log) return;
+  log.style.display = 'block';
+  log.textContent = 'Starting download - this can take several minutes...\n';
+  if (button) { button.disabled = true; button.textContent = 'Downloading...'; }
+  const controller = new AbortController();
+  _ggufAbort = controller;
+  _setGgufCancel(card, true, () => { controller.abort(); });
+  try {
+    const resp = await fetch(`/api/llm/gguf/download?model_id=${encodeURIComponent(modelId)}`,
+                             { method: 'POST', signal: controller.signal });
+    if (!resp.ok) {
+      let detail = '';
+      try { detail = (await resp.json()).detail || ''; } catch { detail = await resp.text(); }
+      log.textContent += `✗ ${detail || 'Download could not start.'}\n`;
+      return;
+    }
+    const reader = resp.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      const lines = buf.split('\n');
+      buf = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const msg = JSON.parse(line.slice(6));
+        if (msg === '__DONE__') {
+          log.textContent += '✓ Done - set as the LLM model. Save to apply.\n';
+          _updateLlmCapabilities();
+          return;
+        }
+        log.textContent += msg + '\n';
+        log.scrollTop = log.scrollHeight;
+      }
+    }
+  } catch (err) {
+    if (err && err.name === 'AbortError') log.textContent += '■ Download cancelled.\n';
+    else log.textContent += '✗ Download failed - check your connection and try again.\n';
+  } finally {
+    _ggufAbort = null;
+    _setGgufCancel(card, false);
+    if (button) { button.disabled = false; button.textContent = 'Download now'; }
   }
 }
 
@@ -362,6 +451,6 @@ async function gateOnCapability(el, capability, message) {
 Object.assign(window, {
   _ensureModelCatalog, _setClaudeModelValue,
   _updateLlmCapabilities, _renderCapabilityTiers,
-  gateOnCapability, pullOllamaModel, prefetchModel,
+  gateOnCapability, pullOllamaModel, prefetchModel, downloadGgufModel,
 });
 })();

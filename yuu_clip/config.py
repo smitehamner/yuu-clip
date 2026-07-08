@@ -23,7 +23,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from platformdirs import user_config_dir
+from platformdirs import user_config_dir, user_data_dir
 
 from yuu_clip.export.naming import (  # noqa: F401 (re-exported for routes/config.py)
     DEFAULT_EXPORT_NAME_TEMPLATE,
@@ -749,6 +749,18 @@ def project_db_path(project_dir: Path) -> Path:
     d = project_dir / ".yuu-clip"
     d.mkdir(parents=True, exist_ok=True)
     return d / "project.db"
+
+
+def models_dir() -> Path:
+    """Directory for one-click local model (.gguf) downloads.
+
+    Matches the Electron wizard's MODELS_DIR (electron/constants.js:
+    %LOCALAPPDATA%/yuu-clip/models) so an in-app download and a wizard download
+    share one location and never fetch the same weights twice.
+    """
+    d = Path(user_data_dir(APP_NAME)) / "models"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
 
 
 def find_ffmpeg() -> tuple[str, str]:
