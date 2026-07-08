@@ -266,9 +266,14 @@ class TestCapabilityTiers:
         tiers, _ = self._tiers(client)
         assert tiers["similarity"]["active"] == "Fast (keyword)"
 
-    def test_similarity_not_ready_when_fastembed_missing(self, client: TestClient):
-        # fastembed isn't installed in the test venv - not-ready, and nothing to
-        # prefetch (a click would just fail the same way).
+    def test_similarity_not_ready_when_fastembed_missing(self, client: TestClient, monkeypatch):
+        # When fastembed can't be imported the embeddings tier is not-ready and has
+        # nothing to prefetch (a click would just fail the same way). Mock the
+        # absence at availability() so the test holds on a correctly-synced venv
+        # where fastembed is actually installed.
+        from yuu_clip.scoring.similarity import EmbeddingsBackend
+
+        monkeypatch.setattr(EmbeddingsBackend, "availability", lambda self: (False, "fastembed not installed"))
         tiers, _ = self._tiers(client)
         assert tiers["similarity"]["ready"] is False
         assert tiers["similarity"]["prefetch_slug"] is None
@@ -295,16 +300,18 @@ class TestCapabilityTiers:
         assert tiers["similarity"]["prefetch_slug"] is None
         assert tiers["similarity"]["detail"] == "The Smart (embeddings) engine is ready."
 
-    def test_audio_events_reports_off_when_model_deps_unavailable(self, client: TestClient):
+    def test_audio_events_reports_off_when_model_deps_unavailable(self, client: TestClient, monkeypatch):
         # Audio-event scoring is ON by default post-Wave-2 (asserted in
-        # test_config.py); the tier still reports "Off"/not-ready here because the
-        # bundled transformers/torch aren't synced into the test venv, so the
-        # scorer's availability() is False. This covers that degradation state.
+        # test_config.py); the tier still reports "Off"/not-ready when the scorer's
+        # deps (transformers/torch) can't load, so availability() is False. Mock
+        # that degradation state rather than relying on a venv missing the bundled
+        # packages. No deps -> nothing to prefetch either.
+        from yuu_clip.scoring.audio_event import AudioEventScorer
+
+        monkeypatch.setattr(AudioEventScorer, "availability", lambda self: (False, "model deps unavailable"))
         tiers, _ = self._tiers(client)
         assert tiers["audio_events"]["active"] == "Off"
         assert tiers["audio_events"]["ready"] is False
-        # No deps -> nothing to prefetch either (a "Download now" click would
-        # just fail the same way).
         assert tiers["audio_events"]["prefetch_slug"] is None
 
     def test_audio_events_offers_prefetch_when_deps_ready_but_model_not_cached(self, client: TestClient, monkeypatch):

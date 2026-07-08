@@ -4,7 +4,10 @@ pattern; these tests stub subprocess_sse itself (as test_analyze.py's export/
 retranscribe cmd-capture tests do) so no real model download runs."""
 from __future__ import annotations
 
+import asyncio
 import sys
+from pathlib import Path
+from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
 
@@ -59,18 +62,29 @@ class TestPrefetchCommand:
 
 
 class TestPrefetchOfflineFailure:
-    def test_download_failure_streams_an_error_line_not_a_500(self, client: TestClient):
-        """A real (short-lived) subprocess whose fetcher fails -- speechbrain
-        isn't installed in the test venv, so this exercises the actual
-        "missing/unreachable model" path end to end -- must still come back as
-        a 200 streaming response with a readable error line, never a raw 500.
-        Mirrors how the browser distinguishes "download failed, retry" from a
-        server crash; the exact underlying error text is environment-dependent
-        (missing package here, a network timeout on a real offline machine), so
-        this only asserts the user-facing shape, not that literal string."""
-        with client.stream("POST", "/api/models/prefetch", params={"slug": "speaker"}) as resp:
-            assert resp.status_code == 200
-            body = "".join(resp.iter_text())
+    def test_download_failure_streams_an_error_line_not_a_500(self, tmp_path: Path):
+        """A prefetch subprocess whose fetcher fails (exits non-zero after printing
+        a "Download failed: ..." line) must surface as a 200 streaming response
+        carrying that readable line plus the __DONE__ sentinel - never a raw 500.
+        This is how the browser distinguishes "download failed, retry" from a
+        server crash. Driven against a real failing subprocess through the actual
+        subprocess_sse streaming path (the route builds an identical command), so
+        it is deterministic regardless of which models are cached in the venv. The
+        CLI's own "Download failed:" output on a raising fetch is covered
+        separately in test_cli.py."""
+        from yuu_clip.web.sse import subprocess_sse
 
+        cmd = [sys.executable, "-c", "print('Download failed: model unreachable'); raise SystemExit(1)"]
+        ctx = SimpleNamespace(analyze_proc=None, active_jobs=0)
+        chunks: list[str] = []
+
+        async def drive():
+            response = await subprocess_sse(cmd, tmp_path, ctx)
+            assert response.status_code == 200
+            async for chunk in response.body_iterator:
+                chunks.append(chunk)
+
+        asyncio.run(drive())
+        body = "".join(chunks)
         assert "Download failed" in body
         assert "__DONE__" in body

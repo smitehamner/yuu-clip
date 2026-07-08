@@ -129,12 +129,15 @@ class TestMakeBackend:
         assert Config().similarity_backend == "embeddings"
 
     def test_falls_back_to_tfidf_when_fastembed_package_missing(self):
-        # fastembed is not installed in the test env, so availability() is False
-        # and the default-configured "embeddings" backend falls back to tfidf -
-        # this is also the real behavior on a machine mid-install.
+        # With fastembed unimportable, availability() is False and the default-
+        # configured "embeddings" backend falls back to tfidf - the real behavior
+        # on a machine mid-install. Force the import to fail (sys.modules[...] = None
+        # makes `import fastembed` raise ImportError) so the test holds on a synced
+        # venv where fastembed is installed.
         from yuu_clip.scoring.similarity import TfidfBackend, make_backend
-        assert isinstance(make_backend(_cfg()), TfidfBackend)
-        assert isinstance(make_backend(_cfg(similarity_backend="embeddings")), TfidfBackend)
+        with mock.patch.dict(sys.modules, {"fastembed": None}):
+            assert isinstance(make_backend(_cfg()), TfidfBackend)
+            assert isinstance(make_backend(_cfg(similarity_backend="embeddings")), TfidfBackend)
 
     def test_falls_back_to_tfidf_when_model_cannot_be_fetched(self):
         # fastembed the package is present (bundled), but the bge-small model
