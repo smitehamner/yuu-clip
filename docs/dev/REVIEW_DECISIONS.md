@@ -7,6 +7,28 @@ same thing without the context. Most recent first.
 
 ---
 
+## UX review of LLM model selection - "LLM scoring" term kept (2026-07-08)
+
+The UX/UI review of the Settings model manager and the setup wizard restructured
+both to lead with the model picker and hide the privacy guarantee / engine choice /
+manual paths under an "Advanced AI options" disclosure (the two surfaces now mirror
+each other). One finding was deliberately **not** acted on:
+
+### "LLM scoring" / "LLM" acronym in the section title and labels
+
+Reads as developer jargon to a non-developer; a plainer "AI scoring" would be
+lower-friction on first read.
+
+**Kept as-is.** "LLM scoring" is the authoritative `docs/dev/GLOSSARY.md` term,
+explicitly recorded as "not AI scoring" - the split is intentional and consistent
+across UI, CLI help, and docs. Renaming it here would either desync this surface
+from the glossary or require a glossary change plus a sweep of every other use,
+which is out of scope for a UX pass and would re-open a settled naming decision.
+Revisit only as a deliberate glossary change, not as a one-off relabel of this
+screen.
+
+---
+
 ## Packaging-overhaul review - two keep-as-is calls (2026-07-07)
 
 From the refactor phase of the code-quality review over the

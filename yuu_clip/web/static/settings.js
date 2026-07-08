@@ -296,11 +296,15 @@ function _onLlmBackendChange(backend) {
   const mode = _currentPrivacyMode();
   const isClaude      = backend === 'claude';
   const remoteAllowed = mode === 'remote_ok';
+  // The local-model picker (cards) lives in the main flow; #s-llamacpp-fields (GPU +
+  // manual paths) lives under Advanced. Both are llamacpp-only, so toggle together.
+  const pickerEl   = document.getElementById('s-llamacpp-picker');
   const llamacppEl = document.getElementById('s-llamacpp-fields');
   const ollamaEl   = document.getElementById('s-ollama-fields');
   const claudeEl   = document.getElementById('s-claude-fields');
   const warnEl     = document.getElementById('s-backend-remote-warning');
   const blockedEl  = document.getElementById('s-remote-blocked-notice');
+  if (pickerEl)   pickerEl.style.display   = backend === 'llamacpp' ? '' : 'none';
   if (llamacppEl) llamacppEl.style.display = backend === 'llamacpp' ? '' : 'none';
   if (ollamaEl)   ollamaEl.style.display   = backend === 'ollama'   ? '' : 'none';
   if (claudeEl)   claudeEl.style.display   = isClaude ? '' : 'none';

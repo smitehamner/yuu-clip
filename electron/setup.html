@@ -391,7 +391,7 @@ footer {
         <span class="cfg-label"></span>
         <label style="display:flex;align-items:flex-start;gap:8px;font-size:12px;line-height:1.5;cursor:pointer;margin:0">
           <input type="checkbox" id="model-prefetch-chk" checked style="margin-top:2px">
-          <span>Download the AI models in the background on first launch (recommended) so your first analysis is instant.</span>
+          <span>Download the speech-to-text and speaker models in the background on first launch (recommended) so your first analysis is instant. Your language model choice above is handled separately.</span>
         </label>
       </div>
       <div class="inline-note">
@@ -714,8 +714,12 @@ function onPrivacyModeChange(mode) {
 function updateLlmWarn() {
   const backend  = document.getElementById('llm-backend-sel').value;
   const filePath = (document.getElementById('llm-model-path').value || '').trim();
+  const wantsLocal = document.getElementById('local-ai-yes').checked;
+  // With "Set up local AI" chosen, the recommended model is queued for a background
+  // download on launch - so "LLM scoring will be skipped" would be wrong. Only warn
+  // when there's no file, nothing downloading, and no background download coming.
   document.getElementById('llm-warn').style.display =
-    (backend === 'llamacpp' && !filePath && !downloadingGguf) ? 'block' : 'none';
+    (backend === 'llamacpp' && !filePath && !downloadingGguf && !wantsLocal) ? 'block' : 'none';
   if (status) renderGgufDownloadSlot(status);
 }
 
@@ -729,6 +733,9 @@ function updateClaudeWarn() {
 function onLocalAiChoiceChange() {
   const lightweight = document.getElementById('local-ai-no').checked;
   document.getElementById('lightweight-note').style.display = lightweight ? '' : 'none';
+  // The choice governs whether the LLM model is queued for a background download,
+  // which decides whether the "will be skipped" warning is accurate - keep it in sync.
+  updateLlmWarn();
 }
 
 // ── Ollama model pull ──────────────────────────────────────────────────────

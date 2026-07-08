@@ -101,6 +101,10 @@ class TestAiPrivacyMode:
             "document.getElementById('s-paths-display').textContent.trim().length > 0",
             timeout=3000,
         )
+        # The AI-privacy radios and the LLM-engine select now live under the
+        # "Advanced AI options" disclosure (UX review) - expand it so tests can
+        # interact with those controls.
+        page.evaluate("document.getElementById('s-llm-advanced').open = true")
 
     def test_three_privacy_radios_render(self, page: Page):
         self._open_settings(page)
@@ -273,6 +277,8 @@ class TestSettingsPanelChrome:
 
     def test_claude_api_key_has_show_hide_toggle(self, page: Page):
         self._open_settings(page)
+        # The engine select lives under "Advanced AI options" (UX review) - expand it.
+        page.evaluate("document.getElementById('s-llm-advanced').open = true")
         page.evaluate("() => _setPrivacyMode('remote_ok')")
         page.select_option("#s-llm-backend", "claude")
         key_input = page.locator("#s-claude-api-key")

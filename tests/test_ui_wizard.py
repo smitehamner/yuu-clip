@@ -168,7 +168,14 @@ class TestWizardLlmBackends:
         # Recommends an Apache-2.0 model (Qwen2.5) - Llama is licence-excluded
         # from recommendations (see model_catalog.py).
         expect(page.locator("#llm-llamacpp-fields")).to_contain_text("Qwen2.5 7B Instruct")
-        expect(page.locator("#llm-warn")).to_be_visible()  # no .gguf chosen yet
+        # With "Set up local AI" chosen the recommended model is queued for a
+        # background download, so the "will be skipped" warning stays hidden.
+        page.check("#local-ai-yes")
+        expect(page.locator("#llm-warn")).to_be_hidden()
+        # In lightweight mode with no .gguf chosen the warning appears...
+        page.check("#local-ai-no")
+        expect(page.locator("#llm-warn")).to_be_visible()
+        # ...and choosing a model file clears it.
         page.fill("#llm-model-path", "C:/models/model.gguf")
         expect(page.locator("#llm-warn")).to_be_hidden()
 

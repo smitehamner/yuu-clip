@@ -160,7 +160,7 @@ function _recModelHtml(m, backend) {
 function _ollamaActions(m) {
   if (!m.ollama_tag) return '';
   return `<button type="button" class="btn-secondary" data-act="use">Use this model</button>` +
-    `<button type="button" class="btn-secondary" data-act="pull">Pull with Ollama</button>` +
+    `<button type="button" class="btn-secondary" data-act="pull">Download with Ollama</button>` +
     `<code class="rec-model-meta">${escHtml(m.ollama_tag)}</code>`;
 }
 
