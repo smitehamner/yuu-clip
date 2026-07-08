@@ -55,7 +55,8 @@ class ModelEntry:
     ollama_tag: Optional[str] = None     # `ollama pull` tag (ollama backend)
     gguf_url: Optional[str] = None       # HF repo *page* for the .gguf (llamacpp backend) — not a direct download
     gguf_filename: Optional[str] = None  # exact quant filename at gguf_url/resolve/main/<this>, for one-click download
-    mmproj_url: Optional[str] = None     # vision projector .gguf (llamacpp vision)
+    mmproj_url: Optional[str] = None     # HF repo page holding the vision projector (llamacpp vision) - usually the same repo as gguf_url
+    mmproj_filename: Optional[str] = None  # exact projector filename at mmproj_url/resolve/main/<this>, for one-click vision download
     api_model_id: Optional[str] = None   # provider model id (claude backend)
     recommended: bool = True
     rejected_reason: Optional[str] = None  # set when recommended is False
@@ -73,6 +74,7 @@ class ModelEntry:
             "gguf_url": self.gguf_url,
             "gguf_filename": self.gguf_filename,
             "mmproj_url": self.mmproj_url,
+            "mmproj_filename": self.mmproj_filename,
             "api_model_id": self.api_model_id,
             "recommended": self.recommended,
             "rejected_reason": self.rejected_reason,
@@ -139,7 +141,9 @@ CATALOG: tuple[ModelEntry, ...] = (
         size_gb=1.8,
         ollama_tag="moondream",
         gguf_url="https://huggingface.co/ggml-org/moondream2-20250414-GGUF",
+        gguf_filename="moondream2-text-model-f16_ct-vicuna.gguf",
         mmproj_url="https://huggingface.co/ggml-org/moondream2-20250414-GGUF",
+        mmproj_filename="moondream2-mmproj-f16-20250414.gguf",
     ),
     ModelEntry(
         id="smolvlm2-2.2b-instruct",
@@ -150,7 +154,9 @@ CATALOG: tuple[ModelEntry, ...] = (
         backends=frozenset({BACKEND_LLAMACPP}),
         size_gb=2.2,
         gguf_url="https://huggingface.co/ggml-org/SmolVLM2-2.2B-Instruct-GGUF",
+        gguf_filename="SmolVLM2-2.2B-Instruct-Q4_K_M.gguf",
         mmproj_url="https://huggingface.co/ggml-org/SmolVLM2-2.2B-Instruct-GGUF",
+        mmproj_filename="mmproj-SmolVLM2-2.2B-Instruct-Q8_0.gguf",
     ),
     ModelEntry(
         id="qwen2.5-vl-7b-instruct",
@@ -162,7 +168,9 @@ CATALOG: tuple[ModelEntry, ...] = (
         size_gb=6.0,
         ollama_tag="qwen2.5vl:7b",
         gguf_url="https://huggingface.co/unsloth/Qwen2.5-VL-7B-Instruct-GGUF",
+        gguf_filename="Qwen2.5-VL-7B-Instruct-Q4_K_M.gguf",
         mmproj_url="https://huggingface.co/unsloth/Qwen2.5-VL-7B-Instruct-GGUF",
+        mmproj_filename="mmproj-F16.gguf",
     ),
     # ── Hosted Claude models (multimodal → text + vision) ───────────────────
     ModelEntry(

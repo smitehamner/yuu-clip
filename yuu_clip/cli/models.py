@@ -100,23 +100,37 @@ _PROGRESS_STEP_PCT = 2  # print progress at most every 2 percentage points
 
 
 def _resolve_gguf_entry(model_id: str):
-    """Return (entry, "") for a downloadable local text .gguf model, else
-    (None, reason). Mirrors the route's allowlist so a manual CLI run is guarded
-    the same way as the endpoint."""
+    """Return (entry, "") for a downloadable local .gguf model (text or vision),
+    else (None, reason). Mirrors the route's allowlist so a manual CLI run is
+    guarded the same way as the endpoint. Vision entries additionally carry an
+    mmproj projector filename, fetched alongside the main weights."""
     from yuu_clip import model_catalog
 
     entry = model_catalog.model_by_id(model_id)
     if entry is None or not entry.recommended:
         return None, f"Unknown model id '{model_id}'."
-    if "text" not in entry.kinds:
-        return None, f"Model '{model_id}' is not a text model."
     if model_catalog.BACKEND_LLAMACPP not in entry.backends or not entry.gguf_filename:
         return None, f"Model '{model_id}' has no downloadable .gguf file."
     return entry, ""
 
 
+def _file_url(entry, filename: str) -> str:
+    return f"{entry.gguf_url}/resolve/main/{filename}"
+
+
 def _gguf_url(entry) -> str:
-    return f"{entry.gguf_url}/resolve/main/{entry.gguf_filename}"
+    return _file_url(entry, entry.gguf_filename)
+
+
+def _download_targets(entry) -> list[tuple[str, str]]:
+    """[(filename, config_field)] to fetch for *entry* — the main weights, then
+    the vision projector for a vision entry. A vision projector that lives in the
+    same file as the weights (mmproj_filename == gguf_filename) is not repeated,
+    so the caller downloads it once and points both paths at the one file."""
+    targets = [(entry.gguf_filename, "llm_model_path")]
+    if "vision" in entry.kinds and entry.mmproj_filename:
+        targets.append((entry.mmproj_filename, "llm_mmproj_path"))
+    return targets
 
 
 def _report_progress(downloaded: int, total: int, last_pct: int, display_name: str) -> int:
@@ -168,12 +182,39 @@ def _download_gguf(url: str, dest: Path, display_name: str) -> None:
     part.replace(dest)
 
 
-def _set_llm_model_path(project_dir: Path, model_path: Path) -> None:
+def _set_llm_paths(project_dir: Path, paths: dict[str, Path]) -> None:
     from yuu_clip.config import Config
 
     config = Config.load(project_dir)
-    config.llm_model_path = str(model_path)
+    for field, value in paths.items():
+        setattr(config, field, str(value))
     config.save_project(project_dir)
+
+
+def _set_llm_model_path(project_dir: Path, model_path: Path) -> None:
+    _set_llm_paths(project_dir, {"llm_model_path": model_path})
+
+
+def _download_entry(entry, project_dir: Path) -> None:
+    """Fetch every file *entry* needs (weights, plus the vision projector for a
+    vision entry) into the models dir, then point config at them. Each distinct
+    filename is fetched at most once, so a shared projector isn't downloaded
+    twice."""
+    from yuu_clip.config import models_dir
+
+    fetched: dict[str, Path] = {}
+    paths: dict[str, Path] = {}
+    for filename, field in _download_targets(entry):
+        dest = models_dir() / filename
+        if filename not in fetched:
+            if dest.exists():
+                console.print(f"{filename} is already downloaded.")
+            else:
+                console.print(f"Downloading {entry.display_name} - {filename}...")
+                _download_gguf(_file_url(entry, filename), dest, entry.display_name)
+            fetched[filename] = dest
+        paths[field] = fetched[filename]
+    _set_llm_paths(project_dir, paths)
 
 
 @app.command("download-gguf")
@@ -181,30 +222,23 @@ def download_gguf_cmd(
     model_id: str = typer.Option(..., "--model-id", help="Catalog id of the local model to download (e.g. qwen2.5-7b-instruct)"),
     project: Optional[Path] = typer.Option(None, "-p", "--project", help="Project directory (default: cwd)"),
 ) -> None:
-    """Download a recommended local .gguf model and set it as the LLM model."""
+    """Download a recommended local .gguf model and set it as the LLM model. For
+    a vision model, both the weights and the mmproj projector are fetched and
+    both the model and vision-projector paths are set."""
     entry, reason = _resolve_gguf_entry(model_id)
     if entry is None:
         console.print(f"[red]{reason}[/red]")
         raise typer.Exit(1)
 
-    from yuu_clip.config import models_dir
     from yuu_clip.log import configure_logging
 
     proj_dir = _project_dir(project)
     configure_logging(proj_dir)
-    dest = models_dir() / entry.gguf_filename
 
-    if dest.exists():
-        _set_llm_model_path(proj_dir, dest)
-        console.print("[green]Already downloaded — set as the LLM model.[/green]")
-        return
-
-    console.print(f"Downloading {entry.display_name} (~{entry.size_gb} GB)...")
     try:
-        _download_gguf(_gguf_url(entry), dest, entry.display_name)
+        _download_entry(entry, proj_dir)
     except Exception as exc:
         console.print(f"[red]Download failed: {exc}[/red]")
         raise typer.Exit(1)
 
-    _set_llm_model_path(proj_dir, dest)
     console.print("[green]Done — the local model is ready for LLM scoring.[/green]")

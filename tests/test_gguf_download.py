@@ -27,13 +27,6 @@ class TestGgufDownloadGuard:
         assert resp.status_code == 400
         assert "Unknown model id" in resp.json()["detail"]
 
-    def test_vision_only_model_id_is_rejected(self, client: TestClient):
-        # moondream2 is a recommended catalog entry but vision-only (no
-        # gguf_filename), so it must not be offered as a text .gguf download.
-        resp = client.post("/api/llm/gguf/download", params={"model_id": "moondream2"})
-        assert resp.status_code == 400
-        assert "Unknown model id" in resp.json()["detail"]
-
     def test_claude_model_id_is_rejected(self, client: TestClient):
         resp = client.post("/api/llm/gguf/download", params={"model_id": "claude-haiku-4-5"})
         assert resp.status_code == 400
@@ -72,6 +65,12 @@ class TestGgufDownloadCommand:
         assert "--model-id" in cmd
         assert cmd[cmd.index("--model-id") + 1] == "qwen2.5-7b-instruct"
 
+    def test_vision_model_id_is_accepted(self, client, monkeypatch, tmp_path):
+        # The allowlist widened to recommended vision entries — moondream2 now
+        # downloads its weights + mmproj projector in one click.
+        cmd = self._capture_cmd(client, monkeypatch, tmp_path, "moondream2")
+        assert cmd[cmd.index("--model-id") + 1] == "moondream2"
+
     def test_disk_shortfall_returns_actionable_507(self, client, monkeypatch, tmp_path):
         import yuu_clip.config as config_mod
 
@@ -102,10 +101,11 @@ class TestResolveGgufEntry:
         assert entry is None
         assert "Unknown model id" in reason
 
-    def test_rejects_vision_only_model(self):
+    def test_accepts_a_recommended_vision_model(self):
         entry, reason = models_cli._resolve_gguf_entry("moondream2")
-        assert entry is None
-        assert "not a text model" in reason
+        assert reason == ""
+        assert entry is not None
+        assert entry.gguf_filename and entry.mmproj_filename
 
     def test_gguf_url_targets_the_resolve_path(self):
         entry, _ = models_cli._resolve_gguf_entry("qwen2.5-7b-instruct")
@@ -226,3 +226,82 @@ class TestDownloadGgufCommand:
         with pytest.raises(typer.Exit) as exc:
             models_cli.download_gguf_cmd(model_id="nope", project=tmp_path)
         assert exc.value.exit_code == 1
+
+
+# ── CLI: vision download fetches weights + mmproj, sets both paths ────────────
+
+def _counting_urlopen(monkeypatch):
+    """Patch urlopen to serve a fresh fake body per call and record the URLs, so
+    a test can assert exactly which files were fetched and how many times."""
+    urls: list[str] = []
+
+    def fake_urlopen(request):
+        urls.append(request.full_url)
+        return _FakeResponse(b"MODEL-BYTES")
+
+    monkeypatch.setattr(models_cli.urllib.request, "urlopen", fake_urlopen)
+    return urls
+
+
+class TestVisionDownload:
+    def test_downloads_both_files_and_sets_both_paths(self, tmp_path, monkeypatch):
+        import yuu_clip.config as config_mod
+        from yuu_clip.config import Config
+
+        models_dir = tmp_path / "models"
+        monkeypatch.setattr(config_mod, "models_dir", lambda: models_dir)
+        urls = _counting_urlopen(monkeypatch)
+
+        models_cli.download_gguf_cmd(model_id="moondream2", project=tmp_path)
+
+        entry, _ = models_cli._resolve_gguf_entry("moondream2")
+        gguf_dest = models_dir / entry.gguf_filename
+        mmproj_dest = models_dir / entry.mmproj_filename
+        assert gguf_dest.exists() and mmproj_dest.exists()
+        assert gguf_dest != mmproj_dest
+        assert len(urls) == 2  # weights + projector, both distinct
+        cfg = Config.load(tmp_path)
+        assert cfg.llm_model_path == str(gguf_dest)
+        assert cfg.llm_mmproj_path == str(mmproj_dest)
+
+    def test_shared_file_is_fetched_once_and_points_both_paths(self, tmp_path, monkeypatch):
+        # Degenerate case the plan calls out: a vision entry whose projector lives
+        # in the same file as the weights (mmproj_filename == gguf_filename) must
+        # download once, not twice, and aim both paths at the one file.
+        import yuu_clip.config as config_mod
+        from yuu_clip.config import Config
+        from yuu_clip.model_catalog import BACKEND_LLAMACPP, ModelEntry
+
+        models_dir = tmp_path / "models"
+        monkeypatch.setattr(config_mod, "models_dir", lambda: models_dir)
+        urls = _counting_urlopen(monkeypatch)
+
+        entry = ModelEntry(
+            id="synthetic-vision", display_name="Synth Vision",
+            kinds=frozenset({"vision"}), licence="Apache-2.0", why="test",
+            backends=frozenset({BACKEND_LLAMACPP}),
+            gguf_url="https://huggingface.co/x/y",
+            gguf_filename="combined.gguf", mmproj_filename="combined.gguf",
+        )
+        models_cli._download_entry(entry, tmp_path)
+
+        assert len(urls) == 1  # not fetched twice
+        dest = models_dir / "combined.gguf"
+        cfg = Config.load(tmp_path)
+        assert cfg.llm_model_path == str(dest)
+        assert cfg.llm_mmproj_path == str(dest)
+
+    def test_existing_projector_is_not_refetched(self, tmp_path, monkeypatch):
+        import yuu_clip.config as config_mod
+
+        models_dir = tmp_path / "models"
+        models_dir.mkdir()
+        monkeypatch.setattr(config_mod, "models_dir", lambda: models_dir)
+        entry, _ = models_cli._resolve_gguf_entry("moondream2")
+        # Pre-place the projector; only the weights should be fetched.
+        (models_dir / entry.mmproj_filename).write_bytes(b"ALREADY-HERE")
+        urls = _counting_urlopen(monkeypatch)
+
+        models_cli.download_gguf_cmd(model_id="moondream2", project=tmp_path)
+
+        assert urls == [models_cli._file_url(entry, entry.gguf_filename)]

@@ -52,14 +52,13 @@ _PULL_DISK_HEADROOM_GB = 2.0
 
 # Only these catalog ids may be downloaded as a local .gguf — the id becomes a
 # subprocess argument, so an allowlist keeps a stray query param from driving the
-# download. Recommended, monetization-safe, local text models with a pinned quant
-# filename only (vision-only entries carry a gguf_url page but no gguf_filename).
+# download. Recommended, monetization-safe, local models (text or vision) with a
+# pinned quant filename; a vision entry also fetches its mmproj projector.
 _DOWNLOADABLE_GGUF_IDS = frozenset(
     entry.id
     for entry in model_catalog.recommended_models()
     if entry.gguf_filename
     and model_catalog.BACKEND_LLAMACPP in entry.backends
-    and "text" in entry.kinds
 )
 
 
@@ -406,6 +405,73 @@ def _vertical_framing_tier() -> dict:
     }
 
 
+# ── Recommended-model card state (Settings model manager, first-run-friction
+# Stage 7) ───────────────────────────────────────────────────────────────────
+# The catalog route enriches each entry with where its file would live, whether
+# that file is already downloaded, and whether the active backend is pointed at
+# it — so the UI can show an "Active"/"Downloaded" badge and a "Use this model"
+# shortcut without the browser reverse-engineering it from a path string.
+
+
+def _entry_dest_paths(entry, models_dir: Path) -> dict:
+    """Absolute on-disk paths a one-click download would write for a llamacpp
+    entry (weights, and the mmproj projector for a vision entry)."""
+    if model_catalog.BACKEND_LLAMACPP not in entry.backends or not entry.gguf_filename:
+        return {"gguf_path": None, "mmproj_path": None}
+    gguf = models_dir / entry.gguf_filename
+    mmproj = models_dir / entry.mmproj_filename if entry.mmproj_filename else None
+    return {"gguf_path": str(gguf), "mmproj_path": str(mmproj) if mmproj else None}
+
+
+def _entry_installed(entry, models_dir: Path) -> bool:
+    """True when every file the llamacpp entry needs is present in the models
+    dir. Ollama/Claude entries return False (their presence isn't a local file)."""
+    if model_catalog.BACKEND_LLAMACPP not in entry.backends or not entry.gguf_filename:
+        return False
+    if not (models_dir / entry.gguf_filename).exists():
+        return False
+    if entry.mmproj_filename and not (models_dir / entry.mmproj_filename).exists():
+        return False
+    return True
+
+
+def _entry_active(entry, cfg) -> bool:
+    """True when the active backend is configured to use this entry — scoped to
+    the current backend so a saved-but-inactive backend's models aren't flagged."""
+    backend = cfg.llm_backend
+    if backend == "llamacpp":
+        model_path = (cfg.llm_model_path or "").strip()
+        if not model_path or not entry.gguf_filename:
+            return False
+        return Path(model_path).name == entry.gguf_filename
+    if backend == "ollama":
+        configured = {(cfg.ollama_model or "").strip(), (cfg.ollama_vision_model or "").strip()}
+        return bool(entry.ollama_tag) and entry.ollama_tag in configured
+    if backend == "claude":
+        return bool(entry.api_model_id) and entry.api_model_id == (cfg.claude_model or "").strip()
+    return False
+
+
+def _catalog_payload(cfg) -> dict:
+    from yuu_clip.config import models_dir
+
+    md = models_dir()
+    free_gb = round(shutil.disk_usage(_existing_ancestor(md)).free / 1e9, 1)
+    entries = []
+    for entry in model_catalog.recommended_models():
+        data = entry.to_dict()
+        data.update(_entry_dest_paths(entry, md))
+        data["installed"] = _entry_installed(entry, md)
+        data["active"] = _entry_active(entry, cfg)
+        entries.append(data)
+    return {
+        "backend": cfg.llm_backend,
+        "models_dir": str(md),
+        "free_gb": free_gb,
+        "models": entries,
+    }
+
+
 def make_router(ctx: ProjectContext) -> APIRouter:
     router = APIRouter()
 
@@ -431,10 +497,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
 
     @router.get("/api/llm/catalog")
     def catalog():
-        return {
-            "backend": ctx.config.llm_backend,
-            "models": [entry.to_dict() for entry in model_catalog.recommended_models()],
-        }
+        return _catalog_payload(ctx.config)
 
     @router.post("/api/llm/ollama/pull")
     async def ollama_pull(tag: str):

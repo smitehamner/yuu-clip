@@ -240,3 +240,107 @@ class TestModelPrefetchUI:
         page.click('[data-prefetch="speaker"]')
         page.wait_for_selector("#cap-prefetch-cancel-speaker_labels", state="visible", timeout=2000)
         pending["route"].fulfill(status=200, content_type="text/event-stream", body='data: "__DONE__"\n\n')
+
+
+# ── Stage 7: Settings model management (grouping, active state, browse, vision) ──
+
+def _model(**overrides) -> dict:
+    """A catalog entry dict shaped like /api/llm/catalog's enriched output."""
+    base = {
+        "id": "m", "display_name": "A Model", "kinds": ["text"], "licence": "Apache-2.0",
+        "why": "why", "backends": ["llamacpp"], "size_gb": 4.7, "ollama_tag": None,
+        "gguf_url": "https://huggingface.co/x/y", "gguf_filename": "a.gguf",
+        "mmproj_url": None, "mmproj_filename": None, "api_model_id": None,
+        "recommended": True, "rejected_reason": None,
+        "installed": False, "active": False, "gguf_path": "/models/a.gguf", "mmproj_path": None,
+    }
+    base.update(overrides)
+    return base
+
+
+def _catalog_body(models: list[dict], backend: str = "llamacpp") -> str:
+    return json.dumps({"backend": backend, "models_dir": "/models", "free_gb": 42.0, "models": models})
+
+
+@skip_no_server
+class TestModelGrouping:
+    """Stage 7: text and vision models render as two labelled groups, not one
+    flat list; each card shows the active/downloaded state the backend reports."""
+
+    def _open_with_catalog(self, page: Page, models: list[dict], backend: str = "llamacpp") -> None:
+        page.route("**/api/llm/catalog", lambda route: route.fulfill(
+            content_type="application/json", body=_catalog_body(models, backend)))
+        _open_settings(page)
+
+    def test_text_and_vision_render_as_separate_groups(self, page: Page):
+        self._open_with_catalog(page, [
+            _model(id="txt", display_name="Text One", kinds=["text"]),
+            _model(id="vis", display_name="Vision One", kinds=["vision"],
+                   gguf_filename="v.gguf", mmproj_filename="v-mmproj.gguf"),
+        ])
+        titles = page.eval_on_selector_all(
+            "#s-llamacpp-recommended .rec-model-group-title", "els => els.map(e => e.textContent)")
+        assert "Text scoring models" in titles
+        assert "Image analysis (vision) models" in titles
+
+    def test_active_model_shows_active_badge_and_summary(self, page: Page):
+        self._open_with_catalog(page, [
+            _model(id="txt", display_name="Active Text", active=True, installed=True),
+        ])
+        assert page.locator("#s-llamacpp-recommended .rec-model.active .rec-model-badge.active").count() == 1
+        summary = page.locator("#s-llm-current-summary")
+        assert summary.is_visible()
+        assert "Active Text" in summary.inner_text()
+
+    def test_installed_but_inactive_model_offers_use_this(self, page: Page):
+        self._open_with_catalog(page, [_model(installed=True, active=False)])
+        assert page.locator("#s-llamacpp-recommended [data-act='use-gguf']").count() == 1
+        assert page.locator("#s-llamacpp-recommended [data-act='download-gguf']").count() == 0
+
+    def test_missing_model_offers_download_now(self, page: Page):
+        self._open_with_catalog(page, [_model(installed=False, active=False)])
+        assert page.locator("#s-llamacpp-recommended [data-act='download-gguf']").count() == 1
+
+
+@skip_no_server
+class TestGgufDownloadUI:
+    """Stage 7: the one-click .gguf download drives a determinate bar and, on
+    completion, fills the (advanced) path fields so a Save activates the model.
+    The download endpoint is stubbed so no real multi-GB fetch runs."""
+
+    def test_successful_download_fills_path_and_shows_done(self, page: Page):
+        models = [_model(id="txt", gguf_filename="a.gguf", gguf_path="/models/a.gguf")]
+        page.route("**/api/llm/catalog", lambda route: route.fulfill(
+            content_type="application/json", body=_catalog_body(models)))
+        _open_settings(page)
+        sse_body = 'data: "Downloading A Model - a.gguf: 50% (2.3/4.7 GB)"\n\ndata: "__DONE__"\n\n'
+        page.route("**/api/llm/gguf/download*", lambda route: route.fulfill(
+            status=200, content_type="text/event-stream", body=sse_body))
+        page.click("#s-llamacpp-recommended [data-act='download-gguf']")
+        page.wait_for_function(
+            "document.querySelector('#s-llm-model-path').value === '/models/a.gguf'", timeout=3000)
+        log = page.locator("#s-llamacpp-recommended [data-gguf-log]").inner_text()
+        assert "Done" in log
+
+
+@skip_no_server
+class TestModelBrowseButton:
+    """Stage 7: a native Browse button appears beside each path field only when
+    the Electron bridge exposes pickModelFile; browser-only mode keeps the text
+    box as the fallback (button stays hidden)."""
+
+    def test_browse_hidden_without_electron_bridge(self, page: Page):
+        page.goto(LIVE_URL)
+        page.wait_for_selector("#video-list li[data-video-id]", timeout=5000)
+        display = page.eval_on_selector("#btn-browse-llm-model", "el => el.style.display")
+        assert display == "none"
+
+    def test_browse_shown_and_sets_path_with_electron_bridge(self, page: Page):
+        page.add_init_script(
+            "window.electronAPI = { pickModelFile: async () => 'C:/picked/model.gguf' };")
+        page.goto(LIVE_URL)
+        page.wait_for_selector("#video-list li[data-video-id]", timeout=5000)
+        assert page.eval_on_selector("#btn-browse-llm-model", "el => el.style.display") == ""
+        page.eval_on_selector("#btn-browse-llm-model", "el => el.click()")
+        page.wait_for_function(
+            "document.querySelector('#s-llm-model-path').value === 'C:/picked/model.gguf'", timeout=3000)

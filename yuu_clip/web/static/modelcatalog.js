@@ -9,16 +9,53 @@
 // Loaded once per session. Fills the Claude model dropdown and the per-backend
 // recommended lists; the capabilities line reflects the *saved* active model.
 let _modelCatalog = null;
+// models_dir / free disk / saved backend, so cards can show "~X GB, Y GB free"
+// up front and the summary line can name the active backend.
+let _modelCatalogInfo = { models_dir: '', free_gb: null, backend: 'llamacpp' };
 
 async function _ensureModelCatalog() {
   if (_modelCatalog) return;
+  await _loadModelCatalog();
+}
+
+// Force a re-fetch + re-render. Called after Save (config changed which model is
+// active) so the "Active" badge and the summary line reflect the saved state.
+async function refreshModelCatalog() {
+  _modelCatalog = null;
+  await _loadModelCatalog();
+}
+
+async function _loadModelCatalog() {
   try {
     const data = await fetch('/api/llm/catalog').then(r => r.json());
     _modelCatalog = data.models || [];
+    _modelCatalogInfo = {
+      models_dir: data.models_dir || '',
+      free_gb: data.free_gb ?? null,
+      backend: data.backend || 'llamacpp',
+    };
   } catch { _modelCatalog = []; return; }
   _populateClaudeModelSelect();
   _renderRecommendedModels('s-llamacpp-recommended', 'llamacpp');
   _renderRecommendedModels('s-ollama-recommended', 'ollama');
+  _updateCurrentModelSummary();
+}
+
+// "Currently using: <model> (<backend>)" - states the saved active model plainly
+// so it isn't reverse-engineered from a path string. Hidden when nothing matches.
+const _BACKEND_LABELS = { llamacpp: 'Local llama.cpp', ollama: 'Ollama', claude: 'Claude API' };
+
+function _updateCurrentModelSummary() {
+  const el = document.getElementById('s-llm-current-summary');
+  if (!el) return;
+  const active = (_modelCatalog || []).find(m => m.active);
+  if (!active) { el.style.display = 'none'; return; }
+  const backend = _modelCatalogInfo.backend;
+  const label = _BACKEND_LABELS[backend] || backend;
+  el.innerHTML =
+    `Currently using: <strong>${escHtml(active.display_name)}</strong> ` +
+    `<span class="settings-note">(${escHtml(label)})</span>`;
+  el.style.display = '';
 }
 
 function _populateClaudeModelSelect() {
@@ -45,58 +82,106 @@ function _setClaudeModelValue(value) {
   sel.value = value;
 }
 
+// Text and vision models render as two labelled groups per backend, each with
+// its own intro, rather than one flat list - so it's obvious which models score
+// clips and which describe frames.
 function _renderRecommendedModels(containerId, backend) {
   const el = document.getElementById(containerId);
   if (!el || !_modelCatalog) return;
   const models = _modelCatalog.filter(m => m.backends.includes(backend));
   if (!models.length) { el.innerHTML = ''; return; }
-  const label = backend === 'ollama'
-    ? 'Recommended models — pull one, then set it as the model above.'
-    : 'Recommended models — download a .gguf, then point the paths above at it.';
+  const textModels = models.filter(m => !m.kinds.includes('vision'));
+  const visionModels = models.filter(m => m.kinds.includes('vision'));
   el.innerHTML =
-    `<div class="settings-note" style="margin-bottom:2px">${label}</div>` +
-    models.map(m => _recModelHtml(m, backend)).join('');
+    _modelGroupHtml('Text scoring models',
+      'Score clips and write descriptions. Pick one to get started.', textModels, backend) +
+    _modelGroupHtml('Image analysis (vision) models',
+      'Optional - let yuu-clip look at frames and describe what is on screen.', visionModels, backend);
+  _wireModelCards(el);
+}
+
+function _modelGroupHtml(title, intro, models, backend) {
+  if (!models.length) return '';
+  return (
+    `<div class="rec-model-group">` +
+      `<div class="rec-model-group-title">${escHtml(title)}</div>` +
+      `<div class="settings-note">${escHtml(intro)}</div>` +
+      models.map(m => _recModelHtml(m, backend)).join('') +
+    `</div>`
+  );
+}
+
+function _wireModelCards(el) {
   el.querySelectorAll('.rec-model').forEach(card => {
     const tag = card.getAttribute('data-tag');
     const modelId = card.getAttribute('data-model-id');
     card.querySelector('[data-act="use"]')?.addEventListener('click', () => _useOllamaModel(tag));
     card.querySelector('[data-act="pull"]')?.addEventListener('click', () => pullOllamaModel(tag));
     card.querySelector('[data-act="download-gguf"]')?.addEventListener('click', () => downloadGgufModel(modelId, card));
+    card.querySelector('[data-act="use-gguf"]')?.addEventListener('click', () => _useGgufModel(modelId));
   });
 }
 
-function _recModelHtml(m, backend) {
-  const meta = [
+function _modelMetaLine(m) {
+  const free = _modelCatalogInfo.free_gb;
+  return [
     m.size_gb ? `~${m.size_gb} GB` : null,
+    (m.size_gb != null && free != null) ? `${free} GB free` : null,
     m.licence,
-    m.kinds.includes('vision') ? 'vision' : 'text',
   ].filter(Boolean).join(' · ');
-  let actions = '';
-  if (backend === 'ollama' && m.ollama_tag) {
-    actions =
-      `<button type="button" class="btn-secondary" data-act="use">Use this model</button>` +
-      `<button type="button" class="btn-secondary" data-act="pull">Pull with Ollama</button>` +
-      `<code class="rec-model-meta">${escHtml(m.ollama_tag)}</code>`;
-  } else if (backend === 'llamacpp' && m.gguf_url) {
-    const proj = (m.mmproj_url && m.mmproj_url !== m.gguf_url)
-      ? ` · <a href="${escHtml(m.mmproj_url)}" target="_blank" rel="noopener">vision projector</a>` : '';
-    if (m.gguf_filename) {
-      actions =
-        `<button type="button" class="btn-secondary" data-act="download-gguf">Download now</button>` +
-        `<a href="${escHtml(m.gguf_url)}" target="_blank" rel="noopener">Choose a different file</a>${proj}` +
-        `<div class="settings-install-log" data-gguf-log></div>`;
-    } else {
-      actions = `<a href="${escHtml(m.gguf_url)}" target="_blank" rel="noopener">Download page</a>${proj}`;
-    }
-  }
+}
+
+function _modelBadge(m) {
+  if (m.active) return `<span class="rec-model-badge active">Active</span>`;
+  if (m.installed) return `<span class="rec-model-badge">Downloaded</span>`;
+  return '';
+}
+
+function _recModelHtml(m, backend) {
+  const actions = backend === 'ollama' ? _ollamaActions(m) : _llamacppActions(m);
   return (
-    `<div class="rec-model" data-tag="${escHtml(m.ollama_tag || '')}" data-model-id="${escHtml(m.id)}">` +
+    `<div class="rec-model${m.active ? ' active' : ''}" data-tag="${escHtml(m.ollama_tag || '')}" data-model-id="${escHtml(m.id)}">` +
       `<div class="rec-model-head"><span class="rec-model-name">${escHtml(m.display_name)}</span>` +
-      `<span class="rec-model-meta">${escHtml(meta)}</span></div>` +
+      _modelBadge(m) +
+      `<span class="rec-model-meta">${escHtml(_modelMetaLine(m))}</span></div>` +
       `<div class="rec-model-why">${escHtml(m.why)}</div>` +
       `<div class="rec-model-actions">${actions}</div>` +
+      `<div class="mdl-progress" data-gguf-progress style="display:none">` +
+        `<div class="mdl-bar"><div class="mdl-bar-fill" data-gguf-fill></div></div>` +
+        `<span class="mdl-pct" data-gguf-pct></span></div>` +
+      `<div class="settings-install-log" data-gguf-log></div>` +
     `</div>`
   );
+}
+
+// The "Active" badge signals the in-use model; the Use/Pull buttons stay present
+// regardless (re-selecting the active tag is a harmless no-op) so the row's
+// affordances don't shift based on which model happens to be configured.
+function _ollamaActions(m) {
+  if (!m.ollama_tag) return '';
+  return `<button type="button" class="btn-secondary" data-act="use">Use this model</button>` +
+    `<button type="button" class="btn-secondary" data-act="pull">Pull with Ollama</button>` +
+    `<code class="rec-model-meta">${escHtml(m.ollama_tag)}</code>`;
+}
+
+// One-click surface for local .gguf models: download when missing, "Use this
+// model" when the file is already on disk, and a plain "in use" note when active.
+// The raw path boxes (Advanced disclosure) stay as the manual fallback.
+function _llamacppActions(m) {
+  if (!m.gguf_url) return '';
+  if (!m.gguf_filename) {
+    return `<a href="${escHtml(m.gguf_url)}" target="_blank" rel="noopener">Download page</a>`;
+  }
+  const parts = [];
+  if (m.active) {
+    parts.push(`<span class="rec-model-note">In use for local scoring.</span>`);
+  } else if (m.installed) {
+    parts.push(`<button type="button" class="btn-secondary" data-act="use-gguf">Use this model</button>`);
+  } else {
+    parts.push(`<button type="button" class="btn-secondary" data-act="download-gguf">Download now</button>`);
+  }
+  parts.push(`<a href="${escHtml(m.gguf_url)}" target="_blank" rel="noopener">Choose a different file</a>`);
+  return parts.join('');
 }
 
 function _useOllamaModel(tag) {
@@ -104,6 +189,24 @@ function _useOllamaModel(tag) {
   if (!el) return;
   el.value = tag;
   _checkSettingsDirty();
+}
+
+// Point the (advanced) path fields at an already-present model so a plain Save
+// activates it - no re-download. For a vision entry this also fills the mmproj
+// projector path; text entries leave any existing projector untouched.
+function _applyModelPaths(m) {
+  const pathEl = document.getElementById('s-llm-model-path');
+  if (pathEl && m.gguf_path) pathEl.value = m.gguf_path;
+  const projEl = document.getElementById('s-llm-mmproj-path');
+  if (projEl && m.mmproj_path) projEl.value = m.mmproj_path;
+  _checkSettingsDirty();
+}
+
+function _useGgufModel(modelId) {
+  const m = (_modelCatalog || []).find(x => x.id === modelId);
+  if (!m) return;
+  _applyModelPaths(m);
+  showToast('Model selected - click Save to apply', 'info');
 }
 
 // Abort controller for the active pull, so a Cancel button can close the SSE
@@ -177,11 +280,37 @@ async function pullOllamaModel(tag) {
 
 // ── one-click local (.gguf) download ────────────────────────────────────────
 // Server-owned download (POST /api/llm/gguf/download) for a recommended local
-// text model, so llama.cpp gets the same one-click flow the Ollama/Tier-B models
-// already have instead of only a "Download page" link. Same SSE + Cancel-via-
-// abort shape as pullOllamaModel; on success the server has already written
-// llm_model_path, so we just refresh the readiness line and prompt a Save.
+// model (text, or vision + its mmproj projector), so llama.cpp gets the same
+// one-click flow the Ollama/Tier-B models already have instead of only a
+// "Download page" link. Same SSE + Cancel-via-abort shape as pullOllamaModel;
+// on success the server has written the model (and projector) path(s), so we
+// point the path fields at them, refresh the readiness line, and prompt a Save.
 let _ggufAbort = null;
+
+// The CLI prints "Downloading <name> - <file>: NN% (x/y GB)" lines; pull the
+// percentage out to drive a determinate bar. Vision entries stream two files in
+// turn, so the bar resets per file - expected, not a bug.
+function _parseGgufPct(line) {
+  const match = /(\d+)%/.exec(line);
+  if (!match) return null;
+  const pct = parseInt(match[1], 10);
+  return pct >= 0 && pct <= 100 ? pct : null;
+}
+
+function _setGgufProgress(card, value) {
+  const fill = card.querySelector('[data-gguf-fill]');
+  const pct = card.querySelector('[data-gguf-pct]');
+  if (!fill || !pct) return;
+  if (value == null) {
+    fill.classList.add('indeterminate');
+    fill.style.width = '';
+    pct.textContent = '';
+  } else {
+    fill.classList.remove('indeterminate');
+    fill.style.width = value + '%';
+    pct.textContent = value + '%';
+  }
+}
 
 function _setGgufCancel(card, show, onCancel) {
   const log = card.querySelector('[data-gguf-log]');
@@ -208,9 +337,13 @@ function _setGgufCancel(card, show, onCancel) {
 async function downloadGgufModel(modelId, card) {
   const log = card.querySelector('[data-gguf-log]');
   const button = card.querySelector('[data-act="download-gguf"]');
+  const progress = card.querySelector('[data-gguf-progress]');
   if (!log) return;
+  const model = (_modelCatalog || []).find(x => x.id === modelId);
   log.style.display = 'block';
   log.textContent = 'Starting download - this can take several minutes...\n';
+  if (progress) progress.style.display = '';
+  _setGgufProgress(card, null);
   if (button) { button.disabled = true; button.textContent = 'Downloading...'; }
   const controller = new AbortController();
   _ggufAbort = controller;
@@ -237,10 +370,14 @@ async function downloadGgufModel(modelId, card) {
         if (!line.startsWith('data: ')) continue;
         const msg = JSON.parse(line.slice(6));
         if (msg === '__DONE__') {
-          log.textContent += '✓ Done - set as the LLM model. Save to apply.\n';
+          _setGgufProgress(card, 100);
+          log.textContent += '✓ Done - model selected. Save to apply.\n';
+          if (model) _applyModelPaths(model);
           _updateLlmCapabilities();
           return;
         }
+        const pct = _parseGgufPct(msg);
+        if (pct != null) _setGgufProgress(card, pct);
         log.textContent += msg + '\n';
         log.scrollTop = log.scrollHeight;
       }
@@ -251,6 +388,7 @@ async function downloadGgufModel(modelId, card) {
   } finally {
     _ggufAbort = null;
     _setGgufCancel(card, false);
+    if (progress) progress.style.display = 'none';
     if (button) { button.disabled = false; button.textContent = 'Download now'; }
   }
 }
@@ -449,7 +587,7 @@ async function gateOnCapability(el, capability, message) {
 // Public API — symbols referenced cross-module, by an inline handler, or by a
 // test. Internal helpers above stay private to this module's closure.
 Object.assign(window, {
-  _ensureModelCatalog, _setClaudeModelValue,
+  _ensureModelCatalog, refreshModelCatalog, _setClaudeModelValue,
   _updateLlmCapabilities, _renderCapabilityTiers,
   gateOnCapability, pullOllamaModel, prefetchModel, downloadGgufModel,
 });

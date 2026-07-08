@@ -15,6 +15,7 @@ const { parsePipRawProgress } = require('./pip-progress');
 const { describeInstallFailure } = require('./install-error');
 const diskSpace = require('./disk-space');
 const { recommendWhisperModel } = require('./whisper-select');
+const { modelFileDialogOptions } = require('./model-file-dialog');
 const { recommendLocalModel } = require('./recommend-model');
 const { mimeTypeFor, isPathInside, rangeResponseInit } = require('./media-serve');
 const { buildProjectConfigFromWizard } = require('./wizard-config');
@@ -1110,6 +1111,7 @@ function createWindow(port) {
 // the native folder picker the renderer's "Open another project…" dialog uses.
 function registerProjectIPC() {
   try { ipcMain.removeHandler('project:pick-folder'); } catch (_) {}
+  try { ipcMain.removeHandler('model:pick-file'); } catch (_) {}
   ipcMain.removeAllListeners('project:changed');
 
   ipcMain.on('project:changed', (_, newDir) => {
@@ -1128,6 +1130,11 @@ function registerProjectIPC() {
       defaultPath: projectDir,
       properties: ['openDirectory', 'createDirectory'],
     });
+    return canceled ? null : filePaths[0];
+  });
+
+  ipcMain.handle('model:pick-file', async () => {
+    const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, modelFileDialogOptions());
     return canceled ? null : filePaths[0];
   });
 }

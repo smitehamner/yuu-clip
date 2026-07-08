@@ -705,6 +705,26 @@ details summary:focus-visible { outline: 2px solid var(--accent); outline-offset
 .rec-model-why { font-size: 12px; color: var(--muted); margin: 2px 0 6px; }
 .rec-model-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .rec-model-actions a { color: var(--accent-text); font-size: 12px; }
+.rec-model-note { font-size: 12px; color: var(--muted); }
+/* Text vs vision groups within a backend's recommended list. */
+.rec-model-group { display: flex; flex-direction: column; gap: 8px; }
+.rec-model-group + .rec-model-group { margin-top: 12px; }
+.rec-model-group-title { font-size: 12px; font-weight: 700; color: var(--text); text-transform: uppercase; letter-spacing: .04em; }
+/* Active/installed state per card. Active is a filled green pill (on-green over
+   green - the existing AA-guaranteed pairing); the card also gets a green edge. */
+.rec-model.active { border-color: var(--green); }
+.rec-model-badge { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; padding: 1px 7px; border-radius: 9px; border: 1px solid var(--border); color: var(--muted); }
+.rec-model-badge.active { background: var(--green); color: var(--on-green); border-color: var(--green); }
+/* Determinate download progress inside a card (reuses .mdl-bar/.mdl-pct). */
+.mdl-progress { display: none; align-items: center; gap: 10px; margin-top: 6px; }
+/* "Currently using" summary at the top of the model section. */
+.settings-current-model { font-size: 12px; color: var(--text); margin: 4px 0 8px; }
+/* Advanced manual-path disclosure + Browse-beside-field layout. */
+.settings-advanced { margin-top: 8px; }
+.settings-advanced > summary { font-size: 12px; color: var(--muted); cursor: pointer; padding: 4px 0; }
+.settings-advanced > summary:hover { color: var(--text); }
+.settings-path-field { display: flex; gap: 6px; align-items: center; max-width: 320px; flex: 1; }
+.settings-path-field .settings-input { flex: 1; min-width: 0; }
 .gate-note { font-size: 12px; color: var(--warning); margin-top: 4px; }
 /* ── capabilities overview (Stage 06) ── */
 .capability-tier { padding: 10px 0; border-bottom: 1px solid var(--border); }

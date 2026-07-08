@@ -655,6 +655,7 @@ async function saveSettings() {
     _updateLlmRemoteIndicator(payload.llm_backend || 'llamacpp', payload.ollama_enabled !== false);
     _updateLlmCapabilities();
     _renderCapabilityTiers();
+    refreshModelCatalog();
     window._visionEnabled = payload.vision_enabled === true;
   } catch {
     showToast('Settings save failed', 'error');
@@ -662,6 +663,26 @@ async function saveSettings() {
   }
 }
 
+
+// Native ".gguf" file picker beside each model-path field - Electron only. In
+// browser-dev mode there's no electronAPI, so the buttons stay hidden and the
+// text box remains the way to set a path. Reveals + wires every
+// [data-browse-target] button on load.
+function _wireModelBrowseButtons() {
+  if (!window.electronAPI?.pickModelFile) return;
+  document.querySelectorAll('.settings-browse-btn[data-browse-target]').forEach(btn => {
+    btn.style.display = '';
+    btn.addEventListener('click', async () => {
+      const target = document.getElementById(btn.getAttribute('data-browse-target'));
+      if (!target) return;
+      let picked = null;
+      try { picked = await window.electronAPI.pickModelFile(); } catch { picked = null; }
+      if (!picked) return;  // cancelled - leave the field unchanged
+      target.value = picked;
+      _checkSettingsDirty();
+    });
+  });
+}
 
 function _flashSettingsSaved() {
   const badge = document.getElementById('settings-saved-badge');
@@ -696,6 +717,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const btn = document.getElementById('btn-setup-wizard');
     if (btn) btn.style.display = '';
   }
+
+  _wireModelBrowseButtons();
 
   // The global Escape handler leaves Escape to typing surfaces, so the glossary
   // filter handles it itself: first press clears the filter, second closes.

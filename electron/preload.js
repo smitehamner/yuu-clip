@@ -20,4 +20,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Native folder picker for "Open another project…" (browser mode falls back to
   // a text input); the setup wizard already uses this same dialog pattern.
   pickProjectFolder: () => ipcRenderer.invoke('project:pick-folder'),
+  // Native .gguf file picker for the Settings model-path fields (browser mode
+  // falls back to the text box). Returns the chosen path, or null if cancelled.
+  pickModelFile: () => ipcRenderer.invoke('model:pick-file'),
 });

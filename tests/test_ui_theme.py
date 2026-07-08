@@ -86,6 +86,11 @@ class TestContrastTokens:
     def test_muted_text_on_bg(self, page: Page, theme: str):
         assert self._ratio(page, theme, "--muted", "--bg") >= AA_NORMAL_TEXT
 
+    def test_muted_text_on_surface_raised(self, page: Page, theme: str):
+        # .rec-model-meta and the "Downloaded" badge render muted text on the
+        # recommended-model card (--surface-raised).
+        assert self._ratio(page, theme, "--muted", "--surface-raised") >= AA_NORMAL_TEXT
+
     def test_pending_step_pill_muted_on_border(self, page: Page, theme: str):
         assert self._ratio(page, theme, "--muted", "--border") >= AA_NORMAL_TEXT
 
