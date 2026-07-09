@@ -114,22 +114,8 @@ def _preflight_whisper_prefetch(model: str) -> dict:
     }
 
 
-def _capabilities(cfg) -> dict:
-    from yuu_clip.config import resolve_ai_permissions
-
-    backend = cfg.llm_backend
-    if not cfg.llm_enabled:
-        return {
-            "backend": backend, "model": None, "text": False, "vision": False,
-            "detail": "LLM scoring is turned off in Settings.",
-        }
-    permissions = resolve_ai_permissions(cfg)
-    if not permissions.allow_llm:
-        return {
-            "backend": backend, "model": None, "text": False, "vision": False,
-            "detail": "Generative AI is turned off - change it under Settings → AI privacy.",
-        }
-    if backend == "claude" and not permissions.allow_remote:
+def _claude_capabilities(cfg, backend: str, permissions) -> dict:
+    if not permissions.allow_remote:
         return {
             "backend": backend, "model": cfg.claude_model or None, "text": False, "vision": False,
             "detail": (
@@ -137,18 +123,21 @@ def _capabilities(cfg) -> dict:
                 "local model or allow remote models under Settings → AI privacy."
             ),
         }
-    if backend == "claude":
-        has_key = bool(cfg.claude_api_key)
-        detail = (
-            "Claude API key set - text and image analysis are available."
-            if has_key else
-            "No Claude API key set - add one under Settings → LLM scoring."
-        )
-        return {
-            "backend": backend, "model": cfg.claude_model or None,
-            "text": has_key, "vision": has_key, "detail": detail,
-        }
-    # Local llamacpp backend (the only remaining local backend).
+    has_key = bool(cfg.claude_api_key)
+    detail = (
+        "Claude API key set - text and image analysis are available."
+        if has_key else
+        "No Claude API key set - add one under Settings → LLM scoring."
+    )
+    return {
+        "backend": backend, "model": cfg.claude_model or None,
+        "text": has_key, "vision": has_key, "detail": detail,
+    }
+
+
+def _llamacpp_capabilities(cfg, backend: str) -> dict:
+    """Readiness of the local llamacpp backend, whose text and vision models are set
+    independently (llm_model_path vs llm_vision_model_path + llm_mmproj_path)."""
     model_path = cfg.llm_model_path
     text_ok = bool(model_path) and Path(model_path).exists()
     vision_model_path = cfg.llm_vision_model_path
@@ -177,6 +166,26 @@ def _capabilities(cfg) -> dict:
         "backend": backend, "model": model_path or None,
         "text": text_ok, "vision": vision_ok, "detail": detail,
     }
+
+
+def _capabilities(cfg) -> dict:
+    from yuu_clip.config import resolve_ai_permissions
+
+    backend = cfg.llm_backend
+    if not cfg.llm_enabled:
+        return {
+            "backend": backend, "model": None, "text": False, "vision": False,
+            "detail": "LLM scoring is turned off in Settings.",
+        }
+    permissions = resolve_ai_permissions(cfg)
+    if not permissions.allow_llm:
+        return {
+            "backend": backend, "model": None, "text": False, "vision": False,
+            "detail": "Generative AI is turned off - change it under Settings → AI privacy.",
+        }
+    if backend == "claude":
+        return _claude_capabilities(cfg, backend, permissions)
+    return _llamacpp_capabilities(cfg, backend)
 
 
 # ── Capabilities overview (non-LLM upgrade tiers) ────────────────────────────
