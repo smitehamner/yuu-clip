@@ -30,6 +30,7 @@ class ConfigPatch(BaseModel):
     llm_backend:                  Optional[str]   = None
     llm_model_path:               Optional[str]   = None
     llm_mmproj_path:              Optional[str]   = None
+    llm_vision_model_path:        Optional[str]   = None
     llm_use_gpu:                  Optional[bool]  = None
     # Image-based clip analysis (plan 11)
     vision_enabled:               Optional[bool]  = None
@@ -74,6 +75,7 @@ class ConfigPatch(BaseModel):
     diarization_backend:          Optional[str]   = None
     huggingface_token:            Optional[str]   = None
     speaker_match_threshold:      Optional[float] = None
+    speaker_cluster_threshold:    Optional[float] = None
     # Export
     export_name_template:         Optional[str]   = None
     # Title card (Settings -> Export)
@@ -97,7 +99,7 @@ _CONFIG_FIELDS = (
     "whisper_model", "whisper_device", "whisper_compute_type", "whisper_language",
     "model_prefetch_disabled",
     "ai_privacy_mode",
-    "llm_backend", "llm_model_path", "llm_mmproj_path", "llm_use_gpu",
+    "llm_backend", "llm_model_path", "llm_mmproj_path", "llm_vision_model_path", "llm_use_gpu",
     "vision_enabled", "vision_frames_per_clip",
     "ollama_host", "ollama_model", "ollama_vision_model", "ollama_timeout_s", "ollama_enabled",
     "claude_api_key", "claude_model", "claude_timeout_s",
@@ -110,6 +112,7 @@ _CONFIG_FIELDS = (
     "content_preset",
     "scene_detection_mode", "energy_mode", "silence_threshold_ms", "min_clip_ms",
     "diarization_backend", "huggingface_token", "speaker_match_threshold",
+    "speaker_cluster_threshold",
     "export_name_template",
     "title_card_bg_color", "title_card_font_color", "title_card_scale",
     "title_card_template", "title_card_duration_s",
@@ -221,6 +224,7 @@ _CONFIG_PATCH_RULES: list[tuple[str, object]] = [
     ("llm_backend",                  _enum_validator({"llamacpp", "ollama", "claude"}, "llm_backend")),
     ("llm_model_path",               lambda v: v),
     ("llm_mmproj_path",              lambda v: v),
+    ("llm_vision_model_path",        lambda v: v),
     ("llm_use_gpu",                  lambda v: v),
     ("vision_enabled",               lambda v: v),
     ("vision_frames_per_clip",       _range_validator(1, 10, "vision_frames_per_clip")),
@@ -256,6 +260,7 @@ _CONFIG_PATCH_RULES: list[tuple[str, object]] = [
     ("diarization_backend",          _enum_validator({"null", "pyannote", "speechbrain"}, "diarization_backend")),
     ("huggingface_token",            lambda v: v.strip()),
     ("speaker_match_threshold",      _range_validator(0.0, 1.0, "speaker_match_threshold")),
+    ("speaker_cluster_threshold",    _range_validator(0.0, 1.0, "speaker_cluster_threshold")),
     ("export_name_template",         _export_name_template_validator),
     ("title_card_bg_color",          _hex_color_validator("title_card_bg_color")),
     ("title_card_font_color",        _hex_color_validator("title_card_font_color")),

@@ -34,6 +34,11 @@ log = logging.getLogger(__name__)
 
 _MAX_CPM = 10.0   # cuts/min → score_action = 1.0
 
+# In "fast" mode, a keyframe corroborates a transcript gap only if it lands within this
+# many ms of one; and clustered keyframes are deduplicated to one per this window.
+_CORROBORATION_WINDOW_MS = 2000
+_KEYFRAME_DEDUP_MS = 1000
+
 
 def _detect_transcript(video: "Video", session: "Session", gap_s: float) -> list[int]:
     """Return cut timecodes (ms) from silence gaps in the transcript."""
@@ -147,11 +152,11 @@ def compute_scenes(
         # Deduplicate keyframe clusters to one representative per 1s window.
         merged: set[int] = set(tg)
         candidate_kf = sorted(
-            ms for ms in kf if any(abs(ms - t) < 2000 for t in tg)
+            ms for ms in kf if any(abs(ms - t) < _CORROBORATION_WINDOW_MS for t in tg)
         ) if tg else sorted(kf)
         prev = -999_999
         for ms in candidate_kf:
-            if ms - prev > 1000:
+            if ms - prev > _KEYFRAME_DEDUP_MS:
                 merged.add(ms)
                 prev = ms
         timecodes = sorted(merged)

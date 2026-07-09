@@ -314,6 +314,26 @@ offline install (see the packaging-strategy overhaul Wave 5).
 `escHtml` in `utils.js` escapes `& < > "`. Always run track layout names, context
 names, and filenames through it before embedding in HTML attributes.
 
+### Wizard and Settings are parallel model-selection stacks (keep in sync, no shared code)
+Model selection lives in two separate stacks that CANNOT share code, so a change to one
+must be mirrored in the other by hand:
+- **Settings** (in-app): browser JS (`web/static/settings.js`, `modelcatalog.js`,
+  `index.html`) -> HTTP -> Python `model_catalog.py` + `cli/models.py download-gguf`.
+- **Setup wizard** (Electron): renderer (`electron/setup.html`) -> IPC -> `electron/main.js`
+  `setup:download-gguf-model`, which downloads the hardcoded `DEFAULT_LLAMACPP_MODEL`
+  (`electron/constants.js`) with Node and writes `config.json` directly.
+
+They can't be DRY-ed into one JS file: different runtimes (browser vs Electron main/Node),
+and the wizard runs BEFORE the Python server exists, so it can't use the server endpoints
+Settings depends on. Consequences to respect:
+- The wizard's `DEFAULT_LLAMACPP_MODEL` duplicates a `model_catalog.py` entry - keep the id
+  and filename matching a recommended catalog entry so the two catalogs don't drift.
+- LLM model config is split by function: text scoring uses `llm_model_path`; image analysis
+  uses `llm_vision_model_path` + `llm_mmproj_path` (see the per-function-llm-models plan).
+  The wizard only ever sets the TEXT model, so `DEFAULT_LLAMACPP_MODEL` must stay a text
+  (non-vision) model. If the wizard ever gains vision-model selection, it must write
+  `llm_vision_model_path`, never `llm_model_path`.
+
 ### PowerShell script encoding
 Any `.ps1` file containing non-ASCII (em-dash, box-drawing `─`, smart quotes)
 **must** be saved with a UTF-8 BOM. Without one, Windows PowerShell 5.1 decodes the

@@ -313,6 +313,42 @@ def _cluster_labels(embeddings, distance_threshold: float = _SB_DISTANCE_THRESHO
     return model.fit_predict(np.asarray(embeddings, dtype=np.float64))
 
 
+def _consolidate_labels(embeddings, labels, similarity_threshold: float):
+    """Merge clusters whose centroids are within *similarity_threshold* (cosine),
+    collapsing fragments of one speaker that window-level clustering split apart -
+    the fix for "one person shows up as 50 speakers".
+
+    Keyed on the same "how similar counts as the same voice" threshold used for
+    cross-video matching, so a single knob governs both. Centroids (averaged) are far
+    cleaner than the raw short-window embeddings, so merging them is reliable even when
+    the initial clustering over-fragments. Returns relabeled integer labels.
+    """
+    import numpy as np
+
+    unique = sorted({int(value) for value in labels})
+    if len(unique) <= 1:
+        return np.asarray(labels, dtype=int)
+
+    array = np.asarray(embeddings, dtype=np.float64)
+    labels_arr = np.asarray(labels)
+    centroids = []
+    for label in unique:
+        mean = array[labels_arr == label].mean(axis=0)
+        norm = np.linalg.norm(mean)
+        centroids.append(mean / norm if norm > 0 else mean)
+
+    from sklearn.cluster import AgglomerativeClustering
+
+    merged = AgglomerativeClustering(
+        n_clusters=None,
+        distance_threshold=max(0.0, 1.0 - similarity_threshold),
+        metric="cosine",
+        linkage="average",
+    ).fit_predict(np.asarray(centroids))
+    old_to_new = {old: int(new) for old, new in zip(unique, merged)}
+    return np.array([old_to_new[int(value)] for value in labels], dtype=int)
+
+
 def _merge_turns(window_times: list[tuple[float, float]], labels) -> list[tuple[float, float, str]]:
     """Merge adjacent same-label windows into (start_s, end_s, "SPEAKER_NN") turns.
 
@@ -461,13 +497,17 @@ class SpeechBrainDiarizationClient(DiarizationClient):
         if not active_bounds:
             return [], {}
         embeddings = self._embed_windows(waveform, active_bounds)
-        labels = _cluster_labels(embeddings, _SB_DISTANCE_THRESHOLD)
+        cluster_threshold = self._config.speaker_cluster_threshold or _SB_DISTANCE_THRESHOLD
+        raw_labels = _cluster_labels(embeddings, cluster_threshold)
+        labels = _consolidate_labels(embeddings, raw_labels, self._config.speaker_match_threshold)
         window_times = [(start / sample_rate, end / sample_rate) for start, end in active_bounds]
         turns = _merge_turns(window_times, labels)
         centroids = _cluster_centroids(embeddings, labels)
+        raw_count = len({int(value) for value in raw_labels})
         _log.info(
-            "SpeechBrain diarization: %d active window(s) → %d turn(s), %d speaker(s)",
-            len(active_bounds), len(turns), len(centroids),
+            "SpeechBrain diarization: %d active window(s) → %d turn(s); %d raw cluster(s) "
+            "consolidated to %d speaker(s)",
+            len(active_bounds), len(turns), raw_count, len(centroids),
         )
         return turns, centroids
 

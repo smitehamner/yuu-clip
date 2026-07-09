@@ -193,18 +193,28 @@ def _capabilities(cfg) -> dict:
     if backend == "llamacpp":
         model_path = cfg.llm_model_path
         text_ok = bool(model_path) and Path(model_path).exists()
+        vision_model_path = cfg.llm_vision_model_path
         mmproj = cfg.llm_mmproj_path
-        vision_ok = text_ok and bool(mmproj) and Path(mmproj).exists()
-        if not model_path:
+        vision_model_ok = bool(vision_model_path) and Path(vision_model_path).exists()
+        mmproj_ok = bool(mmproj) and Path(mmproj).exists()
+        vision_ok = vision_model_ok and mmproj_ok
+        if not model_path and not vision_model_path:
             detail = "No model file set - choose a .gguf under Settings → LLM scoring."
-        elif not text_ok:
+        elif not text_ok and model_path:
             detail = f"Model file not found: {model_path}"
         elif vision_ok:
-            detail = "Model and vision projector are set - image analysis is available."
-        elif mmproj:
-            detail = f"Vision projector file not found: {mmproj}"
+            detail = "Text and vision models are set - image analysis is available."
+        elif not vision_model_path and not mmproj:
+            detail = (
+                "Text scoring is ready; set a vision model to enable image analysis."
+                if text_ok else
+                "No model file set - choose a .gguf under Settings → LLM scoring."
+            )
+        elif not vision_model_ok:
+            detail = f"Vision model file not found: {vision_model_path}" if vision_model_path else \
+                "Vision projector is set but the vision model is missing - set a vision model under Settings → LLM scoring."
         else:
-            detail = "Text scoring is ready; add a vision projector (.gguf) to enable image analysis."
+            detail = f"Vision projector file not found: {mmproj}"
         return {
             "backend": backend, "model": model_path or None,
             "text": text_ok, "vision": vision_ok, "detail": detail,
@@ -440,6 +450,17 @@ def _entry_active(entry, cfg) -> bool:
     the current backend so a saved-but-inactive backend's models aren't flagged."""
     backend = cfg.llm_backend
     if backend == "llamacpp":
+        # A llamacpp vision setup is defined by its projector (mmproj) - the base
+        # model can be shared with, or differ from, the text scoring model. Match a
+        # vision entry on the configured projector so it's flagged active even when
+        # the text base differs (otherwise no vision model ever shows as active).
+        if "vision" in entry.kinds and entry.mmproj_filename:
+            mmproj_path = (cfg.llm_mmproj_path or "").strip()
+            vision_model_path = (cfg.llm_vision_model_path or "").strip()
+            return (
+                bool(mmproj_path) and Path(mmproj_path).name == entry.mmproj_filename
+                and bool(vision_model_path) and Path(vision_model_path).name == entry.gguf_filename
+            )
         model_path = (cfg.llm_model_path or "").strip()
         if not model_path or not entry.gguf_filename:
             return False

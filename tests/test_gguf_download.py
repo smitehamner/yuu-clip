@@ -201,7 +201,9 @@ class TestDownloadGgufCommand:
         entry, _ = models_cli._resolve_gguf_entry("qwen2.5-7b-instruct")
         dest = models_dir / entry.gguf_filename
         assert dest.read_bytes() == payload
-        assert Config.load(tmp_path).llm_model_path == str(dest)
+        cfg = Config.load(tmp_path)
+        assert cfg.llm_model_path == str(dest)
+        assert cfg.llm_vision_model_path == ""  # a text entry must not touch the vision path
 
     def test_already_downloaded_sets_path_without_refetching(self, tmp_path, monkeypatch):
         import yuu_clip.config as config_mod
@@ -261,8 +263,9 @@ class TestVisionDownload:
         assert gguf_dest != mmproj_dest
         assert len(urls) == 2  # weights + projector, both distinct
         cfg = Config.load(tmp_path)
-        assert cfg.llm_model_path == str(gguf_dest)
+        assert cfg.llm_vision_model_path == str(gguf_dest)
         assert cfg.llm_mmproj_path == str(mmproj_dest)
+        assert cfg.llm_model_path == ""  # the text model path must be untouched
 
     def test_shared_file_is_fetched_once_and_points_both_paths(self, tmp_path, monkeypatch):
         # Degenerate case the plan calls out: a vision entry whose projector lives
@@ -288,8 +291,9 @@ class TestVisionDownload:
         assert len(urls) == 1  # not fetched twice
         dest = models_dir / "combined.gguf"
         cfg = Config.load(tmp_path)
-        assert cfg.llm_model_path == str(dest)
+        assert cfg.llm_vision_model_path == str(dest)
         assert cfg.llm_mmproj_path == str(dest)
+        assert cfg.llm_model_path == ""
 
     def test_existing_projector_is_not_refetched(self, tmp_path, monkeypatch):
         import yuu_clip.config as config_mod

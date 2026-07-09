@@ -27,6 +27,9 @@ _MAX_KEYWORDS = 3
 # A dimension only earns a mention when it clears this - below it, the signal is too
 # weak to characterize the clip and would just add noise.
 _DIMENSION_FLOOR = 0.34
+# At or above this the dimension is described as "high" (e.g. "high action"); between
+# the floor and this it's "some".
+_DIMENSION_HIGH_BAND = 0.66
 
 _DIMENSION_LABELS = (
     ("action", "action"),
@@ -67,7 +70,7 @@ def _leading_dimension(clip: "ClipCandidate") -> str:
     if best_score < _DIMENSION_FLOOR:
         return ""
     label = next(label for dim, label in _DIMENSION_LABELS if dim == best_dim)
-    band = "high" if best_score >= 0.66 else "some"
+    band = "high" if best_score >= _DIMENSION_HIGH_BAND else "some"
     return f"{band} {label}"
 
 

@@ -231,6 +231,18 @@ class TestUiConfig:
         assert client.patch("/api/config", json={"speaker_match_threshold": 0.0}).status_code == 200
         assert client.patch("/api/config", json={"speaker_match_threshold": 1.0}).status_code == 200
 
+    def test_get_config_includes_speaker_cluster_threshold_default(self, client):
+        assert client.get("/api/config").json()["speaker_cluster_threshold"] == 0.55
+
+    def test_patch_config_updates_speaker_cluster_threshold(self, client):
+        r = client.patch("/api/config", json={"speaker_cluster_threshold": 0.7})
+        assert r.status_code == 200
+        assert r.json()["speaker_cluster_threshold"] == 0.7
+
+    def test_patch_config_cluster_threshold_out_of_range_returns_400(self, client):
+        assert client.patch("/api/config", json={"speaker_cluster_threshold": 1.5}).status_code == 400
+        assert client.patch("/api/config", json={"speaker_cluster_threshold": -0.1}).status_code == 400
+
     def test_patch_config_accepts_speechbrain_backend(self, client):
         r = client.patch("/api/config", json={"diarization_backend": "speechbrain"})
         assert r.status_code == 200
@@ -431,6 +443,21 @@ class TestConfigNewLlmFields:
         from yuu_clip.config import Config
         assert Config().llm_model_path == ""
 
+    def test_llm_vision_model_path_default_is_empty_string(self):
+        from yuu_clip.config import Config
+        assert Config().llm_vision_model_path == ""
+
+    def test_llm_vision_model_path_roundtrips_through_save_and_load(self, tmp_path, monkeypatch):
+        import yuu_clip.config as cfg_mod
+        from yuu_clip.config import Config
+        monkeypatch.setattr(cfg_mod, "_global_config_dir", lambda: tmp_path / "global_cfg")
+        project_dir = tmp_path / "proj"
+        project_dir.mkdir()
+        cfg = Config(llm_vision_model_path="/models/moondream.gguf")
+        cfg.save_project(project_dir)
+        loaded = Config.load(project_dir)
+        assert loaded.llm_vision_model_path == "/models/moondream.gguf"
+
     def test_llm_backend_roundtrips_through_config_load(self, tmp_path, monkeypatch):
         import json
 
@@ -469,6 +496,13 @@ class TestConfigApiLlmFields:
         r = client.patch("/api/config", json={"llm_model_path": "/models/qwen2.5.gguf"})
         assert r.status_code == 200
         assert r.json()["llm_model_path"] == "/models/qwen2.5.gguf"
+
+    def test_patch_llm_vision_model_path(self, client):
+        r = client.patch("/api/config", json={"llm_vision_model_path": "/models/moondream.gguf"})
+        assert r.status_code == 200
+        assert r.json()["llm_vision_model_path"] == "/models/moondream.gguf"
+        # Independent of the text model path - patching one must not touch the other.
+        assert r.json()["llm_model_path"] == ""
 
 
 # ---------------------------------------------------------------------------

@@ -23,6 +23,10 @@ if TYPE_CHECKING:
 
 _log = get_logger(__name__)
 
+# A silence gap at or above this earns the extra "long_silence_before" boundary tag
+# (a display hint only - the window split itself is driven by silence_threshold_ms).
+_LONG_SILENCE_MS = 10_000
+
 
 def generate_candidates(
     video: Video,
@@ -222,7 +226,7 @@ def _silence_window(
             win_end   = seg.end_ms
             win_segs  = [seg]
             win_tags  = [f"after_silence_{gap_ms // 1000}s"]
-            if gap_ms >= 10_000:
+            if gap_ms >= _LONG_SILENCE_MS:
                 win_tags.append("long_silence_before")
             continue
 

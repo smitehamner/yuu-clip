@@ -63,12 +63,23 @@ def _parse_srt(text: str) -> list[tuple[int, int, str]]:
     return segments
 
 
+def _llm_unavailable_message(reason: str) -> str:
+    """One-line plain-English summary recorded in run metadata and shown after a run,
+    so a creator who scrolled past the live log still learns why clips got only a
+    basic description. Backend-neutral: the *reason* carries the specific fix."""
+    return (
+        f"AI clip ranking and descriptions were skipped - {reason}. Clips were still "
+        "created and ranked from the other signals, with a basic one-line description. "
+        "Fix this in Settings, then use Rescore to add the AI score and descriptions."
+    )
+
+
 def _llm_unavailable_notice(reason: str) -> None:
-    console.print(f"  [yellow]AI clip ranking unavailable - {reason}.[/yellow]")
+    console.print(f"  [yellow]AI clip ranking and descriptions unavailable - {reason}.[/yellow]")
     console.print(
-        "  [yellow]Clips will still be created and ranked, just without the AI score. "
-        "Start the LLM engine (e.g. run Ollama) to include it - do it now and it will be "
-        "used in this run; otherwise use Rescore later.[/yellow]"
+        "  [yellow]Clips will still be created and ranked from the other signals, with a "
+        "basic one-line description. Fix this in Settings, then use Rescore to add the AI "
+        "score and descriptions - do it now and it applies to this run.[/yellow]"
     )
 
 
@@ -222,7 +233,9 @@ def _analyze_one(
     if not opts.no_score and candidates:
         try:
             with recorder.stage("Score"):
-                _run_scoring(video, track_objs, config, session, energy_mode=opts.energy_mode, context_text=opts.context_text)
+                recorder.warnings.extend(
+                    _run_scoring(video, track_objs, config, session, energy_mode=opts.energy_mode, context_text=opts.context_text) or []
+                )
         except Exception as exc:
             # ScoringEngine.score_video commits after every clip (so the web server can
             # see scores as they land - see scoring/engine.py), so clips scored before
@@ -235,10 +248,10 @@ def _analyze_one(
             console.print(f"  [yellow]Scoring failed - clips kept, unscored. Use Rescore to retry: {exc}[/yellow]")
             log.exception("Scoring failed: video_id=%s", video.id)
 
-    # Opportunistically build the 720p preview proxy so scrubbing is fast later.
-    # Best-effort: a proxy failure must never fail the analysis.
-    _maybe_generate_proxy(video, audio_dir, session)
-
+    # The 720p preview proxy is NOT built here - it used to run inline and blocked
+    # "Analysis complete" while the whole recording re-encoded. It's now warmed in
+    # the background after completion (web UI, _warmPreviewProxy) and built lazily on
+    # first preview otherwise (see routes/videos.py proxy/generate).
     video.processed_at = datetime.now(timezone.utc)
     # Run metadata is informational only - never let recording it abort the run.
     try:
@@ -314,39 +327,6 @@ def _import_subtitles(subtitle_source: str, video_path: Path, track_objs, sessio
     video.status = "segmented"
     transcripts.append(tr)
     return transcripts
-
-
-def _maybe_generate_proxy(video, audio_dir: Path, session) -> None:
-    """Build the 720p preview proxy for a recording during analysis, if missing.
-
-    Keyed by source path, so a split recording's segments share one proxy - the
-    first segment to reach here builds it and the rest see it fresh and skip.
-    Non-fatal: proxy generation is a convenience, never a pipeline requirement.
-    """
-    from yuu_clip.analyze.proxy import (
-        generate_proxy,
-        proxy_file_for,
-        proxy_is_fresh,
-        record_proxy_metadata,
-    )
-
-    proxy_dir = audio_dir.parent / "proxies"
-    source = Path(video.path)
-    proxy_file = proxy_file_for(source, proxy_dir)
-    if proxy_is_fresh(video, proxy_file):
-        return
-    try:
-        console.print("  [bold]Building 720p preview…[/bold]")
-        generate_proxy(
-            source, proxy_file, duration_ms=video.duration_ms,
-            progress_cb=lambda frac: None,
-        )
-        record_proxy_metadata(session, video, proxy_file)
-        session.flush()
-        console.print("  [green]  OK[/green] 720p preview ready")
-    except Exception as exc:
-        console.print(f"  [yellow]  Preview proxy skipped: {exc}[/yellow]")
-        log.exception("Preview proxy generation failed: video_id=%s", video.id)
 
 
 def _probe_video(video_path: Path):
@@ -762,8 +742,11 @@ def _summarize_video(video, transcripts, config, session, context_text: str = ""
         log.exception("Video summary failed: video_id=%s", video.id)
 
 
-def _run_scoring(video, track_objs, config, session, energy_mode: str = "fast", context_text: str = "") -> None:
-    """Run Phase 2 scoring (energy, scenes, LLM) for all candidates belonging to *video*."""
+def _run_scoring(video, track_objs, config, session, energy_mode: str = "fast", context_text: str = "") -> list[str]:
+    """Run Phase 2 scoring (energy, scenes, LLM) for all candidates belonging to *video*.
+
+    Returns plain-English warnings worth surfacing after the run (e.g. the LLM was
+    unavailable, so clips got only a basic description)."""
     from yuu_clip.scoring.audio_event import AudioEventScorer, audio_event_model_cached
     from yuu_clip.scoring.churn import SpeakerChurnScorer
     from yuu_clip.scoring.energy import AudioEnergyScorer, compute_energy
@@ -803,12 +786,14 @@ def _run_scoring(video, track_objs, config, session, energy_mode: str = "fast", 
             console.print(f"  [yellow]  Scene detection skipped: {e}[/yellow]")
             log.exception("Scene detection failed: video_id=%s", video.id)
 
+    warnings: list[str] = []
     console.print("  [bold]Scoring clips...[/bold]")
     if config.ollama_enabled:
         from yuu_clip.scoring.llm import check_llm_available
         llm_ok, llm_reason = check_llm_available(config)
         if not llm_ok:
             _llm_unavailable_notice(llm_reason)
+            warnings.append(_llm_unavailable_message(llm_reason))
 
     laugh_scorer = LaughScorer(config)
     laugh_ok = True
@@ -878,3 +863,4 @@ def _run_scoring(video, track_objs, config, session, energy_mode: str = "fast", 
     video.clips_scored_at = datetime.now(timezone.utc)
     video.clips_scored_context_json = video.context_names_json or "[]"
     session.flush()
+    return warnings

@@ -143,6 +143,54 @@ class TestAiPrivacyMode:
 
 
 @skip_no_server
+class TestLlamaCppTextVisionGroups:
+    """Settings -> LLM scoring restructured the llamacpp path fields into a
+    Text model group and a Vision model group (per-function-llm-models plan) -
+    the vision model path is independent from the text model path. Read-only:
+    never clicks Save, so nothing persists to the live project's config.json."""
+
+    def _open_settings(self, page: Page) -> None:
+        page.goto(LIVE_URL)
+        page.wait_for_selector("#video-list li[data-video-id]", timeout=5000)
+        page.click("#btn-settings-header")
+        page.wait_for_selector("#settings-panel.visible", timeout=3000)
+        page.wait_for_function(
+            "document.getElementById('s-paths-display').textContent.trim().length > 0",
+            timeout=3000,
+        )
+        page.evaluate("document.getElementById('s-llm-advanced').open = true")
+
+    def test_both_groups_render_with_expected_fields(self, page: Page):
+        self._open_settings(page)
+        expect(page.locator("#s-llm-model-path")).to_be_visible()
+        expect(page.locator("#s-llm-vision-model-path")).to_be_visible()
+        expect(page.locator("#s-llm-mmproj-path")).to_be_visible()
+
+    def test_vision_model_field_loads_saved_config_value(self, page: Page):
+        self._open_settings(page)
+        saved = page.evaluate(
+            "() => fetch('/api/config').then(r => r.json())"
+            "  .then(d => d.llm_vision_model_path || '')"
+        )
+        assert page.locator("#s-llm-vision-model-path").input_value() == saved
+
+    def test_editing_vision_model_path_does_not_change_text_model_path(self, page: Page):
+        self._open_settings(page)
+        text_before = page.locator("#s-llm-model-path").input_value()
+        page.fill("#s-llm-vision-model-path", "C:\\models\\vision-only.gguf")
+        assert page.locator("#s-llm-model-path").input_value() == text_before
+
+    def test_text_only_config_shows_empty_vision_field(self, page: Page):
+        self._open_settings(page)
+        vision_configured = page.evaluate(
+            "() => fetch('/api/config').then(r => r.json())"
+            "  .then(d => Boolean(d.llm_vision_model_path))"
+        )
+        if not vision_configured:
+            assert page.locator("#s-llm-vision-model-path").input_value() == ""
+
+
+@skip_no_server
 class TestSettingsPanelLayout:
     """Settings takes over the detail area as a fixed overlay but leaves the
     sidebar visible, and opening the Analyze panel closes settings (no overlap)."""
@@ -842,3 +890,30 @@ class TestResetToDefaults:
         page.wait_for_selector("#confirm-modal.visible", timeout=2000)
         page.click("#confirm-cancel-btn")
         expect(page.locator("#s-silence-ms")).to_have_value("7500")
+
+
+@skip_no_server
+class TestSpeakerClusterThreshold:
+    """The SpeechBrain-only 'Voice grouping' control (speaker_cluster_threshold),
+    exposed so a user whose voice fragments into many speakers can tune it."""
+
+    def _open_settings(self, page: Page) -> None:
+        page.goto(LIVE_URL)
+        page.wait_for_selector("#video-list li[data-video-id]", timeout=5000)
+        page.click("#btn-settings-header")
+        page.wait_for_selector("#settings-panel.visible", timeout=3000)
+        page.wait_for_function(
+            "document.getElementById('s-paths-display').textContent.trim().length > 0",
+            timeout=3000,
+        )
+
+    def test_cluster_threshold_shown_for_speechbrain(self, page: Page):
+        self._open_settings(page)
+        page.evaluate("_onDiarizationBackendChange('speechbrain')")
+        expect(page.locator("#s-speaker-cluster-threshold")).to_be_visible()
+        expect(page.locator("#s-speaker-cluster-threshold")).to_have_value("0.55")
+
+    def test_cluster_threshold_hidden_for_pyannote(self, page: Page):
+        self._open_settings(page)
+        page.evaluate("_onDiarizationBackendChange('pyannote')")
+        expect(page.locator("#s-speaker-cluster-threshold")).to_be_hidden()

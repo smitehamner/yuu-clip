@@ -367,20 +367,32 @@
             <span style="font-size:13px" aria-hidden="true">Enable</span>
           </label>
         </div>
+        <div class="settings-group-title">Text model</div>
         <div class="settings-row">
           <div class="settings-col">
             <label class="settings-label" for="s-llm-model-path">Model file path</label>
-            <div class="settings-note">Point at a local .gguf file by hand instead of downloading one above</div>
+            <div class="settings-note">Point at a local .gguf file by hand instead of downloading one above. Used for clip scoring and descriptions.</div>
           </div>
           <div class="settings-path-field">
             <input class="settings-input" id="s-llm-model-path" type="text" placeholder="C:\models\qwen2.5-7b-instruct.gguf">
             <button type="button" class="btn-secondary settings-browse-btn" id="btn-browse-llm-model" data-browse-target="s-llm-model-path" style="display:none">Browse...</button>
           </div>
         </div>
+        <div class="settings-group-title">Vision model (image analysis)</div>
+        <div class="settings-row">
+          <div class="settings-col">
+            <label class="settings-label" for="s-llm-vision-model-path">Vision model file path (optional)</label>
+            <div class="settings-note">A local .gguf vision model, independent from the text model above - required (with a vision projector) for image analysis. A single model that does both needs its path set here and above.</div>
+          </div>
+          <div class="settings-path-field">
+            <input class="settings-input" id="s-llm-vision-model-path" type="text" placeholder="C:\models\moondream2-text-model.gguf">
+            <button type="button" class="btn-secondary settings-browse-btn" id="btn-browse-llm-vision-model" data-browse-target="s-llm-vision-model-path" style="display:none">Browse...</button>
+          </div>
+        </div>
         <div class="settings-row">
           <div class="settings-col">
             <label class="settings-label" for="s-llm-mmproj-path">Vision projector file (optional)</label>
-            <div class="settings-note">Path to the model's mmproj .gguf - enables image analysis</div>
+            <div class="settings-note">Path to the vision model's mmproj .gguf - enables image analysis</div>
           </div>
           <div class="settings-path-field">
             <input class="settings-input" id="s-llm-mmproj-path" type="text" placeholder="C:\models\model-mmproj.gguf">
@@ -471,6 +483,13 @@
           <div class="settings-label">Speaker model</div>
           <div class="settings-note">SpeechBrain is included with yuu-clip - no HuggingFace account or token needed. The speaker model (~80 MB) downloads automatically the first time you run Detect Speakers.</div>
         </div>
+      </div>
+      <div class="settings-row">
+        <div class="settings-col">
+          <label class="settings-label" for="s-speaker-cluster-threshold">Voice grouping</label>
+          <div class="settings-note">How readily two moments of speech are treated as <em>different</em> people within one recording. Lower splits into more speakers; higher merges more together. 0.55 is the default. If one person keeps getting split into many speakers, raise it.</div>
+        </div>
+        <input class="settings-input" id="s-speaker-cluster-threshold" type="number" min="0" max="1" step="0.05" style="max-width:100px">
       </div>
     </div>
     <!-- shared fields (shown whenever a backend is selected) -->

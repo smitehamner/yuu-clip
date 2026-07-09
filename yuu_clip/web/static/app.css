@@ -188,7 +188,7 @@ header h1 { font-size: 16px; font-weight: 700; letter-spacing: .5px; color: var(
 .export-pill.is-exported { background: var(--green); color: var(--on-green); opacity: .9; }
 .export-pill.not-exported { background: var(--border); color: var(--muted); }
 .export-pill.is-stale { background: color-mix(in srgb, var(--warning) 20%, transparent); color: var(--warning); }
-.clip-flag-badge { font-size: 11px; font-weight: 600; flex-shrink: 0; color: var(--warning); }
+.clip-flag-badge, .clip-error-badge { font-size: 11px; font-weight: 600; flex-shrink: 0; color: var(--warning); }
 .sensitive-category { font-size: 10px; font-weight: 600; padding: 1px 7px; border-radius: 9px; letter-spacing: .2px; }
 .sensitive-category-privacy { background: color-mix(in srgb, var(--accent2) 20%, transparent); color: var(--accent2); }
 .sensitive-category-censor { background: color-mix(in srgb, var(--red) 20%, transparent); color: var(--red); }
@@ -641,6 +641,8 @@ kbd { background: var(--surface); border: 1px solid var(--border); border-radius
 .settings-section-title.has-action { display: flex; align-items: baseline; gap: 8px; }
 .settings-reset-btn { font-size: 11px; padding: 3px 8px; text-transform: none; letter-spacing: normal; font-weight: 400; }
 .settings-section-title.has-action .settings-reset-btn { margin-left: auto; }
+.settings-group-title { font-size: 12px; font-weight: 600; color: var(--text-secondary); margin: 16px 0 8px; }
+.settings-group-title:first-child { margin-top: 0; }
 .settings-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
 .settings-row:last-child { margin-bottom: 0; }
 .settings-label { font-size: 13px; color: var(--text); min-width: 200px; flex-shrink: 0; }

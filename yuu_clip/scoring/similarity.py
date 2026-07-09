@@ -56,6 +56,10 @@ _TFIDF_CONCEPT_THRESHOLD = 0.5
 _EMBED_CONCEPT_THRESHOLD = 0.5
 _EMBED_MODEL_ID = "BAAI/bge-small-en-v1.5"  # MIT-licensed
 
+# Cosine-score cutoffs for the human-readable similarity label (_similarity_band).
+_BAND_VERY_SIMILAR = 0.7
+_BAND_SIMILAR = 0.55
+
 
 def _content_tokens(text: str) -> list[str]:
     return [t for t in _TOKEN_RE.findall((text or "").lower()) if t not in _STOPWORDS]
@@ -290,9 +294,9 @@ def _cosine(a, b) -> float:
 
 
 def _similarity_band(score: float) -> str:
-    if score >= 0.7:
+    if score >= _BAND_VERY_SIMILAR:
         return "very similar"
-    if score >= 0.55:
+    if score >= _BAND_SIMILAR:
         return "similar"
     return "somewhat similar"
 

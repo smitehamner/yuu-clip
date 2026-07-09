@@ -25,6 +25,45 @@ class TestCatalogRoute:
             assert m["kinds"]
             assert m["backends"]
 
+    def test_llamacpp_vision_entry_active_matches_on_mmproj(self, client: TestClient, project_dir):
+        # Regression: a llamacpp vision model must show as active when its projector
+        # (mmproj) and vision model (gguf) are both configured, even though the text
+        # base model differs. Previously only the text gguf was matched, so no vision
+        # entry ever showed as active.
+        vision = next(
+            m for m in client.get("/api/llm/catalog").json()["models"]
+            if "vision" in m["kinds"] and m["mmproj_filename"]
+        )
+        _patch(
+            client, llm_backend="llamacpp",
+            llm_vision_model_path=str(project_dir / vision["gguf_filename"]),
+            llm_mmproj_path=str(project_dir / vision["mmproj_filename"]),
+        )
+        models = client.get("/api/llm/catalog").json()["models"]
+        active = {m["id"] for m in models if m["active"]}
+        assert vision["id"] in active
+
+    def test_llamacpp_vision_entry_inactive_without_matching_mmproj(self, client: TestClient, project_dir):
+        _patch(
+            client, llm_backend="llamacpp",
+            llm_mmproj_path=str(project_dir / "some-other-projector.gguf"),
+        )
+        models = client.get("/api/llm/catalog").json()["models"]
+        assert not any(m["active"] for m in models if "vision" in m["kinds"] and m["mmproj_filename"])
+
+    def test_llamacpp_vision_entry_inactive_when_only_mmproj_matches(self, client: TestClient, project_dir):
+        # A stale projector alone (no matching vision model path) must not flag active.
+        vision = next(
+            m for m in client.get("/api/llm/catalog").json()["models"]
+            if "vision" in m["kinds"] and m["mmproj_filename"]
+        )
+        _patch(
+            client, llm_backend="llamacpp",
+            llm_mmproj_path=str(project_dir / vision["mmproj_filename"]),
+        )
+        models = client.get("/api/llm/catalog").json()["models"]
+        assert not any(m["id"] == vision["id"] and m["active"] for m in models)
+
 
 class TestCapabilities:
     def test_disabled_llm_reports_nothing_available(self, client: TestClient):
@@ -74,10 +113,17 @@ class TestCapabilities:
         _patch(client, llm_mmproj_path=str(project_dir / "nope-mmproj.gguf"))
         assert client.get("/api/llm/capabilities").json()["vision"] is False
 
-        # A real mmproj file → vision ready.
+        # A real mmproj file but no vision model path → still no vision (no fallback
+        # to the text model path).
         mmproj = project_dir / "mmproj.gguf"
         mmproj.write_bytes(b"gguf")
         _patch(client, llm_mmproj_path=str(mmproj))
+        assert client.get("/api/llm/capabilities").json()["vision"] is False
+
+        # A real vision model file alongside the mmproj → vision ready.
+        vision_model_file = project_dir / "vision-model.gguf"
+        vision_model_file.write_bytes(b"gguf")
+        _patch(client, llm_vision_model_path=str(vision_model_file))
         assert client.get("/api/llm/capabilities").json()["vision"] is True
 
     def test_ollama_text_model_and_vision_model(self, client: TestClient):

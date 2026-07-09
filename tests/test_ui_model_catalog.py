@@ -351,6 +351,49 @@ class TestOllamaUseRouting:
 
 
 @skip_no_server
+class TestGgufUseRouting:
+    """The llamacpp backend also has two independent path fields - llm_model_path
+    (text) and llm_vision_model_path + llm_mmproj_path (vision). Clicking "Use
+    this model" on an already-installed card must fill the field matching the
+    card's kind, never the other (per-function-llm-models plan)."""
+
+    def _clear_fields(self, page: Page) -> None:
+        page.eval_on_selector("#s-llm-model-path", "el => el.value = ''")
+        page.eval_on_selector("#s-llm-vision-model-path", "el => el.value = ''")
+        page.eval_on_selector("#s-llm-mmproj-path", "el => el.value = ''")
+
+    def test_vision_card_fills_vision_and_mmproj_not_text(self, page: Page):
+        models = [_model(
+            id="vis", display_name="Vision One", kinds=["vision"],
+            gguf_filename="v.gguf", gguf_path="/models/v.gguf",
+            mmproj_filename="v-mmproj.gguf", mmproj_path="/models/v-mmproj.gguf",
+            installed=True, active=False,
+        )]
+        page.route("**/api/llm/catalog", lambda route: route.fulfill(
+            content_type="application/json", body=_catalog_body(models)))
+        _open_settings(page)
+        self._clear_fields(page)
+        page.click("#s-llamacpp-recommended [data-act='use-gguf']")
+        assert page.eval_on_selector("#s-llm-vision-model-path", "el => el.value") == "/models/v.gguf"
+        assert page.eval_on_selector("#s-llm-mmproj-path", "el => el.value") == "/models/v-mmproj.gguf"
+        assert page.eval_on_selector("#s-llm-model-path", "el => el.value") == ""
+
+    def test_text_card_fills_text_not_vision(self, page: Page):
+        models = [_model(
+            id="txt", display_name="Text One", kinds=["text"],
+            gguf_filename="t.gguf", gguf_path="/models/t.gguf",
+            installed=True, active=False,
+        )]
+        page.route("**/api/llm/catalog", lambda route: route.fulfill(
+            content_type="application/json", body=_catalog_body(models)))
+        _open_settings(page)
+        self._clear_fields(page)
+        page.click("#s-llamacpp-recommended [data-act='use-gguf']")
+        assert page.eval_on_selector("#s-llm-model-path", "el => el.value") == "/models/t.gguf"
+        assert page.eval_on_selector("#s-llm-vision-model-path", "el => el.value") == ""
+
+
+@skip_no_server
 class TestGgufDownloadUI:
     """Stage 7: the one-click .gguf download drives a determinate bar and, on
     completion, fills the (advanced) path fields so a Save activates the model.

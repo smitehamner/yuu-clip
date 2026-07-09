@@ -95,7 +95,14 @@ dev = [
     "ruff>=0.4,<2.0",
 ]
 llamacpp = [
-    "llama-cpp-python>=0.3,<1.0",
+    # Capped below 0.3.19: abetlen's prebuilt Windows wheels from ~0.3.25 up are built
+    # with AVX512 and crash at model load (STATUS_ILLEGAL_INSTRUCTION / 0xc000001d) on
+    # the many consumer CPUs that lack it (e.g. AMD Zen 3/3+, most laptops). 0.3.18 is
+    # the newest verified to run on an AVX2-only CPU and still has every vision chat
+    # handler we use. The bundled wheel in build/wheelhouse must match this. Revisit
+    # once we can build our own baseline / runtime-dispatch wheel - see the dependency
+    # compatibility plan (000_project_planning/.../dependency-isa-compat).
+    "llama-cpp-python>=0.3,<0.3.19",
 ]
 # These features' packages are now bundled in the base dependencies (Tier A,
 # packaging-strategy-overhaul Wave 1). The extras remain as empty no-op aliases so

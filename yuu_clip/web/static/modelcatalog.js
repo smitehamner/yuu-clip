@@ -198,13 +198,20 @@ function _useOllamaModel(tag, kind) {
 }
 
 // Point the (advanced) path fields at an already-present model so a plain Save
-// activates it - no re-download. For a vision entry this also fills the mmproj
-// projector path; text entries leave any existing projector untouched.
+// activates it - no re-download. A vision entry fills the vision model + mmproj
+// projector fields; a text entry fills the text model field. The two buckets
+// are independent config keys, so one must never overwrite the other.
 function _applyModelPaths(m) {
-  const pathEl = document.getElementById('s-llm-model-path');
-  if (pathEl && m.gguf_path) pathEl.value = m.gguf_path;
-  const projEl = document.getElementById('s-llm-mmproj-path');
-  if (projEl && m.mmproj_path) projEl.value = m.mmproj_path;
+  const isVision = Array.isArray(m.kinds) && m.kinds.includes('vision');
+  if (isVision) {
+    const visionEl = document.getElementById('s-llm-vision-model-path');
+    if (visionEl && m.gguf_path) visionEl.value = m.gguf_path;
+    const projEl = document.getElementById('s-llm-mmproj-path');
+    if (projEl && m.mmproj_path) projEl.value = m.mmproj_path;
+  } else {
+    const pathEl = document.getElementById('s-llm-model-path');
+    if (pathEl && m.gguf_path) pathEl.value = m.gguf_path;
+  }
   _checkSettingsDirty();
 }
 

@@ -86,10 +86,21 @@ class TestBuildRunJson:
             datetime.now(timezone.utc), transcribed=False, diarized=False,
         )
         data = json.loads(raw)
-        assert set(data) >= {"started_at", "finished_at", "elapsed_ms", "device", "settings", "stages"}
+        assert set(data) >= {"started_at", "finished_at", "elapsed_ms", "device", "settings", "stages", "warnings"}
         assert data["device"]["has_gpu"] is False
         assert "transcribe" not in data["device"]  # stage did not run → not reported
         assert data["stages"][0]["name"] == "Extract audio"
+        assert data["warnings"] == []
+
+    def test_records_run_warnings(self):
+        from datetime import datetime, timezone
+        rec = StageRecorder()
+        rec.warnings.append("AI clip ranking and descriptions were skipped - X.")
+        raw = build_run_json(
+            rec, _cfg(), AnalyzeOptions(no_transcribe=True),
+            datetime.now(timezone.utc), transcribed=False, diarized=False,
+        )
+        assert json.loads(raw)["warnings"] == ["AI clip ranking and descriptions were skipped - X."]
 
 
 class TestSerializerExposesRunMetadata:

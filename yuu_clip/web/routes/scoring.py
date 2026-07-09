@@ -332,8 +332,9 @@ def _rescore_video_clips(
             total = len(clip_ids)
             plural = "s" if total != 1 else ""
             yield f"data: {json_lib.dumps(f'[Starting LLM scoring for {total} clip{plural}…]')}\n\n"
+            scorer = LLMScorer(config, context_text=context_text)
             engine = ScoringEngine(
-                config, [LLMScorer(config, context_text=context_text)],
+                config, [scorer],
                 hot_words=hot_words, sensitive_terms=sensitive_terms,
             )
 
@@ -347,7 +348,7 @@ def _rescore_video_clips(
                             await _maybe_analyze_frames(ctx, score_db, clip, config, context_text)
                         await asyncio.to_thread(engine.score_clip, clip, score_db)
                         if engine.has_scorers and "llm_error" in clip.tags:
-                            error = "LLM scoring failed - see yuu-clip.log for details"
+                            error = scorer.last_error or "LLM scoring failed - see yuu-clip.log for details"
                         score_db.commit()
                 except Exception as exc:
                     score_db.rollback()
@@ -613,8 +614,9 @@ def _register_clip_scoring_routes(router: APIRouter, ctx: ProjectContext) -> Non
 
             async with active_job(ctx):
                 yield f"data: {json_lib.dumps('[Starting LLM scoring for 1 clip…]')}\n\n"
+                scorer = LLMScorer(config, context_text=context_text)
                 engine = ScoringEngine(
-                    config, [LLMScorer(config, context_text=context_text)],
+                    config, [scorer],
                     hot_words=hot_words, sensitive_terms=sensitive_terms,
                 )
                 score_db = ctx.get_db()
@@ -629,7 +631,7 @@ def _register_clip_scoring_routes(router: APIRouter, ctx: ProjectContext) -> Non
                         old_desc_long = clip.description_long
                         await asyncio.to_thread(engine.score_clip, clip, score_db)
                         if engine.has_scorers and "llm_error" in clip.tags:
-                            error = "LLM scoring failed - see yuu-clip.log for details"
+                            error = scorer.last_error or "LLM scoring failed - see yuu-clip.log for details"
                         desc_new      = clip.description
                         desc_long_new = clip.description_long
                         clip.description      = old_desc

@@ -691,7 +691,16 @@ The curated list of text and vision models yuu-clip suggests for the LLM backend
 The at-a-glance indicator in Settings → LLM scoring showing whether the active model can score **text** and analyze **images** right now, with a plain-English reason. Backs the rule that a control needing a capability the model lacks explains why and links to the fix rather than silently disabling itself.
 
 - **Code:** route `GET /api/llm/capabilities` → `{backend, model, text, vision, detail}`; `gateOnCapability()` in `settings.js`
-- **Notes:** A cheap static check (file exists / model set / API key set) - no test inference call. Vision on the local `llamacpp` backend needs a **vision projector** file (`llm_mmproj_path`, an mmproj `.gguf`) in addition to the model file.
+- **Notes:** A cheap static check (file exists / model set / API key set) - no test inference call. Vision on the local `llamacpp` backend needs a **vision model** file (`llm_vision_model_path`) and a **vision projector** file (`llm_mmproj_path`, an mmproj `.gguf`) - both independent of the **text model** (`llm_model_path`) used for scoring. No implicit fallback between the two; a single VL model doing both needs both paths pointed at the same file.
+
+---
+
+### Text model / Vision model
+
+The two independent local-model buckets on the `llamacpp` backend (Settings → LLM scoring, restructured into matching UI groups). **Text model** scores clips and writes descriptions/summaries. **Vision model** (paired with the vision projector) powers [[Image analysis]]. Downloading or selecting one never writes into the other's config field - this replaced a single shared field that a vision-model download used to silently clobber.
+
+- **Code:** `llm_model_path` (text) vs `llm_vision_model_path` + `llm_mmproj_path` (vision), `yuu_clip/config.py`. Ollama's equivalents: `ollama_model` / `ollama_vision_model` (already separate).
+- **Notes:** No migration for configs written before this split - a config with a vision model in `llm_model_path` stays broken until the user re-selects it under the new Vision model group.
 
 ---
 
@@ -699,7 +708,7 @@ The at-a-glance indicator in Settings → LLM scoring showing whether the active
 
 User-facing: **"Analyze frames"** / **"What's on screen"**. Optional, off by default: sample a few frames evenly across a clip, send them to a vision model, and store a short factual "what's on screen" summary (the game/scene, on-screen events, HUD/popups). The summary enriches the clip's descriptions and is added to the text scorer's prompt as a *Visual context* block - it never scores the clip directly. Triggered manually per clip ("Analyze frames" button) or via an "Include frame analysis" checkbox in the batch Re-score flow; never automatic during Analyze.
 
-- **Code:** `analyze/frames.py` (`sample_clip_frames`, `resolve_frame_window`, `sample_and_describe`); `scoring/llm.py` (`describe_frames`, `check_vision_available`, `_visual_block`); `LLMClient.chat_vision` + `VisionNotSupportedError` in `scoring/llm_client.py`; route `POST /api/clips/{id}/analyze-frames` and `?include_frames=1` on rescore-clips; config `vision_enabled` (master switch), `vision_frames_per_clip` (1–10). DB: `clip_candidates.vision_summary` / `vision_analyzed_at`.
+- **Code:** `analyze/frames.py` (`sample_clip_frames`, `resolve_frame_window`, `sample_and_describe`); `scoring/llm.py` (`describe_frames`, `check_vision_available`, `_visual_block`); `LLMClient.chat_vision` + `VisionNotSupportedError` in `scoring/llm_client.py`; route `POST /api/clips/{id}/analyze-frames` and `?include_frames=1` on rescore-clips; config `vision_enabled` (master switch), `vision_frames_per_clip` (1–10), `llm_vision_model_path` + `llm_mmproj_path` (see [[Text model / Vision model]]). DB: `clip_candidates.vision_summary` / `vision_analyzed_at`.
 - **Notes:** The instruction is a plain-text user prompt (not JSON) - small local vision models reliably follow "describe this" but return coordinates/empty for a JSON-schema system prompt. Ollama frames scale `num_ctx` and degrade to fewer frames on a context overflow (moondream is hard-capped at ~2048 tokens ≈ 2 frames). Frames come from the fresh 720p proxy when present (parent-keyed timeline, segment offset added).
 
 ---

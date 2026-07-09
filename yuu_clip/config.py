@@ -501,6 +501,9 @@ class Config:
     # a model file exists or the user chose lightweight mode.
     pending_local_model: str = ""
     llm_mmproj_path: str = ""        # path to the vision projector .gguf; enables vision on llamacpp
+    # Vision tower, paired with llm_mmproj_path. Text scoring uses llm_model_path and is
+    # fully independent - a downloaded vision model must never write to llm_model_path.
+    llm_vision_model_path: str = ""
     # The desktop installer ships a CUDA build of llama-cpp-python for NVIDIA cards,
     # but offload is off unless n_gpu_layers is set - so with this False the GPU sits
     # idle. True offloads all layers when the installed build supports it, and the
@@ -539,6 +542,13 @@ class Config:
     # Higher = stricter (fewer wrong re-attaches, more speakers re-minted for
     # re-confirmation); lower = looser. See whisper_runner._attach_speakers.
     speaker_match_threshold: float = 0.75
+    # SpeechBrain only: cosine DISTANCE below which two 1.5s audio windows are grouped
+    # into the same within-recording speaker cluster (lower = more, smaller clusters =
+    # more speakers; higher = fewer). Short-window ECAPA embeddings are noisier than the
+    # averaged centroids used for matching, so this is deliberately looser (a distance)
+    # than speaker_match_threshold (a similarity). After clustering, fragments of one
+    # voice are re-merged by a consolidation pass keyed on speaker_match_threshold.
+    speaker_cluster_threshold: float = 0.55
 
     scorer_energy_enabled: bool = True
     scorer_scenes_enabled: bool = True

@@ -954,3 +954,32 @@ class TestVideoFilters:
 
     def test_sort_title(self, page: Page):
         assert self._ids(page, "AppState.videoSort = 'title';") == [1, 2, 3]
+
+
+@skip_no_server
+class TestLogCap:
+    """appendLog must bound the log DOM - an unbounded log froze the tab when a
+    reattached analyze stream replayed a large buffer at once (see utils.js)."""
+
+    def test_appendlog_caps_dom_at_500_lines(self, page: Page):
+        count = page.evaluate(
+            "() => {"
+            "  clearLog();"
+            "  for (let i = 0; i < 600; i++) appendLog('line ' + i);"
+            "  return document.getElementById('log-lines').childElementCount;"
+            "}"
+        )
+        assert count == 500
+
+    def test_appendlog_keeps_most_recent_lines(self, page: Page):
+        # 600 lines, cap 500 -> oldest retained is "line 100", newest is "line 599".
+        first_last = page.evaluate(
+            "() => {"
+            "  clearLog();"
+            "  for (let i = 0; i < 600; i++) appendLog('line ' + i);"
+            "  const lines = document.getElementById('log-lines');"
+            "  return [lines.firstElementChild.textContent, lines.lastElementChild.textContent];"
+            "}"
+        )
+        assert first_last[0].endswith("line 100")
+        assert first_last[1].endswith("line 599")

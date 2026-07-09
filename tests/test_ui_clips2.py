@@ -909,17 +909,53 @@ class TestBasicDescriptionChip:
             "start_offset": 0, "end_offset": 0, "has_export": False, "exports": [],
         }
 
-    def test_chip_shown_for_basic_description(self, page: Page):
+    def _render_with_state(self, page: Page, clip, *, ai_mode="local_only", prereqs=None):
+        # Set the window state and render synchronously in one call so a late boot
+        # /api/config or /api/prereqs fetch can't clobber it mid-test (see the
+        # stub-then-render flake pattern in the flake register).
+        page.evaluate(
+            """([clip, aiMode, prereqs]) => {
+                window._aiPrivacyMode = aiMode;
+                window._prereqs = prereqs;
+                renderDetail(clip);
+            }""",
+            [clip, ai_mode, prereqs or {"ffmpeg_ok": True, "llm_ok": False, "llm_reason": ""}],
+        )
+
+    def test_chip_shown_when_no_model_available(self, page: Page):
         page.goto(LIVE_URL)
         page.wait_for_selector("#video-list li[data-video-id]", timeout=5000)
-        page.evaluate("(clip) => renderDetail(clip)", self._clip(9401, ["desc_basic"]))
+        self._render_with_state(
+            page, self._clip(9401, ["desc_basic"]),
+            prereqs={"ffmpeg_ok": True, "llm_ok": False, "llm_reason": "No model file path set"},
+        )
         chip = page.locator(".basic-desc-chip")
         expect(chip).to_be_visible()
         expect(chip).to_contain_text("Basic description")
-        expect(chip.locator("a")).to_contain_text("install a local model")
+        expect(chip.locator("a")).to_contain_text("set up a language model")
+        expect(chip).to_contain_text("No model file path set")
+
+    def test_chip_offers_reanalyze_when_model_available(self, page: Page):
+        page.goto(LIVE_URL)
+        page.wait_for_selector("#video-list li[data-video-id]", timeout=5000)
+        self._render_with_state(
+            page, self._clip(9403, ["desc_basic"]),
+            prereqs={"ffmpeg_ok": True, "llm_ok": True, "llm_reason": ""},
+        )
+        chip = page.locator(".basic-desc-chip")
+        expect(chip).to_contain_text("re-analyze")
+        expect(chip.locator("a")).to_have_count(0)
+
+    def test_chip_neutral_when_generative_ai_off(self, page: Page):
+        page.goto(LIVE_URL)
+        page.wait_for_selector("#video-list li[data-video-id]", timeout=5000)
+        self._render_with_state(page, self._clip(9404, ["desc_basic"]), ai_mode="none")
+        chip = page.locator(".basic-desc-chip")
+        expect(chip).to_contain_text("generative AI is turned off")
+        expect(chip.locator("a")).to_have_count(0)
 
     def test_no_chip_for_llm_description(self, page: Page):
         page.goto(LIVE_URL)
         page.wait_for_selector("#video-list li[data-video-id]", timeout=5000)
-        page.evaluate("(clip) => renderDetail(clip)", self._clip(9402, []))
+        self._render_with_state(page, self._clip(9402, []))
         expect(page.locator(".basic-desc-chip")).to_have_count(0)

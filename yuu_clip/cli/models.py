@@ -127,10 +127,12 @@ def _download_targets(entry) -> list[tuple[str, str]]:
     the vision projector for a vision entry. A vision projector that lives in the
     same file as the weights (mmproj_filename == gguf_filename) is not repeated,
     so the caller downloads it once and points both paths at the one file."""
-    targets = [(entry.gguf_filename, "llm_model_path")]
-    if "vision" in entry.kinds and entry.mmproj_filename:
-        targets.append((entry.mmproj_filename, "llm_mmproj_path"))
-    return targets
+    if "vision" in entry.kinds:
+        targets = [(entry.gguf_filename, "llm_vision_model_path")]
+        if entry.mmproj_filename:
+            targets.append((entry.mmproj_filename, "llm_mmproj_path"))
+        return targets
+    return [(entry.gguf_filename, "llm_model_path")]
 
 
 def _report_progress(downloaded: int, total: int, last_pct: int, display_name: str) -> int:

@@ -388,19 +388,27 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         except Exception as exc:
             _log.debug("prereqs: ffmpeg check failed: %s", exc)
             ffmpeg_ok = False
+        cfg = ctx.config
         try:
-            cfg = ctx.config
             if cfg.llm_backend == "ollama":
+                # Keep the fast 2s reachability probe so a bad Ollama host can't
+                # stall boot (the client's own list() call has no timeout).
                 import urllib.request
                 host = cfg.ollama_host or "http://localhost:11434"
                 urllib.request.urlopen(f"{host}/api/tags", timeout=2)
-                llm_ok = True
+                llm_ok, llm_reason = True, ""
             else:
-                llm_ok = bool(cfg.llm_model_path and Path(cfg.llm_model_path).exists())
+                # The authoritative check - for llamacpp this also confirms
+                # llama-cpp-python imports, not just that the .gguf file exists, so a
+                # missing runtime package no longer reports as "ok" and then fails
+                # silently during scoring.
+                from yuu_clip.scoring.llm import check_llm_available
+                llm_ok, llm_reason = check_llm_available(cfg)
         except Exception as exc:
             _log.debug("prereqs: LLM check failed: %s", exc)
             llm_ok = False
-        return {"ffmpeg_ok": ffmpeg_ok, "llm_ok": llm_ok}
+            llm_reason = f"Ollama not reachable at {cfg.ollama_host or 'http://localhost:11434'}"
+        return {"ffmpeg_ok": ffmpeg_ok, "llm_ok": llm_ok, "llm_reason": llm_reason}
 
     @router.get("/api/analyze/status")
     def analyze_status():

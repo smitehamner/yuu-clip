@@ -49,7 +49,7 @@ fetch('/api/config').then(r => r.json()).then(cfg => {
   window._visionEnabled = cfg.vision_enabled === true;
 }).catch(() => {});
 
-window._prereqs = {ffmpeg_ok: true, llm_ok: true};
+window._prereqs = {ffmpeg_ok: true, llm_ok: true, llm_reason: ''};
 fetch('/api/prereqs').then(r => r.json()).then(p => {
   window._prereqs = p;
   _applyPrereqWarnings(p);

@@ -26,6 +26,12 @@ _log = get_logger(__name__)
 # center are exposed; bottom (2) is the renderer default so it emits nothing.
 _CAPTION_ALIGNMENT = {"bottom": 2, "top": 8}
 
+# Slack allowed when verifying an exported clip's duration against the requested
+# window (keyframe seeking overshoots): the larger of a fixed floor and a fraction
+# of the request. Exceeding it means the trim was not applied - fail loudly.
+_DURATION_TOLERANCE_FLOOR_S = 5.0
+_DURATION_TOLERANCE_FRACTION = 0.5
+
 
 @dataclass(frozen=True)
 class CaptionStyle:
@@ -227,7 +233,7 @@ def _verify_export_duration(ffprobe: str, output_path: Path, expected_s: float) 
     actual_s = _probe_duration_s(ffprobe, output_path)
     if actual_s is None:
         return
-    tolerance_s = max(5.0, expected_s * 0.5)
+    tolerance_s = max(_DURATION_TOLERANCE_FLOOR_S, expected_s * _DURATION_TOLERANCE_FRACTION)
     if actual_s > expected_s + tolerance_s:
         raise RuntimeError(
             f"Exported clip is {actual_s:.0f}s but the requested window was "

@@ -568,6 +568,8 @@ function _streamAnalyzeEvents(filename) {
       AppState.analyzeFilename = null;
       _rerenderActiveVideoDetail();
       _showAnalysisToast(v);
+      _surfaceAnalyzeWarnings(v);
+      if (v) _warmPreviewProxy(v.id);
       SoundFx.play('analysis');
     },
     INGEST_STEPS,
@@ -655,6 +657,39 @@ function _showAnalysisToast(video) {
     durationMs: 8000,
     ...(canJump ? {action: {label: 'Review', onClick: () => selectVideo(video.id)}} : {}),
   });
+}
+
+// Warm the 720p preview proxy in the background after analysis finishes. The
+// proxy build used to run inline in the analyze subprocess and blocked "Analysis
+// complete" while the whole recording re-encoded; now completion is instant and
+// this drains the existing encode SSE quietly (no job pill). Non-fatal - if it's
+// skipped or the page closes, the proxy still builds lazily on first preview.
+async function _warmPreviewProxy(videoId) {
+  try {
+    const status = await fetch(`/api/videos/${videoId}/proxy-status`).then(r => r.ok ? r.json() : null);
+    if (!status || status.available || status.generating) return;
+    const response = await fetch(`/api/videos/${videoId}/proxy/generate`);
+    if (!response.ok || !response.body) return;
+    const reader = response.body.getReader();
+    while (true) { const {done} = await reader.read(); if (done) break; }
+  } catch (_) {
+    // Preview is a convenience; a failed warm must never surface as an error.
+  }
+}
+
+// A run can finish "successfully" while a signal was skipped (most often the LLM,
+// leaving clips with a basic description). Those reasons are recorded in the run
+// metadata; surface them as dismissible warnings so they aren't lost in the log.
+async function _surfaceAnalyzeWarnings(video) {
+  if (!video) return;
+  try {
+    const detail = await fetch(`/api/videos/${video.id}`).then(r => r.json());
+    for (const warning of (detail?.analyze_run?.warnings || [])) {
+      showToast(warning, 'warning', {durationMs: 14000});
+    }
+  } catch (_) {
+    // A missing warning must never break the completion flow.
+  }
 }
 
 // ── native file picker ────────────────────────────────────────────────────────
@@ -1130,7 +1165,7 @@ Object.assign(window, {
   _doCloseNewRecordingPanel, _toggleCtxPill, scheduleProbe,
   _renderSubtitleSourcePicker, _onSubtitleSourceChange,
   runEstimate, renderEstimate, startAnalyze, _doStartAnalyze, _streamAnalyzeEvents, reattachAnalysis,
-  _showAnalysisToast, pickFile,
+  _showAnalysisToast, _surfaceAnalyzeWarnings, _warmPreviewProxy, pickFile,
   showImportUrlSection, hideImportUrlSection, checkImportUrl, startImportUrlDownload,
   openProfileManager, closeProfileManager, openNewProfile, renderTrackRows,
   onLabelChange, _clearPeNameError, saveProfile, deleteProfile, cancelProfileEdit,

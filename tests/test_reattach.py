@@ -52,6 +52,19 @@ class TestAnalyzeJobBroadcast:
         assert "beta" in replay
         assert "__DONE__" in replay
 
+    def test_emit_caps_buffer_to_most_recent_lines(self, tmp_path):
+        # An unbounded buffer makes the reconnect replay so large the browser's
+        # fetch reader can throw mid-stream; _emit keeps only the most recent lines.
+        from yuu_clip.web.analyze_job import _MAX_BUFFER_LINES
+
+        job = AnalyzeJob(["noop"], tmp_path, filename="rec.mkv")
+        total = _MAX_BUFFER_LINES + 250
+        for i in range(total):
+            job._emit(f"line {i}")
+        assert len(job.buffer) == _MAX_BUFFER_LINES
+        assert job.buffer[0] == f"line {total - _MAX_BUFFER_LINES}"
+        assert job.buffer[-1] == f"line {total - 1}"
+
     def test_two_concurrent_subscribers_both_receive_every_line(self, tmp_path):
         async def drive():
             job = AnalyzeJob(

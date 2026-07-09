@@ -148,15 +148,27 @@ class TestCheckVisionAvailable:
         assert self._check(llm_backend="ollama", ollama_model="llama3.1:8b")[0] is False
         assert self._check(llm_backend="ollama", ollama_model="moondream")[0] is True
 
-    def test_llamacpp_needs_model_and_mmproj(self, tmp_path):
+    def test_llamacpp_needs_vision_model_and_mmproj(self, tmp_path):
+        vision_model = tmp_path / "m.gguf"
+        vision_model.write_bytes(b"x")
+        mmproj = tmp_path / "mm.gguf"
+        mmproj.write_bytes(b"x")
+        assert self._check(
+            llm_backend="llamacpp", llm_vision_model_path=str(vision_model), llm_mmproj_path="",
+        )[0] is False
+        assert self._check(
+            llm_backend="llamacpp", llm_vision_model_path=str(vision_model), llm_mmproj_path=str(mmproj),
+        )[0] is True
+
+    def test_llamacpp_text_model_alone_does_not_enable_vision(self, tmp_path):
+        # llm_model_path (text) must never satisfy the vision gate - no fallback.
         model = tmp_path / "m.gguf"
         model.write_bytes(b"x")
         mmproj = tmp_path / "mm.gguf"
         mmproj.write_bytes(b"x")
-        assert self._check(llm_backend="llamacpp", llm_model_path=str(model), llm_mmproj_path="")[0] is False
         assert self._check(
             llm_backend="llamacpp", llm_model_path=str(model), llm_mmproj_path=str(mmproj),
-        )[0] is True
+        )[0] is False
 
     def test_fresh_install_defaults_are_inactive_not_crashing(self):
         # Wave 6: vision_enabled defaults True, but a fresh install has no vision
@@ -267,6 +279,63 @@ class TestVisionClientHelpers:
                 [{"role": "user", "content": "describe"}], [tmp_path / "a.jpg"],
             )
         assert used_models == ["moondream"]
+
+
+class TestLlamaCppChatVision:
+    """chat_vision must build the Llama with llm_vision_model_path, never
+    llm_model_path, and refuse with no fallback when it's unset."""
+
+    def _fake_llama_module(self, monkeypatch, captured):
+        import sys
+        import types
+        import unittest.mock as mock
+
+        def factory(**kwargs):
+            captured.update(kwargs)
+            inst = mock.MagicMock()
+            inst.create_chat_completion.return_value = {
+                "choices": [{"message": {"content": "a scene"}}]
+            }
+            return inst
+
+        fake = types.ModuleType("llama_cpp")
+        fake.Llama = factory
+        monkeypatch.setitem(sys.modules, "llama_cpp", fake)
+
+    def test_uses_vision_model_path_not_text_model_path(self, monkeypatch, tmp_path):
+        from yuu_clip.scoring.llm_client import LlamaCppClient
+        vision_model = tmp_path / "vision.gguf"
+        vision_model.write_bytes(b"x")
+        mmproj = tmp_path / "mm.gguf"
+        mmproj.write_bytes(b"x")
+        import yuu_clip.scoring.llm_client as llm_client_mod
+        captured = {}
+        self._fake_llama_module(monkeypatch, captured)
+        monkeypatch.setattr(llm_client_mod, "_llamacpp_vision_handler", lambda *a, **k: None)
+        cfg = _cfg(
+            llm_backend="llamacpp", llm_model_path="text-model-should-not-be-used.gguf",
+            llm_vision_model_path=str(vision_model), llm_mmproj_path=str(mmproj),
+            llm_use_gpu=False,
+        )
+        image = tmp_path / "a.jpg"
+        image.write_bytes(b"x")
+        result = LlamaCppClient(cfg).chat_vision(
+            [{"role": "user", "content": "describe"}], [image],
+        )
+        assert result == "a scene"
+        assert captured["model_path"] == str(vision_model)
+
+    def test_raises_when_vision_model_path_empty_even_with_mmproj_set(self, tmp_path):
+        from yuu_clip.scoring.llm_client import LlamaCppClient, VisionNotSupportedError
+        mmproj = tmp_path / "mm.gguf"
+        mmproj.write_bytes(b"x")
+        cfg = _cfg(
+            llm_backend="llamacpp", llm_vision_model_path="", llm_mmproj_path=str(mmproj),
+        )
+        with pytest.raises(VisionNotSupportedError):
+            LlamaCppClient(cfg).chat_vision(
+                [{"role": "user", "content": "describe"}], [tmp_path / "a.jpg"],
+            )
 
 
 class TestLlamaCppGpuOffload:

@@ -29,6 +29,13 @@ _log = get_logger(__name__)
 # Distinct from the wire-level _SSE_DONE_SENTINEL sent to the browser.
 _QUEUE_DONE = object()
 
+# Cap on the replay buffer. A reattaching page replays the whole buffer up front; an
+# unbounded one (e.g. a run that logged tens of thousands of lines) makes that replay
+# so large the browser's fetch reader can throw mid-stream, breaking the reconnect.
+# Generous enough that a normal run keeps all its stage headers - the real defence is
+# not emitting spam in the first place (llama.cpp verbose off, speaker consolidation).
+_MAX_BUFFER_LINES = 5000
+
 
 class AnalyzeJob:
     """A running analyze subprocess whose output is broadcast to live and
@@ -98,6 +105,10 @@ class AnalyzeJob:
 
     def _emit(self, text: str) -> None:
         self.buffer.append(text)
+        if len(self.buffer) > _MAX_BUFFER_LINES:
+            # Drop the oldest lines; keep the buffer (and therefore the reconnect
+            # replay) bounded. Live subscribers already received them.
+            del self.buffer[: len(self.buffer) - _MAX_BUFFER_LINES]
         for queue in self.subscribers:
             queue.put_nowait(text)
 

@@ -393,14 +393,18 @@ def check_vision_available(config: "Config") -> tuple[bool, str]:
         return ok, "" if ok else "No Claude API key set - add one under Settings → LLM scoring"
     if backend == "llamacpp":
         from pathlib import Path
-        ok = (
-            bool(config.llm_model_path) and Path(config.llm_model_path).exists()
-            and bool(config.llm_mmproj_path) and Path(config.llm_mmproj_path).exists()
-        )
-        return ok, "" if ok else (
-            "llama.cpp image analysis needs a model file and a vision projector "
-            "(.gguf) - set both under Settings → LLM scoring"
-        )
+        vision_model_ok = bool(config.llm_vision_model_path) and Path(config.llm_vision_model_path).exists()
+        mmproj_ok = bool(config.llm_mmproj_path) and Path(config.llm_mmproj_path).exists()
+        if vision_model_ok and mmproj_ok:
+            return True, ""
+        if not vision_model_ok and not mmproj_ok:
+            return False, (
+                "llama.cpp image analysis needs a vision model and a vision projector "
+                "(.gguf) - set both under Settings → LLM scoring"
+            )
+        if not vision_model_ok:
+            return False, "llama.cpp image analysis needs a vision model - set it under Settings → LLM scoring"
+        return False, "llama.cpp image analysis needs a vision projector (.gguf) - set it under Settings → LLM scoring"
     from yuu_clip.model_catalog import ollama_vision_tag_bases
     model = (config.ollama_model or "").strip()
     ok = bool(model) and model.split(":", 1)[0].strip().lower() in ollama_vision_tag_bases()
@@ -474,6 +478,9 @@ class LLMScorer:
         self.weight = config.scorer_llm_weight
         self._client = make_client(config)
         self._available: bool | None = None
+        # Plain-English reason the last score() call failed, so callers can show the
+        # user why (e.g. an incompatible CPU) instead of a generic "see the log".
+        self.last_error: str | None = None
 
     def is_available(self) -> bool:
         from yuu_clip.config import resolve_ai_permissions
@@ -508,6 +515,7 @@ class LLMScorer:
                 data = self._parse(raw)
         except Exception as exc:
             log.warning("LLM scoring failed for clip %d: %s", clip.id, exc, exc_info=True)
+            self.last_error = str(exc)
             return ScoreResult(tags=["llm_error"])
 
         return ScoreResult(

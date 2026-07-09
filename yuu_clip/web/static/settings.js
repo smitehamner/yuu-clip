@@ -5,11 +5,11 @@
 const _settingsFieldIds = [
   's-whisper-model','s-whisper-device','s-whisper-compute','s-whisper-language',
   's-ai-privacy-value',
-  's-ollama-enabled','s-llm-backend','s-llm-model-path','s-llm-mmproj-path','s-llm-use-gpu',
+  's-ollama-enabled','s-llm-backend','s-llm-model-path','s-llm-vision-model-path','s-llm-mmproj-path','s-llm-use-gpu',
   's-vision-enabled','s-vision-frames',
   's-ollama-model','s-ollama-vision-model','s-ollama-host','s-ollama-timeout',
   's-claude-api-key','s-claude-model','s-claude-timeout',
-  's-diarization-backend','s-hf-token','s-speaker-match-threshold',
+  's-diarization-backend','s-hf-token','s-speaker-match-threshold','s-speaker-cluster-threshold',
   's-similarity-backend',
   's-energy-weight','s-scene-weight','s-llm-weight',
   's-laugh-weight','s-laugh-mode','s-laugh-model-id','s-lexicon-weight',
@@ -199,6 +199,7 @@ function _applyLlmFields(cfg) {
   _setFieldVal('s-llm-backend',    backend);
   _onLlmBackendChange(backend);
   _setFieldVal('s-llm-model-path', cfg.llm_model_path  || '');
+  _setFieldVal('s-llm-vision-model-path', cfg.llm_vision_model_path || '');
   _setFieldVal('s-llm-mmproj-path', cfg.llm_mmproj_path || '');
   _setFieldChk('s-llm-use-gpu', cfg.llm_use_gpu !== false);
   _setFieldChk('s-vision-enabled', cfg.vision_enabled === true);
@@ -226,6 +227,7 @@ function _applySpeakerFields(cfg) {
   _onDiarizationBackendChange(diarBackend);
   _setFieldVal('s-hf-token', cfg.huggingface_token || '');
   _setFieldVal('s-speaker-match-threshold', (cfg.speaker_match_threshold ?? 0.75).toFixed(2));
+  _setFieldVal('s-speaker-cluster-threshold', (cfg.speaker_cluster_threshold ?? 0.55).toFixed(2));
   _onHfTokenInput();
 }
 
@@ -671,6 +673,7 @@ async function saveSettings() {
     ollama_enabled:             getChk('s-ollama-enabled'),
     llm_backend:                getVal('s-llm-backend'),
     llm_model_path:             getVal('s-llm-model-path'),
+    llm_vision_model_path:      getVal('s-llm-vision-model-path'),
     llm_mmproj_path:            getVal('s-llm-mmproj-path'),
     llm_use_gpu:                getChk('s-llm-use-gpu'),
     vision_enabled:             getChk('s-vision-enabled'),
@@ -701,6 +704,7 @@ async function saveSettings() {
     diarization_backend:        getVal('s-diarization-backend'),
     huggingface_token:          getVal('s-hf-token'),
     speaker_match_threshold:    getNum('s-speaker-match-threshold', parseFloat),
+    speaker_cluster_threshold:  getNum('s-speaker-cluster-threshold', parseFloat),
     scene_detection_mode:       getVal('s-scene-mode'),
     energy_mode:                getVal('s-energy-mode'),
     silence_threshold_ms:       getNum('s-silence-ms', parseInt),

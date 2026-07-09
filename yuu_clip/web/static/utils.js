@@ -77,6 +77,13 @@ function clearLog() {
   document.getElementById('log-lines').innerHTML = '';
 }
 
+// Cap the log DOM. An unbounded log froze the browser on long runs and, worse,
+// when a reattached analyze stream replayed a large buffer all at once (each line
+// triggers a scroll-to-bottom reflow) - the tab locked up, the elapsed timer
+// appeared frozen, and Cancel wouldn't respond. Keeping only the most recent lines
+// bounds the reflow cost; the full log always remains in .yuu-clip/yuu-clip.log.
+const _MAX_LOG_LINES = 500;
+
 function appendLog(raw) {
   const text = stripRichMarkup(raw);
   if (!text.trim()) return;
@@ -92,7 +99,9 @@ function appendLog(raw) {
   ts.textContent = new Date().toLocaleTimeString(undefined, {hour:'2-digit', minute:'2-digit', second:'2-digit'});
   div.appendChild(ts);
   div.appendChild(document.createTextNode(text));
-  document.getElementById('log-lines').appendChild(div);
+  const lines = document.getElementById('log-lines');
+  lines.appendChild(div);
+  while (lines.childElementCount > _MAX_LOG_LINES) lines.removeChild(lines.firstElementChild);
   const body = document.getElementById('log-body');
   body.scrollTop = body.scrollHeight;
 }

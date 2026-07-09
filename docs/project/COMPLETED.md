@@ -6,6 +6,89 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) - see the
 
 ---
 
+## Per-function local LLM models - text vs vision (done 2026-07-09)
+
+The llamacpp backend used one config field (`llm_model_path`) for both text scoring
+and (paired with the mmproj projector) image analysis - downloading or selecting a
+vision model silently clobbered whatever text model was configured, which had
+previously broken clip re-scoring (a vision model's text tower can't follow a JSON
+scoring prompt). Split into two fully independent buckets, mirroring Ollama's
+existing `ollama_model` / `ollama_vision_model` split:
+
+- New config field `llm_vision_model_path` (the vision text tower, paired with the
+  existing `llm_mmproj_path`). `llm_model_path` is now text-only.
+- The CLI download (`download-gguf`) and the Settings model-catalog "Use this model"
+  flow write a vision entry's weights to `llm_vision_model_path` (+ mmproj), never
+  `llm_model_path`.
+- `LlamaCppClient.chat_vision` reads `llm_vision_model_path`; `check_vision_available`
+  and `/api/llm/capabilities` gate on it too. No fallback to `llm_model_path` - a
+  single VL model doing both needs both paths pointed at the same file.
+- Settings -> LLM scoring restructured into "Text model" / "Vision model (image
+  analysis)" groups so the two-bucket model is visible in the UI.
+- No migration: a config with a vision model still sitting in `llm_model_path` from
+  before this change stays broken until the user re-selects it under the new Vision
+  model group.
+
+Tests: `test_vision.py` (chat_vision model-path routing, vision-gate no-fallback),
+`test_gguf_download.py` (vision download writes vision path not text path),
+`test_llm.py` (capabilities + active-badge independence), `test_config.py`
+(round-trip), `test_ui_settings.py::TestLlamaCppTextVisionGroups`,
+`test_ui_model_catalog.py::TestGgufUseRouting`.
+
+## Speaker over-clustering, log-freeze, background preview, vision-active badge (done 2026-07-08)
+
+Four fixes from a manual-testing pass:
+
+- **Speaker over-clustering.** SpeechBrain diarization was minting a separate speaker
+  for nearly every window (200-1700 "speakers" for one recording; many were duplicates
+  of the same person). Added a centroid-consolidation pass
+  (`diarization_client._consolidate_labels`) that merges clusters whose centroids are
+  within the speaker-match threshold - one knob now governs both within-recording
+  dedup and cross-video matching. The window-clustering distance is also exposed as a
+  tunable setting (`speaker_cluster_threshold`, Settings -> Speaker labels -> "Voice
+  grouping", SpeechBrain-only).
+- **Log freeze / frozen timer / can't-cancel.** `appendLog` appended DOM nodes
+  unbounded; a long run - or a reattach replaying a big buffer - locked the tab (each
+  line forced a scroll reflow), which looked like a frozen timer and an unresponsive
+  Cancel. The log DOM is now capped at 500 lines (full log still on disk).
+- **720p preview off the analyze critical path.** The proxy encode used to run inline
+  and block "Analysis complete" until the whole recording re-encoded. It's removed from
+  the pipeline and warmed in the background after completion (`analyze._warmPreviewProxy`,
+  reusing the existing `proxy/generate` SSE), with the lazy on-first-preview build as
+  the fallback.
+- **Vision model "Active" badge.** `_entry_active` matched llamacpp entries only on the
+  text `gguf_filename`, so no vision model ever showed as active. A vision entry is now
+  matched on its projector (`mmproj_filename` vs `llm_mmproj_path`).
+
+Tests: `test_diarization.py` consolidation cases, `test_config.py` cluster-threshold
+plumbing, `test_ui_utils.py::TestLogCap`, `test_ui_settings.py::TestSpeakerClusterThreshold`,
+`test_llm.py` vision-active cases.
+
+## LLM-unavailable is no longer silent + 720p preview is its own stage (done 2026-07-08)
+
+Clips were falling back to Basic descriptions with no explanation when the language
+model wasn't actually usable (in the reported case, `llama-cpp-python` was missing from
+the environment even though a `.gguf` was configured). The failure was logged but never
+surfaced, and the diagnostic checks were misleading.
+
+- **`/api/prereqs`** now decides `llm_ok` for llamacpp/claude via the authoritative
+  `check_llm_available` (which confirms the runtime package imports), not just that the
+  model file exists - so a missing package no longer reports "ok" and then dies during
+  scoring. It also returns `llm_reason`.
+- **Analyze notice** (`_llm_unavailable_notice`) reworded backend-neutral (dropped the
+  hardcoded "run Ollama") and tied to descriptions, not just clip ranking.
+- **Run metadata** carries `warnings[]` (`StageRecorder.warnings` -> `build_run_json`);
+  `_run_scoring` returns them, and the UI shows them as dismissible toasts after a run
+  finishes (`_surfaceAnalyzeWarnings`).
+- **Basic-description chip** is now three-way: generative-AI-off / a model is available
+  now so re-analyze / no model set up (with the reason). No longer always tells a user
+  with a configured model to "install a local model".
+- **720p preview proxy** now runs inside its own `recorder.stage("Preview")` instead of
+  being folded into the "Score" stage timing.
+
+Tests: `TestPrereqs` (delegation + reason), `TestBuildRunJson` warnings, chip-branch UI
+tests in `test_ui_clips2.py::TestBasicDescriptionChip`.
+
 ## Per-stage re-runs: Re-extract / Re-transcribe / Regenerate Clips (done 2026-07-08)
 
 Filled the gaps in single-stage re-running so a recording no longer needs a full

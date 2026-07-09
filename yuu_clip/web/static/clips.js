@@ -192,6 +192,7 @@ function _renderClipItems(clips) {
                 })()}</span>`)
           : '<span class="export-pill not-exported" title="Not yet exported">Not exported</span>'}
         <span class="status-dot dot-${c.status}" title="${c.status === 'approved' ? 'Approved' : c.status === 'rejected' ? 'Rejected' : 'Unreviewed'}">${c.status === 'approved' ? '✓' : c.status === 'rejected' ? '✕' : ''}</span>
+        ${(c.tags || []).includes('llm_error') ? '<span class="clip-error-badge" title="LLM scoring failed - Re-score to retry">&#9888;</span>' : ''}
         ${(c.sensitive_matches || []).length ? '<span class="clip-flag-badge" title="Contains flagged terms">&#9888;</span>' : ''}
       </div>
       <div class="clip-scores" aria-label="${c.scored_at ? `Scores: overall ${Math.round(c.score_overall*100)}%, funny ${Math.round(c.score_funny*100)}%, dramatic ${Math.round(c.score_dramatic*100)}%, action ${Math.round(c.score_action*100)}%${c.score_laugh != null ? `, laughs ${Math.round(c.score_laugh*100)}%` : ''}` : 'Not yet scored'}">
@@ -397,19 +398,28 @@ function _exportFormatsHtml(clip) {
 }
 
 // A subtle nudge under a clip whose one-liner is the non-LLM template fallback
-// (tagged desc_basic by the scoring engine). Invites installing a local model for
-// richer AI descriptions; absent once an LLM description or a creator edit lands.
+// (tagged desc_basic by the scoring engine). The message adapts to why no language
+// model wrote the description, so a creator with a model already set up isn't told to
+// "install a local model". Absent once an LLM description or a creator edit lands.
 function _basicDescChipHTML(clip) {
   if (!clip.tags || !clip.tags.includes('desc_basic')) return '';
+  const tip = 'This one-liner was built from the transcript without a language model';
   // Under "No generative AI" the user opted out of language models - show a neutral
-  // note, never an install nudge (Stage 07).
+  // note, never a setup nudge (Stage 07).
   if ((window._aiPrivacyMode || 'local_only') === 'none') {
-    return `<div class="basic-desc-chip" title="This one-liner was built from the transcript without a language model">
-      Basic description - generative AI is turned off
-    </div>`;
+    return `<div class="basic-desc-chip" title="${tip}">Basic description - generative AI is turned off</div>`;
   }
-  return `<div class="basic-desc-chip" title="This one-liner was built from the transcript without a language model">
-    Basic description - <a href="#" onclick="event.preventDefault();openSettings();setTimeout(()=>_scrollToSettingsSection('settings-sec-llm'),120)">install a local model</a> for richer AI descriptions
+  // A language model is usable right now, so the clip is basic only because it was
+  // scored before the model was available - re-analyzing upgrades it.
+  if ((window._prereqs || {}).llm_ok) {
+    return `<div class="basic-desc-chip" title="${tip}">Basic description - a language model is set up now; re-analyze this recording to add an AI description</div>`;
+  }
+  // No usable model. The reason (from /api/prereqs) distinguishes "none configured"
+  // from "configured but not loadable" (e.g. missing runtime, bad path).
+  const reason = (window._prereqs || {}).llm_reason;
+  const why = reason ? ` (${escHtml(reason)})` : '';
+  return `<div class="basic-desc-chip" title="${tip}">
+    Basic description - <a href="#" onclick="event.preventDefault();openSettings();setTimeout(()=>_scrollToSettingsSection('settings-sec-llm'),120)">set up a language model</a> for richer AI descriptions${why}
   </div>`;
 }
 
@@ -575,7 +585,14 @@ function _visionDetailHTML(clip) {
 async function analyzeFrames(clipId, btn) {
   const orig = btn.textContent;
   btn.disabled = true;
-  btn.textContent = 'Analyzing frames…';
+  const startedAt = Date.now();
+  const paintProgress = () => {
+    const secs = Math.floor((Date.now() - startedAt) / 1000);
+    btn.innerHTML = `<span class="spinner" style="display:inline-block;vertical-align:middle;width:11px;height:11px"></span> `
+      + `Analyzing frames... ${secs}s`;
+  };
+  paintProgress();
+  const progressTicker = setInterval(paintProgress, 1000);
   try {
     const resp = await fetch(`/api/clips/${clipId}/analyze-frames`, {method: 'POST'});
     const data = await resp.json().catch(() => ({}));
@@ -590,6 +607,7 @@ async function analyzeFrames(clipId, btn) {
   } catch (e) {
     showToast('Frame analysis failed - check the log', 'error');
   } finally {
+    clearInterval(progressTicker);
     btn.disabled = false;
     btn.textContent = orig;
   }

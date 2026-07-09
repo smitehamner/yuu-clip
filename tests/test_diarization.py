@@ -16,6 +16,7 @@ from yuu_clip.transcribe.diarization_client import (
     _active_window_indices,
     _cluster_centroids,
     _cluster_labels,
+    _consolidate_labels,
     _merge_turns,
     _slice_windows,
     make_diarization_client,
@@ -789,6 +790,35 @@ class TestSpeechBrainPipeline:
 
     def test_cluster_labels_single_window(self):
         assert list(_cluster_labels([[1.0, 0.0]])) == [0]
+
+    def test_consolidate_merges_duplicate_speaker_clusters(self):
+        pytest.importorskip("sklearn", reason="scikit-learn not installed (speechbrain optional dep)")
+        import numpy as np
+        # raw clusters 0 and 1 are the SAME voice (over-fragmented); cluster 2 is a
+        # different voice. Consolidation should collapse 0+1 but keep 2 separate.
+        embeddings = np.array([
+            [1.0, 0.0], [0.99, 0.01],
+            [0.98, 0.02], [0.97, 0.03],
+            [0.0, 1.0], [0.01, 0.99],
+        ])
+        raw = np.array([0, 0, 1, 1, 2, 2])
+        merged = _consolidate_labels(embeddings, raw, 0.75)
+        assert len(set(merged.tolist())) == 2
+        assert merged[0] == merged[1] == merged[2] == merged[3]
+        assert merged[4] == merged[5]
+        assert merged[0] != merged[4]
+
+    def test_consolidate_keeps_distinct_voices(self):
+        pytest.importorskip("sklearn", reason="scikit-learn not installed (speechbrain optional dep)")
+        import numpy as np
+        # Orthogonal centroids (cosine similarity 0) stay separate at any sane threshold.
+        merged = _consolidate_labels(np.array([[1.0, 0.0], [0.0, 1.0]]), np.array([0, 1]), 0.75)
+        assert len(set(merged.tolist())) == 2
+
+    def test_consolidate_single_cluster_is_noop(self):
+        import numpy as np
+        merged = _consolidate_labels(np.array([[1.0, 0.0], [0.9, 0.1]]), np.array([0, 0]), 0.75)
+        assert list(merged) == [0, 0]
 
     def test_merge_turns_collapses_adjacent_same_label(self):
         times = [(0.0, 1.5), (0.75, 2.25), (2.25, 3.75)]

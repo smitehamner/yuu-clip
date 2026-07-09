@@ -2152,17 +2152,29 @@ class TestPrereqs:
         # Default config: llamacpp backend with an empty llm_model_path.
         assert client.get("/api/prereqs").json()["llm_ok"] is False
 
-    def test_llm_ok_when_model_file_exists(self, client, project_dir):
-        model_file = project_dir / "model.gguf"
-        model_file.write_bytes(b"gguf")
-        r = client.patch("/api/config", json={"llm_model_path": str(model_file)})
-        assert r.status_code == 200
-        assert client.get("/api/prereqs").json()["llm_ok"] is True
+    def test_llm_ok_delegates_to_check_llm_available(self, client, monkeypatch):
+        # prereqs delegates the llamacpp/claude decision to check_llm_available, which
+        # also verifies the runtime package imports - mocked here so the test doesn't
+        # depend on whether llama-cpp-python is installed in the runner's venv.
+        monkeypatch.setattr("yuu_clip.scoring.llm.check_llm_available", lambda _cfg: (True, ""))
+        body = client.get("/api/prereqs").json()
+        assert body["llm_ok"] is True
+        assert body["llm_reason"] == ""
+
+    def test_llm_reason_surfaced_when_unavailable(self, client, monkeypatch):
+        monkeypatch.setattr(
+            "yuu_clip.scoring.llm.check_llm_available",
+            lambda _cfg: (False, "llama-cpp-python is not installed (pip install llama-cpp-python)"),
+        )
+        body = client.get("/api/prereqs").json()
+        assert body["llm_ok"] is False
+        assert "llama-cpp-python is not installed" in body["llm_reason"]
 
     def test_response_has_boolean_flags(self, client):
         body = client.get("/api/prereqs").json()
         assert isinstance(body["ffmpeg_ok"], bool)
         assert isinstance(body["llm_ok"], bool)
+        assert isinstance(body["llm_reason"], str)
 
 
 # ---------------------------------------------------------------------------

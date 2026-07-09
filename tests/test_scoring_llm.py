@@ -89,6 +89,96 @@ class TestLLMScorerIsAvailable:
         assert call_count == 1
 
 # ---------------------------------------------------------------------------
+# LlamaCppClient._new_llama - verbose default
+# ---------------------------------------------------------------------------
+
+class TestLlamaCppNewLlama:
+    """verbose defaults off so llama.cpp's tensor-load spam doesn't flood the log."""
+
+    def _client(self, tmp_path, **overrides):
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.llm_client import LlamaCppClient
+        cfg = Config(llm_backend="llamacpp", llm_model_path=str(tmp_path / "m.gguf"),
+                     llm_use_gpu=False)
+        for k, v in overrides.items():
+            setattr(cfg, k, v)
+        return LlamaCppClient(cfg)
+
+    def _capture_llama_kwargs(self, tmp_path, call_kwargs):
+        import sys
+        import unittest.mock as mock
+        captured = {}
+        fake_module = mock.MagicMock()
+        fake_module.Llama = lambda **kw: captured.update(kw)
+        client = self._client(tmp_path)
+        with mock.patch.dict(sys.modules, {"llama_cpp": fake_module}):
+            client._new_llama(**call_kwargs)
+        return captured
+
+    def test_defaults_verbose_off(self, tmp_path):
+        assert self._capture_llama_kwargs(tmp_path, {})["verbose"] is False
+
+    def test_caller_can_override_verbose(self, tmp_path):
+        assert self._capture_llama_kwargs(tmp_path, {"verbose": True})["verbose"] is True
+
+    def test_text_chat_sets_context_window_above_default(self, tmp_path):
+        # llama-cpp-python defaults n_ctx to 512, too small for a transcript excerpt +
+        # system prompt: the prompt fills the window, the model generates nothing, and
+        # JSON parsing fails on the empty string. chat() must pass a real context window.
+        import sys
+        import unittest.mock as mock
+
+        from yuu_clip.scoring.llm_client import _TEXT_CTX
+
+        captured = {}
+
+        class _FakeLlama:
+            def __init__(self, **kw):
+                captured.update(kw)
+
+            def create_chat_completion(self, **_kw):
+                return {"choices": [{"message": {"content": "{}"}}]}
+
+        fake_module = mock.MagicMock()
+        fake_module.Llama = _FakeLlama
+        client = self._client(tmp_path)
+        with mock.patch.dict(sys.modules, {"llama_cpp": fake_module}):
+            client.chat([{"role": "user", "content": "hi"}])
+        assert captured["n_ctx"] == _TEXT_CTX
+        assert captured["n_ctx"] > 512
+
+    def test_is_illegal_instruction_detection(self):
+        from yuu_clip.scoring.llm_client import _is_illegal_instruction
+        by_winerror = OSError("boom")
+        by_winerror.winerror = -1073741795
+        assert _is_illegal_instruction(by_winerror) is True
+        assert _is_illegal_instruction(OSError("crash 0xC000001D happened")) is True
+        assert _is_illegal_instruction(OSError("out of memory")) is False
+
+    def test_illegal_instruction_becomes_incompatible_cpu_error(self, tmp_path):
+        # The raw "[WinError -1073741795]" is meaningless to a user; _new_llama turns it
+        # into a plain-English IncompatibleCpuError explaining the CPU can't run the build.
+        import sys
+        import unittest.mock as mock
+
+        import pytest
+
+        from yuu_clip.scoring.llm_client import IncompatibleCpuError
+
+        def _raise_illegal(**_kw):
+            err = OSError("[WinError -1073741795] Windows Error 0xc000001d")
+            err.winerror = -1073741795
+            raise err
+
+        fake_module = mock.MagicMock()
+        fake_module.Llama = _raise_illegal
+        client = self._client(tmp_path)  # llm_use_gpu=False -> single construct attempt
+        with mock.patch.dict(sys.modules, {"llama_cpp": fake_module}):
+            with pytest.raises(IncompatibleCpuError):
+                client._new_llama()
+
+
+# ---------------------------------------------------------------------------
 # LLMScorer - _parse() score clamping
 # ---------------------------------------------------------------------------
 

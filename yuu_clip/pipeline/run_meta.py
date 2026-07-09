@@ -19,6 +19,9 @@ class StageRecorder:
 
     def __init__(self) -> None:
         self.stages: list[dict] = []
+        # Plain-English notices worth surfacing after the run (e.g. LLM unavailable,
+        # so clips got only a basic description). Persisted in the run JSON.
+        self.warnings: list[str] = []
         self._t0 = time.perf_counter()
 
     @contextmanager
@@ -97,5 +100,6 @@ def build_run_json(
         "device":      _resolve_devices(config, transcribed=transcribed, diarized=diarized),
         "settings":    _run_settings(config, opts, transcribed=transcribed, diarized=diarized),
         "stages":      recorder.stages,
+        "warnings":    recorder.warnings,
     }
     return json.dumps(record)
