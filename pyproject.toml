@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "yuu-clip"
-version = "0.1.17"
+version = "0.1.18"
 description = "Video session clip extraction pipeline"
 license = {text = "Apache-2.0"}
 requires-python = ">=3.11,<3.14"
@@ -15,7 +15,7 @@ dependencies = [
     "faster-whisper>=1.2,<2.0",
 
     # CLI framework. rich (pretty output) + shellingham are core deps since 0.12,
-    # so the old [all] extra is gone Ã¢â‚¬â€ plain typer already pulls them.
+    # so the old [all] extra is gone ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â plain typer already pulls them.
     "typer>=0.12,<1.0",
 
     # ORM - SQLite database for clips, transcripts, scores.
