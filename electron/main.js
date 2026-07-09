@@ -457,37 +457,6 @@ function updateLoadingStatus(win, text) {
   win.webContents.executeJavaScript(statusJs).catch(() => {});
 }
 
-// Approx on-disk download sizes, mirroring the wizard's whisper-sel option
-// labels, so the one-time prefetch tells the user how long to expect to wait.
-const WHISPER_MODEL_SIZES = {
-  tiny: '~75 MB', base: '~145 MB', small: '~465 MB',
-  medium: '~1.5 GB', 'large-v3': '~3 GB',
-};
-
-// Best-effort pre-download of the Whisper model chosen in setup, so first
-// Analyze doesn't stall on a surprise multi-GB download. Reuses the exact
-// download path production transcription already takes (see
-// yuu_clip/transcribe/whisper_runner.py _load_whisper_model) rather than
-// re-deriving the HuggingFace repo id ourselves. Failure is logged and
-// swallowed - analyze-time already has a clear retry message if this didn't
-// warm the cache (see _model_load_error in whisper_runner.py).
-async function prefetchWhisperModel(modelName, win) {
-  const size = WHISPER_MODEL_SIZES[modelName];
-  const sizeNote = size ? `, ${size} - one-time` : ' - one-time';
-  updateLoadingStatus(win, `Downloading the speech-to-text model (${modelName}${sizeNote})…`);
-  logSetup(`Pre-fetching Whisper model: ${modelName}`);
-  const code =
-    'from faster_whisper import WhisperModel\n' +
-    `WhisperModel(${JSON.stringify(modelName)}, device="cpu", compute_type="int8")\n`;
-  try {
-    await runCmd(VENV_PYTHON, ['-c', code]);
-    logSetup(`Whisper model pre-fetch complete: ${modelName}`);
-  } catch (err) {
-    logSetup(`Whisper model pre-fetch failed (non-fatal, will retry on first Analyze): ${modelName} - ${err.message}`);
-  }
-  updateLoadingStatus(win, 'Waiting for backend');
-}
-
 // Opens the setup wizard.  In initial/update mode, returns a promise that
 // resolves with the collected config when the user clicks Launch.  In rerun
 // mode the caller doesn't await; the wizard saves config on Apply & Close, or
@@ -584,16 +553,24 @@ function showSetupWizard({ rerun = false, updated = false } = {}) {
 function showVenvSetupWindow() {
   const win = new BrowserWindow({
     width: 440, height: 240,
-    resizable: false, frame: false, alwaysOnTop: true,
+    resizable: false, frame: false, minimizable: true,
     webPreferences: {
       nodeIntegration: false, contextIsolation: true,
       preload: path.join(__dirname, 'venv-preload.js'),
     },
   });
+  ipcMain.removeAllListeners('venv:minimize');
+  ipcMain.on('venv:minimize', () => {
+    if (!win.isDestroyed()) win.minimize();
+  });
+  win.on('closed', () => ipcMain.removeAllListeners('venv:minimize'));
   const html = `<!DOCTYPE html><html><head><style>
     @keyframes spin{to{transform:rotate(360deg)}}
     @keyframes indeterminate-slide{0%{left:-30%}100%{left:100%}}
     body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;margin:0;display:flex;align-items:center;justify-content:center;height:100vh;background:#12121e;color:#d8d8e8;text-align:center}
+    .titlebar{position:fixed;top:0;left:0;right:0;height:28px;-webkit-app-region:drag}
+    .min-btn{position:fixed;top:0;right:0;width:32px;height:28px;-webkit-app-region:no-drag;display:flex;align-items:center;justify-content:center;color:#87879f;font-size:14px;cursor:pointer;user-select:none}
+    .min-btn:hover{color:#e8e8f8;background:#1e1e30}
     h3{margin:0 0 12px;font-size:14px;color:#e8e8f8}
     .spin{display:inline-block;width:28px;height:28px;border:3px solid #1e1e30;border-top-color:#5b8ef0;border-radius:50%;animation:spin 0.65s linear infinite;margin:0 auto 14px}
     .steps{list-style:none;margin:0;padding:0;text-align:left;display:inline-block}
@@ -610,7 +587,10 @@ function showVenvSetupWindow() {
     .elapsed{font-size:10px;color:#5b8ef0;margin-top:2px}
     .status{font-size:11px;color:#5b8ef0;margin-top:10px;min-height:14px;padding:0 16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .note{font-size:11px;color:#87879f;margin-top:4px;padding:0 16px}
-  </style></head><body><div>
+  </style></head><body>
+    <div class="titlebar"></div>
+    <div class="min-btn" id="minBtn" title="Minimize">-</div>
+    <div>
     <div class="spin"></div>
     <h3>Setting up yuu-clip</h3>
     <ul class="steps" id="steps">
@@ -623,6 +603,8 @@ function showVenvSetupWindow() {
     <div class="status" id="status"></div>
     <div class="note">Installing the analysis engine - first time only, this can take a few minutes. Please don't close this window.</div>
   </div><script>
+    var minBtn=document.getElementById('minBtn');
+    if(minBtn) minBtn.onclick=function(){ if(window.venvAPI&&window.venvAPI.minimize) window.venvAPI.minimize(); };
     if(window.venvAPI) window.venvAPI.onProgress(function(msg){
       var steps=['s0','s1'];
       var idx=steps.indexOf(msg.id);
@@ -1162,7 +1144,6 @@ app.whenReady().then(async () => {
       if (setupOutdated) logSetup(`Setup schema ${storedSchema} < ${SETUP_SCHEMA_VERSION} - showing wizard with new options`);
       const cfg = await showSetupWizard({ rerun: false, updated: setupMode === 'update' });
       projectDir = cfg.projectDir;
-      if (cfg.whisperModel) await prefetchWhisperModel(cfg.whisperModel, wizardWin);
     } else {
       projectDir = loadElectronConfig().projectDir || DEFAULT_PROJECT_DIR;
       logSetup(`Project dir: ${projectDir}`);
