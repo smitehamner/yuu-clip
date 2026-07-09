@@ -171,4 +171,12 @@ After the initial model downloads (Whisper via HuggingFace, and a scoring model 
 
 ---
 
+## License
+
+yuu-clip is licensed under the [Apache License 2.0](LICENSE) - you are free to use, modify, and distribute it, including commercially, under that licence's terms.
+
+The Windows installer bundles a prebuilt FFmpeg binary that is separately licensed under the GPLv3; see [docs/dev/THIRD-PARTY-NOTICES-FFMPEG.md](docs/dev/THIRD-PARTY-NOTICES-FFMPEG.md) for the full third-party compliance record.
+
+---
+
 See [docs/user/FEATURES.md](docs/user/FEATURES.md) for the full feature reference and [docs/project/ROADMAP.md](docs/project/ROADMAP.md) for what's in progress and planned.
