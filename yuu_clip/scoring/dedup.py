@@ -13,6 +13,10 @@ from yuu_clip.db.models import ClipCandidate
 
 DEFAULT_OVERLAP_THRESHOLD = 0.7
 
+# System tag written to a flagged clip's tags_json so the badge survives a page
+# reload and the clip stays filterable in the existing tag-based UI.
+DUPLICATE_TAG = "possible_duplicate"
+
 
 def _overlap_ratio(clip_a: ClipCandidate, clip_b: ClipCandidate) -> float:
     overlap_ms = max(0, min(clip_a.end_ms, clip_b.end_ms) - max(clip_a.start_ms, clip_b.start_ms))
