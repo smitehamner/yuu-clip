@@ -529,6 +529,23 @@ Settings → UI → **Theme** switches the app's color scheme. Three themes ship
 The change applies immediately (no Save needed) and is remembered across
 restarts. All three themes meet WCAG AA contrast for text.
 
+### Accent colour
+
+Settings → UI → **Accent colour** changes the highlight colour used for buttons,
+links, and selected items, independently of the base theme. Two choices ship:
+**Default (purple)** and **Blue**. Like the theme, it applies immediately, is
+remembered across restarts, and every theme + accent combination meets WCAG AA
+contrast.
+
+### Colour picker
+
+Wherever you choose a colour - a speaker's caption colour, or the title-card
+background and text colours in Settings → Export - a small colour swatch opens a
+picker with direct hex entry, a strip of your recently-used colours, a set of
+starter colours, and **Your palette**: name a colour and save it to reuse across
+projects. Recently-used colours and your saved palette are remembered per user
+(stored in the browser), not per project.
+
 ### Speaker labels
 
 When enabled, yuu-clip runs speaker diarization after transcription and labels each transcript segment with who was speaking. This improves LLM scoring quality: transcript excerpts are formatted as `SPEAKER_00: ...` / `SPEAKER_01: ...` blocks instead of a flat text join.

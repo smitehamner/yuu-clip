@@ -1106,6 +1106,41 @@ maintained: **Dark** (default), **Light**, and **High contrast**.
 
 ---
 
+### Accent colour
+
+The highlight colour (buttons, links, selected items), chosen in Settings → UI
+independently of the base **Theme**. Two variants ship: **Default** (purple) and
+**Blue**.
+
+- **Code:** `data-accent` attribute on `<html>`; per-theme accent blocks in
+  `app.css` (`html[data-accent="blue"]` plus theme-scoped overrides overriding
+  only the accent-family tokens `--accent`, `--accent-text`, `--accent2`,
+  `--on-accent`); `applyAccent()` in `settings.js`; localStorage key
+  `yuuclip-accent`; parallel `ACCENTS` list in `tests/test_ui_theme.py`
+- **Do not call it:** "theme" (it is orthogonal to the theme - a second, separate
+  choice)
+- **Notes:** Because one accent value cannot clear WCAG AA on both dark and light
+  surfaces, each accent variant is tuned per base theme. Every (theme, accent)
+  combination is contrast-checked in `tests/test_ui_theme.py`.
+
+---
+
+### Colour picker
+
+The shared control for choosing a colour (speaker caption colour; title-card
+background/text colours). A swatch trigger opens a popover with hex entry, a
+recently-used strip, starter swatches, and a user-curated named palette.
+
+- **Code:** `colorpicker.js` (`ColorPicker.attach`); progressive-enhances a
+  hex-valued `<input>` into a hidden value-store; localStorage keys
+  `yuuclip-color-recent`, `yuuclip-color-palette`. Tests:
+  `tests/test_ui_colorpicker.py`
+- **Notes:** Replaced the native `<input type="color">` at all three sites. The
+  picker chrome uses theme tokens; only the picked/data colours (swatch fills)
+  are inline literals, which `tests/test_ui_theme.py` allowlists.
+
+---
+
 ## Configuration
 
 ### Project Folder

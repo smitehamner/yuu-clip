@@ -9,9 +9,13 @@
 /* Apply saved theme before the stylesheet paints to avoid a flash of the
    default dark theme. Kept inline (not in a module) for the same reason. */
 (function () {
-  var theme = null;
-  try { theme = localStorage.getItem('yuuclip-theme'); } catch (e) { /* storage disabled */ }
+  var theme = null, accent = null;
+  try {
+    theme = localStorage.getItem('yuuclip-theme');
+    accent = localStorage.getItem('yuuclip-accent');
+  } catch (e) { /* storage disabled */ }
   if (theme && theme !== 'dark') document.documentElement.dataset.theme = theme;
+  if (accent && accent !== 'default') document.documentElement.dataset.accent = accent;
 })();
 </script>
 <link rel="stylesheet" href="/static/app.css">
@@ -728,6 +732,16 @@
         <option value="dark">Dark</option>
         <option value="light">Light</option>
         <option value="high-contrast">High contrast</option>
+      </select>
+    </div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <label class="settings-label" for="s-accent">Accent colour</label>
+        <div class="settings-note">Applies immediately</div>
+      </div>
+      <select class="settings-select" id="s-accent" onchange="applyAccent(this.value)">
+        <option value="default">Default (purple)</option>
+        <option value="blue">Blue</option>
       </select>
     </div>
     <div class="settings-row">

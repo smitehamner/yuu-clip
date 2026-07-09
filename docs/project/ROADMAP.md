@@ -29,9 +29,8 @@ plan link to it; items still needing a scope decision or blocked on something
 external say so instead. Full detail/rationale for each is kept in
 internal planning notes (not part of this repo).
 
-1. **Colour-picker component + accent-colour themes** (§4) - real feature
-   work, larger, needs a fresh session and careful WCAG-contrast handling
-   across the new theme matrix. Plan: (internal planning notes).
+1. ~~**Colour-picker component + accent-colour themes** (§4)~~ - **done
+   2026-07-09** (see COMPLETED.md).
 2. **Clips vs Scenes** (§5) - now unblocked but needs a scope Q&A session
    before staging (storage design has wide blast radius). Plan (captured, not
    staged): (internal planning notes).
@@ -164,14 +163,12 @@ Wanted before distributing beyond friends/trusted users.
   part of the remaining work. Plan (staged, ready to implement, per-variable design decision
   already made): (internal planning notes).
 
-- [ ] **Custom colour-picker component + accent-colour theme variants** - replace the native
-  `<input type="color">` (per-speaker caption colours in `speakers.js`) with a shared JS-built
-  picker that supports direct hex entry, a recently-used strip, and a user-curated named
-  palette. Build it reusable from the start so the accent-colour theme variants below reuse it:
-  alternative accent colours (e.g. blue vs the current amber/green) layered on the existing
-  Dark / Light / High-contrast themes, since those themes are already pure token swaps. Decide
-  palette persistence (localStorage vs per-project DB) as part of the design. Plan (staged,
-  design decisions locked): (internal planning notes).
+- [x] **Custom colour-picker component + accent-colour theme variants** (done 2026-07-09) -
+  shipped the shared `colorpicker.js` (hex entry, recently-used strip, user-curated named
+  palette; localStorage persistence) replacing the native `<input type="color">` at all three
+  sites, plus a Blue accent variant layered on the three themes via an orthogonal `data-accent`
+  attribute and a `#s-accent` select, contrast-verified across the full (theme, accent) matrix.
+  See COMPLETED.md.
 
 - [ ] **Sidebar grouping for split segments** - a collapsible parent row
   "session.mkv (3 segments)" with indented children, as an alternative to the flat list.

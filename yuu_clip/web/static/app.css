@@ -104,6 +104,33 @@ html[data-theme="high-contrast"] {
   --modal-backdrop: rgba(0,0,0,.85);
   color-scheme: dark;
 }
+
+/* ── accent variants ──
+   data-accent is an orthogonal choice layered on the base theme (set on <html>
+   before first paint, switched from Settings). Each variant overrides only the
+   accent-family tokens (--accent, --accent-text, --accent2, --on-accent) and must
+   be tuned per base theme, because one accent value cannot clear WCAG AA on both
+   the dark and the light surfaces. "default" keeps each theme's own accents (no
+   block). Every (theme, accent) pairing is contrast-checked in
+   tests/test_ui_theme.py. */
+html[data-accent="blue"] { /* on the dark default surfaces */
+  --accent:      #2b5fd0;
+  --accent-text: #7aa2ff;
+  --accent2:     #56b6f5;
+  --on-accent:   #ffffff;
+}
+html[data-theme="light"][data-accent="blue"] {
+  --accent:      #2f57d8;
+  --accent-text: #2f57d8;
+  --accent2:     #1560b0;
+  --on-accent:   #ffffff;
+}
+html[data-theme="high-contrast"][data-accent="blue"] {
+  --accent:      #5b9bff;
+  --accent-text: #8ab4ff;
+  --accent2:     #6fc0ff;
+  --on-accent:   #000000;
+}
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { background: var(--bg); color: var(--text); font-family: system-ui, sans-serif; font-size: 14px; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
 .muted { color: var(--muted); }

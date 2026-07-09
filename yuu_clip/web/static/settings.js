@@ -279,6 +279,7 @@ function _applyUiFields(cfg) {
   _setFieldChk('s-loop-clip', localStorage.getItem('yuuclip-loop-clip') === 'true');
   _setFieldVal('s-playback-rate', String(playbackRatePref()));
   _setFieldVal('s-theme', localStorage.getItem('yuuclip-theme') || 'dark');
+  _setFieldVal('s-accent', localStorage.getItem('yuuclip-accent') || 'default');
 }
 
 function _applyExportFields(cfg) {
@@ -338,6 +339,8 @@ function _resetUiPrefsToDefaults() {
   _setFieldVal('s-playback-rate', '1');
   _setFieldVal('s-theme', 'dark');
   applyTheme('dark');
+  _setFieldVal('s-accent', 'default');
+  applyAccent('default');
 }
 
 // Fill one section's controls with factory defaults, leaving every other
@@ -374,6 +377,15 @@ function applyTheme(theme) {
   if (theme === 'dark') delete document.documentElement.dataset.theme;
   else document.documentElement.dataset.theme = theme;
   localStorage.setItem('yuuclip-theme', theme);
+}
+
+// Accent colour is orthogonal to the base theme (see the data-accent blocks in
+// app.css). Like the theme, it applies instantly and is browser-local; the inline
+// <head> script in index.html reads the same key before first paint.
+function applyAccent(accent) {
+  if (accent === 'default') delete document.documentElement.dataset.accent;
+  else document.documentElement.dataset.accent = accent;
+  localStorage.setItem('yuuclip-accent', accent);
 }
 
 // ── LLM scoring section (enable toggle + backend selection) ──────────────────
@@ -841,7 +853,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // Public API - symbols referenced cross-module, by an inline handler, or by a
 // test. Internal helpers above stay private to this module's closure.
 Object.assign(window, {
-  openSettings, closeSettings, saveSettings, applyTheme,
+  openSettings, closeSettings, saveSettings, applyTheme, applyAccent,
   _onLlmBackendChange, _onLlmEnabledChange, _onDiarizationBackendChange, _onLaughModeChange,
   _onSimilarityBackendChange, _onPrivacyModeChange, _setPrivacyMode, _currentPrivacyMode,
   _onPlayNextChange, _onLoopClipChange,

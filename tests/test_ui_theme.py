@@ -32,6 +32,11 @@ STATIC_DIR = Path(__file__).resolve().parents[1] / "yuu_clip" / "web" / "static"
 
 THEMES = ["dark", "light", "high-contrast"]
 
+# Accent variants are orthogonal to the base theme (data-accent on <html>). The
+# AA contract must hold for every (theme, accent) pairing, so the contrast tests
+# below run the full product.
+ACCENTS = ["default", "blue"]
+
 # Every theme block must override each of these - a theme that inherits a
 # color from the dark defaults is almost certainly an unreadable accident.
 COLOR_TOKENS = [
@@ -63,79 +68,87 @@ _CONTRAST_JS = """
 AA_NORMAL_TEXT = 4.5
 
 
-def _set_theme(page: Page, theme: str) -> None:
+def _apply_theme_accent(page: Page, theme: str, accent: str) -> None:
     page.evaluate(
-        "(t) => { if (t === 'dark') delete document.documentElement.dataset.theme;"
-        " else document.documentElement.dataset.theme = t; }",
-        theme,
+        "([t, a]) => {"
+        "  const el = document.documentElement;"
+        "  if (t === 'dark') delete el.dataset.theme; else el.dataset.theme = t;"
+        "  if (a === 'default') delete el.dataset.accent; else el.dataset.accent = a;"
+        "}",
+        [theme, accent],
     )
 
 
 @skip_no_server
 @pytest.mark.parametrize("theme", THEMES)
+@pytest.mark.parametrize("accent", ACCENTS)
 class TestContrastTokens:
-    """The AA contract holds under every theme, not just the dark default."""
+    """The AA contract holds under every (theme, accent) combination, not just
+    the dark/default baseline."""
 
-    def _ratio(self, page: Page, theme: str, fg: str, bg: str) -> float:
-        _set_theme(page, theme)
+    @pytest.fixture(autouse=True)
+    def _apply(self, page: Page, theme: str, accent: str):
+        _apply_theme_accent(page, theme, accent)
+
+    def _ratio(self, page: Page, fg: str, bg: str) -> float:
         return page.evaluate(_CONTRAST_JS, [fg, bg])
 
-    def test_muted_text_on_surface(self, page: Page, theme: str):
-        assert self._ratio(page, theme, "--muted", "--surface") >= AA_NORMAL_TEXT
+    def test_muted_text_on_surface(self, page: Page):
+        assert self._ratio(page, "--muted", "--surface") >= AA_NORMAL_TEXT
 
-    def test_muted_text_on_bg(self, page: Page, theme: str):
-        assert self._ratio(page, theme, "--muted", "--bg") >= AA_NORMAL_TEXT
+    def test_muted_text_on_bg(self, page: Page):
+        assert self._ratio(page, "--muted", "--bg") >= AA_NORMAL_TEXT
 
-    def test_muted_text_on_surface_raised(self, page: Page, theme: str):
+    def test_muted_text_on_surface_raised(self, page: Page):
         # .rec-model-meta and the "Downloaded" badge render muted text on the
         # recommended-model card (--surface-raised).
-        assert self._ratio(page, theme, "--muted", "--surface-raised") >= AA_NORMAL_TEXT
+        assert self._ratio(page, "--muted", "--surface-raised") >= AA_NORMAL_TEXT
 
-    def test_pending_step_pill_muted_on_border(self, page: Page, theme: str):
-        assert self._ratio(page, theme, "--muted", "--border") >= AA_NORMAL_TEXT
+    def test_pending_step_pill_muted_on_border(self, page: Page):
+        assert self._ratio(page, "--muted", "--border") >= AA_NORMAL_TEXT
 
-    def test_on_accent_on_accent(self, page: Page, theme: str):
+    def test_on_accent_on_accent(self, page: Page):
         # .step.active, .btn.primary, .btn.active, .clip-chip.active
-        assert self._ratio(page, theme, "--on-accent", "--accent") >= AA_NORMAL_TEXT
+        assert self._ratio(page, "--on-accent", "--accent") >= AA_NORMAL_TEXT
 
-    def test_on_green_on_green(self, page: Page, theme: str):
+    def test_on_green_on_green(self, page: Page):
         # .step.done, .btn.approve.active, .export-pill.is-exported,
         # .run-meta-badge.gpu, .dot-approved
-        assert self._ratio(page, theme, "--on-green", "--green") >= AA_NORMAL_TEXT
+        assert self._ratio(page, "--on-green", "--green") >= AA_NORMAL_TEXT
 
-    def test_on_red_on_red(self, page: Page, theme: str):
+    def test_on_red_on_red(self, page: Page):
         # .btn.reject.active, .dot-rejected, .split-marker-x
-        assert self._ratio(page, theme, "--on-red", "--red") >= AA_NORMAL_TEXT
+        assert self._ratio(page, "--on-red", "--red") >= AA_NORMAL_TEXT
 
-    def test_pending_dot_bg_on_muted(self, page: Page, theme: str):
-        assert self._ratio(page, theme, "--bg", "--muted") >= AA_NORMAL_TEXT
+    def test_pending_dot_bg_on_muted(self, page: Page):
+        assert self._ratio(page, "--bg", "--muted") >= AA_NORMAL_TEXT
 
-    def test_accent_text_on_surface(self, page: Page, theme: str):
+    def test_accent_text_on_surface(self, page: Page):
         # header h1, .settings-section-title, .spk-menu-item.active
-        assert self._ratio(page, theme, "--accent-text", "--surface") >= AA_NORMAL_TEXT
+        assert self._ratio(page, "--accent-text", "--surface") >= AA_NORMAL_TEXT
 
-    def test_accent_text_on_bg(self, page: Page, theme: str):
+    def test_accent_text_on_bg(self, page: Page):
         # .tline-speaker, .context-chip, .ctx-pill.selected
-        assert self._ratio(page, theme, "--accent-text", "--bg") >= AA_NORMAL_TEXT
+        assert self._ratio(page, "--accent-text", "--bg") >= AA_NORMAL_TEXT
 
-    def test_warning_text_on_surface(self, page: Page, theme: str):
-        assert self._ratio(page, theme, "--warning", "--surface") >= AA_NORMAL_TEXT
+    def test_warning_text_on_surface(self, page: Page):
+        assert self._ratio(page, "--warning", "--surface") >= AA_NORMAL_TEXT
 
-    def test_on_warning_on_warning_fill(self, page: Page, theme: str):
+    def test_on_warning_on_warning_fill(self, page: Page):
         # dark-on-amber "Remote LLM" badge: text is --on-warning over a --warning fill
-        assert self._ratio(page, theme, "--on-warning", "--warning") >= AA_NORMAL_TEXT
+        assert self._ratio(page, "--on-warning", "--warning") >= AA_NORMAL_TEXT
 
-    def test_accent2_text_on_bg(self, page: Page, theme: str):
+    def test_accent2_text_on_bg(self, page: Page):
         # .description, .video-title, .timeline-stamp render accent2 as body text
-        assert self._ratio(page, theme, "--accent2", "--bg") >= AA_NORMAL_TEXT
+        assert self._ratio(page, "--accent2", "--bg") >= AA_NORMAL_TEXT
 
-    def test_accent2_text_on_surface(self, page: Page, theme: str):
+    def test_accent2_text_on_surface(self, page: Page):
         # .clip-dup-badge and .sensitive-category-privacy render accent2 on the
         # sidebar/card surface
-        assert self._ratio(page, theme, "--accent2", "--surface") >= AA_NORMAL_TEXT
+        assert self._ratio(page, "--accent2", "--surface") >= AA_NORMAL_TEXT
 
-    def test_text_on_surface(self, page: Page, theme: str):
-        assert self._ratio(page, theme, "--text", "--surface") >= AA_NORMAL_TEXT
+    def test_text_on_surface(self, page: Page):
+        assert self._ratio(page, "--text", "--surface") >= AA_NORMAL_TEXT
 
 
 @skip_no_server
@@ -172,6 +185,41 @@ class TestThemeSwitcher:
     def test_theme_change_does_not_enable_settings_save(self, page: Page):
         page.evaluate("openSettings()")
         page.select_option("#s-theme", "light")
+        assert page.is_disabled("#btn-settings-save")
+
+
+@skip_no_server
+class TestAccentSwitcher:
+    def test_settings_select_lists_all_accents(self, page: Page):
+        values = page.evaluate(
+            "() => [...document.querySelectorAll('#s-accent option')].map(o => o.value)"
+        )
+        assert values == ACCENTS
+
+    def test_apply_accent_sets_attribute_and_persists(self, page: Page):
+        page.evaluate("applyAccent('blue')")
+        assert page.evaluate("document.documentElement.dataset.accent") == "blue"
+        assert page.evaluate("localStorage.getItem('yuuclip-accent')") == "blue"
+
+    def test_apply_default_removes_attribute(self, page: Page):
+        page.evaluate("applyAccent('blue')")
+        page.evaluate("applyAccent('default')")
+        assert page.evaluate("document.documentElement.dataset.accent") is None
+        assert page.evaluate("localStorage.getItem('yuuclip-accent')") == "default"
+
+    def test_saved_accent_applied_before_first_paint_on_reload(self, page: Page):
+        page.evaluate("localStorage.setItem('yuuclip-accent', 'blue')")
+        page.reload()
+        assert page.evaluate("document.documentElement.dataset.accent") == "blue"
+        accent = page.evaluate(
+            "() => getComputedStyle(document.documentElement)"
+            ".getPropertyValue('--accent').trim()"
+        )
+        assert accent == "#2b5fd0"  # the dark-theme blue --accent
+
+    def test_accent_change_does_not_enable_settings_save(self, page: Page):
+        page.evaluate("openSettings()")
+        page.select_option("#s-accent", "blue")
         assert page.is_disabled("#btn-settings-save")
 
 
@@ -226,6 +274,12 @@ _THEME_BLOCK_RE = re.compile(
     r'(?ms)^(?::root|html\[data-theme="([^"]+)"\])\s*\{(.*?)^\}'
 )
 
+# Broader: every :root / html[...] block, including the accent variants
+# (html[data-accent=...] and html[data-theme=...][data-accent=...]). Used only to
+# strip token-definition blocks before scanning for stray colour literals, so the
+# accent variants' hex values are recognised as token definitions, not chrome.
+_TOKEN_BLOCK_RE = re.compile(r'(?ms)^(?::root|html\[[^{]*\])\s*\{.*?^\}')
+
 
 def _theme_blocks(css: str) -> dict[str, str]:
     return {
@@ -252,7 +306,7 @@ def test_app_css_has_no_color_literals_outside_theme_blocks():
     silently break. The only allowed literal is #000 for video letterboxing,
     which is deliberately identical in all themes."""
     css = (STATIC_DIR / "app.css").read_text(encoding="utf-8")
-    outside = _THEME_BLOCK_RE.sub("", css)
+    outside = _TOKEN_BLOCK_RE.sub("", css)
     literals = re.findall(r"#[0-9a-fA-F]{3,8}\b|rgba?\([^)]*\)", outside)
     offenders = sorted(set(literals) - {"#000"})
     assert offenders == []

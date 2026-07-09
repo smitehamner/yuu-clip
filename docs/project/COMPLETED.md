@@ -6,6 +6,28 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) - see the
 
 ---
 
+## Custom colour picker + accent-colour theme variants (done 2026-07-09)
+
+Replaced the native `<input type="color">` at all three colour sites with a
+shared JS component, then layered alternative accent colours onto the themes.
+
+- **Shared colour picker** (`web/static/colorpicker.js`): `ColorPicker.attach`
+  progressive-enhances a hex-valued input into a hidden value-store fronted by a
+  swatch trigger. Its popover has direct hex entry (validated `#RGB`/`#RRGGBB`), a
+  recently-used strip, starter swatches, and a user-curated **named palette** (add
+  with a name / remove). Recently-used and palette persist per user in
+  localStorage. Wired into the per-speaker caption colour (`speakers.js`) and the
+  title-card background/text colours (Settings -> Export). Chrome is all theme
+  tokens; only picked colours are literals.
+- **Accent-colour variants** (`app.css`, `settings.js`, `index.html`): a
+  `data-accent` attribute on `<html>` orthogonal to the base theme, a new
+  Settings -> UI **Accent colour** select (Default / Blue), `applyAccent()`, a
+  `yuuclip-accent` localStorage key restored before first paint. Blue accents are
+  tuned per base theme so every (theme, accent) pairing clears WCAG AA.
+- **Tests:** new `tests/test_ui_colorpicker.py`; `tests/test_ui_theme.py` extended
+  to the `(theme, accent)` contrast matrix plus an accent-switcher suite;
+  speaker/title-card colour tests updated to the new component.
+
 ## Clip deduplication - near-duplicate overlap detection + one-click merge (done 2026-07-09)
 
 Detects when two clip candidates on the same recording capture the same moment via
