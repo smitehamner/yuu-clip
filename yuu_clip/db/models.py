@@ -15,7 +15,6 @@ Schema overview:
 from __future__ import annotations
 
 import json
-import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional
@@ -32,7 +31,6 @@ from sqlalchemy import (
     Text,
     create_engine,
     event,
-    text,
 )
 from sqlalchemy.orm import (
     DeclarativeBase,
@@ -43,8 +41,6 @@ from sqlalchemy.orm import (
     sessionmaker,
 )
 from sqlalchemy.pool import NullPool
-
-from yuu_clip.export.naming import DEFAULT_EXPORT_NAME_TEMPLATE, candidate_export_paths, export_base_stem
 
 
 class Base(DeclarativeBase):
@@ -80,245 +76,10 @@ def make_engine(db_path: Path):
         dbapi_connection.execute("PRAGMA busy_timeout=30000")
 
     Base.metadata.create_all(engine)
-    _migrate(engine)
-    _backfill_clip_exports(engine, db_path)
     return engine
 
 
 _log = __import__("logging").getLogger(__name__)
-
-
-def _migrate(engine) -> None:
-    """Apply lightweight forward-only column migrations for schema additions.
-
-    Every ALTER TABLE here must be guarded by a column-existence check so the
-    migration is idempotent. Log each step at INFO so startup failures are
-    diagnosable from the log file without attaching a debugger.
-    """
-    _log.info("Running DB migrations")
-    with engine.connect() as conn:
-        existing = {row[1] for row in conn.execute(text("PRAGMA table_info(audio_tracks)"))}
-        if "do_score" not in existing:
-            _log.info("Migration: adding audio_tracks.do_score")
-            conn.execute(text(
-                "ALTER TABLE audio_tracks ADD COLUMN do_score BOOLEAN NOT NULL DEFAULT 1"
-            ))
-
-        existing = {row[1] for row in conn.execute(text("PRAGMA table_info(videos)"))}
-        _video_migrations = [
-            ("parent_video_id", "INTEGER REFERENCES videos(id)"),
-            ("segment_start_s", "REAL"),
-            ("segment_end_s",   "REAL"),
-            ("title",           "TEXT"),
-            ("summary",         "TEXT"),
-            ("timeline_json",   "TEXT"),
-            ("context_names_json",        "TEXT"),
-            ("clips_scored_at",           "DATETIME"),
-            ("clips_scored_context_json", "TEXT"),
-            ("summarized_at",             "DATETIME"),
-            ("summary_context_json",      "TEXT"),
-            ("timeline_generated_at",     "DATETIME"),
-            ("timeline_context_json",     "TEXT"),
-            ("title_user",   "TEXT"),
-            ("summary_user", "TEXT"),
-            ("analyze_started_at", "DATETIME"),
-            ("analyze_run_json",   "TEXT"),
-            ("proxy_path",          "TEXT"),
-            ("proxy_generated_at",  "DATETIME"),
-            ("proxy_source_mtime",  "REAL"),
-            ("proxy_source_size",   "INTEGER"),
-            ("source_url",          "TEXT"),
-            ("source_title",        "TEXT"),
-            ("source_uploader",     "TEXT"),
-            ("source_upload_date",  "DATETIME"),
-            ("source_category",     "TEXT"),
-            ("session_id",          "INTEGER REFERENCES sessions(id)"),
-        ]
-        for col, typedef in _video_migrations:
-            if col not in existing:
-                _log.info("Migration: adding videos.%s", col)
-                conn.execute(text(f"ALTER TABLE videos ADD COLUMN {col} {typedef}"))
-
-        existing = {row[1] for row in conn.execute(text("PRAGMA table_info(transcripts)"))}
-        if "clip_id" not in existing:
-            _log.info("Migration: adding transcripts.clip_id")
-            conn.execute(text("ALTER TABLE transcripts ADD COLUMN clip_id INTEGER REFERENCES clip_candidates(id)"))
-
-        existing = {row[1] for row in conn.execute(text("PRAGMA table_info(transcript_segments)"))}
-        if "speaker_id" not in existing:
-            _log.info("Migration: adding transcript_segments.speaker_id")
-            conn.execute(text(
-                "ALTER TABLE transcript_segments ADD COLUMN speaker_id INTEGER REFERENCES speakers(id)"
-            ))
-        if "speaker_edited" not in existing:
-            _log.info("Migration: adding transcript_segments.speaker_edited")
-            conn.execute(text(
-                "ALTER TABLE transcript_segments ADD COLUMN speaker_edited BOOLEAN NOT NULL DEFAULT 0"
-            ))
-
-        existing = {row[1] for row in conn.execute(text("PRAGMA table_info(speakers)"))}
-        for col, typedef in [
-            ("suggested_match_id",    "INTEGER REFERENCES speakers(id)"),
-            ("suggested_match_score", "REAL"),
-            ("voiceprint_backend",    "TEXT"),
-        ]:
-            if col not in existing:
-                _log.info("Migration: adding speakers.%s", col)
-                conn.execute(text(f"ALTER TABLE speakers ADD COLUMN {col} {typedef}"))
-        # Voiceprints predating multiple backends were all produced by pyannote.
-        # Backfill so cross-backend match-skipping treats them as pyannote embeddings
-        # rather than "unknown backend" (which would strand named speakers).
-        if "voiceprint_backend" not in existing:
-            _log.info("Migration: backfilling speakers.voiceprint_backend = 'pyannote'")
-            conn.execute(text(
-                "UPDATE speakers SET voiceprint_backend = 'pyannote' "
-                "WHERE voiceprint IS NOT NULL"
-            ))
-
-        existing = {row[1] for row in conn.execute(text("PRAGMA table_info(clip_candidates)"))}
-        _clip_migrations = [
-            ("score_overall_user",  "REAL"),
-            ("description",         "TEXT"),
-            ("description_long",    "TEXT"),
-            ("description_user",    "TEXT"),
-            ("description_long_user", "TEXT"),
-            ("start_offset",        "REAL NOT NULL DEFAULT 0.0"),
-            ("end_offset",          "REAL NOT NULL DEFAULT 0.0"),
-            ("exported_at",         "DATETIME"),
-            ("exported_container",  "TEXT"),
-            ("exported_burn_subs",  "BOOLEAN"),
-            ("related_clips_json",  "TEXT"),
-            ("related_clips_at",    "DATETIME"),
-            ("transcript_edited_at", "DATETIME"),
-            ("user_tags_json",      "TEXT"),
-            ("trim_edited_at",      "DATETIME"),
-            ("description_edited_at", "DATETIME"),
-            ("exported_title_card", "BOOLEAN"),
-            ("exported_embed_subs", "BOOLEAN"),
-            ("hotword_matches_json", "TEXT"),
-            ("hotword_boost_json",   "TEXT"),
-            ("sensitive_matches_json", "TEXT"),
-            ("score_laugh",          "REAL"),
-            ("crop_x",               "REAL"),
-            ("vision_summary",       "TEXT"),
-            ("vision_analyzed_at",   "DATETIME"),
-        ]
-        for col, typedef in _clip_migrations:
-            if col not in existing:
-                _log.info("Migration: adding clip_candidates.%s", col)
-                conn.execute(text(f"ALTER TABLE clip_candidates ADD COLUMN {col} {typedef}"))
-
-        if "scored_at" not in existing:
-            _log.info("Migration: adding clip_candidates.scored_at")
-            conn.execute(text("ALTER TABLE clip_candidates ADD COLUMN scored_at DATETIME"))
-            # Backfill: a video's clips_scored_at already means "every clip was
-            # scored as of this timestamp" (see Video.clips_scored_at docstring),
-            # so reuse it rather than leaving pre-existing clips looking unscored.
-            # Clips whose video was never fully scored (including any left with
-            # partial per-clip scores by a mid-batch failure) are intentionally
-            # left NULL - Re-score corrects them either way.
-            _log.info("Migration: backfilling clip_candidates.scored_at from parent video's clips_scored_at")
-            conn.execute(text(
-                "UPDATE clip_candidates SET scored_at = ("
-                "  SELECT clips_scored_at FROM videos WHERE videos.id = clip_candidates.video_id"
-                ") WHERE EXISTS ("
-                "  SELECT 1 FROM videos"
-                "  WHERE videos.id = clip_candidates.video_id AND videos.clips_scored_at IS NOT NULL"
-                ")"
-            ))
-
-        # Drop the UNIQUE(path) constraint - segments share their parent's path, so a
-        # per-path unique index breaks re-analysis after segments exist.
-        # SQLite can't DROP CONSTRAINT; recreate the table without it.
-        videos_ddl = (conn.execute(text(
-            "SELECT sql FROM sqlite_master WHERE type='table' AND name='videos'"
-        )).fetchone() or ("",))[0]
-        if "UNIQUE (path)" in videos_ddl:
-            _log.info("Migration: dropping UNIQUE(path) from videos (segments share parent path)")
-            all_cols = ", ".join(row[1] for row in conn.execute(text("PRAGMA table_info(videos)")))
-            # Derive the new DDL from the live schema by stripping only the
-            # UNIQUE (path) fragment - never a hardcoded column list, which drifts
-            # as new columns are added by the ADD-COLUMN migrations above.
-            new_ddl = re.sub(r",\s*UNIQUE\s*\(\s*path\s*\)", "", videos_ddl)
-            new_ddl = re.sub(r"UNIQUE\s*\(\s*path\s*\)\s*,", "", new_ddl)
-            conn.execute(text("PRAGMA foreign_keys=OFF"))
-            conn.execute(text(f"CREATE TABLE videos_migration_tmp AS SELECT {all_cols} FROM videos"))
-            conn.execute(text("DROP TABLE videos"))
-            conn.execute(text(new_ddl))
-            conn.execute(text(f"INSERT INTO videos ({all_cols}) SELECT {all_cols} FROM videos_migration_tmp"))
-            conn.execute(text("DROP TABLE videos_migration_tmp"))
-            conn.execute(text("PRAGMA foreign_keys=ON"))
-            _log.info("Migration: UNIQUE(path) removed from videos")
-
-        conn.commit()
-        _log.info("DB migrations complete")
-
-
-def _backfill_clip_exports(engine, db_path: Path) -> None:
-    """One-time, idempotent backfill of clip_exports rows from legacy exports.
-
-    Before Plan 07, an export was tracked with a single set of exported_*
-    columns on the clip row. For every clip that already has exported_at set
-    but no "default" clip_exports row yet, locate its exported file on disk
-    (same stem/extension search every other export lookup uses) and record it.
-    A clip whose file was manually deleted from disk is skipped, matching the
-    existing "no badge when the export file is gone" behavior.
-    """
-    from yuu_clip.config import Config, project_exports_dir
-
-    project_dir = db_path.parent.parent
-    try:
-        name_template = Config.load(project_dir).export_name_template
-    except (OSError, ValueError):
-        name_template = DEFAULT_EXPORT_NAME_TEMPLATE
-    exports_dir = project_exports_dir(project_dir)
-
-    Session_ = sessionmaker(bind=engine)
-    session = Session_()
-    try:
-        already_backfilled = {
-            row[0] for row in session.execute(
-                text("SELECT clip_id FROM clip_exports WHERE preset_name = 'default'")
-            )
-        }
-        clips = (
-            session.query(ClipCandidate)
-            .filter(ClipCandidate.exported_at.isnot(None))
-            .all()
-        )
-        inserted = 0
-        for clip in clips:
-            if clip.id in already_backfilled:
-                continue
-            video = session.get(Video, clip.video_id)
-            if not video:
-                continue
-            stem = export_base_stem(clip, name_template, video_filename=video.filename)
-            found_path = next(
-                (p for p in candidate_export_paths(exports_dir, stem) if p.exists()), None
-            )
-            if found_path is None:
-                continue
-            settings = {
-                "burn_subs": bool(clip.exported_burn_subs),
-                "embed_subs": bool(clip.exported_embed_subs),
-                "title_card": bool(clip.exported_title_card),
-            }
-            session.add(ClipExport(
-                clip_id=clip.id,
-                preset_name="default",
-                path=str(found_path.resolve()),
-                container=clip.exported_container or found_path.suffix.lstrip("."),
-                created_at=clip.exported_at,
-                settings_json=json.dumps(settings),
-                size_bytes=found_path.stat().st_size,
-            ))
-            inserted += 1
-        if inserted:
-            session.commit()
-            _log.info("Migration: backfilled %d clip_exports row(s) from legacy exported_at", inserted)
-    finally:
-        session.close()
 
 
 def make_session(db_path: Path) -> Session:

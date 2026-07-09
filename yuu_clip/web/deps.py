@@ -50,8 +50,8 @@ class ProjectContext:
 
         self.config = Config.load(project_dir)
 
-        # Engine is created once so create_all / _migrate only run at startup,
-        # not on every API request (which could race with the analyze subprocess).
+        # Engine is created once so create_all only runs at startup, not on every
+        # API request (which could race with the analyze subprocess).
         self._engine         = make_engine(self.db_path)
         self._Session        = sessionmaker(bind=self._engine)
 

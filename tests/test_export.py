@@ -1327,69 +1327,6 @@ class TestClipExportRows:
         assert client.get(f"/api/clips/{clip['id']}").json()["exports"] == []
 
 
-class TestClipExportBackfillMigration:
-    """The one-time migration that backfills clip_exports from legacy exported_at
-    (Plan 07 Stage 1) - see db.models._backfill_clip_exports."""
-
-    def test_backfills_a_legacy_export_on_first_load(self, project_dir):
-        exports_dir = project_dir / ".yuu-clip" / "exports"
-        db_path = project_dir / ".yuu-clip" / "project.db"
-
-        db = make_session(db_path)
-        clip = db.query(ClipCandidate).order_by(ClipCandidate.id).first()
-        stem = f"session_clip{clip.id}_{clip.start_hms.replace(':', '-')}"
-        (exports_dir / f"{stem}.mkv").write_bytes(b"legacy export")
-        clip.exported_at = datetime.now(timezone.utc)
-        clip.exported_container = "mkv"
-        db.commit()
-        clip_id = clip.id
-        db.close()
-
-        # Re-opening the session (make_session -> make_engine) re-runs the backfill.
-        db = make_session(db_path)
-        from yuu_clip.db.models import ClipExport
-        rows = db.query(ClipExport).filter_by(clip_id=clip_id, preset_name="default").all()
-        assert len(rows) == 1
-        assert rows[0].path.endswith(f"{stem}.mkv")
-        db.close()
-
-    def test_backfill_is_idempotent_across_repeated_loads(self, project_dir):
-        exports_dir = project_dir / ".yuu-clip" / "exports"
-        db_path = project_dir / ".yuu-clip" / "project.db"
-
-        db = make_session(db_path)
-        clip = db.query(ClipCandidate).order_by(ClipCandidate.id).first()
-        stem = f"session_clip{clip.id}_{clip.start_hms.replace(':', '-')}"
-        (exports_dir / f"{stem}.mkv").write_bytes(b"legacy export")
-        clip.exported_at = datetime.now(timezone.utc)
-        db.commit()
-        clip_id = clip.id
-        db.close()
-
-        make_session(db_path).close()
-        make_session(db_path).close()
-
-        db = make_session(db_path)
-        from yuu_clip.db.models import ClipExport
-        assert db.query(ClipExport).filter_by(clip_id=clip_id, preset_name="default").count() == 1
-        db.close()
-
-    def test_skips_a_legacy_export_whose_file_is_missing(self, project_dir):
-        db_path = project_dir / ".yuu-clip" / "project.db"
-
-        db = make_session(db_path)
-        clip = db.query(ClipCandidate).order_by(ClipCandidate.id).first()
-        clip.exported_at = datetime.now(timezone.utc)  # no file written on disk
-        db.commit()
-        clip_id = clip.id
-        db.close()
-
-        db = make_session(db_path)
-        from yuu_clip.db.models import ClipExport
-        assert db.query(ClipExport).filter_by(clip_id=clip_id).count() == 0
-        db.close()
-
-
 class TestExportBaseStemPreset:
     """{preset} filename placeholder and the automatic "_{preset}" collision-safety
     suffix for non-default presets (export_naming.export_base_stem)."""
