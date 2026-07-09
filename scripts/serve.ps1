@@ -17,6 +17,18 @@ foreach ($p in $serveProcs) {
     Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue
 }
 
+# Force-killing the serve python above bypasses its graceful FastAPI shutdown,
+# which is what normally reaps a running llama-server.exe (LlamaServerPool /
+# shutdown_server_pool). Reap any llama-server.exe left over from this repo's
+# dev runtime so it doesn't orphan across restarts.
+$llamaRuntimeDir = Join-Path $RepoRoot "build\llama-server-runtime"
+$llamaProcs = Get-CimInstance Win32_Process -Filter "name='llama-server.exe'" |
+    Where-Object { $_.CommandLine -like "*$llamaRuntimeDir*" }
+foreach ($p in $llamaProcs) {
+    Write-Host "Killing orphaned llama-server PID $($p.ProcessId)..." -ForegroundColor Yellow
+    Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue
+}
+
 # Safety net: a non-python process holding :8080 still blocks the bind.
 $old = netstat -ano | findstr ":8080" | Select-String "LISTENING" | ForEach-Object { ($_ -split '\s+')[-1] }
 if ($old) {
@@ -30,6 +42,12 @@ if ($serveProcs -or $old) {
 if ($Stop) {
     Write-Host "Server stopped." -ForegroundColor Yellow
     exit 0
+}
+
+if (Test-Path $llamaRuntimeDir) {
+    $env:YUU_CLIP_LLAMA_SERVER_DIR = $llamaRuntimeDir
+} else {
+    Write-Host "Run scripts\fetch-llama-server-runtime.ps1 to enable local LLM/vision in dev" -ForegroundColor Yellow
 }
 
 $psi = New-Object System.Diagnostics.ProcessStartInfo
