@@ -469,23 +469,29 @@ class TestTitleCardSettings:
         assert page.locator("#s-title-card-template").input_value() == cfg["title_card_template"]
         assert float(page.locator("#s-title-card-duration").input_value()) == cfg["title_card_duration_s"]
 
+    def _set_color(self, page: Page, input_id: str, hexval: str) -> None:
+        """Drive the shared colour picker: open the field's popover, enter a hex
+        value, and commit with Enter (which writes the hidden value-store the
+        config reads and closes the popover, so the next field isn't overlaid)."""
+        page.click(f".colorpicker:has(#{input_id}) .colorpicker-trigger")
+        field = page.locator(f".colorpicker:has(#{input_id}) .colorpicker-hexfield")
+        field.fill(hexval.lstrip("#"))
+        field.press("Enter")
+
     def test_changing_bg_color_marks_settings_dirty(self, page: Page):
         self._open_settings(page)
         expect(page.locator("#btn-settings-save")).to_be_disabled()
         current = page.locator("#s-title-card-bg-color").input_value()
         other = "#123456" if current != "#123456" else "#654321"
-        page.locator("#s-title-card-bg-color").fill(other)
-        page.locator("#s-title-card-bg-color").dispatch_event("input")
+        self._set_color(page, "s-title-card-bg-color", other)
         expect(page.locator("#btn-settings-save")).to_be_enabled()
         # Restore so the panel isn't left dirty for later tests.
-        page.locator("#s-title-card-bg-color").fill(current)
-        page.locator("#s-title-card-bg-color").dispatch_event("input")
+        self._set_color(page, "s-title-card-bg-color", current)
         expect(page.locator("#btn-settings-save")).to_be_disabled()
 
     def test_preview_reflects_chosen_background_color(self, page: Page):
         self._open_settings(page)
-        page.locator("#s-title-card-bg-color").fill("#336699")
-        page.locator("#s-title-card-bg-color").dispatch_event("input")
+        self._set_color(page, "s-title-card-bg-color", "#336699")
         bg = page.evaluate(
             "getComputedStyle(document.getElementById('s-title-card-preview')).backgroundColor"
         )
@@ -493,8 +499,7 @@ class TestTitleCardSettings:
 
     def test_preview_reflects_chosen_text_color(self, page: Page):
         self._open_settings(page)
-        page.locator("#s-title-card-font-color").fill("#ff8800")
-        page.locator("#s-title-card-font-color").dispatch_event("input")
+        self._set_color(page, "s-title-card-font-color", "#ff8800")
         color = page.evaluate(
             "getComputedStyle(document.querySelector('#s-title-card-preview > div')).color"
         )
@@ -524,18 +529,14 @@ class TestTitleCardSettings:
 
     def test_contrast_warning_appears_for_white_on_white(self, page: Page):
         self._open_settings(page)
-        page.locator("#s-title-card-bg-color").fill("#ffffff")
-        page.locator("#s-title-card-bg-color").dispatch_event("input")
-        page.locator("#s-title-card-font-color").fill("#ffffff")
-        page.locator("#s-title-card-font-color").dispatch_event("input")
+        self._set_color(page, "s-title-card-bg-color", "#ffffff")
+        self._set_color(page, "s-title-card-font-color", "#ffffff")
         expect(page.locator("#s-title-card-contrast-warning")).to_be_visible()
 
     def test_contrast_warning_hidden_for_default_black_on_white(self, page: Page):
         self._open_settings(page)
-        page.locator("#s-title-card-bg-color").fill("#000000")
-        page.locator("#s-title-card-bg-color").dispatch_event("input")
-        page.locator("#s-title-card-font-color").fill("#ffffff")
-        page.locator("#s-title-card-font-color").dispatch_event("input")
+        self._set_color(page, "s-title-card-bg-color", "#000000")
+        self._set_color(page, "s-title-card-font-color", "#ffffff")
         expect(page.locator("#s-title-card-contrast-warning")).to_be_hidden()
 
 

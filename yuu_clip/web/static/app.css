@@ -340,9 +340,6 @@ header h1 { font-size: 16px; font-weight: 700; letter-spacing: .5px; color: var(
 .speaker-tag { flex-shrink: 0; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); min-width: 72px; }
 .speaker-name-input { flex: 0 0 160px; padding: 5px 9px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 13px; }
 .speaker-name-input:focus { outline: none; border-color: var(--accent); }
-.speaker-color-input { flex-shrink: 0; width: 26px; height: 26px; padding: 0; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); cursor: pointer; }
-.speaker-color-input::-webkit-color-swatch-wrapper { padding: 2px; }
-.speaker-color-input::-webkit-color-swatch { border: none; border-radius: 4px; }
 .speaker-sample { flex: 1 1 120px; min-width: 0; color: var(--muted); font-size: 12px; font-style: italic; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .speaker-hint { margin-top: 8px; font-size: 11px; color: var(--muted); }
 .speaker-suggestion { flex: 1 1 100%; display: inline-flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-left: 82px; font-size: 12px; color: var(--muted); }
@@ -386,6 +383,30 @@ header h1 { font-size: 16px; font-weight: 700; letter-spacing: .5px; color: var(
 .spk-menu-name { flex: 1; min-width: 0; font-size: 12px; font-family: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: 5px; padding: 4px 6px; }
 .spk-menu-name:focus { outline: none; border-color: var(--accent); }
 .spk-menu-save { font-size: 11px; padding: 2px 10px; }
+
+/* ── shared colour picker (colorpicker.js) ──
+   Chrome comes entirely from theme tokens; the only non-token colours are the
+   swatch fills, which are the picked/data colours themselves (set inline in JS,
+   never as source literals). */
+.colorpicker { position: relative; display: inline-flex; align-items: center; gap: 6px; }
+.colorpicker-trigger { width: 30px; height: 30px; flex: 0 0 auto; padding: 0; border: 1px solid var(--border); border-radius: 6px; cursor: pointer; background: var(--surface); }
+.colorpicker-trigger.is-empty { background-image: linear-gradient(45deg, var(--border) 25%, transparent 25%, transparent 75%, var(--border) 75%), linear-gradient(45deg, var(--border) 25%, transparent 25%, transparent 75%, var(--border) 75%); background-size: 10px 10px; background-position: 0 0, 5px 5px; }
+.colorpicker-trigger:focus-visible { outline: none; box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent); }
+.colorpicker-pop { position: absolute; top: calc(100% + 6px); left: 0; z-index: 5000; display: none; width: 216px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: var(--shadow-menu); padding: 10px; }
+.colorpicker-pop.open { display: block; }
+.colorpicker-hexrow { display: flex; align-items: center; gap: 4px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); padding: 0 8px; }
+.colorpicker-hexrow:focus-within { border-color: var(--accent); }
+.colorpicker-hexhash { color: var(--muted); font-family: monospace; font-size: 13px; }
+.colorpicker-hexfield { flex: 1; min-width: 0; font-family: monospace; font-size: 13px; text-transform: lowercase; color: var(--text); background: none; border: none; padding: 7px 0; }
+.colorpicker-hexfield:focus { outline: none; }
+.colorpicker-hexfield.invalid { color: var(--red); }
+.colorpicker-section-label { font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 8px 2px 4px; }
+.colorpicker-section-label:first-child { margin-top: 0; }
+.colorpicker-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.colorpicker-swatch { width: 22px; height: 22px; padding: 0; border: 1px solid var(--border); border-radius: 5px; cursor: pointer; }
+.colorpicker-swatch:hover { transform: scale(1.12); }
+.colorpicker-swatch:focus-visible { outline: none; box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 55%, transparent); }
+
 .tline-text { font-size: 13px; line-height: 1.45; }
 .tline-text.editable { cursor: text; border-radius: 4px; padding: 0 3px; transition: background .12s; }
 .tline-text.editable:hover { background: var(--border); }

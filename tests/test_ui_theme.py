@@ -272,10 +272,16 @@ def test_app_css_has_no_color_literals_outside_theme_blocks():
 #     drawn over video, theme-independent by design - same class as #000
 #     letterboxing (the documented CLAUDE.md exemption).
 #   - The score-gradient stops in format.js: data encoding, not chrome.
+#   - The starter swatches in colorpicker.js: pickable colour data (the colours a
+#     user can choose), not UI chrome - same class as the score-gradient stops.
 # Adding a new literal outside these classes breaks this test.
 _OVER_VIDEO_HEX = {"#000", "#fff", "#e6e6e6"}
 _SCORE_GRADIENT_STOPS = {"#6b6b80", "#4fc3f7", "#4caf7d", "#f0c060", "#f7a85a"}
-_ALLOWED_HEX = _OVER_VIDEO_HEX | _SCORE_GRADIENT_STOPS
+_COLORPICKER_STARTERS = {
+    "#ffffff", "#000000", "#e05c5c", "#f0803c", "#f0c060", "#4caf7d",
+    "#4fc3f7", "#6f5df5", "#b06af7", "#f77ac0", "#9e9e9e", "#7a4b2a",
+}
+_ALLOWED_HEX = _OVER_VIDEO_HEX | _SCORE_GRADIENT_STOPS | _COLORPICKER_STARTERS
 
 _HTML_ENTITY_RE = re.compile(r"&#\d+;?")
 _VAR_FALLBACK_RE = re.compile(r"var\(\s*--[\w-]+\s*,[^)]*\)")

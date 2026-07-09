@@ -87,11 +87,15 @@ class TestSpeakerNaming:
         page.route("**/api/speakers/*", _handle_put)
         self._select_first_video(page)
 
+        # The native input is now the picker's hidden value-store; it keeps the
+        # speaker's saved colour and the change still fires the PUT.
         color_input = page.locator(".speaker-color-input")
         expect(color_input).to_have_value("#4fc3f7")
 
-        color_input.fill("#abcdef")
-        color_input.dispatch_event("change")
+        page.click(".colorpicker:has(.speaker-color-input) .colorpicker-trigger")
+        hex_field = page.locator(".colorpicker:has(.speaker-color-input) .colorpicker-hexfield")
+        hex_field.fill("abcdef")
+        hex_field.dispatch_event("change")
 
         assert any("abcdef" in body for body in put_bodies), put_bodies
 

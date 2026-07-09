@@ -176,6 +176,15 @@ function _setSelectByNumber(id, num) {
 }
 
 function _setFieldVal(id, val) { const el = document.getElementById(id); if (el) el.value = val; }
+// A colour field is enhanced by ColorPicker into a hidden value-store; setting
+// its .value alone won't refresh the swatch trigger, so dispatch input (which the
+// picker listens for, and which re-runs the title-card preview via oninput).
+function _setColorField(id, val) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.value = val;
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+}
 function _setFieldChk(id, val) { const el = document.getElementById(id); if (el) el.checked = val; }
 function _setFieldTxt(id, val) { const el = document.getElementById(id); if (el) el.textContent = val; }
 
@@ -275,8 +284,8 @@ function _applyUiFields(cfg) {
 function _applyExportFields(cfg) {
   _setFieldVal('s-export-name-template', cfg.export_name_template || '{video}_clip{clip_id}_{start}');
   _updateExportNameTemplatePreview();
-  _setFieldVal('s-title-card-bg-color', cfg.title_card_bg_color || '#000000');
-  _setFieldVal('s-title-card-font-color', cfg.title_card_font_color || '#ffffff');
+  _setColorField('s-title-card-bg-color', cfg.title_card_bg_color || '#000000');
+  _setColorField('s-title-card-font-color', cfg.title_card_font_color || '#ffffff');
   _setSelectByNumber('s-title-card-scale', cfg.title_card_scale ?? 1.0);
   _setFieldVal('s-title-card-template', cfg.title_card_template ?? '{description}\n{start} · {duration}');
   _setFieldVal('s-title-card-duration', cfg.title_card_duration_s ?? 3.0);
@@ -804,6 +813,13 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   _wireModelBrowseButtons();
+
+  // Enhance the title-card colour inputs with the shared picker. They live in the
+  // always-present Settings markup, so a one-time attach at load is enough.
+  ['s-title-card-bg-color', 's-title-card-font-color'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) window.ColorPicker?.attach(el);
+  });
 
   // The global Escape handler leaves Escape to typing surfaces, so the glossary
   // filter handles it itself: first press clears the filter, second closes.

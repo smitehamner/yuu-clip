@@ -22,6 +22,7 @@ async function loadSpeakers(videoId) {
     return;
   }
   section.innerHTML = _renderSpeakersCard(speakers);
+  section.querySelectorAll('.speaker-color-input').forEach(el => window.ColorPicker?.attach(el));
 }
 
 // A speaker with an inferred name the user hasn't accepted yet. Its name stays out of
