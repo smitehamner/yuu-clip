@@ -13,6 +13,7 @@ No real inference runs in CI - the subprocess/HTTP seams are mocked in tests.
 """
 from __future__ import annotations
 
+import atexit
 import json
 import os
 import re
@@ -171,15 +172,23 @@ class LlamaServerPool:
 
     def __init__(self) -> None:
         self._servers: dict[tuple[str, str], ServerHandle] = {}
-        self._lock = threading.Lock()
+        self._lock = threading.Lock()          # guards the _servers dict
+        # Serializes a whole chat call (ensure-server + POST). Without it a
+        # concurrent request for a different (model, mmproj) key could run
+        # _stop_others and terminate the server another thread is mid-POST to -
+        # e.g. an in-app frame-analysis (vision) call landing during an SSE text
+        # re-score. Held across the POST, but NOT taken by shutdown_all, so a
+        # shutdown can still reap a live server promptly during a long request.
+        self._call_lock = threading.Lock()
 
     def chat_completion(
         self, config: Config, *, model_path: str, mmproj_path: str,
         messages: list[dict], temperature: float,
     ) -> str:
-        handle = self._ensure_server(config, model_path, mmproj_path)
-        payload = {"messages": messages, "temperature": temperature, "max_tokens": _MAX_TOKENS}
-        data = self._post(handle, payload)
+        with self._call_lock:
+            handle = self._ensure_server(config, model_path, mmproj_path)
+            payload = {"messages": messages, "temperature": temperature, "max_tokens": _MAX_TOKENS}
+            data = self._post(handle, payload)
         return data["choices"][0]["message"]["content"]
 
     def shutdown_all(self) -> None:
@@ -211,11 +220,12 @@ class LlamaServerPool:
     def _spawn(self, config: Config, model_path: str, mmproj_path: str) -> ServerHandle:
         try:
             return self._launch(config, model_path, mmproj_path, prefer_cpu=False)
-        except LlamaServerError:
+        except LlamaServerError as exc:
             if config.llm_use_gpu and has_cpu_fallback(config):
                 _log.warning(
                     "The GPU (Vulkan) llama-server did not start - falling back to the "
-                    "bundled CPU build (slower). Updating your GPU driver restores acceleration."
+                    "bundled CPU build (slower). Updating your GPU driver restores "
+                    "acceleration. Vulkan startup error: %s", exc,
                 )
                 return self._launch(config, model_path, mmproj_path, prefer_cpu=True)
             raise
@@ -228,7 +238,12 @@ class LlamaServerPool:
         device = pick_gpu_device(binary) if gpu_layers != 0 else None
         port = self._choose_port(config)
         args = _build_args(binary, model_path, mmproj_path, port, gpu_layers, device)
-        _log.info("Starting llama-server on port %d for %s", port, Path(model_path).name)
+        _log.info(
+            "Starting llama-server: port=%d model=%s build=%s gpu_layers=%s device=%s mmproj=%s",
+            port, Path(model_path).name, Path(binary).parent.name or "path",
+            _gpu_layers_desc(gpu_layers), device or "(default)",
+            Path(mmproj_path).name if mmproj_path else "(none)",
+        )
         proc = subprocess.Popen(
             args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
             text=True, encoding="utf-8", errors="replace", bufsize=1,
@@ -252,7 +267,8 @@ class LlamaServerPool:
             handle.log_tail.append(raw.rstrip("\n"))
 
     def _wait_healthy(self, handle: ServerHandle) -> None:
-        deadline = time.time() + _HEALTH_TIMEOUT_S
+        started = time.time()
+        deadline = started + _HEALTH_TIMEOUT_S
         url = f"{handle.base_url}/health"
         while time.time() < deadline:
             if not handle.is_alive():
@@ -260,6 +276,10 @@ class LlamaServerPool:
             try:
                 with urllib.request.urlopen(url, timeout=3) as resp:
                     if json.load(resp).get("status") == "ok":
+                        _log.info(
+                            "llama-server on port %d ready (model loaded in %.1fs)",
+                            handle.port, time.time() - started,
+                        )
                         return
             except (urllib.error.URLError, ConnectionError, OSError, json.JSONDecodeError):
                 time.sleep(_HEALTH_POLL_S)
@@ -289,8 +309,20 @@ class LlamaServerPool:
         try:
             handle.proc.wait(timeout=10)
         except subprocess.TimeoutExpired:
+            _log.warning(
+                "llama-server (pid %s, port %d) did not stop within 10s - killing it",
+                handle.proc.pid, handle.port,
+            )
             handle.proc.kill()
             handle.proc.wait()
+
+
+def _gpu_layers_desc(gpu_layers: int) -> str:
+    if gpu_layers < 0:
+        return "auto-fit"
+    if gpu_layers == 0:
+        return "CPU-only"
+    return str(gpu_layers)
 
 
 def _build_args(
@@ -330,3 +362,11 @@ def shutdown_server_pool() -> None:
         if _pool is not None:
             _pool.shutdown_all()
             _pool = None
+
+
+# Backstop so a process that spawned a server reaps it on exit. The web server also
+# reaps via its lifespan; the analyze CLI subprocess has no such hook, and on Windows
+# a llama-server child is not killed when its parent exits - without this, every
+# analyze run that used local LLM scoring would orphan a llama-server holding RAM/VRAM.
+# No-op when this process never created a pool.
+atexit.register(shutdown_server_pool)

@@ -225,6 +225,96 @@ class TestPortHelpers:
         assert _port_is_free(port) is True
 
 
+def _handle(proc, port=51234):
+    from yuu_clip.scoring.llamacpp_server import ServerHandle
+    return ServerHandle(proc, port, "m.gguf", "", 0.0)
+
+
+class _FakeHealthResp:
+    """Context-manager response whose body json.load() can parse."""
+
+    def __init__(self, body: bytes):
+        self._body = body
+
+    def read(self, *_a):
+        return self._body
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_a):
+        return False
+
+
+class TestWaitHealthy:
+    """The health-check gate is a no-op in every other test (fake_spawn patches it);
+    these pin its real branching, since it decides whether a launched server is
+    usable, hangs, or surfaces the subprocess's own error output."""
+
+    def test_returns_when_health_reports_ok(self, monkeypatch):
+        monkeypatch.setattr(
+            srv.urllib.request, "urlopen",
+            lambda _url, timeout=3: _FakeHealthResp(b'{"status": "ok"}'),
+        )
+        pool = LlamaServerPool()
+        pool._wait_healthy(_handle(FakeProc([])))  # alive proc, healthy -> no raise
+
+    def test_process_exit_during_startup_raises_with_log_tail(self):
+        proc = FakeProc([])
+        proc.terminate()  # dead before the first health poll
+        handle = _handle(proc)
+        handle.log_tail.append("error: failed to load model 'm.gguf'")
+        with pytest.raises(LlamaServerError) as excinfo:
+            LlamaServerPool()._wait_healthy(handle)
+        message = str(excinfo.value)
+        assert "exited during startup" in message
+        assert "failed to load model 'm.gguf'" in message  # the tail is surfaced
+
+    def test_timeout_stops_the_server_and_raises(self, monkeypatch):
+        # First read establishes the deadline; every read after jumps past it so the
+        # poll loop exits on its next check. A plain callable (not an exhausting
+        # iterator) is used because logging also calls the patched time.time().
+        ticks = {"n": 0}
+
+        def _fake_time():
+            ticks["n"] += 1
+            return 1000.0 if ticks["n"] == 1 else 1_000_000.0
+
+        monkeypatch.setattr(srv.time, "time", _fake_time)
+        monkeypatch.setattr(srv.time, "sleep", lambda _s: None)
+
+        def _refuse(_url, timeout=3):
+            raise srv.urllib.error.URLError("connection refused")
+
+        monkeypatch.setattr(srv.urllib.request, "urlopen", _refuse)
+        proc = FakeProc([])  # stays alive - it just never becomes healthy
+        with pytest.raises(LlamaServerError, match="did not become healthy"):
+            LlamaServerPool()._wait_healthy(_handle(proc))
+        assert proc.poll() is not None  # the stalled server was terminated
+
+
+class TestChoosePort:
+    def test_configured_free_port_is_used(self):
+        port = _free_port()
+        chosen = LlamaServerPool()._choose_port(_cfg(llamacpp_server_port=port))
+        assert chosen == port
+
+    def test_configured_occupied_port_is_skipped(self):
+        import socket
+
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as occupied:
+            occupied.bind(("127.0.0.1", 0))
+            occupied.listen(1)
+            taken = occupied.getsockname()[1]
+            chosen = LlamaServerPool()._choose_port(_cfg(llamacpp_server_port=taken))
+        assert chosen != taken
+        assert _port_is_free(chosen)
+
+    def test_zero_config_auto_picks_a_free_port(self):
+        chosen = LlamaServerPool()._choose_port(_cfg(llamacpp_server_port=0))
+        assert chosen > 0 and _port_is_free(chosen)
+
+
 class TestPool:
     def test_reuses_server_for_same_key(self, fake_spawn):
         pool = LlamaServerPool()
@@ -262,6 +352,54 @@ class TestPool:
         pool.shutdown_all()
         assert proc.poll() is not None
         assert pool._servers == {}
+
+    def test_inflight_request_not_killed_by_concurrent_new_key(self, monkeypatch, fake_spawn):
+        # A vision call landing during an SSE text re-score must not terminate the
+        # text server mid-POST. chat_completion serializes ensure+post under
+        # _call_lock, so the concurrent new-key request waits until the in-flight
+        # POST returns instead of running _stop_others on the live server.
+        import threading
+        import time
+
+        pool = LlamaServerPool()
+        in_post = threading.Event()
+        release = threading.Event()
+        alive_at_return = {}
+
+        def _blocking_post(self, handle, payload):
+            if handle.model_path == "text.gguf":
+                in_post.set()
+                release.wait(2)
+                alive_at_return["text"] = handle.proc.poll() is None
+            return {"choices": [{"message": {"content": "reply"}}]}
+
+        monkeypatch.setattr(LlamaServerPool, "_post", _blocking_post)
+
+        text_thread = threading.Thread(target=lambda: pool.chat_completion(
+            _cfg(), model_path="text.gguf", mmproj_path="", messages=[], temperature=0.1))
+        text_thread.start()
+        try:
+            assert in_post.wait(2)  # text call is now mid-POST
+            text_proc = pool._servers[("text.gguf", "")].proc
+
+            vision_thread = threading.Thread(target=lambda: pool.chat_completion(
+                _cfg(), model_path="vision.gguf", mmproj_path="mm.gguf",
+                messages=[], temperature=0.1))
+            vision_thread.start()
+
+            # Give a would-be racing _stop_others ample time to fire; with the fix it
+            # can't, because the vision call is blocked on _call_lock.
+            for _ in range(50):
+                if text_proc.poll() is not None:
+                    break
+                time.sleep(0.01)
+            assert text_proc.poll() is None  # text server survived the concurrent call
+        finally:
+            release.set()
+            text_thread.join(2)
+        vision_thread.join(2)
+        assert alive_at_return["text"] is True
+        pool.shutdown_all()
 
     def test_dead_server_is_respawned(self, fake_spawn):
         pool = LlamaServerPool()
@@ -346,3 +484,29 @@ class TestPoolSingleton:
         srv.shutdown_server_pool()
         assert srv.get_server_pool() is not first
         srv.shutdown_server_pool()
+
+    def test_atexit_reaper_terminates_module_pool_server(self, fake_spawn):
+        """Invoking the reaper the atexit hook calls must terminate a live server
+        spawned through the module-global pool (the analyze subprocess relies on
+        this - Windows does not kill the child when its parent process exits)."""
+        srv.shutdown_server_pool()
+        pool = srv.get_server_pool()
+        pool.chat_completion(_cfg(), model_path="m.gguf", mmproj_path="",
+                             messages=[], temperature=0.1)
+        proc = pool._servers[("m.gguf", "")].proc
+        assert proc.poll() is None  # alive before exit
+        srv.shutdown_server_pool()  # what the atexit hook calls
+        assert proc.poll() is not None  # reaped
+
+    def test_shutdown_is_registered_as_atexit_handler(self, monkeypatch):
+        """Reloading the module must register the reaper with atexit so any process
+        (notably the analyze subprocess) cleans up its server on normal exit."""
+        import importlib
+
+        registered: list = []
+        monkeypatch.setattr("atexit.register", lambda fn, *a, **k: registered.append(fn) or fn)
+        reloaded = importlib.reload(srv)
+        try:
+            assert reloaded.shutdown_server_pool in registered
+        finally:
+            importlib.reload(srv)  # restore the real module state for other tests
