@@ -236,7 +236,7 @@ Use these glossary terms in **conversation** too, not just in code. If discussin
 ### Licensing
 - The global "no GPL/AGPL dependencies" rule covers *code* - it does **not** cover the
   thing that actually ships to users' machines here: **model weights and other assets the
-  app downloads or recommends at runtime** (LLM/vision `.gguf` files, Ollama tags, HF
+  app downloads or recommends at runtime** (LLM/vision `.gguf` files, HF
   models). Those are governed by their *own* licences, which are often bespoke (Meta's
   Llama Community License, Google's Gemma Terms) rather than GPL/AGPL, so they slip past the
   dependency check.

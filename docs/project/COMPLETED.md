@@ -6,6 +6,57 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) - see the
 
 ---
 
+## Code-quality review: llama-server bug fixes + transcript-selection unify (done 2026-07-09)
+
+A two-pass code-quality review over the bundled-Vulkan llama.cpp migration (the
+31-commit range that replaced the in-process llama-cpp-python wheel with a bundled
+llama-server over HTTP and removed the Ollama backend), then a whole-codebase sweep
+for subtler issues. Bugs fixed, each with a regression test:
+
+- **Orphaned `llama-server.exe` after CLI analyze runs.** The server pool was reaped
+  only by the web server's FastAPI lifespan; the analyze work runs in a separate CLI
+  subprocess with no such hook, and on Windows a child is not killed when its parent
+  exits - so every local-LLM analyze run leaked a `llama-server.exe` holding RAM/VRAM.
+  Added an `atexit` reaper backstop in `scoring/llamacpp_server.py` (idempotent with
+  the lifespan path).
+- **llama-server pool race could kill an in-flight request.** An in-app frame-analysis
+  (vision model) launched via `asyncio.to_thread` could land during an SSE text
+  re-score; the vision `_ensure_server` ran `_stop_others` and terminated the text
+  server while the re-score thread was mid-POST (which ran outside the lock) -> failed
+  scoring + VRAM thrash. Added a `_call_lock` serializing ensure-server + POST as one
+  unit; the shutdown path stays lock-free so a live server is still reaped promptly.
+- **`--force` clip regeneration crashed on videos with exports.** Clips were cleared
+  with a bulk `query(...).delete()` that bypasses the ORM `delete-orphan` cascade;
+  with `PRAGMA foreign_keys=ON`, regenerating clips for a video that had any tracked
+  export or clip-level retranscript raised `IntegrityError: FOREIGN KEY constraint
+  failed`. Now clears via per-clip `session.delete()` (new `_clear_existing_clips`),
+  so the cascade removes children. Reachable from the `regenerate-clips` route and
+  `analyze --force`.
+
+Also this pass:
+
+- **"Current transcript" selection unified.** ~7 sites picked a track's latest
+  transcript using two different sort keys (`id` vs `created_at`); collapsed into one
+  `latest_track_transcript(track)` helper (`db/models.py`) keyed on `created_at` (the
+  keys cannot disagree in this schema - see `docs/dev/REVIEW_DECISIONS.md`).
+- **Local-model picker error state.** A catalog-fetch failure left the recommended-model
+  picker blank under "pick one and it downloads in a click"; it now shows a
+  plain-English message with a recovery path.
+- **Setup-wizard download errors are now plain English.** The wizard surfaced raw Node
+  errors (e.g. `getaddrinfo ENOTFOUND huggingface.co`); a new `describeDownloadFailure`
+  in `electron/install-error.js` maps common network/disk/permission failures to
+  actionable copy (raw message still logged, never shown).
+- **Accessible readiness marks.** The Settings LLM readiness line conveyed Ready /
+  Not-ready by glyph + color only; it now states the status in words (`Text scoring:
+  Ready` / `Image analysis: Not set up`) with the glyph as an aria-hidden accent.
+- **Richer llama-server pool logging** (Vulkan->CPU fallback reason, spawn build/
+  gpu-layers/device, health-ready timing, kill-after-timeout warning).
+
+Tests: full API suite 2144 green (+10 new), full UI suite 730 green, Electron 126
+green (+4 new), lint clean.
+
+---
+
 ## Vision-model cleanup + custom-model licensing note (done 2026-07-09)
 
 Live-tested the three catalog vision models on a real game frame and cut the two weak
