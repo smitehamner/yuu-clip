@@ -15,6 +15,7 @@ from yuu_clip.scoring.llamacpp_server import (
     _build_args,
     _free_port,
     _port_is_free,
+    has_cpu_fallback,
     pick_gpu_device,
     resolve_server_binary,
 )
@@ -61,7 +62,8 @@ def fake_spawn(monkeypatch):
         spawned.append(args)
         return FakeProc(args)
 
-    monkeypatch.setattr(srv, "resolve_server_binary", lambda _config: "fake-llama-server")
+    monkeypatch.setattr(srv, "resolve_server_binary",
+                        lambda _config, prefer_cpu=False: "fake-llama-server")
     monkeypatch.setattr(srv, "pick_gpu_device", lambda _binary: "Vulkan0")
     monkeypatch.setattr(srv.subprocess, "Popen", _popen)
     monkeypatch.setattr(LlamaServerPool, "_wait_healthy", lambda self, handle: None)
@@ -105,6 +107,52 @@ class TestResolveBinary:
         monkeypatch.setattr(srv.shutil, "which", lambda _name: None)
         with pytest.raises(LlamaServerError, match="was not found"):
             resolve_server_binary(_cfg())
+
+
+class TestBundleLayout:
+    """The packaged bundle dir holds vulkan\\ + cpu\\; resolve prefers vulkan and can
+    fall back to cpu, with a flat layout supported for dev."""
+
+    def _bundle(self, tmp_path, subdirs):
+        for sub in subdirs:
+            d = tmp_path / sub
+            d.mkdir(parents=True, exist_ok=True)
+            (d / srv._server_exe_name()).write_bytes(b"bin")
+        return tmp_path
+
+    def test_prefers_vulkan_subdir(self, monkeypatch, tmp_path):
+        base = self._bundle(tmp_path, ["vulkan", "cpu"])
+        monkeypatch.setenv(srv._ENV_BINARY_DIR, str(base))
+        assert resolve_server_binary(_cfg()) == str(base / "vulkan" / srv._server_exe_name())
+
+    def test_prefer_cpu_picks_cpu_subdir(self, monkeypatch, tmp_path):
+        base = self._bundle(tmp_path, ["vulkan", "cpu"])
+        monkeypatch.setenv(srv._ENV_BINARY_DIR, str(base))
+        assert resolve_server_binary(_cfg(), prefer_cpu=True) == str(base / "cpu" / srv._server_exe_name())
+
+    def test_falls_back_to_cpu_when_no_vulkan(self, monkeypatch, tmp_path):
+        base = self._bundle(tmp_path, ["cpu"])
+        monkeypatch.setenv(srv._ENV_BINARY_DIR, str(base))
+        assert resolve_server_binary(_cfg()) == str(base / "cpu" / srv._server_exe_name())
+
+    def test_flat_layout_supported(self, monkeypatch, tmp_path):
+        (tmp_path / srv._server_exe_name()).write_bytes(b"bin")
+        monkeypatch.setenv(srv._ENV_BINARY_DIR, str(tmp_path))
+        assert resolve_server_binary(_cfg()) == str(tmp_path / srv._server_exe_name())
+
+    def test_has_cpu_fallback_true_when_cpu_present(self, monkeypatch, tmp_path):
+        self._bundle(tmp_path, ["vulkan", "cpu"])
+        monkeypatch.setenv(srv._ENV_BINARY_DIR, str(tmp_path))
+        assert has_cpu_fallback(_cfg()) is True
+
+    def test_has_cpu_fallback_false_when_only_vulkan(self, monkeypatch, tmp_path):
+        self._bundle(tmp_path, ["vulkan"])
+        monkeypatch.setenv(srv._ENV_BINARY_DIR, str(tmp_path))
+        assert has_cpu_fallback(_cfg()) is False
+
+    def test_has_cpu_fallback_false_without_env(self, monkeypatch):
+        monkeypatch.delenv(srv._ENV_BINARY_DIR, raising=False)
+        assert has_cpu_fallback(_cfg()) is False
 
 
 class TestPickGpuDevice:
@@ -246,6 +294,36 @@ class TestPool:
         assert "--n-gpu-layers" not in args
         assert args[args.index("--device") + 1] == "Vulkan0"
         pool.shutdown_all()
+
+    def test_vulkan_failure_falls_back_to_cpu_binary(self, monkeypatch, fake_spawn):
+        # Vulkan build won't start (no runtime); the pool retries with the CPU build
+        # and forces CPU layers. resolve is asked for cpu on the second attempt.
+        def _resolve(config, prefer_cpu=False):
+            if not prefer_cpu:
+                raise LlamaServerError("Vulkan build failed to start")
+            return "cpu-llama-server"
+
+        monkeypatch.setattr(srv, "resolve_server_binary", _resolve)
+        monkeypatch.setattr(srv, "has_cpu_fallback", lambda _config: True)
+        pool = LlamaServerPool()
+        pool.chat_completion(_cfg(llm_use_gpu=True), model_path="m.gguf", mmproj_path="",
+                             messages=[], temperature=0.1)
+        args = fake_spawn[0]
+        assert args[0] == "cpu-llama-server"
+        assert args[args.index("--n-gpu-layers") + 1] == "0"
+        assert "--device" not in args
+        pool.shutdown_all()
+
+    def test_no_fallback_reraises_when_cpu_absent(self, monkeypatch, fake_spawn):
+        monkeypatch.setattr(
+            srv, "resolve_server_binary",
+            lambda config, prefer_cpu=False: (_ for _ in ()).throw(LlamaServerError("boom")),
+        )
+        monkeypatch.setattr(srv, "has_cpu_fallback", lambda _config: False)
+        pool = LlamaServerPool()
+        with pytest.raises(LlamaServerError, match="boom"):
+            pool.chat_completion(_cfg(llm_use_gpu=True), model_path="m.gguf", mmproj_path="",
+                                 messages=[], temperature=0.1)
 
     def test_spawn_failure_surfaces_plain_error(self, monkeypatch, fake_spawn):
         monkeypatch.setattr(

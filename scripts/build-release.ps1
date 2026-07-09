@@ -121,6 +121,10 @@ New-Item -ItemType Directory -Force -Path $sourceOutDir | Out-Null
 Copy-Item "$root\build\ffmpeg-source\*" $sourceOutDir -Force
 Write-Host "FFmpeg source archives copied to $sourceOutDir (ship alongside the installer)"
 
+# ── 4c. Fetch the bundled MIT llama.cpp llama-server runtime (Vulkan + CPU) ──
+Write-Host "`nFetching bundled llama-server runtime..."
+& "$root\scripts\fetch-llama-server-runtime.ps1"
+
 # ── 5. npm run dist ──────────────────────────────────────────────────────────
 Write-Host "`nRunning electron-builder..."
 Push-Location "$root\electron"

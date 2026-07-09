@@ -23,6 +23,7 @@ const { decideSetupMode } = require('./startup-mode');
 const { buildRestoreArgs, parseRestoreExit } = require('./restore-backup');
 const {
   VENV_DIR, VENV_PYTHON, VENV_PIP, BUNDLED_PYTHON, BUNDLED_FFMPEG_DIR,
+  BUNDLED_LLAMA_SERVER_DIR,
   SETUP_LOG, SETUP_COMPLETE_MARKER, WHEEL_MARKER,
   DEFAULT_PROJECT_DIR, BASE_PORT, DEFAULT_OLLAMA_MODEL, DEFAULT_CLAUDE_MODEL,
   DEFAULT_OLLAMA_MODEL_SIZE_GB, DEFAULT_LLAMACPP_MODEL, MODELS_DIR, SETUP_SCHEMA_VERSION,
@@ -943,7 +944,13 @@ function spawnBackend(port) {
   // loud error in find_ffmpeg() instead of silently falling back to PATH, so a
   // packaging bug surfaces immediately (see yuu_clip/config.py find_ffmpeg()).
   const env = { ...process.env };
-  if (app.isPackaged) env.YUU_CLIP_FFMPEG_DIR = BUNDLED_FFMPEG_DIR;
+  if (app.isPackaged) {
+    env.YUU_CLIP_FFMPEG_DIR = BUNDLED_FFMPEG_DIR;
+    // The bundled llama-server dir holds vulkan\ + cpu\; resolve_server_binary
+    // picks between them. Set for the backend so its child analyze subprocess
+    // (which does the LLM/vision scoring) inherits it too.
+    env.YUU_CLIP_LLAMA_SERVER_DIR = BUNDLED_LLAMA_SERVER_DIR;
+  }
 
   logSetup(`Spawning backend: ${VENV_PYTHON} ${args.join(' ')}`);
   pyProc = spawn(VENV_PYTHON, args, {

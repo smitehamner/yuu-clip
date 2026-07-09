@@ -60,19 +60,14 @@ def _server_exe_name() -> str:
     return "llama-server.exe" if os.name == "nt" else "llama-server"
 
 
-def resolve_server_binary(config: Config) -> str:
+def resolve_server_binary(config: Config, prefer_cpu: bool = False) -> str:
     """Locate the llama-server executable. A packaged build sets YUU_CLIP_LLAMA_SERVER_DIR
-    and that dir must contain the binary (a broken bundle should fail loudly, not fall
-    through to PATH); otherwise use the configured path, then PATH."""
+    (holding vulkan\\ + cpu\\ subdirs) and that dir must contain the binary - a broken
+    bundle should fail loudly, not fall through to PATH. Otherwise use the configured
+    path, then PATH. prefer_cpu picks the CPU build (the Vulkan-failed fallback)."""
     env_dir = os.environ.get(_ENV_BINARY_DIR)
     if env_dir:
-        exe = Path(env_dir) / _server_exe_name()
-        if not exe.is_file():
-            raise LlamaServerError(
-                f"{_ENV_BINARY_DIR} is set to {env_dir!r} but {exe.name} is missing there. "
-                "This indicates a broken packaged install - reinstalling yuu-clip should fix it."
-            )
-        return str(exe)
+        return _binary_in_bundle(Path(env_dir), prefer_cpu)
     if config.llamacpp_server_binary:
         if not Path(config.llamacpp_server_binary).is_file():
             raise LlamaServerError(
@@ -86,6 +81,32 @@ def resolve_server_binary(config: Config) -> str:
         "llama-server was not found. It ships with yuu-clip; set its path under "
         "Settings if you installed it elsewhere."
     )
+
+
+def _binary_in_bundle(base: Path, prefer_cpu: bool) -> str:
+    exe = _server_exe_name()
+    subdirs = ("cpu", "vulkan") if prefer_cpu else ("vulkan", "cpu")
+    for sub in subdirs:
+        candidate = base / sub / exe
+        if candidate.is_file():
+            return str(candidate)
+    flat = base / exe  # dev/simple layout: the exe sits directly in the dir
+    if flat.is_file():
+        return str(flat)
+    raise LlamaServerError(
+        f"{_ENV_BINARY_DIR} is set to {base} but no {exe} was found (looked in "
+        "vulkan/, cpu/, and the dir itself). This indicates a broken packaged install "
+        "- reinstalling yuu-clip should fix it."
+    )
+
+
+def has_cpu_fallback(config: Config) -> bool:
+    """Whether a bundled CPU-build llama-server exists to fall back to when the Vulkan
+    build can't start (e.g. a machine with no Vulkan runtime / GPU driver)."""
+    env_dir = os.environ.get(_ENV_BINARY_DIR)
+    if not env_dir:
+        return False
+    return (Path(env_dir) / "cpu" / _server_exe_name()).is_file()
 
 
 def _is_integrated(device_name: str) -> bool:
@@ -188,8 +209,22 @@ class LlamaServerPool:
                 self._servers.pop(key, None)
 
     def _spawn(self, config: Config, model_path: str, mmproj_path: str) -> ServerHandle:
-        binary = resolve_server_binary(config)
-        gpu_layers = 0 if not config.llm_use_gpu else config.llamacpp_server_gpu_layers
+        try:
+            return self._launch(config, model_path, mmproj_path, prefer_cpu=False)
+        except LlamaServerError:
+            if config.llm_use_gpu and has_cpu_fallback(config):
+                _log.warning(
+                    "The GPU (Vulkan) llama-server did not start - falling back to the "
+                    "bundled CPU build (slower). Updating your GPU driver restores acceleration."
+                )
+                return self._launch(config, model_path, mmproj_path, prefer_cpu=True)
+            raise
+
+    def _launch(
+        self, config: Config, model_path: str, mmproj_path: str, prefer_cpu: bool,
+    ) -> ServerHandle:
+        binary = resolve_server_binary(config, prefer_cpu=prefer_cpu)
+        gpu_layers = 0 if (prefer_cpu or not config.llm_use_gpu) else config.llamacpp_server_gpu_layers
         device = pick_gpu_device(binary) if gpu_layers != 0 else None
         port = self._choose_port(config)
         args = _build_args(binary, model_path, mmproj_path, port, gpu_layers, device)

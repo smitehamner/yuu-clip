@@ -37,7 +37,9 @@
       { "from": "../requirements.lock", "to": "requirements.lock" },
       { "from": "../build/python-runtime", "to": "python", "filter": ["**/*", "!.version"] },
       { "from": "../build/ffmpeg-runtime", "to": "ffmpeg", "filter": ["**/*", "!.version"] },
-      { "from": "resources/LICENSE-FFMPEG-GPL.txt", "to": "LICENSE-FFMPEG-GPL.txt" }
+      { "from": "resources/LICENSE-FFMPEG-GPL.txt", "to": "LICENSE-FFMPEG-GPL.txt" },
+      { "from": "../build/llama-server-runtime", "to": "llama-server", "filter": ["**/*", "!.version"] },
+      { "from": "resources/LICENSE-LLAMA-CPP-MIT.txt", "to": "LICENSE-LLAMA-CPP-MIT.txt" }
     ],
     "publish": null
   }

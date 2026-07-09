@@ -21,6 +21,14 @@ const BUNDLED_PYTHON = path.join(process.resourcesPath || '', 'python', 'python.
 // so end users never need to install FFmpeg themselves. Only present in
 // packaged builds - dev mode keeps resolving FFmpeg from PATH.
 const BUNDLED_FFMPEG_DIR = path.join(process.resourcesPath || '', 'ffmpeg');
+
+// Pinned upstream llama.cpp `llama-server` binaries (Vulkan + CPU) bundled into
+// the installer (see scripts/fetch-llama-server-runtime.ps1) so local LLM/vision
+// inference has GPU acceleration with nothing to install. Only present in packaged
+// builds; dev mode resolves llama-server from PATH or config. The dir holds
+// vulkan\ and cpu\ subfolders - the Python side (resolve_server_binary) prefers
+// vulkan and falls back to cpu.
+const BUNDLED_LLAMA_SERVER_DIR = path.join(process.resourcesPath || '', 'llama-server');
 const SETUP_LOG   = path.join(process.env.APPDATA, 'yuu-clip', 'yuu-clip_install.log');
 const SETUP_COMPLETE_MARKER = path.join(process.env.APPDATA, 'yuu-clip', 'setup-complete');
 const WHEEL_MARKER          = path.join(process.env.APPDATA, 'yuu-clip', 'installed-wheel-version');
@@ -56,7 +64,7 @@ const SETUP_SCHEMA_VERSION = 3;
 
 module.exports = {
   VENV_DIR, VENV_PYTHON, VENV_PIP,
-  BUNDLED_PYTHON, BUNDLED_FFMPEG_DIR,
+  BUNDLED_PYTHON, BUNDLED_FFMPEG_DIR, BUNDLED_LLAMA_SERVER_DIR,
   SETUP_LOG, SETUP_COMPLETE_MARKER, WHEEL_MARKER, ELECTRON_CONFIG_PATH,
   DEFAULT_PROJECT_DIR, BASE_PORT,
   DEFAULT_OLLAMA_MODEL, DEFAULT_CLAUDE_MODEL, DEFAULT_OLLAMA_MODEL_SIZE_GB,
