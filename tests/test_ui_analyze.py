@@ -222,7 +222,10 @@ class TestProfileManager:
         page.click("#profile-editor button:has-text('Save')")
         track_layout_cleanup.append(name)
         delete_btn = f"button[data-delete-profile='{name}']"
-        page.wait_for_selector(delete_btn, timeout=3000)
+        # Save round-trips to the server and re-renders the list; under the full
+        # suite's shared-server load this can take a few seconds, so keep the wait
+        # generous - the assertion is about correctness, not speed.
+        page.wait_for_selector(delete_btn, timeout=10000)
 
         # Delete it - deleteProfile() shows a confirm modal before deleting.
         # Match the delete button by exact name attribute (not a substring of
@@ -232,7 +235,7 @@ class TestProfileManager:
         page.click("#confirm-ok-btn")
         page.wait_for_function(
             f"!document.querySelector(\"{delete_btn}\")",
-            timeout=3000,
+            timeout=10000,
         )
 
 

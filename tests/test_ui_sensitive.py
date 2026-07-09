@@ -97,13 +97,28 @@ class TestSensitiveContentSettingsSection:
         _open_settings(page)
         page.get_by_role("button", name="+ Add Sensitive Term").click()
         new_row = page.locator("[data-sensitive-row^='draft-']").last
-        new_row.locator(".st-term").fill("Abc")
+        # Set fuzzy BEFORE the term has a savable value: a per-row auto-save fires
+        # on every field change, and a short EXACT term is valid (no min length),
+        # so filling the term while the mode is still the default 'exact' can
+        # persist "Abc" before fuzzy is chosen - which both defeats the test's
+        # intent and pollutes the shared dev DB for the next run. With the mode
+        # already fuzzy, any change event trips the client guard and never POSTs.
         new_row.locator(".st-mode").select_option("fuzzy")
-        expect(new_row.locator(".st-fuzzy-warning")).to_be_visible()
-        expect(new_row.locator(".st-fuzzy-warning")).to_contain_text("at least 4 characters")
-        # Blocked client-side - no draft should have reached the server.
-        terms = page.evaluate("() => fetch('/api/sensitive-terms').then(r => r.json())")
-        assert not any(t["term"] == "Abc" for t in terms)
+        new_row.locator(".st-term").fill("Abc")
+        new_row.locator(".st-term").dispatch_event("change")
+        try:
+            expect(new_row.locator(".st-fuzzy-warning")).to_be_visible()
+            expect(new_row.locator(".st-fuzzy-warning")).to_contain_text("at least 4 characters")
+            # Blocked client-side - no draft should have reached the server.
+            terms = page.evaluate("() => fetch('/api/sensitive-terms').then(r => r.json())")
+            assert not any(t["term"] == "Abc" for t in terms)
+        finally:
+            # Defensive: guarantee the shared DB carries no "Abc" into later runs.
+            page.evaluate(
+                "() => fetch('/api/sensitive-terms').then(r => r.json()).then(list =>"
+                " Promise.all(list.filter(t => t.term === 'Abc')"
+                ".map(t => fetch(`/api/sensitive-terms/${t.id}`, {method: 'DELETE'}))))"
+            )
 
 
 @skip_no_server
