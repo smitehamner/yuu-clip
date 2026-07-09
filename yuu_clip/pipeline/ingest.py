@@ -598,11 +598,13 @@ def _rediarize_video(session, config, video) -> int:
     diarize_track). Clips, scores, and transcript text are left untouched. Named
     Speakers re-attach to matching voices by voiceprint. Returns the track count.
     """
+    from yuu_clip.db.models import latest_track_transcript
+
     transcripts = []
     for track in video.audio_tracks:
         if not track.do_transcribe or not track.transcripts:
             continue
-        transcripts.append(max(track.transcripts, key=lambda t: t.id))
+        transcripts.append(latest_track_transcript(track))
 
     if not transcripts:
         console.print("[yellow]No transcripts found - analyze the recording first.[/yellow]")
@@ -667,8 +669,10 @@ def _regenerate_clips(session, config, video) -> list:
     Clears the video-level "fully scored" marker since the new clips are unscored until a
     re-score runs. Returns the new candidates.
     """
+    from yuu_clip.db.models import latest_track_transcript
+
     transcripts = [
-        max(track.transcripts, key=lambda t: t.id)
+        latest_track_transcript(track)
         for track in video.audio_tracks
         if track.do_transcribe and track.transcripts
     ]
@@ -684,6 +688,21 @@ def _regenerate_clips(session, config, video) -> list:
     return candidates
 
 
+def _clear_existing_clips(session, video_id: int) -> int:
+    """Delete a video's existing clips (for a --force regeneration), cascading to
+    each clip's children via the ORM. A bulk ``query(...).delete()`` bypasses the
+    ORM relationship cascade and would trip SQLite's ``foreign_keys=ON`` constraint
+    on ``clip_exports.clip_id`` / ``transcripts.clip_id`` (no ON DELETE CASCADE at
+    the DB level) whenever a clip had a tracked export or a clip-level retranscript.
+    """
+    from yuu_clip.db.models import ClipCandidate
+
+    clips = session.query(ClipCandidate).filter_by(video_id=video_id).all()
+    for clip in clips:
+        session.delete(clip)
+    return len(clips)
+
+
 def _generate_candidates(video, transcripts, config, session, no_segment, no_transcribe, force) -> list:
     """Generate sliding-window clip candidates from the transcripts, if conditions are met."""
     from yuu_clip.segments.windower import generate_candidates
@@ -697,8 +716,7 @@ def _generate_candidates(video, transcripts, config, session, no_segment, no_tra
         return []
 
     if force:
-        from yuu_clip.db.models import ClipCandidate
-        deleted = session.query(ClipCandidate).filter_by(video_id=video.id).delete()
+        deleted = _clear_existing_clips(session, video.id)
         if deleted:
             console.print(f"  [dim]  Cleared {deleted} existing clips (--force)[/dim]")
 

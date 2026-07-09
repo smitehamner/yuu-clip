@@ -862,6 +862,42 @@ class TestTranscriptionIdempotency:
         finally:
             session.close()
 
+    def test_force_regeneration_clears_clips_with_exports_and_clip_transcripts(self, tmp_path):
+        # Regression: --force clip regeneration must cascade-delete each clip's
+        # tracked exports and clip-level retranscripts. A bulk query().delete()
+        # bypasses the ORM cascade and trips SQLite's foreign_keys=ON constraint
+        # (clip_exports.clip_id / transcripts.clip_id have no ON DELETE CASCADE).
+        from unittest import mock
+
+        from yuu_clip.config import Config
+        from yuu_clip.db.models import ClipCandidate, ClipExport, Transcript
+        from yuu_clip.pipeline import ingest as _pipeline
+
+        session, video, track = self._make_video_and_track(tmp_path)
+        track_transcript = self._seed_transcript(session, track)
+        clip = ClipCandidate(video_id=video.id, start_ms=0, end_ms=10_000, status="pending")
+        session.add(clip)
+        session.flush()
+        self._seed_transcript(session, track, clip_id=clip.id, text="clip-level")
+        session.add(ClipExport(
+            clip_id=clip.id, preset_name="default",
+            path=str(tmp_path / "c.mp4"), container="mp4",
+        ))
+        session.flush()
+
+        try:
+            with mock.patch("yuu_clip.segments.windower.generate_candidates", return_value=[]):
+                _pipeline._generate_candidates(
+                    video, [track_transcript], Config(), session,
+                    no_segment=False, no_transcribe=False, force=True,
+                )
+            session.flush()
+            assert session.query(ClipCandidate).filter_by(video_id=video.id).count() == 0
+            assert session.query(ClipExport).count() == 0
+            assert session.query(Transcript).filter_by(clip_id=clip.id).count() == 0
+        finally:
+            session.close()
+
 
 # ---------------------------------------------------------------------------
 # Process-tree termination - cancel must kill ffmpeg grandchildren, not orphan them
@@ -1726,6 +1762,11 @@ class TestStageRerunEndpoints:
     def test_stage_reruns_404_for_missing_video(self, client):
         for path in ("reextract", "retranscribe", "regenerate-clips"):
             assert client.get(f"/api/videos/99999/{path}").status_code == 404
+
+    def test_video_retranscribe_rejects_unknown_model(self, client):
+        vid_id = client.get("/api/videos").json()[0]["id"]
+        r = client.get(f"/api/videos/{vid_id}/retranscribe?model=gpt-4o")
+        assert r.status_code == 400
 
 
 # ---------------------------------------------------------------------------

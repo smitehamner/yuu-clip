@@ -15,7 +15,13 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from yuu_clip.config import Config
-from yuu_clip.db.models import ClipCandidate, Transcript, TranscriptSegment, Video
+from yuu_clip.db.models import (
+    ClipCandidate,
+    Transcript,
+    TranscriptSegment,
+    Video,
+    latest_track_transcript,
+)
 from yuu_clip.log import get_logger
 
 if TYPE_CHECKING:
@@ -137,7 +143,7 @@ def clip_window_segments(video: Video, start_ms: int, end_ms: int) -> list[Trans
     for track in video.audio_tracks:
         if not track.do_transcribe or not track.transcripts:
             continue
-        transcript = max(track.transcripts, key=lambda t: t.created_at)
+        transcript = latest_track_transcript(track)
         segs.extend(
             seg for seg in transcript.segments
             if seg.start_ms < end_ms and seg.end_ms > start_ms

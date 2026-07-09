@@ -22,6 +22,7 @@ from yuu_clip.db.models import (
     Transcript,
     TranscriptSegment,
     Video,
+    latest_track_transcript,
 )
 from yuu_clip.export.naming import DEFAULT_EXPORT_NAME_TEMPLATE
 from yuu_clip.export.paths import all_sidecar_paths, clip_export_row_files, clip_stem
@@ -851,7 +852,7 @@ def _migrate_transcript_to_segments(
     for track in parent.audio_tracks:
         if not track.do_transcribe or track.label == "game_sounds" or not track.transcripts:
             continue
-        transcript = max(track.transcripts, key=lambda t: t.created_at)
+        transcript = latest_track_transcript(track)
 
         by_segment: dict[int, list] = {}
         for seg in transcript.segments:

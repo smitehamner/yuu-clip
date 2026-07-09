@@ -523,6 +523,22 @@ class Transcript(Base):
         return " ".join(s.text.strip() for s in self.segments)
 
 
+def latest_track_transcript(track):
+    """Return a track's current (newest) track-level transcript, or None if it has none.
+
+    "Current" is the most recently created transcript. Every read of a track's live
+    transcript goes through this so the same selection rule holds across the pipeline,
+    caption generation, clip windowing, and the web routes. ``track.transcripts`` is
+    already filtered to track-level rows (clip_id IS NULL); clip retranscriptions are
+    handled separately by their callers. Duck-typed on ``.transcripts`` so tests can
+    pass lightweight track stand-ins.
+    """
+    transcripts = track.transcripts
+    if not transcripts:
+        return None
+    return max(transcripts, key=lambda transcript: transcript.created_at)
+
+
 class TranscriptSegment(Base):
     __tablename__ = "transcript_segments"
 

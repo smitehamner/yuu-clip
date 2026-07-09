@@ -9,6 +9,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Iterable, NamedTuple
 
+from yuu_clip.db.models import latest_track_transcript
+
 
 class SubLine(NamedTuple):
     start_ms: int
@@ -138,7 +140,7 @@ def collect_clip_subtitles(clip) -> dict[str, list[SubLine]]:
         if track.id in clip_tx_by_track:
             transcript = clip_tx_by_track[track.id]
         elif track.transcripts:
-            transcript = max(track.transcripts, key=lambda t: t.created_at)
+            transcript = latest_track_transcript(track)
         else:
             continue
         lines: list[SubLine] = []
@@ -235,7 +237,7 @@ def export_video_transcript_srt(video, output_path: Path) -> Path:
     for track in transcribed_tracks:
         if not track.transcripts:
             continue
-        transcript = max(track.transcripts, key=lambda t: t.created_at)
+        transcript = latest_track_transcript(track)
         lines = [
             SubLine(seg.start_ms, seg.end_ms, seg.text, _segment_speaker(seg))
             for seg in transcript.segments
@@ -320,7 +322,7 @@ def video_transcript_lines(video) -> list[dict]:
     for track in video.audio_tracks:
         if not track.do_transcribe or track.label == "game_sounds" or not track.transcripts:
             continue
-        transcript = max(track.transcripts, key=lambda t: t.created_at)
+        transcript = latest_track_transcript(track)
         lines.extend(
             SubLine(
                 seg.start_ms, seg.end_ms, seg.text, _segment_speaker(seg), getattr(seg, "id", None),
