@@ -10,6 +10,7 @@ function _applyFilters() {
     else if (f.has('not-exported') && !f.has('exported')) result = result.filter(c => !c.has_export);
     if (f.has('error')) result = result.filter(c => (c.tags || []).includes('llm_error'));
     if (f.has('flagged')) result = result.filter(c => (c.sensitive_matches || []).length > 0);
+    if (f.has('duplicate')) result = result.filter(c => (c.tags || []).includes('possible_duplicate'));
   }
   if (AppState.clipScoreMin > 0) result = result.filter(c => c.score_overall >= AppState.clipScoreMin);
   if (AppState.clipSearch) {
@@ -58,20 +59,23 @@ function _renderClipFilterCounts() {
     if (badge) badge.textContent = value == null ? '' : String(value);
   };
   if (!AppState.activeVideoId || !AppState.clips.length) {
-    for (const key of ['all', 'pending', 'approved', 'rejected', 'error']) setCount(key, null);
+    for (const key of ['all', 'pending', 'approved', 'rejected', 'error', 'duplicate']) setCount(key, null);
     return;
   }
   const counts = {pending: 0, approved: 0, rejected: 0};
   let errorCount = 0;
+  let duplicateCount = 0;
   for (const c of AppState.clips) {
     counts[c.status] = (counts[c.status] || 0) + 1;
     if ((c.tags || []).includes('llm_error')) errorCount++;
+    if ((c.tags || []).includes('possible_duplicate')) duplicateCount++;
   }
   setCount('all', AppState.clips.length);
   setCount('pending', counts.pending);
   setCount('approved', counts.approved);
   setCount('rejected', counts.rejected);
   setCount('error', errorCount || null);
+  setCount('duplicate', duplicateCount || null);
 }
 
 function _renderClipStatsLine(shown) {
@@ -194,6 +198,7 @@ function _renderClipItems(clips) {
         <span class="status-dot dot-${c.status}" title="${c.status === 'approved' ? 'Approved' : c.status === 'rejected' ? 'Rejected' : 'Unreviewed'}">${c.status === 'approved' ? '✓' : c.status === 'rejected' ? '✕' : ''}</span>
         ${(c.tags || []).includes('llm_error') ? '<span class="clip-error-badge" title="LLM scoring failed - Re-score to retry">&#9888;</span>' : ''}
         ${(c.sensitive_matches || []).length ? '<span class="clip-flag-badge" title="Contains flagged terms">&#9888;</span>' : ''}
+        ${(c.tags || []).includes('possible_duplicate') ? '<span class="clip-dup-badge" title="Overlaps another clip - possible duplicate">&#8646;</span>' : ''}
       </div>
       <div class="clip-scores" aria-label="${c.scored_at ? `Scores: overall ${Math.round(c.score_overall*100)}%, funny ${Math.round(c.score_funny*100)}%, dramatic ${Math.round(c.score_dramatic*100)}%, action ${Math.round(c.score_action*100)}%${c.score_laugh != null ? `, laughs ${Math.round(c.score_laugh*100)}%` : ''}` : 'Not yet scored'}">
         ${c.scored_at ? `
@@ -481,6 +486,8 @@ function renderDetail(clip) {
         <span class="time">${clip.start_hms} &middot; ${clip.duration_hms}</span>
       </div>
     </div>
+
+    ${_duplicateNoticeHTML(clip)}
 
     ${scoringActionsHtml}
 
@@ -953,6 +960,52 @@ async function _doMergeClips(clipAId, clipBId) {
   showToast('Clips merged');
 }
 
+// Mirrors DEFAULT_OVERLAP_THRESHOLD in scoring/dedup.py. The durable flag/badge
+// comes from a server scan (the 'possible_duplicate' tag); this recomputes the
+// specific overlapping partner client-side so the detail panel can name it and
+// offer a one-click merge without depending on the last scan's response.
+const _DUP_OVERLAP_THRESHOLD = 0.7;
+
+function _duplicatePartners(clip) {
+  return AppState.clips
+    .filter(other => other.id !== clip.id && other.status !== 'rejected')
+    .map(other => {
+      const overlapMs = Math.max(0, Math.min(clip.end_ms, other.end_ms) - Math.max(clip.start_ms, other.start_ms));
+      const shorterMs = Math.min(clip.end_ms - clip.start_ms, other.end_ms - other.start_ms);
+      return {clip: other, ratio: shorterMs > 0 ? overlapMs / shorterMs : 0};
+    })
+    .filter(partner => partner.ratio >= _DUP_OVERLAP_THRESHOLD)
+    .sort((a, b) => b.ratio - a.ratio);
+}
+
+function _duplicateNoticeHTML(clip) {
+  if (!(clip.tags || []).includes('possible_duplicate')) return '';
+  const partners = _duplicatePartners(clip);
+  if (!partners.length) return '';
+  const buttons = partners.map(partner => {
+    const direction = partner.clip.start_ms < clip.start_ms ? 'prev' : 'next';
+    return `<button class="btn" style="font-size:11px;padding:3px 9px" onclick="mergeClips(${clip.id}, ${partner.clip.id}, '${direction}')">Merge #${partner.clip.id} &middot; ${partner.clip.start_hms}</button>`;
+  }).join('');
+  const ids = partners.map(partner => '#' + partner.clip.id).join(', ');
+  return `<div class="clip-dup-notice" role="note">
+    <div>&#8646; Possible duplicate - overlaps ${partners.length === 1 ? 'clip' : 'clips'} ${ids}. Merge to combine into this clip.</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">${buttons}</div>
+  </div>`;
+}
+
+async function scanDuplicates() {
+  const videoId = AppState.activeVideoId;
+  if (!videoId) return;
+  const res = await fetch(`/api/videos/${videoId}/scan-duplicates`, {method: 'POST'});
+  if (!res.ok) { const e = await res.json().catch(() => ({})); showToast(e.detail || 'Duplicate scan failed', 'error'); return; }
+  const body = await res.json();
+  await _reloadClipList(videoId);
+  if (AppState.activeClipId) refreshClipDetail(AppState.activeClipId);
+  showToast(body.clips_flagged
+    ? `Found ${body.clips_flagged} possible duplicate ${body.clips_flagged === 1 ? 'clip' : 'clips'}`
+    : 'No duplicate clips found');
+}
+
 function _parseTimingOffset(str) {
   if (!str) return 0.0;
   const s = str.trim();
@@ -1231,7 +1284,7 @@ Object.assign(window, {
   toggleClipFilter, _syncFilterChips, setClipSearch, setClipScoreMin, _clearClipFilters,
   _applyFilters, _renderClips, _parseTimingOffset, _reloadClipList,
   _renderClipFilterCounts, toggleClipSortDir,
-  deleteClip, deleteExport, mergeClips,
+  deleteClip, deleteExport, mergeClips, scanDuplicates,
   openScoreOverride, closeScoreOverrideModal, _scoreOverrideSave, clearScoreOverride,
   openDescKebab, openDescLongKebab,
   startFindSimilar, openSimilarClipsModal, closeSimilarClipsModal,

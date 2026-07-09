@@ -54,6 +54,7 @@ Each clip detail view shows:
 - **Clip search** - text input above the filter chips; searches description, long description, transcript excerpt, and your tags (case-insensitive). Composes with the chip and score filters.
 - **Filter chips** - multi-select chips that combine: status (Unreviewed / Approved / Rejected), Exported / Not exported (mutually exclusive), and Score error. "All" clears every chip.
 - **Minimum score filter** - dropdown (Any / 0.3+ / 0.5+ / 0.7+ / 0.9+) that hides clips below the selected overall score threshold. Composes with the search and chip filters.
+- **Check duplicates** - a button above the clip list scans the recording for clips whose time ranges heavily overlap (the same moment captured twice, e.g. after re-analyzing). Overlapping clips get a "possible duplicate" badge and a matching filter chip, and each one's detail panel names its overlapping partner with a one-click **Merge** into the current clip. Merging clears the flag.
 
 Actions available per clip: **Approve** / **Reject** and **Export** sit directly on the clip
 detail panel; everything else is grouped behind an **Additional Actions** button (Review /

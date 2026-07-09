@@ -67,3 +67,15 @@ def test_rescan_clears_stale_tag_after_one_side_rejected(client):
 
 def test_scan_unknown_video_returns_404(client):
     assert client.post("/api/videos/999999/scan-duplicates").status_code == 404
+
+
+def test_merging_clears_the_duplicate_tag_from_survivor(client):
+    video_id = _video_id(client)
+    survivor_id, partner_id = _add_overlapping_pair(client, video_id)
+    client.post(f"/api/videos/{video_id}/scan-duplicates")
+    assert DUPLICATE_TAG in _tags(client, survivor_id)
+
+    res = client.post(f"/api/clips/{survivor_id}/merge", json={"clip_b_id": partner_id})
+
+    assert res.status_code == 200
+    assert DUPLICATE_TAG not in _tags(client, survivor_id)

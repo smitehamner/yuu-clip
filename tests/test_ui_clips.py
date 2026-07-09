@@ -603,3 +603,64 @@ class TestBulkExportStaleWarning:
             page.click(".clip-bulk-actions button:has-text('Export')")
         assert f"clip_ids={clip_id}" in req_info.value.url
         expect(page.locator("#confirm-modal")).not_to_be_visible()
+
+
+# ---------------------------------------------------------------------------
+# Possible-duplicate detection: badge, filter chip, detail merge notice
+# ---------------------------------------------------------------------------
+
+@skip_no_server
+class TestDuplicateDetection:
+    """The 'possible_duplicate' tag drives a sidebar badge and a filter chip;
+    the detail panel names the overlapping partner and offers a merge."""
+
+    def _dup_clip(self, clip_id: int, start_ms: int, end_ms: int, tags: list[str]) -> dict:
+        return {
+            "id": clip_id, "status": "pending", "scored_at": "2026-07-04T00:00:00+00:00",
+            "start_ms": start_ms, "end_ms": end_ms, "start_hms": "00:00", "duration_hms": "00:05",
+            "has_export": False, "export_stale": False, "export_stale_reasons": [], "exports": [],
+            "sensitive_matches": [], "hotword_matches": [], "description": "", "tags": tags,
+            "score_overall": 0.5, "score_funny": 0.5, "score_dramatic": 0.3, "score_action": 0.2, "score_laugh": None,
+        }
+
+    def _render(self, page: Page, clips: list[dict]) -> None:
+        page.wait_for_function("typeof _renderClips === 'function' && typeof AppState === 'object'")
+        page.evaluate(
+            "(clips) => { AppState.clips = clips; AppState.activeVideoId = 1; AppState.clipFilters = new Set();"
+            " AppState.clipSearch = ''; AppState.clipScoreMin = 0; _renderClips(); }",
+            clips,
+        )
+
+    def test_badge_shows_only_on_tagged_clip(self, page: Page):
+        page.goto(LIVE_URL)
+        self._render(page, [
+            self._dup_clip(1, 0, 60_000, ["possible_duplicate"]),
+            self._dup_clip(2, 120_000, 180_000, []),
+        ])
+        assert page.locator("li[data-clip-id='1'] .clip-dup-badge").count() == 1
+        assert page.locator("li[data-clip-id='2'] .clip-dup-badge").count() == 0
+
+    def test_filter_shows_only_flagged_clips(self, page: Page):
+        page.goto(LIVE_URL)
+        self._render(page, [
+            self._dup_clip(1, 0, 60_000, ["possible_duplicate"]),
+            self._dup_clip(2, 120_000, 180_000, []),
+        ])
+        page.evaluate("() => { AppState.clipFilters = new Set(['duplicate']); _renderClips(); }")
+        expect(page.locator("li[data-clip-id='1']")).to_have_count(1)
+        expect(page.locator("li[data-clip-id='2']")).to_have_count(0)
+
+    def test_detail_notice_offers_merge_with_overlapping_partner(self, page: Page):
+        select_first_video_and_clip(page)
+        page.wait_for_function("() => AppState.activeClipData && typeof renderDetail === 'function'")
+        page.evaluate(
+            """() => {
+              const active = AppState.activeClipData;
+              active.tags = ['possible_duplicate'];
+              const partner = {...active, id: 999999, status: 'pending', start_hms: active.start_hms};
+              AppState.clips = [active, partner];
+              renderDetail(active);
+            }"""
+        )
+        expect(page.locator(".clip-dup-notice")).to_be_visible()
+        assert page.locator(".clip-dup-notice button[onclick*='999999']").count() == 1

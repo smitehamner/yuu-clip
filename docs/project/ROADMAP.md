@@ -29,34 +29,27 @@ plan link to it; items still needing a scope decision or blocked on something
 external say so instead. Full detail/rationale for each is kept in
 internal planning notes (not part of this repo).
 
-1. **Distribution licence decision** (§2) - blocked only on your choice
-   (MIT/GPL-3/source-available/BSL), everything else is mechanical once
-   decided. Plan: (internal planning notes).
-2. **Finish the JS module-scoping refactor** (§4) - small, mechanical,
-   closes long-standing tech debt with a settled design decision already
-   made. Plan: (internal planning notes).
-3. **Clip deduplication** (§5) - now unblocked (transcript editing shipped),
-   scoped enough to stage directly, reuses the existing `merge_clips` route.
-   Plan: (internal planning notes).
-4. **Colour-picker component + accent-colour themes** (§4) - real feature
+1. **Colour-picker component + accent-colour themes** (§4) - real feature
    work, larger, needs a fresh session and careful WCAG-contrast handling
    across the new theme matrix. Plan: (internal planning notes).
-5. **Clips vs Scenes** (§5) - now unblocked but needs a scope Q&A session
+2. **Clips vs Scenes** (§5) - now unblocked but needs a scope Q&A session
    before staging (storage design has wide blast radius). Plan (captured, not
    staged): (internal planning notes).
-6. **FFmpeg source-hosting once public** (§2) - short checklist, but blocked
-   on the repo going public; do alongside item 1 if/when that happens. Plan:
-   (internal planning notes).
-7. **Linux compatibility** (§6) - large; split into a smaller "backend runs
+3. **FFmpeg source-hosting once public** (§2) - short checklist, but blocked
+   on the repo going public. Plan: (internal planning notes).
+4. **Linux compatibility** (§6) - large; split into a smaller "backend runs
    on Linux" phase and a much larger "packaged Electron app" phase that's
    only worth starting given real user demand. Plan:
    (internal planning notes).
-8. **UI localization (i18n)** (§6) - large, and the roadmap already says
+5. **UI localization (i18n)** (§6) - large, and the roadmap already says
    English-only is fine for now; scope captured but deliberately not staged.
    Plan: (internal planning notes).
 
-(Done 2026-07-07: **analyze pipeline idempotency** - was item 1; the reachable
-`--force` `Transcript`-duplication bug is fixed. See COMPLETED.md.)
+(Done 2026-07-07: **analyze pipeline idempotency** - the reachable `--force`
+`Transcript`-duplication bug is fixed. Done 2026-07-09: **distribution licence**
+- Apache-2.0 chosen and rolled out; **JS module-scoping refactor** -
+`analyze.js`/`split.js` IIFE-wrapped; **clip deduplication** - overlap scan +
+one-click merge. See COMPLETED.md.)
 
 Not re-ranked (already blocked on something outside this roadmap, or
 deliberately deferred/on-hold/shelved - see their entries below for why):
@@ -194,10 +187,10 @@ Wanted before distributing beyond friends/trusted users.
   Transcript editing is now stable (dependency satisfied) but this still needs its own
   scope Q&A before staging. Plan (captured, not staged): (internal planning notes).
 
-- [ ] **Clip deduplication** - detect and merge near-duplicate clips (the same event captured in
+- [x] **Clip deduplication** - detect and merge near-duplicate clips (the same event captured in
   overlapping windows from different segmentation passes), surfaced via the existing
-  `merge_clips` route. Transcript editing is now stable; this is scoped enough to stage
-  directly. Plan: (internal planning notes).
+  `merge_clips` route. Shipped 2026-07-09 (`scoring/dedup.py` + `POST /api/videos/{id}/scan-duplicates`
+  + review-UI badge/filter/merge notice). See COMPLETED.md.
 
 - [ ] **Quality presets** *(on hold)* - named compute bundles ("Fast draft" / "Balanced" /
   "Max quality") that pick a matched set of Whisper model, energy mode, scene mode, and scoring

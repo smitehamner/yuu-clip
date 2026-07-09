@@ -6,6 +6,30 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) - see the
 
 ---
 
+## Clip deduplication - near-duplicate overlap detection + one-click merge (done 2026-07-09)
+
+Detects when two clip candidates on the same recording capture the same moment via
+overlapping windows (e.g. a re-analyze pass producing a second, overlapping candidate
+set) and lets the reviewer merge them with the existing merge mechanics.
+
+- **Detection** (`scoring/dedup.py`): `find_duplicate_candidates()` flags live-clip
+  pairs whose windows overlap by >= 70% of the shorter clip (pure timestamp overlap,
+  no content similarity - this is a segmentation artifact, not cross-clip similarity).
+  Rejected clips excluded; deterministic earlier-first ordering.
+- **Scan route** (`web/routes/dedup.py`): `POST /api/videos/{id}/scan-duplicates`
+  runs detection, writes a `possible_duplicate` system tag (survives reload, stays
+  filterable), and clears the tag from clips no longer flagged on re-scan. Mirrors the
+  sensitive-rescan route shape.
+- **Review UI** (`clips.js`, `index.html`, `app.css`): a "Check duplicates" button
+  above the clip list, a `possible_duplicate` sidebar badge + filter chip, and a detail
+  notice that names the overlapping partner (computed client-side) with a one-click
+  Merge into the current clip. The merge route now clears the stale duplicate flag from
+  the survivor.
+- **Tests:** `tests/test_dedup.py` (overlap-ratio boundaries, video scoping, rejected
+  exclusion), `tests/test_dedup_route.py` (tagging, stale-tag cleanup, merge clears the
+  tag, 404), and `tests/test_ui_clips.py::TestDuplicateDetection` (badge, filter,
+  detail merge notice); plus an `--accent2` on `--surface` contrast assertion.
+
 ## Remove pre-release DB migration code + de-flake two UI tests (done 2026-07-09)
 
 Follow-up to the code-quality review.

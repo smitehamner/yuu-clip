@@ -129,6 +129,11 @@ class TestContrastTokens:
         # .description, .video-title, .timeline-stamp render accent2 as body text
         assert self._ratio(page, theme, "--accent2", "--bg") >= AA_NORMAL_TEXT
 
+    def test_accent2_text_on_surface(self, page: Page, theme: str):
+        # .clip-dup-badge and .sensitive-category-privacy render accent2 on the
+        # sidebar/card surface
+        assert self._ratio(page, theme, "--accent2", "--surface") >= AA_NORMAL_TEXT
+
     def test_text_on_surface(self, page: Page, theme: str):
         assert self._ratio(page, theme, "--text", "--surface") >= AA_NORMAL_TEXT
 

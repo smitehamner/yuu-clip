@@ -1034,6 +1034,8 @@
         <div style="display:flex;align-items:center;gap:8px">
           <button class="btn ghost" id="btn-new-clip" style="font-size:11px;padding:3px 9px" title="Pick a time range to create a clip by hand"
                   onclick="openClipCreatePicker(AppState.activeVideoId)">+ New clip</button>
+          <button class="btn ghost" id="btn-scan-duplicates" style="font-size:11px;padding:3px 9px" title="Find clips whose time ranges heavily overlap - likely the same moment captured twice"
+                  onclick="scanDuplicates()">Check duplicates</button>
           <span style="font-size:10px;color:var(--muted)">Sort</span>
           <select id="clips-sort" class="clips-sort-select" aria-label="Sort clips by" onchange="onClipsSortChange()">
             <option value="score">&#11088; Overall</option>
@@ -1068,6 +1070,7 @@
         <button class="clip-chip"        aria-pressed="false" data-filter="not-exported" onclick="toggleClipFilter('not-exported')">Not exported</button>
         <button class="clip-chip"        aria-pressed="false" data-filter="error"        onclick="toggleClipFilter('error')" title="Clips whose LLM scoring failed">&#9888; Score error<span class="clip-chip-count" data-count="error"></span></button>
         <button class="clip-chip"        aria-pressed="false" data-filter="flagged"      onclick="toggleClipFilter('flagged')" title="Clips containing a Sensitive Terms match">&#9888; Flagged</button>
+        <button class="clip-chip"        aria-pressed="false" data-filter="duplicate"    onclick="toggleClipFilter('duplicate')" title="Clips flagged as possible duplicates by the last scan">&#8646; Duplicates<span class="clip-chip-count" data-count="duplicate"></span></button>
       </div>
       <div class="clip-bulk-toolbar" id="clip-bulk-toolbar" style="display:none">
         <span id="clip-bulk-count">0 selected</span>

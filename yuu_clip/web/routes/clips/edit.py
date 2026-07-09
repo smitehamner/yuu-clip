@@ -14,6 +14,7 @@ from fastapi import APIRouter, HTTPException
 from yuu_clip.db.models import ClipCandidate, Video
 from yuu_clip.export.paths import all_sidecar_paths, clip_export_row_files
 from yuu_clip.log import get_logger
+from yuu_clip.scoring.dedup import DUPLICATE_TAG
 from yuu_clip.web.deps import ProjectContext
 from yuu_clip.web.file_deletion import delete_files
 from yuu_clip.web.routes.clips.schemas import (
@@ -122,6 +123,10 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
             clip_a.exported_burn_subs = None
             clip_a.exported_embed_subs = None
             clip_a.exported_title_card = None
+            # The merged window makes any prior possible-duplicate flag stale
+            # (its specific partner is now gone); a re-scan re-flags if it still
+            # overlaps a third clip.
+            clip_a.tags = [tag for tag in clip_a.tags if tag != DUPLICATE_TAG]
 
             video = db.get(Video, clip_a.video_id)
             delete_files([
