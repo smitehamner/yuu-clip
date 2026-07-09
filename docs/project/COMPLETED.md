@@ -6,6 +6,29 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) - see the
 
 ---
 
+## Remove pre-release DB migration code + de-flake two UI tests (done 2026-07-09)
+
+Follow-up to the code-quality review.
+
+- **Removed the forward-only DB migration code** (`db/models.py` `_migrate` and
+  `_backfill_clip_exports`, plus their `make_engine` calls). Pre-release there is no
+  old on-disk schema to migrate: a fresh DB gets the full current schema from the
+  ORM's `create_all`, and the sole dev DB is already migrated. Migration support is
+  intentionally deferred until after the first release. `Video.path` carries no
+  `unique=True`, so `create_all` already produces the constraint-free schema the old
+  UNIQUE(path)-drop migration used to reach. The engine invariants (NullPool +
+  busy_timeout) moved to a new `tests/test_db_engine.py`; the migration-specific tests
+  and the export-backfill test class were removed.
+- **De-flaked two UI tests** that failed intermittently under the 4-worker suite
+  (both passed in isolation). The sensitive fuzzy-block test now selects the fuzzy
+  mode before the term has a savable value, so the per-row auto-save can't persist a
+  short exact term and pollute the shared dev DB; the profile create/delete test uses
+  generous (10s) waits after its network round-trips instead of 3s.
+
+Tests: full API suite 2138 green; affected UI files + smoke 82 green; lint clean.
+
+---
+
 ## Code-quality review: llama-server bug fixes + transcript-selection unify (done 2026-07-09)
 
 A two-pass code-quality review over the bundled-Vulkan llama.cpp migration (the
