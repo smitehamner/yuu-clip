@@ -37,10 +37,7 @@ const ELECTRON_CONFIG_PATH  = path.join(process.env.APPDATA, 'yuu-clip', 'electr
 const DEFAULT_PROJECT_DIR = path.join(process.env.USERPROFILE, 'Videos', 'yuu-clip');
 const BASE_PORT = 8080;
 
-const DEFAULT_OLLAMA_MODEL = 'qwen2.5:7b';  // Apache-2.0 (monetization-safe)
 const DEFAULT_CLAUDE_MODEL = 'claude-haiku-4-5-20251001';
-// Approx on-disk size of DEFAULT_OLLAMA_MODEL (qwen2.5:7b), for the disk precheck.
-const DEFAULT_OLLAMA_MODEL_SIZE_GB = 4.7;
 
 // Cross-checked against yuu_clip/model_catalog.py by
 // tests/test_model_catalog.py::test_electron_wizard_default_llamacpp_model_matches_the_catalog
@@ -67,6 +64,6 @@ module.exports = {
   BUNDLED_PYTHON, BUNDLED_FFMPEG_DIR, BUNDLED_LLAMA_SERVER_DIR,
   SETUP_LOG, SETUP_COMPLETE_MARKER, WHEEL_MARKER, ELECTRON_CONFIG_PATH,
   DEFAULT_PROJECT_DIR, BASE_PORT,
-  DEFAULT_OLLAMA_MODEL, DEFAULT_CLAUDE_MODEL, DEFAULT_OLLAMA_MODEL_SIZE_GB,
+  DEFAULT_CLAUDE_MODEL,
   DEFAULT_LLAMACPP_MODEL, MODELS_DIR, SETUP_SCHEMA_VERSION,
 };

@@ -268,20 +268,11 @@ footer {
         <span class="cfg-label">How to run it</span>
         <select id="llm-backend-sel">
           <option value="llamacpp">Local model file - no extra app, runs locally, free (recommended)</option>
-          <option value="ollama">Ollama - free, runs locally, if you already use Ollama</option>
           <option value="claude">Claude API - paid, sends your transcript to Anthropic</option>
         </select>
       </div>
 
-      <div id="llm-ollama-fields">
-        <div id="ollama-status"></div>
-        <div class="cfg-row">
-          <span class="cfg-label">Ollama model</span>
-          <input type="text" id="ollama-model-input" style="flex:1;max-width:200px">
-        </div>
-      </div>
-
-      <div id="llm-llamacpp-fields" style="display:none">
+      <div id="llm-llamacpp-fields">
         <div class="desc" style="margin:4px 0 2px"><strong style="color:#8888aa">Get a model file (.gguf)</strong></div>
         <div class="desc">
           A <code>.gguf</code> file is the AI model itself.
@@ -446,7 +437,6 @@ const WHISPER_LANGUAGES = [
 ];
 
 let status  = null;
-let pulling = false;
 let installing = { 'cuda-libs': false };
 let downloadingGguf = false;
 let defaultsApplied = false;
@@ -465,7 +455,7 @@ function updateLaunchBtn() {
   const btn  = document.getElementById('launch-btn');
   const hint = document.getElementById('launch-hint');
   const blockedByFfmpeg  = !status || !status.ffmpegOk;
-  const blockedByWork    = pulling || anyInstalling() || downloadingGguf;
+  const blockedByWork    = anyInstalling() || downloadingGguf;
   btn.disabled = blockedByFfmpeg || blockedByWork;
   btn.textContent = rerunMode ? 'Apply & Close' : 'Launch';
   hint.textContent = blockedByFfmpeg && status ? 'FFmpeg is required before you can launch'
@@ -559,26 +549,6 @@ function renderCudaSlot(s) {
      <div class="pull-msg" id="install-msg-cuda-libs"></div>`);
 }
 
-function renderOllamaStatus(s) {
-  const el = document.getElementById('ollama-status');
-  if (s.ollamaRunning && s.ollamaModelPulled) {
-    el.innerHTML = row('ollama', 'ok', '✓', `Ollama - ${esc(s.ollamaModel)} ready`,
-      'LLM scoring is fully configured.');
-  } else if (s.ollamaRunning) {
-    el.innerHTML = row('ollama', 'warn', '⚠', `Ollama running - ${esc(s.ollamaModel)} not downloaded`,
-      'One more step: download the model (a few GB, one-time).',
-      `<button class="sm" id="pull-btn" onclick="startPull()">Download ${esc(s.ollamaModel)}</button>
-       <button class="sm" id="pull-cancel-btn" onclick="cancelPull()" style="display:none">Cancel</button>
-       <div class="pull-bar" id="pull-bar" style="display:none;width:100%;margin-top:5px"><div class="pull-fill" id="pull-fill"></div></div>
-       <div class="pull-msg" id="pull-msg"></div>`);
-  } else {
-    el.innerHTML = row('ollama', 'warn', '⚠', 'Ollama not installed or not running',
-      `<a onclick="api.openURL('https://ollama.com/download')">Install Ollama</a> - after installing, it runs ` +
-      `silently in the background; you don't need to open it or do anything inside it. ` +
-      `Then click <em>Check again</em> below - a model download button will appear here.`);
-  }
-}
-
 function renderGgufDownloadSlot(s) {
   const el = document.getElementById('gguf-download-slot');
   if (!el) return;
@@ -599,7 +569,6 @@ function renderSlots(s) {
   renderFfmpegSlot(s);
   renderGpuLine(s);
   renderCudaSlot(s);
-  renderOllamaStatus(s);
   renderGgufDownloadSlot(s);
   document.getElementById('subtitle').textContent =
     mode === 'update' ? 'This update added new setup options - review, then launch.'
@@ -635,7 +604,6 @@ function applyDefaults(s) {
   document.getElementById('ai-privacy-sel').value = s.aiPrivacyMode || 'local_only';
   document.getElementById('llm-backend-sel').value = s.llmBackend;
   document.getElementById('llm-model-path').value  = s.llmModelPath || '';
-  document.getElementById('ollama-model-input').value = s.ollamaModel;
   document.getElementById('claude-api-key').value   = s.claudeApiKey || '';
   document.getElementById('claude-model-sel').value = s.claudeModel  || 'claude-haiku-4-5-20251001';
   document.getElementById('content-preset-sel').value = s.contentPreset || 'generic';
@@ -667,7 +635,6 @@ function applyDefaults(s) {
 // ── LLM backend ────────────────────────────────────────────────────────────
 
 function onLlmBackendChange(val) {
-  document.getElementById('llm-ollama-fields').style.display   = val === 'ollama'   ? '' : 'none';
   document.getElementById('llm-llamacpp-fields').style.display = val === 'llamacpp' ? '' : 'none';
   document.getElementById('llm-claude-fields').style.display   = val === 'claude'   ? '' : 'none';
   updateLlmWarn();
@@ -718,54 +685,6 @@ function onLocalAiChoiceChange() {
   // The choice governs whether the LLM model is queued for a background download,
   // which decides whether the "will be skipped" warning is accurate - keep it in sync.
   updateLlmWarn();
-}
-
-// ── Ollama model pull ──────────────────────────────────────────────────────
-
-function startPull() {
-  const btn = document.getElementById('pull-btn');
-  const cancel = document.getElementById('pull-cancel-btn');
-  const bar = document.getElementById('pull-bar');
-  if (btn) btn.disabled = true;
-  if (cancel) { cancel.style.display = ''; cancel.disabled = false; }
-  if (bar) bar.style.display = '';
-  pulling = true;
-  updateLaunchBtn();
-  api.pullModel(status.ollamaModel);
-}
-
-function cancelPull() {
-  const cancel = document.getElementById('pull-cancel-btn');
-  if (cancel) cancel.disabled = true;
-  api.cancelPull();
-}
-
-function onPullProgress(data) {
-  const btn    = document.getElementById('pull-btn');
-  const cancel = document.getElementById('pull-cancel-btn');
-  const fill   = document.getElementById('pull-fill');
-  const msg    = document.getElementById('pull-msg');
-  const done = () => { pulling = false; if (cancel) cancel.style.display = 'none'; updateLaunchBtn(); };
-  if (data.status === 'success') {
-    status.ollamaModelPulled = true;
-    renderOllamaStatus(status);
-    done();
-  } else if (data.status === 'cancelled') {
-    if (msg) msg.textContent = 'Download cancelled.';
-    if (fill) fill.style.width = '0%';
-    if (btn) btn.disabled = false;
-    done();
-  } else if (data.error) {
-    if (msg) msg.textContent = `Download failed: ${data.error} - check that Ollama is still running, then try again.`;
-    if (btn) btn.disabled = false;
-    done();
-  } else if (data.total) {
-    const pct = Math.round((data.completed / data.total) * 100);
-    if (fill) fill.style.width = pct + '%';
-    if (msg)  msg.textContent  = `${data.status} - ${pct}%`;
-  } else if (data.status) {
-    if (msg) msg.textContent = data.status;
-  }
 }
 
 // ── GGUF model one-click download ───────────────────────────────────────────
@@ -961,7 +880,6 @@ function collectConfig() {
     llmModelPath:    (document.getElementById('llm-model-path').value || '').trim(),
     localModelChoice: choiceEl ? choiceEl.value : 'local',
     recommendedModelId: rec.modelId || '',
-    ollamaModel:     (document.getElementById('ollama-model-input').value || '').trim() || 'qwen2.5:7b',
     claudeApiKey:    (document.getElementById('claude-api-key').value || '').trim(),
     claudeModel:     document.getElementById('claude-model-sel').value,
     contentPreset:   document.getElementById('content-preset-sel').value,
@@ -983,7 +901,6 @@ document.getElementById('launch-btn').addEventListener('click', () => {
 
 // ── boot ──────────────────────────────────────────────────────────────────
 
-api.onPullProgress(onPullProgress);
 api.onInstallProgress(onInstallProgress);
 api.onGgufDownloadProgress(onGgufDownloadProgress);
 

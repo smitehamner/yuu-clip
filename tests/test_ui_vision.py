@@ -44,7 +44,7 @@ class TestVisionDetailCard:
             "**/api/llm/capabilities",
             lambda route: route.fulfill(
                 content_type="application/json",
-                body='{"backend":"ollama","model":"moondream","text":true,"vision":true,"detail":"ok"}',
+                body='{"backend":"llamacpp","model":"moondream","text":true,"vision":true,"detail":"ok"}',
             ),
         )
         return page.evaluate(_RENDER_CLIP_WITH_VISION, enabled)

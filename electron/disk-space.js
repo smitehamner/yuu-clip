@@ -1,7 +1,7 @@
 'use strict';
 
-// Disk-space precheck for one-click model downloads (Ollama pull + .gguf fetch).
-// A multi-GB download that runs out of space fails late with a cryptic error;
+// Disk-space precheck for one-click model (.gguf) downloads. A multi-GB
+// download that runs out of space fails late with a cryptic error;
 // checking up front lets the wizard show an actionable message instead. The
 // pure helpers are unit-tested (test/disk-space.test.js); freeBytesAt does the
 // one real filesystem call and is exercised end-to-end by a wizard download.
@@ -9,8 +9,8 @@
 const fs = require('fs');
 const path = require('path');
 
-// Headroom beyond the model's own size - downloads write a .part file and
-// (for Ollama) temporary blobs before the final rename.
+// Headroom beyond the model's own size - a download writes a .part temp file
+// before the final rename.
 const DEFAULT_HEADROOM_GB = 2;
 
 function bytesNeeded(sizeGb, headroomGb = DEFAULT_HEADROOM_GB) {

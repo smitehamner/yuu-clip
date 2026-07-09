@@ -45,7 +45,7 @@ if (window.electronAPI) {
 
 fetch('/api/config').then(r => r.json()).then(cfg => {
   window._aiPrivacyMode = cfg.ai_privacy_mode || 'local_only';
-  _updateLlmRemoteIndicator(cfg.llm_backend || 'llamacpp', cfg.ollama_enabled !== false);
+  _updateLlmRemoteIndicator(cfg.llm_backend || 'llamacpp', cfg.llm_enabled !== false);
   window._visionEnabled = cfg.vision_enabled === true;
 }).catch(() => {});
 

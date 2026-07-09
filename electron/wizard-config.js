@@ -5,7 +5,7 @@
 // config.json can be unit-tested without Electron.
 
 function buildProjectConfigFromWizard(cfg, defaults) {
-  const { defaultClaudeModel, defaultOllamaModel } = defaults;
+  const { defaultClaudeModel } = defaults;
   const pyCfg = {
     whisper_model:    cfg.whisperModel,
     whisper_language: cfg.whisperLanguage || '',
@@ -22,7 +22,7 @@ function buildProjectConfigFromWizard(cfg, defaults) {
     // Boot-time handoff flag (first-run-friction Stage 3/4): set to a catalog
     // model id only when the user opts into local AI without a model file in
     // hand. Written explicitly (empty by default) so re-running the wizard and
-    // switching to lightweight/claude/ollama clears a stale value - see the
+    // switching to lightweight/claude clears a stale value - see the
     // diarization_backend note above on why an omitted key would not.
     pending_local_model: '',
     // Background model prefetch is default-ON (first-run-friction Stage 6): one
@@ -41,8 +41,6 @@ function buildProjectConfigFromWizard(cfg, defaults) {
   } else if (cfg.llmBackend === 'claude') {
     pyCfg.claude_api_key = cfg.claudeApiKey || '';
     pyCfg.claude_model   = cfg.claudeModel  || defaultClaudeModel;
-  } else {
-    pyCfg.ollama_model = cfg.ollamaModel || defaultOllamaModel;
   }
   return pyCfg;
 }

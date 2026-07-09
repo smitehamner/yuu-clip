@@ -5,9 +5,8 @@
 const _settingsFieldIds = [
   's-whisper-model','s-whisper-device','s-whisper-compute','s-whisper-language',
   's-ai-privacy-value',
-  's-ollama-enabled','s-llm-backend','s-llm-model-path','s-llm-vision-model-path','s-llm-mmproj-path','s-llm-use-gpu',
+  's-llm-enabled','s-llm-backend','s-llm-model-path','s-llm-vision-model-path','s-llm-mmproj-path','s-llm-use-gpu',
   's-vision-enabled','s-vision-frames',
-  's-ollama-model','s-ollama-vision-model','s-ollama-host','s-ollama-timeout',
   's-claude-api-key','s-claude-model','s-claude-timeout',
   's-diarization-backend','s-hf-token','s-speaker-match-threshold','s-speaker-cluster-threshold',
   's-similarity-backend',
@@ -193,8 +192,8 @@ function _applySttFields(cfg) {
 }
 
 function _applyLlmFields(cfg) {
-  _setFieldChk('s-ollama-enabled',  cfg.ollama_enabled   !== false);
-  _onLlmEnabledChange(cfg.ollama_enabled !== false);
+  _setFieldChk('s-llm-enabled',  cfg.llm_enabled   !== false);
+  _onLlmEnabledChange(cfg.llm_enabled !== false);
   const backend = cfg.llm_backend || 'llamacpp';
   _setFieldVal('s-llm-backend',    backend);
   _onLlmBackendChange(backend);
@@ -205,10 +204,6 @@ function _applyLlmFields(cfg) {
   _setFieldChk('s-vision-enabled', cfg.vision_enabled === true);
   _setFieldVal('s-vision-frames',  cfg.vision_frames_per_clip ?? 2);
   window._visionEnabled = cfg.vision_enabled === true;
-  _setFieldVal('s-ollama-model',   cfg.ollama_model    || '');
-  _setFieldVal('s-ollama-vision-model', cfg.ollama_vision_model || '');
-  _setFieldVal('s-ollama-host',    cfg.ollama_host     || '');
-  _setFieldVal('s-ollama-timeout', cfg.ollama_timeout_s|| 120);
   _setFieldVal('s-claude-api-key', cfg.claude_api_key  || '');
   _setClaudeModelValue(cfg.claude_model || 'claude-haiku-4-5-20251001');
   _setFieldVal('s-claude-timeout', cfg.claude_timeout_s ?? 30);
@@ -390,13 +385,11 @@ function _onLlmBackendChange(backend) {
   // manual paths) lives under Advanced. Both are llamacpp-only, so toggle together.
   const pickerEl   = document.getElementById('s-llamacpp-picker');
   const llamacppEl = document.getElementById('s-llamacpp-fields');
-  const ollamaEl   = document.getElementById('s-ollama-fields');
   const claudeEl   = document.getElementById('s-claude-fields');
   const warnEl     = document.getElementById('s-backend-remote-warning');
   const blockedEl  = document.getElementById('s-remote-blocked-notice');
   if (pickerEl)   pickerEl.style.display   = backend === 'llamacpp' ? '' : 'none';
   if (llamacppEl) llamacppEl.style.display = backend === 'llamacpp' ? '' : 'none';
-  if (ollamaEl)   ollamaEl.style.display   = backend === 'ollama'   ? '' : 'none';
   if (claudeEl)   claudeEl.style.display   = isClaude ? '' : 'none';
   // Costs warning only when the remote backend is actually usable; otherwise the
   // "blocked by AI privacy mode" notice explains why a saved Claude backend is inert.
@@ -428,7 +421,7 @@ function _onPrivacyModeChange(mode) {
   if (simLlmOption) simLlmOption.hidden = simLlmOption.disabled = generativeOff;
   const backend = document.getElementById('s-llm-backend')?.value || 'llamacpp';
   _onLlmBackendChange(backend);
-  _updateLlmRemoteIndicator(backend, document.getElementById('s-ollama-enabled')?.checked !== false);
+  _updateLlmRemoteIndicator(backend, document.getElementById('s-llm-enabled')?.checked !== false);
 }
 
 function _setPrivacyMode(mode) {
@@ -670,7 +663,7 @@ async function saveSettings() {
     whisper_compute_type:       getVal('s-whisper-compute'),
     whisper_language:           getVal('s-whisper-language'),
     ai_privacy_mode:            _currentPrivacyMode(),
-    ollama_enabled:             getChk('s-ollama-enabled'),
+    llm_enabled:                getChk('s-llm-enabled'),
     llm_backend:                getVal('s-llm-backend'),
     llm_model_path:             getVal('s-llm-model-path'),
     llm_vision_model_path:      getVal('s-llm-vision-model-path'),
@@ -678,10 +671,6 @@ async function saveSettings() {
     llm_use_gpu:                getChk('s-llm-use-gpu'),
     vision_enabled:             getChk('s-vision-enabled'),
     vision_frames_per_clip:     getNum('s-vision-frames', v => parseInt(v, 10)),
-    ollama_model:               getVal('s-ollama-model'),
-    ollama_vision_model:        getVal('s-ollama-vision-model'),
-    ollama_host:                getVal('s-ollama-host'),
-    ollama_timeout_s:           getNum('s-ollama-timeout', parseFloat),
     claude_api_key:             getVal('s-claude-api-key'),
     claude_model:               getVal('s-claude-model'),
     claude_timeout_s:           getNum('s-claude-timeout', parseFloat),
@@ -748,7 +737,7 @@ async function saveSettings() {
     _snapshotSettings();
     _checkSettingsDirty();
     if (btn) btn.textContent = 'Save';
-    _updateLlmRemoteIndicator(payload.llm_backend || 'llamacpp', payload.ollama_enabled !== false);
+    _updateLlmRemoteIndicator(payload.llm_backend || 'llamacpp', payload.llm_enabled !== false);
     _updateLlmCapabilities();
     _renderCapabilityTiers();
     refreshModelCatalog();

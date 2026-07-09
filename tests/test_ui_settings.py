@@ -306,10 +306,10 @@ class TestSettingsPanelChrome:
 
     def test_llm_section_body_dims_when_master_toggle_off(self, page: Page):
         self._open_settings(page)
-        page.uncheck("#s-ollama-enabled")
+        page.uncheck("#s-llm-enabled")
         expect(page.locator("#s-llm-body")).to_have_class("settings-dimmed")
         assert page.evaluate("document.getElementById('s-llm-body').inert") is True
-        page.check("#s-ollama-enabled")
+        page.check("#s-llm-enabled")
         assert page.evaluate("document.getElementById('s-llm-body').inert") is False
         assert page.evaluate(
             "document.getElementById('s-llm-body').classList.contains('settings-dimmed')"
@@ -320,7 +320,7 @@ class TestSettingsPanelChrome:
         # lives outside #s-llm-body and must stay interactive when the master
         # toggle is off.
         self._open_settings(page)
-        page.uncheck("#s-ollama-enabled")
+        page.uncheck("#s-llm-enabled")
         selector = page.locator("#s-similarity-backend")
         expect(selector).to_be_visible()
         assert page.evaluate("document.getElementById('s-similarity-backend').disabled") is False

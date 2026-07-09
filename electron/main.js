@@ -24,8 +24,8 @@ const {
   VENV_DIR, VENV_PYTHON, VENV_PIP, BUNDLED_PYTHON, BUNDLED_FFMPEG_DIR,
   BUNDLED_LLAMA_SERVER_DIR,
   SETUP_LOG, SETUP_COMPLETE_MARKER, WHEEL_MARKER,
-  DEFAULT_PROJECT_DIR, BASE_PORT, DEFAULT_OLLAMA_MODEL, DEFAULT_CLAUDE_MODEL,
-  DEFAULT_OLLAMA_MODEL_SIZE_GB, DEFAULT_LLAMACPP_MODEL, MODELS_DIR, SETUP_SCHEMA_VERSION,
+  DEFAULT_PROJECT_DIR, BASE_PORT, DEFAULT_CLAUDE_MODEL,
+  DEFAULT_LLAMACPP_MODEL, MODELS_DIR, SETUP_SCHEMA_VERSION,
 } = require('./constants');
 const { rotateLogs, logSetup } = require('./logging');
 const { loadElectronConfig, saveElectronConfig, writeProjectConfig } = require('./electron-config');
@@ -52,8 +52,6 @@ let isQuitting      = false;
 
 // In-flight model-download state, for the wizard's Cancel buttons.
 let activeGgufController = null;  // AbortController for the .gguf download
-let activePullReq       = null;  // http.ClientRequest for the Ollama pull
-let pullCancelled       = false;
 
 // ---------------------------------------------------------------------------
 // Python discovery
@@ -215,21 +213,6 @@ function refreshPathFromRegistry() {
   process.env.PATH = [expand(machine), expand(user)].filter(Boolean).join(';');
 }
 
-async function checkOllama() {
-  try { await httpGet('http://localhost:11434/api/tags', 2000); return true; }
-  catch (_) { return false; }
-}
-
-async function checkOllamaModel(modelName) {
-  try {
-    const body = await httpGet('http://localhost:11434/api/tags', 2000);
-    const data = JSON.parse(body);
-    const base = modelName.split(':')[0];
-    return (data.models || []).some(m => m.name === modelName || m.name.startsWith(base + ':'));
-  } catch (_) {
-    return false;
-  }
-}
 
 function detectNvidiaVramMB() {
   try {
@@ -295,15 +278,10 @@ function registerWizardIPC(wizardWin) {
     let projCfg = {};
     try { projCfg = JSON.parse(fs.readFileSync(path.join(pDir, '.yuu-clip', 'config.json'), 'utf8')); } catch (_) {}
 
-    const ollamaModel   = projCfg.ollama_model || DEFAULT_OLLAMA_MODEL;
     const ffmpegOk      = checkFFmpeg();
     const gpu           = detectGPU();
     const cuda          = detectCUDA();
-    const [ollamaRunning, cudaLibsInstalled] = await Promise.all([
-      checkOllama(),
-      checkVenvModule(WIZARD_INSTALLABLE['cuda-libs'].importName),
-    ]);
-    const ollamaModelPulled = ollamaRunning ? await checkOllamaModel(ollamaModel) : false;
+    const cudaLibsInstalled = await checkVenvModule(WIZARD_INSTALLABLE['cuda-libs'].importName);
 
     const existingBackend   = projCfg.llm_backend;
     const existingModelPath = projCfg.llm_model_path || '';
@@ -312,12 +290,11 @@ function registerWizardIPC(wizardWin) {
     let freeDiskGB;
     try { freeDiskGB = diskSpace.freeBytesAt(pDir) / 1e9; } catch (_) { freeDiskGB = undefined; }
 
-    logSetup(`Status check - FFmpeg:${ffmpegOk} GPU:${gpu.name} CUDA:${cuda.available} cudaLibs:${cudaLibsInstalled} Ollama:${ollamaRunning} Model:${ollamaModelPulled}`);
+    logSetup(`Status check - FFmpeg:${ffmpegOk} GPU:${gpu.name} CUDA:${cuda.available} cudaLibs:${cudaLibsInstalled}`);
     return {
       ffmpegOk,
       ffmpegBundled: app.isPackaged,
       gpu, cuda,
-      ollamaRunning, ollamaModel, ollamaModelPulled,
       cudaLibsInstalled,
       recommendedWhisper: recommendWhisperModel(gpu.vramMB),
       localModelRecommendation: recommendLocalModel({ vramMB: gpu.vramMB, freeDiskGB, gpuVendor: gpu.vendor }),
@@ -357,8 +334,7 @@ function registerWizardIPC(wizardWin) {
     }
   });
 
-  // Stream a one-click .gguf model download for the llama.cpp backend, mirroring
-  // the Ollama pull flow's progress pattern below.
+  // Stream a one-click .gguf model download for the llama.cpp backend.
   ipcMain.on('setup:download-gguf-model', (event) => {
     const send = (payload) => {
       try { event.sender.send('setup:gguf-download-progress', payload); } catch (_) {}
@@ -462,59 +438,6 @@ function registerWizardIPC(wizardWin) {
 
   ipcMain.on('setup:copy-text', (_, text) => clipboard.writeText(String(text || '')));
 
-  // Stream an Ollama model pull back to the wizard as progress events.
-  ipcMain.on('setup:pull-model', (event, modelName) => {
-    const ollamaStore = process.env.OLLAMA_MODELS
-      || path.join(process.env.USERPROFILE, '.ollama', 'models');
-    const shortfall = diskSpace.diskShortfallMessage(ollamaStore, DEFAULT_OLLAMA_MODEL_SIZE_GB);
-    if (shortfall) {
-      logSetup(`Ollama model pull blocked - ${shortfall}`);
-      event.sender.send('setup:pull-progress', { status: 'error', error: shortfall });
-      return;
-    }
-    logSetup(`Ollama model pull starting: ${modelName}`);
-    pullCancelled = false;
-    const req = http.request({
-      hostname: 'localhost', port: 11434, path: '/api/pull', method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-    }, res => {
-      res.setEncoding('utf8');
-      let buf = '';
-      res.on('data', chunk => {
-        buf += chunk;
-        const lines = buf.split('\n');
-        buf = lines.pop();
-        for (const line of lines) {
-          if (!line.trim()) continue;
-          try { event.sender.send('setup:pull-progress', JSON.parse(line)); } catch (_) {}
-        }
-      });
-      res.on('end', () => {
-        activePullReq = null;
-        if (!pullCancelled) event.sender.send('setup:pull-progress', { status: 'success' });
-      });
-    });
-    activePullReq = req;
-    req.on('error', err => {
-      activePullReq = null;
-      if (pullCancelled) return; // cancel event already sent
-      logSetup(`Ollama model pull failed: ${modelName} - ${err.message}`);
-      event.sender.send('setup:pull-progress', { status: 'error', error: err.message });
-    });
-    req.write(JSON.stringify({ name: modelName }));
-    req.end();
-  });
-
-  // Cancels an in-flight pull. Destroying the request disconnects the client;
-  // the Ollama daemon aborts the pull when its client goes away.
-  ipcMain.on('setup:cancel-pull', (event) => {
-    if (!activePullReq) return;
-    pullCancelled = true;
-    logSetup('Ollama model pull cancelled by user');
-    activePullReq.destroy();
-    activePullReq = null;
-    event.sender.send('setup:pull-progress', { status: 'cancelled' });
-  });
 }
 
 // Swap the wizard window to a "Starting yuu-clip…" screen while the backend
@@ -605,7 +528,6 @@ function showSetupWizard({ rerun = false, updated = false } = {}) {
       } else {
         const pyCfg = buildProjectConfigFromWizard(cfg, {
           defaultClaudeModel: DEFAULT_CLAUDE_MODEL,
-          defaultOllamaModel: DEFAULT_OLLAMA_MODEL,
         });
         writeProjectConfig(cfg.projectDir, pyCfg);
         logSetup(`Setup complete - projectDir:${cfg.projectDir} whisperModel:${cfg.whisperModel} llmBackend:${cfg.llmBackend} diarization:${pyCfg.diarization_backend}`);

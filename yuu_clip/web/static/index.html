@@ -197,11 +197,11 @@
     <div id="s-llm-generative-block">
     <div class="settings-row">
       <div class="settings-col">
-        <label class="settings-label" id="lbl-ollama-enabled" for="s-ollama-enabled">Enable LLM scoring</label>
+        <label class="settings-label" id="lbl-llm-enabled" for="s-llm-enabled">Enable LLM scoring</label>
         <div class="settings-note">Turn off to skip description + sub-score generation</div>
       </div>
       <label class="settings-checkbox">
-        <input type="checkbox" id="s-ollama-enabled" aria-labelledby="lbl-ollama-enabled" onchange="_onLlmEnabledChange(this.checked)">
+        <input type="checkbox" id="s-llm-enabled" aria-labelledby="lbl-llm-enabled" onchange="_onLlmEnabledChange(this.checked)">
         <span style="font-size:13px" aria-hidden="true">On</span>
       </label>
     </div>
@@ -219,39 +219,6 @@
     <div id="s-llamacpp-picker">
       <div class="settings-note" style="margin-bottom:6px">Included with yuu-clip - pick one and it downloads in a click. Your graphics card is used automatically when it can run the model.</div>
       <div id="s-llamacpp-recommended" class="settings-recommended"></div>
-    </div>
-    <!-- ollama fields (shown when the engine is Ollama, chosen under Advanced) -->
-    <div id="s-ollama-fields" style="display:none">
-      <div class="settings-row">
-        <div class="settings-col">
-          <label class="settings-label" for="s-ollama-model">Model</label>
-          <div class="settings-note">Must be downloaded in Ollama first</div>
-        </div>
-        <input class="settings-input" id="s-ollama-model" type="text" placeholder="qwen2.5:7b" style="max-width:200px">
-      </div>
-      <div id="s-ollama-recommended" class="settings-recommended"></div>
-      <div id="ollama-pull-log" class="settings-install-log"></div>
-      <div class="settings-row">
-        <div class="settings-col">
-          <label class="settings-label" for="s-ollama-vision-model">Vision model (optional)</label>
-          <div class="settings-note">A separate model for image analysis, e.g. qwen2.5-vl. Leave blank to reuse the model above.</div>
-        </div>
-        <input class="settings-input" id="s-ollama-vision-model" type="text" placeholder="qwen2.5-vl:7b" style="max-width:200px">
-      </div>
-      <div class="settings-row">
-        <div class="settings-col">
-          <label class="settings-label" for="s-ollama-host">Host</label>
-          <div class="settings-note">Default: http://localhost:11434</div>
-        </div>
-        <input class="settings-input" id="s-ollama-host" type="text" placeholder="http://localhost:11434" style="max-width:240px">
-      </div>
-      <div class="settings-row">
-        <div class="settings-col">
-          <label class="settings-label" for="s-ollama-timeout">Timeout (seconds)</label>
-          <div class="settings-note">Per-clip LLM call timeout</div>
-        </div>
-        <input class="settings-input" id="s-ollama-timeout" type="number" min="1" max="600" step="5" style="max-width:100px">
-      </div>
     </div>
     <!-- Claude API fields (shown when the engine is Claude, chosen under Advanced) -->
     <div id="s-claude-fields" style="display:none">
@@ -350,7 +317,6 @@
         </div>
         <select class="settings-select" id="s-llm-backend" onchange="_onLlmBackendChange(this.value)">
           <option value="llamacpp">Local model file - free, private (recommended)</option>
-          <option value="ollama">Ollama - free, if you already use it</option>
           <option value="claude">Claude API - paid, sends transcript to Anthropic</option>
         </select>
       </div>
@@ -360,7 +326,7 @@
         <div class="settings-row">
           <div class="settings-col">
             <label class="settings-label" for="s-llm-use-gpu">Use GPU when available</label>
-            <div class="settings-note">Offload the model to your graphics card for faster scoring. Note: the bundled local (llama.cpp) engine is CPU-only right now, so this only takes effect on the Ollama backend. Falls back to CPU if your GPU can't run the model.</div>
+            <div class="settings-note">Offload the model to your graphics card (NVIDIA, AMD, or Intel) for much faster scoring. Falls back to CPU if your GPU can't run the model.</div>
           </div>
           <label class="settings-checkbox">
             <input type="checkbox" id="s-llm-use-gpu" aria-label="Use GPU when available">
@@ -1443,7 +1409,7 @@
     <table style="width:100%;font-size:12px;border-collapse:collapse;color:var(--muted);margin-bottom:12px">
       <thead><tr style="color:var(--text)"><th scope="col" class="col-head">Tool</th><th scope="col" class="col-head">Purpose</th><th scope="col" class="col-head">Licence</th></tr></thead>
       <tbody>
-        <tr><td>Ollama</td><td>Local LLM server - optional, improves clip scoring</td><td>MIT</td></tr>
+        <tr><td>llama.cpp (llama-server)</td><td>Bundled local LLM/vision engine - GPU-accelerated clip scoring and image analysis</td><td>MIT</td></tr>
       </tbody>
     </table>
     <div class="section-title" style="margin-bottom:4px">Optional add-ons <span style="font-size:11px;font-weight:400;color:var(--muted)">(install from Settings)</span></div>

@@ -4,9 +4,6 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('setupAPI', {
   getStatus:         ()       => ipcRenderer.invoke('setup:get-status'),
-  pullModel:         (model)  => ipcRenderer.send('setup:pull-model', model),
-  cancelPull:        ()       => ipcRenderer.send('setup:cancel-pull'),
-  onPullProgress:    (cb)     => ipcRenderer.on('setup:pull-progress', (_, data) => cb(data)),
   installPackage:    (slug)   => ipcRenderer.send('setup:install-package', slug),
   onInstallProgress: (cb)     => ipcRenderer.on('setup:install-progress', (_, data) => cb(data)),
   downloadGgufModel: ()       => ipcRenderer.send('setup:download-gguf-model'),

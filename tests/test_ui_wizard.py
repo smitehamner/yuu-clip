@@ -46,11 +46,10 @@ window.__mockStatus = {
   ffmpegOk: true,
   gpu: { name: 'NVIDIA GeForce RTX 3080', vramMB: 10240, vendor: 'nvidia' },
   cuda: { available: true, version: '12.4' },
-  ollamaRunning: false, ollamaModel: 'qwen2.5:7b', ollamaModelPulled: false,
   recommendedWhisper: { model: 'large-v3', reason: '10 GB+ VRAM' },
   projectDir: 'C:/Users/test/Videos/yuu-clip',
   aiPrivacyMode: 'local_only',
-  llmBackend: 'ollama', llmModelPath: '',
+  llmBackend: 'llamacpp', llmModelPath: '',
   claudeApiKey: '', claudeModel: 'claude-haiku-4-5-20251001',
   whisperLanguage: '',
   contentPreset: 'generic',
@@ -154,8 +153,7 @@ class TestWizardLlmBackends:
     def test_default_backend_panel_matches_status(self, page: Page):
         _open_wizard(page)
         _expand_advanced(page)
-        expect(page.locator("#llm-ollama-fields")).to_be_visible()
-        expect(page.locator("#llm-llamacpp-fields")).to_be_hidden()
+        expect(page.locator("#llm-llamacpp-fields")).to_be_visible()
         expect(page.locator("#llm-claude-fields")).to_be_hidden()
 
     def test_llamacpp_panel_guides_gguf_download(self, page: Page):
@@ -188,15 +186,6 @@ class TestWizardLlmBackends:
         page.fill("#claude-api-key", "sk-ant-test")
         expect(page.locator("#claude-warn")).to_be_hidden()
 
-    def test_pull_error_reenables_button_for_retry(self, page: Page):
-        _open_wizard(page, "{ ollamaRunning: true, ollamaModelPulled: false }")
-        _expand_advanced(page)
-        page.click("#pull-btn")
-        expect(page.locator("#pull-btn")).to_be_disabled()
-        page.evaluate("window.__pullCb({ error: 'connection lost' })")
-        expect(page.locator("#pull-btn")).to_be_enabled()
-        expect(page.locator("#pull-msg")).to_contain_text("Download failed")
-
 
 @skip_no_server
 class TestWizardModes:
@@ -208,7 +197,7 @@ class TestWizardModes:
         completed = page.evaluate("window.__events.completed")
         assert completed["whisperModel"] == "large-v3"
         assert completed["whisperLanguage"] == "de"
-        assert completed["llmBackend"] == "ollama"
+        assert completed["llmBackend"] == "llamacpp"
         assert completed["contentPreset"] == "podcast"
         assert completed["projectDir"] == "C:/Users/test/Videos/yuu-clip"
 

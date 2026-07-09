@@ -140,7 +140,7 @@ A one-click way to tune scoring for the kind of content you make - RP / narrativ
 Extra scoring and description writing done by a local language model that reads the clip's transcript. Optional - it improves clip quality but analysis still works without it.
 
 ### Recommended models
-The curated list of models yuu-clip suggests under Settings → LLM scoring. Every one is licensed so the clips you make with it can be monetized (models with restrictive terms are left out). For Ollama you can pull a model in one click; for a local model file you get a link to its download page.
+The curated list of models yuu-clip suggests under Settings → LLM scoring. Every one is licensed so the clips you make with it can be monetized (models with restrictive terms are left out). Recommended local models download in one click; you can also point at a model file you already have.
 
 ### Model readiness
 The line under Settings → LLM scoring showing whether the model you've set up can score **text** and analyze **images** right now, plus a plain-English reason if something's missing (for example, a Claude API key or a vision projector file).

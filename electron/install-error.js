@@ -71,7 +71,7 @@ function describeInstallFailure(stderr) {
     return 'GPU acceleration couldn’t load - your graphics driver may be older than the CUDA build. ' +
            'yuu-clip will keep working on the CPU.';
   }
-  return 'the install didn’t finish. You can try again, switch to Ollama, or open the setup log and send it to us.';
+  return 'the install didn’t finish. You can try again, or open the setup log and send it to us.';
 }
 
 module.exports = { looksLikeNetworkError, describeInstallFailure };

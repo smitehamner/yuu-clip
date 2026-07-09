@@ -25,7 +25,7 @@ test('network failures get the connection hint', () => {
 test('non-network failures get an honest next step, not a bogus connection hint', () => {
   const msg = describeInstallFailure('ERROR: Microsoft Visual C++ 14.0 or greater is required');
   assert.doesNotMatch(msg, /internet connection/i);
-  assert.match(msg, /Ollama|setup log/i);
+  assert.match(msg, /setup log/i);
 });
 
 test('out-of-disk-space failures point at freeing space, not the network', () => {
@@ -54,5 +54,5 @@ test('a CUDA load failure reassures the user CPU still works', () => {
 test('a build error (MSVC/"could not build wheels") falls through to the generic step', () => {
   // Must NOT hit the missing-wheel branch (which keys on "could not find a version").
   const msg = describeInstallFailure('ERROR: Could not build wheels for llama-cpp-python');
-  assert.match(msg, /Ollama|setup log/i);
+  assert.match(msg, /setup log/i);
 });

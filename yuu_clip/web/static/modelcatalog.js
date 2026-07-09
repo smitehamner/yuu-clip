@@ -37,13 +37,12 @@ async function _loadModelCatalog() {
   } catch { _modelCatalog = []; return; }
   _populateClaudeModelSelect();
   _renderRecommendedModels('s-llamacpp-recommended', 'llamacpp');
-  _renderRecommendedModels('s-ollama-recommended', 'ollama');
   _updateCurrentModelSummary();
 }
 
 // "Currently using: <model> (<backend>)" - states the saved active model plainly
 // so it isn't reverse-engineered from a path string. Hidden when nothing matches.
-const _BACKEND_LABELS = { llamacpp: 'Local llama.cpp', ollama: 'Ollama', claude: 'Claude API' };
+const _BACKEND_LABELS = { llamacpp: 'Local llama.cpp', claude: 'Claude API' };
 
 function _updateCurrentModelSummary() {
   const el = document.getElementById('s-llm-current-summary');
@@ -113,11 +112,7 @@ function _modelGroupHtml(title, intro, models, backend, kind) {
 
 function _wireModelCards(el) {
   el.querySelectorAll('.rec-model').forEach(card => {
-    const tag = card.getAttribute('data-tag');
     const modelId = card.getAttribute('data-model-id');
-    const kind = card.getAttribute('data-kind');
-    card.querySelector('[data-act="use"]')?.addEventListener('click', () => _useOllamaModel(tag, kind));
-    card.querySelector('[data-act="pull"]')?.addEventListener('click', () => pullOllamaModel(tag));
     card.querySelector('[data-act="download-gguf"]')?.addEventListener('click', () => downloadGgufModel(modelId, card));
     card.querySelector('[data-act="use-gguf"]')?.addEventListener('click', () => _useGgufModel(modelId));
   });
@@ -139,9 +134,9 @@ function _modelBadge(m) {
 }
 
 function _recModelHtml(m, backend, kind) {
-  const actions = backend === 'ollama' ? _ollamaActions(m) : _llamacppActions(m);
+  const actions = _llamacppActions(m);
   return (
-    `<div class="rec-model${m.active ? ' active' : ''}" data-tag="${escHtml(m.ollama_tag || '')}" data-model-id="${escHtml(m.id)}" data-kind="${escHtml(kind || 'text')}">` +
+    `<div class="rec-model${m.active ? ' active' : ''}" data-model-id="${escHtml(m.id)}" data-kind="${escHtml(kind || 'text')}">` +
       `<div class="rec-model-head"><span class="rec-model-name">${escHtml(m.display_name)}</span>` +
       _modelBadge(m) +
       `<span class="rec-model-meta">${escHtml(_modelMetaLine(m))}</span></div>` +
@@ -153,16 +148,6 @@ function _recModelHtml(m, backend, kind) {
       `<div class="settings-install-log" data-gguf-log></div>` +
     `</div>`
   );
-}
-
-// The "Active" badge signals the in-use model; the Use/Pull buttons stay present
-// regardless (re-selecting the active tag is a harmless no-op) so the row's
-// affordances don't shift based on which model happens to be configured.
-function _ollamaActions(m) {
-  if (!m.ollama_tag) return '';
-  return `<button type="button" class="btn-secondary" data-act="use">Use this model</button>` +
-    `<button type="button" class="btn-secondary" data-act="pull">Download with Ollama</button>` +
-    `<code class="rec-model-meta">${escHtml(m.ollama_tag)}</code>`;
 }
 
 // One-click surface for local .gguf models: download when missing, "Use this
@@ -183,18 +168,6 @@ function _llamacppActions(m) {
   }
   parts.push(`<a href="${escHtml(m.gguf_url)}" target="_blank" rel="noopener">Choose a different file</a>`);
   return parts.join('');
-}
-
-// Route to the field matching the card's group: a vision card sets the
-// (independent) Ollama vision model, a text card sets the scoring model. They
-// are separate config keys (ollama_model / ollama_vision_model), so one must
-// never overwrite the other.
-function _useOllamaModel(tag, kind) {
-  const fieldId = kind === 'vision' ? 's-ollama-vision-model' : 's-ollama-model';
-  const el = document.getElementById(fieldId);
-  if (!el) return;
-  el.value = tag;
-  _checkSettingsDirty();
 }
 
 // Point the (advanced) path fields at an already-present model so a plain Save
@@ -222,80 +195,10 @@ function _useGgufModel(modelId) {
   showToast('Model selected - click Save to apply', 'info');
 }
 
-// Abort controller for the active pull, so a Cancel button can close the SSE
-// stream. Closing it disconnects the request, which makes the server terminate
-// the `ollama pull` subprocess (subprocess_sse's finally block).
-let _pullAbort = null;
-
-function _setPullCancel(show, onCancel) {
-  const log = document.getElementById('ollama-pull-log');
-  if (!log) return;
-  let btn = document.getElementById('ollama-pull-cancel');
-  if (show) {
-    if (!btn) {
-      btn = document.createElement('button');
-      btn.id = 'ollama-pull-cancel';
-      btn.type = 'button';
-      btn.className = 'btn-secondary';
-      btn.textContent = 'Cancel download';
-      log.parentNode.insertBefore(btn, log);
-    }
-    btn.disabled = false;
-    btn.onclick = onCancel;
-    btn.style.display = '';
-  } else if (btn) {
-    btn.style.display = 'none';
-  }
-}
-
-async function pullOllamaModel(tag) {
-  const log = document.getElementById('ollama-pull-log');
-  if (!log) return;
-  log.style.display = 'block';
-  log.textContent = `Pulling ${tag} - this can take several minutes…\n`;
-  const controller = new AbortController();
-  _pullAbort = controller;
-  _setPullCancel(true, () => { controller.abort(); });
-  try {
-    const resp = await fetch(`/api/llm/ollama/pull?tag=${encodeURIComponent(tag)}`,
-                             { method: 'POST', signal: controller.signal });
-    if (!resp.ok) {
-      let detail = '';
-      try { detail = (await resp.json()).detail || ''; } catch { detail = await resp.text(); }
-      log.textContent += `✗ ${detail || 'Pull could not start.'}\n`;
-      return;
-    }
-    const reader = resp.body.getReader();
-    const dec = new TextDecoder();
-    let buf = '';
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buf += dec.decode(value, { stream: true });
-      const lines = buf.split('\n');
-      buf = lines.pop();
-      for (const line of lines) {
-        if (!line.startsWith('data: ')) continue;
-        const msg = JSON.parse(line.slice(6));
-        if (msg === '__DONE__') { log.textContent += '✓ Done - set it as the model above and Save.\n'; return; }
-        log.textContent += msg + '\n';
-        log.scrollTop = log.scrollHeight;
-      }
-    }
-  } catch (err) {
-    if (err && err.name === 'AbortError') log.textContent += '■ Download cancelled.\n';
-    else log.textContent += '✗ Pull failed - is Ollama installed and running?\n';
-  } finally {
-    _pullAbort = null;
-    _setPullCancel(false);
-  }
-}
-
 // ── one-click local (.gguf) download ────────────────────────────────────────
 // Server-owned download (POST /api/llm/gguf/download) for a recommended local
-// model (text, or vision + its mmproj projector), so llama.cpp gets the same
-// one-click flow the Ollama/Tier-B models already have instead of only a
-// "Download page" link. Same SSE + Cancel-via-abort shape as pullOllamaModel;
+// model (text, or vision + its mmproj projector), so llama.cpp gets a one-click
+// flow instead of only a "Download page" link. SSE + Cancel-via-abort stream;
 // on success the server has written the model (and projector) path(s), so we
 // point the path fields at them, refresh the readiness line, and prompt a Save.
 let _ggufAbort = null;
@@ -490,8 +393,8 @@ function _capabilityTierHtml(tier) {
 
 // ── Tier-B model prefetch ("Download now") ──────────────────────────────────
 // One flow for every non-LLM Tier-B model (speaker/audio-event/embeddings) -
-// mirrors pullOllamaModel's SSE + Cancel + log pattern above. The GGUF/Ollama
-// model keeps its own separate "Pull with Ollama" / download-page flow.
+// the same SSE + Cancel + log pattern as the .gguf download above. The local
+// .gguf LLM model keeps its own separate download flow.
 const _PREFETCH_LABELS = {
   speaker: 'the speaker model (~80 MB)',
   audio_event: 'the audio-event model (~350 MB)',
@@ -602,6 +505,6 @@ async function gateOnCapability(el, capability, message) {
 Object.assign(window, {
   _ensureModelCatalog, refreshModelCatalog, _setClaudeModelValue,
   _updateLlmCapabilities, _renderCapabilityTiers,
-  gateOnCapability, pullOllamaModel, prefetchModel, downloadGgufModel,
+  gateOnCapability, prefetchModel, downloadGgufModel,
 });
 })();
