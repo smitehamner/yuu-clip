@@ -22,17 +22,10 @@ $runtimePython = "$root\build\python-runtime\python.exe"
 $wheelhouseDir = "$root\build\wheelhouse"
 $marker        = "$wheelhouseDir\.lock-hash"
 
-# Prebuilt llama-cpp-python CPU wheel (Tier A default LLM engine). llama-cpp-python
-# is NOT a binary on PyPI (sdist only), so the `pip download --only-binary` pass
-# below can never fetch it. Pull it straight from abetlen's GitHub release into the
-# same wheelhouse so first-run installs the LLM engine OFFLINE from a wheel instead
-# of triggering a from-source compile (which needs MSVC/CMake and fails for end
-# users). GPU (CUDA) wheels stay Tier C: selected and force-reinstalled online at
-# wizard time (electron/llamacpp-cuda.js). Keep $llamaCpuVersion in sync with
-# LLAMA_CPP_CUDA_VERSION there, and inside the pyproject `llama-cpp-python>=0.3,<1.0` bound.
-$llamaCpuVersion = '0.3.32'
-$llamaCpuWheel   = "llama_cpp_python-$llamaCpuVersion-py3-none-win_amd64.whl"
-$llamaCpuUrl     = "https://github.com/abetlen/llama-cpp-python/releases/download/v$llamaCpuVersion/$llamaCpuWheel"
+# The local LLM/vision backend no longer bundles a llama-cpp-python wheel: it now
+# drives upstream's Vulkan llama-server binary over HTTP (fetched separately by
+# scripts\fetch-llama-server-runtime.ps1). So this wheelhouse holds only the base
+# runtime dependencies from requirements.lock below.
 
 if (-not (Test-Path $lockPath)) {
     Write-Error "requirements.lock missing - run scripts\lock-deps.ps1 first."
@@ -44,10 +37,7 @@ if (-not (Test-Path $runtimePython)) {
 }
 
 $lockHash = (Get-FileHash -Path $lockPath -Algorithm SHA256).Hash.ToLower()
-# Key the cache marker on the lock hash AND the pinned llama CPU wheel version: that
-# wheel lives in the wheelhouse but is intentionally NOT in requirements.lock, so a
-# $llamaCpuVersion bump alone must still invalidate the cache and re-fetch it.
-$markerValue = "$lockHash|$llamaCpuVersion"
+$markerValue = $lockHash
 if ((Test-Path $marker) -and (Get-Content $marker -Raw).Trim() -eq $markerValue) {
     Write-Host "Wheelhouse already built for this requirements.lock at $wheelhouseDir"
     exit 0
@@ -70,21 +60,5 @@ if ($wheelCount -eq 0) {
     exit 1
 }
 
-Write-Host "Adding prebuilt llama-cpp-python CPU wheel ($llamaCpuVersion) to the wheelhouse..."
-$llamaDest = Join-Path $wheelhouseDir $llamaCpuWheel
-try {
-    Invoke-WebRequest -Uri $llamaCpuUrl -OutFile $llamaDest -UseBasicParsing
-} catch {
-    Remove-Item $wheelhouseDir -Recurse -Force -ErrorAction SilentlyContinue
-    Write-Error "Failed to download llama-cpp-python CPU wheel from $llamaCpuUrl : $($_.Exception.Message)"
-    exit 1
-}
-if (-not (Test-Path $llamaDest) -or (Get-Item $llamaDest).Length -eq 0) {
-    Remove-Item $wheelhouseDir -Recurse -Force -ErrorAction SilentlyContinue
-    Write-Error "llama-cpp-python CPU wheel download produced an empty file at $llamaDest."
-    exit 1
-}
-
-$wheelCount = (Get-ChildItem "$wheelhouseDir\*.whl" | Measure-Object).Count
 Set-Content -Path $marker -Value $markerValue -NoNewline
 Write-Host "Wheelhouse ready: $wheelCount wheels in $wheelhouseDir"
