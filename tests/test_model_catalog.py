@@ -69,6 +69,28 @@ class TestCatalogHelpers:
         vision = mc.vision_models()
         assert vision[0].id == "qwen2.5-vl-7b-instruct"
 
+    def test_new_local_vision_models_are_present_and_monetizable(self):
+        # Qwen2-VL 2B (small/fast) and Pixtral 12B (quality) were added 2026-07-08 after
+        # smoke-testing against the real Vulkan llama-server. Granite Vision was rejected
+        # (garbage output), so it must NOT appear as a recommended entry.
+        vision_ids = {e.id for e in mc.vision_models()}
+        assert {"qwen2-vl-2b-instruct", "pixtral-12b"} <= vision_ids
+        assert not any("granite" in i for i in vision_ids)
+        for model_id in ("qwen2-vl-2b-instruct", "pixtral-12b"):
+            entry = mc.model_by_id(model_id)
+            assert entry.recommended
+            assert entry.licence == "Apache-2.0"
+            assert entry.backends == {mc.BACKEND_LLAMACPP}
+
+    def test_recommended_llamacpp_vision_models_declare_gguf_and_mmproj_filenames(self):
+        # The one-click vision download needs both exact filenames (gguf + projector)
+        # to resolve real file URLs from the HF repo page.
+        for entry in mc.vision_models():
+            if mc.BACKEND_LLAMACPP in entry.backends:
+                assert entry.gguf_filename, f"{entry.id} has no gguf_filename"
+                assert entry.mmproj_filename, f"{entry.id} has no mmproj_filename"
+                assert entry.mmproj_url, f"{entry.id} has no mmproj_url"
+
     def test_claude_models_are_both_text_and_vision(self):
         claude = mc.catalog_for_backend(mc.BACKEND_CLAUDE)
         assert claude, "expected Claude entries"
