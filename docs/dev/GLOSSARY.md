@@ -661,7 +661,7 @@ The single setting that decides what yuu-clip may do with a recording's transcri
 
 - **Code:** config `ai_privacy_mode`; `resolve_ai_permissions(config) -> AiPermissions(allow_llm, allow_remote)` in `config.py`. Enforced in `make_client` (never constructs a remote client - reads `LLMClient.is_remote` as a class attribute *before* instantiation), `check_llm_available`, `check_vision_available` / `describe_frames`, `LLMScorer.is_available`, and (transitively) the similarity `llm` backend. UI: the AI privacy radios at the top of Settings → LLM scoring and the first-run setup wizard.
 - **Do not call it:** "privacy toggle" (it's one 3-level control, not an on/off), or the levels "off / local / cloud" - use the exact labels above; they are the trust surface.
-- **Notes:** Fails safe - an unknown/garbage value resolves to Local models only (blocks the remote path), never to Allow remote models. `ollama_enabled` (Enable LLM scoring) is a separate feature toggle; either one independently forces the LLM off.
+- **Notes:** Fails safe - an unknown/garbage value resolves to Local models only (blocks the remote path), never to Allow remote models. `llm_enabled` (Enable LLM scoring) is a separate feature toggle; either one independently forces the LLM off.
 
 ---
 
@@ -672,7 +672,7 @@ Scoring and description generation performed by a local language model that read
 - **Code:** `LLMScorer`, `llm_score()`
 - **Also called:** "AI scoring"
 - **Do not call it:** "AI scoring" - LLM is the accurate term; use it to build the habit of distinguishing LLMs from "AI" broadly
-- **Notes:** Requires Ollama running locally. Gracefully skipped if unavailable.
+- **Notes:** Uses the bundled local llama.cpp engine by default (or the Claude API). Gracefully skipped if no model is configured.
 
 ---
 
@@ -699,7 +699,7 @@ The at-a-glance indicator in Settings → LLM scoring showing whether the active
 
 The two independent local-model buckets on the `llamacpp` backend (Settings → LLM scoring, restructured into matching UI groups). **Text model** scores clips and writes descriptions/summaries. **Vision model** (paired with the vision projector) powers [[Image analysis]]. Downloading or selecting one never writes into the other's config field - this replaced a single shared field that a vision-model download used to silently clobber.
 
-- **Code:** `llm_model_path` (text) vs `llm_vision_model_path` + `llm_mmproj_path` (vision), `yuu_clip/config.py`. Ollama's equivalents: `ollama_model` / `ollama_vision_model` (already separate).
+- **Code:** `llm_model_path` (text) vs `llm_vision_model_path` + `llm_mmproj_path` (vision), `yuu_clip/config.py`.
 - **Notes:** No migration for configs written before this split - a config with a vision model in `llm_model_path` stays broken until the user re-selects it under the new Vision model group.
 
 ---
@@ -709,7 +709,7 @@ The two independent local-model buckets on the `llamacpp` backend (Settings → 
 User-facing: **"Analyze frames"** / **"What's on screen"**. Optional, off by default: sample a few frames evenly across a clip, send them to a vision model, and store a short factual "what's on screen" summary (the game/scene, on-screen events, HUD/popups). The summary enriches the clip's descriptions and is added to the text scorer's prompt as a *Visual context* block - it never scores the clip directly. Triggered manually per clip ("Analyze frames" button) or via an "Include frame analysis" checkbox in the batch Re-score flow; never automatic during Analyze.
 
 - **Code:** `analyze/frames.py` (`sample_clip_frames`, `resolve_frame_window`, `sample_and_describe`); `scoring/llm.py` (`describe_frames`, `check_vision_available`, `_visual_block`); `LLMClient.chat_vision` + `VisionNotSupportedError` in `scoring/llm_client.py`; route `POST /api/clips/{id}/analyze-frames` and `?include_frames=1` on rescore-clips; config `vision_enabled` (master switch), `vision_frames_per_clip` (1–10), `llm_vision_model_path` + `llm_mmproj_path` (see [[Text model / Vision model]]). DB: `clip_candidates.vision_summary` / `vision_analyzed_at`.
-- **Notes:** The instruction is a plain-text user prompt (not JSON) - small local vision models reliably follow "describe this" but return coordinates/empty for a JSON-schema system prompt. Ollama frames scale `num_ctx` and degrade to fewer frames on a context overflow (moondream is hard-capped at ~2048 tokens ≈ 2 frames). Frames come from the fresh 720p proxy when present (parent-keyed timeline, segment offset added).
+- **Notes:** The instruction is a plain-text user prompt (not JSON) - small local vision models reliably follow "describe this" but return coordinates/empty for a JSON-schema system prompt. Frames come from the fresh 720p proxy when present (parent-keyed timeline, segment offset added).
 
 ---
 
@@ -1151,7 +1151,7 @@ These terms are used with multiple meanings in the codebase or everyday speech. 
 | **Speaker** | A diarized voice in a recording | - | A **Speaker** is a voice; a **Character** is a world-context lore entity. Don't use them interchangeably; never expose the raw `SPEAKER_00` label |
 | **Export** | Save a single clip to a file | Build a highlight reel | Use **"export clip"** for the single-clip action; **"build reel"** for compilations |
 | **Profile** | Track layout (saved audio assignments) | User/app profile (does not exist here) | Always say **"track layout"**; retire bare "profile" from the UI |
-| **Model** | Speech-to-text model (Whisper) | AI scoring model (Ollama) | Qualify as **"speech-to-text model"** / **"AI model"**; never bare "model" in user-facing text |
+| **Model** | Speech-to-text model (Whisper) | AI scoring model (LLM) | Qualify as **"speech-to-text model"** / **"AI model"**; never bare "model" in user-facing text |
 
 ---
 
@@ -1163,7 +1163,6 @@ These appear in code but should not appear in the UI or creator-facing documenta
 |--------------|----------------------|
 | `ClipCandidate`, "clip candidate" | Clip |
 | `RecordingSession`, `session_id` | Session |
-| `Ollama` | *(not mentioned in UI; just "LLM model")* |
 | `stream` (audio) | Track |
 | `stream_index` | *(internal)* |
 | `WAV`, "extracted audio" | *(internal)* |

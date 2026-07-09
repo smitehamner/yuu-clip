@@ -12,7 +12,7 @@ yuu-clip watches your recordings for you. It listens to what was said, figures o
 
 1. **You point it at a recording.** OBS output, shadowplay, whatever - as long as it's a video file.
 2. **It listens.** It runs your audio through a local speech-to-text model (Whisper, runs on your PC, nothing is uploaded anywhere) to get a full transcript of everything said during the session.
-3. **It scores.** It chops the session into clip windows and rates each one for how funny, dramatic, or action-packed it was - using an LLM that reads the transcript and scores what happened. By default this is a local model file that runs on your PC; you can also point it at Ollama (also local) or the Claude API (cloud) in the setup wizard or Settings.
+3. **It scores.** It chops the session into clip windows and rates each one for how funny, dramatic, or action-packed it was - using an LLM that reads the transcript and scores what happened. By default this is a local model file that runs on your PC (GPU-accelerated); you can also point it at the Claude API (cloud) in the setup wizard or Settings.
 4. **You review.** Open the web UI in your browser, flip through the clips, watch the ones that look good, approve or skip, then export.
 5. **You've got clips.** Ready-to-share video files, no re-encoding required unless you want frame-perfect cuts.
 

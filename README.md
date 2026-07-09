@@ -66,8 +66,7 @@ winget install Python.Python.3.12   # Windows
 ### A language model - optional
 LLM scoring and written clip descriptions are optional. Without a model, yuu-clip still finds and scores clips using the no-model signals above. To enable LLM scoring, pick a backend in the setup wizard or Settings:
 
-- **Local model file (default)** - a local `.gguf` run via llama.cpp. The desktop app can download a recommended, monetization-safe model for you.
-- **Ollama** - if you already run [Ollama](https://ollama.ai): `ollama pull qwen2.5:7b`, and keep `ollama serve` running during analysis.
+- **Local model file (default)** - a local `.gguf` run via the bundled, GPU-accelerated llama.cpp engine. The desktop app can download a recommended, monetization-safe model for you.
 - **Claude API** - remote, billed per token.
 
 ---

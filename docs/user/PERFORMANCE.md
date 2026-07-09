@@ -19,8 +19,7 @@
 |---|---|
 | yuu-clip app (Electron + Python venv) | ~600 MB |
 | Whisper model weights (downloaded on first analysis) | 75 MB (tiny) – 3 GB (large-v3) |
-| llama-cpp-python model (if using local LLM) | 2–8 GB typical (depends on model) |
-| Ollama + model (if using Ollama backend) | ~5–15 GB depending on model |
+| Local LLM model file (.gguf, if using local LLM) | 2–8 GB typical (depends on model) |
 
 Whisper weights are cached in the faster-whisper model cache (default: `%USERPROFILE%\.cache\huggingface\hub`). They are shared across projects and only downloaded once per model size.
 
