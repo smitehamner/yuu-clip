@@ -128,42 +128,19 @@ CATALOG: tuple[ModelEntry, ...] = (
         gguf_filename="phi-4-Q4_K_M.gguf",
     ),
     # ── Local vision models (consumed by plan 11's image analysis) ──────────
-    # moondream2 listed first: it's the steered default (packaging-strategy-overhaul
-    # Wave 6) - smallest download, runs on both backends, recommended-model pickers
-    # render the catalog in this order so it's the first vision option a user sees.
-    ModelEntry(
-        id="moondream2",
-        display_name="moondream2",
-        kinds=_VISION,
-        licence="Apache-2.0",
-        why="Recommended default - tiny and fast, runs on low VRAM for quick frame checks.",
-        backends=frozenset({BACKEND_OLLAMA, BACKEND_LLAMACPP}),
-        size_gb=1.8,
-        ollama_tag="moondream",
-        gguf_url="https://huggingface.co/ggml-org/moondream2-20250414-GGUF",
-        gguf_filename="moondream2-text-model-f16_ct-vicuna.gguf",
-        mmproj_url="https://huggingface.co/ggml-org/moondream2-20250414-GGUF",
-        mmproj_filename="moondream2-mmproj-f16-20250414.gguf",
-    ),
-    ModelEntry(
-        id="smolvlm2-2.2b-instruct",
-        display_name="SmolVLM2 2.2B Instruct",
-        kinds=_VISION,
-        licence="Apache-2.0",
-        why="Very small, CPU-friendly vision model for machines without a GPU.",
-        backends=frozenset({BACKEND_LLAMACPP}),
-        size_gb=2.2,
-        gguf_url="https://huggingface.co/ggml-org/SmolVLM2-2.2B-Instruct-GGUF",
-        gguf_filename="SmolVLM2-2.2B-Instruct-Q4_K_M.gguf",
-        mmproj_url="https://huggingface.co/ggml-org/SmolVLM2-2.2B-Instruct-GGUF",
-        mmproj_filename="mmproj-SmolVLM2-2.2B-Instruct-Q8_0.gguf",
-    ),
+    # Qwen2.5-VL 7B is the sole recommended local vision model: it is the only
+    # permissive (Apache-2.0) model with a reliable in-app path on the pinned
+    # llama-cpp-python (Qwen25VLChatHandler) that also produces accurate scene
+    # descriptions. moondream2 (inaccurate) and SmolVLM2 (no Idefics3 handler in
+    # 0.3.18, returns empty output) were dropped 2026-07-09. Smaller/better options
+    # (Granite Vision, Pixtral, Qwen2-VL) are blocked on a llama.cpp upgrade - see
+    # the bundled-llama.cpp/GPU plan - and get added once that lands.
     ModelEntry(
         id="qwen2.5-vl-7b-instruct",
         display_name="Qwen2.5-VL 7B Instruct",
         kinds=_VISION,
         licence="Apache-2.0",
-        why="Higher-quality descriptions when you have the VRAM for a 7B model.",
+        why="Recommended vision model - accurate on-screen descriptions; needs the VRAM (or patience) for a 7B.",
         backends=frozenset({BACKEND_OLLAMA, BACKEND_LLAMACPP}),
         size_gb=6.0,
         ollama_tag="qwen2.5vl:7b",

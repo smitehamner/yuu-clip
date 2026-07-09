@@ -66,10 +66,10 @@ class TestGgufDownloadCommand:
         assert cmd[cmd.index("--model-id") + 1] == "qwen2.5-7b-instruct"
 
     def test_vision_model_id_is_accepted(self, client, monkeypatch, tmp_path):
-        # The allowlist widened to recommended vision entries - moondream2 now
+        # The allowlist covers recommended vision entries - a vision model
         # downloads its weights + mmproj projector in one click.
-        cmd = self._capture_cmd(client, monkeypatch, tmp_path, "moondream2")
-        assert cmd[cmd.index("--model-id") + 1] == "moondream2"
+        cmd = self._capture_cmd(client, monkeypatch, tmp_path, "qwen2.5-vl-7b-instruct")
+        assert cmd[cmd.index("--model-id") + 1] == "qwen2.5-vl-7b-instruct"
 
     def test_disk_shortfall_returns_actionable_507(self, client, monkeypatch, tmp_path):
         import yuu_clip.config as config_mod
@@ -102,7 +102,7 @@ class TestResolveGgufEntry:
         assert "Unknown model id" in reason
 
     def test_accepts_a_recommended_vision_model(self):
-        entry, reason = models_cli._resolve_gguf_entry("moondream2")
+        entry, reason = models_cli._resolve_gguf_entry("qwen2.5-vl-7b-instruct")
         assert reason == ""
         assert entry is not None
         assert entry.gguf_filename and entry.mmproj_filename
@@ -254,9 +254,9 @@ class TestVisionDownload:
         monkeypatch.setattr(config_mod, "models_dir", lambda: models_dir)
         urls = _counting_urlopen(monkeypatch)
 
-        models_cli.download_gguf_cmd(model_id="moondream2", project=tmp_path)
+        models_cli.download_gguf_cmd(model_id="qwen2.5-vl-7b-instruct", project=tmp_path)
 
-        entry, _ = models_cli._resolve_gguf_entry("moondream2")
+        entry, _ = models_cli._resolve_gguf_entry("qwen2.5-vl-7b-instruct")
         gguf_dest = models_dir / entry.gguf_filename
         mmproj_dest = models_dir / entry.mmproj_filename
         assert gguf_dest.exists() and mmproj_dest.exists()
@@ -301,11 +301,11 @@ class TestVisionDownload:
         models_dir = tmp_path / "models"
         models_dir.mkdir()
         monkeypatch.setattr(config_mod, "models_dir", lambda: models_dir)
-        entry, _ = models_cli._resolve_gguf_entry("moondream2")
+        entry, _ = models_cli._resolve_gguf_entry("qwen2.5-vl-7b-instruct")
         # Pre-place the projector; only the weights should be fetched.
         (models_dir / entry.mmproj_filename).write_bytes(b"ALREADY-HERE")
         urls = _counting_urlopen(monkeypatch)
 
-        models_cli.download_gguf_cmd(model_id="moondream2", project=tmp_path)
+        models_cli.download_gguf_cmd(model_id="qwen2.5-vl-7b-instruct", project=tmp_path)
 
         assert urls == [models_cli._file_url(entry, entry.gguf_filename)]

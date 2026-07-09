@@ -56,18 +56,18 @@ class TestCatalogHelpers:
 
     def test_ollama_vision_tag_bases_match_vision_models(self):
         bases = mc.ollama_vision_tag_bases()
-        assert "moondream" in bases  # recommended small vision model
+        assert "qwen2.5vl" in bases  # recommended vision model's ollama tag base
         # Every base derives from a recommended vision model's ollama tag.
         expected = {e.ollama_tag.split(":", 1)[0].lower() for e in mc.vision_models() if e.ollama_tag}
         assert bases == frozenset(expected)
 
-    def test_moondream2_is_the_steered_default_vision_model(self):
-        # Wave 6 (packaging-strategy-overhaul): moondream2 is the recommended
-        # vision default - smallest download, both backends, Apache-2.0. Catalog
-        # order drives the Settings/wizard model pickers (they render in this
-        # order), so it must be first among vision entries.
+    def test_qwen2_5_vl_is_the_steered_default_vision_model(self):
+        # 2026-07-09: moondream2 (inaccurate) and SmolVLM2 (broken handler) were
+        # dropped, leaving Qwen2.5-VL 7B as the sole recommended local vision model.
+        # Catalog order drives the Settings/wizard model pickers (they render in
+        # this order), so it must be first among vision entries.
         vision = mc.vision_models()
-        assert vision[0].id == "moondream2"
+        assert vision[0].id == "qwen2.5-vl-7b-instruct"
 
     def test_claude_models_are_both_text_and_vision(self):
         claude = mc.catalog_for_backend(mc.BACKEND_CLAUDE)

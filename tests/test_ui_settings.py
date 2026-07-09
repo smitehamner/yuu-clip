@@ -189,6 +189,15 @@ class TestLlamaCppTextVisionGroups:
         if not vision_configured:
             assert page.locator("#s-llm-vision-model-path").input_value() == ""
 
+    def test_custom_model_licence_note_warns_about_monetization(self, page: Page):
+        # Non-developer users load custom models without thinking about licensing;
+        # the note steers them to check commercial-use terms before monetizing clips.
+        self._open_settings(page)
+        note = page.locator("#s-custom-model-licence-note")
+        expect(note).to_be_visible()
+        expect(note).to_contain_text("licence")
+        expect(note).to_contain_text("commercial use")
+
 
 @skip_no_server
 class TestSettingsPanelLayout:

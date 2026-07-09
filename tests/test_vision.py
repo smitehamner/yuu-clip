@@ -146,7 +146,7 @@ class TestCheckVisionAvailable:
 
     def test_ollama_needs_vision_model(self):
         assert self._check(llm_backend="ollama", ollama_model="llama3.1:8b")[0] is False
-        assert self._check(llm_backend="ollama", ollama_model="moondream")[0] is True
+        assert self._check(llm_backend="ollama", ollama_model="qwen2.5vl:7b")[0] is True
 
     def test_llamacpp_needs_vision_model_and_mmproj(self, tmp_path):
         vision_model = tmp_path / "m.gguf"
@@ -395,7 +395,7 @@ class TestLlamaCppGpuOffload:
 def _enable_ollama_vision(client: TestClient):
     resp = client.patch("/api/config", json={
         "ollama_enabled": True, "llm_backend": "ollama",
-        "ollama_model": "moondream", "vision_enabled": True,
+        "ollama_model": "qwen2.5vl:7b", "vision_enabled": True,
     })
     assert resp.status_code == 200, resp.text
 

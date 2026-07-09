@@ -360,7 +360,7 @@
         <div class="settings-row">
           <div class="settings-col">
             <label class="settings-label" for="s-llm-use-gpu">Use GPU when available</label>
-            <div class="settings-note">Offload the model to your graphics card for faster scoring. Falls back to CPU if the installed build or your GPU can't run it.</div>
+            <div class="settings-note">Offload the model to your graphics card for faster scoring. Note: the bundled local (llama.cpp) engine is CPU-only right now, so this only takes effect on the Ollama backend. Falls back to CPU if your GPU can't run the model.</div>
           </div>
           <label class="settings-checkbox">
             <input type="checkbox" id="s-llm-use-gpu" aria-label="Use GPU when available">
@@ -385,7 +385,7 @@
             <div class="settings-note">A local .gguf vision model, independent from the text model above - required (with a vision projector) for image analysis. A single model that does both needs its path set here and above.</div>
           </div>
           <div class="settings-path-field">
-            <input class="settings-input" id="s-llm-vision-model-path" type="text" placeholder="C:\models\moondream2-text-model.gguf">
+            <input class="settings-input" id="s-llm-vision-model-path" type="text" placeholder="C:\models\Qwen2.5-VL-7B-Instruct-Q4_K_M.gguf">
             <button type="button" class="btn-secondary settings-browse-btn" id="btn-browse-llm-vision-model" data-browse-target="s-llm-vision-model-path" style="display:none">Browse...</button>
           </div>
         </div>
@@ -397,6 +397,11 @@
           <div class="settings-path-field">
             <input class="settings-input" id="s-llm-mmproj-path" type="text" placeholder="C:\models\model-mmproj.gguf">
             <button type="button" class="btn-secondary settings-browse-btn" id="btn-browse-llm-mmproj" data-browse-target="s-llm-mmproj-path" style="display:none">Browse...</button>
+          </div>
+        </div>
+        <div class="settings-row" id="s-custom-model-licence-note">
+          <div class="settings-col">
+            <div class="settings-note">Loading your own model? Check its licence before you sell, monetize, or run ads on clips made with it. Some popular models (for example Llama and Gemma) restrict commercial use of what they generate. Every model yuu-clip recommends above is licensed for commercial use.</div>
           </div>
         </div>
       </div>

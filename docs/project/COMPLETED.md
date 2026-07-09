@@ -6,6 +6,40 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) - see the
 
 ---
 
+## Vision-model cleanup + custom-model licensing note (done 2026-07-09)
+
+Live-tested the three catalog vision models on a real game frame and cut the two weak
+ones:
+
+- **moondream2 dropped.** Coherent on a single frame but factually unreliable
+  (hallucinated a "pool table" for a hot tub, blind to the HUD) and produces malformed
+  output when fed multiple frames (its ~2048-token context overflows past ~2 frames).
+- **SmolVLM2 dropped.** The pinned `llama-cpp-python` 0.3.18 has no Idefics3/SmolVLM chat
+  handler (it falls back to `Llava16ChatHandler`), so the wrong template makes it emit
+  EOS immediately - empty output every run. Confirmed live.
+- **Qwen2.5-VL 7B is now the sole recommended local vision model** - the only permissive
+  (Apache-2.0) option with a reliable in-app handler (`Qwen25VLChatHandler`) *and*
+  accurate descriptions (correctly read the hot tub, clothing, camera framing, and HUD).
+  Smaller/better options (Granite Vision, Pixtral, Qwen2-VL) have no working path on
+  0.3.18 and are deferred to the bundled-Vulkan-llama.cpp effort.
+
+Also this pass:
+
+- **Custom-model licensing note** in Settings -> LLM scoring (`#s-custom-model-licence-note`):
+  steers users who load their own model to check its licence before monetizing clips
+  (Llama/Gemma restrict commercial use of output). Guarded by
+  `test_ui_settings.py::TestLlamaCppTextVisionGroups::test_custom_model_licence_note_warns_about_monetization`.
+- **GPU-toggle note corrected.** "Use GPU when available" now says the bundled local
+  (llama.cpp) engine is CPU-only, so the toggle only takes effect on the Ollama backend.
+  The shipped `llama_cpp_python-0.3.18-cp312-cp312-win_amd64.whl` is a CPU-only build
+  (`llama_supports_gpu_offload()` is False), so `llm_use_gpu` was a silent no-op there.
+- **Clip-list scoring-error badge** + **live spinner/elapsed-time** on the "Analyze frames"
+  button (earlier in the session).
+
+Tests: full API suite (2118) green; UI settings/vision/catalog/smoke (97) green.
+`test_model_catalog.py` and `test_gguf_download.py` retargeted off moondream onto the
+Qwen2.5-VL entry.
+
 ## Per-function local LLM models - text vs vision (done 2026-07-09)
 
 The llamacpp backend used one config field (`llm_model_path`) for both text scoring

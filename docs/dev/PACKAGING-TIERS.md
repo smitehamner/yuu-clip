@@ -47,9 +47,9 @@ monetization gate; no feature had to be re-routed.
 | Speaker labels | ECAPA-TDNN (SpeechBrain) | `speechbrain/spkrec-ecapa-voxceleb` | Apache-2.0 | ✅ PASS |
 | Laugh / audio-event | AST (AudioSet) | `MIT/ast-finetuned-audioset-10-10-0.4593` | **BSD-3-Clause** | ✅ PASS |
 | Similarity embeddings | BGE small en v1.5 | `BAAI/bge-small-en-v1.5` | MIT | ✅ PASS |
-| Vision (default pick) | moondream2 | `vikhyatk/moondream2` | Apache-2.0 | ✅ PASS |
-| Vision (alt) | SmolVLM2 2.2B | `HuggingFaceTB/SmolVLM2-2.2B-Instruct` | Apache-2.0 | ✅ PASS |
-| Vision (alt) | Qwen2.5-VL **7B** | `Qwen/Qwen2.5-VL-7B-Instruct` | Apache-2.0 (7B only) | ✅ PASS |
+| Vision (recommended) | Qwen2.5-VL **7B** | `Qwen/Qwen2.5-VL-7B-Instruct` | Apache-2.0 (7B only) | ✅ PASS |
+| ~~Vision~~ (dropped 2026-07-09) | ~~moondream2~~ | `vikhyatk/moondream2` | Apache-2.0 | Inaccurate descriptions |
+| ~~Vision~~ (dropped 2026-07-09) | ~~SmolVLM2 2.2B~~ | `HuggingFaceTB/SmolVLM2-2.2B-Instruct` | Apache-2.0 | No Idefics3 handler in 0.3.18 - empty output |
 
 Notes:
 
@@ -66,10 +66,12 @@ Notes:
 
 ## Default vision model
 
-**moondream2** is the recommended default: smallest (1.8 GB), runs on both the
-llamacpp and Ollama backends, and is purpose-built for describing on-screen content.
-SmolVLM2 (2.2 GB, llamacpp-only, CPU-friendly) and Qwen2.5-VL-7B (6 GB, higher quality)
-remain catalog alternatives.
+**Qwen2.5-VL 7B** (6 GB, Apache-2.0) is the sole recommended local vision model as of
+2026-07-09. moondream2 was dropped for inaccurate descriptions (hallucinated a "pool
+table" for a hot tub, blind to the HUD in live testing); SmolVLM2 was dropped because
+the pinned llama-cpp-python 0.3.18 has no Idefics3 handler, so it returns empty output.
+Smaller/better options (Granite Vision, Pixtral, Qwen2-VL) are blocked on a llama.cpp
+upgrade - see the bundled-Vulkan-llama.cpp plan - and get re-added once that lands.
 
 ## Target classification (end state)
 
@@ -80,7 +82,7 @@ remain catalog alternatives.
 | Laugh / audio-event | transformers, soundfile | AST | Yes |
 | Better similarity | fastembed | bge-small | Yes (replaces tfidf) |
 | Vertical auto-framing | mediapipe | face-detector asset | Available; runs on vertical export |
-| Vision analysis | (uses LLM backend) | moondream2 | Available; conservatively-on |
+| Vision analysis | (uses LLM backend) | Qwen2.5-VL 7B | Available; conservatively-on |
 | GPU acceleration | - | CUDA wheels | Tier C - opt-in |
 | Remote Claude | anthropic | - | Tier C - privacy choice |
 

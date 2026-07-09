@@ -131,7 +131,7 @@ class TestCapabilities:
         cap = client.get("/api/llm/capabilities").json()
         assert cap["text"] is True and cap["vision"] is False
 
-        _patch(client, ollama_model="moondream")
+        _patch(client, ollama_model="qwen2.5vl:7b")
         cap = client.get("/api/llm/capabilities").json()
         assert cap["text"] is True and cap["vision"] is True
 
@@ -139,7 +139,7 @@ class TestCapabilities:
         # A text-only text model plus a vision model in the dedicated slot is ready
         # for both, without forcing the text model to also be vision-capable.
         _patch(client, ollama_enabled=True, llm_backend="ollama",
-               ollama_model="qwen2.5:7b", ollama_vision_model="moondream")
+               ollama_model="qwen2.5:7b", ollama_vision_model="qwen2.5vl:7b")
         cap = client.get("/api/llm/capabilities").json()
         assert cap["text"] is True and cap["vision"] is True
         assert cap["model"] == "qwen2.5:7b"  # text model still reported
