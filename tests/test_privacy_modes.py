@@ -53,7 +53,7 @@ class TestMakeClientEnforcement:
     def test_none_never_constructs_any_client(self, monkeypatch):
         from yuu_clip.scoring import llm_client as lc
         built = []
-        for cls in (lc.LlamaCppClient, lc.OllamaClient, lc.ClaudeClient):
+        for cls in (lc.LlamaCppServerClient, lc.OllamaClient, lc.ClaudeClient):
             monkeypatch.setattr(cls, "__init__", _spy(cls, built))
         client = lc.make_client(_cfg(
             ollama_enabled=True, llm_backend="ollama", ai_privacy_mode="none"))

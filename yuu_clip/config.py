@@ -504,11 +504,19 @@ class Config:
     # Vision tower, paired with llm_mmproj_path. Text scoring uses llm_model_path and is
     # fully independent - a downloaded vision model must never write to llm_model_path.
     llm_vision_model_path: str = ""
-    # The desktop installer ships a CUDA build of llama-cpp-python for NVIDIA cards,
-    # but offload is off unless n_gpu_layers is set - so with this False the GPU sits
-    # idle. True offloads all layers when the installed build supports it, and the
-    # client falls back to CPU if that load fails (e.g. insufficient VRAM).
+    # The `llamacpp` backend drives upstream's prebuilt Vulkan llama-server.exe over
+    # HTTP (plan bundled-vulkan-llamacpp), which offloads to NVIDIA/AMD/Intel GPUs.
+    # True lets the server auto-fit as many layers to VRAM as fit; False keeps it on
+    # CPU. (The old in-process wheel was CPU-only, so this toggle used to be a no-op.)
     llm_use_gpu: bool = True
+    # Path to the bundled llama-server(.exe). Packaged builds instead set
+    # YUU_CLIP_LLAMA_SERVER_DIR (mirrors YUU_CLIP_FFMPEG_DIR); empty falls back to PATH.
+    llamacpp_server_binary: str = ""
+    llamacpp_server_port: int = 0    # 0 = auto-pick a free loopback port
+    # GPU layers to offload: -1 = auto-fit to free VRAM (recommended - forcing all
+    # layers can OOM a small card, see the spike), 0 = CPU-only, N>0 = force N layers.
+    # Ignored (treated as 0) when llm_use_gpu is False.
+    llamacpp_server_gpu_layers: int = -1
 
     # Image-based clip analysis (plan 11): sample frames from a clip, send them to a
     # vision model, and store a short factual "what's on screen" summary that enriches

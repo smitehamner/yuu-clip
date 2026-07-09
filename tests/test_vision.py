@@ -281,111 +281,76 @@ class TestVisionClientHelpers:
         assert used_models == ["moondream"]
 
 
+class _FakePool:
+    """Stands in for the llama-server pool: records the chat_completion kwargs so tests
+    can assert the text/vision split, and returns a canned reply."""
+
+    def __init__(self, reply="a scene"):
+        self.reply = reply
+        self.calls: list[dict] = []
+
+    def chat_completion(self, config, **kwargs):
+        self.calls.append(kwargs)
+        return self.reply
+
+
+def _patch_pool(monkeypatch, pool):
+    monkeypatch.setattr(
+        "yuu_clip.scoring.llamacpp_server.get_server_pool", lambda: pool,
+    )
+
+
 class TestLlamaCppChatVision:
-    """chat_vision must build the Llama with llm_vision_model_path, never
-    llm_model_path, and refuse with no fallback when it's unset."""
-
-    def _fake_llama_module(self, monkeypatch, captured):
-        import sys
-        import types
-        import unittest.mock as mock
-
-        def factory(**kwargs):
-            captured.update(kwargs)
-            inst = mock.MagicMock()
-            inst.create_chat_completion.return_value = {
-                "choices": [{"message": {"content": "a scene"}}]
-            }
-            return inst
-
-        fake = types.ModuleType("llama_cpp")
-        fake.Llama = factory
-        monkeypatch.setitem(sys.modules, "llama_cpp", fake)
+    """chat_vision must route to llm_vision_model_path (never llm_model_path) with the
+    projector, and refuse with no fallback when the vision model is unset."""
 
     def test_uses_vision_model_path_not_text_model_path(self, monkeypatch, tmp_path):
-        from yuu_clip.scoring.llm_client import LlamaCppClient
+        from yuu_clip.scoring.llm_client import LlamaCppServerClient
         vision_model = tmp_path / "vision.gguf"
         vision_model.write_bytes(b"x")
         mmproj = tmp_path / "mm.gguf"
         mmproj.write_bytes(b"x")
-        import yuu_clip.scoring.llm_client as llm_client_mod
-        captured = {}
-        self._fake_llama_module(monkeypatch, captured)
-        monkeypatch.setattr(llm_client_mod, "_llamacpp_vision_handler", lambda *a, **k: None)
+        image = tmp_path / "a.jpg"
+        image.write_bytes(b"x")
+        pool = _FakePool()
+        _patch_pool(monkeypatch, pool)
         cfg = _cfg(
             llm_backend="llamacpp", llm_model_path="text-model-should-not-be-used.gguf",
             llm_vision_model_path=str(vision_model), llm_mmproj_path=str(mmproj),
-            llm_use_gpu=False,
         )
-        image = tmp_path / "a.jpg"
-        image.write_bytes(b"x")
-        result = LlamaCppClient(cfg).chat_vision(
+        result = LlamaCppServerClient(cfg).chat_vision(
             [{"role": "user", "content": "describe"}], [image],
         )
         assert result == "a scene"
-        assert captured["model_path"] == str(vision_model)
+        assert pool.calls[0]["model_path"] == str(vision_model)
+        assert pool.calls[0]["mmproj_path"] == str(mmproj)
 
     def test_raises_when_vision_model_path_empty_even_with_mmproj_set(self, tmp_path):
-        from yuu_clip.scoring.llm_client import LlamaCppClient, VisionNotSupportedError
+        from yuu_clip.scoring.llm_client import LlamaCppServerClient, VisionNotSupportedError
         mmproj = tmp_path / "mm.gguf"
         mmproj.write_bytes(b"x")
         cfg = _cfg(
             llm_backend="llamacpp", llm_vision_model_path="", llm_mmproj_path=str(mmproj),
         )
         with pytest.raises(VisionNotSupportedError):
-            LlamaCppClient(cfg).chat_vision(
+            LlamaCppServerClient(cfg).chat_vision(
                 [{"role": "user", "content": "describe"}], [tmp_path / "a.jpg"],
             )
 
 
-class TestLlamaCppGpuOffload:
-    """The installer ships a CUDA build for NVIDIA cards, so the client must offload
-    to the GPU by default and fall back to CPU when that load fails."""
+class TestLlamaCppServerTextChat:
+    """Text chat routes to llm_model_path with no projector (mmproj_path empty), keeping
+    the text and vision towers independent."""
 
-    def _fake_llama_module(self, monkeypatch, on_construct):
-        import sys
-        import types
-        import unittest.mock as mock
-
-        def factory(**kwargs):
-            on_construct(kwargs)
-            inst = mock.MagicMock()
-            inst.create_chat_completion.return_value = {
-                "choices": [{"message": {"content": "ok"}}]
-            }
-            return inst
-
-        fake = types.ModuleType("llama_cpp")
-        fake.Llama = factory
-        monkeypatch.setitem(sys.modules, "llama_cpp", fake)
-
-    def _chat(self, cfg):
-        from yuu_clip.scoring.llm_client import LlamaCppClient
-        return LlamaCppClient(cfg).chat([{"role": "user", "content": "x"}])
-
-    def test_offloads_all_layers_when_gpu_enabled(self, monkeypatch):
-        seen = []
-        self._fake_llama_module(monkeypatch, lambda kw: seen.append(kw["n_gpu_layers"]))
-        assert self._chat(_cfg(llm_model_path="m.gguf", llm_use_gpu=True)) == "ok"
-        assert seen == [-1]
-
-    def test_stays_on_cpu_when_gpu_disabled(self, monkeypatch):
-        seen = []
-        self._fake_llama_module(monkeypatch, lambda kw: seen.append(kw["n_gpu_layers"]))
-        assert self._chat(_cfg(llm_model_path="m.gguf", llm_use_gpu=False)) == "ok"
-        assert seen == [0]
-
-    def test_falls_back_to_cpu_when_gpu_load_fails(self, monkeypatch):
-        seen = []
-
-        def on_construct(kwargs):
-            seen.append(kwargs["n_gpu_layers"])
-            if kwargs["n_gpu_layers"] == -1:
-                raise RuntimeError("CUDA out of memory")
-
-        self._fake_llama_module(monkeypatch, on_construct)
-        assert self._chat(_cfg(llm_model_path="m.gguf", llm_use_gpu=True)) == "ok"
-        assert seen == [-1, 0]  # tried GPU, then retried on CPU
+    def test_text_chat_uses_text_model_and_no_mmproj(self, monkeypatch):
+        from yuu_clip.scoring.llm_client import LlamaCppServerClient
+        pool = _FakePool(reply="ok")
+        _patch_pool(monkeypatch, pool)
+        cfg = _cfg(llm_backend="llamacpp", llm_model_path="text.gguf")
+        result = LlamaCppServerClient(cfg).chat([{"role": "user", "content": "x"}])
+        assert result == "ok"
+        assert pool.calls[0]["model_path"] == "text.gguf"
+        assert pool.calls[0]["mmproj_path"] == ""
 
 
 # ---------------------------------------------------------------------------

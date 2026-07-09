@@ -138,6 +138,8 @@ def create_app(project_dir: Path) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         yield
+        from yuu_clip.scoring.llamacpp_server import shutdown_server_pool
+        shutdown_server_pool()
         procs = []
         job = ctx.analyze_job
         if job is not None and getattr(job, "proc", None) is not None:

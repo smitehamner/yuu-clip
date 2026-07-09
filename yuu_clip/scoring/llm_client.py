@@ -29,39 +29,6 @@ class VisionNotSupportedError(RuntimeError):
     """
 
 
-class IncompatibleCpuError(RuntimeError):
-    """The installed llama.cpp build needs CPU instructions this processor lacks."""
-
-
-# Windows STATUS_ILLEGAL_INSTRUCTION: the process ran a CPU instruction the processor
-# doesn't implement. For llama.cpp it means the build was compiled for a higher
-# instruction set (commonly AVX512) than this CPU supports.
-_ILLEGAL_INSTRUCTION_WINERROR = -1073741795  # 0xC000001D
-
-_INCOMPATIBLE_CPU_MESSAGE = (
-    "The AI model could not run on this computer's processor - llama.cpp crashed with an "
-    "illegal CPU instruction (0xC000001D). The installed build needs CPU features (such "
-    "as AVX512) that this processor doesn't have. Switch LLM scoring to Ollama in "
-    "Settings, or reinstall a compatible llama.cpp build. Clips are still created and "
-    "ranked, just without the AI score and description."
-)
-
-
-# Context window (tokens) for text scoring/description/summary calls. llama-cpp-python
-# defaults to 512, which is smaller than a typical transcript excerpt plus the system
-# prompt - the prompt fills the window, leaving no room to generate, so the model returns
-# an empty string and JSON parsing fails. 8192 comfortably fits the largest text task
-# (summarize_transcript truncates input to 12000 chars ~= 3500 tokens) plus its output.
-_TEXT_CTX = 8192
-
-
-def _is_illegal_instruction(exc: Exception) -> bool:
-    return (
-        getattr(exc, "winerror", None) == _ILLEGAL_INSTRUCTION_WINERROR
-        or "0xc000001d" in str(exc).lower()
-    )
-
-
 def _b64_images(images: list[Path]) -> list[str]:
     import base64
     return [base64.b64encode(Path(p).read_bytes()).decode("ascii") for p in images]
@@ -98,7 +65,11 @@ class LLMClient(ABC):
         )
 
 
-class LlamaCppClient(LLMClient):
+class LlamaCppServerClient(LLMClient):
+    """Drives a bundled upstream llama.cpp `llama-server` over HTTP. Replaces the old
+    in-process llama-cpp-python wheel (which was CPU-only): the server offloads to the
+    GPU via its Vulkan backend. Text and image calls use independent models routed to
+    separate server processes by the pool (yuu_clip/scoring/llamacpp_server.py)."""
     is_remote = False
 
     def __init__(self, config: Config) -> None:
@@ -107,62 +78,22 @@ class LlamaCppClient(LLMClient):
     def available(self) -> tuple[bool, str]:
         path = self._config.llm_model_path
         if not path:
-            return False, "No model file path set - open Settings (⚙) and set 'Model file path' under LLM scoring"
-        from pathlib import Path
+            return False, "No model file path set - open Settings (gear icon) and set 'Model file path' under LLM scoring"
         if not Path(path).exists():
             return False, f"Model file not found: {path}"
+        from yuu_clip.scoring.llamacpp_server import LlamaServerError, resolve_server_binary
         try:
-            import llama_cpp  # noqa: F401
-        except ImportError:
-            return False, "llama-cpp-python is not installed (pip install llama-cpp-python)"
+            resolve_server_binary(self._config)
+        except LlamaServerError as exc:
+            return False, str(exc)
         return True, ""
 
     def chat(self, messages: list[dict], temperature: float = 0.1) -> str:
-        llm = self._new_llama(n_ctx=_TEXT_CTX)
-        response = llm.create_chat_completion(messages=messages, temperature=temperature)
-        return response["choices"][0]["message"]["content"]
-
-    def _new_llama(self, **kwargs):
-        """Construct a Llama, offloading to GPU when configured and available.
-
-        n_gpu_layers=-1 offloads every layer; on a CPU-only build it's a harmless
-        no-op, but on a GPU build with too little VRAM the load raises - so retry on
-        CPU rather than failing scoring outright."""
-        from llama_cpp import Llama
-        # verbose=True (llama.cpp's default) dumps hundreds of tensor-load / model-metadata
-        # lines to stderr on every model load, which floods the analyze log and the SSE
-        # stream. Callers can still override (the vision path passes verbose explicitly).
-        kwargs.setdefault("verbose", False)
-        # The text-scoring path uses llm_model_path; chat_vision passes its own
-        # model_path (llm_vision_model_path) to keep the two towers independent.
-        model_path = kwargs.pop("model_path", self._config.llm_model_path)
-
-        def _construct(n_gpu_layers: int):
-            try:
-                return Llama(
-                    model_path=model_path,
-                    n_gpu_layers=n_gpu_layers, **kwargs,
-                )
-            except Exception as exc:
-                if _is_illegal_instruction(exc):
-                    # A CPU-instruction crash - explain it instead of surfacing a raw
-                    # "[WinError -1073741795]" that means nothing to the user.
-                    _log.error("%s (underlying error: %r)", _INCOMPATIBLE_CPU_MESSAGE, exc)
-                    raise IncompatibleCpuError(_INCOMPATIBLE_CPU_MESSAGE) from exc
-                raise
-
-        if not self._config.llm_use_gpu:
-            return _construct(0)
-        try:
-            return _construct(-1)
-        except IncompatibleCpuError:
-            raise  # the CPU fallback would hit the same illegal instruction - don't retry
-        except Exception as exc:
-            _log.warning(
-                "llama.cpp GPU offload failed (%s) - falling back to CPU. Turn off "
-                "'Use GPU when available' in Settings to skip this attempt.", exc,
-            )
-            return _construct(0)
+        from yuu_clip.scoring.llamacpp_server import get_server_pool
+        return get_server_pool().chat_completion(
+            self._config, model_path=self._config.llm_model_path, mmproj_path="",
+            messages=messages, temperature=temperature,
+        )
 
     def chat_vision(
         self, messages: list[dict], images: list[Path], temperature: float = 0.1,
@@ -171,29 +102,25 @@ class LlamaCppClient(LLMClient):
         if not vision_model or not Path(vision_model).exists():
             raise VisionNotSupportedError(
                 "llama.cpp image analysis needs a vision model - "
-                "set 'Vision model' under Settings → LLM scoring"
+                "set 'Vision model' under Settings -> LLM scoring"
             )
         mmproj = self._config.llm_mmproj_path
         if not mmproj or not Path(mmproj).exists():
             raise VisionNotSupportedError(
                 "llama.cpp image analysis needs a vision projector (mmproj .gguf) - "
-                "set 'Vision projector' under Settings → LLM scoring"
+                "set 'Vision projector' under Settings -> LLM scoring"
             )
-        llm = self._new_llama(
-            model_path=vision_model,
-            chat_handler=_llamacpp_vision_handler(vision_model, mmproj),
-            n_ctx=4096, verbose=False,
-        )
-        content: list[dict] = [
+        content: list[dict] = [{"type": "text", "text": _user_text(messages)}]
+        content += [
             {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{data}"}}
             for data in _b64_images(images)
         ]
-        content.append({"type": "text", "text": _user_text(messages)})
-        response = llm.create_chat_completion(
-            messages=_system_messages(messages) + [{"role": "user", "content": content}],
-            temperature=temperature,
+        payload_messages = _system_messages(messages) + [{"role": "user", "content": content}]
+        from yuu_clip.scoring.llamacpp_server import get_server_pool
+        return get_server_pool().chat_completion(
+            self._config, model_path=vision_model, mmproj_path=mmproj,
+            messages=payload_messages, temperature=temperature,
         )
-        return response["choices"][0]["message"]["content"]
 
 
 class OllamaClient(LLMClient):
@@ -354,33 +281,12 @@ def _system_messages(messages: list[dict]) -> list[dict]:
     return [{"role": "system", "content": "\n\n".join(parts)}] if parts else []
 
 
-def _llamacpp_vision_handler(model_path: str, mmproj_path: str):
-    """Pick a llama-cpp-python multimodal chat handler for the model family, keyed on
-    the model/projector filenames. Falls back to the LLaVA-1.5 handler, which covers
-    many LLaVA-derived projectors. Untested on this machine - no cp314 wheel and no
-    C++ toolchain to build llama-cpp-python from source (see plan 11 close-out)."""
-    from llama_cpp import llama_chat_format as fmt
-
-    name = f"{Path(model_path).name} {Path(mmproj_path).name}".lower()
-    candidates = [
-        ("moondream", "MoondreamChatHandler"),
-        ("qwen", "Qwen25VLChatHandler"),
-        ("minicpm", "MiniCPMv26ChatHandler"),
-        ("smolvlm", "Llava16ChatHandler"),
-        ("llava", "Llava16ChatHandler"),
-    ]
-    for keyword, handler_name in candidates:
-        if keyword in name and hasattr(fmt, handler_name):
-            return getattr(fmt, handler_name)(clip_model_path=mmproj_path)
-    return fmt.Llava15ChatHandler(clip_model_path=mmproj_path)
-
-
 # Backend name → client class. Keyed lookup lets make_client read a class's is_remote
 # attribute BEFORE constructing it, so a remote backend blocked by the AI privacy mode is
 # never instantiated (the trust guarantee: no ClaudeClient under local_only). Unknown
 # backends fall back to Ollama, matching the historical default.
 _BACKEND_CLIENTS: dict[str, type[LLMClient]] = {
-    "llamacpp": LlamaCppClient,
+    "llamacpp": LlamaCppServerClient,
     "ollama": OllamaClient,
     "claude": ClaudeClient,
 }

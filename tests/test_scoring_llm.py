@@ -35,22 +35,28 @@ class TestLLMScorerIsAvailable:
         )
         assert scorer.is_available() is False
 
-    def test_llamacpp_path_exists_but_import_fails_returns_false(self, tmp_path):
+    def test_llamacpp_path_exists_but_binary_missing_returns_false(self, tmp_path):
         gguf = tmp_path / "model.gguf"
         gguf.write_bytes(b"fake")
         scorer = self._scorer(llm_backend="llamacpp", llm_model_path=str(gguf))
         import unittest.mock as mock
-        with mock.patch.dict("sys.modules", {"llama_cpp": None}):
+
+        from yuu_clip.scoring.llamacpp_server import LlamaServerError
+        with mock.patch(
+            "yuu_clip.scoring.llamacpp_server.resolve_server_binary",
+            side_effect=LlamaServerError("llama-server was not found"),
+        ):
             assert scorer.is_available() is False
 
     def test_llamacpp_all_checks_pass_returns_true(self, tmp_path):
-        import sys
         import unittest.mock as mock
         gguf = tmp_path / "model.gguf"
         gguf.write_bytes(b"fake")
         scorer = self._scorer(llm_backend="llamacpp", llm_model_path=str(gguf))
-        fake_module = mock.MagicMock()
-        with mock.patch.dict(sys.modules, {"llama_cpp": fake_module}):
+        with mock.patch(
+            "yuu_clip.scoring.llamacpp_server.resolve_server_binary",
+            return_value="llama-server",
+        ):
             scorer._available = None
             result = scorer.is_available()
         assert result is True
@@ -87,96 +93,6 @@ class TestLLMScorerIsAvailable:
             scorer.is_available()
             scorer.is_available()
         assert call_count == 1
-
-# ---------------------------------------------------------------------------
-# LlamaCppClient._new_llama - verbose default
-# ---------------------------------------------------------------------------
-
-class TestLlamaCppNewLlama:
-    """verbose defaults off so llama.cpp's tensor-load spam doesn't flood the log."""
-
-    def _client(self, tmp_path, **overrides):
-        from yuu_clip.config import Config
-        from yuu_clip.scoring.llm_client import LlamaCppClient
-        cfg = Config(llm_backend="llamacpp", llm_model_path=str(tmp_path / "m.gguf"),
-                     llm_use_gpu=False)
-        for k, v in overrides.items():
-            setattr(cfg, k, v)
-        return LlamaCppClient(cfg)
-
-    def _capture_llama_kwargs(self, tmp_path, call_kwargs):
-        import sys
-        import unittest.mock as mock
-        captured = {}
-        fake_module = mock.MagicMock()
-        fake_module.Llama = lambda **kw: captured.update(kw)
-        client = self._client(tmp_path)
-        with mock.patch.dict(sys.modules, {"llama_cpp": fake_module}):
-            client._new_llama(**call_kwargs)
-        return captured
-
-    def test_defaults_verbose_off(self, tmp_path):
-        assert self._capture_llama_kwargs(tmp_path, {})["verbose"] is False
-
-    def test_caller_can_override_verbose(self, tmp_path):
-        assert self._capture_llama_kwargs(tmp_path, {"verbose": True})["verbose"] is True
-
-    def test_text_chat_sets_context_window_above_default(self, tmp_path):
-        # llama-cpp-python defaults n_ctx to 512, too small for a transcript excerpt +
-        # system prompt: the prompt fills the window, the model generates nothing, and
-        # JSON parsing fails on the empty string. chat() must pass a real context window.
-        import sys
-        import unittest.mock as mock
-
-        from yuu_clip.scoring.llm_client import _TEXT_CTX
-
-        captured = {}
-
-        class _FakeLlama:
-            def __init__(self, **kw):
-                captured.update(kw)
-
-            def create_chat_completion(self, **_kw):
-                return {"choices": [{"message": {"content": "{}"}}]}
-
-        fake_module = mock.MagicMock()
-        fake_module.Llama = _FakeLlama
-        client = self._client(tmp_path)
-        with mock.patch.dict(sys.modules, {"llama_cpp": fake_module}):
-            client.chat([{"role": "user", "content": "hi"}])
-        assert captured["n_ctx"] == _TEXT_CTX
-        assert captured["n_ctx"] > 512
-
-    def test_is_illegal_instruction_detection(self):
-        from yuu_clip.scoring.llm_client import _is_illegal_instruction
-        by_winerror = OSError("boom")
-        by_winerror.winerror = -1073741795
-        assert _is_illegal_instruction(by_winerror) is True
-        assert _is_illegal_instruction(OSError("crash 0xC000001D happened")) is True
-        assert _is_illegal_instruction(OSError("out of memory")) is False
-
-    def test_illegal_instruction_becomes_incompatible_cpu_error(self, tmp_path):
-        # The raw "[WinError -1073741795]" is meaningless to a user; _new_llama turns it
-        # into a plain-English IncompatibleCpuError explaining the CPU can't run the build.
-        import sys
-        import unittest.mock as mock
-
-        import pytest
-
-        from yuu_clip.scoring.llm_client import IncompatibleCpuError
-
-        def _raise_illegal(**_kw):
-            err = OSError("[WinError -1073741795] Windows Error 0xc000001d")
-            err.winerror = -1073741795
-            raise err
-
-        fake_module = mock.MagicMock()
-        fake_module.Llama = _raise_illegal
-        client = self._client(tmp_path)  # llm_use_gpu=False -> single construct attempt
-        with mock.patch.dict(sys.modules, {"llama_cpp": fake_module}):
-            with pytest.raises(IncompatibleCpuError):
-                client._new_llama()
-
 
 # ---------------------------------------------------------------------------
 # LLMScorer - _parse() score clamping
@@ -476,9 +392,9 @@ class TestMakeClient:
         assert isinstance(client, NullLLMClient)
 
     def test_llamacpp_backend_returns_llamacpp_client(self):
-        from yuu_clip.scoring.llm_client import LlamaCppClient, make_client
+        from yuu_clip.scoring.llm_client import LlamaCppServerClient, make_client
         client = make_client(self._cfg(ollama_enabled=True, llm_backend="llamacpp"))
-        assert isinstance(client, LlamaCppClient)
+        assert isinstance(client, LlamaCppServerClient)
 
     def test_claude_backend_returns_claude_client(self):
         from yuu_clip.scoring.llm_client import ClaudeClient, make_client
