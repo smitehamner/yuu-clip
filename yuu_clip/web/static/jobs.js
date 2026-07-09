@@ -175,7 +175,7 @@ async function togglePauseJob() {
     _renderPauseUI();
     showToast(wantPause ? 'Will pause before the next video' : 'Resumed', 'info');
   } catch (err) {
-    showToast(`Network error: ${err.message}`, 'error');
+    showToast(netErrMsg(err), 'error');
   } finally {
     btn.disabled = false;
   }
@@ -376,7 +376,7 @@ function _openSSE(url, onLine, onDone, onError, opts = {}) {
       if (!ctrl.signal.aborted) onError('Connection lost - server disconnected');
     }
   }).catch(err => {
-    if (!ctrl.signal.aborted) onError(`Could not connect - ${err.message}`);
+    if (!ctrl.signal.aborted) onError(netErrMsg(err));
   });
   return handle;
 }

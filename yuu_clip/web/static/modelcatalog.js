@@ -34,7 +34,13 @@ async function _loadModelCatalog() {
       free_gb: data.free_gb ?? null,
       backend: data.backend || 'llamacpp',
     };
-  } catch { _modelCatalog = []; return; }
+  } catch {
+    _modelCatalog = [];
+    const failedEl = document.getElementById('s-llamacpp-recommended');
+    if (failedEl) failedEl.innerHTML =
+      '<div class="settings-note">Could not load the recommended model list - check your internet connection and reopen Settings. You can still set a model file by hand under Advanced AI options below.</div>';
+    return;
+  }
   _populateClaudeModelSelect();
   _renderRecommendedModels('s-llamacpp-recommended', 'llamacpp');
   _updateCurrentModelSummary();
@@ -319,10 +325,12 @@ async function _updateLlmCapabilities() {
   try {
     cap = await fetch('/api/llm/capabilities').then(r => r.json());
   } catch { el.textContent = 'Could not check model readiness.'; return; }
-  const mark = ok => ok ? '✓' : '○';
+  const mark = ok => ok
+    ? '<span aria-hidden="true">✓</span> Ready'
+    : '<span aria-hidden="true">○</span> Not set up';
   el.innerHTML =
-    `<span style="margin-right:14px">${mark(cap.text)} Text scoring</span>` +
-    `<span>${mark(cap.vision)} Image analysis</span>` +
+    `<span style="margin-right:14px">Text scoring: ${mark(cap.text)}</span>` +
+    `<span>Image analysis: ${mark(cap.vision)}</span>` +
     `<div class="settings-note" style="margin-top:4px">${escHtml(cap.detail || '')}</div>`;
   el.style.color = cap.text ? 'var(--green)' : 'var(--muted)';
 }

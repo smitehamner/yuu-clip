@@ -150,6 +150,19 @@ function showToast(message, type = 'success', opts = {}) {
   }, ms);
 }
 
+// ── network error copy ────────────────────────────────────────────────────────
+// A fetch() rejection means the request never got a response - on this localhost/
+// Electron app that almost always means the backend stopped, not a real network.
+// The browser reports it as a TypeError whose message is the opaque "Failed to
+// fetch", useless to a non-developer. An Error thrown after a non-ok response
+// already carries a real, specific message, so pass those through unchanged. Use
+// this only at catch sites that wrap a bare fetch (not ones doing DOM work that
+// could throw its own TypeError).
+function netErrMsg(err) {
+  if (err instanceof TypeError) return "Couldn't reach yuu-clip - it may have stopped. Try again, or restart the app.";
+  return (err && err.message) || 'Unknown error';
+}
+
 // ── reveal in file explorer ──────────────────────────────────────────────────
 async function revealInFolder(path) {
   try {
@@ -180,6 +193,6 @@ async function copyText(text, label) {
 
 Object.assign(window, {
   _syncSortDirBtn, _diarizationReason, _diarizationReadiness, _diarizationNoteHtml,
-  openLog, toggleLog, clearLog, appendLog, showToast, revealInFolder, copyText,
+  openLog, toggleLog, clearLog, appendLog, showToast, netErrMsg, revealInFolder, copyText,
 });
 })();

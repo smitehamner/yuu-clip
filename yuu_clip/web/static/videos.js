@@ -837,7 +837,7 @@ async function _doUnsplitVideo(videoId) {
   try {
     res = await fetch(`/api/videos/${videoId}/unsplit`, {method: 'POST'});
   } catch (err) {
-    showToast(`Network error: ${err.message}`, 'error');
+    showToast(netErrMsg(err), 'error');
     return;
   }
   if (!res.ok) {

@@ -721,7 +721,7 @@ function onGgufDownloadProgress(data) {
     if (btn) btn.disabled = false;
     done();
   } else if (data.error) {
-    if (msg) msg.textContent = `Download failed: ${data.error} - check your internet connection, then try again.`;
+    if (msg) msg.textContent = `Download failed: ${data.error}`;
     if (btn) btn.disabled = false;
     done();
   } else if (typeof data.progress === 'number') {

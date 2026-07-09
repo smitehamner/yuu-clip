@@ -74,4 +74,28 @@ function describeInstallFailure(stderr) {
   return 'the install didn’t finish. You can try again, or open the setup log and send it to us.';
 }
 
-module.exports = { looksLikeNetworkError, describeInstallFailure };
+// The model download runs through Node's https/fs (not pip), so its failures
+// arrive as raw system-error messages ("getaddrinfo ENOTFOUND huggingface.co",
+// "connect ETIMEDOUT", "ENOSPC") - meaningless to a non-developer. Map them to
+// the same honest next-step sentences as describeInstallFailure. The raw message
+// is logged by the caller; it is never shown. Sentence starts lowercase so it
+// reads as a continuation of the wizard's "Download failed: " prefix.
+function describeDownloadFailure(message) {
+  const text = String(message || '').toLowerCase();
+  const NET_CODES = ['enotfound', 'etimedout', 'econnreset', 'econnrefused', 'eai_again', 'socket hang up'];
+  const DISK_CODES = ['enospc'];
+  const PERM_CODES = ['eacces', 'eperm'];
+  if (hasAny(text, NETWORK_HINTS) || hasAny(text, NET_CODES)) {
+    return 'the download was interrupted. Check your internet connection, then try again.';
+  }
+  if (hasAny(text, DISK_HINTS) || hasAny(text, DISK_CODES)) {
+    return 'your disk ran out of space. Free up some room, then try again.';
+  }
+  if (hasAny(text, PERMISSION_HINTS) || hasAny(text, PERM_CODES)) {
+    return 'a file was blocked - often by antivirus, or because a file was still in use. ' +
+           'Allow yuu-clip in your antivirus (or close other apps that might be using it), then try again.';
+  }
+  return 'the download did not finish. Check your internet connection, then try again.';
+}
+
+module.exports = { looksLikeNetworkError, describeInstallFailure, describeDownloadFailure };

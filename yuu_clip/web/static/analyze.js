@@ -647,7 +647,7 @@ async function _analyzeSegmentsSequentially(
       null,
       true,
     );
-  }).catch(err => showToast(`Network error: ${err.message}`, 'error'));
+  }).catch(err => showToast(netErrMsg(err), 'error'));
 }
 
 function _showAnalysisToast(video) {

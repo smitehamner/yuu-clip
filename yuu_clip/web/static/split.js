@@ -788,7 +788,7 @@ async function _reanalyzeSegmentsSequentially(segmentIds, index, params) {
       null,
       true,
     );
-  }).catch(err => showToast(`Network error: ${err.message}`, 'error'));
+  }).catch(err => showToast(netErrMsg(err), 'error'));
 }
 
 // ── pre-analysis split editor (inline in New Recording panel) ─────────────────

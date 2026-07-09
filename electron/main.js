@@ -11,7 +11,7 @@ const { parseNvidiaVramMB, selectGPU } = require('./gpu-detect');
 const { resolveBundledFfmpegDir } = require('./ffmpeg-detect');
 const { buildWheelInstallArgs, buildOpencvDedupeArgs } = require('./venv-setup');
 const { parsePipRawProgress } = require('./pip-progress');
-const { describeInstallFailure } = require('./install-error');
+const { describeInstallFailure, describeDownloadFailure } = require('./install-error');
 const diskSpace = require('./disk-space');
 const { recommendWhisperModel } = require('./whisper-select');
 const { modelFileDialogOptions } = require('./model-file-dialog');
@@ -361,7 +361,7 @@ function registerWizardIPC(wizardWin) {
         activeGgufController = null;
         if (err && (err.name === 'AbortError' || err.code === 'ABORT_ERR')) return; // cancel event already sent
         logSetup(`GGUF model download failed: ${err.message}`);
-        send({ error: err.message });
+        send({ error: describeDownloadFailure(err.message) });
       });
   });
 

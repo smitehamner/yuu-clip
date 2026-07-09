@@ -2,7 +2,7 @@
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { looksLikeNetworkError, describeInstallFailure } = require('../install-error');
+const { looksLikeNetworkError, describeInstallFailure, describeDownloadFailure } = require('../install-error');
 
 test('classifies genuine network failures from pip stderr', () => {
   assert.equal(looksLikeNetworkError('WARNING: Retrying ... after connection broken by NewConnectionError'), true);
@@ -55,4 +55,26 @@ test('a build error (MSVC/"could not build wheels") falls through to the generic
   // Must NOT hit the missing-wheel branch (which keys on "could not find a version").
   const msg = describeInstallFailure('ERROR: Could not build wheels for llama-cpp-python');
   assert.match(msg, /setup log/i);
+});
+
+test('a model-download DNS failure never shows the raw system error', () => {
+  const msg = describeDownloadFailure('getaddrinfo ENOTFOUND huggingface.co');
+  assert.doesNotMatch(msg, /getaddrinfo|ENOTFOUND/i);
+  assert.match(msg, /internet connection/i);
+});
+
+test('a model-download timeout/reset maps to the connection hint', () => {
+  assert.match(describeDownloadFailure('connect ETIMEDOUT 1.2.3.4:443'), /internet connection/i);
+  assert.match(describeDownloadFailure('read ECONNRESET'), /internet connection/i);
+});
+
+test('a model-download out-of-disk failure points at freeing space', () => {
+  const msg = describeDownloadFailure('ENOSPC: no space left on device, write');
+  assert.doesNotMatch(msg, /ENOSPC/i);
+  assert.match(msg, /space/i);
+});
+
+test('a blocked model file points at antivirus, not the network', () => {
+  const msg = describeDownloadFailure('EACCES: permission denied, open ...model.gguf');
+  assert.match(msg, /antivirus/i);
 });
