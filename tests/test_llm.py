@@ -67,7 +67,7 @@ class TestCatalogRoute:
 
 class TestCapabilities:
     def test_disabled_llm_reports_nothing_available(self, client: TestClient):
-        _patch(client, ollama_enabled=False)
+        _patch(client, llm_enabled=False)
         cap = client.get("/api/llm/capabilities").json()
         assert cap == {
             "backend": cap["backend"], "model": None,
@@ -77,7 +77,7 @@ class TestCapabilities:
 
     def test_claude_requires_a_key_for_text_and_vision(self, client: TestClient):
         # remote_ok so the privacy-mode block isn't the reason under test (Stage 07).
-        _patch(client, ollama_enabled=True, llm_backend="claude", claude_api_key="",
+        _patch(client, llm_enabled=True, llm_backend="claude", claude_api_key="",
                ai_privacy_mode="remote_ok")
         cap = client.get("/api/llm/capabilities").json()
         assert cap["backend"] == "claude"
@@ -92,7 +92,7 @@ class TestCapabilities:
         self, client: TestClient, project_dir: Path,
     ):
         # No path set → not ready.
-        _patch(client, ollama_enabled=True, llm_backend="llamacpp",
+        _patch(client, llm_enabled=True, llm_backend="llamacpp",
                llm_model_path="", llm_mmproj_path="")
         cap = client.get("/api/llm/capabilities").json()
         assert cap["text"] is False and cap["vision"] is False
@@ -126,35 +126,6 @@ class TestCapabilities:
         _patch(client, llm_vision_model_path=str(vision_model_file))
         assert client.get("/api/llm/capabilities").json()["vision"] is True
 
-    def test_ollama_text_model_and_vision_model(self, client: TestClient):
-        _patch(client, ollama_enabled=True, llm_backend="ollama", ollama_model="qwen2.5:7b")
-        cap = client.get("/api/llm/capabilities").json()
-        assert cap["text"] is True and cap["vision"] is False
-
-        _patch(client, ollama_model="qwen2.5vl:7b")
-        cap = client.get("/api/llm/capabilities").json()
-        assert cap["text"] is True and cap["vision"] is True
-
-    def test_ollama_separate_vision_model_enables_vision(self, client: TestClient):
-        # A text-only text model plus a vision model in the dedicated slot is ready
-        # for both, without forcing the text model to also be vision-capable.
-        _patch(client, ollama_enabled=True, llm_backend="ollama",
-               ollama_model="qwen2.5:7b", ollama_vision_model="qwen2.5vl:7b")
-        cap = client.get("/api/llm/capabilities").json()
-        assert cap["text"] is True and cap["vision"] is True
-        assert cap["model"] == "qwen2.5:7b"  # text model still reported
-
-    def test_ollama_text_only_vision_model_leaves_vision_off(self, client: TestClient):
-        _patch(client, ollama_enabled=True, llm_backend="ollama",
-               ollama_model="moondream", ollama_vision_model="qwen2.5:7b")
-        cap = client.get("/api/llm/capabilities").json()
-        assert cap["vision"] is False  # the vision slot overrides the model for vision
-
-    def test_ollama_no_model_is_not_ready(self, client: TestClient):
-        _patch(client, ollama_enabled=True, llm_backend="ollama", ollama_model="")
-        cap = client.get("/api/llm/capabilities").json()
-        assert cap["text"] is False and cap["vision"] is False
-
 
 class TestModuleFindable:
     """The tier tests above monkeypatch module_findable; these pin its real
@@ -178,40 +149,6 @@ class TestModuleFindable:
     def test_false_for_a_dotted_name_whose_parent_is_absent(self):
         from yuu_clip.web.routes.common import module_findable
         assert module_findable("yuu_clip_no_such_module_xyz.submodule") is False
-
-
-class TestOllamaPullGuard:
-    def test_unknown_tag_is_rejected(self, client: TestClient):
-        resp = client.post("/api/llm/ollama/pull", params={"tag": "evil:latest"})
-        assert resp.status_code == 400
-
-
-class TestOllamaPullDiskPrecheck:
-    def _low_disk(self, monkeypatch, free_bytes: int):
-        import shutil as shutil_mod
-        from unittest import mock
-
-        from yuu_clip.web.routes import llm as llm_routes
-
-        monkeypatch.setattr(shutil_mod, "disk_usage", lambda _p: mock.MagicMock(free=free_bytes))
-        return llm_routes
-
-    def test_preflight_reports_shortfall(self, monkeypatch):
-        llm_routes = self._low_disk(monkeypatch, 1_000_000_000)  # 1 GB free
-        info = llm_routes._preflight_ollama_pull("qwen2.5:7b")
-        assert info["sufficient"] is False
-        assert info["needed_gb"] > info["free_gb"]
-
-    def test_preflight_ok_with_ample_space(self, monkeypatch):
-        llm_routes = self._low_disk(monkeypatch, 500_000_000_000)  # 500 GB free
-        info = llm_routes._preflight_ollama_pull("qwen2.5:7b")
-        assert info["sufficient"] is True
-
-    def test_insufficient_disk_returns_507_before_spawning(self, client: TestClient, monkeypatch):
-        self._low_disk(monkeypatch, 1_000_000_000)
-        resp = client.post("/api/llm/ollama/pull", params={"tag": "qwen2.5:7b"})
-        assert resp.status_code == 507
-        assert "disk space" in resp.json()["detail"].lower()
 
 
 class TestDownloadStatus:
@@ -292,7 +229,7 @@ class TestCapabilityTiers:
         return {t["id"]: t for t in body["tiers"]}, body["lightweight"]
 
     def test_no_model_reports_lightweight_and_basic_descriptions(self, client: TestClient):
-        _patch(client, ollama_enabled=False)
+        _patch(client, llm_enabled=False)
         tiers, lightweight = self._tiers(client)
         assert lightweight is True
         assert set(tiers) == {
@@ -302,13 +239,13 @@ class TestCapabilityTiers:
         assert tiers["descriptions"]["ready"] is False
 
     def test_similarity_defaults_to_fast_keyword(self, client: TestClient):
-        _patch(client, ollama_enabled=False, similarity_backend="tfidf")
+        _patch(client, llm_enabled=False, similarity_backend="tfidf")
         tiers, _ = self._tiers(client)
         assert tiers["similarity"]["active"] == "Fast (keyword)"
 
     def test_llm_similarity_falls_back_when_no_model(self, client: TestClient):
         # 'llm' selected but no model ready → active tier honestly reports the fallback.
-        _patch(client, ollama_enabled=False, similarity_backend="llm")
+        _patch(client, llm_enabled=False, similarity_backend="llm")
         tiers, _ = self._tiers(client)
         assert tiers["similarity"]["active"] == "Fast (keyword)"
 
@@ -385,7 +322,7 @@ class TestCapabilityTiers:
     ):
         model_file = project_dir / "model.gguf"
         model_file.write_bytes(b"gguf")
-        _patch(client, ollama_enabled=True, llm_backend="llamacpp",
+        _patch(client, llm_enabled=True, llm_backend="llamacpp",
                llm_model_path=str(model_file), llm_mmproj_path="")
         tiers, lightweight = self._tiers(client)
         assert lightweight is False
@@ -466,7 +403,7 @@ class TestCapabilityTiers:
         assert tiers["vertical_framing"]["active"] == "Available"
         assert tiers["vertical_framing"]["ready"] is True
 
-    # ── packaging-strategy overhaul (Wave 4): the GGUF/Ollama model and the
+    # ── packaging-strategy overhaul (Wave 4): the local .gguf model and the
     # sub-second BlazeFace asset keep their own download flows - never a
     # "Download now" button from this generic Tier-B prefetch mechanism.
     def test_descriptions_and_vertical_framing_never_offer_prefetch(self, client: TestClient):

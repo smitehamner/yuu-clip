@@ -88,7 +88,7 @@ def _preflight_llm_check(config, opts: AnalyzeOptions) -> None:
     backend isn't reachable, so the user can start it now instead of discovering
     unranked clips at the end. Silent when scoring is off or the LLM is intentionally
     disabled in Settings."""
-    if opts.no_score or not config.ollama_enabled:
+    if opts.no_score or not config.llm_enabled:
         return
     from yuu_clip.scoring.llm import check_llm_available
 
@@ -788,7 +788,7 @@ def _run_scoring(video, track_objs, config, session, energy_mode: str = "fast", 
 
     warnings: list[str] = []
     console.print("  [bold]Scoring clips...[/bold]")
-    if config.ollama_enabled:
+    if config.llm_enabled:
         from yuu_clip.scoring.llm import check_llm_available
         llm_ok, llm_reason = check_llm_available(config)
         if not llm_ok:

@@ -1,7 +1,7 @@
 """POST /api/models/prefetch - the Tier-B model download route (packaging-
-strategy overhaul, Wave 4). Mirrors /api/llm/ollama/pull's subprocess_sse
-pattern; these tests stub subprocess_sse itself (as test_analyze.py's export/
-retranscribe cmd-capture tests do) so no real model download runs."""
+strategy overhaul, Wave 4). Uses the subprocess_sse streaming pattern; these
+tests stub subprocess_sse itself (as test_analyze.py's export/retranscribe
+cmd-capture tests do) so no real model download runs."""
 from __future__ import annotations
 
 import asyncio

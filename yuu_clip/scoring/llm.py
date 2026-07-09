@@ -1,9 +1,8 @@
 """
 LLMScorer - sends the transcript excerpt to an LLM and parses dimension scores.
 
-Supports three backends (config: llm_backend):
-  "llamacpp" - llama-cpp-python; local, no API costs.
-  "ollama"   - Ollama HTTP API; local, no API costs.
+Supports two backends (config: llm_backend):
+  "llamacpp" - bundled llama.cpp llama-server over HTTP; local, GPU-accelerated, no API costs.
   "claude"   - Anthropic Claude API; REMOTE, billed per token.
 
 Gracefully degrades: if the backend is unreachable or returns bad output,
@@ -332,9 +331,8 @@ def describe_clip(
 
 # Image-based clip analysis (plan 11). The instruction goes in the user turn, not a
 # system role, and asks for plain prose (not JSON): small local vision models
-# (moondream, SmolVLM) reliably follow a plain "describe this" user prompt but return
-# coordinates/empty output for a JSON-schema system prompt (verified against real
-# moondream via Ollama at implementation time).
+# reliably follow a plain "describe this" user prompt but return coordinates/empty
+# output for a JSON-schema system prompt.
 _VISION_USER_PROMPT = """\
 These images are frames sampled from a single video clip, in time order.
 In 2-3 sentences, describe what is visible on screen: the game or scene, any on-screen
@@ -378,7 +376,7 @@ def check_vision_available(config: "Config") -> tuple[bool, str]:
     client's chat_vision raising VisionNotSupportedError."""
     from yuu_clip.config import resolve_ai_permissions
 
-    if not config.ollama_enabled:
+    if not config.llm_enabled:
         return False, "LLM scoring is disabled in Settings"
     permissions = resolve_ai_permissions(config)
     if not permissions.allow_llm:
@@ -391,27 +389,20 @@ def check_vision_available(config: "Config") -> tuple[bool, str]:
             return False, _REMOTE_BLOCKED_REASON
         ok = bool(config.claude_api_key)
         return ok, "" if ok else "No Claude API key set - add one under Settings → LLM scoring"
-    if backend == "llamacpp":
-        from pathlib import Path
-        vision_model_ok = bool(config.llm_vision_model_path) and Path(config.llm_vision_model_path).exists()
-        mmproj_ok = bool(config.llm_mmproj_path) and Path(config.llm_mmproj_path).exists()
-        if vision_model_ok and mmproj_ok:
-            return True, ""
-        if not vision_model_ok and not mmproj_ok:
-            return False, (
-                "llama.cpp image analysis needs a vision model and a vision projector "
-                "(.gguf) - set both under Settings → LLM scoring"
-            )
-        if not vision_model_ok:
-            return False, "llama.cpp image analysis needs a vision model - set it under Settings → LLM scoring"
-        return False, "llama.cpp image analysis needs a vision projector (.gguf) - set it under Settings → LLM scoring"
-    from yuu_clip.model_catalog import ollama_vision_tag_bases
-    model = (config.ollama_model or "").strip()
-    ok = bool(model) and model.split(":", 1)[0].strip().lower() in ollama_vision_tag_bases()
-    return ok, "" if ok else (
-        "The current Ollama model can't analyze images - pick a vision model "
-        "under Settings → LLM scoring"
-    )
+    # Local llamacpp backend (the only remaining local backend).
+    from pathlib import Path
+    vision_model_ok = bool(config.llm_vision_model_path) and Path(config.llm_vision_model_path).exists()
+    mmproj_ok = bool(config.llm_mmproj_path) and Path(config.llm_mmproj_path).exists()
+    if vision_model_ok and mmproj_ok:
+        return True, ""
+    if not vision_model_ok and not mmproj_ok:
+        return False, (
+            "llama.cpp image analysis needs a vision model and a vision projector "
+            "(.gguf) - set both under Settings → LLM scoring"
+        )
+    if not vision_model_ok:
+        return False, "llama.cpp image analysis needs a vision model - set it under Settings → LLM scoring"
+    return False, "llama.cpp image analysis needs a vision projector (.gguf) - set it under Settings → LLM scoring"
 
 
 _HOTWORD_SEMANTIC_SYSTEM = """\
@@ -451,7 +442,7 @@ def check_llm_available(config: "Config") -> tuple[bool, str]:
     """Return (available, reason) without logging.  Used by routes to gate LLM calls."""
     from yuu_clip.config import resolve_ai_permissions
 
-    if not config.ollama_enabled:
+    if not config.llm_enabled:
         return False, "LLM scoring is disabled in Settings"
     permissions = resolve_ai_permissions(config)
     if not permissions.allow_llm:
@@ -464,9 +455,7 @@ def check_llm_available(config: "Config") -> tuple[bool, str]:
 def _active_model_id(config: "Config") -> str | None:
     if config.llm_backend == "claude":
         return config.claude_model
-    if config.llm_backend == "llamacpp":
-        return config.llm_model_path
-    return config.ollama_model
+    return config.llm_model_path
 
 
 class LLMScorer:
@@ -485,7 +474,7 @@ class LLMScorer:
     def is_available(self) -> bool:
         from yuu_clip.config import resolve_ai_permissions
 
-        if not self._config.ollama_enabled:
+        if not self._config.llm_enabled:
             return False
         if not resolve_ai_permissions(self._config).allow_llm:
             return False

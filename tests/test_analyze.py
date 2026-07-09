@@ -509,7 +509,7 @@ class TestScoringIsolation:
              patch.object(_pipeline, "_run_scoring", side_effect=boom):
             # Must not raise - a per-video scoring crash cannot abort the batch.
             _pipeline._analyze_one(
-                tmp_path / "s.mkv", session, Config(ollama_enabled=False), tmp_path, AnalyzeOptions()
+                tmp_path / "s.mkv", session, Config(llm_enabled=False), tmp_path, AnalyzeOptions()
             )
 
         session.close()
@@ -603,7 +603,7 @@ class TestRunScoringModelDownloadNotice:
         from yuu_clip.config import Config
         return Config(
             scorer_audio_event_enabled=True, scorer_energy_enabled=False,
-            scorer_scenes_enabled=False, ollama_enabled=False,
+            scorer_scenes_enabled=False, llm_enabled=False,
         )
 
     def test_notice_shown_when_model_not_cached(self, tmp_path, monkeypatch, capsys):
@@ -645,7 +645,7 @@ class TestRunScoringModelDownloadNotice:
         session, video = self._video(tmp_path)
         cfg = Config(
             scorer_audio_event_enabled=False, scorer_energy_enabled=False,
-            scorer_scenes_enabled=False, ollama_enabled=False,
+            scorer_scenes_enabled=False, llm_enabled=False,
         )
         _run_scoring(video, [], cfg, session)
         session.close()

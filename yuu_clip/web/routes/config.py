@@ -35,12 +35,8 @@ class ConfigPatch(BaseModel):
     # Image-based clip analysis (plan 11)
     vision_enabled:               Optional[bool]  = None
     vision_frames_per_clip:       Optional[int]   = None
-    # Ollama (local)
-    ollama_host:                  Optional[str]   = None
-    ollama_model:                 Optional[str]   = None
-    ollama_vision_model:          Optional[str]   = None
-    ollama_timeout_s:             Optional[float] = None
-    ollama_enabled:               Optional[bool]  = None
+    # Master switch for all generative-AI features.
+    llm_enabled:               Optional[bool]  = None
     # Claude API (remote - billed per token)
     claude_api_key:               Optional[str]   = None
     claude_model:                 Optional[str]   = None
@@ -100,8 +96,7 @@ _CONFIG_FIELDS = (
     "model_prefetch_disabled",
     "ai_privacy_mode",
     "llm_backend", "llm_model_path", "llm_mmproj_path", "llm_vision_model_path", "llm_use_gpu",
-    "vision_enabled", "vision_frames_per_clip",
-    "ollama_host", "ollama_model", "ollama_vision_model", "ollama_timeout_s", "ollama_enabled",
+    "vision_enabled", "vision_frames_per_clip", "llm_enabled",
     "claude_api_key", "claude_model", "claude_timeout_s",
     "scorer_energy_weight", "scorer_scene_weight", "scorer_llm_weight",
     "scorer_laugh_weight", "scorer_laugh_mode", "scorer_laugh_model_id",
@@ -221,18 +216,14 @@ _CONFIG_PATCH_RULES: list[tuple[str, object]] = [
     ("whisper_compute_type",         _enum_validator({"int8", "float16", "float32", "int8_float16"}, "whisper_compute_type")),
     ("whisper_language",             _whisper_language_validator),
     ("ai_privacy_mode",              _enum_validator({"none", "local_only", "remote_ok"}, "ai_privacy_mode")),
-    ("llm_backend",                  _enum_validator({"llamacpp", "ollama", "claude"}, "llm_backend")),
+    ("llm_backend",                  _enum_validator({"llamacpp", "claude"}, "llm_backend")),
     ("llm_model_path",               lambda v: v),
     ("llm_mmproj_path",              lambda v: v),
     ("llm_vision_model_path",        lambda v: v),
     ("llm_use_gpu",                  lambda v: v),
     ("vision_enabled",               lambda v: v),
     ("vision_frames_per_clip",       _range_validator(1, 10, "vision_frames_per_clip")),
-    ("ollama_host",                  lambda v: v.strip()),
-    ("ollama_model",                 lambda v: v.strip()),
-    ("ollama_vision_model",          lambda v: v.strip()),
-    ("ollama_timeout_s",             _min_validator(1,    "ollama_timeout_s")),
-    ("ollama_enabled",               lambda v: v),
+    ("llm_enabled",               lambda v: v),
     ("claude_api_key",               lambda v: v.strip()),
     ("claude_model",                 lambda v: v.strip()),
     ("claude_timeout_s",             _min_validator(1, "claude_timeout_s")),

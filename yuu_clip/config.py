@@ -493,7 +493,7 @@ class Config:
     ai_privacy_mode: str = "local_only"
 
     # LOCAL backends - inference runs on your machine, no API costs
-    llm_backend: str = "llamacpp"    # "llamacpp" | "ollama" | "claude"
+    llm_backend: str = "llamacpp"    # "llamacpp" | "claude"
     llm_model_path: str = ""         # path to .gguf file; required when backend is llamacpp
     # Boot-time handoff flag (first-run-friction): the setup wizard sets this to a
     # catalog model id when the user opts into local AI but has not downloaded a
@@ -528,14 +528,10 @@ class Config:
     vision_enabled: bool = True
     vision_frames_per_clip: int = 2  # frames evenly sampled across the clip window (1–10)
 
-    ollama_host: str = "http://localhost:11434"
-    ollama_model: str = "qwen2.5:7b"  # Apache-2.0 (monetization-safe); see model_catalog.py
-    # Optional separate vision model for image analysis - lets a text-only text model
-    # (e.g. qwen2.5:7b) pair with a vision model (e.g. qwen2.5-vl). Empty = reuse
-    # ollama_model for vision too, matching the previous single-model behaviour.
-    ollama_vision_model: str = ""
-    ollama_timeout_s: float = 120.0
-    ollama_enabled: bool = True
+    # Master switch for all generative-AI features (LLM clip scoring, descriptions,
+    # summaries, and image analysis). Off = clips are still created and ranked, just
+    # without any AI text. Enforced in make_client (returns NullLLMClient when False).
+    llm_enabled: bool = True
 
     # REMOTE backend - sends transcript data to Anthropic; billed per token
     claude_api_key: str = ""                         # Anthropic API key

@@ -916,7 +916,7 @@ class TestRelatedClips:
     def test_related_clips_succeeds_without_llm(self, client):
         # Non-LLM tiers plan/01: related-clips runs on the default keyword
         # similarity backend, so it no longer 503s when no LLM is available.
-        client.patch("/api/config", json={"ollama_enabled": False})
+        client.patch("/api/config", json={"llm_enabled": False})
         clip_id = self._first_clip_id(client)
         r = client.get(f"/api/clips/{clip_id}/related-clips")
         assert r.status_code == 200

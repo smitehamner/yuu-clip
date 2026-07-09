@@ -390,24 +390,15 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             ffmpeg_ok = False
         cfg = ctx.config
         try:
-            if cfg.llm_backend == "ollama":
-                # Keep the fast 2s reachability probe so a bad Ollama host can't
-                # stall boot (the client's own list() call has no timeout).
-                import urllib.request
-                host = cfg.ollama_host or "http://localhost:11434"
-                urllib.request.urlopen(f"{host}/api/tags", timeout=2)
-                llm_ok, llm_reason = True, ""
-            else:
-                # The authoritative check - for llamacpp this also confirms the
-                # bundled llama-server binary resolves, not just that the .gguf file
-                # exists, so a missing runtime no longer reports as "ok" and then
-                # fails silently during scoring.
-                from yuu_clip.scoring.llm import check_llm_available
-                llm_ok, llm_reason = check_llm_available(cfg)
+            # For llamacpp this confirms the bundled llama-server binary resolves, not
+            # just that the .gguf file exists, so a missing runtime no longer reports
+            # as "ok" and then fails silently during scoring.
+            from yuu_clip.scoring.llm import check_llm_available
+            llm_ok, llm_reason = check_llm_available(cfg)
         except Exception as exc:
             _log.debug("prereqs: LLM check failed: %s", exc)
             llm_ok = False
-            llm_reason = f"Ollama not reachable at {cfg.ollama_host or 'http://localhost:11434'}"
+            llm_reason = "The local AI engine could not be checked"
         return {"ffmpeg_ok": ffmpeg_ok, "llm_ok": llm_ok, "llm_reason": llm_reason}
 
     @router.get("/api/analyze/status")

@@ -28,7 +28,6 @@ from dataclasses import dataclass
 from typing import Optional
 
 # Backends a catalog entry can run on. Mirrors Config.llm_backend values.
-BACKEND_OLLAMA = "ollama"
 BACKEND_LLAMACPP = "llamacpp"
 BACKEND_CLAUDE = "claude"
 
@@ -52,7 +51,6 @@ class ModelEntry:
     why: str                             # one-line "why this one"
     backends: frozenset[str]             # subset of the BACKEND_* values
     size_gb: Optional[float] = None      # approximate on-disk size (local weights)
-    ollama_tag: Optional[str] = None     # `ollama pull` tag (ollama backend)
     gguf_url: Optional[str] = None       # HF repo *page* for the .gguf (llamacpp backend) - not a direct download
     gguf_filename: Optional[str] = None  # exact quant filename at gguf_url/resolve/main/<this>, for one-click download
     mmproj_url: Optional[str] = None     # HF repo page holding the vision projector (llamacpp vision) - usually the same repo as gguf_url
@@ -70,7 +68,6 @@ class ModelEntry:
             "why": self.why,
             "backends": sorted(self.backends),
             "size_gb": self.size_gb,
-            "ollama_tag": self.ollama_tag,
             "gguf_url": self.gguf_url,
             "gguf_filename": self.gguf_filename,
             "mmproj_url": self.mmproj_url,
@@ -97,9 +94,8 @@ CATALOG: tuple[ModelEntry, ...] = (
         kinds=_TEXT,
         licence="Apache-2.0",
         why="Strong all-round 7B - the best local default for clip scoring.",
-        backends=frozenset({BACKEND_OLLAMA, BACKEND_LLAMACPP}),
+        backends=frozenset({BACKEND_LLAMACPP}),
         size_gb=4.7,
-        ollama_tag="qwen2.5:7b",
         gguf_url="https://huggingface.co/bartowski/Qwen2.5-7B-Instruct-GGUF",
         gguf_filename="Qwen2.5-7B-Instruct-Q4_K_M.gguf",
     ),
@@ -109,9 +105,8 @@ CATALOG: tuple[ModelEntry, ...] = (
         kinds=_TEXT,
         licence="Apache-2.0",
         why="Fast and reliable at returning clean JSON scores.",
-        backends=frozenset({BACKEND_OLLAMA, BACKEND_LLAMACPP}),
+        backends=frozenset({BACKEND_LLAMACPP}),
         size_gb=4.4,
-        ollama_tag="mistral:7b",
         gguf_url="https://huggingface.co/bartowski/Mistral-7B-Instruct-v0.3-GGUF",
         gguf_filename="Mistral-7B-Instruct-v0.3-Q4_K_M.gguf",
     ),
@@ -121,9 +116,8 @@ CATALOG: tuple[ModelEntry, ...] = (
         kinds=_TEXT,
         licence="MIT",
         why="Higher-quality scoring when you have the VRAM for a 14B model.",
-        backends=frozenset({BACKEND_OLLAMA, BACKEND_LLAMACPP}),
+        backends=frozenset({BACKEND_LLAMACPP}),
         size_gb=9.1,
-        ollama_tag="phi4",
         gguf_url="https://huggingface.co/bartowski/phi-4-GGUF",
         gguf_filename="phi-4-Q4_K_M.gguf",
     ),
@@ -143,9 +137,8 @@ CATALOG: tuple[ModelEntry, ...] = (
         kinds=_VISION,
         licence="Apache-2.0",
         why="Recommended vision model - accurate on-screen descriptions; needs the VRAM (or patience) for a 7B.",
-        backends=frozenset({BACKEND_OLLAMA, BACKEND_LLAMACPP}),
+        backends=frozenset({BACKEND_LLAMACPP}),
         size_gb=6.0,
-        ollama_tag="qwen2.5vl:7b",
         gguf_url="https://huggingface.co/unsloth/Qwen2.5-VL-7B-Instruct-GGUF",
         gguf_filename="Qwen2.5-VL-7B-Instruct-Q4_K_M.gguf",
         mmproj_url="https://huggingface.co/unsloth/Qwen2.5-VL-7B-Instruct-GGUF",
@@ -212,7 +205,7 @@ CATALOG: tuple[ModelEntry, ...] = (
         kinds=_TEXT,
         licence="Llama 3.1 Community License",
         why="Capable 8B, but see rejected_reason.",
-        backends=frozenset({BACKEND_OLLAMA, BACKEND_LLAMACPP}),
+        backends=frozenset({BACKEND_LLAMACPP}),
         recommended=False,
         rejected_reason=(
             "Llama's community licence carries acceptable-use restrictions and "
@@ -225,7 +218,7 @@ CATALOG: tuple[ModelEntry, ...] = (
         kinds=_TEXT_VISION,
         licence="Gemma Terms of Use",
         why="Strong multimodal model, but see rejected_reason.",
-        backends=frozenset({BACKEND_OLLAMA, BACKEND_LLAMACPP}),
+        backends=frozenset({BACKEND_LLAMACPP}),
         recommended=False,
         rejected_reason=(
             "Google's Gemma Terms of Use impose acceptable-use restrictions; "
@@ -256,14 +249,3 @@ def vision_models() -> list[ModelEntry]:
 def catalog_for_backend(backend: str) -> list[ModelEntry]:
     """Recommended models runnable on *backend*, ordered as in CATALOG."""
     return [entry for entry in recommended_models() if backend in entry.backends]
-
-
-def ollama_vision_tag_bases() -> frozenset[str]:
-    """Tag bases (the part before ':') of recommended Ollama vision models - the
-    single source of truth for "is this Ollama model vision-capable". Consumed by
-    the /api/llm/capabilities check and plan 11's vision-availability gate."""
-    return frozenset(
-        entry.ollama_tag.split(":", 1)[0].strip().lower()
-        for entry in vision_models()
-        if entry.ollama_tag
-    )

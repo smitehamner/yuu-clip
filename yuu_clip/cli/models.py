@@ -1,10 +1,9 @@
 """Tier-B model prefetch command - downloads one auto-fetched model on demand.
 
 Invoked as a subprocess by POST /api/models/prefetch (routes/models.py), which
-streams this command's output as SSE - the same "download <model> so <feature>
-works" pattern as /api/llm/ollama/pull, generalized to the other Tier-B models
-(packaging-strategy overhaul, Wave 4). The GGUF/Ollama LLM model keeps its own
-existing path and isn't handled here.
+streams this command's output as SSE - one "download <model> so <feature>
+works" pattern across the Tier-B models (packaging-strategy overhaul, Wave 4).
+The local .gguf LLM model keeps its own existing path and isn't handled here.
 """
 from __future__ import annotations
 
@@ -92,8 +91,7 @@ def prefetch_whisper_cmd(
 # handoff) can fetch a recommended local LLM natively, instead of only linking
 # to a HuggingFace download page. Spawned by POST /api/llm/gguf/download, which
 # streams this command's stdout as SSE (routes/llm.py). Progress lines are plain
-# text, one per line, so modelcatalog.js can append them the same way it appends
-# the Ollama pull's output.
+# text, one per line, so modelcatalog.js can append them as they arrive.
 
 _DOWNLOAD_CHUNK_BYTES = 1 << 20  # 1 MiB reads
 _PROGRESS_STEP_PCT = 2  # print progress at most every 2 percentage points

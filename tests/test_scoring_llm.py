@@ -7,7 +7,7 @@ from __future__ import annotations
 # ---------------------------------------------------------------------------
 
 class TestLLMScorerIsAvailable:
-    """LLMScorer.is_available() covers ollama_enabled gate, llamacpp checks, ollama checks."""
+    """LLMScorer.is_available() covers llm_enabled gate, llamacpp checks, claude checks."""
 
     def _make_config(self, **overrides):
         from yuu_clip.config import Config
@@ -20,8 +20,8 @@ class TestLLMScorerIsAvailable:
         from yuu_clip.scoring.llm import LLMScorer
         return LLMScorer(self._make_config(**config_overrides))
 
-    def test_ollama_enabled_false_returns_false_immediately(self):
-        scorer = self._scorer(ollama_enabled=False, llm_backend="llamacpp")
+    def test_llm_enabled_false_returns_false_immediately(self):
+        scorer = self._scorer(llm_enabled=False, llm_backend="llamacpp")
         assert scorer.is_available() is False
 
     def test_llamacpp_empty_model_path_returns_false(self):
@@ -61,19 +61,19 @@ class TestLLMScorerIsAvailable:
             result = scorer.is_available()
         assert result is True
 
-    def test_ollama_backend_unreachable_returns_false(self):
+    def test_claude_backend_unreachable_returns_false(self):
         import unittest.mock as mock
-        scorer = self._scorer(llm_backend="ollama")
-        with mock.patch("yuu_clip.scoring.llm_client.OllamaClient.available",
-                        return_value=(False, "connection refused")):
+        scorer = self._scorer(llm_backend="claude", ai_privacy_mode="remote_ok")
+        with mock.patch("yuu_clip.scoring.llm_client.ClaudeClient.available",
+                        return_value=(False, "key rejected")):
             scorer._available = None
             result = scorer.is_available()
         assert result is False
 
-    def test_ollama_backend_reachable_returns_true(self):
+    def test_claude_backend_reachable_returns_true(self):
         import unittest.mock as mock
-        scorer = self._scorer(llm_backend="ollama")
-        with mock.patch("yuu_clip.scoring.llm_client.OllamaClient.available",
+        scorer = self._scorer(llm_backend="claude", ai_privacy_mode="remote_ok")
+        with mock.patch("yuu_clip.scoring.llm_client.ClaudeClient.available",
                         return_value=(True, "")):
             scorer._available = None
             result = scorer.is_available()
@@ -82,14 +82,14 @@ class TestLLMScorerIsAvailable:
     def test_is_available_caches_result(self, tmp_path):
         """Second call to is_available() must not redo the availability check."""
         import unittest.mock as mock
-        scorer = self._scorer(llm_backend="ollama")
+        scorer = self._scorer(llm_backend="claude", ai_privacy_mode="remote_ok")
         call_count = 0
-        def counting_list():
+
+        def counting_available(self):
             nonlocal call_count
             call_count += 1
-            return []
-        with mock.patch("ollama.Client") as mock_client:
-            mock_client.return_value.list.side_effect = counting_list
+            return (True, "")
+        with mock.patch("yuu_clip.scoring.llm_client.ClaudeClient.available", counting_available):
             scorer.is_available()
             scorer.is_available()
         assert call_count == 1
@@ -275,20 +275,20 @@ class TestLLMScorerScore:
         result = scorer.score(clip, None)
         assert result.notes.get("model") == "/models/qwen2.5.gguf"
 
-    def test_success_notes_include_model_id_for_ollama(self):
+    def test_success_notes_include_model_id_for_claude(self):
         import json
         import unittest.mock as mock
 
         from yuu_clip.config import Config
         from yuu_clip.scoring.llm import LLMScorer
         cfg = Config()
-        cfg.llm_backend = "ollama"
-        cfg.ollama_model = "qwen2.5:7b"
+        cfg.llm_backend = "claude"
+        cfg.claude_model = "claude-haiku-4-5-20251001"
         scorer = LLMScorer(cfg)
         scorer._call_llm = mock.MagicMock(return_value=json.dumps({"score_funny": 0.5}))
         clip = self._make_clip(excerpt="text")
         result = scorer.score(clip, None)
-        assert result.notes.get("model") == "qwen2.5:7b"
+        assert result.notes.get("model") == "claude-haiku-4-5-20251001"
 
 # ---------------------------------------------------------------------------
 # Coverage gaps - pure-function and edge-case paths
@@ -386,31 +386,26 @@ class TestMakeClient:
             setattr(cfg, k, v)
         return cfg
 
-    def test_ollama_disabled_returns_null_client(self):
+    def test_llm_disabled_returns_null_client(self):
         from yuu_clip.scoring.llm_client import NullLLMClient, make_client
-        client = make_client(self._cfg(ollama_enabled=False))
+        client = make_client(self._cfg(llm_enabled=False))
         assert isinstance(client, NullLLMClient)
 
     def test_llamacpp_backend_returns_llamacpp_client(self):
         from yuu_clip.scoring.llm_client import LlamaCppServerClient, make_client
-        client = make_client(self._cfg(ollama_enabled=True, llm_backend="llamacpp"))
+        client = make_client(self._cfg(llm_enabled=True, llm_backend="llamacpp"))
         assert isinstance(client, LlamaCppServerClient)
 
     def test_claude_backend_returns_claude_client(self):
         from yuu_clip.scoring.llm_client import ClaudeClient, make_client
         client = make_client(self._cfg(
-            ollama_enabled=True, llm_backend="claude", ai_privacy_mode="remote_ok"))
+            llm_enabled=True, llm_backend="claude", ai_privacy_mode="remote_ok"))
         assert isinstance(client, ClaudeClient)
 
-    def test_ollama_backend_returns_ollama_client(self):
-        from yuu_clip.scoring.llm_client import OllamaClient, make_client
-        client = make_client(self._cfg(ollama_enabled=True, llm_backend="ollama"))
-        assert isinstance(client, OllamaClient)
-
-    def test_unknown_backend_falls_back_to_ollama(self):
-        from yuu_clip.scoring.llm_client import OllamaClient, make_client
-        client = make_client(self._cfg(ollama_enabled=True, llm_backend="unknown"))
-        assert isinstance(client, OllamaClient)
+    def test_unknown_backend_falls_back_to_llamacpp(self):
+        from yuu_clip.scoring.llm_client import LlamaCppServerClient, make_client
+        client = make_client(self._cfg(llm_enabled=True, llm_backend="unknown"))
+        assert isinstance(client, LlamaCppServerClient)
 
 # ---------------------------------------------------------------------------
 # ClaudeClient.available()
@@ -522,9 +517,9 @@ class TestCheckLlmAvailable:
             setattr(cfg, k, v)
         return cfg
 
-    def test_ollama_disabled_returns_false(self):
+    def test_llm_disabled_returns_false(self):
         from yuu_clip.scoring.llm import check_llm_available
-        ok, reason = check_llm_available(self._cfg(ollama_enabled=False))
+        ok, reason = check_llm_available(self._cfg(llm_enabled=False))
         assert ok is False
         assert "disabled" in reason
 
@@ -532,8 +527,8 @@ class TestCheckLlmAvailable:
         import unittest.mock as mock
 
         from yuu_clip.scoring.llm import check_llm_available
-        cfg = self._cfg(ollama_enabled=True, llm_backend="ollama")
-        with mock.patch("yuu_clip.scoring.llm_client.OllamaClient.available",
+        cfg = self._cfg(llm_enabled=True, llm_backend="claude", ai_privacy_mode="remote_ok")
+        with mock.patch("yuu_clip.scoring.llm_client.ClaudeClient.available",
                         return_value=(True, "")):
             ok, reason = check_llm_available(cfg)
         assert ok is True

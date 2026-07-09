@@ -53,10 +53,10 @@ class TestMakeClientEnforcement:
     def test_none_never_constructs_any_client(self, monkeypatch):
         from yuu_clip.scoring import llm_client as lc
         built = []
-        for cls in (lc.LlamaCppServerClient, lc.OllamaClient, lc.ClaudeClient):
+        for cls in (lc.LlamaCppServerClient, lc.ClaudeClient):
             monkeypatch.setattr(cls, "__init__", _spy(cls, built))
         client = lc.make_client(_cfg(
-            ollama_enabled=True, llm_backend="ollama", ai_privacy_mode="none"))
+            llm_enabled=True, llm_backend="llamacpp", ai_privacy_mode="none"))
         assert isinstance(client, lc.NullLLMClient)
         assert built == []
 
@@ -65,20 +65,20 @@ class TestMakeClientEnforcement:
         built = []
         monkeypatch.setattr(lc.ClaudeClient, "__init__", _spy(lc.ClaudeClient, built))
         client = lc.make_client(_cfg(
-            ollama_enabled=True, llm_backend="claude", ai_privacy_mode="local_only"))
+            llm_enabled=True, llm_backend="claude", ai_privacy_mode="local_only"))
         assert isinstance(client, lc.NullLLMClient)
         assert built == []
 
-    def test_local_only_allows_local_ollama(self):
-        from yuu_clip.scoring.llm_client import OllamaClient, make_client
+    def test_local_only_allows_local_llamacpp(self):
+        from yuu_clip.scoring.llm_client import LlamaCppServerClient, make_client
         client = make_client(_cfg(
-            ollama_enabled=True, llm_backend="ollama", ai_privacy_mode="local_only"))
-        assert isinstance(client, OllamaClient)
+            llm_enabled=True, llm_backend="llamacpp", ai_privacy_mode="local_only"))
+        assert isinstance(client, LlamaCppServerClient)
 
     def test_remote_ok_constructs_claude_client(self):
         from yuu_clip.scoring.llm_client import ClaudeClient, make_client
         client = make_client(_cfg(
-            ollama_enabled=True, llm_backend="claude", ai_privacy_mode="remote_ok"))
+            llm_enabled=True, llm_backend="claude", ai_privacy_mode="remote_ok"))
         assert isinstance(client, ClaudeClient)
 
     def test_backend_is_remote_reads_class_attr_without_constructing(self, monkeypatch):
@@ -86,7 +86,7 @@ class TestMakeClientEnforcement:
         built = []
         monkeypatch.setattr(lc.ClaudeClient, "__init__", _spy(lc.ClaudeClient, built))
         assert lc.backend_is_remote(_cfg(llm_backend="claude")) is True
-        assert lc.backend_is_remote(_cfg(llm_backend="ollama")) is False
+        assert lc.backend_is_remote(_cfg(llm_backend="llamacpp")) is False
         assert built == []
 
 
@@ -107,26 +107,26 @@ def _spy(cls, sink):
 class TestGatesHonorMode:
     def test_check_llm_off_under_none(self):
         from yuu_clip.scoring.llm import check_llm_available
-        ok, reason = check_llm_available(_cfg(ollama_enabled=True, ai_privacy_mode="none"))
+        ok, reason = check_llm_available(_cfg(llm_enabled=True, ai_privacy_mode="none"))
         assert ok is False and "generative ai is turned off" in reason.lower()
 
     def test_check_llm_blocks_remote_under_local_only(self):
         from yuu_clip.scoring.llm import check_llm_available
         ok, reason = check_llm_available(_cfg(
-            ollama_enabled=True, llm_backend="claude",
+            llm_enabled=True, llm_backend="claude",
             claude_api_key="sk-x", ai_privacy_mode="local_only"))
         assert ok is False and "remote" in reason.lower()
 
     def test_check_vision_off_under_none(self):
         from yuu_clip.scoring.llm import check_vision_available
         ok, reason = check_vision_available(_cfg(
-            ollama_enabled=True, vision_enabled=True, ai_privacy_mode="none"))
+            llm_enabled=True, vision_enabled=True, ai_privacy_mode="none"))
         assert ok is False and "generative ai is turned off" in reason.lower()
 
     def test_check_vision_blocks_remote_under_local_only(self):
         from yuu_clip.scoring.llm import check_vision_available
         ok, reason = check_vision_available(_cfg(
-            ollama_enabled=True, vision_enabled=True, llm_backend="claude",
+            llm_enabled=True, vision_enabled=True, llm_backend="claude",
             claude_api_key="sk-x", ai_privacy_mode="local_only"))
         assert ok is False and "remote" in reason.lower()
 
@@ -143,7 +143,7 @@ class TestVisionBackstop:
 
         built = []
         monkeypatch.setattr(lc.ClaudeClient, "__init__", _spy(lc.ClaudeClient, built))
-        cfg = _cfg(ollama_enabled=True, llm_backend="claude",
+        cfg = _cfg(llm_enabled=True, llm_backend="claude",
                    claude_api_key="sk-x", ai_privacy_mode="local_only")
         # make_client returns NullLLMClient, whose chat_vision raises the base backstop.
         with pytest.raises(VisionNotSupportedError):

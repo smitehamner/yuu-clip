@@ -281,7 +281,7 @@ def score(
     if no_scenes:
         config.scorer_scenes_enabled = False
     if no_llm:
-        config.ollama_enabled = False
+        config.llm_enabled = False
 
     if all_videos:
         videos = session.query(Video).all()

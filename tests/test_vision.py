@@ -127,26 +127,22 @@ class TestDescribeFrames:
 class TestCheckVisionAvailable:
     def _check(self, **overrides):
         from yuu_clip.scoring.llm import check_vision_available
-        return check_vision_available(_cfg(vision_enabled=True, ollama_enabled=True, **overrides))
+        return check_vision_available(_cfg(vision_enabled=True, llm_enabled=True, **overrides))
 
     def test_llm_disabled(self):
         from yuu_clip.scoring.llm import check_vision_available
-        ok, reason = check_vision_available(_cfg(ollama_enabled=False, vision_enabled=True))
+        ok, reason = check_vision_available(_cfg(llm_enabled=False, vision_enabled=True))
         assert ok is False and "disabled" in reason
 
     def test_vision_master_switch_off(self):
         from yuu_clip.scoring.llm import check_vision_available
-        ok, reason = check_vision_available(_cfg(ollama_enabled=True, vision_enabled=False))
+        ok, reason = check_vision_available(_cfg(llm_enabled=True, vision_enabled=False))
         assert ok is False and "turned off" in reason
 
     def test_claude_needs_key(self):
         # remote_ok isolates the key check from the privacy-mode block (Stage 07).
         assert self._check(llm_backend="claude", claude_api_key="", ai_privacy_mode="remote_ok")[0] is False
         assert self._check(llm_backend="claude", claude_api_key="sk-x", ai_privacy_mode="remote_ok")[0] is True
-
-    def test_ollama_needs_vision_model(self):
-        assert self._check(llm_backend="ollama", ollama_model="llama3.1:8b")[0] is False
-        assert self._check(llm_backend="ollama", ollama_model="qwen2.5vl:7b")[0] is True
 
     def test_llamacpp_needs_vision_model_and_mmproj(self, tmp_path):
         vision_model = tmp_path / "m.gguf"
@@ -192,93 +188,6 @@ class TestVisionClientHelpers:
         from yuu_clip.scoring.llm_client import NullLLMClient, VisionNotSupportedError
         with pytest.raises(VisionNotSupportedError):
             NullLLMClient().chat_vision([{"role": "user", "content": "x"}], [Path("a.jpg")])
-
-    def test_attach_images_to_last_user(self):
-        from yuu_clip.scoring.llm_client import _attach_images_to_last_user
-        msgs = [{"role": "system", "content": "s"}, {"role": "user", "content": "u"}]
-        out = _attach_images_to_last_user(msgs, ["b64a", "b64b"])
-        assert out[1]["images"] == ["b64a", "b64b"]
-        assert msgs[1].get("images") is None  # original untouched
-
-    def test_attach_appends_user_when_none_present(self):
-        from yuu_clip.scoring.llm_client import _attach_images_to_last_user
-        out = _attach_images_to_last_user([{"role": "system", "content": "s"}], ["b64"])
-        assert out[-1]["role"] == "user"
-        assert out[-1]["images"] == ["b64"]
-
-    def test_vision_num_ctx_scales_and_caps(self):
-        from yuu_clip.scoring.llm_client import _vision_num_ctx
-        assert _vision_num_ctx(1) == 4096
-        assert _vision_num_ctx(4) == 10240
-        assert _vision_num_ctx(50) == 16384  # capped
-
-    def test_ollama_vision_degrades_on_context_overflow(self, monkeypatch, tmp_path):
-        import unittest.mock as mock
-
-        from yuu_clip.scoring.llm_client import OllamaClient
-        for name in ("a.jpg", "b.jpg", "c.jpg", "d.jpg"):
-            (tmp_path / name).write_bytes(b"x")
-        images = [tmp_path / n for n in ("a.jpg", "b.jpg", "c.jpg", "d.jpg")]
-
-        attempts = []
-
-        def fake_chat(model, messages, options):
-            n_images = len(messages[-1].get("images", []))
-            attempts.append(n_images)
-            if n_images > 2:
-                raise RuntimeError('{"error":{"type":"exceed_context_size_error"}}')
-            return mock.MagicMock(message=mock.MagicMock(content="described"))
-
-        fake_client = mock.MagicMock()
-        fake_client.chat.side_effect = fake_chat
-        with mock.patch("ollama.Client", return_value=fake_client):
-            result = OllamaClient(_cfg(ollama_model="moondream")).chat_vision(
-                [{"role": "user", "content": "describe"}], images,
-            )
-        assert result == "described"
-        assert attempts == [4, 2]  # retried with half the frames after the overflow
-
-    def test_ollama_vision_uses_dedicated_vision_model(self, monkeypatch, tmp_path):
-        import unittest.mock as mock
-
-        from yuu_clip.scoring.llm_client import OllamaClient
-        (tmp_path / "a.jpg").write_bytes(b"x")
-
-        used_models = []
-
-        def fake_chat(model, messages, options):
-            used_models.append(model)
-            return mock.MagicMock(message=mock.MagicMock(content="described"))
-
-        fake_client = mock.MagicMock()
-        fake_client.chat.side_effect = fake_chat
-        cfg = _cfg(ollama_model="qwen2.5:7b", ollama_vision_model="moondream")
-        with mock.patch("ollama.Client", return_value=fake_client):
-            OllamaClient(cfg).chat_vision(
-                [{"role": "user", "content": "describe"}], [tmp_path / "a.jpg"],
-            )
-        assert used_models == ["moondream"]  # vision slot, not the text model
-
-    def test_ollama_vision_falls_back_to_text_model_when_unset(self, monkeypatch, tmp_path):
-        import unittest.mock as mock
-
-        from yuu_clip.scoring.llm_client import OllamaClient
-        (tmp_path / "a.jpg").write_bytes(b"x")
-
-        used_models = []
-
-        def fake_chat(model, messages, options):
-            used_models.append(model)
-            return mock.MagicMock(message=mock.MagicMock(content="described"))
-
-        fake_client = mock.MagicMock()
-        fake_client.chat.side_effect = fake_chat
-        cfg = _cfg(ollama_model="moondream", ollama_vision_model="")
-        with mock.patch("ollama.Client", return_value=fake_client):
-            OllamaClient(cfg).chat_vision(
-                [{"role": "user", "content": "describe"}], [tmp_path / "a.jpg"],
-            )
-        assert used_models == ["moondream"]
 
 
 class _FakePool:
@@ -357,10 +266,15 @@ class TestLlamaCppServerTextChat:
 # Routes - analyze-frames + rescore include_frames
 # ---------------------------------------------------------------------------
 
-def _enable_ollama_vision(client: TestClient):
+def _enable_llamacpp_vision(client: TestClient, project_dir: Path):
+    vision_model = project_dir / "vision.gguf"
+    vision_model.write_bytes(b"x")
+    mmproj = project_dir / "mmproj.gguf"
+    mmproj.write_bytes(b"x")
     resp = client.patch("/api/config", json={
-        "ollama_enabled": True, "llm_backend": "ollama",
-        "ollama_model": "qwen2.5vl:7b", "vision_enabled": True,
+        "llm_enabled": True, "llm_backend": "llamacpp",
+        "llm_vision_model_path": str(vision_model), "llm_mmproj_path": str(mmproj),
+        "vision_enabled": True,
     })
     assert resp.status_code == 200, resp.text
 
@@ -373,16 +287,18 @@ class TestAnalyzeFramesRoute:
         assert resp.status_code == 503
         assert "vision projector" in resp.json()["detail"]
 
-    def test_non_vision_model_returns_503(self, client: TestClient):
+    def test_text_only_model_returns_503(self, client: TestClient):
+        # A text model set but no vision model/projector → image analysis is refused.
         client.patch("/api/config", json={
-            "ollama_enabled": True, "llm_backend": "ollama",
-            "ollama_model": "llama3.1:8b", "vision_enabled": True,
+            "llm_enabled": True, "llm_backend": "llamacpp",
+            "llm_model_path": "text.gguf", "llm_vision_model_path": "", "llm_mmproj_path": "",
+            "vision_enabled": True,
         })
         resp = client.post("/api/clips/1/analyze-frames")
         assert resp.status_code == 503
 
-    def test_missing_source_file_returns_404(self, client: TestClient):
-        _enable_ollama_vision(client)
+    def test_missing_source_file_returns_404(self, client: TestClient, project_dir: Path):
+        _enable_llamacpp_vision(client, project_dir)
         # The seeded video path does not exist on disk.
         resp = client.post("/api/clips/1/analyze-frames")
         assert resp.status_code == 404
@@ -391,7 +307,7 @@ class TestAnalyzeFramesRoute:
         self, client: TestClient, project_dir: Path, monkeypatch,
     ):
         import yuu_clip.analyze.frames as frames_mod
-        _enable_ollama_vision(client)
+        _enable_llamacpp_vision(client, project_dir)
         (project_dir / "session.mkv").write_bytes(b"x")  # make video.path exist
         monkeypatch.setattr(
             frames_mod, "sample_and_describe",
@@ -414,7 +330,7 @@ class TestAnalyzeFramesRoute:
         # save-back session finds nothing - that must be a clean 404, not a 500.
         import yuu_clip.analyze.frames as frames_mod
         from yuu_clip.db.models import ClipCandidate, make_session
-        _enable_ollama_vision(client)
+        _enable_llamacpp_vision(client, project_dir)
         (project_dir / "session.mkv").write_bytes(b"x")
 
         def delete_then_describe(*a, **k):

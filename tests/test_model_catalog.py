@@ -9,10 +9,6 @@ from yuu_clip.config import Config
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
-def _recommended_ollama_tags() -> set[str]:
-    return {e.ollama_tag for e in mc.catalog_for_backend(mc.BACKEND_OLLAMA)}
-
-
 def _recommended_claude_ids() -> set[str]:
     return {e.api_model_id for e in mc.catalog_for_backend(mc.BACKEND_CLAUDE)}
 
@@ -25,7 +21,7 @@ class TestCatalogIntegrity:
             assert entry.licence, f"{entry.id} has no licence"
             assert entry.backends, f"{entry.id} has no backend"
             assert entry.backends <= {
-                mc.BACKEND_OLLAMA, mc.BACKEND_LLAMACPP, mc.BACKEND_CLAUDE,
+                mc.BACKEND_LLAMACPP, mc.BACKEND_CLAUDE,
             }, f"{entry.id} has an unknown backend"
 
     def test_ids_are_unique(self):
@@ -53,13 +49,6 @@ class TestCatalogHelpers:
         assert all("text" in e.kinds for e in mc.text_models())
         assert all("vision" in e.kinds for e in mc.vision_models())
         assert all(e.recommended for e in mc.text_models())
-
-    def test_ollama_vision_tag_bases_match_vision_models(self):
-        bases = mc.ollama_vision_tag_bases()
-        assert "qwen2.5vl" in bases  # recommended vision model's ollama tag base
-        # Every base derives from a recommended vision model's ollama tag.
-        expected = {e.ollama_tag.split(":", 1)[0].lower() for e in mc.vision_models() if e.ollama_tag}
-        assert bases == frozenset(expected)
 
     def test_qwen2_5_vl_is_the_steered_default_vision_model(self):
         # 2026-07-09: moondream2 (inaccurate) and SmolVLM2 (broken handler) were
@@ -99,7 +88,7 @@ class TestCatalogHelpers:
             assert entry.api_model_id
 
     def test_catalog_for_backend_only_returns_runnable_recommended_models(self):
-        for backend in (mc.BACKEND_OLLAMA, mc.BACKEND_LLAMACPP, mc.BACKEND_CLAUDE):
+        for backend in (mc.BACKEND_LLAMACPP, mc.BACKEND_CLAUDE):
             for entry in mc.catalog_for_backend(backend):
                 assert entry.recommended
                 assert backend in entry.backends
@@ -111,8 +100,6 @@ class TestCatalogHelpers:
 
     def test_local_recommended_models_declare_a_download_path(self):
         for entry in mc.recommended_models():
-            if mc.BACKEND_OLLAMA in entry.backends:
-                assert entry.ollama_tag, f"{entry.id} runs on ollama but has no tag"
             if mc.BACKEND_LLAMACPP in entry.backends:
                 assert entry.gguf_url, f"{entry.id} runs on llamacpp but has no gguf_url"
 
@@ -148,17 +135,8 @@ class TestDefaultsMatchCatalog:
         assert match, "defaultBackend fallback not found (or shape changed) in electron/main.js"
         assert match.group(1) == "llamacpp"
 
-    def test_config_default_ollama_model_is_recommended(self):
-        assert Config().ollama_model in _recommended_ollama_tags()
-
     def test_config_default_claude_model_is_recommended(self):
         assert Config().claude_model in _recommended_claude_ids()
-
-    def test_electron_wizard_default_ollama_model_is_recommended(self):
-        constants_js = (_REPO_ROOT / "electron" / "constants.js").read_text(encoding="utf-8")
-        match = re.search(r"DEFAULT_OLLAMA_MODEL\s*=\s*'([^']+)'", constants_js)
-        assert match, "DEFAULT_OLLAMA_MODEL constant not found in electron/constants.js"
-        assert match.group(1) in _recommended_ollama_tags()
 
     def test_electron_wizard_default_llamacpp_model_matches_the_catalog(self):
         constants_js = (_REPO_ROOT / "electron" / "constants.js").read_text(encoding="utf-8")

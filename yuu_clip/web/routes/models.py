@@ -1,12 +1,12 @@
 # Feature-map - Tier-B model prefetch (code: yuu_clip.cli.models, hf_cache)
 #   UI: static/modelcatalog.js (Capabilities overview → "Download now")
-#   Siblings: routes/llm.py (capability tiers + the GGUF/Ollama pull, which
+#   Siblings: routes/llm.py (capability tiers + the .gguf model download, which
 #   keeps its own separate path and isn't handled here)
 """Model prefetch route - one consistent "download <model> so <feature> works"
 flow for the Tier-B models the Capabilities overview surfaces (packaging-
 strategy overhaul, Wave 4): the SpeechBrain speaker encoder, the AST audio-
-event/laughter model, and the fastembed similarity model. Mirrors
-/api/llm/ollama/pull's subprocess_sse pattern, including Cancel-via-abort.
+event/laughter model, and the fastembed similarity model. Uses the
+subprocess_sse streaming pattern, including Cancel-via-abort.
 """
 from __future__ import annotations
 

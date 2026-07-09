@@ -19,12 +19,12 @@ class TestConfigLoad:
         cfg_dir = project_dir / ".yuu-clip"
         cfg_dir.mkdir()
         (cfg_dir / "config.json").write_text(
-            json.dumps({"whisper_model": "tiny", "ollama_enabled": False}),
+            json.dumps({"whisper_model": "tiny", "llm_enabled": False}),
             encoding="utf-8",
         )
         config = Config.load(project_dir)
         assert config.whisper_model == "tiny"
-        assert config.ollama_enabled is False
+        assert config.llm_enabled is False
 
     def test_missing_config_returns_defaults(self, tmp_path, monkeypatch):
         """When no config files exist, defaults are used."""
@@ -35,7 +35,7 @@ class TestConfigLoad:
         project_dir.mkdir()
         config = Config.load(project_dir)
         assert config.whisper_model == "base"  # default
-        assert config.ollama_enabled is True    # default
+        assert config.llm_enabled is True    # default
 
     def test_global_config_is_loaded(self, tmp_path, monkeypatch):
         """Values in global config.json are merged in when no project config overrides them."""
@@ -157,7 +157,6 @@ class TestUiConfig:
         d = client.get("/api/config/defaults").json()
         assert d["whisper_model"] == "base"
         assert d["llm_backend"] == "llamacpp"
-        assert d["ollama_model"] == "qwen2.5:7b"
         assert d["ai_privacy_mode"] == "local_only"
         assert d["ui_timeline_interval_seconds"] == 900
 
@@ -469,11 +468,11 @@ class TestConfigNewLlmFields:
         cfg_dir = project_dir / ".yuu-clip"
         cfg_dir.mkdir()
         (cfg_dir / "config.json").write_text(
-            json.dumps({"llm_backend": "ollama", "llm_model_path": "/models/foo.gguf"}),
+            json.dumps({"llm_backend": "claude", "llm_model_path": "/models/foo.gguf"}),
             encoding="utf-8",
         )
         cfg = Config.load(project_dir)
-        assert cfg.llm_backend == "ollama"
+        assert cfg.llm_backend == "claude"
         assert cfg.llm_model_path == "/models/foo.gguf"
 
 
@@ -487,10 +486,10 @@ class TestConfigApiLlmFields:
         assert "llm_backend" in d
         assert "llm_model_path" in d
 
-    def test_patch_llm_backend_to_ollama(self, client):
-        r = client.patch("/api/config", json={"llm_backend": "ollama"})
+    def test_patch_llm_backend_to_claude(self, client):
+        r = client.patch("/api/config", json={"llm_backend": "claude"})
         assert r.status_code == 200
-        assert r.json()["llm_backend"] == "ollama"
+        assert r.json()["llm_backend"] == "claude"
 
     def test_patch_llm_model_path(self, client):
         r = client.patch("/api/config", json={"llm_model_path": "/models/qwen2.5.gguf"})

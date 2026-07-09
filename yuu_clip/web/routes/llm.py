@@ -5,9 +5,9 @@
 
 GET /api/llm/capabilities - what the active backend/model can do right now
     ({backend, model, text, vision, detail}). A cheap static check only: file
-    existence for llamacpp, model-name/tag presence for ollama, API-key presence
-    for claude. No inference test-call. UI features gate on this (a control that
-    needs vision links here rather than silently disabling itself).
+    existence for llamacpp, API-key presence for claude. No inference test-call.
+    UI features gate on this (a control that needs vision links here rather than
+    silently disabling itself).
 
 GET /api/llm/catalog - the curated recommended-model catalog, so Settings and
     the setup wizard render the same vetted list from one source of truth.
@@ -26,15 +26,6 @@ from yuu_clip.web.deps import ProjectContext
 from yuu_clip.web.routes.common import module_findable, register_model_download
 from yuu_clip.web.sse import subprocess_sse
 
-# Only tags from the curated catalog may be pulled - the tag becomes a
-# subprocess argument, so an allowlist keeps a stray query param from running
-# an arbitrary `ollama pull`.
-_PULLABLE_OLLAMA_TAGS = frozenset(
-    entry.ollama_tag
-    for entry in model_catalog.recommended_models()
-    if entry.ollama_tag and model_catalog.BACKEND_OLLAMA in entry.backends
-)
-
 # Logical keys for background downloads in ctx.model_downloads (the shared
 # "a required model is downloading" registry the download banners and the
 # analyze coordination both read). Stage 4 = the local LLM; Stage 6 = the speech
@@ -45,9 +36,8 @@ _WHISPER_DOWNLOAD_KEY = "whisper"
 _SPEAKER_DOWNLOAD_KEY = "speaker"
 
 
-# Headroom beyond the model's own on-disk size - Ollama writes temporary blobs
-# and a manifest during a pull, so a pull needs more than the final weight size.
-# The .gguf download reuses it (a .part temp file needs the same slack).
+# Headroom beyond the model's own on-disk size - a .gguf download writes to a
+# .part temp file, so it needs more free space than the final weight size.
 _PULL_DISK_HEADROOM_GB = 2.0
 
 # Only these catalog ids may be downloaded as a local .gguf - the id becomes a
@@ -62,13 +52,6 @@ _DOWNLOADABLE_GGUF_IDS = frozenset(
 )
 
 
-def _ollama_models_dir() -> Path:
-    """Where Ollama stores pulled models (its default, or an OLLAMA_MODELS
-    override). The precheck measures free space on this location's drive."""
-    override = os.environ.get("OLLAMA_MODELS")
-    return Path(override) if override else Path.home() / ".ollama" / "models"
-
-
 def _existing_ancestor(path: Path) -> Path:
     """Nearest existing ancestor of *path* - disk_usage needs a real path, and
     the models dir may not exist yet before the first pull."""
@@ -76,24 +59,6 @@ def _existing_ancestor(path: Path) -> Path:
         if candidate.exists():
             return candidate
     return Path(path.anchor) if path.anchor else Path.cwd()
-
-
-def _preflight_ollama_pull(tag: str) -> dict:
-    """Free vs needed space for pulling *tag*. Non-raising - callers decide."""
-    entry = next(
-        (e for e in model_catalog.recommended_models() if e.ollama_tag == tag), None
-    )
-    size_gb = float(entry.size_gb) if entry and entry.size_gb else 0.0
-    needed_gb = round(size_gb + _PULL_DISK_HEADROOM_GB, 1)
-    target = _existing_ancestor(_ollama_models_dir())
-    free_gb = round(shutil.disk_usage(target).free / 1e9, 1)
-    return {
-        "sufficient": free_gb >= needed_gb,
-        "free_gb": free_gb,
-        "needed_gb": needed_gb,
-        "size_gb": size_gb,
-        "target": str(target),
-    }
 
 
 def _preflight_gguf_download(entry) -> dict:
@@ -149,18 +114,11 @@ def _preflight_whisper_prefetch(model: str) -> dict:
     }
 
 
-def _ollama_tag_base(name: str) -> str:
-    return name.split(":", 1)[0].strip().lower()
-
-
-_OLLAMA_VISION_BASES = model_catalog.ollama_vision_tag_bases()
-
-
 def _capabilities(cfg) -> dict:
     from yuu_clip.config import resolve_ai_permissions
 
     backend = cfg.llm_backend
-    if not cfg.ollama_enabled:
+    if not cfg.llm_enabled:
         return {
             "backend": backend, "model": None, "text": False, "vision": False,
             "detail": "LLM scoring is turned off in Settings.",
@@ -190,48 +148,33 @@ def _capabilities(cfg) -> dict:
             "backend": backend, "model": cfg.claude_model or None,
             "text": has_key, "vision": has_key, "detail": detail,
         }
-    if backend == "llamacpp":
-        model_path = cfg.llm_model_path
-        text_ok = bool(model_path) and Path(model_path).exists()
-        vision_model_path = cfg.llm_vision_model_path
-        mmproj = cfg.llm_mmproj_path
-        vision_model_ok = bool(vision_model_path) and Path(vision_model_path).exists()
-        mmproj_ok = bool(mmproj) and Path(mmproj).exists()
-        vision_ok = vision_model_ok and mmproj_ok
-        if not model_path and not vision_model_path:
-            detail = "No model file set - choose a .gguf under Settings → LLM scoring."
-        elif not text_ok and model_path:
-            detail = f"Model file not found: {model_path}"
-        elif vision_ok:
-            detail = "Text and vision models are set - image analysis is available."
-        elif not vision_model_path and not mmproj:
-            detail = (
-                "Text scoring is ready; set a vision model to enable image analysis."
-                if text_ok else
-                "No model file set - choose a .gguf under Settings → LLM scoring."
-            )
-        elif not vision_model_ok:
-            detail = f"Vision model file not found: {vision_model_path}" if vision_model_path else \
-                "Vision projector is set but the vision model is missing - set a vision model under Settings → LLM scoring."
-        else:
-            detail = f"Vision projector file not found: {mmproj}"
-        return {
-            "backend": backend, "model": model_path or None,
-            "text": text_ok, "vision": vision_ok, "detail": detail,
-        }
-    # ollama
-    model = (cfg.ollama_model or "").strip()
-    vision_model = (cfg.ollama_vision_model or "").strip() or model
-    text_ok = bool(model)
-    vision_ok = text_ok and _ollama_tag_base(vision_model) in _OLLAMA_VISION_BASES
-    if not text_ok:
-        detail = "No Ollama model set - choose one under Settings → LLM scoring."
+    # Local llamacpp backend (the only remaining local backend).
+    model_path = cfg.llm_model_path
+    text_ok = bool(model_path) and Path(model_path).exists()
+    vision_model_path = cfg.llm_vision_model_path
+    mmproj = cfg.llm_mmproj_path
+    vision_model_ok = bool(vision_model_path) and Path(vision_model_path).exists()
+    mmproj_ok = bool(mmproj) and Path(mmproj).exists()
+    vision_ok = vision_model_ok and mmproj_ok
+    if not model_path and not vision_model_path:
+        detail = "No model file set - choose a .gguf under Settings → LLM scoring."
+    elif not text_ok and model_path:
+        detail = f"Model file not found: {model_path}"
     elif vision_ok:
-        detail = "A vision-capable Ollama model is set - image analysis is available."
+        detail = "Text and vision models are set - image analysis is available."
+    elif not vision_model_path and not mmproj:
+        detail = (
+            "Text scoring is ready; set a vision model to enable image analysis."
+            if text_ok else
+            "No model file set - choose a .gguf under Settings → LLM scoring."
+        )
+    elif not vision_model_ok:
+        detail = f"Vision model file not found: {vision_model_path}" if vision_model_path else \
+            "Vision projector is set but the vision model is missing - set a vision model under Settings → LLM scoring."
     else:
-        detail = "Text scoring is ready; set a vision model to enable image analysis."
+        detail = f"Vision projector file not found: {mmproj}"
     return {
-        "backend": backend, "model": model or None,
+        "backend": backend, "model": model_path or None,
         "text": text_ok, "vision": vision_ok, "detail": detail,
     }
 
@@ -300,8 +243,8 @@ def _descriptions_tier(text_ok: bool, detail: str) -> dict:
         "ready": text_ok,
         "detail": detail,
         "install_slug": None,
-        # The GGUF/Ollama model has its own download flow (the recommended-models
-        # catalog's "Pull with Ollama" / download-page link) - not this button.
+        # The local .gguf model has its own download flow (the recommended-models
+        # catalog's one-click download / download-page link) - not this button.
         "prefetch_slug": None,
         "section": "settings-sec-llm",
     }
@@ -435,7 +378,7 @@ def _entry_dest_paths(entry, models_dir: Path) -> dict:
 
 def _entry_installed(entry, models_dir: Path) -> bool:
     """True when every file the llamacpp entry needs is present in the models
-    dir. Ollama/Claude entries return False (their presence isn't a local file)."""
+    dir. Claude entries return False (their presence isn't a local file)."""
     if model_catalog.BACKEND_LLAMACPP not in entry.backends or not entry.gguf_filename:
         return False
     if not (models_dir / entry.gguf_filename).exists():
@@ -465,9 +408,6 @@ def _entry_active(entry, cfg) -> bool:
         if not model_path or not entry.gguf_filename:
             return False
         return Path(model_path).name == entry.gguf_filename
-    if backend == "ollama":
-        configured = {(cfg.ollama_model or "").strip(), (cfg.ollama_vision_model or "").strip()}
-        return bool(entry.ollama_tag) and entry.ollama_tag in configured
     if backend == "claude":
         return bool(entry.api_model_id) and entry.api_model_id == (cfg.claude_model or "").strip()
     return False
@@ -519,20 +459,6 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     @router.get("/api/llm/catalog")
     def catalog():
         return _catalog_payload(ctx.config)
-
-    @router.post("/api/llm/ollama/pull")
-    async def ollama_pull(tag: str):
-        if tag not in _PULLABLE_OLLAMA_TAGS:
-            raise HTTPException(400, f"Unknown model tag '{tag}' - allowed: {sorted(_PULLABLE_OLLAMA_TAGS)}")
-        disk = _preflight_ollama_pull(tag)
-        if not disk["sufficient"]:
-            raise HTTPException(
-                507,
-                f"Not enough disk space: about {disk['needed_gb']} GB is needed on "
-                f"{disk['target']} but only {disk['free_gb']} GB is free. "
-                "Free up space and try again.",
-            )
-        return await subprocess_sse(["ollama", "pull", tag], ctx.project_dir)
 
     @router.post("/api/llm/gguf/download")
     async def gguf_download(model_id: str):

@@ -25,25 +25,13 @@ class VisionNotSupportedError(RuntimeError):
 
     The /api/llm/capabilities endpoint is the cheap pre-check the UI gates on;
     this is the hard backstop that fires if a vision call is attempted anyway
-    (e.g. a text-only Ollama model, or llamacpp with no mmproj configured).
+    (e.g. llamacpp with no vision model / mmproj configured).
     """
 
 
 def _b64_images(images: list[Path]) -> list[str]:
     import base64
     return [base64.b64encode(Path(p).read_bytes()).decode("ascii") for p in images]
-
-
-def _attach_images_to_last_user(messages: list[dict], b64_images: list[str]) -> list[dict]:
-    """Copy *messages*, attaching the base64 images to the last user turn (Ollama's
-    per-message ``images`` list). Appends a user turn if there isn't one."""
-    out = [dict(m) for m in messages]
-    for message in reversed(out):
-        if message.get("role") == "user":
-            message["images"] = b64_images
-            return out
-    out.append({"role": "user", "content": "", "images": b64_images})
-    return out
 
 
 class LLMClient(ABC):
@@ -121,61 +109,6 @@ class LlamaCppServerClient(LLMClient):
             self._config, model_path=vision_model, mmproj_path=mmproj,
             messages=payload_messages, temperature=temperature,
         )
-
-
-class OllamaClient(LLMClient):
-    is_remote = False
-
-    def __init__(self, config: Config) -> None:
-        self._config = config
-
-    def available(self) -> tuple[bool, str]:
-        try:
-            import ollama
-            ollama.Client(host=self._config.ollama_host).list()
-            return True, ""
-        except Exception as exc:
-            return False, f"Ollama not reachable at {self._config.ollama_host}: {exc}"
-
-    def chat(self, messages: list[dict], temperature: float = 0.1) -> str:
-        import ollama
-        client = ollama.Client(host=self._config.ollama_host, timeout=self._config.ollama_timeout_s)
-        response = client.chat(
-            model=self._config.ollama_model,
-            messages=messages,
-            options={"temperature": temperature},
-        )
-        return response.message.content
-
-    def chat_vision(
-        self, messages: list[dict], images: list[Path], temperature: float = 0.1,
-    ) -> str:
-        import ollama
-        client = ollama.Client(host=self._config.ollama_host, timeout=self._config.ollama_timeout_s)
-        vision_model = self._config.ollama_vision_model or self._config.ollama_model
-        # Each frame costs a fixed ~700 tokens. Capable models (Qwen2.5-VL) honor a
-        # larger num_ctx, but a tiny captioner like moondream is hard-capped at 2048
-        # and ignores num_ctx, so a 4-frame request overflows. Degrade gracefully:
-        # keep num_ctx scaled for the models that respect it, and on a context
-        # overflow retry with half the frames (4→2→1) rather than failing outright.
-        b64_images = _b64_images(images)
-        while True:
-            try:
-                response = client.chat(
-                    model=vision_model,
-                    messages=_attach_images_to_last_user(messages, b64_images),
-                    options={"temperature": temperature, "num_ctx": _vision_num_ctx(len(b64_images))},
-                )
-                return response.message.content
-            except Exception as exc:
-                if "exceed_context_size" in str(exc) and len(b64_images) > 1:
-                    b64_images = b64_images[: max(1, len(b64_images) // 2)]
-                    _log.warning(
-                        "Ollama vision context overflow - retrying with %d frame(s)",
-                        len(b64_images),
-                    )
-                    continue
-                raise
 
 
 class ClaudeClient(LLMClient):
@@ -263,12 +196,6 @@ class NullLLMClient(LLMClient):
         raise RuntimeError("LLM scoring is disabled")
 
 
-def _vision_num_ctx(image_count: int) -> int:
-    """Ollama context window sized for *image_count* frames plus the prompt. Capped at
-    16384 so a high frame count can't demand unbounded VRAM on a small vision model."""
-    return min(16384, max(4096, 2048 * (image_count + 1)))
-
-
 def _user_text(messages: list[dict]) -> str:
     """Join the user-turn text of *messages* for backends that take images plus a
     single text block. Falls back to a plain instruction so the call is never empty."""
@@ -284,16 +211,15 @@ def _system_messages(messages: list[dict]) -> list[dict]:
 # Backend name → client class. Keyed lookup lets make_client read a class's is_remote
 # attribute BEFORE constructing it, so a remote backend blocked by the AI privacy mode is
 # never instantiated (the trust guarantee: no ClaudeClient under local_only). Unknown
-# backends fall back to Ollama, matching the historical default.
+# backends fall back to the local llamacpp server.
 _BACKEND_CLIENTS: dict[str, type[LLMClient]] = {
     "llamacpp": LlamaCppServerClient,
-    "ollama": OllamaClient,
     "claude": ClaudeClient,
 }
 
 
 def _client_class_for(config: Config) -> type[LLMClient]:
-    return _BACKEND_CLIENTS.get(config.llm_backend, OllamaClient)
+    return _BACKEND_CLIENTS.get(config.llm_backend, LlamaCppServerClient)
 
 
 def backend_is_remote(config: Config) -> bool:
@@ -309,7 +235,7 @@ def make_client(config: Config) -> LLMClient:
     from yuu_clip.config import resolve_ai_permissions
 
     permissions = resolve_ai_permissions(config)
-    if not config.ollama_enabled or not permissions.allow_llm:
+    if not config.llm_enabled or not permissions.allow_llm:
         return NullLLMClient()
     client_class = _client_class_for(config)
     if client_class.is_remote and not permissions.allow_remote:

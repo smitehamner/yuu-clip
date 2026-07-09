@@ -24,12 +24,12 @@ def test_warns_when_llm_wanted_but_unreachable(monkeypatch, capsys):
     )
     monkeypatch.setattr(
         "yuu_clip.scoring.llm.check_llm_available",
-        lambda _cfg: (False, "Ollama not reachable at http://localhost:11434"),
+        lambda _cfg: (False, "llama-server was not found"),
     )
 
-    _pipeline._preflight_llm_check(_config(ollama_enabled=True), AnalyzeOptions())
+    _pipeline._preflight_llm_check(_config(llm_enabled=True), AnalyzeOptions())
 
-    assert "NOTICE::Ollama not reachable" in capsys.readouterr().out
+    assert "NOTICE::llama-server was not found" in capsys.readouterr().out
 
 
 def test_silent_when_scoring_disabled_for_run(monkeypatch, capsys):
@@ -42,7 +42,7 @@ def test_silent_when_scoring_disabled_for_run(monkeypatch, capsys):
 
     monkeypatch.setattr("yuu_clip.scoring.llm.check_llm_available", _boom)
 
-    _pipeline._preflight_llm_check(_config(ollama_enabled=True), AnalyzeOptions(no_score=True))
+    _pipeline._preflight_llm_check(_config(llm_enabled=True), AnalyzeOptions(no_score=True))
 
     assert called is False  # availability is never probed when the run skips scoring
     assert capsys.readouterr().out == ""
@@ -51,10 +51,10 @@ def test_silent_when_scoring_disabled_for_run(monkeypatch, capsys):
 def test_silent_when_llm_disabled_in_settings(monkeypatch, capsys):
     monkeypatch.setattr(
         "yuu_clip.scoring.llm.check_llm_available",
-        lambda _cfg: pytest.fail("should not probe when ollama_enabled is False"),
+        lambda _cfg: pytest.fail("should not probe when llm_enabled is False"),
     )
 
-    _pipeline._preflight_llm_check(_config(ollama_enabled=False), AnalyzeOptions())
+    _pipeline._preflight_llm_check(_config(llm_enabled=False), AnalyzeOptions())
 
     assert capsys.readouterr().out == ""
 
@@ -68,6 +68,6 @@ def test_silent_when_llm_available(monkeypatch, capsys):
         "yuu_clip.scoring.llm.check_llm_available", lambda _cfg: (True, "")
     )
 
-    _pipeline._preflight_llm_check(_config(ollama_enabled=True), AnalyzeOptions())
+    _pipeline._preflight_llm_check(_config(llm_enabled=True), AnalyzeOptions())
 
     assert capsys.readouterr().out == ""
