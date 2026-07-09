@@ -87,6 +87,79 @@ function _sectionLabel(text) {
   return label;
 }
 
+// ── user-curated named palette ────────────────────────────────────────────────
+function _paletteEntries() {
+  return _readList(PALETTE_KEY)
+    .filter(e => e && typeof e.name === 'string' && _normalizeHex(e.color))
+    .map(e => ({ name: e.name, color: _normalizeHex(e.color) }));
+}
+
+function _paletteItem(name, color) {
+  const item = document.createElement('div');
+  item.className = 'colorpicker-palette-item';
+  const label = document.createElement('span');
+  label.className = 'colorpicker-palette-name';
+  label.textContent = name;
+  const remove = document.createElement('button');
+  remove.type = 'button';
+  remove.className = 'colorpicker-palette-remove';
+  remove.dataset.name = name;
+  remove.textContent = '×';
+  remove.setAttribute('aria-label', `Remove ${name}`);
+  item.append(_swatchButton(color), label, remove);
+  return item;
+}
+
+function _buildPalette(entries) {
+  const wrap = document.createElement('div');
+  wrap.className = 'colorpicker-palette';
+  if (!entries.length) {
+    const hint = document.createElement('span');
+    hint.className = 'colorpicker-hint';
+    hint.textContent = 'Save a colour below to build your palette.';
+    wrap.appendChild(hint);
+    return wrap;
+  }
+  entries.forEach(({ name, color }) => wrap.appendChild(_paletteItem(name, color)));
+  return wrap;
+}
+
+function _buildAddRow() {
+  const row = document.createElement('div');
+  row.className = 'colorpicker-addrow';
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'colorpicker-palette-input';
+  input.setAttribute('maxlength', '40');
+  input.setAttribute('spellcheck', 'false');
+  input.setAttribute('aria-label', 'Name for the current colour');
+  input.placeholder = 'Name this colour';
+  const add = document.createElement('button');
+  add.type = 'button';
+  add.className = 'colorpicker-palette-add';
+  add.textContent = 'Save';
+  row.append(input, add);
+  return row;
+}
+
+// Saves the colour currently in the hex field (falling back to the committed
+// value) under the typed name, defaulting the name to the hex string itself.
+function _addPaletteEntry(ctx) {
+  const color = _normalizeHex(ctx.hexField.value) || _normalizeHex(ctx.input.value);
+  if (!color) return;
+  const nameInput = ctx.pop.querySelector('.colorpicker-palette-input');
+  const name = (nameInput && nameInput.value.trim()) || color;
+  const next = _paletteEntries().filter(e => e.name !== name);
+  next.push({ name, color });
+  _writeList(PALETTE_KEY, next);
+  _renderStrips(ctx);
+}
+
+function _removePaletteEntry(ctx, name) {
+  _writeList(PALETTE_KEY, _paletteEntries().filter(e => e.name !== name));
+  _renderStrips(ctx);
+}
+
 function _syncTrigger(trigger, value) {
   const color = _normalizeHex(value);
   trigger.style.background = color || 'transparent';
@@ -111,20 +184,25 @@ function _commit(ctx, rawHex) {
   return true;
 }
 
-// Rebuilt each time the popover opens so the recently-used strip reflects the
-// latest picks. Stage 3 inserts the named-palette section here.
+// Rebuilt each time the popover opens (and after a palette add/remove) so the
+// recently-used strip and saved palette reflect the latest state. All of it goes
+// in one container that is replaced wholesale, so nothing accumulates.
 function _renderStrips(ctx) {
-  ctx.pop.querySelectorAll('.colorpicker-dynamic').forEach(el => el.remove());
-  const frag = document.createDocumentFragment();
+  const stale = ctx.pop.querySelector('.colorpicker-dynamic');
+  if (stale) stale.remove();
+  const container = document.createElement('div');
+  container.className = 'colorpicker-dynamic';
   const recent = _readList(RECENT_KEY);
   if (recent.length) {
-    frag.appendChild(_sectionLabel('Recently used'));
-    frag.appendChild(_swatchRow(recent));
+    container.appendChild(_sectionLabel('Recently used'));
+    container.appendChild(_swatchRow(recent));
   }
-  frag.appendChild(_sectionLabel('Colours'));
-  frag.appendChild(_swatchRow(STARTER_SWATCHES));
-  frag.querySelectorAll(':scope > *').forEach(el => el.classList.add('colorpicker-dynamic'));
-  ctx.pop.appendChild(frag);
+  container.appendChild(_sectionLabel('Your palette'));
+  container.appendChild(_buildPalette(_paletteEntries()));
+  container.appendChild(_buildAddRow());
+  container.appendChild(_sectionLabel('Colours'));
+  container.appendChild(_swatchRow(STARTER_SWATCHES));
+  ctx.pop.appendChild(container);
 }
 
 let _openCtx = null;  // the one open picker context, or null
@@ -214,17 +292,31 @@ function attach(input) {
     else _openPopover(ctx);
   });
   pop.addEventListener('click', e => {
+    const removeBtn = e.target.closest('.colorpicker-palette-remove');
+    if (removeBtn) { _removePaletteEntry(ctx, removeBtn.dataset.name); return; }
+    if (e.target.closest('.colorpicker-palette-add')) { _addPaletteEntry(ctx); return; }
     const swatch = e.target.closest('.colorpicker-swatch');
     if (!swatch) return;
     _commit(ctx, swatch.dataset.color);
     _closePopover();
   });
+  pop.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && e.target.closest('.colorpicker-palette-input')) {
+      e.preventDefault();
+      _addPaletteEntry(ctx);
+    }
+  });
   _wireHexField(ctx);
 }
 
 // Close the open popover on an outside click or Escape. Registered once.
+// A click that re-renders the popover (Save / remove a palette entry) detaches
+// its own target before this bubbling handler runs; such a target is no longer in
+// the document, so skip it rather than mistaking it for an outside click.
 document.addEventListener('click', e => {
-  if (_openCtx && !_openCtx.pop.parentNode.contains(e.target)) _closePopover();
+  if (!_openCtx) return;
+  if (!document.documentElement.contains(e.target)) return;
+  if (!_openCtx.pop.parentNode.contains(e.target)) _closePopover();
 });
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && _openCtx) {

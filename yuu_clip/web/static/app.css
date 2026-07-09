@@ -400,12 +400,24 @@ header h1 { font-size: 16px; font-weight: 700; letter-spacing: .5px; color: var(
 .colorpicker-hexfield { flex: 1; min-width: 0; font-family: monospace; font-size: 13px; text-transform: lowercase; color: var(--text); background: none; border: none; padding: 7px 0; }
 .colorpicker-hexfield:focus { outline: none; }
 .colorpicker-hexfield.invalid { color: var(--red); }
+.colorpicker-dynamic { margin-top: 10px; }
 .colorpicker-section-label { font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 8px 2px 4px; }
 .colorpicker-section-label:first-child { margin-top: 0; }
 .colorpicker-row { display: flex; flex-wrap: wrap; gap: 6px; }
 .colorpicker-swatch { width: 22px; height: 22px; padding: 0; border: 1px solid var(--border); border-radius: 5px; cursor: pointer; }
 .colorpicker-swatch:hover { transform: scale(1.12); }
 .colorpicker-swatch:focus-visible { outline: none; box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 55%, transparent); }
+.colorpicker-palette { display: flex; flex-direction: column; gap: 4px; }
+.colorpicker-palette-item { display: flex; align-items: center; gap: 8px; }
+.colorpicker-palette-name { flex: 1; min-width: 0; font-size: 12px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.colorpicker-palette-remove { flex: 0 0 auto; width: 20px; height: 20px; padding: 0; border: none; border-radius: 4px; background: none; color: var(--muted); font-size: 15px; line-height: 1; cursor: pointer; }
+.colorpicker-palette-remove:hover { background: var(--border); color: var(--text); }
+.colorpicker-hint { font-size: 12px; color: var(--muted); }
+.colorpicker-addrow { display: flex; gap: 6px; margin-top: 6px; }
+.colorpicker-palette-input { flex: 1; min-width: 0; font-size: 12px; color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; }
+.colorpicker-palette-input:focus { outline: none; border-color: var(--accent); }
+.colorpicker-palette-add { flex: 0 0 auto; font-size: 12px; padding: 5px 12px; border: none; border-radius: 6px; background: var(--accent); color: var(--on-accent); cursor: pointer; }
+.colorpicker-palette-add:hover { background: color-mix(in srgb, var(--accent) 85%, var(--text)); }
 
 .tline-text { font-size: 13px; line-height: 1.45; }
 .tline-text.editable { cursor: text; border-radius: 4px; padding: 0 3px; transition: background .12s; }

@@ -13,8 +13,11 @@ from conftest import skip_no_server
 from playwright.sync_api import Page, expect
 
 _MOUNT_JS = """
-([value, clearRecent]) => {
-  if (clearRecent) localStorage.removeItem('yuuclip-color-recent');
+([value, clearStores]) => {
+  if (clearStores) {
+    localStorage.removeItem('yuuclip-color-recent');
+    localStorage.removeItem('yuuclip-color-palette');
+  }
   document.querySelectorAll('#cp-host').forEach(el => el.remove());
   const host = document.createElement('div');
   host.id = 'cp-host';
@@ -33,10 +36,14 @@ _TRIGGER = "#cp-host .colorpicker-trigger"
 _POP = "#cp-host .colorpicker-pop"
 _HEX = "#cp-host .colorpicker-hexfield"
 _SWATCH = "#cp-host .colorpicker-swatch"
+_PAL_NAME = "#cp-host .colorpicker-palette-input"
+_PAL_ADD = "#cp-host .colorpicker-palette-add"
+_PAL_ITEM = "#cp-host .colorpicker-palette-item"
+_PAL_REMOVE = "#cp-host .colorpicker-palette-remove"
 
 
-def _mount(page: Page, value: str = "#123456", clear_recent: bool = True) -> None:
-    page.evaluate(_MOUNT_JS, [value, clear_recent])
+def _mount(page: Page, value: str = "#123456", clear_stores: bool = True) -> None:
+    page.evaluate(_MOUNT_JS, [value, clear_stores])
 
 
 def _enter_hex(page: Page, hexval: str) -> None:
@@ -95,7 +102,7 @@ class TestColorPicker:
         _enter_hex(page, "a1b2c3")
 
         page.reload()
-        _mount(page, clear_recent=False)
+        _mount(page, clear_stores=False)
         page.click(_TRIGGER)
         expect(page.locator(_POP)).to_contain_text("Recently used")
         expect(page.locator(f'{_SWATCH}[data-color="#a1b2c3"]')).to_have_count(1)
@@ -113,3 +120,38 @@ class TestColorPicker:
         expect(page.locator(_POP)).to_be_visible()
         page.keyboard.press("Escape")
         expect(page.locator(_POP)).to_be_hidden()
+
+    def test_named_palette_add_apply_and_remove_round_trip(self, page: Page):
+        _mount(page)
+        page.click(_TRIGGER)
+        page.locator(_HEX).fill("aabbcc")
+        page.fill(_PAL_NAME, "Brand blue")
+        page.click(_PAL_ADD)
+
+        palette = page.evaluate("JSON.parse(localStorage.getItem('yuuclip-color-palette'))")
+        assert palette == [{"name": "Brand blue", "color": "#aabbcc"}]
+        expect(page.locator(_PAL_ITEM)).to_have_count(1)
+        expect(page.locator(_PAL_ITEM)).to_contain_text("Brand blue")
+
+        # Clicking a palette swatch applies its colour and closes the popover.
+        page.click(f"{_PAL_ITEM} .colorpicker-swatch")
+        assert page.locator(_VALUE).input_value() == "#aabbcc"
+
+        # Reopen and remove the entry.
+        page.click(_TRIGGER)
+        page.click(_PAL_REMOVE)
+        assert page.evaluate("JSON.parse(localStorage.getItem('yuuclip-color-palette'))") == []
+        expect(page.locator(_PAL_ITEM)).to_have_count(0)
+
+    def test_named_palette_persists_across_reload(self, page: Page):
+        _mount(page)
+        page.click(_TRIGGER)
+        page.locator(_HEX).fill("112233")
+        page.fill(_PAL_NAME, "Deep")
+        page.click(_PAL_ADD)
+
+        page.reload()
+        _mount(page, clear_stores=False)
+        page.click(_TRIGGER)
+        expect(page.locator(_PAL_ITEM)).to_have_count(1)
+        expect(page.locator(_PAL_ITEM)).to_contain_text("Deep")
