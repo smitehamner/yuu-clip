@@ -94,16 +94,12 @@ dev = [
     "pytest-playwright>=0.5,<1.0",
     "ruff>=0.4,<2.0",
 ]
-llamacpp = [
-    # Capped below 0.3.19: abetlen's prebuilt Windows wheels from ~0.3.25 up are built
-    # with AVX512 and crash at model load (STATUS_ILLEGAL_INSTRUCTION / 0xc000001d) on
-    # the many consumer CPUs that lack it (e.g. AMD Zen 3/3+, most laptops). 0.3.18 is
-    # the newest verified to run on an AVX2-only CPU and still has every vision chat
-    # handler we use. The bundled wheel in build/wheelhouse must match this. Revisit
-    # once we can build our own baseline / runtime-dispatch wheel - see the dependency
-    # compatibility plan (000_project_planning/.../dependency-isa-compat).
-    "llama-cpp-python>=0.3,<0.3.19",
-]
+# The local LLM/vision backend no longer uses the in-process llama-cpp-python wheel
+# (CPU-only, and its AVX512 prebuilt wheels crashed on many consumer CPUs). It now
+# drives upstream's bundled Vulkan llama-server over HTTP - see the
+# bundled-vulkan-llamacpp plan. Kept as an empty no-op alias so an older
+# `pip install yuu-clip[llamacpp]` still resolves.
+llamacpp = []
 # These features' packages are now bundled in the base dependencies (Tier A,
 # packaging-strategy-overhaul Wave 1). The extras remain as empty no-op aliases so
 # any older `pip install yuu-clip[embeddings|audio-model|laugh-model]` invocation

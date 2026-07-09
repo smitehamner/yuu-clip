@@ -9,7 +9,6 @@ const path   = require('path');
 const { Readable } = require('stream');
 const { parseNvidiaVramMB, selectGPU } = require('./gpu-detect');
 const { resolveBundledFfmpegDir } = require('./ffmpeg-detect');
-const { selectLlamaWheelUrl } = require('./llamacpp-cuda');
 const { buildWheelInstallArgs, buildOpencvDedupeArgs } = require('./venv-setup');
 const { parsePipRawProgress } = require('./pip-progress');
 const { describeInstallFailure } = require('./install-error');
@@ -300,9 +299,8 @@ function registerWizardIPC(wizardWin) {
     const ffmpegOk      = checkFFmpeg();
     const gpu           = detectGPU();
     const cuda          = detectCUDA();
-    const [ollamaRunning, llamacppInstalled, cudaLibsInstalled] = await Promise.all([
+    const [ollamaRunning, cudaLibsInstalled] = await Promise.all([
       checkOllama(),
-      checkVenvModule(WIZARD_INSTALLABLE.llamacpp.importName),
       checkVenvModule(WIZARD_INSTALLABLE['cuda-libs'].importName),
     ]);
     const ollamaModelPulled = ollamaRunning ? await checkOllamaModel(ollamaModel) : false;
@@ -314,13 +312,13 @@ function registerWizardIPC(wizardWin) {
     let freeDiskGB;
     try { freeDiskGB = diskSpace.freeBytesAt(pDir) / 1e9; } catch (_) { freeDiskGB = undefined; }
 
-    logSetup(`Status check - FFmpeg:${ffmpegOk} GPU:${gpu.name} CUDA:${cuda.available} cudaLibs:${cudaLibsInstalled} Ollama:${ollamaRunning} Model:${ollamaModelPulled} llamacpp:${llamacppInstalled}`);
+    logSetup(`Status check - FFmpeg:${ffmpegOk} GPU:${gpu.name} CUDA:${cuda.available} cudaLibs:${cudaLibsInstalled} Ollama:${ollamaRunning} Model:${ollamaModelPulled}`);
     return {
       ffmpegOk,
       ffmpegBundled: app.isPackaged,
       gpu, cuda,
       ollamaRunning, ollamaModel, ollamaModelPulled,
-      llamacppInstalled, cudaLibsInstalled,
+      cudaLibsInstalled,
       recommendedWhisper: recommendWhisperModel(gpu.vramMB),
       localModelRecommendation: recommendLocalModel({ vramMB: gpu.vramMB, freeDiskGB, gpuVendor: gpu.vendor }),
       whisperModel:  projCfg.whisper_model || '',
@@ -344,21 +342,7 @@ function registerWizardIPC(wizardWin) {
     };
     if (!spec) { send({ error: `Unknown package '${slug}'` }); return; }
 
-    // The LLM engine always installs from a prebuilt win_amd64 wheel - a CUDA
-    // build for NVIDIA GPUs, else the CPU build - so an end user never triggers
-    // a from-source compile (which needs MSVC/CMake and fails for nearly all of
-    // them). Same import name either way, so checkVenvModule()'s presence check
-    // is unaffected.
-    let installArgs = ['install', '--progress-bar', 'raw', ...spec.packages];
-    if (slug === 'llamacpp') {
-      const wheelUrl = selectLlamaWheelUrl({
-        cudaVersion: detectCUDA().version,
-        gpuVendor:   detectGPU().vendor,
-      });
-      logSetup(`Installing llama-cpp-python from prebuilt wheel: ${wheelUrl}`);
-      installArgs = ['install', '--progress-bar', 'raw', '--force-reinstall', wheelUrl];
-    }
-
+    const installArgs = ['install', '--progress-bar', 'raw', ...spec.packages];
     logSetup(`Wizard install starting: ${installArgs.join(' ')}`);
     try {
       await runCmd(VENV_PIP, installArgs,

@@ -398,10 +398,10 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                 urllib.request.urlopen(f"{host}/api/tags", timeout=2)
                 llm_ok, llm_reason = True, ""
             else:
-                # The authoritative check - for llamacpp this also confirms
-                # llama-cpp-python imports, not just that the .gguf file exists, so a
-                # missing runtime package no longer reports as "ok" and then fails
-                # silently during scoring.
+                # The authoritative check - for llamacpp this also confirms the
+                # bundled llama-server binary resolves, not just that the .gguf file
+                # exists, so a missing runtime no longer reports as "ok" and then
+                # fails silently during scoring.
                 from yuu_clip.scoring.llm import check_llm_available
                 llm_ok, llm_reason = check_llm_available(cfg)
         except Exception as exc:

@@ -118,7 +118,9 @@ function formatPipLine(line) {
 // the same installs via /api/install/{slug}, but it isn't running yet during
 // first-run setup, so the wizard drives pip directly.
 const WIZARD_INSTALLABLE = {
-  llamacpp:    { packages: ['llama-cpp-python'], importName: 'llama_cpp' },
+  // The local LLM/vision engine (llama-server) is now bundled with the app, so the
+  // wizard no longer installs llama-cpp-python. This remains for the CUDA runtime
+  // libraries that accelerate Whisper transcription (faster-whisper / CTranslate2).
   // Both wheels install together, so nvidia.cublas is a sufficient presence proxy.
   'cuda-libs': { packages: ['nvidia-cublas-cu12', 'nvidia-cudnn-cu12'], importName: 'nvidia.cublas' },
 };

@@ -47,7 +47,6 @@ window.__mockStatus = {
   gpu: { name: 'NVIDIA GeForce RTX 3080', vramMB: 10240, vendor: 'nvidia' },
   cuda: { available: true, version: '12.4' },
   ollamaRunning: false, ollamaModel: 'qwen2.5:7b', ollamaModelPulled: false,
-  llamacppInstalled: false,
   recommendedWhisper: { model: 'large-v3', reason: '10 GB+ VRAM' },
   projectDir: 'C:/Users/test/Videos/yuu-clip',
   aiPrivacyMode: 'local_only',
@@ -159,12 +158,13 @@ class TestWizardLlmBackends:
         expect(page.locator("#llm-llamacpp-fields")).to_be_hidden()
         expect(page.locator("#llm-claude-fields")).to_be_hidden()
 
-    def test_llamacpp_panel_guides_install_and_gguf_download(self, page: Page):
+    def test_llamacpp_panel_guides_gguf_download(self, page: Page):
+        # The local AI engine (llama-server) is bundled now, so the panel no longer
+        # has an "install engine" step - it goes straight to getting a model file.
         _open_wizard(page)
         _expand_advanced(page)
         page.select_option("#llm-backend-sel", "llamacpp")
         expect(page.locator("#llm-llamacpp-fields")).to_be_visible()
-        expect(page.locator("#install-btn-llamacpp")).to_be_visible()
         # Recommends an Apache-2.0 model (Qwen2.5) - Llama is licence-excluded
         # from recommendations (see model_catalog.py).
         expect(page.locator("#llm-llamacpp-fields")).to_contain_text("Qwen2.5 7B Instruct")
@@ -187,16 +187,6 @@ class TestWizardLlmBackends:
         expect(page.locator("#claude-warn")).to_be_visible()
         page.fill("#claude-api-key", "sk-ant-test")
         expect(page.locator("#claude-warn")).to_be_hidden()
-
-    def test_install_error_reenables_button_for_retry(self, page: Page):
-        _open_wizard(page)
-        _expand_advanced(page)
-        page.select_option("#llm-backend-sel", "llamacpp")
-        page.click("#install-btn-llamacpp")
-        expect(page.locator("#install-btn-llamacpp")).to_be_disabled()
-        page.evaluate("window.__installCb({ slug: 'llamacpp', error: 'boom' })")
-        expect(page.locator("#install-btn-llamacpp")).to_be_enabled()
-        expect(page.locator("#install-msg-llamacpp")).to_contain_text("Install failed")
 
     def test_pull_error_reenables_button_for_retry(self, page: Page):
         _open_wizard(page, "{ ollamaRunning: true, ollamaModelPulled: false }")

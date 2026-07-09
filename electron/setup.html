@@ -282,9 +282,7 @@ footer {
       </div>
 
       <div id="llm-llamacpp-fields" style="display:none">
-        <div class="desc" style="margin:4px 0 2px"><strong style="color:#8888aa">Step 1 - install the LLM engine</strong> (one-time)</div>
-        <div id="llamacpp-pkg-slot"></div>
-        <div class="desc" style="margin:8px 0 2px"><strong style="color:#8888aa">Step 2 - get a model file (.gguf)</strong></div>
+        <div class="desc" style="margin:4px 0 2px"><strong style="color:#8888aa">Get a model file (.gguf)</strong></div>
         <div class="desc">
           A <code>.gguf</code> file is the AI model itself.
         </div>
@@ -449,7 +447,7 @@ const WHISPER_LANGUAGES = [
 
 let status  = null;
 let pulling = false;
-let installing = { llamacpp: false, 'cuda-libs': false };
+let installing = { 'cuda-libs': false };
 let downloadingGguf = false;
 let defaultsApplied = false;
 
@@ -461,7 +459,7 @@ function esc(s) {
     .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-function anyInstalling() { return installing.llamacpp || installing['cuda-libs']; }
+function anyInstalling() { return installing['cuda-libs']; }
 
 function updateLaunchBtn() {
   const btn  = document.getElementById('launch-btn');
@@ -581,21 +579,6 @@ function renderOllamaStatus(s) {
   }
 }
 
-function renderLlamacppPkgSlot(s) {
-  const el = document.getElementById('llamacpp-pkg-slot');
-  const gpuNote = s.gpu.vendor === 'nvidia'
-    ? ' Your NVIDIA GPU was detected - the GPU-accelerated build installs automatically.'
-    : '';
-  if (s.llamacppInstalled) {
-    el.innerHTML = row('llamacpp-pkg', 'ok', '✓', 'LLM engine installed', 'llama-cpp-python is ready.');
-  } else {
-    el.innerHTML = row('llamacpp-pkg', 'warn', '○', 'LLM engine not installed',
-      `One-time install of the local inference engine (llama-cpp-python).${gpuNote}`,
-      `<button class="sm" id="install-btn-llamacpp" onclick="startInstall('llamacpp')">Install</button>
-       <div class="pull-msg" id="install-msg-llamacpp"></div>`);
-  }
-}
-
 function renderGgufDownloadSlot(s) {
   const el = document.getElementById('gguf-download-slot');
   if (!el) return;
@@ -617,7 +600,6 @@ function renderSlots(s) {
   renderGpuLine(s);
   renderCudaSlot(s);
   renderOllamaStatus(s);
-  renderLlamacppPkgSlot(s);
   renderGgufDownloadSlot(s);
   document.getElementById('subtitle').textContent =
     mode === 'update' ? 'This update added new setup options - review, then launch.'
@@ -849,7 +831,6 @@ function onInstallProgress(data) {
   const msg = document.getElementById(`install-msg-${data.slug}`);
   if (data.done) {
     installing[data.slug] = false;
-    if (data.slug === 'llamacpp') { status.llamacppInstalled = true; renderLlamacppPkgSlot(status); }
     if (data.slug === 'cuda-libs') { status.cudaLibsInstalled = true; renderCudaSlot(status); }
     updateLaunchBtn();
   } else if (data.error) {

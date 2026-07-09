@@ -2154,8 +2154,8 @@ class TestPrereqs:
 
     def test_llm_ok_delegates_to_check_llm_available(self, client, monkeypatch):
         # prereqs delegates the llamacpp/claude decision to check_llm_available, which
-        # also verifies the runtime package imports - mocked here so the test doesn't
-        # depend on whether llama-cpp-python is installed in the runner's venv.
+        # also verifies the runtime resolves - mocked here so the test doesn't depend
+        # on whether the llama-server binary is present in the runner's environment.
         monkeypatch.setattr("yuu_clip.scoring.llm.check_llm_available", lambda _cfg: (True, ""))
         body = client.get("/api/prereqs").json()
         assert body["llm_ok"] is True
@@ -2164,11 +2164,11 @@ class TestPrereqs:
     def test_llm_reason_surfaced_when_unavailable(self, client, monkeypatch):
         monkeypatch.setattr(
             "yuu_clip.scoring.llm.check_llm_available",
-            lambda _cfg: (False, "llama-cpp-python is not installed (pip install llama-cpp-python)"),
+            lambda _cfg: (False, "llama-server was not found"),
         )
         body = client.get("/api/prereqs").json()
         assert body["llm_ok"] is False
-        assert "llama-cpp-python is not installed" in body["llm_reason"]
+        assert "llama-server was not found" in body["llm_reason"]
 
     def test_response_has_boolean_flags(self, client):
         body = client.get("/api/prereqs").json()
