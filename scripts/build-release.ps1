@@ -67,7 +67,12 @@ $buildInfoPath = "$root\yuu_clip\_build_info.py"
 Write-Host "Build date stamped: $buildDate"
 
 Write-Host "`nBuilding Python wheel..."
-python -c "import build" 2>$null
+# Probe for build.__main__, not just `import build`: the repo's own build/ dir is
+# an implicit namespace package that shadows a bare `import build` from the repo
+# root, so a plain probe falsely passes and skips this install on a fresh venv -
+# then `python -m build` below resolves the empty build/ dir and dies. The real
+# PyPA build package (regular, with __init__.py) then wins over the namespace dir.
+python -c "import build.__main__" 2>$null
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Installing missing build backend (pip install build)..."
     python -m pip install build
