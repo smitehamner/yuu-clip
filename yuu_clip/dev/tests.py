@@ -42,6 +42,22 @@ def _pytest(args: list[str], detailed: bool) -> list[str]:
     return ["-u", "-m", "pytest", *args, verbosity, "--tb=short", "-p", "no:warnings", "-r", "fE"]
 
 
+def _looks_like_target(arg: str) -> bool:
+    """A pytest selection target (path or ``file::Class::test`` nodeid) rather than
+    an option or an option value. Used to let an explicit target replace the default
+    tier selection instead of being appended to it (which would run BOTH)."""
+    if arg.startswith("-"):
+        return False
+    return arg.endswith(".py") or "::" in arg or "/" in arg or "\\" in arg
+
+
+def _split_passthrough(pytest_args: Optional[List[str]]) -> tuple[list[str], list[str]]:
+    args = pytest_args or []
+    targets = [a for a in args if _looks_like_target(a)]
+    extras = [a for a in args if not _looks_like_target(a)]
+    return targets, extras
+
+
 @app.command("test-api", context_settings={"ignore_unknown_options": True})
 def test_api(
     detailed: bool = typer.Option(False, "--detailed", help="Per-test -v output."),
@@ -49,8 +65,11 @@ def test_api(
 ) -> None:
     """Run the unit + integration tiers (fast, no live server needed)."""
     console.print(f"Log: {API_LOG}")
-    cmd = [sys.executable, *_pytest(["tests/unit", "tests/integration", "-n", "auto"], detailed),
-           *(pytest_args or [])]
+    targets, extras = _split_passthrough(pytest_args)
+    # An explicit target (a file/nodeid) replaces the default tiers and runs in
+    # process; otherwise run both tiers under xdist.
+    selection = targets if targets else ["tests/unit", "tests/integration", "-n", "auto"]
+    cmd = [sys.executable, *_pytest(selection, detailed), *extras]
     code, output = run_and_tee(cmd, REPO_ROOT, pytest_env())
     print_summary(write_run_logs(output, API_LOG, API_SUMMARY))
     console.print(f"[dim]Full log: {API_LOG}  |  Summary: {API_SUMMARY}[/dim]")
@@ -169,14 +188,21 @@ def test_ui(
         raise typer.Exit(2)
 
     try:
-        paths, notes = ui_test_paths(smoke, changed)
+        targets, extras = _split_passthrough(pytest_args)
+        # An explicit target (file or file::nodeid) replaces the smoke/changed/full
+        # selection so `test-ui tests/ui/test_ui_split.py` runs only that file
+        # instead of appending it to the whole suite.
+        if targets:
+            paths, notes = targets, []
+        else:
+            paths, notes = ui_test_paths(smoke, changed)
         for note in notes:
             console.print(f"[yellow]note: {note}[/yellow]")
         console.print(f"[cyan]Running {len(paths)} UI test file(s):[/cyan]")
         for path in paths:
             console.print(f"  {Path(path).name}")
         cmd = [sys.executable, *_pytest(paths, detailed), "--no-header", "--timeout=60",
-               *_worker_args(len(paths), sequential), *(pytest_args or [])]
+               *_worker_args(len(paths), sequential), *extras]
         code, output = run_and_tee(cmd, REPO_ROOT, pytest_env())
         print_summary(write_run_logs(output, UI_LOG, UI_SUMMARY))
         console.print(f"[dim]Full log: {UI_LOG}  |  Summary: {UI_SUMMARY}[/dim]")

@@ -193,6 +193,22 @@ def test_worker_args_scale_with_file_count():
     assert tests_mod._worker_args(5, sequential=True) == []
 
 
+def test_split_passthrough_separates_targets_from_flags():
+    targets, extras = tests_mod._split_passthrough(
+        ["tests/ui/test_ui_split.py", "-k", "foo", "pkg/test_x.py::TestC::test_y", "-x"]
+    )
+    assert targets == ["tests/ui/test_ui_split.py", "pkg/test_x.py::TestC::test_y"]
+    assert extras == ["-k", "foo", "-x"]
+
+
+def test_split_passthrough_bare_word_is_a_flag_value_not_a_target():
+    # A -k expression value ("foo") must not be mistaken for a selection target,
+    # or it would wrongly replace the default tiers.
+    targets, extras = tests_mod._split_passthrough(["-k", "foo"])
+    assert targets == []
+    assert extras == ["-k", "foo"]
+
+
 def test_test_api_propagates_exit_and_passes_extra_args(monkeypatch, tmp_path):
     calls: dict = {}
 
@@ -208,6 +224,26 @@ def test_test_api_propagates_exit_and_passes_extra_args(monkeypatch, tmp_path):
     assert result.exit_code == 5
     assert "tests/unit" in calls["cmd"] and "tests/integration" in calls["cmd"]
     assert "-k" in calls["cmd"] and "foo" in calls["cmd"]
+
+
+def test_test_api_explicit_target_replaces_default_tiers(monkeypatch, tmp_path):
+    calls: dict = {}
+
+    def fake_run_and_tee(cmd, cwd, env=None):
+        calls["cmd"] = cmd
+        return 0, "============ 1 passed in 0.1s ============\n"
+
+    monkeypatch.setattr(tests_mod, "run_and_tee", fake_run_and_tee)
+    monkeypatch.setattr(tests_mod, "API_LOG", tmp_path / "a.log")
+    monkeypatch.setattr(tests_mod, "API_SUMMARY", tmp_path / "a-summary.log")
+
+    runner.invoke(app, ["test-api", "tests/unit/test_db_engine.py"])
+    cmd = calls["cmd"]
+    assert "tests/unit/test_db_engine.py" in cmd
+    # The explicit target REPLACES the default tiers (not appended, which would
+    # run the whole suite) and drops the xdist auto-spawn for a single file.
+    assert "tests/integration" not in cmd
+    assert "-n" not in cmd
 
 
 def test_test_ui_propagates_failing_exit_code(monkeypatch, tmp_path):
@@ -242,6 +278,30 @@ def test_test_ui_releases_lock_even_when_run_fails(monkeypatch, tmp_path):
 
     runner.invoke(app, ["test-ui", "--smoke"])
     assert not lock.exists()
+
+
+def test_test_ui_explicit_target_replaces_suite_selection(monkeypatch, tmp_path):
+    # `test-ui tests/ui/test_ui_split.py` must run ONLY that file, not append it
+    # to the full tests/ui selection (which made a targeted run execute everything).
+    calls: dict = {}
+
+    def fake_run_and_tee(cmd, cwd, env=None):
+        calls["cmd"] = cmd
+        return 0, "============ 1 passed in 0.2s ============\n"
+
+    monkeypatch.setattr(tests_mod, "_preflight_processes", lambda: None)
+    monkeypatch.setattr(tests_mod, "_preflight_seed_data", lambda: None)
+    monkeypatch.setattr(tests_mod, "acquire_ui_lock", lambda lock_path: True)
+    monkeypatch.setattr(tests_mod, "UI_LOCK", tmp_path / "test-ui.lock")
+    monkeypatch.setattr(tests_mod, "UI_LOG", tmp_path / "ui.log")
+    monkeypatch.setattr(tests_mod, "UI_SUMMARY", tmp_path / "ui-summary.log")
+    monkeypatch.setattr(tests_mod, "run_and_tee", fake_run_and_tee)
+
+    runner.invoke(app, ["test-ui", "tests/ui/test_ui_split.py"])
+    cmd = calls["cmd"]
+    ui_targets = [a for a in cmd if a.startswith("tests/ui/")]
+    assert ui_targets == ["tests/ui/test_ui_split.py"]
+    assert "-n" not in cmd  # single file runs in-process, no xdist
 
 
 # --- procs: CIM JSON parsing --------------------------------------------
