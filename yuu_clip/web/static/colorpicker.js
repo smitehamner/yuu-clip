@@ -207,11 +207,40 @@ function _renderStrips(ctx) {
 
 let _openCtx = null;  // the one open picker context, or null
 
-function _closePopover() {
+function _closePopover(refocus) {
   if (!_openCtx) return;
-  _openCtx.pop.classList.remove('open');
-  _openCtx.trigger.setAttribute('aria-expanded', 'false');
+  const { pop, trigger } = _openCtx;
+  pop.classList.remove('open');
+  trigger.setAttribute('aria-expanded', 'false');
   _openCtx = null;
+  if (refocus) trigger.focus();
+}
+
+// The popover is a dialog, so Tab must not fall through to the page behind it
+// (WCAG 2.4.3). Cycle focus among the popover's own controls; the trigger sits
+// outside the popover and is intentionally excluded while it is open.
+function _focusables(pop) {
+  return Array.from(pop.querySelectorAll('button, input')).filter(
+    el => !el.disabled && el.offsetParent !== null,
+  );
+}
+
+function _trapFocus(e) {
+  const items = _focusables(_openCtx.pop);
+  if (!items.length) return;
+  const first = items[0];
+  const last = items[items.length - 1];
+  const active = document.activeElement;
+  if (!_openCtx.pop.contains(active)) {
+    e.preventDefault();
+    first.focus();
+  } else if (e.shiftKey && active === first) {
+    e.preventDefault();
+    last.focus();
+  } else if (!e.shiftKey && active === last) {
+    e.preventDefault();
+    first.focus();
+  }
 }
 
 function _openPopover(ctx) {
@@ -235,7 +264,7 @@ function _wireHexField(ctx) {
   ctx.hexField.addEventListener('keydown', e => {
     if (e.key !== 'Enter') return;
     e.preventDefault();
-    if (_commit(ctx, ctx.hexField.value)) _closePopover();
+    if (_commit(ctx, ctx.hexField.value)) _closePopover(true);
   });
 }
 
@@ -320,11 +349,9 @@ document.addEventListener('click', e => {
   if (!_openCtx.pop.parentNode.contains(e.target)) _closePopover();
 });
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape' && _openCtx) {
-    const { trigger } = _openCtx;
-    _closePopover();
-    trigger.focus();
-  }
+  if (!_openCtx) return;
+  if (e.key === 'Escape') { _closePopover(true); return; }
+  if (e.key === 'Tab') _trapFocus(e);
 });
 
 window.ColorPicker = { attach, _normalizeHex, RECENT_KEY, PALETTE_KEY };

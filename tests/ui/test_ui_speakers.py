@@ -92,10 +92,16 @@ class TestSpeakerNaming:
         color_input = page.locator(".speaker-color-input")
         expect(color_input).to_have_value("#4fc3f7")
 
-        page.click(".colorpicker:has(.speaker-color-input) .colorpicker-trigger")
-        hex_field = page.locator(".colorpicker:has(.speaker-color-input) .colorpicker-hexfield")
-        hex_field.fill("abcdef")
-        hex_field.dispatch_event("change")
+        # The PUT is an async fetch; wait for it to actually reach the route
+        # rather than asserting on put_bodies before the request lands (the
+        # bare assert raced the network under full-suite load).
+        with page.expect_request(
+            lambda r: "/api/speakers/" in r.url and r.method == "PUT"
+        ):
+            page.click(".colorpicker:has(.speaker-color-input) .colorpicker-trigger")
+            hex_field = page.locator(".colorpicker:has(.speaker-color-input) .colorpicker-hexfield")
+            hex_field.fill("abcdef")
+            hex_field.dispatch_event("change")
 
         assert any("abcdef" in body for body in put_bodies), put_bodies
 

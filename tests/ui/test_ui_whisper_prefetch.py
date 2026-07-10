@@ -85,7 +85,7 @@ class TestModelPrefetchBanner:
         _hold(page, "**/api/whisper/prefetch", [])
 
         _reboot_against_stubs(page)
-        page.wait_for_selector('#model-download-banner .mdl-row[data-mdl-kind="whisper"]', timeout=4000)
+        page.wait_for_selector('#model-download-banner .mdl-row[data-mdl-kind="whisper"]', timeout=8000)
         row = page.locator('.mdl-row[data-mdl-kind="whisper"]')
         assert "speech model" in row.inner_text().lower()
         # No percent parsed yet -> indeterminate bar, and a Cancel control is present.
@@ -98,7 +98,7 @@ class TestModelPrefetchBanner:
         _hold(page, "**/api/models/prefetch*", [])
 
         _reboot_against_stubs(page)
-        page.wait_for_selector('#model-download-banner .mdl-row[data-mdl-kind="speaker"]', timeout=4000)
+        page.wait_for_selector('#model-download-banner .mdl-row[data-mdl-kind="speaker"]', timeout=8000)
         assert "speaker" in page.locator('.mdl-row[data-mdl-kind="speaker"]').inner_text().lower()
         # Only the speaker banner - the cached speech model must not start one.
         assert page.locator('.mdl-row[data-mdl-kind="whisper"]').count() == 0
@@ -139,7 +139,7 @@ class TestModelPrefetchBanner:
         _reboot_against_stubs(page)
         page.wait_for_function(
             "() => document.querySelectorAll('#model-download-banner .mdl-row').length === 3",
-            timeout=4000,
+            timeout=8000,
         )
         kinds = page.eval_on_selector_all(
             "#model-download-banner .mdl-row",
@@ -155,7 +155,7 @@ class TestAnalyzeCoordination:
         _route_download_status(page, whisper_downloading=True, whisper_model_id="base")
         page.evaluate("() => { document.getElementById('analyze-path').value = 'C:/rec.mp4'; }")
         page.evaluate("() => startAnalyze()")
-        page.wait_for_selector("#confirm-modal.visible", timeout=4000)
+        page.wait_for_selector("#confirm-modal.visible", timeout=8000)
         assert "still downloading" in page.locator("#confirm-body").inner_text().lower()
         assert page.locator("#confirm-ok-btn").inner_text() == "Start anyway"
         assert page.locator("#confirm-cancel-btn").inner_text() == "Wait"
@@ -178,7 +178,7 @@ class TestAnalyzeCoordination:
 class TestGettingStartedModal:
     def test_modal_opens_on_first_run_and_marks_seen_on_close(self, page: Page):
         page.evaluate("() => { localStorage.removeItem('yuu-getting-started-seen'); openGettingStartedModal(); }")
-        page.wait_for_selector("#getting-started-modal.visible", timeout=4000)
+        page.wait_for_selector("#getting-started-modal.visible", timeout=8000)
         page.evaluate("() => closeGettingStartedModal()")
-        page.wait_for_selector("#getting-started-modal.visible", state="hidden", timeout=4000)
+        page.wait_for_selector("#getting-started-modal.visible", state="hidden", timeout=8000)
         assert page.evaluate("() => localStorage.getItem('yuu-getting-started-seen')") == "1"

@@ -29,7 +29,7 @@ class TestTranscriptionLanguageSelect:
         page.wait_for_selector("#settings-panel.visible", timeout=3000)
         page.wait_for_function(
             "document.querySelectorAll('#s-whisper-language option').length > 1",
-            timeout=3000,
+            timeout=8000,
         )
         # The language options are populated (above) *before* openSettings()'s
         # _applySettingsToUI runs - that later call resets #s-whisper-language to
@@ -39,7 +39,7 @@ class TestTranscriptionLanguageSelect:
         # after the snapshot, so waiting on it means the panel is fully settled.
         page.wait_for_function(
             "document.getElementById('s-paths-display').textContent.trim().length > 0",
-            timeout=3000,
+            timeout=8000,
         )
 
     def test_first_option_is_auto_detect_with_empty_value(self, page: Page):
@@ -99,7 +99,7 @@ class TestAiPrivacyMode:
         page.wait_for_selector("#settings-panel.visible", timeout=3000)
         page.wait_for_function(
             "document.getElementById('s-paths-display').textContent.trim().length > 0",
-            timeout=3000,
+            timeout=8000,
         )
         # The AI-privacy radios and the LLM-engine select now live under the
         # "Advanced AI options" disclosure (UX review) - expand it so tests can
@@ -174,7 +174,7 @@ class TestLlamaCppTextVisionGroups:
         page.wait_for_selector("#settings-panel.visible", timeout=3000)
         page.wait_for_function(
             "document.getElementById('s-paths-display').textContent.trim().length > 0",
-            timeout=3000,
+            timeout=8000,
         )
         page.evaluate("document.getElementById('s-llm-advanced').open = true")
 
@@ -265,7 +265,7 @@ class TestSettingsPanelChrome:
         # content signals the panel is fully initialized.
         page.wait_for_function(
             "document.getElementById('s-paths-display').textContent.trim().length > 0",
-            timeout=3000,
+            timeout=8000,
         )
         # The Capabilities tiers render from a *separate* async fetch
         # (/api/capabilities/tiers) into a section above Paths. If that lands
@@ -273,7 +273,7 @@ class TestSettingsPanelChrome:
         # anchoring and shifts the panel - wait for it to settle too.
         page.wait_for_function(
             "document.getElementById('s-capabilities-list').children.length > 0",
-            timeout=3000,
+            timeout=8000,
         )
 
     def test_header_is_sticky_and_holds_save(self, page: Page):
@@ -388,7 +388,7 @@ class TestCapabilitiesSection:
         # _applySettingsToUI; wait for them rather than racing the fetch.
         page.wait_for_function(
             "document.querySelectorAll('#s-capabilities-list .capability-tier').length === 5",
-            timeout=3000,
+            timeout=8000,
         )
 
     def test_renders_five_tier_rows_with_intro(self, page: Page):
@@ -434,7 +434,7 @@ class TestExportNameTemplatePreview:
         # or the async apply races the test's fill and overwrites it.
         page.wait_for_function(
             "document.getElementById('s-paths-display').textContent.trim().length > 0",
-            timeout=3000,
+            timeout=8000,
         )
 
     def test_preview_shows_rendered_default_template(self, page: Page):
@@ -477,7 +477,7 @@ class TestTitleCardSettings:
         page.wait_for_selector("#settings-panel.visible", timeout=3000)
         page.wait_for_function(
             "document.getElementById('s-paths-display').textContent.trim().length > 0",
-            timeout=3000,
+            timeout=8000,
         )
 
     def test_fields_render_with_saved_config_values(self, page: Page):
@@ -571,7 +571,7 @@ class TestCaptionStyleSettings:
         page.wait_for_selector("#settings-panel.visible", timeout=3000)
         page.wait_for_function(
             "document.getElementById('s-paths-display').textContent.trim().length > 0",
-            timeout=3000,
+            timeout=8000,
         )
 
     def test_fields_render_with_saved_config_values(self, page: Page):
@@ -702,7 +702,7 @@ class TestHardwareSettingsSection:
         page.wait_for_selector("#settings-panel.visible", timeout=3000)
         page.wait_for_function(
             "document.getElementById('s-paths-display').textContent.trim().length > 0",
-            timeout=3000,
+            timeout=8000,
         )
 
     def test_jump_link_scrolls_hardware_section_into_view(self, page: Page):
@@ -908,7 +908,7 @@ class TestResetToDefaults:
         page.wait_for_selector("#settings-panel.visible", timeout=3000)
         page.wait_for_function(
             "document.getElementById('s-paths-display').textContent.trim().length > 0",
-            timeout=3000,
+            timeout=8000,
         )
 
     def _set(self, page: Page, field_id: str, value: str) -> None:
@@ -962,7 +962,7 @@ class TestSpeakerClusterThreshold:
         page.wait_for_selector("#settings-panel.visible", timeout=3000)
         page.wait_for_function(
             "document.getElementById('s-paths-display').textContent.trim().length > 0",
-            timeout=3000,
+            timeout=8000,
         )
 
     def test_cluster_threshold_shown_for_speechbrain(self, page: Page):

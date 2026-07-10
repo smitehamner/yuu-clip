@@ -121,6 +121,39 @@ class TestColorPicker:
         page.keyboard.press("Escape")
         expect(page.locator(_POP)).to_be_hidden()
 
+    def test_escape_restores_focus_to_trigger(self, page: Page):
+        _mount(page)
+        page.click(_TRIGGER)
+        page.keyboard.press("Escape")
+        on_trigger = page.evaluate(
+            "document.activeElement === document.querySelector('#cp-host .colorpicker-trigger')"
+        )
+        assert on_trigger
+
+    def test_tab_focus_stays_trapped_in_popover(self, page: Page):
+        _mount(page)
+        page.click(_TRIGGER)
+        expect(page.locator(_POP)).to_be_visible()
+        # Tab more times than there are focusable controls; focus must never
+        # fall through the dialog to the page behind it.
+        for _ in range(15):
+            page.keyboard.press("Tab")
+            assert page.evaluate(
+                "document.querySelector('#cp-host .colorpicker-pop')"
+                ".contains(document.activeElement)"
+            ), "focus escaped the colour-picker popover"
+
+    def test_shift_tab_from_first_control_wraps_backwards(self, page: Page):
+        _mount(page)
+        page.click(_TRIGGER)
+        # Focus opens on the hex field (first control); Shift+Tab must wrap to
+        # the last control inside the dialog, not leave it.
+        page.keyboard.press("Shift+Tab")
+        assert page.evaluate(
+            "document.querySelector('#cp-host .colorpicker-pop')"
+            ".contains(document.activeElement)"
+        )
+
     def test_named_palette_add_apply_and_remove_round_trip(self, page: Page):
         _mount(page)
         page.click(_TRIGGER)
