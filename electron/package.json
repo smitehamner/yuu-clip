@@ -1,6 +1,6 @@
 {
   "name": "yuu-clip",
-  "version": "0.1.19",
+  "version": "0.1.20",
   "description": "yuu-clip - Gaming clip review and export tool",
   "author": "smitehamner",
   "main": "main.js",
@@ -32,16 +32,47 @@
       "include": "installer.nsh"
     },
     "extraResources": [
-      { "from": "../build/prebuilt-env/env.tar.gz", "to": "prebuilt-env.tar.gz" },
-      { "from": "../build/prebuilt-env/prebuilt-env.version", "to": "prebuilt-env.version" },
-      { "from": "../build/python-runtime", "to": "python", "filter": ["**/*", "!.version"] },
-      { "from": "../build/ffmpeg-runtime", "to": "ffmpeg", "filter": ["**/*", "!.version"] },
-      { "from": "resources/LICENSE-FFMPEG-GPL.txt", "to": "LICENSE-FFMPEG-GPL.txt" },
-      { "from": "../build/llama-server-runtime", "to": "llama-server", "filter": ["**/*", "!.version"] },
-      { "from": "resources/LICENSE-LLAMA-CPP-MIT.txt", "to": "LICENSE-LLAMA-CPP-MIT.txt" }
+      {
+        "from": "../build/prebuilt-env/env.tar.gz",
+        "to": "prebuilt-env.tar.gz"
+      },
+      {
+        "from": "../build/prebuilt-env/prebuilt-env.version",
+        "to": "prebuilt-env.version"
+      },
+      {
+        "from": "../build/python-runtime",
+        "to": "python",
+        "filter": [
+          "**/*",
+          "!.version"
+        ]
+      },
+      {
+        "from": "../build/ffmpeg-runtime",
+        "to": "ffmpeg",
+        "filter": [
+          "**/*",
+          "!.version"
+        ]
+      },
+      {
+        "from": "resources/LICENSE-FFMPEG-GPL.txt",
+        "to": "LICENSE-FFMPEG-GPL.txt"
+      },
+      {
+        "from": "../build/llama-server-runtime",
+        "to": "llama-server",
+        "filter": [
+          "**/*",
+          "!.version"
+        ]
+      },
+      {
+        "from": "resources/LICENSE-LLAMA-CPP-MIT.txt",
+        "to": "LICENSE-LLAMA-CPP-MIT.txt"
+      }
     ],
     "publish": null
   }
 }
-
-
