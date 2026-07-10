@@ -520,16 +520,21 @@ function renderFfmpegSlot(s) {
 
 function renderGpuLine(s) {
   const el = document.getElementById('gpu-line');
+  if (s.gpu.name === 'Unknown') {
+    el.textContent = 'No discrete GPU detected - analysis runs on the CPU (slower, but works).';
+    return;
+  }
+  // LLM scoring runs on any vendor's GPU (via the bundled Vulkan engine); only
+  // Whisper transcription is NVIDIA/CUDA-only, so the two are reported separately.
+  const gpu = `Detected GPU: ${s.gpu.name} (${s.gpu.vramMB.toLocaleString()} MB VRAM)`;
   if (s.gpu.vendor === 'nvidia') {
     const hasVersion = s.cuda.version && s.cuda.version !== 'unknown';
     const cudaLabel = hasVersion ? `CUDA ${s.cuda.version}` : 'CUDA detected';
     el.textContent = s.cuda.available
-      ? `Detected GPU: ${s.gpu.name} (${s.gpu.vramMB.toLocaleString()} MB VRAM) - ${cudaLabel}, GPU acceleration active.`
-      : `Detected GPU: ${s.gpu.name} (${s.gpu.vramMB.toLocaleString()} MB VRAM) - CUDA not found, running on CPU.`;
-  } else if (s.gpu.name !== 'Unknown') {
-    el.textContent = `Detected GPU: ${s.gpu.name} (${s.gpu.vramMB.toLocaleString()} MB VRAM) - transcription runs on CPU.`;
+      ? `${gpu} - ${cudaLabel}. Your GPU speeds up both transcription and LLM scoring.`
+      : `${gpu} - your GPU speeds up LLM scoring. Add CUDA (below) to also speed up transcription.`;
   } else {
-    el.textContent = 'No discrete GPU detected - transcription runs on CPU (slower, but works).';
+    el.textContent = `${gpu} - your GPU speeds up LLM scoring. Transcription runs on the CPU (GPU transcription needs an NVIDIA card).`;
   }
 }
 

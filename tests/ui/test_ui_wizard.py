@@ -114,7 +114,16 @@ class TestWizardLayout:
     def test_cuda_missing_shows_optional_acceleration_row(self, page: Page):
         _open_wizard(page, "{ cuda: { available: false, version: null } }")
         expect(page.locator("#item-cuda")).to_be_visible()
-        expect(page.locator("#gpu-line")).to_contain_text("CUDA not found")
+        # LLM scoring still runs on the GPU (Vulkan); CUDA only adds transcription.
+        expect(page.locator("#gpu-line")).to_contain_text("speeds up LLM scoring")
+        expect(page.locator("#gpu-line")).to_contain_text("Add CUDA")
+
+    def test_amd_gpu_reports_llm_scoring_on_gpu(self, page: Page):
+        _open_wizard(page, "{ gpu: { name: 'AMD Radeon RX 7900 XT', vramMB: 20480, vendor: 'amd' } }")
+        expect(page.locator("#gpu-line")).to_contain_text("AMD Radeon RX 7900 XT")
+        expect(page.locator("#gpu-line")).to_contain_text("speeds up LLM scoring")
+        # AMD has no CUDA path, so the CUDA install row must not appear.
+        expect(page.locator("#item-cuda")).to_have_count(0)
 
 
 @skip_no_server
