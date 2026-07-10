@@ -430,6 +430,23 @@ def _get_model(config: Config):
     return _model_cache[key]
 
 
+def _serialize_words(words) -> Optional[str]:
+    """Serialize faster-whisper per-word timings for a segment into words_json.
+
+    faster-whisper reports word start/end in track-absolute seconds (same frame
+    as the segment's own start/end), so we keep that frame and just convert to
+    ms. Returns None when the model produced no word data - the caller stores
+    NULL and the caption renderer falls back to a static line.
+    """
+    if not words:
+        return None
+    serialized = [
+        {"text": word.word, "start_ms": int(word.start * 1000), "end_ms": int(word.end * 1000)}
+        for word in words
+    ]
+    return json.dumps(serialized) if serialized else None
+
+
 # transcribe_track is long because the Progress context, the model call, and the segment
 # loop share seg_count, transcript, and progress as live state. Splitting the loop into a
 # helper requires threading all three, producing more complexity than the length costs.
@@ -495,7 +512,7 @@ def transcribe_track(
                 "min_silence_duration_ms": 500,
                 "speech_pad_ms": 200,
             },
-            word_timestamps=False,
+            word_timestamps=True,
         )
 
         if language is None and hasattr(info, "language"):
@@ -510,6 +527,7 @@ def transcribe_track(
                 text=seg.text,
                 confidence=getattr(seg, "avg_logprob", None),
                 speaker_label=None,
+                words_json=_serialize_words(getattr(seg, "words", None)),
             )
             session.add(db_seg)
             progress.update(task, segs=seg_count)

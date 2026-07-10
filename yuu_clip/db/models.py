@@ -324,8 +324,24 @@ class TranscriptSegment(Base):
     # distinguish auto-diarized lines from ones the user corrected.
     speaker_edited: Mapped[bool] = mapped_column(Boolean, default=False)
 
+    # Per-word timings for word-highlight (TikTok/CapCut-style) captions: a JSON
+    # list of {"text", "start_ms", "end_ms"} in the same track-absolute ms frame
+    # as this segment's start_ms/end_ms, captured by whisper_runner when word
+    # timestamps are enabled and re-derived by forced alignment on a text edit.
+    # NULL for pre-feature transcripts, non-English edits, or a failed alignment -
+    # callers fall back to a static caption line.
+    words_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
     transcript: Mapped["Transcript"] = relationship(back_populates="segments")
     speaker: Mapped[Optional["Speaker"]] = relationship()
+
+    @property
+    def words(self) -> list[dict]:
+        return json.loads(self.words_json) if self.words_json else []
+
+    @words.setter
+    def words(self, value: Optional[list[dict]]) -> None:
+        self.words_json = json.dumps(value) if value else None
 
 
 class Speaker(Base):
