@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -672,6 +673,58 @@ class TestBatchExportValidation:
         r = client.get(f"/api/videos/{vid_id}/batch-export?retranscribe=false&retranscribe_model=gpt-4o&min_score=1.1")
         assert r.status_code == 400
         assert "model" not in r.text.lower()
+
+
+class TestRunExportSubprocessCleanup:
+    """A batch-export SSE client disconnecting mid-encode must not leave the
+    per-clip python+ffmpeg tree running."""
+
+    class _FakeProc:
+        def __init__(self, returncode):
+            self.returncode = returncode
+            self.pid = 4242
+
+    def test_returns_code_and_output_on_success(self, tmp_path: Path):
+        from unittest.mock import patch
+
+        from yuu_clip.web.routes.clips import export
+
+        proc = self._FakeProc(returncode=0)
+
+        async def fake_exec(*_a, **_k):
+            return proc
+
+        async def fake_communicate():
+            return (b"encoded ok", None)
+
+        proc.communicate = fake_communicate
+        with patch.object(export.asyncio, "create_subprocess_exec", fake_exec), \
+             patch.object(export, "terminate_process_tree") as term:
+            returncode, out = asyncio.run(export._run_export_subprocess(["x"], tmp_path))
+
+        assert (returncode, out) == (0, b"encoded ok")
+        term.assert_not_called()  # process exited cleanly - nothing to kill
+
+    def test_kills_tree_when_cancelled_mid_encode(self, tmp_path: Path):
+        from unittest.mock import patch
+
+        from yuu_clip.web.routes.clips import export
+
+        proc = self._FakeProc(returncode=None)  # still running when cancelled
+
+        async def fake_exec(*_a, **_k):
+            return proc
+
+        async def fake_communicate():
+            raise asyncio.CancelledError()
+
+        proc.communicate = fake_communicate
+        with patch.object(export.asyncio, "create_subprocess_exec", fake_exec), \
+             patch.object(export, "terminate_process_tree") as term:
+            with pytest.raises(asyncio.CancelledError):
+                asyncio.run(export._run_export_subprocess(["x"], tmp_path))
+
+        term.assert_called_once_with(proc)
 
 
 class TestApprovedClipsForReel:

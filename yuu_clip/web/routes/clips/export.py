@@ -20,6 +20,7 @@ from yuu_clip.export.paths import export_paths, validate_export_preset_query
 from yuu_clip.log import get_logger
 from yuu_clip.web.deps import ProjectContext
 from yuu_clip.web.routes.common import active_job, sse_response
+from yuu_clip.web.sse import new_session_kwargs, terminate_process_tree
 
 _log = get_logger(__name__)
 
@@ -65,6 +66,31 @@ def _build_export_cmd(
     return cmd
 
 
+async def _run_export_subprocess(cmd: list[str], cwd) -> tuple[Optional[int], bytes]:
+    """Run one clip-export subprocess and return (returncode, combined_output).
+
+    If this coroutine is cancelled - the batch-export SSE client disconnected
+    while a clip was mid-encode - the finally kills the python+ffmpeg tree instead
+    of letting it run on after the stream is gone. CancelledError is a
+    BaseException, so only a finally (not the caller's `except Exception`) can
+    guarantee the cleanup.
+    """
+    proc = None
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=_subprocess.PIPE,
+            stderr=_subprocess.STDOUT,
+            cwd=str(cwd),
+            **new_session_kwargs(),
+        )
+        out, _ = await proc.communicate()
+        return proc.returncode, out
+    finally:
+        if proc is not None and proc.returncode is None:
+            terminate_process_tree(proc)
+
+
 def _clip_export_stream_response(
     ctx: ProjectContext,
     clip_ids: list[int],
@@ -99,21 +125,15 @@ def _clip_export_stream_response(
                     preset=preset,
                 )
                 try:
-                    proc = await asyncio.create_subprocess_exec(
-                        *cmd,
-                        stdout=_subprocess.PIPE,
-                        stderr=_subprocess.STDOUT,
-                        cwd=str(ctx.project_dir),
-                    )
-                    out, _ = await proc.communicate()
-                    if proc.returncode == 0:
+                    returncode, out = await _run_export_subprocess(cmd, ctx.project_dir)
+                    if returncode == 0:
                         exported += 1
                         yield f"data: {json_lib.dumps(f'OK clip {cid} [{i}/{total}]')}\n\n"
                     else:
                         msg = out.decode(errors="replace").strip().splitlines()
                         last = msg[-1] if msg else "unknown error"
-                        _log.error("clip export failed for clip %d (rc=%d): %s", cid, proc.returncode, last)
-                        yield f"data: {json_lib.dumps(f'[Error clip {cid} (exit {proc.returncode}): {last}]')}\n\n"
+                        _log.error("clip export failed for clip %d (rc=%d): %s", cid, returncode, last)
+                        yield f"data: {json_lib.dumps(f'[Error clip {cid} (exit {returncode}): {last}]')}\n\n"
                 except Exception as exc:
                     _log.error("clip export subprocess failed for clip %d: %s", cid, exc, exc_info=True)
                     yield f"data: {json_lib.dumps(f'[Error clip {cid}: {exc}]')}\n\n"
