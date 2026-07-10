@@ -129,9 +129,20 @@ Write-Host "FFmpeg source archives copied to $sourceOutDir (ship alongside the i
 Write-Host "`nFetching bundled llama-server runtime..."
 & "$root\scripts\fetch-llama-server-runtime.ps1"
 
-# ── 5. npm run dist ──────────────────────────────────────────────────────────
-Write-Host "`nRunning electron-builder..."
+# ── 5. npm ci + npm run dist ─────────────────────────────────────────────────
+# npm ci does a clean, deterministic install straight from package-lock.json, so
+# a fresh checkout (no node_modules) builds without a manual `npm install`. It
+# also fails loudly if the lock is out of sync with package.json - a guard
+# against shipping a build whose deps drifted from the lock.
+Write-Host "`nInstalling electron dependencies (npm ci)..."
 Push-Location "$root\electron"
+npm ci
+if ($LASTEXITCODE -ne 0) {
+    Pop-Location
+    Write-Error "npm ci failed (exit $LASTEXITCODE). If package-lock.json is out of sync with package.json, run 'npm install' in electron/ and commit the updated lock."
+    exit 1
+}
+Write-Host "Running electron-builder..."
 $env:CSC_IDENTITY_AUTO_DISCOVERY = "false"
 npm run dist
 Pop-Location
