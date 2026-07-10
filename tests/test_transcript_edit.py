@@ -161,6 +161,43 @@ class TestUpdateCaptionSegment:
 
         assert list(export_dir.glob("*.srt")) == []
 
+    def test_english_edit_realigns_word_timings(self, client, project_dir, monkeypatch):
+        session = _db(project_dir)
+        seg_a_id, _b, _clips, _vid = _seed_transcript(session)
+        seg = session.get(TranscriptSegment, seg_a_id)
+        seg.transcript.language = "en"
+        session.commit()
+        session.close()
+
+        aligned = [{"text": "hello", "start_ms": 1000, "end_ms": 1500},
+                   {"text": "world", "start_ms": 1500, "end_ms": 2000}]
+        monkeypatch.setattr(
+            "yuu_clip.transcribe.align.realign_segment_words", lambda seg: aligned
+        )
+
+        client.put(f"/api/caption-segments/{seg_a_id}", json={"text": "hello world"})
+
+        check = _db(project_dir)
+        seg = check.get(TranscriptSegment, seg_a_id)
+        assert seg.words == aligned
+        check.close()
+
+    def test_non_english_edit_clears_word_timings(self, client, project_dir):
+        session = _db(project_dir)
+        seg_a_id, _b, _clips, _vid = _seed_transcript(session)
+        seg = session.get(TranscriptSegment, seg_a_id)
+        seg.transcript.language = "es"
+        seg.words = [{"text": "hola", "start_ms": 1000, "end_ms": 2000}]
+        session.commit()
+        session.close()
+
+        client.put(f"/api/caption-segments/{seg_a_id}", json={"text": "hola mundo"})
+
+        check = _db(project_dir)
+        seg = check.get(TranscriptSegment, seg_a_id)
+        assert seg.words_json is None
+        check.close()
+
 
 class TestTranscriptSeekOffset:
     def test_clip_transcript_lines_carry_seg_id(self, client, project_dir):

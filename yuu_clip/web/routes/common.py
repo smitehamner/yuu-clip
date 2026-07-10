@@ -118,8 +118,13 @@ def stage_segment_text_edit(db, seg, new_text: str) -> list[ClipCandidate]:
     from datetime import datetime, timezone
 
     from yuu_clip.segments.windower import rebuild_clip_excerpt
+    from yuu_clip.transcribe.align import realign_segment_words
 
     seg.text = new_text
+    # Re-align per-word timings to the edited text so word-highlight captions track
+    # the new wording; cleared to NULL (static-caption fallback) when alignment can't
+    # run (non-English, missing source, failure).
+    seg.words = realign_segment_words(seg)
     video_id = seg.transcript.audio_track.video_id
     affected = (
         db.query(ClipCandidate)
