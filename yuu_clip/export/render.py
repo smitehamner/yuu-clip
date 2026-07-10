@@ -225,25 +225,43 @@ def _apply_title_card(clip_path: Path, cand, output: Path, config) -> Path:
     return output
 
 
-def _write_subtitle_tmp(cand, lines_to_srt_fn, merged_srt_lines_fn, label: str) -> Optional[Path]:
-    """Write merged SRT to a temp file; return its path, or None when no transcript data exists."""
+def _video_play_res(cand) -> Optional[tuple[int, int]]:
+    """The clip's source frame size, for the word-highlight ASS PlayRes - so libass
+    scales the caption to the same coordinate space the SRT path uses. None when the
+    dimensions aren't known (libass then uses its own default)."""
+    width, height = cand.video.width, cand.video.height
+    return (width, height) if width and height else None
+
+
+def _write_subtitle_tmp(cand, merged_srt_lines_fn, render_fn, suffix: str, label: str) -> Optional[Path]:
+    """Write the merged caption lines to a temp file via *render_fn*; return its path,
+    or None when no transcript data exists."""
     import tempfile
     merged = merged_srt_lines_fn(cand)
     if not merged:
         console.print(f"  [yellow]{label}: no transcript data found, skipping[/yellow]")
         return None
-    tmp = tempfile.NamedTemporaryFile(suffix=".srt", delete=False, mode="w", encoding="utf-8")
-    tmp.write(lines_to_srt_fn(merged))
+    tmp = tempfile.NamedTemporaryFile(suffix=suffix, delete=False, mode="w", encoding="utf-8")
+    tmp.write(render_fn(merged))
     tmp.close()
     return Path(tmp.name)
 
 
-def _write_export_subs(cand, bake_captions: bool, embed_subs: bool, lines_to_srt, merged_srt_lines):
-    """Return (burn_in_path, soft_track_path) temp SRTs based on the caption flags."""
+def _write_export_subs(cand, bake_captions: bool, embed_subs: bool, lines_to_srt, merged_srt_lines,
+                       lines_to_ass=None, word_highlight: bool = False, chunk_size: int = 4):
+    """Return (burn_in_path, soft_track_path) temp caption files based on the flags.
+
+    Word-highlight applies only to the burned-in path (an embedded soft-subtitle
+    track can't carry the per-word ASS overrides), and writes .ass instead of .srt.
+    """
     if bake_captions:
-        return _write_subtitle_tmp(cand, lines_to_srt, merged_srt_lines, "--bake-captions"), None
+        if word_highlight and lines_to_ass is not None:
+            play_res = _video_play_res(cand)
+            render = lambda merged: lines_to_ass(merged, chunk_size, play_res)  # noqa: E731
+            return _write_subtitle_tmp(cand, merged_srt_lines, render, ".ass", "--bake-captions"), None
+        return _write_subtitle_tmp(cand, merged_srt_lines, lines_to_srt, ".srt", "--bake-captions"), None
     if embed_subs:
-        return None, _write_subtitle_tmp(cand, lines_to_srt, merged_srt_lines, "--embed-subs")
+        return None, _write_subtitle_tmp(cand, merged_srt_lines, lines_to_srt, ".srt", "--embed-subs")
     return None, None
 
 
@@ -312,6 +330,11 @@ def _finalize_export(cand, session, video_path: Path, output: Path, config, *,
                 caption_size=caption_style.font_size,
                 caption_position=caption_style.position,
             )
+            if caption_style.word_highlight:
+                settings.update(
+                    caption_word_highlight=True,
+                    caption_word_chunk_size=caption_style.word_chunk_size,
+                )
         if preset is not None:
             settings.update(
                 height=preset.height, crf=preset.crf,
@@ -357,7 +380,8 @@ def _resolve_audio_stream_index(session, cand) -> Optional[int]:
     return audio_track.stream_index if audio_track else None
 
 
-def _resolve_caption_style(config, font: Optional[str], size: Optional[int], position: Optional[str]):
+def _resolve_caption_style(config, font: Optional[str], size: Optional[int], position: Optional[str],
+                           word_highlight: Optional[bool] = None, word_chunk_size: Optional[int] = None):
     """Merge per-export caption-style overrides over the configured defaults.
 
     A None override falls back to config. Values are validated (raising typer.Exit
@@ -369,20 +393,27 @@ def _resolve_caption_style(config, font: Optional[str], size: Optional[int], pos
         CAPTION_POSITIONS,
         validate_caption_font_name,
         validate_caption_font_size,
+        validate_caption_word_chunk_size,
     )
 
     resolved_font = config.caption_font_name if font is None else font
     resolved_size = config.caption_font_size if size is None else size
     resolved_position = config.caption_position if position is None else position
+    resolved_highlight = config.caption_word_highlight if word_highlight is None else word_highlight
+    resolved_chunk = config.caption_word_chunk_size if word_chunk_size is None else word_chunk_size
     try:
         validate_caption_font_name(resolved_font)
         validate_caption_font_size(resolved_size)
+        validate_caption_word_chunk_size(resolved_chunk)
         if resolved_position not in CAPTION_POSITIONS:
             raise ValueError(f"caption_position must be one of: {sorted(CAPTION_POSITIONS)}")
     except (ValueError, TypeError) as e:
         console.print(f"[red]{e}[/red]")
         raise typer.Exit(1)
-    return CaptionStyle(font_name=resolved_font, font_size=resolved_size, position=resolved_position)
+    return CaptionStyle(
+        font_name=resolved_font, font_size=resolved_size, position=resolved_position,
+        word_highlight=bool(resolved_highlight), word_chunk_size=resolved_chunk,
+    )
 
 
 def _emit_caption_sidecars(cand, output: Path, base: str) -> None:

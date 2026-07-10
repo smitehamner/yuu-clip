@@ -317,6 +317,37 @@ class TestCaptionStyleConfig:
         assert cfg.caption_font_size == 0
         assert cfg.caption_position == "bottom"
 
+    def test_word_highlight_defaults(self, client):
+        cfg = client.get("/api/config").json()
+        assert cfg["caption_word_highlight"] is False
+        assert cfg["caption_word_chunk_size"] == 4
+
+    def test_patch_accepts_word_highlight(self, client):
+        r = client.patch("/api/config", json={
+            "caption_word_highlight": True, "caption_word_chunk_size": 6,
+        })
+        assert r.status_code == 200
+        body = r.json()
+        assert body["caption_word_highlight"] is True
+        assert body["caption_word_chunk_size"] == 6
+
+    def test_patch_rejects_chunk_size_out_of_range(self, client):
+        assert client.patch("/api/config", json={"caption_word_chunk_size": 0}).status_code == 400
+        assert client.patch("/api/config", json={"caption_word_chunk_size": 13}).status_code == 400
+
+    def test_load_sanitizes_bad_chunk_size(self, tmp_path, monkeypatch):
+        import json as _json
+
+        from yuu_clip.config import Config
+        monkeypatch.setattr("yuu_clip.config._global_config_dir", lambda: tmp_path / "global")
+        proj = tmp_path / "proj"
+        (proj / ".yuu-clip").mkdir(parents=True)
+        (proj / ".yuu-clip" / "config.json").write_text(
+            _json.dumps({"caption_word_chunk_size": 99}), encoding="utf-8"
+        )
+        cfg = Config.load(proj)
+        assert cfg.caption_word_chunk_size == 4
+
 
 class TestVisionConfig:
     def test_defaults_conservatively_on(self, client):

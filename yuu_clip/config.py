@@ -178,10 +178,15 @@ _TITLE_CARD_DEFAULTS: dict[str, object] = {
 CAPTION_FONT_SIZE_RANGE = (12, 96)
 CAPTION_FONT_NAME_MAX_LEN = 64
 CAPTION_POSITIONS: frozenset[str] = frozenset({"bottom", "top"})
+# Word-highlight (TikTok/CapCut-style) captions: how many words show on screen at
+# once, 1-12. Only used when caption_word_highlight is on.
+CAPTION_CHUNK_SIZE_RANGE = (1, 12)
 _CAPTION_STYLE_DEFAULTS: dict[str, object] = {
     "caption_font_name": "",
     "caption_font_size": 0,
     "caption_position": "bottom",
+    "caption_word_highlight": False,
+    "caption_word_chunk_size": 4,
 }
 
 
@@ -303,6 +308,14 @@ def validate_caption_font_size(value: int) -> int:
     return value
 
 
+def validate_caption_word_chunk_size(value: int) -> int:
+    """Raise ValueError unless *value* is within CAPTION_CHUNK_SIZE_RANGE."""
+    lo, hi = CAPTION_CHUNK_SIZE_RANGE
+    if not isinstance(value, int) or isinstance(value, bool) or not (lo <= value <= hi):
+        raise ValueError(f"caption_word_chunk_size must be between {lo} and {hi}")
+    return value
+
+
 def _sanitize_caption_style_fields(merged: dict) -> None:
     """Guard the load path against a hand-edited config with bad caption-style values.
 
@@ -335,6 +348,16 @@ def _sanitize_caption_style_fields(merged: dict) -> None:
             merged["caption_position"], _CAPTION_STYLE_DEFAULTS["caption_position"],
         )
         merged["caption_position"] = _CAPTION_STYLE_DEFAULTS["caption_position"]
+
+    if "caption_word_chunk_size" in merged:
+        try:
+            validate_caption_word_chunk_size(merged["caption_word_chunk_size"])
+        except (ValueError, TypeError):
+            _log.warning(
+                "Config: caption_word_chunk_size invalid (%r) - using default %s",
+                merged["caption_word_chunk_size"], _CAPTION_STYLE_DEFAULTS["caption_word_chunk_size"],
+            )
+            merged["caption_word_chunk_size"] = _CAPTION_STYLE_DEFAULTS["caption_word_chunk_size"]
 
 
 # Frames sampled per clip for image-based analysis. 1 keeps it cheap; 10 caps the
@@ -659,6 +682,11 @@ class Config:
     caption_font_name: str = ""
     caption_font_size: int = 0
     caption_position: str = "bottom"
+    # Word-highlight (TikTok/CapCut-style) captions: opt-in, off by default. When on,
+    # a chunk of caption_word_chunk_size words shows at once with the currently-spoken
+    # word tinted. Burned-in captions only; needs per-word timings on the transcript.
+    caption_word_highlight: bool = False
+    caption_word_chunk_size: int = 4
 
     # Pre-import estimate total (hours) above which the Analyze panel shows a
     # long-run warning suggesting the recording be split or analyzed in smaller batches.

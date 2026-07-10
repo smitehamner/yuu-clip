@@ -41,12 +41,14 @@ def export(
     caption_font: Optional[str] = typer.Option(None, "--caption-font", help="Burned-in caption font name (must be installed); omit to use the configured default"),
     caption_size: Optional[int] = typer.Option(None, "--caption-size", help="Burned-in caption font size (12-96, or 0 for renderer default); omit to use the configured default"),
     caption_position: Optional[str] = typer.Option(None, "--caption-position", help="Burned-in caption position: bottom or top; omit to use the configured default"),
+    word_highlight: Optional[bool] = typer.Option(None, "--word-highlight/--no-word-highlight", help="Highlight each word as it's spoken (burned-in captions only); omit to use the configured default"),
+    word_chunk_size: Optional[int] = typer.Option(None, "--word-chunk-size", help="Words shown at once for word-highlight captions (1-12); omit to use the configured default"),
 ):
     """Export a clip to a video file."""
     from yuu_clip.config import Config, project_exports_dir, validate_whisper_model
     from yuu_clip.db.models import ClipCandidate
     from yuu_clip.export.presets import resolve_preset
-    from yuu_clip.subtitles import lines_to_srt, merged_srt_lines
+    from yuu_clip.subtitles import lines_to_ass, lines_to_srt, merged_srt_lines
 
     if retranscribe:
         try:
@@ -96,10 +98,14 @@ def export(
     )
     console.print(f"  Exporting clip [bold]{clip_id}[/bold]  {cand.start_hms}  ({cand.duration_hms})  ...")
 
-    subtitle_path, subtitle_track_path = _write_export_subs(
-        cand, bake_captions, embed_subs, lines_to_srt, merged_srt_lines
+    caption_style = _resolve_caption_style(
+        config, caption_font, caption_size, caption_position, word_highlight, word_chunk_size,
     )
-    caption_style = _resolve_caption_style(config, caption_font, caption_size, caption_position)
+    subtitle_path, subtitle_track_path = _write_export_subs(
+        cand, bake_captions, embed_subs, lines_to_srt, merged_srt_lines,
+        lines_to_ass=lines_to_ass, word_highlight=caption_style.word_highlight,
+        chunk_size=caption_style.word_chunk_size,
+    )
     _finalize_export(
         cand, session, video_path, output, config,
         precise=precise, title_card=title_card,

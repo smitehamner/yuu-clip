@@ -131,6 +131,90 @@ class TestCaptionStyleInExportCmd:
         assert vf == "scale=-2:'min(ih,1080)',subtitles=subs.srt:force_style='FontName=Arial'"
 
 
+class TestWriteExportSubs:
+    """Word-highlight switches the burned-in caption temp file from .srt to .ass
+    (via lines_to_ass); the embedded soft-subtitle track stays .srt regardless."""
+
+    def _cand(self):
+        return SimpleNamespace(video=SimpleNamespace(width=1920, height=1080))
+
+    def _fakes(self):
+        return {
+            "lines_to_srt": lambda lines: "SRT-BODY",
+            "merged_srt_lines": lambda cand: [object()],
+            "lines_to_ass": lambda lines, chunk, play_res: f"ASS chunk={chunk} res={play_res}",
+        }
+
+    def test_bake_word_highlight_writes_ass(self):
+        from yuu_clip.export.render import _write_export_subs
+        burn, soft = _write_export_subs(
+            self._cand(), bake_captions=True, embed_subs=False, word_highlight=True, chunk_size=5,
+            **self._fakes(),
+        )
+        assert soft is None
+        assert burn.suffix == ".ass"
+        content = burn.read_text(encoding="utf-8")
+        assert "ASS chunk=5 res=(1920, 1080)" in content
+        burn.unlink()
+
+    def test_bake_without_word_highlight_writes_srt(self):
+        from yuu_clip.export.render import _write_export_subs
+        burn, soft = _write_export_subs(
+            self._cand(), bake_captions=True, embed_subs=False, word_highlight=False,
+            **self._fakes(),
+        )
+        assert soft is None
+        assert burn.suffix == ".srt"
+        assert burn.read_text(encoding="utf-8") == "SRT-BODY"
+        burn.unlink()
+
+    def test_embed_subs_ignores_word_highlight_and_writes_srt(self):
+        from yuu_clip.export.render import _write_export_subs
+        burn, soft = _write_export_subs(
+            self._cand(), bake_captions=False, embed_subs=True, word_highlight=True, chunk_size=5,
+            **self._fakes(),
+        )
+        assert burn is None
+        assert soft.suffix == ".srt"
+        soft.unlink()
+
+    def test_no_transcript_data_returns_none(self):
+        from yuu_clip.export.render import _write_export_subs
+        fakes = self._fakes()
+        fakes["merged_srt_lines"] = lambda cand: []
+        burn, soft = _write_export_subs(
+            self._cand(), bake_captions=True, embed_subs=False, word_highlight=True, **fakes,
+        )
+        assert burn is None and soft is None
+
+
+class TestResolveCaptionStyleWordHighlight:
+    def _config(self):
+        from yuu_clip.config import Config
+        return Config()
+
+    def test_falls_back_to_config_defaults(self):
+        from yuu_clip.export.render import _resolve_caption_style
+        style = _resolve_caption_style(self._config(), None, None, None, None, None)
+        assert style.word_highlight is False
+        assert style.word_chunk_size == 4
+        assert style.is_default()
+
+    def test_override_enables_word_highlight(self):
+        from yuu_clip.export.render import _resolve_caption_style
+        style = _resolve_caption_style(self._config(), None, None, None, True, 6)
+        assert style.word_highlight is True
+        assert style.word_chunk_size == 6
+        assert not style.is_default()
+
+    def test_bad_chunk_size_exits(self):
+        import typer
+
+        from yuu_clip.export.render import _resolve_caption_style
+        with pytest.raises(typer.Exit):
+            _resolve_caption_style(self._config(), None, None, None, True, 99)
+
+
 class TestVerticalCropFilter:
     """A vertical (9:16 Shorts) preset crops the source to a 9:16 column at the
     clip's crop_x position, scales+pads to 1080x1920, and puts any burned-in

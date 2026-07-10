@@ -493,6 +493,8 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         caption_font: Optional[str] = Query(None, description="Burned-in caption font override; omit for the configured default"),
         caption_size: Optional[int] = Query(None, description="Burned-in caption size override (0 or 12-96); omit for the configured default"),
         caption_position: Optional[str] = Query(None, description="Burned-in caption position override: bottom or top"),
+        word_highlight: Optional[bool] = Query(None, description="Highlight each word as it's spoken (burned-in captions only); omit for the configured default"),
+        word_chunk_size: Optional[int] = Query(None, description="Words shown at once for word-highlight captions (1-12); omit for the configured default"),
     ):
         """Export a clip to a video file and stream ffmpeg progress as SSE."""
         allowed_containers = {"mkv", "mp4"}
@@ -504,7 +506,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             except ValueError as e:
                 raise HTTPException(400, str(e))
         validate_export_preset_query(ctx, preset, embed_subs)
-        validate_caption_style_query(caption_font, caption_size, caption_position)
+        validate_caption_style_query(caption_font, caption_size, caption_position, word_chunk_size)
         cmd = [
             sys.executable, "-m", "yuu_clip.cli", "export", str(clip_id),
             "--captions", "--project", str(ctx.project_dir),
@@ -528,6 +530,10 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             cmd.extend(["--caption-size", str(caption_size)])
         if caption_position is not None:
             cmd.extend(["--caption-position", caption_position])
+        if word_highlight is not None:
+            cmd.append("--word-highlight" if word_highlight else "--no-word-highlight")
+        if word_chunk_size is not None:
+            cmd.extend(["--word-chunk-size", str(word_chunk_size)])
         return await subprocess_sse(cmd, ctx.project_dir, ctx)
 
     @router.get("/api/clips/{clip_id}/retranscribe")

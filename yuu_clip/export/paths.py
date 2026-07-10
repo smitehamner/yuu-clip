@@ -83,6 +83,7 @@ def validate_export_preset_query(ctx, preset: Optional[str], embed_subs: bool) -
 
 def validate_caption_style_query(
     caption_font: Optional[str], caption_size: Optional[int], caption_position: Optional[str],
+    word_chunk_size: Optional[int] = None,
 ) -> None:
     """Shared 400 checks for the per-export caption-style overrides on the single
     export route - same rules the config PATCH route and the CLI resolver enforce."""
@@ -90,12 +91,15 @@ def validate_caption_style_query(
         CAPTION_POSITIONS,
         validate_caption_font_name,
         validate_caption_font_size,
+        validate_caption_word_chunk_size,
     )
     try:
         if caption_font is not None:
             validate_caption_font_name(caption_font)
         if caption_size is not None:
             validate_caption_font_size(caption_size)
+        if word_chunk_size is not None:
+            validate_caption_word_chunk_size(word_chunk_size)
     except ValueError as e:
         raise HTTPException(400, str(e))
     if caption_position is not None and caption_position not in CAPTION_POSITIONS:

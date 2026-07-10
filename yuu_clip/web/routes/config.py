@@ -84,6 +84,8 @@ class ConfigPatch(BaseModel):
     caption_font_name:            Optional[str]   = None
     caption_font_size:            Optional[int]   = None
     caption_position:             Optional[str]   = None
+    caption_word_highlight:       Optional[bool]  = None
+    caption_word_chunk_size:      Optional[int]   = None
     # Hardware - GPU thermal monitoring
     thermal_warn_c:                Optional[int]   = None
     thermal_pause_c:               Optional[int]   = None
@@ -112,6 +114,7 @@ _CONFIG_FIELDS = (
     "title_card_bg_color", "title_card_font_color", "title_card_scale",
     "title_card_template", "title_card_duration_s",
     "caption_font_name", "caption_font_size", "caption_position",
+    "caption_word_highlight", "caption_word_chunk_size",
     "thermal_warn_c", "thermal_pause_c", "thermal_autopause_enabled",
 )
 
@@ -197,6 +200,14 @@ def _caption_font_size_validator(v: int) -> int:
         raise HTTPException(400, str(e))
 
 
+def _caption_word_chunk_size_validator(v: int) -> int:
+    from yuu_clip.config import validate_caption_word_chunk_size
+    try:
+        return validate_caption_word_chunk_size(v)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
 def _hex_color_validator(label: str):
     from yuu_clip.config import validate_hex_color
 
@@ -261,6 +272,8 @@ _CONFIG_PATCH_RULES: list[tuple[str, object]] = [
     ("caption_font_name",            _caption_font_name_validator),
     ("caption_font_size",            _caption_font_size_validator),
     ("caption_position",             _enum_validator({"bottom", "top"}, "caption_position")),
+    ("caption_word_highlight",       lambda v: bool(v)),
+    ("caption_word_chunk_size",      _caption_word_chunk_size_validator),
     ("thermal_warn_c",               _range_validator(40, 110, "thermal_warn_c")),
     ("thermal_pause_c",              _range_validator(40, 110, "thermal_pause_c")),
     ("thermal_autopause_enabled",    lambda v: v),

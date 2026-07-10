@@ -39,14 +39,26 @@ class CaptionStyle:
 
     Empty font_name / zero font_size / "bottom" position each mean "renderer
     default" and contribute no force_style fragment. PrimaryColour is never set -
-    per-speaker colours arrive as inline <font color> tags in the SRT and must win.
+    per-speaker colours arrive as inline colour tags in the caption file and must win.
+
+    word_highlight switches the burn-in from static SRT lines to word-highlight ASS
+    (a chunk of word_chunk_size words with the spoken word tinted); it is not a
+    force_style field, so it only affects which caption format is written, not the
+    filter fragment. See subtitles.lines_to_ass.
     """
     font_name: str = ""
     font_size: int = 0
     position: str = "bottom"
+    word_highlight: bool = False
+    word_chunk_size: int = 4
 
     def is_default(self) -> bool:
-        return not self.font_name and not self.font_size and self.position == "bottom"
+        return (
+            not self.font_name
+            and not self.font_size
+            and self.position == "bottom"
+            and not self.word_highlight
+        )
 
     def force_style(self) -> Optional[str]:
         """Return the libass force_style value, or None when every field is default."""
