@@ -10,6 +10,7 @@ const { Readable } = require('stream');
 const { parseNvidiaVramMB, selectGPU } = require('./gpu-detect');
 const { resolveBundledFfmpegDir } = require('./ffmpeg-detect');
 const { buildWheelInstallArgs, buildOpencvDedupeArgs } = require('./venv-setup');
+const { rewritePyvenvCfg, decidePrebuiltEnvAction } = require('./prebuilt-env');
 const { parsePipRawProgress } = require('./pip-progress');
 const { describeInstallFailure, describeDownloadFailure } = require('./install-error');
 const diskSpace = require('./disk-space');
@@ -550,7 +551,7 @@ function showSetupWizard({ rerun = false, updated = false } = {}) {
 // First-run venv setup
 // ---------------------------------------------------------------------------
 
-function showVenvSetupWindow() {
+function showVenvSetupWindow(stepLabel, note) {
   const win = new BrowserWindow({
     width: 440, height: 240,
     resizable: false, frame: false, minimizable: true,
@@ -594,19 +595,18 @@ function showVenvSetupWindow() {
     <div class="spin"></div>
     <h3>Setting up yuu-clip</h3>
     <ul class="steps" id="steps">
-      <li id="s0">Create virtual environment</li>
-      <li id="s1">Install yuu-clip</li>
+      <li id="s0">${stepLabel}</li>
     </ul>
     <div class="bar-track"><div class="bar-fill indeterminate" id="barFill"></div></div>
     <div class="bar-label" id="barLabel">working...</div>
     <div class="elapsed" id="elapsed">elapsed 0:00</div>
     <div class="status" id="status"></div>
-    <div class="note">Installing the analysis engine - first time only, this can take a few minutes. Please don't close this window.</div>
+    <div class="note">${note}</div>
   </div><script>
     var minBtn=document.getElementById('minBtn');
     if(minBtn) minBtn.onclick=function(){ if(window.venvAPI&&window.venvAPI.minimize) window.venvAPI.minimize(); };
     if(window.venvAPI) window.venvAPI.onProgress(function(msg){
-      var steps=['s0','s1'];
+      var steps=['s0'];
       var idx=steps.indexOf(msg.id);
       if(idx<0)return;
       if(msg.state==='active'){document.getElementById(msg.id).className='active';}
@@ -663,19 +663,132 @@ function makePipLineHandler(setupWin) {
   };
 }
 
+// Packaged builds ship the analysis venv prebuilt (scripts/build-prebuilt-env.ps1)
+// so first run unpacks an archive instead of running pip - no resolution, no
+// compile. The extracted venv unpacks to roughly 1.2 GB; the .incoming temp copy
+// during extract plus this headroom is what the disk precheck guards against.
+const PREBUILT_ENV_EXTRACTED_GB = 2;
+const EXTRACT_HEADROOM_GB = 2;
+
+function readPrebuiltEnvVersion(resourcesDir) {
+  try { return fs.readFileSync(path.join(resourcesDir, 'prebuilt-env.version'), 'utf8').trim(); }
+  catch (_) { return null; }
+}
+
+// Chooses how to provision the venv: unpack the shipped prebuilt env (packaged),
+// reuse it when the version already matches, or fall back to pip-from-wheelhouse
+// (dev/unpackaged builds, which don't carry the archive).
 async function ensureVenv() {
   const resourcesDir = process.resourcesPath || path.join(__dirname, '..', 'dist');
+  const envArchive = path.join(resourcesDir, 'prebuilt-env.tar.gz');
+  const envArchivePresent = fs.existsSync(envArchive);
+
+  let installedVersion = null;
+  try { installedVersion = fs.readFileSync(WHEEL_MARKER, 'utf8').trim(); } catch (_) {}
+  const venvExists = fs.existsSync(VENV_PYTHON);
+  const bundledVersion = envArchivePresent ? readPrebuiltEnvVersion(resourcesDir) : null;
+
+  const action = decidePrebuiltEnvAction({ envArchivePresent, installedVersion, bundledVersion, venvExists });
+  logSetup(`Venv setup: ${action} (installed=${installedVersion || 'none'}, bundled=${bundledVersion || 'unknown'}, venv=${venvExists})`);
+
+  if (action === 'use-existing') return;
+  if (action === 'extract') { await runPrebuiltEnvSetup(envArchive, bundledVersion); return; }
+  await runPipVenvSetup(resourcesDir);
+}
+
+async function runPrebuiltEnvSetup(envArchive, bundledVersion) {
+  const shortfall = diskSpace.diskShortfallMessage(VENV_DIR, PREBUILT_ENV_EXTRACTED_GB, EXTRACT_HEADROOM_GB);
+  if (shortfall) {
+    logSetup(`Prebuilt env extract blocked - ${shortfall}`);
+    const err = new Error('Not enough disk space to unpack the analysis engine');
+    err.userMessage = shortfall;
+    err.logPath = SETUP_LOG;
+    throw err;
+  }
+  fs.mkdirSync(path.dirname(VENV_DIR), { recursive: true });
+  const setupWin = showVenvSetupWindow(
+    'Unpacking the analysis engine',
+    "Unpacking the analysis engine - just a moment. The first time can take a little longer while your antivirus scans the new files. Please don't close this window.");
+  const progress = (id, state) => { try { setupWin.webContents.send('venv:progress', { id, state }); } catch (_) {} };
+  try {
+    await extractPrebuiltEnv(envArchive, bundledVersion, progress);
+  } catch (err) {
+    const detail = [err.stderr, err.stdout].filter(Boolean).join('\n');
+    logSetup(`Prebuilt env setup failed: ${err.message}${detail ? '\n' + detail : ''}`);
+    const wrapped = new Error(err.message);
+    wrapped.userMessage = "yuu-clip couldn't finish setting itself up - " + describeInstallFailure(detail);
+    wrapped.logPath = SETUP_LOG;
+    throw wrapped;
+  } finally {
+    setupWin.close();
+  }
+}
+
+// Extracts to a temp sibling and only renames into place on success, so a crash
+// mid-unpack never leaves a half-venv that looks complete (the version marker
+// stays old and the next launch re-extracts cleanly). The prebuilt venv records
+// the build machine's python path; relocateExtractedVenv repoints it at the
+// bundled runtime's real install location before it is used.
+async function extractPrebuiltEnv(envArchive, bundledVersion, progress) {
+  progress('s0', 'active');
+  logSetup(`Unpacking prebuilt env from ${envArchive}`);
+  const incoming = VENV_DIR + '.incoming';
+  if (fs.existsSync(VENV_DIR)) fs.rmSync(VENV_DIR, { recursive: true, force: true });
+  if (fs.existsSync(incoming)) fs.rmSync(incoming, { recursive: true, force: true });
+  fs.mkdirSync(incoming, { recursive: true });
+  await runCmd('tar', ['-xzf', envArchive, '-C', incoming]);
+  const extractedVenv = path.join(incoming, 'venv');
+  relocateExtractedVenv(extractedVenv);
+  fs.renameSync(extractedVenv, VENV_DIR);
+  fs.rmSync(incoming, { recursive: true, force: true });
+  if (bundledVersion) fs.writeFileSync(WHEEL_MARKER, bundledVersion);
+  progress('s0', 'done');
+  logSetup('Prebuilt env unpacked and relocated');
+}
+
+function relocateExtractedVenv(venvPath) {
+  const cfgPath = path.join(venvPath, 'pyvenv.cfg');
+  const basePythonDir = path.dirname(BUNDLED_PYTHON);
+  fs.writeFileSync(cfgPath, rewritePyvenvCfg(fs.readFileSync(cfgPath, 'utf8'), basePythonDir));
+}
+
+async function promptPythonMissing() {
+  if (app.isPackaged) {
+    await dialog.showMessageBox({
+      type: 'error', title: 'yuu-clip installation is damaged',
+      message:
+        'The Python runtime bundled with yuu-clip is missing or damaged.\n\n' +
+        'Try reinstalling yuu-clip. If the problem persists, please report it.',
+      buttons: ['Quit'], defaultId: 0,
+    });
+  } else {
+    logSetup('No Python 3.11+ found on PATH - aborting setup');
+    await dialog.showMessageBox({
+      type: 'error', title: 'Python 3.11+ required',
+      message:
+        'yuu-clip needs Python 3.11 or later, which was not found on PATH.\n\n' +
+        'Download and install it from python.org, then restart yuu-clip.\n\n' +
+        '(Make sure to check "Add Python to PATH" during installation.)',
+      buttons: ['Open python.org', 'Quit'], defaultId: 0,
+    }).then(({ response }) => {
+      if (response === 0) shell.openExternal('https://www.python.org/downloads/');
+    });
+  }
+  app.quit();
+}
+
+// Dev/unpackaged fallback: build the venv with pip from the bundled wheelhouse.
+// Packaged builds never reach here (they carry the prebuilt archive), so this path
+// keeps its own version-match short-circuit to avoid reinstalling every launch.
+async function runPipVenvSetup(resourcesDir) {
   const wheels = fs.readdirSync(resourcesDir).filter(f => f.endsWith('.whl'));
   if (wheels.length === 0) throw new Error(`No .whl found in ${resourcesDir}`);
   const wheelFile = wheels[0];
   const wheelPath = path.join(resourcesDir, wheelFile);
-
   const vm = wheelFile.match(/yuu_clip-([^-]+)-/);
   const bundledVersion = vm ? vm[1] : null;
-
   let installedVersion = null;
   try { installedVersion = fs.readFileSync(WHEEL_MARKER, 'utf8').trim(); } catch (_) {}
-
   logSetup(`Bundled wheel: ${wheelFile}`);
 
   const venvExists = fs.existsSync(VENV_PYTHON);
@@ -684,58 +797,25 @@ async function ensureVenv() {
     logSetup(`Venv OK - wheel ${bundledVersion || 'unknown'} already installed`);
     return;
   }
-
-  if (!venvExists) {
-    logSetup('Venv not found - running first-run setup');
-  } else {
-    logSetup(`Wheel update needed (installed: ${installedVersion || 'none'}, bundled: ${bundledVersion}) - reinstalling`);
-  }
+  logSetup(venvExists
+    ? `Wheel update needed (installed: ${installedVersion || 'none'}, bundled: ${bundledVersion}) - reinstalling`
+    : 'Venv not found - running first-run setup');
 
   const pythonBin = findPython();
-  if (!pythonBin) {
-    if (app.isPackaged) {
-      await dialog.showMessageBox({
-        type: 'error', title: 'yuu-clip installation is damaged',
-        message:
-          'The Python runtime bundled with yuu-clip is missing or damaged.\n\n' +
-          'Try reinstalling yuu-clip. If the problem persists, please report it.',
-        buttons: ['Quit'], defaultId: 0,
-      });
-    } else {
-      logSetup('No Python 3.11+ found on PATH - aborting setup');
-      await dialog.showMessageBox({
-        type: 'error', title: 'Python 3.11+ required',
-        message:
-          'yuu-clip needs Python 3.11 or later, which was not found on PATH.\n\n' +
-          'Download and install it from python.org, then restart yuu-clip.\n\n' +
-          '(Make sure to check "Add Python to PATH" during installation.)',
-        buttons: ['Open python.org', 'Quit'], defaultId: 0,
-      }).then(({ response }) => {
-        if (response === 0) shell.openExternal('https://www.python.org/downloads/');
-      });
-    }
-    app.quit();
-    throw new Error('Python not found');
-  }
+  if (!pythonBin) { await promptPythonMissing(); throw new Error('Python not found'); }
 
   logSetup(`Using python: ${pythonBin}`);
   logSetup(`Installing wheel: ${wheelPath}`);
-
   fs.mkdirSync(path.dirname(VENV_DIR), { recursive: true });
 
-  const setupWin = showVenvSetupWindow();
-  const progress = (id, state) => {
-    try { setupWin.webContents.send('venv:progress', { id, state }); } catch (_) {}
-  };
+  const setupWin = showVenvSetupWindow(
+    'Installing the analysis engine',
+    "Installing the analysis engine - first time only, this can take a few minutes. Please don't close this window.");
+  const progress = (id, state) => { try { setupWin.webContents.send('venv:progress', { id, state }); } catch (_) {} };
   try {
-    if (!venvExists) {
-      progress('s0', 'active');
-      await runCmd(pythonBin, ['-m', 'venv', VENV_DIR]);
-      logSetup('Venv created');
-      progress('s0', 'done');
-    }
-    progress('s1', 'active');
-    logSetup('Installing wheel…');
+    progress('s0', 'active');
+    if (!venvExists) { await runCmd(pythonBin, ['-m', 'venv', VENV_DIR]); logSetup('Venv created'); }
+    logSetup('Installing wheel...');
     const lockPath = path.join(resourcesDir, 'requirements.lock');
     const lockOk   = fs.existsSync(lockPath);
     const wheelhouseDir = path.join(resourcesDir, 'wheelhouse');
@@ -752,13 +832,13 @@ async function ensureVenv() {
       buildWheelInstallArgs(wheelPath, lockOk ? lockPath : null, wheelhouseOk ? wheelhouseDir : null),
       onPipLine
     );
-    logSetup('Ensuring a single OpenCV build (contrib superset wins)…');
+    logSetup('Ensuring a single OpenCV build (contrib superset wins)...');
     await runCmd(
       VENV_PIP,
       buildOpencvDedupeArgs(lockOk ? lockPath : null, wheelhouseOk ? wheelhouseDir : null),
       onPipLine
     );
-    progress('s1', 'done');
+    progress('s0', 'done');
     logSetup('Wheel installed');
     if (bundledVersion) fs.writeFileSync(WHEEL_MARKER, bundledVersion);
   } catch (err) {
@@ -766,7 +846,7 @@ async function ensureVenv() {
     logSetup(`Venv setup failed: ${err.message}${detail ? '\n' + detail : ''}`);
     const wrapped = new Error(err.message);
     wrapped.userMessage =
-      'yuu-clip couldn’t finish setting itself up - ' + describeInstallFailure(detail);
+      "yuu-clip couldn't finish setting itself up - " + describeInstallFailure(detail);
     wrapped.logPath = SETUP_LOG;
     throw wrapped;
   } finally {

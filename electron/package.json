@@ -32,9 +32,8 @@
       "include": "installer.nsh"
     },
     "extraResources": [
-      { "from": "../build/wheel", "to": ".", "filter": ["*.whl"] },
-      { "from": "../build/wheelhouse", "to": "wheelhouse", "filter": ["*.whl"] },
-      { "from": "../requirements.lock", "to": "requirements.lock" },
+      { "from": "../build/prebuilt-env/env.tar.gz", "to": "prebuilt-env.tar.gz" },
+      { "from": "../build/prebuilt-env/prebuilt-env.version", "to": "prebuilt-env.version" },
       { "from": "../build/python-runtime", "to": "python", "filter": ["**/*", "!.version"] },
       { "from": "../build/ffmpeg-runtime", "to": "ffmpeg", "filter": ["**/*", "!.version"] },
       { "from": "resources/LICENSE-FFMPEG-GPL.txt", "to": "LICENSE-FFMPEG-GPL.txt" },

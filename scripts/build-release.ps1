@@ -121,6 +121,14 @@ Write-Host "`nFetching bundled Python runtime..."
 Write-Host "`nBuilding offline dependency wheelhouse..."
 & "$root\scripts\fetch-wheelhouse.ps1"
 
+# ── 4a-bis. Assemble the prebuilt Python env (needs the wheel + wheelhouse) ──
+# Ships the finished venv so first-run unpacks an archive instead of running pip.
+# Includes a build-time relocation proof that fails the build if a moved venv
+# can't import the heavy natives (see scripts/build-prebuilt-env.ps1).
+Write-Host "`nAssembling prebuilt Python env..."
+& "$root\scripts\build-prebuilt-env.ps1"
+if ($LASTEXITCODE -ne 0) { Write-Error "Prebuilt env assembly failed (exit $LASTEXITCODE)"; exit 1 }
+
 # ── 4b. Fetch the bundled GPL FFmpeg runtime + matching source archives ────
 Write-Host "`nFetching bundled FFmpeg runtime..."
 & "$root\scripts\fetch-ffmpeg-runtime.ps1"
