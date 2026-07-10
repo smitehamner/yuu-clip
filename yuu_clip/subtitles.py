@@ -27,6 +27,11 @@ class SubLine(NamedTuple):
     # whether a user hand-reassigned it - carried only for the editable view.
     speaker_id: int | None = None
     speaker_edited: bool = False
+    # Per-word timings for word-highlight captions, in the SAME clip-relative ms
+    # frame as start_ms/end_ms: a tuple of {"text", "start_ms", "end_ms"}. Empty
+    # when the source segment has no word data (lines_to_ass falls back to a static
+    # event for the line). Populated by collect_clip_subtitles; ignored by SRT.
+    words: tuple = ()
 
 
 _LABEL_DISPLAY = {
@@ -76,12 +81,13 @@ def _segment_speaker_color(seg) -> str:
 
 def _labeled_lines(lines: list[SubLine], track_label: str) -> list[SubLine]:
     """Fill each line's speaker: the per-segment diarization speaker wins, else the
-    track-label display. Rendered as a ``[Speaker]`` prefix by ``lines_to_srt``."""
+    track-label display. Rendered as a ``[Speaker]`` prefix by ``lines_to_srt``.
+
+    Uses _replace so every other field (colour, per-word timings) survives - the
+    word-highlight ASS path relies on ``words`` reaching the merged output.
+    """
     track_speaker = _label_display(track_label)
-    return [
-        SubLine(sub.start_ms, sub.end_ms, sub.text, sub.speaker or track_speaker, sub.seg_id, sub.color)
-        for sub in lines
-    ]
+    return [sub._replace(speaker=sub.speaker or track_speaker) for sub in lines]
 
 
 def _merge_with_speakers(groups: dict[str, list[SubLine]]) -> list[SubLine]:
@@ -112,6 +118,143 @@ def lines_to_srt(lines: Iterable[SubLine]) -> str:
             f"{body}"
         )
     return "\n\n".join(blocks) + "\n" if blocks else ""
+
+
+# --- Word-highlight (TikTok/CapCut-style) ASS rendering ----------------------
+#
+# Rendered as one ASS Dialogue event per word (not a \k karaoke fill): each event
+# shows the whole on-screen chunk with only the active word recoloured, and stays
+# up until the next word begins, so the chunk reads as one continuously-updating
+# line whose highlight advances word by word. A line with no per-word data falls
+# back to a single static event (today's whole-line caption, re-emitted as ASS).
+
+_FALLBACK_HIGHLIGHT = "#ffd54f"  # gold, used when the base colour is already near-white
+
+
+def _clip_relative_words(seg, clip_start: int, line_start: int, line_end: int) -> tuple:
+    """Per-word timings for *seg* shifted into the clip-relative frame and clamped to
+    the line's [line_start, line_end] window. Words fully outside the window are
+    dropped; a boundary word is clamped. Empty tuple when the segment has no word data."""
+    words: list[dict] = []
+    for word in getattr(seg, "words", []):
+        start = max(word["start_ms"] - clip_start, line_start)
+        end = min(word["end_ms"] - clip_start, line_end)
+        if end > start:
+            words.append({"text": word["text"], "start_ms": start, "end_ms": end})
+    return tuple(words)
+
+
+def _parse_hex(hex_color: str) -> tuple[int, int, int]:
+    digits = hex_color.lstrip("#")
+    return int(digits[0:2], 16), int(digits[2:4], 16), int(digits[4:6], 16)
+
+
+def _highlight_shade(base_hex: str) -> str:
+    """A visibly distinct highlight colour derived from a speaker's base colour.
+
+    Brightens the base halfway toward white so multi-speaker clips get distinct
+    highlight tones for free. A base that is already near-white (the no-speaker
+    default) would brighten to an invisible near-white, so it falls back to a fixed
+    gold accent instead, keeping the highlight visible on every line."""
+    red, green, blue = _parse_hex(base_hex)
+    if min(red, green, blue) > 200:
+        return _FALLBACK_HIGHLIGHT
+    return f"#{(red + 255) // 2:02x}{(green + 255) // 2:02x}{(blue + 255) // 2:02x}"
+
+
+def _ass_color(hex_color: str) -> str:
+    """Convert #RRGGBB to an opaque ASS colour override (&HAABBGGRR, BGR order)."""
+    red, green, blue = _parse_hex(hex_color)
+    return f"&H00{blue:02X}{green:02X}{red:02X}"
+
+
+def _ms_to_ass_time(ms: int) -> str:
+    ms = max(0, ms)
+    h, rem = divmod(ms, 3_600_000)
+    m, rem = divmod(rem, 60_000)
+    s, frac = divmod(rem, 1_000)
+    return f"{h:d}:{m:02d}:{s:02d}.{frac // 10:02d}"
+
+
+def _ass_escape(text: str) -> str:
+    """Neutralise the ASS override characters so caption text can't break the format."""
+    return text.replace("\\", "\\\\").replace("{", "(").replace("}", ")").replace("\n", "\\N")
+
+
+def _ass_header(play_res: tuple[int, int] | None) -> list[str]:
+    lines = ["[Script Info]", "ScriptType: v4.00+", "WrapStyle: 2", "ScaledBorderAndShadow: yes"]
+    if play_res:
+        width, height = play_res
+        lines += [f"PlayResX: {width}", f"PlayResY: {height}"]
+        font_size = max(20, round(height * 0.05))
+    else:
+        font_size = 48
+    lines += [
+        "",
+        "[V4+ Styles]",
+        ("Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, "
+         "BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, "
+         "BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding"),
+        (f"Style: Default,Arial,{font_size},&H00FFFFFF,&H000000FF,&H00000000,&H80000000,"
+         "0,0,0,0,100,100,0,0,1,2,1,2,20,20,40,1"),
+        "",
+        "[Events]",
+        "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
+    ]
+    return lines
+
+
+def _dialogue(start_ms: int, end_ms: int, text: str) -> str:
+    end_ms = max(end_ms, start_ms + 10)
+    return f"Dialogue: 0,{_ms_to_ass_time(start_ms)},{_ms_to_ass_time(end_ms)},Default,,0,0,0,,{text}"
+
+
+def _chunk_events(chunk: list[dict], prefix: str, base_ass: str, hl_ass: str) -> list[str]:
+    """One Dialogue per word in *chunk*: the whole chunk is shown, the active word is
+    recoloured, and the event runs until the next word begins (the last word runs to
+    its own end) so the chunk stays on screen as the highlight advances."""
+    events: list[str] = []
+    for active_index, word in enumerate(chunk):
+        rendered = []
+        for index, chunk_word in enumerate(chunk):
+            token = _ass_escape(chunk_word["text"].strip())
+            if index == active_index:
+                rendered.append(f"{{\\1c{hl_ass}}}{token}{{\\1c{base_ass}}}")
+            else:
+                rendered.append(token)
+        text = f"{{\\1c{base_ass}}}{prefix}" + " ".join(rendered)
+        start = word["start_ms"]
+        end = chunk[active_index + 1]["start_ms"] if active_index + 1 < len(chunk) else word["end_ms"]
+        events.append(_dialogue(start, end, text))
+    return events
+
+
+def _line_events(line: SubLine, chunk_size: int) -> list[str]:
+    base_ass = _ass_color(line.color or "#FFFFFF")
+    prefix = f"[{line.speaker}] " if line.speaker else ""
+    words = list(line.words)
+    if not words:
+        text = f"{{\\1c{base_ass}}}{prefix}{_ass_escape(line.text.strip())}"
+        return [_dialogue(line.start_ms, line.end_ms, text)]
+    hl_ass = _ass_color(_highlight_shade(line.color or "#FFFFFF"))
+    events: list[str] = []
+    for start in range(0, len(words), chunk_size):
+        events.extend(_chunk_events(words[start:start + chunk_size], prefix, base_ass, hl_ass))
+    return events
+
+
+def lines_to_ass(lines: Iterable[SubLine], chunk_size: int, play_res: tuple[int, int] | None = None) -> str:
+    """Render SubLines as an ASS-format string with word-highlight captions.
+
+    Font, size, and position are left to the ffmpeg force_style filter (which applies
+    to ASS just as it does to SRT); this owns only the per-word timing and the
+    per-speaker base/highlight colours. *chunk_size* words are shown at once.
+    """
+    chunk_size = max(1, chunk_size)
+    body: list[str] = []
+    for line in sorted(lines, key=lambda sub: sub.start_ms):
+        body.extend(_line_events(line, chunk_size))
+    return "\n".join(_ass_header(play_res) + body) + "\n"
 
 
 def collect_clip_subtitles(clip) -> dict[str, list[SubLine]]:
@@ -155,6 +298,7 @@ def collect_clip_subtitles(clip) -> dict[str, list[SubLine]]:
                     _segment_speaker_color(seg),
                     speaker_id=getattr(seg, "speaker_id", None),
                     speaker_edited=bool(getattr(seg, "speaker_edited", False)),
+                    words=_clip_relative_words(seg, clip_start, start, end),
                 ))
 
         if lines:
