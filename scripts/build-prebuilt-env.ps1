@@ -13,6 +13,15 @@
 # location - the real runtime scenario (venv in LOCALAPPDATA, python in resources) -
 # using the SAME rewritePyvenvCfg the runtime uses (electron/prebuilt-env.js), then
 # re-import the heavy natives. A failure here fails the build.
+#
+# SLOW ON WINDOWS - the venv is ~31k files. The install (step 2), the relocation
+# copies (step 4), and the tar archive (step 5) all touch every file, and Windows
+# Defender real-time protection scans each one on open, which dominates the wall
+# time (the tar step can sit for several minutes even though gzip itself is quick).
+# To make rebuilds fast, exclude the build tree from Defender ONCE, in an ADMIN
+# PowerShell:
+#     Add-MpPreference -ExclusionPath "<repo>\build"
+# This only affects the build machine; shipped installs are unaffected.
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -123,6 +132,7 @@ Remove-Item $relocDir -Recurse -Force
 
 # -- 5. Archive + version marker ---------------------------------------------
 Write-Host "`n[5/5] Archiving venv to $archivePath..."
+Write-Host "     (~31k files - this can take a few minutes; exclude build\ from Windows Defender to speed up rebuilds)"
 tar -czf $archivePath -C $outDir venv
 if ($LASTEXITCODE -ne 0) { Write-Error "tar archive failed (exit $LASTEXITCODE)"; exit 1 }
 Set-Content -Path $versionMarker -Value $wheelVersion -NoNewline
