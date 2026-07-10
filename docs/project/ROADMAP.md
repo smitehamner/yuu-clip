@@ -29,26 +29,18 @@ plan link to it; items still needing a scope decision or blocked on something
 external say so instead. Full detail/rationale for each is kept in
 internal planning notes (not part of this repo).
 
-1. ~~**Colour-picker component + accent-colour themes** (§4)~~ - **done
-   2026-07-09** (see COMPLETED.md).
-2. **Clips vs Scenes** (§5) - now unblocked but needs a scope Q&A session
+1. **Clips vs Scenes** (§5) - now unblocked but needs a scope Q&A session
    before staging (storage design has wide blast radius). Plan (captured, not
    staged): (internal planning notes).
-3. **FFmpeg source-hosting once public** (§2) - short checklist, but blocked
+2. **FFmpeg source-hosting once public** (§2) - short checklist, but blocked
    on the repo going public. Plan: (internal planning notes).
-4. **Linux compatibility** (§6) - large; split into a smaller "backend runs
+3. **Linux compatibility** (§6) - large; split into a smaller "backend runs
    on Linux" phase and a much larger "packaged Electron app" phase that's
    only worth starting given real user demand. Plan:
    (internal planning notes).
-5. **UI localization (i18n)** (§6) - large, and the roadmap already says
+4. **UI localization (i18n)** (§6) - large, and the roadmap already says
    English-only is fine for now; scope captured but deliberately not staged.
    Plan: (internal planning notes).
-
-(Done 2026-07-07: **analyze pipeline idempotency** - the reachable `--force`
-`Transcript`-duplication bug is fixed. Done 2026-07-09: **distribution licence**
-- Apache-2.0 chosen and rolled out; **JS module-scoping refactor** -
-`analyze.js`/`split.js` IIFE-wrapped; **clip deduplication** - overlap scan +
-one-click merge. See COMPLETED.md.)
 
 Not re-ranked (already blocked on something outside this roadmap, or
 deliberately deferred/on-hold/shelved - see their entries below for why):
@@ -95,11 +87,6 @@ Implemented-but-unverified surfaces and latent traps to close before distributio
 
 Wanted before distributing beyond friends/trusted users.
 
-- [x] **Distribution licence** - chose **Apache-2.0** (2026-07-08). `LICENSE` now carries
-  the full Apache-2.0 text, `pyproject.toml` declares `license = {text = "Apache-2.0"}`,
-  and the About modal reflects it. Replaced the old preview "all rights reserved,
-  no redistribution" text. Plan: (internal planning notes).
-
 - [ ] **FFmpeg source-hosting once the repo is public** - the GPL-compliance story today
   ships the FFmpeg + libx264 source archives *side-by-side* with each installer. Once the
   yuu-clip GitHub repo goes public, attach the source archives to GitHub Releases as the
@@ -113,14 +100,6 @@ Wanted before distributing beyond friends/trusted users.
   builds reputation over time). electron-builder supports both via `CSC_LINK` /
   `CSC_KEY_PASSWORD`; remove the `CSC_IDENTITY_AUTO_DISCOVERY=false` override in
   `build-release.ps1` when a cert is in place.
-
-- [x] **Project backup / restore** - Settings > Backup & Restore backs a project's own state
-  (SQLite DB, config, world contexts, custom sounds) into a single portable `.zip`; large
-  regenerable media (audio/exports/proxies/downloads/reels/preview_cache) and the source videos
-  are excluded. Restore is available both in-app and as a first-run wizard choice, and re-points
-  source-video folders that don't resolve on the target machine so restored clips still play.
-  Shipped 2026-07-07 (in-app + wizard + re-point engine); the wizard's manual first-run gate is
-  the only unautomated check.
 
 ---
 
@@ -163,13 +142,6 @@ Wanted before distributing beyond friends/trusted users.
   part of the remaining work. Plan (staged, ready to implement, per-variable design decision
   already made): (internal planning notes).
 
-- [x] **Custom colour-picker component + accent-colour theme variants** (done 2026-07-09) -
-  shipped the shared `colorpicker.js` (hex entry, recently-used strip, user-curated named
-  palette; localStorage persistence) replacing the native `<input type="color">` at all three
-  sites, plus a Blue accent variant layered on the three themes via an orthogonal `data-accent`
-  attribute and a `#s-accent` select, contrast-verified across the full (theme, accent) matrix.
-  See COMPLETED.md.
-
 - [ ] **Sidebar grouping for split segments** - a collapsible parent row
   "session.mkv (3 segments)" with indented children, as an alternative to the flat list.
   Deferred until the flat list proves insufficient in practice.
@@ -184,11 +156,6 @@ Wanted before distributing beyond friends/trusted users.
   Transcript editing is now stable (dependency satisfied) but this still needs its own
   scope Q&A before staging. Plan (captured, not staged): (internal planning notes).
 
-- [x] **Clip deduplication** - detect and merge near-duplicate clips (the same event captured in
-  overlapping windows from different segmentation passes), surfaced via the existing
-  `merge_clips` route. Shipped 2026-07-09 (`scoring/dedup.py` + `POST /api/videos/{id}/scan-duplicates`
-  + review-UI badge/filter/merge notice). See COMPLETED.md.
-
 - [ ] **Quality presets** *(on hold)* - named compute bundles ("Fast draft" / "Balanced" /
   "Max quality") that pick a matched set of Whisper model, energy mode, scene mode, and scoring
   weights in one choice. Deferred - no clear preset definitions yet.
@@ -202,16 +169,38 @@ Wanted before distributing beyond friends/trusted users.
 
 ## 6 - Platform reach
 
-- [ ] **AMD / Intel GPU support** - evaluate ROCm (AMD) and OpenVINO (Intel) in CTranslate2; the
-  wizard already detects both and surfaces informational messages. Accelerated inference needs
-  library support that doesn't exist on Windows for these vendors yet.
+- [ ] **AMD / Intel GPU support** - code analysis done; the two GPU paths are in very
+  different shape:
+  - **LLM scoring already runs on AMD/Intel today.** The bundled `llama-server` uses Vulkan
+    (vendor-neutral); `pick_gpu_device` / `_INTEGRATED_MARKERS` in `scoring/llamacpp_server.py`
+    already recognise Radeon / Intel (UHD/Iris) devices. No work needed for LLM acceleration.
+  - **Whisper transcription + diarization are blocked upstream, not in our code.**
+    `whisper_device` accepts only `{cpu, cuda, auto}` (`web/routes/config.py`) and
+    `_resolve_device_and_compute` resolves via `ctranslate2.get_cuda_device_count()`. CTranslate2
+    has no working ROCm/OpenVINO backend on Windows, so this is not a config toggle - it needs a
+    *different* Whisper runtime (whisper.cpp Vulkan/SYCL, or an OpenVINO whisper). Real project,
+    deferred until the library reality changes.
+  - Thermal monitoring (`analyze/thermal.py`, pynvml) stays NVIDIA-only and degrades gracefully;
+    not a blocker, but no AMD/Intel temperature readout until a vendor-neutral source is wired in.
+    (The wizard GPU-line messaging was corrected 2026-07-10 to report LLM scoring running on
+    any-vendor GPUs via Vulkan while transcription stays NVIDIA/CUDA-only.)
 
-- [ ] **Linux compatibility** - verify the full pipeline on Linux; audit Windows-only assumptions
-  in path handling (`LOCALAPPDATA`/`APPDATA`), GPU detection, file pickers, and process
-  management. The Electron wrapper is Windows-only; Linux would need a separate packaging path.
-  Full inventory done - larger than it looks (real gaps in process-tree kill on cancel, the
-  reveal-in-folder feature, and the entire packaging pipeline). Plan (phased - backend-only
-  vs. full packaged app): (internal planning notes).
+- [ ] **Linux compatibility** - code analysis done. Python core is close (uses `platformdirs`, not
+  raw `%APPDATA%`; `llama-server` binary name and FFmpeg resolution already branch off-Windows;
+  platform-specific features guard and fail safe). The remaining work, phased:
+  - **Backend-only Linux (small):** one real correctness bug **now fixed** - process-tree kill on
+    cancel orphaned ffmpeg grandchildren on POSIX (`web/sse.py` `terminate_process_tree` did a bare
+    `terminate()`); now launches the analyze-family subprocesses with `start_new_session=True` and
+    `killpg`s the group. Remaining stubs: reveal-in-folder (`web/routes/reveal.py`, hard 501 off-Windows -
+    needs `xdg-open`) and the dev-CLI stale-process reap (`dev/procs.py`, no-op off-Windows,
+    contributor-facing only). CUDA-from-wheels may need `LD_LIBRARY_PATH` handling
+    (`transcribe/whisper_runner.py` `_register_cuda_dll_dirs` is Windows-only) but degrades to CPU.
+  - **Full packaged app (large):** the entire Electron packaging pipeline is Windows/NSIS-only
+    (`electron/package.json` targets `win`/`nsis`; `electron/constants.js` is saturated with
+    `LOCALAPPDATA`/`APPDATA`/`USERPROFILE`/`Scripts/python.exe`; every build/fetch script is `.ps1`).
+    Linux needs a parallel packaging path (AppImage/deb, POSIX venv layout, bash build scripts) -
+    effectively a second packaging project.
+  - Plan (phased - backend-only vs. full packaged app): (internal planning notes).
 
 - [ ] **UI localization (i18n)** - translate the web UI and setup wizard into other languages.
   Distinct from the shipped *transcription language* setting (what Whisper transcribes).

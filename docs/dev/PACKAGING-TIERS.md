@@ -68,22 +68,24 @@ Notes:
 
 **Qwen2.5-VL 7B** (6 GB, Apache-2.0) is the sole recommended local vision model as of
 2026-07-09. moondream2 was dropped for inaccurate descriptions (hallucinated a "pool
-table" for a hot tub, blind to the HUD in live testing); SmolVLM2 was dropped because
-the pinned llama-cpp-python 0.3.18 has no Idefics3 handler, so it returns empty output.
-Smaller/better options (Granite Vision, Pixtral, Qwen2-VL) are blocked on a llama.cpp
-upgrade - see the bundled-Vulkan-llama.cpp plan - and get re-added once that lands.
+table" for a hot tub, blind to the HUD in live testing); SmolVLM2 was dropped because the
+LLM engine at the time (llama-cpp-python 0.3.18) had no Idefics3 handler and returned empty
+output. The bundled-Vulkan-llama.cpp switch (2026-07-09) retired that wheel for a current
+upstream llama.cpp build, so the previously-blocked options (Granite Vision, Pixtral,
+Qwen2-VL) can be re-evaluated against it and re-added if they run.
 
 ## Target classification (end state)
 
 | Component | Package(s) → Tier A | Model → Tier B | Runs by default? |
 |---|---|---|---|
 | Speaker labels | speechbrain, scikit-learn | ECAPA | Yes |
-| LLM scoring | llama-cpp-python (CPU wheel) | GGUF catalog default | Yes (core) |
+| LLM scoring | bundled llama-server (Vulkan + CPU) | GGUF catalog default | Yes (core) |
 | Laugh / audio-event | transformers, soundfile | AST | Yes |
 | Better similarity | fastembed | bge-small | Yes (replaces tfidf) |
 | Vertical auto-framing | mediapipe | face-detector asset | Available; runs on vertical export |
 | Vision analysis | (uses LLM backend) | Qwen2.5-VL 7B | Available; conservatively-on |
-| GPU acceleration | - | CUDA wheels | Tier C - opt-in |
+| GPU acceleration (LLM) | bundled Vulkan llama-server | - | Default when a GPU is present |
+| GPU acceleration (Whisper) | nvidia-cublas-cu12, nvidia-cudnn-cu12 | - | Tier C - opt-in (wizard "cuda-libs") |
 | Remote Claude | anthropic | - | Tier C - privacy choice |
 
 ## Installer-size impact (Wave 1)
@@ -93,9 +95,10 @@ offline wheelhouse by **~272 MB** (uncompressed wheels), from 53 wheels / ~135 M
 ~105 wheels / ~407 MB. The biggest contributors: `torch` CPU build (~117 MB),
 `opencv-contrib-python` (~51 MB, pulled by mediapipe - base already ships
 `opencv-python` for scenedetect), `scipy` (~35 MB),
-`transformers` (~11 MB), `mediapipe` (~10 MB). The prebuilt llama-cpp-python CPU wheel
-adds another ~6.5 MB. Larger installer is an accepted tradeoff per the plan's locked
-decisions. Every added wheel resolves to a cp312 win_amd64 binary (verified with
+`transformers` (~11 MB), `mediapipe` (~10 MB). (This wave also bundled the prebuilt
+llama-cpp-python CPU wheel at ~6.5 MB; that wheel was later retired in the bundled-Vulkan
+switch - the llama-server binary now ships in the Electron resources, not the wheelhouse.)
+Larger installer is an accepted tradeoff per the plan's locked decisions. Every added wheel resolves to a cp312 win_amd64 binary (verified with
 `--only-binary=:all:`, zero sdist fallbacks).
 
 ### OpenCV: two distributions, one on-disk build

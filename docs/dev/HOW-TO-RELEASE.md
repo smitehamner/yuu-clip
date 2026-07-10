@@ -143,16 +143,16 @@ Before sharing, install and smoke-test in a secondary Windows user account or a 
 - [ ] Fresh install on a machine whose bundled pip is older than the latest on PyPI -
       venv setup must still complete (regression guard for the 0.1.13/0.1.14 blocker where
       `pip install --upgrade pip` couldn't replace itself; now `python -m pip`)
-- [ ] Wizard LLM-engine install on a machine with **no usable CUDA** (no NVIDIA GPU, or
-      an unparseable driver) - must succeed with the prebuilt CPU wheel, never fail with a
-      source-compile error
+- [ ] On a machine with **no usable GPU / Vulkan runtime**, local LLM scoring must still
+      work - the bundled `llama-server` auto-falls-back from the `vulkan\` build to the
+      `cpu\` build (watch the app log for "falling back to the bundled CPU build")
 - [ ] Export a clip / build a highlight reel with **no system FFmpeg installed** -
       succeeds using the bundled copy
 - [ ] In the setup wizard, choose the "Local model file" LLM backend and click
       "Download recommended model" - completes and auto-fills the model path
-- [ ] On an NVIDIA-GPU machine, install the LLM engine from the wizard - confirm
-      (via the install log or `pip show llama-cpp-python`) the CUDA build installed,
-      not the CPU-only PyPI package
+- [ ] On an NVIDIA / AMD / Intel-GPU machine, run a re-score - confirm the bundled Vulkan
+      `llama-server` offloaded to the GPU (the app log shows `llama-server GPU device: ...`),
+      not the CPU fallback
 - [ ] Add a video and run Analyze - completes successfully
 - [ ] Configure an LLM model path in Settings, rescore - LLM scores appear
 - [ ] Click X while analysis is in progress - "Cancel?" dialog appears
@@ -202,34 +202,33 @@ After uninstall, a dialog reminds the user that `Videos\yuu-clip\` was not remov
 
 ---
 
-## GPU acceleration for LLM scoring (llama-cpp-python)
+## GPU acceleration for LLM scoring (bundled llama-server)
 
-The setup wizard's "Install" button for the LLM engine (llama.cpp backend) **automatically
-picks the CUDA build** when it detects a supported NVIDIA GPU - see
-`electron/llamacpp-cuda.js` (`pickCudaWheelTag`/`buildCudaWheelUrl`) and the `llamacpp` case
-in `setup:install-package` (`electron/main.js`). No manual step needed for anyone using the
-installer.
+Local LLM/vision scoring runs on the bundled MIT-licensed llama.cpp `llama-server`, not a
+pip package - there is nothing for the user to install. `scripts/build-release.ps1` fetches
+two pinned Windows builds via `scripts/fetch-llama-server-runtime.ps1` and bundles both into
+the installer:
 
-CUDA wheels are pinned to a specific `llama-cpp-python` release (`LLAMA_CPP_CUDA_VERSION` in
-`electron/llamacpp-cuda.js`) published as GitHub Release assets tagged `v<version>-cu<tag>` -
-**not** the old `abetlen.github.io/llama-cpp-python/whl/` pip index, which stopped being
-updated at `v0.2.69` (older than yuu-clip's own `llama-cpp-python>=0.3,<1.0` pin in
-`pyproject.toml` - using that index today would downgrade/break the install). Re-pinning to a
-newer version requires checking https://github.com/abetlen/llama-cpp-python/releases for
-which `cu<NNN>` tags the target version actually published a `win_amd64` wheel for.
+- `vulkan\` - offloads to any NVIDIA / AMD / Intel GPU through the ggml Vulkan backend.
+- `cpu\` - driverless fallback for a machine with no Vulkan runtime at all.
 
-For anyone running from source (not the installer), the manual equivalent is:
+At runtime the app prefers the Vulkan build and auto-falls-back to the CPU build if it can't
+start (`yuu_clip/scoring/llamacpp_server.py` - `resolve_server_binary` picks `vulkan\` then
+`cpu\`; `LlamaServerPool._spawn` retries with the CPU build on a Vulkan startup failure).
+GPU offload is auto-fitted to free VRAM: the launcher omits `--n-gpu-layers` rather than
+forcing all layers, which would OOM a small card. Both builds use runtime CPU-feature
+dispatch, so they are ISA-safe and do **not** reintroduce the AVX-512 crash the old
+`llama-cpp-python` wheels caused (the in-process wheel was retired in the bundled-Vulkan
+switch, 2026-07-09).
 
-```powershell
-# Find your CUDA version first
-nvidia-smi  # look for "CUDA Version: 12.x"
+Re-pinning the runtime: bump `$LLAMA_BUILD` and both SHA256s in
+`scripts/fetch-llama-server-runtime.ps1` together, then run a text + image smoke test on a
+real GPU before shipping - there is no CI inference test.
 
-# Install the matching CUDA wheel (replace 0.3.32/cu124 with the current pin/your version)
-pip install --force-reinstall --no-cache-dir `
-    https://github.com/abetlen/llama-cpp-python/releases/download/v0.3.32-cu124/llama_cpp_python-0.3.32-py3-none-win_amd64.whl
-```
-
-> Note: Whisper (transcription) already auto-detects CUDA via CTranslate2. No manual step needed there.
+> Note: Whisper (transcription) is accelerated separately via CTranslate2 and the CUDA
+> runtime libraries (`nvidia-cublas-cu12` / `nvidia-cudnn-cu12`) that the setup wizard's
+> "cuda-libs" install adds on an NVIDIA machine (`electron/install.js`, `WIZARD_INSTALLABLE`).
+> That is the only GPU-related thing the wizard installs; the LLM engine itself is bundled.
 
 ---
 
