@@ -1,5 +1,5 @@
 // Feature-map - Analyze (start + SSE progress) + Import from URL, both in the New Recording panel.
-//   API: routes/analyze.py, routes/imports.py · Tests: tests/test_ui_analyze.py
+//   API: routes/analyze.py, routes/imports.py · Tests: tests/ui/test_ui_analyze.py
 // ── shared live panel state ───────────────────────────────────────────────────
 // _probedInfo and _panelDirty are read cross-file by videos.js (analyze-button
 // enablement, dirty-guard on view switch). Kept at top level, outside the IIFE

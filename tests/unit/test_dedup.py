@@ -101,3 +101,13 @@ def test_custom_threshold_respected(session):
     _add_clip(session, 1, 500, 1500)
     assert len(find_duplicate_candidates(1, session, threshold=0.4)) == 1
     assert find_duplicate_candidates(1, session, threshold=0.6) == []
+
+
+def test_zero_duration_clip_inside_another_never_divides_by_zero(session):
+    # A zero-length clip (start == end) sitting inside a longer clip: the shorter
+    # duration is 0, so the overlap-ratio guard returns 0.0 (no flag) instead of
+    # a ZeroDivisionError. The zero-length clip starts before the long clip's end,
+    # so it is compared rather than skipped by the start-order break.
+    _add_clip(session, 1, 0, 4000)
+    _add_clip(session, 1, 2000, 2000)
+    assert find_duplicate_candidates(1, session) == []

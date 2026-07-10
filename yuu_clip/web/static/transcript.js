@@ -1,6 +1,6 @@
 (function () {
 // Feature-map - Transcript views + click-to-edit captions (code: TranscriptSegment).
-//   API: routes/videos.py, routes/scoring.py · Tests: tests/test_ui_transcript.py, tests/test_transcript_edit.py
+//   API: routes/videos.py, routes/scoring.py · Tests: tests/ui/test_ui_transcript.py, tests/integration/test_transcript_edit.py
 // ── timed transcript views ────────────────────────────────────────────────────
 // Per-line transcript for a clip (clip-relative time) and for a whole recording
 // (absolute time), each line with a ▶ that seeks the visible player. Works for

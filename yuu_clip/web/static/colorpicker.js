@@ -5,7 +5,7 @@
 //   it opens a popover with direct hex entry, a recently-used strip, and (Stage 3)
 //   a user-curated named palette. Replaces native <input type="color"> at the
 //   speaker-colour and title-card colour sites.
-//   Tests: tests/test_ui_colorpicker.py
+//   Tests: tests/ui/test_ui_colorpicker.py
 // ── shared colour picker ──────────────────────────────────────────────────────
 
 const RECENT_KEY = 'yuuclip-color-recent';
@@ -278,6 +278,7 @@ function attach(input) {
   const pop = document.createElement('div');
   pop.className = 'colorpicker-pop';
   pop.setAttribute('role', 'dialog');
+  pop.setAttribute('aria-label', 'Colour picker');
   const { row: hexRow, field: hexField } = _buildHexRow();
   pop.appendChild(hexRow);
 

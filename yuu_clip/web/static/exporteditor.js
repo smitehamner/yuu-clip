@@ -1,6 +1,6 @@
 (function () {
 // Feature-map - Clip export editor (Trim + Vertical framing + Caption Style over a live preview).
-//   API: routes/clips/ (captions.py context-transcript, export.py) · Tests: tests/test_ui_exporteditor.py
+//   API: routes/clips/ (captions.py context-transcript, export.py) · Tests: tests/ui/test_ui_exporteditor.py
 // ── clip export editor (Plan 07) ──────────────────────────────────────────────
 // A PanelNav takeover launched before final export: transcript-driven trim with
 // extendable ±30 s context, a drag-to-position 9:16 crop box, and a live caption

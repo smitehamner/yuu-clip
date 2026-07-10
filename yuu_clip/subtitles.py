@@ -311,8 +311,8 @@ def export_srt_sidecars(clip, output_dir: Path, base_stem: str) -> list[Path]:
     """
     Write SRT sidecar file(s) for *clip* into *output_dir*.
 
-    Single transcribed track  → one ``{base_stem}.srt``
-    Multiple tracks           → one ``{base_stem}.{label}.srt`` per track
+    Single transcribed track  -> one ``{base_stem}.srt``
+    Multiple tracks           -> one ``{base_stem}.{label}.srt`` per track
                                 + a merged ``{base_stem}.srt`` with speaker prefixes
 
     Returns a list of written file paths (empty if no transcript data).
@@ -368,8 +368,8 @@ def export_video_transcript_srt(video, output_path: Path) -> Path:
     TranscriptSegment.start_ms / end_ms), so the file can be fed back in as
     --subtitle-source when re-importing the same recording.
 
-    Single transcribed track → plain SRT (no speaker prefix).
-    Multiple tracks → merged SRT with [Speaker] prefixes.
+    Single transcribed track -> plain SRT (no speaker prefix).
+    Multiple tracks -> merged SRT with [Speaker] prefixes.
 
     Returns *output_path*.  Raises ValueError if there is no transcript data.
     """

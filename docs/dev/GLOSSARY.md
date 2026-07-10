@@ -532,6 +532,16 @@ A clip the creator picks by hand from a recording's transcript or timeline, inst
 
 ---
 
+### Duplicate Clips
+
+Two or more clips in one recording whose time windows heavily overlap - usually the same moment captured twice (for example after re-analyzing). Surfaced on demand so the creator can merge or delete the redundant one; it never changes scores.
+
+- **Code:** `scoring/dedup.py` (`find_duplicate_candidates`, `_overlap_ratio`); route `POST /api/videos/{video_id}/scan-duplicates` (`web/routes/dedup.py`); the `possible_duplicate` system tag; UI `clips.js` (`_duplicatePartners`)
+- **UI label:** "Check duplicates" button; "possible duplicate" badge + matching filter chip; "Merge" action on the clip detail
+- **Notes:** A scan-time grouping, not a stored status - overlap is measured as shared duration over clip duration. Merging clears the flag.
+
+---
+
 ## Scoring
 
 ### Score

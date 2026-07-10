@@ -8,7 +8,7 @@
 //   _activeES, which the single job header owns).
 //   API: routes/llm.py (/api/llm/download-status[/clear], /api/llm/gguf/download,
 //        /api/whisper/prefetch), /api/config
-//   Tests: tests/test_ui_modeldownload.py, tests/test_ui_whisper_prefetch.py
+//   Tests: tests/ui/test_ui_modeldownload.py, tests/ui/test_ui_whisper_prefetch.py
 (function () {
 // A connection/offline failure reads differently to the user than a mid-download
 // error, so the banner shows a "will retry when back online" state for the former.

@@ -1,6 +1,6 @@
 # Feature-map - Sensitive Terms (code: sensitive_terms / SensitiveTerm; Privacy Terms + Censor Words)
 #   UI: static/sensitive.js (Settings → Sensitive Content) · "Flagged" clip filter
-#   Siblings: scoring/textmatch.py · scoring/engine.py (apply_sensitive_scan) · tests/test_sensitive.py, tests/test_ui_sensitive.py
+#   Siblings: scoring/textmatch.py · scoring/engine.py (apply_sensitive_scan) · tests/integration/test_sensitive.py, tests/ui/test_ui_sensitive.py
 """Sensitive-content (Privacy Terms / Censor Words) CRUD + rescan routes
 (roadmap plan 06). Term text is user PII by definition - never log a `term`
 value anywhere in this module; log only counts and ids.
@@ -12,13 +12,13 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from yuu_clip.contexts import known_context_ids
 from yuu_clip.db.models import ClipCandidate, SensitiveTerm, Video
 from yuu_clip.log import get_logger
 from yuu_clip.scoring.engine import apply_sensitive_scan
 from yuu_clip.scoring.term_scope import terms_for_video
 from yuu_clip.scoring.textmatch import FUZZY_MIN_TERM_LENGTH
 from yuu_clip.web.deps import ProjectContext
+from yuu_clip.web.routes.common import normalize_context_slug, validate_context_slug
 
 _log = get_logger(__name__)
 
@@ -35,10 +35,6 @@ class SensitiveTermBody(BaseModel):
     # NULL / "" / omitted = global. A context ID scopes the term to recordings
     # tagged with that world context.
     context_slug: Optional[str] = None
-
-
-def _normalize_slug(raw: Optional[str]) -> Optional[str]:
-    return (raw or "").strip() or None
 
 
 def _sensitive_term_dict(term_row: SensitiveTerm) -> dict:
@@ -71,10 +67,7 @@ def _validate_sensitive_term_body(
             f"Close spelling matching needs a term of at least {FUZZY_MIN_TERM_LENGTH} characters - "
             "shorter terms match too many unrelated words. Use Exact or Ignore case instead.",
         )
-    # Only validate the scope when it is being set to a new value, so an already
-    # orphaned term (its context was deleted) can still be edited otherwise.
-    if context_slug is not None and context_slug != current_slug and context_slug not in known_context_ids(project_dir):
-        raise HTTPException(400, f"Unknown world context '{context_slug}' - pick an existing context or leave it Global")
+    validate_context_slug(context_slug, project_dir, current_slug)
 
 
 def _rescan_all_clips(db) -> tuple[int, int]:
@@ -113,7 +106,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         db = ctx.get_db()
         try:
             term = body.term.strip()
-            context_slug = _normalize_slug(body.context_slug)
+            context_slug = normalize_context_slug(body.context_slug)
             _validate_sensitive_term_body(body, term, context_slug, ctx.project_dir)
             row = SensitiveTerm(
                 term=term, category=body.category, match_mode=body.match_mode,
@@ -141,7 +134,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             if not row:
                 raise HTTPException(404, "Sensitive term not found")
             term = body.term.strip()
-            context_slug = _normalize_slug(body.context_slug)
+            context_slug = normalize_context_slug(body.context_slug)
             _validate_sensitive_term_body(
                 body, term, context_slug, ctx.project_dir, current_slug=row.context_slug,
             )

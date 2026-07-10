@@ -1,6 +1,6 @@
 # Feature-map - Settings / configuration (code: Config)
 #   UI: static/settings.js (whole Settings panel)
-#   Siblings: config.py (load/save_project) · tests/test_config.py, tests/test_ui_settings.py
+#   Siblings: config.py (load/save_project) · tests/integration/test_config.py, tests/ui/test_ui_settings.py
 """Config get/patch routes - GET /api/config, PATCH /api/config."""
 from __future__ import annotations
 
@@ -48,7 +48,7 @@ class ConfigPatch(BaseModel):
     scorer_laugh_weight:          Optional[float] = None
     scorer_laugh_mode:            Optional[str]   = None
     scorer_laugh_model_id:        Optional[str]   = None
-    # Lightweight scorer weights + toggles (plans non-llm-tiers/03–05) and the similarity
+    # Lightweight scorer weights + toggles (plans non-llm-tiers/03-05) and the similarity
     # engine (plan 01). Previously sent by settings.js but dropped here, so they never
     # persisted - wired through in Stage 07.
     scorer_lexicon_weight:        Optional[float] = None

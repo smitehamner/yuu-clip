@@ -1,6 +1,6 @@
 # Feature-map - Session (code: RecordingSession / session_id)
 #   UI: static/sessions.js (sidebar grouping, suggest, session detail view)
-#   Siblings: sessions.py (auto-suggest) · tests/test_sessions.py, tests/test_api_sessions.py, tests/test_ui_sessions.py
+#   Siblings: sessions.py (auto-suggest) · tests/unit/test_sessions.py, tests/integration/test_api_sessions.py, tests/ui/test_ui_sessions.py
 """Session routes - grouping recordings into a play session with a unified timeline.
 
 A Session (ORM: RecordingSession) groups top-level recordings that belong to one

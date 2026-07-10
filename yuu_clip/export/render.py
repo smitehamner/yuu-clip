@@ -3,7 +3,7 @@ card, compute the export window, and run the final ffmpeg cut.
 
 Driven by the ``export``/``retranscribe`` commands in ``cli/export.py`` (spawned
 as a subprocess by the web UI). These functions print progress to the shared
-console â€” that stdout IS the interface the web UI streams over SSE, so the
+console - that stdout IS the interface the web UI streams over SSE, so the
 prints stay here rather than being lifted into the command layer.
 """
 from __future__ import annotations
@@ -37,7 +37,7 @@ def _maybe_diarize_segment(session, config, video_id: int, transcript_id: int, s
     The segment WAV is clip-relative (starts at 0), but the stored TranscriptSegments use
     absolute video timestamps, so the diarization turns are shifted by *offset_s* before
     matching. Voiceprints from this clip are matched against the recording's existing
-    Speakers via _attach_speakers, so a named voice re-attaches its name here too â€” the
+    Speakers via _attach_speakers, so a named voice re-attaches its name here too - the
     per-clip re-diarize is otherwise identical to the full-recording pass. A no-op when
     no diarization backend / HuggingFace token is configured.
     """
@@ -85,7 +85,7 @@ def _run_retranscribe(cand, session, config, language: Optional[str] = None,
 
     tracks = session.query(AudioTrack).filter_by(video_id=cand.video_id, do_transcribe=True).all()
     if not tracks:
-        console.print("[yellow]  No tracks marked for transcription â€” skipping retranscribe[/yellow]")
+        console.print("[yellow]  No tracks marked for transcription - skipping retranscribe[/yellow]")
         return
 
     effective_start_s  = max(0.0, cand.start_ms / 1000.0 + (cand.start_offset or 0.0))
@@ -97,7 +97,7 @@ def _run_retranscribe(cand, session, config, language: Optional[str] = None,
         tmp_path = Path(tmp_dir)
         for track in tracks:
             if not track.extracted_path or not Path(track.extracted_path).exists():
-                console.print(f"  [yellow]  Track {track.stream_index} â€” no extracted audio, skipping[/yellow]")
+                console.print(f"  [yellow]  Track {track.stream_index} - no extracted audio, skipping[/yellow]")
                 continue
 
             segment_wav = tmp_path / f"seg_{track.stream_index}.wav"
@@ -168,7 +168,7 @@ def _build_export_path(
     base_stem is used by the caller when writing SRT sidecars.
     output is the caller's --output override when provided; otherwise it is derived
     from name_template and placed in exports_dir. preset_name is "default" for a
-    plain export, else an Export preset id â€” see export_naming.export_base_stem
+    plain export, else an Export preset id - see export_naming.export_base_stem
     for how a non-default preset is folded into the filename.
     """
     suffix = f".{container.lstrip('.')}" if container else (video_path.suffix or ".mkv")
@@ -273,7 +273,7 @@ def _finalize_export(cand, session, video_path: Path, output: Path, config, *,
     """Cut the clip, optionally prepend a title card, record the export on the clip row.
 
     preset (export_presets.ExportPreset | None) drives the encode through
-    export_clip_with_preset instead of the plain export_clip path when set â€” a
+    export_clip_with_preset instead of the plain export_clip path when set - a
     preset export always re-encodes and does not support the soft-subtitle
     (embed_subs) track, only burned-in captions (subtitle_path).
 
@@ -359,7 +359,7 @@ def _compute_export_window(cand) -> tuple[int, int]:
 
     Returns ms relative to the source file passed to export_clip. For a split
     segment, cand.start_ms/end_ms/video.duration_ms are all segment-relative, but
-    video.path always points at the untrimmed parent file â€” so segment_start_s is
+    video.path always points at the untrimmed parent file - so segment_start_s is
     added back in after clamping against the (segment-relative) duration.
     """
     start_ms = max(0, cand.start_ms + int((cand.start_offset or 0.0) * 1000))
@@ -386,7 +386,7 @@ def _resolve_caption_style(config, font: Optional[str], size: Optional[int], pos
 
     A None override falls back to config. Values are validated (raising typer.Exit
     on bad input) so a hand-typed CLI flag can't slip an unescaped font name into
-    the filtergraph â€” the same rules the PATCH route enforces.
+    the filtergraph - the same rules the PATCH route enforces.
     """
     from yuu_clip.analyze.extract import CaptionStyle
     from yuu_clip.config import (
@@ -423,7 +423,7 @@ def _emit_caption_sidecars(cand, output: Path, base: str) -> None:
         for srt in srt_files:
             console.print(f"  [green]OK[/green] Captions  [cyan]{srt.name}[/cyan]")
     else:
-        console.print("  [dim]No transcript data â€” captions skipped[/dim]")
+        console.print("  [dim]No transcript data - captions skipped[/dim]")
 
 
 def _refresh_caption_sidecars(cand, proj_dir: Path, name_template: str = DEFAULT_EXPORT_NAME_TEMPLATE) -> None:

@@ -2,7 +2,7 @@
 // Feature-map - the three app-global help/info modals (Getting Started, About,
 // Glossary). Extracted out of settings.js (which grew into a catch-all) - these
 // have no coupling to the settings save/dirty machinery.
-//   API: routes/config.py (glossary) · Tests: tests/test_ui_settings.py, tests/test_ui_page.py, tests/test_ui_keyboard.py
+//   API: routes/config.py (glossary) · Tests: tests/ui/test_ui_settings.py, tests/ui/test_ui_page.py, tests/ui/test_ui_keyboard.py
 
 // ── getting started modal ─────────────────────────────────────────────────────
 let _gettingStartedOpener = null;

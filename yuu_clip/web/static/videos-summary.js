@@ -2,7 +2,7 @@
 // Feature-map - Recording detail: session title + summary generation (code:
 // video / Video). Extracted out of videos.js (which grew into a catch-all) -
 // the list/filter/detail-render/re-analysis core stays there.
-//   API: routes/videos.py (summarize, regenerate-summary, fields) · Tests: tests/test_ui_video.py
+//   API: routes/videos.py (summarize, regenerate-summary, fields) · Tests: tests/ui/test_ui_video.py
 // ── video summary ─────────────────────────────────────────────────────────────
 async function summarizeVideo(id, btn) {
   const actionBtn = document.getElementById('btn-summarize-video') || btn;

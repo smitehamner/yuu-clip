@@ -1,6 +1,6 @@
 // Feature-map - Recording preview player: picks the media transport (Electron native scheme vs HTTP),
 //   prefers the fast 720p proxy over the source, and drives the click-to-build proxy badge.
-//   API: routes/videos.py (source/proxy/proxy-status/proxy-generate) · Tests: tests/test_ui_video.py
+//   API: routes/videos.py (source/proxy/proxy-status/proxy-generate) · Tests: tests/ui/test_ui_video.py
 // Single point that picks the transport for a recording's source/proxy stream
 // (roadmap plan 10). Inside the packaged Electron app, window.electronAPI.mediaProtocol
 // is set and playback goes straight through the native "yuu-media://" scheme -

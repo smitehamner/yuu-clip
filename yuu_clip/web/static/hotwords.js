@@ -1,6 +1,6 @@
 (function () {
 // Feature-map - Hot-word (code: hot_words; Settings → Hot-words).
-//   API: routes/hotwords.py · Tests: tests/test_ui_hotwords.py
+//   API: routes/hotwords.py · Tests: tests/ui/test_ui_hotwords.py
 // ── hot-words settings ────────────────────────────────────────────────────────
 // Server-backed CRUD (unlike the rest of the Settings panel, which batches into
 // one Save): each row change persists immediately via POST/PUT/DELETE against
@@ -193,7 +193,7 @@ function _hotwordRowHtml(hw) {
       </label>
       <button type="button" class="btn ghost hw-delete" title="Delete hot-word"
               aria-label="Delete hot-word ${escHtml(hw.phrase || 'draft')}" style="font-size:13px;padding:2px 8px">&times;</button>
-      ${hw.match_mode === 'semantic' ? '<div style="width:100%;font-size:10px;color:var(--muted)">Matches by concept via the Similarity engine (set under Settings → LLM scoring). Applies only via the recording’s "Scan for Hot-words" action.</div>' : ''}
+      ${hw.match_mode === 'semantic' ? '<div style="width:100%;font-size:10px;color:var(--muted)">Matches by concept via the Similarity engine (set under Settings → LLM scoring). Applies only via the recording\'s "Scan for Hot-words" action.</div>' : ''}
     </div>`;
 }
 

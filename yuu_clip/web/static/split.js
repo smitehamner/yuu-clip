@@ -1,5 +1,5 @@
 // Feature-map - Split recording into segments (code: segment / segment_start_s).
-//   API: routes/videos.py (split) · Tests: tests/test_ui_split.py, tests/test_segments.py
+//   API: routes/videos.py (split) · Tests: tests/ui/test_ui_split.py, tests/integration/test_segments.py
 // ── shared live split-editor state ────────────────────────────────────────────
 // Read cross-file: videos.js checks _splitPoints for the "has splits" badge,
 // analyze.js reads the segment plan, index.html's zoom buttons read _splitZoom,

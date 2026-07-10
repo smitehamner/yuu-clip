@@ -1,7 +1,7 @@
 // Feature-map - Cross-cutting UI feedback helpers with no home in a single feature: toasts, the
 //   bottom log panel, sort-direction buttons, speaker-labels (diarization) readiness, "reveal in
 //   folder", and clipboard copy. State/format/job-SSE/preview machinery split out in stage 02.
-//   API: routes/config.py, routes/logs.py (indirectly) · Tests: tests/test_ui_utils.py
+//   API: routes/config.py, routes/logs.py (indirectly) · Tests: tests/ui/test_ui_utils.py
 // ── sort-direction toggle ─────────────────────────────────────────────────────
 // Reflects a sort-direction toggle's current state onto its button: arrow glyph,
 // aria-pressed, and a self-describing aria-label. 'desc' is the sort option's

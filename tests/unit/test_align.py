@@ -90,6 +90,13 @@ class TestRealignWords:
         result = align.realign_words(tmp_path / "seg.wav", 0, 3000, "I", "en")
         assert result == [{"text": "I", "start_ms": 0, "end_ms": 3000}]
 
+    def test_whitespace_only_text_returns_none_without_loading_model(self, monkeypatch, tmp_path):
+        def _boom():
+            raise AssertionError("model must not load when there are no words to align")
+
+        monkeypatch.setattr(align, "_get_model", _boom)
+        assert align.realign_words(tmp_path / "seg.wav", 0, 5000, "   ", "en") is None
+
 
 class TestRealignSegmentWords:
     def _seg(self, language, path="C:/missing.mp4"):
@@ -109,4 +116,27 @@ class TestRealignSegmentWords:
 
     def test_missing_source_returns_none(self, monkeypatch):
         seg = self._seg("en", path="C:/does/not/exist.mp4")
+        assert align.realign_segment_words(seg) is None
+
+    def test_missing_video_returns_none_without_extract(self, monkeypatch):
+        def _boom(*_a, **_k):
+            raise AssertionError("must not extract audio when the track has no video")
+
+        monkeypatch.setattr("yuu_clip.analyze.extract.extract_audio_track", _boom)
+        track = types.SimpleNamespace(video=None, stream_index=1)
+        transcript = types.SimpleNamespace(audio_track=track, language="en")
+        seg = types.SimpleNamespace(id=1, transcript=transcript, start_ms=0, end_ms=3000, text="hello")
+        assert align.realign_segment_words(seg) is None
+
+    def test_extraction_failure_returns_none(self, monkeypatch, tmp_path):
+        # Source exists but the ffmpeg extract raises: realign must swallow it and
+        # return None (caller clears words_json) rather than break the caption edit.
+        source = tmp_path / "recording.mp4"
+        source.write_bytes(b"stub")
+
+        def _raise(*_a, **_k):
+            raise RuntimeError("ffmpeg boom")
+
+        monkeypatch.setattr("yuu_clip.analyze.extract.extract_audio_track", _raise)
+        seg = self._seg("en", path=str(source))
         assert align.realign_segment_words(seg) is None

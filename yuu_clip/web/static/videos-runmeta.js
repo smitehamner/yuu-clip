@@ -3,7 +3,7 @@
 // timing, effective settings, CPU/GPU device). Extracted out of videos.js
 // (which grew into a catch-all) - the list/filter/detail-render/re-analysis
 // core stays there.
-//   API: routes/videos.py (analyze_run field) · Tests: tests/test_ui_video.py
+//   API: routes/videos.py (analyze_run field) · Tests: tests/ui/test_ui_video.py
 // ── analysis run metadata card ────────────────────────────────────────────────
 // Renders the stored record of the last analyze run (per-stage timing, effective
 // settings, and CPU/GPU device) so the creator can answer "how long did this

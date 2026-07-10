@@ -1,6 +1,6 @@
 (function () {
 // Feature-map - Highlight reel (code: demo_reel; UI "Highlight Reel").
-//   API: routes/reel.py · Tests: tests/test_ui_reel.py
+//   API: routes/reel.py · Tests: tests/ui/test_ui_reel.py
 // ── highlight reels (combined Build + View modal) ──────────────────────────────
 let _reelClips = [];
 let _reelsOpener = null;

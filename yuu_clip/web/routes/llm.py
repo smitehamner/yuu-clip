@@ -1,6 +1,6 @@
 # Feature-map - Model readiness + Recommended models (code: model_catalog, capabilities/tiers)
 #   UI: static/settings.js (Settings → LLM scoring readiness + catalog) · setup wizard
-#   Siblings: model_catalog.py · scoring/llm_client.py · tests/test_llm.py, tests/test_ui_model_catalog.py
+#   Siblings: model_catalog.py · scoring/llm_client.py · tests/integration/test_llm.py, tests/ui/test_ui_model_catalog.py
 """LLM capability + model-catalog routes.
 
 GET /api/llm/capabilities - what the active backend/model can do right now

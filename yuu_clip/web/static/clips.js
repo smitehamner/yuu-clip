@@ -761,6 +761,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const detail = document.getElementById('detail');
   if (!detail) return;
   detail.addEventListener('click', e => {
+    const merge = e.target.closest && e.target.closest('[data-merge-b]');
+    if (merge) {
+      mergeClips(Number(merge.dataset.mergeA), Number(merge.dataset.mergeB), merge.dataset.mergeDir);
+      return;
+    }
     const rm = e.target.closest && e.target.closest('[data-remove-tag]');
     if (rm && AppState.activeClipId) _removeClipTag(AppState.activeClipId, rm.dataset.removeTag);
     const copy = e.target.closest && e.target.closest('[data-copy]');
@@ -984,7 +989,7 @@ function _duplicateNoticeHTML(clip) {
   if (!partners.length) return '';
   const buttons = partners.map(partner => {
     const direction = partner.clip.start_ms < clip.start_ms ? 'prev' : 'next';
-    return `<button class="btn" style="font-size:11px;padding:3px 9px" onclick="mergeClips(${clip.id}, ${partner.clip.id}, '${direction}')">Merge #${partner.clip.id} &middot; ${partner.clip.start_hms}</button>`;
+    return `<button class="btn" style="font-size:11px;padding:3px 9px" data-merge-a="${clip.id}" data-merge-b="${partner.clip.id}" data-merge-dir="${direction}">Merge #${partner.clip.id} &middot; ${partner.clip.start_hms}</button>`;
   }).join('');
   const ids = partners.map(partner => '#' + partner.clip.id).join(', ');
   return `<div class="clip-dup-notice" role="note">
@@ -996,14 +1001,21 @@ function _duplicateNoticeHTML(clip) {
 async function scanDuplicates() {
   const videoId = AppState.activeVideoId;
   if (!videoId) return;
-  const res = await fetch(`/api/videos/${videoId}/scan-duplicates`, {method: 'POST'});
-  if (!res.ok) { const e = await res.json().catch(() => ({})); showToast(e.detail || 'Duplicate scan failed', 'error'); return; }
-  const body = await res.json();
-  await _reloadClipList(videoId);
-  if (AppState.activeClipId) refreshClipDetail(AppState.activeClipId);
-  showToast(body.clips_flagged
-    ? `Found ${body.clips_flagged} possible duplicate ${body.clips_flagged === 1 ? 'clip' : 'clips'}`
-    : 'No duplicate clips found');
+  const btn = document.getElementById('btn-scan-duplicates');
+  const origLabel = btn?.textContent;
+  if (btn) { btn.disabled = true; btn.textContent = 'Checking...'; }
+  try {
+    const res = await fetch(`/api/videos/${videoId}/scan-duplicates`, {method: 'POST'});
+    if (!res.ok) { const e = await res.json().catch(() => ({})); showToast(e.detail || 'Duplicate scan failed', 'error'); return; }
+    const body = await res.json();
+    await _reloadClipList(videoId);
+    if (AppState.activeClipId) refreshClipDetail(AppState.activeClipId);
+    showToast(body.clips_flagged
+      ? `Found ${body.clips_flagged} possible duplicate ${body.clips_flagged === 1 ? 'clip' : 'clips'}`
+      : 'No duplicate clips found');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = origLabel; }
+  }
 }
 
 function _parseTimingOffset(str) {

@@ -1,7 +1,7 @@
 // Feature-map - Long-running-job machinery: the job-status header (step pills, timer, ETA), the
 //   pause/resume + thermal auto-pause UI, the fetch-based SSE transport (_openSSE/streamSSE), the
 //   single-active-stream supersede contract, and the shared Cancel button.
-//   API: routes/analyze.py, routes/scoring.py (SSE endpoints) · Tests: tests/test_ui_utils.py, tests/test_ui_sse.py
+//   API: routes/analyze.py, routes/scoring.py (SSE endpoints) · Tests: tests/ui/test_ui_utils.py, tests/ui/test_ui_sse.py
 // ── shared live job-render state ──────────────────────────────────────────────
 // Read cross-file by videos.js's compact step strip (and _activeES by the SSE
 // teardown in tests). Kept at top level, outside the IIFE below, so the binding

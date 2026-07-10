@@ -1,6 +1,6 @@
 (function () {
 // Feature-map - Session (code: RecordingSession / session_id).
-//   API: routes/sessions.py · Tests: tests/test_ui_sessions.py
+//   API: routes/sessions.py · Tests: tests/ui/test_ui_sessions.py
 // ── Sessions: sidebar grouping, auto-suggest, and the session detail view ─────
 // A Session groups top-level recordings from one play session. This module owns
 // the sidebar group headers, the manual grouping selection mode, the suggest

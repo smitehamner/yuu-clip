@@ -3,7 +3,7 @@
 // Extracted out of videos.js (which grew into a catch-all) - the list/filter/
 // detail-render/re-analysis core stays there; _needsModelCtaHTML is shared with
 // the summary feature and stays in videos.js core too.
-//   API: routes/videos.py (timeline SSE) · Tests: tests/test_ui_video.py, tests/test_scoring_routes.py
+//   API: routes/videos.py (timeline SSE) · Tests: tests/ui/test_ui_video.py, tests/integration/test_scoring_routes.py
 // ── timeline render helpers ───────────────────────────────────────────────────
 function _renderTimelineHTML(entries) {
   if (!entries || !entries.length) return '';

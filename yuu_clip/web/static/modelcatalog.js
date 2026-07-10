@@ -4,7 +4,7 @@
 // get more"). Extracted out of settings.js (which grew into a catch-all) -
 // these read backend/model config to decide what to render, but the save/dirty
 // engine that persists config stays in settings.js.
-//   API: routes/llm.py, routes/config.py (capabilities/tiers) · Tests: tests/test_ui_model_catalog.py, tests/test_ui_settings.py
+//   API: routes/llm.py, routes/config.py (capabilities/tiers) · Tests: tests/ui/test_ui_model_catalog.py, tests/ui/test_ui_settings.py
 // ── model catalog (recommended text + vision models) ────────────────────────
 // Loaded once per session. Fills the Claude model dropdown and the per-backend
 // recommended lists; the capabilities line reflects the *saved* active model.

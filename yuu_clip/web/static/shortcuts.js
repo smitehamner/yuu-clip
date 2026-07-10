@@ -2,7 +2,7 @@
 // Feature-map - app-global keyboard shortcuts and the Escape-key layer cascade.
 // Extracted out of settings.js (which grew into a catch-all) - shortcuts are
 // app-wide, not settings-specific.
-//   Tests: tests/test_ui_keyboard.py
+//   Tests: tests/ui/test_ui_keyboard.py
 
 // ── keyboard shortcuts ────────────────────────────────────────────────────────
 

@@ -1,6 +1,6 @@
 (function () {
 // Feature-map - Clip export (the Export modal flow + per-format export-file actions).
-//   API: routes/clips/ (export.py, delete.py clip-exports, crud.py export-files, edit.py suggest-framing) · Tests: tests/test_ui_clips.py, tests/test_ui_exporteditor.py
+//   API: routes/clips/ (export.py, delete.py clip-exports, crud.py export-files, edit.py suggest-framing) · Tests: tests/ui/test_ui_clips.py, tests/ui/test_ui_exporteditor.py
 // Renders and drives the Export dialog and the per-format rows in the clip
 // detail's Export card. The rows themselves are built by _exportFormatsHtml in
 // clips.js (it renders inside the detail pane); the actions they dispatch live here.

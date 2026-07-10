@@ -95,7 +95,7 @@ def register_model_download(response, ctx, key: str):
 
 
 def srt_to_vtt(srt: str) -> str:
-    """Convert SRT text to WebVTT (comma→dot in timestamps, WEBVTT header) for
+    """Convert SRT text to WebVTT (comma->dot in timestamps, WEBVTT header) for
     <track> use in the browser."""
     return "WEBVTT\n\n" + re.sub(r"(\d{2}:\d{2}:\d{2}),(\d{3})", r"\1.\2", srt)
 
@@ -147,6 +147,38 @@ def require_clip(db, clip_id: int) -> ClipCandidate:
     if not clip:
         raise HTTPException(404, "Clip not found")
     return clip
+
+
+def normalize_context_slug(raw: Optional[str]) -> Optional[str]:
+    """A blank / whitespace-only context_slug means "global" (None); else trimmed.
+
+    Shared by the hot-word and sensitive-term routes so "what a blank scope means"
+    is decided in one place for both term types.
+    """
+    return (raw or "").strip() or None
+
+
+def validate_context_slug(
+    context_slug: Optional[str], project_dir, current_slug: Optional[str] = None
+) -> None:
+    """Reject a scoped hot-word / sensitive-term whose world context does not exist.
+
+    Skips the check when the slug is unchanged from *current_slug*, so an already
+    orphaned term (its context was deleted) can still be edited in other ways
+    without being forced to re-scope. The rule and its user-facing message are
+    shared by both term types - keep them in lockstep here rather than in each route.
+    """
+    from yuu_clip.contexts import known_context_ids
+
+    if (
+        context_slug is not None
+        and context_slug != current_slug
+        and context_slug not in known_context_ids(project_dir)
+    ):
+        raise HTTPException(
+            400,
+            f"Unknown world context '{context_slug}' - pick an existing context or leave it Global",
+        )
 
 
 def missing_ids(requested: Iterable[int], found_ids: set[int]) -> list[int]:

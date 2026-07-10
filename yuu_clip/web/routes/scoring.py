@@ -1,6 +1,6 @@
 # Feature-map - LLM scoring / Rescore · Session summary · Session timeline (code: score, summary, timeline)
 #   UI: static/clips.js (rescore) · videos.js (Summarize / Timeline cards)
-#   Siblings: scoring/llm.py, scoring/engine.py · tests/test_scoring_routes.py, tests/test_scoring_llm.py
+#   Siblings: scoring/llm.py, scoring/engine.py · tests/integration/test_scoring_routes.py, tests/unit/test_scoring_llm.py
 """LLM scoring, timeline, and summary routes."""
 from __future__ import annotations
 

@@ -22,6 +22,12 @@ EXCLUDE_PATH_MARKERS = [
 ]
 
 EMDASH = "—"
+# A UTF-8 em-dash (bytes E2 80 94) that was decoded as cp1252 and re-saved as
+# UTF-8 shows up as this trigram. It renders as garbage and, in console/SSE
+# strings, risks UnicodeEncodeError - but it is NOT a literal U+2014, so it
+# slips past the EMDASH check. Guard it explicitly (see render.py mojibake, 2026-07).
+EMDASH_MOJIBAKE = "â€”"
+BANNED = (EMDASH, EMDASH_MOJIBAKE)
 SELF_PATH = Path(__file__).resolve()
 
 
@@ -51,10 +57,10 @@ def test_no_emdash_in_tracked_source():
         except (UnicodeDecodeError, ValueError):
             continue
         for lineno, line in enumerate(text.splitlines(), start=1):
-            if EMDASH in line:
+            if any(bad in line for bad in BANNED):
                 offenders.append(f"{path.relative_to(REPO_ROOT)}:{lineno}: {line.strip()}")
 
     assert offenders == [], (
-        "em-dash (U+2014) found in tracked source; use a spaced hyphen ( - ) "
-        "instead:\n" + "\n".join(offenders)
+        "em-dash (U+2014, or its cp1252 mojibake) found in tracked source; use a "
+        "spaced hyphen ( - ) instead:\n" + "\n".join(offenders)
     )

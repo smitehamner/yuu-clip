@@ -168,10 +168,10 @@ comment there before touching the teardown watchdogs. If the suite (or the app)
 feels slow, check the server isn't degraded first: `curl` `/api/status` should
 answer in ~3ms, and the serve process should sit near 0% CPU when idle.
 
-Markers (registered in `pytest.ini`): `integration` / `ui` mirror the
-directories; `environment` tags a test that needs real installed packages / HF
-cache / OS state (keep those out of `tests/unit`); `live_remote` is an opt-in
-real billed API call (`test_remote_live`), skipped by default. A unit test that
+The tiers are split by **directory**, not markers. `pytest.ini` registers only
+the `live_remote` marker - an opt-in real billed Anthropic call (`test_remote_live`),
+excluded from default runs. A test that needs real installed packages / HF cache /
+OS state belongs in `tests/integration`, never `tests/unit`. A unit test that
 references `project_dir`/`client` fails at collection (no such fixture in the
 unit tier) - move it to `tests/integration`, splitting the file if it mixes pure
 and seeded tests. `tests/unit` must pass offline regardless of machine state.

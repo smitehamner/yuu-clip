@@ -1,6 +1,6 @@
 # Feature-map - Hot-word (code: hot_words / HotWord)
 #   UI: static/hotwords.js (Settings → Hot-words)
-#   Siblings: scoring/engine.py · scoring/textmatch.py · tests/test_hotwords.py, tests/test_ui_hotwords.py
+#   Siblings: scoring/engine.py · scoring/textmatch.py · tests/integration/test_hotwords.py, tests/ui/test_ui_hotwords.py
 """Hot-word / phrase config CRUD routes."""
 from __future__ import annotations
 
@@ -9,10 +9,10 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from yuu_clip.contexts import known_context_ids
 from yuu_clip.db.models import HotWord
 from yuu_clip.scoring.engine import HOTWORD_BOOST_MAX, HOTWORD_BOOST_MIN
 from yuu_clip.web.deps import ProjectContext
+from yuu_clip.web.routes.common import normalize_context_slug, validate_context_slug
 
 _VALID_MODES = ("exact", "case_insensitive", "semantic")
 _VALID_TARGETS = ("overall", "funny", "dramatic", "action")
@@ -28,10 +28,6 @@ class HotWordBody(BaseModel):
     # NULL / "" / omitted = global. A context ID scopes the hot-word to recordings
     # tagged with that world context.
     context_slug: Optional[str] = None
-
-
-def _normalize_slug(raw: Optional[str]) -> Optional[str]:
-    return (raw or "").strip() or None
 
 
 def _hotword_dict(hw: HotWord) -> dict:
@@ -61,10 +57,7 @@ def _validate_hotword_body(
         raise HTTPException(400, f"Target must be one of {', '.join(_VALID_TARGETS)}")
     if not (HOTWORD_BOOST_MIN <= body.boost <= HOTWORD_BOOST_MAX):
         raise HTTPException(400, f"Boost must be between {HOTWORD_BOOST_MIN} and {HOTWORD_BOOST_MAX}")
-    # Only validate the scope when it is being set to a new value, so an already
-    # orphaned hot-word (its context was deleted) can still be edited otherwise.
-    if context_slug is not None and context_slug != current_slug and context_slug not in known_context_ids(project_dir):
-        raise HTTPException(400, f"Unknown world context '{context_slug}' - pick an existing context or leave it Global")
+    validate_context_slug(context_slug, project_dir, current_slug)
     existing = (
         db.query(HotWord)
         .filter(
@@ -96,7 +89,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         db = ctx.get_db()
         try:
             phrase = body.phrase.strip()
-            context_slug = _normalize_slug(body.context_slug)
+            context_slug = normalize_context_slug(body.context_slug)
             _validate_hotword_body(body, phrase, context_slug, db, ctx.project_dir)
             hw = HotWord(
                 phrase=phrase, match_mode=body.match_mode, boost=body.boost,
@@ -117,7 +110,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             if not hw:
                 raise HTTPException(404, "Hot-word not found")
             phrase = body.phrase.strip()
-            context_slug = _normalize_slug(body.context_slug)
+            context_slug = normalize_context_slug(body.context_slug)
             _validate_hotword_body(
                 body, phrase, context_slug, db, ctx.project_dir,
                 current_slug=hw.context_slug, exclude_id=hotword_id,

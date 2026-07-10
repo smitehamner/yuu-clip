@@ -7,7 +7,7 @@
 #     export     batch-export + SSE    bulk       multi-clip status/delete/export
 #     delete     clip + export deletes captions   transcript/context/caption edit/VTT
 #   Siblings: scoring/engine.py · export/render.py (engine) · cli/export.py (command)
-#   Tests: tests/test_videos.py, tests/test_captions.py, tests/test_clip_create.py, tests/test_ui_clips.py
+#   Tests: tests/integration/test_videos.py, tests/integration/test_captions.py, tests/integration/test_clip_create.py, tests/ui/test_ui_clips.py
 """Clip management routes - CRUD, preview, approval, export, edit, captions."""
 from __future__ import annotations
 

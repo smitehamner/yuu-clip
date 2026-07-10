@@ -663,4 +663,4 @@ class TestDuplicateDetection:
             }"""
         )
         expect(page.locator(".clip-dup-notice")).to_be_visible()
-        assert page.locator(".clip-dup-notice button[onclick*='999999']").count() == 1
+        assert page.locator(".clip-dup-notice button[data-merge-b='999999']").count() == 1

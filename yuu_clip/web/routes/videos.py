@@ -1,6 +1,6 @@
 # Feature-map - Recording (code: video / Video) + Split (recording segments)
 #   UI: static/videos.js (Recordings sidebar + detail) · static/split.js (Split Editor)
-#   Siblings: analyze/proxy.py (preview proxy) · tests/test_videos.py, tests/test_segments.py, tests/test_ui_video.py
+#   Siblings: analyze/proxy.py (preview proxy) · tests/integration/test_videos.py, tests/integration/test_segments.py, tests/ui/test_ui_video.py
 """Video CRUD routes - listing, detail, split, waveform computation, and deletion."""
 from __future__ import annotations
 

@@ -44,7 +44,7 @@
    full color set above and keep WCAG AA: --text/--muted/--text-secondary vs
    --bg/--surface/--border; --on-accent vs --accent; --on-green vs --green;
    --on-red vs --red; --accent-text/--accent2/--warning/--warn-hot as text vs
-   --bg and --surface. Enforced per theme in tests/test_ui_theme.py. */
+   --bg and --surface. Enforced per theme in tests/ui/test_ui_theme.py. */
 html[data-theme="light"] {
   --bg:       #f2f2f6;
   --bg-deep:  #e9e9ef;
@@ -112,7 +112,7 @@ html[data-theme="high-contrast"] {
    be tuned per base theme, because one accent value cannot clear WCAG AA on both
    the dark and the light surfaces. "default" keeps each theme's own accents (no
    block). Every (theme, accent) pairing is contrast-checked in
-   tests/test_ui_theme.py. */
+   tests/ui/test_ui_theme.py. */
 html[data-accent="blue"] { /* on the dark default surfaces */
   --accent:      #2b5fd0;
   --accent-text: #7aa2ff;

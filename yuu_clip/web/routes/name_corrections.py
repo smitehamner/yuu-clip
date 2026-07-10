@@ -1,6 +1,6 @@
 # Feature-map - Name corrections (code: name_corrections; UI "Fix names")
 #   UI: static/namecorrections.js (PanelNav takeover from the transcript card)
-#   Siblings: scoring/textmatch.py (find_name_corrections) · tests/test_name_corrections.py, tests/test_ui_namecorrections.py
+#   Siblings: scoring/textmatch.py (find_name_corrections) · tests/integration/test_name_corrections.py, tests/ui/test_ui_namecorrections.py
 """Transcript name-correction routes (Plan 09).
 
 Whisper mis-hears spoken names ("You" for "Yuu"). Scan a recording's transcript for

@@ -429,7 +429,7 @@ def _build_segment_list(
             clip, config, primary_size=_DEFAULT_FONT_SIZE_H2, secondary_size=_DEFAULT_FONT_SIZE_BODY,
         )
 
-        print(f"Generating title card {idx + 1}/{n}…", flush=True)
+        print(f"Generating title card {idx + 1}/{n}...", flush=True)
         card_path = tmp_dir / f"title_{idx:03d}.mkv"
         _make_title_card(
             title_lines, card_path, duration=title_dur, fps=fps,
@@ -483,8 +483,8 @@ def compile_demo(
             segments, durations = _build_segment_list(
                 clips, video_map, clip_files, clip_durations, Path(tmp), clip_fps, title_dur, config,
             )
-            _log.info("Encoding final reel (%ds footage) → %s", int(total_footage), output.name)
-            print(f"Encoding final reel ({total_footage:.0f}s footage)…", flush=True)
+            _log.info("Encoding final reel (%ds footage) -> %s", int(total_footage), output.name)
+            print(f"Encoding final reel ({total_footage:.0f}s footage)...", flush=True)
             if transition == "none":
                 _compile_concat(segments, output)
             elif transition == "random":
@@ -535,7 +535,7 @@ def _write_reel_composition(
 def _segment_start_times(durations: list[float], trans_dur: float) -> list[float]:
     """Start time (s) of each reel segment on the output timeline.
 
-    Segments alternate [title, clip, title, clip, …]. With an xfade transition
+    Segments alternate [title, clip, title, clip, ...]. With an xfade transition
     each cut overlaps the previous segment by *trans_dur*, so every segment after
     the first starts *trans_dur* earlier than a plain concat would place it -
     matching the offsets _build_xfade_cmd feeds ffmpeg.

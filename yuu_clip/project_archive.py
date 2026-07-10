@@ -3,7 +3,7 @@
 #   engine (plan_repoint / apply_repoint) that fixes source-media paths that don't
 #   resolve on the target machine.
 #   Siblings: web/routes/backup.py (routes) · config.py (project layout helpers)
-#   Tests: tests/test_backup.py, tests/test_restore.py
+#   Tests: tests/integration/test_backup.py, tests/integration/test_restore.py
 """Portable backup archive for a yuu-clip project.
 
 Backs up the project's own durable state under ``.yuu-clip/`` - ``project.db``,

@@ -1,5 +1,5 @@
 // Infrastructure - PanelNav takeover framework (not a feature module).
-//   Used by: split.js, clipcreate.js, exporteditor.js, namecorrections.js · Tests: tests/test_ui_panelnav.py
+//   Used by: split.js, clipcreate.js, exporteditor.js, namecorrections.js · Tests: tests/ui/test_ui_panelnav.py
 // ── panel navigation framework ────────────────────────────────────────────────
 // Multi-step flows (Split Editor, and future pickers) take over the main
 // detail panel instead of using a modal: shared breadcrumb, shared dirty-state

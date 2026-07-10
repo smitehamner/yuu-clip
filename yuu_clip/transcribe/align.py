@@ -149,11 +149,16 @@ def realign_words(
         valid_chars = set(labels) - {labels[0], separator}
         norm_words = [_normalize_word(word, valid_chars) for word in words]
         if any(norm_word == "" for norm_word in norm_words):
+            log.debug("Word-highlight realign skipped for %r: a word has no alignable characters", text[:40])
             return None
 
         tokens = _build_tokens(norm_words, char_to_index, char_to_index[separator])
         spans, samples_per_frame = _run_alignment(model, audio_path, tokens)
         if len(spans) != len(tokens):
+            log.warning(
+                "Word-highlight realign failed for %r: got %d spans for %d tokens - falling back to static captions",
+                text[:40], len(spans), len(tokens),
+            )
             return None
         return _spans_to_words(words, norm_words, spans, samples_per_frame, start_ms, end_ms)
     except Exception as exc:

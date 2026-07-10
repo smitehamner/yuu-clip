@@ -451,6 +451,13 @@ terms whose context was deleted).
   Settings → Export and override it per export in the Export dialog's collapsible "Caption style"
   group. Empty/default values use the renderer default. Per-speaker colours are always kept.
   Embedded tracks and SRT sidecars are unstyled - players control their rendering.
+- **Word highlight** (burned-in captions only): an optional TikTok / CapCut-style caption mode
+  where only a few words show at a time and the word currently being spoken is tinted in the
+  speaker's colour. Turn it on per export - a **Word highlight** checkbox in the Export dialog
+  with a **Words on screen** count (1–12) - or set it as the default in Settings → Export; the
+  highlight reel has its own matching toggle. Per-word timing comes from the transcript's word
+  timestamps, so a line without them (or an edited caption in a non-English language) falls back
+  to a plain whole-line caption for that line.
 - **Vertical / Shorts export** (`--preset tiktok-9x16`): the built-in "TikTok / Shorts (9:16)" Export preset crops the widescreen recording to a 9:16 column and scales it to 1080×1920. **Vertical framing** - Left / Center / Right buttons plus a fine slider in the Export dialog - chooses which slice of the frame to keep; the choice is saved on the clip and reused for later vertical exports. Sources already narrower than 9:16 are letterboxed rather than cropped. Any custom preset can be made vertical with the "Vertical 9:16" checkbox in Settings → Export.
   - **Auto-frame on faces** (optional): with the MediaPipe package installed (Settings → Export → Vertical framing), the "Auto-frame on faces" button suggests a crop position by finding the median face location across the clip - you still confirm before exporting. Without the package the button points you to the install; manual framing always works.
 - **Edit & export**: the "Edit & export" button on a clip opens a full-panel editor that ties trimming, vertical framing, and caption preview together over a live preview. Drag the trim in/out from the transcript - which shows ~30 seconds of surrounding lines you can extend into - nudge the boundaries ±0.5 s, drag the 9:16 crop box directly over the frame when a vertical preset is chosen, and see a live caption overlay before exporting from the same panel. The caption overlay is a preview approximation. The plain **Export** dialog stays for quick exports.

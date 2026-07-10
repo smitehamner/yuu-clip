@@ -1,6 +1,6 @@
 (function () {
 // Feature-map - Manual clip (code: "manual" tag on ClipCandidate).
-//   API: routes/clips/crud.py (create_manual_clip) · Tests: tests/test_ui_clipcreate.py, tests/test_clip_create.py
+//   API: routes/clips/crud.py (create_manual_clip) · Tests: tests/ui/test_ui_clipcreate.py, tests/integration/test_clip_create.py
 // ── manual clip creation picker ───────────────────────────────────────────────
 // Lets the creator pick an arbitrary time window from a recording's transcript
 // (or, with no transcript, from typed times) and create a clip from it. The

@@ -1,6 +1,6 @@
 (function () {
 // Feature-map - Settings optional-package install controls + remote-LLM badge.
-//   API: routes/analyze.py (install status/POST) · Tests: tests/test_ui_settings.py
+//   API: routes/analyze.py (install status/POST) · Tests: tests/ui/test_ui_settings.py
 // ── optional-package installs ────────────────────────────────────────────────
 // Only two install actions remain (packaging-strategy overhaul, Wave 3): Pyannote
 // (the advanced, token-gated alternative to the default SpeechBrain speaker-labels

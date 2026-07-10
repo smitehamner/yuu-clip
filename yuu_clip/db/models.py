@@ -87,6 +87,7 @@ def make_engine(db_path: Path):
 _ADDITIVE_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("hot_words", "context_slug", "VARCHAR"),
     ("sensitive_terms", "context_slug", "VARCHAR"),
+    ("transcript_segments", "words_json", "TEXT"),
 )
 
 
@@ -120,7 +121,7 @@ class Video(Base):
     width: Mapped[Optional[int]] = mapped_column(Integer)
     height: Mapped[Optional[int]] = mapped_column(Integer)
 
-    # pending → probed → labeled → extracting → transcribing → segmented → done
+    # pending -> probed -> labeled -> extracting -> transcribing -> segmented -> done
     status: Mapped[str] = mapped_column(String, default="pending")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
     processed_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
@@ -366,7 +367,7 @@ class TranscriptSegment(Base):
 class Speaker(Base):
     """A durable, per-recording voice identity that segments are attributed to.
 
-    Diarization assigns raw, run-unstable cluster ids (SPEAKER_00…); this row is
+    Diarization assigns raw, run-unstable cluster ids (SPEAKER_00...); this row is
     the stable thing a creator names. ``voiceprint`` (a serialized embedding
     centroid) lets a re-diarization re-attach the same Speaker so the name is not
     lost. Per-recording scope in v1; cross-recording identity is deferred.
@@ -458,12 +459,12 @@ class ClipCandidate(Base):
     score_dramatic: Mapped[float] = mapped_column(Float, default=0.0)
     score_action: Mapped[float] = mapped_column(Float, default=0.0)
     score_overall_user: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    # Raw, unweighted laugh-density result from LaughScorer (0–1). NULL = laugh
+    # Raw, unweighted laugh-density result from LaughScorer (0-1). NULL = laugh
     # was never computed for this clip (pre-existing clips, or scorer disabled).
     score_laugh: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
 
     reasons_json: Mapped[Optional[str]] = mapped_column(Text)   # JSON list of strings
-    tags_json: Mapped[Optional[str]] = mapped_column(Text)       # JSON list - system tags (llm_error, silence_Ns, …)
+    tags_json: Mapped[Optional[str]] = mapped_column(Text)       # JSON list - system tags (llm_error, silence_Ns, ...)
     user_tags_json: Mapped[Optional[str]] = mapped_column(Text)  # JSON list - user-defined tags
 
     transcript_excerpt: Mapped[Optional[str]] = mapped_column(Text)
@@ -480,7 +481,7 @@ class ClipCandidate(Base):
     # center. A property of the clip's content, reused across vertical exports.
     crop_x: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
 
-    # pending → approved / rejected / trimmed
+    # pending -> approved / rejected / trimmed
     status: Mapped[str] = mapped_column(String, default="pending")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
 

@@ -210,6 +210,40 @@ def test_test_api_propagates_exit_and_passes_extra_args(monkeypatch, tmp_path):
     assert "-k" in calls["cmd"] and "foo" in calls["cmd"]
 
 
+def test_test_ui_propagates_failing_exit_code(monkeypatch, tmp_path):
+    # A wrapper that swallowed the pytest exit code would hide red UI tests. Stub
+    # the live-server preflights + lock so only the exit-code plumbing is exercised.
+    monkeypatch.setattr(tests_mod, "_preflight_processes", lambda: None)
+    monkeypatch.setattr(tests_mod, "_preflight_seed_data", lambda: None)
+    monkeypatch.setattr(tests_mod, "acquire_ui_lock", lambda lock_path: True)
+    monkeypatch.setattr(tests_mod, "UI_LOCK", tmp_path / "test-ui.lock")
+    monkeypatch.setattr(tests_mod, "UI_LOG", tmp_path / "ui.log")
+    monkeypatch.setattr(tests_mod, "UI_SUMMARY", tmp_path / "ui-summary.log")
+    monkeypatch.setattr(
+        tests_mod, "run_and_tee",
+        lambda cmd, cwd, env=None: (4, "============ 1 failed in 0.2s ============\n"),
+    )
+
+    result = runner.invoke(app, ["test-ui", "--smoke"])
+    assert result.exit_code == 4
+
+
+def test_test_ui_releases_lock_even_when_run_fails(monkeypatch, tmp_path):
+    lock = tmp_path / "test-ui.lock"
+    monkeypatch.setattr(tests_mod, "_preflight_processes", lambda: None)
+    monkeypatch.setattr(tests_mod, "_preflight_seed_data", lambda: None)
+    monkeypatch.setattr(tests_mod, "UI_LOCK", lock)
+    monkeypatch.setattr(tests_mod, "UI_LOG", tmp_path / "ui.log")
+    monkeypatch.setattr(tests_mod, "UI_SUMMARY", tmp_path / "ui-summary.log")
+    monkeypatch.setattr(
+        tests_mod, "run_and_tee",
+        lambda cmd, cwd, env=None: (4, "============ 1 failed in 0.2s ============\n"),
+    )
+
+    runner.invoke(app, ["test-ui", "--smoke"])
+    assert not lock.exists()
+
+
 # --- procs: CIM JSON parsing --------------------------------------------
 
 def test_parse_cim_json_handles_empty_single_and_array():

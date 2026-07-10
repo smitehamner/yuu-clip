@@ -1,6 +1,6 @@
 // Feature-map - Pure formatters and score helpers: no DOM, no fetch. HTML-escape, API-error text,
 //   duration/date/offset formatting, video-status labels, and the score color/icon encoding.
-//   API: none (client-only) · Tests: tests/test_ui_utils.py
+//   API: none (client-only) · Tests: tests/ui/test_ui_utils.py
 // ── score utils ───────────────────────────────────────────────────────────────
 (function () {
 function _scoreIcon(score) {

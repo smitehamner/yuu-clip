@@ -170,6 +170,32 @@ class TestUiConfig:
         # Same key set as GET /api/config, so the frontend can revert any field.
         assert set(client.get("/api/config/defaults").json()) == set(client.get("/api/config").json())
 
+    # Remote-AI distribution gate (WS4) - GET reports the EFFECTIVE value
+    # (config field OR YUU_REMOTE_AI env) and the gate is never PATCH-able.
+    def test_get_config_reports_gate_off_by_default(self, client, monkeypatch):
+        monkeypatch.delenv("YUU_REMOTE_AI", raising=False)
+        assert client.get("/api/config").json()["remote_ai_enabled"] is False
+
+    def test_get_config_reports_gate_on_via_env(self, client, monkeypatch):
+        # The env escape hatch flips the effective value the Settings UI reads,
+        # even though the saved config field stays False.
+        monkeypatch.setenv("YUU_REMOTE_AI", "1")
+        assert client.get("/api/config").json()["remote_ai_enabled"] is True
+
+    def test_defaults_reports_effective_gate_not_raw_false(self, client, monkeypatch):
+        # Reset-to-defaults must not flip the gate the browser sees.
+        monkeypatch.setenv("YUU_REMOTE_AI", "1")
+        assert client.get("/api/config/defaults").json()["remote_ai_enabled"] is True
+
+    def test_patch_cannot_flip_the_gate(self, client, monkeypatch):
+        # The gate is a distribution control, never a Settings toggle: a PATCH
+        # trying to enable it is silently ignored, GET still reports off.
+        monkeypatch.delenv("YUU_REMOTE_AI", raising=False)
+        r = client.patch("/api/config", json={"remote_ai_enabled": True})
+        assert r.status_code == 200
+        assert r.json()["remote_ai_enabled"] is False
+        assert client.get("/api/config").json()["remote_ai_enabled"] is False
+
     # AI privacy mode (plan non-llm-tiers/07)
     def test_ai_privacy_mode_defaults_to_local_only(self, client):
         assert client.get("/api/config").json()["ai_privacy_mode"] == "local_only"

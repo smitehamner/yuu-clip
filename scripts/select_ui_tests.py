@@ -63,7 +63,7 @@ def _matches(token: str, test_stem: str) -> bool:
 
 def _map_static(stem: str, test_stems: dict[str, str]) -> set[str]:
     if stem == "app":  # app.css - theme test enforces the token/contrast rules
-        return {"tests/test_ui_theme.py"}
+        return {"tests/ui/test_ui_theme.py"}
     tokens = [t for t in stem.split("-") if t]
     matched = set()
     for test_stem, rel in test_stems.items():

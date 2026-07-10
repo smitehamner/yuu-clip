@@ -1,5 +1,5 @@
 // Feature-map - Project switcher (code: project_dir).
-//   API: routes/projects.py · Tests: tests/test_ui_projects.py
+//   API: routes/projects.py · Tests: tests/ui/test_ui_projects.py
 // ── Project switcher ──────────────────────────────────────────────────────────
 // Header dropdown to switch the server to another project folder in place (no
 // restart). On a successful switch the whole page reloads - AppState is bound to

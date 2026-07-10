@@ -1,6 +1,6 @@
 (function () {
 // Feature-map - Settings panel (all sections; see the per-section banners below).
-//   API: routes/config.py, llm.py, profiles.py, content_presets.py, export_presets.py · Tests: tests/test_ui_settings.py
+//   API: routes/config.py, llm.py, profiles.py, content_presets.py, export_presets.py · Tests: tests/ui/test_ui_settings.py
 // ── settings panel ────────────────────────────────────────────────────────────
 const _settingsFieldIds = [
   's-whisper-model','s-whisper-device','s-whisper-compute','s-whisper-language',

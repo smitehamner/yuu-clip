@@ -12,7 +12,7 @@ Built-in only - no user-defined content presets in v1. Pattern mirrors
 export_presets.py / model_catalog.py: frozen dataclasses, a static tuple, and small
 unit-testable lookup helpers. The "generic" preset is exactly today's default
 behavior - empty flavor plus the shipped Config() default weights - so selecting it
-is a true no-op (asserted against Config() in tests/test_content_presets.py).
+is a true no-op (asserted against Config() in tests/integration/test_content_presets.py).
 """
 from __future__ import annotations
 

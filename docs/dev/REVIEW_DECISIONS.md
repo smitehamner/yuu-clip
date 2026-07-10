@@ -7,6 +7,165 @@ same thing without the context. Most recent first.
 
 ---
 
+## Phase 7 UX/UI (dedup, word-highlight captions, colour picker, context-scoped terms) (2026-07-10)
+
+UX/UI phase of the code-quality review over the changes since baseline `16a30fa`.
+Applied: added an accessible name (`aria-label="Colour picker"`) to the colour-picker
+popover (`role="dialog"` had no name); fixed a lone curly apostrophe in `hotwords.js`
+(the same file uses straight apostrophes elsewhere); added an in-flight disabled
+"Checking..." state to the "Check duplicates" button (`clips.js scanDuplicates`) so the
+scan has visible feedback. The following were reviewed and deliberately left as-is:
+
+### Export dialog word-highlight controls are always editable (not hidden when captions != burn-in)
+Decision: Keep as-is.
+Rationale: In the export dialog, Word highlight + Words-on-screen live inside the "Caption
+style" `<details>`, whose header already states "Applies to burned-in captions only" -
+the same rule that governs the Font/Size/Position controls beside them, which are also
+always editable and only take effect on burn-in. The reel modal instead *hides* its
+word-highlight row until burn-in is chosen; that is a different but internally-consistent
+pattern for a smaller control set. Forcing the export dialog to disable only word-highlight
+(while leaving Font/Size/Position editable) would break the section's own internal
+consistency for no real gain, since the section note already scopes all of them. Revisit
+only if the whole Caption-style section is reworked to gate on the caption mode.
+
+### "Settings -> LLM scoring" and other browser-DOM arrow glyphs kept as U+2192
+Decision: Keep the arrow glyph.
+Rationale: The right-arrow (U+2192) appears ~30 times across the served `.js`/`.html`, an
+established browser-DOM typographic convention (same basis as the 2026-07-09 ellipsis
+decision and the Phase 6 `llm.py` arrow decision). Browser markup renders as UTF-8, so there
+is no cp1252 console risk. Only the lone curly *apostrophe* outlier was ASCII-fixed; the
+arrows were left to match convention.
+
+### Merge (dedup) confirmation is sufficient; no undo
+Decision: Keep as-is.
+Rationale: The merge action deletes clip B and is irreversible, but it is already gated by a
+`showConfirm(..., danger=true)` whose body plainly states "The merged clip will span both time
+ranges. This cannot be undone.", the confirm defaults focus to Cancel, and the destructive
+button is red (`btn danger`). That is proportional confirmation for a single-user tool; a full
+undo stack for merges is a feature, not a review fix.
+
+---
+
+## Phase 6 docs and comments (2026-07-10)
+
+Docs-and-comments phase of the code-quality review over the changes since baseline
+`16a30fa`. Applied: ASCII-fied non-ASCII glyphs in Python **comments/docstrings/console
+strings** (the `db/models.py` status-flow arrows and other inline `->`/`...`/`-` fixes;
+`subtitles.py` and `common.py` docstring arrows; `reel.py` two `print()` and one
+`_log.info` strings that carried U+2026/U+2192 - a real cp1252 console-crash risk;
+`config.py` en-dash comment). Fixed the stale `pytest.ini` markers paragraph in CLAUDE.md
+(it claimed `integration`/`ui`/`environment` markers were registered - P4 removed them, only
+`live_remote` remains; tiers are split by directory). Fixed the stale flat test paths in the
+Feature-map headers of the five in-scope route files (`config`, `dedup`, `hotwords`, `llm`,
+`sensitive`) to the new `tests/{unit,integration,ui}/` locations. Added a **Duplicate Clips**
+glossary entry (the new clip-dedup concept was undefined) and a **Word highlight** captions
+bullet to `docs/user/FEATURES.md` (the feature shipped this window but was undocumented for
+users). The following were reviewed and deliberately left as-is:
+
+### Feature-map header `·` separators and `→` arrows, and `# ── … ──` section dividers
+Decision: Keep the non-ASCII glyphs.
+Rationale: These are an established, codebase-wide typographic convention - the `·`/`→`
+Feature-map header comments appear in 21 route files, and the box-drawing `──` section
+dividers in 8+ modules. They live only in comments (never reach the cp1252 console), so
+there is no crash risk. Sweeping only the files touched this window would desync them from
+the ~15 untouched files for no correctness gain - the same reasoning as the kept browser-DOM
+`…` (see the 2026-07-09 ellipsis decision). Only the *stale test paths inside* the in-scope
+headers were corrected; the glyphs were left intact.
+
+### `web/routes/llm.py` "Settings → LLM scoring" error-detail strings
+Decision: Keep the `→` arrows.
+Rationale: These `HTTPException(detail=...)` strings pre-date baseline `16a30fa` (7 present at
+baseline) and render in browser toasts as UTF-8, not on the console - browser-rendered non-ASCII
+is explicitly allowed (2026-07-09 ellipsis decision). They are not console/log-bound (no handler
+logs the detail), so no cp1252 risk. Out of this window's changed-behavior scope.
+
+### `reel.py` title-card text (`… ` truncation marker, `·` separator) and `contexts.py` "Pokemon"
+Decision: Keep as-is.
+Rationale: The `reel.py:77` ellipsis and `reel.py:123` middle-dot are *rendered into the video
+title card* (ffmpeg drawtext data), not console output - changing them changes on-screen output,
+not a comment. `contexts.py`'s "Pokemon" (with the accented e) is proper-noun content inside an
+LLM prompt string, correct as spelled; it is data, not a comment.
+
+### Markdown docs (`CLAUDE.md`, `FEATURES.md`, `GLOSSARY.md`) arrows/en-dashes
+Decision: Keep, and match the convention when adding.
+Rationale: These are rendered-as-UTF-8 docs, not console output; they use `→`, `–`, `…`
+consistently throughout. New copy added this window (the Word highlight bullet) matches the
+file's existing arrow style rather than fighting it. The cp1252 rule targets console/log
+strings, not rendered markup.
+
+### FLAGGED (follow-up, not fixed here)
+The Feature-map header comments in the **other 16 route files** (`analyze`, `backup`,
+`content_presets`, `contexts`, `export_presets`, `imports`, `name_corrections`, `profiles`,
+`projects`, `reel`, `reveal`, `scoring`, `sessions`, `sounds`, `speakers`, `videos`) still cite
+the old flat `tests/test_*.py` paths after this window's `tests/{unit,integration,ui}/` split.
+Same mechanical fix as the five corrected here, but beyond this phase's changed-source scope -
+best done as one sweep with each file's two test paths resolved to its tier.
+
+---
+
+## Phase 5 logging (align / dedup / term_scope / captions) (2026-07-10)
+
+Logging-coverage phase of the code-quality review over the changes since baseline
+`16a30fa`. Added: two silent-fallback logs in `transcribe/align.py` `realign_words`
+(a word with no model-alignable characters -> `debug`; a span/token count mismatch
+-> `warning`), so a caption edit silently losing word-highlighting is diagnosable
+from `.yuu-clip/yuu-clip.log` (root logger runs at DEBUG-to-file). Cleanup: replaced
+9 mojibake em-dashes (a UTF-8 em-dash, bytes E2 80 94, re-decoded as cp1252)
+in `export/render.py` with spaced hyphens - three are `console.print` strings that
+stream over SSE and render as garbage. The following were reviewed and left as-is:
+
+### `scoring/term_scope.py` `terms_for_video` silently drops orphaned-slug terms
+Decision: Keep silent (no log).
+Rationale: A term scoped to a deleted world context is filtered out with no log. But
+`terms_for_video` is called once per clip inside the full-project rescan loop
+(`sensitive.py` `_rescan_all_clips`, and the per-video rescans), so any log there is
+per-iteration spam. Orphaned terms only arise after a context is deleted (creation is
+guarded by `validate_context_slug`); if that tolerance ever needs to be observable,
+the place to surface it is context-deletion time or a one-shot integrity check, not
+this hot filter. `video_context_ids`'s malformed-JSON `except` is likewise a
+tolerant-by-design normalize, not an error path.
+
+### `align.py` non-English / empty-text gates are silent by design
+Decision: Keep silent.
+Rationale: The `_is_english` gate and the empty-`words` guard are expected normal
+paths (a non-English segment, or text the caller already rejected as empty), not
+failures - logging them would be noise on every edit. The genuine failure paths
+(missing source, ffmpeg-extract failure, alignment exception, and now the two added
+above) all log with the segment id or a bounded `text[:40]` preview.
+
+---
+
+## Phase 4 refactor (context_slug + dedup + dev CLI review) (2026-07-10)
+
+Refactor phase of the code-quality review over the changes since baseline
+`16a30fa` (dev CLI, term_scope/dedup, align/subtitles, colorpicker, context_slug
+plumbing). Applied: shared `normalize_context_slug` / `validate_context_slug` in
+`web/routes/common.py` (was duplicated in `hotwords.py` + `sensitive.py`); merge
+buttons in `clips.js` moved from inline `onclick` to `#detail` event delegation;
+removed the three never-applied pytest markers (`integration`/`ui`/`environment`).
+The following were reviewed and deliberately left as-is:
+
+### `clips.js` `_duplicatePartners` recomputes overlap as `end_ms - start_ms`
+Decision: Keep as-is (client recompute).
+Rationale: The server's `dedup._overlap_ratio` divides by `clip.duration_ms`, but
+`ClipCandidate.duration_ms` (`db/models.py`) is a *computed property* returning
+`end_ms - start_ms`, not a stored column - so the client's `end_ms - start_ms` and
+the server's `duration_ms` are the same expression and cannot diverge. There is no
+correctness gap to close; adding `duration_ms` to the serializer just to have the
+client echo a server field would be churn. Revisit only if `duration_ms` ever
+becomes an independently-stored column.
+
+### `dev/` CLI, `transcribe/align.py`, `subtitles.py`, `colorpicker.js`, `config.py` rules table
+Decision: Keep as-is (already well-decomposed).
+Rationale: All reviewed for the phase's hard rules (function length, one concern,
+naming, no hardcoded colours, DB-session hygiene). Each is already cohesive with
+short single-concern functions and shared helpers in the right place (`dev/_base.py`,
+`dev/_summary.py`, `common.py`); `config.py`'s validator rules-table and
+`colorpicker.js`'s decomposition are clear. No high-value structural change found -
+further edits would be cosmetic churn.
+
+---
+
 ## "Current transcript" selection keyed on created_at, not id (2026-07-09)
 
 Phase B (whole-codebase refactor) of the code-quality review unified the ~7 sites
