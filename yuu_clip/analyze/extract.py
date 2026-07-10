@@ -76,13 +76,17 @@ class CaptionStyle:
 def _subtitles_filter(subtitle_path: Path, style: Optional[CaptionStyle] = None) -> str:
     """Build the `subtitles=` burn-in filter fragment, with optional force_style.
 
-    FFmpeg filtergraph uses ':' as option separator; Windows drive-letter colons
-    (C:/) must be escaped as C\\:/ within the filter string. The force_style value
-    is wrapped in single quotes so its own commas are not parsed as filter
-    separators (font names with commas are rejected upstream by validation).
+    FFmpeg filtergraph uses ':' as option separator, so a Windows drive-letter colon
+    (C:/) is escaped as C\\:/ AND the whole path is wrapped in single quotes. The
+    escaping alone is not enough on the bundled ffmpeg build: an unquoted C\\:/... is
+    still split at the drive colon, treating the rest of the path as the filter's
+    `original_size` option ("Unable to parse ... as image size") - which broke every
+    burned-in caption on Windows. Quoting the path fixes it. The force_style value is
+    likewise single-quoted so its own commas are not parsed as filter separators
+    (font names with commas are rejected upstream by validation).
     """
     escaped = subtitle_path.as_posix().replace(":", "\\:")
-    base = f"subtitles={escaped}"
+    base = f"subtitles='{escaped}'"
     force = style.force_style() if style is not None else None
     if force is None:
         return base
