@@ -22,19 +22,23 @@ if ($Version -ne "") {
         exit 1
     }
     $pyprojectPath = "$root\pyproject.toml"
-    $packagePath   = "$root\electron\package.json"
 
     $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
 
     $newPyproject = (Get-Content $pyprojectPath -Raw) -replace '(?m)^version\s*=\s*"[^"]+"', "version = `"$Version`""
     [System.IO.File]::WriteAllText($pyprojectPath, $newPyproject, $utf8NoBom)
 
-    $newPackage = (Get-Content $packagePath -Raw) -replace '"version"\s*:\s*"[^"]+"', "`"version`": `"$Version`""
-    [System.IO.File]::WriteAllText($packagePath, $newPackage, $utf8NoBom)
+    # Update package.json AND package-lock.json together via npm, so both version
+    # fields in the lock (root + packages."") match. Editing only package.json
+    # leaves the lock stale, and the build's own npm step later re-syncs it -
+    # leaving package-lock.json dirty in the working tree after every release.
+    Push-Location "$root\electron"
+    npm version $Version --no-git-tag-version --allow-same-version | Out-Null
+    Pop-Location
 
-    Write-Host "Version bumped to $Version in pyproject.toml and electron/package.json"
+    Write-Host "Version bumped to $Version in pyproject.toml, electron/package.json, and electron/package-lock.json"
 
-    git -C $root add pyproject.toml electron/package.json
+    git -C $root add pyproject.toml electron/package.json electron/package-lock.json
     git -C $root commit -m "Bump version to $Version"
     Write-Host "Committed version bump."
 }
