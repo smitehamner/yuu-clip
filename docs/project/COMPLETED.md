@@ -6,6 +6,27 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) - see the
 
 ---
 
+## JS module-scoping refactor finished (done 2026-07-10)
+
+Closed out the last of the frontend module-scoping work: every `web/static/*.js`
+module is now IIFE-wrapped so it leaks nothing to the global scope beyond its
+explicit exports.
+
+- **`analyze.js` and `split.js`** - the two modules deferred at the 2026-06-29
+  partial pass - are IIFE-wrapped with an `Object.assign(window, {…})` export list.
+  Former top-level constants (`TRACK_LABELS`, `TRACK_LABEL_DISPLAY`,
+  `DROP_VIDEO_EXTENSIONS`, the import-progress regexes, the split zoom/suggestion
+  constants) are now closure-private.
+- **Documented outside-IIFE bindings only:** cross-file live state stays at top
+  level on purpose - `analyze.js` keeps `_probedInfo`/`_panelDirty`; `split.js`
+  keeps `_splitDurationS`/`_splitPoints`/`_splitNames`/`_splitIgnored`/`_splitZoom`
+  plus the test-seeded `_splitEnergyFlat`/`_suggestionPins`. Each carries a comment
+  explaining why an `Object.assign` export would snapshot a stale value.
+- Modules that export via a namespace (`colorpicker.js` -> `window.ColorPicker`) or
+  register only listeners (`shortcuts.js`, no exports) were confirmed leak-free too.
+- The "extract inline `display`-toggling style strings to CSS classes" half stays
+  rejected (would change JS/CSS override behavior) and was left untouched.
+
 ## Custom colour picker + accent-colour theme variants (done 2026-07-09)
 
 Replaced the native `<input type="color">` at all three colour sites with a

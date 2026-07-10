@@ -134,14 +134,6 @@ Wanted before distributing beyond friends/trusted users.
 
 ## 4 - Frontend polish
 
-- [ ] **Finish the JS module-scoping refactor** *(partially done 2026-06-29)* - shared mutable
-  state is encapsulated in `AppState` and five feature modules are IIFE-scoped. **Remaining:**
-  module-scope the deferred `analyze`/`split` modules and their global constants. The
-  "extract inline `display`-toggling style strings to CSS classes" half was reviewed and
-  rejected (`REVIEW_DECISIONS.md` 2026-06-29 - would change JS/CSS override behavior) - not
-  part of the remaining work. Plan (staged, ready to implement, per-variable design decision
-  already made): (internal planning notes).
-
 - [ ] **Sidebar grouping for split segments** - a collapsible parent row
   "session.mkv (3 segments)" with indented children, as an alternative to the flat list.
   Deferred until the flat list proves insufficient in practice.
