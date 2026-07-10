@@ -17,8 +17,13 @@
 // `python -m pip` - pip.exe cannot replace itself on Windows (it exits 1 with
 // "To modify pip, please run python -m pip", observed 2026-07-05) - and pull from the
 // wheelhouse, never PyPI.
+//
+// --no-compile: skip .pyc byte-compilation at install time. On a fresh install this
+// was ~11 of the ~12 minutes (single-threaded pyc gen over torch/transformers/etc.).
+// Python recompiles each module lazily on first import, so the cost is spread across
+// normal use instead of blocking first launch (measured 2026-07-10).
 function buildWheelInstallArgs(wheelPath, lockPath = null, wheelhouseDir = null) {
-  const args = ['install', '--force-reinstall', '--progress-bar', 'raw'];
+  const args = ['install', '--force-reinstall', '--no-compile', '--progress-bar', 'raw'];
   if (wheelhouseDir) args.push('--no-index', '--find-links', wheelhouseDir);
   if (lockPath) args.push('-c', lockPath);
   args.push(wheelPath);
@@ -34,7 +39,7 @@ function buildWheelInstallArgs(wheelPath, lockPath = null, wheelhouseDir = null)
 // survives on disk and satisfies both packages. -c requirements.lock keeps it on
 // the same version we pinned; the wheelhouse makes this offline-safe too.
 function buildOpencvDedupeArgs(lockPath = null, wheelhouseDir = null) {
-  const args = ['install', '--force-reinstall', '--no-deps', '--progress-bar', 'raw'];
+  const args = ['install', '--force-reinstall', '--no-deps', '--no-compile', '--progress-bar', 'raw'];
   if (wheelhouseDir) args.push('--no-index', '--find-links', wheelhouseDir);
   if (lockPath) args.push('-c', lockPath);
   args.push('opencv-contrib-python');

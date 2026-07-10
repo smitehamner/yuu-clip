@@ -7,7 +7,7 @@ const { buildWheelInstallArgs, buildOpencvDedupeArgs } = require('../venv-setup'
 test('wheel install constrains to the lock when a lock path is given', () => {
   const args = buildWheelInstallArgs('C:\\r\\yuu_clip-0.1.15-py3-none-any.whl', 'C:\\r\\requirements.lock');
   assert.deepEqual(args, [
-    'install', '--force-reinstall', '--progress-bar', 'raw',
+    'install', '--force-reinstall', '--no-compile', '--progress-bar', 'raw',
     '-c', 'C:\\r\\requirements.lock',
     'C:\\r\\yuu_clip-0.1.15-py3-none-any.whl',
   ]);
@@ -26,7 +26,7 @@ test('wheelhouse dir installs offline via --no-index --find-links', () => {
     'C:\\r\\wheelhouse',
   );
   assert.deepEqual(args, [
-    'install', '--force-reinstall', '--progress-bar', 'raw',
+    'install', '--force-reinstall', '--no-compile', '--progress-bar', 'raw',
     '--no-index', '--find-links', 'C:\\r\\wheelhouse',
     '-c', 'C:\\r\\requirements.lock',
     'C:\\r\\yuu_clip-0.1.15-py3-none-any.whl',
@@ -46,7 +46,7 @@ test('no wheelhouse dir means no --no-index (online fallback for dev builds)', (
 test('opencv dedupe reinstalls the contrib superset last with --no-deps, offline', () => {
   const args = buildOpencvDedupeArgs('C:\\r\\requirements.lock', 'C:\\r\\wheelhouse');
   assert.deepEqual(args, [
-    'install', '--force-reinstall', '--no-deps', '--progress-bar', 'raw',
+    'install', '--force-reinstall', '--no-deps', '--no-compile', '--progress-bar', 'raw',
     '--no-index', '--find-links', 'C:\\r\\wheelhouse',
     '-c', 'C:\\r\\requirements.lock',
     'opencv-contrib-python',
