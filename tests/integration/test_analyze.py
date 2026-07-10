@@ -929,15 +929,58 @@ class TestTerminateProcessTree:
         assert "/T" in argv and str(proc.pid) in argv
         assert not proc.terminated  # tree-kill used, not the plain signal
 
-    def test_posix_falls_back_to_terminate(self):
+    def test_posix_kills_process_group_when_child_leads_it(self):
         from unittest.mock import patch
 
         from yuu_clip.web import sse
 
         proc = self._FakeProc()
-        with patch.object(sse.sys, "platform", "linux"):
+        with patch.object(sse.sys, "platform", "linux"), \
+             patch.object(sse.os, "getpgid", return_value=proc.pid, create=True) as getpgid, \
+             patch.object(sse.os, "killpg", create=True) as killpg:
+            sse.terminate_process_tree(proc)
+
+        getpgid.assert_called_once_with(proc.pid)
+        killpg.assert_called_once_with(proc.pid, sse.signal.SIGTERM)
+        assert not proc.terminated  # group-kill used, not the plain signal
+
+    def test_posix_falls_back_to_terminate_when_not_group_leader(self):
+        # A proc launched without start_new_session shares the server's group
+        # (pgid != pid); killpg must NOT fire against that group - fall back to
+        # signalling only the direct child.
+        from unittest.mock import patch
+
+        from yuu_clip.web import sse
+
+        proc = self._FakeProc()
+        with patch.object(sse.sys, "platform", "linux"), \
+             patch.object(sse.os, "getpgid", return_value=proc.pid + 1, create=True), \
+             patch.object(sse.os, "killpg", create=True) as killpg:
+            sse.terminate_process_tree(proc)
+
+        killpg.assert_not_called()
+        assert proc.terminated
+
+    def test_posix_falls_back_to_terminate_when_getpgid_fails(self):
+        from unittest.mock import patch
+
+        from yuu_clip.web import sse
+
+        proc = self._FakeProc()
+        with patch.object(sse.sys, "platform", "linux"), \
+             patch.object(sse.os, "getpgid", side_effect=ProcessLookupError, create=True):
             sse.terminate_process_tree(proc)
         assert proc.terminated
+
+    def test_new_session_kwargs_by_platform(self):
+        from unittest.mock import patch
+
+        from yuu_clip.web import sse
+
+        with patch.object(sse.sys, "platform", "win32"):
+            assert sse.new_session_kwargs() == {}
+        with patch.object(sse.sys, "platform", "linux"):
+            assert sse.new_session_kwargs() == {"start_new_session": True}
 
     def test_noop_when_already_exited(self):
         from unittest.mock import patch

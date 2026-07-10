@@ -16,6 +16,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
+import signal
 import subprocess
 import sys
 from pathlib import Path
@@ -29,17 +31,30 @@ _log = get_logger(__name__)
 _SSE_DONE_SENTINEL = "__DONE__"
 
 
+def new_session_kwargs() -> dict:
+    """Launch kwargs that isolate a subprocess so its whole tree can be killed.
+
+    The analyze CLI shells out to ffmpeg/ffprobe grandchildren; a bare
+    ``terminate()`` reaches only the direct child. On POSIX ``start_new_session``
+    makes the child a process-group leader (pgid == pid), which
+    ``terminate_process_tree`` relies on to ``killpg`` the whole group. On Windows
+    the tree is walked by pid via ``taskkill /T``, so no launch-time flag is
+    needed. Every subprocess launch whose proc is later passed to
+    ``terminate_process_tree`` must splat this in.
+    """
+    return {} if sys.platform == "win32" else {"start_new_session": True}
+
+
 def terminate_process_tree(proc) -> None:
     """Terminate *proc* and every descendant it spawned.
 
     The analyze CLI subprocess shells out to ffmpeg/ffprobe children. A plain
-    ``proc.terminate()`` signals only the direct child, so on Windows an
-    in-flight ffmpeg grandchild is orphaned and keeps running after a cancel.
-    ``taskkill /T`` kills the whole tree. Callers still ``await proc.wait()``
-    afterwards to reap the child.
-
-    POSIX keeps the existing best-effort ``terminate()`` (the desktop tool is
-    Windows-only; group-killing there would need start_new_session at launch).
+    ``proc.terminate()`` signals only the direct child, so an in-flight ffmpeg
+    grandchild is orphaned and keeps running after a cancel. On Windows
+    ``taskkill /T`` kills the whole tree by pid. On POSIX the child is launched
+    with ``start_new_session=True`` (see ``new_session_kwargs``) so it leads its
+    own process group, and we signal the whole group with ``killpg``. Callers
+    still ``await proc.wait()`` afterwards to reap the child.
     """
     if proc is None or proc.returncode is not None:
         return
@@ -52,6 +67,16 @@ def terminate_process_tree(proc) -> None:
             return
         except Exception as exc:
             _log.warning("taskkill failed for pid %s (%s) - falling back to terminate()", proc.pid, exc)
+    else:
+        # Only killpg when the child actually leads its own group (pgid == pid).
+        # A proc launched without start_new_session shares the server's group, so
+        # this guard makes it impossible to ever signal the server's own group.
+        try:
+            if os.getpgid(proc.pid) == proc.pid:
+                os.killpg(proc.pid, signal.SIGTERM)
+                return
+        except OSError as exc:
+            _log.debug("killpg failed for pid %s (%s) - falling back to terminate()", proc.pid, exc)
     proc.terminate()
 
 
@@ -100,6 +125,7 @@ async def subprocess_sse(
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.STDOUT,
                 cwd=str(cwd),
+                **new_session_kwargs(),
             )
             assert proc.stdout
             _log.info("Subprocess started (pid %s): %s", proc.pid, cmd[3] if len(cmd) > 3 else cmd[0])

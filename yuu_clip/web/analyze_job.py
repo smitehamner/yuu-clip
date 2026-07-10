@@ -21,7 +21,7 @@ from typing import AsyncGenerator, Optional
 from fastapi.responses import StreamingResponse
 
 from yuu_clip.log import get_logger
-from yuu_clip.web.sse import _SSE_DONE_SENTINEL, terminate_process_tree
+from yuu_clip.web.sse import _SSE_DONE_SENTINEL, new_session_kwargs, terminate_process_tree
 
 _log = get_logger(__name__)
 
@@ -73,6 +73,7 @@ class AnalyzeJob:
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
             cwd=str(self.cwd),
+            **new_session_kwargs(),
         )
         _log.info("Analyze subprocess started (pid %s): %s", self.proc.pid, self.filename or self.cmd)
         self._pump_task = asyncio.create_task(self._pump())
