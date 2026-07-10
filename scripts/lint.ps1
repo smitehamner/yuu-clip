@@ -1,10 +1,6 @@
-$ErrorActionPreference = "Stop"
+# Thin shim: logic now lives in the yuu_clip.dev Python CLI (yuu-dev lint).
+# Args (e.g. --fix) pass straight through to ruff.
 $RepoRoot = Split-Path -Parent $PSScriptRoot
-$Ruff     = Join-Path $RepoRoot ".venv\Scripts\ruff.exe"
-
-Push-Location $RepoRoot
-try {
-    & $Ruff check yuu_clip tests @args
-} finally {
-    Pop-Location
-}
+$Python   = Join-Path $RepoRoot ".venv\Scripts\python.exe"
+& $Python -m yuu_clip.dev lint @args
+exit $LASTEXITCODE

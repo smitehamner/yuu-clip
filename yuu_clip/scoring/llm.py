@@ -34,6 +34,12 @@ _REMOTE_BLOCKED_REASON = (
     "The remote (Claude) backend is blocked by AI privacy mode - switch to a local model "
     "or allow remote models under Settings → AI privacy"
 )
+# WS4: the remote backend is gated off entirely in shipped builds (remote_ai_allowed).
+# This reason surfaces when a saved backend=claude config runs under a flag-off build.
+_REMOTE_DISABLED_REASON = (
+    "Remote AI (the Claude backend) is turned off in this build of yuu-clip - "
+    "switch to a local model under Settings → LLM scoring"
+)
 
 
 def _prepend_context(system_prompt: str, context_text: str) -> str:
@@ -385,6 +391,9 @@ def check_vision_available(config: "Config") -> tuple[bool, str]:
         return False, "Image analysis is turned off - enable it under Settings → LLM scoring"
     backend = config.llm_backend
     if backend == "claude":
+        from yuu_clip.config import remote_ai_allowed
+        if not remote_ai_allowed(config):
+            return False, _REMOTE_DISABLED_REASON
         if not permissions.allow_remote:
             return False, _REMOTE_BLOCKED_REASON
         ok = bool(config.claude_api_key)
@@ -447,8 +456,12 @@ def check_llm_available(config: "Config") -> tuple[bool, str]:
     permissions = resolve_ai_permissions(config)
     if not permissions.allow_llm:
         return False, _GENERATIVE_OFF_REASON
-    if backend_is_remote(config) and not permissions.allow_remote:
-        return False, _REMOTE_BLOCKED_REASON
+    if backend_is_remote(config):
+        from yuu_clip.config import remote_ai_allowed
+        if not remote_ai_allowed(config):
+            return False, _REMOTE_DISABLED_REASON
+        if not permissions.allow_remote:
+            return False, _REMOTE_BLOCKED_REASON
     return make_client(config).available()
 
 

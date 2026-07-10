@@ -19,6 +19,60 @@ async function ensureContexts() {
   await _loadContexts();
 }
 
+// ── shared term-scope helpers (hot-words + sensitive terms) ───────────────────
+// Both Settings lists let an entry be Global or scoped to a world context. These
+// two helpers build the per-row "Applies to" <select> and the grouped rendering,
+// so hotwords.js and sensitive.js stay identical on scoping without duplicating it.
+function _termContextName(slug) {
+  const ctx = (AppState.contexts || []).find(c => c.context_id === slug);
+  return ctx ? (ctx.display_name || ctx.context_id) : null;
+}
+
+// Options: Global first, then every known context by display name. A slug that no
+// longer names a live context (its context was deleted) keeps a "(removed)" option
+// so the orphaned entry still shows its scope rather than silently reading Global.
+function _termContextOptions(selectedSlug) {
+  const slug = selectedSlug || '';
+  let html = `<option value=""${slug === '' ? ' selected' : ''}>Global (all recordings)</option>`;
+  const known = new Set();
+  for (const c of (AppState.contexts || [])) {
+    known.add(c.context_id);
+    html += `<option value="${escHtml(c.context_id)}"${slug === c.context_id ? ' selected' : ''}>`
+          + `${escHtml(c.display_name || c.context_id)}</option>`;
+  }
+  if (slug && !known.has(slug)) {
+    html += `<option value="${escHtml(slug)}" selected>${escHtml(slug)} (removed)</option>`;
+  }
+  return html;
+}
+
+// Group terms under a "Global (all recordings)" heading, one heading per context
+// that has entries (in the context list's order), then a "Removed context" group
+// for orphaned entries. rowHtmlFn renders a single term row.
+function _renderTermGroups(terms, rowHtmlFn) {
+  const buckets = new Map();
+  for (const term of terms) {
+    const key = term.context_slug || '';
+    if (!buckets.has(key)) buckets.set(key, []);
+    buckets.get(key).push(term);
+  }
+  const order = [''];
+  for (const c of (AppState.contexts || [])) if (buckets.has(c.context_id)) order.push(c.context_id);
+  for (const key of buckets.keys()) {
+    if (key && !order.includes(key)) order.push(key);
+  }
+  let html = '';
+  for (const key of order) {
+    const rows = buckets.get(key);
+    if (!rows) continue;
+    const label = key === '' ? 'Global (all recordings)' : (_termContextName(key) || `${key} (removed)`);
+    html += `<div style="font-size:11px;font-weight:600;color:var(--muted);margin:10px 0 2px;`
+          + `text-transform:uppercase;letter-spacing:.04em">${escHtml(label)}</div>`;
+    html += rows.map(rowHtmlFn).join('');
+  }
+  return html;
+}
+
 let _contextEditorDirty = false;
 let _contextModalOpener = null;
 // True once the user types in the Context ID field directly - from then on the
@@ -628,6 +682,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // test. Internal helpers above stay private to this module's closure.
 Object.assign(window, {
   _loadContexts, ensureContexts, _parseWeight,
+  _termContextOptions, _renderTermGroups,
   openContextManager, closeContextManager, openNewContext,
   saveContext, deleteContext, cancelContextEdit,
   duplicateContext, resetContextToTemplate, _deriveContextId,

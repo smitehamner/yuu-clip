@@ -218,6 +218,10 @@ function _applyLlmFields(cfg) {
   _setClaudeModelValue(cfg.claude_model || 'claude-haiku-4-5-20251001');
   _setFieldVal('s-claude-timeout', cfg.claude_timeout_s ?? 30);
   _setFieldVal('s-similarity-backend', cfg.similarity_backend || 'embeddings');
+  // Distribution gate (WS4): read-only, set from /api/config. When off, the remote
+  // (Claude) backend and the remote privacy mode are hidden entirely (see
+  // _onPrivacyModeChange). Must be set BEFORE _setPrivacyMode re-evaluates visibility.
+  window._remoteAiEnabled = cfg.remote_ai_enabled === true;
   // After the backend + similarity selects are populated: applies the privacy mode,
   // which re-evaluates backend visibility, the remote badge, and option filtering.
   _setPrivacyMode(cfg.ai_privacy_mode || 'local_only');
@@ -411,7 +415,8 @@ function _onLlmEnabledChange(enabled) {
 function _onLlmBackendChange(backend) {
   const mode = _currentPrivacyMode();
   const isClaude      = backend === 'claude';
-  const remoteAllowed = mode === 'remote_ok';
+  // The remote path is usable only when the build gate is on AND privacy allows it.
+  const remoteAllowed = mode === 'remote_ok' && window._remoteAiEnabled === true;
   // The local-model picker (cards) lives in the main flow; #s-llamacpp-fields (GPU +
   // manual paths) lives under Advanced. Both are llamacpp-only, so toggle together.
   const pickerEl   = document.getElementById('s-llamacpp-picker');
@@ -446,8 +451,14 @@ function _onPrivacyModeChange(mode) {
   const noneSummary = document.getElementById('s-privacy-none-summary');
   if (genBlock)    genBlock.style.display    = generativeOff ? 'none' : '';
   if (noneSummary) noneSummary.style.display = generativeOff ? '' : 'none';
+  // WS4 distribution gate: with remote AI off, hide the remote privacy option and the
+  // Claude backend entirely - a shipped build must not surface the remote path at all.
+  const remoteAi = window._remoteAiEnabled === true;
+  const remoteRadioLabel = document
+    .querySelector('input[name="s-ai-privacy"][value="remote_ok"]')?.closest('label');
+  if (remoteRadioLabel) remoteRadioLabel.style.display = remoteAi ? '' : 'none';
   const claudeOption = document.querySelector('#s-llm-backend option[value="claude"]');
-  if (claudeOption) claudeOption.hidden = claudeOption.disabled = mode !== 'remote_ok';
+  if (claudeOption) claudeOption.hidden = claudeOption.disabled = !remoteAi || mode !== 'remote_ok';
   const simLlmOption = document.querySelector('#s-similarity-backend option[value="llm"]');
   if (simLlmOption) simLlmOption.hidden = simLlmOption.disabled = generativeOff;
   const backend = document.getElementById('s-llm-backend')?.value || 'llamacpp';

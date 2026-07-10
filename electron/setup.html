@@ -437,6 +437,9 @@ let status  = null;
 let installing = { 'cuda-libs': false };
 let downloadingGguf = false;
 let defaultsApplied = false;
+// WS4 distribution gate: set from setup:get-status. When false, the remote (Claude)
+// backend and the remote privacy option are hidden entirely (see onPrivacyModeChange).
+let remoteAiEnabled = false;
 
 // ── helpers ────────────────────────────────────────────────────────────────
 
@@ -598,8 +601,16 @@ function applyDefaults(s) {
     named.map(o => `<option value="${esc(o.code)}">${esc(o.name)}</option>`).join('');
   langSel.value = WHISPER_LANGUAGES.includes(s.whisperLanguage) ? s.whisperLanguage : '';
 
-  document.getElementById('ai-privacy-sel').value = s.aiPrivacyMode || 'local_only';
-  document.getElementById('llm-backend-sel').value = s.llmBackend;
+  // WS4 gate: hide the remote privacy option in shipped builds, and never leave the
+  // select pointed at a hidden option (a saved remote_ok falls back to local_only).
+  remoteAiEnabled = s.remoteAiEnabled === true;
+  const remotePrivacyOpt = document.querySelector('#ai-privacy-sel option[value="remote_ok"]');
+  if (remotePrivacyOpt) remotePrivacyOpt.hidden = remotePrivacyOpt.disabled = !remoteAiEnabled;
+  let privacyMode = s.aiPrivacyMode || 'local_only';
+  if (!remoteAiEnabled && privacyMode === 'remote_ok') privacyMode = 'local_only';
+  document.getElementById('ai-privacy-sel').value = privacyMode;
+  document.getElementById('llm-backend-sel').value =
+    (!remoteAiEnabled && s.llmBackend === 'claude') ? 'llamacpp' : s.llmBackend;
   document.getElementById('llm-model-path').value  = s.llmModelPath || '';
   document.getElementById('claude-api-key').value   = s.claudeApiKey || '';
   document.getElementById('claude-model-sel').value = s.claudeModel  || 'claude-haiku-4-5-20251001';
@@ -647,11 +658,13 @@ const AI_PRIVACY_NOTES = {
 
 function onPrivacyModeChange(mode) {
   document.getElementById('ai-privacy-note').textContent = AI_PRIVACY_NOTES[mode] || '';
+  // WS4 gate: the remote backend is offered only when the build gate is on AND privacy allows it.
+  const remoteAllowed = remoteAiEnabled && mode === 'remote_ok';
   const claudeOption = document.querySelector('#llm-backend-sel option[value="claude"]');
-  if (claudeOption) claudeOption.hidden = claudeOption.disabled = mode !== 'remote_ok';
+  if (claudeOption) claudeOption.hidden = claudeOption.disabled = !remoteAllowed;
   const backendSel = document.getElementById('llm-backend-sel');
   // If a remote backend is no longer offered, fall back to the recommended local one.
-  if (mode !== 'remote_ok' && backendSel.value === 'claude') backendSel.value = 'llamacpp';
+  if (!remoteAllowed && backendSel.value === 'claude') backendSel.value = 'llamacpp';
   const llmBlock = document.getElementById('llm-generative-block');
   if (llmBlock) llmBlock.style.display = mode === 'none' ? 'none' : '';
   onLlmBackendChange(backendSel.value);

@@ -7,12 +7,16 @@ value anywhere in this module; log only counts and ids.
 """
 from __future__ import annotations
 
+from typing import Optional
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from yuu_clip.contexts import known_context_ids
 from yuu_clip.db.models import ClipCandidate, SensitiveTerm, Video
 from yuu_clip.log import get_logger
 from yuu_clip.scoring.engine import apply_sensitive_scan
+from yuu_clip.scoring.term_scope import terms_for_video
 from yuu_clip.scoring.textmatch import FUZZY_MIN_TERM_LENGTH
 from yuu_clip.web.deps import ProjectContext
 
@@ -28,6 +32,13 @@ class SensitiveTermBody(BaseModel):
     category: str
     match_mode: str
     enabled: bool = True
+    # NULL / "" / omitted = global. A context ID scopes the term to recordings
+    # tagged with that world context.
+    context_slug: Optional[str] = None
+
+
+def _normalize_slug(raw: Optional[str]) -> Optional[str]:
+    return (raw or "").strip() or None
 
 
 def _sensitive_term_dict(term_row: SensitiveTerm) -> dict:
@@ -37,11 +48,15 @@ def _sensitive_term_dict(term_row: SensitiveTerm) -> dict:
         "category": term_row.category,
         "match_mode": term_row.match_mode,
         "enabled": term_row.enabled,
+        "context_slug": term_row.context_slug,
         "created_at": term_row.created_at.isoformat() if term_row.created_at else None,
     }
 
 
-def _validate_sensitive_term_body(body: SensitiveTermBody, term: str) -> None:
+def _validate_sensitive_term_body(
+    body: SensitiveTermBody, term: str, context_slug: Optional[str], project_dir,
+    current_slug: Optional[str] = None,
+) -> None:
     if not term:
         raise HTTPException(400, "Term cannot be empty")
     if len(term) > _TERM_MAX_LEN:
@@ -56,6 +71,10 @@ def _validate_sensitive_term_body(body: SensitiveTermBody, term: str) -> None:
             f"Close spelling matching needs a term of at least {FUZZY_MIN_TERM_LENGTH} characters - "
             "shorter terms match too many unrelated words. Use Exact or Ignore case instead.",
         )
+    # Only validate the scope when it is being set to a new value, so an already
+    # orphaned term (its context was deleted) can still be edited otherwise.
+    if context_slug is not None and context_slug != current_slug and context_slug not in known_context_ids(project_dir):
+        raise HTTPException(400, f"Unknown world context '{context_slug}' - pick an existing context or leave it Global")
 
 
 def _rescan_all_clips(db) -> tuple[int, int]:
@@ -66,9 +85,11 @@ def _rescan_all_clips(db) -> tuple[int, int]:
     just on whichever recording happens to be open."""
     sensitive_terms = db.query(SensitiveTerm).all()
     clips = db.query(ClipCandidate).all()
+    videos_by_id = {v.id: v for v in db.query(Video).all()}
     flagged = 0
     for clip in clips:
-        apply_sensitive_scan(clip, sensitive_terms)
+        terms = terms_for_video(sensitive_terms, videos_by_id.get(clip.video_id))
+        apply_sensitive_scan(clip, terms)
         if clip.sensitive_matches:
             flagged += 1
     db.commit()
@@ -92,9 +113,11 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         db = ctx.get_db()
         try:
             term = body.term.strip()
-            _validate_sensitive_term_body(body, term)
+            context_slug = _normalize_slug(body.context_slug)
+            _validate_sensitive_term_body(body, term, context_slug, ctx.project_dir)
             row = SensitiveTerm(
-                term=term, category=body.category, match_mode=body.match_mode, enabled=body.enabled,
+                term=term, category=body.category, match_mode=body.match_mode,
+                enabled=body.enabled, context_slug=context_slug,
             )
             db.add(row)
             db.commit()
@@ -118,11 +141,15 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             if not row:
                 raise HTTPException(404, "Sensitive term not found")
             term = body.term.strip()
-            _validate_sensitive_term_body(body, term)
+            context_slug = _normalize_slug(body.context_slug)
+            _validate_sensitive_term_body(
+                body, term, context_slug, ctx.project_dir, current_slug=row.context_slug,
+            )
             row.term = term
             row.category = body.category
             row.match_mode = body.match_mode
             row.enabled = body.enabled
+            row.context_slug = context_slug
             db.commit()
             db.refresh(row)
             clips_scanned, clips_flagged = _rescan_all_clips(db)
@@ -165,7 +192,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             video = db.get(Video, video_id)
             if not video:
                 raise HTTPException(404, "Video not found")
-            sensitive_terms = db.query(SensitiveTerm).all()
+            sensitive_terms = terms_for_video(db.query(SensitiveTerm).all(), video)
             clips = db.query(ClipCandidate).filter_by(video_id=video_id).all()
             changed = 0
             for clip in clips:

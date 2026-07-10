@@ -115,6 +115,16 @@ def _preflight_whisper_prefetch(model: str) -> dict:
 
 
 def _claude_capabilities(cfg, backend: str, permissions) -> dict:
+    from yuu_clip.config import remote_ai_allowed
+
+    if not remote_ai_allowed(cfg):
+        return {
+            "backend": backend, "model": cfg.claude_model or None, "text": False, "vision": False,
+            "detail": (
+                "Remote AI (the Claude backend) is turned off in this build of yuu-clip - "
+                "switch to a local model under Settings → LLM scoring."
+            ),
+        }
     if not permissions.allow_remote:
         return {
             "backend": backend, "model": cfg.claude_model or None, "text": False, "vision": False,

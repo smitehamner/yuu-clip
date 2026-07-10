@@ -112,6 +112,7 @@ def _load_hot_words(db) -> list:
         SimpleNamespace(
             phrase=hw.phrase, match_mode=hw.match_mode,
             boost=hw.boost, target=hw.target, enabled=hw.enabled,
+            context_slug=hw.context_slug,
         )
         for hw in db.query(HotWord).all()
     ]
@@ -124,6 +125,7 @@ def _load_sensitive_terms(db) -> list:
     return [
         SimpleNamespace(
             term=t.term, category=t.category, match_mode=t.match_mode, enabled=t.enabled,
+            context_slug=t.context_slug,
         )
         for t in db.query(SensitiveTerm).all()
     ]
@@ -173,13 +175,14 @@ def _register_hotword_rescan_route(router: APIRouter, ctx: ProjectContext) -> No
         """Recompute hot-word matches and score boosts for every clip of *video_id*
         from their already-stored transcript excerpts - no LLM call, synchronous."""
         from yuu_clip.scoring.engine import apply_hotword_boosts
+        from yuu_clip.scoring.term_scope import terms_for_video
 
         db = ctx.get_db()
         try:
             video = db.get(Video, video_id)
             if not video:
                 raise HTTPException(404, "Video not found")
-            hot_words = _load_hot_words(db)
+            hot_words = terms_for_video(_load_hot_words(db), video)
             clips = db.query(ClipCandidate).filter_by(video_id=video_id).all()
             changed = 0
             for clip in clips:
@@ -205,6 +208,7 @@ def _register_hotword_scan_route(router: APIRouter, ctx: ProjectContext) -> None
         with no LLM installed. Streams progress as SSE, one backend call per clip.
         """
         from yuu_clip.scoring.similarity import make_backend
+        from yuu_clip.scoring.term_scope import terms_for_video
 
         reject_if_analyzing(ctx)
         db = ctx.get_db()
@@ -212,7 +216,7 @@ def _register_hotword_scan_route(router: APIRouter, ctx: ProjectContext) -> None
             video = db.get(Video, video_id)
             if not video:
                 raise HTTPException(404, "Video not found")
-            hot_words = _load_hot_words(db)
+            hot_words = terms_for_video(_load_hot_words(db), video)
             clip_ids = [
                 c.id for c in
                 db.query(ClipCandidate).filter_by(video_id=video_id).order_by(ClipCandidate.start_ms).all()

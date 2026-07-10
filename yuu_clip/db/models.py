@@ -76,7 +76,26 @@ def make_engine(db_path: Path):
         dbapi_connection.execute("PRAGMA busy_timeout=30000")
 
     Base.metadata.create_all(engine)
+    _ensure_additive_columns(engine)
     return engine
+
+
+# create_all() creates missing tables but never adds a column to a table that
+# already exists, so a new nullable column on an existing table must be ALTERed
+# in explicitly for pre-existing project DBs. Only additive, nullable columns
+# with a NULL/absent default belong here (an existing row's value becomes NULL).
+_ADDITIVE_COLUMNS: tuple[tuple[str, str, str], ...] = (
+    ("hot_words", "context_slug", "VARCHAR"),
+    ("sensitive_terms", "context_slug", "VARCHAR"),
+)
+
+
+def _ensure_additive_columns(engine) -> None:
+    with engine.begin() as conn:
+        for table, column, coltype in _ADDITIVE_COLUMNS:
+            columns = {row[1] for row in conn.exec_driver_sql(f"PRAGMA table_info({table})")}
+            if column not in columns:
+                conn.exec_driver_sql(f"ALTER TABLE {table} ADD COLUMN {column} {coltype}")
 
 
 _log = __import__("logging").getLogger(__name__)
@@ -676,8 +695,9 @@ class SceneBoundary(Base):
 
 class HotWord(Base):
     """A creator-defined phrase that boosts a clip's score when it appears in the
-    transcript. Project-wide (not per-video) - see scoring/textmatch.py for the
-    matcher and scoring/engine.py::apply_hotword_boosts for how boosts are applied.
+    transcript. Global (NULL context_slug) or scoped to a world context - see
+    scoring/textmatch.py for the matcher, scoring/engine.py::apply_hotword_boosts
+    for how boosts are applied, and scoring/term_scope.py for the context filter.
     """
     __tablename__ = "hot_words"
 
@@ -689,15 +709,21 @@ class HotWord(Base):
     # "overall" | "funny" | "dramatic" | "action"
     target: Mapped[str] = mapped_column(String, nullable=False, default="overall")
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # NULL = global (applies to every recording). A context ID (contexts.json /
+    # BUILTIN_CONTEXTS) scopes the hot-word to recordings tagged with it. No FK -
+    # contexts live in a JSON file; a deleted context leaves the term orphaned/inert.
+    context_slug: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 class SensitiveTerm(Base):
     """A creator-defined Privacy Term or Censor Word flagged (never scored) when it
-    appears in a clip's transcript or descriptions. Project-wide (not per-video) -
-    see scoring/textmatch.py for the matcher and scoring/engine.py::apply_sensitive_scan
-    for how the flag is applied. Term text is user PII by definition: never log the
-    `term` value anywhere (routes/sensitive.py logs counts/ids only).
+    appears in a clip's transcript or descriptions. Global (NULL context_slug) or
+    scoped to a world context - see scoring/textmatch.py for the matcher,
+    scoring/engine.py::apply_sensitive_scan for how the flag is applied, and
+    scoring/term_scope.py for the context filter. Term text is user PII by
+    definition: never log the `term` value anywhere (routes/sensitive.py logs
+    counts/ids only).
     """
     __tablename__ = "sensitive_terms"
 
@@ -708,4 +734,7 @@ class SensitiveTerm(Base):
     # "exact" | "case_insensitive" | "fuzzy"
     match_mode: Mapped[str] = mapped_column(String, nullable=False, default="exact")
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # NULL = global. A context ID scopes the term to recordings tagged with it -
+    # same soft-reference semantics as HotWord.context_slug above.
+    context_slug: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))

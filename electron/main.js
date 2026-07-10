@@ -25,7 +25,7 @@ const {
   VENV_DIR, VENV_PYTHON, VENV_PIP, BUNDLED_PYTHON, BUNDLED_FFMPEG_DIR,
   BUNDLED_LLAMA_SERVER_DIR,
   SETUP_LOG, SETUP_COMPLETE_MARKER, WHEEL_MARKER,
-  DEFAULT_PROJECT_DIR, BASE_PORT, DEFAULT_CLAUDE_MODEL,
+  DEFAULT_PROJECT_DIR, BASE_PORT, DEFAULT_CLAUDE_MODEL, isRemoteAiEnabled,
   DEFAULT_LLAMACPP_MODEL, MODELS_DIR, SETUP_SCHEMA_VERSION,
 } = require('./constants');
 const { rotateLogs, logSetup } = require('./logging');
@@ -302,6 +302,7 @@ function registerWizardIPC(wizardWin) {
       whisperModel:  projCfg.whisper_model || '',
       projectDir: pDir,
       aiPrivacyMode: projCfg.ai_privacy_mode || 'local_only',
+      remoteAiEnabled: isRemoteAiEnabled(),
       llmBackend:    defaultBackend,
       llmModelPath:  existingModelPath,
       claudeApiKey:  projCfg.claude_api_key  || '',

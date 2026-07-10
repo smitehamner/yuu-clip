@@ -107,6 +107,7 @@ laugh-model = []
 
 [project.scripts]
 yuuclip = "yuu_clip.cli:app"
+yuu-dev = "yuu_clip.dev:app"
 
 [tool.setuptools.packages.find]
 where = ["."]

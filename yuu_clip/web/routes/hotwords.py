@@ -9,6 +9,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from yuu_clip.contexts import known_context_ids
 from yuu_clip.db.models import HotWord
 from yuu_clip.scoring.engine import HOTWORD_BOOST_MAX, HOTWORD_BOOST_MIN
 from yuu_clip.web.deps import ProjectContext
@@ -24,6 +25,13 @@ class HotWordBody(BaseModel):
     boost: float
     target: str
     enabled: bool = True
+    # NULL / "" / omitted = global. A context ID scopes the hot-word to recordings
+    # tagged with that world context.
+    context_slug: Optional[str] = None
+
+
+def _normalize_slug(raw: Optional[str]) -> Optional[str]:
+    return (raw or "").strip() or None
 
 
 def _hotword_dict(hw: HotWord) -> dict:
@@ -34,11 +42,15 @@ def _hotword_dict(hw: HotWord) -> dict:
         "boost": hw.boost,
         "target": hw.target,
         "enabled": hw.enabled,
+        "context_slug": hw.context_slug,
         "created_at": hw.created_at.isoformat() if hw.created_at else None,
     }
 
 
-def _validate_hotword_body(body: HotWordBody, phrase: str, db, exclude_id: Optional[int] = None) -> None:
+def _validate_hotword_body(
+    body: HotWordBody, phrase: str, context_slug: Optional[str], db, project_dir,
+    current_slug: Optional[str] = None, exclude_id: Optional[int] = None,
+) -> None:
     if not phrase:
         raise HTTPException(400, "Phrase cannot be empty")
     if len(phrase) > _PHRASE_MAX_LEN:
@@ -49,9 +61,17 @@ def _validate_hotword_body(body: HotWordBody, phrase: str, db, exclude_id: Optio
         raise HTTPException(400, f"Target must be one of {', '.join(_VALID_TARGETS)}")
     if not (HOTWORD_BOOST_MIN <= body.boost <= HOTWORD_BOOST_MAX):
         raise HTTPException(400, f"Boost must be between {HOTWORD_BOOST_MIN} and {HOTWORD_BOOST_MAX}")
+    # Only validate the scope when it is being set to a new value, so an already
+    # orphaned hot-word (its context was deleted) can still be edited otherwise.
+    if context_slug is not None and context_slug != current_slug and context_slug not in known_context_ids(project_dir):
+        raise HTTPException(400, f"Unknown world context '{context_slug}' - pick an existing context or leave it Global")
     existing = (
         db.query(HotWord)
-        .filter(HotWord.phrase == phrase, HotWord.match_mode == body.match_mode)
+        .filter(
+            HotWord.phrase == phrase,
+            HotWord.match_mode == body.match_mode,
+            HotWord.context_slug == context_slug,
+        )
     )
     if exclude_id is not None:
         existing = existing.filter(HotWord.id != exclude_id)
@@ -76,10 +96,11 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         db = ctx.get_db()
         try:
             phrase = body.phrase.strip()
-            _validate_hotword_body(body, phrase, db)
+            context_slug = _normalize_slug(body.context_slug)
+            _validate_hotword_body(body, phrase, context_slug, db, ctx.project_dir)
             hw = HotWord(
                 phrase=phrase, match_mode=body.match_mode, boost=body.boost,
-                target=body.target, enabled=body.enabled,
+                target=body.target, enabled=body.enabled, context_slug=context_slug,
             )
             db.add(hw)
             db.commit()
@@ -96,12 +117,17 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             if not hw:
                 raise HTTPException(404, "Hot-word not found")
             phrase = body.phrase.strip()
-            _validate_hotword_body(body, phrase, db, exclude_id=hotword_id)
+            context_slug = _normalize_slug(body.context_slug)
+            _validate_hotword_body(
+                body, phrase, context_slug, db, ctx.project_dir,
+                current_slug=hw.context_slug, exclude_id=hotword_id,
+            )
             hw.phrase = phrase
             hw.match_mode = body.match_mode
             hw.boost = body.boost
             hw.target = body.target
             hw.enabled = body.enabled
+            hw.context_slug = context_slug
             db.commit()
             db.refresh(hw)
             return _hotword_dict(hw)

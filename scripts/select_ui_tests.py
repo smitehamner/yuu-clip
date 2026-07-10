@@ -4,7 +4,7 @@ Used by ``test-ui.ps1 -Changed`` to run only the tests around an edit plus the
 smoke backstop, instead of the whole ~655-test suite (which is server-bound, so
 running it on every change is the slow part of the dev loop).
 
-Prints the selected ``tests/test_ui_*.py`` paths to stdout (one per line) and
+Prints the selected ``tests/ui/test_ui_*.py`` paths to stdout (one per line) and
 human-readable advisories to stderr. With no args it derives changed files from
 git (working tree + index vs HEAD, plus untracked); explicit paths can be passed
 as args to override that.
@@ -22,8 +22,8 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-TESTS_DIR = REPO_ROOT / "tests"
-SMOKE = "tests/test_ui_smoke.py"
+UI_TESTS_DIR = REPO_ROOT / "tests" / "ui"
+SMOKE = "tests/ui/test_ui_smoke.py"
 
 # Shared infra whose stem doesn't map to one feature - a change here can break
 # anything, so we flag it (the caller should consider a full run) and lean on
@@ -47,8 +47,8 @@ def _changed_files() -> list[str]:
 def _ui_test_stems() -> dict[str, str]:
     """Map each test file's normalized stem (underscores stripped) to its path."""
     stems = {}
-    for path in sorted(TESTS_DIR.glob("test_ui_*.py")):
-        rel = f"tests/{path.name}"
+    for path in sorted(UI_TESTS_DIR.glob("test_ui_*.py")):
+        rel = f"tests/ui/{path.name}"
         if rel == SMOKE:
             continue
         stem = path.stem[len("test_ui_"):].replace("_", "")
@@ -79,10 +79,10 @@ def select(changed: list[str]) -> tuple[list[str], list[str]]:
     for raw in changed:
         path = raw.replace("\\", "/")
         name = Path(path).name
-        if path == "tests/conftest.py":
-            notes.append("tests/conftest.py changed (shared fixtures) - consider a full run")
+        if name == "conftest.py" and path.startswith("tests/"):
+            notes.append(f"{path} changed (shared fixtures) - consider a full run")
             continue
-        if path.startswith("tests/") and name.startswith("test_ui_") and name.endswith(".py"):
+        if path.startswith("tests/ui/") and name.startswith("test_ui_") and name.endswith(".py"):
             selected.add(path)
             continue
         if path.startswith("yuu_clip/web/static/") and path.rsplit(".", 1)[-1] in {"js", "css", "html"}:

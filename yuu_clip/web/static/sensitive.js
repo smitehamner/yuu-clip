@@ -13,7 +13,7 @@ let _draftSeq = 0;
 const FUZZY_MIN_TERM_LENGTH = 4;
 
 async function initSensitiveTermSettings() {
-  await ensureSensitiveTermsCache(true);
+  await Promise.all([ensureSensitiveTermsCache(true), ensureContexts()]);
   _renderSensitiveTermRows();
 }
 
@@ -33,6 +33,7 @@ function _sensitiveRowValues(rowEl) {
     category: rowEl.querySelector('.st-category').value,
     match_mode: rowEl.querySelector('.st-mode').value,
     enabled: rowEl.querySelector('.st-enabled').checked,
+    context_slug: rowEl.querySelector('.st-context').value || null,
   };
 }
 
@@ -94,7 +95,7 @@ async function _deleteSensitiveTermRow(rowEl) {
 
 function addSensitiveTermRow() {
   AppState.sensitiveTerms.push({
-    _draftKey: `draft-${++_draftSeq}`, term: '', category: 'privacy', match_mode: 'exact', enabled: true,
+    _draftKey: `draft-${++_draftSeq}`, term: '', category: 'privacy', match_mode: 'exact', enabled: true, context_slug: null,
   });
   _renderSensitiveTermRows();
   const host = document.getElementById('s-sensitive-rows');
@@ -116,15 +117,8 @@ function _sensitiveRowKey(t) { return String(t.id ?? t._draftKey); }
 const _CATEGORY_LABELS = {privacy: 'Privacy Term', censor: 'Censor Word'};
 const _MODE_LABELS = {exact: 'Exact', case_insensitive: 'Ignore case', fuzzy: 'Close spelling'};
 
-function _renderSensitiveTermRows() {
-  const host = document.getElementById('s-sensitive-rows');
-  if (!host) return;
-  const terms = AppState.sensitiveTerms || [];
-  if (!terms.length) {
-    host.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:4px 0 8px">No sensitive terms yet - add one below.</div>';
-    return;
-  }
-  host.innerHTML = terms.map(t => `
+function _sensitiveRowHtml(t) {
+  return `
     <div class="settings-row" data-sensitive-row="${_sensitiveRowKey(t)}" style="align-items:center;gap:6px;flex-wrap:wrap">
       <input type="text" class="settings-input st-term" value="${escHtml(t.term)}" maxlength="200"
              placeholder="Term" style="flex:1;min-width:110px" aria-label="Term">
@@ -137,6 +131,9 @@ function _renderSensitiveTermRows() {
         <option value="case_insensitive"${t.match_mode === 'case_insensitive' ? ' selected' : ''}>Ignore case</option>
         <option value="fuzzy"${t.match_mode === 'fuzzy' ? ' selected' : ''}>Close spelling</option>
       </select>
+      <select class="settings-select st-context" style="max-width:150px" aria-label="Applies to">
+        ${_termContextOptions(t.context_slug)}
+      </select>
       <label class="settings-checkbox" title="Apply this sensitive term">
         <input type="checkbox" class="st-enabled"${t.enabled ? ' checked' : ''}>
         <span style="font-size:13px">On</span>
@@ -146,7 +143,18 @@ function _renderSensitiveTermRows() {
       <div class="st-fuzzy-warning" style="display:none;width:100%;font-size:10px;color:var(--warning)">
         Close spelling needs a term of at least ${FUZZY_MIN_TERM_LENGTH} characters - shorter terms match too many unrelated words.
       </div>
-    </div>`).join('');
+    </div>`;
+}
+
+function _renderSensitiveTermRows() {
+  const host = document.getElementById('s-sensitive-rows');
+  if (!host) return;
+  const terms = AppState.sensitiveTerms || [];
+  if (!terms.length) {
+    host.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:4px 0 8px">No sensitive terms yet - add one below.</div>';
+    return;
+  }
+  host.innerHTML = _renderTermGroups(terms, _sensitiveRowHtml);
 }
 
 document.addEventListener('DOMContentLoaded', () => {

@@ -249,11 +249,13 @@ class ScoringEngine:
 
         self._apply_basic_description(clip, scorer_described)
 
-        if self._hot_words is not None:
-            apply_hotword_boosts(clip, self._hot_words, self._config)
-
-        if self._sensitive_terms is not None:
-            apply_sensitive_scan(clip, self._sensitive_terms)
+        if self._hot_words is not None or self._sensitive_terms is not None:
+            from yuu_clip.scoring.term_scope import terms_for_video
+            video = getattr(clip, "video", None)
+            if self._hot_words is not None:
+                apply_hotword_boosts(clip, terms_for_video(self._hot_words, video), self._config)
+            if self._sensitive_terms is not None:
+                apply_sensitive_scan(clip, terms_for_video(self._sensitive_terms, video))
 
         clip.scored_at = datetime.now(timezone.utc)
 

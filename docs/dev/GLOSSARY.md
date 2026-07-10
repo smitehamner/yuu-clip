@@ -589,7 +589,8 @@ A creator-defined phrase that nudges a clip's score when it appears in the clip'
   (DB `match_mode='semantic'`) matches by concept via the [Similarity engine](#similarity-engine)
   and requires a per-recording Scan - it no longer needs an LLM. A phrase counts once per clip
   regardless of how many times it's repeated; boosts are clamped and idempotently re-appliable so
-  re-scanning never compounds them.
+  re-scanning never compounds them. Each entry is either **global** or scoped to a world context -
+  see [Global vs context-scoped term](#global-vs-context-scoped-term).
 
 ---
 
@@ -608,6 +609,10 @@ concept. Tiered so it works with no language model installed.
   package, ONNX, no PyTorch) for paraphrase matching. **LLM** reuses the language-model
   path. An unavailable tier (e.g. Smart without `fastembed`) transparently falls back to
   Fast so the features never hard-fail - see [Hot-word](#hot-word).
+
+---
+
+### Sensitive Terms
 
 The feature (and Settings section) that lets a creator flag clips containing chosen
 names, personal details, or language - kept entirely separate from scoring: it never
@@ -832,6 +837,26 @@ A short, URL-safe identifier for a world context.
 - **Also called in codebase:** "slug", "context_slug"
 - **Do not call it:** "slug" in user-facing text
 - **Notes:** Internal identifier; the context's display name is shown in the UI instead.
+  Also the code name for a [Hot-word](#hot-word) / [Sensitive Terms](#sensitive-terms)
+  entry's scope - see [Global vs context-scoped term](#global-vs-context-scoped-term).
+
+---
+
+### Global vs context-scoped term
+
+A [Hot-word](#hot-word) or [Sensitive Terms](#sensitive-terms) entry is either **global**
+(applies to every recording, as it always did) or **context-scoped** (applies only to a
+recording tagged with that [World context](#world-context)). A Fantasy-RP session can bias
+toward "Thornwood" while a shooter session biases toward "ace", without the two lists
+polluting each other.
+
+- **Code:** `context_slug` column on `hot_words` / `sensitive_terms` (NULL = global);
+  the merge filter is `scoring/term_scope.py::terms_for_video`
+- **UI label:** the per-row scope selector reads **"Global (all recordings)"** or the
+  context's display name; the Settings list groups entries under those headings
+- **Notes:** A term counts for a recording when its `context_slug` is NULL, or is in the
+  recording's `context_names_json`. A term whose context was deleted becomes **orphaned** -
+  shown under a "Removed context" heading and inert in scoring, never auto-deleted.
 
 ---
 

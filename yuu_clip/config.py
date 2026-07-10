@@ -455,6 +455,29 @@ def resolve_ai_permissions(config: "Config") -> AiPermissions:
     return AiPermissions(allow_llm=True, allow_remote=False)
 
 
+# Distribution/dev gate for the remote (Claude) backend (WS4). Turned on by the
+# remote_ai_enabled config field or a truthy YUU_REMOTE_AI env var (the escape hatch
+# for your own end-to-end testing).
+_REMOTE_AI_ENV_VAR = "YUU_REMOTE_AI"
+_TRUTHY_ENV_VALUES: frozenset[str] = frozenset({"1", "true", "yes", "on"})
+
+
+def remote_ai_allowed(config: "Config") -> bool:
+    """Whether the remote (Claude) backend may be used at all in this build.
+
+    Sits ABOVE ai_privacy_mode: when this is False the remote path is invisible and
+    inert no matter the privacy mode or a saved API key - make_client returns a
+    NullLLMClient and the capabilities/permission checks report remote unavailable.
+    When True, ai_privacy_mode governs remote behavior as before. The gate is a
+    developer/distribution control, not a user setting, so it is read from the config
+    file or the YUU_REMOTE_AI env var only.
+    """
+    env_value = os.environ.get(_REMOTE_AI_ENV_VAR)
+    if env_value is not None and env_value.strip().lower() in _TRUTHY_ENV_VALUES:
+        return True
+    return bool(getattr(config, "remote_ai_enabled", False))
+
+
 # Labels for which we skip transcription by default (user can override)
 DEFAULT_SKIP_TRANSCRIBE = {"game_sounds"}
 
@@ -560,6 +583,12 @@ class Config:
     claude_api_key: str = ""                         # Anthropic API key
     claude_model: str = "claude-haiku-4-5-20251001"  # model to use
     claude_timeout_s: float = 30.0                   # per-request timeout
+
+    # Distribution/dev gate for the remote (Claude) backend (WS4). The remote path
+    # is unverified in shipped builds, so it stays invisible and inert unless this is
+    # turned on. Sits ABOVE ai_privacy_mode - see remote_ai_allowed. Not a normal
+    # Settings toggle: it lives in the config file or the YUU_REMOTE_AI env var only.
+    remote_ai_enabled: bool = False
 
     # Speaker diarization - identifies who is speaking within a track
     diarization_backend: str = "speechbrain"  # "null" | "pyannote" | "speechbrain"

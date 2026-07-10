@@ -11,7 +11,7 @@
 let _draftSeq = 0;
 
 async function initHotwordSettings() {
-  await ensureHotwordsCache(true);
+  await Promise.all([ensureHotwordsCache(true), ensureContexts()]);
   _renderHotwordRows();
 }
 
@@ -39,6 +39,7 @@ function _rowValues(rowEl) {
     boost: parseFloat(rowEl.querySelector('.hw-boost').value) || 0,
     target: rowEl.querySelector('.hw-target').value,
     enabled: rowEl.querySelector('.hw-enabled').checked,
+    context_slug: rowEl.querySelector('.hw-context').value || null,
   };
 }
 
@@ -84,7 +85,7 @@ async function _deleteHotwordRow(rowEl) {
 }
 
 function addHotwordRow() {
-  AppState.hotWords.push({_draftKey: `draft-${++_draftSeq}`, phrase: '', match_mode: 'exact', boost: 0.1, target: 'overall', enabled: true});
+  AppState.hotWords.push({_draftKey: `draft-${++_draftSeq}`, phrase: '', match_mode: 'exact', boost: 0.1, target: 'overall', enabled: true, context_slug: null});
   _renderHotwordRows();
   const host = document.getElementById('s-hotword-rows');
   host?.querySelector('[data-hotword-row^="draft-"]:last-of-type .hw-phrase')?.focus();
@@ -165,15 +166,8 @@ function confirmScanHotwordsForVideo(videoId, btn) {
 
 function _hotwordRowKey(hw) { return String(hw.id ?? hw._draftKey); }
 
-function _renderHotwordRows() {
-  const host = document.getElementById('s-hotword-rows');
-  if (!host) return;
-  const hotWords = AppState.hotWords || [];
-  if (!hotWords.length) {
-    host.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:4px 0 8px">No hot-words yet - add one below.</div>';
-    return;
-  }
-  host.innerHTML = hotWords.map(hw => `
+function _hotwordRowHtml(hw) {
+  return `
     <div class="settings-row" data-hotword-row="${_hotwordRowKey(hw)}" style="align-items:center;gap:6px;flex-wrap:wrap">
       <input type="text" class="settings-input hw-phrase" value="${escHtml(hw.phrase)}" maxlength="200"
              placeholder="Phrase" style="flex:1;min-width:110px" aria-label="Phrase">
@@ -190,6 +184,9 @@ function _renderHotwordRows() {
         <option value="dramatic"${hw.target === 'dramatic' ? ' selected' : ''}>Dramatic</option>
         <option value="action"${hw.target === 'action' ? ' selected' : ''}>Action</option>
       </select>
+      <select class="settings-select hw-context" style="max-width:150px" aria-label="Applies to">
+        ${_termContextOptions(hw.context_slug)}
+      </select>
       <label class="settings-checkbox" title="Apply this hot-word">
         <input type="checkbox" class="hw-enabled"${hw.enabled ? ' checked' : ''}>
         <span style="font-size:13px">On</span>
@@ -197,7 +194,18 @@ function _renderHotwordRows() {
       <button type="button" class="btn ghost hw-delete" title="Delete hot-word"
               aria-label="Delete hot-word ${escHtml(hw.phrase || 'draft')}" style="font-size:13px;padding:2px 8px">&times;</button>
       ${hw.match_mode === 'semantic' ? '<div style="width:100%;font-size:10px;color:var(--muted)">Matches by concept via the Similarity engine (set under Settings → LLM scoring). Applies only via the recording’s "Scan for Hot-words" action.</div>' : ''}
-    </div>`).join('');
+    </div>`;
+}
+
+function _renderHotwordRows() {
+  const host = document.getElementById('s-hotword-rows');
+  if (!host) return;
+  const hotWords = AppState.hotWords || [];
+  if (!hotWords.length) {
+    host.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:4px 0 8px">No hot-words yet - add one below.</div>';
+    return;
+  }
+  host.innerHTML = _renderTermGroups(hotWords, _hotwordRowHtml);
 }
 
 document.addEventListener('DOMContentLoaded', () => {

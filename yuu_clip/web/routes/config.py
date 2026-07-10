@@ -100,6 +100,9 @@ _CONFIG_FIELDS = (
     "llm_backend", "llm_model_path", "llm_mmproj_path", "llm_vision_model_path", "llm_use_gpu",
     "vision_enabled", "vision_frames_per_clip", "llm_enabled",
     "claude_api_key", "claude_model", "claude_timeout_s",
+    # Read-exposed but not patchable (a distribution gate, like model_prefetch_disabled):
+    # get_config overrides this key with the EFFECTIVE value (field OR YUU_REMOTE_AI env).
+    "remote_ai_enabled",
     "scorer_energy_weight", "scorer_scene_weight", "scorer_llm_weight",
     "scorer_laugh_weight", "scorer_laugh_mode", "scorer_laugh_model_id",
     "scorer_lexicon_weight", "scorer_speech_rate_weight", "scorer_churn_weight",
@@ -285,17 +288,27 @@ def make_router(ctx: ProjectContext) -> APIRouter:
 
     @router.get("/api/config")
     def get_config():
+        from yuu_clip.config import remote_ai_allowed
         c = ctx.config
-        return {k: getattr(c, k) for k in _CONFIG_FIELDS}
+        payload = {k: getattr(c, k) for k in _CONFIG_FIELDS}
+        # Override the raw field with the EFFECTIVE gate (config field OR YUU_REMOTE_AI
+        # env) so the Settings UI hides the Claude backend + remote privacy mode when
+        # off. It stays out of _CONFIG_PATCH_RULES - a distribution gate, never PATCH-able.
+        payload["remote_ai_enabled"] = remote_ai_allowed(c)
+        return payload
 
     @router.get("/api/config/defaults")
     def config_defaults():
         # Factory defaults from a fresh Config, so the Settings "Reset to
         # defaults" controls have one source of truth instead of duplicating
         # every default value in the frontend.
-        from yuu_clip.config import Config
+        from yuu_clip.config import Config, remote_ai_allowed
         defaults = Config()
-        return {k: getattr(defaults, k) for k in _CONFIG_FIELDS}
+        payload = {k: getattr(defaults, k) for k in _CONFIG_FIELDS}
+        # Reset-to-defaults must not flip the gate the browser sees: report the same
+        # effective value as GET /api/config, not the raw factory False.
+        payload["remote_ai_enabled"] = remote_ai_allowed(defaults)
+        return payload
 
     @router.get("/api/config/whisper-languages")
     def whisper_languages():

@@ -129,6 +129,15 @@ def load_contexts(project_dir: Path) -> dict:
         return {}
 
 
+def known_context_ids(project_dir: Path) -> set[str]:
+    """Every valid context ID: those saved in contexts.json plus the built-ins.
+
+    Used to validate a hot-word / sensitive-term ``context_slug`` before it is
+    saved (routes reject an unknown slug with a 400).
+    """
+    return set(load_contexts(project_dir)) | set(BUILTIN_IDS)
+
+
 def seed_builtin_contexts(project_dir: Path) -> None:
     """Write built-in contexts that don't yet exist in the project's contexts.json."""
     existing = load_contexts(project_dir)

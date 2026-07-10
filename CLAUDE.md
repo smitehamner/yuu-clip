@@ -10,20 +10,28 @@ Single-user tool - no auth, no multi-tenancy, no public network exposure.
 
 ## How to start / restart the server
 
+The daily dev-loop commands live in the `yuu-dev` CLI (`yuu_clip/dev/`, a Typer
+app), not in PowerShell. The `.\scripts\*.ps1` scripts are now one-line shims that
+forward to it, so either form works; prefer the `yuu-dev` form.
+
 ```powershell
-.\scripts\serve.ps1
+yuu-dev serve            # or: .\scripts\serve.ps1
 ```
+
+`yuu-dev serve` runs the /api/status pre-check (warns + confirms before interrupting
+a live job), reaps this repo's stale server / orphaned llama-server, then binds 8080
+- or, if a foreign app already holds 8080, the next free port (it prints the real URL).
 
 To watch the log live:
 ```powershell
-.\scripts\logs.ps1
+yuu-dev logs --follow    # or: .\scripts\logs.ps1
 ```
 
 ## MANDATORY: after any Python change
 
 API tests take ~1 minute. Run them selectively - not after every edit.
 
-**Run `.\scripts\test-api.ps1` before reporting done when:**
+**Run `yuu-dev test-api` (or `.\scripts\test-api.ps1`) before reporting done when:**
 - Fixing a logic bug in a route handler or scoring/analyze pipeline
 - Adding or removing a route, or changing its response shape
 - Touching DB models, migrations, or config parsing
@@ -36,26 +44,27 @@ API tests take ~1 minute. Run them selectively - not after every edit.
 
 Before reporting a backend fix complete, do:
 
-1. Run the linter: `.\scripts\lint.ps1` (fast - run after every Python change, even cosmetic ones; fix or `--fix` anything it flags)
-2. Run tests if the change qualifies above: `.\scripts\test-api.ps1`
-3. Restart the server: `.\scripts\serve.ps1`
+1. Run the linter: `yuu-dev lint` (fast - run after every Python change, even cosmetic ones; fix or `--fix` anything it flags)
+2. Run tests if the change qualifies above: `yuu-dev test-api`
+3. Restart the server: `yuu-dev serve`
 4. Confirm the fix works in the browser (or state explicitly that you cannot)
 
-Test script output: both test scripts default to quiet output and write
+Test script output: both test commands default to quiet output and write
 `test-api-last.log` / `test-ui-last.log` (full) plus `test-*-last-summary.log`
 (failures + summary only). Read the summary file after a run - only open the full
-log when a failure needs more context. Pass `-Detailed` for verbose per-test output
-on a manual run.
+log when a failure needs more context. Pass `--detailed` for verbose per-test output
+on a manual run (the `.ps1` shims still accept the old `-Detailed`).
 
 ### Before restarting the server
 
 **Always check for active processing first:**
 
 ```powershell
-Invoke-RestMethod http://127.0.0.1:8080/api/status
+yuu-dev status        # exit 1 + a warning if anything is processing
+# or the raw endpoint: Invoke-RestMethod http://127.0.0.1:8080/api/status
 ```
 
-This returns `{"any_running": bool, "analyze_running": bool, "active_jobs": int, "version": str}`.
+`/api/status` returns `{"any_running": bool, "analyze_running": bool, "active_jobs": int, "version": str}`.
 If `any_running` is `True`, **stop and ask the user** whether to wait or cancel before
 proceeding. Restarting mid-ingest silently kills the subprocess and loses all progress;
 interrupting other SSE jobs (rescore, timeline, summarize) is less catastrophic but
@@ -75,20 +84,20 @@ No server restart needed. But before reporting a UI fix as complete:
 across workers, so adding workers past 4 does not help and running it on every
 edit is the slow part of the loop. Pick the run by scope, using judgment:
 
-- **`.\scripts\test-ui.ps1 -Changed`** - the dev default. Maps your working-tree
-  diff to the affected `test_ui_*.py` file(s) via `scripts/select_ui_tests.py`
-  and always adds the smoke backstop (`tests/test_ui_smoke.py`). This is what to
+- **`yuu-dev test-ui --changed`** - the dev default. Maps your working-tree
+  diff to the affected `tests/ui/test_ui_*.py` file(s) via `scripts/select_ui_tests.py`
+  and always adds the smoke backstop (`tests/ui/test_ui_smoke.py`). This is what to
   run after most localized edits.
-- **`.\scripts\test-ui.ps1 -Smoke`** - just the ~6-test backstop, for a quick
+- **`yuu-dev test-ui --smoke`** - just the ~6-test backstop, for a quick
   "is the app fundamentally working?" check.
-- **`.\scripts\test-ui.ps1`** (full suite) - run when the change is
+- **`yuu-dev test-ui`** (full suite) - run when the change is
   cross-cutting (`utils.js`, `ui.js`, `boot.js`, the app shell/`index.html`,
-  `tests/conftest.py`), when `-Changed` prints a cross-cutting/backend advisory,
+  `tests/conftest.py` or `tests/ui/conftest.py`), when `-Changed` prints a cross-cutting/backend advisory,
   before reporting a broad UI change complete, and as the final step of any
   UX/UI review pass (`/code-review` or `shqr-ux-ui-review`). The user has also
   OK'd leaving the full run for review passes rather than every "done".
 
-`-Changed` reflects **uncommitted** working-tree changes vs HEAD; if you have
+`--changed` reflects **uncommitted** working-tree changes vs HEAD; if you have
 already committed the edit mid-session, run the relevant file(s) or the full
 suite explicitly.
 
@@ -97,6 +106,7 @@ suite explicitly.
 ```
 yuu_clip/
   cli/                     # Thin Typer adapters - analyze, export, reel, review, serve (+ _base). Commands parse args and call into pipeline/ and export/.
+  dev/                     # The yuu-dev developer-loop CLI (serve/test-api/test-ui/lint/logs/status), Typer. Ports the old scripts/*.ps1; _summary.py = pytest-output summary core, procs.py = Windows process reap. scripts/*.ps1 are now one-line shims to this.
   pipeline/                # The analyze engine: ingest (per-video orchestration + stages), run_meta (per-run timing/settings capture)
   export/                  # The export feature: render (engine - cut, retranscribe, title card, captions), naming (filename stem), presets (definitions + size-cap math), paths (on-disk export/sidecar path resolution + export-query validation)
   console.py               # Shared Rich console + BYTES_PER_MB (used by cli/ and the engine; lives outside cli/ so the engine never imports cli)
@@ -120,33 +130,53 @@ yuu_clip/
     static/*.js            # Feature modules: analyze, boot, clips, contexts, reel, settings, sounds, speakers, split, transcript, ui, utils, videos
     static/app.css         # Stylesheet
 electron/                  # Desktop wrapper: main.js (window/menu/IPC + server spawn + wizard + lifecycle), constants.js, logging.js, electron-config.js, install.js (runCmd/download/pip helpers), preload.js, setup wizard (setup.html + setup-preload.js)
-tests/
-  conftest.py              # project_dir + client fixtures; UI test session helpers
-  test_*.py                # API unit tests (TestClient, no live server)
-  test_ui_*.py             # UI tests (Playwright against live server on :8080)
+tests/                     # unit = state-independent, run anywhere; integration = seeded DB; ui = live server
+  conftest.py              # root: only isolate_global_config (autouse, inherited by all tiers)
+  unit/
+    conftest.py            # deliberately empty of DB/server fixtures - the guardrail
+    test_*.py              # pure: no TestClient, no project_dir/client, no live server, no real packages/cache
+    test_no_integration_imports.py  # meta-test: unit tier must not import the web app / TestClient
+  integration/
+    conftest.py            # project_dir + client fixtures (seeded DB, in-process TestClient)
+    test_*.py              # route/pipeline tests that need the seeded DB
+  ui/
+    conftest.py            # Playwright fixtures + select_video_* helpers + teardown watchdogs
+    test_ui_*.py           # Playwright against a live server (YUU_TEST_URL, default :8080)
 ```
 
 ## Running tests
 
+The suite has three tiers by directory: **unit** (state-independent, runs
+anywhere), **integration** (seeded DB / in-process TestClient), and **ui** (live
+Playwright server). `yuu-dev test-api` runs unit + integration; `yuu-dev test-ui` runs ui.
+
 ```powershell
-.\scripts\test-api.ps1          # fast, no live server needed
-.\scripts\test-ui.ps1 -Changed  # dev default: tests around the diff + smoke
-.\scripts\test-ui.ps1 -Smoke    # ~6-test backstop only, quickest sanity check
-.\scripts\test-ui.ps1           # full suite (all test_ui_*.py) - see cadence above
+yuu-dev test-api            # unit + integration (tests/unit tests/integration); no live server
+yuu-dev test-ui --changed   # dev default: tests around the diff + smoke
+yuu-dev test-ui --smoke     # ~6-test backstop only, quickest sanity check
+yuu-dev test-ui             # full suite (all tests/ui/test_ui_*.py) - see cadence above
 ```
 
-`test-ui.ps1` (full) runs 4 pytest-xdist workers by default (~3.7 min); targeted
+`yuu-dev test-ui` (full) runs 4 pytest-xdist workers by default (~3.7 min); targeted
 runs scale workers down to the selected file count (a single file runs
-in-process). Pass `-Sequential` only when debugging suspected worker-parallelism
-flakes. `-Changed` calls `scripts/select_ui_tests.py`, which maps changed source
+in-process). Pass `--sequential` only when debugging suspected worker-parallelism
+flakes. `--changed` calls `scripts/select_ui_tests.py`, which maps changed source
 files to their test files (fuzzy stem match, e.g. `videos.js` -> `test_ui_video`)
-and always includes `tests/test_ui_smoke.py`. The session `browser` fixture
-override in `tests/conftest.py` guards the Playwright teardown hang - see the
+and always includes `tests/ui/test_ui_smoke.py`. The session `browser` fixture
+override in `tests/ui/conftest.py` guards the Playwright teardown hang - see the
 comment there before touching the teardown watchdogs. If the suite (or the app)
 feels slow, check the server isn't degraded first: `curl` `/api/status` should
 answer in ~3ms, and the serve process should sit near 0% CPU when idle.
 
-Run at least `test-api.ps1` before reporting a backend fix as done.
+Markers (registered in `pytest.ini`): `integration` / `ui` mirror the
+directories; `environment` tags a test that needs real installed packages / HF
+cache / OS state (keep those out of `tests/unit`); `live_remote` is an opt-in
+real billed API call (`test_remote_live`), skipped by default. A unit test that
+references `project_dir`/`client` fails at collection (no such fixture in the
+unit tier) - move it to `tests/integration`, splitting the file if it mixes pure
+and seeded tests. `tests/unit` must pass offline regardless of machine state.
+
+Run at least `yuu-dev test-api` before reporting a backend fix as done.
 
 ### Electron wrapper tests (only when touching `electron/`)
 
@@ -205,7 +235,7 @@ Use these glossary terms in **conversation** too, not just in code. If discussin
 
 ## Behavior
 - Never cd into the current working directory before running a command
-- Always use approved project scripts (`.\scripts\*.ps1`) - never raw python calls outside the venv
+- Always use the approved dev CLI (`yuu-dev <cmd>`, or the `.\scripts\*.ps1` shims) - never raw python calls outside the venv
 - Ask before touching files outside the current task scope
 - If uncertain about approach, stop and ask rather than proceeding with assumptions
 - Be concise in responses - no preamble, no "I've completed..." summaries
@@ -217,7 +247,7 @@ Use these glossary terms in **conversation** too, not just in code. If discussin
 - Tests before or alongside implementation, never after
 - Test behavior, not implementation
 - If you change existing code, verify existing tests still make sense
-- Run `.\scripts\test-api.ps1` before reporting any backend fix as done
+- Run `yuu-dev test-api` before reporting any backend fix as done
 - If stuck in a circular codegen loop, write a minimal test first instead of iterating further on the implementation
 
 ## Code standards
@@ -245,7 +275,7 @@ Use these glossary terms in **conversation** too, not just in code. If discussin
   Apache-2.0 / MIT / BSD are in; Llama- and Gemma-licensed models are **out of recommendations
   and defaults** (they keep working if a user configures them by hand). The authoritative list
   is `yuu_clip/model_catalog.py`; its licence policy and the "defaults match the catalog" rule
-  are enforced by `tests/test_model_catalog.py`. Licences vary by parameter size (Qwen2.5 **7B**
+  are enforced by `tests/unit/test_model_catalog.py`. Licences vary by parameter size (Qwen2.5 **7B**
   is Apache-2.0 but the 3B/72B are not) - re-verify against the HF model card before adding an
   entry, and if you change a default model, change it to a *recommended* catalog entry.
 
@@ -258,7 +288,7 @@ Use these glossary terms in **conversation** too, not just in code. If discussin
 - For new route handlers that read the DB: follow the existing pattern in `routes/videos.py`
 
 ### JavaScript / frontend
-- **Never hardcode colors** - no hex/rgba literals in CSS rules, inline styles, or JS-built HTML. Every color must be `var(--token)` or `color-mix(in srgb, var(--token) N%, transparent)` using the theme tokens defined at the top of `app.css`. Literals are only allowed inside the theme definition blocks themselves (`:root` and `html[data-theme=...]`), which must each override the full token set. Exceptions: `#000` video letterboxing and `rgba(0,0,0,…)` scrims drawn *over video content* (theme-independent by design), and the score-gradient stops in `utils.js` (data encoding, not UI chrome). `tests/test_ui_theme.py` enforces this for `app.css` and checks WCAG AA contrast per theme - when adding a new color pairing, add its contrast assertion there.
+- **Never hardcode colors** - no hex/rgba literals in CSS rules, inline styles, or JS-built HTML. Every color must be `var(--token)` or `color-mix(in srgb, var(--token) N%, transparent)` using the theme tokens defined at the top of `app.css`. Literals are only allowed inside the theme definition blocks themselves (`:root` and `html[data-theme=...]`), which must each override the full token set. Exceptions: `#000` video letterboxing and `rgba(0,0,0,…)` scrims drawn *over video content* (theme-independent by design), and the score-gradient stops in `utils.js` (data encoding, not UI chrome). `tests/ui/test_ui_theme.py` enforces this for `app.css` and checks WCAG AA contrast per theme - when adding a new color pairing, add its contrast assertion there.
 - `escHtml(s)` must escape `"` → `&quot;` (used for `data-*` attributes in onclick delegation)
 - Dynamic button lists must use event delegation (`el.onclick = e => { ... }`) not inline `onclick=` attributes with JS values - inline attributes break when names contain quotes
 - SSE streams are tracked in `_activeES`; call `_activeES.close()` before starting a new one
@@ -314,6 +344,26 @@ offline install (see the packaging-strategy overhaul Wave 5).
 `escHtml` in `utils.js` escapes `& < > "`. Always run track layout names, context
 names, and filenames through it before embedding in HTML attributes.
 
+### Remote AI (Claude backend) is gated off by default (WS4)
+The remote (Claude) backend is unverified end-to-end, so shipped builds keep it hidden
+and inert behind a distribution gate. The gate is `Config.remote_ai_enabled` (default
+`False`) OR a truthy `YUU_REMOTE_AI` env var; `config.remote_ai_allowed(config)` is the
+single resolver. It sits ABOVE `ai_privacy_mode` - when off, `make_client` returns
+`NullLLMClient` for a remote backend regardless of privacy mode or a saved key, and the
+capabilities/permission checks report remote unavailable with a "turned off in this
+build" reason. Turning it on restores full behavior with no code change - the gate
+hides/inerts, it never removes `ClaudeClient` or the privacy layer.
+
+- Not a normal Settings toggle: it lives in the config file / env only. The browser
+  learns the effective value from `/api/config` (`remote_ai_enabled`), and Settings +
+  the Electron wizard both hide the Claude backend and the `remote_ok` privacy option
+  when it is off. Both stacks must stay in sync (see the parity note below); the wizard
+  mirrors the gate via `electron/constants.js` `isRemoteAiEnabled()`.
+- Run the opt-in live smoke test (hits the real Anthropic API, billed):
+  `YUU_REMOTE_AI=1 ANTHROPIC_API_KEY=sk-ant-... python -m pytest -m live_remote`.
+  It is double-gated (the `live_remote` marker is excluded by `pytest.ini` addopts, and
+  it skips without `ANTHROPIC_API_KEY`), so it never runs in the default suite.
+
 ### Wizard and Settings are parallel model-selection stacks (keep in sync, no shared code)
 Model selection lives in two separate stacks that CANNOT share code, so a change to one
 must be mirrored in the other by hand:
@@ -339,5 +389,5 @@ Any `.ps1` file containing non-ASCII (em-dash, box-drawing `─`, smart quotes)
 **must** be saved with a UTF-8 BOM. Without one, Windows PowerShell 5.1 decodes the
 file as cp1252, turning those bytes into a `”` that it treats as a string delimiter -
 producing "missing terminator" parse errors far from the actual character. The `Write`
-tool does not add a BOM; prepend `EF BB BF` after writing. `tests/test_ps1_bom.py`
+tool does not add a BOM; prepend `EF BB BF` after writing. `tests/unit/test_ps1_bom.py`
 enforces this for `scripts/*.ps1` (ASCII-only scripts don't need a BOM).

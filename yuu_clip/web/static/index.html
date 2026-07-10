@@ -612,8 +612,10 @@
     <div class="settings-section-title">Hot-words</div>
     <div class="settings-note" style="margin-bottom:8px">
       Boost a clip's score when a phrase is spoken - great for running gags or catchphrases.
-      Saved instantly; use <strong>Rescan current recording</strong> from the confirmation toast
-      to apply changes to a recording's existing clips without a full re-score.
+      Leave one <strong>Global</strong> to apply everywhere, or scope it to a world context so it
+      only affects recordings tagged with that context. Saved instantly; use
+      <strong>Rescan current recording</strong> from the confirmation toast to apply changes to a
+      recording's existing clips without a full re-score.
     </div>
     <div id="s-hotword-rows"></div>
     <button type="button" class="btn-secondary" onclick="addHotwordRow()" style="margin-top:4px">+ Add hot-word</button>
@@ -627,7 +629,8 @@
       kept completely separate from scoring, so it never changes a clip's score, only warns.
       <strong>Privacy Terms</strong> are names or personal info you don't want in shared clips;
       <strong>Censor Words</strong> are language to flag before posting to restricted platforms.
-      Saved instantly and applied to every clip right away.
+      Leave one <strong>Global</strong> to flag everywhere, or scope it to a world context to flag
+      only recordings tagged with that context. Saved instantly and applied to every clip right away.
     </div>
     <div id="s-sensitive-rows"></div>
     <button type="button" class="btn-secondary" onclick="addSensitiveTermRow()" style="margin-top:4px">+ Add Sensitive Term</button>

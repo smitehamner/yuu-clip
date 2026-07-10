@@ -1,65 +1,9 @@
-﻿param([switch]$Stop)
-
-$ErrorActionPreference = "Stop"
+# Thin shim: the dev-loop logic now lives in the yuu_clip.dev Python CLI
+# (yuu-dev serve). Kept so `.\scripts\serve.ps1` still works. Maps the old
+# -Stop switch to the new --stop flag; all other args pass through.
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 $Python   = Join-Path $RepoRoot ".venv\Scripts\python.exe"
-$Log      = Join-Path $RepoRoot ".yuu-clip\yuu-clip.log"
-
-# Kill every serve process for this project, not just the one bound to :8080.
-# The venv python.exe is a launcher stub that spawns a worker child (both carry
-# the same command line), and a worker that loses the port race can orphan and
-# keep an export file open - which blocks deletes. Matching on the command line
-# clears parent, child, and any stray so each start is from a clean slate.
-$serveProcs = Get-CimInstance Win32_Process -Filter "name='python.exe'" |
-    Where-Object { $_.CommandLine -like "*yuu_clip.cli serve*" -and $_.CommandLine -like "*$RepoRoot*" }
-foreach ($p in $serveProcs) {
-    Write-Host "Killing stale serve PID $($p.ProcessId)..." -ForegroundColor Yellow
-    Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue
-}
-
-# Force-killing the serve python above bypasses its graceful FastAPI shutdown,
-# which is what normally reaps a running llama-server.exe (LlamaServerPool /
-# shutdown_server_pool). Reap any llama-server.exe left over from this repo's
-# dev runtime so it doesn't orphan across restarts.
-$llamaRuntimeDir = Join-Path $RepoRoot "build\llama-server-runtime"
-$llamaProcs = Get-CimInstance Win32_Process -Filter "name='llama-server.exe'" |
-    Where-Object { $_.CommandLine -like "*$llamaRuntimeDir*" }
-foreach ($p in $llamaProcs) {
-    Write-Host "Killing orphaned llama-server PID $($p.ProcessId)..." -ForegroundColor Yellow
-    Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue
-}
-
-# Safety net: a non-python process holding :8080 still blocks the bind.
-$old = netstat -ano | findstr ":8080" | Select-String "LISTENING" | ForEach-Object { ($_ -split '\s+')[-1] }
-if ($old) {
-    Write-Host "Killing PID $old on :8080..." -ForegroundColor Yellow
-    Stop-Process -Id $old -Force -ErrorAction SilentlyContinue
-}
-if ($serveProcs -or $old) {
-    Start-Sleep -Milliseconds 500
-}
-
-if ($Stop) {
-    Write-Host "Server stopped." -ForegroundColor Yellow
-    exit 0
-}
-
-if (Test-Path $llamaRuntimeDir) {
-    $env:YUU_CLIP_LLAMA_SERVER_DIR = $llamaRuntimeDir
-} else {
-    Write-Host "Run scripts\fetch-llama-server-runtime.ps1 to enable local LLM/vision in dev" -ForegroundColor Yellow
-}
-
-$psi = New-Object System.Diagnostics.ProcessStartInfo
-$psi.FileName        = $Python
-$psi.Arguments       = "-m yuu_clip.cli serve --project `"$RepoRoot`""
-$psi.WorkingDirectory = $RepoRoot
-$psi.WindowStyle     = "Hidden"
-$psi.UseShellExecute = $true
-[System.Diagnostics.Process]::Start($psi) | Out-Null
-
-Write-Host "Server starting..." -ForegroundColor Cyan
-Start-Sleep -Seconds 2
-# -Encoding UTF8 so PowerShell 5.1 doesn't decode the log's non-ASCII characters
-# (arrows, checkmarks) as cp1252 mojibake (the file is BOM-less UTF-8).
-Get-Content $Log -Tail 3 -Encoding UTF8
+$map = @{ '-stop' = '--stop'; '-yes' = '--yes' }
+$fwd = foreach ($a in $args) { if ($map.ContainsKey("$a".ToLower())) { $map["$a".ToLower()] } else { $a } }
+& $Python -m yuu_clip.dev serve @fwd
+exit $LASTEXITCODE

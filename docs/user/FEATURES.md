@@ -409,6 +409,12 @@ A phrase counts once per clip no matter how many times it's repeated. Matched ph
 pills on the clip's sidebar card (or a `🔥 N` count once there are more than three), with the
 full list plus the boost actually applied in the clip detail view.
 
+Each hot-word is either **Global** (applies to every recording) or scoped to a world context via
+the **Applies to** dropdown - a context-scoped entry only affects recordings tagged with that
+context, so a Fantasy-RP catchphrase and a shooter callout can live in separate lists without
+polluting each other. The list groups entries by Global and by context; if you delete a context,
+its entries stay under a "(removed)" heading and simply stop matching until you reassign them.
+
 ### Sensitive Content
 
 Settings → Sensitive Content lets you flag clips containing names, personal info, or language you
@@ -424,6 +430,10 @@ Saving or deleting a term instantly rescans every clip in the project (text-only
 A flagged clip shows a warning badge on its sidebar card and a "Flagged terms" section (with the
 matched text and category) in the detail view; the **Flagged** filter chip in the clip list shows
 only flagged clips.
+
+Like hot-words, each term can be **Global** or scoped to a world context via the **Applies to**
+dropdown, and the list groups terms the same way (Global, per-context, and a "(removed)" group for
+terms whose context was deleted).
 
 ---
 
