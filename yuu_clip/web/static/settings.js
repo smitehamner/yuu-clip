@@ -22,6 +22,7 @@ const _settingsFieldIds = [
   's-title-card-bg-color','s-title-card-font-color','s-title-card-scale',
   's-title-card-template','s-title-card-duration',
   's-caption-font-name','s-caption-font-size','s-caption-position',
+  's-caption-word-highlight','s-caption-chunk-size',
 ];
 // [element id, config key, default] - single source for apply + Reset to defaults.
 const _weightFields = [
@@ -294,6 +295,15 @@ function _applyExportFields(cfg) {
   _setFieldVal('s-caption-font-name', cfg.caption_font_name || '');
   _setFieldVal('s-caption-font-size', cfg.caption_font_size ? cfg.caption_font_size : '');
   _setFieldVal('s-caption-position', cfg.caption_position || 'bottom');
+  _setFieldChk('s-caption-word-highlight', cfg.caption_word_highlight === true);
+  _setFieldVal('s-caption-chunk-size', cfg.caption_word_chunk_size ?? 4);
+  _onSettingsWordHighlightChange(cfg.caption_word_highlight === true);
+}
+
+// The words-on-screen count only applies when word-highlight is on.
+function _onSettingsWordHighlightChange(enabled) {
+  const el = document.getElementById('s-caption-chunk-size');
+  if (el) el.disabled = !enabled;
 }
 
 // section id -> the applier that renders that section's fields from a config.
@@ -663,6 +673,13 @@ function _captionSizeValue(raw) {
   return Number.isNaN(n) ? 0 : n;
 }
 
+function _chunkSizeValue(raw) {
+  if (raw === null || raw.trim() === '') return 4;
+  const n = parseInt(raw, 10);
+  if (Number.isNaN(n)) return 4;
+  return Math.min(12, Math.max(1, n));
+}
+
 // ── save + dirty tracking ────────────────────────────────────────────────────
 async function saveSettings() {
   const getVal = id => { const el = document.getElementById(id); return el ? el.value : null; };
@@ -731,6 +748,8 @@ async function saveSettings() {
     caption_font_name:          getVal('s-caption-font-name') ?? '',
     caption_font_size:          _captionSizeValue(getVal('s-caption-font-size')),
     caption_position:           getVal('s-caption-position'),
+    caption_word_highlight:     getChk('s-caption-word-highlight'),
+    caption_word_chunk_size:    _chunkSizeValue(getVal('s-caption-chunk-size')),
     ...(tlSec ? {ui_timeline_interval_seconds: tlSec, ui_timeline_interval_unit: tlUnit} : {}),
   };
 
@@ -856,7 +875,7 @@ Object.assign(window, {
   openSettings, closeSettings, saveSettings, applyTheme, applyAccent,
   _onLlmBackendChange, _onLlmEnabledChange, _onDiarizationBackendChange, _onLaughModeChange,
   _onSimilarityBackendChange, _onPrivacyModeChange, _setPrivacyMode, _currentPrivacyMode,
-  _onPlayNextChange, _onLoopClipChange,
+  _onPlayNextChange, _onLoopClipChange, _onSettingsWordHighlightChange,
   _toggleSecretVisibility, _onHfTokenInput, _updateDiarizationStatus,
   _scrollToSettingsSection, revertSection, revertAllSettings, _checkSettingsDirty,
   applyContentPreset, _onContentPresetChange,

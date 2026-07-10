@@ -944,6 +944,22 @@
         <option value="top">Top</option>
       </select>
     </div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <label class="settings-label" for="s-caption-word-highlight">Word highlight</label>
+        <div class="settings-note">Show a few words at a time and highlight each one as it's spoken (TikTok/CapCut style). Burned-in captions only.</div>
+      </div>
+      <input type="checkbox" id="s-caption-word-highlight" style="flex:0 0 auto"
+             onchange="_onSettingsWordHighlightChange(this.checked)">
+    </div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <label class="settings-label" for="s-caption-chunk-size">Words on screen</label>
+        <div class="settings-note">How many words show at once (1-12) when word highlight is on.</div>
+      </div>
+      <input class="settings-input" id="s-caption-chunk-size" type="number" min="1" max="12"
+             placeholder="4" style="flex:0 0 auto;width:90px">
+    </div>
   </div>
 
   <!-- Notification sounds -->
@@ -1856,6 +1872,16 @@
               <option value="bottom">Bottom</option>
               <option value="top">Top</option>
             </select>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <label for="export-caption-word-highlight" style="font-size:13px;color:var(--muted);min-width:110px">Word highlight</label>
+            <input id="export-caption-word-highlight" type="checkbox" onchange="_onExportWordHighlightChange(this.checked)">
+            <span style="font-size:12px;color:var(--muted)">Highlight each word as it's spoken (TikTok style)</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <label for="export-caption-chunk-size" style="font-size:13px;color:var(--muted);min-width:110px">Words on screen</label>
+            <input id="export-caption-chunk-size" type="number" min="1" max="12" placeholder="4"
+                   style="flex:0 0 auto;width:90px;padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px">
           </div>
         </div>
       </details>

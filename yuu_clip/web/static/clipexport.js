@@ -288,7 +288,16 @@ async function _prefillExportCaptionStyle() {
     document.getElementById('export-caption-font').value = cfg.caption_font_name || '';
     document.getElementById('export-caption-size').value = cfg.caption_font_size ? cfg.caption_font_size : '';
     document.getElementById('export-caption-position').value = cfg.caption_position || 'bottom';
+    document.getElementById('export-caption-word-highlight').checked = !!cfg.caption_word_highlight;
+    document.getElementById('export-caption-chunk-size').value = cfg.caption_word_chunk_size || 4;
+    _onExportWordHighlightChange(!!cfg.caption_word_highlight);
   } catch { /* leave fields at their defaults */ }
+}
+
+// The words-on-screen count only applies when word-highlight is on; grey it out
+// otherwise so the control's dependency is discoverable.
+function _onExportWordHighlightChange(enabled) {
+  document.getElementById('export-caption-chunk-size').disabled = !enabled;
 }
 
 async function exportClip(id) {
@@ -376,6 +385,12 @@ async function confirmExport() {
     const sizeRaw = document.getElementById('export-caption-size').value.trim();
     params.set('caption_size', sizeRaw === '' ? '0' : sizeRaw);
     params.set('caption_position', document.getElementById('export-caption-position').value);
+    const wordHighlight = document.getElementById('export-caption-word-highlight').checked;
+    params.set('word_highlight', wordHighlight ? 'true' : 'false');
+    if (wordHighlight) {
+      const chunkRaw = document.getElementById('export-caption-chunk-size').value.trim();
+      if (chunkRaw !== '') params.set('word_chunk_size', chunkRaw);
+    }
   }
   const qs = params.toString() ? `?${params}` : '';
 
@@ -414,6 +429,7 @@ async function confirmExport() {
 Object.assign(window, {
   exportClip, closeExportModal, confirmExport,
   _onExportCaptionsChange, _onExportRetranscribeChange, _onExportPresetChange,
+  _onExportWordHighlightChange,
   _setExportFraming, _autoFrameExport, _updateExportModeSummary, _renderExportModeSummary,
   _handleExportFormatAction, _downloadClipExport, _revealClipExport, _copyClipExportPaths,
 });

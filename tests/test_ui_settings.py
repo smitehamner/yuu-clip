@@ -573,6 +573,34 @@ class TestCaptionStyleSettings:
         page.locator("#s-caption-position").select_option(current)
         expect(page.locator("#btn-settings-save")).to_be_disabled()
 
+    def test_word_highlight_fields_render_from_config(self, page: Page):
+        self._open_settings(page)
+        cfg = page.evaluate("() => fetch('/api/config').then(r => r.json())")
+        assert page.locator("#s-caption-word-highlight").is_checked() == bool(cfg["caption_word_highlight"])
+        assert page.locator("#s-caption-chunk-size").input_value() == str(cfg["caption_word_chunk_size"])
+
+    def test_chunk_size_enabled_only_when_word_highlight_on(self, page: Page):
+        self._open_settings(page)
+        checkbox = page.locator("#s-caption-word-highlight")
+        was_checked = checkbox.is_checked()
+        if was_checked:
+            checkbox.uncheck()
+        expect(page.locator("#s-caption-chunk-size")).to_be_disabled()
+        checkbox.check()
+        expect(page.locator("#s-caption-chunk-size")).to_be_enabled()
+        # Restore the original state so the dirty-tracking baseline is unchanged.
+        if not was_checked:
+            checkbox.uncheck()
+
+    def test_toggling_word_highlight_marks_settings_dirty(self, page: Page):
+        self._open_settings(page)
+        expect(page.locator("#btn-settings-save")).to_be_disabled()
+        checkbox = page.locator("#s-caption-word-highlight")
+        checkbox.set_checked(not checkbox.is_checked())
+        expect(page.locator("#btn-settings-save")).to_be_enabled()
+        checkbox.set_checked(not checkbox.is_checked())
+        expect(page.locator("#btn-settings-save")).to_be_disabled()
+
 
 # ---------------------------------------------------------------------------
 # Glossary modal - filter input (L9-3)

@@ -128,6 +128,51 @@ class TestExportPresetPicker:
 
 
 @skip_no_server
+class TestExportWordHighlight:
+    def _open_export_modal(self, page: Page):
+        select_first_video_and_clip(page)
+        page.wait_for_selector("#detail .clip-badge", timeout=3000)
+        page.evaluate("() => exportClip(AppState.activeClipId)")
+        page.wait_for_selector("#export-settings-modal.visible", timeout=3000)
+        # The Caption style controls live in a collapsed <details>; open it so the
+        # word-highlight checkbox and chunk-size input are interactable.
+        page.evaluate("() => { document.getElementById('export-caption-style').open = true; }")
+
+    def test_word_highlight_controls_prefill_from_config(self, page: Page):
+        self._open_export_modal(page)
+        cfg = page.evaluate("() => fetch('/api/config').then(r => r.json())")
+        assert page.locator("#export-caption-word-highlight").is_checked() == bool(cfg["caption_word_highlight"])
+        assert page.locator("#export-caption-chunk-size").input_value() == str(cfg["caption_word_chunk_size"])
+        page.evaluate("closeExportModal()")
+
+    def test_chunk_size_enabled_only_when_word_highlight_on(self, page: Page):
+        self._open_export_modal(page)
+        page.locator("#export-caption-word-highlight").uncheck()
+        expect(page.locator("#export-caption-chunk-size")).to_be_disabled()
+        page.locator("#export-caption-word-highlight").check()
+        expect(page.locator("#export-caption-chunk-size")).to_be_enabled()
+        page.evaluate("closeExportModal()")
+
+    def test_word_highlight_params_sent_on_hardsub_export(self, page: Page):
+        self._open_export_modal(page)
+        page.select_option("#export-captions", "hardsub")
+        page.locator("#export-caption-word-highlight").check()
+        page.fill("#export-caption-chunk-size", "6")
+        clip_id = page.evaluate("() => AppState.activeClipId")
+        # Stub timing (confirmExport PATCHes it first) and the export SSE so nothing
+        # mutates the live project or spawns a real ffmpeg run.
+        page.route(f"**/api/clips/{clip_id}/timing",
+                   lambda route: route.fulfill(status=200, content_type="application/json", body="{}"))
+        page.route(f"**/api/clips/{clip_id}/export**",
+                   lambda route: route.fulfill(status=200, content_type="text/event-stream", body="data: done\n\n"))
+        with page.expect_request(f"**/api/clips/{clip_id}/export**") as req_info:
+            page.evaluate("confirmExport()")
+        url = req_info.value.url
+        assert "word_highlight=true" in url
+        assert "word_chunk_size=6" in url
+
+
+@skip_no_server
 class TestMultiFormatExportRows:
     """One row per clip_exports entry in the detail panel's Export section
     (synthetic AppState.activeClipData - the established renderDetail pattern

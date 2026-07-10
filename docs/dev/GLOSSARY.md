@@ -969,6 +969,27 @@ builder / `reel --bake-captions`).
   never overridden (they arrive as inline `<font color>` tags in the SRT and keep
   winning) - colour is deliberately not a caption-style option.
 
+#### Word highlight
+
+An optional **Caption Style** extension (off by default): instead of a static
+whole-sentence caption, a few words show on screen at a time with the
+currently-spoken word tinted in a per-speaker highlight colour (the "TikTok/CapCut"
+look). Opt-in per clip export and as a Settings default, independent of the
+highlight reel's own toggle.
+
+- **Code:** config `caption_word_highlight` (bool) + `caption_word_chunk_size`
+  (int, words on screen); `CaptionStyle.word_highlight` / `word_chunk_size`;
+  rendered as one ASS `Dialogue` event per word by `lines_to_ass()`
+  (`yuu_clip/subtitles.py`), replacing the SRT burn-in path when on. Per-word
+  timings come from Whisper word timestamps (`TranscriptSegment.words_json`) and,
+  for edited captions, forced alignment (`yuu_clip/transcribe/align.py`).
+- **UI label:** "Word highlight" checkbox + "Words on screen" count.
+- **Notes:** Burned-in captions only (an embedded soft-subtitle track can't carry
+  the per-word overrides). English-only for **edited** captions (forced alignment
+  uses an English acoustic model); a line with no per-word data falls back to a
+  static caption. Highlight colour is derived from each speaker's colour, not a
+  separate picker.
+
 ---
 
 ### Clip export editor
