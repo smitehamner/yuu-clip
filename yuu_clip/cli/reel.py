@@ -27,6 +27,8 @@ def reel(
                                      help="Output file path (default: .yuu-clip/reels/reel_<timestamp>.mkv)"),
     captions:   bool            = typer.Option(False, "--captions", help="Also write a stitched <reel>.srt caption sidecar"),
     bake_captions: bool         = typer.Option(False, "--bake-captions", help="Burn captions into the reel video (also writes the SRT sidecar); uses the configured Caption style"),
+    word_highlight: Optional[bool] = typer.Option(None, "--word-highlight/--no-word-highlight", help="Highlight each word as it's spoken in burned-in reel captions; omit to use the configured default"),
+    word_chunk_size: Optional[int] = typer.Option(None, "--word-chunk-size", help="Words shown at once for word-highlight reel captions (1-12); omit to use the configured default"),
 ) -> None:
     """Compile a highlight reel from approved clips with title cards and transitions."""
     from yuu_clip.db.models import Video
@@ -63,7 +65,7 @@ def reel(
         if srt_path:
             console.print(f"  [green]OK[/green] captions {srt_path.name}")
         if bake_captions:
-            _burn_reel_captions(output, srt_path, config)
+            _burn_reel_captions(output, srt_path, config, session, word_highlight, word_chunk_size)
 
 
 def _select_reel_clips(session, clip_ids, video_ids, video_id, status_filter, min_score, top) -> list:
@@ -112,17 +114,35 @@ def _compile_reel(all_clips, video_map, export_dir: Path, output: Path,
         raise typer.Exit(1)
 
 
-def _burn_reel_captions(output: Path, srt_path: Optional[Path], config) -> None:
-    """Burn the stitched reel SRT into the reel video using the configured Caption style.
+def _burn_reel_captions(output: Path, srt_path: Optional[Path], config, session,
+                        word_highlight: Optional[bool], word_chunk_size: Optional[int]) -> None:
+    """Burn the stitched reel captions into the reel video using the configured Caption style.
 
     Skips (with a note) when there was no transcript data to stitch - an empty SRT
-    would be a wasteful no-op re-encode.
+    would be a wasteful no-op re-encode. When word-highlight is on (per-export flag
+    or the configured default), the stitched captions are re-emitted as word-highlight
+    ASS and that is burned in instead of the plain SRT.
     """
     if srt_path is None or not srt_path.exists() or srt_path.stat().st_size == 0:
         console.print("  [yellow]No transcript data - burn-in skipped[/yellow]")
         return
     from yuu_clip.analyze.extract import CaptionStyle
-    from yuu_clip.reel import burn_reel_captions
+    from yuu_clip.config import validate_caption_word_chunk_size
+    from yuu_clip.reel import build_reel_caption_ass, burn_reel_captions
+
+    use_highlight = config.caption_word_highlight if word_highlight is None else word_highlight
+    chunk = config.caption_word_chunk_size if word_chunk_size is None else word_chunk_size
+    try:
+        validate_caption_word_chunk_size(chunk)
+    except (ValueError, TypeError):
+        chunk = config.caption_word_chunk_size
+
+    burn_source = srt_path
+    if use_highlight:
+        ass_path = build_reel_caption_ass(session, output, chunk)
+        if ass_path is not None:
+            burn_source = ass_path
+
     style = CaptionStyle(
         font_name=config.caption_font_name,
         font_size=config.caption_font_size,
@@ -130,11 +150,15 @@ def _burn_reel_captions(output: Path, srt_path: Optional[Path], config) -> None:
     )
     console.print("  Burning captions into the reel...")
     try:
-        burn_reel_captions(output, srt_path, style)
+        burn_reel_captions(output, burn_source, style)
         console.print("  [green]OK[/green] captions burned in")
     except RuntimeError as e:
         console.print(f"  [red]Caption burn-in failed: {e}[/red]")
         raise typer.Exit(1)
+    finally:
+        # The ASS is only a burn-in source (the .srt sidecar stays for the player).
+        if use_highlight and burn_source != srt_path:
+            burn_source.unlink(missing_ok=True)
 
 
 def _gather_demo_clips(session, video_ids: list[int], status_filter, min_score: float, top) -> list:

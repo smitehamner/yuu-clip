@@ -39,6 +39,8 @@ class DemoRequest(BaseModel):
     output_name: str   = ""
     captions:    bool  = False
     bake_captions: bool = False
+    word_highlight: Optional[bool] = None
+    word_chunk_size: Optional[int] = None
 
 
 _REEL_POOL_STATUSES = {"approved", "pending", "rejected"}
@@ -121,6 +123,10 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         ]
         if req.bake_captions:
             cmd += ["--bake-captions"]
+            if req.word_highlight is not None:
+                cmd.append("--word-highlight" if req.word_highlight else "--no-word-highlight")
+            if req.word_chunk_size is not None:
+                cmd += ["--word-chunk-size", str(req.word_chunk_size)]
         elif req.captions:
             cmd += ["--captions"]
         if req.clip_ids:
@@ -276,9 +282,10 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     @router.delete("/api/demo/{filename}")
     def delete_reel(filename: str):
         """Delete a reel file and its caption/composition sidecars from disk."""
-        from yuu_clip.reel import reel_caption_path, reel_composition_path
+        from yuu_clip.reel import reel_ass_caption_path, reel_caption_path, reel_composition_path
         reel_path = _resolve_reel(filename)
-        targets = [reel_path, reel_caption_path(reel_path), reel_composition_path(reel_path)]
+        targets = [reel_path, reel_caption_path(reel_path), reel_ass_caption_path(reel_path),
+                   reel_composition_path(reel_path)]
         locked = delete_files(targets)
         if locked:
             raise locked_files_error(locked)

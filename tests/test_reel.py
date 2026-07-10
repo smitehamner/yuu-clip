@@ -544,6 +544,56 @@ class TestBuildReelCaptionSrt:
         session.close()
 
 
+class TestBuildReelCaptionAss:
+    """The word-highlight reel path reuses subtitles.lines_to_ass, so it produces
+    the same per-word ASS as single-clip export, with word timings offset onto the
+    reel timeline."""
+
+    def _reel_with_words(self, tmp_path):
+        import json
+
+        from yuu_clip.db.models import TranscriptSegment
+        from yuu_clip.reel import reel_composition_path
+        session, clip_id = _seed_transcribed_project(tmp_path)
+        seg = session.query(TranscriptSegment).first()
+        seg.words = [
+            {"text": "hello", "start_ms": 1000, "end_ms": 1400},
+            {"text": "world", "start_ms": 1400, "end_ms": 2000},
+        ]
+        session.commit()
+        reel = tmp_path / ".yuu-clip" / "reels" / "reel_x.mkv"
+        reel.write_bytes(b"fake")
+        reel_composition_path(reel).write_text(json.dumps({
+            "version": 1, "transition": "none", "trans_dur": 0.5, "title_dur": 3.0,
+            "clips": [{"id": clip_id, "duration_s": 5.0}],
+        }), encoding="utf-8")
+        return session, reel
+
+    def test_word_highlight_reel_produces_ass_with_offset_words(self, tmp_path):
+        from yuu_clip.reel import build_reel_caption_ass, reel_ass_caption_path
+        session, reel = self._reel_with_words(tmp_path)
+
+        out = build_reel_caption_ass(session, reel, chunk_size=4)
+        session.close()
+
+        assert out == reel_ass_caption_path(reel)
+        ass = out.read_text(encoding="utf-8")
+        assert "[Events]" in ass
+        dialogues = [line for line in ass.splitlines() if line.startswith("Dialogue:")]
+        assert len(dialogues) == 2  # one event per word
+        # Segment starts at title_dur=3.0s, so the word at 1.0s lands at 4.0s and its
+        # event runs until the next word begins (4.4s) on the reel timeline.
+        assert "0:00:04.00,0:00:04.40" in ass
+
+    def test_missing_composition_returns_none(self, tmp_path):
+        from yuu_clip.reel import build_reel_caption_ass
+        session, _ = _seed_transcribed_project(tmp_path)
+        reel = tmp_path / ".yuu-clip" / "reels" / "noconfig.mkv"
+        reel.write_bytes(b"x")
+        assert build_reel_caption_ass(session, reel, chunk_size=4) is None
+        session.close()
+
+
 class TestReelCaptionRoutes:
     def _approved_clip_id(self, client) -> int:
         vid = client.get("/api/videos").json()[0]["id"]
@@ -581,6 +631,25 @@ class TestReelCaptionRoutes:
         cmd = client.app.state.ctx.demo_cmd
         assert "--bake-captions" in cmd
         assert "--captions" not in cmd  # bake-captions builds the sidecar itself
+
+    def test_start_bake_with_word_highlight_passes_flags(self, client):
+        vid = client.get("/api/videos").json()[0]["id"]
+        r = client.post("/api/demo/start", json={
+            "video_id": vid, "transition": "fade", "bake_captions": True,
+            "word_highlight": True, "word_chunk_size": 6,
+        })
+        assert r.status_code == 200
+        cmd = client.app.state.ctx.demo_cmd
+        assert "--word-highlight" in cmd
+        assert cmd[cmd.index("--word-chunk-size") + 1] == "6"
+
+    def test_start_sidecar_captions_ignores_word_highlight(self, client):
+        vid = client.get("/api/videos").json()[0]["id"]
+        r = client.post("/api/demo/start", json={
+            "video_id": vid, "transition": "fade", "captions": True, "word_highlight": True,
+        })
+        assert r.status_code == 200
+        assert "--word-highlight" not in client.app.state.ctx.demo_cmd
 
     def test_regenerate_without_composition_409(self, client, project_dir):
         self._make_reel(project_dir)

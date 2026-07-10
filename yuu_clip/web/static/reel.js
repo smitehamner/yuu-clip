@@ -48,7 +48,30 @@ async function openHighlightReelsModal(tab) {
   });
   document.getElementById('highlight-reels-modal').classList.add('visible');
   await switchReelTab(tab || 'build');
+  _prefillReelWordHighlight();
   setTimeout(() => document.querySelector('#highlight-reels-modal .btn')?.focus(), 50);
+}
+
+// Word-highlight is a burn-in-only option, so its controls only show when the
+// capture mode is "Burn into video", and the words-on-screen count only when
+// word-highlight itself is on.
+function _onReelCaptionsChange(mode) {
+  document.getElementById('demo-word-highlight-row').style.display = mode === 'burnin' ? '' : 'none';
+  _onReelWordHighlightChange(document.getElementById('demo-word-highlight').checked);
+}
+
+function _onReelWordHighlightChange(enabled) {
+  const burnin = document.getElementById('demo-captions').value === 'burnin';
+  document.getElementById('demo-chunk-size-row').style.display = (enabled && burnin) ? 'flex' : 'none';
+}
+
+async function _prefillReelWordHighlight() {
+  try {
+    const cfg = await fetch('/api/config').then(r => r.json());
+    document.getElementById('demo-word-highlight').checked = !!cfg.caption_word_highlight;
+    document.getElementById('demo-chunk-size').value = cfg.caption_word_chunk_size || 4;
+  } catch { /* leave defaults */ }
+  _onReelCaptionsChange(document.getElementById('demo-captions').value);
 }
 
 async function switchReelTab(tab) {
@@ -471,6 +494,13 @@ async function startDemo() {
     captions:      captionMode !== 'none',
     bake_captions: captionMode === 'burnin',
   };
+  if (captionMode === 'burnin') {
+    body.word_highlight = document.getElementById('demo-word-highlight').checked;
+    if (body.word_highlight) {
+      const chunkRaw = document.getElementById('demo-chunk-size').value.trim();
+      if (chunkRaw !== '') body.word_chunk_size = parseInt(chunkRaw, 10);
+    }
+  }
 
   const statusEl = document.getElementById('demo-status');
   statusEl.style.color = 'var(--muted)';
@@ -662,6 +692,7 @@ Object.assign(window, {
   openHighlightReelsModal, openReelForSession, closeHighlightReelsModal, switchReelTab,
   loadReelClips, _reelMove, _reelToggle, _toggleReelPoolStatus,
   startDemo, closeDemoModal, updateReelEstimate, exportUnexportedReelClips,
+  _onReelCaptionsChange, _onReelWordHighlightChange,
   previewReelPlaylist, closeReelPreview, _reelPreviewStep,
   openBatchExportModal, closeBatchExportModal, confirmBatchExport,
   updateBatchEstimate, _onBatchCaptionsChange, _onBatchRetranscribeChange,

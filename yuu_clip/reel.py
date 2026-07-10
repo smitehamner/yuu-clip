@@ -546,16 +546,29 @@ def _segment_start_times(durations: list[float], trans_dur: float) -> list[float
     return starts
 
 
-def build_reel_caption_srt(session: "Session", reel_path: Path) -> Optional[Path]:
-    """Stitch each reel clip's transcript into one SRT on the reel timeline.
+def reel_ass_caption_path(reel_path: Path) -> Path:
+    return reel_path.with_suffix(".ass")
 
-    Reads the composition sidecar written at build time, offsets every clip's
-    lines by its segment start, and writes ``<reel>.srt``. Returns the SRT path,
-    or None when the reel has no composition sidecar (built before captions
-    existed - it must be rebuilt to enable them).
-    """
+
+def _offset_subline(line, offset_ms: int):
+    """Shift a SubLine (and its per-word timings) onto the reel timeline. The words
+    must be offset too or word-highlight captions would highlight the wrong moment."""
+    words = tuple(
+        {**word, "start_ms": word["start_ms"] + offset_ms, "end_ms": word["end_ms"] + offset_ms}
+        for word in line.words
+    )
+    return line._replace(
+        start_ms=line.start_ms + offset_ms,
+        end_ms=line.end_ms + offset_ms,
+        words=words,
+    )
+
+
+def _stitch_reel_lines(session: "Session", reel_path: Path):
+    """Merge every reel clip's caption lines onto the reel timeline, or None when the
+    reel has no composition sidecar (built before captions existed)."""
     from yuu_clip.db.models import ClipCandidate
-    from yuu_clip.subtitles import lines_to_srt, merged_srt_lines
+    from yuu_clip.subtitles import merged_srt_lines
 
     comp_path = reel_composition_path(reel_path)
     if not comp_path.exists():
@@ -580,14 +593,50 @@ def build_reel_caption_srt(session: "Session", reel_path: Path) -> Optional[Path
             continue
         offset_ms = int(round(starts[2 * idx + 1] * 1000))
         for line in merged_srt_lines(clip):
-            stitched.append(line._replace(
-                start_ms=line.start_ms + offset_ms,
-                end_ms=line.end_ms + offset_ms,
-            ))
+            stitched.append(_offset_subline(line, offset_ms))
+    return stitched
 
+
+def build_reel_caption_srt(session: "Session", reel_path: Path) -> Optional[Path]:
+    """Stitch each reel clip's transcript into one SRT on the reel timeline.
+
+    Reads the composition sidecar written at build time, offsets every clip's
+    lines by its segment start, and writes ``<reel>.srt``. Returns the SRT path,
+    or None when the reel has no composition sidecar (built before captions
+    existed - it must be rebuilt to enable them).
+    """
+    from yuu_clip.subtitles import lines_to_srt
+
+    stitched = _stitch_reel_lines(session, reel_path)
+    if stitched is None:
+        return None
     srt_path = reel_caption_path(reel_path)
     srt_path.write_text(lines_to_srt(stitched), encoding="utf-8")
     return srt_path
+
+
+def build_reel_caption_ass(session: "Session", reel_path: Path, chunk_size: int) -> Optional[Path]:
+    """Stitch the reel's captions into a word-highlight ``<reel>.ass`` for burn-in.
+
+    The parallel of build_reel_caption_srt for the word-highlight path - reuses the
+    same lines_to_ass renderer as single-clip export so the two paths can't drift.
+    Returns the ASS path, or None when the reel has no composition sidecar."""
+    from yuu_clip.subtitles import lines_to_ass
+
+    stitched = _stitch_reel_lines(session, reel_path)
+    if stitched is None:
+        return None
+    ass_path = reel_ass_caption_path(reel_path)
+    ass_path.write_text(lines_to_ass(stitched, chunk_size, _probe_dimensions(reel_path)), encoding="utf-8")
+    return ass_path
+
+
+def _probe_dimensions(path: Path) -> Optional[tuple[int, int]]:
+    """The reel's frame size for the word-highlight ASS PlayRes, or None if unprobeable."""
+    try:
+        return int(_ffprobe_stream_value(path, "width")), int(_ffprobe_stream_value(path, "height"))
+    except (ValueError, RuntimeError):
+        return None
 
 
 def burn_reel_captions(reel_path: Path, srt_path: Path, caption_style=None) -> None:
@@ -596,7 +645,8 @@ def burn_reel_captions(reel_path: Path, srt_path: Path, caption_style=None) -> N
     Reuses the clip-export burn-in filter (`analyze.extract._subtitles_filter`) so
     reel captions honor the same global Caption style (font/size/position) and never
     override per-speaker colours (they arrive as inline <font color> tags in the SRT).
-    Audio is stream-copied - only the video is re-encoded.
+    The caption file may be SRT or word-highlight ASS - libass burns both. Audio is
+    stream-copied - only the video is re-encoded.
     """
     from yuu_clip.analyze.extract import _subtitles_filter
 
