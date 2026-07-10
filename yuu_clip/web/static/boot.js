@@ -43,17 +43,32 @@ if (window.electronAPI) {
   document.getElementById('btn-refresh').style.display = '';
 }
 
-fetch('/api/config').then(r => r.json()).then(cfg => {
-  window._aiPrivacyMode = cfg.ai_privacy_mode || 'local_only';
-  _updateLlmRemoteIndicator(cfg.llm_backend || 'llamacpp', cfg.llm_enabled !== false);
-  window._visionEnabled = cfg.vision_enabled === true;
-}).catch(() => {});
-
+// Single place that (re)loads the boot-cached server state and re-renders every
+// surface that reads it, so a server-side change (model download, settings save)
+// shows up WITHOUT an app restart. Cached globals and their readers:
+//   window._prereqs      -> analyze prereq banner (ui.js), "Basic description"
+//                           chip (clips.js), ffmpeg gate (videos.js)
+//   window._aiPrivacyMode -> "Basic description" chip (clips.js)
+//   window._visionEnabled -> vision frames (clips.js, contexts.js)
+// Call refreshServerState() from any action that mutates these on the server.
 window._prereqs = {ffmpeg_ok: true, llm_ok: true, llm_reason: ''};
-fetch('/api/prereqs').then(r => r.json()).then(p => {
-  window._prereqs = p;
-  _applyPrereqWarnings(p);
-}).catch(() => {});
+async function refreshServerState() {
+  try {
+    const cfg = await fetch('/api/config').then(r => r.json());
+    window._aiPrivacyMode = cfg.ai_privacy_mode || 'local_only';
+    window._visionEnabled = cfg.vision_enabled === true;
+    if (window._updateLlmRemoteIndicator)
+      _updateLlmRemoteIndicator(cfg.llm_backend || 'llamacpp', cfg.llm_enabled !== false);
+  } catch { /* keep the last known config on a transient fetch failure */ }
+  try {
+    const prereqs = await fetch('/api/prereqs').then(r => r.json());
+    window._prereqs = prereqs;
+    if (window._applyPrereqWarnings) _applyPrereqWarnings(prereqs);
+  } catch { /* keep the last known prereqs */ }
+  if (window._renderClips) _renderClips();  // basic-description chip + vision frames
+}
+window.refreshServerState = refreshServerState;
+refreshServerState();
 const _savedSort = localStorage.getItem('clips-sort');
 if (_savedSort) document.getElementById('clips-sort').value = _savedSort;
 const _savedVideoSort = localStorage.getItem('videos-sort');

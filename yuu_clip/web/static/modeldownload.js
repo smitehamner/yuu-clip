@@ -139,6 +139,10 @@ async function _onDownloadDone(kind) {
     return;
   }
   await _KINDS[kind].onSuccess();
+  // Any completed download can change prerequisites/config (e.g. a local model now
+  // exists), so re-sync the boot-cached state and its dependent surfaces - the
+  // analyze prereq banner and per-clip description chips - without a restart.
+  if (window.refreshServerState) refreshServerState();
   _removeRow(kind);
   showToast(_KINDS[kind].successToast, 'success');
 }

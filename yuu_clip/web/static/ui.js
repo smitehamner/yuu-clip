@@ -524,10 +524,18 @@ function _applyPrereqWarnings(prereqs) {
       btn.disabled = true;
       btn.title = 'FFmpeg not found - Re-run Setup Wizard to install it';
     }
-  } else if (!prereqs.llm_ok && inElectron) {
+    return;
+  }
+  if (!prereqs.llm_ok && inElectron) {
     banner.innerHTML = `<span>ℹ LLM scoring is not configured - clips will be scored by energy and scenes only.${wizardLink}</span>`;
     banner.style.display = '';
+    return;
   }
+  // Prerequisites satisfied - clear any banner shown by an earlier state. Without
+  // this, a re-check after the model is set up (refreshServerState) could never
+  // hide a stale warning.
+  banner.style.display = 'none';
+  banner.innerHTML = '';
 }
 
 // ── undo toast (auto-dismiss, single Undo button) ─────────────────────────────

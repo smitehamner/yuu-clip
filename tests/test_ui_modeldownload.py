@@ -182,3 +182,48 @@ class TestModelDownloadBanner:
         _route_caps_text_false(page)
         page.evaluate("() => initModelDownload()")
         assert page.locator("#model-download-banner").is_hidden()
+
+
+@skip_no_server
+class TestPrereqRefreshAfterServerChange:
+    """The boot-cached server state (window._prereqs etc.) must re-sync after a
+    server-side change so surfaces like the analyze prereq banner update without a
+    restart. Regression guard for the class of stale-until-restart bugs."""
+
+    def test_apply_prereq_warnings_clears_a_previously_shown_banner(self, page: Page):
+        # Asserts on the banner's own style.display, not visibility: the banner lives
+        # inside the (hidden-at-rest) analyze panel, so is_visible() is always false.
+        # Use the ffmpeg branch because it fires regardless of the Electron gate.
+        page.evaluate(
+            "() => _applyPrereqWarnings({ffmpeg_ok:false, llm_ok:true, llm_reason:''})"
+        )
+        assert page.evaluate(
+            "() => document.getElementById('prereq-banner').style.display"
+        ) != "none"
+        # A satisfied re-check (what refreshServerState does after a model is set up)
+        # must hide the stale banner - previously it could only ever show one.
+        page.evaluate(
+            "() => _applyPrereqWarnings({ffmpeg_ok:true, llm_ok:true, llm_reason:''})"
+        )
+        assert page.evaluate(
+            "() => document.getElementById('prereq-banner').style.display"
+        ) == "none"
+
+    def test_successful_download_resyncs_prereqs(self, page: Page):
+        # A completed download must trigger refreshServerState(), which re-fetches
+        # /api/prereqs - the wiring that fixes "downloaded a model but the analyze
+        # panel still warns until restart".
+        _isolate_prefetch(page)
+        _route_status(page, pending=_MODEL_ID)
+        _route_caps_text_false(page)
+        page.route("**/api/capabilities/tiers", lambda r: r.fulfill(
+            content_type="application/json", body='{"lightweight":true,"tiers":[]}'))
+        page.route("**/api/llm/gguf/download*", lambda r: _fulfill_sse(r, _PROGRESS_44 + _DONE))
+        page.route("**/api/llm/download-status/clear", lambda r: r.fulfill(
+            content_type="application/json", body='{"pending_model_id":"","downloading":false}'))
+        page.route("**/api/prereqs", lambda r: r.fulfill(
+            content_type="application/json",
+            body='{"ffmpeg_ok":true,"llm_ok":true,"llm_reason":""}'))
+
+        with page.expect_request("**/api/prereqs", timeout=5000):
+            page.evaluate("() => initModelDownload()")

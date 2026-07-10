@@ -781,7 +781,10 @@ async function saveSettings() {
     _updateLlmCapabilities();
     _renderCapabilityTiers();
     refreshModelCatalog();
-    window._visionEnabled = payload.vision_enabled === true;
+    // Re-sync boot-cached server state and its dependent surfaces (analyze prereq
+    // banner, per-clip description chips, vision frames) so changing the model or
+    // AI settings takes effect without a restart.
+    if (window.refreshServerState) refreshServerState();
   } catch {
     showToast('Settings save failed', 'error');
     if (btn) { btn.disabled = false; btn.textContent = 'Save'; }
