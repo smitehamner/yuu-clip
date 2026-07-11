@@ -270,13 +270,10 @@ async function _ccConfirmCreate() {
     PanelNav.forceClose();
     await _reloadClipList(videoId);
     selectClip(clip.id);
-    // Scenes have no scorer yet (Stage 0) - only clips auto-rescore on creation.
-    if (kind === 'scene') {
-      showToast('Scene created');
-    } else {
-      showToast('Clip created - scoring…');
-      rescoreClip(clip.id);
-    }
+    // Both kinds auto-score on creation - clips via the Funny/Dramatic/Action prompt,
+    // scenes via the scene rubric (the rescore route picks the prompt by kind).
+    showToast(`${noun === 'scene' ? 'Scene' : 'Clip'} created - scoring…`);
+    rescoreClip(clip.id);
   } catch (err) {
     showToast(`Could not create ${noun}: ${err.message}`, 'error');
     btn.disabled = false;

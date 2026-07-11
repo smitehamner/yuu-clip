@@ -219,7 +219,7 @@ class TestSceneCreate:
         expect(page.locator("#panelnav-breadcrumb")).to_contain_text("New scene")
         expect(page.locator("#clipcreate-confirm-btn")).to_have_text("Create scene")
 
-    def test_confirm_posts_kind_scene_and_skips_rescore(self, page: Page):
+    def test_confirm_posts_kind_scene_and_rescores(self, page: Page):
         select_video_with_clips(page)
         page.route("**/api/videos/*/transcript", lambda route: route.fulfill(
             status=200, content_type="application/json", body=json.dumps(_VIDEO_LINES)))
@@ -256,8 +256,10 @@ class TestSceneCreate:
 
         expect(page.locator("#panelnav-root")).to_be_hidden(timeout=3000)
         assert created_bodies == [{"start_ms": 5_000, "end_ms": 12_000, "kind": "scene"}]
+        # Stage 2: scenes auto-score on creation like clips (via the scene rubric,
+        # picked by kind in the rescore route).
         page.wait_for_timeout(300)
-        assert not rescore_calls
+        assert rescore_calls == [1]
 
 
 @skip_no_server

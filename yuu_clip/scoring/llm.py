@@ -125,6 +125,37 @@ JSON:\
 """
 
 
+# Scene-mode rubric (Clips-vs-Scenes Stage 2). A Scene is a longer contextual
+# candidate (1-5 min, may include pauses and a story arc), so it is judged on
+# whether it is worth watching AS A SCENE - narrative arc, payoff, context - not
+# on whether it is a punchy clip. It populates the same score_* columns and the
+# same overall math (_compute_overall), so downstream review/export is unchanged;
+# only the prompt differs. Sparse or quiet transcripts are expected and must not
+# be treated as "nothing to score".
+_SCENE_SYSTEM_PROMPT = """\
+You analyze longer video scenes (roughly 1-5 minutes) for how worth watching they are
+as a complete moment. A scene is NOT a punchy clip - it can include pauses, build-up,
+and a story arc, and its transcript may be sparse or have quiet stretches (that is
+normal). Judge the scene as a whole: does it have a narrative arc, a payoff, and enough
+context to stand on its own?
+
+Given a transcript excerpt, do the following in a single JSON response:
+
+1. Write a "description": one sentence (≤20 words) capturing what the scene is about.
+2. Write a "description_long": a paragraph (3-5 sentences) covering:
+   - What happens across the scene and how it develops
+   - What makes it worth watching as a longer moment (arc, payoff, stakes, or context)
+   - Who is involved (use names if mentioned in the transcript)
+   - Any callbacks, running bits, or context that pays off
+3. Rate 0.0–1.0 on three dimensions, judged over the WHOLE scene:
+   "score_funny":    sustained humor, running gags, comedic build-up and payoff
+   "score_dramatic": tension that builds and resolves, confrontations, revelations, emotional arcs
+   "score_action":   escalating stakes, sustained high-tension sequences, physical chaos
+
+Return ONLY valid JSON with exactly these five keys. No markdown, no extra text.\
+"""
+
+
 def _visual_block(vision_summary: str) -> str:
     """A 'Visual context' block appended to the scoring/description prompt when a
     clip has been image-analyzed. Empty when it hasn't, so the prompt is unchanged."""
@@ -474,9 +505,14 @@ def _active_model_id(config: "Config") -> str | None:
 class LLMScorer:
     name = "llm"
 
-    def __init__(self, config: "Config", context_text: str = "") -> None:
+    def __init__(self, config: "Config", context_text: str = "", scene_mode: bool = False) -> None:
         self._config = config
         self._context_text = context_text
+        # Scene mode swaps the clip Funny/Dramatic/Action prompt for the scene rubric
+        # (_SCENE_SYSTEM_PROMPT) and tolerates a sparse/quiet transcript instead of
+        # bailing with llm_no_transcript. Everything else (parse, repair, weights,
+        # notes) is shared - see the Clips-vs-Scenes plan Stage 2.
+        self._scene_mode = scene_mode
         self.weight = config.scorer_llm_weight
         self._client = make_client(config)
         self._available: bool | None = None
@@ -500,18 +536,27 @@ class LLMScorer:
         return ok
 
     def score(self, clip: "ClipCandidate", session: "Session") -> ScoreResult:
-        if not clip.transcript_excerpt:
-            return ScoreResult(tags=["llm_no_transcript"])
-
         vision_summary = clip.vision_summary or ""
+        if not clip.transcript_excerpt:
+            # A quiet scene (long arc, little speech) is legitimate - never tag it
+            # llm_no_transcript. If it has on-screen context, score it from that;
+            # otherwise there is genuinely nothing to judge, so return empty tags and
+            # let the basic-description fallback handle it (as clips do with no LLM).
+            if self._scene_mode:
+                if not vision_summary:
+                    return ScoreResult()
+            else:
+                return ScoreResult(tags=["llm_no_transcript"])
+
+        excerpt = clip.transcript_excerpt or ""
         try:
-            raw = self._call_llm(clip.transcript_excerpt, vision_summary=vision_summary)
+            raw = self._call_llm(excerpt, vision_summary=vision_summary)
             try:
                 data = self._parse(raw)
             except json.JSONDecodeError as exc:
                 log.warning("LLM scoring: invalid JSON for clip %d, asking model to fix: %s", clip.id, exc)
                 raw = self._call_llm(
-                    clip.transcript_excerpt, vision_summary=vision_summary,
+                    excerpt, vision_summary=vision_summary,
                     repair_of=raw, repair_error=exc,
                 )
                 data = self._parse(raw)
@@ -534,7 +579,8 @@ class LLMScorer:
         self, excerpt: str, *, vision_summary: str = "",
         repair_of: str | None = None, repair_error: Exception | None = None,
     ) -> str:
-        system = _compose_system(_SYSTEM_PROMPT, self._context_text, self._config)
+        base_prompt = _SCENE_SYSTEM_PROMPT if self._scene_mode else _SYSTEM_PROMPT
+        system = _compose_system(base_prompt, self._context_text, self._config)
         messages = [
             {"role": "system", "content": system},
             {"role": "user",   "content": _USER_TEMPLATE.format(

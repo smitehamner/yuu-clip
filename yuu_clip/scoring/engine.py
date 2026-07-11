@@ -166,9 +166,15 @@ class ScoringEngine:
         self, config: "Config", scorers: list[Scorer],
         hot_words: list["HotWord"] | None = None,
         sensitive_terms: list["SensitiveTerm"] | None = None,
+        scene_scorers: list[Scorer] | None = None,
     ) -> None:
         self._config  = config
         self._scorers = [s for s in scorers if s.is_available()]
+        # Scenes (kind='scene' rows in the shared table) are scored by their own
+        # scorer set - the scene LLM rubric, never the clip Funny/Dramatic/Action
+        # scorers. Empty by default: a caller that never scores scenes passes nothing
+        # and scenes are left untouched.
+        self._scene_scorers = [s for s in (scene_scorers or []) if s.is_available()]
         # None (the default) means "caller didn't opt in" - skip hot-word/sensitive
         # matching entirely rather than treating it the same as an explicitly empty
         # list, so callers that don't care about these features (most existing
@@ -198,23 +204,64 @@ class ScoringEngine:
     })
 
     def score_clip(self, clip: "ClipCandidate", session: "Session") -> None:
-        """Run all available scorers and update clip.score_* fields in place."""
+        """Run the available scorers for *clip*'s kind and update its score_* in place.
+
+        A kind='scene' row is routed to the scene scorer set (the scene LLM rubric),
+        never the clip scorers - the two kinds share this table but score differently.
+        """
+        if getattr(clip, "kind", "clip") == "scene":
+            self._score_scene(clip, session)
+            return
+
         if not self._scorers:
             return
 
-        clip.tags = [t for t in clip.tags if t not in self._SCORER_TAGS]
+        self._reset_scores(clip)
+        num, weight, scorer_described = self._run_scorers(clip, session, self._scorers)
+
+        if not any(weight.values()):
+            _log.warning("score_clip: no scorer contributed a weighted dimension - clip %s not scored", getattr(clip, "id", "?"))
+            return
+
+        self._write_dimension_scores(clip, num, weight)
+        self._apply_basic_description(clip, scorer_described)
+        self._apply_terms(clip)
+        clip.scored_at = datetime.now(timezone.utc)
+
+    def _score_scene(self, clip: "ClipCandidate", session: "Session") -> None:
+        """Score a kind='scene' row with the scene scorer set only.
+
+        Unlike the clip path this never early-returns on an empty/zero-weight scorer
+        set: when the scene LLM scorer is unavailable (LLM off) the scene still falls
+        back to the basic-description template and is marked scored, mirroring how a
+        clip is left described-but-unscored with no LLM.
+        """
+        self._reset_scores(clip)
+        num, weight, scorer_described = self._run_scorers(clip, session, self._scene_scorers)
+        self._write_dimension_scores(clip, num, weight)
+        self._apply_basic_description(clip, scorer_described)
+        self._apply_terms(clip)
+        clip.scored_at = datetime.now(timezone.utc)
+
+    @staticmethod
+    def _reset_scores(clip: "ClipCandidate") -> None:
+        clip.tags = [t for t in clip.tags if t not in ScoringEngine._SCORER_TAGS]
         clip.score_funny = clip.score_dramatic = clip.score_action = 0.0
         clip.score_overall = 0.0
         clip.score_laugh = None
 
-        # Per dimension: numerator (Σ value·weight) and the weight total of the
-        # scorers that actually emitted that dimension. A scorer that returns
-        # None for a dimension is excluded from its denominator entirely.
+    def _run_scorers(
+        self, clip: "ClipCandidate", session: "Session", scorers: list[Scorer]
+    ) -> tuple[dict, dict, bool]:
+        """Run *scorers* over *clip*, applying descriptions/tags and returning
+        (numerator, weight_total, scorer_described) per dimension for the caller to
+        combine. Per dimension: numerator (Σ value·weight) and the weight total of the
+        scorers that actually emitted it - a scorer returning None for a dimension is
+        excluded from its denominator entirely."""
         num    = {"funny": 0.0, "dramatic": 0.0, "action": 0.0}
         weight = {"funny": 0.0, "dramatic": 0.0, "action": 0.0}
-
         scorer_described = False
-        for scorer in self._scorers:
+        for scorer in scorers:
             result: ScoreResult = scorer.score(clip, session)
             # Store the laugh scorer's raw, unweighted result as its own attribute
             # so laugh density can be sorted/displayed apart from its weighted
@@ -234,11 +281,9 @@ class ScoringEngine:
                 scorer_described = True
             self._apply_descriptions(clip, result)
             self._merge_tags(clip, result.tags)
+        return num, weight, scorer_described
 
-        if not any(weight.values()):
-            _log.warning("score_clip: no scorer contributed a weighted dimension - clip %s not scored", getattr(clip, "id", "?"))
-            return
-
+    def _write_dimension_scores(self, clip: "ClipCandidate", num: dict, weight: dict) -> None:
         clip.score_funny    = num["funny"]    / weight["funny"]    if weight["funny"]    else 0.0
         clip.score_dramatic = num["dramatic"] / weight["dramatic"] if weight["dramatic"] else 0.0
         clip.score_action   = num["action"]   / weight["action"]   if weight["action"]   else 0.0
@@ -247,17 +292,15 @@ class ScoringEngine:
         if overall is not None:
             clip.score_overall = overall
 
-        self._apply_basic_description(clip, scorer_described)
-
-        if self._hot_words is not None or self._sensitive_terms is not None:
-            from yuu_clip.scoring.term_scope import terms_for_video
-            video = getattr(clip, "video", None)
-            if self._hot_words is not None:
-                apply_hotword_boosts(clip, terms_for_video(self._hot_words, video), self._config)
-            if self._sensitive_terms is not None:
-                apply_sensitive_scan(clip, terms_for_video(self._sensitive_terms, video))
-
-        clip.scored_at = datetime.now(timezone.utc)
+    def _apply_terms(self, clip: "ClipCandidate") -> None:
+        if self._hot_words is None and self._sensitive_terms is None:
+            return
+        from yuu_clip.scoring.term_scope import terms_for_video
+        video = getattr(clip, "video", None)
+        if self._hot_words is not None:
+            apply_hotword_boosts(clip, terms_for_video(self._hot_words, video), self._config)
+        if self._sensitive_terms is not None:
+            apply_sensitive_scan(clip, terms_for_video(self._sensitive_terms, video))
 
     @staticmethod
     def _apply_descriptions(clip: "ClipCandidate", result: ScoreResult) -> None:
@@ -313,7 +356,8 @@ class ScoringEngine:
             .all()
         )
         total = len(candidates)
-        _log.info("Scoring %d clip(s) for video %d using %d scorer(s)", total, video.id, len(self._scorers))
+        scorer_count = len(self._scene_scorers) if kind == "scene" else len(self._scorers)
+        _log.info("Scoring %d %s(s) for video %d using %d scorer(s)", total, kind, video.id, scorer_count)
         for i, clip in enumerate(candidates, 1):
             self.score_clip(clip, session)
             # Commit per clip (not just flush) so the web server - a separate

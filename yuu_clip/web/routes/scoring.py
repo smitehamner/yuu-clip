@@ -622,9 +622,13 @@ def _register_clip_scoring_routes(router: APIRouter, ctx: ProjectContext) -> Non
             async with active_job(ctx):
                 yield f"data: {json_lib.dumps('[Starting LLM scoring for 1 clip…]')}\n\n"
                 scorer = LLMScorer(config, context_text=context_text)
+                # A scene (kind='scene') routes to the scene rubric; the engine picks
+                # the scorer set by the clip's kind, so one route serves both.
+                scene_scorer = LLMScorer(config, context_text=context_text, scene_mode=True)
                 engine = ScoringEngine(
                     config, [scorer],
                     hot_words=hot_words, sensitive_terms=sensitive_terms,
+                    scene_scorers=[scene_scorer],
                 )
                 score_db = ctx.get_db()
                 error = None
