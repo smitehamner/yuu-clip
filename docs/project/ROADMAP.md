@@ -29,16 +29,13 @@ plan link to it; items still needing a scope decision or blocked on something
 external say so instead. Full detail/rationale for each is kept in
 internal planning notes (not part of this repo).
 
-1. **Clips vs Scenes** (§5) - now unblocked but needs a scope Q&A session
-   before staging (storage design has wide blast radius). Plan (captured, not
-   staged): (internal planning notes).
-2. **FFmpeg source-hosting once public** (§2) - short checklist, but blocked
+1. **FFmpeg source-hosting once public** (§2) - short checklist, but blocked
    on the repo going public. Plan: (internal planning notes).
-3. **Linux compatibility** (§6) - large; split into a smaller "backend runs
+2. **Linux compatibility** (§6) - large; split into a smaller "backend runs
    on Linux" phase and a much larger "packaged Electron app" phase that's
    only worth starting given real user demand. Plan:
    (internal planning notes).
-4. **UI localization (i18n)** (§6) - large, and the roadmap already says
+3. **UI localization (i18n)** (§6) - large, and the roadmap already says
    English-only is fine for now; scope captured but deliberately not staged.
    Plan: (internal planning notes).
 
@@ -141,12 +138,6 @@ Wanted before distributing beyond friends/trusted users.
 ---
 
 ## 5 - Larger / speculative features
-
-- [ ] **Clips vs Scenes** - a second candidate type: "Scenes" are longer contextual moments
-  (1–5 min, may include pauses and story arc) vs. "clips" (15–90 s punchy bits). Design first:
-  separate pipeline? flag on `ClipCandidate`? separate table? separate review UI?
-  Transcript editing is now stable (dependency satisfied) but this still needs its own
-  scope Q&A before staging. Plan (captured, not staged): (internal planning notes).
 
 - [ ] **Quality presets** *(on hold)* - named compute bundles ("Fast draft" / "Balanced" /
   "Max quality") that pick a matched set of Whisper model, energy mode, scene mode, and scoring

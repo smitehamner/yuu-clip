@@ -39,6 +39,35 @@
 - Confirming creates the clip, selects it, and immediately runs the same LLM scoring as any
   other clip - there's no separate "manual, unscored" state
 
+### Scenes (longer contextual candidates)
+
+Alongside **Clips** (punchy 15-90 second bits), yuu-clip has a second candidate type:
+a **Scene** is a longer contextual moment - roughly 1-5 minutes, which may include
+pauses and a story arc. Scenes are reviewed, scored, and exported through exactly the
+same tools as Clips; only how they're generated and scored differs.
+
+- **Clips / Scenes toggle** - a type toggle above the clip list switches the list
+  between Clips and Scenes. It defaults to **Clips**, so nothing about the everyday
+  view changes until you switch it.
+- **Make a scene by hand** - the manual picker (see Manual clip creation above) can
+  create a Scene instead of a Clip: pick a longer start/end range and it's saved as a
+  Scene and scored the same way.
+- **Let the AI find scenes (optional, off by default)** - turn on **Generate scenes**
+  in Settings → LLM scoring and yuu-clip will, during analysis, ask your local language
+  model to read the transcript and propose scene boundaries - longer moments with a
+  narrative arc that a punchy-clip pass would miss. It's off by default because it's an
+  extra language-model pass per recording; when on, it runs only if a working local
+  model is set up (otherwise it's skipped with a note, never a failed analysis). You can
+  bound it with the shortest/longest scene length and a per-recording cap.
+- **Scene-aware scoring** - a Scene is judged on whether it's *worth watching as a
+  scene* (context, payoff, a story beat) rather than the Clip yardsticks of pure
+  funny / dramatic / action, so a slow-burn moment that scores low as a clip can still
+  rank as a good scene.
+- **Exporting a long scene** - Scenes export through the same presets as Clips. If you
+  squeeze a multi-minute scene under a small size cap (say a 10 MB Discord limit), the
+  Export dialog shows a heads-up that it'll look rough and suggests a larger preset - a
+  warning only, it never blocks the export.
+
 ### Clip review
 
 Each clip detail view shows:

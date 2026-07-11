@@ -6,6 +6,52 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) - see the
 
 ---
 
+## Clips vs Scenes - a second, longer candidate type (done 2026-07-11)
+
+Added **Scenes** - longer contextual candidates (1-5 min, may include pauses and a
+story arc) - alongside the existing punchy **Clips** (15-90s). Both live in the same
+`clip_candidates` table under a `kind` discriminator and share all review + export
+machinery; only generation and scoring diverge. Shipped as four staged commits, each
+green before the next:
+
+- **Stage 0 - storage + kind plumbing** (`dc47158`). Added `kind` (`'clip'` | `'scene'`,
+  `NOT NULL DEFAULT 'clip'`) to `ClipCandidate` via `_ADDITIVE_COLUMNS`, so every existing
+  row backfills to `'clip'` on next start - no manual migration. Scoped the destructive
+  kind-blind paths so a clip re-window can never nuke scenes: `_clear_existing_clips` /
+  `_regenerate_clips` filter `kind='clip'` (mirrored by `_clear_existing_scenes`),
+  `score_video(kind=...)` only runs a kind's scorers over that kind's rows, `list_clips`
+  gained a `kind` query param, and `_clip_dict` carries `kind`. Manual creation accepts an
+  optional `kind` so a "New scene" affordance sets `kind='scene'`. Review UI gained a
+  Clips/Scenes type toggle above the clip list (defaults to Clips, so existing flows are
+  unchanged). Named deliberately clear of the pre-existing `SceneBoundary`/`SceneScorer`
+  (a visual scene-cut timecode, unrelated).
+- **Stage 1 - scene export guardrail** (`a5eb254`). An inline, advisory-only warning when
+  a long scene is squeezed under a small size cap (e.g. a 4-min scene under a Discord 10 MB
+  cap) - never blocks export; the preset/size-cap math is untouched.
+- **Stage 2 - scene-specific scoring rubric** (`e263821`). A scene-mode LLM prompt distinct
+  from the clip Funny/Dramatic/Action prompt, judging "worth watching as a Scene" (narrative
+  arc, payoff, context) and populating the same `score_*` columns. `score_video`/rescore route
+  scene rows to the scene prompt by `kind`; clip scorers never run over scenes. Tolerates a
+  sparse-speech scene and falls back to the basic-description template when the LLM backend is
+  off, like clips.
+- **Stage 3 - opt-in LLM transcript-segmentation generator** (`bedfb14`). Off by default behind
+  `scene_generation_enabled` (Settings toggle) + a `--scenes` analyze flag. New
+  `segments/scene_segmenter.py::generate_scenes` asks the local LLM (`llm.request_scene_boundaries`)
+  to propose scene boundaries over the transcript timeline, parses robustly, clamps to
+  `scene_min_ms`/`scene_max_ms`, caps to `scene_target_count`, and writes `kind='scene'` rows.
+  Pipeline pre-flights the backend (skips with a logged, user-visible reason rather than failing
+  after a long run), clears scoped scenes on re-run, and scores via the Stage 2 path. Settings-only
+  toggle (the wizard does not gain it).
+
+**Stage 4** (scene-as-container: subdivide a scene into child clips via an additive
+`parent_scene_id` self-FK) was scoped as explicitly optional - "only build if Stages 0-3
+prove out" - and was **not built**: scene generation has not yet been exercised against a real
+local LLM, so subdivision is premature. The storage stayed forward-compatible; the column is a
+one-line `_ADDITIVE_COLUMNS` add whenever that stage lands.
+
+Tests: full API suite 2362 green, full UI suite 825 green (one known pre-existing hotword
+flake). Plan closed and its folder removed per the plans-live-outside-repo convention.
+
 ## Prebuilt Python environment - near-instant first-run install (done 2026-07-10)
 
 First launch used to run a single offline `pip install` of the whole scientific-Python
