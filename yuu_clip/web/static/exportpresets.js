@@ -36,6 +36,13 @@ function exportPresetIsVertical(name) {
   return !!_allExportPresets().find(p => p.name === name)?.vertical;
 }
 
+// The size cap (MB) a preset targets, or null for a quality/CRF preset. Used by
+// the export dialog's tight-cap warning to spot a long clip squeezed too small.
+function exportPresetTargetSizeMb(name) {
+  if (!name || name === 'default') return null;
+  return _allExportPresets().find(p => p.name === name)?.target_size_mb ?? null;
+}
+
 // Renders the <option>s for the export options modal's preset picker.
 async function populateExportPresetSelect(selectedName = '') {
   await ensureExportPresetsCache();
@@ -220,6 +227,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 Object.assign(window, {
   ensureExportPresetsCache, exportPresetLabel, exportPresetIsVertical,
+  exportPresetTargetSizeMb,
   populateExportPresetSelect, initExportPresetSettings, addExportPresetRow,
 });
 })();

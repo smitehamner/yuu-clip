@@ -295,6 +295,47 @@ class TestExportModalDefaults:
 
 
 # ---------------------------------------------------------------------------
+# Export modal - tight size-cap warning for long scenes (Clips-vs-Scenes stage 1)
+# ---------------------------------------------------------------------------
+
+@skip_no_server
+class TestTightCapWarning:
+    def _open_and_set_clip(self, page: Page, clip: dict, preset: str):
+        select_first_video_and_clip(page)
+        page.wait_for_selector("#detail .clip-badge", timeout=3000)
+        page.evaluate("() => exportClip(AppState.activeClipId)")
+        page.wait_for_selector("#export-settings-modal.visible", timeout=3000)
+        page.evaluate(
+            "([clip, preset]) => { AppState.activeClipData = clip; _updateExportTightCapWarning(preset); }",
+            [clip, preset],
+        )
+
+    def test_warns_for_long_scene_under_tight_cap(self, page: Page):
+        self._open_and_set_clip(
+            page, {"kind": "scene", "start_ms": 0, "end_ms": 240_000}, "discord-10mb"
+        )
+        warning = page.locator("#export-tightcap-warning")
+        expect(warning).to_be_visible()
+        expect(warning).to_contain_text("scene")
+        expect(warning).to_contain_text("10 MB")
+        page.evaluate("closeExportModal()")
+
+    def test_no_warning_for_short_clip_under_tight_cap(self, page: Page):
+        self._open_and_set_clip(
+            page, {"kind": "clip", "start_ms": 0, "end_ms": 30_000}, "discord-10mb"
+        )
+        expect(page.locator("#export-tightcap-warning")).to_be_hidden()
+        page.evaluate("closeExportModal()")
+
+    def test_no_warning_for_long_scene_under_crf_preset(self, page: Page):
+        self._open_and_set_clip(
+            page, {"kind": "scene", "start_ms": 0, "end_ms": 240_000}, "youtube-1080p"
+        )
+        expect(page.locator("#export-tightcap-warning")).to_be_hidden()
+        page.evaluate("closeExportModal()")
+
+
+# ---------------------------------------------------------------------------
 # Export modal - vertical (9:16 Shorts) framing control (plan 06)
 # ---------------------------------------------------------------------------
 

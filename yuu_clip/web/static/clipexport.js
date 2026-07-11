@@ -202,7 +202,35 @@ function _onExportPresetChange(presetName) {
   if (usingPreset && captionsSel.value === 'softsub') captionsSel.value = 'none';
   document.getElementById('export-framing').style.display =
     exportPresetIsVertical(presetName) ? '' : 'none';
+  _updateExportTightCapWarning(presetName);
   _updateExportModeSummary();
+}
+
+// A size-capped preset spreads target_size_mb across the whole clip, so a long
+// selection leaves too little video bitrate and comes out blocky. Below this
+// total budget the result looks rough; a 4-min clip under Discord's 10 MB cap
+// lands here, a short clip or a generous/CRF preset does not. Coarse mirror of
+// export/presets.py's size math - the real encode still uses the server formula.
+const _TIGHT_CAP_TOTAL_KBPS = 900;
+
+function _exportTightCapWarning(presetName, clip) {
+  const capMb = exportPresetTargetSizeMb(presetName);
+  if (!capMb || !clip || clip.start_ms == null || clip.end_ms == null) return '';
+  const durationS = (clip.end_ms - clip.start_ms) / 1000;
+  if (durationS <= 0) return '';
+  if ((capMb * 8192) / durationS >= _TIGHT_CAP_TOTAL_KBPS) return '';
+  const minutes = Math.max(1, Math.round(durationS / 60));
+  const noun = clip.kind === 'scene' ? 'scene' : 'clip';
+  return `This ${minutes}-minute ${noun} squeezed under a ${capMb} MB cap will look rough (blocky). Consider a larger preset or a shorter selection.`;
+}
+
+// Advisory only - never blocks export; just surfaces when the cap is too tight.
+function _updateExportTightCapWarning(presetName) {
+  const el = document.getElementById('export-tightcap-warning');
+  if (!el) return;
+  const message = _exportTightCapWarning(presetName, AppState.activeClipData);
+  el.textContent = message;
+  el.style.display = message ? '' : 'none';
 }
 
 // Position the 9:16 crop box for the active export and keep the slider + buttons in sync.
@@ -429,7 +457,7 @@ async function confirmExport() {
 Object.assign(window, {
   exportClip, closeExportModal, confirmExport,
   _onExportCaptionsChange, _onExportRetranscribeChange, _onExportPresetChange,
-  _onExportWordHighlightChange,
+  _onExportWordHighlightChange, _exportTightCapWarning, _updateExportTightCapWarning,
   _setExportFraming, _autoFrameExport, _updateExportModeSummary, _renderExportModeSummary,
   _handleExportFormatAction, _downloadClipExport, _revealClipExport, _copyClipExportPaths,
 });
