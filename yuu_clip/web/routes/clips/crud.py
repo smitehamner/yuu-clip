@@ -45,6 +45,7 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
     def list_clips(
         video_id: int,
         status: Optional[str] = Query(None),
+        kind: Optional[str] = Query(None, description="clip | scene; None returns all kinds"),
         sort: str = Query("score", description="score | funny | dramatic | action | timeline"),
     ):
         db = ctx.get_db()
@@ -55,6 +56,8 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
             q = db.query(ClipCandidate).filter_by(video_id=video_id)
             if status:
                 q = q.filter_by(status=status)
+            if kind:
+                q = q.filter_by(kind=kind)
             _sort_col = {
                 "funny":    ClipCandidate.score_funny,
                 "dramatic": ClipCandidate.score_dramatic,
@@ -87,34 +90,38 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
         """
         from yuu_clip.segments.windower import build_excerpt_for_window
 
+        if body.kind not in ("clip", "scene"):
+            raise HTTPException(400, "kind must be 'clip' or 'scene'")
+        noun = "Scene" if body.kind == "scene" else "Clip"
         db = ctx.get_db()
         try:
             video = db.get(Video, video_id)
             if not video:
                 raise HTTPException(404, "Video not found")
             if body.start_ms < 0:
-                raise HTTPException(400, "Clip start can't be before the beginning of the recording")
+                raise HTTPException(400, f"{noun} start can't be before the beginning of the recording")
             if body.end_ms <= body.start_ms:
-                raise HTTPException(400, "Clip end must be after the start")
+                raise HTTPException(400, f"{noun} end must be after the start")
             duration_ms = body.end_ms - body.start_ms
             if duration_ms < _MANUAL_CLIP_MIN_MS:
-                raise HTTPException(400, "Clip must be at least 1 second long")
+                raise HTTPException(400, f"{noun} must be at least 1 second long")
             if duration_ms > _MANUAL_CLIP_MAX_MS:
-                raise HTTPException(400, "Clip can't be longer than 10 minutes")
+                raise HTTPException(400, f"{noun} can't be longer than 10 minutes")
             if video.duration_ms is not None and body.end_ms > video.duration_ms:
-                raise HTTPException(400, "Clip end is beyond the end of the recording")
+                raise HTTPException(400, f"{noun} end is beyond the end of the recording")
 
             clip = ClipCandidate(
                 video_id=video_id,
                 start_ms=body.start_ms,
                 end_ms=body.end_ms,
+                kind=body.kind,
                 status="pending",
                 transcript_excerpt=build_excerpt_for_window(video, body.start_ms, body.end_ms),
             )
             clip.tags = ["manual"]
             db.add(clip)
             db.commit()
-            _log.info("Created manual clip %d for video %d (%d-%dms)", clip.id, video_id, body.start_ms, body.end_ms)
+            _log.info("Created manual %s %d for video %d (%d-%dms)", body.kind, clip.id, video_id, body.start_ms, body.end_ms)
             return _clip_dict(clip, full=True, export_dir=ctx.export_dir, video=video, name_template=ctx.config.export_name_template)
         finally:
             db.close()

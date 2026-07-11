@@ -21,6 +21,7 @@ const AppState = {
   analyzeFilename:     null,
   editingContextId:    null,
   clipFilters:         new Set(),  // active filter tokens; empty = show all
+  clipKind:            'clip',      // candidate type shown: 'clip' | 'scene' (server-side filter)
   clipSearch:          '',
   clipScoreMin:        0,
   videoSearch:         '',

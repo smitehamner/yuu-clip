@@ -115,7 +115,7 @@ async function _rescanHotwords(videoId) {
 
 async function _refreshActiveVideoClips(videoId) {
   if (window.AppState?.activeVideoId !== videoId) return;
-  const clips = await fetch(`/api/videos/${videoId}/clips?sort=${_clipsSortParam()}`).then(r => r.json()).catch(() => null);
+  const clips = await fetch(_clipsListUrl(videoId)).then(r => r.json()).catch(() => null);
   if (clips) { AppState.clips = clips; _renderClips(); if (AppState.activeClipId) selectClip(AppState.activeClipId); }
 }
 

@@ -542,6 +542,18 @@ Two or more clips in one recording whose time windows heavily overlap - usually 
 
 ---
 
+### Scene
+
+A longer contextual candidate - a 1-5 minute moment with a story arc, which may include pauses. Reviewed and exported through the same machinery as a Clip; only generation and scoring differ. Distinct from a Clip (a punchy 15-90s bit).
+
+- **Code:** a `ClipCandidate` row with `kind='scene'` (Clips are `kind='clip'`, the default)
+- **Also called in codebase:** not to be confused with `SceneBoundary` / `SceneScorer` (see Scene Scoring below), which are an unrelated **visual scene-cut timecode**, not this candidate type.
+- **Do not call it:** a "SceneBoundary" - that is a different concept.
+- **UI label:** "Scenes" (Clips/Scenes type toggle above the clip list)
+- **Notes:** Shares the `clip_candidates` table with Clips via the `kind` discriminator. The review UI defaults to Clips; Scenes are shown only when the type toggle is switched.
+
+---
+
 ## Scoring
 
 ### Score

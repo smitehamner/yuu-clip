@@ -81,13 +81,17 @@ def make_engine(db_path: Path):
 
 
 # create_all() creates missing tables but never adds a column to a table that
-# already exists, so a new nullable column on an existing table must be ALTERed
-# in explicitly for pre-existing project DBs. Only additive, nullable columns
-# with a NULL/absent default belong here (an existing row's value becomes NULL).
+# already exists, so a new column on an existing table must be ALTERed in
+# explicitly for pre-existing project DBs. Only additive columns belong here: a
+# nullable column (existing rows become NULL), or a NOT NULL column that carries
+# a DEFAULT so SQLite backfills existing rows (e.g. kind DEFAULT 'clip').
 _ADDITIVE_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("hot_words", "context_slug", "VARCHAR"),
     ("sensitive_terms", "context_slug", "VARCHAR"),
     ("transcript_segments", "words_json", "TEXT"),
+    # Clips-vs-Scenes: NOT NULL DEFAULT backfills every existing row to 'clip'
+    # (unlike the nullable columns above, this one carries a non-NULL default).
+    ("clip_candidates", "kind", "VARCHAR NOT NULL DEFAULT 'clip'"),
 )
 
 
@@ -453,6 +457,11 @@ class ClipCandidate(Base):
 
     start_ms: Mapped[int] = mapped_column(Integer, nullable=False)
     end_ms: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    # Candidate type discriminator: 'clip' (punchy 15-90s bit, the default) or
+    # 'scene' (a longer 1-5 min contextual arc). Shares this table; generation,
+    # scoring, and the three destructive re-window/score paths branch on it.
+    kind: Mapped[str] = mapped_column(String, nullable=False, default="clip")
 
     score_overall: Mapped[float] = mapped_column(Float, default=0.0)
     score_funny: Mapped[float] = mapped_column(Float, default=0.0)

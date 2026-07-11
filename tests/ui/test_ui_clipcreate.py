@@ -151,7 +151,7 @@ class TestClipCreateConfirm:
         page.click("#clipcreate-confirm-btn")
 
         expect(page.locator("#panelnav-root")).to_be_hidden(timeout=3000)
-        assert created_bodies == [{"start_ms": 5_000, "end_ms": 12_000}]
+        assert created_bodies == [{"start_ms": 5_000, "end_ms": 12_000, "kind": "clip"}]
         expect(page.locator(f"#clip-list li[data-clip-id='{_FAKE_CLIP_ID}']")).to_have_class(re.compile(r"\bactive\b"))
 
     def test_confirm_button_disables_immediately_to_prevent_double_submit(self, page: Page):
@@ -195,6 +195,69 @@ class TestClipCreateConfirm:
         expect(btn).to_be_disabled()
         expect(page.locator("#panelnav-root")).to_be_hidden(timeout=3000)
         assert len(create_requests) == 1
+
+
+@skip_no_server
+class TestSceneCreate:
+    """A manual scene reuses the picker with kind='scene': the POST carries the
+    kind, the panel/button copy says 'scene', and (Stage 0) the created scene
+    does NOT chain the clip rescore - there is no scene scorer yet."""
+
+    def _fake_scene(self, start_ms: int, end_ms: int) -> dict:
+        scene = _fake_clip(start_ms, end_ms)
+        scene["kind"] = "scene"
+        return scene
+
+    def test_new_scene_button_opens_scene_picker(self, page: Page):
+        select_video_with_clips(page)
+        page.route("**/api/videos/*/transcript", lambda route: route.fulfill(
+            status=200, content_type="application/json", body=json.dumps(_VIDEO_LINES)))
+        page.click("[data-kind='scene']")
+        page.wait_for_function("() => AppState.clipKind === 'scene'", timeout=3000)
+        page.click("#btn-new-clip")
+        expect(page.locator("#clipcreate-transcript-view .tline")).to_have_count(3, timeout=3000)
+        expect(page.locator("#panelnav-breadcrumb")).to_contain_text("New scene")
+        expect(page.locator("#clipcreate-confirm-btn")).to_have_text("Create scene")
+
+    def test_confirm_posts_kind_scene_and_skips_rescore(self, page: Page):
+        select_video_with_clips(page)
+        page.route("**/api/videos/*/transcript", lambda route: route.fulfill(
+            status=200, content_type="application/json", body=json.dumps(_VIDEO_LINES)))
+        page.click("[data-kind='scene']")
+        page.wait_for_function("() => AppState.clipKind === 'scene'", timeout=3000)
+        page.click("#btn-new-clip")
+        expect(page.locator("#clipcreate-transcript-view .tline")).to_have_count(3, timeout=3000)
+
+        created_bodies = []
+        rescore_calls = []
+
+        def _handle_clips(route):
+            if route.request.method == "POST":
+                created_bodies.append(route.request.post_data_json)
+                route.fulfill(status=200, content_type="application/json",
+                               body=json.dumps(self._fake_scene(5_000, 12_000)))
+            else:
+                route.fulfill(status=200, content_type="application/json",
+                               body=json.dumps([self._fake_scene(5_000, 12_000)]))
+
+        page.route("**/api/videos/*/clips*", _handle_clips)
+        page.route(f"**/api/clips/{_FAKE_CLIP_ID}", lambda route: route.fulfill(
+            status=200, content_type="application/json", body=json.dumps(self._fake_scene(5_000, 12_000))))
+        page.route(f"**/api/clips/{_FAKE_CLIP_ID}/media_url", lambda route: route.fulfill(
+            status=200, content_type="application/json",
+            body=json.dumps({"url": None, "filename": None, "has_captions": False})))
+        page.route(f"**/api/clips/{_FAKE_CLIP_ID}/rescore",
+                   lambda route: (rescore_calls.append(1), route.abort())[-1])
+
+        lines = page.locator("#clipcreate-transcript-view .tline")
+        lines.nth(1).click()
+        lines.nth(2).click()
+        page.click("#clipcreate-confirm-btn")
+
+        expect(page.locator("#panelnav-root")).to_be_hidden(timeout=3000)
+        assert created_bodies == [{"start_ms": 5_000, "end_ms": 12_000, "kind": "scene"}]
+        page.wait_for_timeout(300)
+        assert not rescore_calls
 
 
 @skip_no_server

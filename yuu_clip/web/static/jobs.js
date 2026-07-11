@@ -244,7 +244,7 @@ function _debouncedClipListRefresh() {
     if (!AppState.activeVideoId || !AppState.analyzeFilename) return;
     const analyzing = AppState.videos.find(v => v.filename === AppState.analyzeFilename);
     if (!analyzing || analyzing.id !== AppState.activeVideoId) return;
-    AppState.clips = await fetch(`/api/videos/${AppState.activeVideoId}/clips?sort=${_clipsSortParam()}`).then(r => r.json());
+    AppState.clips = await fetch(_clipsListUrl(AppState.activeVideoId)).then(r => r.json());
     _renderClips();
   }, 1200);
 }

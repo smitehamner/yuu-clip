@@ -279,6 +279,13 @@ function _clipsSortParam() {
   return document.getElementById('clips-sort').value;
 }
 
+// Canonical clip-list URL: every reload of AppState.clips goes through this so the
+// active sort AND the active candidate type (Clips vs Scenes) are always applied
+// together. Adding a new fetch site? Use this, never a hand-built query string.
+function _clipsListUrl(videoId) {
+  return `/api/videos/${videoId}/clips?sort=${_clipsSortParam()}&kind=${AppState.clipKind}`;
+}
+
 async function selectVideo(id) {
   if (isSplitEditorOpen()) {
     const hasSplits = typeof _splitPoints !== 'undefined' && _splitPoints.length > 0;
@@ -321,7 +328,7 @@ async function selectVideo(id) {
   // Load clips and (if the boot fetch hasn't populated them yet) contexts in
   // parallel, so the detail's context chips/dropdown never render from an empty
   // list on the first video opened after load.
-  const clipsPromise = fetch(`/api/videos/${id}/clips?sort=${_clipsSortParam()}`).then(r => r.json());
+  const clipsPromise = fetch(_clipsListUrl(id)).then(r => r.json());
   await ensureContexts();
   const clips = await clipsPromise;
   // Guard against a slower earlier fetch resolving after a newer selection -
@@ -900,7 +907,7 @@ async function onClipsSortChange() {
   if (!AppState.activeVideoId) return;
   localStorage.setItem('clips-sort', _clipsSortParam());
   try {
-    AppState.clips = await fetch(`/api/videos/${AppState.activeVideoId}/clips?sort=${_clipsSortParam()}`).then(r => r.json());
+    AppState.clips = await fetch(_clipsListUrl(AppState.activeVideoId)).then(r => r.json());
   } catch { return; }
   _renderClips();
 }
@@ -909,7 +916,7 @@ async function onClipsSortChange() {
 // test. Internal helpers above stay private to this module's closure.
 Object.assign(window, {
   loadVideos, selectVideo, renderVideoDetail, deleteVideo,
-  onClipsSortChange, _clipsSortParam,
+  onClipsSortChange, _clipsSortParam, _clipsListUrl,
   reanalyzeVideo, rediarizeVideo, _reanalyzeParams,
   reextractVideoRun, retranscribeVideoRun, regenerateClipsRun,
   unsplitVideo, _doUnsplitVideo,

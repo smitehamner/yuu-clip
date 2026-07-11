@@ -59,3 +59,34 @@ class TestAdditiveColumns:
         engine = make_engine(db)
         for table, column, _coltype in _ADDITIVE_COLUMNS:
             assert column in self._columns(engine, table), f"{table}.{column} not re-added"
+
+    def test_kind_column_backfills_existing_rows_to_clip(self, tmp_path: Path):
+        """The clip_candidates.kind column uses NOT NULL DEFAULT 'clip', so a row
+        that predates the column (an existing project's clips) backfills to 'clip'
+        on next open - no data wipe. Simulated by dropping the column from a seeded
+        DB and re-opening (which ALTERs it back with the default)."""
+        from sqlalchemy.orm import sessionmaker
+
+        from yuu_clip.db.models import ClipCandidate, Video
+
+        db = tmp_path / "old.db"
+        engine = make_engine(db)
+        session = sessionmaker(bind=engine)()
+        video = Video(path="x.mkv", filename="x.mkv")
+        session.add(video)
+        session.flush()
+        clip = ClipCandidate(video_id=video.id, start_ms=0, end_ms=1_000, kind="scene")
+        session.add(clip)
+        session.commit()
+        clip_id = clip.id
+        session.close()
+        engine.dispose()
+
+        self._drop_column(db, "clip_candidates", "kind")
+
+        engine2 = make_engine(db)  # re-adds kind DEFAULT 'clip', backfilling the orphaned row
+        session2 = sessionmaker(bind=engine2)()
+        try:
+            assert session2.get(ClipCandidate, clip_id).kind == "clip"
+        finally:
+            session2.close()

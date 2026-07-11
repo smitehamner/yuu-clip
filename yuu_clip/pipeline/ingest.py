@@ -665,7 +665,8 @@ def _regenerate_clips(session, config, video) -> list:
     """Re-run only the clip-generation stage from the recording's existing transcripts.
 
     Destructive to clips: replaces every existing clip (and its approvals, edits, tags,
-    and scores) with freshly windowed, unscored candidates. The transcript is untouched.
+    and scores) with freshly windowed, unscored candidates. Scenes (kind='scene') are
+    left intact - clearing is scoped to kind='clip'. The transcript is untouched.
     Clears the video-level "fully scored" marker since the new clips are unscored until a
     re-score runs. Returns the new candidates.
     """
@@ -688,16 +689,18 @@ def _regenerate_clips(session, config, video) -> list:
     return candidates
 
 
-def _clear_existing_clips(session, video_id: int) -> int:
-    """Delete a video's existing clips (for a --force regeneration), cascading to
-    each clip's children via the ORM. A bulk ``query(...).delete()`` bypasses the
-    ORM relationship cascade and would trip SQLite's ``foreign_keys=ON`` constraint
-    on ``clip_exports.clip_id`` / ``transcripts.clip_id`` (no ON DELETE CASCADE at
-    the DB level) whenever a clip had a tracked export or a clip-level retranscript.
+def _clear_existing_clips(session, video_id: int, kind: str = "clip") -> int:
+    """Delete a video's existing candidates of one *kind* (for a --force regeneration),
+    cascading to each clip's children via the ORM. Scoped to a single ``kind`` so a
+    clip re-window never nukes the recording's scenes (and vice versa) - they share
+    the ``clip_candidates`` table. A bulk ``query(...).delete()`` bypasses the ORM
+    relationship cascade and would trip SQLite's ``foreign_keys=ON`` constraint on
+    ``clip_exports.clip_id`` / ``transcripts.clip_id`` (no ON DELETE CASCADE at the
+    DB level) whenever a clip had a tracked export or a clip-level retranscript.
     """
     from yuu_clip.db.models import ClipCandidate
 
-    clips = session.query(ClipCandidate).filter_by(video_id=video_id).all()
+    clips = session.query(ClipCandidate).filter_by(video_id=video_id, kind=kind).all()
     for clip in clips:
         session.delete(clip)
     return len(clips)

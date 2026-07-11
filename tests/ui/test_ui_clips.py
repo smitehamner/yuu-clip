@@ -8,6 +8,7 @@ helpers.
 from __future__ import annotations
 
 import json
+import re
 
 import pytest
 from conftest import (
@@ -664,3 +665,30 @@ class TestDuplicateDetection:
         )
         expect(page.locator(".clip-dup-notice")).to_be_visible()
         assert page.locator(".clip-dup-notice button[data-merge-b='999999']").count() == 1
+
+
+@skip_no_server
+class TestClipKindToggle:
+    """The Clips/Scenes type toggle is a server-side switch: it reloads the clip
+    list with a kind= param and re-labels the New-clip button. Defaults to Clips."""
+
+    def test_defaults_to_clips_chip_active(self, page: Page):
+        select_video_with_clips(page)
+        expect(page.locator("[data-kind='clip']")).to_have_class(re.compile(r"\bactive\b"))
+        expect(page.locator("[data-kind='scene']")).not_to_have_class(re.compile(r"\bactive\b"))
+        assert page.evaluate("AppState.clipKind") == "clip"
+
+    def test_clicking_scenes_reloads_list_with_kind_scene(self, page: Page):
+        select_video_with_clips(page)
+        requested_urls: list[str] = []
+
+        def _capture(route):
+            requested_urls.append(route.request.url)
+            route.fulfill(status=200, content_type="application/json", body="[]")
+
+        page.route("**/api/videos/*/clips*", _capture)
+        page.click("[data-kind='scene']")
+        page.wait_for_function("() => AppState.clipKind === 'scene'", timeout=3000)
+        assert requested_urls and "kind=scene" in requested_urls[-1]
+        expect(page.locator("[data-kind='scene']")).to_have_class(re.compile(r"\bactive\b"))
+        expect(page.locator("#btn-new-clip")).to_have_text("+ New scene")

@@ -14,6 +14,7 @@
 // feedback for "Play selection".
 
 let _ccVideoId    = null;
+let _ccKind       = 'clip';
 let _ccDurationMs = 0;
 let _ccSeekOffsetS = 0;
 let _ccStartMs    = null;
@@ -24,20 +25,25 @@ function isClipCreateOpen() {
   return PanelNav.isOpen('clip-create');
 }
 
-function openClipCreatePicker(videoId) {
+// kind: 'clip' (default) or 'scene' - a scene reuses this exact picker, differing
+// only in the created row's kind, the panel copy, and (Stage 0) skipping the
+// auto-rescore chain (scene scoring lands in a later stage).
+function openClipCreatePicker(videoId, kind = 'clip') {
   if (!videoId) { showToast('Select a recording first', 'warning'); return; }
   const video = AppState.videos.find(v => v.id === videoId);
   if (!video) return;
 
   _ccVideoId     = videoId;
+  _ccKind        = kind === 'scene' ? 'scene' : 'clip';
   _ccDurationMs  = video.duration_ms || 0;
   _ccSeekOffsetS = 0;
   _ccStartMs     = null;
   _ccEndMs       = null;
 
+  const noun = _ccKind === 'scene' ? 'scene' : 'clip';
   PanelNav.open({
     id: 'clip-create',
-    title: `New clip: ${video.title || video.filename}`,
+    title: `New ${noun}: ${video.title || video.filename}`,
     render: container => _mountClipCreatePanel(container, video),
     isDirty: () => _ccStartMs != null || _ccEndMs != null,
     onClose: _teardownClipCreatePanel,
@@ -69,7 +75,7 @@ function _mountClipCreatePanel(container, video) {
     </div>
     <div id="clipcreate-transcript-view" class="transcript"><div class="transcript-empty">Loading…</div></div>
     <div style="display:flex;justify-content:flex-end">
-      <button class="btn primary" id="clipcreate-confirm-btn" disabled>Create clip</button>
+      <button class="btn primary" id="clipcreate-confirm-btn" disabled>Create ${_ccKind === 'scene' ? 'scene' : 'clip'}</button>
     </div>
   `;
 
@@ -246,12 +252,14 @@ async function _ccConfirmCreate() {
   if (!btn || btn.disabled) return;
   if (_ccStartMs == null || _ccEndMs == null || _ccEndMs <= _ccStartMs) return;
   const videoId = _ccVideoId;
+  const kind = _ccKind;
+  const noun = kind === 'scene' ? 'scene' : 'clip';
   btn.disabled = true;
   btn.textContent = 'Creating…';
   try {
     const res = await fetch(`/api/videos/${videoId}/clips`, {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({start_ms: _ccStartMs, end_ms: _ccEndMs}),
+      body: JSON.stringify({start_ms: _ccStartMs, end_ms: _ccEndMs, kind}),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -262,12 +270,17 @@ async function _ccConfirmCreate() {
     PanelNav.forceClose();
     await _reloadClipList(videoId);
     selectClip(clip.id);
-    showToast('Clip created - scoring…');
-    rescoreClip(clip.id);
+    // Scenes have no scorer yet (Stage 0) - only clips auto-rescore on creation.
+    if (kind === 'scene') {
+      showToast('Scene created');
+    } else {
+      showToast('Clip created - scoring…');
+      rescoreClip(clip.id);
+    }
   } catch (err) {
-    showToast(`Could not create clip: ${err.message}`, 'error');
+    showToast(`Could not create ${noun}: ${err.message}`, 'error');
     btn.disabled = false;
-    btn.textContent = 'Create clip';
+    btn.textContent = `Create ${noun}`;
   }
 }
 
@@ -280,6 +293,7 @@ function _teardownClipCreatePanel() {
   }
   _ccPlaybackGuard = null;
   _ccVideoId    = null;
+  _ccKind       = 'clip';
   _ccStartMs    = null;
   _ccEndMs      = null;
 }

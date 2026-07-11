@@ -1064,7 +1064,7 @@
         <span>Clips</span>
         <div style="display:flex;align-items:center;gap:8px">
           <button class="btn ghost" id="btn-new-clip" style="font-size:11px;padding:3px 9px" title="Pick a time range to create a clip by hand"
-                  onclick="openClipCreatePicker(AppState.activeVideoId)">+ New clip</button>
+                  onclick="openClipCreatePicker(AppState.activeVideoId, AppState.clipKind)">+ New clip</button>
           <button class="btn ghost" id="btn-scan-duplicates" style="font-size:11px;padding:3px 9px" title="Find clips whose time ranges heavily overlap - likely the same moment captured twice"
                   onclick="scanDuplicates()">Check duplicates</button>
           <span style="font-size:10px;color:var(--muted)">Sort</span>
@@ -1089,6 +1089,11 @@
           <option value="0.7">70%+</option>
           <option value="0.9">90%+</option>
         </select>
+      </div>
+      <div class="clip-filter-tabs" role="group" aria-label="Show clips or scenes" style="margin-bottom:6px">
+        <span style="font-size:10px;color:var(--muted);padding:2px 4px;line-height:1.8;flex-shrink:0" aria-hidden="true">Type</span>
+        <button class="clip-chip kind-chip active" aria-pressed="true"  data-kind="clip"  onclick="setClipKind('clip')" title="Show punchy clips (15-90s)">Clips</button>
+        <button class="clip-chip kind-chip"        aria-pressed="false" data-kind="scene" onclick="setClipKind('scene')" title="Show longer scenes (1-5 min contextual moments)">Scenes</button>
       </div>
       <div class="clip-filter-tabs" aria-label="Clip filters">
         <span style="font-size:10px;color:var(--muted);padding:2px 4px;line-height:1.8;flex-shrink:0" aria-hidden="true">Filter</span>

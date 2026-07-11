@@ -313,9 +313,12 @@ def _rescore_video_clips(
         if not video:
             raise HTTPException(404, "Video not found")
         context_names = json_list(video.context_names_json)
+        # Scoped to kind='clip': this "Rescore all clips" route runs the clip LLM
+        # scorer, which must never touch scene rows (they share this table and get
+        # their own scoring path). See the Clips-vs-Scenes guard in score_video.
         query = (
             db.query(ClipCandidate)
-            .filter_by(video_id=video_id)
+            .filter_by(video_id=video_id, kind="clip")
             .order_by(ClipCandidate.start_ms)
         )
         if failed_only:

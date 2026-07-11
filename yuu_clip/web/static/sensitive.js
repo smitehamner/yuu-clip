@@ -108,7 +108,7 @@ function addSensitiveTermRow() {
 async function _refreshActiveVideoClipsForSensitive() {
   const videoId = window.AppState?.activeVideoId;
   if (!videoId) return;
-  const clips = await fetch(`/api/videos/${videoId}/clips?sort=${_clipsSortParam()}`).then(r => r.json()).catch(() => null);
+  const clips = await fetch(_clipsListUrl(videoId)).then(r => r.json()).catch(() => null);
   if (clips) { AppState.clips = clips; _renderClips(); if (AppState.activeClipId) selectClip(AppState.activeClipId); }
 }
 

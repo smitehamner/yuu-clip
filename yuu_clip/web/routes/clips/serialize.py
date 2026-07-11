@@ -117,6 +117,7 @@ def _clip_dict(
     d = {
         "id": clip.id,
         "video_id": clip.video_id,
+        "kind": clip.kind,
         "start_ms": clip.start_ms,
         "end_ms": clip.end_ms,
         "start_hms": clip.start_hms,

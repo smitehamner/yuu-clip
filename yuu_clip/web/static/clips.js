@@ -137,6 +137,37 @@ function toggleClipFilter(token) {
   _renderClips();
 }
 
+// Candidate-type toggle (Clips vs Scenes). Unlike the status filter chips, this
+// is a server-side switch: it reloads AppState.clips for the selected kind, so
+// the status counts and stats line reflect just that kind. Defaults to Clips.
+function setClipKind(kind) {
+  if (kind !== 'clip' && kind !== 'scene') return;
+  if (AppState.clipKind === kind) return;
+  AppState.clipKind = kind;
+  AppState.activeClipId = null;
+  _syncKindChips();
+  _updateNewClipButton();
+  if (AppState.activeVideoId) _reloadClipList(AppState.activeVideoId);
+}
+
+function _syncKindChips() {
+  document.querySelectorAll('[data-kind]').forEach(chip => {
+    const active = chip.dataset.kind === AppState.clipKind;
+    chip.classList.toggle('active', active);
+    chip.setAttribute('aria-pressed', active ? 'true' : 'false');
+  });
+}
+
+function _updateNewClipButton() {
+  const btn = document.getElementById('btn-new-clip');
+  if (!btn) return;
+  const isScene = AppState.clipKind === 'scene';
+  btn.textContent = isScene ? '+ New scene' : '+ New clip';
+  btn.title = isScene
+    ? 'Pick a time range to create a scene by hand'
+    : 'Pick a time range to create a clip by hand';
+}
+
 function setClipSearch(q) {
   AppState.clipSearch = q.trim();
   _renderClips();
@@ -880,7 +911,7 @@ function openClipActionsModal(clipId) {
 
 async function _reloadClipList(videoId) {
   if (!videoId) return;
-  AppState.clips = await fetch(`/api/videos/${videoId}/clips?sort=${_clipsSortParam()}`).then(r => r.json());
+  AppState.clips = await fetch(_clipsListUrl(videoId)).then(r => r.json());
   _renderClips();
 }
 
@@ -1100,7 +1131,7 @@ async function setStatus(id, status) {
   }
   AppState.activeClipId = id;
   const [clipsData, clipDetail] = await Promise.all([
-    fetch(`/api/videos/${AppState.activeVideoId}/clips?sort=${_clipsSortParam()}`).then(r => r.json()),
+    fetch(_clipsListUrl(AppState.activeVideoId)).then(r => r.json()),
     fetch(`/api/clips/${id}`).then(r => r.json()),
   ]);
   AppState.clips = clipsData;
@@ -1294,6 +1325,7 @@ Object.assign(window, {
   _releasePlayerBeforeDelete,
   analyzeFrames,
   toggleClipFilter, _syncFilterChips, setClipSearch, setClipScoreMin, _clearClipFilters,
+  setClipKind, _syncKindChips, _updateNewClipButton,
   _applyFilters, _renderClips, _parseTimingOffset, _reloadClipList,
   _renderClipFilterCounts, toggleClipSortDir,
   deleteClip, deleteExport, mergeClips, scanDuplicates,

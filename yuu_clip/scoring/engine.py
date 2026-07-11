@@ -299,12 +299,17 @@ class ScoringEngine:
                 # object to detect the mutation; in-place .append() is invisible.
                 clip.tags = clip.tags + [tag]
 
-    def score_video(self, video: "Video", session: "Session", progress_cb=None) -> int:
-        """Score all ClipCandidates for *video*.  Returns count scored."""
+    def score_video(self, video: "Video", session: "Session", progress_cb=None, kind: str = "clip") -> int:
+        """Score a video's ClipCandidates of one *kind*.  Returns count scored.
+
+        Scoped to a single ``kind`` (default 'clip') so the clip scorers never run
+        over scene rows, which share the ``clip_candidates`` table - scenes get their
+        own scoring path.
+        """
         from yuu_clip.db.models import ClipCandidate
         candidates = (
             session.query(ClipCandidate)
-            .filter_by(video_id=video.id)
+            .filter_by(video_id=video.id, kind=kind)
             .all()
         )
         total = len(candidates)

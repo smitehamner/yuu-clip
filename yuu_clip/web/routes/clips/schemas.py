@@ -70,3 +70,4 @@ class TagsBody(BaseModel):
 class ManualClipCreate(BaseModel):
     start_ms: int
     end_ms: int
+    kind: str = "clip"  # clip | scene - a manually picked scene reuses this same picker path
