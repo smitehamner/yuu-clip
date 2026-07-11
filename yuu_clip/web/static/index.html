@@ -681,6 +681,16 @@
         <span id="s-min-clip-ms-hint" style="font-size:11px;color:var(--muted)"></span>
       </div>
     </div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <label class="settings-label" for="s-scene-generation">Generate scenes</label>
+        <div class="settings-note">In addition to short clips, ask the LLM to find longer "scenes" (1-5 min contextual moments with a story arc). Off by default - it adds an LLM pass to each analysis. Needs LLM scoring turned on. View them with the Scenes filter above the clip list.</div>
+      </div>
+      <label class="settings-checkbox">
+        <input type="checkbox" id="s-scene-generation" aria-label="Generate scenes during analysis">
+        <span style="font-size:13px" aria-hidden="true">Enable</span>
+      </label>
+    </div>
   </div>
 
   <!-- Hardware section -->

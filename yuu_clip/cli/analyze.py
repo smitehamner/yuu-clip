@@ -98,6 +98,7 @@ def analyze(
     language: Optional[str] = typer.Option(None, "--language", "-l", help="Force speech-to-text language (e.g. en)"),
     energy_mode: str = typer.Option("fast", "--energy-mode", help="Audio energy analysis: none|fast|full"),
     scene_mode: str = typer.Option("fast", "--scene-mode", help="Scene detection: transcript|fast|full"),
+    scenes: bool = typer.Option(False, "--scenes", help="Also generate longer 'scene' candidates via the LLM (opt-in; off by default)"),
     diarize: Optional[bool] = typer.Option(None, "--diarize/--no-diarize", help="Override speaker diarization for this run (default: use config)"),
     no_interact: bool = typer.Option(False, "--no-interact", help="Never prompt interactively - use defaults or fail cleanly (set automatically by the web UI)"),
     context: list[str] = typer.Option([], "--context", help="World context IDs to apply (can repeat)"),
@@ -144,6 +145,9 @@ def analyze(
         video_id=video_id,
         segment_start_s=segment_start,
         segment_end_s=segment_end,
+        # The --scenes flag can only turn generation on; a project that enabled the
+        # Settings toggle still gets scenes on a plain CLI run.
+        generate_scenes=scenes or config.scene_generation_enabled,
     )
 
     video_paths = _resolve_videos(path)

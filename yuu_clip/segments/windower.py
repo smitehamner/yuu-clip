@@ -49,16 +49,11 @@ def generate_candidates(
     Returns the list of newly created ClipCandidate objects (already
     added to *session* but not yet committed).
     """
-    all_segments: list[TranscriptSegment] = []
-    for t in transcripts:
-        if t.audio_track.do_transcribe:
-            all_segments.extend(t.segments)
+    all_segments = merge_transcribable_segments(transcripts)
 
     if not all_segments:
         _log.info("generate_candidates: no transcribable segments for video %d - returning empty", video.id)
         return []
-
-    all_segments.sort(key=lambda s: s.start_ms)
 
     windows = _silence_window(
         all_segments,
@@ -89,6 +84,18 @@ def generate_candidates(
         config.silence_threshold_ms, config.min_clip_ms, config.hard_split_ms,
     )
     return candidates
+
+
+def merge_transcribable_segments(transcripts: list[Transcript]) -> list[TranscriptSegment]:
+    """All segments from *transcripts*' transcribable tracks, merged into one
+    time-sorted timeline. Shared by clip generation (generate_candidates) and scene
+    generation (segments/scene_segmenter.generate_scenes)."""
+    all_segments: list[TranscriptSegment] = []
+    for t in transcripts:
+        if t.audio_track.do_transcribe:
+            all_segments.extend(t.segments)
+    all_segments.sort(key=lambda s: s.start_ms)
+    return all_segments
 
 
 def _segment_speaker_display(seg: TranscriptSegment) -> str | None:

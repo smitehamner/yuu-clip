@@ -38,6 +38,9 @@ class AnalyzeOptions:
     # Time window for pre-analysis splits: trim audio extraction to this range.
     segment_start_s: Optional[float] = None
     segment_end_s: Optional[float] = None
+    # Opt-in LLM scene generation (Clips-vs-Scenes Stage 3). When True and the LLM
+    # backend is reachable, generate + score kind='scene' candidates after clips.
+    generate_scenes: bool = False
 
 
 def _parse_srt(text: str) -> list[tuple[int, int, str]]:
@@ -247,6 +250,18 @@ def _analyze_one(
             session.rollback()
             console.print(f"  [yellow]Scoring failed - clips kept, unscored. Use Rescore to retry: {exc}[/yellow]")
             log.exception("Scoring failed: video_id=%s", video.id)
+
+    if opts.generate_scenes and transcripts:
+        try:
+            with recorder.stage("Generate Scenes"):
+                _generate_and_score_scenes(video, transcripts, config, session, context_text=opts.context_text)
+        except Exception as exc:
+            # A scene-generation failure must never abort a completed clip run - clips
+            # are already committed. Roll back only the in-flight scene work.
+            session.rollback()
+            console.print(f"  [yellow]Scene generation failed - clips are unaffected: {exc}[/yellow]")
+            log.exception("Scene generation failed: video_id=%s", video.id)
+        session.commit()
 
     # The 720p preview proxy is NOT built here - it used to run inline and blocked
     # "Analysis complete" while the whole recording re-encoded. It's now warmed in
@@ -729,6 +744,74 @@ def _generate_candidates(video, transcripts, config, session, no_segment, no_tra
     video.status = "done"
     session.flush()
     return candidates
+
+
+def _clear_existing_scenes(session, video_id: int) -> int:
+    """Delete a recording's existing kind='scene' rows so a re-run replaces scenes
+    without touching clips. Thin wrapper over the kind-scoped _clear_existing_clips
+    (Stage 0) - the two kinds share the clip_candidates table."""
+    return _clear_existing_clips(session, video_id, kind="scene")
+
+
+def _generate_and_score_scenes(video, transcripts, config, session, context_text: str = "") -> None:
+    """Generate + score opt-in LLM scenes for *video* (Clips-vs-Scenes Stage 3).
+
+    Pre-flights the LLM backend and skips with a user-visible reason when it is off or
+    unreachable - scene generation is entirely LLM-driven, so this avoids failing after
+    a long run. Clears existing scenes first (kind-scoped) so a re-run replaces them.
+    """
+    from yuu_clip.scoring.llm import check_llm_available
+
+    if not config.llm_enabled:
+        console.print("  [yellow]Scene generation skipped - LLM scoring is turned off in Settings.[/yellow]")
+        log.info("Scene generation skipped: LLM disabled. video_id=%s", video.id)
+        return
+    llm_ok, llm_reason = check_llm_available(config)
+    if not llm_ok:
+        console.print(
+            f"  [yellow]Scene generation skipped - {llm_reason}. Turn on the LLM backend "
+            f"and re-analyze to generate scenes.[/yellow]"
+        )
+        log.info("Scene generation skipped: %s. video_id=%s", llm_reason, video.id)
+        return
+
+    from yuu_clip.segments.scene_segmenter import generate_scenes
+
+    cleared = _clear_existing_scenes(session, video.id)
+    if cleared:
+        console.print(f"  [dim]  Cleared {cleared} existing scene(s)[/dim]")
+
+    console.print("  [bold]Generating scenes (LLM)...[/bold]")
+    scenes = generate_scenes(video, transcripts, config, session)
+    session.flush()
+    console.print(f"  [green]  OK[/green] {len(scenes)} scene(s) created")
+    if scenes:
+        _score_scenes(video, config, session, context_text)
+
+
+def _score_scenes(video, config, session, context_text: str = "") -> None:
+    """Score the recording's kind='scene' rows via the Stage 2 scene rubric.
+
+    Builds a ScoringEngine whose scene scorer set is the scene-mode LLMScorer; the
+    engine routes kind='scene' rows there and never runs the clip Funny/Dramatic/Action
+    scorers over them (score_video(kind='scene'))."""
+    from yuu_clip.db.models import HotWord, SensitiveTerm
+    from yuu_clip.scoring.engine import ScoringEngine
+    from yuu_clip.scoring.llm import LLMScorer
+
+    hot_words = session.query(HotWord).all()
+    sensitive_terms = session.query(SensitiveTerm).all()
+    engine = ScoringEngine(
+        config, scorers=[],
+        hot_words=hot_words, sensitive_terms=sensitive_terms,
+        scene_scorers=[LLMScorer(config, context_text=context_text, scene_mode=True)],
+    )
+    console.print("  [bold]Scoring scenes...[/bold]")
+    n = engine.score_video(
+        video, session, kind="scene",
+        progress_cb=lambda i, total: console.print(f"  Scoring scene {i}/{total}..."),
+    )
+    console.print(f"  [green]  OK[/green] {n} scene(s) scored")
 
 
 def _summarize_video(video, transcripts, config, session, context_text: str = "") -> None:

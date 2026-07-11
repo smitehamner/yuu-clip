@@ -293,7 +293,10 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             validate_whisper_model(req.model)
         except ValueError as e:
             raise HTTPException(400, str(e))
-        ctx.analyze_cmd = _build_analyze_cmd(req, video_path, ctx.project_dir)
+        ctx.analyze_cmd = _build_analyze_cmd(
+            req, video_path, ctx.project_dir,
+            generate_scenes=ctx.config.scene_generation_enabled,
+        )
         ctx.analyze_pending_filename = Path(video_path).name
         ctx.analyze_pending_video_id = req.video_id
         _log.info(
@@ -699,7 +702,9 @@ def _resolve_video_path(req: IngestRequest, ctx) -> str:
     return req.path
 
 
-def _build_analyze_cmd(req: IngestRequest, video_path: str, project_dir: Path) -> list[str]:
+def _build_analyze_cmd(
+    req: IngestRequest, video_path: str, project_dir: Path, generate_scenes: bool = False,
+) -> list[str]:
     cmd = [
         sys.executable, "-m", "yuu_clip.cli", "analyze",
         video_path, "--model", req.model,
@@ -718,6 +723,8 @@ def _build_analyze_cmd(req: IngestRequest, video_path: str, project_dir: Path) -
     if req.no_score:
         cmd += ["--no-score"]
     cmd += ["--energy-mode", req.energy_mode, "--scene-mode", req.scene_mode]
+    if generate_scenes:
+        cmd += ["--scenes"]
     if req.diarize is True:
         cmd += ["--diarize"]
     elif req.diarize is False:

@@ -156,6 +156,63 @@ Return ONLY valid JSON with exactly these five keys. No markdown, no extra text.
 """
 
 
+# Scene-boundary segmentation (Clips-vs-Scenes Stage 3). Asks the LLM to split a
+# recording's transcript into longer self-contained scenes (start_ms/end_ms + reason).
+# The geometry (clamp to video range + min/max bounds, drop overlaps, cap the count,
+# chunk long transcripts) lives in segments/scene_segmenter.py; this only prompts and
+# parses. Distinct from _SCENE_SYSTEM_PROMPT above, which SCORES an existing scene.
+_SCENE_BOUNDARY_SYSTEM = """\
+You split a longer recording's transcript into self-contained SCENES - contextual
+moments of roughly 1-5 minutes, each with a beginning, middle, and end (a story arc, a
+bit that builds and pays off, a conversation, an encounter). A scene is NOT a punchy
+one-liner; it is a longer moment worth watching as a whole.
+
+The transcript is given as lines, each prefixed with its start time in milliseconds:
+[start_ms] text
+
+Choose boundaries that fall on natural breaks in the conversation or action. For each
+scene, return its "start_ms" and "end_ms" as integers in the SAME millisecond scale as
+the prefixes, plus a short "reason" (<=15 words) for why it is a coherent scene.
+
+Return ONLY valid JSON: a list of objects with keys "start_ms", "end_ms", "reason".
+Order by start_ms ascending. Do not overlap scenes. No markdown, no extra text.\
+"""
+
+
+def request_scene_boundaries(
+    transcript_block: str, config: "Config", context_text: str = "",
+) -> list[dict]:
+    """Ask the LLM to propose scene boundaries over *transcript_block*.
+
+    *transcript_block* is the transcript formatted one line per segment, each prefixed
+    with its start_ms. Returns a list of {"start_ms": int, "end_ms": int, "reason": str}
+    in the transcript's millisecond scale. Malformed individual items are skipped;
+    raises (fail loud) if the whole response can't be parsed as a JSON list even after
+    the one repair retry in _call_llm_json.
+    """
+    system = _compose_system(_SCENE_BOUNDARY_SYSTEM, context_text, config)
+    messages = [
+        {"role": "system", "content": system},
+        {"role": "user",   "content": f"Transcript:\n\"\"\"\n{transcript_block}\n\"\"\"\nJSON:"},
+    ]
+    data = _call_llm_json(messages, config, temperature=0.2)
+    if not isinstance(data, list):
+        raise ValueError(f"Expected a JSON list of scene boundaries, got {type(data).__name__}")
+    boundaries: list[dict] = []
+    for item in data:
+        if not isinstance(item, dict) or "start_ms" not in item or "end_ms" not in item:
+            continue
+        try:
+            boundaries.append({
+                "start_ms": int(item["start_ms"]),
+                "end_ms":   int(item["end_ms"]),
+                "reason":   str(item.get("reason", "")),
+            })
+        except (TypeError, ValueError):
+            continue
+    return boundaries
+
+
 def _visual_block(vision_summary: str) -> str:
     """A 'Visual context' block appended to the scoring/description prompt when a
     clip has been image-analyzed. Empty when it hasn't, so the prompt is unchanged."""

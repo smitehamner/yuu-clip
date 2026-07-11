@@ -14,7 +14,7 @@ const _settingsFieldIds = [
   's-laugh-weight','s-laugh-mode','s-laugh-model-id','s-lexicon-weight',
   's-speech-rate-weight','s-churn-weight','s-prosody-weight',
   's-funny-weight','s-dramatic-weight','s-action-weight',
-  's-scene-mode','s-energy-mode','s-silence-ms','s-min-clip-ms',
+  's-scene-mode','s-energy-mode','s-silence-ms','s-min-clip-ms','s-scene-generation',
   's-thermal-autopause','s-thermal-warn-c','s-thermal-pause-c',
   's-audio-event-enabled',
   's-timeline-interval','s-timeline-unit','s-autoplay','s-play-next','s-loop-clip','s-playback-rate',
@@ -257,6 +257,7 @@ function _applyAnalysisFields(cfg) {
   _setFieldVal('s-energy-mode',   cfg.energy_mode          || 'fast');
   _setFieldVal('s-silence-ms',    cfg.silence_threshold_ms ?? 3000);
   _setFieldVal('s-min-clip-ms',   cfg.min_clip_ms          ?? 15000);
+  _setFieldChk('s-scene-generation', cfg.scene_generation_enabled === true);
   const silenceEl = document.getElementById('s-silence-ms');
   const minClipEl = document.getElementById('s-min-clip-ms');
   const silenceHint = document.getElementById('s-silence-ms-hint');
@@ -747,6 +748,7 @@ async function saveSettings() {
     energy_mode:                getVal('s-energy-mode'),
     silence_threshold_ms:       getNum('s-silence-ms', parseInt),
     min_clip_ms:                getNum('s-min-clip-ms', parseInt),
+    scene_generation_enabled:   getChk('s-scene-generation'),
     thermal_autopause_enabled:  getChk('s-thermal-autopause'),
     thermal_warn_c:             getNum('s-thermal-warn-c', parseInt),
     thermal_pause_c:            getNum('s-thermal-pause-c', parseInt),

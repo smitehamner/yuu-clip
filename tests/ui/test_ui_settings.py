@@ -738,6 +738,36 @@ class TestHardwareSettingsSection:
         expect(page.locator("#toast-container .toast.error")).to_contain_text("thermal_warn_c")
 
 
+@skip_no_server
+class TestSceneGenerationToggle:
+    """The opt-in 'Generate scenes' toggle (Clips-vs-Scenes Stage 3) in the Analysis
+    defaults section. Read-only: never clicks Save, so the live project config is
+    untouched (other sessions may be running)."""
+
+    def _open_settings(self, page: Page) -> None:
+        page.goto(LIVE_URL)
+        page.wait_for_selector("#video-list li[data-video-id]", timeout=5000)
+        page.click("#btn-settings-header")
+        page.wait_for_selector("#settings-panel.visible", timeout=3000)
+        page.wait_for_function(
+            "document.getElementById('s-paths-display').textContent.trim().length > 0",
+            timeout=8000,
+        )
+
+    def test_toggle_renders_and_reflects_config(self, page: Page):
+        self._open_settings(page)
+        saved = page.evaluate(
+            "() => fetch('/api/config').then(r => r.json())"
+            "  .then(d => d.scene_generation_enabled === true)"
+        )
+        assert page.eval_on_selector("#s-scene-generation", "el => el.checked") == saved
+
+    def test_toggling_marks_settings_dirty(self, page: Page):
+        self._open_settings(page)
+        page.click("#s-scene-generation")
+        expect(page.locator("#btn-settings-save")).to_be_enabled()
+
+
 # ---------------------------------------------------------------------------
 # Export presets - Plan 07 Stage 3. Custom presets live in *global* config (a
 # user preference, not project data - see export_presets.py), so every test

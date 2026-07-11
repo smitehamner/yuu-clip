@@ -67,6 +67,8 @@ class ConfigPatch(BaseModel):
     energy_mode:                  Optional[str]   = None
     silence_threshold_ms:         Optional[int]   = None
     min_clip_ms:                  Optional[int]   = None
+    # Opt-in LLM scene generation (Clips-vs-Scenes Stage 3) - Settings-only toggle.
+    scene_generation_enabled:     Optional[bool]  = None
     # Speaker labels
     diarization_backend:          Optional[str]   = None
     huggingface_token:            Optional[str]   = None
@@ -111,6 +113,7 @@ _CONFIG_FIELDS = (
     "score_funny_weight", "score_dramatic_weight", "score_action_weight",
     "content_preset",
     "scene_detection_mode", "energy_mode", "silence_threshold_ms", "min_clip_ms",
+    "scene_generation_enabled",
     "diarization_backend", "huggingface_token", "speaker_match_threshold",
     "speaker_cluster_threshold",
     "export_name_template",
@@ -262,6 +265,7 @@ _CONFIG_PATCH_RULES: list[tuple[str, object]] = [
     ("energy_mode",                  _enum_validator({"none", "fast", "full"}, "energy_mode")),
     ("silence_threshold_ms",         _min_validator(500,  "silence_threshold_ms")),
     ("min_clip_ms",                  _min_validator(1000, "min_clip_ms")),
+    ("scene_generation_enabled",     lambda v: bool(v)),
     ("diarization_backend",          _enum_validator({"null", "pyannote", "speechbrain"}, "diarization_backend")),
     ("huggingface_token",            lambda v: v.strip()),
     ("speaker_match_threshold",      _range_validator(0.0, 1.0, "speaker_match_threshold")),

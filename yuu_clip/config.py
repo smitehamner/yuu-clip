@@ -655,6 +655,18 @@ class Config:
     # Minimum silence gap in seconds to register as a transcript-mode scene boundary
     scene_transcript_gap_s: float = 3.0
 
+    # Scene candidate generation (Clips-vs-Scenes Stage 3): an opt-in LLM pass that
+    # proposes longer "scene" candidates (kind='scene' ClipCandidate rows) from the
+    # transcript, distinct from the silence-window clip generator. OFF by default -
+    # long windows x an LLM rubric are expensive and clutter the clip list; users who
+    # want scenes opt in (Settings toggle + the analyze `--scenes` flag). Unrelated to
+    # SceneBoundary / scene_detection_mode above (a visual scene-cut timecode). The
+    # bounds keep the LLM's proposed boundaries sane and cap per-recording cost.
+    scene_generation_enabled: bool = False
+    scene_min_ms: int = 60_000       # shortest scene kept (1 min) - shorter boundaries dropped
+    scene_max_ms: int = 300_000      # longest scene kept (5 min) - longer boundaries clamped
+    scene_target_count: int = 20     # max scenes generated per recording (bounds LLM cost)
+
     # Audio energy analysis mode: "none" | "fast" | "full" (pre-fills the Analyze panel)
     energy_mode: str = "fast"
 
