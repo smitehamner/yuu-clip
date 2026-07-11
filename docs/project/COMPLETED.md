@@ -6,6 +6,45 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) - see the
 
 ---
 
+## Prebuilt Python environment - near-instant first-run install (done 2026-07-10)
+
+First launch used to run a single offline `pip install` of the whole scientific-Python
+stack (torch, ctranslate2, opencv, transformers, speechbrain, faster-whisper, ...) -
+about 12 minutes on a fast laptop, 20+ on a slow VM, and machine-dependent. That work
+now happens once at build time and ships as a finished environment; first run just
+unpacks it. Measured first-launch on the slow VM dropped from 20+ minutes to under a
+minute.
+
+- **Build-time assembly with a relocation gate** - `scripts/build-prebuilt-env.ps1`
+  builds the venv from the exact bundled python-build-standalone runtime and the exact
+  wheelhouse wheels, smoke-imports the heavy natives, then *proves relocation* (moves
+  the venv and its base python to fresh paths, repoints `pyvenv.cfg`, re-imports) before
+  archiving. A relocation failure fails the build, not a user's machine. Wired into
+  `build-release.ps1`.
+- **First-run unpack + relocate** - packaged builds ship only `prebuilt-env.tar.gz`
+  (the wheel, wheelhouse, and lock are dropped from the installer). `ensureVenv` extracts
+  to a temp sibling, rewrites `pyvenv.cfg` to the bundled runtime's real install path,
+  then atomically renames into place, with a disk-space precheck. A crash mid-unpack
+  never leaves a half-venv that looks complete. Dev/unpackaged builds keep the
+  pip-from-wheelhouse path unchanged.
+- **`electron/prebuilt-env.js`** (unit-tested) holds the pure `rewritePyvenvCfg` and
+  `decidePrebuiltEnvAction` logic. The real runtime writes `home`/`executable` keys (not
+  the `base-prefix` family), which the rewrite targets.
+- **Verified end-to-end on a clean VM**: install under a minute, and analyze, LLM scoring,
+  and vision all run from the relocated environment; an over-the-top update re-extracts a
+  fresh environment on a version change.
+
+## Stale-until-restart UI state fixed as a class (done 2026-07-10)
+
+The analyze panel's prerequisite banner, the per-clip "Basic description" chip, and vision
+frames all read app state (`_prereqs`, `_aiPrivacyMode`, `_visionEnabled`) that was loaded
+once at boot and never refreshed - so after a local model finished downloading, the "LLM
+scoring is not configured" banner stayed until the app was restarted. Fixed the whole class:
+a single `refreshServerState()` re-fetches config + prerequisites and re-renders the
+dependent surfaces, and it now runs after any completed model download and after a settings
+save. `_applyPrereqWarnings` also clears the banner when prerequisites are satisfied
+(previously it could only ever show one). Two regression tests guard it.
+
 ## Desktop wrapper reliability + log privacy (done 2026-07-11)
 
 Fixed a crash when closing the re-run Setup Wizard, closed the empty-taskbar gap
