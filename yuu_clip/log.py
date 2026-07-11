@@ -14,8 +14,33 @@ from __future__ import annotations
 
 import logging
 import logging.handlers
+import re
 from collections import deque
 from pathlib import Path
+
+# Redact the username segment from home-directory paths so logs a user sends us
+# don't leak their Windows/macOS/Linux account name. The segment after
+# \Users\ , /Users/ , or /home/ is the account name; everything after it (the
+# actual app subpaths) stays intact so the log is still diagnosable.
+_HOME_USER_PATTERNS = (
+    re.compile(r"([A-Za-z]:[\\/]Users[\\/])([^\\/\s\"'<>|)]+)", re.IGNORECASE),
+    re.compile(r"(/(?:home|Users)/)([^/\s\"'<>|)]+)"),
+)
+
+
+def redact_paths(text: str) -> str:
+    """Replace the account-name segment of any home path with ``<user>``."""
+    for pattern in _HOME_USER_PATTERNS:
+        text = pattern.sub(r"\1<user>", text)
+    return text
+
+
+class _SanitizingFormatter(logging.Formatter):
+    """Formats a record, then strips usernames from the final line (incl. tracebacks)."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        return redact_paths(super().format(record))
+
 
 _LOG_FILENAME  = "yuu-clip.log"
 _MAX_BYTES     = 5 * 1024 * 1024  # rotate at 5 MB
@@ -42,7 +67,7 @@ def _make_file_handler(project_dir: Path) -> logging.Handler:
     handler = logging.handlers.RotatingFileHandler(
         log_path, maxBytes=_MAX_BYTES, backupCount=_BACKUP_COUNT, encoding="utf-8"
     )
-    handler.setFormatter(logging.Formatter(_FORMAT, datefmt=_DATE_FORMAT))
+    handler.setFormatter(_SanitizingFormatter(_FORMAT, datefmt=_DATE_FORMAT))
     return handler
 
 
@@ -62,7 +87,7 @@ def configure_logging(project_dir: Path) -> None:
     root.addHandler(_make_file_handler(project_dir))
 
     mem_h = _MemoryLineHandler()
-    mem_h.setFormatter(logging.Formatter(_FORMAT, datefmt=_DATE_FORMAT))
+    mem_h.setFormatter(_SanitizingFormatter(_FORMAT, datefmt=_DATE_FORMAT))
     root.addHandler(mem_h)
 
 

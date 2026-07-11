@@ -48,6 +48,7 @@ let pyProc          = null;
 let mainWindow      = null;
 let appPort         = BASE_PORT;
 let wizardWin       = null;
+let setupWizardWin  = null;  // the live setup-wizard window, if one is open
 let startupComplete = false;
 let isQuitting      = false;
 
@@ -165,6 +166,7 @@ function startupError(userMessage, logPath) {
 // failures: plain-English "what happened", plus Try again (relaunch) / Open log
 // folder / Quit. Technical detail stays in the log, never the dialog.
 async function showFatalDialog(userMessage, logPath) {
+  logSetup(`Fatal dialog shown: ${userMessage.replace(/\s*\n+\s*/g, ' ')}`);
   const win = mainWindow && !mainWindow.isDestroyed() ? mainWindow : null;
   const opts = {
     type: 'error', title: 'yuu-clip couldn’t start', message: userMessage,
@@ -259,8 +261,11 @@ function detectCUDA() {
 // ---------------------------------------------------------------------------
 
 function registerWizardIPC(wizardWin) {
-  // Clean up any previous handlers first.
-  for (const ch of ['setup:get-status', 'setup:pick-folder', 'setup:pick-file']) {
+  // Clean up any previous handlers first. Every ipcMain.handle() channel below
+  // MUST be listed here: handle() throws "second handler" if re-registered, and
+  // that throw lands mid-setup so the setup:close/complete once-listeners never
+  // get wired up - leaving a wizard whose Close button does nothing.
+  for (const ch of ['setup:get-status', 'setup:pick-folder', 'setup:pick-file', 'setup:restore-backup']) {
     try { ipcMain.removeHandler(ch); } catch (_) {}
   }
   ipcMain.removeAllListeners('setup:pull-model');
@@ -268,6 +273,7 @@ function registerWizardIPC(wizardWin) {
   ipcMain.removeAllListeners('setup:download-gguf-model');
   ipcMain.removeAllListeners('setup:cancel-gguf-download');
   ipcMain.removeAllListeners('setup:open-url');
+  ipcMain.removeAllListeners('setup:copy-text');
   ipcMain.removeAllListeners('setup:install-package');
   ipcMain.removeAllListeners('setup:restart-app');
 
@@ -442,12 +448,31 @@ function registerWizardIPC(wizardWin) {
 
 }
 
-// Swap the wizard window to a "Starting yuu-clip…" screen while the backend
-// boots; app lifecycle closes it once the main window is ready.
-function showWizardLoadingScreen(win) {
+// The "Starting yuu-clip…" spinner shown while the backend boots.
+function loadingScreenUrl() {
   const loadingHtml = `<!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;margin:0;display:flex;align-items:center;justify-content:center;height:100vh;background:#12121e;color:#d8d8e8;text-align:center"><style>@keyframes spin{to{transform:rotate(360deg)}}</style><div><div style="width:32px;height:32px;border:3px solid #1e1e30;border-top-color:#5b8ef0;border-radius:50%;animation:spin 0.65s linear infinite;margin:0 auto 14px"></div><h3 style="margin:0 0 6px;font-size:14px;color:#e8e8f8">Starting yuu-clip…</h3><p id="status" style="margin:0;color:#9090a8;font-size:12px">Waiting for backend</p></div></body></html>`;
-  win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(loadingHtml)}`);
+  return `data:text/html;charset=utf-8,${encodeURIComponent(loadingHtml)}`;
+}
+
+// Swap the wizard window to the loading screen while the backend boots;
+// app lifecycle closes it once the main window is ready.
+function showWizardLoadingScreen(win) {
+  win.loadURL(loadingScreenUrl());
   wizardWin = win;
+}
+
+// A standalone loading window for launch paths with no wizard to repurpose, so
+// the taskbar isn't empty during the (multi-second) backend boot. Tracked as
+// wizardWin so the same startup teardown closes it once the main window opens.
+function showStartupLoadingWindow() {
+  const win = new BrowserWindow({
+    width: 480, height: 400, resizable: false, title: 'yuu-clip',
+    icon: path.join(__dirname, 'assets', 'icon.png'),
+    webPreferences: { contextIsolation: true, nodeIntegration: false },
+  });
+  win.loadURL(loadingScreenUrl());
+  wizardWin = win;
+  return win;
 }
 
 // Updates the "Starting yuu-clip…" loading screen's status line from the main
@@ -465,6 +490,17 @@ function updateLoadingStatus(win, text) {
 // discards on Close.
 function showSetupWizard({ rerun = false, updated = false } = {}) {
   return new Promise((resolve, reject) => {
+    // Only ever one setup window. A second window sharing the global setup:*
+    // IPC channels leaves a stale once-handler bound to the other window; when
+    // that handler later calls win.close() on the destroyed window it throws
+    // "Object has been destroyed", which crashes the whole app.
+    if (setupWizardWin && !setupWizardWin.isDestroyed()) {
+      logSetup('Setup wizard already open - focusing it instead of opening another');
+      setupWizardWin.focus();
+      reject(new Error('Setup window already open'));
+      return;
+    }
+
     const win = new BrowserWindow({
       width: 620, height: 780,
       minWidth: 560, minHeight: 600,
@@ -478,6 +514,8 @@ function showSetupWizard({ rerun = false, updated = false } = {}) {
       },
     });
 
+    setupWizardWin = win;
+
     const mode = rerun ? 'rerun' : updated ? 'update' : 'initial';
     win.loadFile(path.join(__dirname, 'setup.html'),
       mode === 'initial' ? {} : { query: { mode } }
@@ -489,6 +527,8 @@ function showSetupWizard({ rerun = false, updated = false } = {}) {
     ipcMain.removeAllListeners('setup:quit');
     ipcMain.removeAllListeners('setup:close');
     ipcMain.removeAllListeners('setup:skip');
+
+    logSetup(`Setup wizard opened (mode=${mode})`);
 
     ipcMain.once('setup:complete', (_, cfg) => {
       saveElectronConfig({ projectDir: cfg.projectDir, setupSchemaVersion: SETUP_SCHEMA_VERSION });
@@ -508,19 +548,20 @@ function showSetupWizard({ rerun = false, updated = false } = {}) {
       if (!rerun) {
         showWizardLoadingScreen(win);
       } else {
-        win.close();
+        if (!win.isDestroyed()) win.close();
       }
       resolve(cfg);
     });
 
     ipcMain.once('setup:quit', () => {
+      logSetup('Setup wizard: user chose Quit - exiting app');
       app.quit();
       reject(new Error('User quit setup'));
     });
 
     // Rerun mode only: close the wizard without saving anything.
     ipcMain.once('setup:close', () => {
-      win.close();
+      if (!win.isDestroyed()) win.close();
       reject(new Error('Setup window closed'));
     });
 
@@ -536,6 +577,7 @@ function showSetupWizard({ rerun = false, updated = false } = {}) {
     ipcMain.once('setup:skip', skipUpdateWizard);
 
     win.on('closed', () => {
+      if (setupWizardWin === win) setupWizardWin = null;
       // Closed by the OS (Alt+F4) without completing: in update mode that
       // means "skip", otherwise treat as quit. resolve/reject are no-ops if
       // already called.
@@ -1066,6 +1108,17 @@ function createWindow(port) {
 
   mainWindow.loadURL(`http://127.0.0.1:${port}`);
 
+  // A blank main window is a common "it stopped working" report. Log the two
+  // ways it happens - the page failing to load the backend, or the renderer
+  // process crashing out from under a window that still looks alive.
+  mainWindow.webContents.on('did-fail-load', (_e, code, desc, url) => {
+    if (code === -3) return;  // ERR_ABORTED - benign (e.g. a superseded nav)
+    logSetup(`Main window failed to load (${code} ${desc}) - ${url}`);
+  });
+  mainWindow.webContents.on('render-process-gone', (_e, details) => {
+    logSetup(`Main window renderer gone: ${details.reason} (exitCode ${details.exitCode})`);
+  });
+
   mainWindow.on('close', async e => {
     if (isQuitting) return;
     e.preventDefault();
@@ -1117,7 +1170,7 @@ function registerProjectIPC() {
 
 function buildMenu() {
   ipcMain.on('app:run-setup-wizard', () => {
-    showSetupWizard({ rerun: true }).catch(() => {});
+    showSetupWizard({ rerun: true }).catch(err => logSetup(`Setup wizard dismissed: ${err.message}`));
   });
 
   const template = [
@@ -1130,7 +1183,7 @@ function buildMenu() {
           label: 'Re-run Setup Wizard…',
           click: () => {
             // Non-blocking - backend keeps running while wizard is open.
-            showSetupWizard({ rerun: true }).catch(() => {});
+            showSetupWizard({ rerun: true }).catch(err => logSetup(`Setup wizard dismissed: ${err.message}`));
           },
         },
         { type: 'separator' },
@@ -1183,9 +1236,13 @@ async function handleClose() {
       buttons: ['Cancel', 'Close anyway'],
       defaultId: 0, cancelId: 0,
     });
-    if (response !== 1) return;
+    if (response !== 1) {
+      logSetup('Main window close cancelled by user (analysis in progress)');
+      return;
+    }
   }
 
+  logSetup(`Main window closed - shutting down (analysis was running: ${anyRunning})`);
   isQuitting = true;
   if (pyProc) { pyProc.kill(); pyProc = null; }
   mainWindow = null;
@@ -1230,6 +1287,10 @@ app.whenReady().then(async () => {
       logSetup(`Project dir: ${projectDir}`);
     }
 
+    // Guarantee a visible window (taskbar presence) during the backend boot.
+    // The wizard paths leave a live wizardWin; other launches have none yet.
+    if (!wizardWin || wizardWin.isDestroyed()) showStartupLoadingWindow();
+
     appPort = await resolvePort();
     spawnBackend(appPort);
     await pollReady(appPort);
@@ -1251,6 +1312,7 @@ app.whenReady().then(async () => {
 
 app.on('window-all-closed', () => {
   if (!startupComplete) return;
+  logSetup('All windows closed - shutting down');
   if (pyProc) { pyProc.kill(); pyProc = null; }
   app.quit();
 });
@@ -1267,4 +1329,11 @@ process.on('uncaughtException', err => {
   logSetup(`Uncaught exception: ${err.stack || err.message}`);
   if (pyProc) try { pyProc.kill(); } catch (_) {}
   app.quit();
+});
+
+// Rejected promises don't reach uncaughtException; log them so async failures
+// that leave the app misbehaving are still diagnosable from the log alone.
+process.on('unhandledRejection', reason => {
+  const detail = reason instanceof Error ? (reason.stack || reason.message) : String(reason);
+  logSetup(`Unhandled promise rejection: ${detail}`);
 });

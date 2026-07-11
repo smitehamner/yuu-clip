@@ -6,6 +6,36 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) - see the
 
 ---
 
+## Desktop wrapper reliability + log privacy (done 2026-07-11)
+
+Fixed a crash when closing the re-run Setup Wizard, closed the empty-taskbar gap
+during startup, and stopped logs from leaking the user's OS username.
+
+- **Setup wizard close crash** - re-running the Setup Wizard and clicking Close
+  could take the whole app down. Root cause: the `setup:close` IPC handler called
+  `win.close()` on an already-destroyed window (`TypeError: Object has been
+  destroyed`), which surfaced as an uncaught exception that killed the backend and
+  quit. Fixed by making the wizard single-instance (a second open focuses the
+  existing window) and guarding every `win.close()` with `isDestroyed()`.
+- **Wizard re-open left Close dead** - `registerWizardIPC` re-registered
+  `setup:restore-backup` via `ipcMain.handle()` without first removing the prior
+  handler, so a second open threw mid-setup, before the close handlers were wired.
+  Added `setup:restore-backup` (and `setup:copy-text`) to the cleanup list.
+- **Empty taskbar during startup** - non-wizard launches showed nothing on the
+  taskbar for the multi-second backend boot. A "Starting yuu-clip..." window now
+  appears on every launch path until the main window is ready.
+- **Log path redaction** - the backend log and the Electron install log now
+  replace the account-name segment of home paths (`C:\Users\<name>`,
+  `/home/<name>`, `/Users/<name>`) with `<user>`, including inside tracebacks, so a
+  shared log can't leak the username. A sanitizing formatter covers all backend
+  output, including the in-memory buffer the "Download log" button ships.
+- **Installer progress note** - the NSIS installer's options page now warns that
+  the multi-GB bundle installs in several steps and the progress bar restarting per
+  step is normal (electron-builder exposes no hook to label the phases directly).
+- **Failure-path logging** - added `unhandledRejection`, renderer-gone, and
+  main-window load-failure logging so future "it stopped working" reports are
+  diagnosable from the Electron log alone.
+
 ## JS module-scoping refactor finished (done 2026-07-10)
 
 Closed out the last of the frontend module-scoping work: every `web/static/*.js`

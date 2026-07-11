@@ -31,7 +31,7 @@
   Page custom desktopShortcutPageCreate desktopShortcutPageLeave
 
   Function desktopShortcutPageCreate
-    !insertmacro MUI_HEADER_TEXT "Options" "Choose whether to add a desktop shortcut."
+    !insertmacro MUI_HEADER_TEXT "Options" "One quick choice before Setup installs the files."
 
     nsDialogs::Create 1018
     Pop $0
@@ -44,6 +44,12 @@
     ${If} $CreateDesktopShortcut == "1"
       ${NSD_Check} $DesktopShortcutCheckbox
     ${EndIf}
+
+    ; Setup installs yuu-clip plus a bundled AI engine (several GB) in a few
+    ; back-to-back steps, and electron-builder's assisted installer restarts the
+    ; progress bar for each one. Warn up front so the resets don't look broken.
+    ${NSD_CreateLabel} 0 36u 100% 52u "After you click Install, Setup copies yuu-clip and its bundled AI engine - several GB in all. This can take a few minutes, and the progress bar may fill up and restart a few times as each part is installed. That is normal - please let it finish."
+    Pop $0
 
     nsDialogs::Show
   FunctionEnd

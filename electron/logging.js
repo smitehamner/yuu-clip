@@ -10,6 +10,15 @@ const { SETUP_LOG } = require('./constants');
 
 const MAX_LOG_FILES = 5;
 
+// Strip the account-name segment from home paths (\Users\<name>, /Users/<name>,
+// /home/<name>) so a shared log doesn't leak the user's OS username. Everything
+// after the name (the app subpaths) is kept so the log stays diagnosable.
+function redactPaths(text) {
+  return String(text)
+    .replace(/([A-Za-z]:[\\/]Users[\\/])([^\\/\s"'<>|)]+)/gi, '$1<user>')
+    .replace(/(\/(?:home|Users)\/)([^/\s"'<>|)]+)/g, '$1<user>');
+}
+
 function rotateLogs() {
   const dir = path.dirname(SETUP_LOG);
   fs.mkdirSync(dir, { recursive: true });
@@ -30,7 +39,7 @@ function logSetup(msg) {
   // rotation) so PowerShell 5.1 / ANSI-default tools don't decode non-ASCII
   // characters our copy uses (arrows, checkmarks) as cp1252 mojibake.
   if (!fs.existsSync(SETUP_LOG)) fs.writeFileSync(SETUP_LOG, '﻿');
-  fs.appendFileSync(SETUP_LOG, `[${new Date().toISOString()}] ${msg}\n`);
+  fs.appendFileSync(SETUP_LOG, `[${new Date().toISOString()}] ${redactPaths(msg)}\n`);
 }
 
-module.exports = { rotateLogs, logSetup };
+module.exports = { rotateLogs, logSetup, redactPaths };
