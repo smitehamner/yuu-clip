@@ -18,7 +18,7 @@ const RECENT_MAX = 8;
 // exception the test_ui_theme colour-literal allowlist carves out for this file.
 const STARTER_SWATCHES = [
   '#ffffff', '#000000', '#e05c5c', '#f0803c', '#f0c060', '#4caf7d',
-  '#4fc3f7', '#6f5df5', '#b06af7', '#f77ac0', '#9e9e9e', '#7a4b2a',
+  '#4fc3f7', '#0a7a9b', '#b06af7', '#f77ac0', '#9e9e9e', '#7a4b2a',
 ];
 
 function _readList(key) {

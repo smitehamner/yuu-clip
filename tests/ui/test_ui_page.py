@@ -16,7 +16,7 @@ from playwright.sync_api import Page, expect
 class TestPageLoad:
     def test_title(self, page: Page):
         page.goto(LIVE_URL)
-        expect(page).to_have_title("yuu-clip")
+        expect(page).to_have_title("YuuClip")
 
     def test_header_buttons_visible(self, page: Page):
         page.goto(LIVE_URL)

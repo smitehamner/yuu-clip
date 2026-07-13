@@ -43,6 +43,7 @@ COLOR_TOKENS = [
     "--bg", "--bg-deep", "--surface", "--surface-raised", "--selection",
     "--border", "--text", "--muted", "--text-secondary",
     "--accent", "--accent-text", "--accent2", "--on-accent",
+    "--highlight", "--on-highlight",
     "--green", "--on-green", "--red", "--on-red",
     "--warning", "--on-warning", "--warn-hot",
     "--funny", "--dramatic", "--action", "--laugh",
@@ -110,6 +111,11 @@ class TestContrastTokens:
     def test_on_accent_on_accent(self, page: Page):
         # .step.active, .btn.primary, .btn.active, .clip-chip.active
         assert self._ratio(page, "--on-accent", "--accent") >= AA_NORMAL_TEXT
+
+    def test_on_highlight_on_highlight(self, page: Page):
+        # Reserved gold fill (Export/keep button, overall-score bar): --on-highlight
+        # text over a --highlight fill. Gold is used as fill/border only, never text.
+        assert self._ratio(page, "--on-highlight", "--highlight") >= AA_NORMAL_TEXT
 
     def test_on_green_on_green(self, page: Page):
         # .step.done, .btn.approve.active, .export-pill.is-exported,
@@ -337,7 +343,7 @@ _OVER_VIDEO_HEX = {"#000", "#fff", "#e6e6e6"}
 _SCORE_GRADIENT_STOPS = {"#6b6b80", "#4fc3f7", "#4caf7d", "#f0c060", "#f7a85a"}
 _COLORPICKER_STARTERS = {
     "#ffffff", "#000000", "#e05c5c", "#f0803c", "#f0c060", "#4caf7d",
-    "#4fc3f7", "#6f5df5", "#b06af7", "#f77ac0", "#9e9e9e", "#7a4b2a",
+    "#4fc3f7", "#0a7a9b", "#b06af7", "#f77ac0", "#9e9e9e", "#7a4b2a",
 }
 _ALLOWED_HEX = _OVER_VIDEO_HEX | _SCORE_GRADIENT_STOPS | _COLORPICKER_STARTERS
 

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>yuu-clip Setup</title>
+<title>YuuClip Setup</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -195,7 +195,7 @@ footer {
 <body>
 
 <header>
-  <h1>yuu-clip Setup</h1>
+  <h1>YuuClip Setup</h1>
   <p id="subtitle">Checking your system…</p>
 </header>
 
@@ -230,7 +230,7 @@ footer {
           <div class="desc">
             Downloads a model that runs on your own machine - free, private, and the
             source of the best results. The download happens in the background after
-            you launch, so you can start using yuu-clip right away.
+            you launch, so you can start using YuuClip right away.
           </div>
         </div>
       </div>
@@ -398,7 +398,7 @@ footer {
 <div id="recheck-bar" style="display:none">
   <span>Installed something outside this window?</span>
   <button class="sm" id="recheck-btn">Check again</button>
-  <button class="sm" id="restart-btn" title="Restarts yuu-clip - needed for driver or service installs (e.g. CUDA)">Restart app</button>
+  <button class="sm" id="restart-btn" title="Restarts YuuClip - needed for driver or service installs (e.g. CUDA)">Restart app</button>
 </div>
 
 <div id="rerun-note" style="display:none;font-size:11px;color:#87879f;padding:6px 20px 0">
@@ -485,11 +485,11 @@ function renderFfmpegSlot(s) {
   const el = document.getElementById('ffmpeg-slot');
   if (s.ffmpegBundled) {
     if (s.ffmpegOk) {
-      el.innerHTML = row('ffmpeg', 'ok', '✓', 'FFmpeg', 'Included with yuu-clip. Used to read and cut video files.');
+      el.innerHTML = row('ffmpeg', 'ok', '✓', 'FFmpeg', 'Included with YuuClip. Used to read and cut video files.');
       return;
     }
     el.innerHTML = row('ffmpeg', 'err', '✗', 'FFmpeg install is damaged',
-      'The FFmpeg bundled with yuu-clip is missing or damaged. Try reinstalling yuu-clip; ' +
+      'The FFmpeg bundled with YuuClip is missing or damaged. Try reinstalling YuuClip; ' +
       'if the problem persists, please report it.');
     return;
   }
@@ -498,7 +498,7 @@ function renderFfmpegSlot(s) {
     return;
   }
   el.innerHTML = row('ffmpeg', 'err', '✗', 'FFmpeg not found',
-    'yuu-clip needs FFmpeg to read and cut video files.<br>' +
+    'YuuClip needs FFmpeg to read and cut video files.<br>' +
     '<strong>Easiest:</strong> run this command in a terminal (Start → type <em>terminal</em>), ' +
     'then click <em>Check again</em> below - no need to close this window.' +
     '<details><summary>Can\'t use winget? Manual install steps</summary>' +
@@ -819,8 +819,8 @@ if (mode === 'initial') document.getElementById('restore-row').style.display = '
 
 document.getElementById('restore-backup-btn').addEventListener('click', async () => {
   const archive = await api.pickFile({
-    title:   'Choose a yuu-clip backup',
-    filters: [{ name: 'yuu-clip backup', extensions: ['zip'] }],
+    title:   'Choose a YuuClip backup',
+    filters: [{ name: 'YuuClip backup', extensions: ['zip'] }],
   });
   if (!archive) return;
   const target = document.getElementById('project-dir').value;

@@ -511,7 +511,7 @@ function renderDetail(clip) {
             <button class="btn reject  ${clip.status==='rejected'?'active':''}" onclick="setStatus(${clip.id},'rejected')" title="Reject (press R)">Reject</button>
           </div>
           <div class="op-actions">
-            <button class="btn" onclick="exportClip(${clip.id})">${clip.has_export ? 'Re-export' : 'Export'}</button>
+            <button class="btn highlight" onclick="exportClip(${clip.id})">${clip.has_export ? 'Re-export' : 'Export'}</button>
             <button class="btn ghost" onclick="openClipActionsModal(${clip.id})">Additional Actions</button>
           </div>
         </div>

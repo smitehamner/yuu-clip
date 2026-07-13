@@ -27,7 +27,7 @@ function _syncSortDirBtn(btnId, dir) {
 // analyze and export panels both gate on this single check. Centralized here so
 // the three surfaces (Settings, analyze, export) can't drift to different rules.
 function _diarizationReason(backend, installed, hasToken) {
-  if (backend === 'speechbrain') return installed ? '' : 'SpeechBrain is unavailable - try reinstalling yuu-clip';
+  if (backend === 'speechbrain') return installed ? '' : 'SpeechBrain is unavailable - try reinstalling YuuClip';
   if (!installed) return 'Install pyannote.audio';
   if (!hasToken)  return 'Requires a HuggingFace token';
   return '';
@@ -159,7 +159,7 @@ function showToast(message, type = 'success', opts = {}) {
 // this only at catch sites that wrap a bare fetch (not ones doing DOM work that
 // could throw its own TypeError).
 function netErrMsg(err) {
-  if (err instanceof TypeError) return "Couldn't reach yuu-clip - it may have stopped. Try again, or restart the app.";
+  if (err instanceof TypeError) return "Couldn't reach YuuClip - it may have stopped. Try again, or restart the app.";
   return (err && err.message) || 'Unknown error';
 }
 

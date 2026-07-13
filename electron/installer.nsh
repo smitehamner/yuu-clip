@@ -21,7 +21,7 @@
   StrCpy $CreateDesktopShortcut "1"
 
   ${IfNot} ${UAC_IsInnerInstance}
-    MessageBox MB_ICONINFORMATION|MB_OK "yuu-clip finds and scores your best gaming clips.$\r$\n$\r$\nHeads-up on download size: to score clips with AI, first-time setup can download an AI model to your PC - a one-time download of roughly 4-9 GB (about 4.7 GB for the recommended model). This step is optional and can be skipped; finding clips still works without it.$\r$\n$\r$\nThe installer itself is much smaller. Click OK to continue."
+    MessageBox MB_ICONINFORMATION|MB_OK "YuuClip finds and scores your best gaming clips.$\r$\n$\r$\nHeads-up on download size: to score clips with AI, first-time setup can download an AI model to your PC - a one-time download of roughly 4-9 GB (about 4.7 GB for the recommended model). This step is optional and can be skipped; finding clips still works without it.$\r$\n$\r$\nThe installer itself is much smaller. Click OK to continue."
   ${EndIf}
 !macroend
 
@@ -45,10 +45,10 @@
       ${NSD_Check} $DesktopShortcutCheckbox
     ${EndIf}
 
-    ; Setup installs yuu-clip plus a bundled AI engine (several GB) in a few
+    ; Setup installs YuuClip plus a bundled AI engine (several GB) in a few
     ; back-to-back steps, and electron-builder's assisted installer restarts the
     ; progress bar for each one. Warn up front so the resets don't look broken.
-    ${NSD_CreateLabel} 0 36u 100% 52u "After you click Install, Setup copies yuu-clip and its bundled AI engine - several GB in all. This can take a few minutes, and the progress bar may fill up and restart a few times as each part is installed. That is normal - please let it finish."
+    ${NSD_CreateLabel} 0 36u 100% 52u "After you click Install, Setup copies YuuClip and its bundled AI engine - several GB in all. This can take a few minutes, and the progress bar may fill up and restart a few times as each part is installed. That is normal - please let it finish."
     Pop $0
 
     nsDialogs::Show

@@ -134,8 +134,8 @@ function pollReady(port, attempts = 120, delayMs = 500) {
       if (pyProc && pyProc.exitCode !== null) {
         logSetup(`Backend exited during startup (code ${pyProc.exitCode}) after ${i} poll attempts`);
         return reject(startupError(
-          'yuu-clip started, but its engine stopped before it was ready.\n\n' +
-          'This is usually a temporary hiccup - start yuu-clip again. If it keeps ' +
+          'YuuClip started, but its engine stopped before it was ready.\n\n' +
+          'This is usually a temporary hiccup - start YuuClip again. If it keeps ' +
           'happening, open the log and send it to us.', SETUP_LOG));
       }
       try {
@@ -147,8 +147,8 @@ function pollReady(port, attempts = 120, delayMs = 500) {
     }
     logSetup(`Backend did not respond after ${attempts} attempts (${Date.now() - t0} ms)`);
     reject(startupError(
-      'yuu-clip’s engine didn’t start in time.\n\n' +
-      'Start yuu-clip again. If it keeps happening, open the log and send it to us.',
+      'YuuClip’s engine didn’t start in time.\n\n' +
+      'Start YuuClip again. If it keeps happening, open the log and send it to us.',
       SETUP_LOG));
   });
 }
@@ -169,7 +169,7 @@ async function showFatalDialog(userMessage, logPath) {
   logSetup(`Fatal dialog shown: ${userMessage.replace(/\s*\n+\s*/g, ' ')}`);
   const win = mainWindow && !mainWindow.isDestroyed() ? mainWindow : null;
   const opts = {
-    type: 'error', title: 'yuu-clip couldn’t start', message: userMessage,
+    type: 'error', title: 'YuuClip couldn’t start', message: userMessage,
     buttons: ['Try again', 'Open log folder', 'Quit'],
     defaultId: 0, cancelId: 2, noLink: true,
   };
@@ -435,7 +435,7 @@ function registerWizardIPC(wizardWin) {
         type: 'error',
         title: 'Restore failed',
         message: 'The backup could not be restored.',
-        detail: result.error || 'Check that the file is a yuu-clip backup.',
+        detail: result.error || 'Check that the file is a YuuClip backup.',
         buttons: ['OK'],
       });
     }
@@ -448,9 +448,9 @@ function registerWizardIPC(wizardWin) {
 
 }
 
-// The "Starting yuu-clip…" spinner shown while the backend boots.
+// The "Starting YuuClip…" spinner shown while the backend boots.
 function loadingScreenUrl() {
-  const loadingHtml = `<!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;margin:0;display:flex;align-items:center;justify-content:center;height:100vh;background:#12121e;color:#d8d8e8;text-align:center"><style>@keyframes spin{to{transform:rotate(360deg)}}</style><div><div style="width:32px;height:32px;border:3px solid #1e1e30;border-top-color:#5b8ef0;border-radius:50%;animation:spin 0.65s linear infinite;margin:0 auto 14px"></div><h3 style="margin:0 0 6px;font-size:14px;color:#e8e8f8">Starting yuu-clip…</h3><p id="status" style="margin:0;color:#9090a8;font-size:12px">Waiting for backend</p></div></body></html>`;
+  const loadingHtml = `<!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;margin:0;display:flex;align-items:center;justify-content:center;height:100vh;background:#12121e;color:#d8d8e8;text-align:center"><style>@keyframes spin{to{transform:rotate(360deg)}}</style><div><div style="width:32px;height:32px;border:3px solid #1e1e30;border-top-color:#5b8ef0;border-radius:50%;animation:spin 0.65s linear infinite;margin:0 auto 14px"></div><h3 style="margin:0 0 6px;font-size:14px;color:#e8e8f8">Starting YuuClip…</h3><p id="status" style="margin:0;color:#9090a8;font-size:12px">Waiting for backend</p></div></body></html>`;
   return `data:text/html;charset=utf-8,${encodeURIComponent(loadingHtml)}`;
 }
 
@@ -466,7 +466,7 @@ function showWizardLoadingScreen(win) {
 // wizardWin so the same startup teardown closes it once the main window opens.
 function showStartupLoadingWindow() {
   const win = new BrowserWindow({
-    width: 480, height: 400, resizable: false, title: 'yuu-clip',
+    width: 480, height: 400, resizable: false, title: 'YuuClip',
     icon: path.join(__dirname, 'assets', 'icon.png'),
     webPreferences: { contextIsolation: true, nodeIntegration: false },
   });
@@ -475,7 +475,7 @@ function showStartupLoadingWindow() {
   return win;
 }
 
-// Updates the "Starting yuu-clip…" loading screen's status line from the main
+// Updates the "Starting YuuClip…" loading screen's status line from the main
 // process. No preload/IPC needed for one line of text - executeJavaScript is
 // simpler than wiring a context-bridged channel just for this.
 function updateLoadingStatus(win, text) {
@@ -505,7 +505,7 @@ function showSetupWizard({ rerun = false, updated = false } = {}) {
       width: 620, height: 780,
       minWidth: 560, minHeight: 600,
       resizable: true,
-      title: 'yuu-clip Setup',
+      title: 'YuuClip Setup',
       icon: path.join(__dirname, 'assets', 'icon.png'),
       webPreferences: {
         preload: path.join(__dirname, 'setup-preload.js'),
@@ -636,7 +636,7 @@ function showVenvSetupWindow(stepLabel, note) {
     <div class="min-btn" id="minBtn" title="Minimize">-</div>
     <div>
     <div class="spin"></div>
-    <h3>Setting up yuu-clip</h3>
+    <h3>Setting up YuuClip</h3>
     <ul class="steps" id="steps">
       <li id="s0">${stepLabel}</li>
     </ul>
@@ -759,7 +759,7 @@ async function runPrebuiltEnvSetup(envArchive, bundledVersion) {
     const detail = [err.stderr, err.stdout].filter(Boolean).join('\n');
     logSetup(`Prebuilt env setup failed: ${err.message}${detail ? '\n' + detail : ''}`);
     const wrapped = new Error(err.message);
-    wrapped.userMessage = "yuu-clip couldn't finish setting itself up - " + describeInstallFailure(detail);
+    wrapped.userMessage = "YuuClip couldn't finish setting itself up - " + describeInstallFailure(detail);
     wrapped.logPath = SETUP_LOG;
     throw wrapped;
   } finally {
@@ -798,10 +798,10 @@ function relocateExtractedVenv(venvPath) {
 async function promptPythonMissing() {
   if (app.isPackaged) {
     await dialog.showMessageBox({
-      type: 'error', title: 'yuu-clip installation is damaged',
+      type: 'error', title: 'YuuClip installation is damaged',
       message:
-        'The Python runtime bundled with yuu-clip is missing or damaged.\n\n' +
-        'Try reinstalling yuu-clip. If the problem persists, please report it.',
+        'The Python runtime bundled with YuuClip ismissing or damaged.\n\n' +
+        'Try reinstalling YuuClip. If the problem persists, please report it.',
       buttons: ['Quit'], defaultId: 0,
     });
   } else {
@@ -809,8 +809,8 @@ async function promptPythonMissing() {
     await dialog.showMessageBox({
       type: 'error', title: 'Python 3.11+ required',
       message:
-        'yuu-clip needs Python 3.11 or later, which was not found on PATH.\n\n' +
-        'Download and install it from python.org, then restart yuu-clip.\n\n' +
+        'YuuClip needs Python 3.11 or later, which was not found on PATH.\n\n' +
+        'Download and install it from python.org, then restart YuuClip.\n\n' +
         '(Make sure to check "Add Python to PATH" during installation.)',
       buttons: ['Open python.org', 'Quit'], defaultId: 0,
     }).then(({ response }) => {
@@ -889,7 +889,7 @@ async function runPipVenvSetup(resourcesDir) {
     logSetup(`Venv setup failed: ${err.message}${detail ? '\n' + detail : ''}`);
     const wrapped = new Error(err.message);
     wrapped.userMessage =
-      "yuu-clip couldn't finish setting itself up - " + describeInstallFailure(detail);
+      "YuuClip couldn't finish setting itself up - " + describeInstallFailure(detail);
     wrapped.logPath = SETUP_LOG;
     throw wrapped;
   } finally {
@@ -909,12 +909,12 @@ async function resolvePort() {
 
   if (await isYuuClipOnPort(BASE_PORT)) {
     await dialog.showMessageBox({
-      type: 'warning', title: 'yuu-clip is already running',
-      message: 'Another yuu-clip instance is already using port 8080.\n\nClose it first, then relaunch.',
+      type: 'warning', title: 'YuuClip isalready running',
+      message: 'Another YuuClip instance is already using port 8080.\n\nClose it first, then relaunch.',
       buttons: ['OK'],
     });
     app.quit();
-    throw new Error('Duplicate yuu-clip instance');
+    throw new Error('Duplicate YuuClip instance');
   }
 
   const free = await findFreePort(BASE_PORT + 1);
@@ -984,8 +984,8 @@ function spawnBackend(port) {
     logSetup(`Backend exited unexpectedly (code ${code})`);
     const projectLog = path.join(projectDir, '.yuu-clip', 'yuu-clip.log');
     showFatalDialog(
-      'yuu-clip’s engine stopped unexpectedly.\n\n' +
-      'Start yuu-clip again. If it keeps happening, open the log and send it to us.',
+      'YuuClip’s engine stopped unexpectedly.\n\n' +
+      'Start YuuClip again. If it keeps happening, open the log and send it to us.',
       projectLog,
     ).then(() => { if (!isQuitting) app.quit(); });
   });
@@ -1097,7 +1097,7 @@ function registerMediaProtocol() {
 function createWindow(port) {
   mainWindow = new BrowserWindow({
     width: 1280, height: 900,
-    title: 'yuu-clip',
+    title: 'YuuClip',
     icon: path.join(__dirname, 'assets', 'icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -1175,7 +1175,7 @@ function buildMenu() {
 
   const template = [
     {
-      label: 'yuu-clip',
+      label: 'YuuClip',
       submenu: [
         { role: 'about' },
         { type: 'separator' },
@@ -1255,14 +1255,14 @@ async function handleClose() {
 
 app.whenReady().then(async () => {
   rotateLogs();
-  logSetup(`yuu-clip ${app.getVersion()} starting - ${process.platform} ${process.arch} node/${process.versions.node}`);
+  logSetup(`YuuClip ${app.getVersion()} starting - ${process.platform} ${process.arch} node/${process.versions.node}`);
   registerMediaProtocol();
 
   const knownQuits = [
     'Python not found',
     'Setup window closed',
     'User quit setup',
-    'Duplicate yuu-clip instance',
+    'Duplicate YuuClip instance',
   ];
 
   try {
@@ -1302,8 +1302,8 @@ app.whenReady().then(async () => {
     if (!knownQuits.includes(err.message)) {
       logSetup(`Startup error: ${err.stack || err.message}`);
       const userMessage = err.userMessage ||
-        'yuu-clip ran into a problem while starting up.\n\n' +
-        'Start yuu-clip again. If it keeps happening, open the log and send it to us.';
+        'YuuClip ran into a problem while starting up.\n\n' +
+        'Start YuuClip again. If it keeps happening, open the log and send it to us.';
       await showFatalDialog(userMessage, err.logPath || SETUP_LOG);
     }
     if (!isQuitting) app.quit();

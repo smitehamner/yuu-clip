@@ -1,4 +1,4 @@
-# yuu-clip - Performance and Storage
+# YuuClip - Performance and Storage
 
 ## Recommended specs
 
@@ -17,7 +17,7 @@
 
 | Item | Size |
 |---|---|
-| yuu-clip app (Electron + Python venv) | ~600 MB |
+| YuuClip app (Electron + Python venv) | ~600 MB |
 | Whisper model weights (downloaded on first analysis) | 75 MB (tiny) – 3 GB (large-v3) |
 | Local LLM model file (.gguf, if using local LLM) | 2–8 GB typical (depends on model) |
 
@@ -36,7 +36,7 @@ A 2-hour session with 2 audio tracks produces roughly 460 MB of audio extracts. 
 
 ### Cleanup
 
-yuu-clip does not auto-delete any files. To reclaim space:
+YuuClip does not auto-delete any files. To reclaim space:
 - **Audio extracts**: delete `.yuu-clip/audio/` - will be regenerated on next analysis
 - **Exports / reels**: delete individual files from `.yuu-clip/exports/` and `.yuu-clip/reels/` via the UI (Delete Export button) or directly from disk
 - **Whisper models**: remove from the model cache to free 75 MB–3 GB per size

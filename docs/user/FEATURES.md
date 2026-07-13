@@ -1,4 +1,4 @@
-# yuu-clip - Implemented Features
+# YuuClip - Implemented Features
 
 ## Web UI
 
@@ -8,7 +8,7 @@
 - **Sidebar right pane** - clip list for the selected recording; the section header is a Clips / Scenes toggle. Sortable by Overall / Funny / Dramatic / Action / Laughs score, Length, or Timeline (chronological). Sorting by Laughs puts clips with no laugh measurement last. Everyday status filters (All / Unreviewed / Approved / Rejected) stay visible; the warning and export-state filters plus the minimum-score picker fold into a **More filters** expander that auto-opens when one of them is active. A per-section "..." menu holds New clip and Check duplicates.
 - **Main panel** - detail view for the selected video or clip, plus video player
 - **Header** - global action buttons and live job status (step pills + cancel button)
-- **Project switcher** - the current project name (top-left) is a dropdown: pick a recent project or "Open another project…" to point at any folder. yuu-clip switches without a restart and reloads; a brand-new folder starts a fresh, empty project. Blocked while analysis or another job is running.
+- **Project switcher** - the current project name (top-left) is a dropdown: pick a recent project or "Open another project…" to point at any folder. YuuClip switches without a restart and reloads; a brand-new folder starts a fresh, empty project. Blocked while analysis or another job is running.
 - **Log panel** - collapsible; streams live job output; download button for the full log file. Logs redact your account name from file paths (`C:\Users\<user>\...`), so a log you send for support doesn't reveal your Windows username.
 
 ### Video management
@@ -41,7 +41,7 @@
 
 ### Scenes (longer contextual candidates)
 
-Alongside **Clips** (punchy 15-90 second bits), yuu-clip has a second candidate type:
+Alongside **Clips** (punchy 15-90 second bits), YuuClip has a second candidate type:
 a **Scene** is a longer contextual moment - roughly 1-5 minutes, which may include
 pauses and a story arc. Scenes are reviewed, scored, and exported through exactly the
 same tools as Clips; only how they're generated and scored differs.
@@ -53,7 +53,7 @@ same tools as Clips; only how they're generated and scored differs.
   create a Scene instead of a Clip: pick a longer start/end range and it's saved as a
   Scene and scored the same way.
 - **Let the AI find scenes (optional, off by default)** - turn on **Generate scenes**
-  in Settings → LLM scoring and yuu-clip will, during analysis, ask your local language
+  in Settings → LLM scoring and YuuClip will, during analysis, ask your local language
   model to read the transcript and propose scene boundaries - longer moments with a
   narrative arc that a punchy-clip pass would miss. It's off by default because it's an
   extra language-model pass per recording; when on, it runs only if a working local
@@ -535,7 +535,7 @@ See **Backing up and restoring a project** below for what a backup includes and 
 
 **Settings > Backup & Restore** saves a project to a single portable `.zip` file, and rebuilds one from that file.
 
-- **Back up project** downloads a small `.zip` containing the project's own state: the database (your clips, review decisions, descriptions), your settings, world contexts, and any custom notification sounds. It deliberately does **not** include your original video files or the large working files yuu-clip can rebuild on its own (extracted audio, exported clips, preview proxies, compiled reels), so the backup stays small. Keep it somewhere safe, or copy it to another computer.
+- **Back up project** downloads a small `.zip` containing the project's own state: the database (your clips, review decisions, descriptions), your settings, world contexts, and any custom notification sounds. It deliberately does **not** include your original video files or the large working files YuuClip can rebuild on its own (extracted audio, exported clips, preview proxies, compiled reels), so the backup stays small. Keep it somewhere safe, or copy it to another computer.
 - **Restore from backup** rebuilds a project from a backup file. You pick the `.zip` and a folder to restore into (restoring over an existing project asks first and keeps a safety copy of its database). If your original videos have moved - a new drive, a new computer - Restore lists the folders it couldn't find and lets you point each one to its new location, so your clips still play. Folders you leave blank stay marked as missing rather than being guessed.
 - **First-run restore** - the setup wizard offers "Restore from a backup instead" so a fresh install or a new machine can start from a backup rather than an empty project.
 
@@ -568,7 +568,7 @@ Settings → UI → **Theme** switches the app's color scheme. Three themes ship
 
 | Theme | Look |
 |-------|------|
-| Dark (default) | The original dark purple look |
+| Dark (default) | The default dark look - cyan accent with reserved gold highlights |
 | Light | White surfaces, darkened accent colors |
 | High contrast | Pure black background, brighter text and colors throughout |
 
@@ -579,7 +579,7 @@ restarts. All three themes meet WCAG AA contrast for text.
 
 Settings → UI → **Accent colour** changes the highlight colour used for buttons,
 links, and selected items, independently of the base theme. Two choices ship:
-**Default (purple)** and **Blue**. Like the theme, it applies immediately, is
+**Default (cyan)** and **Blue**. Like the theme, it applies immediately, is
 remembered across restarts, and every theme + accent combination meets WCAG AA
 contrast.
 
@@ -594,7 +594,7 @@ projects. Recently-used colours and your saved palette are remembered per user
 
 ### Speaker labels
 
-When enabled, yuu-clip runs speaker diarization after transcription and labels each transcript segment with who was speaking. This improves LLM scoring quality: transcript excerpts are formatted as `SPEAKER_00: ...` / `SPEAKER_01: ...` blocks instead of a flat text join.
+When enabled, YuuClip runs speaker diarization after transcription and labels each transcript segment with who was speaking. This improves LLM scoring quality: transcript excerpts are formatted as `SPEAKER_00: ...` / `SPEAKER_01: ...` blocks instead of a flat text join.
 
 **Backends**
 
@@ -604,7 +604,7 @@ When enabled, yuu-clip runs speaker diarization after transcription and labels e
 | Pyannote | - | HuggingFace account + `pip install pyannote.audio` (one-click install button in Settings) |
 | Off | - | Disable diarization entirely |
 
-**SpeechBrain** is on by default and needs no setup - it ships with yuu-clip. The speaker model (~80 MB) downloads automatically the first time you analyze a recording.
+**SpeechBrain** is on by default and needs no setup - it ships with YuuClip. The speaker model (~80 MB) downloads automatically the first time you analyze a recording.
 
 To enable **Pyannote** instead (slightly higher accuracy, but requires an account):
 1. Create a free account at [HuggingFace](https://huggingface.co) and, while signed in, accept the gated model terms for [speaker-diarization-community-1](https://huggingface.co/pyannote/speaker-diarization-community-1)
@@ -630,7 +630,7 @@ The **Suggest names** button (top of the Speakers card) uses the LLM to guess na
 
 **Borderline voice matches**
 
-When you re-analyze or re-detect speakers, yuu-clip tries to re-attach each voice to the one you already named so your names survive. If a voice comes back *close but not certain* - similar enough to be suspicious, not similar enough to auto-match - it doesn't guess. Instead the new voice shows a **"Might be {name} (NN% voice match)"** prompt on the Speakers card with **Same voice** and **Different voice** buttons. **Same voice** merges the two (the name and colour carry over and both voice samples are blended so the match improves next time); **Different voice** keeps them separate. Until you choose, the new voice stays an unnamed "Speaker N", so a borderline guess never reaches your captions on its own.
+When you re-analyze or re-detect speakers, YuuClip tries to re-attach each voice to the one you already named so your names survive. If a voice comes back *close but not certain* - similar enough to be suspicious, not similar enough to auto-match - it doesn't guess. Instead the new voice shows a **"Might be {name} (NN% voice match)"** prompt on the Speakers card with **Same voice** and **Different voice** buttons. **Same voice** merges the two (the name and colour carry over and both voice samples are blended so the match improves next time); **Different voice** keeps them separate. Until you choose, the new voice stays an unnamed "Speaker N", so a borderline guess never reaches your captions on its own.
 
 **Fixing speakers from the transcript**
 
@@ -653,7 +653,7 @@ This controls what Whisper *hears* - the app interface itself stays in English (
 
 ### Setup wizard
 
-The first-run setup wizard groups everything by how necessary it is: **Required** (FFmpeg - bundled with yuu-clip and shown as "Included", so there's nothing to install), **LLM scoring**, **Content type**, **Optional** (GPU acceleration), and **Basics** (project folder, speech-to-text model, transcription language). The LLM scoring step leads with a hardware-aware recommendation and frames the choice as **Set up local AI (Recommended)** vs **Lightweight mode (no download)**, with local AI pre-selected on a capable machine and softened or defaulted to lightweight on a weak or low-disk one. Choosing local AI does **not** block the wizard: you click Launch right away and the model downloads in the background inside the app - with a dismissible progress banner - once it opens, so scoring lights up without a restart. The backend / Claude / manual-path controls are still available under a collapsed **Advanced AI options** disclosure. A single **Download the AI models in the background** checkbox (checked by default) pre-fetches the speech-to-text and speaker-labelling models on first launch so your first analysis isn't a surprise wait; if you start an analysis while a required model is still downloading, the app tells you and waits on that download instead of starting a second one. Speaker labels, laugh/audio-event scoring, similarity embeddings, and vision are bundled and need no wizard step. First launch does a one-time environment setup, and the installer ships the analysis engine ready-made: instead of installing the Python packages on your machine (the old multi-minute step), it unpacks a prebuilt environment that comes in the box, so first launch is typically seconds to about a minute. The "Setting up yuu-clip" window shows an "Unpacking the analysis engine" step with an elapsed timer so it never looks frozen (the first unpack can take a little longer while your antivirus scans the new files). On every later launch a brief "Starting yuu-clip..." window keeps a spot on the taskbar while the engine boots, so the app never looks like it failed to open. After installing something outside the app, click **Check again** to re-detect it without closing the wizard - or **Restart app** for driver-level installs like CUDA. The wizard re-appears once after an update only when it gained new options; you can always reopen it from the hamburger menu (**Re-run Setup Wizard**).
+The first-run setup wizard groups everything by how necessary it is: **Required** (FFmpeg - bundled with YuuClip and shown as "Included", so there's nothing to install), **LLM scoring**, **Content type**, **Optional** (GPU acceleration), and **Basics** (project folder, speech-to-text model, transcription language). The LLM scoring step leads with a hardware-aware recommendation and frames the choice as **Set up local AI (Recommended)** vs **Lightweight mode (no download)**, with local AI pre-selected on a capable machine and softened or defaulted to lightweight on a weak or low-disk one. Choosing local AI does **not** block the wizard: you click Launch right away and the model downloads in the background inside the app - with a dismissible progress banner - once it opens, so scoring lights up without a restart. The backend / Claude / manual-path controls are still available under a collapsed **Advanced AI options** disclosure. A single **Download the AI models in the background** checkbox (checked by default) pre-fetches the speech-to-text and speaker-labelling models on first launch so your first analysis isn't a surprise wait; if you start an analysis while a required model is still downloading, the app tells you and waits on that download instead of starting a second one. Speaker labels, laugh/audio-event scoring, similarity embeddings, and vision are bundled and need no wizard step. First launch does a one-time environment setup, and the installer ships the analysis engine ready-made: instead of installing the Python packages on your machine (the old multi-minute step), it unpacks a prebuilt environment that comes in the box, so first launch is typically seconds to about a minute. The "Setting up YuuClip" window shows an "Unpacking the analysis engine" step with an elapsed timer so it never looks frozen (the first unpack can take a little longer while your antivirus scans the new files). On every later launch a brief "Starting YuuClip..." window keeps a spot on the taskbar while the engine boots, so the app never looks like it failed to open. After installing something outside the app, click **Check again** to re-detect it without closing the wizard - or **Restart app** for driver-level installs like CUDA. The wizard re-appears once after an update only when it gained new options; you can always reopen it from the hamburger menu (**Re-run Setup Wizard**).
 
 ### Optional dependency install
 

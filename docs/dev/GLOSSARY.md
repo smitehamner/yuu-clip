@@ -1,6 +1,6 @@
-# yuu-clip - Glossary / Ubiquitous Language
+# YuuClip - Glossary / Ubiquitous Language
 
-This file defines the authoritative term for every concept in yuu-clip. Use these terms consistently in code, UI labels, docs, and conversation. When a term here conflicts with what is currently in the code or UI, the code/UI should eventually be updated - not this file.
+This file defines the authoritative term for every concept in YuuClip. Use these terms consistently in code, UI labels, docs, and conversation. When a term here conflicts with what is currently in the code or UI, the code/UI should eventually be updated - not this file.
 
 > **Keep the user-facing copy in sync.** The in-app "Terminology Glossary" modal is served from `yuu_clip/web/static/glossary.md` - a hand-written, creator-facing subset of this file (no `Code:`, no dev-only sections). When you add or rename a user-facing term here, update that file too.
 
@@ -16,7 +16,8 @@ Most lookups only need this table: the authoritative user-facing term, the code 
 
 | User-facing term | Code | What it is |
 |---|---|---|
-| Project | `project_dir` | A folder yuu-clip stores one body of work in (its `.yuu-clip/` holds the DB, exports, reels). The Project switcher moves the server between them without a restart |
+| YuuClip | package `yuu_clip`, dist `yuu-clip`, CLI `yuuclip`, config dir `.yuu-clip/`, appId `com.smitehamner.yuuclip` | The product's display name. Written **YuuClip** (one word) in all user-facing titles, prose, window/menu chrome, and docs. The lowercase hyphen/underscore forms are code/mechanical identifiers only and must **not** be rebranded (paths, package/dist names, CLI token, localStorage `yuuclip-*` keys, install artifacts, URLs). |
+| Project | `project_dir` | A folder YuuClip stores one body of work in (its `.yuu-clip/` holds the DB, exports, reels). The Project switcher moves the server between them without a restart |
 | Backup | `build_backup`, `/api/backup` | A single portable `.zip` of a project's own state (clips DB, settings, world contexts) - not the large derived media or the source videos. Made from Settings > Backup & Restore |
 | Restore | `restore_into`, `/api/restore/*` | Rebuild a project from a Backup file. Re-points source-video folders that no longer resolve on this machine so restored clips still play |
 | Recording | `video`, `video_path` | A video file input - not "session" (that's the gameplay period) |
@@ -96,7 +97,7 @@ Most lookups only need this table: the authoritative user-facing term, the code 
 
 ### Recording
 
-A video file containing a gaming session - the primary input to yuu-clip.
+A video file containing a gaming session - the primary input to YuuClip.
 
 - **Code:** `video`, `video_path`
 - **Also called in codebase:** "video", "source file"
@@ -109,7 +110,7 @@ A video file containing a gaming session - the primary input to yuu-clip.
 
 The gameplay period from one sitting - e.g., "last night's FiveM session." A
 session may span **several recordings** when OBS splits a long sitting into
-multiple files. yuu-clip can **group** those recordings into one first-class
+multiple files. YuuClip can **group** those recordings into one first-class
 Session with a shared name, a rolled-up **Session Summary**, and a **Unified
 Timeline** (a continuous time axis across all member recordings, with the
 real-world breaks between files labelled). Grouping can be suggested
@@ -146,7 +147,7 @@ How long a recording or clip runs.
 
 ### Import from URL
 
-Paste a public Twitch VOD or YouTube link instead of a local file path; yuu-clip
+Paste a public Twitch VOD or YouTube link instead of a local file path; YuuClip
 downloads it (via yt-dlp) and the result becomes a normal **Recording**, ready to
 analyze like any other.
 
@@ -340,7 +341,7 @@ The full text of everything said during a recording, as produced by speech-to-te
 
 ### Speech-to-Text Model
 
-The local AI model that converts audio to text. yuu-clip uses Whisper.
+The local AI model that converts audio to text. YuuClip uses Whisper.
 
 - **Code:** `whisper_model`
 - **UI label:** "Caption model" on the export/retranscribe surfaces
@@ -680,7 +681,7 @@ enabled Sensitive Terms match.
 
 ### AI privacy mode
 
-The single setting that decides what yuu-clip may do with a recording's transcript. It is a **guarantee, not a hint** - enforced at every point a language model could run (`resolve_ai_permissions`), so no UI mistake or saved backend can leak data past it. Three levels:
+The single setting that decides what YuuClip may do with a recording's transcript. It is a **guarantee, not a hint** - enforced at every point a language model could run (`resolve_ai_permissions`), so no UI mistake or saved backend can leak data past it. Three levels:
 
 - **No generative AI** (`none`) - no language model runs at all. Clip finding, related-clip search, "Meaning" hot-words, and lightweight scoring (lexicon, energy, laughs) still work, because embeddings and keyword matching are *discriminative, not generative*. All "install a model" nudges are suppressed - a user who opted out is never nagged.
 - **Local models only** (`local_only`, the default) - on-device language models are allowed; the remote Claude backend is blocked and hidden. Nothing you record leaves the machine.
@@ -705,7 +706,7 @@ Scoring and description generation performed by a local language model that read
 
 ### Recommended models
 
-The curated list of text and vision models yuu-clip suggests for the LLM backend, shown in Settings → LLM scoring and the setup wizard. Every recommended model carries a licence that permits monetizing the clips it helps produce (Apache-2.0 / MIT for local models; the Anthropic API's commercial terms for Claude). Llama- and Gemma-licensed models are excluded from the list because their terms impose use restrictions - they still work if configured by hand.
+The curated list of text and vision models YuuClip suggests for the LLM backend, shown in Settings → LLM scoring and the setup wizard. Every recommended model carries a licence that permits monetizing the clips it helps produce (Apache-2.0 / MIT for local models; the Anthropic API's commercial terms for Claude). Llama- and Gemma-licensed models are excluded from the list because their terms impose use restrictions - they still work if configured by hand.
 
 - **Code:** `yuu_clip/model_catalog.py` (`ModelEntry`, `recommended_models()`, `text_models()`, `vision_models()`, `catalog_for_backend()`); route `GET /api/llm/catalog`
 - **Also called in codebase:** "model catalog"
@@ -798,7 +799,7 @@ speaker names in its transcript, its top keywords, and its leading score dimensi
 
 ### Lightweight mode
 
-The framing for running yuu-clip with **no language model installed** - the default,
+The framing for running YuuClip with **no language model installed** - the default,
 fully-working state, not a degraded one. Transcription, audio-energy/scene/laugh/lexicon
 scoring, [Basic descriptions](#basic-description), and keyword [Similarity
 engine](#similarity-engine) all run with zero extra downloads. Installing a local model

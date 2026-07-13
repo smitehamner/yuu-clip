@@ -25,7 +25,7 @@ from playwright.sync_api import Page, expect
 class TestSmoke:
     def test_page_loads_with_title(self, page: Page):
         page.goto(LIVE_URL)
-        expect(page).to_have_title("yuu-clip")
+        expect(page).to_have_title("YuuClip")
 
     def test_header_actions_present(self, page: Page):
         page.goto(LIVE_URL)

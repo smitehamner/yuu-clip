@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>yuu-clip</title>
+<title>YuuClip</title>
 <link rel="icon" type="image/png" href="/static/gamercat.png">
 <script>
 /* Apply saved theme before the stylesheet paints to avoid a flash of the
@@ -46,7 +46,7 @@
 <header>
   <div class="brand">
     <img class="brand-logo" src="/static/gamercat.png" alt="" width="26" height="26">
-    <h1>yuu-clip</h1>
+    <h1>YuuClip</h1>
   </div>
   <div class="hamburger-wrap" id="project-switcher-wrap">
     <button class="btn ghost" id="btn-project-switcher" onclick="toggleProjectMenu()"
@@ -221,7 +221,7 @@
          Cards render into #s-llamacpp-recommended (modelcatalog.js); the GPU toggle and
          manual paths for this engine live under Advanced AI options below. -->
     <div id="s-llamacpp-picker">
-      <div class="settings-note" style="margin-bottom:6px">Included with yuu-clip - pick one and it downloads in a click. Your graphics card is used automatically when it can run the model.</div>
+      <div class="settings-note" style="margin-bottom:6px">Included with YuuClip - pick one and it downloads in a click. Your graphics card is used automatically when it can run the model.</div>
       <div id="s-llamacpp-recommended" class="settings-recommended"></div>
     </div>
     <!-- Claude API fields (shown when the engine is Claude, chosen under Advanced) -->
@@ -293,7 +293,7 @@
       <div class="settings-row" id="s-privacy-row">
         <div class="settings-col">
           <label class="settings-label">AI privacy</label>
-          <div class="settings-note">What yuu-clip may do with your transcript. This is enforced everywhere - it is a guarantee, not just a preference.</div>
+          <div class="settings-note">What YuuClip may do with your transcript. This is enforced everywhere - it is a guarantee, not just a preference.</div>
         </div>
         <div id="s-ai-privacy-options" role="radiogroup" aria-label="AI privacy mode"
              onchange="_onPrivacyModeChange(this.querySelector('input:checked').value)"
@@ -371,7 +371,7 @@
         </div>
         <div class="settings-row" id="s-custom-model-licence-note">
           <div class="settings-col">
-            <div class="settings-note">Loading your own model? Check its licence before you sell, monetize, or run ads on clips made with it. Some popular models (for example Llama and Gemma) restrict commercial use of what they generate. Every model yuu-clip recommends above is licensed for commercial use.</div>
+            <div class="settings-note">Loading your own model? Check its licence before you sell, monetize, or run ads on clips made with it. Some popular models (for example Llama and Gemma) restrict commercial use of what they generate. Every model YuuClip recommends above is licensed for commercial use.</div>
           </div>
         </div>
       </div>
@@ -400,7 +400,7 @@
       <div class="settings-row">
         <div class="settings-col">
           <div class="settings-label">Model</div>
-          <div class="settings-note">The Smart engine is included with yuu-clip (fastembed). Its model (~130 MB) downloads automatically the first time you use it.</div>
+          <div class="settings-note">The Smart engine is included with YuuClip (fastembed). Its model (~130 MB) downloads automatically the first time you use it.</div>
         </div>
       </div>
     </div>
@@ -456,7 +456,7 @@
       <div class="settings-row">
         <div class="settings-col">
           <div class="settings-label">Speaker model</div>
-          <div class="settings-note">SpeechBrain is included with yuu-clip - no HuggingFace account or token needed. The speaker model (~80 MB) downloads automatically the first time you run Detect Speakers.</div>
+          <div class="settings-note">SpeechBrain is included with YuuClip - no HuggingFace account or token needed. The speaker model (~80 MB) downloads automatically the first time you run Detect Speakers.</div>
         </div>
       </div>
       <div class="settings-row">
@@ -753,7 +753,7 @@
         <div class="settings-note">Applies immediately</div>
       </div>
       <select class="settings-select" id="s-accent" onchange="applyAccent(this.value)">
-        <option value="default">Default (purple)</option>
+        <option value="default">Default (cyan)</option>
         <option value="blue">Blue</option>
       </select>
     </div>
@@ -850,7 +850,7 @@
         <div class="settings-note">
           When exporting with a vertical (9:16) preset, "Auto-frame on faces"
           suggests where to place the crop by finding faces in the clip. Included
-          with yuu-clip (MediaPipe, Apache-2.0) - its face-detector model (~230 KB)
+          with YuuClip (MediaPipe, Apache-2.0) - its face-detector model (~230 KB)
           downloads automatically the first time you use it. You can still set the
           crop by hand instead.
         </div>
@@ -1386,7 +1386,7 @@
 
     <div class="section-title" style="margin-bottom:6px">Your workflow</div>
     <ol style="margin:0 0 16px;padding-left:20px;font-size:13px;line-height:1.9;color:var(--text)">
-      <li><strong>Analyze</strong> - click <em>+ Analyze</em> and select a recording. yuu-clip transcribes the audio, detects scene changes, and scores every clip.</li>
+      <li><strong>Analyze</strong> - click <em>+ Analyze</em> and select a recording. YuuClip transcribes the audio, detects scene changes, and scores every clip.</li>
       <li><strong>Review</strong> - step through the clip list. Watch the preview, read the description, and press <kbd>A</kbd> to approve or <kbd>R</kbd> to reject.</li>
       <li><strong>Export</strong> - click <em>Export</em> on any clip to extract it. Quick export copies the video out in seconds; Precise re-encodes for frame-accurate cuts. The export window tells you which one you'll get.</li>
       <li><strong>Build a reel</strong> - click <em>Highlight Reels</em> in the header, then <em>Build Reel</em> to compile approved clips into a single highlight reel with title cards and transitions.</li>
@@ -1405,7 +1405,7 @@
     <div class="section-title" style="margin-bottom:6px">Key concepts</div>
     <table style="width:100%;font-size:13px;border-collapse:collapse;margin-bottom:16px">
       <tbody>
-        <tr><td style="padding:3px 8px 3px 0;color:var(--text);white-space:nowrap">Track layout</td><td style="color:var(--muted)">Maps your OBS audio tracks to roles (player voice, game sounds, etc.) so yuu-clip knows what to transcribe</td></tr>
+        <tr><td style="padding:3px 8px 3px 0;color:var(--text);white-space:nowrap">Track layout</td><td style="color:var(--muted)">Maps your OBS audio tracks to roles (player voice, game sounds, etc.) so YuuClip knows what to transcribe</td></tr>
         <tr><td style="padding:3px 8px 3px 0;color:var(--text);white-space:nowrap">World context</td><td style="color:var(--muted)">Tells the LLM scorer who's in your recordings and what the setting is - improves descriptions and scores for your specific game</td></tr>
       </tbody>
     </table>
@@ -1427,13 +1427,13 @@
 <!-- About modal -->
 <div class="modal-bg" id="about-modal" onclick="if(event.target===this)closeAboutModal()">
   <div class="modal" style="max-width:480px">
-    <h3>About yuu-clip</h3>
+    <h3>About YuuClip</h3>
     <p style="color:var(--muted);font-size:13px;margin:0 0 12px">
       <span id="about-version">Version unknown</span><br>
       Built by <strong>smitehamner</strong>. Provided as-is with absolutely no warranty.<br>
-      Licencing: <em>Apache License 2.0</em> - see the LICENSE file included with yuu-clip.
+      Licencing: <em>Apache License 2.0</em> - see the LICENSE file included with YuuClip.
     </p>
-    <div class="section-title" style="margin-bottom:4px">Included with yuu-clip</div>
+    <div class="section-title" style="margin-bottom:4px">Included with YuuClip</div>
     <table style="width:100%;font-size:12px;border-collapse:collapse;color:var(--muted);margin-bottom:12px">
       <thead><tr style="color:var(--text)"><th scope="col" class="col-head">Package</th><th scope="col" class="col-head">Purpose</th><th scope="col" class="col-head">Licence</th></tr></thead>
       <tbody>
@@ -1681,7 +1681,7 @@
     <div id="batch-mode-summary" style="font-size:12px;border-top:1px solid var(--border);padding-top:10px;margin-bottom:14px"></div>
     <div class="modal-actions">
       <button class="btn" onclick="closeBatchExportModal()">Cancel</button>
-      <button class="btn primary" onclick="confirmBatchExport()">Export</button>
+      <button class="btn highlight" onclick="confirmBatchExport()">Export</button>
     </div>
   </div>
 </div>
@@ -1980,7 +1980,7 @@
     </div>
     <div class="modal-actions">
       <button class="btn" onclick="closeExportModal()">Cancel</button>
-      <button class="btn primary" onclick="confirmExport()">Export</button>
+      <button class="btn highlight" onclick="confirmExport()">Export</button>
     </div>
   </div>
 </div>

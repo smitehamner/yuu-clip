@@ -1,10 +1,10 @@
 ## Recordings & Sessions
 
 ### Project
-A folder where yuu-clip keeps one body of work - its recordings, clips, exports, and highlight reels all live under that folder. Use the project name at the top-left to switch between projects (for example, one per game or per channel) without restarting. Point it at a brand-new folder to start a fresh, empty project.
+A folder where YuuClip keeps one body of work - its recordings, clips, exports, and highlight reels all live under that folder. Use the project name at the top-left to switch between projects (for example, one per game or per channel) without restarting. Point it at a brand-new folder to start a fresh, empty project.
 
 ### Recording
-A video file of a gaming session - the main thing you feed into yuu-clip. Each recording is listed in the Sessions panel on the left.
+A video file of a gaming session - the main thing you feed into YuuClip. Each recording is listed in the Sessions panel on the left.
 
 ### Session
 One sitting of gameplay - for example, "last night's session." When OBS splits a long sitting into several files, you can group those recordings into one Session: it gets a shared name, a combined Session Summary, and a Unified Timeline that runs continuously across every recording (with the real-world breaks between files marked). Use **Suggest sessions** to auto-group back-to-back recordings, or **Group** to pick them by hand; ungrouping never deletes anything.
@@ -13,13 +13,13 @@ One sitting of gameplay - for example, "last night's session." When OBS splits a
 How long a recording or clip runs, shown as `1h 23m 45s` or `23m 45s`.
 
 ### Import from URL
-Paste a public Twitch VOD or YouTube link instead of picking a local file - yuu-clip downloads it, then the New Recording panel opens prefilled so you can confirm track layout and World Contexts before analyzing. Public links only (no login-required or subscriber-only content), capped at 1080p.
+Paste a public Twitch VOD or YouTube link instead of picking a local file - YuuClip downloads it, then the New Recording panel opens prefilled so you can confirm track layout and World Contexts before analyzing. Public links only (no login-required or subscriber-only content), capped at 1080p.
 
 ### Imported from
 The line in a recording's detail view showing where a URL-imported recording came from - the channel/uploader, upload date, and a link back to the original video.
 
 ### Backup
-A single file that saves a project's clips, review decisions, settings, and World Contexts, from Settings > Backup & Restore. It stays small because it does not include your original video files or the large working files yuu-clip can rebuild on its own. Keep it somewhere safe, or copy it to another computer.
+A single file that saves a project's clips, review decisions, settings, and World Contexts, from Settings > Backup & Restore. It stays small because it does not include your original video files or the large working files YuuClip can rebuild on its own. Keep it somewhere safe, or copy it to another computer.
 
 ### Restore
 Rebuild a project from a Backup file. If your original videos have moved (a new drive, a new computer), Restore shows which folders it could not find and lets you point each one to its new location, so your clips still play. A safety copy of the existing database is kept if you restore over a project that already has one.
@@ -32,7 +32,7 @@ Rebuild a project from a Backup file. If your original videos have moved (a new 
 One audio stream inside a recording - for example your microphone, the game audio, or a combined mix. A recording can have several tracks.
 
 ### Track role
-What a track represents. You assign a role to each track so yuu-clip knows what it's listening to:
+What a track represents. You assign a role to each track so YuuClip knows what it's listening to:
 
 - **Player Voice** - your own microphone
 - **Voice Chat** - other players talking in-game
@@ -82,7 +82,7 @@ A heads-up when your GPU is running hot during analysis (NVIDIA graphics cards o
 The text of everything said in a recording, produced automatically from the audio.
 
 ### Speech-to-text model
-The local model that turns audio into text. yuu-clip uses Whisper, which downloads automatically the first time you analyze. Larger models are more accurate but slower and need more memory.
+The local model that turns audio into text. YuuClip uses Whisper, which downloads automatically the first time you analyze. Larger models are more accurate but slower and need more memory.
 
 ### Captions
 On-screen text showing what was said, taken from the transcript. You can export captions as a separate file alongside the clip, or bake them directly into the video.
@@ -91,7 +91,7 @@ On-screen text showing what was said, taken from the transcript. You can export 
 The font, size, and position used when captions are **burned into** the video. Set a default in Settings → Export, and override it for a single export in the Export dialog. The same style applies when a highlight reel burns captions in ("Burn into video"). It doesn't affect embedded caption tracks or separate `.srt` files - those are styled by whatever player opens them. Speaker colours are always kept.
 
 ### Speaker
-A distinct voice yuu-clip detects in a recording. Each one starts off as "Speaker 1", "Speaker 2", and so on. Open a recording's **Speakers** card to give them real names - the names then show up in clip transcripts and captions. Names stick even if you re-analyze the recording.
+A distinct voice YuuClip detects in a recording. Each one starts off as "Speaker 1", "Speaker 2", and so on. Open a recording's **Speakers** card to give them real names - the names then show up in clip transcripts and captions. Names stick even if you re-analyze the recording.
 
 ### Fix names
 Whisper sometimes mishears a spoken name - writing "You" when someone said "Yuu". **Fix names** (in a recording's transcript card) scans the whole transcript for these, using the names you've given your speakers plus any characters listed in the recording's world contexts. It groups them ("You → Yuu, 12 instances") so you can review and apply the ones you want in one go. Nothing changes until you press Apply.
@@ -117,7 +117,7 @@ Small start/end adjustments that fine-tune where a clip begins and ends, without
 A clip you pick by hand from a recording's transcript, instead of one found automatically. Use **"+ New clip"** above the clip list, or **"Create clip"** on a recording's Full transcript, then click transcript lines (or type times) to set the start and end. It goes through the same scoring and review as any other clip.
 
 ### Preview quality (720p)
-For fast scrubbing, yuu-clip plays a smaller **720p** copy of a recording in the preview player instead of the huge original - long recordings can't be scrubbed smoothly otherwise. A **"Preview quality (720p)"** badge shows when you're watching this copy; a **"Original quality"** badge shows when you're on the full-size file (where seeking a long recording can be slow - click the badge to build a fast 720p copy). Copies are made automatically during analysis. Your **exported** clips always use the full-quality original - the 720p copy is only for previewing.
+For fast scrubbing, YuuClip plays a smaller **720p** copy of a recording in the preview player instead of the huge original - long recordings can't be scrubbed smoothly otherwise. A **"Preview quality (720p)"** badge shows when you're watching this copy; a **"Original quality"** badge shows when you're on the full-size file (where seeking a long recording can be slow - click the badge to build a fast 720p copy). Copies are made automatically during analysis. Your **exported** clips always use the full-quality original - the 720p copy is only for previewing.
 
 ---
 
@@ -140,7 +140,7 @@ A one-click way to tune scoring for the kind of content you make - RP / narrativ
 Extra scoring and description writing done by a local language model that reads the clip's transcript. Optional - it improves clip quality but analysis still works without it.
 
 ### Recommended models
-The curated list of models yuu-clip suggests under Settings → LLM scoring. Every one is licensed so the clips you make with it can be monetized (models with restrictive terms are left out). Recommended local models download in one click; you can also point at a model file you already have.
+The curated list of models YuuClip suggests under Settings → LLM scoring. Every one is licensed so the clips you make with it can be monetized (models with restrictive terms are left out). Recommended local models download in one click; you can also point at a model file you already have.
 
 ### Model readiness
 The line under Settings → LLM scoring showing whether the model you've set up can score **text** and analyze **images** right now, plus a plain-English reason if something's missing (for example, a Claude API key or a vision projector file).
@@ -175,7 +175,7 @@ Short descriptions of what happened in each 15-minute chunk of a recording - han
 A named bundle of background information - the setting, your characters, other characters, and notes - that helps the scorer understand what's going on. You can attach more than one to a recording (for example, crossover sessions).
 
 ### Template
-A world context that ships with yuu-clip as starter content, marked with a "Template" badge. Edit it to fit your game, use it as a base for a new copy, or reset it back to the original shipped content at any time. Templates can't be deleted.
+A world context that ships with YuuClip as starter content, marked with a "Template" badge. Edit it to fit your game, use it as a base for a new copy, or reset it back to the original shipped content at any time. Templates can't be deleted.
 
 ### Stale scores
 A warning that a recording's contexts changed since it was last scored, summarized, or had its timeline built - so those results may be out of date. Rescore to refresh them.

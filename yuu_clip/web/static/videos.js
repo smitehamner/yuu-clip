@@ -269,7 +269,8 @@ function _showEmptyState() {
   document.getElementById('player-area').innerHTML = '';
   document.getElementById('detail').innerHTML = `
     <div class="empty-state">
-      <h2>Welcome to yuu-clip</h2>
+      <img class="empty-state-mascot" src="/static/gamercat.png" alt="">
+      <h2>Welcome to YuuClip</h2>
       <p>Analyze a recording to start reviewing and exporting your best gaming moments.</p>
       <button class="btn primary" onclick="openNewRecordingPanel()">+ Analyze your first recording</button>
       <button class="btn ghost" onclick="openGettingStartedModal()" style="margin-top:8px">Getting Started Guide</button>
@@ -502,7 +503,7 @@ function openVideoActionsModal(videoId) {
       { label: 'Regenerate Clips', description: 'Rebuild clips from the existing transcript. Replaces every clip - discarding approvals, edits, tags, and scores - with fresh, unscored candidates. Skips re-transcription.', danger: true, action: () => regenerateClipsRun(videoId) },
       { label: 'Re-analyze (full)', description: 'Re-run the entire pipeline from scratch. Replaces all clips, scores, and speakers for this recording.', danger: true, action: () => reanalyzeVideo(videoId) },
       { label: 'Reset Approvals', description: 'Clear the approve/reject status on every clip in this recording.', danger: true, action: () => resetApprovals(videoId) },
-      { label: 'Remove Recording', description: 'Remove this recording from yuu-clip. The source file on disk is not deleted.', danger: true, action: () => deleteVideo(videoId) },
+      { label: 'Remove Recording', description: 'Remove this recording from YuuClip. The source file on disk is not deleted.', danger: true, action: () => deleteVideo(videoId) },
     ]},
   ];
 
@@ -543,7 +544,7 @@ function deleteVideo(id) {
   const name  = video ? video.filename : `recording ${id}`;
   showConfirm(
     'Remove recording?',
-    `Remove <strong>${escHtml(name)}</strong> from yuu-clip?<br><br>` +
+    `Remove <strong>${escHtml(name)}</strong> from YuuClip?<br><br>` +
     `All clips, transcripts, and extracted audio are removed from the database. ` +
     `Your source recording file is <strong>not</strong> deleted.`,
     'Remove',
@@ -569,7 +570,7 @@ async function _doDeleteVideo(id, name) {
     clearDetail();
   }
   await loadVideos();
-  showToast(`"${name}" removed from yuu-clip`);
+  showToast(`"${name}" removed from YuuClip`);
 }
 
 // ── live analysis progress (in-detail) ────────────────────────────────────────

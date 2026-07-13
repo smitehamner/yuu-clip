@@ -101,7 +101,7 @@ function _renderRecommendedModels(containerId, backend) {
     _modelGroupHtml('Text scoring models',
       'Score clips and write descriptions. Pick one to get started.', textModels, backend, 'text') +
     _modelGroupHtml('Image analysis (vision) models',
-      'Optional - let yuu-clip look at frames and describe what is on screen.', visionModels, backend, 'vision');
+      'Optional - let YuuClip look at frames and describe what is on screen.', visionModels, backend, 'vision');
   _wireModelCards(el);
 }
 
@@ -355,7 +355,7 @@ async function _renderCapabilityTiers() {
   if (intro) {
     intro.textContent = data.lightweight
       ? "You're running in lightweight mode - transcription, scoring, and clip descriptions all work right now. Install a local model anytime for richer AI descriptions and smarter scoring."
-      : "Here's what each part of yuu-clip is using right now, and what you can upgrade.";
+      : "Here's what each part of YuuClip is using right now, and what you can upgrade.";
   }
   list.innerHTML = (data.tiers || []).map(_capabilityTierHtml).join('');
   list.querySelectorAll('[data-section]').forEach(btn => {

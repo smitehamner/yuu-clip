@@ -1,4 +1,4 @@
-# yuu-clip
+# YuuClip
 
 A local-first tool for turning long gaming/session recordings into shareable highlights. It analyzes a recording - transcribes every audio track with Whisper, measures audio energy and scene cuts, and scores clip candidates - then surfaces the best moments in a web review UI for approve/reject and export.
 
@@ -64,7 +64,7 @@ winget install Python.Python.3.12   # Windows
 ```
 
 ### A language model - optional
-LLM scoring and written clip descriptions are optional. Without a model, yuu-clip still finds and scores clips using the no-model signals above. To enable LLM scoring, pick a backend in the setup wizard or Settings:
+LLM scoring and written clip descriptions are optional. Without a model, YuuClip still finds and scores clips using the no-model signals above. To enable LLM scoring, pick a backend in the setup wizard or Settings:
 
 - **Local model file (default)** - a local `.gguf` run via the bundled, GPU-accelerated llama.cpp engine. The desktop app can download a recommended, monetization-safe model for you.
 - **Claude API** - remote, billed per token.
@@ -172,7 +172,7 @@ After the initial model downloads (Whisper via HuggingFace, and a scoring model 
 
 ## License
 
-yuu-clip is licensed under the [Apache License 2.0](LICENSE) - you are free to use, modify, and distribute it, including commercially, under that licence's terms.
+YuuClip is licensed under the [Apache License 2.0](LICENSE) - you are free to use, modify, and distribute it, including commercially, under that licence's terms.
 
 The Windows installer bundles a prebuilt FFmpeg binary that is separately licensed under the GPLv3; see [docs/dev/THIRD-PARTY-NOTICES-FFMPEG.md](docs/dev/THIRD-PARTY-NOTICES-FFMPEG.md) for the full third-party compliance record.
 

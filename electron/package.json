@@ -1,7 +1,7 @@
 {
   "name": "yuu-clip",
   "version": "0.1.22",
-  "description": "yuu-clip - Gaming clip review and export tool",
+  "description": "YuuClip - Gaming clip review and export tool",
   "author": "smitehamner",
   "main": "main.js",
   "scripts": {
@@ -18,7 +18,8 @@
       "output": "../build/installer"
     },
     "appId": "com.smitehamner.yuuclip",
-    "productName": "yuu-clip",
+    "productName": "YuuClip",
+    "artifactName": "yuu-clip-${version}-Setup.${ext}",
     "win": {
       "target": "nsis",
       "icon": "assets/icon.ico"

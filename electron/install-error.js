@@ -61,7 +61,7 @@ function describeInstallFailure(stderr) {
   }
   if (hasAny(text, PERMISSION_HINTS)) {
     return 'a file was blocked - often by antivirus, or because a file was still in use. ' +
-           'Allow yuu-clip in your antivirus (or close other apps that might be using it), then try again.';
+           'Allow YuuClip in your antivirus (or close other apps that might be using it), then try again.';
   }
   if (hasAny(text, NO_WHEEL_HINTS)) {
     return 'the right package for your system wasn’t available. If this was GPU acceleration, ' +
@@ -69,7 +69,7 @@ function describeInstallFailure(stderr) {
   }
   if (hasAny(text, CUDA_HINTS)) {
     return 'GPU acceleration couldn’t load - your graphics driver may be older than the CUDA build. ' +
-           'yuu-clip will keep working on the CPU.';
+           'YuuClip will keep working on the CPU.';
   }
   return 'the install didn’t finish. You can try again, or open the setup log and send it to us.';
 }
@@ -93,7 +93,7 @@ function describeDownloadFailure(message) {
   }
   if (hasAny(text, PERMISSION_HINTS) || hasAny(text, PERM_CODES)) {
     return 'a file was blocked - often by antivirus, or because a file was still in use. ' +
-           'Allow yuu-clip in your antivirus (or close other apps that might be using it), then try again.';
+           'Allow YuuClip in your antivirus (or close other apps that might be using it), then try again.';
   }
   return 'the download did not finish. Check your internet connection, then try again.';
 }

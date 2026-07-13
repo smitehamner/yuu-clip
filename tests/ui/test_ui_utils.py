@@ -169,7 +169,7 @@ class TestDiarizationReason:
         # SpeechBrain is bundled - an unready result here means a broken install,
         # not a missing optional download, so the reason says "reinstall", not "Install".
         out = page.evaluate("() => _diarizationReason('speechbrain', false, false)")
-        assert out == "SpeechBrain is unavailable - try reinstalling yuu-clip"
+        assert out == "SpeechBrain is unavailable - try reinstalling YuuClip"
 
     def test_speechbrain_ready_without_token(self, page: Page):
         # No token needed - installed alone is fully ready.
