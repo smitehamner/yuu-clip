@@ -419,10 +419,6 @@ class TestDiarizeTrack:
             whisper_runner, "_attach_speakers",
             lambda session, video_id, transcript_id, embeddings, threshold=None, active_backend=None: captured.setdefault("attach", []).append((video_id, transcript_id, embeddings, threshold, active_backend)),
         )
-        monkeypatch.setattr(
-            whisper_runner, "_suggest_project_voices",
-            lambda session, video_id, threshold=None: captured.setdefault("suggest", []).append((video_id, threshold)),
-        )
         return captured
 
     def _fake_track(self):
@@ -447,8 +443,9 @@ class TestDiarizeTrack:
         assert captured["assign"] == [(7, turns)]
         # The configured threshold and active backend must be forwarded to _attach_speakers.
         assert captured["attach"] == [(9, 7, embeddings, 0.6, "pyannote")]
-        # Cross-recording suggestion runs after attach, with the strict project threshold.
-        assert captured["suggest"] == [(9, cfg.project_voice_match_threshold)]
+        # Cross-recording suggestion is NOT per-track - it runs once per recording from
+        # _run_speaker_diarization (see TestRunSpeakerDiarizationSuggests), not here.
+        assert "suggest" not in captured
 
     def test_noop_when_backend_unavailable(self, monkeypatch):
         from pathlib import Path
@@ -699,7 +696,7 @@ class TestBestVoiceprintMatch:
 
 
 # ---------------------------------------------------------------------------
-# _suggest_project_voices - cross-recording Person suggestions (propose, never apply)
+# suggest_project_voices - cross-recording Person suggestions (propose, never apply)
 # ---------------------------------------------------------------------------
 
 class TestSuggestProjectVoices:
@@ -741,7 +738,7 @@ class TestSuggestProjectVoices:
         return speaker
 
     def test_known_voice_gets_suggestion_not_link(self, tmp_path):
-        from yuu_clip.transcribe.whisper_runner import _suggest_project_voices
+        from yuu_clip.transcribe.whisper_runner import suggest_project_voices
 
         session = self._session(tmp_path)
         try:
@@ -749,7 +746,7 @@ class TestSuggestProjectVoices:
             video = self._video(session)
             speaker = self._speaker(session, video, [1.0, 0.0])
 
-            _suggest_project_voices(session, video.id, 0.80)
+            suggest_project_voices(session, video.id, 0.80)
 
             assert speaker.suggested_voice_id == voice.id
             assert speaker.suggested_voice_score == pytest.approx(1.0)
@@ -759,19 +756,19 @@ class TestSuggestProjectVoices:
             session.close()
 
     def test_no_project_voices_is_noop(self, tmp_path):
-        from yuu_clip.transcribe.whisper_runner import _suggest_project_voices
+        from yuu_clip.transcribe.whisper_runner import suggest_project_voices
 
         session = self._session(tmp_path)
         try:
             video = self._video(session)
             speaker = self._speaker(session, video, [1.0, 0.0])
-            _suggest_project_voices(session, video.id, 0.80)
+            suggest_project_voices(session, video.id, 0.80)
             assert speaker.suggested_voice_id is None
         finally:
             session.close()
 
     def test_already_linked_speaker_is_skipped(self, tmp_path):
-        from yuu_clip.transcribe.whisper_runner import _suggest_project_voices
+        from yuu_clip.transcribe.whisper_runner import suggest_project_voices
 
         session = self._session(tmp_path)
         try:
@@ -780,26 +777,26 @@ class TestSuggestProjectVoices:
             speaker = self._speaker(session, video, [1.0, 0.0])
             speaker.global_voice_id = voice.id
             session.flush()
-            _suggest_project_voices(session, video.id, 0.80)
+            suggest_project_voices(session, video.id, 0.80)
             assert speaker.suggested_voice_id is None
         finally:
             session.close()
 
     def test_backend_mismatch_no_suggestion(self, tmp_path):
-        from yuu_clip.transcribe.whisper_runner import _suggest_project_voices
+        from yuu_clip.transcribe.whisper_runner import suggest_project_voices
 
         session = self._session(tmp_path)
         try:
             self._voice(session, [1.0, 0.0], backend="pyannote")
             video = self._video(session)
             speaker = self._speaker(session, video, [1.0, 0.0], backend="speechbrain")
-            _suggest_project_voices(session, video.id, 0.80)
+            suggest_project_voices(session, video.id, 0.80)
             assert speaker.suggested_voice_id is None
         finally:
             session.close()
 
     def test_one_person_suggested_to_at_most_one_speaker(self, tmp_path):
-        from yuu_clip.transcribe.whisper_runner import _suggest_project_voices
+        from yuu_clip.transcribe.whisper_runner import suggest_project_voices
 
         session = self._session(tmp_path)
         try:
@@ -807,13 +804,52 @@ class TestSuggestProjectVoices:
             video = self._video(session)
             first = self._speaker(session, video, [1.0, 0.0], display_index=1)
             second = self._speaker(session, video, [0.99, 0.01], display_index=2)
-            _suggest_project_voices(session, video.id, 0.80)
+            suggest_project_voices(session, video.id, 0.80)
             # Both resemble the Person, but the recording already separated them:
             # only one may claim it.
             claimed = [s for s in (first, second) if s.suggested_voice_id == voice.id]
             assert len(claimed) == 1
         finally:
             session.close()
+
+
+class TestRunSpeakerDiarizationSuggests:
+    """suggest_project_voices runs ONCE per recording from _run_speaker_diarization,
+    not once per track (efficiency: all a video's tracks share its Speaker set)."""
+
+    def test_suggest_called_once_for_two_tracks(self, tmp_path, monkeypatch):
+        from yuu_clip.db.models import AudioTrack, Transcript, Video, make_session
+        from yuu_clip.pipeline import ingest
+        from yuu_clip.transcribe import whisper_runner
+
+        wav = tmp_path / "a.wav"
+        wav.write_bytes(b"x")
+        session = make_session(tmp_path / "p.db")
+        video = Video(path="s.mkv", filename="s.mkv", status="done", duration_ms=1000)
+        session.add(video)
+        session.flush()
+        transcripts = []
+        for stream_index in (1, 2):
+            track = AudioTrack(video_id=video.id, stream_index=stream_index,
+                               do_transcribe=True, extracted_path=str(wav))
+            session.add(track)
+            session.flush()
+            tx = Transcript(audio_track_id=track.id, model_name="m")
+            session.add(tx)
+            session.flush()
+            transcripts.append(tx)
+        session.commit()
+
+        monkeypatch.setattr(whisper_runner, "diarize_track", lambda *a, **k: None)
+        calls = []
+        monkeypatch.setattr(
+            whisper_runner, "suggest_project_voices",
+            lambda sess, video_id, threshold: calls.append((video_id, threshold)),
+        )
+        ingest._run_speaker_diarization(Config(diarization_backend="speechbrain"), session, transcripts)
+
+        assert calls == [(video.id, Config().project_voice_match_threshold)]
+        session.close()
 
 
 # ---------------------------------------------------------------------------

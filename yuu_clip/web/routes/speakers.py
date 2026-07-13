@@ -149,14 +149,18 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                 save_db = ctx.get_db()
                 try:
                     speakers = save_db.query(Speaker).filter_by(video_id=video_id).all()
-                    # Merge the transcript LLM guesses with voiceprint-propagated names
-                    # (an unnamed voice inherits the name of the named voice it most
-                    # resembles). The LLM wins on conflict; both funnel through the same
-                    # dedupe guards. A propagated name only names the speaker - it never
-                    # merges, so the separate same-recording "Same voice" merge chip
-                    # stays a distinct action.
-                    merged = {**_voiceprint_name_suggestions(speakers), **raw}
-                    applied = _apply_name_suggestions(speakers, merged)
+                    # LLM transcript guesses first (strict: no clash with a confirmed
+                    # name), then voiceprint propagation fills any still-unnamed voice
+                    # with the name of the named voice it most resembles (allowed to reuse
+                    # a confirmed name - it's the SAME voice). Separate passes so a
+                    # voiceprint name can't cancel an LLM name via the shared count guard.
+                    # A propagated name only names the speaker - it never merges, so the
+                    # same-recording "Same voice" merge chip stays a distinct action.
+                    applied = _apply_name_suggestions(speakers, raw)
+                    applied += _apply_name_suggestions(
+                        speakers, _voiceprint_name_suggestions(speakers),
+                        allow_confirmed_name=True,
+                    )
                     save_db.commit()
                 finally:
                     save_db.close()
@@ -584,13 +588,22 @@ def _labeled_transcript(db, video_id: int, speakers_by_id: dict[int, Speaker]) -
     return "\n".join(lines)
 
 
-def _apply_name_suggestions(speakers: list[Speaker], suggestions: dict[str, str]) -> int:
-    """Write deduped LLM name suggestions onto unconfirmed speakers. Returns the count applied.
+def _apply_name_suggestions(speakers: list[Speaker], suggestions: dict[str, str],
+                            allow_confirmed_name: bool = False) -> int:
+    """Write deduped name suggestions onto unconfirmed speakers. Returns the count applied.
 
-    Guards: a name inferred for two different speakers is dropped for both (an ambiguous
-    match is worse than none), and a name that collides with an already-confirmed speaker
-    is skipped so two identities never share a name. Confirmed manual names are never
-    overwritten. Suggestions are stored unconfirmed for the user to accept.
+    Guards: a name proposed for two speakers in the SAME call is dropped for both (an
+    ambiguous match is worse than none), a confirmed manual name is never overwritten,
+    and suggestions land unconfirmed for the user to accept.
+
+    Two callers with different collision rules (run LLM first, then voiceprint):
+    - LLM pass (``allow_confirmed_name=False``): a name colliding with an already-confirmed
+      speaker is skipped so two DISTINCT identities never share a name; an unconfirmed
+      inferred name from a prior run may be overwritten.
+    - Voiceprint pass (``allow_confirmed_name=True``): the whole point is to reuse a
+      confirmed speaker's name for the SAME voice, so the confirmed-collision check is
+      skipped; it only fills speakers that are still unnamed, so it never clobbers an LLM
+      guess.
     """
     by_index = {s.display_index: s for s in speakers}
     taken = {s.name.lower() for s in speakers if s.name and s.confirmed}
@@ -605,9 +618,16 @@ def _apply_name_suggestions(speakers: list[Speaker], suggestions: dict[str, str]
             speaker = by_index.get(int(index_str))
         except ValueError:
             continue
-        if speaker is None or (speaker.name and speaker.confirmed):
+        if speaker is None:
             continue
-        if name_counts[name.lower()] > 1 or name.lower() in taken:
+        if allow_confirmed_name:
+            if speaker.name:  # fill only still-unnamed speakers
+                continue
+        elif speaker.name and speaker.confirmed:
+            continue
+        if name_counts[name.lower()] > 1:
+            continue
+        if not allow_confirmed_name and name.lower() in taken:
             continue
         speaker.name = name
         speaker.source = "inferred"

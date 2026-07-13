@@ -459,11 +459,17 @@ class Speaker(Base):
 
     @property
     def display_color(self) -> str:
-        """User-picked colour if set, else a default cycled from SPEAKER_COLOR_PALETTE.
+        """Caption colour, resolved in ONE place (mirrors display_name).
 
-        The fallback is keyed on display_index (not id) so it is stable and
-        readable immediately, before the user has picked anything.
+        A Speaker linked to a Person takes that Person's colour, so one identity has one
+        colour in every recording and recolouring the Person in the People view flows to
+        every member's captions. Else the Speaker's own picked colour, else a default
+        cycled from SPEAKER_COLOR_PALETTE keyed on display_index (stable and readable
+        before the user has picked anything).
         """
+        voice = self.global_voice
+        if voice is not None:
+            return voice.display_color
         return self.color or SPEAKER_COLOR_PALETTE[(self.display_index - 1) % len(SPEAKER_COLOR_PALETTE)]
 
 
@@ -535,10 +541,13 @@ class VoiceExemplar(Base):
     )
     voiceprint: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
     voiceprint_backend: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    # Provenance: the Speaker this exemplar was seeded from. Nullable so deleting a
-    # Speaker never cascades away the exemplar it contributed to a Person's identity.
+    # Provenance: the Speaker this exemplar was seeded from. ON DELETE SET NULL so the
+    # exemplar (and the voiceprint it contributed to a Person's identity) SURVIVES the
+    # deletion of its source Speaker - a whole-speaker merge or a recording deletion must
+    # not be blocked by this FK, and must not cascade the exemplar away. (foreign_keys is
+    # ON, so a plain FK without this clause would RESTRICT the parent delete.)
     source_speaker_id: Mapped[Optional[int]] = mapped_column(
-        Integer, ForeignKey("speakers.id"), nullable=True
+        Integer, ForeignKey("speakers.id", ondelete="SET NULL"), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
 

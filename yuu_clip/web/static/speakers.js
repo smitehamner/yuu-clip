@@ -67,12 +67,15 @@ function _renderSpeakersCard(speakers) {
     // Project-wide identity (Person). A confirmed link shows a read-only line into the
     // People view; a named-but-unlinked speaker can be promoted; a cross-recording
     // near-miss offers a confirm/dismiss chip (mirrors the same-recording voiceMatch).
+    // Promote only a CONFIRMED name: an unconfirmed inferred suggestion (s.name set,
+    // s.confirmed false) would mint an unnamed Person, since the server carries only a
+    // confirmed name across. Accept the suggestion first.
     const person = s.global_voice_id
       ? `<span class="speaker-person" title="This voice is part of a Person - one name across recordings">
            Person: <strong>${escHtml(s.person_name)}</strong>
            <button class="speaker-open-people" title="Manage people">Manage</button>
          </span>`
-      : (s.name
+      : ((s.name && s.confirmed)
           ? `<button class="btn ghost speaker-promote" data-speaker-id="${s.id}"
                      title="Use this name across every recording of this voice">Promote to Person</button>`
           : '');

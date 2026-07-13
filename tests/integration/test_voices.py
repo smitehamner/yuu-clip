@@ -153,6 +153,21 @@ class TestRenamePropagates(_Fixtures):
         voice = client.post("/api/voices", json={"speaker_id": speaker_id}).json()
         assert client.put(f"/api/voices/{voice['id']}", json={"color": "red"}).status_code == 400
 
+    def test_recolor_person_flows_to_member_caption_color(self, client, project_dir):
+        db = self._db(project_dir)
+        video = self._add_video(db, "a.mkv")
+        speaker = self._add_speaker(db, video.id, [1.0, 0.0], name="Alex")
+        db.commit()
+        video_id, speaker_id = video.id, speaker.id
+        db.close()
+
+        voice = client.post("/api/voices", json={"speaker_id": speaker_id}).json()
+        assert client.put(f"/api/voices/{voice['id']}", json={"color": "#123456"}).status_code == 200
+
+        # The member Speaker's caption colour now resolves through the Person - not inert.
+        speakers = client.get(f"/api/videos/{video_id}/speakers").json()
+        assert speakers[0]["color"] == "#123456"
+
 
 class TestMerge(_Fixtures):
     def test_merge_repoints_members_and_moves_exemplars(self, client, project_dir):

@@ -21,6 +21,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import func
+from sqlalchemy.orm import joinedload
 
 from yuu_clip.db.models import ClipCandidate, ProjectVoice, Speaker, Video, VoiceExemplar
 from yuu_clip.log import get_logger
@@ -99,6 +100,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                 raise HTTPException(404, "Person not found")
             fields = body.model_fields_set
             name_changed = False
+            color_changed = False
             if "name" in fields:
                 new_name = (body.name or "").strip() or None
                 name_changed = new_name != voice.name
@@ -108,14 +110,21 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                 color = (body.color or "").strip()
                 if color and not _HEX_COLOR_RE.match(color):
                     raise HTTPException(400, "Color must be a hex value like #4fc3f7")
+                color_changed = (color or None) != voice.color
                 voice.color = color or None
             db.flush()
+            member_video_ids = _member_video_ids(db, voice_id)
             if name_changed:
                 # A Person's name is the "applies everywhere" payoff - propagate it to
                 # every member recording's excerpts/captions/exports.
-                _propagate_name_change(db, ctx, _member_video_ids(db, voice_id))
+                _propagate_name_change(db, ctx, member_video_ids)
             else:
                 db.commit()
+                if color_changed:
+                    # Members take the Person's colour (Speaker.display_color), so a
+                    # recolour must rewrite their on-disk caption sidecars. No excerpt
+                    # rebuild / staleness stamp - the transcript text is unchanged.
+                    _refresh_member_sidecars(db, ctx, member_video_ids)
             _log.info("Updated Person %d: name=%r color=%r", voice_id, voice.name, voice.color)
             return _voice_dict(voice, _members_of(db, voice_id), _suggestions_of(db, voice_id))
         finally:
@@ -328,10 +337,23 @@ def _propagate_name_change(db, ctx, video_ids) -> None:
         refresh_export_sidecars(clip, ctx.export_dir, ctx.config.export_name_template)
 
 
+def _refresh_member_sidecars(db, ctx, video_ids) -> None:
+    """Rewrite export caption sidecars for every affected recording's clips (colour-only
+    change): the captions embed each Speaker's display_color, which now flows from the
+    Person. No excerpt rebuild and no transcript_edited_at stamp - the text is unchanged."""
+    from yuu_clip.subtitles import refresh_export_sidecars
+
+    for video_id in video_ids:
+        for clip in db.query(ClipCandidate).filter_by(video_id=video_id).all():
+            refresh_export_sidecars(clip, ctx.export_dir, ctx.config.export_name_template)
+
+
 def _members_of(db, voice_id: int) -> list[dict]:
     speakers = (
         db.query(Speaker, Video.filename)
         .join(Video, Video.id == Speaker.video_id)
+        # eager-load the linked Person so display_name/color resolve without an N+1.
+        .options(joinedload(Speaker.global_voice))
         .filter(Speaker.global_voice_id == voice_id)
         .order_by(Speaker.video_id, Speaker.display_index)
         .all()
@@ -343,6 +365,7 @@ def _members_by_voice(db) -> dict[int, list[dict]]:
     rows = (
         db.query(Speaker, Video.filename)
         .join(Video, Video.id == Speaker.video_id)
+        .options(joinedload(Speaker.global_voice))
         .filter(Speaker.global_voice_id.isnot(None))
         .order_by(Speaker.video_id, Speaker.display_index)
         .all()

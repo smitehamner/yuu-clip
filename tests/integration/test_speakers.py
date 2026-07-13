@@ -9,10 +9,12 @@ from sqlalchemy import text
 from yuu_clip.db.models import (
     AudioTrack,
     ClipCandidate,
+    ProjectVoice,
     Speaker,
     Transcript,
     TranscriptSegment,
     Video,
+    VoiceExemplar,
     make_engine,
     make_session,
 )
@@ -1050,6 +1052,32 @@ class TestSpeakerEditingEndpoints:
         _, a_id, _, _, _, _ = self._seed_two_speakers(project_dir)
         assert client.post(f"/api/speakers/{a_id}/merge-into/{a_id}").status_code == 400
 
+    def test_merge_into_survives_when_source_seeded_a_person_exemplar(self, client, project_dir):
+        # Regression: a VoiceExemplar.source_speaker_id FK must NOT block deleting the
+        # merged-away speaker (ON DELETE SET NULL). Promote A to a Person (seeds an
+        # exemplar referencing A), then whole-speaker-merge A into B.
+        from yuu_clip.transcribe.project_voice import serialize_voiceprint
+        _, a_id, b_id, _, _, _ = self._seed_two_speakers(project_dir)
+        db = self._db(project_dir)
+        a = db.get(Speaker, a_id)  # promote only seeds an exemplar for a voiceprinted speaker
+        a.voiceprint = serialize_voiceprint([1.0, 0.0])
+        a.voiceprint_backend = "speechbrain"
+        db.commit()
+        db.close()
+
+        assert client.post("/api/voices", json={"speaker_id": a_id}).status_code == 200
+        resp = client.post(f"/api/speakers/{a_id}/merge-into/{b_id}")
+        assert resp.status_code == 200
+
+        db = self._db(project_dir)
+        try:
+            assert db.get(Speaker, a_id) is None
+            exemplars = db.query(VoiceExemplar).all()
+            assert len(exemplars) == 1  # the exemplar survives the source deletion
+            assert exemplars[0].source_speaker_id is None  # provenance nulled, not blocked
+        finally:
+            db.close()
+
     def test_merge_into_cross_video_rejected(self, client, project_dir):
         _, a_id, _, _, _, _ = self._seed_two_speakers(project_dir)
         db = self._db(project_dir)
@@ -1148,6 +1176,50 @@ class TestVoiceprintNameSuggestions:
         assert _voiceprint_name_suggestions([a, b]) == {}
 
 
+class TestApplyNameSuggestionsTwoPass:
+    """The LLM pass is strict (no confirmed-name collision); the voiceprint pass
+    (allow_confirmed_name) reuses a confirmed name for the same voice and fills only
+    still-unnamed speakers - so the propagation actually applies instead of being a no-op."""
+
+    def _speaker(self, index, **kw):
+        return Speaker(video_id=1, display_index=index, **kw)
+
+    def test_strict_pass_drops_confirmed_name_collision(self):
+        from yuu_clip.web.routes.speakers import _apply_name_suggestions
+        a = self._speaker(1, name="Alex", confirmed=True)
+        b = self._speaker(2)
+        # LLM strict pass: "Alex" collides with a confirmed name -> dropped (no-op).
+        assert _apply_name_suggestions([a, b], {"2": "Alex"}) == 0
+        assert b.name is None
+
+    def test_voiceprint_pass_applies_confirmed_name(self):
+        from yuu_clip.web.routes.speakers import _apply_name_suggestions
+        a = self._speaker(1, name="Alex", confirmed=True)
+        b = self._speaker(2)
+        assert _apply_name_suggestions([a, b], {"2": "Alex"}, allow_confirmed_name=True) == 1
+        assert b.name == "Alex"
+        assert b.confirmed is False  # a suggestion, not auto-confirmed
+
+    def test_voiceprint_pass_does_not_clobber_an_llm_name(self):
+        from yuu_clip.web.routes.speakers import _apply_name_suggestions
+        a = self._speaker(1, name="Bob", confirmed=True)
+        b = self._speaker(2, name="Guess", source="inferred", confirmed=False)  # LLM already named
+        assert _apply_name_suggestions([a, b], {"2": "Bob"}, allow_confirmed_name=True) == 0
+        assert b.name == "Guess"
+
+    def test_separate_passes_do_not_cross_cancel(self):
+        from yuu_clip.web.routes.speakers import _apply_name_suggestions
+        # LLM proposes Casey for speaker 3; a separate voiceprint call for speaker 2 must
+        # not pool into the same name-count and cancel it.
+        a = self._speaker(1, name="Alex", confirmed=True)
+        b = self._speaker(2)
+        c = self._speaker(3)
+        assert _apply_name_suggestions([a, b, c], {"3": "Casey"}) == 1
+        assert c.name == "Casey"
+        assert _apply_name_suggestions([a, b, c], {"2": "Alex"}, allow_confirmed_name=True) == 1
+        assert b.name == "Alex"
+
+
 class TestCascade:
     def test_deleting_video_cascades_speakers(self, tmp_path: Path):
         session = make_session(tmp_path / "c.db")
@@ -1160,4 +1232,32 @@ class TestCascade:
         session.delete(video)
         session.commit()
         assert session.query(Speaker).count() == 0
+        session.close()
+
+    def test_deleting_video_with_person_exemplar_is_not_fk_blocked(self, tmp_path: Path):
+        # Regression: a speaker that seeded a VoiceExemplar (promoted to a Person) must
+        # not make its recording undeletable via the source_speaker_id FK.
+        from yuu_clip.transcribe.project_voice import serialize_voiceprint
+        session = make_session(tmp_path / "c.db")
+        video = Video(path="x.mkv", filename="x.mkv", status="done")
+        session.add(video)
+        session.flush()
+        speaker = Speaker(video_id=video.id, name="Yuu", display_index=1,
+                          voiceprint=serialize_voiceprint([1.0, 0.0]),
+                          voiceprint_backend="speechbrain")
+        session.add(speaker)
+        session.flush()
+        voice = ProjectVoice(name="Yuu", display_index=1)
+        session.add(voice)
+        session.flush()
+        session.add(VoiceExemplar(project_voice_id=voice.id, voiceprint=speaker.voiceprint,
+                                  voiceprint_backend="speechbrain", source_speaker_id=speaker.id))
+        speaker.global_voice_id = voice.id
+        session.commit()
+
+        session.delete(video)
+        session.commit()  # must not raise a FOREIGN KEY constraint error
+        assert session.query(Speaker).count() == 0
+        surviving = session.query(VoiceExemplar).one()
+        assert surviving.source_speaker_id is None  # provenance nulled, exemplar kept
         session.close()

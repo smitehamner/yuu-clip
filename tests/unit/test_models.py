@@ -80,3 +80,25 @@ class TestSpeakerDisplayNameResolvesThroughVoice:
 
     def test_no_voice_no_name_uses_fallback(self):
         assert Speaker(display_index=7).display_name == "Speaker 7"
+
+
+class TestSpeakerDisplayColorResolvesThroughVoice:
+    def test_linked_speaker_takes_person_color(self):
+        # One identity, one caption colour everywhere: a linked Speaker uses the Person's
+        # colour so recolouring the Person flows to every member's captions.
+        voice = ProjectVoice(display_index=1, color="#123456")
+        speaker = Speaker(display_index=5, color="#abcdef")
+        speaker.global_voice = voice
+        assert speaker.display_color == "#123456"
+
+    def test_linked_speaker_uses_person_palette_when_person_uncolored(self):
+        voice = ProjectVoice(display_index=2, color=None)
+        speaker = Speaker(display_index=5)
+        speaker.global_voice = voice
+        assert speaker.display_color == SPEAKER_COLOR_PALETTE[1]  # Person's palette slot
+
+    def test_unlinked_speaker_uses_own_color(self):
+        assert Speaker(display_index=1, color="#abcdef").display_color == "#abcdef"
+
+    def test_unlinked_unset_uses_speaker_palette(self):
+        assert Speaker(display_index=3).display_color == SPEAKER_COLOR_PALETTE[2]

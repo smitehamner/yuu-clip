@@ -592,7 +592,7 @@ def _run_speaker_diarization(config, session, transcripts) -> None:
     """
     if not transcripts or config.diarization_backend == "null":
         return
-    from yuu_clip.transcribe.whisper_runner import diarize_track
+    from yuu_clip.transcribe.whisper_runner import diarize_track, suggest_project_voices
 
     console.print("  [bold]Detecting speakers...[/bold]")
     for transcript in transcripts:
@@ -602,6 +602,10 @@ def _run_speaker_diarization(config, session, transcripts) -> None:
             continue
         console.print(f"  [dim]  Track {track.stream_index} [{track.label}]...[/dim]")
         diarize_track(config, session, transcript, Path(track.extracted_path), track)
+    # Cross-recording Person suggestions run ONCE per recording, after every track's
+    # Speakers exist - not per track (all a video's tracks share its Speaker set).
+    suggest_project_voices(session, transcripts[0].audio_track.video_id,
+                           config.project_voice_match_threshold)
     session.flush()
 
 

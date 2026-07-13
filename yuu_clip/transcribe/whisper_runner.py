@@ -292,7 +292,7 @@ def _attach_speakers(
     )
 
 
-def _suggest_project_voices(session: "Session", video_id: int, threshold: float) -> None:
+def suggest_project_voices(session: "Session", video_id: int, threshold: float) -> None:
     """Propose cross-recording Person matches for this recording's Speakers.
 
     For each Speaker with a voiceprint that is not already linked to a Person, find the
@@ -624,9 +624,6 @@ def diarize_track(
             session, track.video_id, transcript.id, embeddings,
             threshold=config.speaker_match_threshold,
             active_backend=config.diarization_backend,
-        )
-        _suggest_project_voices(
-            session, track.video_id, config.project_voice_match_threshold
         )
         _log.info(
             "Diarization complete: %d turns, %d voiceprint(s) for track %d",

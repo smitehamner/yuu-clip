@@ -68,6 +68,17 @@ across every recording a voice appears in. Plan of record:
 - **Tests.** `tests/unit/test_project_voice.py`, `tests/unit/test_models.py`,
   `tests/integration/test_voices.py`, `tests/integration/test_diarization.py`
   (suggest-only wiring), `tests/ui/test_ui_voices.py`, `tests/ui/test_ui_speakers.py`.
+- **Post-ship code-review fixes.** (1) `VoiceExemplar.source_speaker_id` now
+  `ON DELETE SET NULL` - a promoted/confirmed Speaker being whole-speaker-merged or its
+  recording deleted was blocked by the FK (foreign_keys=ON); the exemplar now survives
+  with provenance nulled. (2) A Person's colour now flows to member captions/exports
+  (`Speaker.display_color` resolves through the Person, mirroring display_name; recolour
+  refreshes member sidecars) - it was previously inert. (3) Voiceprint name propagation
+  actually applies now: it runs as a second pass allowed to reuse a confirmed name for
+  the same voice (the shared dedupe guard was silently dropping every propagated name).
+  (4) The cross-recording suggestion pass runs once per recording (was once per track).
+  (5) "Promote to Person" is gated on a *confirmed* name. (6) N+1 removed from the People
+  list (joinedload the linked Person).
 
 ## UI personality pass - cyan/gold retheme, YuuClip rebrand, collapsible cards (done 2026-07-13)
 

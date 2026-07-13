@@ -220,6 +220,23 @@ class TestSpeakerPersonControls:
         with page.expect_request(lambda r: r.url.endswith("/api/voices") and r.method == "POST"):
             promote.click()
 
+    def test_unconfirmed_suggestion_hides_promote(self, page: Page):
+        # Promoting an unconfirmed inferred name would mint an unnamed Person, so the
+        # button must not show until the name is accepted.
+        suggestion = {**_SPEAKER, "name": "Guess", "display_name": "Speaker 1",
+                      "is_named": True, "source": "inferred", "confirmed": False,
+                      "global_voice_id": None, "person_name": None,
+                      "suggested_voice_id": None, "suggested_voice_name": None}
+        page.route(
+            "**/api/videos/*/speakers",
+            lambda route: route.fulfill(
+                status=200, content_type="application/json", body=json.dumps([suggestion])
+            ),
+        )
+        self._select_first_video(page)
+        expect(page.locator("#speakers-section .speaker-row")).to_have_count(1)
+        expect(page.locator(".speaker-promote")).to_have_count(0)
+
     def test_person_line_shown_when_linked(self, page: Page):
         linked = {**_SPEAKER, "global_voice_id": 7001, "person_name": "Yuu",
                   "suggested_voice_id": None, "suggested_voice_name": None,
