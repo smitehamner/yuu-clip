@@ -408,17 +408,14 @@ function renderVideoDetail(video, savedTimeline) {
 
     ${_renderContextSection(video)}
 
-    <div class="detail-card collapsible${isCardCollapsed('video-summary') ? ' collapsed' : ''}" data-collapse-key="video-summary">
-      <div class="detail-card-header" role="button" tabindex="0" aria-expanded="${isCardCollapsed('video-summary') ? 'false' : 'true'}">
-        <span class="detail-card-title">Session Summary${eb(video.summary_is_edited)}</span>
-        ${video.summary
-          ? `<button class="kebab-btn" title="Edit or regenerate summary" aria-label="Edit or regenerate summary" onclick="openVideoSummaryKebab(${video.id}, this)">&#8942;</button>`
-          : `<button class="btn ghost" id="btn-summarize-video" onclick="summarizeVideo(${video.id}, this)">Generate Summary</button>`}
-      </div>
+    ${collapsibleCard('video-summary',
+        `<span class="detail-card-title">Session Summary${eb(video.summary_is_edited)}</span>`, `
       <div id="summary-body">${video.summary
         ? `<div class="description-long">${escHtml(video.summary)}</div>`
-        : `<div style="color:var(--muted);font-size:12px">No summary yet - generate a title and summary from the transcript.</div>`}</div>
-    </div>
+        : `<div style="color:var(--muted);font-size:12px">No summary yet - generate a title and summary from the transcript.</div>`}</div>`,
+      { actions: `${video.summary
+          ? `<button class="kebab-btn" title="Edit or regenerate summary" aria-label="Edit or regenerate summary" onclick="openVideoSummaryKebab(${video.id}, this)">&#8942;</button>`
+          : `<button class="btn ghost" id="btn-summarize-video" onclick="summarizeVideo(${video.id}, this)">Generate Summary</button>`}` })}
 
     ${_isVideoBeingAnalyzed(video) ? _analysisLivePanelHTML() : ''}
     ${_renderRunMetaCard(video)}
@@ -432,29 +429,23 @@ function renderVideoDetail(video, savedTimeline) {
 
     <div id="speakers-section"></div>
 
-    ${(video.clip_count > 0 || video.status === 'done') ? `
-    <div class="detail-card collapsible${isCardCollapsed('video-transcript', true) ? ' collapsed' : ''}" id="video-transcript-details" data-collapse-key="video-transcript" data-video-id="${video.id}">
-      <div class="detail-card-header" role="button" tabindex="0" aria-expanded="${isCardCollapsed('video-transcript', true) ? 'false' : 'true'}">
-        <span class="detail-card-title">Full transcript</span>
-        <span style="display:flex;gap:6px">
+    ${(video.clip_count > 0 || video.status === 'done') ? collapsibleCard('video-transcript',
+        `<span class="detail-card-title">Full transcript</span>`,
+      `<div id="video-transcript-view" class="transcript"></div>`,
+      { defaultCollapsed: true, attrs: `id="video-transcript-details" data-video-id="${video.id}"`,
+        actions: `<span style="display:flex;gap:6px">
           <button class="btn ghost" style="font-size:11px;padding:3px 9px" title="Scan the transcript for mis-heard names (e.g. &quot;You&quot; for &quot;Yuu&quot;) and fix them"
                   onclick="openNameCorrections(${video.id})">Fix names</button>
           <button class="btn ghost" style="font-size:11px;padding:3px 9px" title="Pick a time range to create a clip by hand"
                   onclick="openClipCreatePicker(${video.id})">Create clip</button>
-        </span>
-      </div>
-      <div id="video-transcript-view" class="transcript"></div>
-    </div>` : ''}
+        </span>` }) : ''}
 
-    <div class="detail-card collapsible${isCardCollapsed('video-timeline') ? ' collapsed' : ''}" data-collapse-key="video-timeline">
-      <div class="detail-card-header" role="button" tabindex="0" aria-expanded="${isCardCollapsed('video-timeline') ? 'false' : 'true'}">
-        <span class="detail-card-title">Session Timeline</span>
-        <button class="btn ghost" id="btn-generate-timeline" onclick="generateTimeline(${video.id})">${video.has_timeline ? 'Regenerate Timeline' : 'Generate Timeline'}</button>
-      </div>
+    ${collapsibleCard('video-timeline',
+        `<span class="detail-card-title">Session Timeline</span>`, `
       <div id="timeline-section">
         ${savedTimeline ? _renderTimelineHTML(savedTimeline) : (video.has_timeline ? '' : _timelineEmptyNoteHTML())}
-      </div>
-    </div>`;
+      </div>`,
+      { actions: `<button class="btn ghost" id="btn-generate-timeline" onclick="generateTimeline(${video.id})">${video.has_timeline ? 'Regenerate Timeline' : 'Generate Timeline'}</button>` })}`;
 
   if (window.loadSpeakers) loadSpeakers(video.id);
   if (window.reloadVideoTranscriptIfOpen) reloadVideoTranscriptIfOpen(video.id);
@@ -668,17 +659,13 @@ function _renderContextSection(video) {
     ? `<button class="btn" style="font-size:12px;padding:4px 12px;border-color:var(--warning);color:var(--warning)" onclick="rescoreFailedClips(${video.id}, this)" title="Re-run LLM scoring only for the ${plural(errCount, 'clip')} that failed last time">&#9888; Re-score ${plural(errCount, 'failed clip')}</button>`
     : '';
 
-  return `
-    <div class="detail-card collapsible${isCardCollapsed('video-contexts') ? ' collapsed' : ''}" data-collapse-key="video-contexts">
-      <div class="detail-card-header" role="button" tabindex="0" aria-expanded="${isCardCollapsed('video-contexts') ? 'false' : 'true'}">
-        <span class="detail-card-title">World Contexts</span>
-      </div>
+  return collapsibleCard('video-contexts',
+    `<span class="detail-card-title">World Contexts</span>`, `
       <div class="context-chips">
         ${chips.join('')}${emptyMsg}${addSelect ? '&nbsp;' + addSelect : ''}
       </div>
       ${provLines.length ? `<div class="provenance-note">${provLines.join('<br>')}</div>` : ''}
-      ${(rescoreBtn || failedBtn) ? `<div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap">${rescoreBtn}${failedBtn}</div>` : ''}
-    </div>`;
+      ${(rescoreBtn || failedBtn) ? `<div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap">${rescoreBtn}${failedBtn}</div>` : ''}`);
 }
 
 // Friendly empty state for the AI summary/timeline features when no language model is

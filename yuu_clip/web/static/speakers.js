@@ -79,17 +79,12 @@ function _renderSpeakersCard(speakers) {
         ${sample}
       </div>`;
   }).join('');
-  const collapsed = isCardCollapsed('speakers');
-  return `
-    <div class="detail-card collapsible${collapsed ? ' collapsed' : ''}" data-collapse-key="speakers">
-      <div class="detail-card-header" role="button" tabindex="0" aria-expanded="${collapsed ? 'false' : 'true'}">
-        <span class="detail-card-title">Speakers</span>
-        <button class="btn ghost speaker-suggest-btn"
-                title="Use the LLM to suggest names from how speakers address each other. Suggestions are never applied until you accept them.">Suggest names</button>
-      </div>
+  return collapsibleCard('speakers',
+        `<span class="detail-card-title">Speakers</span>`, `
       <div class="speaker-list">${rows}</div>
-      <div class="speaker-hint">Names show up in clip transcripts and captions. They stick even if you re-analyze this recording.</div>
-    </div>`;
+      <div class="speaker-hint">Names show up in clip transcripts and captions. They stick even if you re-analyze this recording.</div>`,
+      { actions: `<button class="btn ghost speaker-suggest-btn"
+                title="Use the LLM to suggest names from how speakers address each other. Suggestions are never applied until you accept them.">Suggest names</button>` });
 }
 
 // Streams the LLM inference job as SSE (the transcript pass can be slow). Mirrors

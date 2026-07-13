@@ -114,7 +114,7 @@ where = ["."]
 include = ["yuu_clip*"]
 
 [tool.setuptools.package-data]
-yuu_clip = ["web/static/*"]
+yuu_clip = ["web/static/*", "web/static/fonts/*"]
 
 [tool.ruff]
 line-length = 120

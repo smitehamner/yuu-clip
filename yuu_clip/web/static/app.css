@@ -26,7 +26,7 @@
   --accent-text: #4fc3f7; /* accent as running text on bg/surface - --accent itself is too dark there */
   --accent2:  #4fc3f7;
   --on-accent: #ffffff;   /* text on accent fills */
-  --highlight:    #ffb020; /* reserved gold: Export/keep action + overall score - fill/border only, never text (CC-1) */
+  --highlight:    #ffb020; /* reserved gold: the two funnel actions (Analyze, Export) + overall score - fill/border only, never text (CC-1) */
   --on-highlight: #241700; /* dark text on gold fills */
   --green:    #4caf7d;
   --on-green: var(--bg); /* text on green fills - dark themes use dark-on-green */
@@ -162,7 +162,7 @@ header h1,
 .empty-state h2, .clip-header h2, .new-recording-header h2, .detail-card-header h2, .modal h3,
 .sidebar-section, .clips-section-header > span, .section-toggle-btn, .section-title,
 .settings-section-title, .settings-group-title, .detail-card-title, .log-title,
-.run-meta-subtitle, .diff-panel-label, .transcript-summary {
+.run-meta-subtitle, .diff-panel-label {
   font-family: var(--font-display);
 }
 
@@ -503,12 +503,6 @@ button.section-toggle-btn:not(.active):hover { color: var(--text); background: v
 .tline-edit-actions .btn { font-size: 11px; padding: 2px 10px; }
 .transcript-stale-note { font-size: 12px; color: var(--warning); background: color-mix(in srgb, var(--warning) 8%, transparent); border: 1px solid color-mix(in srgb, var(--warning) 30%, transparent); border-radius: var(--radius-sm); padding: 6px 10px; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .transcript-empty { font-size: 12px; color: var(--muted); padding: 4px 0; }
-.transcript-details { margin-top: 4px; border-top: 1px solid var(--border); padding-top: 8px; }
-/* inside a .detail-card the card border replaces the separator */
-.detail-card > .transcript-details { margin-top: 0; border-top: none; padding-top: 0; }
-.transcript-summary { cursor: pointer; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); list-style: revert; }
-.transcript-summary:hover { color: var(--text); }
-.transcript-details[open] .transcript-summary { margin-bottom: 8px; }
 /* name corrections panel (Plan 09) */
 .nc-intro { font-size: 13px; line-height: 1.5; color: var(--muted); margin: 0; }
 .nc-footer:not([hidden]) { display: flex; }
@@ -628,18 +622,27 @@ kbd { background: var(--surface); border: 1px solid var(--border); border-radius
 .detail-card-header h2 { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .detail-card-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); }
 .detail-card-divider { border: none; border-top: 1px solid var(--border); margin: 10px 0; }
-/* Collapsible cards (opt-in via .collapsible + data-collapse-key). The card's
-   first header toggles it; a chevron sits on that title; every sibling after
-   the header hides when collapsed (works for simple and compound cards). */
-.detail-card.collapsible > .detail-card-header:first-child { cursor: pointer; user-select: none; }
-.detail-card.collapsible > .detail-card-header:first-child:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--radius-sm); }
-.detail-card.collapsible > .detail-card-header:first-child > .detail-card-title::after {
-  content: ""; display: inline-block; width: 6px; height: 6px; margin-left: 7px;
+/* Collapsible cards (opt-in via .collapsible + data-collapse-key). The title
+   sits in a real <button.card-toggle> in the first header (native keyboard /
+   focus; shortcuts.js ignores BUTTON, so Space never doubles as play/pause) and
+   header action controls are its siblings, never descendants (no nested
+   interactive). A chevron sits on the toggle; every sibling after the header
+   hides when collapsed (works for simple and compound cards). */
+.detail-card.collapsible > .detail-card-header:first-child > .card-toggle {
+  display: inline-flex; align-items: center; min-width: 0;
+  background: none; border: none; margin: 0; padding: 0;
+  font: inherit; color: inherit; text-align: left; cursor: pointer;
+}
+.detail-card.collapsible > .detail-card-header:first-child > .card-toggle:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--radius-sm);
+}
+.detail-card.collapsible > .detail-card-header:first-child > .card-toggle::after {
+  content: ""; display: inline-block; width: 6px; height: 6px; margin-left: 7px; flex: none;
   border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted);
   transform: rotate(45deg); transition: transform .15s ease;
   vertical-align: middle; position: relative; top: -2px;
 }
-.detail-card.collapsed > .detail-card-header:first-child > .detail-card-title::after { transform: rotate(-45deg); }
+.detail-card.collapsed > .detail-card-header:first-child > .card-toggle::after { transform: rotate(-45deg); }
 .detail-card.collapsed > *:not(:first-child) { display: none; }
 .detail-card.collapsed > .detail-card-header:first-child { margin-bottom: 0; }
 

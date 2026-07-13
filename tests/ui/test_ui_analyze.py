@@ -79,13 +79,13 @@ class TestAnalyzeModal:
         cfg = _get_config()
         page.goto(LIVE_URL)
         self._open_panel(page)
-        assert page.locator("#analyze-model").input_value() == cfg["whisper_model"]
+        expect(page.locator("#analyze-model")).to_have_value(cfg["whisper_model"])
 
     def test_scene_mode_prefilled_from_config(self, page: Page):
         cfg = _get_config()
         page.goto(LIVE_URL)
         self._open_panel(page)
-        assert page.locator("#analyze-scene-mode").input_value() == cfg["scene_detection_mode"]
+        expect(page.locator("#analyze-scene-mode")).to_have_value(cfg["scene_detection_mode"])
 
     def test_browse_button_is_labeled(self, page: Page):
         page.goto(LIVE_URL)

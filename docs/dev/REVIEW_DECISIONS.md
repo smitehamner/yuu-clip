@@ -7,6 +7,161 @@ same thing without the context. Most recent first.
 
 ---
 
+## Phase 4 refactor - YuuClip retheme + collapsible cards (2026-07-13)
+
+Refactor phase of the code-quality review over the cyan/gold retheme (`169c8b8`) plus the
+collapsible-card + declutter follow-ups (`f4377a7`, `43c8857`). Applied: extracted a single
+`collapsibleCard(key, title, body, opts)` helper in `utils.js` (all 11 opt-in cards now stamp
+the collapse markup contract in one place - net-negative line count); removed the dead
+`.transcript-details` / `.transcript-summary` CSS the retheme orphaned when the transcript moved
+from `<details>/<summary>` to a collapsible card (`#video-transcript-details` id is distinct and
+stays). The following were reviewed and deliberately left as-is:
+
+### Space-key collapse toggle load-order dependency - SUPERSEDED by the Phase 7 a11y fix
+This entry originally kept a load-order dependency (the collapse header was a
+`div[role="button"]` whose `preventDefault` had to run before `shortcuts.js`'s global Space
+handler). The Phase 7 UX/UI follow-up (below, "Collapsible headers reworked to a native button")
+replaced that structure with a real `<button class="card-toggle">`, which `shortcuts.js` already
+bails on (`tagName === 'BUTTON'`). The dependency and its WHY comment no longer exist - Space is
+handled natively. Recorded here so a future reader doesn't reintroduce the div-based pattern.
+
+### Repeated `color-mix(... var(--accent) N%, transparent)` focus-ring/scrim expressions kept inline
+Decision: Keep as-is (no new token).
+Rationale: The retheme correctly tokenized all border-radii into `--radius`/`--radius-sm` and did
+not introduce color literals. The recurring `color-mix` focus-ring/scrim expressions predate this
+change set, vary by token and percentage, and each is a single contextual use - not newly
+introduced duplication and below the bar for a shared token. The one new zebra
+`color-mix(var(--text) 5%, ...)` is single-use.
+
+---
+
+## Phase 5 logging - YuuClip retheme + collapsible cards (2026-07-13)
+
+Logging-coverage phase of the same review. Applied: wrapped the collapse-state
+`localStorage.setItem` write in `utils.js` `_toggleCollapsibleCard` in try/catch with a
+`console.warn` - the write was unwrapped while the matching read (`_cardCollapseState`) was
+defensively wrapped, so a write failure (private mode / quota) threw uncaught out of the toggle
+listener *before* the `cardtoggle` dispatch, leaving the full-video transcript card visually
+expanded but never loading its body. Now the toggle + lazy-load survive a persistence failure and
+it is diagnosable (once per failed toggle - not a hot path). The following were reviewed and left
+silent by design:
+
+### `copyText` surfaces clipboard failures via toast, no `execCommand` fallback
+Decision: Keep as-is.
+Rationale: In an insecure/unsupported context `navigator.clipboard` is undefined, but the property
+access sits inside the `try`, so the resulting error is caught and shown as an error toast - no
+crash, no silent swallow. The single-user app only runs on localhost / Electron where the async
+clipboard API is always available (an existing WHY comment documents this). An `execCommand`
+fallback would be machinery for a context this app never hits.
+
+### `_cardCollapseState` silently returns `{}` on corrupt / unavailable stored JSON
+Decision: Keep silent (no log).
+Rationale: The tolerant-normalize pattern - a corrupt `yuuclip-card-collapsed` value should reset
+to defaults, not error. It is read once per card render, so a log there would fire on every render
+(spam) for a benign, self-healing condition.
+
+---
+
+## Phase 7 UX/UI - YuuClip retheme + collapsible cards (2026-07-13)
+
+UX/UI phase of the code-quality review over the cyan/gold retheme (`169c8b8`) plus the
+working-tree collapsible-card refactor (P3-P5). No code changes applied this phase - the
+retheme's execution is strong and the contrast contract is fully covered by
+`tests/ui/test_ui_theme.py` (every token pairing checked across the 3 themes x 2 accents).
+Two items were escalated to the owner and BOTH were then resolved (see the Phase 7 follow-up
+below): the reserved-gold scope (M2) was not drift - `COMPLETED.md` documents gold as
+intentionally covering both funnel actions (Analyze + Export), so the stale app.css token
+comment was aligned to match; and the collapsible-header nested-interactive a11y pattern (M1)
+was fixed by reworking the toggle to a native button. The following were reviewed and
+deliberately left as-is:
+
+### Collapsible headers reworked to a native button; the smaller toggle target is accepted
+Decision (APPLIED, with a deliberate tradeoff): the collapsible-card header no longer makes the
+whole row a `div[role="button"]`. Only the title + chevron are wrapped in a real
+`<button class="card-toggle">`; header action controls (Copy, kebab, Suggest names, Fix names,
+Generate/Regenerate) are rendered as SIBLINGS of that button via `collapsibleCard`'s `opts.actions`.
+Rationale: a `<button>` nested inside a `role="button"` is the axe `nested-interactive` / WCAG
+4.1.2 violation. Making the toggle its own button removes it, and a native button also fixes the
+Space-key load-order dependency for free (`shortcuts.js` bails on `tagName === 'BUTTON'`), so the
+custom keydown handler and its `preventDefault` are gone. The tradeoff: the clickable toggle area
+shrank from the full header row to the title+chevron. This is accepted - the title is still a
+generous target, and valid ARIA + native keyboard is worth more than the extra row width for a
+single-user desktop tool. `test_toggle_has_no_nested_interactive_controls`
+(`tests/ui/test_ui_clips2.py`) guards against a future edit re-nesting a control inside the toggle.
+
+### Wordmark gradient's dark end is a brand logotype, exempt from the AA text floor
+Decision: Keep the `linear-gradient(100deg, var(--accent2), var(--accent))` text-clip on the
+`header h1` "YuuClip" wordmark, even though the gradient's darkest stop (dark-theme `--accent`
+`#0a7a9b`) computes ~3.5:1 on `--surface`.
+Rationale: This is the product name / logotype, which WCAG 1.4.3 explicitly exempts from the
+contrast minimum. It is also large display type, and the rule has a solid-colour fallback -
+`color: var(--accent-text)` is set before the clip, so if `background-clip: text` is
+unsupported the wordmark renders in `--accent-text` (a token that IS contrast-tested as text
+on surface in every theme). A future pass computing the gradient's dark stop should not treat
+3.5:1 as a defect here. Only re-open if the gradient is ever reused on non-logotype body text.
+
+### Quiet muted-uppercase section/card titles are an intentional hierarchy choice
+Decision: Keep `.detail-card-title` / `.sidebar-section` at `--muted` uppercase 11px.
+Rationale: The small muted-caps labels are a deliberate "quiet chrome, loud content" hierarchy
+signature, not an oversight - they read as section markers while the clip content and the one
+gold action carry the visual weight (Von Restorff). `--muted` on `--surface`/`--bg` is
+AA-contrast-tested in every theme, so legibility is guaranteed. Not a characterless-template
+tell: the display face (Oxanium) on these labels is a chosen type decision.
+
+---
+
+## Phase 6 docs and comments - YuuClip retheme + collapsible cards (2026-07-13)
+
+Docs-and-comments phase of the code-quality review over the just-shipped cyan/gold
+retheme (`169c8b8`) plus the working-tree collapsible-card refactor (P3-P5). Applied:
+fixed one CLAUDE.md drift - the color-token rule cited the score-gradient stops as
+living in `utils.js`; they are in `format.js` (`_scoreBorderColor`, line ~19), which
+`test_ui_theme.py` and `test_ui_globals.py` already reference correctly. The retheme
+left no stale indigo/dark-dashboard or old-`<details>`-transcript comments (the dead
+`.transcript-details`/`.transcript-summary` CSS and its separator comment were already
+removed in P4). The following were reviewed and deliberately left as-is:
+
+### The two glossaries are intentionally different files, not a drift
+Decision: Keep both; do not try to reconcile them into one.
+Rationale: `docs/dev/GLOSSARY.md` is the authoritative dev superset (with `Code:` names
+and dev-only sections); `yuu_clip/web/static/glossary.md` is a hand-written creator-facing
+subset served by the in-app Terminology modal. The dev file's header states this split
+explicitly. A `diff` of the two is expected to be large - that is by design, not
+terminology drift. The static subset was verified rebrand-consistent ("YuuClip"
+throughout, no stale "yuu-clip" display name) and free of banned code-name terms
+(no "ingest"/"clip candidate"/"probe"/"profile"/"subtitle"/"demo reel"/"pending").
+
+### `format.js` score-gradient hex stops and `_lerpColor` rgb() output kept as literals
+Decision: Keep the hardcoded hex/rgb (already sanctioned by the CLAUDE.md color rule).
+Rationale: `_scoreBorderColor`'s stop list and `_lerpColor`'s `rgb()` interpolation are a
+continuous data encoding (score -> color ramp), not theme chrome, so they cannot be
+expressed as discrete `var(--token)`s. This is the exact exception the color-token rule
+carves out; the only fix here was pointing that rule at the right file.
+
+### `fonts/OFL.txt` is the correct, complete OFL 1.1 for the bundled Oxanium woff2
+Decision: Keep as the single license artifact; no separate NOTICE pointer needed.
+Rationale: `OFL.txt` carries the full SIL Open Font License v1.1 with the correct
+"Copyright 2019 The Oxanium Project Authors" header, co-located with `oxanium.woff2` in
+`web/static/fonts/`. OFL condition 2 (license + copyright must accompany each copy of the
+font) is satisfied by that co-location - the license file beside the font is the standard
+satisfaction, so no header comment or NOTICE indirection is warranted. The app.css
+`@font-face` comment already records the OFL provenance and swap procedure. OBLIGATION to
+carry forward: any distribution that ships the woff2 MUST ship `OFL.txt` alongside it -
+see the deferred packaging finding below, which currently breaks this.
+
+### DEFERRED (not a docs fix - flagged for the build owner)
+`pyproject.toml` `[tool.setuptools.package-data]` uses `yuu_clip = ["web/static/*"]`, a
+single-level glob that does NOT recurse into `web/static/fonts/`. Confirmed empty in both
+`build/lib/.../web/static/fonts/` and the prebuilt-env site-packages. Consequences: in any
+packaged/installed build (not dev, which serves from source) `/static/fonts/oxanium.woff2`
+404s and `--font-display` silently falls back to `system-ui`, so the retheme's display
+face is missing; and `OFL.txt` does not travel with the font, leaving OFL condition 2
+unmet in the shipped artifact. Fix is a one-line packaging change (e.g. `web/static/**/*`
+or add `web/static/fonts/*`), but it is a build change needing a rebuild + package test,
+outside this docs phase's scope. Needs a human/build-owner decision.
+
+---
+
 ## Sidebar declutter - width and disclosure calls (2026-07-12)
 
 UX pass that moved rare sidebar controls behind "More filters" `<details>` and into

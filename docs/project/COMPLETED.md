@@ -25,8 +25,8 @@ came from a mockup pitch; the reusable "anti-generic" review dimension now lives
   promoted in the first-run empty state, and subtle per-row zebra striping on the
   recordings/clips sidebar lists.
 - **Collapsible detail cards.** A reusable opt-in mechanism (`.collapsible` +
-  `data-collapse-key`, keyboard-accessible header, chevron on the title, state
-  persisted to localStorage, a `cardtoggle` event for lazy bodies - `utils.js`).
+  `data-collapse-key`, a native `<button class="card-toggle">` title with the chevron,
+  state persisted to localStorage, a `cardtoggle` event for lazy bodies - `utils.js`).
   Applied to Full transcript (converted from the old `<details>` widget, still
   lazy-loads and now remembers its state), Session Summary (recording + session),
   timelines, Description, Related Clips, What's on screen, World Contexts, and Speakers.
@@ -43,6 +43,32 @@ Files: `web/static/*` (app.css, index.html, feature JS modules), a bundled
 `docs/user/**`, `docs/dev/GLOSSARY.md`, and the affected `tests/ui/test_ui_*.py`.
 Green: full UI 849/850 (1 known parallel-load speaker/panelnav flake, passes isolated),
 Electron 146.
+
+## Code-quality review of the retheme + collapsible cards (done 2026-07-13)
+
+A full `shqr-code-quality-review` pass (all 7 phases) over the retheme change set above.
+Bug-hunt found no product defects; the substantive fixes:
+
+- **Robustness (collapse persistence).** The `localStorage.setItem` write in the collapse
+  toggle was unwrapped while its read was defensively wrapped; a write failure (private
+  mode / quota) threw before the `cardtoggle` dispatch, leaving the full-video transcript
+  card visually expanded but never loading its body. Now try/catch + `console.warn`, so the
+  toggle and lazy-load survive a persistence failure (`utils.js`).
+- **Accessibility (nested-interactive).** The collapse header was a `div[role="button"]`
+  that nested real `<button>`s (Copy, kebab, Suggest names) - the axe `nested-interactive`
+  / WCAG 4.1.2 pattern. Reworked so only the title + chevron are a native
+  `<button class="card-toggle">` and action controls are its siblings (via
+  `collapsibleCard`'s `opts.actions`). The native button also removed the Space-key
+  script-load-order dependency (`shortcuts.js` bails on `tagName === 'BUTTON'`), so the
+  custom keydown handler is gone. Guarded by `test_toggle_has_no_nested_interactive_controls`.
+- **Packaging (fonts).** `pyproject.toml`'s `web/static/*` package-data glob was single-level
+  and did not ship `web/static/fonts/`, so packaged builds 404'd the Oxanium woff2 (silently
+  falling back to system-ui) and did not ship `OFL.txt`. Added `web/static/fonts/*`.
+- **Refactor / tests / docs.** Extracted the single `collapsibleCard()` helper (11 cards),
+  removed dead `.transcript-details`/`.transcript-summary` CSS, added 6 collapsible-card UI
+  tests, and recorded the keep-as-is calls in `docs/dev/REVIEW_DECISIONS.md`.
+
+Green: full UI 855 (targeted affected files 361), theme 119, lint clean.
 
 ## Sidebar declutter - progressive disclosure + action menus (done 2026-07-12)
 

@@ -1081,3 +1081,103 @@ class TestClipsActionsMenu:
         trigger = page.locator("#btn-clips-actions")
         expect(trigger).to_be_disabled()
         expect(trigger).to_have_text("Checking...")
+
+
+# ---------------------------------------------------------------------------
+# Collapsible detail cards (utils.js document listeners + clips.js markup).
+# The clip Description card is a *compound* collapsible card: only its own first
+# header toggles it, nested headers (Tags / Full Description) do not, and the
+# collapsed state persists per card *type* across a detail re-render.
+# ---------------------------------------------------------------------------
+
+_DESC_CARD = "[data-collapse-key='clip-description']"
+# The toggle is a real <button.card-toggle> inside the card's first header - it
+# carries aria-expanded, is focusable, and is the click/keyboard target. Header
+# action buttons (Copy, kebab) are its siblings, never nested inside it.
+_DESC_TOGGLE = (
+    "[data-collapse-key='clip-description'] > .detail-card-header:first-child"
+    " > .card-toggle"
+)
+_DESC_BODY = "[data-collapse-key='clip-description'] .description"
+
+
+@skip_no_server
+class TestCollapsibleCards:
+    def _open_expanded_description_card(self, page: Page):
+        # A fresh Playwright context starts with clean localStorage, so the
+        # Description card (which defaults to expanded) opens expanded.
+        select_first_video_and_clip(page)
+        toggle = page.locator(_DESC_TOGGLE)
+        expect(toggle).to_have_attribute("aria-expanded", "true")
+        expect(page.locator(_DESC_BODY)).to_be_visible()
+        return toggle
+
+    def test_clicking_first_header_collapses_then_expands(self, page: Page):
+        toggle = self._open_expanded_description_card(page)
+        body = page.locator(_DESC_BODY)
+
+        toggle.click()
+        expect(toggle).to_have_attribute("aria-expanded", "false")
+        expect(body).to_be_hidden()
+
+        toggle.click()
+        expect(toggle).to_have_attribute("aria-expanded", "true")
+        expect(body).to_be_visible()
+
+    def test_enter_key_on_header_toggles_collapse(self, page: Page):
+        toggle = self._open_expanded_description_card(page)
+        toggle.focus()
+
+        page.keyboard.press("Enter")
+        expect(toggle).to_have_attribute("aria-expanded", "false")
+        expect(page.locator(_DESC_BODY)).to_be_hidden()
+
+        page.keyboard.press("Enter")
+        expect(toggle).to_have_attribute("aria-expanded", "true")
+        expect(page.locator(_DESC_BODY)).to_be_visible()
+
+    def test_space_key_on_header_toggles_collapse(self, page: Page):
+        toggle = self._open_expanded_description_card(page)
+        toggle.focus()
+
+        page.keyboard.press("Space")
+        expect(toggle).to_have_attribute("aria-expanded", "false")
+        expect(page.locator(_DESC_BODY)).to_be_hidden()
+
+    def test_toggle_has_no_nested_interactive_controls(self, page: Page):
+        # The toggle is a <button>; a button nested inside it would be a WCAG
+        # 4.1.2 nested-interactive violation. The Copy/kebab actions must be
+        # siblings of the toggle, not descendants.
+        self._open_expanded_description_card(page)
+        nested = page.locator(
+            _DESC_TOGGLE + " button, " + _DESC_TOGGLE + " a[href], "
+            + _DESC_TOGGLE + " input, " + _DESC_TOGGLE + " select"
+        )
+        expect(nested).to_have_count(0)
+
+    def test_nested_header_click_does_not_toggle_outer_card(self, page: Page):
+        # The Tags sub-header lives inside the same card body and carries no
+        # .card-toggle, so clicking it must not collapse the outer card.
+        toggle = self._open_expanded_description_card(page)
+        nested = page.locator(_DESC_CARD + " .detail-card-header").filter(has_text="Tags")
+        nested.locator(".detail-card-title").click()
+
+        expect(toggle).to_have_attribute("aria-expanded", "true")
+        expect(page.locator(_DESC_BODY)).to_be_visible()
+
+    def test_collapse_persists_across_rerender_and_scopes_to_its_own_key(self, page: Page):
+        self._open_expanded_description_card(page)
+        page.click(_DESC_TOGGLE)
+
+        # Only the toggled card type's key is written - collapse state is shared
+        # per card *type*, never bled onto sibling card types.
+        state = page.evaluate(
+            "() => JSON.parse(localStorage.getItem('yuuclip-card-collapsed') || '{}')"
+        )
+        assert state == {"clip-description": True}
+
+        # A detail re-render (as after a re-score) rebuilds the markup; the card
+        # must come back collapsed rather than reset to its expanded default.
+        page.evaluate("renderDetail(AppState.activeClipData)")
+        expect(page.locator(_DESC_TOGGLE)).to_have_attribute("aria-expanded", "false")
+        expect(page.locator(_DESC_BODY)).to_be_hidden()

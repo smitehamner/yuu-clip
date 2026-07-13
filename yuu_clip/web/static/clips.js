@@ -530,14 +530,8 @@ function renderDetail(clip) {
 
     ${scoringActionsHtml}
 
-    <div class="detail-card collapsible${isCardCollapsed('clip-description') ? ' collapsed' : ''}" data-collapse-key="clip-description">
-      <div class="detail-card-header" role="button" tabindex="0" aria-expanded="${isCardCollapsed('clip-description') ? 'false' : 'true'}">
-        <span class="detail-card-title">Description${eb(clip.description_is_edited)}</span>
-        <div style="display:flex;gap:4px">
-          ${clip.description ? `<button class="btn ghost" style="font-size:11px;padding:3px 9px" title="Copy description" aria-label="Copy description" data-copy="description">Copy</button>` : ''}
-          <button class="kebab-btn" title="Edit or regenerate description" aria-label="Edit or regenerate description" onclick="openDescKebab(${clip.id}, this)">&#8942;</button>
-        </div>
-      </div>
+    ${collapsibleCard('clip-description',
+        `<span class="detail-card-title">Description${eb(clip.description_is_edited)}</span>`, `
       <div class="description">${clip.description ? `"${escHtml(clip.description)}"` : `<span style="color:var(--muted);font-size:13px">No description yet - Re-score to generate</span>`}</div>
       ${_basicDescChipHTML(clip)}
 
@@ -555,8 +549,12 @@ function renderDetail(clip) {
       <input list="clip-tags-datalist" id="clip-tag-input" class="tag-input"
              placeholder="Add a tag…" maxlength="40" autocomplete="off" aria-label="Add a tag">
       <datalist id="clip-tags-datalist"></datalist>
-      ${_generatedTagPillsHTML(clip.tags)}
-    </div>
+      ${_generatedTagPillsHTML(clip.tags)}`, {
+      actions: `<div style="display:flex;gap:4px">
+          ${clip.description ? `<button class="btn ghost" style="font-size:11px;padding:3px 9px" title="Copy description" aria-label="Copy description" data-copy="description">Copy</button>` : ''}
+          <button class="kebab-btn" title="Edit or regenerate description" aria-label="Edit or regenerate description" onclick="openDescKebab(${clip.id}, this)">&#8942;</button>
+        </div>`,
+    })}
 
     ${_visionDetailHTML(clip)}
     ${_hotwordDetailHTML(clip)}
@@ -570,29 +568,22 @@ function renderDetail(clip) {
       ${trimExportHtml}
     </div>
 
-    ${clip.related_clips ? `
-      <div class="detail-card collapsible${isCardCollapsed('clip-related') ? ' collapsed' : ''}" id="related-clips-section" data-collapse-key="clip-related">
-        <div class="detail-card-header" style="justify-content:flex-start;gap:8px" role="button" tabindex="0" aria-expanded="${isCardCollapsed('clip-related') ? 'false' : 'true'}">
-          <span class="detail-card-title">Related Clips</span>
-          ${clip.related_clips_stale ? `<span style="font-size:11px;color:var(--warning);font-style:italic">stale - re-score updated</span>` : ''}
-          <span style="font-size:11px;color:var(--muted);margin-left:auto">${clip.related_clips_at ? _fmtAgo(clip.related_clips_at) : ''}</span>
-        </div>
+    ${clip.related_clips ? collapsibleCard('clip-related',
+          `<span class="detail-card-title">Related Clips</span>`, `
         ${clip.related_clips.length ? clip.related_clips.map(r => `
           <div style="display:flex;gap:8px;align-items:baseline;padding:4px 0;border-bottom:1px solid var(--border)">
             <a href="#" style="color:var(--accent);text-decoration:none;font-size:13px;white-space:nowrap" onclick="event.preventDefault();selectClip(${r.id})">#${r.id}</a>
             <span style="font-size:12px;color:var(--muted)">${escHtml(r.reason)}</span>
-          </div>`).join('') : `<div style="font-size:12px;color:var(--muted)">No similar clips found</div>`}
-      </div>` : ''}
+          </div>`).join('') : `<div style="font-size:12px;color:var(--muted)">No similar clips found</div>`}`,
+      { attrs: 'id="related-clips-section"', headerStyle: 'justify-content:flex-start;gap:8px',
+        actions: `${clip.related_clips_stale ? `<span style="font-size:11px;color:var(--warning);font-style:italic">stale - re-score updated</span>` : ''}
+          <span style="font-size:11px;color:var(--muted);margin-left:auto">${clip.related_clips_at ? _fmtAgo(clip.related_clips_at) : ''}</span>` }) : ''}
 
-    ${clip.transcript_excerpt ? `
-      <div class="detail-card collapsible${isCardCollapsed('clip-transcript') ? ' collapsed' : ''}" data-collapse-key="clip-transcript">
-        <div class="detail-card-header" role="button" tabindex="0" aria-expanded="${isCardCollapsed('clip-transcript') ? 'false' : 'true'}">
-          <span class="detail-card-title">Transcript</span>
-          <button class="btn ghost" style="font-size:11px;padding:3px 9px" title="Copy transcript" aria-label="Copy transcript" data-copy="transcript">Copy</button>
-        </div>
+    ${clip.transcript_excerpt ? collapsibleCard('clip-transcript',
+          `<span class="detail-card-title">Transcript</span>`, `
         ${clip.transcript_stale ? `<div class="transcript-stale-note">&#9888; Captions edited since last scoring - <button class="btn ghost" style="font-size:11px;padding:2px 8px" onclick="rescoreClip(${clip.id})">Re-score</button> to refresh.</div>` : ''}
-        <div id="clip-transcript-view" class="transcript">${escHtml(clip.transcript_excerpt)}</div>
-      </div>` : ''}
+        <div id="clip-transcript-view" class="transcript">${escHtml(clip.transcript_excerpt)}</div>`,
+      { actions: `<button class="btn ghost" style="font-size:11px;padding:3px 9px" title="Copy transcript" aria-label="Copy transcript" data-copy="transcript">Copy</button>` }) : ''}
   `;
 
   if (clip.transcript_excerpt && window.loadClipTranscript) loadClipTranscript(clip.id);
@@ -617,15 +608,13 @@ function _visionDetailHTML(clip) {
     ? `<div class="description-long">${escHtml(summary)}</div>
        <div style="font-size:11px;color:var(--muted);margin-top:4px">Analyzed ${_fmtAgo(clip.vision_analyzed_at)}</div>`
     : `<div style="color:var(--muted);font-size:13px">Sample frames from this clip and describe what's on screen - it enriches the description and gives scoring visual context.</div>`;
-  return `
-    <div class="detail-card collapsible${isCardCollapsed('clip-vision') ? ' collapsed' : ''}" data-collapse-key="clip-vision">
-      <div class="detail-card-header" role="button" tabindex="0" aria-expanded="${isCardCollapsed('clip-vision') ? 'false' : 'true'}"><span class="detail-card-title">What's on screen</span></div>
+  return collapsibleCard('clip-vision',
+    `<span class="detail-card-title">What's on screen</span>`, `
       ${body}
       <div style="margin-top:8px">
         <button class="btn ghost" id="analyze-frames-btn" style="font-size:12px;padding:3px 10px"
                 onclick="analyzeFrames(${clip.id}, this)">${btnLabel}</button>
-      </div>
-    </div>`;
+      </div>`);
 }
 
 async function analyzeFrames(clipId, btn) {

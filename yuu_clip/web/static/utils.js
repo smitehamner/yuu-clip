@@ -192,11 +192,13 @@ async function copyText(text, label) {
 }
 
 // ── collapsible detail cards ───────────────────────────────────────────────
-// Opt-in: render a card as `class="detail-card collapsible" data-collapse-key="<key>"`
-// with a `role="button" tabindex="0"` header, and seed the collapsed class from
-// isCardCollapsed(key). Clicking (or Enter/Space) on the header toggles and
-// persists; clicks on controls inside the header are ignored so their own actions
-// still fire.
+// Opt-in: build a card with collapsibleCard(key, title, body, {actions}). The
+// title is rendered inside a real <button class="card-toggle">, so the toggle
+// has native keyboard/focus behaviour and - because shortcuts.js's global
+// keydown bails on tagName === 'BUTTON' - Space on a focused toggle never also
+// fires play/pause. Header action controls are passed via opts.actions and sit
+// as SIBLINGS of the toggle button, never descendants, so a button never nests
+// inside the toggle (WCAG 4.1.2 nested-interactive). Seeded from isCardCollapsed(key).
 const _CARD_COLLAPSE_KEY = 'yuuclip-card-collapsed';
 
 function _cardCollapseState() {
@@ -211,46 +213,61 @@ function isCardCollapsed(key, defaultCollapsed = false) {
   return key in state ? !!state[key] : defaultCollapsed;
 }
 
-function _toggleCollapsibleCard(card, header) {
+// Single source of the collapsible-card markup contract: the ~11 detail cards
+// that opt in all render through here so none can drift from the class /
+// data-collapse-key / toggle-a11y attributes the toggle logic below reads.
+// title = the header's title content (goes inside the toggle button); body =
+// everything shown below the header. opts.actions = header controls rendered
+// beside the toggle; opts.defaultCollapsed starts a card collapsed until first
+// opened; opts.attrs adds card attributes (id, data-*); opts.headerStyle sets
+// an inline style on the header row.
+function collapsibleCard(key, title, body, opts = {}) {
+  const { defaultCollapsed = false, attrs = '', headerStyle = '', actions = '' } = opts;
+  const collapsed = isCardCollapsed(key, defaultCollapsed);
+  const styleAttr = headerStyle ? ` style="${headerStyle}"` : '';
+  const extraAttrs = attrs ? ` ${attrs}` : '';
+  return `
+    <div class="detail-card collapsible${collapsed ? ' collapsed' : ''}" data-collapse-key="${key}"${extraAttrs}>
+      <div class="detail-card-header"${styleAttr}>
+        <button type="button" class="card-toggle" aria-expanded="${collapsed ? 'false' : 'true'}">${title}</button>
+        ${actions}
+      </div>
+      ${body}
+    </div>`;
+}
+
+function _toggleCollapsibleCard(card, toggle) {
   const collapsed = card.classList.toggle('collapsed');
-  header.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+  toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
   const key = card.dataset.collapseKey;
   if (!key) return;
-  const state = _cardCollapseState();
-  state[key] = collapsed;
-  localStorage.setItem(_CARD_COLLAPSE_KEY, JSON.stringify(state));
+  // Persist best-effort: a write failure (private mode, quota) must not swallow
+  // the toggle or block the lazy-load dispatch below. The read path
+  // (_cardCollapseState) is likewise tolerant.
+  try {
+    const state = _cardCollapseState();
+    state[key] = collapsed;
+    localStorage.setItem(_CARD_COLLAPSE_KEY, JSON.stringify(state));
+  } catch (err) {
+    console.warn('Could not persist card collapse state:', err);
+  }
   // Lets a card lazy-load its body the first time it is expanded.
   card.dispatchEvent(new CustomEvent('cardtoggle', { bubbles: true, detail: { key, collapsed } }));
 }
 
-// Only the card's own first header toggles it - nested headers (the compound
-// Description card) neither toggle nor show a chevron.
-function _collapsibleFirstHeader(target) {
-  const header = target.closest('.detail-card-header');
-  if (!header) return null;
-  const card = header.parentElement;
-  if (!card.classList.contains('collapsible') || header !== card.firstElementChild) return null;
-  return { card, header };
-}
-
+// Only the card's own toggle button collapses it (native Enter/Space activate it
+// too). Nested headers inside a compound card's body carry no .card-toggle, so
+// they neither toggle nor show a chevron.
 document.addEventListener('click', (e) => {
-  const hit = _collapsibleFirstHeader(e.target);
-  if (!hit) return;
-  if (e.target.closest('button, a, input, select, textarea, label')) return;
-  _toggleCollapsibleCard(hit.card, hit.header);
-});
-
-document.addEventListener('keydown', (e) => {
-  if (e.key !== 'Enter' && e.key !== ' ') return;
-  const hit = _collapsibleFirstHeader(e.target);
-  if (!hit || hit.header !== e.target) return;
-  e.preventDefault();
-  _toggleCollapsibleCard(hit.card, hit.header);
+  const toggle = e.target.closest('.card-toggle');
+  if (!toggle) return;
+  const card = toggle.closest('.detail-card.collapsible');
+  if (card) _toggleCollapsibleCard(card, toggle);
 });
 
 Object.assign(window, {
   _syncSortDirBtn, _diarizationReason, _diarizationReadiness, _diarizationNoteHtml,
   openLog, toggleLog, clearLog, appendLog, showToast, netErrMsg, revealInFolder, copyText,
-  isCardCollapsed,
+  isCardCollapsed, collapsibleCard,
 });
 })();

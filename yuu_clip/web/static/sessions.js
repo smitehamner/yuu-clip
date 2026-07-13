@@ -348,15 +348,12 @@ function _renderSessionDetail(session) {
       </div>
     </div>
 
-    <div class="detail-card collapsible${isCardCollapsed('session-summary') ? ' collapsed' : ''}" data-collapse-key="session-summary">
-      <div class="detail-card-header" role="button" tabindex="0" aria-expanded="${isCardCollapsed('session-summary') ? 'false' : 'true'}">
-        <span class="detail-card-title">Session Summary${eb(session.summary_is_edited)}</span>
-        <button class="btn ghost" id="session-summarize-btn">${session.summary ? 'Regenerate' : 'Generate Summary'}</button>
-      </div>
+    ${collapsibleCard('session-summary',
+        `<span class="detail-card-title">Session Summary${eb(session.summary_is_edited)}</span>`, `
       ${session.summary
         ? `<div class="description-long">${escHtml(session.summary)}</div>`
-        : `<div style="color:var(--muted);font-size:12px">No summary yet - roll one up from the recordings' summaries.</div>`}
-    </div>
+        : `<div style="color:var(--muted);font-size:12px">No summary yet - roll one up from the recordings' summaries.</div>`}`,
+      { actions: `<button class="btn ghost" id="session-summarize-btn">${session.summary ? 'Regenerate' : 'Generate Summary'}</button>` })}
 
     <div class="vid-actions">
       <div class="vid-actions-row">
@@ -364,10 +361,9 @@ function _renderSessionDetail(session) {
       </div>
     </div>
 
-    <div class="detail-card collapsible${isCardCollapsed('session-timeline') ? ' collapsed' : ''}" data-collapse-key="session-timeline">
-      <div class="detail-card-header" role="button" tabindex="0" aria-expanded="${isCardCollapsed('session-timeline') ? 'false' : 'true'}"><span class="detail-card-title">Unified Timeline</span></div>
-      <div id="session-timeline">${_renderUnifiedTimeline(session)}</div>
-    </div>`;
+    ${collapsibleCard('session-timeline',
+      `<span class="detail-card-title">Unified Timeline</span>`, `
+      <div id="session-timeline">${_renderUnifiedTimeline(session)}</div>`)}`;
 
   document.getElementById('session-detail-kebab').onclick =
     e => _openSessionMenu(session.id, e.currentTarget);
