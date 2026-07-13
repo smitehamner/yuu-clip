@@ -108,13 +108,14 @@ def analyze(
     segment_end: Optional[float] = typer.Option(None, "--segment-end", help="Trim audio extraction end (seconds) for pre-analysis splits"),
 ):
     """Full pipeline: inspect, assign tracks, extract audio, transcribe, generate clips, score."""
-    from yuu_clip.config import project_audio_dir
+    from yuu_clip.config import project_audio_dir, project_proxies_dir
     from yuu_clip.contexts import format_context_block, load_contexts
 
     _require_ffmpeg()
 
     proj_dir, session, config = _load_project(project)
     audio_dir = project_audio_dir(proj_dir)
+    proxy_dir = project_proxies_dir(proj_dir)
 
     config.whisper_model        = model
     config.whisper_device       = device
@@ -155,7 +156,7 @@ def analyze(
 
     for video_path in video_paths:
         _wait_while_paused(proj_dir)
-        _analyze_one(video_path, session, config, audio_dir, opts)
+        _analyze_one(video_path, session, config, audio_dir, opts, proxy_dir=proxy_dir)
 
     console.print("\n[bold green]Done![/bold green]  Run [cyan]yuuclip status[/cyan] to review your clips.\n")
 
@@ -271,6 +272,7 @@ def score(
     no_llm: bool = typer.Option(False, "--no-llm", help="Skip LLM scoring step"),
 ):
     """Re-run scoring for one recording or all recordings."""
+    from yuu_clip.config import project_proxies_dir
     from yuu_clip.contexts import format_context_block, load_contexts
     from yuu_clip.db.models import Video
 
@@ -279,6 +281,7 @@ def score(
         raise typer.Exit(1)
 
     proj_dir, session, config = _load_project(project)
+    proxy_dir = project_proxies_dir(proj_dir)
 
     if no_energy:
         config.scorer_energy_enabled = False
@@ -300,7 +303,7 @@ def score(
         console.rule(f"[bold]{v.filename}[/bold]")
         _cn = json.loads(v.context_names_json) if v.context_names_json else []
         _ctx = format_context_block(load_contexts(proj_dir), _cn)
-        _run_scoring(v, v.audio_tracks, config, session, context_text=_ctx)
+        _run_scoring(v, v.audio_tracks, config, session, context_text=_ctx, proxy_dir=proxy_dir)
         session.commit()
 
     console.print("\n[bold green]Scoring complete.[/bold green]\n")

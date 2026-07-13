@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 import re
 
-from conftest import select_first_video_and_clip, select_video_with_clips, skip_no_server
+from conftest import LIVE_URL, select_first_video_and_clip, select_video_with_clips, skip_no_server
 from playwright.sync_api import Page, expect
 
 _CLIP_LINES = {
@@ -69,6 +69,57 @@ class TestClipTranscript:
 
         expect(page.locator("#clip-transcript-view .tline-text").first).to_have_text("let's GO")
         assert put_bodies and put_bodies[0]["text"] == "let's GO"
+
+
+@skip_no_server
+class TestTextlessVisualClipTranscriptCard:
+    """video-heavy-analysis Stage 03: a textless clip (empty transcript_excerpt,
+    tagged "visual"/"no_speech") gets an explicit no-dialogue state instead of
+    the Transcript card disappearing, and a talk clip is unaffected."""
+
+    def _clip(self, clip_id, **overrides):
+        clip = {
+            "id": clip_id, "start_hms": "0:00", "duration_hms": "0:05",
+            "status": "pending", "tags": [], "user_tags": [],
+            "start_offset": 0, "end_offset": 0, "has_export": False, "exports": [],
+            "transcript_excerpt": "", "scored_at": "2026-07-13T00:00:00+00:00",
+            "score_overall": 0.5, "score_funny": 0.0, "score_dramatic": 0.0,
+            "score_action": 0.0, "score_visual": 0.8, "score_laugh": None,
+        }
+        clip.update(overrides)
+        return clip
+
+    def test_textless_visual_clip_shows_no_dialogue_state(self, page: Page):
+        page.goto(LIVE_URL)
+        page.wait_for_selector("#video-list li[data-video-id]", timeout=5000)
+        clip = self._clip(9601, tags=["visual", "no_speech"])
+        page.evaluate("(clip) => renderDetail(clip)", clip)
+        card = page.locator("[data-collapse-key='clip-transcript']")
+        expect(card).to_contain_text("No dialogue in this clip")
+        expect(card.locator("span[title='How visually active this clip is']")).to_contain_text("80%")
+        expect(card.locator(".tag", has_text="No dialogue")).to_have_count(1)
+
+    def test_vision_summary_shown_as_one_liner_when_present(self, page: Page):
+        page.goto(LIVE_URL)
+        page.wait_for_selector("#video-list li[data-video-id]", timeout=5000)
+        clip = self._clip(9602, tags=["visual", "no_speech"],
+                           vision_summary="A player clutches a 1v3 round.")
+        page.evaluate("(clip) => renderDetail(clip)", clip)
+        card = page.locator("[data-collapse-key='clip-transcript']")
+        expect(card).to_contain_text("A player clutches a 1v3 round.")
+
+    def test_talk_clip_still_shows_transcript_not_no_dialogue_state(self, page: Page):
+        page.goto(LIVE_URL)
+        page.wait_for_selector("#video-list li[data-video-id]", timeout=5000)
+        page.route(
+            "**/api/clips/*/transcript",
+            lambda route: route.fulfill(status=404, content_type="application/json", body="{}"),
+        )
+        clip = self._clip(9603, transcript_excerpt="Yuu: we pulled off the heist", score_visual=0.9)
+        page.evaluate("(clip) => renderDetail(clip)", clip)
+        card = page.locator("[data-collapse-key='clip-transcript']")
+        expect(card).to_contain_text("we pulled off the heist")
+        expect(card).not_to_contain_text("No dialogue in this clip")
 
 
 @skip_no_server

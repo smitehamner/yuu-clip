@@ -610,6 +610,16 @@ The setting that controls whether silent, action-heavy moments become clips at a
 
 ---
 
+### No dialogue
+
+A clip with no transcript at all - typically a [Visual clip](#visual-clips-mode), a silent highlight surfaced by on-screen motion or scene cuts rather than speech. Its Transcript card shows an explicit "No dialogue in this clip" state (never left blank) plus the Visual score, so the clip stays legible without needing an LLM. A non-LLM one-liner ("Silent visual moment - high on-screen activity") fills the description until a vision-LLM description or a creator edit supersedes it.
+
+- **Code:** tag `no_speech` on `ClipCandidate.tags`; template text from `yuu_clip/scoring/describe_basic.py` (`build_basic_description`, gated on the `visual` tag); filter chip token `no_speech` (`clips.js`)
+- **UI label:** "No dialogue" (transcript-card state, generated-tag pill, and the "No dialogue" filter chip under Clips → More filters)
+- **Notes:** A clip with both a transcript AND a high Visual score is NOT treated as textless - the transcript always wins and the Transcript card renders normally, with the Visual score still shown separately in the Scoring card.
+
+---
+
 ### Content type
 
 A one-choice tuning preset for the kind of content you make - RP / narrative, Competitive gaming, Casual / let's play, Speedrun, Podcast / conversation, or the Generic default. Applying one copies recommended scoring weights and offers to add starter hot-words, and steers the LLM's scoring, summary, and timeline prompts toward that style.

@@ -11,6 +11,7 @@ function _applyFilters() {
     if (f.has('error')) result = result.filter(c => (c.tags || []).includes('llm_error'));
     if (f.has('flagged')) result = result.filter(c => (c.sensitive_matches || []).length > 0);
     if (f.has('duplicate')) result = result.filter(c => (c.tags || []).includes('possible_duplicate'));
+    if (f.has('no_speech')) result = result.filter(c => (c.tags || []).includes('no_speech'));
   }
   if (AppState.clipScoreMin > 0) result = result.filter(c => c.score_overall >= AppState.clipScoreMin);
   if (AppState.clipSearch) {
@@ -122,7 +123,7 @@ function _syncFilterChips() {
 }
 
 // Filters (and the min-score) that live inside the "More filters" expander.
-const _HIDDEN_FILTER_TOKENS = ['exported', 'not-exported', 'error', 'flagged', 'duplicate'];
+const _HIDDEN_FILTER_TOKENS = ['exported', 'not-exported', 'error', 'flagged', 'duplicate', 'no_speech'];
 
 // Force the expander open whenever one of the filters it hides is active (or a
 // non-default min-score is set), so the user is never left wondering why the
@@ -581,11 +582,7 @@ function renderDetail(clip) {
         actions: `${clip.related_clips_stale ? `<span style="font-size:11px;color:var(--warning);font-style:italic">stale - re-score updated</span>` : ''}
           <span style="font-size:11px;color:var(--muted);margin-left:auto">${clip.related_clips_at ? _fmtAgo(clip.related_clips_at) : ''}</span>` }) : ''}
 
-    ${clip.transcript_excerpt ? collapsibleCard('clip-transcript',
-          `<span class="detail-card-title">Transcript</span>`, `
-        ${clip.transcript_stale ? `<div class="transcript-stale-note">&#9888; Captions edited since last scoring - <button class="btn ghost" style="font-size:11px;padding:2px 8px" onclick="rescoreClip(${clip.id})">Re-score</button> to refresh.</div>` : ''}
-        <div id="clip-transcript-view" class="transcript">${escHtml(clip.transcript_excerpt)}</div>`,
-      { actions: `<button class="btn ghost" style="font-size:11px;padding:3px 9px" title="Copy transcript" aria-label="Copy transcript" data-copy="transcript">Copy</button>` }) : ''}
+    ${_transcriptCardHTML(clip)}
   `;
 
   if (clip.transcript_excerpt && window.loadClipTranscript) loadClipTranscript(clip.id);
@@ -596,6 +593,31 @@ function renderDetail(clip) {
     gateOnCapability(visionBtn, 'vision',
       'Frame analysis needs a vision-capable model.');
   }
+}
+
+// A clip with no transcript excerpt (video-heavy-analysis Stage 03 - a silent,
+// visually active moment, or simply a clip with no captions) still needs a legible
+// Transcript card rather than the section disappearing. Shows the Visual score and
+// the no_speech tag inline, plus the vision-LLM one-liner if "Analyze frames" (below)
+// already produced one. A clip WITH a transcript is unaffected - the excerpt always wins.
+function _transcriptCardHTML(clip) {
+  if (clip.transcript_excerpt) {
+    return collapsibleCard('clip-transcript',
+        `<span class="detail-card-title">Transcript</span>`, `
+      ${clip.transcript_stale ? `<div class="transcript-stale-note">&#9888; Captions edited since last scoring - <button class="btn ghost" style="font-size:11px;padding:2px 8px" onclick="rescoreClip(${clip.id})">Re-score</button> to refresh.</div>` : ''}
+      <div id="clip-transcript-view" class="transcript">${escHtml(clip.transcript_excerpt)}</div>`,
+      { actions: `<button class="btn ghost" style="font-size:11px;padding:3px 9px" title="Copy transcript" aria-label="Copy transcript" data-copy="transcript">Copy</button>` });
+  }
+  const isNoSpeech = (clip.tags || []).includes('no_speech');
+  const visualPct = Math.round((clip.score_visual || 0) * 100);
+  return collapsibleCard('clip-transcript',
+      `<span class="detail-card-title">Transcript</span>`, `
+    <div style="color:var(--muted);font-size:13px">No dialogue in this clip</div>
+    <div class="tags" style="margin-top:8px">
+      ${clip.scored_at ? `<span class="tag" title="How visually active this clip is">&#127909; Visual ${visualPct}%</span>` : ''}
+      ${isNoSpeech ? `<span class="tag" title="No spoken dialogue was detected in this clip">No dialogue</span>` : ''}
+    </div>
+    ${clip.vision_summary ? `<div class="description-long" style="margin-top:8px">${escHtml(clip.vision_summary)}</div>` : ''}`);
 }
 
 // ── image-based clip analysis (What's on screen) ─────────────────────────────
@@ -708,6 +730,8 @@ const _GENERATED_TAG_INFO = {
   energy_no_data:      { name: 'No audio data', tip: "The audio track had no data in this clip's time range" },
   after_hard_split:    { name: 'After split', tip: 'This clip starts right after a split point' },
   long_silence_before: { name: 'Long pause before', tip: 'A long quiet stretch comes right before this clip' },
+  no_speech:           { name: 'No dialogue', tip: 'No spoken dialogue was detected in this clip' },
+  visual:              { name: 'Visual highlight', tip: 'A silent, visually active moment found without any dialogue' },
   llm_scored: null, energy_scored: null, scenes_scored: null,
   laugh_transcript: null, laugh_audio: null, laugh_model: null,
   laugh_no_transcript: null, laugh_no_wav: null,

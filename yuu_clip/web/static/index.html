@@ -383,6 +383,23 @@
         </div>
         <input class="settings-input" id="s-vision-frames" type="number" min="1" max="10" step="1" style="max-width:100px">
       </div>
+      <div class="settings-row">
+        <div class="settings-col">
+          <label class="settings-label" for="s-visual-auto-vision">Auto-describe silent clips with the vision model</label>
+          <div class="settings-note">When a recording finishes, ask the vision model to describe the top few silent, action-heavy clips instead of the generic template. Off by default - this adds a vision-model call per clip on top of scoring, so it takes extra time (and, on the Claude backend, costs money). Needs image analysis enabled and a working vision model above.</div>
+        </div>
+        <label class="settings-checkbox">
+          <input type="checkbox" id="s-visual-auto-vision" aria-label="Auto-describe silent clips with the vision model">
+          <span style="font-size:13px" aria-hidden="true">Enable</span>
+        </label>
+      </div>
+      <div class="settings-row">
+        <div class="settings-col">
+          <label class="settings-label" for="s-visual-vision-topn">Silent clips to auto-describe</label>
+          <div class="settings-note">Hard cap per recording - only the highest-scoring silent clips get the vision-model pass, so cost and time stay bounded.</div>
+        </div>
+        <input class="settings-input" id="s-visual-vision-topn" type="number" min="1" max="50" step="1" style="max-width:100px">
+      </div>
     </details>
     <!-- Similarity engine - powers Find related clips + "Meaning" hot-words. Outside
          #s-llm-body on purpose: the keyword/embeddings tiers work with LLM scoring off. -->
@@ -1137,6 +1154,7 @@
           <button class="clip-chip"        aria-pressed="false" data-filter="error"        onclick="toggleClipFilter('error')" title="Clips whose LLM scoring failed">&#9888; Score error<span class="clip-chip-count" data-count="error"></span></button>
           <button class="clip-chip"        aria-pressed="false" data-filter="flagged"      onclick="toggleClipFilter('flagged')" title="Clips containing a Sensitive Terms match">&#9888; Flagged</button>
           <button class="clip-chip"        aria-pressed="false" data-filter="duplicate"    onclick="toggleClipFilter('duplicate')" title="Clips flagged as possible duplicates by the last scan">&#8646; Duplicates<span class="clip-chip-count" data-count="duplicate"></span></button>
+          <button class="clip-chip"        aria-pressed="false" data-filter="no_speech"    onclick="toggleClipFilter('no_speech')" title="Silent, visually active clips with no spoken dialogue">No dialogue</button>
         </div>
         <div class="clip-more-score">
           <label for="clip-score-min">Minimum score</label>

@@ -441,6 +441,17 @@ class TestBasicDescriptionFallback:
         mock.score.return_value = ScoreResult(score_action=0.8, description=description)
         return mock
 
+    def _visual_scorer(self, score_visual=0.8):
+        from unittest.mock import MagicMock
+
+        from yuu_clip.scoring.protocol import ScoreResult
+        mock = MagicMock()
+        mock.name = "visual_activity"
+        mock.is_available.return_value = True
+        mock.weight = 1.0
+        mock.score.return_value = ScoreResult(score_visual=score_visual)
+        return mock
+
     def _clip(self, **kw):
         from yuu_clip.db.models import ClipCandidate
         return ClipCandidate(video_id=1, start_ms=0, end_ms=1000, **kw)
@@ -487,6 +498,26 @@ class TestBasicDescriptionFallback:
         # A later run with an LLM description supersedes the template and clears the tag.
         ScoringEngine(Config(), [self._scorer(description="A daring heist")]).score_clip(clip, None)
         assert clip.description == "A daring heist"
+        assert "desc_basic" not in clip.tags
+
+    def test_textless_visual_clip_gets_silent_moment_template(self):
+        # video-heavy-analysis Stage 03: a textless clip tagged "visual" (Stage 02's
+        # visual candidate generator) still earns a template one-liner, unlike a
+        # plain no-transcript clip which stays blank.
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.engine import ScoringEngine
+        clip = self._clip(transcript_excerpt="")
+        clip.tags = ["visual", "no_speech"]
+        ScoringEngine(Config(), [self._visual_scorer(score_visual=0.8)]).score_clip(clip, None)
+        assert clip.description == "Silent visual moment - high on-screen activity"
+        assert "desc_basic" in clip.tags
+
+    def test_no_excerpt_no_visual_tag_still_leaves_description_blank(self):
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.engine import ScoringEngine
+        clip = self._clip(transcript_excerpt="")
+        ScoringEngine(Config(), [self._scorer()]).score_clip(clip, None)
+        assert not clip.description
         assert "desc_basic" not in clip.tags
 
 

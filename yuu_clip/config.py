@@ -643,6 +643,15 @@ class Config:
     # the trigger for a visual candidate and the relax-mode keep. _MAX_INTENSITY in
     # scoring/visual.py is 30.0 (full score), so this ~0.4x is meaningful on-screen motion.
     visual_peak_threshold: float = 12.0
+    # Opt-in auto vision-LLM description (video-heavy analysis Stage 4): after
+    # scoring, describe the top visual_vision_topn silent (empty-transcript) clips,
+    # ranked by score_visual, with the existing frame-sampling + vision-LLM path
+    # (analyze/frames.py). OFF by default - it's an extra vision-model call per
+    # clip, so it costs time (and, on the Claude backend, money) beyond the
+    # cheap model-free Visual signal. Hard-capped by visual_vision_topn regardless
+    # of how many silent clips a recording has.
+    visual_auto_vision_enabled: bool = False
+    visual_vision_topn: int = 8
     scorer_llm_enabled: bool = True
     scorer_laugh_enabled: bool = True
     # Lexicon scoring (plan non-llm-tiers/03) - curated funny/dramatic/action keyword

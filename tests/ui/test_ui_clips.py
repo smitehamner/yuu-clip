@@ -216,6 +216,48 @@ class TestVisualScore:
         expect(page.locator("li[data-clip-id='1'] .clip-scores span[title='Visual']")).to_contain_text("40%")
 
 
+@skip_no_server
+class TestNoDialogueFilterChip:
+    """The "No dialogue" filter chip (video-heavy analysis Stage 03): finds
+    textless-visual clips (tagged no_speech) and leaves other clips alone."""
+
+    def _clip(self, clip_id: int, tags):
+        return {
+            "id": clip_id, "status": "pending", "scored_at": "2026-07-13T00:00:00+00:00",
+            "start_hms": "00:00", "duration_hms": "00:05",
+            "has_export": False, "export_stale": False, "export_stale_reasons": [], "exports": [],
+            "sensitive_matches": [], "hotword_matches": [], "description": "", "tags": tags,
+            "score_overall": 0.5, "score_funny": 0.0, "score_dramatic": 0.0,
+            "score_action": 0.0, "score_visual": 0.7, "score_laugh": None,
+        }
+
+    def _render(self, page: Page, clips, filters=()):
+        page.wait_for_function("typeof _renderClips === 'function' && typeof AppState === 'object'")
+        page.evaluate(
+            "(args) => { AppState.clips = args.clips; AppState.clipFilters = new Set(args.filters);"
+            " AppState.clipSearch = ''; AppState.clipScoreMin = 0; _renderClips(); }",
+            {"clips": clips, "filters": list(filters)},
+        )
+
+    def test_no_speech_filter_shows_only_textless_visual_clips(self, page: Page):
+        page.goto(LIVE_URL)
+        self._render(page, [
+            self._clip(1, ["visual", "no_speech"]),
+            self._clip(2, []),
+        ], filters=["no_speech"])
+        expect(page.locator("li[data-clip-id='1']")).to_be_visible()
+        expect(page.locator("li[data-clip-id='2']")).to_have_count(0)
+
+    def test_without_the_filter_both_clips_show(self, page: Page):
+        page.goto(LIVE_URL)
+        self._render(page, [
+            self._clip(1, ["visual", "no_speech"]),
+            self._clip(2, []),
+        ])
+        expect(page.locator("li[data-clip-id='1']")).to_be_visible()
+        expect(page.locator("li[data-clip-id='2']")).to_be_visible()
+
+
 # ---------------------------------------------------------------------------
 # Score override via field-edit modal
 # ---------------------------------------------------------------------------

@@ -340,6 +340,34 @@ Three modes:
 
 Scene cuts are stored as database records and influence candidate boundaries.
 
+### Visual axis and silent clips
+
+A 4th scoring axis, **Visual**, tracks pixel-derived intensity - scene cuts and
+on-screen motion - separately from the narrative Funny / Dramatic / Action axes, so a
+silent, action-heavy moment (a clutch play, a crash) can score and surface even with
+no dialogue for the transcript-driven scorers to read.
+
+- **On-screen activity** - a cheap, model-free frame-diff pass (downscaled, sampled a
+  few times a second) measures on-screen motion during every analysis; combined with
+  scene-cut density, it feeds the Visual score. Always on, no extra model download.
+- **Visual clips** (Settings → Analysis defaults) - controls whether silent, visual
+  moments become clips at all: **Off** (today's transcript-only clips), **Silent
+  gaps** (recommended - fills quiet stretches between talk clips), **Relaxed** (keeps
+  a low-speech transcript window instead of dropping it, when it's visually active),
+  or **Full** (scans the whole recording for action). A dedup/cap guard keeps a
+  busy recording's visual clips from drowning out the talk-heavy ones.
+- **No dialogue in this clip** - a clip with no transcript gets an explicit state in
+  its Transcript card (never left blank) plus a plain-English template description
+  ("Silent visual moment - high on-screen activity") built from the Visual score. A
+  **No dialogue** filter chip finds these clips.
+- **Auto-describe silent clips with the vision model** (Settings → LLM scoring →
+  Advanced AI options, off by default) - after analysis, sends the top few silent,
+  highest-Visual clips (capped by "Silent clips to auto-describe") through the same
+  vision-model pass behind "Analyze frames", replacing the template one-liner with a
+  real description of what's on screen. Needs image analysis enabled and a working
+  vision model; skips quietly (no failure) if the model isn't ready. A clip already
+  described - by this pass, "Analyze frames", or a creator edit - is never redone.
+
 ### Lightweight signal scorers (no model)
 
 These run with zero extra downloads and are what makes clip scoring work in lightweight mode. Each nudges the funny / dramatic / action scores; their weights are set in Settings → Scoring weights.

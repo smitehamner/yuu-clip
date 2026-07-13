@@ -332,14 +332,20 @@ class ScoringEngine:
 
         Only writes when the current description is empty or was itself a template -
         an existing non-basic description (e.g. from a prior LLM run) is preserved.
-        Never touches description_user (effective_description already prefers it)."""
+        Never touches description_user (effective_description already prefers it).
+
+        A clip with no transcript is normally skipped (nothing to describe) - except
+        a textless "visual" clip (video-heavy-analysis Stage 03), which still gets the
+        silent-visual-moment template built from score_visual."""
         from yuu_clip.scoring.describe_basic import build_basic_description
 
         was_basic = DESC_BASIC_TAG in clip.tags
         if was_basic:
             clip.tags = [t for t in clip.tags if t != DESC_BASIC_TAG]
 
-        if scorer_described or not clip.transcript_excerpt:
+        if scorer_described:
+            return
+        if not clip.transcript_excerpt and "visual" not in clip.tags:
             return
         if clip.description and not was_basic:
             return

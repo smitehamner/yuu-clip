@@ -7,6 +7,7 @@ const _settingsFieldIds = [
   's-ai-privacy-value',
   's-llm-enabled','s-llm-backend','s-llm-model-path','s-llm-vision-model-path','s-llm-mmproj-path','s-llm-use-gpu',
   's-vision-enabled','s-vision-frames',
+  's-visual-auto-vision','s-visual-vision-topn',
   's-claude-api-key','s-claude-model','s-claude-timeout',
   's-diarization-backend','s-hf-token','s-speaker-match-threshold','s-speaker-cluster-threshold',
   's-project-voice-match-threshold',
@@ -216,6 +217,8 @@ function _applyLlmFields(cfg) {
   _setFieldChk('s-vision-enabled', cfg.vision_enabled === true);
   _setFieldVal('s-vision-frames',  cfg.vision_frames_per_clip ?? 2);
   window._visionEnabled = cfg.vision_enabled === true;
+  _setFieldChk('s-visual-auto-vision', cfg.visual_auto_vision_enabled === true);
+  _setFieldVal('s-visual-vision-topn', cfg.visual_vision_topn ?? 8);
   _setFieldVal('s-claude-api-key', cfg.claude_api_key  || '');
   _setClaudeModelValue(cfg.claude_model || 'claude-haiku-4-5-20251001');
   _setFieldVal('s-claude-timeout', cfg.claude_timeout_s ?? 30);
@@ -725,6 +728,8 @@ async function saveSettings() {
     llm_use_gpu:                getChk('s-llm-use-gpu'),
     vision_enabled:             getChk('s-vision-enabled'),
     vision_frames_per_clip:     getNum('s-vision-frames', v => parseInt(v, 10)),
+    visual_auto_vision_enabled: getChk('s-visual-auto-vision'),
+    visual_vision_topn:         getNum('s-visual-vision-topn', v => parseInt(v, 10)),
     claude_api_key:             getVal('s-claude-api-key'),
     claude_model:               getVal('s-claude-model'),
     claude_timeout_s:           getNum('s-claude-timeout', parseFloat),

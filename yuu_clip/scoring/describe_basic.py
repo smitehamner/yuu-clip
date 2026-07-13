@@ -7,6 +7,10 @@ excerpt, the top keywords (reusing the similarity engine's token extraction), an
 leading score dimension. An LLM description always supersedes it (the scoring engine
 only fills this in when no scorer emitted a description), and a creator edit
 (``description_user``) wins over both.
+
+A textless "visual" clip (video-heavy-analysis Stage 03 - no transcript, tagged
+``visual`` by the visual candidate generator) has no speakers or keywords to draw on,
+so it gets its own template built from ``score_visual`` instead.
 """
 from __future__ import annotations
 
@@ -74,13 +78,31 @@ def _leading_dimension(clip: "ClipCandidate") -> str:
     return f"{band} {label}"
 
 
+def _visual_activity_label(clip: "ClipCandidate") -> str:
+    score = clip.score_visual or 0.0
+    if score >= _DIMENSION_HIGH_BAND:
+        return "high on-screen activity"
+    if score >= _DIMENSION_FLOOR:
+        return "some on-screen activity"
+    return "low on-screen activity"
+
+
+def _visual_description(clip: "ClipCandidate") -> str:
+    """Template for a textless clip (Stage 03 of the video-heavy-analysis plan) -
+    a silent, visually active moment with no transcript for an LLM to summarize."""
+    return f"Silent visual moment - {_visual_activity_label(clip)}"
+
+
 def build_basic_description(clip: "ClipCandidate") -> tuple[str, str]:
     """Build a template ``(description, description_long)`` for *clip*.
 
     ``description_long`` is always empty - a paragraph is what an LLM adds. Returns
-    ``("", "")`` when the excerpt has no usable content (nothing worth showing)."""
+    ``("", "")`` when the excerpt has no usable content and the clip isn't a
+    textless visual candidate (nothing worth showing)."""
     excerpt = (clip.transcript_excerpt or "").strip()
     if not excerpt:
+        if "visual" in (clip.tags or []):
+            return _visual_description(clip), ""
         return "", ""
 
     from yuu_clip.scoring.textmatch import strip_speaker_prefixes

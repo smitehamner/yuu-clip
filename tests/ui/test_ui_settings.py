@@ -781,6 +781,37 @@ class TestSceneGenerationToggle:
         expect(page.locator("#btn-settings-save")).to_be_enabled()
 
 
+class TestAutoVisionDescribeToggle:
+    """The opt-in 'Auto-describe silent clips with the vision model' toggle
+    (video-heavy analysis Stage 4), in the LLM section's Advanced AI options.
+    Read-only: never clicks Save, so the live project config is untouched
+    (other sessions may be running)."""
+
+    def _open_settings(self, page: Page) -> None:
+        page.goto(LIVE_URL)
+        page.wait_for_selector("#video-list li[data-video-id]", timeout=5000)
+        page.click("#btn-settings-header")
+        page.wait_for_selector("#settings-panel.visible", timeout=3000)
+        page.wait_for_function(
+            "document.getElementById('s-paths-display').textContent.trim().length > 0",
+            timeout=8000,
+        )
+        page.evaluate("document.getElementById('s-llm-advanced').open = true")
+
+    def test_toggle_and_topn_reflect_config(self, page: Page):
+        self._open_settings(page)
+        cfg = page.evaluate("() => fetch('/api/config').then(r => r.json())")
+        assert page.eval_on_selector("#s-visual-auto-vision", "el => el.checked") == (
+            cfg["visual_auto_vision_enabled"] is True
+        )
+        assert int(page.locator("#s-visual-vision-topn").input_value()) == int(cfg["visual_vision_topn"])
+
+    def test_toggling_marks_settings_dirty(self, page: Page):
+        self._open_settings(page)
+        page.click("#s-visual-auto-vision")
+        expect(page.locator("#btn-settings-save")).to_be_enabled()
+
+
 # ---------------------------------------------------------------------------
 # Export presets - Plan 07 Stage 3. Custom presets live in *global* config (a
 # user preference, not project data - see export_presets.py), so every test

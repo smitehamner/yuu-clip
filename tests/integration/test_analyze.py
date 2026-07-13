@@ -558,7 +558,7 @@ class TestScoringIsolation:
                     raise RuntimeError("LLM endpoint unreachable")
                 return ScoreResult(score_funny=0.9, score_dramatic=0.5, score_action=0.5)
 
-        def run_real_scoring(video, track_objs, config, session, energy_mode="fast", context_text=""):
+        def run_real_scoring(video, track_objs, config, session, energy_mode="fast", context_text="", proxy_dir=None):
             engine = ScoringEngine(config, [_FlakyScorer()])
             engine.score_video(video, session)
 

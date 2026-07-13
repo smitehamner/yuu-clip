@@ -647,7 +647,7 @@ class TestClipFilterChips:
             expect(
                 page.locator(f"button.clip-chip[data-filter='{token}']")
             ).to_be_visible()
-        for token in ("exported", "not-exported", "error", "flagged", "duplicate"):
+        for token in ("exported", "not-exported", "error", "flagged", "duplicate", "no_speech"):
             expect(
                 page.locator(f"button.clip-chip[data-filter='{token}']")
             ).not_to_be_visible()

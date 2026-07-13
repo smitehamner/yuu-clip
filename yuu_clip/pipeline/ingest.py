@@ -158,8 +158,12 @@ def _analyze_one(
     config,
     audio_dir: Path,
     opts: AnalyzeOptions,
+    proxy_dir: Optional[Path] = None,
 ) -> None:
-    """Orchestrate all pipeline stages for a single video file."""
+    """Orchestrate all pipeline stages for a single video file.
+
+    *proxy_dir* feeds the opt-in auto vision-describe pass in _run_scoring (Stage 4
+    of video-heavy analysis); omit it to skip that pass regardless of config."""
     resolved = _resolve_existing_video(session, video_path, opts)
     if resolved is None:
         return
@@ -237,7 +241,10 @@ def _analyze_one(
         try:
             with recorder.stage("Score"):
                 recorder.warnings.extend(
-                    _run_scoring(video, track_objs, config, session, energy_mode=opts.energy_mode, context_text=opts.context_text) or []
+                    _run_scoring(
+                        video, track_objs, config, session, energy_mode=opts.energy_mode,
+                        context_text=opts.context_text, proxy_dir=proxy_dir,
+                    ) or []
                 )
         except Exception as exc:
             # ScoringEngine.score_video commits after every clip (so the web server can
@@ -877,11 +884,16 @@ def _summarize_video(video, transcripts, config, session, context_text: str = ""
         log.exception("Video summary failed: video_id=%s", video.id)
 
 
-def _run_scoring(video, track_objs, config, session, energy_mode: str = "fast", context_text: str = "") -> list[str]:
+def _run_scoring(
+    video, track_objs, config, session, energy_mode: str = "fast", context_text: str = "",
+    proxy_dir: Optional[Path] = None,
+) -> list[str]:
     """Run Phase 2 scoring (energy, scenes, LLM) for all candidates belonging to *video*.
 
     Returns plain-English warnings worth surfacing after the run (e.g. the LLM was
-    unavailable, so clips got only a basic description)."""
+    unavailable, so clips got only a basic description). *proxy_dir* feeds the
+    opt-in auto vision-describe pass (video-heavy analysis Stage 4) that runs after
+    scoring; omit it (None) to skip that pass regardless of the config toggle."""
     from yuu_clip.scoring.audio_event import AudioEventScorer, audio_event_model_cached
     from yuu_clip.scoring.churn import SpeakerChurnScorer
     from yuu_clip.scoring.energy import AudioEnergyScorer, compute_energy
@@ -1012,4 +1024,12 @@ def _run_scoring(video, track_objs, config, session, energy_mode: str = "fast", 
     video.clips_scored_at = datetime.now(timezone.utc)
     video.clips_scored_context_json = video.context_names_json or "[]"
     session.flush()
+
+    try:
+        from yuu_clip.pipeline.vision_describe import auto_describe_visual_clips
+        auto_describe_visual_clips(video, config, session, proxy_dir, context_text)
+    except Exception as exc:
+        console.print(f"  [yellow]Auto-describe silent clips failed: {exc}[/yellow]")
+        log.exception("Auto vision-describe failed: video_id=%s", video.id)
+
     return warnings

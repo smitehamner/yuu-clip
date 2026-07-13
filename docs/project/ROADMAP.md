@@ -42,9 +42,8 @@ internal planning notes (not part of this repo).
 Not re-ranked (already blocked on something outside this roadmap, or
 deliberately deferred/on-hold/shelved - see their entries below for why):
 Electron native-file-protocol verification, engine `console.print` design,
-code signing (needs a purchased cert), video-heavy/quiet-moment analysis
-(needs its own scope Q&A), speaker identity beyond one recording (needs its
-own scope Q&A), score learning loop (needs a corpus first), copyright
+code signing (needs a purchased cert), speaker identity beyond one recording
+(needs its own scope Q&A), score learning loop (needs a corpus first), copyright
 detection (no implementation path), sidebar grouping for split segments,
 quality presets, export-time transcript upgrade, AMD/Intel GPU support.
 
@@ -101,13 +100,6 @@ Wanted before distributing beyond friends/trusted users.
 ---
 
 ## 3 - Speaker & scoring depth
-
-- [ ] **Video-heavy / quiet-moment analysis** *(captured - needs a scope Q&A session)* -
-  candidate generation (`segments/windower.py`, silence-gap based) and scoring are both
-  transcript-driven, so silent/visual gaming highlights never become candidates and
-  score low. Extend toward the quiet, visual case without breaking the talk-heavy core,
-  reusing existing seams (PySceneDetect content cuts, frame extraction, the `ScoreResult`
-  scorer protocol, opt-in vision-LLM).
 
 - [ ] **Link a Person to a world-context character** - the companion to the shipped
   project-wide **Person** identity: replace free-text names with a reference to a context

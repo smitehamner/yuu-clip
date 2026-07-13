@@ -35,6 +35,9 @@ class ConfigPatch(BaseModel):
     # Image-based clip analysis (plan 11)
     vision_enabled:               Optional[bool]  = None
     vision_frames_per_clip:       Optional[int]   = None
+    # Opt-in auto vision-LLM description (video-heavy analysis Stage 4)
+    visual_auto_vision_enabled:   Optional[bool]  = None
+    visual_vision_topn:           Optional[int]   = None
     # Master switch for all generative-AI features.
     llm_enabled:               Optional[bool]  = None
     # Claude API (remote - billed per token)
@@ -108,6 +111,7 @@ _CONFIG_FIELDS = (
     "ai_privacy_mode",
     "llm_backend", "llm_model_path", "llm_mmproj_path", "llm_vision_model_path", "llm_use_gpu",
     "vision_enabled", "vision_frames_per_clip", "llm_enabled",
+    "visual_auto_vision_enabled", "visual_vision_topn",
     "claude_api_key", "claude_model", "claude_timeout_s",
     # Read-exposed but not patchable (a distribution gate, like model_prefetch_disabled):
     # get_config overrides this key with the EFFECTIVE value (field OR YUU_REMOTE_AI env).
@@ -250,6 +254,8 @@ _CONFIG_PATCH_RULES: list[tuple[str, object]] = [
     ("llm_use_gpu",                  lambda v: v),
     ("vision_enabled",               lambda v: v),
     ("vision_frames_per_clip",       _range_validator(1, 10, "vision_frames_per_clip")),
+    ("visual_auto_vision_enabled",   lambda v: bool(v)),
+    ("visual_vision_topn",           _range_validator(1, 50, "visual_vision_topn")),
     ("llm_enabled",               lambda v: v),
     ("claude_api_key",               lambda v: v.strip()),
     ("claude_model",                 lambda v: v.strip()),

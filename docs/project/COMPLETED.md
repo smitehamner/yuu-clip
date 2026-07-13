@@ -6,6 +6,40 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) - see the
 
 ---
 
+## Video-heavy / quiet-moment analysis - Visual axis, silent clips, vision descriptions (done 2026-07-13)
+
+A silent, action-heavy moment (a clutch play, a crash) used to fail twice: the
+transcript-driven candidate generator never proposed it, and the transcript-driven
+scorers couldn't rank it either. Five stages close that gap without weakening the
+talk-heavy core:
+
+- **Visual axis (Stage 0).** A 4th scoring axis, `score_visual`, distinct from Funny /
+  Dramatic / Action. Scene-cut density moved off Action onto Visual (Action is now
+  purely narrative); a small default weight keeps Visual from dominating a
+  talk-heavy ranking.
+- **On-screen activity detection (Stage 1).** A model-free frame-diff pass
+  (`analyze/motion.py`, downscaled + sampled a few times a second via PyAV) feeds
+  Visual alongside scene cuts. Always on, no extra model download.
+- **Visual candidate generation (Stage 2).** `visual_candidate_mode` (Off / Silent
+  gaps / Relaxed / Full) makes silent-but-visual moments exist as clips at all,
+  proposed from activity/scene peaks and merged against transcript clips with a
+  dedup + per-recording cap so a busy recording can't flood the clip list.
+- **Textless-clip UX (Stage 3).** A clip with no transcript gets an explicit "No
+  dialogue in this clip" state (never left blank) and a template one-liner built
+  from the Visual score, plus a "No dialogue" filter chip.
+- **Opt-in auto vision-LLM description (Stage 4).** `visual_auto_vision_enabled`
+  (off by default) runs the existing frame-sampling + vision-LLM path over the top
+  `visual_vision_topn` silent, highest-Visual clips after scoring, replacing the
+  template with a real on-screen description. Hard-capped; skips quietly when the
+  vision model isn't configured; a clip already described (by this pass, "Analyze
+  frames", or a creator edit) is never redone.
+- **Tests.** `tests/unit/test_scoring_engine.py` / `test_scenes.py` /
+  `test_motion.py` / `test_visual_scorer.py` / `test_visual_windower.py` /
+  `test_merge.py` / `test_windower.py` / `test_describe_basic.py` /
+  `test_vision_describe.py`; `tests/integration/test_scoring_engine.py` /
+  `test_vision_describe_pipeline.py`; `tests/ui/test_ui_clips.py` /
+  `test_ui_transcript.py` / `test_ui_settings.py`.
+
 ## Easier speaker editing - new speaker, bulk merge/split, voiceprint name hints (done 2026-07-13)
 
 Rounded out per-recording speaker editing so a creator can fix diarization mistakes
