@@ -998,8 +998,14 @@ class TestSpeakerClusterThreshold:
     def test_cluster_threshold_shown_for_speechbrain(self, page: Page):
         self._open_settings(page)
         page.evaluate("_onDiarizationBackendChange('speechbrain')")
-        expect(page.locator("#s-speaker-cluster-threshold")).to_be_visible()
-        expect(page.locator("#s-speaker-cluster-threshold")).to_have_value("0.55")
+        field = page.locator("#s-speaker-cluster-threshold")
+        expect(field).to_be_visible()
+        # Assert the control's contract, not its live-config value (which the user
+        # tunes): a 0-1 numeric slider-step the user can edit. Coupling to the
+        # loaded value would fail on any box whose config.json is tuned off default.
+        expect(field).to_have_attribute("type", "number")
+        expect(field).to_have_attribute("min", "0")
+        expect(field).to_have_attribute("max", "1")
 
     def test_cluster_threshold_hidden_for_pyannote(self, page: Page):
         self._open_settings(page)
