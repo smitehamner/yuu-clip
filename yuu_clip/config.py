@@ -614,6 +614,13 @@ class Config:
 
     scorer_energy_enabled: bool = True
     scorer_scenes_enabled: bool = True
+    # Cheap, model-free on-screen activity detection (video-heavy analysis Stage 1):
+    # a frame-diff timeline sampled at visual_sample_fps on a stream downscaled to
+    # visual_downscale_height, feeding the Visual axis via VisualActivityScorer. On
+    # by default (lightweight, no model); the two knobs bound its cost on long VODs.
+    scorer_visual_enabled: bool = True
+    visual_sample_fps: float = 2.0
+    visual_downscale_height: int = 360
     scorer_llm_enabled: bool = True
     scorer_laugh_enabled: bool = True
     # Lexicon scoring (plan non-llm-tiers/03) - curated funny/dramatic/action keyword
@@ -678,6 +685,11 @@ class Config:
 
     scorer_energy_weight: float = 1.0
     scorer_scene_weight: float = 0.5
+    # Contribution of the frame-diff VisualActivityScorer to the Visual axis. Sits
+    # alongside scorer_scene_weight (scene cuts) - both feed score_visual, blended
+    # per-dimension by the engine. Distinct from score_visual_weight (the axis's
+    # weight in Overall).
+    scorer_visual_weight: float = 0.5
     scorer_llm_weight: float = 2.0
     scorer_laugh_weight: float = 1.5
     scorer_lexicon_weight: float = 1.0

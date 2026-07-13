@@ -204,6 +204,7 @@ class ScoringEngine:
     _SCORER_TAGS: frozenset[str] = frozenset({
         "energy_scored", "energy_no_tracks", "energy_no_data",
         "scenes_scored",
+        "visual_scored",
         "llm_scored", "llm_error", "llm_no_transcript",
         "laugh_transcript", "laugh_audio", "laugh_model",
         "laugh_no_transcript", "laugh_no_wav",

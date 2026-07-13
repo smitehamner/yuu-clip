@@ -9,6 +9,7 @@ Schema overview:
   ClipCandidate     - proposed clip with timestamps, score fields, and status
   AudioEnergy       - per-second RMS energy curve per audio track
   SceneBoundary     - detected scene cuts per video
+  VisualActivity    - per-sample on-screen activity (frame-diff) per video
   HotWord           - creator-defined phrase that boosts clip scores (project-wide)
   SensitiveTerm     - creator-defined privacy/censor term flagged on clips (project-wide)
 """
@@ -811,6 +812,29 @@ class SceneBoundary(Base):
 
     __table_args__ = (
         Index("ix_scene_boundaries_video_time", "video_id", "timecode_ms"),
+    )
+
+
+class VisualActivity(Base):
+    """Per-sample on-screen activity for a video (video-heavy analysis Stage 1).
+
+    Populated by analyze/motion.py::compute_activity: one row per sampled frame
+    holding the mean absolute inter-frame pixel difference (0-255 scale) at that
+    timecode. Model-free, sampled at a low fps on a downscaled stream, so it stays
+    cheap on long recordings. Read by scoring/visual.py::VisualActivityScorer to
+    lift the Visual axis for clips that overlap silent action.
+    """
+    __tablename__ = "visual_activity"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    video_id: Mapped[int] = mapped_column(Integer, ForeignKey("videos.id"))
+    timecode_ms: Mapped[int] = mapped_column(Integer, nullable=False)
+    intensity: Mapped[float] = mapped_column(Float, nullable=False)
+
+    video: Mapped["Video"] = relationship()
+
+    __table_args__ = (
+        Index("ix_visual_activity_video_time", "video_id", "timecode_ms"),
     )
 
 

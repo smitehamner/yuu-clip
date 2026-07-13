@@ -865,6 +865,7 @@ def _run_scoring(video, track_objs, config, session, energy_mode: str = "fast", 
     from yuu_clip.scoring.prosody import ProsodyScorer
     from yuu_clip.scoring.scenes import SceneCutScorer, compute_scenes
     from yuu_clip.scoring.speechrate import SpeechRateScorer
+    from yuu_clip.scoring.visual import VisualActivityScorer
 
     if config.scorer_energy_enabled and energy_mode != "none":
         console.print(f"  [bold]Computing audio energy ({energy_mode})...[/bold]")
@@ -893,6 +894,18 @@ def _run_scoring(video, track_objs, config, session, energy_mode: str = "fast", 
         except Exception as e:
             console.print(f"  [yellow]  Scene detection skipped: {e}[/yellow]")
             log.exception("Scene detection failed: video_id=%s", video.id)
+
+    if config.scorer_visual_enabled:
+        from yuu_clip.analyze.motion import compute_activity
+        console.print("  [bold]Measuring on-screen activity...[/bold]")
+        try:
+            n = compute_activity(video, session, config)
+            msg = f"  [green]  OK[/green] {n} activity samples measured" if n else "  [dim]  Activity already measured or no video stream[/dim]"
+            console.print(msg)
+            session.flush()
+        except Exception as e:
+            console.print(f"  [yellow]  Activity measurement skipped: {e}[/yellow]")
+            log.exception("Visual-activity measurement failed: video_id=%s", video.id)
 
     warnings: list[str] = []
     console.print("  [bold]Scoring clips...[/bold]")
@@ -944,6 +957,7 @@ def _run_scoring(video, track_objs, config, session, energy_mode: str = "fast", 
     engine = ScoringEngine(config, [
         AudioEnergyScorer(config),
         SceneCutScorer(config),
+        VisualActivityScorer(config),
         laugh_scorer,
         LexiconScorer(config),
         SpeechRateScorer(config),
