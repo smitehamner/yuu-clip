@@ -61,6 +61,7 @@ class ConfigPatch(BaseModel):
     score_funny_weight:           Optional[float] = None
     score_dramatic_weight:        Optional[float] = None
     score_action_weight:          Optional[float] = None
+    score_visual_weight:          Optional[float] = None
     content_preset:               Optional[str]   = None
     # Analysis defaults
     scene_detection_mode:         Optional[str]   = None
@@ -112,6 +113,7 @@ _CONFIG_FIELDS = (
     "scorer_prosody_weight", "scorer_audio_event_weight", "scorer_audio_event_enabled",
     "similarity_backend",
     "score_funny_weight", "score_dramatic_weight", "score_action_weight",
+    "score_visual_weight",
     "content_preset",
     "scene_detection_mode", "energy_mode", "silence_threshold_ms", "min_clip_ms",
     "scene_generation_enabled",
@@ -261,6 +263,7 @@ _CONFIG_PATCH_RULES: list[tuple[str, object]] = [
     ("score_funny_weight",           lambda v: max(0.0, v)),
     ("score_dramatic_weight",        lambda v: max(0.0, v)),
     ("score_action_weight",          lambda v: max(0.0, v)),
+    ("score_visual_weight",          lambda v: max(0.0, v)),
     ("content_preset",               _content_preset_validator),
     ("scene_detection_mode",         _enum_validator({"transcript", "fast", "full"}, "scene_detection_mode")),
     ("energy_mode",                  _enum_validator({"none", "fast", "full"}, "energy_mode")),

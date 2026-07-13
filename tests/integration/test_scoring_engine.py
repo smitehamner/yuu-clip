@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 # ---------------------------------------------------------------------------
 # ScoringEngine unit tests
 # ---------------------------------------------------------------------------
@@ -94,6 +96,7 @@ class TestScoringEngine:
         config.score_funny_weight = 2.0
         config.score_dramatic_weight = 1.0
         config.score_action_weight = 1.0
+        config.score_visual_weight = 0.0   # focus this test on the three narrative axes
         scorer = self._make_scorer(score_funny=1.0, score_dramatic=0.0, score_action=0.0)
         engine = ScoringEngine(config, [scorer])
         clip = self._make_clip()
@@ -344,12 +347,82 @@ class TestScoringEngineWeightEdgeCases:
         cfg.score_funny_weight = 0.0
         cfg.score_dramatic_weight = 0.0
         cfg.score_action_weight = 0.0
+        cfg.score_visual_weight = 0.0   # all four axes off → no opinion
         scorer = self._make_scorer(score_action=1.0, weight=1.0)
         engine = ScoringEngine(cfg, [scorer])
         clip = self._make_clip()
         engine.score_clip(clip, None)
         # dim_total == 0 → overall can't be computed; must not leave stale value
         assert clip.score_overall == 0.0
+
+
+# ---------------------------------------------------------------------------
+# Visual axis (Stage 0) - SceneCutScorer feeds Visual, not Action, and moving it
+# there must not reshuffle a talk-only clip's ranking ("no drowning").
+# ---------------------------------------------------------------------------
+
+class TestVisualAxisPipeline:
+    def _seed(self, tmp_path, name, start_ms, end_ms, cut_ms=(), excerpt=None):
+        from yuu_clip.db.models import ClipCandidate, SceneBoundary, Video, make_session
+        session = make_session(tmp_path / name)
+        v = Video(path=str(tmp_path / "v.mkv"), filename="v.mkv", status="done", duration_ms=600_000)
+        session.add(v)
+        session.flush()
+        for ms in cut_ms:
+            session.add(SceneBoundary(video_id=v.id, timecode_ms=ms))
+        clip = ClipCandidate(
+            video_id=v.id, start_ms=start_ms, end_ms=end_ms,
+            status="pending", transcript_excerpt=excerpt,
+        )
+        session.add(clip)
+        session.flush()
+        return session, clip
+
+    def test_scene_heavy_clip_scores_visual_not_action(self, tmp_path):
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.engine import ScoringEngine
+        from yuu_clip.scoring.scenes import SceneCutScorer
+        cfg = Config()
+        session, clip = self._seed(
+            tmp_path, "vis.db", 0, 60_000,
+            cut_ms=[10_000, 20_000, 30_000, 40_000, 50_000],
+        )
+        try:
+            ScoringEngine(cfg, [SceneCutScorer(cfg)]).score_clip(clip, session)
+        finally:
+            session.close()
+        assert clip.score_visual > 0.0
+        assert clip.score_action == 0.0      # scene cuts no longer leak to Action
+        assert clip.score_overall > 0.0      # Visual lifts Overall on its own
+
+    def test_talk_only_overall_unaffected_by_scene_scorer(self, tmp_path):
+        # A talk-only clip has no scene cuts, so SceneCutScorer contributes
+        # visual=0 and nothing to Action. Its Overall must be byte-identical
+        # whether or not the scene scorer runs - the guard that moving cuts off
+        # Action never drowns a talk-heavy clip.
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.engine import ScoringEngine
+        from yuu_clip.scoring.lexicon import LexiconScorer
+        from yuu_clip.scoring.scenes import SceneCutScorer
+        cfg = Config()
+        excerpt = "Player: go go go push push, reload clutch, let's go"
+
+        session_a, clip_a = self._seed(tmp_path, "talk_a.db", 0, 60_000, excerpt=excerpt)
+        try:
+            ScoringEngine(cfg, [LexiconScorer(cfg)]).score_clip(clip_a, session_a)
+            overall_without_scene = clip_a.score_overall
+        finally:
+            session_a.close()
+
+        session_b, clip_b = self._seed(tmp_path, "talk_b.db", 0, 60_000, excerpt=excerpt)
+        try:
+            ScoringEngine(cfg, [LexiconScorer(cfg), SceneCutScorer(cfg)]).score_clip(clip_b, session_b)
+            overall_with_scene = clip_b.score_overall
+        finally:
+            session_b.close()
+
+        assert clip_b.score_visual == 0.0
+        assert overall_with_scene == pytest.approx(overall_without_scene)
 
 
 # ---------------------------------------------------------------------------

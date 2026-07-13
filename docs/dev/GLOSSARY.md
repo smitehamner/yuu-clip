@@ -572,21 +572,31 @@ A longer contextual candidate - a 1-5 minute moment with a story arc, which may 
 
 ### Score
 
-A 0–1 rating of a clip along a scoring dimension, or the weighted average of all three.
+A 0–1 rating of a clip along a scoring dimension, or the weighted average of all four.
 
-- **Code:** `score_overall`, `score_funny`, `score_dramatic`, `score_action`
+- **Code:** `score_overall`, `score_funny`, `score_dramatic`, `score_action`, `score_visual`
 - **UI label:** score bars and numeric badges
-- **Notes:** Higher is better. `score_overall` is a weighted average of the three dimensions.
+- **Notes:** Higher is better. `score_overall` is a weighted average of the four dimensions.
 
 ---
 
 ### Scoring Dimension
 
-One axis of evaluation: Funny, Dramatic, or Action.
+One axis of evaluation: Funny, Dramatic, Action, or Visual.
 
-- **Code:** dimension names `funny`, `dramatic`, `action`
-- **UI label:** labeled score bars ("Funny", "Dramatic", "Action")
-- **Notes:** Each dimension is scored independently by multiple scorers and combined.
+- **Code:** dimension names `funny`, `dramatic`, `action`, `visual`
+- **UI label:** labeled score bars ("Funny", "Dramatic", "Action", "Visual")
+- **Notes:** Each dimension is scored independently by multiple scorers and combined. Funny/Dramatic/Action are narrative axes (transcript/audio driven); Visual is the pixel-derived axis (see [Visual](#visual)).
+
+---
+
+### Visual
+
+The pixel-derived scoring dimension - how much is happening on screen, independent of dialogue. Surfaces silent, action-packed highlights (a clutch play, a crash) that the talk-driven axes would miss.
+
+- **Code:** dimension name `visual`, column `score_visual`, config `score_visual_weight`
+- **UI label:** "Visual" (score bar, sidebar percentage, sort option, and the Visual weight slider under Settings → Scoring weights)
+- **Notes:** Fed today by scene-cut density ([Scene Scoring](#scene-scoring), moved here from Action); later stages add an on-screen-activity signal. Its default weight (0.5) sits below the 1.0 narrative axes so visual moments surface without dominating a talk-heavy ranking. `0.0` until a clip is (re-)scored.
 
 ---
 
@@ -768,8 +778,8 @@ Scoring based on how loud and active the audio was during a clip window.
 
 Scoring based on how many visual scene cuts occur within a clip window.
 
-- **Code:** `SceneScorer`, `SceneBoundary`
-- **Notes:** More cuts per minute → higher Action score. Boundaries are detected once per recording.
+- **Code:** `SceneScorer` (code name for `SceneCutScorer`), `SceneBoundary`
+- **Notes:** More cuts per minute → higher [Visual](#visual) score. As of the video-heavy analysis work, scene cuts feed the Visual axis, **not** Action (Action is now a purely narrative axis). Boundaries are detected once per recording.
 
 ---
 

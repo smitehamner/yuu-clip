@@ -46,7 +46,7 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
         video_id: int,
         status: Optional[str] = Query(None),
         kind: Optional[str] = Query(None, description="clip | scene; None returns all kinds"),
-        sort: str = Query("score", description="score | funny | dramatic | action | timeline"),
+        sort: str = Query("score", description="score | funny | dramatic | action | visual | laugh | length | timeline"),
     ):
         db = ctx.get_db()
         try:
@@ -62,6 +62,7 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
                 "funny":    ClipCandidate.score_funny,
                 "dramatic": ClipCandidate.score_dramatic,
                 "action":   ClipCandidate.score_action,
+                "visual":   ClipCandidate.score_visual,
                 "laugh":    ClipCandidate.score_laugh,
             }
             if sort == "timeline":

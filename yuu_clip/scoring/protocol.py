@@ -26,6 +26,7 @@ class ScoreResult:
     score_funny:    float | None = None
     score_dramatic: float | None = None
     score_action:   float | None = None
+    score_visual:   float | None = None   # pixel-derived intensity (scene cuts, on-screen activity)
     description: str = ""           # one-sentence summary of what happens in the clip
     description_long: str = ""     # structured paragraph: what/why/who/details
     tags:  list[str]       = field(default_factory=list)

@@ -32,7 +32,7 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
-_MAX_CPM = 10.0   # cuts/min → score_action = 1.0
+_MAX_CPM = 10.0   # cuts/min → score_visual = 1.0
 
 # In "fast" mode, a keyframe corroborates a transcript gap only if it lands within this
 # many ms of one; and clustered keyframes are deduplicated to one per this window.
@@ -204,7 +204,7 @@ class SceneCutScorer:
         score = min(1.0, cpm / _MAX_CPM)
 
         return ScoreResult(
-            score_action=score,
+            score_visual=score,
             tags=["scenes_scored"] if cuts > 0 else [],
             notes={"cuts_in_clip": cuts, "cuts_per_min": round(cpm, 2)},
         )

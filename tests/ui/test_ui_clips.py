@@ -182,6 +182,40 @@ class TestLaughScore:
         expect(page.locator("li[data-clip-id='1'] .clip-scores span[title='Laughs']")).to_contain_text("60%")
 
 
+@skip_no_server
+class TestVisualScore:
+    """Visual axis (video-heavy analysis Stage 0): sort option + sidebar card."""
+
+    def _clip(self, clip_id: int, score_visual):
+        return {
+            "id": clip_id, "status": "pending", "scored_at": "2026-07-04T00:00:00+00:00",
+            "start_hms": "00:00", "duration_hms": "00:05",
+            "has_export": False, "export_stale": False, "export_stale_reasons": [], "exports": [],
+            "sensitive_matches": [], "hotword_matches": [], "description": "",
+            "score_overall": 0.5, "score_funny": 0.5, "score_dramatic": 0.3,
+            "score_action": 0.2, "score_visual": score_visual, "score_laugh": None,
+        }
+
+    def _render(self, page: Page, clips):
+        page.wait_for_function("typeof _renderClips === 'function' && typeof AppState === 'object'")
+        page.evaluate(
+            "(clips) => { AppState.clips = clips; AppState.clipFilters = new Set();"
+            " AppState.clipSearch = ''; AppState.clipScoreMin = 0; _renderClips(); }",
+            clips,
+        )
+
+    def test_sort_has_visual_option(self, page: Page):
+        page.goto(LIVE_URL)
+        options = page.locator("#clips-sort option")
+        values = [options.nth(i).get_attribute("value") for i in range(options.count())]
+        assert "visual" in values
+
+    def test_sidebar_shows_visual_rounded_percentage(self, page: Page):
+        page.goto(LIVE_URL)
+        self._render(page, [self._clip(1, 0.4)])
+        expect(page.locator("li[data-clip-id='1'] .clip-scores span[title='Visual']")).to_contain_text("40%")
+
+
 # ---------------------------------------------------------------------------
 # Score override via field-edit modal
 # ---------------------------------------------------------------------------

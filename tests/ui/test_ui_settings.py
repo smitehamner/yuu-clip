@@ -315,12 +315,25 @@ class TestSettingsPanelChrome:
             "s-speech-rate-weight": "0.5", "s-churn-weight": "0.5",
             "s-prosody-weight": "0.5",
             "s-funny-weight": "1.0", "s-dramatic-weight": "1.0",
-            "s-action-weight": "1.0",
+            "s-action-weight": "1.0", "s-visual-weight": "0.5",
         }
         for field_id, default in defaults.items():
             # Range inputs normalize "1.0" to "1" - compare numerically.
             assert float(page.locator(f"#{field_id}").input_value()) == float(default)
             expect(page.locator(f"#{field_id}-val")).to_have_text(default)
+
+    def test_visual_weight_slider_reflects_config(self, page: Page):
+        # The Visual axis (video-heavy analysis Stage 0) gets its own weight
+        # slider. Assert its live value against /api/config, not a literal - the
+        # dev's saved config is user-tunable.
+        self._open_settings(page)
+        expected = page.evaluate(
+            "() => fetch('/api/config').then(r => r.json()).then(c => c.score_visual_weight)"
+        )
+        assert float(page.locator("#s-visual-weight").input_value()) == float(expected)
+        expect(page.locator("#s-visual-weight-val")).to_have_text(
+            f"{float(expected):.1f}"
+        )
 
     def test_llm_section_body_dims_when_master_toggle_off(self, page: Page):
         self._open_settings(page)

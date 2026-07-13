@@ -14,7 +14,7 @@ const _settingsFieldIds = [
   's-energy-weight','s-scene-weight','s-llm-weight',
   's-laugh-weight','s-laugh-mode','s-laugh-model-id','s-lexicon-weight',
   's-speech-rate-weight','s-churn-weight','s-prosody-weight',
-  's-funny-weight','s-dramatic-weight','s-action-weight',
+  's-funny-weight','s-dramatic-weight','s-action-weight','s-visual-weight',
   's-scene-mode','s-energy-mode','s-silence-ms','s-min-clip-ms','s-scene-generation',
   's-thermal-autopause','s-thermal-warn-c','s-thermal-pause-c',
   's-audio-event-enabled',
@@ -39,6 +39,7 @@ const _weightFields = [
   ['s-funny-weight',    'score_funny_weight',     1.0],
   ['s-dramatic-weight', 'score_dramatic_weight',  1.0],
   ['s-action-weight',   'score_action_weight',    1.0],
+  ['s-visual-weight',   'score_visual_weight',    0.5],
 ];
 let _settingsOriginal = {};
 let _settingsOpener = null;
@@ -742,6 +743,7 @@ async function saveSettings() {
     score_funny_weight:         getNum('s-funny-weight', parseFloat),
     score_dramatic_weight:      getNum('s-dramatic-weight', parseFloat),
     score_action_weight:        getNum('s-action-weight', parseFloat),
+    score_visual_weight:        getNum('s-visual-weight', parseFloat),
     diarization_backend:        getVal('s-diarization-backend'),
     huggingface_token:          getVal('s-hf-token'),
     speaker_match_threshold:    getNum('s-speaker-match-threshold', parseFloat),

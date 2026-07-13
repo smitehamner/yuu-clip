@@ -688,7 +688,14 @@ class Config:
 
     score_funny_weight: float = 1.0
     score_dramatic_weight: float = 1.0
+    # Action is now a purely narrative axis (LLM/transcript signals). Scene cuts
+    # moved off it onto the Visual axis below (video-heavy analysis Stage 0), so
+    # this weight no longer receives the scene-cut signal.
     score_action_weight: float = 1.0
+    # 4th "Visual" axis - pixel-derived intensity (scene-cut density today,
+    # on-screen activity later). Kept below the 1.0 narrative axes so silent
+    # visual highlights surface without ever dominating a talk-heavy ranking.
+    score_visual_weight: float = 0.5
 
     # Content-type preset (plan 12) - records the last-applied preset id. Applying
     # a preset copies its dimension weights + laugh weight into the fields above;

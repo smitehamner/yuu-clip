@@ -580,7 +580,9 @@ class TestScoringIsolation:
         reloaded_video = verify.get(Video, video_id)
         reloaded_clip_ok = verify.get(ClipCandidate, clip_ok_id)
         assert reloaded_video.clips_scored_at is None       # batch never finished - UI still offers Rescore
-        assert reloaded_clip_ok.score_overall == pytest.approx((0.9 + 0.5 + 0.5) / 3)  # kept, not rolled back
+        # kept, not rolled back. Overall spreads the three narrative scores over
+        # all four axis weights (Visual=0 here, default weight 0.5 -> /3.5).
+        assert reloaded_clip_ok.score_overall == pytest.approx((0.9 + 0.5 + 0.5) / 3.5)
         verify.close()
 
 

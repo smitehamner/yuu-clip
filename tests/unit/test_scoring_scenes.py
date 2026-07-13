@@ -31,7 +31,8 @@ class TestSceneCutScorer:
             result = scorer.score(clip, session)
         finally:
             session.close()
-        assert result.score_action is None   # zero duration → no opinion, not a real zero
+        assert result.score_visual is None   # zero duration → no opinion, not a real zero
+        assert result.score_action is None    # scene cuts feed Visual now, never Action
         assert result.tags == []
 
     def test_score_no_scene_boundaries_returns_zero(self, tmp_path):
@@ -44,7 +45,8 @@ class TestSceneCutScorer:
             result = scorer.score(clip, session)
         finally:
             session.close()
-        assert result.score_action == 0.0
+        assert result.score_visual == 0.0
+        assert result.score_action is None    # never populates Action
         assert "scenes_scored" not in result.tags
         assert result.notes["cuts_in_clip"] == 0
 
@@ -63,7 +65,8 @@ class TestSceneCutScorer:
             result = scorer.score(clip, session)
         finally:
             session.close()
-        assert result.score_action > 0.0
+        assert result.score_visual > 0.0
+        assert result.score_action is None   # cuts lift Visual, not Action
         assert "scenes_scored" in result.tags
         assert result.notes["cuts_in_clip"] == 5
 
@@ -98,7 +101,7 @@ class TestSceneCutScorer:
         assert SceneCutScorer(config).is_available() is False
 
     def test_score_maxes_at_one(self, tmp_path):
-        """score_action must not exceed 1.0 even with very high cut density."""
+        """score_visual must not exceed 1.0 even with very high cut density."""
         from yuu_clip.config import Config
         from yuu_clip.db.models import SceneBoundary
         from yuu_clip.scoring.scenes import SceneCutScorer
@@ -112,7 +115,7 @@ class TestSceneCutScorer:
             result = scorer.score(clip, session)
         finally:
             session.close()
-        assert result.score_action <= 1.0
+        assert result.score_visual <= 1.0
 
 class TestComputeScenesIdempotent:
     def test_skips_if_boundaries_already_exist(self, tmp_path):

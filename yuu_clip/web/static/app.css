@@ -39,6 +39,10 @@
   --dramatic: #b06af7;
   --action:   #4fc3f7;
   --laugh:    #f77ac0;
+  /* Visual reuses the score-gradient's --action hue (it inherited the scene-cut
+     signal from Action); the var() resolves per-theme, so no new literal or
+     per-theme override is needed. */
+  --visual:   var(--action);
   --overall:  var(--highlight);
   --shadow-pop:  0 4px 20px rgba(0,0,0,.5);
   --shadow-menu: 0 8px 24px rgba(0,0,0,.5);
@@ -368,6 +372,7 @@ button.section-toggle-btn:not(.active):hover { color: var(--text); background: v
 .bar-funny    { background: var(--funny); }
 .bar-dramatic { background: var(--dramatic); }
 .bar-action   { background: var(--action); }
+.bar-visual   { background: var(--visual); }
 .bar-laugh    { background: var(--laugh); }
 .score-val { font-size: 12px; font-weight: 600; text-align: right; }
 .score-override-badge { font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: .4px; color: var(--accent2); background: color-mix(in srgb, var(--accent2) 10%, transparent); border: 1px solid color-mix(in srgb, var(--accent2) 30%, transparent); border-radius: 3px; padding: 1px 4px; vertical-align: middle; margin-left: 3px; }

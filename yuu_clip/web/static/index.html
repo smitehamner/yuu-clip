@@ -613,6 +613,16 @@
              oninput="document.getElementById('s-action-weight-val').textContent=parseFloat(this.value).toFixed(1)">
       <span class="settings-weight-val" id="s-action-weight-val">1.0</span>
     </div>
+    <div class="settings-weight-row">
+      <span class="settings-weight-label">&#127916; Visual</span>
+      <input type="range" min="0" max="5" step="0.1" id="s-visual-weight" aria-label="Visual sub-score weight" style="flex:1"
+             oninput="document.getElementById('s-visual-weight-val').textContent=parseFloat(this.value).toFixed(1)">
+      <span class="settings-weight-val" id="s-visual-weight-val">0.5</span>
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-top:2px">
+      On-screen activity - scene cuts and visual intensity. Surfaces silent, action-packed
+      moments without dialogue. Kept low so it never overshadows talk-driven highlights.
+    </div>
   </div>
 
   <!-- Hot-words section -->
@@ -1089,6 +1099,7 @@
             <option value="funny">&#128514; Funny</option>
             <option value="dramatic">&#127917; Dramatic</option>
             <option value="action">&#9876;&#65039; Action</option>
+            <option value="visual">&#127916; Visual</option>
             <option value="laugh">&#129315; Laughs</option>
             <option value="length">&#8986; Length</option>
             <option value="timeline">Timeline</option>

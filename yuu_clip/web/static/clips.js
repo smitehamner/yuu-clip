@@ -239,12 +239,13 @@ function _renderClipItems(clips) {
         ${(c.sensitive_matches || []).length ? '<span class="clip-flag-badge" title="Contains flagged terms">&#9888;</span>' : ''}
         ${(c.tags || []).includes('possible_duplicate') ? '<span class="clip-dup-badge" title="Overlaps another clip - possible duplicate">&#8646;</span>' : ''}
       </div>
-      <div class="clip-scores" aria-label="${c.scored_at ? `Scores: overall ${Math.round(c.score_overall*100)}%, funny ${Math.round(c.score_funny*100)}%, dramatic ${Math.round(c.score_dramatic*100)}%, action ${Math.round(c.score_action*100)}%${c.score_laugh != null ? `, laughs ${Math.round(c.score_laugh*100)}%` : ''}` : 'Not yet scored'}">
+      <div class="clip-scores" aria-label="${c.scored_at ? `Scores: overall ${Math.round(c.score_overall*100)}%, funny ${Math.round(c.score_funny*100)}%, dramatic ${Math.round(c.score_dramatic*100)}%, action ${Math.round(c.score_action*100)}%, visual ${Math.round((c.score_visual||0)*100)}%${c.score_laugh != null ? `, laughs ${Math.round(c.score_laugh*100)}%` : ''}` : 'Not yet scored'}">
         ${c.scored_at ? `
         <span aria-hidden="true" title="Overall">${_scoreIcon(c.score_overall)} ${Math.round(c.score_overall*100)}%</span>
         <span aria-hidden="true" title="Funny"><span>😂</span> ${Math.round(c.score_funny*100)}%</span>
         <span aria-hidden="true" title="Dramatic"><span>🎭</span> ${Math.round(c.score_dramatic*100)}%</span>
         <span aria-hidden="true" title="Action"><span>⚔️</span> ${Math.round(c.score_action*100)}%</span>
+        <span aria-hidden="true" title="Visual"><span>🎬</span> ${Math.round((c.score_visual||0)*100)}%</span>
         ${c.score_laugh != null ? `<span aria-hidden="true" title="Laughs"><span>🤣</span> ${Math.round(c.score_laugh*100)}%</span>` : ''}
         ` : `<span style="color:var(--muted);font-size:12px" title="This clip has not been scored yet">Not yet scored</span>`}
       </div>
@@ -500,6 +501,7 @@ function renderDetail(clip) {
           ${clip.scored_at ? scoreRow('Funny',    clip.score_funny,    'funny')    : ''}
           ${clip.scored_at ? scoreRow('Dramatic', clip.score_dramatic, 'dramatic') : ''}
           ${clip.scored_at ? scoreRow('Action',   clip.score_action,   'action')   : ''}
+          ${clip.scored_at ? scoreRow('Visual',   clip.score_visual || 0, 'visual') : ''}
           ${clip.scored_at && clip.score_laugh != null ? scoreRow('Laughs', clip.score_laugh, 'laugh') : ''}
         </div>
       </div>

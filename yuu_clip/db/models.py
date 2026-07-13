@@ -92,6 +92,9 @@ _ADDITIVE_COLUMNS: tuple[tuple[str, str, str], ...] = (
     # Clips-vs-Scenes: NOT NULL DEFAULT backfills every existing row to 'clip'
     # (unlike the nullable columns above, this one carries a non-NULL default).
     ("clip_candidates", "kind", "VARCHAR NOT NULL DEFAULT 'clip'"),
+    # Video-heavy analysis Stage 0: the 4th "Visual" scoring axis. Existing rows
+    # backfill to NULL and read as 0.0 until re-scored (Rescore re-derives it).
+    ("clip_candidates", "score_visual", "FLOAT"),
     # Project-wide speaker identity: cross-recording Person link + unconfirmed
     # suggestion. The project_voices / voice_exemplars tables themselves are created
     # by create_all(); only these columns on the pre-existing speakers table need the
@@ -572,6 +575,9 @@ class ClipCandidate(Base):
     score_funny: Mapped[float] = mapped_column(Float, default=0.0)
     score_dramatic: Mapped[float] = mapped_column(Float, default=0.0)
     score_action: Mapped[float] = mapped_column(Float, default=0.0)
+    # 4th "Visual" axis (video-heavy analysis Stage 0): pixel-derived intensity
+    # (scene-cut density today; on-screen activity later). 0.0 until re-scored.
+    score_visual: Mapped[float] = mapped_column(Float, default=0.0)
     score_overall_user: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     # Raw, unweighted laugh-density result from LaughScorer (0-1). NULL = laugh
     # was never computed for this clip (pre-existing clips, or scorer disabled).

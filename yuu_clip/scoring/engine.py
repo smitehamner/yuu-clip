@@ -27,15 +27,21 @@ _HOTWORD_SUB_SCORE_TARGETS = ("funny", "dramatic", "action")
 DESC_BASIC_TAG = "desc_basic"
 
 
-def _compute_overall(cfg: "Config", funny: float, dramatic: float, action: float) -> float | None:
+def _compute_overall(
+    cfg: "Config", funny: float, dramatic: float, action: float, visual: float
+) -> float | None:
     """Return the weighted overall score, or None when all dimension weights are zero."""
-    dim_total = cfg.score_funny_weight + cfg.score_dramatic_weight + cfg.score_action_weight
+    dim_total = (
+        cfg.score_funny_weight + cfg.score_dramatic_weight
+        + cfg.score_action_weight + cfg.score_visual_weight
+    )
     if dim_total == 0:
         return None
     return (
         cfg.score_funny_weight * funny +
         cfg.score_dramatic_weight * dramatic +
-        cfg.score_action_weight * action
+        cfg.score_action_weight * action +
+        cfg.score_visual_weight * visual
     ) / dim_total
 
 
@@ -106,7 +112,12 @@ def apply_hotword_boosts(clip: "ClipCandidate", hot_words: list["HotWord"], conf
     # the *current* scoring weights (which may differ from whatever produced the
     # stored value, e.g. after the user edits Settings weights separately).
     if sub_score_changed:
-        recomputed = _compute_overall(config, clip.score_funny, clip.score_dramatic, clip.score_action)
+        # score_visual is 0.0 for freshly-scored clips but NULL on rows created
+        # before the Visual axis existed (additive column) - coalesce so a
+        # hot-word rescan on an un-rescored clip doesn't crash on None.
+        recomputed = _compute_overall(
+            config, clip.score_funny, clip.score_dramatic, clip.score_action, clip.score_visual or 0.0
+        )
         if recomputed is not None:
             clip.score_overall = recomputed
         clip.score_overall = max(0.0, min(1.0, clip.score_overall + new_boost["overall"]))
@@ -247,6 +258,7 @@ class ScoringEngine:
     def _reset_scores(clip: "ClipCandidate") -> None:
         clip.tags = [t for t in clip.tags if t not in ScoringEngine._SCORER_TAGS]
         clip.score_funny = clip.score_dramatic = clip.score_action = 0.0
+        clip.score_visual = 0.0
         clip.score_overall = 0.0
         clip.score_laugh = None
 
@@ -258,8 +270,8 @@ class ScoringEngine:
         combine. Per dimension: numerator (Σ value·weight) and the weight total of the
         scorers that actually emitted it - a scorer returning None for a dimension is
         excluded from its denominator entirely."""
-        num    = {"funny": 0.0, "dramatic": 0.0, "action": 0.0}
-        weight = {"funny": 0.0, "dramatic": 0.0, "action": 0.0}
+        num    = {"funny": 0.0, "dramatic": 0.0, "action": 0.0, "visual": 0.0}
+        weight = {"funny": 0.0, "dramatic": 0.0, "action": 0.0, "visual": 0.0}
         scorer_described = False
         for scorer in scorers:
             result: ScoreResult = scorer.score(clip, session)
@@ -273,6 +285,7 @@ class ScoringEngine:
                 ("funny",    result.score_funny),
                 ("dramatic", result.score_dramatic),
                 ("action",   result.score_action),
+                ("visual",   result.score_visual),
             ):
                 if value is not None:
                     num[dim]    += value * scorer.weight
@@ -287,8 +300,9 @@ class ScoringEngine:
         clip.score_funny    = num["funny"]    / weight["funny"]    if weight["funny"]    else 0.0
         clip.score_dramatic = num["dramatic"] / weight["dramatic"] if weight["dramatic"] else 0.0
         clip.score_action   = num["action"]   / weight["action"]   if weight["action"]   else 0.0
+        clip.score_visual   = num["visual"]   / weight["visual"]   if weight["visual"]   else 0.0
 
-        overall = _compute_overall(self._config, clip.score_funny, clip.score_dramatic, clip.score_action)
+        overall = _compute_overall(self._config, clip.score_funny, clip.score_dramatic, clip.score_action, clip.score_visual)
         if overall is not None:
             clip.score_overall = overall
 

@@ -138,8 +138,8 @@ class TestApplyHotwordBoosts:
         clip = self._clip(text="haha", score_funny=0.3, score_dramatic=0.3, score_action=0.3, score_overall=0.3)
         hw = self._hotword("haha", boost=0.3, target="funny")
         apply_hotword_boosts(clip, [hw], Config())
-        # funny -> 0.6; overall = (0.6+0.3+0.3)/3 = 0.4 (equal default weights)
-        assert abs(clip.score_overall - 0.4) < 1e-6
+        # funny -> 0.6; overall = (0.6+0.3+0.3+0)/3.5 (Visual axis weight 0.5, score 0)
+        assert abs(clip.score_overall - (1.2 / 3.5)) < 1e-6
 
     def test_overall_target_boost_applied_on_top_of_recompute(self):
         from yuu_clip.config import Config
