@@ -257,6 +257,7 @@ function _applyWeightFields(cfg) {
 
 function _applyAnalysisFields(cfg) {
   _setFieldVal('s-scene-mode',    cfg.scene_detection_mode || 'fast');
+  _setFieldVal('s-visual-mode',   cfg.visual_candidate_mode || 'gaps');
   _setFieldVal('s-energy-mode',   cfg.energy_mode          || 'fast');
   _setFieldVal('s-silence-ms',    cfg.silence_threshold_ms ?? 3000);
   _setFieldVal('s-min-clip-ms',   cfg.min_clip_ms          ?? 15000);
@@ -750,6 +751,7 @@ async function saveSettings() {
     speaker_cluster_threshold:  getNum('s-speaker-cluster-threshold', parseFloat),
     project_voice_match_threshold: getNum('s-project-voice-match-threshold', parseFloat),
     scene_detection_mode:       getVal('s-scene-mode'),
+    visual_candidate_mode:      getVal('s-visual-mode'),
     energy_mode:                getVal('s-energy-mode'),
     silence_threshold_ms:       getNum('s-silence-ms', parseInt),
     min_clip_ms:                getNum('s-min-clip-ms', parseInt),

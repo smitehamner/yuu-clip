@@ -621,6 +621,28 @@ class Config:
     scorer_visual_enabled: bool = True
     visual_sample_fps: float = 2.0
     visual_downscale_height: int = 360
+    # Visual candidate generation (video-heavy analysis Stage 2): make silent-but-
+    # visual moments EXIST as clip candidates, alongside the transcript windower.
+    #   "off"      - transcript clips only (today's behavior)
+    #   "relax"    - keep a low-speech transcript window when its overlapping motion
+    #                peak is high, instead of dropping it as mostly-silence
+    #   "gaps"     - propose visual clips only in the silent gaps between transcript
+    #                clips, then dedup/cap (recommended: rescues silent highlights
+    #                with the least disruption to a talk-heavy ranking)
+    #   "parallel" - propose visual clips across the whole recording, then dedup/cap
+    # gaps/parallel visual clips carry the "visual"/"no_speech" tags and an empty
+    # transcript excerpt. The dedup + cap below are the "don't drown the talk core" guard.
+    visual_candidate_mode: str = "gaps"
+    # Drop a visual clip whose window is covered by a transcript clip by more than this
+    # fraction of its own length (transcript wins the overlap).
+    visual_dedup_overlap: float = 0.5
+    # Hard cap on visual-only clips kept per recording, highest motion peak first.
+    visual_candidate_cap: int = 30
+    # Mean absolute inter-frame pixel difference (0-255 gray, same scale as
+    # VisualActivity.intensity) at or above which a sample counts as a motion "peak" -
+    # the trigger for a visual candidate and the relax-mode keep. _MAX_INTENSITY in
+    # scoring/visual.py is 30.0 (full score), so this ~0.4x is meaningful on-screen motion.
+    visual_peak_threshold: float = 12.0
     scorer_llm_enabled: bool = True
     scorer_laugh_enabled: bool = True
     # Lexicon scoring (plan non-llm-tiers/03) - curated funny/dramatic/action keyword

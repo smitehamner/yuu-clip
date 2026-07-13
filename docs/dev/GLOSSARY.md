@@ -600,6 +600,16 @@ The pixel-derived scoring dimension - how much is happening on screen, independe
 
 ---
 
+### Visual clips (mode)
+
+The setting that controls whether silent, action-heavy moments become clips at all. The normal clip finder only proposes clips where there is speech, so a no-dialogue highlight (a clutch play, a crash) never surfaces; turning this on adds a second, model-free source that proposes clips from on-screen motion and scene-cut density.
+
+- **Code:** `visual_candidate_mode` (Config: `off` | `relax` | `gaps` | `parallel`); `yuu_clip/segments/visual_windower.py` (`generate_visual_candidates`), `yuu_clip/segments/merge.py` (`merge_candidates` - the dedup + per-recording cap guard). Visual-source clips are `ClipCandidate` rows with `kind="clip"` carrying the `visual` + `no_speech` tags and an empty `transcript_excerpt`.
+- **UI label:** "Visual clips" (Settings → Analysis defaults). Options: Off / Silent gaps (recommended) / Relaxed / Full.
+- **Notes:** `gaps` proposes visual clips only in the silent stretches between speech clips; `parallel` ("Full") scans the whole recording; `relax` instead keeps a low-speech speech-clip window when it overlaps high motion, rather than adding a separate source. A merge step drops a visual clip that overlaps a speech clip by more than `visual_dedup_overlap` (speech wins) and caps visual-only clips at `visual_candidate_cap` per recording - the "don't drown the talk-heavy core" guard. Distinct from the [Visual](#visual) scoring dimension (how a clip scores) and from [Scenes](#scene) (`kind="scene"`, a different candidate type).
+
+---
+
 ### Content type
 
 A one-choice tuning preset for the kind of content you make - RP / narrative, Competitive gaming, Casual / let's play, Speedrun, Podcast / conversation, or the Generic default. Applying one copies recommended scoring weights and offers to add starter hot-words, and steers the LLM's scoring, summary, and timeline prompts toward that style.

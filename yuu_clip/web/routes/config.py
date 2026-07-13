@@ -70,6 +70,11 @@ class ConfigPatch(BaseModel):
     min_clip_ms:                  Optional[int]   = None
     # Opt-in LLM scene generation (Clips-vs-Scenes Stage 3) - Settings-only toggle.
     scene_generation_enabled:     Optional[bool]  = None
+    # Visual candidate generation (video-heavy analysis Stage 2)
+    visual_candidate_mode:        Optional[str]   = None
+    visual_dedup_overlap:         Optional[float] = None
+    visual_candidate_cap:         Optional[int]   = None
+    visual_peak_threshold:        Optional[float] = None
     # Speaker labels
     diarization_backend:          Optional[str]   = None
     huggingface_token:            Optional[str]   = None
@@ -117,6 +122,8 @@ _CONFIG_FIELDS = (
     "content_preset",
     "scene_detection_mode", "energy_mode", "silence_threshold_ms", "min_clip_ms",
     "scene_generation_enabled",
+    "visual_candidate_mode", "visual_dedup_overlap", "visual_candidate_cap",
+    "visual_peak_threshold",
     "diarization_backend", "huggingface_token", "speaker_match_threshold",
     "speaker_cluster_threshold", "project_voice_match_threshold",
     "export_name_template",
@@ -270,6 +277,10 @@ _CONFIG_PATCH_RULES: list[tuple[str, object]] = [
     ("silence_threshold_ms",         _min_validator(500,  "silence_threshold_ms")),
     ("min_clip_ms",                  _min_validator(1000, "min_clip_ms")),
     ("scene_generation_enabled",     lambda v: bool(v)),
+    ("visual_candidate_mode",        _enum_validator({"off", "relax", "gaps", "parallel"}, "visual_candidate_mode")),
+    ("visual_dedup_overlap",         _range_validator(0.0, 1.0, "visual_dedup_overlap")),
+    ("visual_candidate_cap",         _min_validator(1, "visual_candidate_cap")),
+    ("visual_peak_threshold",        _min_validator(0.0, "visual_peak_threshold")),
     ("diarization_backend",          _enum_validator({"null", "pyannote", "speechbrain"}, "diarization_backend")),
     ("huggingface_token",            lambda v: v.strip()),
     ("speaker_match_threshold",      _range_validator(0.0, 1.0, "speaker_match_threshold")),

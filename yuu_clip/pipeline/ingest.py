@@ -744,10 +744,37 @@ def _generate_candidates(video, transcripts, config, session, no_segment, no_tra
 
     console.print("  [bold]Generating clips...[/bold]")
     candidates = generate_candidates(video, transcripts, config, session)
+    candidates = candidates + _generate_visual_candidates(video, candidates, config, session)
     console.print(f"  [green]  OK[/green] {len(candidates)} clips created")
     video.status = "done"
     session.flush()
     return candidates
+
+
+def _generate_visual_candidates(video, transcript_cands, config, session) -> list:
+    """Add a visual candidate source (video-heavy analysis Stage 2), dispatched on
+    config.visual_candidate_mode. off/relax add no separate source (off = transcript
+    only; relax rescues low-speech windows inside generate_candidates). gaps/parallel
+    propose visual clips, dedup them against the transcript clips, cap them, and persist
+    the survivors. Returns the visual candidates actually kept."""
+    mode = config.visual_candidate_mode
+    if mode not in ("gaps", "parallel"):
+        return []
+
+    from yuu_clip.segments.merge import merge_candidates
+    from yuu_clip.segments.visual_windower import generate_visual_candidates, silent_gaps
+
+    allowed = silent_gaps(transcript_cands, video) if mode == "gaps" else None
+    visual = generate_visual_candidates(video, config, session, allowed_regions=allowed)
+    if not visual:
+        return []
+
+    merged = merge_candidates(transcript_cands, visual, config)
+    kept = [c for c in merged if "no_speech" in c.tags]
+    session.add_all(kept)
+    if kept:
+        console.print(f"  [dim]  + {len(kept)} visual clip(s) ({mode})[/dim]")
+    return kept
 
 
 def _clear_existing_scenes(session, video_id: int) -> int:

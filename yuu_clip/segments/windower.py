@@ -12,7 +12,7 @@ that align with these gaps.
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 from yuu_clip.config import Config
 from yuu_clip.db.models import (
@@ -55,12 +55,20 @@ def generate_candidates(
         _log.info("generate_candidates: no transcribable segments for video %d - returning empty", video.id)
         return []
 
+    # relax mode (video-heavy analysis Stage 2): a low-speech window that overlaps a
+    # high motion peak is rescued instead of dropped. Only built for that mode, so
+    # every other mode passes keep_if_visual=None and the silence-drop path is unchanged.
+    keep_if_visual = None
+    if config.visual_candidate_mode == "relax":
+        keep_if_visual = _visual_peak_lookup(video, session, config.visual_peak_threshold)
+
     windows = _silence_window(
         all_segments,
         silence_threshold_ms=config.silence_threshold_ms,
         min_clip_ms=config.min_clip_ms,
         hard_split_ms=config.hard_split_ms,
         min_speech_cps=config.min_clip_speech_cps,
+        keep_if_visual=keep_if_visual,
     )
 
     candidates: list[ClipCandidate] = []
@@ -179,12 +187,35 @@ def build_excerpt_for_window(video: Video, start_ms: int, end_ms: int) -> str:
     return _build_excerpt(segs)
 
 
+def _visual_peak_lookup(
+    video: Video, session: "Session", threshold: float
+) -> Callable[[int, int], bool]:
+    """Build an in-memory "does [start, end) overlap a motion peak?" predicate for
+    relax mode. Queries the video's VisualActivity rows once, then answers from memory."""
+    from yuu_clip.db.models import VisualActivity
+
+    points = sorted(
+        (row.timecode_ms, row.intensity)
+        for row in session.query(VisualActivity).filter_by(video_id=video.id).all()
+    )
+
+    def _has_peak(start_ms: int, end_ms: int) -> bool:
+        return any(
+            intensity >= threshold
+            for timecode_ms, intensity in points
+            if start_ms <= timecode_ms < end_ms
+        )
+
+    return _has_peak
+
+
 def _silence_window(
     segments: list[TranscriptSegment],
     silence_threshold_ms: int,
     min_clip_ms: int,
     hard_split_ms: int,
     min_speech_cps: float = 0.0,
+    keep_if_visual: Callable[[int, int], bool] | None = None,
 ) -> list[tuple[int, int, list[TranscriptSegment], list[str]]]:
     """
     Return a list of (start_ms, end_ms, segs, tags) windows.
@@ -196,6 +227,10 @@ def _silence_window(
     per second are dropped as mostly-silence (0 disables the check). This is what
     keeps a Whisper runaway-timestamp segment - one hallucinated line stamped
     across many minutes - from becoming a long, near-empty clip.
+
+    relax mode (Stage 2) passes *keep_if_visual*: a predicate on (start_ms, end_ms)
+    that rescues an otherwise-dropped low-speech window when it overlaps a motion peak,
+    tagging it "visual". When None (every other mode) the drop path is byte-identical.
     """
     if not segments:
         return []
@@ -213,12 +248,16 @@ def _silence_window(
         duration = win_end - win_start
         if duration < min_clip_ms:
             return
+        extra = list(tags_extra)
         if min_speech_cps > 0:
             chars = sum(len((s.text or "").strip()) for s in win_segs)
             if chars / (duration / 1000) < min_speech_cps:
-                dropped_low_speech += 1
-                return
-        results.append((win_start, win_end, list(win_segs), win_tags + tags_extra))
+                if keep_if_visual is not None and keep_if_visual(win_start, win_end):
+                    extra.append("visual")
+                else:
+                    dropped_low_speech += 1
+                    return
+        results.append((win_start, win_end, list(win_segs), win_tags + extra))
 
     for seg in segments[1:]:
         gap_ms    = seg.start_ms - win_end

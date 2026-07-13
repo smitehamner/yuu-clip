@@ -669,6 +669,18 @@
     </div>
     <div class="settings-row">
       <div class="settings-col">
+        <label class="settings-label" for="s-visual-mode">Visual clips</label>
+        <div class="settings-note">Find silent, action-heavy moments (a clutch play, a crash) that have no dialogue, so they still become clips. "Silent gaps" is a good balance; "Full" finds the most but takes longer and can surface more clips to review.</div>
+      </div>
+      <select class="settings-select" id="s-visual-mode">
+        <option value="off">Off - only moments with speech</option>
+        <option value="gaps">Silent gaps - fill quiet stretches (recommended)</option>
+        <option value="relax">Relaxed - keep quiet-but-active talk windows</option>
+        <option value="parallel">Full - scan the whole recording for action</option>
+      </select>
+    </div>
+    <div class="settings-row">
+      <div class="settings-col">
         <label class="settings-label" for="s-energy-mode">Audio energy mode</label>
       </div>
       <select class="settings-select" id="s-energy-mode">
