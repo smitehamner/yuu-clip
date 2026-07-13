@@ -200,3 +200,35 @@ class TestVideoSidebarControls:
             }"""
         )
         assert overflowing == []
+
+    def test_primary_status_chips_single_line_at_default_width(self, page: Page):
+        # Sidebar-declutter Stage 3 / Part B: at the default --sidebar-width the
+        # everyday chip rows must NOT wrap. The Clips status row (All /
+        # Unreviewed / Approved / Rejected) with its count badges is the tight
+        # one; the Recordings row (All / Has clips) is checked too. Counts are
+        # seeded single-digit (the common review state) so the assertion is
+        # deterministic regardless of the seeded DB.
+        page.goto(LIVE_URL)
+        page.wait_for_selector(".clip-chip[data-filter='pending']", timeout=8000)
+        result = page.evaluate(
+            """() => {
+              // Neutralize any drag-persisted width so we measure the CSS default.
+              document.documentElement.style.removeProperty('--sidebar-width');
+              const dflt = getComputedStyle(document.documentElement)
+                .getPropertyValue('--sidebar-width').trim();
+              document.documentElement.style.setProperty('--sidebar-width', dflt);
+              document.querySelectorAll('.clip-chip-count[data-count]')
+                .forEach(b => b.textContent = '9');
+              const rowTops = sel => [...document.querySelectorAll(sel)]
+                .map(c => Math.round(c.getBoundingClientRect().top));
+              // Direct-child rows only - excludes the collapsed More-filters
+              // details (display:none => top 0) and the clips kind row ([role]).
+              const status = rowTops(".clips-group > .clip-filter-tabs:not([role]) .clip-chip[data-filter]");
+              const recs = rowTops(".videos-group > .clip-filter-tabs .clip-chip[data-vfilter]");
+              const spread = t => Math.max(...t) - Math.min(...t);
+              return {width: dflt, statusSpread: spread(status), recsSpread: spread(recs)};
+            }"""
+        )
+        # Same offsetTop for every chip in the row => one visual line.
+        assert result["statusSpread"] <= 1, result
+        assert result["recsSpread"] <= 1, result

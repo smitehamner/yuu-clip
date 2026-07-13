@@ -118,6 +118,24 @@ function _syncFilterChips() {
     chip.classList.toggle('active', active);
     chip.setAttribute('aria-pressed', active ? 'true' : 'false');
   });
+  _syncMoreFilters();
+}
+
+// Filters (and the min-score) that live inside the "More filters" expander.
+const _HIDDEN_FILTER_TOKENS = ['exported', 'not-exported', 'error', 'flagged', 'duplicate'];
+
+// Force the expander open whenever one of the filters it hides is active (or a
+// non-default min-score is set), so the user is never left wondering why the
+// list is filtered. We only ever force it OPEN - on return to defaults we stop
+// forcing it and let the user collapse it themselves.
+function _syncMoreFilters() {
+  const details = document.getElementById('clip-more-filters');
+  if (!details) return;
+  const active = _HIDDEN_FILTER_TOKENS.some(t => AppState.clipFilters.has(t)) ||
+    AppState.clipScoreMin > 0;
+  if (active) details.open = true;
+  const flag = details.querySelector('[data-more-flag]');
+  if (flag) flag.hidden = !active;
 }
 
 // Export (has-file) chips are mutually exclusive - "Exported" and "Not exported"
@@ -146,7 +164,6 @@ function setClipKind(kind) {
   AppState.clipKind = kind;
   AppState.activeClipId = null;
   _syncKindChips();
-  _updateNewClipButton();
   if (AppState.activeVideoId) _reloadClipList(AppState.activeVideoId);
 }
 
@@ -158,16 +175,6 @@ function _syncKindChips() {
   });
 }
 
-function _updateNewClipButton() {
-  const btn = document.getElementById('btn-new-clip');
-  if (!btn) return;
-  const isScene = AppState.clipKind === 'scene';
-  btn.textContent = isScene ? '+ New scene' : '+ New clip';
-  btn.title = isScene
-    ? 'Pick a time range to create a scene by hand'
-    : 'Pick a time range to create a clip by hand';
-}
-
 function setClipSearch(q) {
   AppState.clipSearch = q.trim();
   _renderClips();
@@ -175,6 +182,7 @@ function setClipSearch(q) {
 
 function setClipScoreMin(val) {
   AppState.clipScoreMin = parseFloat(val) || 0;
+  _syncMoreFilters();
   _renderClips();
 }
 
@@ -1029,10 +1037,10 @@ function _duplicateNoticeHTML(clip) {
   </div>`;
 }
 
-async function scanDuplicates() {
+async function scanDuplicates(busyBtn) {
   const videoId = AppState.activeVideoId;
   if (!videoId) return;
-  const btn = document.getElementById('btn-scan-duplicates');
+  const btn = busyBtn || document.getElementById('btn-scan-duplicates');
   const origLabel = btn?.textContent;
   if (btn) { btn.disabled = true; btn.textContent = 'Checking...'; }
   try {
@@ -1047,6 +1055,14 @@ async function scanDuplicates() {
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = origLabel; }
   }
+}
+
+function openClipsActionsMenu(btn) {
+  const newLabel = AppState.clipKind === 'scene' ? 'New scene' : 'New clip';
+  showKebab(btn, [
+    { label: newLabel, action: () => openClipCreatePicker(AppState.activeVideoId, AppState.clipKind) },
+    { label: 'Check duplicates', action: () => scanDuplicates(btn) },
+  ]);
 }
 
 function _parseTimingOffset(str) {
@@ -1325,10 +1341,10 @@ Object.assign(window, {
   _releasePlayerBeforeDelete,
   analyzeFrames,
   toggleClipFilter, _syncFilterChips, setClipSearch, setClipScoreMin, _clearClipFilters,
-  setClipKind, _syncKindChips, _updateNewClipButton,
+  setClipKind, _syncKindChips,
   _applyFilters, _renderClips, _parseTimingOffset, _reloadClipList,
   _renderClipFilterCounts, toggleClipSortDir,
-  deleteClip, deleteExport, mergeClips, scanDuplicates,
+  deleteClip, deleteExport, mergeClips, scanDuplicates, openClipsActionsMenu,
   openScoreOverride, closeScoreOverrideModal, _scoreOverrideSave, clearScoreOverride,
   openDescKebab, openDescLongKebab,
   startFindSimilar, openSimilarClipsModal, closeSimilarClipsModal,

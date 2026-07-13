@@ -732,4 +732,7 @@ class TestClipKindToggle:
         page.wait_for_function("() => AppState.clipKind === 'scene'", timeout=3000)
         assert requested_urls and "kind=scene" in requested_urls[-1]
         expect(page.locator("[data-kind='scene']")).to_have_class(re.compile(r"\bactive\b"))
-        expect(page.locator("#btn-new-clip")).to_have_text("+ New scene")
+        page.click("#btn-clips-actions")
+        expect(
+            page.locator(".hamburger-menu.open .hamburger-item").first
+        ).to_have_text("New scene")

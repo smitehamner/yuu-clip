@@ -365,6 +365,7 @@ function closeKebab(refocusAnchor = false) {
   if (_kebabDismiss) { document.removeEventListener('click', _kebabDismiss); _kebabDismiss = null; }
   const anchor = _activeKebabAnchor;
   _activeKebabAnchor = null;
+  if (anchor?.hasAttribute?.('aria-haspopup')) anchor.setAttribute('aria-expanded', 'false');
   if (refocusAnchor && anchor?.focus) anchor.focus();
   return true;
 }
@@ -373,7 +374,9 @@ function showKebab(anchorEl, items) {
   closeKebab();
   const menu = document.createElement('div');
   menu.className = 'hamburger-menu open';
-  menu.style.cssText = 'position:fixed;z-index:500;min-width:160px';
+  // right:auto clears the .hamburger-menu base rule's right:0 - otherwise the
+  // fixed menu, with both left and right set, stretches to the viewport edge.
+  menu.style.cssText = 'position:fixed;z-index:500;min-width:160px;right:auto';
   for (const item of items) {
     if (item === null) {
       const sep = document.createElement('div');
@@ -394,6 +397,7 @@ function showKebab(anchorEl, items) {
   document.body.appendChild(menu);
   _activeKebab = menu;
   _activeKebabAnchor = anchorEl;
+  if (anchorEl?.hasAttribute?.('aria-haspopup')) anchorEl.setAttribute('aria-expanded', 'true');
 
   const rect = anchorEl.getBoundingClientRect();
   let top  = rect.bottom + 4;

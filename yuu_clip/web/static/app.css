@@ -31,7 +31,7 @@
   --shadow-menu: 0 8px 24px rgba(0,0,0,.5);
   --modal-backdrop: rgba(0,0,0,.7);
   /* pane sizes - updated by drag resize, saved to localStorage */
-  --sidebar-width:       240px;
+  --sidebar-width:       300px;
   --videos-group-height: 35%;
   --player-max-height:   42vh;
   --log-max-height:      160px;
@@ -616,12 +616,51 @@ kbd { background: var(--surface); border: 1px solid var(--border); border-radius
 .clip-chip { font-size: 10px; padding: 2px 8px; border-radius: 10px; border: 1px solid transparent; background: none; color: var(--muted); cursor: pointer; white-space: nowrap; flex-shrink: 0; }
 .clip-chip:hover { color: var(--text); }
 .clip-chip.active { background: var(--accent); color: var(--on-accent); }
-.clip-chip-sep { width: 1px; align-self: stretch; margin: 2px 4px; background: var(--border); flex-shrink: 0; }
+.clip-more-filters { padding: 0 8px 2px; }
+.clip-more-filters > summary { list-style: none; display: inline-flex; align-items: center; gap: 5px; font-size: 10px; color: var(--muted); cursor: pointer; padding: 3px 4px; border-radius: 4px; user-select: none; }
+.clip-more-filters > summary::-webkit-details-marker { display: none; }
+.clip-more-filters > summary::before { content: '\25B8'; font-size: 9px; transition: transform .15s; }
+.clip-more-filters[open] > summary::before { transform: rotate(90deg); }
+.clip-more-filters > summary:hover { color: var(--text); }
+.clip-more-flag { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
+.clip-more-score { display: flex; align-items: center; gap: 6px; padding: 2px 4px; }
+.clip-more-score label { font-size: 10px; color: var(--muted); }
+.clip-more-score select { font-size: 11px; padding: 3px 4px; border-radius: 4px; border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer; }
+
+/* Stage 0 hierarchy: the everyday status filters (clips: All / Unreviewed /
+   Approved / Rejected; recordings: All / Has clips) are the primary controls
+   and read as solid, button-like chips. The warning + export-state filters
+   recede - smaller and borderless - so the core review loop reads first. */
+.clip-chip[data-filter="all"],
+.clip-chip[data-filter="pending"],
+.clip-chip[data-filter="approved"],
+.clip-chip[data-filter="rejected"],
+.clip-chip[data-vfilter="all"],
+.clip-chip[data-vfilter="has-clips"] { font-size: 11px; padding: 3px 9px; }
+.clip-chip[data-filter="all"]:not(.active),
+.clip-chip[data-filter="pending"]:not(.active),
+.clip-chip[data-filter="approved"]:not(.active),
+.clip-chip[data-filter="rejected"]:not(.active),
+.clip-chip[data-vfilter="all"]:not(.active),
+.clip-chip[data-vfilter="has-clips"]:not(.active) { color: var(--text); background: var(--bg); border-color: var(--border); }
+.clip-chip[data-filter="all"]:not(.active):hover,
+.clip-chip[data-filter="pending"]:not(.active):hover,
+.clip-chip[data-filter="approved"]:not(.active):hover,
+.clip-chip[data-filter="rejected"]:not(.active):hover,
+.clip-chip[data-vfilter="all"]:not(.active):hover,
+.clip-chip[data-vfilter="has-clips"]:not(.active):hover { border-color: var(--accent); }
+.clip-chip[data-filter="exported"],
+.clip-chip[data-filter="not-exported"],
+.clip-chip[data-filter="error"],
+.clip-chip[data-filter="flagged"],
+.clip-chip[data-filter="duplicate"],
+.clip-chip[data-vfilter="unscored"],
+.clip-chip[data-vfilter="errors"] { font-size: 9px; padding: 1px 6px; }
 .clip-search-row { display: flex; gap: 4px; padding: 4px 8px 2px; }
 .clip-search-row input[type="search"] { flex: 1; min-width: 0; font-size: 11px; padding: 3px 7px; border-radius: 4px; border: 1px solid var(--border); background: var(--surface); color: var(--text); }
 
 /* ── per-status counts folded into the filter chips ── */
-.clip-chip-count { margin-left: 5px; font-size: 9px; font-weight: 600; opacity: .65; }
+.clip-chip-count { margin-left: 3px; font-size: 9px; font-weight: 600; opacity: .65; }
 .clip-chip-count:empty { display: none; }
 .clip-chip:hover .clip-chip-count,
 .clip-chip.active .clip-chip-count { opacity: .85; }
@@ -667,6 +706,7 @@ kbd { background: var(--surface); border: 1px solid var(--border); border-radius
 .field-row { display: flex; align-items: flex-start; gap: 6px; }
 .field-row > :first-child { flex: 1; min-width: 0; }
 .kebab-btn, .copy-icon-btn { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 16px; padding: 2px 5px; border-radius: 4px; line-height: 1; flex-shrink: 0; }
+.section-actions-btn { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; font-size: 15px; padding: 0; }
 .kebab-btn:hover, .copy-icon-btn:hover { background: var(--border); color: var(--text); }
 .edited-badge { font-size: 10px; color: var(--accent2); background: color-mix(in srgb, var(--accent2) 10%, transparent); border: 1px solid color-mix(in srgb, var(--accent2) 30%, transparent); border-radius: 4px; padding: 1px 5px; vertical-align: middle; margin-left: 4px; }
 .timing-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
@@ -843,7 +883,6 @@ details summary:focus-visible { outline: 2px solid var(--accent); outline-offset
 .col-head { text-align: left; padding: 3px 0; }
 
 /* ── sessions: sidebar grouping ── */
-.session-toolbar { display: flex; gap: 6px; padding: 4px 10px 6px; }
 .session-grouping-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px;
   padding: 8px 10px; margin: 0 8px 6px; border: 1px solid var(--accent); border-radius: 8px;
   background: color-mix(in srgb, var(--accent) 10%, transparent); }

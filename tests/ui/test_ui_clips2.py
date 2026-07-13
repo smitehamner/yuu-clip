@@ -627,6 +627,8 @@ class TestClipFilterChips:
 
     def test_export_chips_mutually_exclusive(self, page: Page):
         select_video_with_clips(page)
+        # Export chips now live inside the collapsed "More filters" expander.
+        page.click("#clip-more-filters > summary")
         exported = page.locator("button.clip-chip[data-filter='exported']")
         not_exported = page.locator("button.clip-chip[data-filter='not-exported']")
         exported.click()
@@ -634,6 +636,35 @@ class TestClipFilterChips:
         not_exported.click()
         expect(not_exported).to_have_attribute("aria-pressed", "true")
         expect(exported).to_have_attribute("aria-pressed", "false")
+
+    def test_status_chips_visible_warning_chips_hidden_when_collapsed(self, page: Page):
+        select_video_with_clips(page)
+        # The "More filters" expander starts collapsed.
+        assert page.evaluate(
+            "() => document.getElementById('clip-more-filters').open"
+        ) is False
+        for token in ("all", "pending", "approved", "rejected"):
+            expect(
+                page.locator(f"button.clip-chip[data-filter='{token}']")
+            ).to_be_visible()
+        for token in ("exported", "not-exported", "error", "flagged", "duplicate"):
+            expect(
+                page.locator(f"button.clip-chip[data-filter='{token}']")
+            ).not_to_be_visible()
+
+    def test_activating_hidden_filter_autoopens_expander(self, page: Page):
+        select_video_with_clips(page)
+        assert page.evaluate(
+            "() => document.getElementById('clip-more-filters').open"
+        ) is False
+        page.evaluate("() => toggleClipFilter('flagged')")
+        assert page.evaluate(
+            "() => document.getElementById('clip-more-filters').open"
+        ) is True
+        expect(page.locator("#clip-more-filters .clip-more-flag")).to_be_visible()
+        expect(
+            page.locator("button.clip-chip[data-filter='flagged']")
+        ).to_be_visible()
 
 
 # ---------------------------------------------------------------------------
@@ -1004,3 +1035,49 @@ class TestBasicDescriptionChip:
         page.wait_for_selector("#video-list li[data-video-id]", timeout=5000)
         self._render_with_state(page, self._clip(9402, []))
         expect(page.locator(".basic-desc-chip")).to_have_count(0)
+
+
+# ---------------------------------------------------------------------------
+# Sidebar declutter Stage 2 - Clips header "..." actions menu
+# ---------------------------------------------------------------------------
+
+@skip_no_server
+class TestClipsActionsMenu:
+    def test_menu_opens_and_toggles_aria(self, page: Page):
+        select_video_with_clips(page)
+        trigger = page.locator("#btn-clips-actions")
+        expect(trigger).to_have_attribute("aria-expanded", "false")
+        trigger.click()
+        expect(page.locator(".hamburger-menu.open")).to_be_visible()
+        expect(trigger).to_have_attribute("aria-expanded", "true")
+        expect(page.locator(".hamburger-menu.open .hamburger-item")).to_have_count(2)
+
+    def test_escape_closes_and_returns_focus(self, page: Page):
+        select_video_with_clips(page)
+        page.click("#btn-clips-actions")
+        expect(page.locator(".hamburger-menu.open")).to_be_visible()
+        page.keyboard.press("Escape")
+        expect(page.locator(".hamburger-menu.open")).to_have_count(0)
+        expect(page.locator("#btn-clips-actions")).to_have_attribute(
+            "aria-expanded", "false")
+        assert page.evaluate(
+            "() => document.activeElement.id") == "btn-clips-actions"
+
+    def test_check_duplicates_shows_busy_state_on_trigger(self, page: Page):
+        select_video_with_clips(page)
+        # Freeze the scan request so the in-flight "Checking..." state persists
+        # long enough to assert it lands on the kebab trigger button.
+        page.evaluate(
+            """() => {
+                const orig = window.fetch;
+                window.fetch = (url, opts) =>
+                    String(url).includes('scan-duplicates')
+                        ? new Promise(() => {})
+                        : orig(url, opts);
+            }"""
+        )
+        page.click("#btn-clips-actions")
+        page.click(".hamburger-menu.open .hamburger-item:has-text('Check duplicates')")
+        trigger = page.locator("#btn-clips-actions")
+        expect(trigger).to_be_disabled()
+        expect(trigger).to_have_text("Checking...")

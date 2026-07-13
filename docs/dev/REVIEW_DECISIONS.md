@@ -7,6 +7,31 @@ same thing without the context. Most recent first.
 
 ---
 
+## Sidebar declutter - width and disclosure calls (2026-07-12)
+
+UX pass that moved rare sidebar controls behind "More filters" `<details>` and into
+per-section "..." menus. Two deliberate calls to record:
+
+### `--sidebar-width` raised to 300px to keep the primary filter row on one line
+Decision: Keep 300px (was 240px).
+Rationale: The primary clip status row (All / Unreviewed / Approved / Rejected, each
+with a count badge) wraps to two lines below ~295px. 300px is the measured one-line
+threshold plus a small cushion. This was raised deliberately in response to a direct
+user request ("keep the filter on one line"); a future pass should not "reclaim" the
+width back toward 240px without re-checking that the status row still fits. Chip
+padding/font were left at their Stage-0 sizes rather than shrunk, to preserve tap
+targets - the width bump was the chosen lever.
+
+### Section action menus reuse `showKebab()`, not a new dropdown
+Decision: Reuse the existing `showKebab()`/`.hamburger-menu` scheme.
+Rationale: The Clips and Recordings header "..." menus intentionally use the same
+`ui.js showKebab()` helper as the existing clip-row and description kebabs, so there is
+one dropdown/close/click-away/Escape scheme, not two. The `right:auto` fix in
+`showKebab` (the fixed menu had inherited `.hamburger-menu`'s `right:0` and stretched to
+the viewport edge) benefits all callers - do not special-case the sidebar menus.
+
+---
+
 ## Phase 7 UX/UI (dedup, word-highlight captions, colour picker, context-scoped terms) (2026-07-10)
 
 UX/UI phase of the code-quality review over the changes since baseline `16a30fa`.

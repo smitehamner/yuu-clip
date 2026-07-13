@@ -6,6 +6,32 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) - see the
 
 ---
 
+## Sidebar declutter - progressive disclosure + action menus (done 2026-07-12)
+
+A UX pass (`shqr-ux-ui-review`) over the sidebar, which had grown to ~35 persistent
+controls stacked in a narrow column - the everyday review loop was visually buried
+among rare filters, with no hierarchy or disclosure. Combined progressive disclosure
+with relocating rare actions, across both the Recordings and Clips blocks; nothing
+was removed, only re-homed. UI-only (`web/static/{index.html,app.css,clips.js,
+videos.js,sessions.js,ui.js}` + 8 `tests/ui/test_ui_*.py`). Four stages:
+
+- **Stage 0 - hierarchy.** The four clip status chips (All / Unreviewed / Approved /
+  Rejected) now read as the primary controls; warning/export chips recede. Redundant
+  Sort/Filter/Type micro-labels dropped (aria-labels kept).
+- **Stage 1 - Clips "More filters".** The warning filters (Score error / Flagged /
+  Duplicates), export-state filters, and the min-score dropdown moved into a
+  `<details>` that auto-opens with a "filtered" dot when one of them is active, so the
+  user never loses track of why the list is filtered (`clips.js _syncMoreFilters()`).
+- **Stage 2 - section action menus.** A kebab "..." menu on each section header,
+  reusing the existing `showKebab()`/`.hamburger-menu` scheme: Clips = New clip +
+  Check duplicates; Recordings = Group + Suggest sessions (the standalone session
+  toolbar row removed). Also fixed a latent `showKebab` bug - it reused
+  `.hamburger-menu`'s `right:0`, so the fixed menu stretched to the viewport edge;
+  cleared with `right:auto` (also tidies the pre-existing row/description kebabs).
+- **Stage 3 - Recordings "More filters"** mirrors Stage 1 (Unscored + Errors hidden;
+  All / Has clips stay visible). `--sidebar-width` raised 240 -> 300px so the primary
+  status row stays on one line at default width.
+
 ## Clips vs Scenes - a second, longer candidate type (done 2026-07-11)
 
 Added **Scenes** - longer contextual candidates (1-5 min, may include pauses and a

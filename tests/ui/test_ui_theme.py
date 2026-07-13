@@ -150,6 +150,10 @@ class TestContrastTokens:
     def test_text_on_surface(self, page: Page):
         assert self._ratio(page, "--text", "--surface") >= AA_NORMAL_TEXT
 
+    def test_text_on_bg(self, page: Page):
+        # Primary (idle) status filter chips render --text on a --bg fill.
+        assert self._ratio(page, "--text", "--bg") >= AA_NORMAL_TEXT
+
 
 @skip_no_server
 class TestThemeSwitcher:

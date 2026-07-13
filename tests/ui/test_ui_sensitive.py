@@ -209,6 +209,8 @@ class TestFlaggedFilterTab:
             self._base_clip(9401, matches),
             self._base_clip(9402, []),
         ])
+        # Flagged now lives inside the collapsed "More filters" expander.
+        page.click("#clip-more-filters > summary")
         page.click("[data-filter='flagged']")
         expect(page.locator("#clip-list li[data-clip-id]")).to_have_count(1)
         expect(page.locator("#clip-list li[data-clip-id='9401']")).to_be_visible()
@@ -218,6 +220,7 @@ class TestFlaggedFilterTab:
         page.goto(LIVE_URL)
         page.wait_for_selector("#video-list li[data-video-id]", timeout=5000)
         self._set_clips_and_render(page, [self._base_clip(9403, [])])
+        page.click("#clip-more-filters > summary")
         page.click("[data-filter='flagged']")
         expect(page.locator("#clip-list")).to_contain_text("No flagged clips")
         page.click("[data-filter='all']")

@@ -136,10 +136,8 @@ function toggleGroupSelect(videoId) {
 
 function _syncGroupingBar() {
   const bar = document.getElementById('session-grouping-bar');
-  const toolbar = document.getElementById('session-toolbar');
   if (!bar) return;
   bar.style.display = SessionUI.selectionMode ? '' : 'none';
-  if (toolbar) toolbar.style.display = SessionUI.selectionMode ? 'none' : '';
   const count = SessionUI.selected.size;
   const countEl = document.getElementById('session-grouping-count');
   if (countEl) countEl.textContent = plural(count, 'selected recording');
@@ -206,6 +204,13 @@ async function suggestSessions() {
     return;
   }
   _showSuggestionModal(fresh);
+}
+
+function openRecordingsActionsMenu(btn) {
+  showKebab(btn, [
+    { label: 'Group', action: () => enterGroupingMode() },
+    { label: 'Suggest sessions', action: () => suggestSessions() },
+  ]);
 }
 
 function _showSuggestionModal(groups) {
@@ -475,6 +480,6 @@ function _fmtGap(ms) {
 Object.assign(window, {
   SessionUI, loadSessions, isSessionCollapsed, sessionGroupHeaderLi,
   enterGroupingMode, exitGroupingMode, toggleGroupSelect, confirmGroupSelection,
-  suggestSessions, selectSession,
+  suggestSessions, openRecordingsActionsMenu, selectSession,
 });
 })();

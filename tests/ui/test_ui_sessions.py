@@ -14,6 +14,11 @@ from conftest import skip_no_server
 from playwright.sync_api import Page, expect
 
 
+def _open_recordings_menu_action(page: Page, label: str) -> None:
+    page.click("#btn-recordings-actions")
+    page.click(f".hamburger-menu.open .hamburger-item:has-text('{label}')")
+
+
 def _video(vid, session_id=None, title="", approved=0, **extra):
     base = {
         "id": vid, "filename": f"rec{vid}.mkv", "path": f"rec{vid}.mkv",
@@ -133,7 +138,7 @@ class TestSidebarGrouping:
 class TestGroupingMode:
     def test_selection_mode_shows_checkboxes_and_bar(self, page: Page):
         _boot_with_sessions(page)
-        page.click("#session-toolbar button:has-text('Group')")
+        _open_recordings_menu_action(page, "Group")
         expect(page.locator("#session-grouping-bar")).to_be_visible()
         assert page.locator("#video-list .session-select-box").count() >= 1
         # Selecting the lone ungrouped recording is not enough (needs 2+) - the
@@ -147,6 +152,40 @@ class TestGroupingMode:
 
 
 @skip_no_server
+class TestRecordingsActionsMenu:
+    def test_menu_opens_and_toggles_aria(self, page: Page):
+        _boot_with_sessions(page)
+        trigger = page.locator("#btn-recordings-actions")
+        expect(trigger).to_have_attribute("aria-expanded", "false")
+        trigger.click()
+        expect(page.locator(".hamburger-menu.open")).to_be_visible()
+        expect(trigger).to_have_attribute("aria-expanded", "true")
+        expect(
+            page.locator(".hamburger-menu.open .hamburger-item")
+        ).to_have_count(2)
+
+    def test_escape_closes_and_returns_focus(self, page: Page):
+        _boot_with_sessions(page)
+        page.click("#btn-recordings-actions")
+        expect(page.locator(".hamburger-menu.open")).to_be_visible()
+        page.keyboard.press("Escape")
+        expect(page.locator(".hamburger-menu.open")).to_have_count(0)
+        expect(page.locator("#btn-recordings-actions")).to_have_attribute(
+            "aria-expanded", "false")
+        assert page.evaluate(
+            "() => document.activeElement.id") == "btn-recordings-actions"
+
+    def test_click_away_closes_menu(self, page: Page):
+        _boot_with_sessions(page)
+        page.click("#btn-recordings-actions")
+        expect(page.locator(".hamburger-menu.open")).to_be_visible()
+        # Click the section title, which sits above/left of the dropdown so the
+        # menu does not intercept the click.
+        page.locator(".videos-group .clips-section-header > span").click()
+        expect(page.locator(".hamburger-menu.open")).to_have_count(0)
+
+
+@skip_no_server
 class TestSuggestPrompt:
     def test_suggestion_dismiss_is_remembered(self, page: Page):
         page.evaluate("localStorage.removeItem('yuuclip-session-dismissed')")
@@ -154,13 +193,13 @@ class TestSuggestPrompt:
             ("**/api/sessions/suggestions",
              [{"video_ids": [9003, 9004], "titles": ["Loner", "Other"]}]),
         ])
-        page.click("#session-toolbar button:has-text('Suggest')")
+        _open_recordings_menu_action(page, "Suggest sessions")
         expect(page.locator(".session-suggestion")).to_be_visible()
         page.click(".session-suggestion button:has-text('Dismiss')")
         # Dismissing the only suggestion closes the modal.
         expect(page.locator(".session-suggestion")).to_have_count(0)
         # Re-opening surfaces no new suggestion (dismissal persisted) → info toast.
-        page.click("#session-toolbar button:has-text('Suggest')")
+        _open_recordings_menu_action(page, "Suggest sessions")
         expect(page.locator(".toast")).to_contain_text("separate")
 
 

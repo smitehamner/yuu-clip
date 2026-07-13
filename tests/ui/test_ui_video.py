@@ -464,3 +464,55 @@ class TestRecordingFilterCounts:
         self._seed(page, [])
         for key in ("all", "has-clips", "unscored", "errors"):
             expect(self._badge(page, key)).to_have_text("")
+
+
+@skip_no_server
+class TestRecordingMoreFilters:
+    """Stage 3: the rare recording filters (Unscored, Errors) live inside a
+    collapsed "More filters" expander; the everyday All / Has clips chips stay
+    visible. Activating a hidden filter auto-opens the expander (mirrors the
+    Clips block)."""
+
+    def test_primary_chips_visible_rare_chips_hidden_when_collapsed(self, page: Page):
+        page.goto(LIVE_URL)
+        page.wait_for_selector("#video-list li", timeout=5000)
+        assert page.evaluate(
+            "() => document.getElementById('video-more-filters').open"
+        ) is False
+        for token in ("all", "has-clips"):
+            expect(
+                page.locator(f"button.clip-chip[data-vfilter='{token}']")
+            ).to_be_visible()
+        for token in ("unscored", "errors"):
+            expect(
+                page.locator(f"button.clip-chip[data-vfilter='{token}']")
+            ).not_to_be_visible()
+
+    def test_activating_hidden_filter_autoopens_expander(self, page: Page):
+        page.goto(LIVE_URL)
+        page.wait_for_selector("#video-list li", timeout=5000)
+        assert page.evaluate(
+            "() => document.getElementById('video-more-filters').open"
+        ) is False
+        page.evaluate("() => toggleVideoFilter('unscored')")
+        assert page.evaluate(
+            "() => document.getElementById('video-more-filters').open"
+        ) is True
+        expect(page.locator("#video-more-filters .clip-more-flag")).to_be_visible()
+        expect(
+            page.locator("button.clip-chip[data-vfilter='unscored']")
+        ).to_be_visible()
+
+    def test_flag_clears_and_collapse_allowed_back_at_all(self, page: Page):
+        page.goto(LIVE_URL)
+        page.wait_for_selector("#video-list li", timeout=5000)
+        # Activate then clear back to All: the flag hides and the expander is no
+        # longer forced open (the user may collapse it).
+        page.evaluate("() => toggleVideoFilter('errors')")
+        expect(page.locator("#video-more-filters .clip-more-flag")).to_be_visible()
+        page.evaluate("() => toggleVideoFilter('all')")
+        expect(page.locator("#video-more-filters .clip-more-flag")).to_be_hidden()
+        page.evaluate("() => { document.getElementById('video-more-filters').open = false; }")
+        assert page.evaluate(
+            "() => document.getElementById('video-more-filters').open"
+        ) is False

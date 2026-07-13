@@ -217,6 +217,22 @@ function _syncVideoFilterChips() {
     chip.classList.toggle('active', active);
     chip.setAttribute('aria-pressed', active ? 'true' : 'false');
   });
+  _syncVideoMoreFilters();
+}
+
+// Recording filters that live inside the "More filters" expander. Mirrors
+// clips.js _HIDDEN_FILTER_TOKENS / _syncMoreFilters: force the expander open
+// whenever one of the filters it hides is active (and show the "filtered" dot),
+// so the list is never mysteriously filtered. Only ever forced OPEN - on return
+// to All / Has clips the user can collapse it again.
+const _HIDDEN_VFILTER_TOKENS = ['unscored', 'errors'];
+function _syncVideoMoreFilters() {
+  const details = document.getElementById('video-more-filters');
+  if (!details) return;
+  const active = _HIDDEN_VFILTER_TOKENS.some(t => AppState.videoFilters.has(t));
+  if (active) details.open = true;
+  const flag = details.querySelector('[data-more-flag]');
+  if (flag) flag.hidden = !active;
 }
 
 function _clearVideoFilters() {
