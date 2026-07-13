@@ -197,40 +197,55 @@ async function copyText(text, label) {
 // isCardCollapsed(key). Clicking (or Enter/Space) on the header toggles and
 // persists; clicks on controls inside the header are ignored so their own actions
 // still fire.
-const _COLLAPSED_CARDS_KEY = 'yuuclip-collapsed-cards';
+const _CARD_COLLAPSE_KEY = 'yuuclip-card-collapsed';
 
-function _collapsedCardSet() {
-  try { return new Set(JSON.parse(localStorage.getItem(_COLLAPSED_CARDS_KEY) || '[]')); }
-  catch { return new Set(); }
+function _cardCollapseState() {
+  try { return JSON.parse(localStorage.getItem(_CARD_COLLAPSE_KEY) || '{}') || {}; }
+  catch { return {}; }
 }
 
-function isCardCollapsed(key) { return _collapsedCardSet().has(key); }
+// Persisted collapse state per card key. defaultCollapsed lets a card (e.g. the
+// heavy full-video transcript) start collapsed until the user opens it.
+function isCardCollapsed(key, defaultCollapsed = false) {
+  const state = _cardCollapseState();
+  return key in state ? !!state[key] : defaultCollapsed;
+}
 
 function _toggleCollapsibleCard(card, header) {
   const collapsed = card.classList.toggle('collapsed');
   header.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
   const key = card.dataset.collapseKey;
   if (!key) return;
-  const set = _collapsedCardSet();
-  if (collapsed) set.add(key); else set.delete(key);
-  localStorage.setItem(_COLLAPSED_CARDS_KEY, JSON.stringify([...set]));
+  const state = _cardCollapseState();
+  state[key] = collapsed;
+  localStorage.setItem(_CARD_COLLAPSE_KEY, JSON.stringify(state));
+  // Lets a card lazy-load its body the first time it is expanded.
+  card.dispatchEvent(new CustomEvent('cardtoggle', { bubbles: true, detail: { key, collapsed } }));
+}
+
+// Only the card's own first header toggles it - nested headers (the compound
+// Description card) neither toggle nor show a chevron.
+function _collapsibleFirstHeader(target) {
+  const header = target.closest('.detail-card-header');
+  if (!header) return null;
+  const card = header.parentElement;
+  if (!card.classList.contains('collapsible') || header !== card.firstElementChild) return null;
+  return { card, header };
 }
 
 document.addEventListener('click', (e) => {
-  const header = e.target.closest('.detail-card-header');
-  if (!header) return;
-  const card = header.parentElement;
-  if (!card.classList.contains('collapsible')) return;
+  const hit = _collapsibleFirstHeader(e.target);
+  if (!hit) return;
   if (e.target.closest('button, a, input, select, textarea, label')) return;
-  _toggleCollapsibleCard(card, header);
+  _toggleCollapsibleCard(hit.card, hit.header);
 });
 
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Enter' && e.key !== ' ') return;
-  const header = e.target.closest('.detail-card-header');
-  if (!header || header !== e.target || !header.parentElement.classList.contains('collapsible')) return;
+  const hit = _collapsibleFirstHeader(e.target);
+  if (!hit || hit.header !== e.target) return;
   e.preventDefault();
-  _toggleCollapsibleCard(header.parentElement, header);
+  _toggleCollapsibleCard(hit.card, hit.header);
 });
 
 Object.assign(window, {

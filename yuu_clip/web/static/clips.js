@@ -530,11 +530,11 @@ function renderDetail(clip) {
 
     ${scoringActionsHtml}
 
-    <div class="detail-card">
-      <div class="detail-card-header">
+    <div class="detail-card collapsible${isCardCollapsed('clip-description') ? ' collapsed' : ''}" data-collapse-key="clip-description">
+      <div class="detail-card-header" role="button" tabindex="0" aria-expanded="${isCardCollapsed('clip-description') ? 'false' : 'true'}">
         <span class="detail-card-title">Description${eb(clip.description_is_edited)}</span>
         <div style="display:flex;gap:4px">
-          ${clip.description ? `<button class="copy-icon-btn" title="Copy description" aria-label="Copy description" data-copy="description">&#128203;</button>` : ''}
+          ${clip.description ? `<button class="btn ghost" style="font-size:11px;padding:3px 9px" title="Copy description" aria-label="Copy description" data-copy="description">Copy</button>` : ''}
           <button class="kebab-btn" title="Edit or regenerate description" aria-label="Edit or regenerate description" onclick="openDescKebab(${clip.id}, this)">&#8942;</button>
         </div>
       </div>
@@ -571,8 +571,8 @@ function renderDetail(clip) {
     </div>
 
     ${clip.related_clips ? `
-      <div class="detail-card" id="related-clips-section">
-        <div class="detail-card-header" style="justify-content:flex-start;gap:8px">
+      <div class="detail-card collapsible${isCardCollapsed('clip-related') ? ' collapsed' : ''}" id="related-clips-section" data-collapse-key="clip-related">
+        <div class="detail-card-header" style="justify-content:flex-start;gap:8px" role="button" tabindex="0" aria-expanded="${isCardCollapsed('clip-related') ? 'false' : 'true'}">
           <span class="detail-card-title">Related Clips</span>
           ${clip.related_clips_stale ? `<span style="font-size:11px;color:var(--warning);font-style:italic">stale - re-score updated</span>` : ''}
           <span style="font-size:11px;color:var(--muted);margin-left:auto">${clip.related_clips_at ? _fmtAgo(clip.related_clips_at) : ''}</span>
@@ -585,10 +585,10 @@ function renderDetail(clip) {
       </div>` : ''}
 
     ${clip.transcript_excerpt ? `
-      <div class="detail-card">
-        <div class="detail-card-header">
+      <div class="detail-card collapsible${isCardCollapsed('clip-transcript') ? ' collapsed' : ''}" data-collapse-key="clip-transcript">
+        <div class="detail-card-header" role="button" tabindex="0" aria-expanded="${isCardCollapsed('clip-transcript') ? 'false' : 'true'}">
           <span class="detail-card-title">Transcript</span>
-          <button class="copy-icon-btn" title="Copy transcript" aria-label="Copy transcript" data-copy="transcript">&#128203;</button>
+          <button class="btn ghost" style="font-size:11px;padding:3px 9px" title="Copy transcript" aria-label="Copy transcript" data-copy="transcript">Copy</button>
         </div>
         ${clip.transcript_stale ? `<div class="transcript-stale-note">&#9888; Captions edited since last scoring - <button class="btn ghost" style="font-size:11px;padding:2px 8px" onclick="rescoreClip(${clip.id})">Re-score</button> to refresh.</div>` : ''}
         <div id="clip-transcript-view" class="transcript">${escHtml(clip.transcript_excerpt)}</div>
@@ -618,8 +618,8 @@ function _visionDetailHTML(clip) {
        <div style="font-size:11px;color:var(--muted);margin-top:4px">Analyzed ${_fmtAgo(clip.vision_analyzed_at)}</div>`
     : `<div style="color:var(--muted);font-size:13px">Sample frames from this clip and describe what's on screen - it enriches the description and gives scoring visual context.</div>`;
   return `
-    <div class="detail-card">
-      <div class="detail-card-header"><span class="detail-card-title">What's on screen</span></div>
+    <div class="detail-card collapsible${isCardCollapsed('clip-vision') ? ' collapsed' : ''}" data-collapse-key="clip-vision">
+      <div class="detail-card-header" role="button" tabindex="0" aria-expanded="${isCardCollapsed('clip-vision') ? 'false' : 'true'}"><span class="detail-card-title">What's on screen</span></div>
       ${body}
       <div style="margin-top:8px">
         <button class="btn ghost" id="analyze-frames-btn" style="font-size:12px;padding:3px 10px"

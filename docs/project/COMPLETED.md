@@ -1,10 +1,48 @@
-# yuu-clip - Completed Features
+# YuuClip - Completed Features
 
 Recent shipped items. For pending work see [ROADMAP.md](ROADMAP.md).
 Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) - see the
 "Archived series" index at the bottom of this file.
 
 ---
+
+## UI personality pass - cyan/gold retheme, YuuClip rebrand, collapsible cards (done 2026-07-13)
+
+Moved the web UI off its generic dark-dashboard look toward a chosen identity for an
+indie, local-first gaming-clip tool, plus a round of follow-on UX polish. Direction
+came from a mockup pitch; the reusable "anti-generic" review dimension now lives in the
+`shqr-ux-ui-review` skill. UI + docs only.
+
+- **Palette.** Default accent is now cyan (indigo `#6f5df5` retired; accent options
+  Cyan / Blue). A reserved gold `--highlight` / `--on-highlight` pair is spent only on
+  the high-frequency actions - **Analyze** and **Export** - and the overall score bar;
+  everything else stays cyan. Contrast holds WCAG AA across all three themes x two
+  accents (`tests/ui/test_ui_theme.py`, with `--highlight` added to the contract).
+- **Type.** A bundled self-hosted display face (Oxanium, OFL 1.1) on the wordmark and
+  condensed-caps section headers via `--font-display` - swappable (one file + one
+  token). Cyan-gradient wordmark; mono/tabular timecodes.
+- **Shape.** A consistent 10px card-radius signature (`--radius`), the gamercat mascot
+  promoted in the first-run empty state, and subtle per-row zebra striping on the
+  recordings/clips sidebar lists.
+- **Collapsible detail cards.** A reusable opt-in mechanism (`.collapsible` +
+  `data-collapse-key`, keyboard-accessible header, chevron on the title, state
+  persisted to localStorage, a `cardtoggle` event for lazy bodies - `utils.js`).
+  Applied to Full transcript (converted from the old `<details>` widget, still
+  lazy-loads and now remembers its state), Session Summary (recording + session),
+  timelines, Description, Related Clips, What's on screen, World Contexts, and Speakers.
+- **Rebrand.** Display name `yuu-clip` -> **YuuClip** across the web UI, Electron
+  window/menu/setup/installer, and docs. Code identifiers, `.yuu-clip` paths, the
+  `yuuclip` CLI token, `yuuclip-*` localStorage keys, appId, URLs, and the dist name
+  are unchanged; Electron `productName` -> YuuClip with `artifactName` pinned so the
+  installer filename convention holds. The glossary records the display/code split.
+- **Misc.** The Description/Transcript "Copy" controls are now plain text buttons
+  instead of a clipboard emoji.
+
+Files: `web/static/*` (app.css, index.html, feature JS modules), a bundled
+`web/static/fonts/oxanium.woff2` (+ OFL.txt), `electron/*`, `README.md`,
+`docs/user/**`, `docs/dev/GLOSSARY.md`, and the affected `tests/ui/test_ui_*.py`.
+Green: full UI 849/850 (1 known parallel-load speaker/panelnav flake, passes isolated),
+Electron 146.
 
 ## Sidebar declutter - progressive disclosure + action menus (done 2026-07-12)
 

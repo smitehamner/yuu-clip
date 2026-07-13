@@ -348,8 +348,8 @@ function _renderSessionDetail(session) {
       </div>
     </div>
 
-    <div class="detail-card">
-      <div class="detail-card-header">
+    <div class="detail-card collapsible${isCardCollapsed('session-summary') ? ' collapsed' : ''}" data-collapse-key="session-summary">
+      <div class="detail-card-header" role="button" tabindex="0" aria-expanded="${isCardCollapsed('session-summary') ? 'false' : 'true'}">
         <span class="detail-card-title">Session Summary${eb(session.summary_is_edited)}</span>
         <button class="btn ghost" id="session-summarize-btn">${session.summary ? 'Regenerate' : 'Generate Summary'}</button>
       </div>
@@ -364,8 +364,8 @@ function _renderSessionDetail(session) {
       </div>
     </div>
 
-    <div class="detail-card">
-      <div class="detail-card-header"><span class="detail-card-title">Unified Timeline</span></div>
+    <div class="detail-card collapsible${isCardCollapsed('session-timeline') ? ' collapsed' : ''}" data-collapse-key="session-timeline">
+      <div class="detail-card-header" role="button" tabindex="0" aria-expanded="${isCardCollapsed('session-timeline') ? 'false' : 'true'}"><span class="detail-card-title">Unified Timeline</span></div>
       <div id="session-timeline">${_renderUnifiedTimeline(session)}</div>
     </div>`;
 

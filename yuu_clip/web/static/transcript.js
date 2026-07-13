@@ -110,8 +110,8 @@ async function loadVideoTranscript(videoId) {
 // full-transcript panel is expanded, reloads it in place.
 function reloadVideoTranscriptIfOpen(videoId) {
   _videoTranscriptLoadedFor = null;
-  const details = document.getElementById('video-transcript-details');
-  if (details && details.open) loadVideoTranscript(videoId);
+  const card = document.getElementById('video-transcript-details');
+  if (card && !card.classList.contains('collapsed')) loadVideoTranscript(videoId);
 }
 
 // ── per-line speaker control (rename + reassign) ───────────────────────────────
@@ -330,14 +330,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const text = e.target.closest && e.target.closest('.tline-text.editable');
     if (text && !text.classList.contains('editing')) { e.preventDefault(); startEditCaption(text); }
   });
-  // 'toggle' does not bubble - listen in the capture phase to catch it on the
-  // <details> element, and lazy-load the full-video transcript on first expand.
-  detail.addEventListener('toggle', e => {
-    const d = e.target;
-    if (d && d.id === 'video-transcript-details' && d.open) {
-      loadVideoTranscript(parseInt(d.dataset.videoId, 10));
+  // Lazy-load the full-video transcript the first time its collapsible card is
+  // expanded (cardtoggle bubbles up from the card - see utils.js).
+  detail.addEventListener('cardtoggle', e => {
+    if (e.detail.key === 'video-transcript' && !e.detail.collapsed) {
+      const card = document.getElementById('video-transcript-details');
+      if (card) loadVideoTranscript(parseInt(card.dataset.videoId, 10));
     }
-  }, true);
+  });
 });
 
 Object.assign(window, {

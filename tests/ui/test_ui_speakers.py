@@ -143,7 +143,7 @@ class TestSpeakerNaming:
 
         select_video_with_clips(page)
 
-        page.locator("#video-transcript-details summary").click()
+        page.locator("#video-transcript-details .detail-card-title").click()
         expect(page.locator("#video-transcript-view .tline-speaker").first).to_have_text("Speaker 1")
 
         name_input = page.locator(".speaker-name-input")

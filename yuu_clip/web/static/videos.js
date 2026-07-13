@@ -408,8 +408,8 @@ function renderVideoDetail(video, savedTimeline) {
 
     ${_renderContextSection(video)}
 
-    <div class="detail-card">
-      <div class="detail-card-header">
+    <div class="detail-card collapsible${isCardCollapsed('video-summary') ? ' collapsed' : ''}" data-collapse-key="video-summary">
+      <div class="detail-card-header" role="button" tabindex="0" aria-expanded="${isCardCollapsed('video-summary') ? 'false' : 'true'}">
         <span class="detail-card-title">Session Summary${eb(video.summary_is_edited)}</span>
         ${video.summary
           ? `<button class="kebab-btn" title="Edit or regenerate summary" aria-label="Edit or regenerate summary" onclick="openVideoSummaryKebab(${video.id}, this)">&#8942;</button>`
@@ -433,21 +433,21 @@ function renderVideoDetail(video, savedTimeline) {
     <div id="speakers-section"></div>
 
     ${(video.clip_count > 0 || video.status === 'done') ? `
-    <div class="detail-card">
-      <div style="display:flex;justify-content:flex-end;gap:6px;margin-bottom:4px">
-        <button class="btn ghost" style="font-size:11px;padding:3px 9px" title="Scan the transcript for mis-heard names (e.g. &quot;You&quot; for &quot;Yuu&quot;) and fix them"
-                onclick="openNameCorrections(${video.id})">Fix names</button>
-        <button class="btn ghost" style="font-size:11px;padding:3px 9px" title="Pick a time range to create a clip by hand"
-                onclick="openClipCreatePicker(${video.id})">Create clip</button>
+    <div class="detail-card collapsible${isCardCollapsed('video-transcript', true) ? ' collapsed' : ''}" id="video-transcript-details" data-collapse-key="video-transcript" data-video-id="${video.id}">
+      <div class="detail-card-header" role="button" tabindex="0" aria-expanded="${isCardCollapsed('video-transcript', true) ? 'false' : 'true'}">
+        <span class="detail-card-title">Full transcript</span>
+        <span style="display:flex;gap:6px">
+          <button class="btn ghost" style="font-size:11px;padding:3px 9px" title="Scan the transcript for mis-heard names (e.g. &quot;You&quot; for &quot;Yuu&quot;) and fix them"
+                  onclick="openNameCorrections(${video.id})">Fix names</button>
+          <button class="btn ghost" style="font-size:11px;padding:3px 9px" title="Pick a time range to create a clip by hand"
+                  onclick="openClipCreatePicker(${video.id})">Create clip</button>
+        </span>
       </div>
-      <details id="video-transcript-details" class="transcript-details" data-video-id="${video.id}">
-        <summary class="transcript-summary">Full transcript</summary>
-        <div id="video-transcript-view" class="transcript"></div>
-      </details>
+      <div id="video-transcript-view" class="transcript"></div>
     </div>` : ''}
 
-    <div class="detail-card">
-      <div class="detail-card-header">
+    <div class="detail-card collapsible${isCardCollapsed('video-timeline') ? ' collapsed' : ''}" data-collapse-key="video-timeline">
+      <div class="detail-card-header" role="button" tabindex="0" aria-expanded="${isCardCollapsed('video-timeline') ? 'false' : 'true'}">
         <span class="detail-card-title">Session Timeline</span>
         <button class="btn ghost" id="btn-generate-timeline" onclick="generateTimeline(${video.id})">${video.has_timeline ? 'Regenerate Timeline' : 'Generate Timeline'}</button>
       </div>
@@ -457,6 +457,7 @@ function renderVideoDetail(video, savedTimeline) {
     </div>`;
 
   if (window.loadSpeakers) loadSpeakers(video.id);
+  if (window.reloadVideoTranscriptIfOpen) reloadVideoTranscriptIfOpen(video.id);
   _syncAnalysisLivePanel();
 
   if (!savedTimeline && video.has_timeline) {
@@ -668,8 +669,8 @@ function _renderContextSection(video) {
     : '';
 
   return `
-    <div class="detail-card">
-      <div class="detail-card-header">
+    <div class="detail-card collapsible${isCardCollapsed('video-contexts') ? ' collapsed' : ''}" data-collapse-key="video-contexts">
+      <div class="detail-card-header" role="button" tabindex="0" aria-expanded="${isCardCollapsed('video-contexts') ? 'false' : 'true'}">
         <span class="detail-card-title">World Contexts</span>
       </div>
       <div class="context-chips">

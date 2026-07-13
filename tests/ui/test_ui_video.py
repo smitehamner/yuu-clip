@@ -268,7 +268,7 @@ class TestVideoDetailCardLayout:
     def test_full_transcript_section_is_a_card(self, page: Page):
         _render_video_with(page, {"clip_count": 3, "status": "done"})
         expect(
-            page.locator("#detail .detail-card > #video-transcript-details")
+            page.locator("#detail #video-transcript-details.detail-card")
         ).to_have_count(1)
 
 
