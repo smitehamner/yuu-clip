@@ -510,8 +510,9 @@ function renderDetail(clip) {
         <div class="detail-card-header"><span class="detail-card-title">Actions</span></div>
         <div class="clip-actions">
           <div class="review-actions">
-            <button class="btn approve ${clip.status==='approved'?'active':''}" onclick="setStatus(${clip.id},'approved')" title="Approve (press A)">Approve</button>
-            <button class="btn reject  ${clip.status==='rejected'?'active':''}" onclick="setStatus(${clip.id},'rejected')" title="Reject (press R)">Reject</button>
+            <button class="btn approve ${clip.status==='approved'?'active':''}" onclick="setStatus(${clip.id},'${clip.status==='approved'?'pending':'approved'}')" title="Approve (press A)">Approve</button>
+            <button class="btn reject  ${clip.status==='rejected'?'active':''}" onclick="setStatus(${clip.id},'${clip.status==='rejected'?'pending':'rejected'}')" title="Reject (press R)">Reject</button>
+            <button class="btn ${clip.status==='pending'?'active':''}" onclick="setStatus(${clip.id},'pending')" title="Mark as Unreviewed (press U)">Unreviewed</button>
           </div>
           <div class="op-actions">
             <button class="btn highlight" onclick="exportClip(${clip.id})">${clip.has_export ? 'Re-export' : 'Export'}</button>
@@ -876,12 +877,6 @@ function openClipActionsModal(clipId) {
   const { prev, next } = _mergeNeighbors(clip);
 
   const groups = [];
-
-  if (clip.status !== 'pending') {
-    groups.push({ heading: 'Review', rows: [
-      { label: 'Mark Unreviewed', description: 'Clear the approve/reject status and return this clip to the unreviewed queue.', action: () => setStatus(clipId, 'pending') },
-    ]});
-  }
 
   const scoringRows = [
     { label: 'Re-score', description: 'Re-run scoring and description generation for this clip.', action: () => rescoreClip(clipId) },

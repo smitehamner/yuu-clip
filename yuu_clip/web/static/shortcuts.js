@@ -124,6 +124,10 @@ document.addEventListener('keydown', e => {
       e.preventDefault();
       _actOnSubject(id => setStatus(id, 'rejected'));
       break;
+    case 'u': case 'U':
+      e.preventDefault();
+      _actOnSubject(id => setStatus(id, 'pending'));
+      break;
     case ' ':
       e.preventDefault();
       { const v = document.querySelector('#player-area video'); if (v) { v.paused ? v.play() : v.pause(); } }
