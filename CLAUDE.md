@@ -107,14 +107,14 @@ suite explicitly.
 yuu_clip/
   cli/                     # Thin Typer adapters - analyze, export, reel, review, serve (+ _base). Commands parse args and call into pipeline/ and export/.
   dev/                     # The yuu-dev developer-loop CLI (serve/test-api/test-ui/lint/logs/status), Typer. Ports the old scripts/*.ps1; _summary.py = pytest-output summary core, procs.py = Windows process reap. scripts/*.ps1 are now one-line shims to this.
-  pipeline/                # The analyze engine: ingest (per-video orchestration + stages), run_meta (per-run timing/settings capture)
+  pipeline/                # The analyze engine: ingest (per-video orchestration + stages), run_meta (per-run timing/settings capture), vision_describe (opt-in auto vision-LLM description of top-N textless/visual clips)
   export/                  # The export feature: render (engine - cut, retranscribe, title card, captions), naming (filename stem), presets (definitions + size-cap math), paths (on-disk export/sidecar path resolution + export-query validation)
   console.py               # Shared Rich console + BYTES_PER_MB (used by cli/ and the engine; lives outside cli/ so the engine never imports cli)
   config.py                # Config + profile management
   db/models.py             # SQLAlchemy ORM (SQLite, NullPool)
-  analyze/                 # probe, labeler, extract, overlap
-  scoring/                 # energy, scenes, llm, llm_client, laugh, engine
-  segments/                # windower (sliding-window clip generation)
+  analyze/                 # probe, labeler, extract, overlap, motion (model-free frame-diff on-screen-activity timeline for the Visual axis)
+  scoring/                 # energy, scenes, llm, llm_client, laugh, engine, visual (on-screen-activity scorer feeding score_visual)
+  segments/                # windower (silence-gap clip generation), visual_windower (silent-but-visual candidate generation), merge (dedup + per-recording cap for visual candidates)
   transcribe/              # whisper_runner, diarization_client
   subtitles.py             # caption (SRT) generation
   contexts.py              # world-context storage + prompt formatting

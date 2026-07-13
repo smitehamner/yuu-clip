@@ -51,12 +51,14 @@ quality presets, export-time transcript upgrade, AMD/Intel GPU support.
 
 ## 0 - Positioning note
 
-Context for §3: yuu-clip today is a **talk-heavy
-analyzer** (transcript-driven candidate generation + scoring). That is its real sweet
-spot - RP/VC/podcast/narrative content - and it is a weakness for silent, visual
-gaming highlights. Marketing and onboarding copy should lean into the talk-heavy
-strength honestly rather than claim general "gaming highlights"; the visual case is
-tracked in §3 below.
+yuu-clip is at heart a **talk-heavy analyzer** (transcript-driven candidate generation
++ scoring). That is its real sweet spot - RP/VC/podcast/narrative content. The silent,
+visual gaming highlight now has a first-pass path too: the video-heavy / quiet-moment
+work shipped 2026-07-13 (Visual scoring axis, model-free on-screen-activity detection,
+opt-in visual clip generation, textless-clip UX, opt-in vision-LLM descriptions - see
+COMPLETED.md). Marketing and onboarding copy should still lead with the talk-heavy
+strength honestly rather than claim general "gaming highlights"; the visual support is
+a complement, not yet a match for a dedicated gameplay-clip tool.
 
 ---
 
