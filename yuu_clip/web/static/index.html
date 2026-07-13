@@ -1029,7 +1029,7 @@
   <div class="sidebar">
     <div class="sidebar-group videos-group">
       <div class="clips-section-header">
-        <span>Recordings</span>
+        <div class="section-toggle"><span class="section-toggle-btn active">Recordings</span></div>
         <div style="display:flex;align-items:center;gap:4px">
           <select id="videos-sort" class="clips-sort-select" aria-label="Sort recordings by" onchange="setVideoSort(this.value)">
             <option value="recent">&#128338; Recent</option>
@@ -1071,7 +1071,10 @@
     <div class="resize-handle resize-handle-v" id="videos-clips-resize-handle" title="Drag to resize Recordings / Clips panels" role="separator" aria-orientation="horizontal" aria-label="Resize Recordings / Clips panels"></div>
     <div class="sidebar-group clips-group">
       <div class="clips-section-header">
-        <span>Clips</span>
+        <div class="section-toggle" role="group" aria-label="Show clips or scenes">
+          <button class="section-toggle-btn active" aria-pressed="true"  data-kind="clip"  onclick="setClipKind('clip')" title="Show punchy clips (15-90s)">Clips</button>
+          <button class="section-toggle-btn"        aria-pressed="false" data-kind="scene" onclick="setClipKind('scene')" title="Show longer scenes (1-5 min contextual moments)">Scenes</button>
+        </div>
         <div style="display:flex;align-items:center;gap:8px">
           <select id="clips-sort" class="clips-sort-select" aria-label="Sort clips by" onchange="onClipsSortChange()">
             <option value="score">&#11088; Overall</option>
@@ -1088,10 +1091,6 @@
       </div>
       <div class="clip-search-row">
         <input type="search" id="clip-search-input" placeholder="Search clips…" title="Matches clip descriptions, transcript, and your tags" oninput="setClipSearch(this.value)" aria-label="Search clips by description, transcript, or tags">
-      </div>
-      <div class="clip-filter-tabs" role="group" aria-label="Show clips or scenes" style="margin-bottom:6px">
-        <button class="clip-chip kind-chip active" aria-pressed="true"  data-kind="clip"  onclick="setClipKind('clip')" title="Show punchy clips (15-90s)">Clips</button>
-        <button class="clip-chip kind-chip"        aria-pressed="false" data-kind="scene" onclick="setClipKind('scene')" title="Show longer scenes (1-5 min contextual moments)">Scenes</button>
       </div>
       <div class="clip-filter-tabs" aria-label="Clip filters">
         <button class="clip-chip active" aria-pressed="true"  data-filter="all"          onclick="toggleClipFilter('all')">All<span class="clip-chip-count" data-count="all"></span></button>

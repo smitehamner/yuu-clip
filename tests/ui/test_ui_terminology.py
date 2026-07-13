@@ -110,7 +110,7 @@ class TestPluralHelper:
 
 @skip_no_server
 def test_sidebar_heading_reads_recordings(page: Page):
-    heading = page.locator(".videos-group .clips-section-header > span").first
+    heading = page.locator(".videos-group .clips-section-header .section-toggle-btn").first
     expect(heading).to_have_text("Recordings")
 
 

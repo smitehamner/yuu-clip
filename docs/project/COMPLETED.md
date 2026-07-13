@@ -31,6 +31,11 @@ videos.js,sessions.js,ui.js}` + 8 `tests/ui/test_ui_*.py`). Four stages:
 - **Stage 3 - Recordings "More filters"** mirrors Stage 1 (Unscored + Errors hidden;
   All / Has clips stay visible). `--sidebar-width` raised 240 -> 300px so the primary
   status row stays on one line at default width.
+- **Follow-up - section-title toggles.** Both section headers now use a shared
+  segmented-toggle style (`.section-toggle`) carrying the title typography: the Clips
+  header's title slot is the Clips/Scenes toggle itself (removing the separate kind
+  row and saving a line), and the Recordings header is a single always-on segment so
+  the two headers read as a matched pair.
 
 ## Clips vs Scenes - a second, longer candidate type (done 2026-07-11)
 

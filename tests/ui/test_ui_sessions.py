@@ -179,9 +179,9 @@ class TestRecordingsActionsMenu:
         _boot_with_sessions(page)
         page.click("#btn-recordings-actions")
         expect(page.locator(".hamburger-menu.open")).to_be_visible()
-        # Click the section title, which sits above/left of the dropdown so the
-        # menu does not intercept the click.
-        page.locator(".videos-group .clips-section-header > span").click()
+        # Click the section title toggle, which sits above/left of the dropdown
+        # so the menu does not intercept the click.
+        page.locator(".videos-group .clips-section-header .section-toggle-btn").click()
         expect(page.locator(".hamburger-menu.open")).to_have_count(0)
 
 
