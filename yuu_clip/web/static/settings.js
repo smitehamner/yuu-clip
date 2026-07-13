@@ -9,6 +9,7 @@ const _settingsFieldIds = [
   's-vision-enabled','s-vision-frames',
   's-claude-api-key','s-claude-model','s-claude-timeout',
   's-diarization-backend','s-hf-token','s-speaker-match-threshold','s-speaker-cluster-threshold',
+  's-project-voice-match-threshold',
   's-similarity-backend',
   's-energy-weight','s-scene-weight','s-llm-weight',
   's-laugh-weight','s-laugh-mode','s-laugh-model-id','s-lexicon-weight',
@@ -237,6 +238,7 @@ function _applySpeakerFields(cfg) {
   _setFieldVal('s-hf-token', cfg.huggingface_token || '');
   _setFieldVal('s-speaker-match-threshold', (cfg.speaker_match_threshold ?? 0.75).toFixed(2));
   _setFieldVal('s-speaker-cluster-threshold', (cfg.speaker_cluster_threshold ?? 0.55).toFixed(2));
+  _setFieldVal('s-project-voice-match-threshold', (cfg.project_voice_match_threshold ?? 0.80).toFixed(2));
   _onHfTokenInput();
 }
 
@@ -744,6 +746,7 @@ async function saveSettings() {
     huggingface_token:          getVal('s-hf-token'),
     speaker_match_threshold:    getNum('s-speaker-match-threshold', parseFloat),
     speaker_cluster_threshold:  getNum('s-speaker-cluster-threshold', parseFloat),
+    project_voice_match_threshold: getNum('s-project-voice-match-threshold', parseFloat),
     scene_detection_mode:       getVal('s-scene-mode'),
     energy_mode:                getVal('s-energy-mode'),
     silence_threshold_ms:       getNum('s-silence-ms', parseInt),

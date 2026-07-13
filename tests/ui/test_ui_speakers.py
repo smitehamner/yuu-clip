@@ -186,6 +186,136 @@ class TestSpeakerNaming:
         expect(page.locator("#toast-container")).to_contain_text("Merged into Yuu")
         assert posted["url"] and posted["url"].endswith("/api/speakers/90002/confirm-match"), posted
 
+
+@skip_no_server
+class TestSpeakerPersonControls:
+    """Project-wide identity (Person) controls on the per-recording Speakers card."""
+
+    def _select_first_video(self, page: Page) -> None:
+        page.goto(LIVE_URL)
+        page.wait_for_selector("#video-list li[data-video-id]", timeout=5000)
+        page.locator("#video-list li[data-video-id]").first.click()
+
+    def test_named_speaker_can_promote_to_person(self, page: Page):
+        named = {**_SPEAKER, "name": "Yuu", "display_name": "Yuu", "is_named": True,
+                 "global_voice_id": None, "person_name": None,
+                 "suggested_voice_id": None, "suggested_voice_name": None,
+                 "suggested_voice_score": None}
+        page.route(
+            "**/api/videos/*/speakers",
+            lambda route: route.fulfill(
+                status=200, content_type="application/json", body=json.dumps([named])
+            ),
+        )
+
+        def _handle_promote(route):
+            route.fulfill(status=200, content_type="application/json",
+                          body=json.dumps({"id": 7001, "display_name": "Yuu", "is_named": True}))
+
+        page.route("**/api/voices", _handle_promote)
+        self._select_first_video(page)
+
+        promote = page.locator(".speaker-promote")
+        expect(promote).to_have_count(1)
+        with page.expect_request(lambda r: r.url.endswith("/api/voices") and r.method == "POST"):
+            promote.click()
+
+    def test_person_line_shown_when_linked(self, page: Page):
+        linked = {**_SPEAKER, "global_voice_id": 7001, "person_name": "Yuu",
+                  "suggested_voice_id": None, "suggested_voice_name": None,
+                  "suggested_voice_score": None}
+        page.route(
+            "**/api/videos/*/speakers",
+            lambda route: route.fulfill(
+                status=200, content_type="application/json", body=json.dumps([linked])
+            ),
+        )
+        self._select_first_video(page)
+        person = page.locator("#speakers-section .speaker-person")
+        expect(person).to_have_count(1)
+        expect(person).to_contain_text("Yuu")
+        expect(page.locator(".speaker-promote")).to_have_count(0)
+
+    def test_cross_recording_chip_confirm_posts(self, page: Page):
+        suggested = {**_SPEAKER, "id": 90003, "global_voice_id": None, "person_name": None,
+                     "suggested_voice_id": 7001, "suggested_voice_name": "Yuu",
+                     "suggested_voice_score": 0.85}
+        page.route(
+            "**/api/videos/*/speakers",
+            lambda route: route.fulfill(
+                status=200, content_type="application/json", body=json.dumps([suggested])
+            ),
+        )
+        page.route(
+            "**/api/speakers/*/confirm-voice",
+            lambda route: route.fulfill(status=200, content_type="application/json", body="{}"),
+        )
+        self._select_first_video(page)
+
+        chip = page.locator("#speakers-section .speaker-voicematch")
+        expect(chip).to_contain_text("85% voice match")
+        with page.expect_request(
+            lambda r: "/confirm-voice" in r.url and r.method == "POST"
+        ):
+            page.locator(".speaker-sameperson").click()
+
+
+@skip_no_server
+class TestSpeakerCardEditing:
+    """Feature B: create a new speaker and whole-speaker merge from the Speakers card."""
+
+    def _two(self):
+        return [
+            _SPEAKER,
+            {**_SPEAKER, "id": 90002, "display_index": 2, "name": "Bob",
+             "display_name": "Bob", "is_named": True},
+        ]
+
+    def _select_first_video(self, page: Page) -> None:
+        page.goto(LIVE_URL)
+        page.wait_for_selector("#video-list li[data-video-id]", timeout=5000)
+        page.locator("#video-list li[data-video-id]").first.click()
+
+    def test_new_speaker_button_posts(self, page: Page):
+        def _speakers(route):
+            if route.request.method == "POST":
+                route.fulfill(status=200, content_type="application/json",
+                              body=json.dumps({**_SPEAKER, "id": 90003, "display_index": 2,
+                                               "display_name": "Speaker 2"}))
+            else:
+                route.fulfill(status=200, content_type="application/json",
+                              body=json.dumps([_SPEAKER]))
+
+        page.route("**/api/videos/*/speakers", _speakers)
+        self._select_first_video(page)
+
+        expect(page.locator(".speaker-new-btn")).to_have_count(1)
+        with page.expect_request(
+            lambda r: r.url.endswith("/speakers") and r.method == "POST"
+        ):
+            page.click(".speaker-new-btn")
+
+    def test_merge_select_confirms_and_posts(self, page: Page):
+        page.route(
+            "**/api/videos/*/speakers",
+            lambda route: route.fulfill(status=200, content_type="application/json",
+                                        body=json.dumps(self._two())),
+        )
+        page.route(
+            "**/api/speakers/*/merge-into/*",
+            lambda route: route.fulfill(status=200, content_type="application/json",
+                                        body=json.dumps(_SPEAKER)),
+        )
+        self._select_first_video(page)
+
+        # First row is Speaker 90001; its only merge option is Bob (90002).
+        page.locator(".speaker-merge-select").first.select_option("90002")
+        page.locator("#confirm-ok-btn").wait_for(state="visible", timeout=2000)
+        with page.expect_request(
+            lambda r: "/merge-into/" in r.url and r.method == "POST"
+        ):
+            page.click("#confirm-ok-btn")
+
     def test_voice_match_different_voice_posts_reject(self, page: Page):
         suggested = {**_SPEAKER, "id": 90002, "display_index": 2,
                      "suggested_match_id": 90001, "suggested_match_name": "Yuu",

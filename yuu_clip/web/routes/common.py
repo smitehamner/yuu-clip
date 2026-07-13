@@ -14,7 +14,7 @@ from typing import Iterable, Optional
 from fastapi import HTTPException
 from fastapi.responses import StreamingResponse
 
-from yuu_clip.db.models import ClipCandidate
+from yuu_clip.db.models import ClipCandidate, Transcript, TranscriptSegment, Video
 
 _SSE_HEADERS = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
 
@@ -140,6 +140,49 @@ def stage_segment_text_edit(db, seg, new_text: str) -> list[ClipCandidate]:
         rebuild_clip_excerpt(clip)
         clip.transcript_edited_at = edited_at
     return affected
+
+
+def rebuild_video_excerpts(db, video_id: int) -> int:
+    """Rebuild transcript excerpts for a video's clips so a speaker/Person rename shows up.
+
+    Rebuilt from the recording's track-level transcripts (the same source clip
+    generation used). Clips that were individually retranscribed keep their own
+    excerpt - their per-clip transcripts are a separate source. Returns the count
+    of clips whose excerpt was rebuilt. Shared by the Speaker-rename and People-view
+    (ProjectVoice) routes so both refresh excerpts through the exact same path.
+    """
+    from yuu_clip.segments.windower import _build_excerpt
+
+    video = db.get(Video, video_id)
+    if not video:
+        return 0
+    track_ids = [t.id for t in video.audio_tracks if t.do_transcribe]
+    if not track_ids:
+        return 0
+    tx_ids = [
+        tx.id for tx in db.query(Transcript)
+        .filter(Transcript.audio_track_id.in_(track_ids), Transcript.clip_id.is_(None))
+        .all()
+    ]
+    if not tx_ids:
+        return 0
+    segments = (
+        db.query(TranscriptSegment)
+        .filter(TranscriptSegment.transcript_id.in_(tx_ids))
+        .order_by(TranscriptSegment.start_ms)
+        .all()
+    )
+
+    rebuilt = 0
+    clips = db.query(ClipCandidate).filter_by(video_id=video_id).all()
+    for clip in clips:
+        if clip.clip_transcripts:
+            continue
+        window = [s for s in segments if s.start_ms < clip.end_ms and s.end_ms > clip.start_ms]
+        if window:
+            clip.transcript_excerpt = _build_excerpt(window)
+            rebuilt += 1
+    return rebuilt
 
 
 def require_clip(db, clip_id: int) -> ClipCandidate:

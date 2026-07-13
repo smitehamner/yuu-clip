@@ -109,15 +109,11 @@ Wanted before distributing beyond friends/trusted users.
   reusing existing seams (PySceneDetect content cuts, frame extraction, the `ScoreResult`
   scorer protocol, opt-in vision-LLM).
 
-- [ ] **Speaker identity beyond one recording** - the remaining Speaker-naming pieces, both
-  weighed but deferred for v1:
-  - **Project-wide speaker identity** - promote per-recording Speakers to a project-level
-    voice by matching voiceprints across all recordings so a name applies everywhere. Needs a
-    merge/split UX, a higher threshold, and voice-drift handling; hook: a nullable
-    `global_voice_id` / `ProjectVoice` table.
-  - **Link name → world-context character** - replace free-text names with a reference to a
-    context character (`Speaker.character_id`) to feed "score boost per named character" and
-    per-speaker lore into scoring; deferred to avoid coupling naming to the contexts model.
+- [ ] **Link a Person to a world-context character** - the companion to the shipped
+  project-wide **Person** identity: replace free-text names with a reference to a context
+  character (`ProjectVoice.character_id`) to feed "score boost per named character" and
+  per-speaker lore into scoring; deferred to avoid coupling naming to the contexts model.
+  Plan of record: `plans/speaker-identity/character-linking.md`.
 
 - [ ] **Score learning loop** - use accumulated manual score overrides to tune the prompt or
   scoring-weight vector semi-automatically. Requires a meaningful corpus of overrides first.

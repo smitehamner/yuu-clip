@@ -93,6 +93,9 @@ The font, size, and position used when captions are **burned into** the video. S
 ### Speaker
 A distinct voice YuuClip detects in a recording. Each one starts off as "Speaker 1", "Speaker 2", and so on. Open a recording's **Speakers** card to give them real names - the names then show up in clip transcripts and captions. Names stick even if you re-analyze the recording.
 
+### Person
+The same real voice across *all* your recordings, named once. A **Speaker** lives in one recording; a **Person** ties those together so you name someone once and it applies everywhere they speak. On a recording's **Speakers** card, choose **Promote to Person** on a named speaker to start. The **People** view (top-right menu) is where you rename, recolor, merge, or split people, and confirm the matches YuuClip suggests when it hears the same voice in a new recording - it only ever *suggests*, it never links people together on its own.
+
 ### Fix names
 Whisper sometimes mishears a spoken name - writing "You" when someone said "Yuu". **Fix names** (in a recording's transcript card) scans the whole transcript for these, using the names you've given your speakers plus any characters listed in the recording's world contexts. It groups them ("You → Yuu, 12 instances") so you can review and apply the ones you want in one go. Nothing changes until you press Apply.
 

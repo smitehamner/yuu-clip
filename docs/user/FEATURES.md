@@ -626,11 +626,28 @@ Once a recording has been analyzed with speaker labels on, open it and use the *
 
 Each speaker also gets a colour, auto-assigned from a fixed palette so voices are visually distinct right away - click the colour swatch next to a speaker's name to pick a different one. Colours show up in the timed transcript views and in burned-in captions (`--bake-captions`); caption files and reels you already exported keep their old colours until you export them again.
 
-The **Suggest names** button (top of the Speakers card) uses the LLM to guess names from how people address each other in the transcript ("Hey Yuu, watch out"). Each guess appears as a **Suggested: …** prompt next to the voice with **Accept** and **Dismiss** buttons - nothing is applied to your captions until you accept it, so a wrong guess never silently mislabels a speaker. The same name is never suggested for two different voices, and an existing name you already typed is never overwritten.
+The **Suggest names** button (top of the Speakers card) uses the LLM to guess names from how people address each other in the transcript ("Hey Yuu, watch out"). It also uses voice similarity: an unnamed voice that closely matches one you've already named is proposed that name too. Each guess appears as a **Suggested: …** prompt next to the voice with **Accept** and **Dismiss** buttons - nothing is applied to your captions until you accept it, so a wrong guess never silently mislabels a speaker. The same name is never suggested for two different voices, and an existing name you already typed is never overwritten.
 
 **Borderline voice matches**
 
 When you re-analyze or re-detect speakers, YuuClip tries to re-attach each voice to the one you already named so your names survive. If a voice comes back *close but not certain* - similar enough to be suspicious, not similar enough to auto-match - it doesn't guess. Instead the new voice shows a **"Might be {name} (NN% voice match)"** prompt on the Speakers card with **Same voice** and **Different voice** buttons. **Same voice** merges the two (the name and colour carry over and both voice samples are blended so the match improves next time); **Different voice** keeps them separate. Until you choose, the new voice stays an unnamed "Speaker N", so a borderline guess never reaches your captions on its own.
+
+**People - one name across recordings**
+
+A **Speaker** lives in a single recording. A **Person** ties the same real voice together
+across *all* your recordings, so you name someone once and it shows up everywhere they
+speak. On a recording's Speakers card, a named speaker gets a **Promote to Person** button;
+after that the card shows a **Person: {name}** line linking into the People view.
+
+Open **People** from the top-right menu to manage them: rename or recolor a person (the new
+name flows to every recording's captions and transcripts), **merge** two people who are
+really the same, or **split** a recording back out of a person. When you analyze a new
+recording, YuuClip compares each voice to the people you already have and, if one is a
+strong match, shows a **"Same person?"** suggestion on the Speakers card and in People -
+you confirm it, nothing is ever linked automatically. The **Find people across recordings**
+button groups the speakers you have already named into people for you to review. How sure
+the app must be before it suggests a match is the **"Same person across recordings"** control
+in Settings → Speaker labels (higher = fewer wrong matches).
 
 **Fixing speakers from the transcript**
 
@@ -638,8 +655,17 @@ You don't have to go to the Speakers card to fix a mislabelled line. In any time
 
 - **Reattribute that one line** to a different speaker (or mark it Unassigned) - useful when diarization split or merged a voice on a single line.
 - **Name that line's speaker** inline, without scrolling back to the Speakers card.
+- **Add a new speaker** ("+ New speaker") and move the line onto it - for a voice diarization missed entirely or lumped in with someone else.
 
-Lines you reassign by hand get a small ✎ marker on their dot, so you can tell which lines were auto-detected and which you corrected. Reassigning a line rebuilds the affected clips' excerpts (re-score to refresh their scores). Speaker identities are still per-recording - a project-wide voice library that carries names across recordings is planned but not shipped.
+Lines you reassign by hand get a small ✎ marker on their dot, so you can tell which lines were auto-detected and which you corrected. Reassigning a line rebuilds the affected clips' excerpts (re-score to refresh their scores). To carry a name across recordings, promote the speaker to a **Person** (see "People - one name across recordings" above).
+
+**Moving several lines at once**
+
+On the recording's **Full transcript**, click **Select lines to move** to enter a selection mode, click the lines you want, then choose **Move to...** - an existing speaker, **+ New speaker**, or **Unassigned**. It all happens in one step (clip transcripts and exports refresh once). This is the quick way to split one over-merged speaker into two, or to gather a stray voice onto its own speaker.
+
+**Whole-speaker actions (Speakers card)**
+
+Beyond naming, the Speakers card lets you **+ New speaker** (add an empty speaker to move lines onto) and **Merge into...** (fold one speaker's every line onto another - handy when diarization split one person into two). Renaming, recoloring, and these actions all flow through to clip transcripts, captions, and exports.
 
 **Timed transcript views**
 

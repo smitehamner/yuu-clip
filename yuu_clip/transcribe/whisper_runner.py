@@ -22,7 +22,6 @@ from __future__ import annotations
 
 import importlib.util
 import json
-import math
 import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
@@ -31,12 +30,26 @@ from rich.console import Console
 from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 
 from yuu_clip.config import Config, validate_whisper_language, validate_whisper_model
-from yuu_clip.db.models import AudioTrack, Speaker, Transcript, TranscriptSegment
+from yuu_clip.db.models import AudioTrack, ProjectVoice, Speaker, Transcript, TranscriptSegment
 from yuu_clip.log import get_logger
 from yuu_clip.transcribe.diarization_client import (
     DiarizationError,
     make_diarization_client,
     speechbrain_model_cached,
+)
+
+# The pure voiceprint math lives in project_voice (importable in the offline unit tier
+# without torch/whisper). Re-exported under the historical private names so existing
+# importers (e.g. speakers._mean_voiceprint) keep working unchanged.
+from yuu_clip.transcribe.project_voice import best_voice_match
+from yuu_clip.transcribe.project_voice import (
+    cosine_similarity as _cosine_similarity,
+)
+from yuu_clip.transcribe.project_voice import (
+    deserialize_voiceprint as _deserialize_voiceprint,
+)
+from yuu_clip.transcribe.project_voice import (
+    serialize_voiceprint as _serialize_voiceprint,
 )
 
 _log = get_logger(__name__)
@@ -125,23 +138,6 @@ _VOICEPRINT_MATCH_THRESHOLD = 0.75
 # user can confirm it is the same voice rather than the re-attach silently dropping
 # it. Fixed at 0.10 in v1 (plan 01); no Settings field for it yet.
 _CONFIRM_BAND_WIDTH = 0.10
-
-
-def _serialize_voiceprint(vector: list[float]) -> bytes:
-    return json.dumps([float(x) for x in vector]).encode("utf-8")
-
-
-def _deserialize_voiceprint(blob: bytes) -> list[float]:
-    return json.loads(blob.decode("utf-8"))
-
-
-def _cosine_similarity(a: list[float], b: list[float]) -> float:
-    if len(a) != len(b):
-        return 0.0
-    dot = sum(x * y for x, y in zip(a, b))
-    norm_a = math.sqrt(sum(x * x for x in a))
-    norm_b = math.sqrt(sum(y * y for y in b))
-    return dot / (norm_a * norm_b) if norm_a and norm_b else 0.0
 
 
 def _best_voiceprint_match(vector, candidates, taken_ids, threshold=_VOICEPRINT_MATCH_THRESHOLD,
@@ -294,6 +290,55 @@ def _attach_speakers(
         video_id, len(labels_in_order), matched, minted,
         without_voiceprint, len(prior_speakers),
     )
+
+
+def _suggest_project_voices(session: "Session", video_id: int, threshold: float) -> None:
+    """Propose cross-recording Person matches for this recording's Speakers.
+
+    For each Speaker with a voiceprint that is not already linked to a Person, find the
+    most similar existing ProjectVoice (nearest exemplar, same backend) and, at/above
+    the strict cross-recording threshold, record it as a SUGGESTION
+    (suggested_voice_id / suggested_voice_score). ``global_voice_id`` is NEVER set here:
+    a wrong cross-recording merge propagates a name project-wide, so application is a
+    People-view confirm action only (locked decision). One Person is suggested to at
+    most one Speaker per recording. No project voices yet, no voiceprint, or a backend
+    that matches no exemplar all mean "no suggestion" (never an error).
+    """
+    voices = session.query(ProjectVoice).all()
+    if not voices:
+        return
+    speakers = (
+        session.query(Speaker)
+        .filter_by(video_id=video_id)
+        .order_by(Speaker.display_index)
+        .all()
+    )
+    taken_ids: set[int] = set()
+    suggested = 0
+    for speaker in speakers:
+        if speaker.global_voice_id is not None or not speaker.voiceprint:
+            continue
+        vector = _deserialize_voiceprint(speaker.voiceprint)
+        match, score, _top = best_voice_match(
+            vector, speaker.voiceprint_backend, voices, taken_ids, threshold
+        )
+        if match is None:
+            continue
+        taken_ids.add(match.id)
+        speaker.suggested_voice_id = match.id
+        speaker.suggested_voice_score = score
+        suggested += 1
+        _log.info(
+            "Cross-recording suggestion (video %d): speaker %d looks like Person %d '%s' "
+            "(cosine %.3f >= %.2f)",
+            video_id, speaker.id, match.id, match.display_name, score, threshold,
+        )
+        console.print(
+            f"    [dim]Speaker {speaker.display_index} looks like {match.display_name} "
+            f"from another recording (voice match {score:.2f}) - confirm in People[/dim]"
+        )
+    if suggested:
+        session.flush()
 
 
 def _resolve_device_and_compute(config: Config) -> tuple[str, str]:
@@ -579,6 +624,9 @@ def diarize_track(
             session, track.video_id, transcript.id, embeddings,
             threshold=config.speaker_match_threshold,
             active_backend=config.diarization_backend,
+        )
+        _suggest_project_voices(
+            session, track.video_id, config.project_voice_match_threshold
         )
         _log.info(
             "Diarization complete: %d turns, %d voiceprint(s) for track %d",

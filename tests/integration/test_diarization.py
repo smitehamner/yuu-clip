@@ -419,6 +419,10 @@ class TestDiarizeTrack:
             whisper_runner, "_attach_speakers",
             lambda session, video_id, transcript_id, embeddings, threshold=None, active_backend=None: captured.setdefault("attach", []).append((video_id, transcript_id, embeddings, threshold, active_backend)),
         )
+        monkeypatch.setattr(
+            whisper_runner, "_suggest_project_voices",
+            lambda session, video_id, threshold=None: captured.setdefault("suggest", []).append((video_id, threshold)),
+        )
         return captured
 
     def _fake_track(self):
@@ -443,6 +447,8 @@ class TestDiarizeTrack:
         assert captured["assign"] == [(7, turns)]
         # The configured threshold and active backend must be forwarded to _attach_speakers.
         assert captured["attach"] == [(9, 7, embeddings, 0.6, "pyannote")]
+        # Cross-recording suggestion runs after attach, with the strict project threshold.
+        assert captured["suggest"] == [(9, cfg.project_voice_match_threshold)]
 
     def test_noop_when_backend_unavailable(self, monkeypatch):
         from pathlib import Path
@@ -690,6 +696,124 @@ class TestBestVoiceprintMatch:
         cand = self._speaker(1, [0.5, 0.87])
         assert _best_voiceprint_match([1.0, 0.0], [cand], set())[0] is None
         assert _best_voiceprint_match([1.0, 0.0], [cand], set(), threshold=0.4)[0].id == 1
+
+
+# ---------------------------------------------------------------------------
+# _suggest_project_voices - cross-recording Person suggestions (propose, never apply)
+# ---------------------------------------------------------------------------
+
+class TestSuggestProjectVoices:
+    def _session(self, tmp_path):
+        from yuu_clip.db.models import make_session
+        return make_session(tmp_path / "project.db")
+
+    def _video(self, session):
+        from yuu_clip.db.models import Video
+        video = Video(path="x.mkv", filename="x.mkv", status="done")
+        session.add(video)
+        session.flush()
+        return video
+
+    def _voice(self, session, vector, *, name="Alex", backend="speechbrain"):
+        from yuu_clip.db.models import ProjectVoice, VoiceExemplar
+        from yuu_clip.transcribe.project_voice import serialize_voiceprint
+        voice = ProjectVoice(name=name, display_index=1, confirmed=True)
+        session.add(voice)
+        session.flush()
+        session.add(VoiceExemplar(
+            project_voice_id=voice.id,
+            voiceprint=serialize_voiceprint(vector),
+            voiceprint_backend=backend,
+        ))
+        session.flush()
+        return voice
+
+    def _speaker(self, session, video, vector, *, backend="speechbrain", display_index=1):
+        from yuu_clip.db.models import Speaker
+        from yuu_clip.transcribe.project_voice import serialize_voiceprint
+        speaker = Speaker(
+            video_id=video.id, display_index=display_index,
+            voiceprint=serialize_voiceprint(vector) if vector else None,
+            voiceprint_backend=backend if vector else None,
+        )
+        session.add(speaker)
+        session.flush()
+        return speaker
+
+    def test_known_voice_gets_suggestion_not_link(self, tmp_path):
+        from yuu_clip.transcribe.whisper_runner import _suggest_project_voices
+
+        session = self._session(tmp_path)
+        try:
+            voice = self._voice(session, [1.0, 0.0])
+            video = self._video(session)
+            speaker = self._speaker(session, video, [1.0, 0.0])
+
+            _suggest_project_voices(session, video.id, 0.80)
+
+            assert speaker.suggested_voice_id == voice.id
+            assert speaker.suggested_voice_score == pytest.approx(1.0)
+            # The strict rule: matching only SUGGESTS - it never links automatically.
+            assert speaker.global_voice_id is None
+        finally:
+            session.close()
+
+    def test_no_project_voices_is_noop(self, tmp_path):
+        from yuu_clip.transcribe.whisper_runner import _suggest_project_voices
+
+        session = self._session(tmp_path)
+        try:
+            video = self._video(session)
+            speaker = self._speaker(session, video, [1.0, 0.0])
+            _suggest_project_voices(session, video.id, 0.80)
+            assert speaker.suggested_voice_id is None
+        finally:
+            session.close()
+
+    def test_already_linked_speaker_is_skipped(self, tmp_path):
+        from yuu_clip.transcribe.whisper_runner import _suggest_project_voices
+
+        session = self._session(tmp_path)
+        try:
+            voice = self._voice(session, [1.0, 0.0])
+            video = self._video(session)
+            speaker = self._speaker(session, video, [1.0, 0.0])
+            speaker.global_voice_id = voice.id
+            session.flush()
+            _suggest_project_voices(session, video.id, 0.80)
+            assert speaker.suggested_voice_id is None
+        finally:
+            session.close()
+
+    def test_backend_mismatch_no_suggestion(self, tmp_path):
+        from yuu_clip.transcribe.whisper_runner import _suggest_project_voices
+
+        session = self._session(tmp_path)
+        try:
+            self._voice(session, [1.0, 0.0], backend="pyannote")
+            video = self._video(session)
+            speaker = self._speaker(session, video, [1.0, 0.0], backend="speechbrain")
+            _suggest_project_voices(session, video.id, 0.80)
+            assert speaker.suggested_voice_id is None
+        finally:
+            session.close()
+
+    def test_one_person_suggested_to_at_most_one_speaker(self, tmp_path):
+        from yuu_clip.transcribe.whisper_runner import _suggest_project_voices
+
+        session = self._session(tmp_path)
+        try:
+            voice = self._voice(session, [1.0, 0.0])
+            video = self._video(session)
+            first = self._speaker(session, video, [1.0, 0.0], display_index=1)
+            second = self._speaker(session, video, [0.99, 0.01], display_index=2)
+            _suggest_project_voices(session, video.id, 0.80)
+            # Both resemble the Person, but the recording already separated them:
+            # only one may claim it.
+            claimed = [s for s in (first, second) if s.suggested_voice_id == voice.id]
+            assert len(claimed) == 1
+        finally:
+            session.close()
 
 
 # ---------------------------------------------------------------------------

@@ -64,6 +64,28 @@ function _renderSpeakersCard(speakers) {
                    title="Keep as a separate speaker">Different voice</button>
          </span>`
       : '';
+    // Project-wide identity (Person). A confirmed link shows a read-only line into the
+    // People view; a named-but-unlinked speaker can be promoted; a cross-recording
+    // near-miss offers a confirm/dismiss chip (mirrors the same-recording voiceMatch).
+    const person = s.global_voice_id
+      ? `<span class="speaker-person" title="This voice is part of a Person - one name across recordings">
+           Person: <strong>${escHtml(s.person_name)}</strong>
+           <button class="speaker-open-people" title="Manage people">Manage</button>
+         </span>`
+      : (s.name
+          ? `<button class="btn ghost speaker-promote" data-speaker-id="${s.id}"
+                     title="Use this name across every recording of this voice">Promote to Person</button>`
+          : '');
+    const personMatch = (s.suggested_voice_id && s.suggested_voice_name)
+      ? `<span class="speaker-voicematch" title="This voice matches a person from another recording - confirm if it's the same person">
+           Might be <strong>${escHtml(s.suggested_voice_name)}</strong> from another recording
+           (${Math.round((s.suggested_voice_score || 0) * 100)}% voice match)
+           <button class="speaker-sameperson" data-speaker-id="${s.id}" data-match-name="${escHtml(s.suggested_voice_name)}"
+                   title="Confirm this is the same person">Same person</button>
+           <button class="speaker-diffperson" data-speaker-id="${s.id}"
+                   title="Keep as a separate person">Not them</button>
+         </span>`
+      : '';
     return `
       <div class="speaker-row">
         ${play}
@@ -74,8 +96,11 @@ function _renderSpeakersCard(speakers) {
         <input class="speaker-name-input" type="text" data-speaker-id="${s.id}"
                value="${inputValue}" placeholder="Add a name&hellip;"
                aria-label="Name for Speaker ${s.display_index}" maxlength="60">
+        ${_speakerMergeHtml(s, speakers)}
         ${suggestion}
         ${voiceMatch}
+        ${person}
+        ${personMatch}
         ${sample}
       </div>`;
   }).join('');
@@ -83,8 +108,22 @@ function _renderSpeakersCard(speakers) {
         `<span class="detail-card-title">Speakers</span>`, `
       <div class="speaker-list">${rows}</div>
       <div class="speaker-hint">Names show up in clip transcripts and captions. They stick even if you re-analyze this recording.</div>`,
-      { actions: `<button class="btn ghost speaker-suggest-btn"
+      { actions: `<button class="btn ghost speaker-new-btn"
+                title="Add a speaker diarization missed or merged, then move lines onto it from the transcript.">+ New speaker</button>
+              <button class="btn ghost speaker-suggest-btn"
                 title="Use the LLM to suggest names from how speakers address each other. Suggestions are never applied until you accept them.">Suggest names</button>` });
+}
+
+// A per-row "Merge into..." picker (whole-speaker merge). Only shown when there is at
+// least one other speaker to merge into.
+function _speakerMergeHtml(speaker, speakers) {
+  const others = speakers.filter(o => o.id !== speaker.id);
+  if (!others.length) return '';
+  const opts = others.map(o =>
+    `<option value="${o.id}">${escHtml(o.display_name)}</option>`).join('');
+  return `<select class="speaker-merge-select" data-speaker-id="${speaker.id}"
+                  aria-label="Merge Speaker ${speaker.display_index} into another speaker">
+            <option value="">Merge into&hellip;</option>${opts}</select>`;
 }
 
 // Streams the LLM inference job as SSE (the transcript pass can be slow). Mirrors
@@ -225,6 +264,83 @@ async function _resolveVoiceMatch(speakerId, sameVoice, matchName) {
   }
 }
 
+// Add a fresh unnamed speaker to this recording, for a voice diarization missed or
+// merged. Lines are moved onto it from the transcript or via "Merge into...".
+async function _createSpeaker() {
+  if (!_currentVideoId) return;
+  try {
+    const res = await fetch(`/api/videos/${_currentVideoId}/speakers`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}',
+    });
+    if (!res.ok) throw new Error(formatApiError(await res.json().catch(() => ({}))));
+    const speaker = await res.json();
+    showToast(`Added ${speaker.display_name} - name it or move lines onto it`);
+    await loadSpeakers(_currentVideoId);
+  } catch (err) {
+    showToast(`Could not add a speaker: ${err.message}`, 'error');
+  }
+}
+
+// Whole-speaker merge: move every line of one speaker onto another. Confirmed first
+// because it deletes the source speaker.
+async function _mergeSpeakerInto(sourceId, targetId, targetName) {
+  showConfirm(
+    'Merge speakers?',
+    `Move all of this speaker's lines onto ${targetName || 'the other speaker'}? `
+      + 'The merged speaker is removed. This affects clip transcripts and exports.',
+    'Merge',
+    async () => {
+      try {
+        const res = await fetch(`/api/speakers/${sourceId}/merge-into/${targetId}`, {method: 'POST'});
+        if (!res.ok) throw new Error(formatApiError(await res.json().catch(() => ({}))));
+        showToast(`Merged into ${targetName || 'the other speaker'}`);
+        if (_currentVideoId) await loadSpeakers(_currentVideoId);
+        if (AppState.activeClipId) selectClip(AppState.activeClipId);
+        if (_currentVideoId) reloadVideoTranscriptIfOpen(_currentVideoId);
+      } catch (err) {
+        showToast(`Could not merge: ${err.message}`, 'error');
+      }
+    },
+  );
+  if (_currentVideoId) await loadSpeakers(_currentVideoId);  // reset the select either way
+}
+
+// Promote a named speaker into a project-wide Person so the name applies across every
+// recording of this voice. Reloads the card so the "Person: X" line appears.
+async function _promoteToPerson(speakerId) {
+  try {
+    const res = await fetch('/api/voices', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({speaker_id: speakerId}),
+    });
+    if (!res.ok) throw new Error(formatApiError(await res.json().catch(() => ({}))));
+    const voice = await res.json();
+    showToast(`${voice.display_name} is now a Person - name applies across recordings`);
+    if (_currentVideoId) await loadSpeakers(_currentVideoId);
+  } catch (err) {
+    showToast(`Could not promote to Person: ${err.message}`, 'error');
+  }
+}
+
+// Confirm ("Same person" -> confirm-voice) or dismiss ("Not them" -> reject-voice) a
+// cross-recording Person suggestion. Confirming links this recording's voice to the
+// Person, so its captions/excerpts pick up the Person's name.
+async function _resolvePersonMatch(speakerId, samePerson, matchName) {
+  const endpoint = samePerson ? 'confirm-voice' : 'reject-voice';
+  try {
+    const res = await fetch(`/api/speakers/${speakerId}/${endpoint}`, {method: 'POST'});
+    if (!res.ok) throw new Error(formatApiError(await res.json().catch(() => ({}))));
+    showToast(samePerson
+      ? `Linked to ${matchName || 'that person'}`
+      : 'Kept as a separate person');
+    if (_currentVideoId) await loadSpeakers(_currentVideoId);
+    if (AppState.activeClipId) selectClip(AppState.activeClipId);
+    if (_currentVideoId) reloadVideoTranscriptIfOpen(_currentVideoId);
+  } catch (err) {
+    showToast(`Could not update: ${err.message}`, 'error');
+  }
+}
+
 // Event delegation on the persistent #detail element (its innerHTML is replaced
 // each render, so per-row handlers would be lost - the container listener isn't).
 document.addEventListener('DOMContentLoaded', () => {
@@ -242,6 +358,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (e.target.closest && e.target.closest('.speaker-suggest-btn')) {
       _suggestSpeakerNames();
+      return;
+    }
+    if (e.target.closest && e.target.closest('.speaker-new-btn')) {
+      _createSpeaker();
       return;
     }
     const acceptBtn = e.target.closest && e.target.closest('.speaker-accept');
@@ -262,13 +382,37 @@ document.addEventListener('DOMContentLoaded', () => {
     const diffVoiceBtn = e.target.closest && e.target.closest('.speaker-diffvoice');
     if (diffVoiceBtn) {
       _resolveVoiceMatch(parseInt(diffVoiceBtn.dataset.speakerId, 10), false);
+      return;
+    }
+    const promoteBtn = e.target.closest && e.target.closest('.speaker-promote');
+    if (promoteBtn) {
+      _promoteToPerson(parseInt(promoteBtn.dataset.speakerId, 10));
+      return;
+    }
+    if (e.target.closest && e.target.closest('.speaker-open-people')) {
+      if (window.openPeopleView) openPeopleView();
+      return;
+    }
+    const samePersonBtn = e.target.closest && e.target.closest('.speaker-sameperson');
+    if (samePersonBtn) {
+      _resolvePersonMatch(parseInt(samePersonBtn.dataset.speakerId, 10), true, samePersonBtn.dataset.matchName);
+      return;
+    }
+    const diffPersonBtn = e.target.closest && e.target.closest('.speaker-diffperson');
+    if (diffPersonBtn) {
+      _resolvePersonMatch(parseInt(diffPersonBtn.dataset.speakerId, 10), false);
     }
   });
   detail.addEventListener('change', e => {
     const nameInput = e.target.closest && e.target.closest('.speaker-name-input');
     if (nameInput) { _saveSpeakerName(parseInt(nameInput.dataset.speakerId, 10), nameInput.value.trim()); return; }
     const colorInput = e.target.closest && e.target.closest('.speaker-color-input');
-    if (colorInput) _saveSpeakerColor(parseInt(colorInput.dataset.speakerId, 10), colorInput.value);
+    if (colorInput) { _saveSpeakerColor(parseInt(colorInput.dataset.speakerId, 10), colorInput.value); return; }
+    const mergeSelect = e.target.closest && e.target.closest('.speaker-merge-select');
+    if (mergeSelect && mergeSelect.value) {
+      _mergeSpeakerInto(parseInt(mergeSelect.dataset.speakerId, 10), parseInt(mergeSelect.value, 10),
+                        mergeSelect.options[mergeSelect.selectedIndex].text);
+    }
   });
   detail.addEventListener('keydown', e => {
     const input = e.target.closest && e.target.closest('.speaker-name-input');

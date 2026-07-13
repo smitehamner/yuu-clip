@@ -111,8 +111,9 @@ class TestClipTranscriptSpeakerMenu:
         page.locator("#clip-transcript-view .tline-spk").first.click()
         menu = page.locator(".spk-menu")
         expect(menu).to_be_visible()
-        # Two speakers plus the "Unassigned" option, and the inline rename field.
-        expect(menu.locator(".spk-menu-item")).to_have_count(3)
+        # Two speakers plus "Unassigned" and "+ New speaker", and the inline rename field.
+        expect(menu.locator(".spk-menu-item")).to_have_count(4)
+        expect(menu.locator(".spk-menu-new")).to_have_count(1)
         expect(menu.locator(".spk-menu-name")).to_be_visible()
 
 
@@ -161,3 +162,89 @@ class TestVideoTranscript:
         # rather than leaving a blank panel.
         page.evaluate("renderVideoDetail(AppState.activeVideoData, null)")
         expect(page.locator("#video-transcript-view .tline")).to_have_count(2)
+
+
+_VIDEO_LINES_SPK = {
+    "lines": [
+        {"start_ms": 0, "end_ms": 2000, "speaker": "Yuu", "speaker_id": 1,
+         "color": "#4fc3f7", "text": "line one", "seg_id": 101},
+        {"start_ms": 2000, "end_ms": 4000, "speaker": "Mara", "speaker_id": 2,
+         "color": "#f0c060", "text": "line two", "seg_id": 102},
+    ]
+}
+_TWO_SPEAKERS = [
+    {"id": 1, "display_index": 1, "name": "Yuu", "display_name": "Yuu", "is_named": True, "color": "#4fc3f7"},
+    {"id": 2, "display_index": 2, "name": "Mara", "display_name": "Mara", "is_named": True, "color": "#f0c060"},
+]
+
+
+@skip_no_server
+class TestTranscriptSpeakerEditing:
+    """Feature B: create-new-speaker from a line menu, and multi-select bulk move."""
+
+    def _open_full_transcript(self, page: Page) -> None:
+        select_video_with_clips(page)
+        page.locator("#video-transcript-details .detail-card-title").click()
+        expect(page.locator("#video-transcript-view .tline")).to_have_count(2)
+
+    def test_new_speaker_from_line_menu_posts(self, page: Page):
+        page.route(
+            "**/api/videos/*/transcript",
+            lambda route: route.fulfill(status=200, content_type="application/json",
+                                        body=json.dumps(_VIDEO_LINES_SPK)),
+        )
+
+        def _speakers(route):
+            if route.request.method == "POST":
+                route.fulfill(status=200, content_type="application/json",
+                              body=json.dumps({"id": 3, "display_index": 3,
+                                               "display_name": "Speaker 3", "color": "#4caf7d"}))
+            else:
+                route.fulfill(status=200, content_type="application/json",
+                              body=json.dumps(_TWO_SPEAKERS))
+
+        page.route("**/api/videos/*/speakers", _speakers)
+        page.route(
+            "**/api/transcript-segments/*/speaker",
+            lambda route: route.fulfill(status=200, content_type="application/json",
+                                        body=json.dumps({"seg_id": 101, "affected_clip_ids": []})),
+        )
+        self._open_full_transcript(page)
+
+        page.locator("#video-transcript-view .tline-spk").first.click()
+        expect(page.locator(".spk-menu")).to_be_visible()
+        with page.expect_request(
+            lambda r: r.url.endswith("/speakers") and r.method == "POST"
+        ):
+            page.click(".spk-menu-new")
+
+    def test_multiselect_move_lines_puts_bulk_reassign(self, page: Page):
+        page.route(
+            "**/api/videos/*/transcript",
+            lambda route: route.fulfill(status=200, content_type="application/json",
+                                        body=json.dumps(_VIDEO_LINES_SPK)),
+        )
+        page.route(
+            "**/api/videos/*/speakers",
+            lambda route: route.fulfill(status=200, content_type="application/json",
+                                        body=json.dumps(_TWO_SPEAKERS)),
+        )
+        page.route(
+            "**/reassign-segments",
+            lambda route: route.fulfill(status=200, content_type="application/json",
+                                        body=json.dumps({"reassigned": 1, "target_speaker_id": 2,
+                                                         "affected_clip_ids": []})),
+        )
+        self._open_full_transcript(page)
+
+        page.click(".tx-move-toggle")
+        page.locator("#video-transcript-view .tline-text").first.click()  # select Yuu's line
+        expect(page.locator(".tx-move-count")).to_contain_text("1 line")
+        with page.expect_request(
+            lambda r: "/reassign-segments" in r.url and r.method == "PUT"
+        ) as req_info:
+            page.locator(".tx-move-target").select_option("2")
+        body = req_info.value.post_data_json
+        assert body["seg_ids"] == [101]
+        assert body["target_speaker_id"] == 2
+        assert req_info.value.url.endswith("/api/speakers/1/reassign-segments")

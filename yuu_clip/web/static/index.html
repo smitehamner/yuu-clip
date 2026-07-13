@@ -83,6 +83,7 @@
       <button class="hamburger-item" onclick="closeHamburger();openGettingStartedModal()"><span class="hamburger-icon" aria-hidden="true">&#128214;</span>Getting Started</button>
       <button class="hamburger-item" onclick="closeHamburger();openControlsModal()"><span class="hamburger-icon" aria-hidden="true">&#9000;</span>Controls</button>
       <div class="hamburger-divider"></div>
+      <button class="hamburger-item" onclick="closeHamburger();openPeopleView()"><span class="hamburger-icon" aria-hidden="true">&#128100;</span>People</button>
       <button class="hamburger-item" onclick="closeHamburger();openContextManager()"><span class="hamburger-icon" aria-hidden="true">&#127757;</span>World Contexts</button>
       <button class="hamburger-item" onclick="closeHamburger();openGlossaryModal()"><span class="hamburger-icon" aria-hidden="true">&#128218;</span>Terminology Glossary</button>
       <div class="hamburger-divider"></div>
@@ -475,6 +476,13 @@
           <div class="settings-note">How similar a voice must be to re-attach to an already-named speaker on <strong>Re-detect Speakers</strong>. Higher is stricter - fewer wrong matches, but more voices re-listed as new "Speaker N" to re-confirm. 0.75 is a safe default; lower it if named speakers keep coming back unnamed.</div>
         </div>
         <input class="settings-input" id="s-speaker-match-threshold" type="number" min="0" max="1" step="0.05" style="max-width:100px">
+      </div>
+      <div class="settings-row">
+        <div class="settings-col">
+          <label class="settings-label" for="s-project-voice-match-threshold">Same person across recordings</label>
+          <div class="settings-note">How sure the app must be that a voice in a <strong>new recording</strong> is the same person you already named in another one. Higher = fewer wrong matches. Matches are only ever <em>suggested</em> - you confirm them in <strong>People</strong>, nothing is merged automatically. 0.80 is a safe default.</div>
+        </div>
+        <input class="settings-input" id="s-project-voice-match-threshold" type="number" min="0" max="1" step="0.05" style="max-width:100px">
       </div>
       <div id="s-diarization-status" style="font-size:12px;color:var(--muted);margin-top:4px" aria-live="polite"></div>
     </div>
@@ -2163,6 +2171,7 @@
 <script src="/static/sensitive.js"></script>
 <script src="/static/split.js"></script>
 <script src="/static/speakers.js"></script>
+<script src="/static/voices.js"></script>
 <script src="/static/transcript.js"></script>
 <script src="/static/namecorrections.js"></script>
 <script src="/static/clipcreate.js"></script>

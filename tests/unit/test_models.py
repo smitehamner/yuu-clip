@@ -1,7 +1,12 @@
 import datetime
 import types
 
-from yuu_clip.db.models import latest_track_transcript
+from yuu_clip.db.models import (
+    SPEAKER_COLOR_PALETTE,
+    ProjectVoice,
+    Speaker,
+    latest_track_transcript,
+)
 
 
 def _tx(created_at, tx_id):
@@ -31,3 +36,47 @@ class TestLatestTrackTranscript:
         older_high_id = _tx(datetime.datetime(2024, 1, 1), tx_id=99)
         track = types.SimpleNamespace(transcripts=[newer_low_id, older_high_id])
         assert latest_track_transcript(track) is newer_low_id
+
+
+class TestProjectVoiceDisplay:
+    def test_named_shows_name(self):
+        assert ProjectVoice(name="Alex", display_index=1).display_name == "Alex"
+
+    def test_unnamed_falls_back_to_person_index(self):
+        assert ProjectVoice(name=None, display_index=3).display_name == "Person 3"
+
+    def test_color_uses_user_pick_when_set(self):
+        assert ProjectVoice(display_index=1, color="#123456").display_color == "#123456"
+
+    def test_color_falls_back_to_palette_by_index(self):
+        assert ProjectVoice(display_index=2).display_color == SPEAKER_COLOR_PALETTE[1]
+
+    def test_color_palette_wraps_on_high_index(self):
+        n = len(SPEAKER_COLOR_PALETTE)
+        assert ProjectVoice(display_index=n + 1).display_color == SPEAKER_COLOR_PALETTE[0]
+
+
+class TestSpeakerDisplayNameResolvesThroughVoice:
+    def test_linked_named_voice_overrides_speaker(self):
+        # The whole point of a Person: naming it applies everywhere, even over the
+        # Speaker's own name.
+        voice = ProjectVoice(name="Jordan", display_index=1)
+        speaker = Speaker(display_index=5, name="Speaker-local", confirmed=True)
+        speaker.global_voice = voice
+        assert speaker.display_name == "Jordan"
+
+    def test_linked_unnamed_voice_falls_through_to_speaker_name(self):
+        voice = ProjectVoice(name=None, display_index=1)
+        speaker = Speaker(display_index=5, name="Casey", confirmed=True)
+        speaker.global_voice = voice
+        assert speaker.display_name == "Casey"
+
+    def test_no_voice_uses_confirmed_name(self):
+        assert Speaker(display_index=2, name="Sam", confirmed=True).display_name == "Sam"
+
+    def test_no_voice_unconfirmed_name_uses_fallback(self):
+        speaker = Speaker(display_index=4, name="Guess", confirmed=False)
+        assert speaker.display_name == "Speaker 4"
+
+    def test_no_voice_no_name_uses_fallback(self):
+        assert Speaker(display_index=7).display_name == "Speaker 7"

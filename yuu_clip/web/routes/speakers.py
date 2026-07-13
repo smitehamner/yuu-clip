@@ -17,19 +17,26 @@ from typing import Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+from sqlalchemy import func
 
 from yuu_clip.contexts import format_context_block, load_contexts
 from yuu_clip.db.models import (
     ClipCandidate,
+    ProjectVoice,
     Speaker,
     Transcript,
     TranscriptSegment,
     Video,
 )
 from yuu_clip.log import get_logger
-from yuu_clip.segments.windower import _build_excerpt, rebuild_clip_excerpt
+from yuu_clip.segments.windower import rebuild_clip_excerpt
 from yuu_clip.web.deps import ProjectContext
-from yuu_clip.web.routes.common import active_job, json_list, sse_response
+from yuu_clip.web.routes.common import (
+    active_job,
+    json_list,
+    rebuild_video_excerpts,
+    sse_response,
+)
 
 _log = get_logger(__name__)
 
@@ -44,6 +51,16 @@ class SpeakerRename(BaseModel):
 
 class SegmentSpeaker(BaseModel):
     speaker_id: Optional[int] = None  # None detaches the segment (back to unattributed)
+
+
+class SpeakerCreate(BaseModel):
+    name: Optional[str] = None   # optional; blank = an unnamed "Speaker N"
+    color: Optional[str] = None  # optional "#RRGGBB"
+
+
+class ReassignSegments(BaseModel):
+    seg_ids: list[int]
+    target_speaker_id: Optional[int] = None  # None moves the lines to Unassigned
 
 
 def make_router(ctx: ProjectContext) -> APIRouter:
@@ -64,6 +81,11 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             )
             samples = _speaker_samples(db, [s.id for s in speakers])
             by_id = {s.id: s for s in speakers}
+            voice_ids = {s.suggested_voice_id for s in speakers if s.suggested_voice_id}
+            voice_names = {
+                v.id: v.display_name
+                for v in db.query(ProjectVoice).filter(ProjectVoice.id.in_(voice_ids)).all()
+            } if voice_ids else {}
             return [
                 _speaker_dict(
                     s, samples.get(s.id),
@@ -71,6 +93,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                         by_id[s.suggested_match_id].display_name
                         if s.suggested_match_id in by_id else None
                     ),
+                    suggested_voice_name=voice_names.get(s.suggested_voice_id),
                 )
                 for s in speakers
             ]
@@ -126,7 +149,14 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                 save_db = ctx.get_db()
                 try:
                     speakers = save_db.query(Speaker).filter_by(video_id=video_id).all()
-                    applied = _apply_name_suggestions(speakers, raw)
+                    # Merge the transcript LLM guesses with voiceprint-propagated names
+                    # (an unnamed voice inherits the name of the named voice it most
+                    # resembles). The LLM wins on conflict; both funnel through the same
+                    # dedupe guards. A propagated name only names the speaker - it never
+                    # merges, so the separate same-recording "Same voice" merge chip
+                    # stays a distinct action.
+                    merged = {**_voiceprint_name_suggestions(speakers), **raw}
+                    applied = _apply_name_suggestions(speakers, merged)
                     save_db.commit()
                 finally:
                     save_db.close()
@@ -161,7 +191,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                 speaker.name = name or None
                 speaker.confirmed = True
                 db.flush()
-                refreshed = _rebuild_video_excerpts(db, speaker.video_id)
+                refreshed = rebuild_video_excerpts(db, speaker.video_id)
                 edited_at = datetime.now(timezone.utc)
                 affected = db.query(ClipCandidate).filter_by(video_id=speaker.video_id).all()
                 for clip in affected:
@@ -265,7 +295,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
                 raise HTTPException(404, "The suggested speaker no longer exists")
             video_id = prior.video_id
             _merge_speaker_into(db, new_speaker, prior)
-            refreshed = _rebuild_video_excerpts(db, video_id)
+            refreshed = rebuild_video_excerpts(db, video_id)
             edited_at = datetime.now(timezone.utc)
             affected = db.query(ClipCandidate).filter_by(video_id=video_id).all()
             for clip in affected:
@@ -301,11 +331,136 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         finally:
             db.close()
 
+    @router.post("/api/videos/{video_id}/speakers")
+    def create_speaker(video_id: int, body: SpeakerCreate):
+        """Mint a new empty Speaker on a recording (for a voice diarization missed/merged).
+
+        No voiceprint, source='manual', next display_index. Lines are moved onto it with
+        the existing per-line / bulk reassignment endpoints. Name/colour validation
+        matches rename_speaker.
+        """
+        db = ctx.get_db()
+        try:
+            video = db.get(Video, video_id)
+            if not video:
+                raise HTTPException(404, "Video not found")
+            name = (body.name or "").strip() or None
+            color = (body.color or "").strip()
+            if color and not _HEX_COLOR_RE.match(color):
+                raise HTTPException(400, "Color must be a hex value like #4fc3f7")
+            next_index = (
+                db.query(func.max(Speaker.display_index)).filter_by(video_id=video_id).scalar() or 0
+            ) + 1
+            speaker = Speaker(
+                video_id=video_id, display_index=next_index, name=name,
+                source="manual", confirmed=True, color=color or None,
+            )
+            db.add(speaker)
+            db.commit()
+            _log.info("Created manual speaker %d (video %d, index %d, name=%r)",
+                      speaker.id, video_id, next_index, name)
+            samples = _speaker_samples(db, [speaker.id])
+            return _speaker_dict(speaker, samples.get(speaker.id))
+        finally:
+            db.close()
+
+    @router.post("/api/speakers/{speaker_id}/merge-into/{target_id}")
+    def merge_speaker(speaker_id: int, target_id: int):
+        """Merge a whole Speaker into another: move all its lines onto the target.
+
+        Reuses _merge_speaker_into (averages voiceprints, clears dangling suggestions),
+        then rebuilds the recording's clip excerpts and refreshes export sidecars so the
+        target's name surfaces everywhere. Guards self-merge and cross-recording merges.
+        """
+        from yuu_clip.subtitles import refresh_export_sidecars
+        db = ctx.get_db()
+        try:
+            if speaker_id == target_id:
+                raise HTTPException(400, "Cannot merge a speaker into itself")
+            source = db.get(Speaker, speaker_id)
+            target = db.get(Speaker, target_id)
+            if not source or not target:
+                raise HTTPException(404, "Speaker not found")
+            if source.video_id != target.video_id:
+                raise HTTPException(400, "Speakers belong to different recordings")
+            video_id = target.video_id
+            _merge_speaker_into(db, source, target)
+            refreshed = rebuild_video_excerpts(db, video_id)
+            edited_at = datetime.now(timezone.utc)
+            affected = db.query(ClipCandidate).filter_by(video_id=video_id).all()
+            for clip in affected:
+                clip.transcript_edited_at = edited_at
+            db.commit()
+            for clip in affected:
+                refresh_export_sidecars(clip, ctx.export_dir, ctx.config.export_name_template)
+            _log.info("Merged speaker %d into %d (video %d); refreshed %d clip excerpt(s)",
+                      speaker_id, target_id, video_id, refreshed)
+            samples = _speaker_samples(db, [target.id])
+            return _speaker_dict(target, samples.get(target.id))
+        finally:
+            db.close()
+
+    @router.put("/api/speakers/{speaker_id}/reassign-segments")
+    def reassign_segments(speaker_id: int, body: ReassignSegments):
+        """Move a selected subset of a Speaker's lines onto another Speaker (or Unassigned).
+
+        One bulk endpoint (vs N per-line calls) so the excerpt rebuild + sidecar refresh
+        run once. Only lines that actually belong to *speaker_id* are moved; each is
+        flagged user-edited. Clips overlapping the moved lines are rebuilt + marked stale.
+        """
+        from yuu_clip.subtitles import refresh_export_sidecars
+        db = ctx.get_db()
+        try:
+            source = db.get(Speaker, speaker_id)
+            if not source:
+                raise HTTPException(404, "Speaker not found")
+            video_id = source.video_id
+            if not body.seg_ids:
+                raise HTTPException(400, "No transcript lines selected")
+            if body.target_speaker_id is not None:
+                target = db.get(Speaker, body.target_speaker_id)
+                if not target or target.video_id != video_id:
+                    raise HTTPException(400, "Target speaker does not belong to this recording")
+            segs = (
+                db.query(TranscriptSegment)
+                .filter(TranscriptSegment.id.in_(body.seg_ids),
+                        TranscriptSegment.speaker_id == speaker_id)
+                .all()
+            )
+            if not segs:
+                raise HTTPException(400, "None of the selected lines belong to this speaker")
+            for seg in segs:
+                seg.speaker_id = body.target_speaker_id
+                seg.speaker_edited = True
+            db.flush()
+            rebuild_video_excerpts(db, video_id)
+            affected = [
+                clip for clip in db.query(ClipCandidate).filter_by(video_id=video_id).all()
+                if any(s.start_ms < clip.end_ms and s.end_ms > clip.start_ms for s in segs)
+            ]
+            edited_at = datetime.now(timezone.utc)
+            for clip in affected:
+                clip.transcript_edited_at = edited_at
+            db.commit()
+            for clip in affected:
+                refresh_export_sidecars(clip, ctx.export_dir, ctx.config.export_name_template)
+            _log.info("Reassigned %d line(s) from speaker %d to %s (video %d)",
+                      len(segs), speaker_id, body.target_speaker_id, video_id)
+            return {
+                "reassigned": len(segs),
+                "target_speaker_id": body.target_speaker_id,
+                "affected_clip_ids": [c.id for c in affected],
+            }
+        finally:
+            db.close()
+
     return router
 
 
 def _speaker_dict(speaker: Speaker, sample: Optional[dict],
-                  suggested_name: Optional[str] = None) -> dict:
+                  suggested_name: Optional[str] = None,
+                  suggested_voice_name: Optional[str] = None) -> dict:
+    voice = speaker.global_voice
     return {
         "id": speaker.id,
         "video_id": speaker.video_id,
@@ -319,6 +474,13 @@ def _speaker_dict(speaker: Speaker, sample: Optional[dict],
         "suggested_match_id": speaker.suggested_match_id,
         "suggested_match_score": speaker.suggested_match_score,
         "suggested_match_name": suggested_name,
+        # Cross-recording Person (project-wide identity). person_* is the confirmed link;
+        # suggested_voice_* is an unconfirmed cross-recording match awaiting confirm-voice.
+        "global_voice_id": speaker.global_voice_id,
+        "person_name": voice.display_name if voice is not None else None,
+        "suggested_voice_id": speaker.suggested_voice_id,
+        "suggested_voice_score": speaker.suggested_voice_score,
+        "suggested_voice_name": suggested_voice_name,
         "sample_text": sample["text"] if sample else "",
         "sample_start_ms": sample["start_ms"] if sample else None,
         "sample_end_ms": sample["end_ms"] if sample else None,
@@ -454,41 +616,38 @@ def _apply_name_suggestions(speakers: list[Speaker], suggestions: dict[str, str]
     return applied
 
 
-def _rebuild_video_excerpts(db, video_id: int) -> int:
-    """Rebuild transcript excerpts for a video's clips so a rename shows up.
+_VOICEPRINT_SUGGEST_FLOOR = 0.5
 
-    Rebuilt from the recording's track-level transcripts (the same source clip
-    generation used). Clips that were individually retranscribed keep their own
-    excerpt - their per-clip transcripts are a separate source. Returns the count
-    of clips whose excerpt was rebuilt.
+
+def _voiceprint_name_suggestions(speakers: list[Speaker]) -> dict[str, str]:
+    """Propose a name for each unnamed voiceprinted Speaker: the confirmed-named
+    same-recording Speaker its voice most resembles.
+
+    Seeds from the same-recording near-miss already recorded (``suggested_match_id``)
+    when it points at a named Speaker, then extends by recomputing the best same-backend
+    cosine against every confirmed-named Speaker above a suggest floor. Keyed by
+    display_index (string) to match the LLM suggestion shape so both merge into one list
+    and share the ``_apply_name_suggestions`` dedupe guards. Returns names only - it
+    never merges Speakers.
     """
-    video = db.get(Video, video_id)
-    if not video:
-        return 0
-    track_ids = [t.id for t in video.audio_tracks if t.do_transcribe]
-    if not track_ids:
-        return 0
-    tx_ids = [
-        tx.id for tx in db.query(Transcript)
-        .filter(Transcript.audio_track_id.in_(track_ids), Transcript.clip_id.is_(None))
-        .all()
-    ]
-    if not tx_ids:
-        return 0
-    segments = (
-        db.query(TranscriptSegment)
-        .filter(TranscriptSegment.transcript_id.in_(tx_ids))
-        .order_by(TranscriptSegment.start_ms)
-        .all()
-    )
+    from yuu_clip.transcribe.whisper_runner import _best_voiceprint_match, _deserialize_voiceprint
 
-    rebuilt = 0
-    clips = db.query(ClipCandidate).filter_by(video_id=video_id).all()
-    for clip in clips:
-        if clip.clip_transcripts:
+    by_id = {s.id: s for s in speakers}
+    named = [s for s in speakers if s.name and s.confirmed and s.voiceprint]
+    suggestions: dict[str, str] = {}
+    for speaker in speakers:
+        if (speaker.name and speaker.confirmed) or not speaker.voiceprint:
             continue
-        window = [s for s in segments if s.start_ms < clip.end_ms and s.end_ms > clip.start_ms]
-        if window:
-            clip.transcript_excerpt = _build_excerpt(window)
-            rebuilt += 1
-    return rebuilt
+        prior = by_id.get(speaker.suggested_match_id)
+        if prior is not None and prior.name and prior.confirmed:
+            suggestions[str(speaker.display_index)] = prior.name
+            continue
+        match, _score, _top = _best_voiceprint_match(
+            _deserialize_voiceprint(speaker.voiceprint), named, {speaker.id},
+            threshold=_VOICEPRINT_SUGGEST_FLOOR, active_backend=speaker.voiceprint_backend,
+        )
+        if match is not None:
+            suggestions[str(speaker.display_index)] = match.name
+    return suggestions
+
+

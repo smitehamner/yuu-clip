@@ -605,6 +605,12 @@ class Config:
     # than speaker_match_threshold (a similarity). After clustering, fragments of one
     # voice are re-merged by a consolidation pass keyed on speaker_match_threshold.
     speaker_cluster_threshold: float = 0.55
+    # THIRD, strictest threshold (keep it distinct from the two above): cosine
+    # similarity above which a recording's Speaker is proposed as the same project-wide
+    # Person as an existing ProjectVoice exemplar. A wrong cross-recording merge
+    # propagates a name across the whole project, so this only ever SUGGESTS (the user
+    # confirms in the People view) and sits above speaker_match_threshold on purpose.
+    project_voice_match_threshold: float = 0.80
 
     scorer_energy_enabled: bool = True
     scorer_scenes_enabled: bool = True

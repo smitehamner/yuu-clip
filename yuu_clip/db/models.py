@@ -92,6 +92,13 @@ _ADDITIVE_COLUMNS: tuple[tuple[str, str, str], ...] = (
     # Clips-vs-Scenes: NOT NULL DEFAULT backfills every existing row to 'clip'
     # (unlike the nullable columns above, this one carries a non-NULL default).
     ("clip_candidates", "kind", "VARCHAR NOT NULL DEFAULT 'clip'"),
+    # Project-wide speaker identity: cross-recording Person link + unconfirmed
+    # suggestion. The project_voices / voice_exemplars tables themselves are created
+    # by create_all(); only these columns on the pre-existing speakers table need the
+    # explicit ALTER for DBs created before this feature.
+    ("speakers", "global_voice_id", "INTEGER"),
+    ("speakers", "suggested_voice_id", "INTEGER"),
+    ("speakers", "suggested_voice_score", "FLOAT"),
 )
 
 
@@ -411,18 +418,43 @@ class Speaker(Base):
     )
     suggested_match_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
 
+    # Cross-recording project identity (Person). NULL = this Speaker is not yet part
+    # of any project-level voice. suggested_voice_id/_score carry an UNCONFIRMED
+    # cross-recording match recorded during analyze - parallel to suggested_match_id
+    # above but for the stricter project_voice_match_threshold. Confirming a match in
+    # the People view sets global_voice_id; matching never sets it automatically.
+    # Plain Integer, not ForeignKey, on purpose: on a DB predating this feature the
+    # additive-migration guard adds these via `ALTER TABLE ADD COLUMN ... INTEGER`
+    # (SQLite can't attach a FK that way), so declaring no FK keeps a freshly
+    # create_all-ed schema identical to a migrated one. Referential cleanup is done in
+    # code (People-view merge/split repoints links), same as suggested_match_id.
+    global_voice_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    suggested_voice_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    suggested_voice_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     video: Mapped["Video"] = relationship(back_populates="speakers")
+    global_voice: Mapped[Optional["ProjectVoice"]] = relationship(
+        "ProjectVoice",
+        primaryjoin="Speaker.global_voice_id == ProjectVoice.id",
+        foreign_keys="Speaker.global_voice_id",
+    )
 
     @property
     def display_name(self) -> str:
-        """Confirmed name if set, else the 'Speaker N' fallback.
+        """Effective display name, resolved in ONE place so captions/excerpts/exports/UI agree.
 
-        An unconfirmed inferred name (source='inferred', confirmed=False) is a
-        suggestion the user has not accepted yet, so it must not surface in
-        captions, excerpts, or exports - only the Speakers card shows it.
+        A Speaker linked to a named Person (global_voice) shows that Person's name
+        everywhere - naming a Person is what "applies across recordings" means. Else
+        the Speaker's own confirmed name, else the 'Speaker N' fallback. An unconfirmed
+        inferred name (source='inferred', confirmed=False) is a suggestion the user has
+        not accepted yet, so it must not surface in captions, excerpts, or exports -
+        only the Speakers card shows it.
         """
+        voice = self.global_voice
+        if voice is not None and voice.name:
+            return voice.name
         return self.name if (self.name and self.confirmed) else f"Speaker {self.display_index}"
 
     @property
@@ -447,6 +479,70 @@ SPEAKER_COLOR_PALETTE: list[str] = [
     "#7cf7d3",  # teal
     "#f77ab0",  # pink
 ]
+
+
+class ProjectVoice(Base):
+    """A project-level identity ("Person") spanning recordings - one name everywhere.
+
+    Per-recording ``Speaker`` rows link here via ``global_voice_id`` so naming this
+    Person surfaces in every linked recording's captions/excerpts/exports (see
+    ``Speaker.display_name``). Identity is carried by several ``VoiceExemplar``
+    voiceprints (multi-exemplar, so a voice that drifts session to session still
+    matches ANY exemplar) rather than one centroid. An auto-created or auto-suggested
+    voice starts ``confirmed=False`` until the user accepts it in the People view;
+    matching only ever SUGGESTS - it never links a Speaker automatically.
+    """
+    __tablename__ = "project_voices"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    # Stable 1-based ordering for the "Person N" display fallback when unnamed.
+    display_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    # User-picked colour ("#RRGGBB"); NULL falls back to SPEAKER_COLOR_PALETTE.
+    color: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    confirmed: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+    # NOTE: character_id (link to a world-context character) is added by the companion
+    # character-linking plan - do NOT add it here.
+
+    exemplars: Mapped[List["VoiceExemplar"]] = relationship(
+        back_populates="project_voice", cascade="all, delete-orphan"
+    )
+
+    @property
+    def display_name(self) -> str:
+        return self.name if self.name else f"Person {self.display_index}"
+
+    @property
+    def display_color(self) -> str:
+        return self.color or SPEAKER_COLOR_PALETTE[(self.display_index - 1) % len(SPEAKER_COLOR_PALETTE)]
+
+
+class VoiceExemplar(Base):
+    """One voiceprint contributed to a ProjectVoice (the multi-exemplar drift model).
+
+    A recording's Speaker matches a Person when its voiceprint is near ANY of that
+    Person's exemplars; confirming a match adds the Speaker's voiceprint as a new
+    exemplar. ``voiceprint_backend`` gates comparisons: pyannote and SpeechBrain
+    embeddings live in incompatible spaces, so a cross-backend cosine is meaningless
+    and must be skipped (same rule as Speaker.voiceprint_backend).
+    """
+    __tablename__ = "voice_exemplars"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_voice_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("project_voices.id"), nullable=False
+    )
+    voiceprint: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    voiceprint_backend: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    # Provenance: the Speaker this exemplar was seeded from. Nullable so deleting a
+    # Speaker never cascades away the exemplar it contributed to a Person's identity.
+    source_speaker_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("speakers.id"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    project_voice: Mapped["ProjectVoice"] = relationship(back_populates="exemplars")
 
 
 class ClipCandidate(Base):

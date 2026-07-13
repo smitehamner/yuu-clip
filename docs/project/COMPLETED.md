@@ -6,6 +6,69 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) - see the
 
 ---
 
+## Easier speaker editing - new speaker, bulk merge/split, voiceprint name hints (done 2026-07-13)
+
+Rounded out per-recording speaker editing so a creator can fix diarization mistakes
+without leaving the transcript.
+
+- **Per-line control polish.** The transcript speaker dot now reads as interactive (cursor,
+  hover fill + dot scale, the speaker's name in its tooltip) and the hardcoded `#888`
+  fallback colour is gone (`display_color` / `var(--muted)`, no-hardcoded-colors rule).
+- **Create a speaker inline.** `POST /api/videos/{id}/speakers` mints an empty
+  `source='manual'` Speaker (next display_index, no voiceprint). Surfaced as "+ New speaker"
+  in the transcript dot menu (moves that line onto it) and on the Speakers card. Name/colour
+  validation matches rename.
+- **Whole-speaker merge.** `POST /api/speakers/{id}/merge-into/{target}` reuses
+  `_merge_speaker_into` (guards self- and cross-recording merges); a per-row "Merge into..."
+  picker on the Speakers card, confirmed before it deletes the source.
+- **Bulk split / move.** `PUT /api/speakers/{id}/reassign-segments` moves a selected subset
+  of one speaker's lines onto another (or Unassigned) in a single call (one excerpt rebuild +
+  sidecar refresh). Driven by a "Select lines to move" mode on the full-recording transcript;
+  the client groups the selection by source speaker so a multi-speaker selection still uses
+  the bulk endpoint per group.
+- **Voiceprint name hints in "Suggest names".** An unnamed voiceprinted speaker now also
+  inherits the name of the confirmed-named same-recording speaker it most resembles (seeded
+  from the existing `suggested_match_id` near-miss, extended by a same-backend cosine above a
+  floor). Merged with the transcript LLM guesses and funneled through the same
+  `_apply_name_suggestions` dedupe guards - never auto-confirmed; a propagated name only names
+  the speaker, the "Same voice" merge chip stays a distinct action.
+- **Tests.** `tests/integration/test_speakers.py` (create / merge-into / reassign /
+  propagation), `tests/ui/test_ui_transcript.py`, `tests/ui/test_ui_speakers.py`.
+
+## Project-wide speaker identity - "People" across recordings (done 2026-07-13)
+
+Promoted per-recording **Speakers** to a project-level **Person** so one name applies
+across every recording a voice appears in. Plan of record:
+`plans/speaker-identity/INDEX.md` (the companion character-linking plan is deferred).
+
+- **Data model.** `ProjectVoice` (the identity), `VoiceExemplar` (multi-exemplar
+  voiceprints, so a voice that drifts session to session still matches *any* exemplar),
+  and `Speaker.global_voice_id` / `suggested_voice_id` / `suggested_voice_score`. All new
+  columns are registered in the `_ensure_additive_columns` startup guard; the migrated
+  `speakers` columns are plain integers (no FK) so a freshly created schema matches a
+  migrated one.
+- **One display-name rule.** `Speaker.display_name` resolves through the linked Person in
+  the ORM (one place), so captions, excerpts, exports, and the UI always agree.
+- **Three distinct thresholds.** Within-recording clustering *distance*
+  (`speaker_cluster_threshold`), same-recording re-attach *similarity*
+  (`speaker_match_threshold`), and the new, strictest cross-recording *similarity*
+  (`project_voice_match_threshold`, default 0.80, Settings: "Same person across
+  recordings").
+- **Matching only suggests.** A pure, unit-tested core (`transcribe/project_voice.py`,
+  same-backend cosine only) proposes a Person for each Speaker during analyze and writes
+  `suggested_voice_id` - it never sets `global_voice_id`. Application is a review action.
+- **People view.** A PanelNav takeover (`voices.js`, hamburger "People") lists people,
+  their member recordings, and pending suggestions, with promote / rename / recolor /
+  merge / split and a "Find people across recordings" idempotent backfill. The
+  per-recording Speakers card gains a "Person: X" line, "Promote to Person", and a
+  cross-recording "Same person?" chip.
+- **API.** `web/routes/voices.py` (`/api/voices*`, `/api/voices/backfill`,
+  `/api/speakers/{id}/confirm-voice` · `/reject-voice`). Every path that changes an
+  effective name rebuilds affected clip excerpts and refreshes export sidecars.
+- **Tests.** `tests/unit/test_project_voice.py`, `tests/unit/test_models.py`,
+  `tests/integration/test_voices.py`, `tests/integration/test_diarization.py`
+  (suggest-only wiring), `tests/ui/test_ui_voices.py`, `tests/ui/test_ui_speakers.py`.
+
 ## UI personality pass - cyan/gold retheme, YuuClip rebrand, collapsible cards (done 2026-07-13)
 
 Moved the web UI off its generic dark-dashboard look toward a chosen identity for an

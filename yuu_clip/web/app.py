@@ -48,6 +48,7 @@ from yuu_clip.web.routes import (
     sounds,
     speakers,
     videos,
+    voices,
 )
 from yuu_clip.web.sse import terminate_process_tree
 
@@ -72,7 +73,7 @@ _ROUTE_MODULES = (
     videos, clips, analyze, profiles, reel, reveal, logs, contexts, config,
     scoring, sounds, speakers, hotwords, sensitive, export_presets, imports,
     projects, sessions, name_corrections, llm, content_presets, models, backup,
-    dedup,
+    dedup, voices,
 )
 
 

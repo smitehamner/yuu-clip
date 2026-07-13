@@ -54,14 +54,19 @@ function renderTranscriptLines(lines, opts) {
     const editAttrs = editable
       ? ` data-seg-id="${line.seg_id}" role="button" tabindex="0" title="Click to edit caption"`
       : '';
+    // display_color is always set server-side; var(--muted) is a defensive fallback so
+    // no hardcoded hex ever ships (no-hardcoded-colors rule).
+    const dotColor = line.color ? escHtml(line.color) : 'var(--muted)';
+    const spkName = line.speaker ? escHtml(line.speaker) : 'this speaker';
     const spk = (videoId != null && line.speaker_id != null)
       ? `<button class="tline-spk${line.speaker_edited ? ' edited' : ''}"
                  data-seg-id="${line.seg_id}" data-speaker-id="${line.speaker_id}" data-video-id="${videoId}"
-                 title="${line.speaker_edited ? 'Reassigned by you - c' : 'C'}hange or name this speaker"
-                 aria-label="Change speaker">
-           <span class="tline-spk-dot" style="background:${escHtml(line.color || '#888')}"></span></button>`
+                 title="${line.speaker_edited ? 'Reassigned by you - ' : ''}${spkName} - click to change or rename"
+                 aria-label="Change or rename speaker">
+           <span class="tline-spk-dot" style="background:${dotColor}"></span></button>`
       : '';
-    return `${speaker}<div class="tline" data-start-ms="${line.start_ms || 0}" data-end-ms="${line.end_ms || 0}">
+    return `${speaker}<div class="tline" data-start-ms="${line.start_ms || 0}" data-end-ms="${line.end_ms || 0}"
+      data-seg-id="${line.seg_id != null ? line.seg_id : ''}" data-speaker-id="${line.speaker_id != null ? line.speaker_id : ''}">
       <button class="tline-play" data-seek-s="${seekS}"
               title="Jump to ${clock}" aria-label="Play from ${clock}">&#9654;</button>
       <span class="tline-time">${clock}</span>
@@ -98,11 +103,131 @@ async function loadVideoTranscript(videoId) {
   el.innerHTML = '<div class="transcript-empty">Loading…</div>';
   try {
     const data = await fetch(`/api/videos/${videoId}/transcript`).then(r => r.json());
-    el.innerHTML = renderTranscriptLines(data.lines, {seekOffsetS: data.seek_offset_s || 0, videoId});
+    _resetLineSelect();
+    const tools = (data.lines && data.lines.length) ? _lineMoveToolbar() : '';
+    el.innerHTML = tools + renderTranscriptLines(data.lines, {seekOffsetS: data.seek_offset_s || 0, videoId});
     _videoTranscriptLoadedFor = videoId;
   } catch (_) {
     el.innerHTML = '<div class="transcript-empty">Could not load transcript.</div>';
   }
+}
+
+// ── multi-select "move lines to a speaker" (bulk split) ────────────────────────
+// A selection mode on the full-recording transcript: pick several lines, then move
+// them onto another speaker, a new one, or Unassigned in a single bulk call per source
+// speaker (rebuilds excerpts + refreshes sidecars once). Only the recording transcript
+// gets this - clip transcripts render without the toolbar.
+const _lineMove = { videoId: null, active: false, selected: new Set() };
+
+function _resetLineSelect() {
+  _lineMove.active = false;
+  _lineMove.selected = new Set();
+}
+
+function _lineMoveToolbar() {
+  return `<div class="tx-move-bar" id="tx-move-bar">
+    <button class="btn ghost tx-move-toggle" title="Select several lines and move them onto another speaker">Select lines to move</button>
+  </div>`;
+}
+
+function _currentTranscriptVideoId() {
+  const card = document.getElementById('video-transcript-details');
+  return card ? parseInt(card.dataset.videoId, 10) : null;
+}
+
+async function _enterLineSelect() {
+  _lineMove.videoId = _currentTranscriptVideoId();
+  if (_lineMove.videoId == null) return;
+  _lineMove.active = true;
+  _lineMove.selected = new Set();
+  document.getElementById('video-transcript-view')?.classList.add('select-mode');
+  await _renderMoveBar();
+}
+
+function _exitLineSelect() {
+  _resetLineSelect();
+  const view = document.getElementById('video-transcript-view');
+  if (view) {
+    view.classList.remove('select-mode');
+    view.querySelectorAll('.tline-selected').forEach(r => r.classList.remove('tline-selected'));
+  }
+  _renderMoveBar();
+}
+
+async function _renderMoveBar() {
+  const bar = document.getElementById('tx-move-bar');
+  if (!bar) return;
+  if (!_lineMove.active) {
+    bar.innerHTML = `<button class="btn ghost tx-move-toggle" title="Select several lines and move them onto another speaker">Select lines to move</button>`;
+    return;
+  }
+  const speakers = await _getVideoSpeakers(_lineMove.videoId);
+  const opts = speakers.map(s => `<option value="${s.id}">${escHtml(s.display_name)}</option>`).join('');
+  bar.innerHTML = `
+    <span class="tx-move-count">${plural(_lineMove.selected.size, 'line')} selected</span>
+    <select class="tx-move-target" aria-label="Move selected lines to">
+      <option value="">Move to&hellip;</option>${opts}
+      <option value="__new__">+ New speaker</option>
+      <option value="__none__">Unassigned</option>
+    </select>
+    <button class="btn ghost tx-move-cancel">Cancel</button>`;
+}
+
+function _toggleLineSelection(row) {
+  const segId = parseInt(row.dataset.segId, 10);
+  if (!segId || !row.dataset.speakerId) return;  // only attributed lines can be moved
+  if (_lineMove.selected.has(segId)) {
+    _lineMove.selected.delete(segId);
+    row.classList.remove('tline-selected');
+  } else {
+    _lineMove.selected.add(segId);
+    row.classList.add('tline-selected');
+  }
+  const count = document.querySelector('.tx-move-count');
+  if (count) count.textContent = `${plural(_lineMove.selected.size, 'line')} selected`;
+}
+
+async function _moveSelectedLines(value) {
+  const segIds = [..._lineMove.selected];
+  const videoId = _lineMove.videoId;
+  if (!segIds.length) { showToast('Select some lines first', 'warning'); await _renderMoveBar(); return; }
+  try {
+    const target = await _resolveMoveTarget(value, videoId);
+    // The bulk endpoint moves lines of ONE source speaker, so group the selection by
+    // each line's current speaker and call once per group.
+    const groups = {};
+    for (const segId of segIds) {
+      const row = document.querySelector(`#video-transcript-view .tline[data-seg-id="${segId}"]`);
+      const src = row && row.dataset.speakerId;
+      if (src && parseInt(src, 10) !== target) (groups[src] = groups[src] || []).push(segId);
+    }
+    let moved = 0;
+    for (const [src, ids] of Object.entries(groups)) {
+      const res = await fetch(`/api/speakers/${src}/reassign-segments`, {
+        method: 'PUT', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({seg_ids: ids, target_speaker_id: target}),
+      });
+      if (!res.ok) throw new Error(formatApiError(await res.json().catch(() => ({}))));
+      moved += (await res.json()).reassigned;
+    }
+    showToast(moved ? `Moved ${plural(moved, 'line')}` : 'Those lines were already on that speaker');
+    _exitLineSelect();
+    _refreshAfterSpeakerChange(videoId, null);
+  } catch (err) {
+    showToast(`Could not move lines: ${err.message}`, 'error');
+    await _renderMoveBar();
+  }
+}
+
+async function _resolveMoveTarget(value, videoId) {
+  if (value === '__none__') return null;
+  if (value !== '__new__') return parseInt(value, 10);
+  const res = await fetch(`/api/videos/${videoId}/speakers`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}',
+  });
+  if (!res.ok) throw new Error(formatApiError(await res.json().catch(() => ({}))));
+  delete _videoSpeakersCache[videoId];
+  return (await res.json()).id;
 }
 
 // Called after a speaker rename/recolor so the open recording transcript picks up
@@ -164,6 +289,7 @@ async function _openSpeakerMenu(chip) {
     <div class="spk-menu-head">Attribute this line to</div>
     ${items}
     <button class="spk-menu-item" data-reassign="">Unassigned</button>
+    <button class="spk-menu-item spk-menu-new">+ New speaker</button>
     <div class="spk-menu-sep"></div>
     <div class="spk-menu-head">Name ${escHtml(cur ? cur.display_name : 'this speaker')}</div>
     <div class="spk-menu-rename">
@@ -181,6 +307,7 @@ async function _openSpeakerMenu(chip) {
   _openSpkMenu = menu;
 
   menu.addEventListener('click', e => {
+    if (e.target.closest('.spk-menu-new')) { _newSpeakerForLine(segId, videoId); return; }
     const reassign = e.target.closest('[data-reassign]');
     if (reassign) {
       const val = reassign.dataset.reassign;
@@ -200,6 +327,24 @@ async function _openSpeakerMenu(chip) {
     document.addEventListener('click', _onDocClickSpkMenu, true);
     document.addEventListener('keydown', _onKeydownSpkMenu, true);
   }, 0);
+}
+
+// Create a fresh unnamed speaker (for a voice diarization missed or merged) and move
+// this line onto it. The user can name it from its dot afterward. Reassignment reuses
+// the same path as picking an existing speaker (rebuilds excerpts, refreshes the card).
+async function _newSpeakerForLine(segId, videoId) {
+  try {
+    const res = await fetch(`/api/videos/${videoId}/speakers`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}',
+    });
+    if (!res.ok) throw new Error(formatApiError(await res.json().catch(() => ({}))));
+    const speaker = await res.json();
+    delete _videoSpeakersCache[videoId];
+    await _reassignLine(segId, speaker.id, videoId);
+    showToast(`Line moved to a new ${speaker.display_name}`);
+  } catch (err) {
+    showToast(`Could not add a speaker: ${err.message}`, 'error');
+  }
 }
 
 async function _reassignLine(segId, speakerId, videoId) {
@@ -318,12 +463,27 @@ document.addEventListener('DOMContentLoaded', () => {
   const detail = document.getElementById('detail');
   if (!detail) return;
   detail.addEventListener('click', e => {
+    if (e.target.closest('.tx-move-toggle')) { _enterLineSelect(); return; }
+    if (e.target.closest('.tx-move-cancel')) { _exitLineSelect(); return; }
+    const view = document.getElementById('video-transcript-view');
+    if (view && view.classList.contains('select-mode') && view.contains(e.target)) {
+      // In select mode a line click toggles selection; playback still works, but the
+      // dot menu and caption editing yield to selection.
+      const play = e.target.closest('.tline-play');
+      if (play) { seekPlayerTo(parseFloat(play.dataset.seekS)); return; }
+      const row = e.target.closest('.tline');
+      if (row) { _toggleLineSelection(row); return; }
+    }
     const spk = e.target.closest && e.target.closest('.tline-spk');
     if (spk) { e.stopPropagation(); _openSpeakerMenu(spk); return; }
     const text = e.target.closest && e.target.closest('.tline-text.editable');
     if (text) { startEditCaption(text); return; }
     const btn = e.target.closest && e.target.closest('.tline-play');
     if (btn) seekPlayerTo(parseFloat(btn.dataset.seekS));
+  });
+  detail.addEventListener('change', e => {
+    const target = e.target.closest && e.target.closest('.tx-move-target');
+    if (target && target.value) _moveSelectedLines(target.value);
   });
   detail.addEventListener('keydown', e => {
     if (e.key !== 'Enter' && e.key !== ' ') return;

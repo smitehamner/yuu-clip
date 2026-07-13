@@ -41,6 +41,7 @@ Most lookups only need this table: the authoritative user-facing term, the code 
 | Transcription language | `whisper_language` | What Whisper hears (`""` = auto) - not UI localization |
 | Caption segment | `TranscriptSegment` | One timed phrase - never bare "segment" |
 | Speaker | `Speaker` | A diarized voice - show name or "Speaker N", never `SPEAKER_00` |
+| Person / People | `ProjectVoice`, `Speaker.global_voice_id` | One voice named once across all recordings - not "ProjectVoice"/"global voice" in UI |
 | Speaker name | `Speaker.name` | Creator-assigned name for a speaker |
 | Suggested speaker name | `source='inferred'`, `confirmed=False` | LLM-proposed name awaiting Accept/Dismiss |
 | Speaker labels | `diarization_backend` | The feature: transcripts show who is speaking - not "diarization" in UI |
@@ -450,6 +451,18 @@ When a re-diarized voice lands just below the re-attach threshold (within a fixe
 - **Code:** `Speaker.suggested_match_id`, `Speaker.suggested_match_score`; routes `POST /api/speakers/{id}/confirm-match` and `/reject-match`
 - **User-facing terms:** "voice match", "Same voice", "Different voice" - not "cosine", "threshold", or "voiceprint"
 - **Notes:** On same-audio re-diarize this rarely fires (a voice's own print re-attaches at ~1.00); it earns its keep for degraded or cross-session audio.
+
+---
+
+### Person / People
+
+A **project-wide identity**: one voice named once and applied across *every* recording it appears in, so a real person named in ten sessions is named once. A per-recording **Speaker** links to a Person; a Speaker's effective **display name** resolves through the linked Person (naming the Person is what "applies everywhere" means). The **People** view (hamburger menu) lists people, their member recordings, and pending cross-recording suggestions, with promote / rename / recolor / merge / split and a "Find people across recordings" backfill.
+
+- **Code:** `ProjectVoice` (the identity), `Speaker.global_voice_id` (the link), `VoiceExemplar` (the multi-exemplar voiceprints), `Speaker.suggested_voice_id` / `suggested_voice_score` (an unconfirmed cross-recording match); routes in `web/routes/voices.py` (`/api/voices*`, `/api/speakers/{id}/confirm-voice` · `/reject-voice`); matching core `transcribe/project_voice.py`; UI `voices.js`.
+- **Also called in codebase:** `global_voice`, "project voice".
+- **User-facing terms:** "Person", "People", "Promote to Person", "Same person" - not "ProjectVoice", "global voice", "cluster", or "cosine".
+- **Three thresholds (keep distinct):** within-recording clustering *distance* (`speaker_cluster_threshold`, "Voice grouping"); same-recording re-attach *similarity* (`speaker_match_threshold`, "Speaker match strictness"); and the new, strictest cross-recording *similarity* (`project_voice_match_threshold`, "Same person across recordings"). A voice matches a Person on its *nearest* exemplar, same diarization backend only.
+- **Notes:** Matching during analyze only ever *suggests* (`suggested_voice_id`); nothing sets `global_voice_id` automatically - a wrong cross-recording merge would propagate a name project-wide, so the user confirms in People. The companion character-linking plan later hangs `character_id` off `ProjectVoice`.
 
 ---
 

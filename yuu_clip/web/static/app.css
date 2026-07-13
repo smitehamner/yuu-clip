@@ -429,6 +429,39 @@ button.section-toggle-btn:not(.active):hover { color: var(--text); background: v
 .speaker-samevoice:hover { background: color-mix(in srgb, var(--accent) 15%, transparent); }
 .speaker-diffvoice { color: var(--muted); }
 .speaker-diffvoice:hover { background: var(--border); color: var(--text); }
+/* project-wide identity (Person) on the per-recording Speakers card */
+.speaker-person { flex: 1 1 100%; margin-left: 82px; font-size: 12px; color: var(--muted); display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.speaker-person strong { color: var(--text); }
+.speaker-open-people { padding: 2px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface); cursor: pointer; font-size: 12px; color: var(--accent); }
+.speaker-open-people:hover { background: color-mix(in srgb, var(--accent) 15%, transparent); }
+.speaker-promote { font-size: 12px; }
+.speaker-sameperson, .speaker-diffperson { padding: 2px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface); cursor: pointer; font-size: 12px; }
+.speaker-sameperson { border-color: var(--accent); color: var(--accent); }
+.speaker-sameperson:hover { background: color-mix(in srgb, var(--accent) 15%, transparent); }
+.speaker-diffperson { color: var(--muted); }
+.speaker-diffperson:hover { background: var(--border); color: var(--text); }
+/* People view (project-wide speaker identity) */
+.people-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 8px; }
+.people-header .btn { flex-shrink: 0; }
+.people-intro { font-size: 13px; color: var(--muted); margin: 0 0 4px; }
+.people-intro strong { color: var(--text); }
+.person-card { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); padding: 14px 16px; margin-bottom: 12px; }
+.person-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.voice-name-input { flex: 0 0 200px; padding: 6px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 14px; font-weight: 600; }
+.voice-name-input:focus { outline: none; border-color: var(--accent); }
+.person-count { font-size: 12px; color: var(--muted); }
+.voice-merge-select { margin-left: auto; padding: 5px 8px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 12px; }
+.person-members { margin-top: 10px; display: flex; flex-direction: column; gap: 4px; }
+.person-member { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+.person-member-name { font-weight: 600; color: var(--text); min-width: 120px; }
+.person-member-file { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1 1 auto; min-width: 0; }
+.person-empty { margin-top: 8px; font-size: 12px; color: var(--muted); }
+.voice-detach-btn { flex-shrink: 0; font-size: 12px; padding: 2px 10px; }
+.person-suggestions { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); }
+.person-suggestions-head { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); margin-bottom: 6px; }
+.person-suggestion { display: flex; align-items: center; gap: 10px; font-size: 13px; margin-bottom: 4px; flex-wrap: wrap; }
+.person-suggestion-score { color: var(--muted); font-size: 12px; }
+.voice-confirm-btn, .voice-reject-btn { font-size: 12px; padding: 2px 10px; }
 /* timed transcript view (clip + full recording) */
 .transcript-lines { display: flex; flex-direction: column; gap: 2px; }
 .tline { display: flex; align-items: baseline; gap: 8px; padding: 2px 0; }
@@ -441,8 +474,9 @@ button.section-toggle-btn:not(.active):hover { color: var(--text); background: v
 .tline-play:hover { background: var(--border); }
 .tline-time { flex-shrink: 0; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; min-width: 40px; }
 .tline-spk { flex-shrink: 0; width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; padding: 0; border-radius: 50%; border: 1px solid var(--border); background: var(--surface); cursor: pointer; align-self: center; position: relative; }
-.tline-spk:hover { border-color: var(--accent); }
-.tline-spk-dot { width: 9px; height: 9px; border-radius: 50%; display: block; }
+.tline-spk:hover { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 15%, var(--surface)); }
+.tline-spk:hover .tline-spk-dot { transform: scale(1.25); }
+.tline-spk-dot { width: 9px; height: 9px; border-radius: 50%; display: block; transition: transform .12s; }
 .tline-spk.edited { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .tline-spk.edited::after { content: "\270E"; position: absolute; top: -6px; right: -6px; font-size: 9px; color: var(--accent); }
 .spk-menu { position: fixed; z-index: 5000; min-width: 200px; max-width: 260px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-menu); padding: 6px; font-size: 13px; }
@@ -492,6 +526,14 @@ button.section-toggle-btn:not(.active):hover { color: var(--text); background: v
 .colorpicker-palette-add { flex: 0 0 auto; font-size: 12px; padding: 5px 12px; border: none; border-radius: var(--radius-sm); background: var(--accent); color: var(--on-accent); cursor: pointer; }
 .colorpicker-palette-add:hover { background: color-mix(in srgb, var(--accent) 85%, var(--text)); }
 
+/* multi-select "move lines" toolbar + selection state (bulk split) */
+.tx-move-bar { display: flex; align-items: center; gap: 10px; padding: 4px 0 10px; flex-wrap: wrap; }
+.tx-move-count { font-size: 12px; color: var(--muted); }
+.tx-move-target { padding: 4px 8px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 12px; }
+#video-transcript-view.select-mode .tline { cursor: pointer; }
+#video-transcript-view.select-mode .tline:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); border-radius: 4px; }
+.tline.tline-selected { background: color-mix(in srgb, var(--accent) 18%, transparent); border-radius: 4px; }
+.speaker-merge-select { padding: 4px 8px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 12px; }
 .tline-text { font-size: 13px; line-height: 1.45; }
 .tline-text.editable { cursor: text; border-radius: 4px; padding: 0 3px; transition: background .12s; }
 .tline-text.editable:hover { background: var(--border); }

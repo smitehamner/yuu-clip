@@ -984,6 +984,170 @@ class TestInferNamesRoute:
         assert accepted["confirmed"] is True
 
 
+class TestSpeakerEditingEndpoints:
+    """Feature B: create-inline, whole-speaker merge, and bulk line reassignment."""
+
+    def _db(self, project_dir: Path):
+        return make_session(project_dir / ".yuu-clip" / "project.db")
+
+    def _seed_two_speakers(self, project_dir: Path):
+        """Two speakers on the seeded video, each with one segment, plus an overlapping
+        clip. Returns (video_id, speaker_a_id, speaker_b_id, seg_a_id, seg_b_id, clip_id)."""
+        db = self._db(project_dir)
+        video = db.query(Video).first()
+        track = db.query(AudioTrack).filter_by(video_id=video.id).first()
+        tx = Transcript(audio_track_id=track.id, model_name="base")
+        db.add(tx)
+        db.flush()
+        a = Speaker(video_id=video.id, display_index=1, name="Alex", confirmed=True)
+        b = Speaker(video_id=video.id, display_index=2)
+        db.add_all([a, b])
+        db.flush()
+        seg_a = TranscriptSegment(transcript_id=tx.id, start_ms=0, end_ms=1500,
+                                  text="first", speaker_label="SPEAKER_00", speaker_id=a.id)
+        seg_b = TranscriptSegment(transcript_id=tx.id, start_ms=1500, end_ms=3000,
+                                  text="second", speaker_label="SPEAKER_01", speaker_id=b.id)
+        db.add_all([seg_a, seg_b])
+        clip = db.query(ClipCandidate).filter_by(video_id=video.id).order_by(ClipCandidate.start_ms).first()
+        db.commit()
+        ids = (video.id, a.id, b.id, seg_a.id, seg_b.id, clip.id)
+        db.close()
+        return ids
+
+    def test_create_speaker_mints_next_index(self, client, project_dir):
+        video_id, _, _, _, _, _ = self._seed_two_speakers(project_dir)
+        created = client.post(f"/api/videos/{video_id}/speakers", json={"name": "Casey"})
+        assert created.status_code == 200
+        body = created.json()
+        assert body["display_name"] == "Casey"
+        assert body["display_index"] == 3  # after the two seeded
+        assert body["source"] == "manual"
+
+    def test_create_speaker_rejects_bad_color(self, client, project_dir):
+        video_id, *_ = self._seed_two_speakers(project_dir)
+        resp = client.post(f"/api/videos/{video_id}/speakers", json={"color": "red"})
+        assert resp.status_code == 400
+
+    def test_create_speaker_404_missing_video(self, client):
+        assert client.post("/api/videos/9999/speakers", json={"name": "X"}).status_code == 404
+
+    def test_merge_into_moves_segments_and_deletes_source(self, client, project_dir):
+        video_id, a_id, b_id, seg_a_id, seg_b_id, clip_id = self._seed_two_speakers(project_dir)
+        # Merge b (unnamed) into a (Alex): both lines end up on Alex.
+        resp = client.post(f"/api/speakers/{b_id}/merge-into/{a_id}")
+        assert resp.status_code == 200
+        assert resp.json()["id"] == a_id
+
+        db = self._db(project_dir)
+        try:
+            assert db.get(Speaker, b_id) is None
+            assert db.get(TranscriptSegment, seg_b_id).speaker_id == a_id
+            assert "Alex: first second" in db.get(ClipCandidate, clip_id).transcript_excerpt
+        finally:
+            db.close()
+
+    def test_merge_into_self_rejected(self, client, project_dir):
+        _, a_id, _, _, _, _ = self._seed_two_speakers(project_dir)
+        assert client.post(f"/api/speakers/{a_id}/merge-into/{a_id}").status_code == 400
+
+    def test_merge_into_cross_video_rejected(self, client, project_dir):
+        _, a_id, _, _, _, _ = self._seed_two_speakers(project_dir)
+        db = self._db(project_dir)
+        other_video = Video(path="o.mkv", filename="o.mkv", status="done")
+        db.add(other_video)
+        db.flush()
+        other = Speaker(video_id=other_video.id, display_index=1)
+        db.add(other)
+        db.commit()
+        other_id = other.id
+        db.close()
+        assert client.post(f"/api/speakers/{a_id}/merge-into/{other_id}").status_code == 400
+
+    def test_reassign_segments_moves_selected_only(self, client, project_dir):
+        video_id, a_id, b_id, seg_a_id, seg_b_id, clip_id = self._seed_two_speakers(project_dir)
+        # Move Alex's one line onto b; b's line stays put.
+        resp = client.put(f"/api/speakers/{a_id}/reassign-segments",
+                          json={"seg_ids": [seg_a_id], "target_speaker_id": b_id})
+        assert resp.status_code == 200
+        assert resp.json()["reassigned"] == 1
+
+        db = self._db(project_dir)
+        try:
+            assert db.get(TranscriptSegment, seg_a_id).speaker_id == b_id
+            assert db.get(TranscriptSegment, seg_a_id).speaker_edited is True
+            assert db.get(TranscriptSegment, seg_b_id).speaker_id == b_id  # unchanged (was b)
+        finally:
+            db.close()
+
+    def test_reassign_segments_to_unassigned(self, client, project_dir):
+        _, a_id, _, seg_a_id, _, _ = self._seed_two_speakers(project_dir)
+        resp = client.put(f"/api/speakers/{a_id}/reassign-segments",
+                          json={"seg_ids": [seg_a_id], "target_speaker_id": None})
+        assert resp.status_code == 200
+        db = self._db(project_dir)
+        try:
+            assert db.get(TranscriptSegment, seg_a_id).speaker_id is None
+        finally:
+            db.close()
+
+    def test_reassign_segments_empty_rejected(self, client, project_dir):
+        _, a_id, _, _, _, _ = self._seed_two_speakers(project_dir)
+        assert client.put(f"/api/speakers/{a_id}/reassign-segments",
+                          json={"seg_ids": []}).status_code == 400
+
+    def test_reassign_segments_not_owned_rejected(self, client, project_dir):
+        _, a_id, _, _, seg_b_id, _ = self._seed_two_speakers(project_dir)
+        # seg_b belongs to b, not a - so nothing to move via a's endpoint.
+        resp = client.put(f"/api/speakers/{a_id}/reassign-segments",
+                          json={"seg_ids": [seg_b_id], "target_speaker_id": None})
+        assert resp.status_code == 400
+
+
+class TestVoiceprintNameSuggestions:
+    """Feature B part 4: propagate a named voice's name to the unnamed voice it matches."""
+
+    def _speaker(self, sid, index, vector, *, name=None, confirmed=True,
+                 backend="speechbrain", suggested_match_id=None):
+        from yuu_clip.transcribe.project_voice import serialize_voiceprint
+        return Speaker(
+            id=sid, video_id=1, display_index=index, name=name, confirmed=confirmed,
+            voiceprint=serialize_voiceprint(vector) if vector else None,
+            voiceprint_backend=backend if vector else None,
+            suggested_match_id=suggested_match_id,
+        )
+
+    def test_propagates_nearest_named_voice(self):
+        from yuu_clip.web.routes.speakers import _voiceprint_name_suggestions
+        named = self._speaker(1, 1, [1.0, 0.0], name="Alex")
+        unnamed = self._speaker(2, 2, [0.99, 0.01])
+        assert _voiceprint_name_suggestions([named, unnamed]) == {"2": "Alex"}
+
+    def test_seeds_from_existing_suggested_match(self):
+        from yuu_clip.web.routes.speakers import _voiceprint_name_suggestions
+        named = self._speaker(1, 1, [1.0, 0.0], name="Alex")
+        # Orthogonal voice, but an already-recorded same-recording near-miss points at Alex.
+        unnamed = self._speaker(2, 2, [0.0, 1.0], suggested_match_id=1)
+        assert _voiceprint_name_suggestions([named, unnamed]) == {"2": "Alex"}
+
+    def test_skips_below_floor(self):
+        from yuu_clip.web.routes.speakers import _voiceprint_name_suggestions
+        named = self._speaker(1, 1, [1.0, 0.0], name="Alex")
+        unnamed = self._speaker(2, 2, [0.0, 1.0])  # cosine 0, no seed
+        assert _voiceprint_name_suggestions([named, unnamed]) == {}
+
+    def test_skips_cross_backend(self):
+        from yuu_clip.web.routes.speakers import _voiceprint_name_suggestions
+        named = self._speaker(1, 1, [1.0, 0.0], name="Alex", backend="pyannote")
+        unnamed = self._speaker(2, 2, [0.99, 0.01], backend="speechbrain")
+        assert _voiceprint_name_suggestions([named, unnamed]) == {}
+
+    def test_named_speakers_are_not_targeted(self):
+        from yuu_clip.web.routes.speakers import _voiceprint_name_suggestions
+        a = self._speaker(1, 1, [1.0, 0.0], name="Alex")
+        b = self._speaker(2, 2, [0.99, 0.01], name="Sam")
+        assert _voiceprint_name_suggestions([a, b]) == {}
+
+
 class TestCascade:
     def test_deleting_video_cascades_speakers(self, tmp_path: Path):
         session = make_session(tmp_path / "c.db")
