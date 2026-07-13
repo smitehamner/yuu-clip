@@ -265,6 +265,9 @@ button.section-toggle-btn:not(.active):hover { color: var(--text); background: v
 .sensitive-category-censor { background: color-mix(in srgb, var(--red) 20%, transparent); color: var(--red); }
 .sidebar-list { list-style: none; overflow-y: auto; }
 .sidebar-list li { padding: 8px 14px; cursor: pointer; border-left: 3px solid transparent; transition: background .1s; }
+/* Subtle per-row zebra. Kept before :hover/.active so those states win at
+   equal specificity by source order; ID-scoped selected states outrank it. */
+.sidebar-list li:nth-child(even) { background: color-mix(in srgb, var(--text) 5%, transparent); }
 .sidebar-list li:hover { background: var(--border); }
 .sidebar-list li.active { background: var(--selection); }
 #video-list li.active { border-left-color: var(--accent); }
@@ -625,6 +628,19 @@ kbd { background: var(--surface); border: 1px solid var(--border); border-radius
 .detail-card-header h2 { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .detail-card-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); }
 .detail-card-divider { border: none; border-top: 1px solid var(--border); margin: 10px 0; }
+/* Collapsible cards (opt-in via .collapsible + data-collapse-key). The header
+   toggles; a chevron sits on the title; the body hides when collapsed. */
+.detail-card.collapsible > .detail-card-header { cursor: pointer; user-select: none; }
+.detail-card.collapsible > .detail-card-header:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--radius-sm); }
+.detail-card.collapsible > .detail-card-header > .detail-card-title::after {
+  content: ""; display: inline-block; width: 6px; height: 6px; margin-left: 7px;
+  border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted);
+  transform: rotate(45deg); transition: transform .15s ease;
+  vertical-align: middle; position: relative; top: -2px;
+}
+.detail-card.collapsed > .detail-card-header > .detail-card-title::after { transform: rotate(-45deg); }
+.detail-card.collapsed > :not(.detail-card-header) { display: none; }
+.detail-card.collapsed > .detail-card-header { margin-bottom: 0; }
 
 /* ── sidebar in-progress recording ── */
 .video-item.analyzing, .analyzing-placeholder { border-left: 3px solid var(--accent); }

@@ -191,8 +191,51 @@ async function copyText(text, label) {
   }
 }
 
+// ── collapsible detail cards ───────────────────────────────────────────────
+// Opt-in: render a card as `class="detail-card collapsible" data-collapse-key="<key>"`
+// with a `role="button" tabindex="0"` header, and seed the collapsed class from
+// isCardCollapsed(key). Clicking (or Enter/Space) on the header toggles and
+// persists; clicks on controls inside the header are ignored so their own actions
+// still fire.
+const _COLLAPSED_CARDS_KEY = 'yuuclip-collapsed-cards';
+
+function _collapsedCardSet() {
+  try { return new Set(JSON.parse(localStorage.getItem(_COLLAPSED_CARDS_KEY) || '[]')); }
+  catch { return new Set(); }
+}
+
+function isCardCollapsed(key) { return _collapsedCardSet().has(key); }
+
+function _toggleCollapsibleCard(card, header) {
+  const collapsed = card.classList.toggle('collapsed');
+  header.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+  const key = card.dataset.collapseKey;
+  if (!key) return;
+  const set = _collapsedCardSet();
+  if (collapsed) set.add(key); else set.delete(key);
+  localStorage.setItem(_COLLAPSED_CARDS_KEY, JSON.stringify([...set]));
+}
+
+document.addEventListener('click', (e) => {
+  const header = e.target.closest('.detail-card-header');
+  if (!header) return;
+  const card = header.parentElement;
+  if (!card.classList.contains('collapsible')) return;
+  if (e.target.closest('button, a, input, select, textarea, label')) return;
+  _toggleCollapsibleCard(card, header);
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  const header = e.target.closest('.detail-card-header');
+  if (!header || header !== e.target || !header.parentElement.classList.contains('collapsible')) return;
+  e.preventDefault();
+  _toggleCollapsibleCard(header.parentElement, header);
+});
+
 Object.assign(window, {
   _syncSortDirBtn, _diarizationReason, _diarizationReadiness, _diarizationNoteHtml,
   openLog, toggleLog, clearLog, appendLog, showToast, netErrMsg, revealInFolder, copyText,
+  isCardCollapsed,
 });
 })();
