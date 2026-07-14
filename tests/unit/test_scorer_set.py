@@ -12,6 +12,7 @@ from yuu_clip.config import Config
 from yuu_clip.scoring.scorer_set import (
     build_clip_scorers,
     build_llm_scorers,
+    build_rescore_scorers,
     build_scene_scorers,
 )
 
@@ -71,3 +72,16 @@ def test_build_scene_scorers_is_scene_mode_llm():
     assert _names(scorers) == ["llm"]
     assert scorers[0]._scene_mode is True
     assert scorers[0]._context_text == "lore"
+
+
+def test_build_rescore_scorers_default_is_llm_only_and_preserves():
+    scorers, preserve = build_rescore_scorers(Config())
+    assert _names(scorers) == ["llm"]
+    assert preserve is True
+
+
+def test_build_rescore_scorers_full_is_whole_set_and_resets():
+    scorers, preserve = build_rescore_scorers(Config(), full=True)
+    assert "visual_activity" in _names(scorers) and "laugh" in _names(scorers)
+    assert _names(scorers) == _names(build_clip_scorers(Config()))
+    assert preserve is False

@@ -161,6 +161,49 @@ class TestRescoreClipGuard:
         assert r.status_code == 404
 
 
+class TestRescoreFullFlag:
+    """The user-facing full-vs-LLM-only choice reaches the scorer-set factory: the
+    routes must thread ?full through to build_rescore_scorers, which pairs the set
+    with its preserve flag."""
+
+    def _spy(self, monkeypatch):
+        from unittest.mock import MagicMock
+
+        import yuu_clip.scoring.scorer_set as scorer_set
+        from yuu_clip.scoring.protocol import ScoreResult
+
+        captured = {}
+
+        def spy(config, *, context_text="", full=False):
+            captured["full"] = full
+            fake = MagicMock()
+            fake.name = "llm"
+            fake.weight = 1.0
+            fake.is_available.return_value = True
+            fake.score.return_value = ScoreResult()
+            fake.last_error = None
+            return [fake], (not full)
+
+        monkeypatch.setattr(scorer_set, "build_rescore_scorers", spy)
+        return captured
+
+    def test_video_rescore_defaults_to_llm_only(self, client, monkeypatch):
+        captured = self._spy(monkeypatch)
+        assert client.get("/api/videos/1/rescore-clips").status_code == 200
+        assert captured["full"] is False
+
+    def test_video_rescore_full_flag_threads_through(self, client, monkeypatch):
+        captured = self._spy(monkeypatch)
+        assert client.get("/api/videos/1/rescore-clips?full=1").status_code == 200
+        assert captured["full"] is True
+
+    def test_clip_rescore_full_flag_threads_through(self, client, monkeypatch):
+        captured = self._spy(monkeypatch)
+        clip_id = client.get("/api/videos/1/clips").json()[0]["id"]
+        assert client.get(f"/api/clips/{clip_id}/rescore?full=1").status_code == 200
+        assert captured["full"] is True
+
+
 # ---------------------------------------------------------------------------
 # _config_with_context_weights
 # ---------------------------------------------------------------------------

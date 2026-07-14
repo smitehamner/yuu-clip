@@ -22,6 +22,10 @@
 - **Add / remove context chips** directly on the video detail view
 - A warning appears if clips were last scored with different contexts than currently assigned
 - **Re-score with context** button triggers LLM re-scoring using current contexts
+- **Re-score mode** - every re-score (per clip or per recording) offers two choices:
+  *LLM only* (the default) re-runs the language model and keeps the on-screen-activity
+  and laughter scores from the last full analysis; *Full* recomputes every score from
+  the stored signals for a clean re-score at analysis scale
 
 ### Video-level LLM features
 

@@ -71,3 +71,19 @@ def build_scene_scorers(config: "Config", *, context_text: str = "") -> list["Sc
     from yuu_clip.scoring.llm import LLMScorer
 
     return [LLMScorer(config, context_text=context_text, scene_mode=True)]
+
+
+def build_rescore_scorers(
+    config: "Config", *, context_text: str = "", full: bool = False
+) -> tuple[list["Scorer"], bool]:
+    """Return ``(scorers, preserve_unscored_dims)`` for a clip rescore.
+
+    ``full=False`` (default): the LLM-only set, which recomputes Funny/Dramatic/Action
+    and the description while *preserving* the signal-derived axes (Visual, laugh) the
+    last full analysis produced. ``full=True``: the complete analyze-time set, which
+    recomputes every axis from the stored signals for a clean re-score at analyze
+    scale. Pairing the scorer set with its preserve flag here keeps the two rescore
+    routes from choosing one without the other."""
+    if full:
+        return build_clip_scorers(config, context_text=context_text), False
+    return build_llm_scorers(config, context_text=context_text), True

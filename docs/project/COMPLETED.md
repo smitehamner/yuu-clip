@@ -6,6 +6,31 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) - see the
 
 ---
 
+## Full re-score option + scoring/export seams (done 2026-07-13)
+
+Follow-ups from the same code-quality review, and the user-owned feature the Theme B
+seam unblocked:
+
+- **Choose LLM-only vs full re-score.** Re-scoring a clip (or a whole recording) now
+  offers two modes: *LLM only* (default) re-runs the language model and preserves the
+  on-screen-activity and laughter scores from the last analysis; *Full* recomputes every
+  axis from the stored signals. The choice appears as a radio pair in the per-recording
+  re-score dialog and via the per-clip Re-score action.
+- **Canonical scorer-set factory.** The analyze-time scorer set was duplicated across the
+  ingest pipeline, the re-score routes, and the CLI, and the copies had silently drifted
+  (an LLM-only re-score dropped the Visual/laugh axes). One `scoring/scorer_set.py`
+  factory now builds every set, so re-score can rebuild the exact analyze set and cannot
+  drift again.
+- **Public pipeline/export seams.** The CLI no longer reaches past underscores into
+  `pipeline.ingest`; `yuu_clip.pipeline` exposes the re-run entry points as public names,
+  and the single-clip export sequence is a public `render_export()` orchestrator with a
+  seam tests can drive without a real ffmpeg. Export now configures logging so a failure
+  in the most web-invoked subprocess reaches the project log.
+- **CLI test coverage.** Added `--help` smoke tests for seven previously-untested
+  commands and unit tests for the local-model download helpers.
+
+---
+
 ## Code-quality review fixes - reliability + privacy hardening (done 2026-07-13)
 
 Fixes from a stage-by-stage code-quality review of the analyze/export/tooling code:

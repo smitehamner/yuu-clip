@@ -879,7 +879,7 @@ function openClipActionsModal(clipId) {
   const groups = [];
 
   const scoringRows = [
-    { label: 'Re-score', description: 'Re-run scoring and description generation for this clip.', action: () => rescoreClip(clipId) },
+    { label: 'Re-score', description: 'Re-run scoring and description generation for this clip.', action: () => rescoreClipChoose(clipId) },
   ];
   if (clip.score_overall_user != null) {
     scoringRows.push({ label: 'Remove Override', description: 'Discard the manual score and go back to the generated score.', action: () => clearScoreOverride(clipId) });

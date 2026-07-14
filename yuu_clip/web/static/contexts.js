@@ -309,6 +309,29 @@ document.addEventListener('click', e => {
   if (rmBtn && AppState.activeVideoId) removeVideoContext(AppState.activeVideoId, rmBtn.dataset.rmctx);
 });
 
+// ── re-score mode picker (LLM-only vs full) ───────────────────────────────────
+// Shared markup + reader so the per-recording dialog and the per-clip chooser
+// offer the identical choice. "LLM only" (default) keeps the on-screen activity
+// and laughter scores from the last analysis; "Full" recomputes every score.
+function _rescoreModeRadios() {
+  return `<div style="margin-top:12px;font-size:13px">
+    <div style="margin-bottom:6px;color:var(--muted)">Re-score:</div>
+    <label style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+      <input type="radio" name="rescore-mode" value="llm" checked>
+      LLM only - keep on-screen activity &amp; laughter scores
+    </label>
+    <label style="display:flex;align-items:center;gap:6px">
+      <input type="radio" name="rescore-mode" value="full">
+      Full - recompute every score
+    </label>
+  </div>`;
+}
+
+function _readRescoreMode() {
+  const picked = document.querySelector('input[name="rescore-mode"]:checked');
+  return !!picked && picked.value === 'full';
+}
+
 // ── re-score clips with context ───────────────────────────────────────────────
 async function rescoreClips(videoId, btn) {
   const video = AppState.videos.find(v => v.id === videoId);
@@ -323,11 +346,12 @@ async function rescoreClips(videoId, btn) {
   showConfirm(
     'Re-score clips with context?',
     `This will run LLM scoring on <strong>${plural(count, 'clip')}</strong>.<br>` +
-    `GPU time varies with clip count - this may take several minutes.` + framesRow,
+    `GPU time varies with clip count - this may take several minutes.` + framesRow +
+    _rescoreModeRadios(),
     'Re-score',
     () => {
       const inc = document.getElementById('rescore-include-frames');
-      _doRescoreClips(videoId, btn, 'rescore-clips', !!(inc && inc.checked));
+      _doRescoreClips(videoId, btn, 'rescore-clips', !!(inc && inc.checked), _readRescoreMode());
     },
   );
 }
@@ -344,7 +368,7 @@ function rescoreFailedClips(videoId, btn) {
   );
 }
 
-function _doRescoreClips(videoId, btn, endpoint = 'rescore-clips', includeFrames = false) {
+function _doRescoreClips(videoId, btn, endpoint = 'rescore-clips', includeFrames = false, full = false) {
   if (_blockedByAnalyze('re-score clips')) return;
   const orig = btn?.textContent;
   if (btn) { btn.disabled = true; btn.textContent = 'Re-scoring…'; }
@@ -352,8 +376,12 @@ function _doRescoreClips(videoId, btn, endpoint = 'rescore-clips', includeFrames
   _supersedeActiveStream();
   const resetBtn = () => { if (btn) { btn.disabled = false; btn.textContent = orig; } };
   let errorCount = 0;
+  const params = new URLSearchParams();
+  if (includeFrames) params.set('include_frames', '1');
+  if (full) params.set('full', '1');
+  const qs = params.toString();
   const handle = _openSSE(
-    `/api/videos/${videoId}/${endpoint}${includeFrames ? '?include_frames=1' : ''}`,
+    `/api/videos/${videoId}/${endpoint}${qs ? '?' + qs : ''}`,
     data => {
       if (typeof data === 'string' && data.startsWith('[Error')) errorCount++;
       appendLog(String(data));
@@ -400,9 +428,10 @@ function rescoreAllClips(videoId, btn) {
     `Re-run LLM scoring on all <strong>${plural(count, 'clip')}</strong>. ` +
     `Scores and descriptions will be overwritten. This cannot be undone.` +
     contextWarn +
+    _rescoreModeRadios() +
     `<div style="margin-top:8px;font-size:12px;color:var(--muted)">This may take several minutes.</div>`,
     'Re-score All',
-    () => _doRescoreClips(videoId, btn),
+    () => _doRescoreClips(videoId, btn, 'rescore-clips', false, _readRescoreMode()),
     true,
   );
 }
@@ -609,7 +638,19 @@ function startRetranscribe() {
 }
 
 // ── re-score individual clip ──────────────────────────────────────────────────
-function rescoreClip(clipId) {
+// Offer the LLM-only vs full choice before running (kebab "Re-score"). The
+// contextual quick actions (edited-captions note, manual clip creation) call
+// rescoreClip directly and stay LLM-only.
+function rescoreClipChoose(clipId) {
+  showConfirm(
+    'Re-score clip?',
+    _rescoreModeRadios(),
+    'Re-score',
+    () => rescoreClip(clipId, _readRescoreMode()),
+  );
+}
+
+function rescoreClip(clipId, full = false) {
   if (_blockedByAnalyze('re-score a clip')) return;
   _supersedeActiveStream();
   openLog();
@@ -617,7 +658,7 @@ function rescoreClip(clipId) {
   const teardown = () => endJobUI();
   let hadError = false;
   const handle = _openSSE(
-    `/api/clips/${clipId}/rescore`,
+    `/api/clips/${clipId}/rescore${full ? '?full=1' : ''}`,
     msg => {
       updateJobUI(typeof msg === 'string' ? msg : JSON.stringify(msg));
       if (typeof msg === 'string' && msg.startsWith('[Error')) hadError = true;
@@ -689,6 +730,6 @@ Object.assign(window, {
   addVideoContext,
   openAutoApproveModal, closeAutoApproveModal, doAutoApprove, updateAutoApprovePreview,
   openRetranscribeModal, closeRetranscribeModal, startRetranscribe,
-  rescoreClip, rescoreClips, rescoreFailedClips, rescoreAllClips, redescribeAllClips, resetApprovals,
+  rescoreClip, rescoreClipChoose, rescoreClips, rescoreFailedClips, rescoreAllClips, redescribeAllClips, resetApprovals,
 });
 })();

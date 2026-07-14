@@ -331,6 +331,20 @@ class TestRescoreClipProgressPill:
         page.wait_for_selector("#detail button:has-text('Additional Actions')", timeout=3000)
         page.click("#detail button:has-text('Additional Actions')")
         page.click("#actions-modal .action-row:has-text('Re-score')")
+        # Re-score now opens the LLM-only-vs-full mode chooser; confirm the default
+        # (LLM only) to reach the scoring job.
+        page.wait_for_selector("#confirm-modal.visible", timeout=2000)
+        page.click("#confirm-ok-btn")
+
+    def test_rescore_offers_llm_only_vs_full_choice(self, page: Page):
+        select_first_video_and_clip(page)
+        page.wait_for_selector("#detail button:has-text('Additional Actions')", timeout=3000)
+        page.click("#detail button:has-text('Additional Actions')")
+        page.click("#actions-modal .action-row:has-text('Re-score')")
+        page.wait_for_selector("#confirm-modal.visible", timeout=2000)
+        expect(page.locator("#confirm-modal")).to_contain_text("Full - recompute every score")
+        llm_only = page.locator("#confirm-modal input[name='rescore-mode'][value='llm']")
+        expect(llm_only).to_be_checked()
 
     def test_progress_pill_appears_on_rescore(self, page: Page):
         select_first_video_and_clip(page)

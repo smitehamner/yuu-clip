@@ -300,6 +300,7 @@ async def _maybe_analyze_frames(ctx, score_db, clip, config, context_text: str) 
 
 def _rescore_video_clips(
     ctx: ProjectContext, video_id: int, failed_only: bool, include_frames: bool = False,
+    full: bool = False,
 ):
     reject_if_analyzing(ctx)
     if include_frames:
@@ -333,16 +334,16 @@ def _rescore_video_clips(
 
     async def event_stream():
         from yuu_clip.scoring.engine import ScoringEngine
-        from yuu_clip.scoring.scorer_set import build_llm_scorers
+        from yuu_clip.scoring.scorer_set import build_rescore_scorers
 
         async with active_job(ctx):
             total = len(clip_ids)
             plural = "s" if total != 1 else ""
             yield f"data: {json_lib.dumps(f'[Starting LLM scoring for {total} clip{plural}…]')}\n\n"
-            llm_scorers = build_llm_scorers(config, context_text=context_text)
-            scorer = llm_scorers[0]
+            scorers, preserve = build_rescore_scorers(config, context_text=context_text, full=full)
+            scorer = next(s for s in scorers if s.name == "llm")
             engine = ScoringEngine(
-                config, llm_scorers,
+                config, scorers,
                 hot_words=hot_words, sensitive_terms=sensitive_terms,
             )
 
@@ -354,11 +355,11 @@ def _rescore_video_clips(
                     if clip:
                         if include_frames:
                             await _maybe_analyze_frames(ctx, score_db, clip, config, context_text)
-                        # Preserve the Visual/laugh axes this LLM-only rescore does
-                        # not recompute - resetting them would silently drop signals
-                        # the full analyze pass produced.
+                        # Default rescore preserves the Visual/laugh axes it does not
+                        # recompute; a full rescore (build_rescore_scorers full=True)
+                        # rebuilds the analyze set and resets every axis.
                         await asyncio.to_thread(
-                            engine.score_clip, clip, score_db, preserve_unscored_dims=True
+                            engine.score_clip, clip, score_db, preserve_unscored_dims=preserve
                         )
                         if engine.has_scorers and "llm_error" in clip.tags:
                             error = scorer.last_error or "LLM scoring failed - see yuu-clip.log for details"
@@ -391,11 +392,17 @@ def _rescore_video_clips(
 
 def _register_rescore_routes(router: APIRouter, ctx: ProjectContext) -> None:
     @router.get("/api/videos/{video_id}/rescore-clips")
-    async def rescore_clips(video_id: int, include_frames: bool = Query(False)):
+    async def rescore_clips(
+        video_id: int, include_frames: bool = Query(False), full: bool = Query(False)
+    ):
         """Re-run LLM scoring for all clips using the video's current context. Streams
         progress as SSE. With include_frames, each clip is image-analyzed first (slower)
-        so its scores/descriptions reflect what's on screen - 503 if no vision model."""
-        return _rescore_video_clips(ctx, video_id, failed_only=False, include_frames=include_frames)
+        so its scores/descriptions reflect what's on screen - 503 if no vision model.
+        With full, every axis (on-screen activity + laughter + LLM) is recomputed from
+        the stored signals instead of only the LLM axes."""
+        return _rescore_video_clips(
+            ctx, video_id, failed_only=False, include_frames=include_frames, full=full,
+        )
 
     @router.get("/api/videos/{video_id}/rescore-failed-clips")
     async def rescore_failed_clips(video_id: int):
@@ -605,7 +612,7 @@ def _register_summary_routes(router: APIRouter, ctx: ProjectContext) -> None:
 
 def _register_clip_scoring_routes(router: APIRouter, ctx: ProjectContext) -> None:
     @router.get("/api/clips/{clip_id}/rescore")
-    async def rescore_clip(clip_id: int):
+    async def rescore_clip(clip_id: int, full: bool = Query(False)):
         reject_if_analyzing(ctx)
         db = ctx.get_db()
         try:
@@ -623,16 +630,16 @@ def _register_clip_scoring_routes(router: APIRouter, ctx: ProjectContext) -> Non
 
         async def event_stream():
             from yuu_clip.scoring.engine import ScoringEngine
-            from yuu_clip.scoring.scorer_set import build_llm_scorers, build_scene_scorers
+            from yuu_clip.scoring.scorer_set import build_rescore_scorers, build_scene_scorers
 
             async with active_job(ctx):
                 yield f"data: {json_lib.dumps('[Starting LLM scoring for 1 clip…]')}\n\n"
-                llm_scorers = build_llm_scorers(config, context_text=context_text)
-                scorer = llm_scorers[0]
+                scorers, preserve = build_rescore_scorers(config, context_text=context_text, full=full)
+                scorer = next(s for s in scorers if s.name == "llm")
                 # A scene (kind='scene') routes to the scene rubric; the engine picks
                 # the scorer set by the clip's kind, so one route serves both.
                 engine = ScoringEngine(
-                    config, llm_scorers,
+                    config, scorers,
                     hot_words=hot_words, sensitive_terms=sensitive_terms,
                     scene_scorers=build_scene_scorers(config, context_text=context_text),
                 )
@@ -646,10 +653,11 @@ def _register_clip_scoring_routes(router: APIRouter, ctx: ProjectContext) -> Non
                         # scores are committed but descriptions go back via the compare modal.
                         old_desc      = clip.description
                         old_desc_long = clip.description_long
-                        # LLM-only rescore: keep the Visual/laugh axes it does not
-                        # recompute (a scene row still full-resets - see _score_scene).
+                        # Default rescore keeps the Visual/laugh axes it does not
+                        # recompute; a full rescore rebuilds the analyze set and resets
+                        # every axis (a scene row still full-resets - see _score_scene).
                         await asyncio.to_thread(
-                            engine.score_clip, clip, score_db, preserve_unscored_dims=True
+                            engine.score_clip, clip, score_db, preserve_unscored_dims=preserve
                         )
                         if engine.has_scorers and "llm_error" in clip.tags:
                             error = scorer.last_error or "LLM scoring failed - see yuu-clip.log for details"
