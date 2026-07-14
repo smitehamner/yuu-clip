@@ -171,8 +171,12 @@ def extract_context_weights(contexts: dict, context_ids: list[str]) -> dict[str,
         ctx = contexts.get(cid, {})
         for key in WEIGHT_FIELDS:
             val = ctx.get(key)
-            if val is not None:
+            if val is None:
+                continue
+            try:
                 totals[key].append(float(val))
+            except (TypeError, ValueError):
+                _log.warning("Context %s: %s is not numeric (%r) - skipping", cid, key, val)
     return {k: (sum(vs) / len(vs) if vs else None) for k, vs in totals.items()}
 
 
@@ -186,10 +190,10 @@ def format_context_block(contexts: dict, context_ids: list[str]) -> str:
         ctx = contexts.get(context_id)
         if not ctx:
             continue
-        name = ctx.get("display_name", context_id)
+        name = ctx.get("display_name") or context_id
         parts = [f"== WORLD CONTEXT: {name} =="]
         for field_key, label in _FIELDS:
-            val = ctx.get(field_key, "").strip()
+            val = (ctx.get(field_key) or "").strip()
             if val:
                 parts.append(f"[{label}] {val}")
         parts.append("== END CONTEXT ==")

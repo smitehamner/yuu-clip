@@ -227,6 +227,40 @@ def validate_title_card_template(value: str) -> str:
     return value
 
 
+def _read_config_file(path: Path) -> dict:
+    """Read + parse a config.json, tolerating a hand-corrupted file.
+
+    A truncated (crash mid-write) or hand-edited config.json must not crash the
+    app at startup - the most fragile moment. On unreadable/invalid JSON, or a
+    top-level value that is not an object, log a WARN naming the file and treat it
+    as absent (fall through to defaults / the other layer), mirroring
+    ``load_known_projects``. Bad *values* inside a valid object are still handled
+    downstream by the ``_sanitize_*`` helpers.
+    """
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (ValueError, OSError):
+        _log.warning("config.json at %s is unreadable - ignoring it", path)
+        return {}
+    if not isinstance(data, dict):
+        _log.warning("config.json at %s is not a JSON object - ignoring it", path)
+        return {}
+    return data
+
+
+def _in_numeric_range(value, low: float, high: float) -> bool:
+    """Whether *value* is a real number within [low, high].
+
+    A wrong-typed hand-edited value (e.g. ``"big"`` or ``null``) is not numeric,
+    so the range comparison would raise ``TypeError``; treat it as out-of-range so
+    the caller falls back to the default. ``bool`` is excluded - ``true`` is not a
+    valid scale/duration.
+    """
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return False
+    return low <= value <= high
+
+
 def _sanitize_title_card_fields(merged: dict) -> None:
     """
     Guard against a hand-edited config.json with garbage title-card values.
@@ -240,7 +274,7 @@ def _sanitize_title_card_fields(merged: dict) -> None:
         if field_name in merged:
             try:
                 validate_hex_color(merged[field_name], field_name)
-            except ValueError:
+            except (ValueError, TypeError):
                 _log.warning(
                     "Config: %s invalid (%r) - using default %s",
                     field_name, merged[field_name], _TITLE_CARD_DEFAULTS[field_name],
@@ -258,7 +292,7 @@ def _sanitize_title_card_fields(merged: dict) -> None:
             merged["title_card_template"] = _TITLE_CARD_DEFAULTS["title_card_template"]
 
     scale_min, scale_max = TITLE_CARD_SCALE_RANGE
-    if "title_card_scale" in merged and not (scale_min <= merged["title_card_scale"] <= scale_max):
+    if "title_card_scale" in merged and not _in_numeric_range(merged["title_card_scale"], scale_min, scale_max):
         _log.warning(
             "Config: title_card_scale out of range (%r) - using default %s",
             merged["title_card_scale"], _TITLE_CARD_DEFAULTS["title_card_scale"],
@@ -266,7 +300,7 @@ def _sanitize_title_card_fields(merged: dict) -> None:
         merged["title_card_scale"] = _TITLE_CARD_DEFAULTS["title_card_scale"]
 
     dur_min, dur_max = TITLE_CARD_DURATION_RANGE_S
-    if "title_card_duration_s" in merged and not (dur_min <= merged["title_card_duration_s"] <= dur_max):
+    if "title_card_duration_s" in merged and not _in_numeric_range(merged["title_card_duration_s"], dur_min, dur_max):
         _log.warning(
             "Config: title_card_duration_s out of range (%r) - using default %s",
             merged["title_card_duration_s"], _TITLE_CARD_DEFAULTS["title_card_duration_s"],
@@ -803,12 +837,12 @@ class Config:
 
         global_cfg = _global_config_dir() / "config.json"
         if global_cfg.exists():
-            merged.update(json.loads(global_cfg.read_text(encoding="utf-8")))
+            merged.update(_read_config_file(global_cfg))
             _log.debug("Loaded global config from %s", global_cfg)
 
         project_cfg = project_dir / ".yuu-clip" / "config.json"
         if project_cfg.exists():
-            merged.update(json.loads(project_cfg.read_text(encoding="utf-8")))
+            merged.update(_read_config_file(project_cfg))
             _log.debug("Loaded project config from %s", project_cfg)
 
         _sanitize_title_card_fields(merged)
@@ -836,10 +870,14 @@ class Config:
 
 
 def load_profiles() -> dict:
-    """Load saved track-label profiles from the global config dir."""
+    """Load saved track-label profiles from the global config dir.
+
+    Tolerates a corrupt profiles.json (same class as Config.load): a hand-edited
+    file must not crash the track-layout list - fall back to empty.
+    """
     p = _profiles_path()
     if p.exists():
-        return json.loads(p.read_text(encoding="utf-8"))
+        return _read_config_file(p)
     return {}
 
 

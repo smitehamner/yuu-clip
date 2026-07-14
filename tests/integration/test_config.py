@@ -37,6 +37,32 @@ class TestConfigLoad:
         assert config.whisper_model == "base"  # default
         assert config.llm_enabled is True    # default
 
+    def test_corrupt_project_config_falls_back_to_defaults(self, tmp_path, monkeypatch):
+        """A truncated/hand-broken config.json must not crash startup."""
+        import yuu_clip.config as cfg_mod
+        from yuu_clip.config import Config
+        monkeypatch.setattr(cfg_mod, "_global_config_dir", lambda: tmp_path / "global_cfg")
+        project_dir = tmp_path / "proj"
+        project_dir.mkdir()
+        cfg_dir = project_dir / ".yuu-clip"
+        cfg_dir.mkdir()
+        (cfg_dir / "config.json").write_text('{"whisper_model": "tiny",', encoding="utf-8")
+        config = Config.load(project_dir)
+        assert config.whisper_model == "base"  # corrupt file ignored, default used
+
+    def test_non_object_config_is_ignored(self, tmp_path, monkeypatch):
+        """A valid-JSON but non-object top level (e.g. a list) is ignored, not crashed on."""
+        import yuu_clip.config as cfg_mod
+        from yuu_clip.config import Config
+        monkeypatch.setattr(cfg_mod, "_global_config_dir", lambda: tmp_path / "global_cfg")
+        project_dir = tmp_path / "proj"
+        project_dir.mkdir()
+        cfg_dir = project_dir / ".yuu-clip"
+        cfg_dir.mkdir()
+        (cfg_dir / "config.json").write_text('["not", "an", "object"]', encoding="utf-8")
+        config = Config.load(project_dir)
+        assert config.whisper_model == "base"
+
     def test_global_config_is_loaded(self, tmp_path, monkeypatch):
         """Values in global config.json are merged in when no project config overrides them."""
         import json
@@ -961,6 +987,20 @@ class TestTitleCardConfigLoadSanitization:
     def test_duration_out_of_range_falls_back_to_default(self, tmp_path, monkeypatch):
         cfg = self._load_with(tmp_path, monkeypatch, {"title_card_duration_s": 30.0})
         assert cfg.title_card_duration_s == 3.0
+
+    def test_wrong_typed_scale_falls_back_to_default(self, tmp_path, monkeypatch):
+        # A non-numeric scale would make the range comparison raise TypeError.
+        cfg = self._load_with(tmp_path, monkeypatch, {"title_card_scale": "big"})
+        assert cfg.title_card_scale == 1.0
+
+    def test_null_duration_falls_back_to_default(self, tmp_path, monkeypatch):
+        cfg = self._load_with(tmp_path, monkeypatch, {"title_card_duration_s": None})
+        assert cfg.title_card_duration_s == 3.0
+
+    def test_numeric_bg_color_falls_back_to_default(self, tmp_path, monkeypatch):
+        # validate_hex_color(123, ...) raises TypeError inside the regex match.
+        cfg = self._load_with(tmp_path, monkeypatch, {"title_card_bg_color": 123})
+        assert cfg.title_card_bg_color == "#000000"
 
     def test_valid_title_card_values_roundtrip(self, tmp_path, monkeypatch):
         cfg = self._load_with(tmp_path, monkeypatch, {

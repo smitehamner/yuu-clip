@@ -245,6 +245,33 @@ class TestExtractContextWeights:
         result = extract_context_weights(contexts, ["a", "b"])
         assert result["score_funny_weight"] == 4.0
 
+    def test_non_numeric_weight_is_skipped_not_crashed_on(self):
+        # A hand-edited contexts.json with a non-numeric weight must not crash a
+        # scoring run - the bad value is skipped.
+        from yuu_clip.contexts import extract_context_weights
+        contexts = {
+            "a": {"score_funny_weight": "high"},
+            "b": {"score_funny_weight": 2.0},
+        }
+        result = extract_context_weights(contexts, ["a", "b"])
+        assert result["score_funny_weight"] == 2.0
+
+
+class TestFormatContextBlock:
+    def test_null_field_is_treated_as_empty(self):
+        # A hand-edited field present as JSON null must not raise on .strip().
+        from yuu_clip.contexts import format_context_block
+        contexts = {"a": {"display_name": "A", "setting": None}}
+        block = format_context_block(contexts, ["a"])
+        assert "WORLD CONTEXT: A" in block
+
+    def test_null_display_name_falls_back_to_context_id(self):
+        from yuu_clip.contexts import format_context_block
+        contexts = {"a": {"display_name": None}}
+        block = format_context_block(contexts, ["a"])
+        assert "WORLD CONTEXT: a" in block
+        assert "None" not in block
+
 
 # ---------------------------------------------------------------------------
 # contexts route - weight fields and display_name fallback
