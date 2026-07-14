@@ -6,8 +6,9 @@ This is the "don't drown the talk-heavy core" guard. merge_candidates:
   2. caps the surviving visual-only candidates at config.visual_candidate_cap per
      recording, keeping the highest motion peak first.
 
-Output is deterministic: the transcript candidates in their given order, followed by
-the kept visual candidates sorted by start time.
+Returns (transcript_cands, kept_visual): the transcript candidates unchanged, and the
+kept visual candidates sorted by start time. The caller appends the two, so the visual
+set is handed back directly rather than being recovered from a tag.
 """
 from __future__ import annotations
 
@@ -22,7 +23,7 @@ def merge_candidates(
     transcript_cands: list["ClipCandidate"],
     visual_cands: list["ClipCandidate"],
     config: "Config",
-) -> list["ClipCandidate"]:
+) -> tuple[list["ClipCandidate"], list["ClipCandidate"]]:
     kept = [
         vc for vc in visual_cands
         if _covered_fraction(vc, transcript_cands) <= config.visual_dedup_overlap
@@ -30,7 +31,7 @@ def merge_candidates(
     kept.sort(key=lambda c: (-_peak(c), c.start_ms, c.end_ms))
     kept = kept[: config.visual_candidate_cap]
     kept.sort(key=lambda c: (c.start_ms, c.end_ms))
-    return list(transcript_cands) + kept
+    return list(transcript_cands), kept
 
 
 def _peak(cand: "ClipCandidate") -> float:

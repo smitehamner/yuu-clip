@@ -777,8 +777,7 @@ def _generate_visual_candidates(video, transcript_cands, config, session) -> lis
     if not visual:
         return []
 
-    merged = merge_candidates(transcript_cands, visual, config)
-    kept = [c for c in merged if "no_speech" in c.tags]
+    _transcript, kept = merge_candidates(transcript_cands, visual, config)
     session.add_all(kept)
     if kept:
         console.print(f"  [dim]  + {len(kept)} visual clip(s) ({mode})[/dim]")

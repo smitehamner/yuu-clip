@@ -146,6 +146,21 @@ class TestGenerateVisualCandidates:
             session.close()
         assert len(cands) == 2
 
+    def test_close_bursts_merge_into_single_candidate(self, tmp_path):
+        # Two bursts > cluster gap (2 s) but < min_clip_ms (15 s) apart become separate
+        # runs, which pre-fix each grew to a ~15 s window -> two ~80%-overlapping clips.
+        # Merging close runs first yields one candidate spanning both bursts.
+        session, v = _db(tmp_path)
+        try:
+            session.add(VisualActivity(video_id=v.id, timecode_ms=100_000, intensity=40.0))
+            session.add(VisualActivity(video_id=v.id, timecode_ms=104_000, intensity=40.0))
+            session.flush()
+            cands = generate_visual_candidates(v, Config(), session, allowed_regions=None)
+        finally:
+            session.close()
+        assert len(cands) == 1
+        assert cands[0].start_ms <= 100_000 and cands[0].end_ms >= 104_000
+
 
 class TestSilentGaps:
     def _clip(self, start_ms, end_ms):

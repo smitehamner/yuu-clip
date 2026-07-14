@@ -130,10 +130,9 @@ def _windows_in_region(
     if not interest:
         return []
 
+    qualifying = [run for run in _cluster(interest) if _run_qualifies(run)]
     windows: list[tuple[int, int, float]] = []
-    for run in _cluster(interest):
-        if not _run_qualifies(run):
-            continue
+    for run in _merge_close_runs(qualifying, config.min_clip_ms):
         lo, hi = run[0][0], run[-1][0]
         for start_ms, end_ms in _bounded_windows(lo, hi, config.min_clip_ms, config.hard_split_ms, region_start, region_end):
             peak = max((i for ts, i, kind in run if kind == "motion" and start_ms <= ts < end_ms), default=0.0)
@@ -149,6 +148,26 @@ def _cluster(interest: list[tuple[int, float, str]]) -> list[list[tuple[int, flo
         else:
             runs.append([point])
     return runs
+
+
+def _merge_close_runs(
+    runs: list[list[tuple[int, float, str]]], min_gap_ms: int
+) -> list[list[tuple[int, float, str]]]:
+    """Coalesce consecutive qualifying runs whose inter-run gap is under *min_gap_ms*.
+
+    Two runs closer than a min-length clip each grow to min_clip_ms in _fit_window,
+    producing heavily-overlapping near-duplicate windows (the Stage 5 dedup gap). Merging
+    them first yields one window over the pair; a merged span past hard_split_ms is still
+    re-split downstream by _bounded_windows."""
+    if not runs:
+        return []
+    merged = [runs[0]]
+    for run in runs[1:]:
+        if run[0][0] - merged[-1][-1][0] < min_gap_ms:
+            merged[-1] = merged[-1] + run
+        else:
+            merged.append(run)
+    return merged
 
 
 def _run_qualifies(run: list[tuple[int, float, str]]) -> bool:
