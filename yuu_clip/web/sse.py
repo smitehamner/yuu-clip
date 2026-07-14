@@ -193,6 +193,15 @@ async def subprocess_sse(
                         ctx.analyze_proc = None
                     if clear_cmd_attr is not None:
                         setattr(ctx, clear_cmd_attr, None)
+        except Exception:
+            # A failed launch (bad executable / ENOENT on sys.executable / OS limit)
+            # or a mid-stream error would otherwise abort the async generator with no
+            # payload: the browser's reader sees the stream die with no error line and
+            # no __DONE__, so endJobUI never runs and the job pill sticks. Mirror
+            # AnalyzeJob._pump - log it and emit an error line + the done sentinel.
+            _log.exception("Subprocess stream failed: %s", " ".join(str(c) for c in cmd))
+            yield f"data: {json.dumps('[Error: could not start subprocess]')}\n\n"
+            yield f"data: {json.dumps(_SSE_DONE_SENTINEL)}\n\n"
         finally:
             if track_active_job and ctx is not None:
                 ctx.active_jobs -= 1

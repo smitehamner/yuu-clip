@@ -104,6 +104,49 @@ class TestAnalyzeJobBroadcast:
         assert "__DONE__" in payloads
         assert not any(isinstance(p, str) and p.startswith("[Error:") for p in payloads)
 
+    def test_mid_run_subscriber_replays_buffer_then_gets_live_lines_exactly_once(self, tmp_path):
+        # The replay/subscribe atomicity: a client attaching WHILE the job is live
+        # must replay the already-buffered lines, then receive subsequent live lines,
+        # with every line delivered exactly once (never both replayed and queued).
+        # Driven without a real subprocess so the interleave is deterministic.
+        from yuu_clip.web.analyze_job import _QUEUE_DONE
+
+        async def drive():
+            job = AnalyzeJob(["noop"], tmp_path)
+            job._emit("before-1")
+            job._emit("before-2")
+            stream = job._stream()
+            replayed = [await stream.__anext__(), await stream.__anext__()]
+            job._emit("live-1")                # emitted only after the subscriber attached
+            live = await stream.__anext__()
+            job.done = True
+            for queue in job.subscribers:
+                queue.put_nowait(_QUEUE_DONE)
+            done = await stream.__anext__()
+            await stream.aclose()
+            return _payloads(replayed), _payloads([live]), _payloads([done])
+
+        replay, live, done = asyncio.run(drive())
+        assert replay == ["before-1", "before-2"]
+        assert live == ["live-1"]
+        assert done == ["__DONE__"]
+
+    def test_subscriber_attaching_after_done_is_never_registered(self, tmp_path):
+        # The already_done fast path: a client attaching after the job finished gets
+        # the buffer + __DONE__ and must NOT be added to subscribers (the pump has
+        # already fanned out _QUEUE_DONE, so it would never be signalled and would
+        # leak).
+        async def drive():
+            job = AnalyzeJob(["noop"], tmp_path)
+            job._emit("only-line")
+            job.done = True
+            chunks = [chunk async for chunk in job._stream()]
+            return _payloads(chunks), len(job.subscribers)
+
+        payloads, remaining = asyncio.run(drive())
+        assert payloads == ["only-line", "__DONE__"]
+        assert remaining == 0
+
 
 # ---------------------------------------------------------------------------
 # /api/status identity for reattach
