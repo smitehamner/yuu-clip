@@ -6,6 +6,30 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) - see the
 
 ---
 
+## Code-quality review close-out - P2 robustness + console-text sweep (done 2026-07-14)
+
+Final (low-severity) tier of the stage-by-stage code-quality review. Small correctness
+and robustness fixes plus a console-text cleanup, all internal - no feature changes:
+
+- **Energy scoring reads sub-second windows.** A clip window living inside a single
+  second (e.g. a short split) queried an empty range and reported "no data"; it now reads
+  the whole-second bucket that contains it.
+- **No orphaned encoder on a failed preview.** If a 720p preview's progress callback
+  errored, the FFmpeg child was left running; it is now stopped.
+- **Steadier clip generation.** A silent-but-active clip whose window shifted around a
+  scene cut could lose its activity score; it now keeps the run's peak. Zero-length
+  windows can no longer divide by zero.
+- **Clearer "why" messages.** Asking for image analysis while the language model is off
+  now says it is turned off, rather than "not supported". Similarity matching ignores
+  blank phrases, and a hot-word with an unexpected target no longer crashes scoring.
+- **Caption refresh survives odd names.** A clip title or world-context name containing
+  `[ ] * ?` no longer makes the "already exported?" check skip a real caption refresh.
+- **Console-text convention.** Swept stray arrows / ellipses / `<=` out of the log and
+  console strings that can reach the legacy Windows console (comments, docstrings, and
+  browser-rendered text were left as-is by design).
+
+---
+
 ## Full re-score option + scoring/export seams (done 2026-07-13)
 
 Follow-ups from the same code-quality review, and the user-owned feature the Theme B

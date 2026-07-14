@@ -7,6 +7,51 @@ same thing without the context. Most recent first.
 
 ---
 
+## Theme G glyph sweep - close-out of the 2026-07-13 review (2026-07-14)
+
+P2 tier of the stage-by-stage code-quality review. The review flagged lone non-ASCII
+glyphs (`->` arrows, `...` ellipses, `<=`, gear) scattered across Python strings as
+outliers of the project's ASCII-console convention. Decision (user-approved): a
+**targeted sweep** - ASCII-fix only the glyphs in strings that can reach the cp1252
+console, and leave the rest. What was swept and, more importantly, what was deliberately
+kept:
+
+### Swept (runtime strings that can reach the console)
+`console.print` / `_log.*` / `print()` strings and CLI-reachable labels: the extract /
+labeler / windower / whisper_runner / diarization_client / videos log lines, the
+`discord-10mb` "<=10 MB" preset label, **and the LLM/diarization readiness-reason
+strings** (arrows + gear in `scoring/llm.py`, `scoring/llm_client.py`,
+`transcribe/diarization_client.py`). The readiness reasons were swept after confirming
+they reach `console.print` via `pipeline/ingest.py:95`, `pipeline/vision_describe.py:60`,
+`cli/models.py:230`, and `whisper_runner.py:610` - **not** browser-toast-only as an
+earlier framing assumed. ASCII renders correctly in the browser too, so the fix is safe
+on both surfaces. Live crash risk was already nil (the file logger is UTF-8 and
+`console.py` wraps stdout with `errors="replace"`), so this was convention-alignment,
+not a bug fix.
+
+### Kept as-is (do not re-flag)
+- **Comments and docstrings** - never reach the console (covered by the earlier
+  comment-glyph decisions); includes the module/function docstring arrows and the
+  `0-1` / `0.0-1.0` en-dashes in scorer docstrings.
+- **LLM prompt strings** - the `<=20 words`, `0.0-1.0`, time-window `-`, and `Speaker 1,
+  Speaker 2, ...` text in `scoring/llm.py` is data sent to the model, not console output
+  (same basis as the kept `contexts.py` "Pokemon" prompt text).
+- **`routes/llm.py` HTTPException detail strings** - browser toasts, rendered as UTF-8
+  (the recorded 2026-07-10 keep still stands; these are separate literals from the
+  `scoring/llm.py` reasons and are not console-bound).
+- **SSE `yield "data: ..."` status strings** (`routes/scoring.py`, `videos.py`,
+  `speakers.py`, `sessions.py`) - stream to the browser as JSON, rendered as UTF-8; the
+  browser-DOM ellipsis decision applies.
+- **`reel.py` title-card ellipsis / middle-dot** - drawn into the video via ffmpeg
+  drawtext (the recorded Phase 6 keep).
+
+Not swept this session (out of the P2 scope handed to this pass, deferred not declined):
+`dev/procs.py` `parse_cim_json` silent `[]` on bad JSON, the Stage 3 `_window_rms_db`
+vectorization (perf), and Theme F config-JSON tolerance (`_sanitize_title_card_fields`
+type-tolerance, `contexts.py` accessor guards).
+
+---
+
 ## Phase 4 refactor - YuuClip retheme + collapsible cards (2026-07-13)
 
 Refactor phase of the code-quality review over the cyan/gold retheme (`169c8b8`) plus the
