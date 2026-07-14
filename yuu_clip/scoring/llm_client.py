@@ -19,6 +19,11 @@ if TYPE_CHECKING:
 
 _log = get_logger(__name__)
 
+# Default completion cap shared by both backends so a local model and Claude have the
+# same output ceiling. Callers that emit longer JSON (scene-boundary lists) pass a larger
+# value; see scoring/llm._SCENE_BOUNDARY_MAX_TOKENS.
+_DEFAULT_MAX_TOKENS = 1024
+
 
 class VisionNotSupportedError(RuntimeError):
     """Raised when the active backend/model/config can't do image analysis.
@@ -38,7 +43,10 @@ class LLMClient(ABC):
     is_remote: bool = False
 
     @abstractmethod
-    def chat(self, messages: list[dict], temperature: float = 0.1) -> str: ...
+    def chat(
+        self, messages: list[dict], temperature: float = 0.1,
+        max_tokens: int = _DEFAULT_MAX_TOKENS,
+    ) -> str: ...
 
     @abstractmethod
     def available(self) -> tuple[bool, str]: ...
@@ -76,11 +84,14 @@ class LlamaCppServerClient(LLMClient):
             return False, str(exc)
         return True, ""
 
-    def chat(self, messages: list[dict], temperature: float = 0.1) -> str:
+    def chat(
+        self, messages: list[dict], temperature: float = 0.1,
+        max_tokens: int = _DEFAULT_MAX_TOKENS,
+    ) -> str:
         from yuu_clip.scoring.llamacpp_server import get_server_pool
         return get_server_pool().chat_completion(
             self._config, model_path=self._config.llm_model_path, mmproj_path="",
-            messages=messages, temperature=temperature,
+            messages=messages, temperature=temperature, max_tokens=max_tokens,
         )
 
     def chat_vision(
@@ -141,7 +152,10 @@ class ClaudeClient(LLMClient):
             return False, f"Couldn't reach the Claude API - check your connection: {exc}"
         return True, ""
 
-    def chat(self, messages: list[dict], temperature: float = 0.1) -> str:
+    def chat(
+        self, messages: list[dict], temperature: float = 0.1,
+        max_tokens: int = _DEFAULT_MAX_TOKENS,
+    ) -> str:
         import anthropic
         client = anthropic.Anthropic(
             api_key=self._config.claude_api_key,
@@ -152,7 +166,7 @@ class ClaudeClient(LLMClient):
         system = "\n\n".join(system_parts)
         response = client.messages.create(
             model=self._config.claude_model,
-            max_tokens=1024,
+            max_tokens=max_tokens,
             temperature=temperature,
             **({"system": system} if system else {}),
             messages=chat_messages,
@@ -177,7 +191,7 @@ class ClaudeClient(LLMClient):
         system = "\n\n".join(m["content"] for m in messages if m["role"] == "system")
         response = client.messages.create(
             model=self._config.claude_model,
-            max_tokens=1024,
+            max_tokens=_DEFAULT_MAX_TOKENS,
             temperature=temperature,
             **({"system": system} if system else {}),
             messages=[{"role": "user", "content": content}],
@@ -192,7 +206,10 @@ class NullLLMClient(LLMClient):
     def available(self) -> tuple[bool, str]:
         return False, "LLM scoring is disabled in Settings"
 
-    def chat(self, messages: list[dict], temperature: float = 0.1) -> str:
+    def chat(
+        self, messages: list[dict], temperature: float = 0.1,
+        max_tokens: int = _DEFAULT_MAX_TOKENS,
+    ) -> str:
         raise RuntimeError("LLM scoring is disabled")
 
 

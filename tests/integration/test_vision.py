@@ -40,7 +40,7 @@ class TestVisualBlock:
         from yuu_clip.scoring.llm import describe_clip
         captured = {}
 
-        def fake_call(messages, config, temperature=0.1):
+        def fake_call(messages, config, temperature=0.1, max_tokens=None):
             captured["user"] = messages[1]["content"]
             return json.dumps({"description": "d", "description_long": "dl"})
 

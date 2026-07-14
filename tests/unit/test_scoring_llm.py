@@ -314,6 +314,43 @@ class TestStripJsonFence:
     def test_surrounding_whitespace_stripped(self):
         assert self._strip('  \n{"a": 1}\n  ') == '{"a": 1}'
 
+    def test_fence_amid_prose_is_found(self):
+        # A lead-in sentence + a trailing note around the fence still yields the payload.
+        raw = 'Sure, here is the JSON:\n```json\n{"a": 1}\n```\nHope that helps!'
+        assert self._strip(raw) == '{"a": 1}'
+
+    def test_no_fence_prose_left_intact(self):
+        # Fence-only: bare prose (even with a stray brace) is NOT mined for JSON here -
+        # that is _loads_lenient's job, so a vision summary is not corrupted.
+        assert self._strip("The menu is paused {see HUD}.") == "The menu is paused {see HUD}."
+
+
+class TestLoadsLenient:
+    def _load(self, raw: str):
+        from yuu_clip.scoring.llm import _loads_lenient
+        return _loads_lenient(raw)
+
+    def test_plain_object(self):
+        assert self._load('{"a": 1}') == {"a": 1}
+
+    def test_prose_wrapped_object_extracted(self):
+        assert self._load('The scores are {"a": 1} in total.') == {"a": 1}
+
+    def test_prose_wrapped_array_extracted(self):
+        assert self._load('Here you go: [1, 2, 3] done.') == [1, 2, 3]
+
+    def test_brace_inside_string_not_mistaken_for_close(self):
+        assert self._load('note: {"reason": "a } b"} end') == {"reason": "a } b"}
+
+    def test_truncated_json_raises_for_repair(self):
+        import json
+
+        import pytest
+        # Unbalanced (cut mid-array) -> no complete span, so it must fail loud so the
+        # caller's repair retry fires rather than parsing a partial object.
+        with pytest.raises(json.JSONDecodeError):
+            self._load('[{"start_ms": 1, "end_ms": 2},')
+
 
 class TestCallLlmJson:
     def _cfg(self):
@@ -358,6 +395,29 @@ class TestCallLlmJson:
         ):
             with pytest.raises(json.JSONDecodeError):
                 _call_llm_json([{"role": "user", "content": "hi"}], self._cfg())
+
+    def test_prose_wrapped_json_parses_without_repair(self):
+        import unittest.mock as mock
+
+        from yuu_clip.scoring.llm import _call_llm_json
+        with mock.patch(
+            "yuu_clip.scoring.llm._call_client",
+            return_value='Sure! {"a": 1} - let me know.',
+        ) as call:
+            result = _call_llm_json([{"role": "user", "content": "hi"}], self._cfg())
+        assert result == {"a": 1}
+        assert call.call_count == 1  # no repair round trip for prose-wrapped-but-valid JSON
+
+    def test_max_tokens_threaded_to_client(self):
+        import json
+        import unittest.mock as mock
+
+        from yuu_clip.scoring.llm import _call_llm_json
+        with mock.patch(
+            "yuu_clip.scoring.llm._call_client", return_value=json.dumps([]),
+        ) as call:
+            _call_llm_json([{"role": "user", "content": "hi"}], self._cfg(), max_tokens=2048)
+        assert call.call_args.args[3] == 2048
 
 
 class TestPrependContext:
@@ -667,7 +727,7 @@ class TestSummarizeTranscript:
         from yuu_clip.scoring.llm import summarize_transcript
         long_text = "x" * 20_000
         captured = {}
-        def fake_call(messages, config, temperature=0.1):
+        def fake_call(messages, config, temperature=0.1, max_tokens=None):
             captured["messages"] = messages
             return json.dumps({"title": "T", "summary": "S"})
         with mock.patch("yuu_clip.scoring.llm._call_client", side_effect=fake_call):
@@ -681,7 +741,7 @@ class TestSummarizeTranscript:
 
         from yuu_clip.scoring.llm import summarize_transcript
         captured = {}
-        def fake_call(messages, config, temperature=0.1):
+        def fake_call(messages, config, temperature=0.1, max_tokens=None):
             captured["messages"] = messages
             return json.dumps({"title": "T", "summary": "S"})
         with mock.patch("yuu_clip.scoring.llm._call_client", side_effect=fake_call):
@@ -717,7 +777,7 @@ class TestGenerateTimelineChunk:
 
         from yuu_clip.scoring.llm import generate_timeline_chunk
         captured = {}
-        def fake_call(messages, config, temperature=0.1):
+        def fake_call(messages, config, temperature=0.1, max_tokens=None):
             captured["messages"] = messages
             return "result"
         with mock.patch("yuu_clip.scoring.llm._call_client", side_effect=fake_call):
@@ -731,7 +791,7 @@ class TestGenerateTimelineChunk:
 
         from yuu_clip.scoring.llm import generate_timeline_chunk
         captured = {}
-        def fake_call(messages, config, temperature=0.1):
+        def fake_call(messages, config, temperature=0.1, max_tokens=None):
             captured["messages"] = messages
             return "result"
         with mock.patch("yuu_clip.scoring.llm._call_client", side_effect=fake_call):
@@ -744,7 +804,7 @@ class TestGenerateTimelineChunk:
 
         from yuu_clip.scoring.llm import generate_timeline_chunk
         captured = {}
-        def fake_call(messages, config, temperature=0.1):
+        def fake_call(messages, config, temperature=0.1, max_tokens=None):
             captured["messages"] = messages
             return "result"
         with mock.patch("yuu_clip.scoring.llm._call_client", side_effect=fake_call):

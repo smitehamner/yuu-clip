@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from yuu_clip.scoring.llm_client import backend_is_remote, make_client
@@ -66,14 +67,73 @@ def _compose_system(base_prompt: str, context_text: str, config: "Config") -> st
     return _prepend_context(_prepend_context(base_prompt, _active_flavor(config)), context_text)
 
 
-# Some models wrap JSON in a markdown fence despite being told not to.
-_JSON_FENCE_RE = re.compile(r"^```(?:json)?\s*\n?(.*?)\n?```$", re.DOTALL)
+# Scene-boundary segmentation returns a JSON *list* of {start_ms,end_ms,reason} objects,
+# which for a long transcript chunk (up to _CHUNK_CHAR_BUDGET of input) can exceed the
+# default completion cap. Give it more room so the list is not truncated mid-array. Other
+# calls use the backend default (llm_client._DEFAULT_MAX_TOKENS, aligned across backends).
+_SCENE_BOUNDARY_MAX_TOKENS = 2048
+
+# Some models wrap JSON in a markdown fence despite being told not to. The search is not
+# anchored to the whole message, so a fenced block amid surrounding prose is still found.
+_JSON_FENCE_RE = re.compile(r"```(?:json)?\s*(.*?)\s*```", re.DOTALL)
 
 
 def _strip_json_fence(raw: str) -> str:
+    """Return the content of a ```json fenced block if present (even amid surrounding
+    prose), else the stripped whole. Fence-only on purpose: prose-embedded bare JSON is
+    handled by _loads_lenient, so a vision summary that happens to contain a stray brace
+    is left intact."""
     stripped = raw.strip()
-    m = _JSON_FENCE_RE.match(stripped)
-    return m.group(1).strip() if m else stripped
+    match = _JSON_FENCE_RE.search(stripped)
+    return match.group(1).strip() if match else stripped
+
+
+def _first_json_span(text: str) -> str | None:
+    """The first balanced {...} or [...] span in *text*, for pulling JSON out of a
+    prose-wrapped reply ("The scores are {...}"). Returns None when neither opener has a
+    matching close (e.g. output truncated mid-array), so the caller falls back to the
+    repair retry rather than parsing a partial object."""
+    openers = [(pos, opener, closer) for pos, opener, closer in (
+        (text.find("{"), "{", "}"), (text.find("["), "[", "]"),
+    ) if pos != -1]
+    if not openers:
+        return None
+    start, opener, closer = min(openers)
+    depth = 0
+    in_string = False
+    escaped = False
+    for index in range(start, len(text)):
+        char = text[index]
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            continue
+        if char == '"':
+            in_string = True
+        elif char == opener:
+            depth += 1
+        elif char == closer:
+            depth -= 1
+            if depth == 0:
+                return text[start:index + 1]
+    return None
+
+
+def _loads_lenient(raw: str):
+    """json.loads a model reply, tolerating a markdown fence or surrounding prose. Raises
+    JSONDecodeError (fail loud -> one repair retry upstream) if no JSON parses."""
+    text = _strip_json_fence(raw)
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        span = _first_json_span(text)
+        if span is not None and span != text:
+            return json.loads(span)
+        raise
 
 
 def _repair_request(bad_raw: str, exc: Exception) -> list[dict]:
@@ -86,16 +146,35 @@ def _repair_request(bad_raw: str, exc: Exception) -> list[dict]:
     ]
 
 
-def _call_llm_json(messages: list[dict], config: "Config", temperature: float = 0.1):
-    """Call the LLM expecting JSON. If the response doesn't parse, send it back
-    with the parse error and give the model one chance to correct itself."""
-    raw = _call_client(messages, config, temperature)
+def _call_and_parse_json(
+    call_fn: Callable[[str | None, Exception | None], str],
+    parse_fn: Callable[[str], object],
+    *,
+    log_context: str = "",
+):
+    """Shared call + parse + one-repair loop for LLM JSON responses. call_fn(repair_of,
+    repair_error) sends the request (as a repair when repair_of is set); parse_fn turns
+    the raw reply into data (and may clamp/validate). On a parse error the model gets one
+    chance to correct itself; a second failure propagates."""
+    raw = call_fn(None, None)
     try:
-        return json.loads(_strip_json_fence(raw))
+        return parse_fn(raw)
     except json.JSONDecodeError as exc:
-        log.warning("LLM returned invalid JSON, asking it to correct itself: %s", exc)
-        raw = _call_client(messages + _repair_request(raw, exc), config, temperature)
-        return json.loads(_strip_json_fence(raw))
+        where = f" for {log_context}" if log_context else ""
+        log.warning("LLM returned invalid JSON%s, asking it to correct itself: %s", where, exc)
+        raw = call_fn(raw, exc)
+        return parse_fn(raw)
+
+
+def _call_llm_json(
+    messages: list[dict], config: "Config", temperature: float = 0.1,
+    max_tokens: int | None = None,
+):
+    """Call the LLM expecting JSON, with one repair retry on a parse failure."""
+    def _call(repair_of: str | None, repair_error: Exception | None) -> str:
+        payload = messages if repair_of is None else messages + _repair_request(repair_of, repair_error)
+        return _call_client(payload, config, temperature, max_tokens)
+    return _call_and_parse_json(_call, _loads_lenient)
 
 
 _SYSTEM_PROMPT = """\
@@ -195,7 +274,7 @@ def request_scene_boundaries(
         {"role": "system", "content": system},
         {"role": "user",   "content": f"Transcript:\n\"\"\"\n{transcript_block}\n\"\"\"\nJSON:"},
     ]
-    data = _call_llm_json(messages, config, temperature=0.2)
+    data = _call_llm_json(messages, config, temperature=0.2, max_tokens=_SCENE_BOUNDARY_MAX_TOKENS)
     if not isinstance(data, list):
         raise ValueError(f"Expected a JSON list of scene boundaries, got {type(data).__name__}")
     boundaries: list[dict] = []
@@ -268,8 +347,14 @@ def summarize_session(
     return str(data.get("title", "")), str(data.get("summary", ""))
 
 
-def _call_client(messages: list[dict], config: "Config", temperature: float = 0.1) -> str:
-    return make_client(config).chat(messages, temperature)
+def _call_client(
+    messages: list[dict], config: "Config", temperature: float = 0.1,
+    max_tokens: int | None = None,
+) -> str:
+    client = make_client(config)
+    if max_tokens is None:
+        return client.chat(messages, temperature)
+    return client.chat(messages, temperature, max_tokens)
 
 
 def summarize_transcript(text: str, config: "Config", context_text: str = "") -> tuple[str, str]:
@@ -447,7 +532,7 @@ def _clean_vision_summary(raw: str) -> str:
             if isinstance(data, dict) and data.get("vision_summary"):
                 text = str(data["vision_summary"]).strip()
         except json.JSONDecodeError:
-            pass
+            pass  # a plain-prose reply that merely opens with "{" - keep it verbatim
     return text[:_VISION_SUMMARY_MAX_CHARS].strip()
 
 
@@ -607,16 +692,14 @@ class LLMScorer:
 
         excerpt = clip.transcript_excerpt or ""
         try:
-            raw = self._call_llm(excerpt, vision_summary=vision_summary)
-            try:
-                data = self._parse(raw)
-            except json.JSONDecodeError as exc:
-                log.warning("LLM scoring: invalid JSON for clip %d, asking model to fix: %s", clip.id, exc)
-                raw = self._call_llm(
+            data = _call_and_parse_json(
+                lambda repair_of, repair_error: self._call_llm(
                     excerpt, vision_summary=vision_summary,
-                    repair_of=raw, repair_error=exc,
-                )
-                data = self._parse(raw)
+                    repair_of=repair_of, repair_error=repair_error,
+                ),
+                self._parse,
+                log_context=f"clip {clip.id}",
+            )
         except Exception as exc:
             log.warning("LLM scoring failed for clip %d: %s", clip.id, exc, exc_info=True)
             self.last_error = str(exc)
@@ -648,7 +731,7 @@ class LLMScorer:
         return self._client.chat(messages, temperature=0.1)
 
     def _parse(self, raw: str) -> dict:
-        data = json.loads(_strip_json_fence(raw))
+        data = _loads_lenient(raw)
         for key in ("score_funny", "score_dramatic", "score_action"):
             if key in data:
                 data[key] = max(0.0, min(1.0, float(data[key])))

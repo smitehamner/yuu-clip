@@ -39,7 +39,9 @@ _log = get_logger(__name__)
 # Packaged builds point this at the bundled binary dir (mirrors YUU_CLIP_FFMPEG_DIR).
 _ENV_BINARY_DIR = "YUU_CLIP_LLAMA_SERVER_DIR"
 _DEFAULT_CTX = 8192
-_MAX_TOKENS = 512
+# Default completion cap; callers emitting longer JSON (scene-boundary lists) pass a
+# larger value. Aligned with the Claude backend's default (llm_client._DEFAULT_MAX_TOKENS).
+_DEFAULT_MAX_TOKENS = 1024
 _HEALTH_TIMEOUT_S = 240.0
 _HEALTH_POLL_S = 0.5
 _REQUEST_TIMEOUT_S = 600.0
@@ -184,10 +186,11 @@ class LlamaServerPool:
     def chat_completion(
         self, config: Config, *, model_path: str, mmproj_path: str,
         messages: list[dict], temperature: float,
+        max_tokens: int = _DEFAULT_MAX_TOKENS,
     ) -> str:
         with self._call_lock:
             handle = self._ensure_server(config, model_path, mmproj_path)
-            payload = {"messages": messages, "temperature": temperature, "max_tokens": _MAX_TOKENS}
+            payload = {"messages": messages, "temperature": temperature, "max_tokens": max_tokens}
             data = self._post(handle, payload)
         return data["choices"][0]["message"]["content"]
 
@@ -207,9 +210,12 @@ class LlamaServerPool:
             if handle:  # process died - drop the stale handle before respawning
                 self._servers.pop(key, None)
             self._stop_others(key)
-            handle = self._spawn(config, model_path, mmproj_path or "")
-            self._servers[key] = handle
-            return handle
+        # The spawn (Popen) + up-to-_HEALTH_TIMEOUT_S health wait happen WITHOUT self._lock
+        # held, so a concurrent shutdown_all can reap the starting server instead of
+        # blocking for the whole cold load. _call_lock already serializes callers, so only
+        # one spawn is ever in flight; each attempt registers its handle in _servers before
+        # waiting (below) so shutdown can find and terminate it.
+        return self._spawn(config, key, model_path, mmproj_path or "")
 
     def _stop_others(self, keep_key: tuple[str, str]) -> None:
         for key, handle in list(self._servers.items()):
@@ -217,9 +223,11 @@ class LlamaServerPool:
                 self._stop(handle)
                 self._servers.pop(key, None)
 
-    def _spawn(self, config: Config, model_path: str, mmproj_path: str) -> ServerHandle:
+    def _spawn(
+        self, config: Config, key: tuple[str, str], model_path: str, mmproj_path: str,
+    ) -> ServerHandle:
         try:
-            return self._launch(config, model_path, mmproj_path, prefer_cpu=False)
+            return self._launch(config, key, model_path, mmproj_path, prefer_cpu=False)
         except LlamaServerError as exc:
             if config.llm_use_gpu and has_cpu_fallback(config):
                 _log.warning(
@@ -227,11 +235,12 @@ class LlamaServerPool:
                     "bundled CPU build (slower). Updating your GPU driver restores "
                     "acceleration. Vulkan startup error: %s", exc,
                 )
-                return self._launch(config, model_path, mmproj_path, prefer_cpu=True)
+                return self._launch(config, key, model_path, mmproj_path, prefer_cpu=True)
             raise
 
     def _launch(
-        self, config: Config, model_path: str, mmproj_path: str, prefer_cpu: bool,
+        self, config: Config, key: tuple[str, str], model_path: str, mmproj_path: str,
+        prefer_cpu: bool,
     ) -> ServerHandle:
         binary = resolve_server_binary(config, prefer_cpu=prefer_cpu)
         gpu_layers = 0 if (prefer_cpu or not config.llm_use_gpu) else config.llamacpp_server_gpu_layers
@@ -250,12 +259,23 @@ class LlamaServerPool:
         )
         handle = ServerHandle(proc, port, model_path, mmproj_path, time.time())
         threading.Thread(target=self._pump_logs, args=(handle,), daemon=True).start()
-        self._wait_healthy(handle)
+        # Register before the (unlocked) health wait so a concurrent shutdown_all can reap
+        # this starting server. On failure, deregister so a dead handle never lingers.
+        with self._lock:
+            self._servers[key] = handle
+        try:
+            self._wait_healthy(handle)
+        except LlamaServerError:
+            with self._lock:
+                if self._servers.get(key) is handle:
+                    self._servers.pop(key, None)
+            raise
         return handle
 
     def _choose_port(self, config: Config) -> int:
         configured = config.llamacpp_server_port
-        used = {handle.port for handle in self._servers.values()}
+        with self._lock:
+            used = {handle.port for handle in self._servers.values()}
         if configured and configured not in used and _port_is_free(configured):
             return configured
         return _free_port()

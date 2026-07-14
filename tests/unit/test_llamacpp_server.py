@@ -332,6 +332,72 @@ class TestPool:
         assert reply == "reply"
         pool.shutdown_all()
 
+    def test_default_max_tokens_in_payload(self, monkeypatch, fake_spawn):
+        captured = {}
+        monkeypatch.setattr(
+            LlamaServerPool, "_post",
+            lambda self, handle, payload: captured.update(payload)
+            or {"choices": [{"message": {"content": "x"}}]},
+        )
+        pool = LlamaServerPool()
+        pool.chat_completion(_cfg(), model_path="m.gguf", mmproj_path="",
+                             messages=[], temperature=0.1)
+        assert captured["max_tokens"] == srv._DEFAULT_MAX_TOKENS
+        pool.shutdown_all()
+
+    def test_explicit_max_tokens_in_payload(self, monkeypatch, fake_spawn):
+        # Scene-boundary lists pass a larger budget so a long JSON array is not truncated.
+        captured = {}
+        monkeypatch.setattr(
+            LlamaServerPool, "_post",
+            lambda self, handle, payload: captured.update(payload)
+            or {"choices": [{"message": {"content": "x"}}]},
+        )
+        pool = LlamaServerPool()
+        pool.chat_completion(_cfg(), model_path="m.gguf", mmproj_path="",
+                             messages=[], temperature=0.1, max_tokens=2048)
+        assert captured["max_tokens"] == 2048
+        pool.shutdown_all()
+
+    def test_shutdown_not_blocked_during_health_wait(self, monkeypatch):
+        # A cold model load can spend up to _HEALTH_TIMEOUT_S in _wait_healthy; shutdown_all
+        # must be able to reap without waiting on that (the fix releases self._lock around
+        # the health wait, holding it only to register/deregister the handle).
+        import threading
+
+        in_wait = threading.Event()
+        release = threading.Event()
+
+        def _blocking_wait(self, handle):
+            in_wait.set()
+            release.wait(3)
+
+        monkeypatch.setattr(srv, "resolve_server_binary",
+                            lambda _config, prefer_cpu=False: "fake-llama-server")
+        monkeypatch.setattr(srv, "pick_gpu_device", lambda _binary: "Vulkan0")
+        monkeypatch.setattr(srv.subprocess, "Popen", lambda args, **_k: FakeProc(args))
+        monkeypatch.setattr(LlamaServerPool, "_wait_healthy", _blocking_wait)
+        monkeypatch.setattr(
+            LlamaServerPool, "_post",
+            lambda self, handle, payload: {"choices": [{"message": {"content": "reply"}}]},
+        )
+
+        pool = LlamaServerPool()
+        spawn_thread = threading.Thread(target=lambda: pool.chat_completion(
+            _cfg(), model_path="m.gguf", mmproj_path="", messages=[], temperature=0.1))
+        spawn_thread.start()
+        try:
+            assert in_wait.wait(2)  # spawn is now mid cold-load health wait
+            proc = pool._servers[("m.gguf", "")].proc  # registered before the wait
+
+            done = threading.Event()
+            threading.Thread(target=lambda: pool.shutdown_all() or done.set()).start()
+            assert done.wait(2)  # shutdown returned promptly, not blocked on the health wait
+            assert proc.poll() is not None  # the starting server was reaped
+        finally:
+            release.set()
+            spawn_thread.join(3)
+
     def test_new_key_stops_previous_server(self, fake_spawn):
         pool = LlamaServerPool()
         pool.chat_completion(_cfg(), model_path="text.gguf", mmproj_path="",

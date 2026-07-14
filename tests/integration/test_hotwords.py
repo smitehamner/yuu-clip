@@ -633,7 +633,7 @@ class TestScanHotwordsSemantic:
         from yuu_clip.scoring.llm import scan_hotwords_semantic
         responses = iter(["not json", json.dumps(["big win"])])
 
-        def fake_call(messages, config, temperature=0.1):
+        def fake_call(messages, config, temperature=0.1, max_tokens=None):
             return next(responses)
 
         with mock.patch("yuu_clip.scoring.llm._call_client", side_effect=fake_call) as call:
