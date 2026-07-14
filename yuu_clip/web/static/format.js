@@ -39,8 +39,8 @@ function _sortScore(clip) {
 // ── format utils ──────────────────────────────────────────────────────────────
 const _VIDEO_STATUS_DISPLAY = {
   pending: 'Not analyzed', probed: 'Inspected', labeled: 'Tracks assigned',
-  extracting: 'Extracting', transcribing: 'Transcribing', segmented: 'Clips generated',
-  done: 'Analyzed', failed: 'Analysis interrupted',
+  extracting: 'Extracting', transcribing: 'Transcribing', transcribed: 'Transcribed',
+  segmented: 'Clips generated', done: 'Analyzed', failed: 'Analysis interrupted',
 };
 function _fmtVideoStatus(s) { return _VIDEO_STATUS_DISPLAY[s] || s; }
 

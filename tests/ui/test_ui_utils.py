@@ -647,10 +647,12 @@ class TestFmtElapsed:
 @skip_no_server
 class TestFmtVideoStatus:
     def test_known_status_maps_to_display_label(self, page: Page):
+        # 'transcribed' is a real mid-analysis transient; without a mapping the UI
+        # would show the raw code name on a spinner during diarization.
         result = page.evaluate(
-            "() => [_fmtVideoStatus('done'), _fmtVideoStatus('pending')]"
+            "() => [_fmtVideoStatus('done'), _fmtVideoStatus('pending'), _fmtVideoStatus('transcribed')]"
         )
-        assert result == ["Analyzed", "Not analyzed"]
+        assert result == ["Analyzed", "Not analyzed", "Transcribed"]
 
     def test_unknown_status_falls_through_to_raw(self, page: Page):
         # Defensive fallback: an unmapped status renders verbatim, never blank.

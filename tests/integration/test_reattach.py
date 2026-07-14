@@ -162,23 +162,29 @@ class TestFailInterruptedAnalyses:
         session.close()
         return vid
 
-    def test_extracting_row_flipped_to_failed_on_startup(self, project_dir):
-        stuck_id = self._add_video(project_dir, "extracting")
+    # Every mid-analysis transient status (not just 'extracting') must recover:
+    # a crash during extraction strands 'labeled', during diarization strands
+    # 'transcribed', etc. - all of these were previously never flipped.
+    @pytest.mark.parametrize(
+        "transient", ["labeled", "extracting", "transcribing", "transcribed", "segmented"]
+    )
+    def test_transient_row_flipped_to_failed_on_startup(self, project_dir, transient):
+        stuck_id = self._add_video(project_dir, transient)
 
         app = create_app(project_dir)
         with TestClient(app) as tc:
             row = next(v for v in tc.get("/api/videos").json() if v["id"] == stuck_id)
         assert row["status"] == "failed"
 
-    def test_done_and_pending_rows_untouched(self, project_dir):
-        done_id = self._add_video(project_dir, "done")
-        pending_id = self._add_video(project_dir, "pending")
+    # Resting statuses (not-yet-analyzed or finished) must be left alone.
+    @pytest.mark.parametrize("resting", ["pending", "probed", "done", "failed"])
+    def test_resting_rows_untouched(self, project_dir, resting):
+        rid = self._add_video(project_dir, resting)
 
         app = create_app(project_dir)
         with TestClient(app) as tc:
-            videos = {v["id"]: v["status"] for v in tc.get("/api/videos").json()}
-        assert videos[done_id] == "done"
-        assert videos[pending_id] == "pending"
+            row = next(v for v in tc.get("/api/videos").json() if v["id"] == rid)
+        assert row["status"] == resting
 
 
 # ---------------------------------------------------------------------------

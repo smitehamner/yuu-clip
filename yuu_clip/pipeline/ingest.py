@@ -476,6 +476,8 @@ def _extract_audio_and_check_rms_overlap(
     from yuu_clip.analyze.overlap import detect_and_apply_overlap_fallback
 
     console.print("  [bold]Extracting audio...[/bold]")
+    video.status = "extracting"
+    session.flush()
     total_tracks = len(track_objs)
     for idx, track in enumerate(track_objs, 1):
         if not track.do_transcribe and not track.do_score:
@@ -502,7 +504,6 @@ def _extract_audio_and_check_rms_overlap(
             log.exception("Audio extraction failed: video=%s stream=%s", video.filename, track.stream_index)
 
     session.flush()
-    video.status = "extracting"
 
     if detect_and_apply_overlap_fallback(track_objs):
         console.print(

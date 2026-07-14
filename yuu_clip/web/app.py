@@ -83,21 +83,31 @@ def _reload_factory() -> FastAPI:
     return create_app(proj_dir)
 
 
+# Statuses a video can rest in with no analyze job running: not-yet-analyzed
+# (pending/probed) or finished (done/failed). Every other status the pipeline
+# sets - labeled, extracting, transcribing, transcribed, segmented - is a
+# mid-analysis transient. Recovering the complement (rather than a hardcoded
+# list of transients) means a newly added transient status can never silently
+# strand a recording again.
+_VIDEO_RESTING_STATUSES = ("pending", "probed", "done", "failed")
+
+
 def _fail_interrupted_analyses(ctx: ProjectContext) -> None:
     """Mark videos left mid-analysis by a previous server as failed.
 
-    A running analyze subprocess sets status='extracting' for the long
-    extract→transcribe phase. If the server (and its subprocess) died there -
-    a crash, a kill, or a restart - the row is stuck in that transient state
-    with no job to advance it. On startup no analysis is running yet, so any
-    such row is a leftover: flip it to 'failed' so the UI stops showing an
-    eternal spinner and the user can re-run it.
+    The analyze subprocess advances a row through several transient statuses
+    (labeled -> extracting -> ... -> segmented) before 'done'. If the server
+    (and its subprocess) died at any of them - a crash, a kill, or a restart -
+    the row is stuck in that transient state with no job to advance it. On
+    startup no analysis is running yet, so any row not in a resting status is a
+    leftover: flip it to 'failed' so the UI stops showing an eternal spinner and
+    the user can re-run it.
     """
     from yuu_clip.db.models import Video
 
     db = ctx.get_db()
     try:
-        stuck = db.query(Video).filter(Video.status == "extracting").all()
+        stuck = db.query(Video).filter(Video.status.notin_(_VIDEO_RESTING_STATUSES)).all()
         for video in stuck:
             video.status = "failed"
         if stuck:
@@ -113,7 +123,7 @@ def _fail_interrupted_analyses(ctx: ProjectContext) -> None:
 def prepare_project(ctx: ProjectContext) -> None:
     """Per-project filesystem + DB setup shared by boot and the in-place project
     switch (routes/projects.py): ensure output dirs, seed built-in contexts,
-    clear stuck 'extracting' rows, and drop any stale pause flag."""
+    fail stuck mid-analysis rows, and drop any stale pause flag."""
     ctx.export_dir.mkdir(parents=True, exist_ok=True)
     ctx.reels_dir.mkdir(parents=True, exist_ok=True)
     seed_builtin_contexts(ctx.project_dir)
