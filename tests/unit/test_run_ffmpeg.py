@@ -84,3 +84,30 @@ class TestFindFfmpegBundledDir:
 
         assert ffmpeg == "C:\\PATH\\ffmpeg.exe"
         assert ffprobe == "C:\\PATH\\ffprobe.exe"
+
+
+class TestRetranscribeResolvesBundledFfmpeg:
+    """render._extract_wav_segment (the retranscribe WAV slice) must resolve the
+    bundled binary via run_ffmpeg. Before the fix it called a literal "ffmpeg",
+    which raises FileNotFoundError in packaged builds where ffmpeg is only at
+    YUU_CLIP_FFMPEG_DIR, never on PATH."""
+
+    def test_extract_wav_segment_uses_bundled_dir_not_bare_ffmpeg(self, tmp_path, monkeypatch):
+        from yuu_clip.export import render
+
+        (tmp_path / "ffmpeg.exe").write_bytes(b"")
+        (tmp_path / "ffprobe.exe").write_bytes(b"")
+        monkeypatch.setenv("YUU_CLIP_FFMPEG_DIR", str(tmp_path))
+        monkeypatch.setattr(config_mod.shutil, "which", lambda name: None)
+
+        used = {}
+
+        def _fake_run(args, capture_output, text, timeout):
+            used["exe"] = args[0]
+            return types.SimpleNamespace(returncode=0, stderr="", stdout="")
+
+        monkeypatch.setattr(subprocess, "run", _fake_run)
+
+        render._extract_wav_segment(tmp_path / "src.wav", tmp_path / "dst.wav", 1.0, 2.0)
+
+        assert used["exe"] == str(tmp_path / "ffmpeg.exe")

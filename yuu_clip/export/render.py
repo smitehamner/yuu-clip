@@ -8,12 +8,12 @@ prints stay here rather than being lifted into the command layer.
 """
 from __future__ import annotations
 
-import subprocess
 from pathlib import Path
 from typing import Optional
 
 import typer
 
+from yuu_clip.config import run_ffmpeg
 from yuu_clip.console import BYTES_PER_MB, console
 from yuu_clip.export.naming import DEFAULT_EXPORT_NAME_TEMPLATE, export_base_stem
 from yuu_clip.log import get_logger
@@ -22,11 +22,15 @@ log = get_logger(__name__)
 
 
 def _extract_wav_segment(src: Path, dst: Path, start_s: float, end_s: float) -> None:
-    """Slice a time range out of a WAV file using ffmpeg stream-copy (fast, lossless)."""
-    subprocess.run(
+    """Slice a time range out of a WAV file using ffmpeg stream-copy (fast, lossless).
+
+    Routed through run_ffmpeg so it resolves the bundled binary (packaged builds
+    keep ffmpeg off PATH, only at YUU_CLIP_FFMPEG_DIR) and surfaces stderr on
+    failure instead of an opaque CalledProcessError.
+    """
+    run_ffmpeg(
         ["ffmpeg", "-y", "-loglevel", "error",
          "-i", str(src), "-ss", str(start_s), "-to", str(end_s), "-c", "copy", str(dst)],
-        check=True,
     )
 
 
