@@ -51,7 +51,10 @@ def parse_cim_json(raw: str) -> list[ProcInfo]:
         return []
     try:
         data = json.loads(raw)
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as exc:
+        console.print(
+            f"[yellow]Could not parse process snapshot ({exc}); skipping reap.[/yellow]"
+        )
         return []
     if isinstance(data, dict):
         data = [data]

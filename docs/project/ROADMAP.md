@@ -87,12 +87,6 @@ Implemented-but-unverified surfaces and latent traps to close before distributio
   of a multi-hour VOD decodes the source N times. Add an `av` seek to `segment_start_s`
   (and stop at `segment_end_s`) so each segment only decodes its own span.
 
-- [ ] **`dev/procs.py parse_cim_json` swallows a JSON-parse error silently** - a minor LOW
-  left open at the review close-out. The CIM *enumeration* failure warns (`bdac7b9`), but
-  `parse_cim_json` still returns `[]` with no log on a `json.JSONDecodeError`, so a
-  malformed process snapshot makes the dev-loop reap silently no-op (duplicate server, or a
-  false "no server running"). Log a warning before returning `[]`.
-
 ---
 
 ## 2 - Pre-distribution blockers

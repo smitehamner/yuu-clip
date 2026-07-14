@@ -353,3 +353,10 @@ def test_list_processes_warns_on_enumeration_failure(monkeypatch):
     monkeypatch.setattr(procs.subprocess, "run", _raise)
     assert procs.list_processes(["python.exe"]) == []
     assert any("enumerate processes" in m for m in printed)
+
+
+def test_parse_cim_json_warns_on_malformed_json(monkeypatch):
+    printed = []
+    monkeypatch.setattr(procs.console, "print", lambda msg: printed.append(msg))
+    assert procs.parse_cim_json("not json") == []
+    assert any("parse process snapshot" in m for m in printed)
