@@ -100,3 +100,61 @@ class TestCenterXFromResult:
             self._detection(448, 128, 0.95),  # center 512/640 = 0.80, wins
         ]
         assert _center_x_from_result(detections, image_width=640) == pytest.approx(0.80)
+
+
+class TestEnsureFaceModel:
+    """framing._ensure_face_model downloads the BlazeFace model to a .part sibling
+    then renames, with a bounded timeout and .part cleanup on failure."""
+
+    def _patch_path(self, monkeypatch, tmp_path):
+        import yuu_clip.analyze.framing as framing_mod
+        model_path = tmp_path / "blaze.tflite"
+        monkeypatch.setattr(framing_mod, "_model_path", lambda: model_path)
+        return framing_mod, model_path
+
+    def test_returns_cached_path_without_downloading(self, monkeypatch, tmp_path):
+        framing_mod, model_path = self._patch_path(monkeypatch, tmp_path)
+        model_path.write_bytes(b"already here")
+
+        def _boom(*a, **k):
+            raise AssertionError("should not download when cached")
+
+        monkeypatch.setattr(framing_mod.urllib.request, "urlopen", _boom)
+        assert framing_mod._ensure_face_model() == model_path
+
+    def test_downloads_with_timeout_then_renames(self, monkeypatch, tmp_path):
+        import contextlib
+        import io
+
+        framing_mod, model_path = self._patch_path(monkeypatch, tmp_path)
+        captured = {}
+
+        @contextlib.contextmanager
+        def _fake_urlopen(url, timeout=None):
+            captured["timeout"] = timeout
+            yield io.BytesIO(b"model-bytes")
+
+        monkeypatch.setattr(framing_mod.urllib.request, "urlopen", _fake_urlopen)
+        result = framing_mod._ensure_face_model()
+
+        assert result == model_path
+        assert model_path.read_bytes() == b"model-bytes"
+        assert captured["timeout"] == framing_mod._DOWNLOAD_TIMEOUT_S
+        assert not model_path.with_name(model_path.name + ".part").exists()
+
+    def test_failed_download_cleans_part_and_raises(self, monkeypatch, tmp_path):
+        import contextlib
+
+        framing_mod, model_path = self._patch_path(monkeypatch, tmp_path)
+
+        @contextlib.contextmanager
+        def _stalling_urlopen(url, timeout=None):
+            raise TimeoutError("connection stalled")
+            yield  # pragma: no cover
+
+        monkeypatch.setattr(framing_mod.urllib.request, "urlopen", _stalling_urlopen)
+        with pytest.raises(TimeoutError, match="stalled"):
+            framing_mod._ensure_face_model()
+
+        assert not model_path.exists()
+        assert not model_path.with_name(model_path.name + ".part").exists()

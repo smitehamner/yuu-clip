@@ -473,6 +473,37 @@ class TestProbe:
         assert loglevel == "error"
         assert "Invalid data found" in str(exc.value)
 
+    def test_probe_tolerates_na_duration(self, tmp_path):
+        """ffprobe emits "duration": "N/A" for containers/streams it can't measure
+        (common on MKV). That must degrade to unknown, not crash the analyze run."""
+        import json
+        from unittest.mock import MagicMock, patch
+
+        from yuu_clip.analyze.probe import probe_video
+
+        video = tmp_path / "stream.mkv"
+        video.write_bytes(b"data")
+        ffprobe_json = json.dumps({
+            "streams": [
+                {"codec_type": "video", "avg_frame_rate": "30/1", "width": 1920, "height": 1080},
+                {"codec_type": "audio", "index": 1, "codec_name": "aac", "duration": "N/A"},
+            ],
+            "format": {"duration": "N/A"},
+        })
+
+        def ok_run(cmd, **kwargs):
+            r = MagicMock()
+            r.returncode = 0
+            r.stdout = ffprobe_json
+            return r
+
+        with patch("yuu_clip.analyze.probe.subprocess.run", side_effect=ok_run), \
+             patch("yuu_clip.analyze.probe.find_ffmpeg", return_value=("ffmpeg", "ffprobe")):
+            info = probe_video(video)
+
+        assert info.duration_ms == 0
+        assert info.audio_streams[0].duration_ms is None
+
 
 # ---------------------------------------------------------------------------
 # Scoring isolation - a scoring crash must not abort the analyze run or

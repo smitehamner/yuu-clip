@@ -105,7 +105,7 @@ def probe_video(path: Path) -> VideoInfo:
     )
 
     fps = _parse_fps(video_stream.get("avg_frame_rate", "30/1") if video_stream else "30/1")
-    duration_ms = int(float(fmt.get("duration", 0)) * 1000)
+    duration_ms = _duration_to_ms(fmt.get("duration")) or 0
     width  = video_stream.get("width",  0) if video_stream else 0
     height = video_stream.get("height", 0) if video_stream else 0
 
@@ -130,8 +130,20 @@ def probe_video(path: Path) -> VideoInfo:
     return info
 
 
+def _duration_to_ms(value) -> Optional[int]:
+    """ffprobe emits "N/A" for a duration it cannot determine (common on MKV);
+    treat any non-numeric value as unknown rather than crashing the analyze run."""
+    if value is None:
+        return None
+    try:
+        return int(float(value) * 1000)
+    except (ValueError, TypeError):
+        log.warning("ffprobe returned a non-numeric duration %r - treating as unknown", value)
+        return None
+
+
 def _parse_audio_stream(s: dict) -> AudioStreamInfo:
-    dur_ms: Optional[int] = int(float(s["duration"]) * 1000) if "duration" in s else None
+    dur_ms: Optional[int] = _duration_to_ms(s["duration"]) if "duration" in s else None
     return AudioStreamInfo(
         stream_index   = s["index"],
         codec_name     = s.get("codec_name", "unknown"),

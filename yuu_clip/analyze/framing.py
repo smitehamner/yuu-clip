@@ -16,6 +16,7 @@ the face. A static position per clip - no per-frame keyframed panning in v1.
 """
 from __future__ import annotations
 
+import shutil
 import statistics
 import subprocess
 import tempfile
@@ -41,6 +42,7 @@ _MODEL_URL = (
     "blaze_face_short_range/float16/1/blaze_face_short_range.tflite"
 )
 _MODEL_FILENAME = "blaze_face_short_range.tflite"
+_DOWNLOAD_TIMEOUT_S = 30
 
 
 def crop_x_from_face_center(
@@ -105,8 +107,17 @@ def _ensure_face_model() -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     _log.info("Downloading face-detector model (%s)...", _MODEL_FILENAME)
     tmp = path.with_name(path.name + ".part")
-    urllib.request.urlretrieve(_MODEL_URL, tmp)
-    tmp.replace(path)
+    try:
+        # urlretrieve has no socket timeout, so a stalled CDN would hang the worker
+        # forever; stream through urlopen with a bounded timeout instead.
+        with urllib.request.urlopen(_MODEL_URL, timeout=_DOWNLOAD_TIMEOUT_S) as resp, \
+                open(tmp, "wb") as out:
+            shutil.copyfileobj(resp, out)
+        tmp.replace(path)
+    except Exception:
+        tmp.unlink(missing_ok=True)
+        raise
+    _log.info("Face-detector model ready (%.1f KB)", path.stat().st_size / 1024)
     return path
 
 
