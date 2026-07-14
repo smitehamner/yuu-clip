@@ -270,6 +270,20 @@ def _write_source_sidecar(video_path: Path, url: str, info: dict) -> None:
     }, indent=2), encoding="utf-8")
 
 
+def _find_downloaded_file(output_dir: Path, stem: str) -> Optional[Path]:
+    """The media file yt-dlp wrote for *stem*. merge_output_format forces .mkv only
+    when merging separate streams; the /best progressive fallback keeps the source
+    container (e.g. .mp4), so the extension can't be assumed. Ignore the metadata
+    sidecar and any leftover yt-dlp fragment."""
+    candidates = [
+        p for p in output_dir.glob(f"{stem}.*")
+        if p.is_file()
+        and not p.name.endswith(_SIDECAR_SUFFIX)
+        and p.suffix.lower() not in {".part", ".ytdl"}
+    ]
+    return candidates[0] if candidates else None
+
+
 def download_video(url: str, output_dir: Path, *, progress_line_cb=print) -> Path:
     """Download *url* into *output_dir* via yt-dlp, printing parseable progress
     lines through *progress_line_cb*.
@@ -287,7 +301,7 @@ def download_video(url: str, output_dir: Path, *, progress_line_cb=print) -> Pat
     stem = sanitize_import_filename(info["title"], info["video_id"], existing_stems)
 
     check_disk_space(output_dir, info.get("estimated_size_bytes"))
-    _log.info("Download starting: %s (video_id=%s) → %s.mkv", url, info.get("video_id") or "?", stem)
+    _log.info("Download starting: %s (video_id=%s) -> stem %s", url, info.get("video_id") or "?", stem)
 
     def _hook(d: dict) -> None:
         if d.get("status") == "downloading":
@@ -312,9 +326,9 @@ def download_video(url: str, output_dir: Path, *, progress_line_cb=print) -> Pat
         _log.warning("Download failed for %s: %s", url, e)
         raise RuntimeError(_friendly_extractor_error(str(e))) from e
 
-    downloaded_path = output_dir / f"{stem}.mkv"
-    if not downloaded_path.exists():
-        _log.error("Download for %s reported success but %s is missing", url, downloaded_path)
+    downloaded_path = _find_downloaded_file(output_dir, stem)
+    if downloaded_path is None:
+        _log.error("Download for %s reported success but no %s.* media file was found", url, stem)
         raise RuntimeError("Download finished but the output file was not found")
 
     _write_source_sidecar(downloaded_path, url, info)

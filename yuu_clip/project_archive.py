@@ -312,6 +312,12 @@ def restore_into(archive_path: Path, target_dir: Path, overwrite: bool = False) 
     set; when overwriting, the existing project.db is first copied to
     project.db.pre-restore so a restore can never be the thing that loses data."""
     inspect_backup(archive_path)  # validates schema before we touch the target
+    with zipfile.ZipFile(archive_path) as archive:
+        # inspect_backup only checks the manifest; guard the DB member too, or the
+        # overwrite path below would drop the old WAL for a backup that then writes
+        # no project.db - the same check plan_repoint_from_archive already makes.
+        if _DB_ARCNAME not in archive.namelist():
+            raise RestoreError("This backup is missing its project database.")
     target_dir = Path(target_dir)
     existing_db = target_dir / ".yuu-clip" / "project.db"
     if existing_db.exists() and existing_db.stat().st_size > 0:

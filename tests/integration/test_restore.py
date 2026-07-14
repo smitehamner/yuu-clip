@@ -11,6 +11,7 @@ import pytest
 
 from yuu_clip.db.models import ClipCandidate, Video, make_session
 from yuu_clip.project_archive import (
+    BACKUP_SCHEMA_VERSION,
     RestoreError,
     apply_repoint,
     build_backup,
@@ -118,6 +119,27 @@ def test_restore_overwrite_writes_pre_restore_safety_copy(project_dir, tmp_path)
 
 
 # --- manifest / schema validation ------------------------------------------
+
+
+def test_restore_rejects_backup_missing_project_db(tmp_path):
+    """A manifest-only backup passes inspect_backup but has no project.db member;
+    restore_into must refuse before touching the target (it would otherwise drop the
+    existing WAL for a restore that writes no DB)."""
+    archive = tmp_path / "manifest_only.zip"
+    with zipfile.ZipFile(archive, "w") as zf:
+        zf.writestr("manifest.json", json.dumps({"schema_version": BACKUP_SCHEMA_VERSION}))
+    target = tmp_path / "existing"
+    (target / ".yuu-clip").mkdir(parents=True)
+    existing_db = target / ".yuu-clip" / "project.db"
+    existing_db.write_bytes(b"OLD-DB")
+    wal = target / ".yuu-clip" / "project.db-wal"
+    wal.write_bytes(b"WAL")
+
+    with pytest.raises(RestoreError, match="missing its project database"):
+        restore_into(archive, target, overwrite=True)
+
+    assert existing_db.read_bytes() == b"OLD-DB"  # untouched
+    assert wal.exists()  # WAL not dropped
 
 
 def test_inspect_rejects_unsupported_schema(tmp_path):

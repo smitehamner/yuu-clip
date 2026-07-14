@@ -381,3 +381,93 @@ class TestSubprocessSseCancel:
         assert not any("cancelled" in c.lower() for c in chunks)
         assert ctx.import_cancelled is True
 
+
+
+# ---------------------------------------------------------------------------
+# download_video - the post-download half (extension resolution, sidecar,
+# error mapping). yt-dlp is faked; no network, no real media.
+# ---------------------------------------------------------------------------
+
+class _FakeYDL:
+    """Stands in for yt_dlp.YoutubeDL: writes a file at the resolved outtmpl with a
+    chosen extension and fires the registered progress hooks, mimicking a real run."""
+
+    def __init__(self, write_ext: str | None, *, raises: Exception | None = None):
+        self._write_ext = write_ext
+        self._raises = raises
+
+    def __call__(self, opts):
+        self._opts = opts
+        return self
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def download(self, urls):
+        hooks = self._opts.get("progress_hooks", [])
+        for hook in hooks:
+            hook({"status": "downloading", "downloaded_bytes": 5, "total_bytes": 10, "speed": 1000})
+        if self._raises is not None:
+            raise self._raises
+        if self._write_ext is not None:
+            out = Path(self._opts["outtmpl"].replace("%(ext)s", self._write_ext))
+            out.write_bytes(b"media")
+        for hook in hooks:
+            hook({"status": "finished"})
+
+
+class TestDownloadVideo:
+    _INFO = {
+        "title": "Epic Moment", "video_id": "vid123", "uploader": "Streamer",
+        "upload_date": "2026-06-15", "category": "Gaming",
+        "estimated_size_bytes": None,
+    }
+
+    def _patch_common(self, monkeypatch, fake_ydl):
+        import yuu_clip.url_import as mod
+        monkeypatch.setattr(mod, "inspect_url", lambda url: dict(self._INFO))
+        monkeypatch.setattr(mod, "check_disk_space", lambda *a, **k: None)
+        monkeypatch.setattr("yt_dlp.YoutubeDL", fake_ydl)
+        return mod
+
+    def test_returns_merged_mkv_path_and_writes_sidecar(self, tmp_path, monkeypatch):
+        mod = self._patch_common(monkeypatch, _FakeYDL("mkv"))
+        result = mod.download_video("https://youtu.be/vid123", tmp_path)
+        assert result.suffix == ".mkv"
+        assert result.exists()
+        assert mod.source_sidecar_path(result).exists()
+
+    def test_resolves_progressive_mp4_when_no_merge_happens(self, tmp_path, monkeypatch):
+        """The /best fallback keeps the source .mp4 container - the old hardcoded
+        .mkv lookup declared this successful download 'not found'."""
+        mod = self._patch_common(monkeypatch, _FakeYDL("mp4"))
+        result = mod.download_video("https://youtu.be/vid123", tmp_path)
+        assert result.suffix == ".mp4"
+        assert result.exists()
+
+    def test_missing_output_after_success_raises(self, tmp_path, monkeypatch):
+        mod = self._patch_common(monkeypatch, _FakeYDL(None))
+        with pytest.raises(RuntimeError, match="output file was not found"):
+            mod.download_video("https://youtu.be/vid123", tmp_path)
+
+    def test_download_error_maps_to_runtime_error(self, tmp_path, monkeypatch):
+        import yt_dlp
+        error = yt_dlp.utils.DownloadError("ERROR: network unreachable")
+        mod = self._patch_common(monkeypatch, _FakeYDL("mkv", raises=error))
+        with pytest.raises(RuntimeError):
+            mod.download_video("https://youtu.be/vid123", tmp_path)
+
+    def test_sidecar_is_not_mistaken_for_the_media_file(self, tmp_path, monkeypatch):
+        mod = self._patch_common(monkeypatch, _FakeYDL("mp4"))
+        result = mod.download_video("https://youtu.be/vid123", tmp_path)
+        assert not result.name.endswith(mod._SIDECAR_SUFFIX)
+        assert result.suffix == ".mp4"
+
+    def test_progress_hook_forwards_lines(self, tmp_path, monkeypatch):
+        mod = self._patch_common(monkeypatch, _FakeYDL("mkv"))
+        lines: list[str] = []
+        mod.download_video("https://youtu.be/vid123", tmp_path, progress_line_cb=lines.append)
+        assert any("Merging" in ln for ln in lines)
