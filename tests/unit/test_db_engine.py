@@ -90,3 +90,81 @@ class TestAdditiveColumns:
             assert session2.get(ClipCandidate, clip_id).kind == "clip"
         finally:
             session2.close()
+
+
+class TestAdditiveColumnCompleteness:
+    """`create_all` builds a fresh DB in full, so a forgotten `_ADDITIVE_COLUMNS`
+    entry is invisible until a *pre-existing* user DB (older backup, upgraded
+    project) is opened and the new column is missing -> OperationalError on the
+    first query. `_ADDITIVE_COLUMNS` is maintained by developer memory, so this is
+    the tripwire: any column added to a shipped table must be consciously
+    categorized as either guarded (survives an upgrade) or fresh-DB-only.
+
+    The two frozen snapshots below are the shipped column surface of the two
+    most-churned tables. When a column is added or removed on one of them this
+    test fails, forcing the decision:
+      * existing user DBs must keep working across the upgrade -> add the column
+        to `_ADDITIVE_COLUMNS` in `db/models.py`, then add it here;
+      * fresh-DB-only is acceptable (the deferred wipe-fresh migration decision,
+        docs: db_migration_deferred) -> add it here only.
+    Do not blindly append to the snapshot to make the test pass - that silently
+    ships an unguarded column to every existing project DB.
+    """
+
+    # Full shipped column surface (core + guarded). Guarded columns are marked so
+    # the test can assert every non-core column is actually registered in the guard.
+    _EXPECTED: dict[str, set[str]] = {
+        "clip_candidates": {
+            "id", "video_id", "start_ms", "end_ms", "kind",
+            "score_overall", "score_funny", "score_dramatic", "score_action",
+            "score_visual", "score_overall_user", "score_laugh",
+            "reasons_json", "tags_json", "user_tags_json",
+            "transcript_excerpt", "description", "description_user",
+            "description_long", "description_long_user",
+            "start_offset", "end_offset", "crop_x", "status", "created_at",
+            "exported_at", "exported_container", "exported_burn_subs",
+            "exported_title_card", "exported_embed_subs",
+            "hotword_matches_json", "hotword_boost_json", "sensitive_matches_json",
+            "related_clips_json", "related_clips_at",
+            "vision_summary", "vision_analyzed_at",
+            "transcript_edited_at", "trim_edited_at", "description_edited_at",
+            "scored_at",
+        },
+        "transcript_segments": {
+            "id", "transcript_id", "start_ms", "end_ms", "text", "confidence",
+            "speaker_label", "speaker_id", "speaker_edited", "words_json",
+        },
+    }
+
+    def _guarded(self, table: str) -> set[str]:
+        return {col for tbl, col, _type in _ADDITIVE_COLUMNS if tbl == table}
+
+    def test_snapshot_matches_orm(self):
+        from yuu_clip.db.models import ClipCandidate, TranscriptSegment
+
+        for model in (ClipCandidate, TranscriptSegment):
+            table = model.__tablename__
+            actual = set(model.__table__.columns.keys())
+            assert actual == self._EXPECTED[table], (
+                f"Column surface of shipped table {table!r} changed. Categorize the "
+                f"added/removed column as guarded (add to _ADDITIVE_COLUMNS) or "
+                f"fresh-DB-only, then update this snapshot. Added: "
+                f"{sorted(actual - self._EXPECTED[table])}, removed: "
+                f"{sorted(self._EXPECTED[table] - actual)}."
+            )
+
+    def test_every_non_core_column_is_guarded(self):
+        # A "non-core" column is one that is NOT createable on an existing DB by
+        # create_all - i.e. every column added after the table first shipped. The
+        # guard list is the authoritative record of those; this asserts each one it
+        # names on these tables is a real ORM column (no stale/typo'd guard entry).
+        from yuu_clip.db.models import ClipCandidate, TranscriptSegment
+
+        for model in (ClipCandidate, TranscriptSegment):
+            table = model.__tablename__
+            orm_columns = set(model.__table__.columns.keys())
+            for guarded in self._guarded(table):
+                assert guarded in orm_columns, (
+                    f"_ADDITIVE_COLUMNS names {table}.{guarded}, which is not an ORM "
+                    f"column - stale or misspelled guard entry."
+                )
