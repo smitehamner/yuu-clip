@@ -200,3 +200,28 @@ class TestComputeScenesTranscriptMode:
         finally:
             session.close()
         assert result == 0
+
+
+class TestComputeScenesFastModeSegment:
+    def test_keyframes_windowed_and_segment_relative_for_split(self, tmp_path, monkeypatch):
+        # In fast mode a split segment's keyframes come off the shared parent file
+        # (parent timeline) while its transcript is segment-relative; keyframes must
+        # be filtered to the segment window and re-based, or the two timelines mix.
+        from yuu_clip.db.models import SceneBoundary, Video, make_session
+        from yuu_clip.scoring import scenes
+        session = make_session(tmp_path / "seg.db")
+        seg = Video(
+            path=str(tmp_path / "v.mkv"), filename="v.mkv", status="done",
+            duration_ms=120_000, segment_start_s=10.0, segment_end_s=70.0,
+        )
+        session.add(seg)
+        session.flush()
+        # Parent-timeline keyframes; window [10s,70s) keeps 15s and 40s, offset -10s.
+        monkeypatch.setattr(scenes, "_detect_keyframes", lambda _p: [5_000, 15_000, 40_000, 80_000])
+        try:
+            n = scenes.compute_scenes(seg, session, mode="fast")
+            rows = session.query(SceneBoundary).filter_by(video_id=seg.id).order_by(SceneBoundary.timecode_ms).all()
+        finally:
+            session.close()
+        assert [r.timecode_ms for r in rows] == [5_000, 30_000]
+        assert n == 2

@@ -224,6 +224,21 @@ class TestScoringEngineHotwordIntegration:
         engine.score_clip(clip, None)
         assert abs(clip.score_funny - 0.5) < 1e-6
 
+    def test_score_clip_hotword_boost_does_not_compound_on_rescore(self):
+        # Scoring the same clip twice must land the same boosted score - _reset_scores
+        # rewrites the dimension scores fresh (no boost baked in), so the second run
+        # must not subtract the prior run's stale boost and cancel the new one out.
+        from yuu_clip.config import Config
+        from yuu_clip.db.models import ClipCandidate, HotWord
+        from yuu_clip.scoring.engine import ScoringEngine
+        clip = ClipCandidate(video_id=1, start_ms=0, end_ms=1000, transcript_excerpt="haha wow")
+        hw = HotWord(phrase="haha", match_mode="exact", boost=0.2, target="funny", enabled=True)
+        engine = ScoringEngine(Config(), [self._make_scorer(score_funny=0.3)], hot_words=[hw])
+        engine.score_clip(clip, None)
+        assert abs(clip.score_funny - 0.5) < 1e-6
+        engine.score_clip(clip, None)   # rescore
+        assert abs(clip.score_funny - 0.5) < 1e-6   # not 0.3 (boost dropped) or 0.7 (doubled)
+
     def test_score_clip_filters_hotwords_by_video_context(self):
         # score_clip resolves the clip's video and drops hot-words scoped to a
         # context the recording is not tagged with - the ingest/rescore path.

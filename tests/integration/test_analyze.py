@@ -1403,7 +1403,7 @@ class TestRescoreFailedSelection:
     def test_targets_only_failed_clips(self, client, project_dir, monkeypatch):
         from yuu_clip.scoring.engine import ScoringEngine
 
-        monkeypatch.setattr(ScoringEngine, "score_clip", lambda self, clip, session: None)
+        monkeypatch.setattr(ScoringEngine, "score_clip", lambda self, clip, session, **kwargs: None)
 
         video_id = client.get("/api/videos").json()[0]["id"]
         _add_failed_clip(project_dir, video_id)  # 1 failed clip among 4 total

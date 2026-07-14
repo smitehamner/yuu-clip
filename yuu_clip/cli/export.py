@@ -171,7 +171,8 @@ def retranscribe(
             config, [LLMScorer(config, context_text=context_text)],
             hot_words=hot_words, sensitive_terms=sensitive_terms,
         )
-        engine.score_clip(cand, session)
+        # LLM-only rescore: preserve the Visual/laugh axes it does not recompute.
+        engine.score_clip(cand, session, preserve_unscored_dims=True)
         session.commit()
         console.print("  [green]  OK[/green]")
 

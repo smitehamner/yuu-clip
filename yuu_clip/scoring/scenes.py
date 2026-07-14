@@ -141,11 +141,18 @@ def compute_scenes(
     if session.query(SceneBoundary).filter_by(video_id=video.id).count() > 0:
         return 0
 
+    seg_start_s, seg_end_s = video.segment_start_s, video.segment_end_s
+
     if mode == "transcript":
+        # Transcript gaps come from the per-segment-trimmed transcript, so they are
+        # already segment-relative - no windowing needed.
         timecodes = _detect_transcript(video, session, transcript_gap_s)
 
     elif mode == "fast":
-        kf = set(_detect_keyframes(video.path))
+        # Keyframes are decoded from the shared parent file (parent timeline); rebase
+        # them onto the segment before merging with the already-segment-relative
+        # transcript gaps, or a split segment mixes two timelines in one cut set.
+        kf = set(_to_segment_window_ms(_detect_keyframes(video.path), seg_start_s, seg_end_s))
         tg = set(_detect_transcript(video, session, transcript_gap_s))
         # Merge: keep keyframes within 2s of a transcript gap (corroborated cuts),
         # or all keyframes if there are no transcript gaps.
@@ -162,12 +169,34 @@ def compute_scenes(
         timecodes = sorted(merged)
 
     else:  # "full"
-        timecodes = _detect_content(video.path, frame_skip=frame_skip)
+        timecodes = _to_segment_window_ms(
+            _detect_content(video.path, frame_skip=frame_skip), seg_start_s, seg_end_s
+        )
 
     for ms in timecodes:
         session.add(SceneBoundary(video_id=video.id, timecode_ms=ms))
 
     return len(timecodes)
+
+
+def _to_segment_window_ms(
+    timecodes: list[int], segment_start_s: float | None, segment_end_s: float | None
+) -> list[int]:
+    """Rebase parent-timeline cut timecodes (ms) onto a split segment's timeline.
+
+    Keyframe/content detection decodes the shared parent file, so its cuts are on the
+    parent timeline; a split segment's clips are 0-based within the segment (its audio
+    is trimmed per segment). Filter to the segment window and subtract its start.
+    A non-split video (segment_start_s is None) passes through unchanged.
+    """
+    if segment_start_s is None:
+        return timecodes
+    start_ms = int(segment_start_s * 1000)
+    end_ms = int(segment_end_s * 1000) if segment_end_s is not None else None
+    return [
+        ms - start_ms for ms in timecodes
+        if ms >= start_ms and (end_ms is None or ms < end_ms)
+    ]
 
 
 class SceneCutScorer:

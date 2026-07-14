@@ -122,6 +122,29 @@ class TestComputeActivity:
         assert n == 0
         assert count == 0
 
+    def test_split_segment_rows_are_windowed_and_segment_relative(self, tmp_path, monkeypatch):
+        # A split segment shares the parent media file, so the decode runs on the
+        # parent timeline; rows must be filtered to the segment window and re-based to
+        # 0 so the Visual axis (which reads segment-relative clip times) lines up.
+        session = make_session(tmp_path / "seg.db")
+        seg = Video(
+            path=str(tmp_path / "v.mkv"), filename="v.mkv", status="done",
+            duration_ms=10_000, segment_start_s=0.5, segment_end_s=1.5,
+        )
+        session.add(seg)
+        session.flush()
+        # Parent-timeline samples: diffs land at 500/1000/1500 ms. Window [500,1500)
+        # keeps 500 and 1000, drops 1500 (exclusive end), and offsets by -500.
+        samples = [(0, _gray(0)), (500, _gray(255)), (1000, _gray(0)), (1500, _gray(255))]
+        monkeypatch.setattr(motion, "_decode_samples", lambda *a, **k: iter(samples))
+        try:
+            n = motion.compute_activity(seg, session, Config())
+            rows = session.query(VisualActivity).filter_by(video_id=seg.id).order_by(VisualActivity.timecode_ms).all()
+        finally:
+            session.close()
+        assert n == 2
+        assert [r.timecode_ms for r in rows] == [0, 500]
+
 
 class TestTargetWidth:
     class _Stream:

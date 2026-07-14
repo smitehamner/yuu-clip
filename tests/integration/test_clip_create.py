@@ -133,7 +133,7 @@ class TestRescoreAfterManualCreate:
     def test_rescore_accepts_clip_with_null_scored_at(self, client, project_dir, monkeypatch):
         from yuu_clip.scoring.engine import ScoringEngine
 
-        def _fake_score_clip(self, clip, session):
+        def _fake_score_clip(self, clip, session, **kwargs):
             clip.scored_at = datetime.now(timezone.utc)
 
         monkeypatch.setattr(ScoringEngine, "score_clip", _fake_score_clip)

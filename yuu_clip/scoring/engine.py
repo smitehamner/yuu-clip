@@ -81,11 +81,15 @@ def apply_hotword_boosts(clip: "ClipCandidate", hot_words: list["HotWord"], conf
     """Match enabled hot-words against *clip*'s transcript excerpt and apply their
     score boosts, storing the matches and the boost actually applied.
 
-    Idempotent: re-running this (e.g. via the hotword-rescan route, or a second
-    score_clip pass) subtracts the boost it applied last time before adding the
-    freshly computed one, so repeated calls never compound. A phrase counts once per
-    clip regardless of repeat count; multiple distinct phrases stack, clamped to
-    ±0.3 per target. score_overall_user (the manual override) is never touched.
+    Idempotent on the standalone rescan route: called directly on an already-boosted
+    clip (its scores untouched since the last run), it subtracts the boost it applied
+    last time before adding the freshly computed one, so repeated rescans never
+    compound. The score_clip path is different - it rewrites the dimension scores from
+    the scorers first (no boost baked in) and clears clip.hotword_boost before calling
+    this (see _apply_terms), so there old_boost is empty and the fresh boost is added
+    exactly once. A phrase counts once per clip regardless of repeat count; multiple
+    distinct phrases stack, clamped to ±0.3 per target. score_overall_user (the manual
+    override) is never touched.
 
     LLM-semantic matches (mode="semantic") are produced only by the Stage 2 scan -
     this function never runs the text matcher against them, but does preserve any
@@ -215,11 +219,16 @@ class ScoringEngine:
         "audio_event_scored", "audio_event_no_wav",
     })
 
-    def score_clip(self, clip: "ClipCandidate", session: "Session") -> None:
+    def score_clip(self, clip: "ClipCandidate", session: "Session", *, preserve_unscored_dims: bool = False) -> None:
         """Run the available scorers for *clip*'s kind and update its score_* in place.
 
         A kind='scene' row is routed to the scene scorer set (the scene LLM rubric),
         never the clip scorers - the two kinds share this table but score differently.
+
+        With ``preserve_unscored_dims`` a partial re-score (e.g. an LLM-only rescore,
+        whose scorer set has no Visual/laugh scorer) keeps the dimensions it does not
+        recompute instead of zeroing them. The default (full ingest scoring) resets
+        every dimension, so an axis no scorer produced lands a clean 0.0.
         """
         if getattr(clip, "kind", "clip") == "scene":
             self._score_scene(clip, session)
@@ -228,14 +237,14 @@ class ScoringEngine:
         if not self._scorers:
             return
 
-        self._reset_scores(clip)
+        self._reset_scores(clip, preserve_unscored_dims)
         num, weight, scorer_described = self._run_scorers(clip, session, self._scorers)
 
         if not any(weight.values()):
             _log.warning("score_clip: no scorer contributed a weighted dimension - clip %s not scored", getattr(clip, "id", "?"))
             return
 
-        self._write_dimension_scores(clip, num, weight)
+        self._write_dimension_scores(clip, num, weight, preserve_unscored_dims)
         self._apply_basic_description(clip, scorer_described)
         self._apply_terms(clip)
         clip.scored_at = datetime.now(timezone.utc)
@@ -256,8 +265,14 @@ class ScoringEngine:
         clip.scored_at = datetime.now(timezone.utc)
 
     @staticmethod
-    def _reset_scores(clip: "ClipCandidate") -> None:
+    def _reset_scores(clip: "ClipCandidate", preserve_unscored_dims: bool = False) -> None:
         clip.tags = [t for t in clip.tags if t not in ScoringEngine._SCORER_TAGS]
+        if preserve_unscored_dims:
+            # Partial re-score: leave the dimension scores in place so an axis this
+            # run's scorer set does not produce (e.g. Visual, laugh on an LLM-only
+            # rescore) survives. _write_dimension_scores overwrites only the dims a
+            # scorer actually emitted this run.
+            return
         clip.score_funny = clip.score_dramatic = clip.score_action = 0.0
         clip.score_visual = 0.0
         clip.score_overall = 0.0
@@ -297,13 +312,21 @@ class ScoringEngine:
             self._merge_tags(clip, result.tags)
         return num, weight, scorer_described
 
-    def _write_dimension_scores(self, clip: "ClipCandidate", num: dict, weight: dict) -> None:
-        clip.score_funny    = num["funny"]    / weight["funny"]    if weight["funny"]    else 0.0
-        clip.score_dramatic = num["dramatic"] / weight["dramatic"] if weight["dramatic"] else 0.0
-        clip.score_action   = num["action"]   / weight["action"]   if weight["action"]   else 0.0
-        clip.score_visual   = num["visual"]   / weight["visual"]   if weight["visual"]   else 0.0
+    def _write_dimension_scores(
+        self, clip: "ClipCandidate", num: dict, weight: dict, preserve_unscored_dims: bool = False
+    ) -> None:
+        for dim in ("funny", "dramatic", "action", "visual"):
+            if weight[dim]:
+                setattr(clip, f"score_{dim}", num[dim] / weight[dim])
+            elif not preserve_unscored_dims:
+                # No scorer emitted this dimension: zero it on a full score, but on a
+                # partial re-score leave whatever a prior run computed (_reset_scores
+                # already skipped it).
+                setattr(clip, f"score_{dim}", 0.0)
 
-        overall = _compute_overall(self._config, clip.score_funny, clip.score_dramatic, clip.score_action, clip.score_visual)
+        overall = _compute_overall(
+            self._config, clip.score_funny, clip.score_dramatic, clip.score_action, clip.score_visual or 0.0
+        )
         if overall is not None:
             clip.score_overall = overall
 
@@ -313,6 +336,11 @@ class ScoringEngine:
         from yuu_clip.scoring.term_scope import terms_for_video
         video = getattr(clip, "video", None)
         if self._hot_words is not None:
+            # The dimension scores were just rewritten from the scorers, so they
+            # carry no hot-word boost yet. Clear any boost a previous run recorded
+            # before re-applying, or apply_hotword_boosts would subtract a stale
+            # boost the fresh score never contained (cancelling the new boost out).
+            clip.hotword_boost = {}
             apply_hotword_boosts(clip, terms_for_video(self._hot_words, video), self._config)
         if self._sensitive_terms is not None:
             apply_sensitive_scan(clip, terms_for_video(self._sensitive_terms, video))

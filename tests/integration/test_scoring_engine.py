@@ -236,6 +236,35 @@ class TestScoringEngine:
         engine.score_clip(clip, None)
         assert abs(clip.score_action - 1.0) < 1e-6  # empty's weight excluded
 
+    def test_preserve_unscored_dims_keeps_visual_and_laugh_on_partial_rescore(self):
+        # An LLM-only rescore (no Visual/laugh scorer) must not zero the axes it does
+        # not recompute - that was the Stage 4 cohesion HIGH: rescore silently dropped
+        # score_visual to 0 and score_laugh to None.
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.engine import ScoringEngine
+        llm_like = self._make_partial_scorer(score_funny=0.9, weight=1.0)
+        clip = self._make_clip()
+        clip.score_visual = 0.7   # produced by a prior full analyze pass
+        clip.score_laugh = 0.4
+        engine = ScoringEngine(Config(), [llm_like])
+        engine.score_clip(clip, None, preserve_unscored_dims=True)
+        assert abs(clip.score_funny - 0.9) < 1e-6   # recomputed by the LLM-like scorer
+        assert clip.score_visual == 0.7             # preserved, not zeroed
+        assert clip.score_laugh == 0.4              # preserved, not reset to None
+
+    def test_default_full_rescore_still_zeroes_unscored_dims(self):
+        # Without the flag (the ingest path), an axis no scorer emits lands a clean 0.
+        from yuu_clip.config import Config
+        from yuu_clip.scoring.engine import ScoringEngine
+        llm_like = self._make_partial_scorer(score_funny=0.9, weight=1.0)
+        clip = self._make_clip()
+        clip.score_visual = 0.7
+        clip.score_laugh = 0.4
+        engine = ScoringEngine(Config(), [llm_like])
+        engine.score_clip(clip, None)
+        assert clip.score_visual == 0.0
+        assert clip.score_laugh is None
+
 class TestLaughScoreAttribute:
     """score_laugh mirrors the laugh scorer's raw result without altering score_funny."""
 
