@@ -79,14 +79,6 @@ Implemented-but-unverified surfaces and latent traps to close before distributio
   If the engine ever needs to run in-process (no subprocess) or emit structured
   progress, replace the `console.print` calls with a progress-callback/event seam.
 
-- [ ] **Visual-activity decode re-reads the whole parent per split segment** - a
-  performance follow-up from the 2026-07-13 code-quality review (Theme A). Correctness is
-  fixed: `analyze/motion.py compute_activity` now windows + re-bases parent-timeline
-  activity onto each segment (`aed8ffb`). But it still *decodes* the full parent file for
-  every split segment before discarding the out-of-window samples, so an N-segment split
-  of a multi-hour VOD decodes the source N times. Add an `av` seek to `segment_start_s`
-  (and stop at `segment_end_s`) so each segment only decodes its own span.
-
 ---
 
 ## 2 - Pre-distribution blockers

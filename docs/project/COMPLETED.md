@@ -6,6 +6,21 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) - see the
 
 ---
 
+## Code-quality review residuals - visual-decode perf + dev-CLI warning (done 2026-07-14)
+
+The last two deferred items from the stage-by-stage code-quality review, both internal:
+
+- **Split-segment analysis stops re-reading the whole recording.** On-screen-activity
+  detection already read the correct region per split segment, but it still decoded the
+  entire parent recording for each segment before discarding the rest - so splitting a
+  multi-hour recording into N parts decoded the source N times. It now seeks to each
+  segment's own span, so the work no longer multiplies with the number of segments.
+- **Dev-loop warns on an unreadable process snapshot.** The developer CLI's stale-process
+  reaper silently did nothing if the OS process listing came back malformed (risking a
+  duplicate server); it now logs a warning instead of failing silently.
+
+---
+
 ## Code-quality review close-out - P2 robustness + console-text sweep (done 2026-07-14)
 
 Final (low-severity) tier of the stage-by-stage code-quality review. Small correctness

@@ -57,6 +57,58 @@ class TestSampleFromContainerNoVideoStream:
         assert list(motion._sample_from_container(container, 2.0, 360)) == []
 
 
+class _FakeFrame:
+    def __init__(self, time_s: float):
+        self.time = time_s
+
+    def reformat(self, **_kwargs):
+        return self
+
+    def to_ndarray(self):
+        return np.zeros((2, 2), dtype=np.uint8)
+
+
+class _FakeStream:
+    width = 2
+    height = 2
+    time_base = 1 / 1000  # 1 unit == 1 ms, so a seek offset is start_s * 1000
+
+
+class _SeekableContainer:
+    def __init__(self, frames):
+        self._frames = frames
+        self.streams = _FakeStreams([_FakeStream()])
+        self.seek_offset = None
+
+    def seek(self, offset, **_kwargs):
+        self.seek_offset = offset
+
+    def decode(self, _stream):
+        yield from self._frames
+
+
+class TestSampleFromContainerWindow:
+    def _frames(self):
+        # 0.5s spacing on the parent timeline.
+        return [_FakeFrame(t) for t in (0.0, 0.5, 1.0, 1.5, 2.0)]
+
+    def test_end_s_stops_decoding_at_the_window_end(self):
+        container = _SeekableContainer(self._frames())
+        # High fps -> every frame is taken; end_s=1.5 must break before the 1.5s frame.
+        samples = list(motion._sample_from_container(container, 100.0, 2, start_s=0.5, end_s=1.5))
+        assert [ms for ms, _ in samples] == [0, 500, 1000]
+
+    def test_start_s_seeks_backward_to_the_segment(self):
+        container = _SeekableContainer(self._frames())
+        list(motion._sample_from_container(container, 100.0, 2, start_s=0.5, end_s=1.5))
+        assert container.seek_offset == 500  # 0.5s / (1/1000) time_base
+
+    def test_no_window_never_seeks(self):
+        container = _SeekableContainer(self._frames())
+        list(motion._sample_from_container(container, 100.0, 2))
+        assert container.seek_offset is None
+
+
 class TestComputeActivity:
     def _video(self, tmp_path):
         session = make_session(tmp_path / "test.db")

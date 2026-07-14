@@ -4,7 +4,9 @@ compute_activity decodes a DOWNSCALED video stream at a LOW sample fps via PyAV
 (``av``, already a dependency, LGPL), computes the mean absolute inter-frame pixel
 difference at each sample, and stores one VisualActivity row per sample. Sampling +
 downscaling bound the cost so it stays cheap on multi-hour recordings; the smallest
-already-warmed proxy is decoded in preference to the full-res source.
+already-warmed proxy is decoded in preference to the full-res source. For a split
+segment (which shares the parent media file) the decode is seeked to the segment's
+own span rather than reading the whole parent and discarding the rest.
 
 Idempotent (skips when rows already exist), mirroring scoring/scenes.py::compute_scenes.
 A file with no video stream is a clean no-op (0 rows), and a corrupt/variable-fps
@@ -39,7 +41,10 @@ def compute_activity(video: "Video", session: "Session", config: "Config") -> in
 
     decode_path = _decode_path(video)
     try:
-        samples = list(_decode_samples(decode_path, config.visual_sample_fps, config.visual_downscale_height))
+        samples = list(_decode_samples(
+            decode_path, config.visual_sample_fps, config.visual_downscale_height,
+            start_s=video.segment_start_s, end_s=video.segment_end_s,
+        ))
     except Exception as exc:
         log.warning("Visual-activity decode failed for %s: %s", decode_path, exc, exc_info=True)
         return 0
@@ -104,22 +109,36 @@ def _intensity_series(samples: Iterable[tuple[int, "np.ndarray"]]) -> list[tuple
     return series
 
 
-def _decode_samples(path: Path, sample_fps: float, downscale_height: int) -> Iterator[tuple[int, "np.ndarray"]]:
-    """Yield (timecode_ms, grayscale ndarray) sampled at ~*sample_fps* from *path*."""
+def _decode_samples(
+    path: Path, sample_fps: float, downscale_height: int,
+    start_s: float | None = None, end_s: float | None = None,
+) -> Iterator[tuple[int, "np.ndarray"]]:
+    """Yield (timecode_ms, grayscale ndarray) sampled at ~*sample_fps* from *path*.
+
+    When *start_s* is given (a split segment), the decode seeks to the segment's
+    span instead of reading the whole parent file. Timecodes stay on the parent
+    (absolute) timeline; ``_to_segment_window`` re-bases them afterwards."""
     import av
 
     with av.open(str(path)) as container:
-        yield from _sample_from_container(container, sample_fps, downscale_height)
+        yield from _sample_from_container(container, sample_fps, downscale_height, start_s, end_s)
 
 
-def _sample_from_container(container, sample_fps: float, downscale_height: int) -> Iterator[tuple[int, "np.ndarray"]]:
+def _sample_from_container(
+    container, sample_fps: float, downscale_height: int,
+    start_s: float | None = None, end_s: float | None = None,
+) -> Iterator[tuple[int, "np.ndarray"]]:
     """Sampling core, split out so the no-video-stream path is testable without a decode."""
     streams = container.streams.video
     if not streams:
         return
     stream = streams[0]
 
+    if start_s is not None:
+        _seek_near(container, stream, start_s)
+
     interval_ms = 1000.0 / sample_fps if sample_fps > 0 else 0.0
+    end_ms = end_s * 1000.0 if end_s is not None else None
     target_width = _target_width(stream, downscale_height)
     last_taken_ms: float | None = None
 
@@ -127,11 +146,25 @@ def _sample_from_container(container, sample_fps: float, downscale_height: int) 
         if frame.time is None:
             continue
         timecode_ms = frame.time * 1000.0
+        if end_ms is not None and timecode_ms >= end_ms:
+            break
         if last_taken_ms is not None and (timecode_ms - last_taken_ms) < interval_ms:
             continue
         last_taken_ms = timecode_ms
         gray = frame.reformat(width=target_width, height=downscale_height, format="gray").to_ndarray()
         yield int(timecode_ms), gray
+
+
+def _seek_near(container, stream, start_s: float) -> None:
+    """Seek to the keyframe at or before *start_s* so decoding starts near the segment.
+
+    Best-effort: a backward seek lands on a keyframe <= start_s, which doubles as the
+    inter-frame diff baseline for the first in-window sample. On failure we log and
+    decode from the file start - correct, just not sped up for that one segment."""
+    try:
+        container.seek(int(start_s / stream.time_base), stream=stream, backward=True, any_frame=False)
+    except Exception as exc:
+        log.debug("Visual-activity seek to %.3fs failed (%s); decoding from start.", start_s, exc)
 
 
 def _target_width(stream, downscale_height: int) -> int:
