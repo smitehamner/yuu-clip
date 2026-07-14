@@ -224,8 +224,13 @@ def _apply_title_card(clip_path: Path, cand, output: Path, config) -> Path:
             title_lines, card_path, duration=config.title_card_duration_s, fps=fps, width=width, height=height,
             bg_color=config.title_card_bg_color, font_color=config.title_card_font_color,
         )
-        _compile_concat([card_path, clip_path], output)
-    clip_path.unlink(missing_ok=True)
+        try:
+            _compile_concat([card_path, clip_path], output)
+        finally:
+            # clip_path is the .clip_tmp intermediate; a failed concat would otherwise
+            # orphan it in the user-visible exports dir (_finalize_export's finally only
+            # cleans the subtitle temps, not this one).
+            clip_path.unlink(missing_ok=True)
     return output
 
 

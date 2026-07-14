@@ -20,6 +20,7 @@ from __future__ import annotations
 import json
 import sys
 
+import pytest
 from fastapi.testclient import TestClient
 
 
@@ -431,6 +432,51 @@ class TestBurnReelCaptions:
         _, reel = self._run(tmp_path, monkeypatch)
         assert reel.read_bytes() == b"burned"
         assert not reel.with_name("reel.burn_tmp.mkv").exists()
+
+    def test_failed_encode_leaves_no_burn_tmp(self, tmp_path, monkeypatch):
+        from pathlib import Path
+
+        from yuu_clip import reel as reel_mod
+
+        def failing_run_ffmpeg(cmd):
+            # Simulate ffmpeg writing a partial temp then dying.
+            Path(cmd[-1]).write_bytes(b"partial")
+            raise RuntimeError("ffmpeg exploded")
+
+        monkeypatch.setattr(reel_mod, "run_ffmpeg", failing_run_ffmpeg)
+        reel = tmp_path / "reel.mkv"
+        reel.write_bytes(b"original")
+        srt = tmp_path / "reel.srt"
+        srt.write_text("1\n00:00:00,000 --> 00:00:01,000\nhi\n", encoding="utf-8")
+        with pytest.raises(RuntimeError, match="ffmpeg exploded"):
+            reel_mod.burn_reel_captions(reel, srt)
+        assert not reel.with_name("reel.burn_tmp.mkv").exists()
+        assert reel.read_bytes() == b"original"
+
+
+class TestCompileConcat:
+    """reel._compile_concat writes the ffmpeg concat-demuxer list. Filenames can
+    legitimately contain an apostrophe (e.g. "Tom's stream_clip.mkv"), which the
+    demuxer treats as a quote delimiter unless escaped as '\\''."""
+
+    def test_apostrophe_in_path_is_escaped(self, tmp_path, monkeypatch):
+        from pathlib import Path
+
+        from yuu_clip import reel as reel_mod
+        captured = {}
+
+        def fake_run_ffmpeg(cmd):
+            list_path = Path(cmd[cmd.index("-i") + 1])
+            captured["list"] = list_path.read_text(encoding="utf-8")
+            Path(cmd[-1]).write_bytes(b"concat")
+
+        monkeypatch.setattr(reel_mod, "run_ffmpeg", fake_run_ffmpeg)
+        seg = tmp_path / "Tom's stream_clip.mkv"
+        seg.write_bytes(b"seg")
+        reel_mod._compile_concat([seg], tmp_path / "out.mkv")
+        line = captured["list"].strip()
+        assert line.startswith("file '") and line.endswith("'")
+        assert line.endswith(r"Tom'\''s stream_clip.mkv'")
 
 
 class TestSelectClipExportFile:

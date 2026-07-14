@@ -23,6 +23,12 @@ MAX_AUDIO_KBPS = 320
 # bitrate left after subtracting audio - reject before wasting an encode on it.
 MIN_VIDEO_KBPS = 150
 
+# Reserve 5% of the byte budget as headroom: two-pass targets an *average* bitrate,
+# and container overhead (mp4 moov/index) plus x264 rate-control slop routinely push
+# the actual file slightly over an exact-budget target - the exact overshoot the hard
+# cap exists to prevent. Aiming at 95% of the cap keeps the produced file under it.
+SIZE_CAP_HEADROOM = 0.95
+
 _NAME_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 
 
@@ -135,8 +141,9 @@ class ClipTooLongForPresetError(ValueError):
 
 def compute_target_video_kbps(target_size_mb: float, duration_s: float, audio_kbps: int) -> float:
     """Video bitrate (kbps) that fills *target_size_mb* over *duration_s* after
-    reserving *audio_kbps* for audio. 8192 = 1024 KiB/MiB * 8 bits/byte."""
-    total_kbps = target_size_mb * 8192 / duration_s
+    reserving *audio_kbps* for audio and SIZE_CAP_HEADROOM for container/rate-control
+    overhead. 8192 = 1024 KiB/MiB * 8 bits/byte."""
+    total_kbps = target_size_mb * SIZE_CAP_HEADROOM * 8192 / duration_s
     return total_kbps - audio_kbps
 
 

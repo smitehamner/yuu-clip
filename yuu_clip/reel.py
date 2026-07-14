@@ -246,7 +246,11 @@ def _compile_concat(segments: list[Path], output: Path) -> None:
                                     encoding="utf-8") as f:
         list_path = Path(f.name)
         for seg in segments:
-            f.write(f"file '{seg.as_posix()}'\n")
+            # The concat demuxer treats ' as a quote delimiter and unescapes '\'' to a
+            # literal apostrophe - a filename like "Tom's stream_clip.mkv" breaks the
+            # list line without this (export_base_stem does not strip apostrophes).
+            escaped = seg.as_posix().replace("'", r"'\''")
+            f.write(f"file '{escaped}'\n")
     try:
         run_ffmpeg(
             [
@@ -652,13 +656,18 @@ def burn_reel_captions(reel_path: Path, srt_path: Path, caption_style=None) -> N
 
     vf = _subtitles_filter(srt_path, caption_style)
     tmp_out = reel_path.with_name(reel_path.stem + ".burn_tmp" + reel_path.suffix)
-    run_ffmpeg([
-        "ffmpeg", "-y", "-loglevel", "error",
-        "-i", str(reel_path),
-        "-vf", vf,
-        "-c:v", "libx264", "-preset", "fast", "-crf", "18",
-        "-c:a", "copy",
-        "-pix_fmt", "yuv420p",
-        str(tmp_out),
-    ])
-    tmp_out.replace(reel_path)
+    try:
+        run_ffmpeg([
+            "ffmpeg", "-y", "-loglevel", "error",
+            "-i", str(reel_path),
+            "-vf", vf,
+            "-c:v", "libx264", "-preset", "fast", "-crf", "18",
+            "-c:a", "copy",
+            "-pix_fmt", "yuv420p",
+            str(tmp_out),
+        ])
+        tmp_out.replace(reel_path)
+    finally:
+        # A failed encode leaves a partial .burn_tmp next to the reel (a user-visible
+        # dir, not a TemporaryDirectory); on success replace() already consumed it.
+        tmp_out.unlink(missing_ok=True)

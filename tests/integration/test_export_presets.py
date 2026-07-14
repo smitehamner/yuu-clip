@@ -10,6 +10,7 @@ from yuu_clip.export.presets import (
     BUILTIN_PRESET_NAMES,
     BUILTIN_PRESETS,
     MIN_VIDEO_KBPS,
+    SIZE_CAP_HEADROOM,
     ClipTooLongForPresetError,
     ExportPreset,
     compute_target_video_kbps,
@@ -37,10 +38,20 @@ def _isolated_global_config(monkeypatch, tmp_path_factory):
 
 class TestBitrateMath:
     def test_typical_short_clip_fits(self):
-        # 10 MB over 60s at 128 kbps audio.
+        # 10 MB over 60s at 128 kbps audio, with the size-cap headroom applied.
         video_kbps = compute_target_video_kbps(target_size_mb=10.0, duration_s=60.0, audio_kbps=128)
-        assert video_kbps == pytest.approx((10.0 * 8192 / 60.0) - 128)
+        assert video_kbps == pytest.approx((10.0 * SIZE_CAP_HEADROOM * 8192 / 60.0) - 128)
         assert video_kbps > MIN_VIDEO_KBPS
+
+    def test_reserves_headroom_below_the_hard_cap(self):
+        # The total bitrate (video + audio) must fill strictly less than the raw
+        # byte budget, so the produced file stays under the hard cap after overhead.
+        duration_s = 60.0
+        video_kbps = compute_target_video_kbps(target_size_mb=10.0, duration_s=duration_s, audio_kbps=128)
+        total_kbps = video_kbps + 128
+        raw_budget_kbps = 10.0 * 8192 / duration_s
+        assert total_kbps == pytest.approx(raw_budget_kbps * SIZE_CAP_HEADROOM)
+        assert total_kbps < raw_budget_kbps
 
     def test_audio_is_subtracted_from_total(self):
         no_audio = compute_target_video_kbps(target_size_mb=10.0, duration_s=60.0, audio_kbps=0)

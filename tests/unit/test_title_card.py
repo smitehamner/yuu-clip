@@ -340,6 +340,29 @@ class TestApplyTitleCardThreadsConfig:
         assert captured["lines"] == [("A funny moment", 36), ("0:05 · 0:10", 24)]
         assert not clip_path.exists()  # deleted after concat
 
+    def test_failed_concat_still_deletes_clip_tmp_intermediate(self, monkeypatch, tmp_path):
+        import yuu_clip.reel as reel_mod
+        from yuu_clip.config import Config
+        from yuu_clip.export.render import _apply_title_card
+
+        def _fake_make_title_card(lines, card_path, **kwargs):
+            Path(card_path).write_bytes(b"fake")
+
+        def _failing_compile_concat(segments, output):
+            raise RuntimeError("concat exploded")
+
+        monkeypatch.setattr(reel_mod, "_make_title_card", _fake_make_title_card)
+        monkeypatch.setattr(reel_mod, "_compile_concat", _failing_compile_concat)
+
+        clip_path = tmp_path / "out.clip_tmp.mkv"
+        clip_path.write_bytes(b"fake")
+        cand = _FakeClip(description="A funny moment", start_hms="0:05", duration_hms="0:10")
+        cand.video = _FakeVideoForClipExport()
+
+        with pytest.raises(RuntimeError, match="concat exploded"):
+            _apply_title_card(clip_path, cand, tmp_path / "out.mkv", Config())
+        assert not clip_path.exists()  # intermediate cleaned even on failure
+
 
 class _FakeVideoForReel:
     def __init__(self, filename):
