@@ -138,6 +138,16 @@ Wanted before distributing beyond friends/trusted users.
   Shelved - the design wasn't fully worked out (unclear interaction with retranscribe and the
   caption sidecars that already exist).
 
+- [ ] **Parallel job processing** *(speculative)* - the app is deliberately sequential today
+  (see the sequential-and-honest processing work): heavy DB-writing jobs (analyze, score,
+  retranscribe, summarize, vision-describe) serialize behind the single-writer SQLite lock,
+  the UI runs one visible job at a time (single job header + one SSE handle), and a second
+  heavy job is rejected with a clear "wait or cancel" message. A larger future feature would
+  add a real job manager: multiple concurrent jobs, stacked progress bars, and CPU/GPU
+  contention warnings. It stays bounded by single-writer SQLite (the DB-heavy jobs must still
+  serialize their writes), so the real win is genuinely independent work (clip export, proxy
+  builds) overlapping one DB job. Only worth starting on real demand.
+
 ---
 
 ## 6 - Platform reach
