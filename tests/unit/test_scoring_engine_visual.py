@@ -99,3 +99,26 @@ class TestVisualAxis:
         cfg.score_action_weight = 0.0
         cfg.score_visual_weight = 0.5
         assert _compute_overall(cfg, 0.0, 0.0, 0.0, 0.8) == pytest.approx(0.8)
+
+
+class TestClampedHotwordBoostTargetGuard:
+    """_clamped_hotword_boost must ignore a HotWord.target outside the boost dict
+    (funny/dramatic/action/overall) instead of raising KeyError - the DB row could
+    carry a target the route layer no longer validates."""
+
+    def test_unknown_target_is_skipped_not_keyerror(self):
+        from types import SimpleNamespace
+
+        from yuu_clip.scoring.engine import _clamped_hotword_boost
+
+        matches = [
+            {"phrase": "bad", "mode": "exact"},
+            {"phrase": "good", "mode": "exact"},
+        ]
+        term_by_key = {
+            ("bad", "exact"): SimpleNamespace(target="mystery", boost=0.4),
+            ("good", "exact"): SimpleNamespace(target="funny", boost=0.2),
+        }
+        boost = _clamped_hotword_boost(matches, term_by_key)
+        assert boost["funny"] == pytest.approx(0.2)
+        assert "mystery" not in boost

@@ -106,17 +106,25 @@ def _run_with_progress(cmd: list[str], duration_ms: Optional[int],
         text=True, bufsize=1,
     )
     assert proc.stdout is not None
-    for raw in proc.stdout:
-        line = raw.strip()
-        if not line:
-            continue
-        tail.append(line)
-        if progress_cb and total_us and line.startswith("out_time_us="):
-            try:
-                current_us = int(line.split("=", 1)[1])
-            except ValueError:
-                continue  # "N/A" before the first frame
-            progress_cb(min(1.0, current_us / total_us))
+    try:
+        for raw in proc.stdout:
+            line = raw.strip()
+            if not line:
+                continue
+            tail.append(line)
+            if progress_cb and total_us and line.startswith("out_time_us="):
+                try:
+                    current_us = int(line.split("=", 1)[1])
+                except ValueError:
+                    continue  # "N/A" before the first frame
+                progress_cb(min(1.0, current_us / total_us))
+    except BaseException:
+        # A raising progress_cb (or an interrupt) must not leave the FFmpeg child
+        # running headless after we stop reading its stdout.
+        if proc.poll() is None:
+            proc.kill()
+            proc.wait()
+        raise
     proc.wait()
     if proc.returncode != 0:
         raise RuntimeError("\n".join(tail) or f"FFmpeg exited with code {proc.returncode}")

@@ -140,7 +140,7 @@ class PyannoteDiarizationClient(DiarizationClient):
     def available(self) -> tuple[bool, str]:
         if not self._config.huggingface_token:
             return False, (
-                "No HuggingFace token set - open Settings (⚙) and enter your token "
+                "No HuggingFace token set - open Settings (gear icon) and enter your token "
                 "under Speaker labels"
             )
         try:
@@ -497,7 +497,11 @@ class SpeechBrainDiarizationClient(DiarizationClient):
         if not active_bounds:
             return [], {}
         embeddings = self._embed_windows(waveform, active_bounds)
-        cluster_threshold = self._config.speaker_cluster_threshold or _SB_DISTANCE_THRESHOLD
+        cluster_threshold = (
+            self._config.speaker_cluster_threshold
+            if self._config.speaker_cluster_threshold is not None
+            else _SB_DISTANCE_THRESHOLD
+        )
         raw_labels = _cluster_labels(embeddings, cluster_threshold)
         labels = _consolidate_labels(embeddings, raw_labels, self._config.speaker_match_threshold)
         window_times = [(start / sample_rate, end / sample_rate) for start, end in active_bounds]
@@ -505,7 +509,7 @@ class SpeechBrainDiarizationClient(DiarizationClient):
         centroids = _cluster_centroids(embeddings, labels)
         raw_count = len({int(value) for value in raw_labels})
         _log.info(
-            "SpeechBrain diarization: %d active window(s) → %d turn(s); %d raw cluster(s) "
+            "SpeechBrain diarization: %d active window(s) -> %d turn(s); %d raw cluster(s) "
             "consolidated to %d speaker(s)",
             len(active_bounds), len(turns), raw_count, len(centroids),
         )

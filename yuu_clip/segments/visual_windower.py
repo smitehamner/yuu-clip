@@ -134,8 +134,12 @@ def _windows_in_region(
     windows: list[tuple[int, int, float]] = []
     for run in _merge_close_runs(qualifying, config.min_clip_ms):
         lo, hi = run[0][0], run[-1][0]
+        run_peak = max((i for ts, i, kind in run if kind == "motion"), default=0.0)
         for start_ms, end_ms in _bounded_windows(lo, hi, config.min_clip_ms, config.hard_split_ms, region_start, region_end):
-            peak = max((i for ts, i, kind in run if kind == "motion" and start_ms <= ts < end_ms), default=0.0)
+            # A window grown/shifted around scene cuts can miss every motion point in
+            # the run; fall back to the run's peak so a real motion clip isn't zeroed.
+            windowed = [i for ts, i, kind in run if kind == "motion" and start_ms <= ts < end_ms]
+            peak = max(windowed) if windowed else run_peak
             windows.append((start_ms, end_ms, peak))
     return windows
 

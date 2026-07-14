@@ -11,9 +11,9 @@ from __future__ import annotations
 import io
 import sys
 
-if sys.stdout and hasattr(sys.stdout, "buffer") and sys.stdout.encoding.lower() != "utf-8":
+if sys.stdout and hasattr(sys.stdout, "buffer") and (sys.stdout.encoding or "").lower() != "utf-8":
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
-if sys.stderr and hasattr(sys.stderr, "buffer") and sys.stderr.encoding.lower() != "utf-8":
+if sys.stderr and hasattr(sys.stderr, "buffer") and (sys.stderr.encoding or "").lower() != "utf-8":
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
 from rich.console import Console

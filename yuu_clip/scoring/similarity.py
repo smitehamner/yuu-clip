@@ -270,13 +270,14 @@ class EmbeddingsBackend:
     def match_concepts(
         self, text: str, phrases: list[str], threshold: float | None = None,
     ) -> list[str]:
-        if not phrases or not (text or "").strip():
+        real_phrases = [p for p in phrases if (p or "").strip()]
+        if not real_phrases or not (text or "").strip():
             return []
         cutoff = _EMBED_CONCEPT_THRESHOLD if threshold is None else threshold
-        vectors = self._embed([text] + list(phrases))
+        vectors = self._embed([text] + real_phrases)
         text_vec = vectors[0]
         return [
-            phrase for phrase, vec in zip(phrases, vectors[1:])
+            phrase for phrase, vec in zip(real_phrases, vectors[1:])
             if _cosine(text_vec, vec) >= cutoff
         ]
 

@@ -87,7 +87,7 @@ def generate_candidates(
         candidates.append(cand)
 
     _log.info(
-        "generate_candidates: video %d - %d segments → %d candidates (silence=%dms, min=%dms, hard=%dms)",
+        "generate_candidates: video %d - %d segments -> %d candidates (silence=%dms, min=%dms, hard=%dms)",
         video.id, len(all_segments), len(candidates),
         config.silence_threshold_ms, config.min_clip_ms, config.hard_split_ms,
     )
@@ -246,7 +246,7 @@ def _silence_window(
     def _flush(tags_extra: list[str]) -> None:
         nonlocal win_start, win_end, win_segs, win_tags, dropped_low_speech
         duration = win_end - win_start
-        if duration < min_clip_ms:
+        if duration < min_clip_ms or duration <= 0:
             return
         extra = list(tags_extra)
         if min_speech_cps > 0:

@@ -262,7 +262,7 @@ def _apply_profile(name: str, streams) -> Optional[list[dict]]:
     _log.info(
         "Applied track layout '%s': %s",
         name,
-        ", ".join(f"stream {a['stream_index']}→{a['label']}" for a in assignments),
+        ", ".join(f"stream {a['stream_index']}->{a['label']}" for a in assignments),
     )
     console.print(f"  [green]Applied track layout '{name}'[/green]")
     _print_assignment_summary(assignments)

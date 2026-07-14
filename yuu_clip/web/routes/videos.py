@@ -642,7 +642,7 @@ def _register_video_data_routes(router: APIRouter, ctx: ProjectContext) -> None:
                 export_video_transcript_srt(video, output_path)
             except ValueError as e:
                 raise HTTPException(400, str(e))
-            _log.info("Exported transcript SRT for video %d → %s", video_id, output_path)
+            _log.info("Exported transcript SRT for video %d -> %s", video_id, output_path)
             return {"path": str(output_path)}
         finally:
             db.close()

@@ -73,3 +73,9 @@ def test_keep_callable_receives_window_bounds():
         return False
     _silence_window(_low_speech_segs(), 3000, 5000, 180_000, 0.2, keep_if_visual=keep)
     assert seen == [(0, 300_000)]
+
+
+def test_zero_duration_window_with_zero_min_clip_does_not_divide_by_zero():
+    # min_clip_ms=0 no longer shields the speech-density divide; a zero-length window
+    # must be dropped, not raise ZeroDivisionError on chars / (duration / 1000).
+    assert _silence_window([_seg(0, 0)], 3000, 0, 180_000, 0.5) == []

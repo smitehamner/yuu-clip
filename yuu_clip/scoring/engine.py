@@ -69,7 +69,7 @@ def _clamped_hotword_boost(matches: list[dict], term_by_key: dict) -> dict[str, 
     boost = {"overall": 0.0, "funny": 0.0, "dramatic": 0.0, "action": 0.0}
     for match in matches:
         hw = term_by_key.get((match["phrase"], match["mode"]))
-        if hw:
+        if hw and hw.target in boost:
             boost[hw.target] += hw.boost
     return {
         target: max(-_HOTWORD_TARGET_CLAMP, min(_HOTWORD_TARGET_CLAMP, value))

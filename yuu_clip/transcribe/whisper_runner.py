@@ -200,6 +200,55 @@ def _report_attach_decision(video_id, speaker, score, threshold, matched,
         console.print(f"    [dim]New Speaker {speaker.display_index}[/dim]")
 
 
+def _match_or_mint_cluster(
+    session: "Session",
+    video_id: int,
+    vector: list[float] | None,
+    prior_speakers: list["Speaker"],
+    taken_ids: set[int],
+    threshold: float,
+    active_backend: str | None,
+    has_candidates: bool,
+    mint_display_index: int,
+) -> tuple[int, str]:
+    """Resolve one raw cluster to a Speaker id: re-attach to a matching prior
+    Speaker or mint a new one. Returns (speaker_id, "matched" | "minted").
+
+    Mutates *taken_ids* on a match so each prior Speaker is claimed at most once.
+    The caller owns display numbering: *mint_display_index* is used only when a new
+    Speaker is minted.
+    """
+    match, score, near = (
+        _best_voiceprint_match(vector, prior_speakers, taken_ids, threshold, active_backend)
+        if vector else (None, 0.0, None)
+    )
+    if match is not None:
+        taken_ids.add(match.id)
+        if not match.voiceprint:
+            match.voiceprint = _serialize_voiceprint(vector)
+            match.voiceprint_backend = active_backend
+        _report_attach_decision(video_id, match, score, threshold,
+                                matched=True, has_candidates=has_candidates)
+        return match.id, "matched"
+
+    in_band = near is not None and score >= threshold - _CONFIRM_BAND_WIDTH
+    speaker = Speaker(
+        video_id=video_id,
+        display_index=mint_display_index,
+        source="manual",
+        voiceprint=_serialize_voiceprint(vector) if vector else None,
+        voiceprint_backend=active_backend if vector else None,
+        suggested_match_id=near.id if in_band else None,
+        suggested_match_score=score if in_band else None,
+    )
+    session.add(speaker)
+    session.flush()
+    if vector:
+        _report_attach_decision(video_id, speaker, score, threshold, matched=False,
+                                has_candidates=has_candidates, suggested=in_band)
+    return speaker.id, "minted"
+
+
 def _attach_speakers(
     session: "Session",
     video_id: int,
@@ -211,13 +260,13 @@ def _attach_speakers(
     """Attribute this run's segments to durable per-recording Speakers.
 
     When a raw cluster carries a voiceprint that matches an existing Speaker
-    (cosine ≥ threshold), the segments re-attach to that Speaker so its name
+    (cosine >= threshold), the segments re-attach to that Speaker so its name
     survives re-diarization. Otherwise a fresh Speaker is minted (storing the
     voiceprint when available). Matches are only made against Speakers that
     existed *before* this run, and each prior Speaker matches at most one current
-    cluster - pyannote already separated the current clusters, so two of them must
-    not collapse onto one identity. display_index continues from the recording's
-    current max so "Speaker N" numbering never collides.
+    cluster - the diarization backend already separated the current clusters, so
+    two of them must not collapse onto one identity. display_index continues from
+    the recording's current max so "Speaker N" numbering never collides.
     """
     embeddings_by_label = embeddings_by_label or {}
     segs = (
@@ -246,38 +295,16 @@ def _attach_speakers(
         vector = embeddings_by_label.get(label)
         if not vector:
             without_voiceprint += 1
-        match, score, near = (
-            _best_voiceprint_match(vector, prior_speakers, taken_ids, threshold, active_backend)
-            if vector else (None, 0.0, None)
+        speaker_id, outcome = _match_or_mint_cluster(
+            session, video_id, vector, prior_speakers, taken_ids,
+            threshold, active_backend, has_candidates, next_index + 1,
         )
-        if match is not None:
-            taken_ids.add(match.id)
-            if not match.voiceprint:
-                match.voiceprint = _serialize_voiceprint(vector)
-                match.voiceprint_backend = active_backend
-            label_to_speaker_id[label] = match.id
+        label_to_speaker_id[label] = speaker_id
+        if outcome == "matched":
             matched += 1
-            _report_attach_decision(video_id, match, score, threshold,
-                                    matched=True, has_candidates=has_candidates)
-            continue
-        in_band = near is not None and score >= threshold - _CONFIRM_BAND_WIDTH
-        next_index += 1
-        speaker = Speaker(
-            video_id=video_id,
-            display_index=next_index,
-            source="manual",
-            voiceprint=_serialize_voiceprint(vector) if vector else None,
-            voiceprint_backend=active_backend if vector else None,
-            suggested_match_id=near.id if in_band else None,
-            suggested_match_score=score if in_band else None,
-        )
-        session.add(speaker)
-        session.flush()
-        label_to_speaker_id[label] = speaker.id
-        minted += 1
-        if vector:
-            _report_attach_decision(video_id, speaker, score, threshold, matched=False,
-                                    has_candidates=has_candidates, suggested=in_band)
+        else:
+            minted += 1
+            next_index += 1
 
     for seg in segs:
         if seg.speaker_label in label_to_speaker_id:
@@ -285,7 +312,7 @@ def _attach_speakers(
     session.flush()
 
     _log.info(
-        "Speaker attribution (video %d): %d cluster(s) → %d re-attached, %d minted "
+        "Speaker attribution (video %d): %d cluster(s) -> %d re-attached, %d minted "
         "(%d had no voiceprint), %d prior speaker(s)",
         video_id, len(labels_in_order), matched, minted,
         without_voiceprint, len(prior_speakers),
@@ -415,7 +442,7 @@ def _load_whisper_model(config: Config, device: str, compute_type: str):
     console.print(
         f"  [dim]Loading Whisper model '[bold]{config.whisper_model}[/bold]' "
         f"on {device} ({compute_type}){rev_note} - "
-        f"first run downloads the model…[/dim]"
+        f"first run downloads the model...[/dim]"
     )
     return WhisperModel(
         config.whisper_model,
@@ -616,7 +643,7 @@ def diarize_track(
             f"for [{track.label}] - this happens once...[/dim]"
         )
 
-    _log.info("Running diarization for track %d [%s]…", track.id, track.label)
+    _log.info("Running diarization for track %d [%s]...", track.id, track.label)
     try:
         turns, embeddings = diar_client.diarize_with_embeddings(str(audio_path))
         _assign_speakers(session, transcript.id, turns)

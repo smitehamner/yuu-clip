@@ -867,3 +867,19 @@ class TestFindRelatedClips:
         with mock.patch("yuu_clip.scoring.llm._call_client", return_value=json.dumps([])):
             result = find_related_clips("ref", [], self._cfg())
         assert result == []
+
+
+class TestNullLLMClientVision:
+    """A vision call while LLM scoring is disabled reports 'disabled', not the base
+    'backend does not support image analysis' - but stays a VisionNotSupportedError
+    so the caption-edit route's handler still catches it."""
+
+    def test_chat_vision_raises_disabled_reason(self):
+        from pathlib import Path
+
+        import pytest
+
+        from yuu_clip.scoring.llm_client import NullLLMClient, VisionNotSupportedError
+
+        with pytest.raises(VisionNotSupportedError, match="disabled"):
+            NullLLMClient().chat_vision([{"role": "user", "content": "hi"}], [Path("f.png")])

@@ -95,6 +95,18 @@ class TestEmbeddingsMatchConcepts:
             )
         assert matched == ["won the huge prize"]
 
+    def test_blank_phrases_are_skipped_not_embedded(self):
+        """A blank/whitespace phrase must be filtered before embedding, not sent to
+        the model (the fake model KeyErrors on any string it doesn't know)."""
+        from yuu_clip.scoring import similarity
+        with mock.patch.object(similarity, "_get_embed_model", return_value=_FakeEmbedModel()):
+            matched = self._backend().match_concepts(
+                "we hit the jackpot and won it all",
+                ["won the huge prize", "   ", ""],
+                threshold=0.5,
+            )
+        assert matched == ["won the huge prize"]
+
 
 # ── LlmBackend routes to the existing LLM path ────────────────────────────────
 

@@ -158,3 +158,35 @@ class TestRecordProxyMetadata:
                 assert row.proxy_source_size == source.stat().st_size
         finally:
             session.close()
+
+
+class TestRunWithProgressChildCleanup:
+    """_run_with_progress must not orphan the FFmpeg child when the progress
+    callback raises mid-stream - it kills a still-running child before re-raising."""
+
+    class _FakeProc:
+        def __init__(self):
+            self.stdout = iter(["out_time_us=500\n"])
+            self.returncode = None
+            self.killed = False
+
+        def poll(self):
+            return None  # still running when the callback raises
+
+        def kill(self):
+            self.killed = True
+
+        def wait(self):
+            self.returncode = -9
+            return self.returncode
+
+    def test_raising_callback_kills_child_and_propagates(self, monkeypatch):
+        fake = self._FakeProc()
+        monkeypatch.setattr(proxy.subprocess, "Popen", lambda *a, **k: fake)
+
+        def boom(_frac):
+            raise ValueError("cb failed")
+
+        with pytest.raises(ValueError, match="cb failed"):
+            proxy._run_with_progress(["ffmpeg", "-i", "x"], duration_ms=1000, progress_cb=boom)
+        assert fake.killed, "FFmpeg child was left running after the callback raised"

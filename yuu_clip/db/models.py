@@ -114,9 +114,6 @@ def _ensure_additive_columns(engine) -> None:
                 conn.exec_driver_sql(f"ALTER TABLE {table} ADD COLUMN {column} {coltype}")
 
 
-_log = __import__("logging").getLogger(__name__)
-
-
 def make_session(db_path: Path) -> Session:
     engine = make_engine(db_path)
     Session_ = sessionmaker(bind=engine)

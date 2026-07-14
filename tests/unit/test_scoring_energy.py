@@ -73,6 +73,48 @@ class TestEnergyBoundary:
             "Boundary row at second_offset == end_s was incorrectly included in the clip window"
         )
 
+    def test_sub_second_window_reads_its_whole_second_bucket(self):
+        """A window that lives inside a single second (e.g. 1200-1800ms) must still
+        read the whole-second bucket that contains it, not query an empty range."""
+        import tempfile
+        from pathlib import Path
+        from unittest.mock import MagicMock
+
+        from yuu_clip.config import Config
+        from yuu_clip.db.models import AudioEnergy, AudioTrack, Video, make_session
+        from yuu_clip.scoring.energy import AudioEnergyScorer
+
+        scorer = AudioEnergyScorer(Config())
+        with tempfile.TemporaryDirectory() as tmp:
+            session = make_session(Path(tmp) / "test.db")
+            try:
+                v = Video(path="/fake/v.mkv", filename="v.mkv", status="done", duration_ms=60_000)
+                session.add(v)
+                session.flush()
+                track = AudioTrack(
+                    video_id=v.id, stream_index=0, label="combined",
+                    do_transcribe=True, do_score=True, relevance_weight=1.0,
+                )
+                session.add(track)
+                session.flush()
+                for second, db in ((0, -30.0), (1, 5.0), (2, -30.0)):
+                    session.add(AudioEnergy(audio_track_id=track.id, second_offset=second, rms_db=db))
+                session.commit()
+
+                clip = MagicMock()
+                clip.start_ms = 1_200   # start_s = 1
+                clip.end_ms   = 1_800   # end_ms // 1000 == 1 -> old code queried [1, 1) = empty
+                db_track = session.query(AudioTrack).filter_by(id=track.id).one()
+                clip.video.audio_tracks = [db_track]
+
+                result = scorer.score(clip, session)
+            finally:
+                session.close()
+
+        assert "energy_no_data" not in result.tags, (
+            "Sub-second window queried an empty range instead of its containing second bucket"
+        )
+
 # ---------------------------------------------------------------------------
 # AudioEnergyScorer - no-scorable-tracks path
 # ---------------------------------------------------------------------------

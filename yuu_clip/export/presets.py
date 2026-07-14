@@ -56,7 +56,7 @@ BUILTIN_PRESETS: tuple[ExportPreset, ...] = (
         height=1080, crf=18, target_size_mb=None, audio_kbps=192,
     ),
     ExportPreset(
-        name="discord-10mb", label="Discord (≤10 MB)", container="mp4",
+        name="discord-10mb", label="Discord (<=10 MB)", container="mp4",
         height=None, crf=None, target_size_mb=10.0, audio_kbps=128,
     ),
     ExportPreset(

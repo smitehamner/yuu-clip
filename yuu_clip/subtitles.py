@@ -6,6 +6,7 @@ with [Speaker] prefixes for multi-track clips.
 """
 from __future__ import annotations
 
+import glob
 from pathlib import Path
 from typing import Iterable, NamedTuple
 
@@ -355,7 +356,10 @@ def refresh_export_sidecars(clip, exports_dir: Path, name_template: str) -> list
     from yuu_clip.export.naming import export_base_stem
 
     base = export_base_stem(clip, name_template)
-    if not any(exports_dir.glob(f"{base}*.srt")):
+    # Escape glob metacharacters in the stem (a user title/context name can survive
+    # sanitization with [ ] * ?), so the "already exported?" probe matches literally
+    # instead of interpreting the pattern and silently skipping a real refresh.
+    if not any(exports_dir.glob(f"{glob.escape(base)}*.srt")):
         return []
     return export_srt_sidecars(clip, exports_dir, base)
 

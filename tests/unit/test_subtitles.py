@@ -120,3 +120,32 @@ class TestLinesToAss:
         # No literal caption-supplied braces survive beyond the leading colour override.
         assert "{override}" not in text
         assert "(override)" in text
+
+
+class TestRefreshExportSidecarsGlobEscape:
+    """refresh_export_sidecars probes for an existing sidecar with exports_dir.glob;
+    a stem containing glob metacharacters ([ ] * ?) must be escaped so the probe
+    matches literally instead of skipping a real refresh."""
+
+    def test_stem_with_brackets_finds_existing_sidecar(self, tmp_path):
+        from unittest import mock
+
+        from yuu_clip import subtitles
+
+        stem = "clip [raw] moment"
+        (tmp_path / f"{stem}_combined.srt").write_text("x", encoding="utf-8")
+        sentinel = [tmp_path / "out.srt"]
+        with mock.patch("yuu_clip.export.naming.export_base_stem", return_value=stem), \
+             mock.patch.object(subtitles, "export_srt_sidecars", return_value=sentinel):
+            result = subtitles.refresh_export_sidecars(object(), tmp_path, "tmpl")
+        assert result == sentinel
+
+    def test_no_sidecar_present_is_noop(self, tmp_path):
+        from unittest import mock
+
+        from yuu_clip import subtitles
+
+        with mock.patch("yuu_clip.export.naming.export_base_stem", return_value="clip [raw] moment"), \
+             mock.patch.object(subtitles, "export_srt_sidecars", return_value=["should not happen"]):
+            result = subtitles.refresh_export_sidecars(object(), tmp_path, "tmpl")
+        assert result == []

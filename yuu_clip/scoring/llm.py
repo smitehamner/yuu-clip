@@ -29,17 +29,17 @@ log = logging.getLogger(__name__)
 
 # User-facing reasons for the two AI-privacy-mode blocks (Stage non-llm-tiers/07).
 _GENERATIVE_OFF_REASON = (
-    "Generative AI is turned off - change it under Settings → AI privacy"
+    "Generative AI is turned off - change it under Settings -> AI privacy"
 )
 _REMOTE_BLOCKED_REASON = (
     "The remote (Claude) backend is blocked by AI privacy mode - switch to a local model "
-    "or allow remote models under Settings → AI privacy"
+    "or allow remote models under Settings -> AI privacy"
 )
 # WS4: the remote backend is gated off entirely in shipped builds (remote_ai_allowed).
 # This reason surfaces when a saved backend=claude config runs under a flag-off build.
 _REMOTE_DISABLED_REASON = (
     "Remote AI (the Claude backend) is turned off in this build of yuu-clip - "
-    "switch to a local model under Settings → LLM scoring"
+    "switch to a local model under Settings -> LLM scoring"
 )
 
 
@@ -561,7 +561,7 @@ def check_vision_available(config: "Config") -> tuple[bool, str]:
     if not permissions.allow_llm:
         return False, _GENERATIVE_OFF_REASON
     if not config.vision_enabled:
-        return False, "Image analysis is turned off - enable it under Settings → LLM scoring"
+        return False, "Image analysis is turned off - enable it under Settings -> LLM scoring"
     backend = config.llm_backend
     if backend == "claude":
         from yuu_clip.config import remote_ai_allowed
@@ -570,7 +570,7 @@ def check_vision_available(config: "Config") -> tuple[bool, str]:
         if not permissions.allow_remote:
             return False, _REMOTE_BLOCKED_REASON
         ok = bool(config.claude_api_key)
-        return ok, "" if ok else "No Claude API key set - add one under Settings → LLM scoring"
+        return ok, "" if ok else "No Claude API key set - add one under Settings -> LLM scoring"
     # Local llamacpp backend (the only remaining local backend).
     from pathlib import Path
     vision_model_ok = bool(config.llm_vision_model_path) and Path(config.llm_vision_model_path).exists()
@@ -580,11 +580,11 @@ def check_vision_available(config: "Config") -> tuple[bool, str]:
     if not vision_model_ok and not mmproj_ok:
         return False, (
             "llama.cpp image analysis needs a vision model and a vision projector "
-            "(.gguf) - set both under Settings → LLM scoring"
+            "(.gguf) - set both under Settings -> LLM scoring"
         )
     if not vision_model_ok:
-        return False, "llama.cpp image analysis needs a vision model - set it under Settings → LLM scoring"
-    return False, "llama.cpp image analysis needs a vision projector (.gguf) - set it under Settings → LLM scoring"
+        return False, "llama.cpp image analysis needs a vision model - set it under Settings -> LLM scoring"
+    return False, "llama.cpp image analysis needs a vision projector (.gguf) - set it under Settings -> LLM scoring"
 
 
 _HOTWORD_SEMANTIC_SYSTEM = """\

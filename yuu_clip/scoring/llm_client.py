@@ -131,7 +131,7 @@ class ClaudeClient(LLMClient):
 
     def available(self) -> tuple[bool, str]:
         if not self._config.claude_api_key:
-            return False, "No Claude API key set - open Settings (⚙) and enter your Anthropic API key under LLM scoring"
+            return False, "No Claude API key set - open Settings (gear icon) and enter your Anthropic API key under LLM scoring"
         try:
             import anthropic
         except ImportError:
@@ -145,7 +145,7 @@ class ClaudeClient(LLMClient):
                 timeout=self._config.claude_timeout_s,
             ).models.list()
         except anthropic.AuthenticationError:
-            return False, "Claude API key was rejected - check the key in Settings (⚙)"
+            return False, "Claude API key was rejected - check the key in Settings (gear icon)"
         except AttributeError:
             return True, ""  # anthropic SDK too old for the Models API - trust the key
         except Exception as exc:
@@ -211,6 +211,13 @@ class NullLLMClient(LLMClient):
         max_tokens: int = _DEFAULT_MAX_TOKENS,
     ) -> str:
         raise RuntimeError("LLM scoring is disabled")
+
+    def chat_vision(
+        self, messages: list[dict], images: list[Path], temperature: float = 0.1,
+    ) -> str:
+        # Report "disabled" (not the base "backend does not support image analysis"),
+        # so a vision call while LLM scoring is off surfaces the actual reason.
+        raise VisionNotSupportedError("LLM scoring is disabled")
 
 
 def _user_text(messages: list[dict]) -> str:

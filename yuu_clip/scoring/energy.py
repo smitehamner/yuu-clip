@@ -190,13 +190,16 @@ class AudioEnergyScorer:
             return ScoreResult(tags=["energy_no_tracks"])
 
         start_s = clip.start_ms // 1000
-        end_s   = clip.end_ms   // 1000
+        # Inclusive last whole-second bucket: a sub-second window (e.g. 1200-1800ms)
+        # still lands in the bucket that contains it, instead of querying an empty
+        # range (start_s == end_s) and reporting "no data".
+        last_s  = max(start_s, (clip.end_ms - 1) // 1000)
         clip_rows = (
             session.query(AudioEnergy)
             .filter(
                 AudioEnergy.audio_track_id.in_(scorable_track_ids),
                 AudioEnergy.second_offset >= start_s,
-                AudioEnergy.second_offset < end_s,
+                AudioEnergy.second_offset <= last_s,
             )
             .all()
         )

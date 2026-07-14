@@ -129,7 +129,7 @@ def extract_audio_track(
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     _log.debug(
-        "Extracting audio: %s stream %d → %s%s",
+        "Extracting audio: %s stream %d -> %s%s",
         video_path.name, stream_index, output_path.name,
         f" [{start_s}s-{end_s}s]" if start_s is not None or end_s is not None else "",
     )
