@@ -6,6 +6,7 @@ Used by the ``analyze`` command (full run via ``_analyze_one``) and the
 from __future__ import annotations
 
 import json
+import subprocess
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -64,6 +65,19 @@ def _parse_srt(text: str) -> list[tuple[int, int, str]]:
         if text_body:
             segments.append((start_ms, end_ms, text_body))
     return segments
+
+
+def _ffmpeg_stderr_tail(stderr, max_lines: int = 8) -> str:
+    """Last few non-empty lines of a captured ffmpeg stderr, for a diagnosable log.
+
+    ``CalledProcessError.stderr`` is bytes (capture_output) or None; ffmpeg's real
+    reason (e.g. "Stream map '0:5' matches no streams") lives here, not in ``str(exc)``.
+    """
+    if not stderr:
+        return ""
+    text = stderr.decode("utf-8", errors="replace") if isinstance(stderr, bytes) else str(stderr)
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    return "\n".join(lines[-max_lines:])
 
 
 def _llm_unavailable_message(reason: str) -> str:
@@ -308,8 +322,7 @@ def _import_subtitles(subtitle_source: str, video_path: Path, track_objs, sessio
             ffmpeg, _ = find_ffmpeg()
             tmp_file = tempfile.NamedTemporaryFile(suffix=".srt", delete=False, mode="w")
             tmp_file.close()
-            import subprocess as _sp
-            _sp.run(
+            subprocess.run(
                 [ffmpeg, "-y", "-i", str(video_path),
                  "-map", f"0:{stream_idx}", str(tmp_file.name)],
                 check=True, capture_output=True,
@@ -320,6 +333,16 @@ def _import_subtitles(subtitle_source: str, video_path: Path, track_objs, sessio
 
         srt_text = srt_path.read_text(encoding="utf-8", errors="replace")
         parsed = _parse_srt(srt_text)
+    except subprocess.CalledProcessError as exc:
+        detail = _ffmpeg_stderr_tail(exc.stderr)
+        console.print(f"  [red]Subtitle import failed: ffmpeg exited with code {exc.returncode}[/red]")
+        if detail:
+            console.print(f"  [red]{detail}[/red]")
+        log.error(
+            "Subtitle import failed (ffmpeg exit %s): source=%s video=%s\n%s",
+            exc.returncode, subtitle_source, video_path, detail,
+        )
+        return []
     except Exception as exc:
         console.print(f"  [red]Subtitle import failed: {exc}[/red]")
         log.exception("Subtitle import failed: source=%s video=%s", subtitle_source, video_path)
@@ -855,17 +878,16 @@ def _score_scenes(video, config, session, context_text: str = "") -> None:
 def _summarize_video(video, transcripts, config, session, context_text: str = "") -> None:
     from yuu_clip.scoring.llm import summarize_transcript
 
-    seg_start_ms = int(video.segment_start_s * 1000) if video.segment_start_s is not None else None
-    seg_end_ms = int(video.segment_end_s * 1000) if video.segment_end_s is not None else None
-
-    parts = []
-    for transcript in transcripts:
-        for seg in transcript.segments:
-            if seg_start_ms is not None and seg.start_ms < seg_start_ms:
-                continue
-            if seg_end_ms is not None and seg.end_ms > seg_end_ms:
-                continue
-            parts.append(seg.text.strip())
+    # A segment video's audio is extracted trimmed to [segment_start_s, segment_end_s]
+    # (see _extract_audio_and_check_rms_overlap), so its transcript times are already
+    # 0-based within the segment - the whole transcript belongs to the segment. Do NOT
+    # filter by video.segment_start_s here: that is an absolute offset, and comparing it
+    # against 0-based segment times drops every line for any segment starting > 0s.
+    parts = [
+        seg.text.strip()
+        for transcript in transcripts
+        for seg in transcript.segments
+    ]
 
     text = " ".join(parts)
     if not text:

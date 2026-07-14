@@ -2658,3 +2658,244 @@ class TestShouldPrewarmTransformers:
         assert self._gate(
             diarization_backend="speechbrain", scorer_audio_event_enabled=True, no_score=True,
         ) is False
+
+
+# ---------------------------------------------------------------------------
+# _parse_srt / _ffmpeg_stderr_tail - pure helpers
+# ---------------------------------------------------------------------------
+
+class TestParseSrt:
+    def _parse(self, text):
+        from yuu_clip.pipeline.ingest import _parse_srt
+        return _parse_srt(text)
+
+    def test_comma_and_dot_decimal_separators(self):
+        srt = (
+            "1\n00:00:01,000 --> 00:00:02,500\nHello\n\n"
+            "2\n00:00:03.000 --> 00:00:04.000\nWorld"
+        )
+        assert self._parse(srt) == [(1000, 2500, "Hello"), (3000, 4000, "World")]
+
+    def test_hours_minutes_seconds_summed(self):
+        start = (1 * 3600 + 2 * 60 + 3) * 1000 + 4
+        assert self._parse("1\n01:02:03,004 --> 01:02:04,000\nx")[0][0] == start
+
+    def test_multiline_cue_text_is_joined(self):
+        assert self._parse("1\n00:00:00,000 --> 00:00:05,000\nline one\nline two") == [
+            (0, 5000, "line one line two")
+        ]
+
+    def test_block_with_fewer_than_three_lines_skipped(self):
+        srt = "1\n00:00:01,000 --> 00:00:02,000\n\n\n2\n00:00:03,000 --> 00:00:04,000\nkept"
+        assert self._parse(srt) == [(3000, 4000, "kept")]
+
+    def test_empty_cue_text_dropped(self):
+        srt = "1\n00:00:01,000 --> 00:00:02,000\n   \n\n2\n00:00:03,000 --> 00:00:04,000\nkept"
+        assert self._parse(srt) == [(3000, 4000, "kept")]
+
+    def test_malformed_timestamp_line_skipped(self):
+        srt = "1\nnot a timestamp\ntext here\n\n2\n00:00:01,000 --> 00:00:02,000\nok"
+        assert self._parse(srt) == [(1000, 2000, "ok")]
+
+
+class TestFfmpegStderrTail:
+    def _tail(self, stderr, **kw):
+        from yuu_clip.pipeline.ingest import _ffmpeg_stderr_tail
+        return _ffmpeg_stderr_tail(stderr, **kw)
+
+    def test_none_returns_empty(self):
+        assert self._tail(None) == ""
+
+    def test_decodes_bytes_and_keeps_last_lines(self):
+        assert self._tail(b"a\nb\nc\nd\n", max_lines=2) == "c\nd"
+
+    def test_strips_blank_lines(self):
+        assert self._tail(b"real error\n\n  \n") == "real error"
+
+
+# ---------------------------------------------------------------------------
+# _summarize_video - segment-relative transcript window
+# ---------------------------------------------------------------------------
+
+class TestSummarizeVideoSegmentOffset:
+    def _seed(self, tmp_path, *, segment_start_s=None, segment_end_s=None, seg_times):
+        from yuu_clip.db.models import (
+            AudioTrack,
+            Transcript,
+            TranscriptSegment,
+            Video,
+            make_session,
+        )
+        session = make_session(tmp_path / "project.db")
+        video = Video(
+            path=str(tmp_path / "seg.mkv"), filename="seg.mkv", status="transcribed",
+            duration_ms=60_000, segment_start_s=segment_start_s, segment_end_s=segment_end_s,
+        )
+        session.add(video)
+        session.flush()
+        track = AudioTrack(video_id=video.id, stream_index=0, label="combined")
+        session.add(track)
+        session.flush()
+        transcript = Transcript(audio_track_id=track.id, model_name="whisper")
+        session.add(transcript)
+        session.flush()
+        for start_ms, end_ms, text in seg_times:
+            session.add(TranscriptSegment(
+                transcript_id=transcript.id, start_ms=start_ms, end_ms=end_ms, text=text,
+            ))
+        session.flush()
+        return session, video, transcript
+
+    def _run(self, session, video, transcript):
+        import unittest.mock as mock
+
+        from yuu_clip.config import Config
+        from yuu_clip.pipeline import ingest as _pipeline
+
+        captured = {}
+
+        def fake_summarize(text, config, context_text=""):
+            captured["text"] = text
+            return ("A title", "A summary")
+
+        with mock.patch("yuu_clip.scoring.llm.summarize_transcript", side_effect=fake_summarize):
+            _pipeline._summarize_video(video, [transcript], Config(), session)
+        return captured
+
+    def test_segment_starting_after_zero_is_still_summarized(self, tmp_path):
+        # Regression: a split segment's audio is extracted trimmed, so its transcript
+        # is 0-based. Filtering by the absolute segment_start_s dropped every line and
+        # silently produced no summary for any segment starting > 0s.
+        session, video, transcript = self._seed(
+            tmp_path, segment_start_s=100.0, segment_end_s=160.0,
+            seg_times=[(0, 5000, "first line"), (5000, 10000, "second line")],
+        )
+        try:
+            captured = self._run(session, video, transcript)
+            assert "first line" in captured["text"]
+            assert "second line" in captured["text"]
+            assert video.title == "A title"
+            assert video.summary == "A summary"
+        finally:
+            session.close()
+
+    def test_non_segment_video_summarized_normally(self, tmp_path):
+        session, video, transcript = self._seed(
+            tmp_path, seg_times=[(0, 3000, "alpha"), (3000, 6000, "beta")],
+        )
+        try:
+            captured = self._run(session, video, transcript)
+            assert captured["text"] == "alpha beta"
+            assert video.summary == "A summary"
+        finally:
+            session.close()
+
+    def test_empty_transcript_skips_summary(self, tmp_path):
+        session, video, transcript = self._seed(tmp_path, seg_times=[])
+        try:
+            captured = self._run(session, video, transcript)
+            assert "text" not in captured  # summarize_transcript never called
+            assert video.summary is None
+        finally:
+            session.close()
+
+
+# ---------------------------------------------------------------------------
+# _import_subtitles - Import-captions ingest branch
+# ---------------------------------------------------------------------------
+
+class TestImportSubtitles:
+    def _seed(self, tmp_path, *, do_transcribe=True):
+        from yuu_clip.db.models import AudioTrack, Video, make_session
+        session = make_session(tmp_path / "project.db")
+        video = Video(
+            path=str(tmp_path / "v.mkv"), filename="v.mkv", status="labeled", duration_ms=60_000,
+        )
+        session.add(video)
+        session.flush()
+        track = AudioTrack(
+            video_id=video.id, stream_index=0, label="combined", do_transcribe=do_transcribe,
+        )
+        session.add(track)
+        session.flush()
+        return session, video, [track]
+
+    def test_srt_file_creates_transcript_segments(self, tmp_path):
+        from yuu_clip.db.models import TranscriptSegment
+        from yuu_clip.pipeline import ingest as _pipeline
+
+        srt = tmp_path / "caps.srt"
+        srt.write_text(
+            "1\n00:00:00,000 --> 00:00:02,000\nHello\n\n2\n00:00:02,000 --> 00:00:04,000\nWorld",
+            encoding="utf-8",
+        )
+        session, video, tracks = self._seed(tmp_path)
+        try:
+            transcripts = _pipeline._import_subtitles(
+                str(srt), tmp_path / "v.mkv", tracks, session, video,
+            )
+            session.flush()
+            assert len(transcripts) == 1
+            segs = (
+                session.query(TranscriptSegment)
+                .filter_by(transcript_id=transcripts[0].id)
+                .order_by(TranscriptSegment.start_ms)
+                .all()
+            )
+            assert [(s.start_ms, s.end_ms, s.text) for s in segs] == [
+                (0, 2000, "Hello"), (2000, 4000, "World"),
+            ]
+            assert video.status == "segmented"
+        finally:
+            session.close()
+
+    def test_falls_back_to_track_zero_when_none_transcribed(self, tmp_path):
+        from yuu_clip.pipeline import ingest as _pipeline
+
+        srt = tmp_path / "caps.srt"
+        srt.write_text("1\n00:00:00,000 --> 00:00:01,000\nhi", encoding="utf-8")
+        session, video, tracks = self._seed(tmp_path, do_transcribe=False)
+        try:
+            transcripts = _pipeline._import_subtitles(
+                str(srt), tmp_path / "v.mkv", tracks, session, video,
+            )
+            assert len(transcripts) == 1
+            assert transcripts[0].audio_track_id == tracks[0].id
+        finally:
+            session.close()
+
+    def test_missing_srt_file_returns_empty_and_logs(self, tmp_path, capsys):
+        from yuu_clip.pipeline import ingest as _pipeline
+
+        session, video, tracks = self._seed(tmp_path)
+        try:
+            result = _pipeline._import_subtitles(
+                str(tmp_path / "nope.srt"), tmp_path / "v.mkv", tracks, session, video,
+            )
+        finally:
+            session.close()
+        assert result == []
+        assert "Subtitle import failed" in capsys.readouterr().out
+
+    def test_stream_extract_failure_surfaces_ffmpeg_stderr(self, tmp_path, capsys):
+        import subprocess as _subprocess
+        import unittest.mock as mock
+
+        from yuu_clip.pipeline import ingest as _pipeline
+
+        session, video, tracks = self._seed(tmp_path)
+        failure = _subprocess.CalledProcessError(
+            1, ["ffmpeg"], output=b"", stderr=b"Stream map '0:5' matches no streams",
+        )
+        try:
+            with mock.patch("yuu_clip.config.find_ffmpeg", return_value=("ffmpeg", "ffprobe")), \
+                 mock.patch.object(_pipeline.subprocess, "run", side_effect=failure):
+                result = _pipeline._import_subtitles(
+                    "stream:5", tmp_path / "v.mkv", tracks, session, video,
+                )
+        finally:
+            session.close()
+        assert result == []
+        # The real ffmpeg reason (in exc.stderr) must reach the streamed console log,
+        # not just "returned non-zero exit status 1".
+        assert "matches no streams" in capsys.readouterr().out
