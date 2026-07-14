@@ -104,10 +104,21 @@ def running_server_count(processes: list[procs.ProcInfo]) -> int:
     )
 
 
+def _runs_from_this_repo(command_line: str) -> bool:
+    """True when the command runs out of this repo's tree (its venv or the prebuilt
+    build runtime, both under REPO_ROOT). Scopes the orphan check to OUR processes so
+    a concurrent OTHER project's pytest/Playwright (its own venv path) isn't mistaken
+    for a leftover yuu-clip worker and does not block the run."""
+    root = str(REPO_ROOT).replace("\\", "/").lower()
+    return root in command_line.replace("\\", "/").lower()
+
+
 def orphan_test_procs(processes: list[procs.ProcInfo]) -> list[procs.ProcInfo]:
     return [
         proc for proc in processes
-        if proc.name.lower() in ("python.exe", "node.exe") and _ORPHAN_RE.search(proc.command_line)
+        if proc.name.lower() in ("python.exe", "node.exe")
+        and _ORPHAN_RE.search(proc.command_line)
+        and _runs_from_this_repo(proc.command_line)
     ]
 
 

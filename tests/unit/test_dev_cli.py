@@ -171,12 +171,23 @@ def test_running_server_count_counts_serve_processes():
 
 
 def test_orphan_test_procs_flags_pytest_and_playwright():
+    root = str(tests_mod.REPO_ROOT)
     processes = [
-        _proc(1, "python.exe", "python -m pytest tests/ui"),
-        _proc(2, "node.exe", "node C:/x/playwright/driver/package/cli.js run-server"),
+        _proc(1, "python.exe", f"{root}/.venv/Scripts/python.exe -m pytest tests/ui"),
+        _proc(2, "node.exe", f"node {root}/.venv/Lib/site-packages/playwright/driver/package/cli.js run-server"),
         _proc(3, "python.exe", "python -m yuu_clip.cli serve"),
     ]
     assert [proc.pid for proc in tests_mod.orphan_test_procs(processes)] == [1, 2]
+
+
+def test_orphan_test_procs_ignores_another_projects_playwright():
+    # A concurrent OTHER-project session (its own venv path) must not trip our
+    # preflight - the regex alone matched any project's Playwright driver.
+    processes = [
+        _proc(1, "node.exe", "node C:/code/keepshelf/.venv/Lib/site-packages/playwright/driver/package/cli.js run-driver"),
+        _proc(2, "python.exe", "C:/code/keepshelf/.venv/Scripts/python.exe -m pytest tests/ui"),
+    ]
+    assert tests_mod.orphan_test_procs(processes) == []
 
 
 def test_ui_test_paths_smoke_only():
