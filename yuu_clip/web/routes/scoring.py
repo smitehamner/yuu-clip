@@ -333,15 +333,16 @@ def _rescore_video_clips(
 
     async def event_stream():
         from yuu_clip.scoring.engine import ScoringEngine
-        from yuu_clip.scoring.llm import LLMScorer
+        from yuu_clip.scoring.scorer_set import build_llm_scorers
 
         async with active_job(ctx):
             total = len(clip_ids)
             plural = "s" if total != 1 else ""
             yield f"data: {json_lib.dumps(f'[Starting LLM scoring for {total} clip{plural}…]')}\n\n"
-            scorer = LLMScorer(config, context_text=context_text)
+            llm_scorers = build_llm_scorers(config, context_text=context_text)
+            scorer = llm_scorers[0]
             engine = ScoringEngine(
-                config, [scorer],
+                config, llm_scorers,
                 hot_words=hot_words, sensitive_terms=sensitive_terms,
             )
 
@@ -622,18 +623,18 @@ def _register_clip_scoring_routes(router: APIRouter, ctx: ProjectContext) -> Non
 
         async def event_stream():
             from yuu_clip.scoring.engine import ScoringEngine
-            from yuu_clip.scoring.llm import LLMScorer
+            from yuu_clip.scoring.scorer_set import build_llm_scorers, build_scene_scorers
 
             async with active_job(ctx):
                 yield f"data: {json_lib.dumps('[Starting LLM scoring for 1 clip…]')}\n\n"
-                scorer = LLMScorer(config, context_text=context_text)
+                llm_scorers = build_llm_scorers(config, context_text=context_text)
+                scorer = llm_scorers[0]
                 # A scene (kind='scene') routes to the scene rubric; the engine picks
                 # the scorer set by the clip's kind, so one route serves both.
-                scene_scorer = LLMScorer(config, context_text=context_text, scene_mode=True)
                 engine = ScoringEngine(
-                    config, [scorer],
+                    config, llm_scorers,
                     hot_words=hot_words, sensitive_terms=sensitive_terms,
-                    scene_scorers=[scene_scorer],
+                    scene_scorers=build_scene_scorers(config, context_text=context_text),
                 )
                 score_db = ctx.get_db()
                 error = None

@@ -159,7 +159,7 @@ def retranscribe(
         from yuu_clip.db.models import HotWord, SensitiveTerm
         from yuu_clip.db.models import Video as _Video
         from yuu_clip.scoring.engine import ScoringEngine
-        from yuu_clip.scoring.llm import LLMScorer
+        from yuu_clip.scoring.scorer_set import build_llm_scorers
         cand = session.get(ClipCandidate, clip_id)
         vid = session.get(_Video, cand.video_id)
         context_names = json.loads(vid.context_names_json) if vid and vid.context_names_json else []
@@ -168,7 +168,7 @@ def retranscribe(
         hot_words = session.query(HotWord).all()
         sensitive_terms = session.query(SensitiveTerm).all()
         engine = ScoringEngine(
-            config, [LLMScorer(config, context_text=context_text)],
+            config, build_llm_scorers(config, context_text=context_text),
             hot_words=hot_words, sensitive_terms=sensitive_terms,
         )
         # LLM-only rescore: preserve the Visual/laugh axes it does not recompute.

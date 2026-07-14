@@ -858,14 +858,14 @@ def _score_scenes(video, config, session, context_text: str = "") -> None:
     scorers over them (score_video(kind='scene'))."""
     from yuu_clip.db.models import HotWord, SensitiveTerm
     from yuu_clip.scoring.engine import ScoringEngine
-    from yuu_clip.scoring.llm import LLMScorer
+    from yuu_clip.scoring.scorer_set import build_scene_scorers
 
     hot_words = session.query(HotWord).all()
     sensitive_terms = session.query(SensitiveTerm).all()
     engine = ScoringEngine(
         config, scorers=[],
         hot_words=hot_words, sensitive_terms=sensitive_terms,
-        scene_scorers=[LLMScorer(config, context_text=context_text, scene_mode=True)],
+        scene_scorers=build_scene_scorers(config, context_text=context_text),
     )
     console.print("  [bold]Scoring scenes...[/bold]")
     n = engine.score_video(
@@ -917,16 +917,10 @@ def _run_scoring(
     opt-in auto vision-describe pass (video-heavy analysis Stage 4) that runs after
     scoring; omit it (None) to skip that pass regardless of the config toggle."""
     from yuu_clip.scoring.audio_event import AudioEventScorer, audio_event_model_cached
-    from yuu_clip.scoring.churn import SpeakerChurnScorer
-    from yuu_clip.scoring.energy import AudioEnergyScorer, compute_energy
+    from yuu_clip.scoring.energy import compute_energy
     from yuu_clip.scoring.engine import ScoringEngine
     from yuu_clip.scoring.laugh import LaughScorer
-    from yuu_clip.scoring.lexicon import LexiconScorer
-    from yuu_clip.scoring.llm import LLMScorer
-    from yuu_clip.scoring.prosody import ProsodyScorer
-    from yuu_clip.scoring.scenes import SceneCutScorer, compute_scenes
-    from yuu_clip.scoring.speechrate import SpeechRateScorer
-    from yuu_clip.scoring.visual import VisualActivityScorer
+    from yuu_clip.scoring.scenes import compute_scenes
 
     if config.scorer_energy_enabled and energy_mode != "none":
         console.print(f"  [bold]Computing audio energy ({energy_mode})...[/bold]")
@@ -1013,20 +1007,17 @@ def _run_scoring(
         )
 
     from yuu_clip.db.models import HotWord, SensitiveTerm
+    from yuu_clip.scoring.scorer_set import build_clip_scorers
     hot_words = session.query(HotWord).all()
     sensitive_terms = session.query(SensitiveTerm).all()
-    engine = ScoringEngine(config, [
-        AudioEnergyScorer(config),
-        SceneCutScorer(config),
-        VisualActivityScorer(config),
-        laugh_scorer,
-        LexiconScorer(config),
-        SpeechRateScorer(config),
-        SpeakerChurnScorer(config),
-        ProsodyScorer(config),
-        audio_event_scorer,
-        LLMScorer(config, context_text=context_text),
-    ], hot_words=hot_words, sensitive_terms=sensitive_terms)
+    engine = ScoringEngine(
+        config,
+        build_clip_scorers(
+            config, context_text=context_text,
+            laugh_scorer=laugh_scorer, audio_event_scorer=audio_event_scorer,
+        ),
+        hot_words=hot_words, sensitive_terms=sensitive_terms,
+    )
     if not engine.has_scorers:
         console.print(
             "  [yellow]No scoring signals are available - clips were created but left "
