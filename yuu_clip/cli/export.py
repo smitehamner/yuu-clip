@@ -10,16 +10,12 @@ from typing import Optional
 
 import typer
 
-from yuu_clip.cli._base import _get_session, _load_project, _project_dir, app, console
+from yuu_clip.cli._base import _load_project, app, console
 from yuu_clip.export.render import (
-    _build_export_path,
-    _emit_caption_sidecars,
-    _finalize_export,
-    _refresh_caption_sidecars,
-    _resolve_audio_stream_index,
-    _resolve_caption_style,
-    _run_retranscribe,
-    _write_export_subs,
+    ExportOptions,
+    refresh_caption_sidecars,
+    render_export,
+    run_retranscribe,
 )
 
 
@@ -45,10 +41,9 @@ def export(
     word_chunk_size: Optional[int] = typer.Option(None, "--word-chunk-size", help="Words shown at once for word-highlight captions (1-12); omit to use the configured default"),
 ):
     """Export a clip to a video file."""
-    from yuu_clip.config import Config, project_exports_dir, validate_whisper_model
+    from yuu_clip.config import project_exports_dir, validate_whisper_model
     from yuu_clip.db.models import ClipCandidate
     from yuu_clip.export.presets import resolve_preset
-    from yuu_clip.subtitles import lines_to_ass, lines_to_srt, merged_srt_lines
 
     if retranscribe:
         try:
@@ -57,10 +52,10 @@ def export(
             console.print(f"[red]{e}[/red]")
             raise typer.Exit(1)
 
-    proj_dir = _project_dir(project)
-    session  = _get_session(proj_dir)
-    exports  = project_exports_dir(proj_dir)
-    config   = Config.load(proj_dir)
+    # _load_project (not a bare _get_session) so configure_logging fires: export is
+    # the most frequently web-invoked subprocess, and a failure deep in the export
+    # engine must reach .yuu-clip/yuu-clip.log, not vanish with the transient SSE line.
+    proj_dir, session, config = _load_project(project)
 
     resolved_preset = None
     if preset:
@@ -78,45 +73,19 @@ def export(
         console.print(f"[red]No clip with ID {clip_id}[/red]")
         raise typer.Exit(1)
 
-    if retranscribe:
-        retx_config = Config.load(proj_dir)
-        retx_config.whisper_model = retranscribe_model
-        console.print(
-            f"  Retranscribing clip [bold]{clip_id}[/bold] with model [cyan]{retranscribe_model}[/cyan] before export..."
-        )
-        _run_retranscribe(cand, session, retx_config, speaker_labels=speaker_labels)
-        session.commit()
-
-    video_path = Path(cand.video.path)
-    if not video_path.exists():
-        console.print(f"[red]Source video not found: {video_path}[/red]")
-        raise typer.Exit(1)
-
-    preset_name = resolved_preset.name if resolved_preset else "default"
-    base, output = _build_export_path(
-        cand, video_path, container, exports, output, config.export_name_template, preset_name=preset_name,
+    render_export(
+        cand, session, config,
+        ExportOptions(
+            output=output, container=container, precise=precise, captions=captions,
+            bake_captions=bake_captions, embed_subs=embed_subs, title_card=title_card,
+            retranscribe=retranscribe, retranscribe_model=retranscribe_model,
+            speaker_labels=speaker_labels, preset=resolved_preset,
+            caption_font=caption_font, caption_size=caption_size,
+            caption_position=caption_position, word_highlight=word_highlight,
+            word_chunk_size=word_chunk_size,
+        ),
+        exports_dir=project_exports_dir(proj_dir),
     )
-    console.print(f"  Exporting clip [bold]{clip_id}[/bold]  {cand.start_hms}  ({cand.duration_hms})  ...")
-
-    caption_style = _resolve_caption_style(
-        config, caption_font, caption_size, caption_position, word_highlight, word_chunk_size,
-    )
-    subtitle_path, subtitle_track_path = _write_export_subs(
-        cand, bake_captions, embed_subs, lines_to_srt, merged_srt_lines,
-        lines_to_ass=lines_to_ass, word_highlight=caption_style.word_highlight,
-        chunk_size=caption_style.word_chunk_size,
-    )
-    _finalize_export(
-        cand, session, video_path, output, config,
-        precise=precise, title_card=title_card,
-        audio_stream_idx=_resolve_audio_stream_index(session, cand),
-        subtitle_path=subtitle_path, subtitle_track_path=subtitle_track_path,
-        bake_captions=bake_captions, preset_name=preset_name, preset=resolved_preset,
-        caption_style=caption_style,
-    )
-
-    if captions:
-        _emit_caption_sidecars(cand, output, base)
 
 
 @app.command()
@@ -151,7 +120,7 @@ def retranscribe(
         f"{cand.start_hms}  ({cand.duration_hms})  (model: {model})"
     )
 
-    _run_retranscribe(cand, session, config, language=language, speaker_labels=speaker_labels)
+    run_retranscribe(cand, session, config, language=language, speaker_labels=speaker_labels)
     session.commit()
 
     if not no_rescore:
@@ -177,6 +146,6 @@ def retranscribe(
         console.print("  [green]  OK[/green]")
 
     if refresh_captions:
-        _refresh_caption_sidecars(cand, proj_dir, config.export_name_template)
+        refresh_caption_sidecars(cand, proj_dir, config.export_name_template)
 
     console.print("  [green]Done.[/green]")

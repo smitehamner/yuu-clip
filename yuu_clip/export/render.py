@@ -8,8 +8,9 @@ prints stay here rather than being lifted into the command layer.
 """
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 import typer
 
@@ -18,7 +19,91 @@ from yuu_clip.console import BYTES_PER_MB, console
 from yuu_clip.export.naming import DEFAULT_EXPORT_NAME_TEMPLATE, export_base_stem
 from yuu_clip.log import get_logger
 
+if TYPE_CHECKING:
+    from yuu_clip.export.presets import ExportPreset
+
 log = get_logger(__name__)
+
+
+@dataclass
+class ExportOptions:
+    """The resolved options for one clip export, assembled by the CLI from its
+    flags and handed to :func:`render_export`. *preset* is the already-resolved
+    ExportPreset (or None for original-quality); the CLI owns preset lookup and
+    user-input validation, this carries only the outcome."""
+    output: Optional[Path] = None
+    container: Optional[str] = None
+    precise: bool = False
+    captions: bool = True
+    bake_captions: bool = False
+    embed_subs: bool = False
+    title_card: bool = False
+    retranscribe: bool = False
+    retranscribe_model: str = "large-v3"
+    speaker_labels: bool = True
+    preset: Optional["ExportPreset"] = None
+    caption_font: Optional[str] = None
+    caption_size: Optional[int] = None
+    caption_position: Optional[str] = None
+    word_highlight: Optional[bool] = None
+    word_chunk_size: Optional[int] = None
+
+
+def render_export(cand, session, config, options: ExportOptions, *, exports_dir: Path) -> None:
+    """Run the full single-clip export pipeline: optional retranscribe, resolve the
+    output path, stage captions, cut (with an optional title card / preset), and
+    write SRT sidecars. The CLI command shrinks to arg-parsing plus one call here,
+    so the sequence has a seam callers and tests can reach without CliRunner+ffmpeg."""
+    import copy
+
+    from yuu_clip.subtitles import lines_to_ass, lines_to_srt, merged_srt_lines
+
+    if options.retranscribe:
+        # Shallow-copy so the whisper-model override for retranscription never
+        # mutates the config used for the export itself (only a str field changes).
+        retx_config = copy.copy(config)
+        retx_config.whisper_model = options.retranscribe_model
+        console.print(
+            f"  Retranscribing clip [bold]{cand.id}[/bold] with model "
+            f"[cyan]{options.retranscribe_model}[/cyan] before export..."
+        )
+        run_retranscribe(cand, session, retx_config, speaker_labels=options.speaker_labels)
+        session.commit()
+
+    video_path = Path(cand.video.path)
+    if not video_path.exists():
+        console.print(f"[red]Source video not found: {video_path}[/red]")
+        raise typer.Exit(1)
+
+    preset_name = options.preset.name if options.preset else "default"
+    base, output = _build_export_path(
+        cand, video_path, options.container, exports_dir, options.output,
+        config.export_name_template, preset_name=preset_name,
+    )
+    console.print(
+        f"  Exporting clip [bold]{cand.id}[/bold]  {cand.start_hms}  ({cand.duration_hms})  ..."
+    )
+
+    caption_style = _resolve_caption_style(
+        config, options.caption_font, options.caption_size, options.caption_position,
+        options.word_highlight, options.word_chunk_size,
+    )
+    subtitle_path, subtitle_track_path = _write_export_subs(
+        cand, options.bake_captions, options.embed_subs, lines_to_srt, merged_srt_lines,
+        lines_to_ass=lines_to_ass, word_highlight=caption_style.word_highlight,
+        chunk_size=caption_style.word_chunk_size,
+    )
+    _finalize_export(
+        cand, session, video_path, output, config,
+        precise=options.precise, title_card=options.title_card,
+        audio_stream_idx=_resolve_audio_stream_index(session, cand),
+        subtitle_path=subtitle_path, subtitle_track_path=subtitle_track_path,
+        bake_captions=options.bake_captions, preset_name=preset_name, preset=options.preset,
+        caption_style=caption_style,
+    )
+
+    if options.captions:
+        _emit_caption_sidecars(cand, output, base)
 
 
 def _extract_wav_segment(src: Path, dst: Path, start_s: float, end_s: float) -> None:
@@ -73,8 +158,8 @@ def _maybe_diarize_segment(session, config, video_id: int, transcript_id: int, s
         console.print(f"  [yellow]  Speaker labels skipped: {exc}[/yellow]")
 
 
-def _run_retranscribe(cand, session, config, language: Optional[str] = None,
-                      speaker_labels: bool = False) -> None:
+def run_retranscribe(cand, session, config, language: Optional[str] = None,
+                     speaker_labels: bool = False) -> None:
     """Retranscribe a clip's time window and store a clip-scoped Transcript row.
 
     Does not rescore. Caller is responsible for session.commit() afterward.
@@ -435,7 +520,7 @@ def _emit_caption_sidecars(cand, output: Path, base: str) -> None:
         console.print("  [dim]No transcript data - captions skipped[/dim]")
 
 
-def _refresh_caption_sidecars(cand, proj_dir: Path, name_template: str = DEFAULT_EXPORT_NAME_TEMPLATE) -> None:
+def refresh_caption_sidecars(cand, proj_dir: Path, name_template: str = DEFAULT_EXPORT_NAME_TEMPLATE) -> None:
     """CLI-facing wrapper around subtitles.refresh_export_sidecars() that prints progress."""
     from yuu_clip.config import project_exports_dir
     from yuu_clip.subtitles import refresh_export_sidecars

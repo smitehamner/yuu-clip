@@ -23,6 +23,8 @@ class TestHelp:
     @pytest.mark.parametrize("command", [
         "probe", "analyze", "score", "export", "reel",
         "status", "clips", "serve", "retranscribe", "prefetch-model", "restore",
+        "rediarize", "reextract", "retranscribe-video", "regenerate-clips",
+        "prefetch-whisper", "download-gguf", "import-url",
     ])
     def test_help_exits_zero(self, command):
         result = runner.invoke(app, [command, "--help"])

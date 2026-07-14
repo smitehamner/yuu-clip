@@ -18,14 +18,14 @@ from yuu_clip.cli._base import (
     app,
     console,
 )
-from yuu_clip.pipeline.ingest import (
+from yuu_clip.pipeline import (
     AnalyzeOptions,
-    _analyze_one,
-    _rediarize_video,
-    _reextract_video,
-    _regenerate_clips,
-    _retranscribe_video,
-    _run_scoring,
+    analyze_one,
+    rediarize_video,
+    reextract_video,
+    regenerate_clips,
+    retranscribe_video,
+    run_scoring,
 )
 
 _PAUSE_POLL_INTERVAL_S = 3.0
@@ -156,7 +156,7 @@ def analyze(
 
     for video_path in video_paths:
         _wait_while_paused(proj_dir)
-        _analyze_one(video_path, session, config, audio_dir, opts, proxy_dir=proxy_dir)
+        analyze_one(video_path, session, config, audio_dir, opts, proxy_dir=proxy_dir)
 
     console.print("\n[bold green]Done![/bold green]  Run [cyan]yuuclip status[/cyan] to review your clips.\n")
 
@@ -187,7 +187,7 @@ def rediarize(
         raise typer.Exit(1)
 
     console.rule(f"[bold]{video.filename}[/bold]")
-    n = _rediarize_video(session, config, video)
+    n = rediarize_video(session, config, video)
     console.print(f"\n[bold green]Re-detection complete[/bold green] - {n} track(s) re-diarized.\n")
 
 
@@ -219,12 +219,12 @@ def reextract(
     _require_ffmpeg()
     proj_dir, session, config, video = _load_video_or_exit(project, video_id)
     console.rule(f"[bold]{video.filename}[/bold]")
-    n = _reextract_video(session, config, video, project_audio_dir(proj_dir))
+    n = reextract_video(session, config, video, project_audio_dir(proj_dir))
     console.print(f"\n[bold green]Re-extraction complete[/bold green] - {n} track(s).\n")
 
 
 @app.command("retranscribe-video")
-def retranscribe_video(
+def retranscribe_video_cmd(
     video_id: int = typer.Argument(..., help="Video ID to re-transcribe"),
     project: Optional[Path] = typer.Option(None, "--project", "-p", help="Project directory (default: cwd)"),
     model: str = typer.Option("base", "--model", "-m", help="Speech-to-text model: tiny|base|small|medium|large-v3"),
@@ -242,12 +242,12 @@ def retranscribe_video(
     proj_dir, session, config, video = _load_video_or_exit(project, video_id)
     config.whisper_model = model
     console.rule(f"[bold]{video.filename}[/bold]")
-    transcripts = _retranscribe_video(session, config, video, project_audio_dir(proj_dir), language)
+    transcripts = retranscribe_video(session, config, video, project_audio_dir(proj_dir), language)
     console.print(f"\n[bold green]Re-transcription complete[/bold green] - {len(transcripts)} track(s).\n")
 
 
 @app.command("regenerate-clips")
-def regenerate_clips(
+def regenerate_clips_cmd(
     video_id: int = typer.Argument(..., help="Video ID to regenerate clips for"),
     project: Optional[Path] = typer.Option(None, "--project", "-p", help="Project directory (default: cwd)"),
 ):
@@ -258,7 +258,7 @@ def regenerate_clips(
     """
     _, session, config, video = _load_video_or_exit(project, video_id)
     console.rule(f"[bold]{video.filename}[/bold]")
-    candidates = _regenerate_clips(session, config, video)
+    candidates = regenerate_clips(session, config, video)
     console.print(f"\n[bold green]Clip regeneration complete[/bold green] - {len(candidates)} clip(s).\n")
 
 
@@ -303,7 +303,7 @@ def score(
         console.rule(f"[bold]{v.filename}[/bold]")
         _cn = json.loads(v.context_names_json) if v.context_names_json else []
         _ctx = format_context_block(load_contexts(proj_dir), _cn)
-        _run_scoring(v, v.audio_tracks, config, session, context_text=_ctx, proxy_dir=proxy_dir)
+        run_scoring(v, v.audio_tracks, config, session, context_text=_ctx, proxy_dir=proxy_dir)
         session.commit()
 
     console.print("\n[bold green]Scoring complete.[/bold green]\n")

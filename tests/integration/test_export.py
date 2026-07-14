@@ -191,6 +191,85 @@ class TestWriteExportSubs:
         assert burn is None and soft is None
 
 
+class TestRenderExport:
+    """render_export is the public export orchestrator the CLI shrank onto - the
+    sequence now has a seam reachable without CliRunner+ffmpeg. These patch the
+    ffmpeg-touching internals and assert the wiring (retranscribe gate, source
+    guard, sidecar gate)."""
+
+    def _fakes(self, monkeypatch, tmp_path):
+        import yuu_clip.export.render as render
+        calls = {"retranscribe": 0, "finalize": 0, "sidecars": 0, "committed": 0}
+        out = tmp_path / "out.mkv"
+
+        monkeypatch.setattr(render, "run_retranscribe",
+                            lambda *a, **k: calls.__setitem__("retranscribe", calls["retranscribe"] + 1))
+        monkeypatch.setattr(render, "_build_export_path", lambda *a, **k: ("base_stem", out))
+        monkeypatch.setattr(render, "_resolve_caption_style",
+                            lambda *a, **k: SimpleNamespace(word_highlight=False, word_chunk_size=4))
+        monkeypatch.setattr(render, "_write_export_subs", lambda *a, **k: (None, None))
+        monkeypatch.setattr(render, "_resolve_audio_stream_index", lambda *a, **k: None)
+        monkeypatch.setattr(render, "_finalize_export",
+                            lambda *a, **k: calls.__setitem__("finalize", calls["finalize"] + 1))
+        monkeypatch.setattr(render, "_emit_caption_sidecars",
+                            lambda *a, **k: calls.__setitem__("sidecars", calls["sidecars"] + 1))
+        return calls
+
+    def _cand(self, video_path):
+        return SimpleNamespace(
+            id=7, video=SimpleNamespace(path=str(video_path)),
+            start_hms="00:00:05", duration_hms="00:00:10",
+        )
+
+    def _config(self):
+        from yuu_clip.config import Config
+        return Config()
+
+    def _session(self, calls):
+        return SimpleNamespace(commit=lambda: calls.__setitem__("committed", calls["committed"] + 1))
+
+    def test_runs_finalize_and_sidecars_without_retranscribe(self, monkeypatch, tmp_path):
+        from yuu_clip.export.render import ExportOptions, render_export
+        video = tmp_path / "video.mkv"
+        video.write_bytes(b"fake")
+        calls = self._fakes(monkeypatch, tmp_path)
+        render_export(self._cand(video), self._session(calls), self._config(),
+                      ExportOptions(), exports_dir=tmp_path)
+        assert calls["retranscribe"] == 0
+        assert calls["finalize"] == 1
+        assert calls["sidecars"] == 1
+
+    def test_retranscribe_option_runs_it_and_commits(self, monkeypatch, tmp_path):
+        from yuu_clip.export.render import ExportOptions, render_export
+        video = tmp_path / "video.mkv"
+        video.write_bytes(b"fake")
+        calls = self._fakes(monkeypatch, tmp_path)
+        render_export(self._cand(video), self._session(calls), self._config(),
+                      ExportOptions(retranscribe=True), exports_dir=tmp_path)
+        assert calls["retranscribe"] == 1
+        assert calls["committed"] == 1
+
+    def test_captions_off_skips_sidecars(self, monkeypatch, tmp_path):
+        from yuu_clip.export.render import ExportOptions, render_export
+        video = tmp_path / "video.mkv"
+        video.write_bytes(b"fake")
+        calls = self._fakes(monkeypatch, tmp_path)
+        render_export(self._cand(video), self._session(calls), self._config(),
+                      ExportOptions(captions=False), exports_dir=tmp_path)
+        assert calls["finalize"] == 1
+        assert calls["sidecars"] == 0
+
+    def test_missing_source_video_exits_before_cut(self, monkeypatch, tmp_path):
+        import typer
+
+        from yuu_clip.export.render import ExportOptions, render_export
+        calls = self._fakes(monkeypatch, tmp_path)
+        with pytest.raises(typer.Exit):
+            render_export(self._cand(tmp_path / "gone.mkv"), self._session(calls),
+                          self._config(), ExportOptions(), exports_dir=tmp_path)
+        assert calls["finalize"] == 0
+
+
 class TestResolveCaptionStyleWordHighlight:
     def _config(self):
         from yuu_clip.config import Config
@@ -1213,12 +1292,12 @@ class TestRefreshCaptionSidecars:
         return exports
 
     def test_refreshes_existing_sidecar(self, tmp_path):
-        from yuu_clip.export.render import _refresh_caption_sidecars
+        from yuu_clip.export.render import refresh_caption_sidecars
         exports = self._exports_dir(tmp_path)
         srt = exports / "session_clip7_00-00-00.srt"
         srt.write_text("1\n00:00:00,000 --> 00:00:01,000\nstale\n\n", encoding="utf-8")
 
-        _refresh_caption_sidecars(self._make_clip("SPEAKER_00"), tmp_path)
+        refresh_caption_sidecars(self._make_clip("SPEAKER_00"), tmp_path)
 
         content = srt.read_text(encoding="utf-8")
         assert "updated text" in content
@@ -1226,10 +1305,10 @@ class TestRefreshCaptionSidecars:
         assert "stale" not in content
 
     def test_noop_when_no_sidecar_exists(self, tmp_path):
-        from yuu_clip.export.render import _refresh_caption_sidecars
+        from yuu_clip.export.render import refresh_caption_sidecars
         exports = self._exports_dir(tmp_path)
 
-        _refresh_caption_sidecars(self._make_clip("SPEAKER_00"), tmp_path)
+        refresh_caption_sidecars(self._make_clip("SPEAKER_00"), tmp_path)
 
         assert list(exports.glob("*.srt")) == []
 
