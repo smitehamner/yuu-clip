@@ -35,11 +35,43 @@ def redact_paths(text: str) -> str:
     return text
 
 
+# Defense-in-depth sink-side net for the two live secrets the app holds (the
+# Anthropic API key and the Hugging Face token) plus generic bearer/query-string
+# credentials. No call site logs a secret today, but the log is one users are
+# invited to send us for support, so a future call site - or a third-party lib
+# that logs an auth header or a signed URL - should not leak verbatim. Patterns
+# require enough length to avoid redacting ordinary prose (e.g. the ``hf_cache``
+# module name); this is not generic entropy detection, just known shapes.
+# The authorization rule runs before the bearer rule and absorbs an optional
+# "Bearer " scheme, so "Authorization: Bearer <tok>" collapses to one <redacted>
+# rather than being matched twice.
+_SECRET_PATTERNS = (
+    (re.compile(r"sk-ant-[A-Za-z0-9_-]{12,}"), "<redacted>"),
+    (re.compile(r"\bhf_[A-Za-z0-9]{20,}"), "<redacted>"),
+    (re.compile(r"(?i)\b(authorization\s*[:=]\s*)(?:bearer\s+)?[^\s,;]+"), r"\1<redacted>"),
+    (re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._~+/=-]{8,}"), "Bearer <redacted>"),
+    (re.compile(r"(?i)([?&](?:token|key|api_key|access_token|password)=)[^&\s]+"), r"\1<redacted>"),
+)
+
+
+def redact_secrets(text: str) -> str:
+    """Mask known credential shapes (API keys, tokens, bearer/query secrets)."""
+    for pattern, replacement in _SECRET_PATTERNS:
+        text = pattern.sub(replacement, text)
+    return text
+
+
+def redact(text: str) -> str:
+    """Apply both the home-path and secret redactions to a log line."""
+    return redact_secrets(redact_paths(text))
+
+
 class _SanitizingFormatter(logging.Formatter):
-    """Formats a record, then strips usernames from the final line (incl. tracebacks)."""
+    """Formats a record, then strips usernames and secrets from the final line
+    (including tracebacks) before it reaches any sink."""
 
     def format(self, record: logging.LogRecord) -> str:
-        return redact_paths(super().format(record))
+        return redact(super().format(record))
 
 
 _LOG_FILENAME  = "yuu-clip.log"
@@ -83,6 +115,10 @@ def configure_logging(project_dir: Path) -> None:
     if root.handlers:
         return
 
+    # Don't propagate to the real root logger: redaction lives in our two
+    # handlers' formatters, so a record reaching a foreign root handler
+    # (uvicorn/basicConfig) would be emitted un-redacted. We own both sinks here.
+    root.propagate = False
     root.setLevel(logging.DEBUG)
     root.addHandler(_make_file_handler(project_dir))
 

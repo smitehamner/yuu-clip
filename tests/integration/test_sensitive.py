@@ -1,14 +1,12 @@
 """Sensitive content detection (roadmap plan 06) - fuzzy matcher, apply_sensitive_scan,
 ScoringEngine integration, and CRUD/rescan routes.
 
-Term values are user PII by definition, so a dedicated logging-safety test captures
-caplog around every route that touches a term value and asserts it never appears in
-the log output (mirrors the "never log term values" rule in routes/sensitive.py and
-SensitiveTerm's docstring).
+Term values are user PII by definition, so a dedicated logging-safety test drives
+every route that touches a term value and asserts it never appears in the actual log
+sink the user sends us (mirrors the "never log term values" rule in routes/sensitive.py
+and SensitiveTerm's docstring).
 """
 from __future__ import annotations
-
-import logging
 
 # ---------------------------------------------------------------------------
 # textmatch.find_fuzzy_matches
@@ -588,8 +586,12 @@ class TestSensitiveContextScoping:
 class TestSensitiveTermValuesNeverLogged:
     _SECRET_TERM = "SuperSecretPersonName12345"
 
-    def test_crud_and_rescan_never_log_the_term_value(self, client, caplog):
-        caplog.set_level(logging.DEBUG)
+    def test_crud_and_rescan_never_log_the_term_value(self, client):
+        # Assert against the real in-memory sink (what the log download exposes)
+        # rather than caplog: the yuu_clip logger does not propagate to root, so
+        # caplog - which attaches to root - would capture nothing and pass vacuously.
+        from yuu_clip.log import recent_log_lines
+        baseline = len(recent_log_lines())
 
         vid_id = client.get("/api/videos").json()[0]["id"]
         clips = client.get(f"/api/videos/{vid_id}/clips").json()
@@ -610,4 +612,5 @@ class TestSensitiveTermValuesNeverLogged:
         client.post(f"/api/videos/{vid_id}/sensitive-rescan")
         client.delete(f"/api/sensitive-terms/{created['id']}")
 
-        assert self._SECRET_TERM not in caplog.text
+        emitted = "\n".join(recent_log_lines()[baseline:])
+        assert self._SECRET_TERM not in emitted
