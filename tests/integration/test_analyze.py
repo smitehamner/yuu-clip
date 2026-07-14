@@ -995,6 +995,51 @@ class TestTerminateProcessTree:
         run.assert_not_called()
         assert not proc.terminated
 
+    def test_async_windows_taskkill_runs_off_the_event_loop(self):
+        # The Windows kill must be offloaded to a thread (asyncio.to_thread) so a
+        # cancel/shutdown never blocks the event loop on a wedged taskkill.
+        import asyncio
+        from unittest.mock import patch
+
+        from yuu_clip.web import sse
+
+        proc = self._FakeProc()
+        with patch.object(sse.sys, "platform", "win32"), \
+             patch.object(sse, "_run_taskkill") as run_taskkill, \
+             patch.object(sse.asyncio, "to_thread", wraps=asyncio.to_thread) as to_thread:
+            asyncio.run(sse.terminate_process_tree_async(proc))
+            to_thread.assert_called_once_with(run_taskkill, proc.pid)
+
+        run_taskkill.assert_called_once_with(proc.pid)
+        assert not proc.terminated  # tree-kill used, not the plain signal
+
+    def test_async_posix_delegates_to_sync_killpg(self):
+        import asyncio
+        from unittest.mock import patch
+
+        from yuu_clip.web import sse
+
+        proc = self._FakeProc()
+        with patch.object(sse.sys, "platform", "linux"), \
+             patch.object(sse.os, "getpgid", return_value=proc.pid, create=True), \
+             patch.object(sse.os, "killpg", create=True) as killpg:
+            asyncio.run(sse.terminate_process_tree_async(proc))
+
+        killpg.assert_called_once_with(proc.pid, sse.signal.SIGTERM)
+        assert not proc.terminated
+
+    def test_async_noop_when_already_exited(self):
+        import asyncio
+        from unittest.mock import patch
+
+        from yuu_clip.web import sse
+
+        proc = self._FakeProc(returncode=0)
+        with patch.object(sse, "_run_taskkill") as run_taskkill:
+            asyncio.run(sse.terminate_process_tree_async(proc))
+        run_taskkill.assert_not_called()
+        assert not proc.terminated
+
 
 # ---------------------------------------------------------------------------
 # DB session cleanup - proves no connection lingers after route handlers
@@ -1102,6 +1147,31 @@ class TestGracefulShutdown:
 
         argv = run.call_args.args[0]
         assert argv[0] == "taskkill" and "/T" in argv and str(mock_proc.pid) in argv
+
+    def test_shutdown_terminates_every_tracked_subprocess(self, project_dir):
+        """An overlapped subprocess_sse proc that lost the single analyze_proc slot
+        must still be terminated on shutdown (else it is orphaned holding the lock)."""
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        from fastapi.testclient import TestClient
+
+        from yuu_clip.web import sse
+        from yuu_clip.web.app import create_app
+
+        app = create_app(project_dir)
+        winner = MagicMock(returncode=None, pid=1001)   # currently in analyze_proc
+        winner.wait = AsyncMock(return_value=0)
+        loser = MagicMock(returncode=None, pid=1002)    # clobbered out of the slot
+        loser.wait = AsyncMock(return_value=0)
+
+        with patch.object(sse.sys, "platform", "win32"), \
+             patch.object(sse.subprocess, "run") as run:
+            with TestClient(app) as _:
+                app.state.ctx.analyze_proc = winner
+                app.state.ctx.subprocess_procs = {winner, loser}
+
+        killed = {argv.args[0][-1] for argv in run.call_args_list}
+        assert {"1001", "1002"} <= killed
 
     def test_shutdown_noop_when_no_analyze_running(self, project_dir):
         """Server shutdown must not raise when there is no active subprocess."""

@@ -75,7 +75,7 @@ class TestPrefetchOfflineFailure:
         from yuu_clip.web.sse import subprocess_sse
 
         cmd = [sys.executable, "-c", "print('Download failed: model unreachable'); raise SystemExit(1)"]
-        ctx = SimpleNamespace(analyze_proc=None, active_jobs=0)
+        ctx = SimpleNamespace(analyze_proc=None, active_jobs=0, subprocess_procs=set())
         chunks: list[str] = []
 
         async def drive():

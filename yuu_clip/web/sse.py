@@ -45,6 +45,13 @@ def new_session_kwargs() -> dict:
     return {} if sys.platform == "win32" else {"start_new_session": True}
 
 
+def _run_taskkill(pid: int) -> None:
+    subprocess.run(
+        ["taskkill", "/F", "/T", "/PID", str(pid)],
+        capture_output=True, check=False, timeout=10,
+    )
+
+
 def terminate_process_tree(proc) -> None:
     """Terminate *proc* and every descendant it spawned.
 
@@ -55,15 +62,15 @@ def terminate_process_tree(proc) -> None:
     with ``start_new_session=True`` (see ``new_session_kwargs``) so it leads its
     own process group, and we signal the whole group with ``killpg``. Callers
     still ``await proc.wait()`` afterwards to reap the child.
+
+    Synchronous: safe from a sync caller, but blocks on the Windows ``taskkill``.
+    Async callers on the event loop should use ``terminate_process_tree_async``.
     """
     if proc is None or proc.returncode is not None:
         return
     if sys.platform == "win32":
         try:
-            subprocess.run(
-                ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
-                capture_output=True, check=False, timeout=10,
-            )
+            _run_taskkill(proc.pid)
             return
         except Exception as exc:
             _log.warning("taskkill failed for pid %s (%s) - falling back to terminate()", proc.pid, exc)
@@ -78,6 +85,28 @@ def terminate_process_tree(proc) -> None:
         except OSError as exc:
             _log.debug("killpg failed for pid %s (%s) - falling back to terminate()", proc.pid, exc)
     proc.terminate()
+
+
+async def terminate_process_tree_async(proc) -> None:
+    """Async wrapper for ``terminate_process_tree`` that never blocks the loop.
+
+    On Windows the kill is a synchronous ``taskkill`` that can take up to its 10 s
+    timeout if it wedges; running it inline on the event loop stalls every other
+    request (``/api/status`` polls, other SSE streams) - worst at a user-initiated
+    cancel, when the app would look hung. Offload just that blocking call to a
+    thread. The POSIX ``killpg`` branch is a non-blocking signal, so it stays inline.
+    """
+    if proc is None or proc.returncode is not None:
+        return
+    if sys.platform == "win32":
+        try:
+            await asyncio.to_thread(_run_taskkill, proc.pid)
+            return
+        except Exception as exc:
+            _log.warning("taskkill failed for pid %s (%s) - falling back to terminate()", proc.pid, exc)
+        proc.terminate()
+        return
+    terminate_process_tree(proc)
 
 
 async def subprocess_sse(
@@ -131,6 +160,7 @@ async def subprocess_sse(
             _log.info("Subprocess started (pid %s): %s", proc.pid, cmd[3] if len(cmd) > 3 else cmd[0])
             if ctx is not None:
                 ctx.analyze_proc = proc
+                ctx.subprocess_procs.add(proc)
             try:
                 async for raw_line in proc.stdout:
                     text = raw_line.decode("utf-8", errors="replace").rstrip()
@@ -153,10 +183,14 @@ async def subprocess_sse(
                 yield f"data: {json.dumps(_SSE_DONE_SENTINEL)}\n\n"
             finally:
                 if proc.returncode is None:
-                    terminate_process_tree(proc)
+                    await terminate_process_tree_async(proc)
                     await proc.wait()
                 if ctx is not None:
-                    ctx.analyze_proc = None
+                    ctx.subprocess_procs.discard(proc)
+                    # Only clear the shared slot if it still points at *this* proc;
+                    # an overlapping job may have already claimed it (see deps.py).
+                    if ctx.analyze_proc is proc:
+                        ctx.analyze_proc = None
                     if clear_cmd_attr is not None:
                         setattr(ctx, clear_cmd_attr, None)
         finally:

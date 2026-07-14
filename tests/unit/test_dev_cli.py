@@ -315,3 +315,30 @@ def test_parse_cim_json_handles_empty_single_and_array():
         '[{"ProcessId":1,"Name":"a","CommandLine":null},{"ProcessId":2,"Name":"b","CommandLine":"c"}]'
     )
     assert parsed == [procs.ProcInfo(1, "a", ""), procs.ProcInfo(2, "b", "c")]
+
+
+def test_kill_uses_taskkill_tree_flag(monkeypatch):
+    # /T must be present so a stale server's analyze grandchild (the SQLite-lock
+    # holder) dies with the tree, not orphaned.
+    calls = {}
+    monkeypatch.setattr(procs.sys, "platform", "win32")
+    monkeypatch.setattr(procs.subprocess, "run", lambda argv, **kw: calls.setdefault("argv", argv))
+    procs.kill(1234)
+    argv = calls["argv"]
+    assert argv[0] == "taskkill"
+    assert "/T" in argv and "1234" in argv
+
+
+def test_list_processes_warns_on_enumeration_failure(monkeypatch):
+    import subprocess as _subprocess
+
+    printed = []
+    monkeypatch.setattr(procs.sys, "platform", "win32")
+    monkeypatch.setattr(procs.console, "print", lambda msg: printed.append(msg))
+
+    def _raise(*_a, **_k):
+        raise _subprocess.TimeoutExpired(cmd="powershell", timeout=20)
+
+    monkeypatch.setattr(procs.subprocess, "run", _raise)
+    assert procs.list_processes(["python.exe"]) == []
+    assert any("enumerate processes" in m for m in printed)

@@ -21,7 +21,11 @@ from typing import AsyncGenerator, Optional
 from fastapi.responses import StreamingResponse
 
 from yuu_clip.log import get_logger
-from yuu_clip.web.sse import _SSE_DONE_SENTINEL, new_session_kwargs, terminate_process_tree
+from yuu_clip.web.sse import (
+    _SSE_DONE_SENTINEL,
+    new_session_kwargs,
+    terminate_process_tree_async,
+)
 
 _log = get_logger(__name__)
 
@@ -115,7 +119,7 @@ class AnalyzeJob:
 
     async def cancel(self) -> None:
         self.cancelled = True
-        terminate_process_tree(self.proc)
+        await terminate_process_tree_async(self.proc)
 
     def sse_response(self) -> StreamingResponse:
         return StreamingResponse(self._stream(), media_type="text/event-stream")

@@ -64,6 +64,13 @@ class ProjectContext:
         self.analyze_cancelled: bool             = False
         self.import_cancelled:  bool             = False
 
+        # Every in-flight subprocess_sse process (export, retranscribe, stage
+        # re-runs, reel demo, URL import). analyze_proc is a single "most-recent,
+        # cancelable" slot that overlapping jobs clobber; this set is the complete
+        # set the lifespan must terminate so an overlapped job is never orphaned
+        # (a survivor keeps the SQLite write lock past shutdown). See web/sse.py.
+        self.subprocess_procs:  set              = set()
+
         # /api/analyze/start records the file/target for the queued command so
         # /api/analyze/events can attach that identity to the AnalyzeJob it launches
         # (used by /api/status to tell a reconnecting page which recording is running).

@@ -14,6 +14,8 @@ import subprocess
 import sys
 from dataclasses import dataclass
 
+from yuu_clip.console import console
+
 
 @dataclass(frozen=True)
 class ProcInfo:
@@ -35,7 +37,10 @@ def list_processes(names: list[str]) -> list[ProcInfo]:
             ["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
             capture_output=True, text=True, timeout=20,
         )
-    except (OSError, subprocess.TimeoutExpired):
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        console.print(
+            f"[yellow]Could not enumerate processes ({exc}); skipping reap.[/yellow]"
+        )
         return []
     return parse_cim_json(completed.stdout)
 
@@ -63,4 +68,8 @@ def parse_cim_json(raw: str) -> list[ProcInfo]:
 def kill(pid: int) -> None:
     if sys.platform != "win32":
         return
-    subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True, text=True)
+    # /T kills the whole process tree by pid - the web server's analyze child
+    # (which holds the SQLite write lock) is a grandchild here, so without /T the
+    # parent dies but the analyze subprocess is orphaned and keeps the lock. This
+    # matches web/sse.py terminate_process_tree.
+    subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)], capture_output=True, text=True)

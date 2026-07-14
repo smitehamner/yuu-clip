@@ -311,6 +311,7 @@ class TestSubprocessSseTracksActiveJob:
 
         ctx = SimpleNamespace(
             analyze_proc=None, analyze_cancelled=False, active_jobs=0, import_cmd="queued",
+            subprocess_procs=set(),
         )
         observed = []
 
@@ -331,7 +332,7 @@ class TestSubprocessSseTracksActiveJob:
     def test_active_jobs_untouched_when_not_tracked(self, tmp_path: Path):
         from yuu_clip.web.sse import subprocess_sse
 
-        ctx = SimpleNamespace(analyze_proc=None, analyze_cancelled=False, active_jobs=0)
+        ctx = SimpleNamespace(analyze_proc=None, analyze_cancelled=False, active_jobs=0, subprocess_procs=set())
 
         async def drive():
             response = await subprocess_sse([sys.executable, "-c", "print('hi')"], tmp_path, ctx)
@@ -350,7 +351,7 @@ class TestSubprocessSseCancel:
     def test_cancel_flag_emits_message_and_clears(self, tmp_path: Path):
         from yuu_clip.web.sse import subprocess_sse
 
-        ctx = SimpleNamespace(analyze_proc=None, import_cancelled=True, active_jobs=0)
+        ctx = SimpleNamespace(analyze_proc=None, import_cancelled=True, active_jobs=0, subprocess_procs=set())
         chunks: list[str] = []
 
         async def drive():
@@ -368,7 +369,7 @@ class TestSubprocessSseCancel:
     def test_stale_flag_not_leaked_without_cancel_attr(self, tmp_path: Path):
         from yuu_clip.web.sse import subprocess_sse
 
-        ctx = SimpleNamespace(analyze_proc=None, import_cancelled=True, active_jobs=0)
+        ctx = SimpleNamespace(analyze_proc=None, import_cancelled=True, active_jobs=0, subprocess_procs=set())
         chunks: list[str] = []
 
         async def drive():

@@ -685,7 +685,7 @@ class TestRunExportSubprocessCleanup:
             self.pid = 4242
 
     def test_returns_code_and_output_on_success(self, tmp_path: Path):
-        from unittest.mock import patch
+        from unittest.mock import AsyncMock, patch
 
         from yuu_clip.web.routes.clips import export
 
@@ -699,14 +699,14 @@ class TestRunExportSubprocessCleanup:
 
         proc.communicate = fake_communicate
         with patch.object(export.asyncio, "create_subprocess_exec", fake_exec), \
-             patch.object(export, "terminate_process_tree") as term:
+             patch.object(export, "terminate_process_tree_async", new_callable=AsyncMock) as term:
             returncode, out = asyncio.run(export._run_export_subprocess(["x"], tmp_path))
 
         assert (returncode, out) == (0, b"encoded ok")
         term.assert_not_called()  # process exited cleanly - nothing to kill
 
     def test_kills_tree_when_cancelled_mid_encode(self, tmp_path: Path):
-        from unittest.mock import patch
+        from unittest.mock import AsyncMock, patch
 
         from yuu_clip.web.routes.clips import export
 
@@ -720,7 +720,7 @@ class TestRunExportSubprocessCleanup:
 
         proc.communicate = fake_communicate
         with patch.object(export.asyncio, "create_subprocess_exec", fake_exec), \
-             patch.object(export, "terminate_process_tree") as term:
+             patch.object(export, "terminate_process_tree_async", new_callable=AsyncMock) as term:
             with pytest.raises(asyncio.CancelledError):
                 asyncio.run(export._run_export_subprocess(["x"], tmp_path))
 

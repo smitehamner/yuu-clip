@@ -20,7 +20,7 @@ from yuu_clip.export.paths import export_paths, validate_export_preset_query
 from yuu_clip.log import get_logger
 from yuu_clip.web.deps import ProjectContext
 from yuu_clip.web.routes.common import active_job, sse_response
-from yuu_clip.web.sse import new_session_kwargs, terminate_process_tree
+from yuu_clip.web.sse import new_session_kwargs, terminate_process_tree_async
 
 _log = get_logger(__name__)
 
@@ -88,7 +88,7 @@ async def _run_export_subprocess(cmd: list[str], cwd) -> tuple[Optional[int], by
         return proc.returncode, out
     finally:
         if proc is not None and proc.returncode is None:
-            terminate_process_tree(proc)
+            await terminate_process_tree_async(proc)
 
 
 def _clip_export_stream_response(

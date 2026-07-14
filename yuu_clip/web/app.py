@@ -50,7 +50,7 @@ from yuu_clip.web.routes import (
     videos,
     voices,
 )
-from yuu_clip.web.sse import terminate_process_tree
+from yuu_clip.web.sse import terminate_process_tree_async
 
 _HERE = Path(__file__).parent
 _log  = get_logger(__name__)
@@ -157,13 +157,19 @@ def create_app(project_dir: Path) -> FastAPI:
         job = ctx.analyze_job
         if job is not None and getattr(job, "proc", None) is not None:
             procs.append(job.proc)
-        if ctx.analyze_proc is not None:
-            procs.append(ctx.analyze_proc)
+        # Every in-flight subprocess_sse proc, not just the single most-recent
+        # analyze_proc slot - overlapping jobs would otherwise leave a survivor
+        # orphaned, holding the SQLite write lock past shutdown.
+        seen = {id(p) for p in procs}
+        for proc in [ctx.analyze_proc, *ctx.subprocess_procs]:
+            if proc is not None and id(proc) not in seen:
+                seen.add(id(proc))
+                procs.append(proc)
         for proc in procs:
             if proc.returncode is not None:
                 continue
             _log.info("Server shutting down - terminating subprocess (pid %s)", proc.pid)
-            terminate_process_tree(proc)
+            await terminate_process_tree_async(proc)
             try:
                 await asyncio.wait_for(proc.wait(), timeout=5.0)
             except asyncio.TimeoutError:

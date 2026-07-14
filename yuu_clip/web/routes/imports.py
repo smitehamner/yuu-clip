@@ -19,7 +19,7 @@ from yuu_clip.db.models import Video
 from yuu_clip.log import get_logger
 from yuu_clip.url_import import ImportUrlError, inspect_url, validate_import_url
 from yuu_clip.web.deps import ProjectContext
-from yuu_clip.web.sse import subprocess_sse, terminate_process_tree
+from yuu_clip.web.sse import subprocess_sse, terminate_process_tree_async
 
 _log = get_logger(__name__)
 
@@ -85,7 +85,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         if proc is not None and getattr(proc, "returncode", None) is None:
             ctx.import_cancelled = True
             _log.warning("URL import cancelled by user")
-            terminate_process_tree(proc)
+            await terminate_process_tree_async(proc)
         ctx.import_cmd = None
         return {"status": "cancelled"}
 

@@ -34,7 +34,7 @@ from yuu_clip.export.paths import validate_caption_style_query, validate_export_
 from yuu_clip.log import get_logger
 from yuu_clip.web.deps import ProjectContext
 from yuu_clip.web.routes.common import analyze_in_flight, module_findable, reject_if_analyzing
-from yuu_clip.web.sse import subprocess_sse, terminate_process_tree
+from yuu_clip.web.sse import subprocess_sse, terminate_process_tree_async
 
 _log = get_logger(__name__)
 
@@ -457,7 +457,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         proc = ctx.analyze_proc
         if proc is not None and proc.returncode is None:
             ctx.analyze_cancelled = True
-            terminate_process_tree(proc)
+            await terminate_process_tree_async(proc)
         ctx.analyze_cmd = None
         ctx.analyze_pending_filename = None
         ctx.analyze_pending_video_id = None
