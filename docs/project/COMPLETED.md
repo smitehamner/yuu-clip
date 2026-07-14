@@ -6,6 +6,28 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) - see the
 
 ---
 
+## Code-quality review fixes - reliability + privacy hardening (done 2026-07-13)
+
+Fixes from a stage-by-stage code-quality review of the analyze/export/tooling code:
+
+- **Interrupted analyses recover.** A crash mid-extraction or mid-diarization used to
+  leave a recording stuck on an eternal spinner with no way forward. Startup now marks
+  any recording left in a mid-analysis state as failed (so it can be re-run), not just
+  the one narrow state it recognized before.
+- **Re-transcribe works in installed builds.** The re-transcribe step resolved the wrong
+  ffmpeg and crashed on machines without a system ffmpeg on PATH; it now uses the bundled
+  one and reports the real reason on failure.
+- **Split-segment scoring reads the right video region.** The Visual axis and scene cuts
+  now decode the actual segment window for pre-analysis split segments (Theme A).
+- **Re-scoring no longer drops scores.** A per-clip/per-video re-score kept its stale
+  hotword boost math and could zero the Visual/laugh axes; re-score now preserves the
+  signal axes it isn't recomputing (Theme B).
+- **Support-log privacy.** The app log (which users are invited to send for support) no
+  longer leaks the account name via a stray logger path, and masks known credential
+  shapes (API keys, tokens, bearer/query secrets) as a sink-side safety net.
+
+---
+
 ## Video-heavy / quiet-moment analysis - Visual axis, silent clips, vision descriptions (done 2026-07-13)
 
 A silent, action-heavy moment (a clutch play, a crash) used to fail twice: the
