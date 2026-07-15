@@ -191,6 +191,8 @@ Accessible from the header. Create and edit named context bundles:
 
 Contexts are assigned per-video and injected into every LLM call for that video. When a video is rescored, any weight overrides from assigned contexts are averaged together and applied instead of the global Settings weights.
 
+A saved context can also hold structured **Characters** (name, lore, and a 0-100% score boost) alongside the free-text player fields. Characters are optional: they exist so you can link a **Person** to one (see "People - one name across recordings"). When a linked person speaks in a clip, that character's lore and boost are fed into LLM scoring for that clip, nudging clips featuring them higher. The free-text player fields stay general world flavor; the structured Characters are the ones that drive per-character boosts.
+
 ### Getting Started guide
 
 Opens from the hamburger menu (🚀 Getting Started). Covers the four-step workflow, what each score means, key concept definitions (Track layout, World context), and quick tips.
@@ -680,6 +682,12 @@ you confirm it, nothing is ever linked automatically. The **Find people across r
 button groups the speakers you have already named into people for you to review. How sure
 the app must be before it suggests a match is the **"Same person across recordings"** control
 in Settings → Speaker labels (higher = fewer wrong matches).
+
+Each person also has an optional **Character** picker: link a person to a character you
+defined in a world context (see "World contexts manager") to feed that character's lore and
+a scoring boost into the LLM whenever they speak. This is a pure add-on - a person's name
+and voice work with no character linked, and unlinking (or deleting the character) never
+touches the person's name or voice.
 
 **Fixing speakers from the transcript**
 

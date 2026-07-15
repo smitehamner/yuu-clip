@@ -42,17 +42,7 @@ Wanted before distributing beyond friends/trusted users.
 
 ---
 
-## 3 - Speaker & scoring depth
-
-- [ ] **Link a Person to a world-context character** - the companion to the shipped
-  project-wide **Person** identity: replace free-text names with a reference to a context
-  character (`ProjectVoice.character_id`) to feed "score boost per named character" and
-  per-speaker lore into scoring; deferred to avoid coupling naming to the contexts model.
-  Plan of record: `plans/speaker-identity/character-linking.md`.
-
----
-
-## 4 - Larger / speculative features
+## 3 - Larger / speculative features
 
 - [ ] **Sidebar grouping for split segments** *(speculative)* - a collapsible parent row
   "session.mkv (3 segments)" with indented children, as an alternative to the flat list.

@@ -6,6 +6,29 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) - see the
 
 ---
 
+## Link a Person to a world-context Character (done 2026-07-14)
+
+Optional overlay tying a **Person** (project-wide speaker identity) to a structured
+**Character** in a world context, so scoring can use per-character lore and a score boost -
+without coupling the identity model to the contexts model. A Person's free-text name and
+voiceprint stay first-class and fully usable with no context and no linked character (the
+default, primary mode); linking augments, never replaces.
+
+- **Structured Character records.** A new `characters` table (name, lore, `score_boost`
+  0.0-1.0) keyed to a JSON world context by `context_slug` - the same precedent as
+  `hot_words`/`sensitive_terms`. Managed in a **Characters** section of the world-context
+  editor, beside the untouched free-text `your_characters` / `other_characters` prose.
+- **Optional Person link.** `ProjectVoice.character_id` (nullable, plain Integer like
+  `global_voice_id`) set/cleared via a per-Person **Character** picker in the People view
+  (`POST /api/voices/{id}/character`). Deleting a Character, or its whole world context,
+  nulls any link in code - it never blocks and never touches the Person's name/voiceprint.
+- **Scoring integration (LLM prompt only).** For each clip the distinct Characters speaking
+  in it are resolved (segment -> Speaker -> Person -> Character) and injected as a per-clip
+  "characters speaking here" block via a pure `format_character_block` seam. Each boost is
+  stated on a 0.00-1.00 scale as an explicit LLM hint - no deterministic post-score multiply
+  (deliberately deferred). A clip with no linked Character yields a prompt byte-identical to
+  the no-character baseline (pinned by an equality test); non-LLM tiers are unchanged.
+
 ## Sequential-and-honest processing + unified progress (done 2026-07-14)
 
 Made the app's existing "one job at a time" reality honest, consistent, and

@@ -462,7 +462,19 @@ A **project-wide identity**: one voice named once and applied across *every* rec
 - **Also called in codebase:** `global_voice`, "project voice".
 - **User-facing terms:** "Person", "People", "Promote to Person", "Same person" - not "ProjectVoice", "global voice", "cluster", or "cosine".
 - **Three thresholds (keep distinct):** within-recording clustering *distance* (`speaker_cluster_threshold`, "Voice grouping"); same-recording re-attach *similarity* (`speaker_match_threshold`, "Speaker match strictness"); and the new, strictest cross-recording *similarity* (`project_voice_match_threshold`, "Same person across recordings"). A voice matches a Person on its *nearest* exemplar, same diarization backend only.
-- **Notes:** Matching during analyze only ever *suggests* (`suggested_voice_id`); nothing sets `global_voice_id` automatically - a wrong cross-recording merge would propagate a name project-wide, so the user confirms in People. The companion character-linking plan later hangs `character_id` off `ProjectVoice`.
+- **Notes:** Matching during analyze only ever *suggests* (`suggested_voice_id`); nothing sets `global_voice_id` automatically - a wrong cross-recording merge would propagate a name project-wide, so the user confirms in People. A Person may optionally link to a **Character** via `ProjectVoice.character_id` (see below) - a pure overlay that never affects the Person's own name or voiceprint.
+
+---
+
+### Character
+
+A structured lore entity within a **World context** - a name, `lore` text, and a `score_boost` - that a **Person** may optionally link to. When a linked Person speaks in a clip, the Character's lore and boost are fed into the LLM scoring prompt for that clip. Structured Characters coexist with a context's free-text `your_characters` / `other_characters` prose; only the structured records drive per-character scoring boosts.
+
+- **Code:** `Character` (`db/models.py`), keyed to a JSON context by `context_slug` (a plain string, not a FK - contexts live in `contexts.json`, same precedent as `HotWord.context_slug`); `ProjectVoice.character_id` (nullable overlay link); routes in `web/routes/characters.py` (`/api/contexts/{slug}/characters`, `/api/characters*`) and `POST /api/voices/{id}/character`; prompt seam `contexts.format_character_block`; UI in `contexts.js` (editor section) + `voices.js` (per-Person picker).
+- **User-facing term:** "Character". Same word in code and UI.
+- **Do not confuse with:** **Speaker** (a voice in one recording) or the free-text player names in a context - a Character is a structured record that drives scoring boosts.
+- **Score boost:** a 0.0-1.0 value fed to the LLM as an explicit numeric hint (stated on a 0.00-1.00 scale in the prompt); it is *not* a deterministic post-score multiply (that was deliberately deferred). 0.0 = lore only, no boost.
+- **Notes:** Optional and additive - a clip with no linked Character produces a prompt byte-identical to a project with no characters. Deleting a Character (or its whole context) nulls any linking `ProjectVoice.character_id` in code; it never blocks the delete and never touches the Person's name or voiceprint.
 
 ---
 
