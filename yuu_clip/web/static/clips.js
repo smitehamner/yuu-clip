@@ -664,6 +664,16 @@ function _paintVisionInFlight(clipId) {
   if (btn) btn.outerHTML = _visionSpinnerButton();
 }
 
+// Terminal cleanup shared by the done, error, and cancel paths: drop the in-flight
+// flag (so the button leaves its spinner) and repaint from the cached clip if it is
+// still the one on screen. Without this the flag would leak on an error/cancel and
+// strand the button as a permanent disabled spinner until a page reload.
+function _finishVisionJob(clipId) {
+  delete AppState.clipJobs[clipId];
+  const data = AppState.activeClipData;
+  if (data && AppState.activeClipId === clipId && !PanelNav.isOpen()) renderDetail(data);
+}
+
 function analyzeFrames(clipId) {
   if (_blockedByAnalyze('analyze frames')) return;
   AppState.clipJobs[clipId] = {op: 'analyze-frames'};
@@ -684,15 +694,27 @@ function analyzeFrames(clipId) {
       if (data && AppState.activeClipId === clipId && !PanelNav.isOpen()) renderDetail(data);
     },
     FRAMES_STEPS, 'Analyzing frames...',
-    // Not cancellable: a short in-process job with no real server-side cancel - the
-    // header Cancel would only detach the client (and reuse the wrong analyze copy).
-    false,
-    // The route reports its own failures as bracketed status lines and then completes
-    // normally (no transport error, so streamSSE's error toast never fires). Surface
-    // them as a toast, otherwise a failed analysis is only visible in the job log.
+    // Cancellable: the job runs as a subprocess (pipeline/frame_analysis.py), so
+    // killing it via the cancel endpoint drops the llama-server connection and
+    // generation actually stops - the point of it, for a big model on many frames.
+    true,
+    // The subprocess reports its own handled failures as bracketed status lines and
+    // then exits cleanly (no transport error, so streamSSE's error toast never fires).
+    // Surface them as a toast, otherwise a failed analysis is only visible in the log.
     line => { if (typeof line === 'string' && line.startsWith('[')) showToast(line.replace(/^\[|\]$/g, ''), 'error'); },
     false, {method: 'POST'},
+    () => _finishVisionJob(clipId),  // onError: clear the in-flight flag so the button recovers
   );
+  // startJobUI (inside streamSSE) reset the shared cancel config to the analyze
+  // default; override it so the header Cancel confirms + POSTs for THIS job.
+  setJobCancel({
+    url: `/api/clips/${clipId}/analyze-frames/cancel`,
+    title: 'Stop image analysis?',
+    body: 'The work so far is discarded. You can run image analysis again anytime.',
+    confirm: 'Stop analysis',
+    logMsg: '[Image analysis cancelled]',
+    onCancel: () => _finishVisionJob(clipId),
+  });
 }
 
 // ── hot-words ────────────────────────────────────────────────────────────────

@@ -483,7 +483,10 @@ function _blockedByAnalyze(actionLabel) {
 // callers that need live progress text (e.g. the proxy-build percentage).
 // opts (optional): fetch init passed through to _openSSE, e.g. {method: 'POST'}
 // for a POST-only SSE endpoint (analyze-frames).
-function streamSSE(url, onDone, stepDefs, jobLabel, cancellable = false, onLine = null, pausable = false, opts = {}) {
+// onError (optional): called after the built-in error handling (toast + endJobUI)
+// so a caller can run its own terminal cleanup on an HTTP/transport failure - e.g.
+// clearing a per-item in-flight flag that only its onDone would otherwise clear.
+function streamSSE(url, onDone, stepDefs, jobLabel, cancellable = false, onLine = null, pausable = false, opts = {}, onError = null) {
   _supersedeActiveStream();
   if (stepDefs) startJobUI(stepDefs, jobLabel, cancellable, pausable);
   const handle = _openSSE(
@@ -506,6 +509,7 @@ function streamSSE(url, onDone, stepDefs, jobLabel, cancellable = false, onLine 
       showToast(errMsg, 'error');
       SoundFx.play('error');
       if (stepDefs) endJobUI();
+      if (onError) onError(errMsg);
       loadVideos();
     },
     opts,
@@ -567,6 +571,9 @@ async function _doCancelJob() {
   _supersedeActiveStream();
   appendLog(cancel.logMsg);
   endJobUI();
+  // A job-specific terminal cleanup (e.g. clearing a per-clip in-flight flag so
+  // its button leaves the spinner) - the generic analyze cancel sets none.
+  if (cancel.onCancel) cancel.onCancel();
   // Clear the analyzing marker so loadVideos() drops the sidebar placeholder /
   // spinner. Left set, a cancelled run whose DB row never materialised would
   // keep an unclickable "Analyzing…" placeholder until a manual page refresh.
