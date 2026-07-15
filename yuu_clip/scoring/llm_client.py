@@ -99,12 +99,7 @@ class LlamaCppServerClient(LLMClient):
                 "llama.cpp image analysis needs a vision projector (mmproj .gguf) - "
                 "set 'Vision projector' under Settings -> LLM scoring"
             )
-        content: list[dict] = [{"type": "text", "text": _user_text(messages)}]
-        content += [
-            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{data}"}}
-            for data in _b64_images(images)
-        ]
-        payload_messages = _system_messages(messages) + [{"role": "user", "content": content}]
+        payload_messages = vision_payload_messages(messages, images)
         from yuu_clip.scoring.llamacpp_server import get_server_pool
         return get_server_pool().chat_completion(
             self._config, model_path=vision_model, mmproj_path=mmproj,
@@ -130,6 +125,19 @@ class NullLLMClient(LLMClient):
         # Report "disabled" (not the base "backend does not support image analysis"),
         # so a vision call while LLM scoring is off surfaces the actual reason.
         raise VisionNotSupportedError("LLM scoring is disabled")
+
+
+def vision_payload_messages(messages: list[dict], images: list[Path]) -> list[dict]:
+    """Build the OpenAI-style chat messages llama-server expects, with *images*
+    attached to the user turn as base64 data URLs. Shared by
+    LlamaCppServerClient.chat_vision and the frame-analysis subprocess (which POSTs
+    to a warm server directly, bypassing the pool)."""
+    content: list[dict] = [{"type": "text", "text": _user_text(messages)}]
+    content += [
+        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{data}"}}
+        for data in _b64_images(images)
+    ]
+    return _system_messages(messages) + [{"role": "user", "content": content}]
 
 
 def _user_text(messages: list[dict]) -> str:

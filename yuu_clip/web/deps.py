@@ -63,6 +63,9 @@ class ProjectContext:
         self.analyze_proc:      object | None    = None  # asyncio.subprocess.Process
         self.analyze_cancelled: bool             = False
         self.import_cancelled:  bool             = False
+        # Set by the frame-analysis cancel endpoint so subprocess_sse emits the
+        # cancel message (not a generic error) when the killed subprocess exits.
+        self.frames_cancelled:  bool             = False
 
         # Every in-flight subprocess_sse process (export, retranscribe, stage
         # re-runs, reel demo, URL import). analyze_proc is a single "most-recent,

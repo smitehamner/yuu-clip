@@ -5,15 +5,13 @@ from __future__ import annotations
 
 import asyncio
 import importlib.util
-import json
-import tempfile
-import time
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
 
-from yuu_clip.db.models import ClipCandidate, Video
+from yuu_clip.db.models import Video
 from yuu_clip.export.paths import all_sidecar_paths, clip_export_row_files
 from yuu_clip.log import get_logger
 from yuu_clip.scoring.dedup import DUPLICATE_TAG
@@ -28,12 +26,10 @@ from yuu_clip.web.routes.clips.schemas import (
 )
 from yuu_clip.web.routes.clips.serialize import _clip_dict
 from yuu_clip.web.routes.common import (
-    active_job,
-    json_list,
     reject_if_busy,
     require_clip,
-    sse_response,
 )
+from yuu_clip.web.sse import subprocess_sse, terminate_process_tree_async
 
 _log = get_logger(__name__)
 
@@ -242,23 +238,41 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
             raise HTTPException(500, "Auto-framing failed - see the log for details")
         return {"crop_x": crop_x}
 
+    async def _ensure_vision_server_url(clip_id: int) -> str:
+        """Ensure the web server's warm vision llama-server is up and return its base
+        URL for the subprocess to POST to. Offloaded so a first-run cold model load
+        never blocks the event loop. 503 if the server cannot be started."""
+        from yuu_clip.scoring.llamacpp_server import get_server_pool
+
+        config = ctx.config
+        try:
+            return await asyncio.to_thread(
+                get_server_pool().ensure_server_url,
+                config,
+                model_path=config.llm_vision_model_path,
+                mmproj_path=config.llm_mmproj_path,
+            )
+        except Exception as exc:
+            _log.error(
+                "Could not start the vision model server for clip %d: %s",
+                clip_id, exc, exc_info=True,
+            )
+            raise HTTPException(
+                503, "Image analysis unavailable - the vision model could not be started"
+            )
+
     @router.post("/api/clips/{clip_id}/analyze-frames")
     async def analyze_frames(clip_id: int):
         """Sample frames from the clip window, send them to the vision model, and store
-        a short 'what's on screen' summary. Streamed as SSE with two stages (sampling
-        frames -> describing) so it shows in the job header and survives navigation like
-        every other long op; counted (active_job) and serialized via reject_if_busy.
+        a short 'what's on screen' summary. Runs as a killable subprocess
+        (pipeline/frame_analysis.py) that POSTs to the web server's warm vision
+        llama-server, so a long inference on a large model can be cancelled - killing
+        the subprocess drops the connection and generation stops, while the model stays
+        warm for the next run. Streamed as SSE with two stages (sampling -> describing);
+        counted (active_job via track_active_job) and serialized via reject_if_busy.
         503 when no vision-capable model is configured. Re-running overwrites the summary.
         """
-        from yuu_clip.analyze.frames import (
-            clamp_frame_count,
-            resolve_frame_window,
-            sample_clip_frames,
-        )
-        from yuu_clip.contexts import format_context_block, load_contexts
-        from yuu_clip.pipeline.progress import Stage, format_progress
-        from yuu_clip.scoring.llm import check_vision_available, describe_frames
-        from yuu_clip.scoring.llm_client import VisionNotSupportedError
+        from yuu_clip.scoring.llm import check_vision_available
 
         reject_if_busy(ctx, "Image analysis")
         vision_ok, reason = check_vision_available(ctx.config)
@@ -273,65 +287,30 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
                 raise HTTPException(404, "Video not found")
             if not Path(video.path).exists():
                 raise HTTPException(404, "Source video file not found on disk")
-            encode_src, start_s, end_s = resolve_frame_window(video, clip, ctx.proxy_dir)
-            frame_count = clamp_frame_count(ctx.config)
-            context_names = json_list(video.context_names_json)
         finally:
             db.close()
 
-        context_text = format_context_block(load_contexts(ctx.project_dir), context_names)
+        base_url = await _ensure_vision_server_url(clip_id)
+        cmd = [
+            sys.executable, "-m", "yuu_clip.pipeline.frame_analysis",
+            "--clip-id", str(clip_id), "--project", str(ctx.project_dir),
+            "--base-url", base_url,
+        ]
+        return await subprocess_sse(
+            cmd, ctx.project_dir, ctx,
+            cancel_flag_attr="frames_cancelled",
+            cancel_message="[Image analysis cancelled]",
+            track_active_job=True,
+        )
 
-        def _sse(payload) -> str:
-            return f"data: {json.dumps(payload)}\n\n"
-
-        async def event_stream():
-            async with active_job(ctx):
-                started = time.monotonic()
-                # Sampling and inference share a temp dir: the frame files must still
-                # exist on disk while describe_frames reads them, so both awaits live
-                # inside the same TemporaryDirectory context.
-                try:
-                    with tempfile.TemporaryDirectory() as tmp_dir:
-                        yield _sse(format_progress(Stage.FRAMES_SAMPLE, done=0, total=frame_count))
-                        frames = await asyncio.to_thread(
-                            sample_clip_frames, encode_src, start_s, end_s, frame_count, Path(tmp_dir)
-                        )
-                        if not frames:
-                            yield _sse("[Error: could not sample any frames from the clip window]")
-                            yield _sse("__DONE__")
-                            return
-                        yield _sse(format_progress(Stage.FRAMES_SAMPLE, done=len(frames), total=frame_count))
-                        yield _sse(format_progress(Stage.FRAMES_DESCRIBE))
-                        summary = await asyncio.to_thread(
-                            describe_frames, frames, ctx.config, context_text
-                        )
-                except VisionNotSupportedError as exc:
-                    yield _sse(f"[Image analysis unavailable - {exc}]")
-                    yield _sse("__DONE__")
-                    return
-                except Exception as exc:
-                    _log.error("Frame analysis failed for clip %d: %s", clip_id, exc, exc_info=True)
-                    yield _sse("[Image analysis failed - see the log for details]")
-                    yield _sse("__DONE__")
-                    return
-
-                if not summary:
-                    yield _sse("[The vision model returned an empty description - try again]")
-                    yield _sse("__DONE__")
-                    return
-
-                elapsed_s = round(time.monotonic() - started, 1)
-                save_db = ctx.get_db()
-                try:
-                    stored = save_db.get(ClipCandidate, clip_id)
-                    if stored:
-                        stored.vision_summary = summary
-                        stored.vision_analyzed_at = datetime.now(timezone.utc)
-                        save_db.commit()
-                finally:
-                    save_db.close()
-                _log.info("Analyzed %d frame(s) for clip %d in %.1fs", len(frames), clip_id, elapsed_s)
-                yield _sse(f"Analyzed {len(frames)} frame(s) in {elapsed_s}s")
-                yield _sse("__DONE__")
-
-        return sse_response(event_stream())
+    @router.post("/api/clips/{clip_id}/analyze-frames/cancel")
+    async def cancel_analyze_frames(clip_id: int):
+        """Cancel a running frame-analysis subprocess by killing its process tree, which
+        drops the llama-server connection so generation stops. clip_id is only for a
+        clean per-clip URL - one frame job runs at a time (reject_if_busy)."""
+        proc = ctx.analyze_proc
+        if proc is not None and proc.returncode is None:
+            ctx.frames_cancelled = True
+            _log.info("Image analysis cancelled by user (clip %d)", clip_id)
+            await terminate_process_tree_async(proc)
+        return {"status": "cancelled"}

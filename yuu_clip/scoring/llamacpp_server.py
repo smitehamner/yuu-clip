@@ -152,6 +152,25 @@ def _port_is_free(port: int) -> bool:
         return sock.connect_ex(("127.0.0.1", port)) != 0
 
 
+def post_chat_completion(base_url: str, payload: dict, timeout: float = _REQUEST_TIMEOUT_S) -> dict:
+    """POST an OpenAI-style chat-completions *payload* to a running llama-server at
+    *base_url*. Module-level (pool-independent) so the frame-analysis subprocess can
+    call a warm, web-server-managed server directly by URL - killing that subprocess
+    drops this connection and llama-server aborts generation mid-inference."""
+    body = json.dumps(payload).encode("utf-8")
+    request = urllib.request.Request(
+        f"{base_url}/v1/chat/completions",
+        data=body, headers={"Content-Type": "application/json"},
+    )
+    with urllib.request.urlopen(request, timeout=timeout) as resp:
+        return json.load(resp)
+
+
+def completion_text(data: dict) -> str:
+    """Pull the assistant message text out of a chat-completions response body."""
+    return data["choices"][0]["message"]["content"]
+
+
 @dataclass
 class ServerHandle:
     proc: subprocess.Popen
@@ -192,7 +211,16 @@ class LlamaServerPool:
             handle = self._ensure_server(config, model_path, mmproj_path)
             payload = {"messages": messages, "temperature": temperature, "max_tokens": max_tokens}
             data = self._post(handle, payload)
-        return data["choices"][0]["message"]["content"]
+        return completion_text(data)
+
+    def ensure_server_url(self, config: Config, *, model_path: str, mmproj_path: str) -> str:
+        """Ensure the (model, mmproj) server is running and return its base URL, so an
+        out-of-process caller (the killable frame-analysis subprocess) can POST to the
+        warm, web-server-managed server directly instead of spawning its own and
+        cold-loading the model. Serialized like a chat call so it can't race a model
+        swap."""
+        with self._call_lock:
+            return self._ensure_server(config, model_path, mmproj_path or "").base_url
 
     def shutdown_all(self) -> None:
         with self._lock:
@@ -313,13 +341,7 @@ class LlamaServerPool:
         )
 
     def _post(self, handle: ServerHandle, payload: dict) -> dict:
-        body = json.dumps(payload).encode("utf-8")
-        request = urllib.request.Request(
-            f"{handle.base_url}/v1/chat/completions",
-            data=body, headers={"Content-Type": "application/json"},
-        )
-        with urllib.request.urlopen(request, timeout=_REQUEST_TIMEOUT_S) as resp:
-            return json.load(resp)
+        return post_chat_completion(handle.base_url, payload)
 
     def _stop(self, handle: ServerHandle) -> None:
         if not handle.is_alive():

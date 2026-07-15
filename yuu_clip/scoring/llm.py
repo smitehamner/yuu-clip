@@ -540,6 +540,24 @@ def describe_frames(image_paths, config: "Config", context_text: str = "") -> st
     return _clean_vision_summary(raw)
 
 
+def describe_frames_via_server(image_paths, context_text: str, base_url: str) -> str:
+    """Like describe_frames, but POST directly to an already-running llama-server at
+    *base_url* (bypassing the pool). Used by the killable frame-analysis subprocess so
+    the web server keeps the vision model warm while the subprocess owns the cancelable
+    HTTP call."""
+    from yuu_clip.scoring.llamacpp_server import completion_text, post_chat_completion
+    from yuu_clip.scoring.llm_client import vision_payload_messages
+
+    prompt = _prepend_context(_VISION_USER_PROMPT, context_text)
+    payload = {
+        "messages": vision_payload_messages(
+            [{"role": "user", "content": prompt}], list(image_paths)
+        ),
+        "temperature": 0.2,
+    }
+    return _clean_vision_summary(completion_text(post_chat_completion(base_url, payload)))
+
+
 def check_vision_available(config: "Config") -> tuple[bool, str]:
     """Return (available, reason) for image analysis on the active backend - the cheap
     pre-check routes gate on, mirroring check_llm_available. The backstop is the

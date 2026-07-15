@@ -304,38 +304,108 @@ class TestAnalyzeFramesRoute:
         resp = client.post("/api/clips/1/analyze-frames")
         assert resp.status_code == 404
 
-    def test_success_stores_summary_via_stream(
+    def test_launches_killable_subprocess_with_warm_server_url(
         self, client: TestClient, project_dir: Path, monkeypatch,
     ):
-        # Now an SSE stream (sampling -> describing); the summary is persisted and
-        # the browser re-fetches the clip to render it. Mock the two phases the route
-        # drives directly (sample_clip_frames + describe_frames).
-        import yuu_clip.analyze.frames as frames_mod
-        import yuu_clip.scoring.llm as llm_mod
+        # The route now ensures the web server's warm vision llama-server, hands its
+        # base URL to a killable subprocess (pipeline/frame_analysis.py), and streams
+        # it via subprocess_sse with the frames cancel flag. Assert that wiring rather
+        # than running a real subprocess/server.
+        import yuu_clip.web.routes.clips.edit as edit_mod
         _enable_llamacpp_vision(client, project_dir)
         (project_dir / "session.mkv").write_bytes(b"x")  # make video.path exist
-        monkeypatch.setattr(frames_mod, "sample_clip_frames", lambda *a, **k: [project_dir / "f1.jpg"])
+
+        class _FakePool:
+            def ensure_server_url(self, config, *, model_path, mmproj_path):
+                return "http://127.0.0.1:9931"
+
         monkeypatch.setattr(
-            llm_mod, "describe_frames",
-            lambda *a, **k: "On screen: two players defuse a bomb.",
+            "yuu_clip.scoring.llamacpp_server.get_server_pool", lambda: _FakePool()
         )
+        captured: dict = {}
+
+        async def fake_subprocess_sse(cmd, cwd, ctx=None, **kwargs):
+            from starlette.responses import StreamingResponse
+            captured["cmd"] = cmd
+            captured["kwargs"] = kwargs
+
+            async def _gen():
+                yield 'data: "__DONE__"\n\n'
+
+            return StreamingResponse(_gen(), media_type="text/event-stream")
+
+        monkeypatch.setattr(edit_mod, "subprocess_sse", fake_subprocess_sse)
+
         resp = client.post("/api/clips/1/analyze-frames")
         assert resp.status_code == 200, resp.text
-        assert "__DONE__" in resp.text
-        # Persisted + serialized on the clip.
-        clip = client.get("/api/clips/1").json()
-        assert clip["vision_summary"] == "On screen: two players defuse a bomb."
-        assert clip["vision_analyzed_at"]
+        cmd = captured["cmd"]
+        assert "yuu_clip.pipeline.frame_analysis" in cmd
+        assert cmd[cmd.index("--clip-id") + 1] == "1"
+        assert cmd[cmd.index("--base-url") + 1] == "http://127.0.0.1:9931"
+        assert captured["kwargs"]["cancel_flag_attr"] == "frames_cancelled"
+        assert captured["kwargs"]["track_active_job"] is True
 
-    def test_clip_deleted_mid_analysis_skips_save_cleanly(
-        self, client: TestClient, project_dir: Path, monkeypatch,
+
+class TestRunFrameAnalysis:
+    """The killable subprocess entry point: samples frames, describes them against the
+    handed-off warm server, stores the summary, and emits progress markers."""
+
+    def test_stores_summary_and_emits_progress(
+        self, project_dir: Path, monkeypatch, capsys,
     ):
-        # If the clip is deleted while the vision call runs, the save-back session
-        # finds nothing and skips silently - the stream still completes cleanly.
         import yuu_clip.analyze.frames as frames_mod
+        import yuu_clip.pipeline.frame_analysis as fa
         import yuu_clip.scoring.llm as llm_mod
         from yuu_clip.db.models import ClipCandidate, make_session
-        _enable_llamacpp_vision(client, project_dir)
+        (project_dir / "session.mkv").write_bytes(b"x")
+        monkeypatch.setattr(frames_mod, "sample_clip_frames", lambda *a, **k: [project_dir / "f1.jpg"])
+        monkeypatch.setattr(
+            llm_mod, "describe_frames_via_server",
+            lambda *a, **k: "On screen: two players defuse a bomb.",
+        )
+        assert fa.run_frame_analysis(1, project_dir, "http://127.0.0.1:1") == 0
+        out = capsys.readouterr().out
+        assert "@@PROGRESS" in out           # marker-driven progress for the job header
+        assert "Analyzed 1 frame(s)" in out  # success line (not bracketed - no toast)
+        session = make_session(project_dir / ".yuu-clip" / "project.db")
+        try:
+            clip = session.get(ClipCandidate, 1)
+            assert clip.vision_summary == "On screen: two players defuse a bomb."
+            assert clip.vision_analyzed_at is not None
+        finally:
+            session.close()
+
+    def test_no_frames_sampled_emits_error_line(self, project_dir: Path, monkeypatch, capsys):
+        import yuu_clip.analyze.frames as frames_mod
+        import yuu_clip.pipeline.frame_analysis as fa
+        (project_dir / "session.mkv").write_bytes(b"x")
+        monkeypatch.setattr(frames_mod, "sample_clip_frames", lambda *a, **k: [])
+        assert fa.run_frame_analysis(1, project_dir, "http://x") == 0
+        assert "could not sample any frames" in capsys.readouterr().out
+
+    def test_vision_call_failure_reports_bracketed_line(self, project_dir: Path, monkeypatch, capsys):
+        import yuu_clip.analyze.frames as frames_mod
+        import yuu_clip.pipeline.frame_analysis as fa
+        import yuu_clip.scoring.llm as llm_mod
+        (project_dir / "session.mkv").write_bytes(b"x")
+        monkeypatch.setattr(frames_mod, "sample_clip_frames", lambda *a, **k: [project_dir / "f1.jpg"])
+
+        def _boom(*a, **k):
+            raise RuntimeError("connection refused")
+
+        monkeypatch.setattr(llm_mod, "describe_frames_via_server", _boom)
+        assert fa.run_frame_analysis(1, project_dir, "http://x") == 0
+        assert "[Image analysis failed" in capsys.readouterr().out
+
+    def test_clip_deleted_mid_analysis_skips_save_cleanly(
+        self, project_dir: Path, monkeypatch,
+    ):
+        # If the clip is deleted while the vision call runs, the save-back session
+        # finds nothing and skips silently - the run still returns success.
+        import yuu_clip.analyze.frames as frames_mod
+        import yuu_clip.pipeline.frame_analysis as fa
+        import yuu_clip.scoring.llm as llm_mod
+        from yuu_clip.db.models import ClipCandidate, make_session
         (project_dir / "session.mkv").write_bytes(b"x")
 
         def delete_then_describe(*a, **k):
@@ -346,11 +416,78 @@ class TestAnalyzeFramesRoute:
             return "On screen: the clip is already gone."
 
         monkeypatch.setattr(frames_mod, "sample_clip_frames", lambda *a, **k: [project_dir / "f1.jpg"])
-        monkeypatch.setattr(llm_mod, "describe_frames", delete_then_describe)
-        resp = client.post("/api/clips/1/analyze-frames")
+        monkeypatch.setattr(llm_mod, "describe_frames_via_server", delete_then_describe)
+        assert fa.run_frame_analysis(1, project_dir, "http://x") == 0
+
+        session = make_session(project_dir / ".yuu-clip" / "project.db")
+        try:
+            assert session.get(ClipCandidate, 1) is None
+        finally:
+            session.close()
+
+
+class TestCancelAnalyzeFrames:
+    def test_cancel_sets_flag_and_terminates_the_proc(self, client: TestClient, monkeypatch):
+        from types import SimpleNamespace
+
+        from yuu_clip.web.routes.clips import edit as edit_mod
+        terminated: list = []
+
+        async def fake_terminate(proc):
+            terminated.append(proc)
+
+        monkeypatch.setattr(edit_mod, "terminate_process_tree_async", fake_terminate)
+        ctx = client.app.state.ctx
+        ctx.frames_cancelled = False
+        ctx.analyze_proc = SimpleNamespace(returncode=None, pid=4242)
+
+        resp = client.post("/api/clips/1/analyze-frames/cancel")
         assert resp.status_code == 200
-        assert "__DONE__" in resp.text
-        assert client.get("/api/clips/1").status_code == 404
+        assert resp.json() == {"status": "cancelled"}
+        assert ctx.frames_cancelled is True
+        assert terminated == [ctx.analyze_proc]
+
+    def test_cancel_is_a_noop_when_nothing_is_running(self, client: TestClient):
+        client.app.state.ctx.analyze_proc = None
+        resp = client.post("/api/clips/1/analyze-frames/cancel")
+        assert resp.status_code == 200
+        assert resp.json() == {"status": "cancelled"}
+        assert client.app.state.ctx.frames_cancelled is False
+
+
+class TestVisionServerHelpers:
+    def test_vision_payload_messages_attaches_images_to_user_turn(self, tmp_path):
+        from yuu_clip.scoring.llm_client import vision_payload_messages
+        img = tmp_path / "a.jpg"
+        img.write_bytes(b"x")
+        messages = vision_payload_messages(
+            [{"role": "system", "content": "SYS"}, {"role": "user", "content": "describe"}],
+            [img],
+        )
+        assert messages[0] == {"role": "system", "content": "SYS"}
+        user = messages[-1]
+        assert user["role"] == "user"
+        assert user["content"][0] == {"type": "text", "text": "describe"}
+        assert user["content"][1]["type"] == "image_url"
+        assert user["content"][1]["image_url"]["url"].startswith("data:image/jpeg;base64,")
+
+    def test_describe_frames_via_server_posts_and_cleans(self, monkeypatch, tmp_path):
+        import yuu_clip.scoring.llm as llm_mod
+        captured: dict = {}
+
+        def fake_post(base_url, payload, timeout=600.0):
+            captured["base_url"] = base_url
+            captured["payload"] = payload
+            return {"choices": [{"message": {"content": "  A vault heist.  "}}]}
+
+        monkeypatch.setattr("yuu_clip.scoring.llamacpp_server.post_chat_completion", fake_post)
+        frames = [tmp_path / "a.jpg"]
+        (tmp_path / "a.jpg").write_bytes(b"x")
+        result = llm_mod.describe_frames_via_server(frames, "CTX", "http://127.0.0.1:5")
+        assert result == "A vault heist."  # cleaned/stripped
+        assert captured["base_url"] == "http://127.0.0.1:5"
+        # World context is prepended to the user prompt text.
+        assert captured["payload"]["messages"][-1]["content"][0]["text"].startswith("CTX")
 
 
 class TestRescoreIncludeFrames:

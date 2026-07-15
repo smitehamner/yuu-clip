@@ -576,3 +576,47 @@ class TestPoolSingleton:
             assert reloaded.shutdown_server_pool in registered
         finally:
             importlib.reload(srv)  # restore the real module state for other tests
+
+
+class TestModuleChatHelpers:
+    """The pool-independent POST helpers the frame-analysis subprocess calls to talk to
+    the web server's warm server directly."""
+
+    def test_post_chat_completion_posts_to_the_completions_url(self, monkeypatch):
+        import json as _json
+        captured: dict = {}
+
+        class _Resp:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def read(self):
+                return b'{"choices": [{"message": {"content": "hi"}}]}'
+
+        def fake_urlopen(request, timeout=None):
+            captured["url"] = request.full_url
+            captured["body"] = request.data
+            return _Resp()
+
+        monkeypatch.setattr(srv.urllib.request, "urlopen", fake_urlopen)
+        data = srv.post_chat_completion(
+            "http://127.0.0.1:1234", {"messages": [], "temperature": 0.2}
+        )
+        assert data == {"choices": [{"message": {"content": "hi"}}]}
+        assert captured["url"] == "http://127.0.0.1:1234/v1/chat/completions"
+        assert _json.loads(captured["body"])["temperature"] == 0.2
+
+    def test_completion_text_extracts_message_content(self):
+        assert srv.completion_text({"choices": [{"message": {"content": "x"}}]}) == "x"
+
+    def test_ensure_server_url_spawns_once_and_returns_base_url(self, fake_spawn):
+        pool = LlamaServerPool()
+        url = pool.ensure_server_url(_cfg(), model_path="m.gguf", mmproj_path="")
+        assert url.startswith("http://127.0.0.1:")
+        assert len(fake_spawn) == 1
+        # A second ensure for the same key reuses the warm server, no cold reload.
+        assert pool.ensure_server_url(_cfg(), model_path="m.gguf", mmproj_path="") == url
+        assert len(fake_spawn) == 1
