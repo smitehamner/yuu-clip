@@ -329,7 +329,7 @@ async function _renderCapabilityTiers() {
   }
   if (intro) {
     intro.textContent = data.lightweight
-      ? "You're running in lightweight mode - transcription, scoring, and clip descriptions all work right now. Install a local model anytime for richer AI descriptions and smarter scoring."
+      ? "No local model is set up yet - transcription and the core scoring are working, and clips get a short template description. Setting up a local model is the normal next step: it adds written descriptions, session summaries, and a smarter read on scoring."
       : "Here's what each part of YuuClip is using right now, and what you can upgrade.";
   }
   list.innerHTML = (data.tiers || []).map(_capabilityTierHtml).join('');

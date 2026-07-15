@@ -236,7 +236,7 @@ function _renderClipItems(clips) {
                 })()}</span>`)
           : '<span class="export-pill not-exported" title="Not yet exported">Not exported</span>'}
         <span class="status-dot dot-${c.status}" title="${c.status === 'approved' ? 'Approved' : c.status === 'rejected' ? 'Rejected' : 'Unreviewed'}">${c.status === 'approved' ? '✓' : c.status === 'rejected' ? '✕' : ''}</span>
-        ${(c.tags || []).includes('llm_error') ? '<span class="clip-error-badge" title="LLM scoring failed - Re-score to retry">&#9888;</span>' : ''}
+        ${(c.tags || []).includes('llm_error') && !!(window._prereqs || {}).llm_ok ? '<span class="clip-error-badge" title="LLM scoring failed - Re-score to retry">&#9888;</span>' : ''}
         ${(c.sensitive_matches || []).length ? '<span class="clip-flag-badge" title="Contains flagged terms">&#9888;</span>' : ''}
         ${(c.tags || []).includes('possible_duplicate') ? '<span class="clip-dup-badge" title="Overlaps another clip - possible duplicate">&#8646;</span>' : ''}
       </div>
@@ -443,10 +443,41 @@ function _exportFormatsHtml(clip) {
     <button class="btn-secondary" style="margin-top:8px" onclick="exportClip(${clip.id})">+ Export another format</button>`;
 }
 
+// True when a clip's only one-liner is the transcript-derived template (tagged
+// desc_basic), no language model is usable right now, and generative AI was not
+// deliberately turned off. In that first-run state the template text (a few
+// transcript words) reads as a broken description, so the description area shows a
+// clear "set up a model" placeholder instead of quoting it. A user edit (which
+// strips desc_basic anyway) is never hidden.
+function _descNeedsModel(clip) {
+  return !!clip.tags && clip.tags.includes('desc_basic')
+    && !clip.description_is_edited
+    && !((window._prereqs || {}).llm_ok)
+    && (window._aiPrivacyMode || 'local_only') !== 'none';
+}
+
+// The clip's one-liner area. In the no-model first-run state a desc_basic clip gets
+// a call-to-action placeholder (see _descNeedsModel); otherwise the description (or
+// an "not scored yet" hint) plus the basic-fallback labelling chip.
+function _clipDescriptionHTML(clip) {
+  if (_descNeedsModel(clip)) {
+    return `<div class="needs-model-cta">
+      <div class="needs-model-heading">AI descriptions need a local model</div>
+      <div class="needs-model-detail">Baseline scoring already ran. Set up a local language model to add a written description for each clip.</div>
+      <button class="btn ghost" style="font-size:11px;padding:3px 9px" onclick="openSettings();setTimeout(()=>_scrollToSettingsSection('settings-sec-llm'),120)">Set up a local model</button>
+    </div>`;
+  }
+  const body = clip.description
+    ? `"${escHtml(clip.description)}"`
+    : `<span style="color:var(--muted);font-size:13px">No description yet - Re-score to generate</span>`;
+  return `<div class="description">${body}</div>${_basicDescChipHTML(clip)}`;
+}
+
 // A subtle nudge under a clip whose one-liner is the non-LLM template fallback
 // (tagged desc_basic by the scoring engine). The message adapts to why no language
-// model wrote the description, so a creator with a model already set up isn't told to
-// "install a local model". Absent once an LLM description or a creator edit lands.
+// model wrote the description. The no-model case is handled by _descNeedsModel /
+// _clipDescriptionHTML instead, so this only covers "AI deliberately off" (the
+// template is the intended output) and "model set up now, re-analyze to upgrade".
 function _basicDescChipHTML(clip) {
   if (!clip.tags || !clip.tags.includes('desc_basic')) return '';
   const tip = 'This one-liner was built from the transcript without a language model';
@@ -457,16 +488,7 @@ function _basicDescChipHTML(clip) {
   }
   // A language model is usable right now, so the clip is basic only because it was
   // scored before the model was available - re-analyzing upgrades it.
-  if ((window._prereqs || {}).llm_ok) {
-    return `<div class="basic-desc-chip" title="${tip}">Basic description - a language model is set up now; re-analyze this recording to add an AI description</div>`;
-  }
-  // No usable model. The reason (from /api/prereqs) distinguishes "none configured"
-  // from "configured but not loadable" (e.g. missing runtime, bad path).
-  const reason = (window._prereqs || {}).llm_reason;
-  const why = reason ? ` (${escHtml(reason)})` : '';
-  return `<div class="basic-desc-chip" title="${tip}">
-    Basic description - <a href="#" onclick="event.preventDefault();openSettings();setTimeout(()=>_scrollToSettingsSection('settings-sec-llm'),120)">set up a language model</a> for richer AI descriptions${why}
-  </div>`;
+  return `<div class="basic-desc-chip" title="${tip}">Basic description - a language model is set up now; re-analyze this recording to add an AI description</div>`;
 }
 
 function renderDetail(clip) {
@@ -536,8 +558,7 @@ function renderDetail(clip) {
 
     ${collapsibleCard('clip-description',
         `<span class="detail-card-title">Description${eb(clip.description_is_edited)}</span>`, `
-      <div class="description">${clip.description ? `"${escHtml(clip.description)}"` : `<span style="color:var(--muted);font-size:13px">No description yet - Re-score to generate</span>`}</div>
-      ${_basicDescChipHTML(clip)}
+      ${_clipDescriptionHTML(clip)}
 
       ${clip.description_long ? `
         <hr class="detail-card-divider">
@@ -555,7 +576,7 @@ function renderDetail(clip) {
       <datalist id="clip-tags-datalist"></datalist>
       ${_generatedTagPillsHTML(clip.tags)}`, {
       actions: `<div style="display:flex;gap:4px">
-          ${clip.description ? `<button class="btn ghost" style="font-size:11px;padding:3px 9px" title="Copy description" aria-label="Copy description" data-copy="description">Copy</button>` : ''}
+          ${clip.description && !_descNeedsModel(clip) ? `<button class="btn ghost" style="font-size:11px;padding:3px 9px" title="Copy description" aria-label="Copy description" data-copy="description">Copy</button>` : ''}
           <button class="kebab-btn" title="Edit or regenerate description" aria-label="Edit or regenerate description" onclick="openDescKebab(${clip.id}, this)">&#8942;</button>
         </div>`,
     })}

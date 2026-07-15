@@ -998,18 +998,27 @@ class TestBasicDescriptionChip:
             [clip, ai_mode, prereqs or {"ffmpeg_ok": True, "llm_ok": False, "llm_reason": ""}],
         )
 
-    def test_chip_shown_when_no_model_available(self, page: Page):
+    def test_placeholder_shown_when_no_model_available(self, page: Page):
+        # No usable model: the transcript-derived template reads as broken, so the
+        # description area shows a "set up a model" placeholder instead of quoting it,
+        # and never leaks the reason string (which could carry a raw path).
         page.goto(LIVE_URL)
         page.wait_for_selector("#video-list li[data-video-id]", timeout=5000)
+        clip = self._clip(9401, ["desc_basic"])
         self._render_with_state(
-            page, self._clip(9401, ["desc_basic"]),
-            prereqs={"ffmpeg_ok": True, "llm_ok": False, "llm_reason": "No model file path set"},
+            page, clip,
+            prereqs={"ffmpeg_ok": True, "llm_ok": False,
+                     "llm_reason": r"Model file not found: C:\Users\someone\model.gguf"},
         )
-        chip = page.locator(".basic-desc-chip")
-        expect(chip).to_be_visible()
-        expect(chip).to_contain_text("Basic description")
-        expect(chip.locator("a")).to_contain_text("set up a language model")
-        expect(chip).to_contain_text("No model file path set")
+        cta = page.locator("#detail .needs-model-cta")
+        expect(cta).to_be_visible()
+        expect(cta).to_contain_text("AI descriptions need a local model")
+        expect(cta.locator("button")).to_contain_text("Set up a local model")
+        # The template one-liner must not be quoted as a real description here.
+        expect(page.locator("#detail .description")).to_have_count(0)
+        expect(page.locator(".basic-desc-chip")).to_have_count(0)
+        # No raw path leak anywhere in the rendered detail pane.
+        expect(page.locator("#detail")).not_to_contain_text(r"C:\Users")
 
     def test_chip_offers_reanalyze_when_model_available(self, page: Page):
         page.goto(LIVE_URL)

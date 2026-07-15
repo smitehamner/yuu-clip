@@ -10,9 +10,12 @@ web page - keep the good ones, skip the rest - and export them or stitch them in
 highlight reel. Silent, action-only gameplay is supported too, but talk-driven content
 is where YuuClip shines.
 
-**Everything runs on your own computer.** It works out of the box with no AI language
-model at all; adding a local model is optional and unlocks richer scoring and written
-clip descriptions. No cloud accounts, no uploads, no subscriptions.
+**Everything runs on your own computer.** No cloud accounts, no uploads, no
+subscriptions. First-run setup includes a one-click download of a small local language
+model - the normal first step, handled for you by the desktop wizard - that writes each
+clip's description and sharpens the scoring. The core scoring (laughter, excitement,
+keywords, scene changes, on-screen action) runs even before that download finishes, so
+nothing looks empty while it works.
 
 ---
 
@@ -22,9 +25,9 @@ clip descriptions. No cloud accounts, no uploads, no subscriptions.
   sound) from OBS
 - Transcribes every track locally with Whisper - optionally noting who is speaking
 - Scores each moment using laughter, excitement, keywords, scene changes, and on-screen
-  action - no AI model required
-- Optionally adds AI scoring and a written description of each clip if you install a
-  local model
+  action - this baseline works even before the language model finishes downloading
+- Adds a semantic read of the transcript and a written description for each clip using
+  the local language model set up on first run
 - Gives you a web page to review clips, approve or reject them, tidy up captions, and
   export
 - Exports finished clips with optional captions, and can compile your favourites into a

@@ -116,7 +116,7 @@ Models are downloaded from HuggingFace on first use and cached locally
 recordings-folder/
 └── .yuu-clip/
     ├── project.db        ← SQLite (all metadata, transcripts, clips, scores)
-    ├── config.toml       ← project config (overrides global defaults)
+    ├── config.json       ← project config (overrides global defaults)
     ├── audio/
     │   ├── session_stream0.wav
     │   └── session_stream1.wav

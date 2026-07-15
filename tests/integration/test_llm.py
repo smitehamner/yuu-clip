@@ -113,6 +113,28 @@ class TestCapabilities:
         _patch(client, llm_vision_model_path=str(vision_model_file))
         assert client.get("/api/llm/capabilities").json()["vision"] is True
 
+    def test_detail_never_leaks_the_model_path(
+        self, client: TestClient, project_dir: Path,
+    ):
+        # The detail string renders in Settings and clip descriptions; a raw path
+        # would leak the user's home dir into screenshots (no-personal-paths rule).
+        missing = str(project_dir / "does-not-exist.gguf")
+        _patch(client, llm_enabled=True, llm_backend="llamacpp",
+               llm_model_path=missing, llm_mmproj_path="", llm_vision_model_path="")
+        detail = client.get("/api/llm/capabilities").json()["detail"]
+        assert missing not in detail
+        assert str(project_dir) not in detail
+
+        # Same for a missing vision projector while the text model is present.
+        model_file = project_dir / "model.gguf"
+        model_file.write_bytes(b"gguf")
+        missing_mmproj = str(project_dir / "no-mmproj.gguf")
+        missing_vision = str(project_dir / "no-vision.gguf")
+        _patch(client, llm_model_path=str(model_file),
+               llm_vision_model_path=missing_vision, llm_mmproj_path=missing_mmproj)
+        detail = client.get("/api/llm/capabilities").json()["detail"]
+        assert str(project_dir) not in detail
+
 
 class TestModuleFindable:
     """The tier tests above monkeypatch module_findable; these pin its real

@@ -217,9 +217,10 @@ footer {
     <section>
       <div class="sec-title">LLM scoring</div>
       <div class="sec-note">
-        An LLM reads the transcript to score and describe each clip. Without it, clips are
-        still found using audio energy and scene detection - just without quality scores or
-        descriptions.
+        A local language model writes each clip's description and adds a semantic read on
+        top of the scoring. Setting one up is the normal first step - a one-click download
+        that runs in the background. Even before it finishes, clips are still found and
+        scored from laughter, excitement, keywords, and scene / on-screen action.
       </div>
       <div class="sec-note" id="llm-rec-headline" style="color:#b8b8d0;font-weight:600"></div>
 
@@ -239,9 +240,9 @@ footer {
         <div class="body">
           <label class="chk-title" for="local-ai-no">Lightweight mode (no download)</label>
           <div class="desc">
-            Skip the model download. Clips are still found and searchable, just
-            without LLM quality scores or descriptions. You can set up local AI
-            anytime in Settings.
+            Skip the model download for now. Clips are still found and scored from audio
+            and on-screen signals - you just won't get written descriptions or the
+            model's semantic read. You can set up local AI anytime in Settings.
           </div>
         </div>
       </div>

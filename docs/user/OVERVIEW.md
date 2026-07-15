@@ -12,7 +12,7 @@ YuuClip watches your recordings for you. It listens to what was said, figures ou
 
 1. **You point it at a recording.** OBS output, shadowplay, whatever - as long as it's a video file.
 2. **It listens.** It runs your audio through a local speech-to-text model (Whisper, runs on your PC, nothing is uploaded anywhere) to get a full transcript of everything said during the session.
-3. **It scores.** It chops the session into clip windows and rates each one for how funny, dramatic, or action-packed it was - using an LLM that reads the transcript and scores what happened. This is a local model file that runs on your PC (GPU-accelerated), set up in the wizard or Settings.
+3. **It scores.** It chops the session into clip windows and rates each one for how funny, dramatic, or action-packed it was - listening for laughter and vocal excitement, matching keywords, and watching for scene changes and on-screen action. This baseline scoring needs no AI model. If you set up a local language model (a one-click download in the wizard or Settings; GPU-accelerated, runs entirely on your PC), it adds a semantic read of the transcript on top and writes a short description of each clip.
 4. **You review.** Open the web UI in your browser, flip through the clips, watch the ones that look good, approve or skip, then export.
 5. **You've got clips.** Ready-to-share video files, no re-encoding required unless you want frame-perfect cuts.
 

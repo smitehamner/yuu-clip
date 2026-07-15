@@ -2,6 +2,33 @@
 
 from __future__ import annotations
 
+class TestClientAvailableReasonNoPathLeak:
+    """LlamaCppServerClient.available() reasons render in the UI (clip descriptions,
+    analyze warnings), so they must never carry the absolute model path - it would
+    leak the user's home dir into screenshots (no-personal-paths rule)."""
+
+    def _config(self, **overrides):
+        from yuu_clip.config import Config
+        cfg = Config()
+        for k, v in overrides.items():
+            setattr(cfg, k, v)
+        return cfg
+
+    def test_missing_model_path_reason_has_no_path(self, tmp_path):
+        from yuu_clip.scoring.llm_client import LlamaCppServerClient
+        missing = str(tmp_path / "nope.gguf")
+        ok, reason = LlamaCppServerClient(self._config(llm_model_path=missing)).available()
+        assert ok is False
+        assert missing not in reason
+        assert str(tmp_path) not in reason
+
+    def test_unset_model_path_reason_has_no_path(self):
+        from yuu_clip.scoring.llm_client import LlamaCppServerClient
+        ok, reason = LlamaCppServerClient(self._config(llm_model_path="")).available()
+        assert ok is False
+        assert reason
+
+
 # ---------------------------------------------------------------------------
 # LLMScorer - is_available() branches
 # ---------------------------------------------------------------------------

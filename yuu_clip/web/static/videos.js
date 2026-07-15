@@ -162,9 +162,14 @@ function _videoItemLi(v, analyzingName, inSession) {
     ? `<div class="meta" style="color:var(--accent2)" title="Where this part sits inside the original recording">from ${_msToHms(v.segment_start_s * 1000)} to ${_msToHms(v.segment_end_s * 1000)}</div>`
     : '';
   const errCount = v.clips_llm_error || 0;
-  const errBadge = errCount > 0
+  // A missing model is a setup state, not a failure: when no language model is
+  // usable right now, these clips were simply scored before one was set up, so
+  // show a calm note rather than an alarming red "N scoring errors" badge.
+  const llmUsable = !!(window._prereqs || {}).llm_ok;
+  const errBadge = errCount === 0 ? ''
+    : llmUsable
     ? `<div class="meta" style="margin-top:2px;color:var(--warning)" title="LLM scoring failed for ${plural(errCount, 'clip')} - re-score to retry">&#9888; ${plural(errCount, 'scoring error')}</div>`
-    : '';
+    : `<div class="meta" style="margin-top:2px;color:var(--muted)" title="These clips were scored before a language model was set up - set one up, then re-score for AI scoring and descriptions">Scored without a language model</div>`;
   const checkbox = selectable
     ? `<input type="checkbox" class="session-select-box" aria-label="Select for grouping" ${SessionUI.selected.has(v.id) ? 'checked' : ''}>`
     : '';
@@ -655,7 +660,10 @@ function _renderContextSection(video) {
     : '';
 
   const errCount = video.clips_llm_error || 0;
-  const failedBtn = errCount > 0
+  // Only offer the retry when a model can actually run - otherwise re-scoring the
+  // "failed" clips just fails again. With no model these aren't failures, they're
+  // clips awaiting a first-run model (surfaced by the description prompt instead).
+  const failedBtn = (errCount > 0 && !!(window._prereqs || {}).llm_ok)
     ? `<button class="btn" style="font-size:12px;padding:4px 12px;border-color:var(--warning);color:var(--warning)" onclick="rescoreFailedClips(${video.id}, this)" title="Re-run LLM scoring only for the ${plural(errCount, 'clip')} that failed last time">&#9888; Re-score ${plural(errCount, 'failed clip')}</button>`
     : '';
 

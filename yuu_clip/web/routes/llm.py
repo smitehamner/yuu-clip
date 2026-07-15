@@ -124,10 +124,13 @@ def _llamacpp_capabilities(cfg, backend: str) -> dict:
     vision_model_ok = bool(vision_model_path) and Path(vision_model_path).exists()
     mmproj_ok = bool(mmproj) and Path(mmproj).exists()
     vision_ok = vision_model_ok and mmproj_ok
+    # Detail strings render in Settings and clip descriptions, so they must never
+    # contain an absolute model path - it would leak the user's home dir into any
+    # screenshot (and read as broken). Describe the state, not the path.
     if not model_path and not vision_model_path:
         detail = "No model file set - choose a .gguf under Settings → LLM scoring."
     elif not text_ok and model_path:
-        detail = f"Model file not found: {model_path}"
+        detail = "The set-up model file is missing - re-download it under Settings → LLM scoring."
     elif vision_ok:
         detail = "Text and vision models are set - image analysis is available."
     elif not vision_model_path and not mmproj:
@@ -137,10 +140,10 @@ def _llamacpp_capabilities(cfg, backend: str) -> dict:
             "No model file set - choose a .gguf under Settings → LLM scoring."
         )
     elif not vision_model_ok:
-        detail = f"Vision model file not found: {vision_model_path}" if vision_model_path else \
+        detail = "The set-up vision model file is missing - re-download it under Settings → LLM scoring." if vision_model_path else \
             "Vision projector is set but the vision model is missing - set a vision model under Settings → LLM scoring."
     else:
-        detail = f"Vision projector file not found: {mmproj}"
+        detail = "The set-up vision projector file is missing - re-download it under Settings → LLM scoring."
     return {
         "backend": backend, "model": model_path or None,
         "text": text_ok, "vision": vision_ok, "detail": detail,

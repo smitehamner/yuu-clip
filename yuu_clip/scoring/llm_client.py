@@ -64,9 +64,11 @@ class LlamaCppServerClient(LLMClient):
     def available(self) -> tuple[bool, str]:
         path = self._config.llm_model_path
         if not path:
-            return False, "No model file path set - open Settings (gear icon) and set 'Model file path' under LLM scoring"
+            return False, "No local model is set up yet - add one under Settings -> LLM scoring."
         if not Path(path).exists():
-            return False, f"Model file not found: {path}"
+            # Never surface the absolute path here - it renders in the UI (clip
+            # descriptions, analyze warnings) and would leak the user's home dir.
+            return False, "The set-up local model file is missing - re-download it under Settings -> LLM scoring."
         from yuu_clip.scoring.llamacpp_server import LlamaServerError, resolve_server_binary
         try:
             resolve_server_binary(self._config)
