@@ -141,6 +141,66 @@ class TestListAllCharacters(_Fixtures):
         assert rows[0]["context_name"] == "Fantasy RP"
 
 
+class TestLinkPersonToCharacter(_Fixtures):
+    def _person_and_character(self, client, project_dir):
+        cid = client.post("/api/contexts/fantasy-rp/characters", json={"name": "Alara"}).json()["id"]
+        db = self._db(project_dir)
+        voice = self._mint_person(db)
+        db.commit()
+        voice_id = voice.id
+        db.close()
+        return voice_id, cid
+
+    def test_link_sets_character(self, client, project_dir):
+        voice_id, cid = self._person_and_character(client, project_dir)
+        resp = client.post(f"/api/voices/{voice_id}/character", json={"character_id": cid})
+        assert resp.status_code == 200
+        assert resp.json()["character"] == {"id": cid, "name": "Alara", "context_slug": "fantasy-rp"}
+
+        db = self._db(project_dir)
+        try:
+            assert db.get(ProjectVoice, voice_id).character_id == cid
+        finally:
+            db.close()
+
+    def test_link_shows_in_voice_list(self, client, project_dir):
+        voice_id, cid = self._person_and_character(client, project_dir)
+        client.post(f"/api/voices/{voice_id}/character", json={"character_id": cid})
+        voices = client.get("/api/voices").json()
+        linked = next(v for v in voices if v["id"] == voice_id)
+        assert linked["character"]["name"] == "Alara"
+
+    def test_clear_link(self, client, project_dir):
+        voice_id, cid = self._person_and_character(client, project_dir)
+        client.post(f"/api/voices/{voice_id}/character", json={"character_id": cid})
+        resp = client.post(f"/api/voices/{voice_id}/character", json={"character_id": None})
+        assert resp.status_code == 200
+        assert resp.json()["character"] is None
+
+        db = self._db(project_dir)
+        try:
+            reloaded = db.get(ProjectVoice, voice_id)
+            assert reloaded.character_id is None
+            assert reloaded.name == "Alex"  # identity untouched
+        finally:
+            db.close()
+
+    def test_link_unknown_character_404(self, client, project_dir):
+        voice_id, _ = self._person_and_character(client, project_dir)
+        assert client.post(f"/api/voices/{voice_id}/character", json={"character_id": 9999}).status_code == 404
+
+    def test_link_unknown_person_404(self, client):
+        assert client.post("/api/voices/9999/character", json={"character_id": None}).status_code == 404
+
+    def test_person_with_no_link_reports_null_character(self, client, project_dir):
+        db = self._db(project_dir)
+        self._mint_person(db)
+        db.commit()
+        db.close()
+        voices = client.get("/api/voices").json()
+        assert voices[0]["character"] is None
+
+
 class TestContextDeleteCascade(_Fixtures):
     def test_deleting_context_deletes_characters_and_unlinks(self, client, project_dir):
         slug = self._make_context(client)

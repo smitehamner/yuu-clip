@@ -37,13 +37,18 @@ function _peopleMount(container) {
 }
 
 let _peopleCache = [];
+let _charactersCache = [];
 
 async function _loadPeople() {
   const list = document.getElementById('people-list');
   if (!list) return;
   try {
-    const voices = await fetch('/api/voices').then(r => r.json());
+    const [voices, chars] = await Promise.all([
+      fetch('/api/voices').then(r => r.json()),
+      fetch('/api/characters').then(r => r.json()).catch(() => []),
+    ]);
     _peopleCache = Array.isArray(voices) ? voices : [];
+    _charactersCache = Array.isArray(chars) ? chars : [];
     _renderPeople();
   } catch (_) {
     list.innerHTML = '<div class="transcript-empty">Could not load people.</div>';
@@ -77,8 +82,41 @@ function _personCardHtml(voice) {
         ${_mergeControlHtml(voice)}
       </div>
       ${_membersHtml(voice)}
+      ${_characterControlHtml(voice)}
       ${_suggestionsHtml(voice)}
     </div>`;
+}
+
+// Optional overlay: link this Person to a world-context Character (lore + scoring
+// boost). A project with no characters and no existing link shows no picker at all,
+// so a zero-context workflow is visually unchanged.
+function _characterControlHtml(voice) {
+  const linkedId = voice.character ? voice.character.id : null;
+  if (!_charactersCache.length && linkedId == null) return '';
+  return `
+    <div class="person-character">
+      <label class="person-character-label" for="voice-char-${voice.id}">Character</label>
+      <select class="voice-character-select" id="voice-char-${voice.id}" data-voice-id="${voice.id}"
+              aria-label="World-context character for ${escHtml(voice.display_name)}">
+        ${_characterOptions(linkedId)}
+      </select>
+    </div>`;
+}
+
+function _characterOptions(selectedId) {
+  const byContext = new Map();
+  for (const c of _charactersCache) {
+    const key = c.context_name || c.context_slug;
+    if (!byContext.has(key)) byContext.set(key, []);
+    byContext.get(key).push(c);
+  }
+  let html = `<option value="">No character</option>`;
+  for (const [ctxName, chars] of byContext) {
+    html += `<optgroup label="${escHtml(ctxName)}">`
+          + chars.map(c => `<option value="${c.id}"${c.id === selectedId ? ' selected' : ''}>${escHtml(c.name)}</option>`).join('')
+          + `</optgroup>`;
+  }
+  return html;
 }
 
 function _mergeControlHtml(voice) {
@@ -160,6 +198,26 @@ function _onPeopleChange(e) {
   const mergeSelect = e.target.closest('.voice-merge-select');
   if (mergeSelect && mergeSelect.value) {
     _mergePerson(parseInt(mergeSelect.dataset.voiceId, 10), parseInt(mergeSelect.value, 10));
+    return;
+  }
+  const charSelect = e.target.closest('.voice-character-select');
+  if (charSelect) {
+    _setPersonCharacter(parseInt(charSelect.dataset.voiceId, 10),
+      charSelect.value ? parseInt(charSelect.value, 10) : null);
+  }
+}
+
+async function _setPersonCharacter(voiceId, characterId) {
+  try {
+    const res = await fetch(`/api/voices/${voiceId}/character`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({character_id: characterId}),
+    });
+    if (!res.ok) throw new Error(formatApiError(await res.json().catch(() => ({}))));
+    showToast(characterId ? 'Character linked' : 'Character unlinked');
+    await _loadPeople();
+  } catch (err) {
+    showToast(`Could not update: ${err.message}`, 'error');
   }
 }
 

@@ -32,9 +32,16 @@ _VOICE = {
 }
 
 
+def _route_json(page: Page, url: str, payload) -> None:
+    page.route(url, lambda route: route.fulfill(
+        status=200, content_type="application/json", body=json.dumps(payload)))
+
+
 @skip_no_server
 class TestPeopleView:
-    def _open(self, page: Page) -> None:
+    def _open(self, page: Page, characters=None) -> None:
+        # _loadPeople awaits /api/characters too; stub it so the render is hermetic.
+        _route_json(page, "**/api/characters", characters or [])
         page.goto(LIVE_URL)
         page.wait_for_function("typeof openPeopleView === 'function'")
         page.evaluate("openPeopleView()")
@@ -106,3 +113,45 @@ class TestPeopleView:
         )
         self._open(page)
         expect(page.locator("#people-list")).to_contain_text("No people yet")
+
+
+_CHARACTER = {"id": 77, "context_slug": "fantasy-rp", "name": "Alara",
+              "lore": "elf", "score_boost": 0.3, "context_name": "Fantasy RP"}
+
+
+@skip_no_server
+class TestCharacterPicker:
+    def _open(self, page: Page, characters) -> None:
+        _route_json(page, "**/api/characters", characters)
+        page.goto(LIVE_URL)
+        page.wait_for_function("typeof openPeopleView === 'function'")
+        page.evaluate("openPeopleView()")
+
+    def test_picker_shows_when_characters_exist(self, page: Page):
+        _route_json(page, "**/api/voices", [{**_VOICE, "character": None}])
+        self._open(page, [_CHARACTER])
+        select = page.locator(".voice-character-select")
+        expect(select).to_have_count(1)
+        expect(select).to_contain_text("Alara")
+        assert select.input_value() == ""  # "No character" selected
+
+    def test_picker_hidden_with_no_characters_and_no_link(self, page: Page):
+        _route_json(page, "**/api/voices", [{**_VOICE, "character": None}])
+        self._open(page, [])
+        expect(page.locator(".voice-character-select")).to_have_count(0)
+
+    def test_preselects_linked_character(self, page: Page):
+        _route_json(page, "**/api/voices",
+                    [{**_VOICE, "character": {"id": 77, "name": "Alara", "context_slug": "fantasy-rp"}}])
+        self._open(page, [_CHARACTER])
+        assert page.locator(".voice-character-select").input_value() == "77"
+
+    def test_selecting_character_posts_link(self, page: Page):
+        _route_json(page, "**/api/voices", [{**_VOICE, "character": None}])
+        _route_json(page, "**/api/voices/*/character", {**_VOICE, "character": _CHARACTER})
+        self._open(page, [_CHARACTER])
+        with page.expect_request(
+            lambda r: r.url.endswith("/character") and r.method == "POST"
+        ) as req_info:
+            page.locator(".voice-character-select").select_option("77")
+        assert json.loads(req_info.value.post_data)["character_id"] == 77

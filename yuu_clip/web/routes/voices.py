@@ -23,7 +23,7 @@ from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import joinedload
 
-from yuu_clip.db.models import ClipCandidate, ProjectVoice, Speaker, Video, VoiceExemplar
+from yuu_clip.db.models import Character, ClipCandidate, ProjectVoice, Speaker, Video, VoiceExemplar
 from yuu_clip.log import get_logger
 from yuu_clip.transcribe.project_voice import cluster_speakers_into_voices
 from yuu_clip.web.deps import ProjectContext
@@ -52,6 +52,10 @@ class VoiceSplit(BaseModel):
     mint_new: bool = False  # also give the detached Speaker its own fresh Person
 
 
+class VoiceCharacter(BaseModel):
+    character_id: Optional[int] = None  # None clears the link (default, no-op scoring)
+
+
 def make_router(ctx: ProjectContext) -> APIRouter:
     router = APIRouter()
 
@@ -59,7 +63,12 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     def list_voices():
         db = ctx.get_db()
         try:
-            voices = db.query(ProjectVoice).order_by(ProjectVoice.display_index).all()
+            voices = (
+                db.query(ProjectVoice)
+                .options(joinedload(ProjectVoice.character))
+                .order_by(ProjectVoice.display_index)
+                .all()
+            )
             members = _members_by_voice(db)
             suggestions = _suggestions_by_voice(db)
             return [
@@ -273,6 +282,28 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         finally:
             db.close()
 
+    @router.post("/api/voices/{voice_id}/character")
+    def set_voice_character(voice_id: int, body: VoiceCharacter):
+        """Link this Person to a world-context Character, or clear the link (None).
+
+        A pure overlay: the link feeds the Character's lore + score boost to the scorer
+        but never changes the Person's name or voiceprint. Clearing it restores the
+        default no-op behavior.
+        """
+        db = ctx.get_db()
+        try:
+            voice = db.get(ProjectVoice, voice_id)
+            if not voice:
+                raise HTTPException(404, "Person not found")
+            if body.character_id is not None and not db.get(Character, body.character_id):
+                raise HTTPException(404, "Character not found")
+            voice.character_id = body.character_id
+            db.commit()
+            _log.info("Person %d character link set to %s", voice_id, body.character_id)
+            return _voice_dict(voice, _members_of(db, voice_id), _suggestions_of(db, voice_id))
+        finally:
+            db.close()
+
     return router
 
 
@@ -441,4 +472,13 @@ def _voice_dict(voice: ProjectVoice, members: list[dict], suggestions: list[dict
         "members": members,
         "suggestion_count": len(suggestions),
         "suggestions": suggestions,
+        "character": _character_link(voice.character),
     }
+
+
+def _character_link(character: Optional[Character]) -> Optional[dict]:
+    """Compact view of a Person's linked Character for the People-view picker. The UI
+    resolves the context's display name from its own loaded contexts by context_slug."""
+    if character is None:
+        return None
+    return {"id": character.id, "name": character.name, "context_slug": character.context_slug}
