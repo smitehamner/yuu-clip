@@ -15,7 +15,7 @@ $ASSET_NAME     = "cpython-$PYTHON_VERSION+$PYBUILD_TAG-x86_64-pc-windows-msvc-i
 $SHA256         = 'c6af85bb83d5158c9ff71f50dfad467853d1cd236f932b144e87e26e2ea2a83e'
 $DOWNLOAD_URL   = "https://github.com/astral-sh/python-build-standalone/releases/download/$PYBUILD_TAG/$ASSET_NAME"
 
-$root       = Split-Path $PSScriptRoot -Parent
+$root       = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent  # repo root (script lives in scripts/windows-release/)
 $cacheDir   = "$root\build\python-runtime-cache"
 $archive    = "$cacheDir\$ASSET_NAME"
 $runtimeDir = "$root\build\python-runtime"

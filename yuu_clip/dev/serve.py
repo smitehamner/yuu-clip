@@ -126,7 +126,7 @@ def serve(
     if LLAMA_RUNTIME_DIR.exists():
         env["YUU_CLIP_LLAMA_SERVER_DIR"] = str(LLAMA_RUNTIME_DIR)
     elif sys.platform == "win32":
-        console.print("Run scripts\\fetch-llama-server-runtime.ps1 to enable local LLM/vision in dev")
+        console.print("Run scripts\\windows-release\\fetch-llama-server-runtime.ps1 to enable local LLM/vision in dev")
     else:
         console.print("No local llama-server runtime found; local LLM/vision is disabled in dev")
 

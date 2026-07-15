@@ -49,7 +49,7 @@ $X264_COMMIT      = '0480cb0'
 $X264_SRC_NAME    = "x264-$X264_COMMIT.tar.gz"
 $X264_SRC_SHA256  = '8f3073feb4b98eba64f0439621cde77192d44799fd04018edb1cce80d7322bb9'
 
-$root       = Split-Path $PSScriptRoot -Parent
+$root       = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent  # repo root (script lives in scripts/windows-release/)
 $cacheDir   = "$root\build\ffmpeg-runtime-cache"
 $runtimeDir = "$root\build\ffmpeg-runtime"
 $versionMarker = "$runtimeDir\.version"

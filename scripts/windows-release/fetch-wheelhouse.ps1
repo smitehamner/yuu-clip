@@ -16,7 +16,7 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$root          = Split-Path $PSScriptRoot -Parent
+$root          = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent  # repo root (script lives in scripts/windows-release/)
 $lockPath      = "$root\requirements.lock"
 $runtimePython = "$root\build\python-runtime\python.exe"
 $wheelhouseDir = "$root\build\wheelhouse"
@@ -24,7 +24,7 @@ $marker        = "$wheelhouseDir\.lock-hash"
 
 # The local LLM/vision backend no longer bundles a llama-cpp-python wheel: it now
 # drives upstream's Vulkan llama-server binary over HTTP (fetched separately by
-# scripts\fetch-llama-server-runtime.ps1). So this wheelhouse holds only the base
+# scripts\windows-release\fetch-llama-server-runtime.ps1). So this wheelhouse holds only the base
 # runtime dependencies from requirements.lock below.
 
 if (-not (Test-Path $lockPath)) {
@@ -32,7 +32,7 @@ if (-not (Test-Path $lockPath)) {
     exit 1
 }
 if (-not (Test-Path $runtimePython)) {
-    Write-Error "Bundled Python runtime not found at $runtimePython - run scripts\fetch-python-runtime.ps1 first."
+    Write-Error "Bundled Python runtime not found at $runtimePython - run scripts\windows-release\fetch-python-runtime.ps1 first."
     exit 1
 }
 

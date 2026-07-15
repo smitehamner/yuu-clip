@@ -7,7 +7,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$root = Split-Path $PSScriptRoot -Parent
+$root = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent  # repo root (script lives in scripts/windows-release/)
 
 # ── 0. Bump version if requested ─────────────────────────────────────────────
 if ($Version -eq "") {
@@ -84,7 +84,7 @@ $wheelDir = "$root\build\wheel"
 # test with it would have been misleading. The rebuild below always produces fresh.
 $staleWhl = Get-ChildItem "$wheelDir\*.whl" -ErrorAction SilentlyContinue | Select-Object -First 1
 if ($staleWhl) {
-    $staleMsg = python "$root\scripts\check_wheel_deps.py" $staleWhl.FullName "$root\pyproject.toml"
+    $staleMsg = python "$PSScriptRoot\check_wheel_deps.py" $staleWhl.FullName "$root\pyproject.toml"
     if ($LASTEXITCODE -ne 0) { Write-Warning $staleMsg }
 }
 Remove-Item "$wheelDir\*.whl" -ErrorAction SilentlyContinue
@@ -113,25 +113,25 @@ Write-Host "Dependency lock present: $lockPath"
 
 # ── 4. Fetch the bundled Python runtime (cached after first build) ─────────
 Write-Host "`nFetching bundled Python runtime..."
-& "$root\scripts\fetch-python-runtime.ps1"
+& "$PSScriptRoot\fetch-python-runtime.ps1"
 
 # ── 4a. Build the offline dependency wheelhouse (cached; needs the runtime) ──
 # So first-run installs the base pipeline offline (--no-index) instead of hitting
 # PyPI at launch. Uses the bundled runtime's python for matching wheels.
 Write-Host "`nBuilding offline dependency wheelhouse..."
-& "$root\scripts\fetch-wheelhouse.ps1"
+& "$PSScriptRoot\fetch-wheelhouse.ps1"
 
 # ── 4a-bis. Assemble the prebuilt Python env (needs the wheel + wheelhouse) ──
 # Ships the finished venv so first-run unpacks an archive instead of running pip.
 # Includes a build-time relocation proof that fails the build if a moved venv
 # can't import the heavy natives (see scripts/build-prebuilt-env.ps1).
 Write-Host "`nAssembling prebuilt Python env..."
-& "$root\scripts\build-prebuilt-env.ps1"
+& "$PSScriptRoot\build-prebuilt-env.ps1"
 if ($LASTEXITCODE -ne 0) { Write-Error "Prebuilt env assembly failed (exit $LASTEXITCODE)"; exit 1 }
 
 # ── 4b. Fetch the bundled GPL FFmpeg runtime + matching source archives ────
 Write-Host "`nFetching bundled FFmpeg runtime..."
-& "$root\scripts\fetch-ffmpeg-runtime.ps1"
+& "$PSScriptRoot\fetch-ffmpeg-runtime.ps1"
 
 $sourceOutDir = "$root\build\installer"
 New-Item -ItemType Directory -Force -Path $sourceOutDir | Out-Null
@@ -140,7 +140,7 @@ Write-Host "FFmpeg source archives copied to $sourceOutDir (ship alongside the i
 
 # ── 4c. Fetch the bundled MIT llama.cpp llama-server runtime (Vulkan + CPU) ──
 Write-Host "`nFetching bundled llama-server runtime..."
-& "$root\scripts\fetch-llama-server-runtime.ps1"
+& "$PSScriptRoot\fetch-llama-server-runtime.ps1"
 
 # ── 5. npm ci + npm run dist ─────────────────────────────────────────────────
 # npm ci does a clean, deterministic install straight from package-lock.json, so

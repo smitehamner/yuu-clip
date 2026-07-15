@@ -26,7 +26,7 @@ $CPU_ASSET      = "llama-$LLAMA_BUILD-bin-win-cpu-x64.zip"
 $CPU_SHA256     = 'dba3a85a954c14ea69f03d0f7c5c805b4b3e5387940e5543dbdaf55a12a4c385'
 $RELEASE_BASE   = "https://github.com/ggml-org/llama.cpp/releases/download/$LLAMA_BUILD"
 
-$root       = Split-Path $PSScriptRoot -Parent
+$root       = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent  # repo root (script lives in scripts/windows-release/)
 $cacheDir   = "$root\build\llama-server-runtime-cache"
 $runtimeDir = "$root\build\llama-server-runtime"
 $versionMarker = "$runtimeDir\.version"

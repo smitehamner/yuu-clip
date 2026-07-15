@@ -1,4 +1,4 @@
-"""Coverage for the build-release stale-wheel guard (scripts/check_wheel_deps.py).
+"""Coverage for the build-release stale-wheel guard (scripts/windows-release/check_wheel_deps.py).
 
 This guard exists precisely because the Tier-A packaging changes added base
 dependencies (speechbrain/torch/transformers/mediapipe/...): a wheel built before
@@ -12,7 +12,7 @@ import importlib.util
 import zipfile
 from pathlib import Path
 
-_SCRIPT = Path(__file__).resolve().parents[2] / "scripts" / "check_wheel_deps.py"
+_SCRIPT = Path(__file__).resolve().parents[2] / "scripts" / "windows-release" / "check_wheel_deps.py"
 
 
 def _load_module():

@@ -4,7 +4,7 @@
 // it can be unit-tested without Electron (like venv-setup.js / startup-mode.js).
 //
 // Packaged builds ship the analysis venv as a prebuilt .tar.gz built at build time
-// (scripts/build-prebuilt-env.ps1) against the exact bundled python-build-standalone
+// (scripts/windows-release/build-prebuilt-env.ps1) against the exact bundled python-build-standalone
 // runtime. First run unpacks it instead of running pip - no resolution, no compile.
 // A venv built at one path only works after being moved once its pyvenv.cfg is
 // repointed at the bundled Python's real (installed) location: that repoint is

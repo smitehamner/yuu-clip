@@ -24,7 +24,7 @@ This document records the compliance facts for that binary. See
 | `libx264` included | **Yes** — confirmed via the build's `configure` flags (`--enable-libx264`) and by running an actual `libx264` encode, which reports `264 - core 165 r3223 0480cb0` |
 | Nonfree components | **None** — `--enable-nonfree` is not set; the build's external-library list does not include `libfdk_aac`, DeckLink, or any other nonfree-only component. Enforced by `tests/test_ffmpeg_licensing.py`. |
 
-Pinned in `scripts/fetch-ffmpeg-runtime.ps1`, which downloads and SHA256-verifies this
+Pinned in `scripts/windows-release/fetch-ffmpeg-runtime.ps1`, which downloads and SHA256-verifies this
 exact asset at build time, extracting only `ffmpeg.exe`/`ffprobe.exe` into
 `build/ffmpeg-runtime/` for `extraResources` packaging.
 
@@ -39,8 +39,8 @@ GPLv3 §6's source-accompaniment requirement directly:
 | FFmpeg 8.1.2 | `ffmpeg-8.1.2.tar.xz` | `464beb5e7bf0c311e68b45ae2f04e9cc2af88851abb4082231742a74d97b524c` | Official release tarball, https://ffmpeg.org/releases/ffmpeg-8.1.2.tar.xz |
 | libx264 (commit `0480cb0`) | `x264-0480cb0.tar.gz` | `8f3073feb4b98eba64f0439621cde77192d44799fd04018edb1cce80d7322bb9` | VideoLAN GitLab archive of the exact linked commit, https://code.videolan.org/videolan/x264/-/archive/0480cb0/x264-0480cb0.tar.gz |
 
-`scripts/fetch-ffmpeg-runtime.ps1` fetches the FFmpeg source tarball at build time
-and copies both archives into `build/ffmpeg-source/`; `scripts/build-release.ps1`
+`scripts/windows-release/fetch-ffmpeg-runtime.ps1` fetches the FFmpeg source tarball at build time
+and copies both archives into `build/ffmpeg-source/`; `scripts/windows-release/build-release.ps1`
 copies them into `build/installer/`, the same directory the `.exe` installer lands
 in, so both archives ship side-by-side with every release build.
 
@@ -63,7 +63,7 @@ revisit attaching these archives to GitHub Releases as the long-term canonical h
 ## Re-pinning
 
 Bumping the bundled FFmpeg version is a **three-file change**: the binary pin in
-`scripts/fetch-ffmpeg-runtime.ps1`, the recorded version/hashes in this document, and
+`scripts/windows-release/fetch-ffmpeg-runtime.ps1`, the recorded version/hashes in this document, and
 the re-archived source (both the FFmpeg source re-fetch and, if the linked x264
 commit changed, a new vendored `docs/dev/third-party-source/x264-<commit>.tar.gz`).
 `tests/test_ffmpeg_licensing.py` fails the suite if the fetch script's pinned version

@@ -4,7 +4,7 @@ import re
 from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
-_FETCH_SCRIPT = _REPO_ROOT / "scripts" / "fetch-ffmpeg-runtime.ps1"
+_FETCH_SCRIPT = _REPO_ROOT / "scripts" / "windows-release" / "fetch-ffmpeg-runtime.ps1"
 _NOTICES_DOC = _REPO_ROOT / "docs" / "dev" / "THIRD-PARTY-NOTICES-FFMPEG.md"
 
 

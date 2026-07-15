@@ -43,7 +43,7 @@ Use [semver](https://semver.org/): `MAJOR.MINOR.PATCH`
 ## Build
 
 ```powershell
-.\scripts\build-release.ps1
+.\scripts\windows-release\build-release.ps1
 ```
 
 This script:
@@ -64,7 +64,7 @@ This script:
 
 ### Offline dependency wheelhouse
 
-`scripts/fetch-wheelhouse.ps1` pre-downloads every base dependency as a wheel into
+`scripts/windows-release/fetch-wheelhouse.ps1` pre-downloads every base dependency as a wheel into
 `build/wheelhouse/`, which `electron/package.json` bundles into the installer. First-run
 setup then installs the base pipeline with `pip install --no-index --find-links
 <wheelhouse> -c requirements.lock <wheel>` - **fully offline**, so a slow, firewalled, or
@@ -97,16 +97,16 @@ which downloads the ~45 MB Python runtime archive).
 ### Bundled Python runtime
 
 The installer bundles a pinned [python-build-standalone](https://github.com/astral-sh/python-build-standalone)
-CPython build (`scripts/fetch-python-runtime.ps1`) so end users never need to
+CPython build (`scripts/windows-release/fetch-python-runtime.ps1`) so end users never need to
 install Python themselves - `electron/main.js` points the venv setup at this
 bundled interpreter in packaged builds (dev mode still searches PATH). To
 re-pin to a newer version, update `PYTHON_VERSION`/`PYBUILD_TAG`/`SHA256` at
-the top of `scripts/fetch-python-runtime.ps1` using that repo's release
+the top of `scripts/windows-release/fetch-python-runtime.ps1` using that repo's release
 assets and `SHA256SUMS` file.
 
 ### Bundled FFmpeg
 
-The installer bundles a pinned GPL Windows FFmpeg build (`scripts/fetch-ffmpeg-runtime.ps1`)
+The installer bundles a pinned GPL Windows FFmpeg build (`scripts/windows-release/fetch-ffmpeg-runtime.ps1`)
 so end users never need to install FFmpeg themselves - `electron/main.js` points
 `find_ffmpeg()` at this bundled copy via `YUU_CLIP_FFMPEG_DIR` in packaged builds
 (dev mode still searches PATH). Because it's GPL, yuu-clip also ships the exact
@@ -114,7 +114,7 @@ matching FFmpeg + libx264 source archives alongside the installer - see
 `docs/dev/THIRD-PARTY-NOTICES-FFMPEG.md` for the full compliance record.
 
 **Re-pinning is a three-file change**, not just a version bump:
-1. `scripts/fetch-ffmpeg-runtime.ps1` - update `FFMPEG_VERSION`/`ASSET_NAME`/`SHA256`
+1. `scripts/windows-release/fetch-ffmpeg-runtime.ps1` - update `FFMPEG_VERSION`/`ASSET_NAME`/`SHA256`
    (from the new GyanD/codexffmpeg release), and re-derive `X264_COMMIT`/`X264_SRC_SHA256`
    by running the new `ffmpeg.exe` on a trivial libx264 encode (the `264 - core NNN
    rNNNN <hash>` line in stderr) - `ffmpeg -version` alone doesn't show it.
@@ -243,8 +243,8 @@ After uninstall, a dialog reminds the user that `Videos\yuu-clip\` was not remov
 ## GPU acceleration for LLM scoring (bundled llama-server)
 
 Local LLM/vision scoring runs on the bundled MIT-licensed llama.cpp `llama-server`, not a
-pip package - there is nothing for the user to install. `scripts/build-release.ps1` fetches
-two pinned Windows builds via `scripts/fetch-llama-server-runtime.ps1` and bundles both into
+pip package - there is nothing for the user to install. `scripts/windows-release/build-release.ps1` fetches
+two pinned Windows builds via `scripts/windows-release/fetch-llama-server-runtime.ps1` and bundles both into
 the installer:
 
 - `vulkan\` - offloads to any NVIDIA / AMD / Intel GPU through the ggml Vulkan backend.
@@ -260,7 +260,7 @@ dispatch, so they are ISA-safe and do **not** reintroduce the AVX-512 crash the 
 switch, 2026-07-09).
 
 Re-pinning the runtime: bump `$LLAMA_BUILD` and both SHA256s in
-`scripts/fetch-llama-server-runtime.ps1` together, then run a text + image smoke test on a
+`scripts/windows-release/fetch-llama-server-runtime.ps1` together, then run a text + image smoke test on a
 real GPU before shipping - there is no CI inference test.
 
 > Note: Whisper (transcription) is accelerated separately via CTranslate2 and the CUDA

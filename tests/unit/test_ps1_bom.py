@@ -24,7 +24,7 @@ def _is_ascii(body: bytes) -> bool:
 
 def test_non_ascii_ps1_scripts_have_utf8_bom():
     offenders = []
-    for path in sorted(SCRIPTS_DIR.glob("*.ps1")):
+    for path in sorted(SCRIPTS_DIR.rglob("*.ps1")):
         raw = path.read_bytes()
         has_bom = raw.startswith(BOM)
         body = raw[len(BOM):] if has_bom else raw

@@ -26,7 +26,7 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$root          = Split-Path $PSScriptRoot -Parent
+$root          = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent  # repo root (script lives in scripts/windows-release/)
 $bundledPython = "$root\build\python-runtime\python.exe"
 $runtimeDir    = "$root\build\python-runtime"
 $wheelhouseDir = "$root\build\wheelhouse"
@@ -46,11 +46,11 @@ print("imports OK")
 
 # -- Prerequisites -----------------------------------------------------------
 if (-not (Test-Path $bundledPython)) {
-    Write-Error "Bundled Python runtime not found at $bundledPython - run scripts\fetch-python-runtime.ps1 first."
+    Write-Error "Bundled Python runtime not found at $bundledPython - run scripts\windows-release\fetch-python-runtime.ps1 first."
     exit 1
 }
 if (-not (Test-Path $wheelhouseDir) -or -not (Get-ChildItem "$wheelhouseDir\*.whl" -ErrorAction SilentlyContinue)) {
-    Write-Error "Wheelhouse not found or empty at $wheelhouseDir - run scripts\fetch-wheelhouse.ps1 first."
+    Write-Error "Wheelhouse not found or empty at $wheelhouseDir - run scripts\windows-release\fetch-wheelhouse.ps1 first."
     exit 1
 }
 if (-not (Test-Path $lockPath)) {
@@ -60,7 +60,7 @@ if (-not (Test-Path $lockPath)) {
 $wheel = Get-ChildItem "$root\build\wheel\yuu_clip-*.whl" -ErrorAction SilentlyContinue |
     Sort-Object LastWriteTime -Descending | Select-Object -First 1
 if (-not $wheel) {
-    Write-Error "No yuu_clip wheel found in build\wheel - build the wheel first (scripts\build-release.ps1 step 3)."
+    Write-Error "No yuu_clip wheel found in build\wheel - build the wheel first (scripts\windows-release\build-release.ps1 step 3)."
     exit 1
 }
 $wheelVersion = if ($wheel.Name -match 'yuu_clip-([^-]+)-') { $Matches[1] } else { $null }

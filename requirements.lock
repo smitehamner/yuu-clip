@@ -6,7 +6,7 @@
 # (which now include the Tier-A default-feature packages: speechbrain, scikit-learn,
 # transformers, torch/torchaudio, soundfile, fastembed, mediapipe, anthropic -- all
 # pinned here). Still NOT pinned: dev extras; the llamacpp backend (installed from a
-# prebuilt CPU/CUDA wheel, not PyPI -- see scripts\fetch-wheelhouse.ps1); and the
+# prebuilt CPU/CUDA wheel, not PyPI -- see scripts\windows-release\fetch-wheelhouse.ps1); and the
 # optional pyannote diarization extra.
 
 absl-py==2.5.0

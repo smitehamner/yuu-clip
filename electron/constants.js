@@ -11,19 +11,19 @@ const VENV_DIR    = path.join(process.env.LOCALAPPDATA, 'yuu-clip', 'venv');
 const VENV_PYTHON = path.join(VENV_DIR, 'Scripts', 'python.exe');
 const VENV_PIP    = path.join(VENV_DIR, 'Scripts', 'pip.exe');
 
-// Pinned CPython bundled into the installer (see scripts/fetch-python-runtime.ps1)
+// Pinned CPython bundled into the installer (see scripts/windows-release/fetch-python-runtime.ps1)
 // so end users never need a system Python. Only present in packaged builds -
 // dev mode (running unpackaged) falls back to a system Python on PATH.
 const BUNDLED_PYTHON = path.join(process.resourcesPath || '', 'python', 'python.exe');
 
 // Pinned GPL FFmpeg bundled into the installer (see
-// scripts/fetch-ffmpeg-runtime.ps1 and docs/dev/THIRD-PARTY-NOTICES-FFMPEG.md)
+// scripts/windows-release/fetch-ffmpeg-runtime.ps1 and docs/dev/THIRD-PARTY-NOTICES-FFMPEG.md)
 // so end users never need to install FFmpeg themselves. Only present in
 // packaged builds - dev mode keeps resolving FFmpeg from PATH.
 const BUNDLED_FFMPEG_DIR = path.join(process.resourcesPath || '', 'ffmpeg');
 
 // Pinned upstream llama.cpp `llama-server` binaries (Vulkan + CPU) bundled into
-// the installer (see scripts/fetch-llama-server-runtime.ps1) so local LLM/vision
+// the installer (see scripts/windows-release/fetch-llama-server-runtime.ps1) so local LLM/vision
 // inference has GPU acceleration with nothing to install. Only present in packaged
 // builds; dev mode resolves llama-server from PATH or config. The dir holds
 // vulkan\ and cpu\ subfolders - the Python side (resolve_server_binary) prefers

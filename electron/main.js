@@ -706,7 +706,7 @@ function makePipLineHandler(setupWin) {
   };
 }
 
-// Packaged builds ship the analysis venv prebuilt (scripts/build-prebuilt-env.ps1)
+// Packaged builds ship the analysis venv prebuilt (scripts/windows-release/build-prebuilt-env.ps1)
 // so first run unpacks an archive instead of running pip - no resolution, no
 // compile. The extracted venv unpacks to roughly 1.2 GB; the .incoming temp copy
 // during extract plus this headroom is what the disk precheck guards against.

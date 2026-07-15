@@ -8,7 +8,7 @@ things" UX. Every optional component lands in exactly one tier.
 
 - **Tier A - In the box.** A bundled Python package, present on first launch, no user
   action. All default-feature packages live here. Offline-installable from the
-  wheelhouse (`scripts/fetch-wheelhouse.ps1`).
+  wheelhouse (`scripts/windows-release/fetch-wheelhouse.ps1`).
 - **Tier B - Auto-fetched model, framed.** A model a feature needs, downloaded on
   first use with a progress UI and a plain-English "downloading X so Y works" message.
   Degrades gracefully offline - the feature waits or skips; the app never breaks. No

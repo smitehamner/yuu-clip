@@ -5,7 +5,7 @@
 // and runs these via runCmd; tests assert the arg shapes.
 
 // Packaged first-run installs the base pipeline OFFLINE from a bundled wheelhouse
-// (scripts/fetch-wheelhouse.ps1) so a slow/firewalled/proxied network can't fail
+// (scripts/windows-release/fetch-wheelhouse.ps1) so a slow/firewalled/proxied network can't fail
 // the very first launch. A `wheelhouseDir` triggers `--no-index --find-links`;
 // without it (dev/unpackaged builds) pip falls back to PyPI. `lockPath` constrains
 // to the exact base-dep versions we tested (requirements.lock / scripts/lock-deps.ps1).
