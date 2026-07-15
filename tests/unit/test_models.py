@@ -3,6 +3,7 @@ import types
 
 from yuu_clip.db.models import (
     SPEAKER_COLOR_PALETTE,
+    Character,
     ProjectVoice,
     Speaker,
     latest_track_transcript,
@@ -102,3 +103,31 @@ class TestSpeakerDisplayColorResolvesThroughVoice:
 
     def test_unlinked_unset_uses_speaker_palette(self):
         assert Speaker(display_index=3).display_color == SPEAKER_COLOR_PALETTE[2]
+
+
+class TestCharacterModel:
+    def test_construction_keeps_fields(self):
+        char = Character(context_slug="fantasy-rp", name="Alara", lore="A rogue elf.", score_boost=0.3)
+        assert (char.context_slug, char.name, char.lore, char.score_boost) == (
+            "fantasy-rp", "Alara", "A rogue elf.", 0.3,
+        )
+
+    def test_lore_is_optional(self):
+        assert Character(context_slug="fantasy-rp", name="Alara").lore is None
+
+    def test_project_voice_character_id_defaults_none(self):
+        assert ProjectVoice(display_index=1).character_id is None
+
+    def test_score_boost_persists_default_zero(self):
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import Session
+
+        from yuu_clip.db.models import Base
+
+        engine = create_engine("sqlite:///:memory:")
+        Base.metadata.create_all(engine)
+        with Session(engine) as session:
+            char = Character(context_slug="fantasy-rp", name="Alara")
+            session.add(char)
+            session.commit()
+            assert char.score_boost == 0.0

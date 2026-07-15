@@ -103,6 +103,11 @@ _ADDITIVE_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("speakers", "global_voice_id", "INTEGER"),
     ("speakers", "suggested_voice_id", "INTEGER"),
     ("speakers", "suggested_voice_score", "FLOAT"),
+    # Character linking: an optional overlay tying a Person to a world-context
+    # Character. The characters table itself is a new table (create_all makes it);
+    # only this pre-existing-table column needs the explicit ALTER. Plain INTEGER,
+    # not a FK, for the same reason as speakers.global_voice_id above.
+    ("project_voices", "character_id", "INTEGER"),
 )
 
 
@@ -509,11 +514,23 @@ class ProjectVoice(Base):
     color: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     confirmed: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
-    # NOTE: character_id (link to a world-context character) is added by the companion
-    # character-linking plan - do NOT add it here.
+    # Optional overlay link to a world-context Character (lore + score boost fed to the
+    # LLM scorer). NULL = no link, the default and primary mode - a Person's name and
+    # voiceprint identity are fully usable with no Character. Plain Integer, not a FK, on
+    # purpose: the additive-migration guard adds this via ALTER TABLE ADD COLUMN (SQLite
+    # can't attach a FK that way), so a create_all-ed schema stays identical to a migrated
+    # one. Cleanup on Character/context delete nulls this in code, same as global_voice_id.
+    character_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
     exemplars: Mapped[List["VoiceExemplar"]] = relationship(
         back_populates="project_voice", cascade="all, delete-orphan"
+    )
+    # Explicit join (character_id is a plain Integer, not a declared FK - see above).
+    character: Mapped[Optional["Character"]] = relationship(
+        "Character",
+        primaryjoin="ProjectVoice.character_id == Character.id",
+        foreign_keys="ProjectVoice.character_id",
+        viewonly=True,
     )
 
     @property
@@ -553,6 +570,32 @@ class VoiceExemplar(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     project_voice: Mapped["ProjectVoice"] = relationship(back_populates="exemplars")
+
+
+class Character(Base):
+    """A structured lore entity within a world context, linkable to a Person.
+
+    A Person (ProjectVoice) may optionally reference one Character; when it does, the
+    Character's ``lore`` and ``score_boost`` are fed into the LLM scoring prompt for
+    clips that Person speaks in. The link is a pure overlay - a Person is fully usable
+    with no Character, and a Character never changes a Person's name or voiceprint.
+
+    ``context_slug`` keys this to a world context in contexts.json (a plain string, not
+    a FK - contexts live in JSON, same precedent as HotWord.context_slug). Structured
+    Characters coexist with a context's free-text ``your_characters`` / ``other_characters``
+    prose; only the structured records drive per-character scoring boosts.
+    """
+    __tablename__ = "characters"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    context_slug: Mapped[str] = mapped_column(String, nullable=False)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    # Per-character knowledge fed to the scorer when this character speaks in a clip.
+    lore: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Priority boost on a 0.0-1.0 scale (0.0 = no boost, the default). Surfaced to the
+    # LLM as an explicit numeric hint; there is no deterministic post-score multiply.
+    score_boost: Mapped[float] = mapped_column(Float, default=0.0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 class ClipCandidate(Base):
