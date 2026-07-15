@@ -15,6 +15,9 @@ from fastapi import HTTPException
 from fastapi.responses import StreamingResponse
 
 from yuu_clip.db.models import ClipCandidate, Transcript, TranscriptSegment, Video
+from yuu_clip.log import get_logger
+
+_log = get_logger(__name__)
 
 _SSE_HEADERS = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
 
@@ -60,6 +63,7 @@ def reject_if_busy(ctx, action: str) -> None:
     blocked op so the message is specific, e.g. "LLM scoring can't start - ...".
     """
     if job_in_flight(ctx):
+        _log.info("%s rejected - another job is already running", action)
         raise HTTPException(
             409,
             f"{action} can't start - another job is running. Wait for it to finish "
