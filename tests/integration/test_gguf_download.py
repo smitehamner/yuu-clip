@@ -52,8 +52,12 @@ class TestGgufDownloadCommand:
             captured["cmd"] = cmd
             return PlainTextResponse("ok")
 
+        Usage = namedtuple("Usage", "total used free")
         monkeypatch.setattr(llm_route, "subprocess_sse", fake_sse)
         monkeypatch.setattr(config_mod, "models_dir", lambda: tmp_path)
+        monkeypatch.setattr(
+            llm_route.shutil, "disk_usage", lambda _p: Usage(0, 0, 100_000_000_000)
+        )
         resp = client.post("/api/llm/gguf/download", params={"model_id": model_id})
         assert resp.status_code == 200, resp.text
         return captured["cmd"]

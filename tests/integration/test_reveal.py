@@ -16,7 +16,8 @@ class TestReveal:
         ctx = client.app.state.ctx
         target = ctx.export_dir / "clip1.mkv"
         target.write_bytes(b"fake video")
-        with patch("yuu_clip.web.routes.reveal.subprocess.Popen") as mock_popen:
+        with patch("yuu_clip.web.routes.reveal.sys.platform", "win32"), \
+                patch("yuu_clip.web.routes.reveal.subprocess.Popen") as mock_popen:
             r = client.post("/api/reveal", json={"path": str(target)})
         assert r.status_code == 200
         assert r.json() == {"status": "ok"}
@@ -25,7 +26,8 @@ class TestReveal:
     def test_recording_directory_path_accepted(self, client: TestClient, project_dir):
         target = project_dir / "session.mkv"
         target.write_bytes(b"fake video")
-        with patch("yuu_clip.web.routes.reveal.subprocess.Popen") as mock_popen:
+        with patch("yuu_clip.web.routes.reveal.sys.platform", "win32"), \
+                patch("yuu_clip.web.routes.reveal.subprocess.Popen") as mock_popen:
             r = client.post("/api/reveal", json={"path": str(target)})
         assert r.status_code == 200
         mock_popen.assert_called_once()
@@ -33,7 +35,8 @@ class TestReveal:
     def test_path_outside_project_rejected(self, client: TestClient, tmp_path):
         outside = tmp_path.parent / "some-other-file.mkv"
         outside.write_bytes(b"x")
-        with patch("yuu_clip.web.routes.reveal.subprocess.Popen") as mock_popen:
+        with patch("yuu_clip.web.routes.reveal.sys.platform", "win32"), \
+                patch("yuu_clip.web.routes.reveal.subprocess.Popen") as mock_popen:
             r = client.post("/api/reveal", json={"path": str(outside)})
         assert r.status_code == 400
         mock_popen.assert_not_called()
@@ -41,7 +44,8 @@ class TestReveal:
     def test_missing_file_404(self, client: TestClient):
         ctx = client.app.state.ctx
         target = ctx.export_dir / "does-not-exist.mkv"
-        with patch("yuu_clip.web.routes.reveal.subprocess.Popen") as mock_popen:
+        with patch("yuu_clip.web.routes.reveal.sys.platform", "win32"), \
+                patch("yuu_clip.web.routes.reveal.subprocess.Popen") as mock_popen:
             r = client.post("/api/reveal", json={"path": str(target)})
         assert r.status_code == 404
         mock_popen.assert_not_called()
