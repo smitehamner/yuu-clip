@@ -10,7 +10,7 @@ If you're recording a tutorial video from this document, each top-level section 
 
 - A video recording of a gaming or roleplay session (see [Recommended test videos](#recommended-test-videos) below)
 - YuuClip running: `yuu-dev serve`
-- An LLM backend set up for scoring. By default this is a local model file (the setup wizard downloads the recommended one with one click); you can also use the Claude API. The app shows which model it's using. If no backend is set up, analysis still runs but clips get no descriptions or scores.
+- A local LLM model set up for scoring (the setup wizard downloads the recommended one with one click). The app shows which model it's using. If no model is set up, analysis still runs but clips get no descriptions or scores.
 - A browser open at `http://127.0.0.1:8080`
 
 ---
@@ -176,7 +176,7 @@ See [OVERVIEW.md](../OVERVIEW.md#world-contexts--making-the-scores-actually-make
 
 | Symptom | First check |
 |---------|-------------|
-| Clips have no description and tags show `llm_error` | Your AI model isn't set up or is unreachable. Check Settings → LLM scoring (that a model file is selected, or your Claude API key is valid), then re-score. |
+| Clips have no description and tags show `llm_error` | Your AI model isn't set up or is unreachable. Check Settings → LLM scoring (that a model file is selected), then re-score. |
 | Transcript is garbled or missing words | The Whisper model is too small for your audio. Retranscribe the clip with `medium` or `large-v3`. |
 | Export fails immediately | The source video file has moved or been renamed since ingest. The path in the DB no longer resolves. |
 | Score seems backwards (calm moment scores high) | Check the tags - `audio_spike` means a burst of audio energy. A loud laugh can spike energy even if the dialogue content is mild. |

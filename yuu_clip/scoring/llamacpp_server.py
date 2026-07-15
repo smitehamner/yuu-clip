@@ -40,7 +40,7 @@ _log = get_logger(__name__)
 _ENV_BINARY_DIR = "YUU_CLIP_LLAMA_SERVER_DIR"
 _DEFAULT_CTX = 8192
 # Default completion cap; callers emitting longer JSON (scene-boundary lists) pass a
-# larger value. Aligned with the Claude backend's default (llm_client._DEFAULT_MAX_TOKENS).
+# larger value. Matches llm_client._DEFAULT_MAX_TOKENS.
 _DEFAULT_MAX_TOKENS = 1024
 _HEALTH_TIMEOUT_S = 240.0
 _HEALTH_POLL_S = 0.5

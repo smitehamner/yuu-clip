@@ -10,6 +10,39 @@ perpetual open items. Most recent first.
 
 ---
 
+## Local-only tool - remove the remote (Claude) AI backend entirely (2026-07-15)
+
+**Decision:** YuuClip is a local-only surface. Remove the remote/hosted LLM backend
+(Anthropic's Claude API) completely rather than keeping it hidden behind the WS4
+distribution gate. All inference (speech-to-text and LLM scoring/vision) runs on the
+user's machine; nothing they record ever leaves it.
+
+**What was removed:**
+
+- `ClaudeClient` and the `claude` value from the `llm_backend` seam - `make_client`
+  now resolves to the local `llamacpp` backend or the `NullLLMClient` fallback only.
+- The distribution gate: `Config.remote_ai_enabled`, the `YUU_REMOTE_AI` env var, and
+  `config.remote_ai_allowed()`.
+- The `remote_ok` AI-privacy mode and the `allow_remote` permission. `ai_privacy_mode`
+  is now `none` | `local_only`; `AiPermissions` carries only `allow_llm`.
+- The `claude_api_key` / `claude_model` / `claude_timeout_s` config fields, the Claude
+  catalog entries + `BACKEND_CLAUDE` + `api_model_id`, and every Claude/remote control
+  in Settings and the Electron setup wizard.
+- The `anthropic` dependency (and its `distro` / `jiter` transitive deps), the
+  `live_remote` pytest marker, and the billed `test_remote_live` smoke test.
+
+**Why:** the remote path was unverified end-to-end and had been inert behind the gate
+since WS4. A local-only positioning is simpler to reason about, is a genuine privacy
+selling point for a tool aimed at non-developers, and drops a paid/cloud dependency
+surface (keys, billing, network failure modes, an SDK) that no shipped build used.
+
+**Kept deliberately:** the `LLMClient` ABC + `make_client` factory seam stays (one real
+backend today, `llamacpp`), so adding a future *local* backend is a registration, not a
+rewrite. Do not re-introduce a remote backend without an explicit product decision that
+supersedes this one.
+
+---
+
 ## Positioning - lead with the talk-heavy strength (2026-07-14)
 
 Standing copy guidance. YuuClip is at heart a talk-heavy analyzer (transcript-driven

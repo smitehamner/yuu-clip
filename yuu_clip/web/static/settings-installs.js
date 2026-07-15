@@ -66,18 +66,11 @@ async function installPackage(slug) {
   btn.disabled = false;
 }
 
-function _updateLlmRemoteIndicator(backend, llmEnabled) {
-  const badge = document.getElementById('llm-remote-badge');
-  const remoteActive = llmEnabled && backend === 'claude' && _currentPrivacyMode() === 'remote_ok';
-  if (badge) badge.style.display = remoteActive ? '' : 'none';
-}
-
 // Public API - installPackage is wired to inline install-button handlers in
 // index.html; _refreshInstallStatus is called from settings.js's
-// _applySettingsToUI; _updateLlmRemoteIndicator from settings.js save + boot.js.
-// _updateDiarizationStatus and _currentPrivacyMode resolve through window
-// (owned by settings.js core) at call time.
+// _applySettingsToUI. _updateDiarizationStatus resolves through window (owned by
+// settings.js core) at call time.
 Object.assign(window, {
-  _refreshInstallStatus, installPackage, _updateLlmRemoteIndicator,
+  _refreshInstallStatus, installPackage,
 });
 })();

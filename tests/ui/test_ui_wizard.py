@@ -49,9 +49,7 @@ window.__mockStatus = {
   recommendedWhisper: { model: 'large-v3', reason: '10 GB+ VRAM' },
   projectDir: 'C:/Users/test/Videos/yuu-clip',
   aiPrivacyMode: 'local_only',
-  remoteAiEnabled: true,
   llmBackend: 'llamacpp', llmModelPath: '',
-  claudeApiKey: '', claudeModel: 'claude-haiku-4-5-20251001',
   whisperLanguage: '',
   contentPreset: 'generic',
   localModelRecommendation: {
@@ -72,10 +70,10 @@ def _open_wizard(page: Page, status_overrides: str = "", query: str = "") -> Non
 
 
 def _expand_advanced(page: Page) -> None:
-    """The backend/privacy controls live inside a collapsed <details> now
+    """The privacy + local-model controls live inside a collapsed <details> now
     (first-run-friction Stage 3) - open it before interacting with them."""
     page.click("#advanced-ai > summary")
-    page.wait_for_selector("#llm-backend-sel", state="visible")
+    page.wait_for_selector("#ai-privacy-sel", state="visible")
 
 
 @skip_no_server
@@ -132,8 +130,8 @@ class TestWizardLocalModelChoice:
         _open_wizard(page)
         expect(page.locator("#local-ai-yes")).to_be_checked()
         expect(page.locator("#llm-rec-headline")).to_contain_text("this PC can run it well")
-        # advanced backend controls stay hidden behind the collapsed disclosure
-        expect(page.locator("#llm-backend-sel")).to_be_hidden()
+        # advanced controls stay hidden behind the collapsed disclosure
+        expect(page.locator("#ai-privacy-sel")).to_be_hidden()
 
     def test_low_disk_recommendation_preselects_lightweight(self, page: Page):
         _open_wizard(page, "{ localModelRecommendation: { push: 'none', modelId: null, "
@@ -160,18 +158,20 @@ class TestWizardLocalModelChoice:
 
 @skip_no_server
 class TestWizardLlmBackends:
-    def test_default_backend_panel_matches_status(self, page: Page):
+    def test_local_model_panel_visible_no_remote_options(self, page: Page):
+        # yuu-clip is local-only: the wizard offers the local model panel and no
+        # engine select or remote privacy option.
         _open_wizard(page)
         _expand_advanced(page)
         expect(page.locator("#llm-llamacpp-fields")).to_be_visible()
-        expect(page.locator("#llm-claude-fields")).to_be_hidden()
+        expect(page.locator("#llm-backend-sel")).to_have_count(0)
+        expect(page.locator("#ai-privacy-sel option[value='remote_ok']")).to_have_count(0)
 
     def test_llamacpp_panel_guides_gguf_download(self, page: Page):
         # The local AI engine (llama-server) is bundled now, so the panel no longer
         # has an "install engine" step - it goes straight to getting a model file.
         _open_wizard(page)
         _expand_advanced(page)
-        page.select_option("#llm-backend-sel", "llamacpp")
         expect(page.locator("#llm-llamacpp-fields")).to_be_visible()
         # Recommends an Apache-2.0 model (Qwen2.5) - Llama is licence-excluded
         # from recommendations (see model_catalog.py).
@@ -187,23 +187,6 @@ class TestWizardLlmBackends:
         page.fill("#llm-model-path", "C:/models/model.gguf")
         expect(page.locator("#llm-warn")).to_be_hidden()
 
-    def test_claude_panel_warns_until_key_entered(self, page: Page):
-        _open_wizard(page)
-        _expand_advanced(page)
-        page.select_option("#ai-privacy-sel", "remote_ok")  # claude backend is hidden in local-only mode
-        page.select_option("#llm-backend-sel", "claude")
-        expect(page.locator("#claude-warn")).to_be_visible()
-        page.fill("#claude-api-key", "sk-ant-test")
-        expect(page.locator("#claude-warn")).to_be_hidden()
-
-    def test_remote_ai_gate_off_hides_remote_privacy_and_claude(self, page: Page):
-        # WS4: shipped builds run with remoteAiEnabled false, so the wizard must not
-        # offer the remote privacy option or the Claude backend at all.
-        _open_wizard(page, "{ remoteAiEnabled: false }")
-        _expand_advanced(page)
-        expect(page.locator("#ai-privacy-sel option[value='remote_ok']")).to_be_hidden()
-        expect(page.locator("#llm-backend-sel option[value='claude']")).to_be_hidden()
-
 
 @skip_no_server
 class TestWizardModes:
@@ -215,7 +198,6 @@ class TestWizardModes:
         completed = page.evaluate("window.__events.completed")
         assert completed["whisperModel"] == "large-v3"
         assert completed["whisperLanguage"] == "de"
-        assert completed["llmBackend"] == "llamacpp"
         assert completed["contentPreset"] == "podcast"
         assert completed["projectDir"] == "C:/Users/test/Videos/yuu-clip"
 

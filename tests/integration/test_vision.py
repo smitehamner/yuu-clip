@@ -139,21 +139,11 @@ class TestCheckVisionAvailable:
         ok, reason = check_vision_available(_cfg(llm_enabled=True, vision_enabled=False))
         assert ok is False and "turned off" in reason
 
-    def test_claude_needs_key(self):
-        # remote_ok isolates the key check from the privacy-mode block (Stage 07);
-        # remote_ai_enabled isolates it from the distribution gate (WS4).
-        assert self._check(llm_backend="claude", claude_api_key="",
-                           ai_privacy_mode="remote_ok", remote_ai_enabled=True)[0] is False
-        assert self._check(llm_backend="claude", claude_api_key="sk-x",
-                           ai_privacy_mode="remote_ok", remote_ai_enabled=True)[0] is True
-
-    def test_claude_blocked_when_remote_ai_gate_off(self):
-        # WS4: with the distribution gate off (default), a saved claude config degrades
-        # to unavailable with a build-specific reason - never reaches the key check.
-        ok, reason = self._check(llm_backend="claude", claude_api_key="sk-x",
-                                 ai_privacy_mode="remote_ok", remote_ai_enabled=False)
-        assert ok is False
-        assert "turned off in this build" in reason
+    def test_generative_ai_off_blocks_vision(self):
+        from yuu_clip.scoring.llm import check_vision_available
+        ok, reason = check_vision_available(
+            _cfg(llm_enabled=True, vision_enabled=True, ai_privacy_mode="none"))
+        assert ok is False and "generative ai is turned off" in reason.lower()
 
     def test_llamacpp_needs_vision_model_and_mmproj(self, tmp_path):
         vision_model = tmp_path / "m.gguf"

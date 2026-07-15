@@ -9,10 +9,6 @@ from yuu_clip.config import Config
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
-def _recommended_claude_ids() -> set[str]:
-    return {e.api_model_id for e in mc.catalog_for_backend(mc.BACKEND_CLAUDE)}
-
-
 class TestCatalogIntegrity:
     def test_every_entry_has_kind_licence_and_a_backend(self):
         for entry in mc.CATALOG:
@@ -21,7 +17,7 @@ class TestCatalogIntegrity:
             assert entry.licence, f"{entry.id} has no licence"
             assert entry.backends, f"{entry.id} has no backend"
             assert entry.backends <= {
-                mc.BACKEND_LLAMACPP, mc.BACKEND_CLAUDE,
+                mc.BACKEND_LLAMACPP,
             }, f"{entry.id} has an unknown backend"
 
     def test_ids_are_unique(self):
@@ -80,18 +76,10 @@ class TestCatalogHelpers:
                 assert entry.mmproj_filename, f"{entry.id} has no mmproj_filename"
                 assert entry.mmproj_url, f"{entry.id} has no mmproj_url"
 
-    def test_claude_models_are_both_text_and_vision(self):
-        claude = mc.catalog_for_backend(mc.BACKEND_CLAUDE)
-        assert claude, "expected Claude entries"
-        for entry in claude:
-            assert entry.kinds == {"text", "vision"}
-            assert entry.api_model_id
-
     def test_catalog_for_backend_only_returns_runnable_recommended_models(self):
-        for backend in (mc.BACKEND_LLAMACPP, mc.BACKEND_CLAUDE):
-            for entry in mc.catalog_for_backend(backend):
-                assert entry.recommended
-                assert backend in entry.backends
+        for entry in mc.catalog_for_backend(mc.BACKEND_LLAMACPP):
+            assert entry.recommended
+            assert mc.BACKEND_LLAMACPP in entry.backends
 
     def test_model_by_id_roundtrips(self):
         entry = mc.CATALOG[0]
@@ -131,12 +119,9 @@ class TestDefaultsMatchCatalog:
 
     def test_electron_wizard_default_backend_is_llamacpp(self):
         main_js = (_REPO_ROOT / "electron" / "main.js").read_text(encoding="utf-8")
-        match = re.search(r"defaultBackend\s*=\s*existingBackend\s*\|\|\s*'([^']+)'", main_js)
-        assert match, "defaultBackend fallback not found (or shape changed) in electron/main.js"
+        match = re.search(r"llmBackend:\s*'([^']+)'", main_js)
+        assert match, "llmBackend literal not found (or shape changed) in electron/main.js"
         assert match.group(1) == "llamacpp"
-
-    def test_config_default_claude_model_is_recommended(self):
-        assert Config().claude_model in _recommended_claude_ids()
 
     def test_electron_wizard_default_llamacpp_model_matches_the_catalog(self):
         constants_js = (_REPO_ROOT / "electron" / "constants.js").read_text(encoding="utf-8")

@@ -168,9 +168,8 @@ comment there before touching the teardown watchdogs. If the suite (or the app)
 feels slow, check the server isn't degraded first: `curl` `/api/status` should
 answer in ~3ms, and the serve process should sit near 0% CPU when idle.
 
-The tiers are split by **directory**, not markers. `pytest.ini` registers only
-the `live_remote` marker - an opt-in real billed Anthropic call (`test_remote_live`),
-excluded from default runs. A test that needs real installed packages / HF cache /
+The tiers are split by **directory**, not markers. `pytest.ini` registers no
+custom markers. A test that needs real installed packages / HF cache /
 OS state belongs in `tests/integration`, never `tests/unit`. A unit test that
 references `project_dir`/`client` fails at collection (no such fixture in the
 unit tier) - move it to `tests/integration`, splitting the file if it mixes pure
@@ -263,8 +262,10 @@ exposes `available() -> (ok, reason)`. Callers only ever go through the factory;
 never import a concrete backend class. The existing seams:
 
 - **LLM text + vision** - `LLMClient` + `make_client` (`scoring/llm_client.py`), keyed on
-  `llm_backend`. Backends: `llamacpp`, `claude`, `null`. `make_client` is also the single
-  privacy/remote-gate enforcement point.
+  `llm_backend`. Backends: `llamacpp` (local, the only real backend) and the `NullLLMClient`
+  fallback. yuu-clip is local-only - there is no remote/hosted backend. `make_client` is
+  also the single AI-privacy-mode enforcement point (returns `NullLLMClient` when generative
+  AI is off).
 - **Diarization** - `DiarizationClient` + `make_diarization_client`
   (`transcribe/diarization_client.py`), keyed on `diarization_backend`.
 - **Transcription** - `Transcriber` + `make_transcriber` (`transcribe/transcriber.py`),
@@ -373,25 +374,18 @@ offline install (see the packaging-strategy overhaul Wave 5).
 `escHtml` in `utils.js` escapes `& < > "`. Always run track layout names, context
 names, and filenames through it before embedding in HTML attributes.
 
-### Remote AI (Claude backend) is gated off by default (WS4)
-The remote (Claude) backend is unverified end-to-end, so shipped builds keep it hidden
-and inert behind a distribution gate. The gate is `Config.remote_ai_enabled` (default
-`False`) OR a truthy `YUU_REMOTE_AI` env var; `config.remote_ai_allowed(config)` is the
-single resolver. It sits ABOVE `ai_privacy_mode` - when off, `make_client` returns
-`NullLLMClient` for a remote backend regardless of privacy mode or a saved key, and the
-capabilities/permission checks report remote unavailable with a "turned off in this
-build" reason. Turning it on restores full behavior with no code change - the gate
-hides/inerts, it never removes `ClaudeClient` or the privacy layer.
+### Local-only: no remote/hosted AI backend (Claude removed)
+yuu-clip runs all inference on-device; there is no remote/hosted LLM backend and no
+"send my transcript to an API" path. The Claude/Anthropic backend, its distribution
+gate (`remote_ai_enabled` / `YUU_REMOTE_AI`), the `remote_ok` AI-privacy mode, and the
+`anthropic` dependency were all removed (see `docs/project/DECISIONS.md`). A local-only
+surface is a deliberate positioning choice - do NOT re-add a remote backend without an
+explicit product decision.
 
-- Not a normal Settings toggle: it lives in the config file / env only. The browser
-  learns the effective value from `/api/config` (`remote_ai_enabled`), and Settings +
-  the Electron wizard both hide the Claude backend and the `remote_ok` privacy option
-  when it is off. Both stacks must stay in sync (see the parity note below); the wizard
-  mirrors the gate via `electron/constants.js` `isRemoteAiEnabled()`.
-- Run the opt-in live smoke test (hits the real Anthropic API, billed):
-  `YUU_REMOTE_AI=1 ANTHROPIC_API_KEY=sk-ant-... python -m pytest -m live_remote`.
-  It is double-gated (the `live_remote` marker is excluded by `pytest.ini` addopts, and
-  it skips without `ANTHROPIC_API_KEY`), so it never runs in the default suite.
+- `ai_privacy_mode` is now just `none` (no generative AI) | `local_only` (default);
+  `resolve_ai_permissions` is the single choke point. The `LLMClient` seam keeps its ABC
+  + `make_client` factory (one real backend, `llamacpp`, plus the `NullLLMClient`
+  fallback) so a future *local* backend stays a registration, not a rewrite.
 
 ### Wizard and Settings are parallel model-selection stacks (keep in sync, no shared code)
 Model selection lives in two separate stacks that CANNOT share code, so a change to one

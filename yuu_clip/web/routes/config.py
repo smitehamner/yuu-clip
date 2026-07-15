@@ -24,7 +24,7 @@ class ConfigPatch(BaseModel):
     whisper_device:               Optional[str]   = None
     whisper_compute_type:         Optional[str]   = None
     whisper_language:             Optional[str]   = None
-    # AI privacy mode (plan non-llm-tiers/07) - none | local_only | remote_ok
+    # AI privacy mode - none | local_only
     ai_privacy_mode:              Optional[str]   = None
     # LLM backend
     llm_backend:                  Optional[str]   = None
@@ -40,10 +40,6 @@ class ConfigPatch(BaseModel):
     visual_vision_topn:           Optional[int]   = None
     # Master switch for all generative-AI features.
     llm_enabled:               Optional[bool]  = None
-    # Claude API (remote - billed per token)
-    claude_api_key:               Optional[str]   = None
-    claude_model:                 Optional[str]   = None
-    claude_timeout_s:             Optional[float] = None
     # Scoring weights
     scorer_energy_weight:         Optional[float] = None
     scorer_scene_weight:          Optional[float] = None
@@ -112,10 +108,6 @@ _CONFIG_FIELDS = (
     "llm_backend", "llm_model_path", "llm_mmproj_path", "llm_vision_model_path", "llm_use_gpu",
     "vision_enabled", "vision_frames_per_clip", "llm_enabled",
     "visual_auto_vision_enabled", "visual_vision_topn",
-    "claude_api_key", "claude_model", "claude_timeout_s",
-    # Read-exposed but not patchable (a distribution gate, like model_prefetch_disabled):
-    # get_config overrides this key with the EFFECTIVE value (field OR YUU_REMOTE_AI env).
-    "remote_ai_enabled",
     "scorer_energy_weight", "scorer_scene_weight", "scorer_llm_weight",
     "scorer_laugh_weight", "scorer_laugh_mode", "scorer_laugh_model_id",
     "scorer_lexicon_weight", "scorer_speech_rate_weight", "scorer_churn_weight",
@@ -246,8 +238,8 @@ _CONFIG_PATCH_RULES: list[tuple[str, object]] = [
     ("whisper_device",               _enum_validator({"cpu", "cuda", "auto"}, "whisper_device")),
     ("whisper_compute_type",         _enum_validator({"int8", "float16", "float32", "int8_float16"}, "whisper_compute_type")),
     ("whisper_language",             _whisper_language_validator),
-    ("ai_privacy_mode",              _enum_validator({"none", "local_only", "remote_ok"}, "ai_privacy_mode")),
-    ("llm_backend",                  _enum_validator({"llamacpp", "claude"}, "llm_backend")),
+    ("ai_privacy_mode",              _enum_validator({"none", "local_only"}, "ai_privacy_mode")),
+    ("llm_backend",                  _enum_validator({"llamacpp"}, "llm_backend")),
     ("llm_model_path",               lambda v: v),
     ("llm_mmproj_path",              lambda v: v),
     ("llm_vision_model_path",        lambda v: v),
@@ -257,9 +249,6 @@ _CONFIG_PATCH_RULES: list[tuple[str, object]] = [
     ("visual_auto_vision_enabled",   lambda v: bool(v)),
     ("visual_vision_topn",           _range_validator(1, 50, "visual_vision_topn")),
     ("llm_enabled",               lambda v: v),
-    ("claude_api_key",               lambda v: v.strip()),
-    ("claude_model",                 lambda v: v.strip()),
-    ("claude_timeout_s",             _min_validator(1, "claude_timeout_s")),
     ("scorer_energy_weight",         lambda v: max(0.0, v)),
     ("scorer_scene_weight",          lambda v: max(0.0, v)),
     ("scorer_llm_weight",            lambda v: max(0.0, v)),
@@ -314,27 +303,17 @@ def make_router(ctx: ProjectContext) -> APIRouter:
 
     @router.get("/api/config")
     def get_config():
-        from yuu_clip.config import remote_ai_allowed
         c = ctx.config
-        payload = {k: getattr(c, k) for k in _CONFIG_FIELDS}
-        # Override the raw field with the EFFECTIVE gate (config field OR YUU_REMOTE_AI
-        # env) so the Settings UI hides the Claude backend + remote privacy mode when
-        # off. It stays out of _CONFIG_PATCH_RULES - a distribution gate, never PATCH-able.
-        payload["remote_ai_enabled"] = remote_ai_allowed(c)
-        return payload
+        return {k: getattr(c, k) for k in _CONFIG_FIELDS}
 
     @router.get("/api/config/defaults")
     def config_defaults():
         # Factory defaults from a fresh Config, so the Settings "Reset to
         # defaults" controls have one source of truth instead of duplicating
         # every default value in the frontend.
-        from yuu_clip.config import Config, remote_ai_allowed
+        from yuu_clip.config import Config
         defaults = Config()
-        payload = {k: getattr(defaults, k) for k in _CONFIG_FIELDS}
-        # Reset-to-defaults must not flip the gate the browser sees: report the same
-        # effective value as GET /api/config, not the raw factory False.
-        payload["remote_ai_enabled"] = remote_ai_allowed(defaults)
-        return payload
+        return {k: getattr(defaults, k) for k in _CONFIG_FIELDS}
 
     @router.get("/api/config/whisper-languages")
     def whisper_languages():
@@ -359,7 +338,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         for field_name, value in transformed.items():
             setattr(cfg, field_name, value)
         cfg.save_project(ctx.project_dir)
-        _REDACT = {"claude_api_key", "huggingface_token"}
+        _REDACT = {"huggingface_token"}
         _log.info("Config updated: %s", {
             k: ("***" if k in _REDACT else v)
             for k, v in body.model_dump().items() if v is not None

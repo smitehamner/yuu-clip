@@ -252,26 +252,17 @@ footer {
       <div class="sec-note" style="color:#d4902a">
         <strong>Heads-up on download size:</strong> running a model on your own machine is a
         one-time download of roughly <strong>4-9 GB</strong> (the recommended model is ~4.7 GB).
-        The Claude API needs no download but sends transcripts to Anthropic and is billed per use.
+        Everything runs locally - nothing you record ever leaves your machine.
       </div>
       <div class="cfg-row">
         <span class="cfg-label">AI privacy</span>
         <select id="ai-privacy-sel">
           <option value="none">No generative AI - no language model runs</option>
           <option value="local_only">Local models only - nothing leaves your machine (recommended)</option>
-          <option value="remote_ok">Allow remote models - permits the paid Claude API</option>
         </select>
       </div>
       <div class="desc" id="ai-privacy-note" style="margin:-2px 0 6px"></div>
       <div id="llm-generative-block">
-      <div class="cfg-row">
-        <span class="cfg-label">How to run it</span>
-        <select id="llm-backend-sel">
-          <option value="llamacpp">Local model file - no extra app, runs locally, free (recommended)</option>
-          <option value="claude">Claude API - paid, sends your transcript to Anthropic</option>
-        </select>
-      </div>
-
       <div id="llm-llamacpp-fields">
         <div class="desc" style="margin:4px 0 2px"><strong style="color:#8888aa">Get a model file (.gguf)</strong></div>
         <div class="desc">
@@ -290,28 +281,6 @@ footer {
         </div>
         <div id="llm-warn" style="display:none" class="inline-warn">
           ⚠ No model file chosen - LLM scoring will be skipped until one is set.
-        </div>
-      </div>
-
-      <div id="llm-claude-fields" style="display:none">
-        <div class="inline-warn" style="display:block">
-          ⚠ Transcript data is sent to Anthropic and billed per token.
-        </div>
-        <div class="cfg-row">
-          <span class="cfg-label">API key</span>
-          <input type="password" id="claude-api-key" placeholder="sk-ant-...">
-          <button class="sm" id="claude-key-toggle" type="button">Show</button>
-        </div>
-        <div id="claude-warn" style="display:none" class="inline-warn">
-          ⚠ No API key entered - LLM scoring will be skipped until one is set.
-        </div>
-        <div class="cfg-row">
-          <span class="cfg-label">Model</span>
-          <select id="claude-model-sel">
-            <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5 (fast, cheap)</option>
-            <option value="claude-sonnet-5">Claude Sonnet 5 (smarter)</option>
-            <option value="claude-opus-4-8">Claude Opus 4.8 (most capable)</option>
-          </select>
         </div>
       </div>
       </div><!-- /#llm-generative-block -->
@@ -437,9 +406,6 @@ let status  = null;
 let installing = { 'cuda-libs': false };
 let downloadingGguf = false;
 let defaultsApplied = false;
-// WS4 distribution gate: set from setup:get-status. When false, the remote (Claude)
-// backend and the remote privacy option are hidden entirely (see onPrivacyModeChange).
-let remoteAiEnabled = false;
 
 // ── helpers ────────────────────────────────────────────────────────────────
 
@@ -606,19 +572,8 @@ function applyDefaults(s) {
     named.map(o => `<option value="${esc(o.code)}">${esc(o.name)}</option>`).join('');
   langSel.value = WHISPER_LANGUAGES.includes(s.whisperLanguage) ? s.whisperLanguage : '';
 
-  // WS4 gate: hide the remote privacy option in shipped builds, and never leave the
-  // select pointed at a hidden option (a saved remote_ok falls back to local_only).
-  remoteAiEnabled = s.remoteAiEnabled === true;
-  const remotePrivacyOpt = document.querySelector('#ai-privacy-sel option[value="remote_ok"]');
-  if (remotePrivacyOpt) remotePrivacyOpt.hidden = remotePrivacyOpt.disabled = !remoteAiEnabled;
-  let privacyMode = s.aiPrivacyMode || 'local_only';
-  if (!remoteAiEnabled && privacyMode === 'remote_ok') privacyMode = 'local_only';
-  document.getElementById('ai-privacy-sel').value = privacyMode;
-  document.getElementById('llm-backend-sel').value =
-    (!remoteAiEnabled && s.llmBackend === 'claude') ? 'llamacpp' : s.llmBackend;
+  document.getElementById('ai-privacy-sel').value = s.aiPrivacyMode || 'local_only';
   document.getElementById('llm-model-path').value  = s.llmModelPath || '';
-  document.getElementById('claude-api-key').value   = s.claudeApiKey || '';
-  document.getElementById('claude-model-sel').value = s.claudeModel  || 'claude-haiku-4-5-20251001';
   document.getElementById('content-preset-sel').value = s.contentPreset || 'generic';
   document.getElementById('content-preset-note').textContent =
     'Not sure? Generic is a good default. You can fine-tune every scoring weight later in Settings.';
@@ -645,53 +600,30 @@ function applyDefaults(s) {
     rerunMode ? 'Close' : mode === 'update' ? 'Skip for now' : 'Quit';
 }
 
-// ── LLM backend ────────────────────────────────────────────────────────────
+// ── AI privacy + local model ────────────────────────────────────────────────
 
-function onLlmBackendChange(val) {
-  document.getElementById('llm-llamacpp-fields').style.display = val === 'llamacpp' ? '' : 'none';
-  document.getElementById('llm-claude-fields').style.display   = val === 'claude'   ? '' : 'none';
-  updateLlmWarn();
-  updateClaudeWarn();
-}
-
-// AI privacy mode governs which backends are even offered here (plan non-llm-tiers/07).
+// yuu-clip is local-only; the mode toggles whether a generative model runs at all.
 const AI_PRIVACY_NOTES = {
   none: 'No language model runs. Clips are still found and searchable; scoring uses lightweight signals only.',
-  local_only: 'On-device models only. The remote Claude backend is hidden - nothing you record is sent anywhere.',
-  remote_ok: 'The paid Claude API is available. Your transcript is sent to Anthropic when it runs.',
+  local_only: 'On-device models only. Everything runs locally - nothing you record is sent anywhere.',
 };
 
 function onPrivacyModeChange(mode) {
   document.getElementById('ai-privacy-note').textContent = AI_PRIVACY_NOTES[mode] || '';
-  // WS4 gate: the remote backend is offered only when the build gate is on AND privacy allows it.
-  const remoteAllowed = remoteAiEnabled && mode === 'remote_ok';
-  const claudeOption = document.querySelector('#llm-backend-sel option[value="claude"]');
-  if (claudeOption) claudeOption.hidden = claudeOption.disabled = !remoteAllowed;
-  const backendSel = document.getElementById('llm-backend-sel');
-  // If a remote backend is no longer offered, fall back to the recommended local one.
-  if (!remoteAllowed && backendSel.value === 'claude') backendSel.value = 'llamacpp';
   const llmBlock = document.getElementById('llm-generative-block');
   if (llmBlock) llmBlock.style.display = mode === 'none' ? 'none' : '';
-  onLlmBackendChange(backendSel.value);
+  updateLlmWarn();
 }
 
 function updateLlmWarn() {
-  const backend  = document.getElementById('llm-backend-sel').value;
   const filePath = (document.getElementById('llm-model-path').value || '').trim();
   const wantsLocal = document.getElementById('local-ai-yes').checked;
   // With "Set up local AI" chosen, the recommended model is queued for a background
   // download on launch - so "LLM scoring will be skipped" would be wrong. Only warn
   // when there's no file, nothing downloading, and no background download coming.
   document.getElementById('llm-warn').style.display =
-    (backend === 'llamacpp' && !filePath && !downloadingGguf && !wantsLocal) ? 'block' : 'none';
+    (!filePath && !downloadingGguf && !wantsLocal) ? 'block' : 'none';
   if (status) renderGgufDownloadSlot(status);
-}
-
-function updateClaudeWarn() {
-  const backend = document.getElementById('llm-backend-sel').value;
-  const key     = (document.getElementById('claude-api-key').value || '').trim();
-  document.getElementById('claude-warn').style.display =
-    (backend === 'claude' && !key) ? 'block' : 'none';
 }
 
 function onLocalAiChoiceChange() {
@@ -858,21 +790,9 @@ document.getElementById('llm-browse-btn').addEventListener('click', async () => 
 });
 
 document.getElementById('ai-privacy-sel').addEventListener('change', e => onPrivacyModeChange(e.target.value));
-document.getElementById('llm-backend-sel').addEventListener('change', e => onLlmBackendChange(e.target.value));
 document.getElementById('local-ai-yes').addEventListener('change', onLocalAiChoiceChange);
 document.getElementById('local-ai-no').addEventListener('change', onLocalAiChoiceChange);
 document.getElementById('llm-model-path').addEventListener('input', updateLlmWarn);
-document.getElementById('claude-api-key').addEventListener('input', updateClaudeWarn);
-
-function wireVisibilityToggle(btnId, inputId) {
-  document.getElementById(btnId).addEventListener('click', () => {
-    const input = document.getElementById(inputId);
-    const show  = input.type === 'password';
-    input.type = show ? 'text' : 'password';
-    document.getElementById(btnId).textContent = show ? 'Hide' : 'Show';
-  });
-}
-wireVisibilityToggle('claude-key-toggle', 'claude-api-key');
 
 document.getElementById('recheck-btn').addEventListener('click', recheck);
 document.getElementById('restart-btn').addEventListener('click', () => {
@@ -891,12 +811,9 @@ function collectConfig() {
     whisperLanguage: document.getElementById('whisper-lang-sel').value,
     modelPrefetch:   document.getElementById('model-prefetch-chk').checked,
     aiPrivacyMode:   document.getElementById('ai-privacy-sel').value,
-    llmBackend:      document.getElementById('llm-backend-sel').value,
     llmModelPath:    (document.getElementById('llm-model-path').value || '').trim(),
     localModelChoice: choiceEl ? choiceEl.value : 'local',
     recommendedModelId: rec.modelId || '',
-    claudeApiKey:    (document.getElementById('claude-api-key').value || '').trim(),
-    claudeModel:     document.getElementById('claude-model-sel').value,
     contentPreset:   document.getElementById('content-preset-sel').value,
   };
 }

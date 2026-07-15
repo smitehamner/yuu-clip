@@ -25,7 +25,7 @@ const {
   VENV_DIR, VENV_PYTHON, VENV_PIP, BUNDLED_PYTHON, BUNDLED_FFMPEG_DIR,
   BUNDLED_LLAMA_SERVER_DIR,
   SETUP_LOG, SETUP_COMPLETE_MARKER, WHEEL_MARKER,
-  DEFAULT_PROJECT_DIR, BASE_PORT, DEFAULT_CLAUDE_MODEL, isRemoteAiEnabled,
+  DEFAULT_PROJECT_DIR, BASE_PORT,
   DEFAULT_LLAMACPP_MODEL, MODELS_DIR, SETUP_SCHEMA_VERSION,
 } = require('./constants');
 const { rotateLogs, logSetup } = require('./logging');
@@ -290,9 +290,7 @@ function registerWizardIPC(wizardWin) {
     const cuda          = detectCUDA();
     const cudaLibsInstalled = await checkVenvModule(WIZARD_INSTALLABLE['cuda-libs'].importName);
 
-    const existingBackend   = projCfg.llm_backend;
     const existingModelPath = projCfg.llm_model_path || '';
-    const defaultBackend    = existingBackend || 'llamacpp';
 
     let freeDiskGB;
     try { freeDiskGB = diskSpace.freeBytesAt(pDir) / 1e9; } catch (_) { freeDiskGB = undefined; }
@@ -308,11 +306,8 @@ function registerWizardIPC(wizardWin) {
       whisperModel:  projCfg.whisper_model || '',
       projectDir: pDir,
       aiPrivacyMode: projCfg.ai_privacy_mode || 'local_only',
-      remoteAiEnabled: isRemoteAiEnabled(),
-      llmBackend:    defaultBackend,
+      llmBackend:    'llamacpp',
       llmModelPath:  existingModelPath,
-      claudeApiKey:  projCfg.claude_api_key  || '',
-      claudeModel:   projCfg.claude_model    || DEFAULT_CLAUDE_MODEL,
       whisperLanguage:    projCfg.whisper_language || '',
       contentPreset:      projCfg.content_preset || 'generic',
     };
@@ -537,11 +532,9 @@ function showSetupWizard({ rerun = false, updated = false } = {}) {
       if (cfg.restored) {
         logSetup(`Setup complete via restore - projectDir:${cfg.projectDir} (kept restored settings)`);
       } else {
-        const pyCfg = buildProjectConfigFromWizard(cfg, {
-          defaultClaudeModel: DEFAULT_CLAUDE_MODEL,
-        });
+        const pyCfg = buildProjectConfigFromWizard(cfg);
         writeProjectConfig(cfg.projectDir, pyCfg);
-        logSetup(`Setup complete - projectDir:${cfg.projectDir} whisperModel:${cfg.whisperModel} llmBackend:${cfg.llmBackend} diarization:${pyCfg.diarization_backend}`);
+        logSetup(`Setup complete - projectDir:${cfg.projectDir} whisperModel:${cfg.whisperModel} llmBackend:${pyCfg.llm_backend} diarization:${pyCfg.diarization_backend}`);
       }
       fs.mkdirSync(path.dirname(SETUP_COMPLETE_MARKER), { recursive: true });
       fs.writeFileSync(SETUP_COMPLETE_MARKER, new Date().toISOString());

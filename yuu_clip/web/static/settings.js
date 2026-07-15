@@ -5,10 +5,9 @@
 const _settingsFieldIds = [
   's-whisper-model','s-whisper-device','s-whisper-compute','s-whisper-language',
   's-ai-privacy-value',
-  's-llm-enabled','s-llm-backend','s-llm-model-path','s-llm-vision-model-path','s-llm-mmproj-path','s-llm-use-gpu',
+  's-llm-enabled','s-llm-model-path','s-llm-vision-model-path','s-llm-mmproj-path','s-llm-use-gpu',
   's-vision-enabled','s-vision-frames',
   's-visual-auto-vision','s-visual-vision-topn',
-  's-claude-api-key','s-claude-model','s-claude-timeout',
   's-diarization-backend','s-speaker-match-threshold','s-speaker-cluster-threshold',
   's-project-voice-match-threshold',
   's-similarity-backend',
@@ -90,8 +89,8 @@ async function openSettings() {
     const cfg = await fetch('/api/config').then(r => r.json());
     await _ensureDefaults();  // so the Reset controls work without a per-click fetch
     await _ensureWhisperLanguageOptions();
-    // Populate catalog-driven pickers before _applySettingsToUI so the saved
-    // claude_model matches a rendered option rather than falling to option 0.
+    // Load the model catalog before _applySettingsToUI so the recommended-model
+    // cards and the "currently using" summary reflect the saved active model.
     await _ensureModelCatalog();
     // Sound rows must be rendered (from saved state) before _applySettingsToUI
     // runs the dirty check, or a discarded prior edit would re-enable Save.
@@ -207,9 +206,6 @@ function _applySttFields(cfg) {
 function _applyLlmFields(cfg) {
   _setFieldChk('s-llm-enabled',  cfg.llm_enabled   !== false);
   _onLlmEnabledChange(cfg.llm_enabled !== false);
-  const backend = cfg.llm_backend || 'llamacpp';
-  _setFieldVal('s-llm-backend',    backend);
-  _onLlmBackendChange(backend);
   _setFieldVal('s-llm-model-path', cfg.llm_model_path  || '');
   _setFieldVal('s-llm-vision-model-path', cfg.llm_vision_model_path || '');
   _setFieldVal('s-llm-mmproj-path', cfg.llm_mmproj_path || '');
@@ -219,16 +215,8 @@ function _applyLlmFields(cfg) {
   window._visionEnabled = cfg.vision_enabled === true;
   _setFieldChk('s-visual-auto-vision', cfg.visual_auto_vision_enabled === true);
   _setFieldVal('s-visual-vision-topn', cfg.visual_vision_topn ?? 8);
-  _setFieldVal('s-claude-api-key', cfg.claude_api_key  || '');
-  _setClaudeModelValue(cfg.claude_model || 'claude-haiku-4-5-20251001');
-  _setFieldVal('s-claude-timeout', cfg.claude_timeout_s ?? 30);
   _setFieldVal('s-similarity-backend', cfg.similarity_backend || 'embeddings');
-  // Distribution gate (WS4): read-only, set from /api/config. When off, the remote
-  // (Claude) backend and the remote privacy mode are hidden entirely (see
-  // _onPrivacyModeChange). Must be set BEFORE _setPrivacyMode re-evaluates visibility.
-  window._remoteAiEnabled = cfg.remote_ai_enabled === true;
-  // After the backend + similarity selects are populated: applies the privacy mode,
-  // which re-evaluates backend visibility, the remote badge, and option filtering.
+  // Applies the privacy mode, which collapses the generative block when "none".
   _setPrivacyMode(cfg.ai_privacy_mode || 'local_only');
   _onSimilarityBackendChange(cfg.similarity_backend || 'embeddings');
   _updateLlmCapabilities();
@@ -418,31 +406,10 @@ function _onLlmEnabledChange(enabled) {
   body.inert = !enabled;
 }
 
-function _onLlmBackendChange(backend) {
-  const mode = _currentPrivacyMode();
-  const isClaude      = backend === 'claude';
-  // The remote path is usable only when the build gate is on AND privacy allows it.
-  const remoteAllowed = mode === 'remote_ok' && window._remoteAiEnabled === true;
-  // The local-model picker (cards) lives in the main flow; #s-llamacpp-fields (GPU +
-  // manual paths) lives under Advanced. Both are llamacpp-only, so toggle together.
-  const pickerEl   = document.getElementById('s-llamacpp-picker');
-  const llamacppEl = document.getElementById('s-llamacpp-fields');
-  const claudeEl   = document.getElementById('s-claude-fields');
-  const warnEl     = document.getElementById('s-backend-remote-warning');
-  const blockedEl  = document.getElementById('s-remote-blocked-notice');
-  if (pickerEl)   pickerEl.style.display   = backend === 'llamacpp' ? '' : 'none';
-  if (llamacppEl) llamacppEl.style.display = backend === 'llamacpp' ? '' : 'none';
-  if (claudeEl)   claudeEl.style.display   = isClaude ? '' : 'none';
-  // Costs warning only when the remote backend is actually usable; otherwise the
-  // "blocked by AI privacy mode" notice explains why a saved Claude backend is inert.
-  if (warnEl)     warnEl.style.display     = (isClaude && remoteAllowed)  ? '' : 'none';
-  if (blockedEl)  blockedEl.style.display  = (isClaude && !remoteAllowed) ? '' : 'none';
-}
-
-// ── AI privacy mode (plan non-llm-tiers/07) ─────────────────────────────────
-// The UI mirror of the server-side trust guarantee. Hiding the remote option and
-// collapsing the generative block is presentation only - enforcement lives in
-// resolve_ai_permissions; these controls never *grant* a capability the server blocks.
+// ── AI privacy mode ─────────────────────────────────────────────────────────
+// The UI mirror of the server-side trust guarantee. Collapsing the generative
+// block is presentation only - enforcement lives in resolve_ai_permissions; these
+// controls never *grant* a capability the server blocks.
 function _currentPrivacyMode() {
   const checked = document.querySelector('input[name="s-ai-privacy"]:checked');
   return checked ? checked.value : (window._aiPrivacyMode || 'local_only');
@@ -457,19 +424,8 @@ function _onPrivacyModeChange(mode) {
   const noneSummary = document.getElementById('s-privacy-none-summary');
   if (genBlock)    genBlock.style.display    = generativeOff ? 'none' : '';
   if (noneSummary) noneSummary.style.display = generativeOff ? '' : 'none';
-  // WS4 distribution gate: with remote AI off, hide the remote privacy option and the
-  // Claude backend entirely - a shipped build must not surface the remote path at all.
-  const remoteAi = window._remoteAiEnabled === true;
-  const remoteRadioLabel = document
-    .querySelector('input[name="s-ai-privacy"][value="remote_ok"]')?.closest('label');
-  if (remoteRadioLabel) remoteRadioLabel.style.display = remoteAi ? '' : 'none';
-  const claudeOption = document.querySelector('#s-llm-backend option[value="claude"]');
-  if (claudeOption) claudeOption.hidden = claudeOption.disabled = !remoteAi || mode !== 'remote_ok';
   const simLlmOption = document.querySelector('#s-similarity-backend option[value="llm"]');
   if (simLlmOption) simLlmOption.hidden = simLlmOption.disabled = generativeOff;
-  const backend = document.getElementById('s-llm-backend')?.value || 'llamacpp';
-  _onLlmBackendChange(backend);
-  _updateLlmRemoteIndicator(backend, document.getElementById('s-llm-enabled')?.checked !== false);
 }
 
 function _setPrivacyMode(mode) {
@@ -680,7 +636,6 @@ async function saveSettings() {
     whisper_language:           getVal('s-whisper-language'),
     ai_privacy_mode:            _currentPrivacyMode(),
     llm_enabled:                getChk('s-llm-enabled'),
-    llm_backend:                getVal('s-llm-backend'),
     llm_model_path:             getVal('s-llm-model-path'),
     llm_vision_model_path:      getVal('s-llm-vision-model-path'),
     llm_mmproj_path:            getVal('s-llm-mmproj-path'),
@@ -689,9 +644,6 @@ async function saveSettings() {
     vision_frames_per_clip:     getNum('s-vision-frames', v => parseInt(v, 10)),
     visual_auto_vision_enabled: getChk('s-visual-auto-vision'),
     visual_vision_topn:         getNum('s-visual-vision-topn', v => parseInt(v, 10)),
-    claude_api_key:             getVal('s-claude-api-key'),
-    claude_model:               getVal('s-claude-model'),
-    claude_timeout_s:           getNum('s-claude-timeout', parseFloat),
     scorer_energy_weight:       getNum('s-energy-weight', parseFloat),
     scorer_scene_weight:        getNum('s-scene-weight', parseFloat),
     scorer_llm_weight:          getNum('s-llm-weight', parseFloat),
@@ -760,7 +712,6 @@ async function saveSettings() {
     _snapshotSettings();
     _checkSettingsDirty();
     if (btn) btn.textContent = 'Save';
-    _updateLlmRemoteIndicator(payload.llm_backend || 'llamacpp', payload.llm_enabled !== false);
     _updateLlmCapabilities();
     _renderCapabilityTiers();
     refreshModelCatalog();
@@ -859,7 +810,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // test. Internal helpers above stay private to this module's closure.
 Object.assign(window, {
   openSettings, closeSettings, saveSettings, applyTheme, applyAccent,
-  _onLlmBackendChange, _onLlmEnabledChange, _onDiarizationBackendChange, _onLaughModeChange,
+  _onLlmEnabledChange, _onDiarizationBackendChange, _onLaughModeChange,
   _onSimilarityBackendChange, _onPrivacyModeChange, _setPrivacyMode, _currentPrivacyMode,
   _onPlayNextChange, _onLoopClipChange, _onSettingsWordHighlightChange,
   _toggleSecretVisibility, _updateDiarizationStatus,

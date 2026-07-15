@@ -37,22 +37,6 @@ const ELECTRON_CONFIG_PATH  = path.join(process.env.APPDATA, 'yuu-clip', 'electr
 const DEFAULT_PROJECT_DIR = path.join(process.env.USERPROFILE, 'Videos', 'yuu-clip');
 const BASE_PORT = 8080;
 
-const DEFAULT_CLAUDE_MODEL = 'claude-haiku-4-5-20251001';
-
-// Distribution/dev gate for the remote (Claude) backend (WS4), mirroring the Python
-// Config.remote_ai_enabled default. Shipped builds keep this false so the wizard never
-// offers the remote path; a truthy YUU_REMOTE_AI env var overrides it for own testing
-// (see remoteAiEnabled() in main.js). Keep in sync with yuu_clip/config.py.
-const REMOTE_AI_ENABLED = false;
-
-// Effective remote-AI gate: the build constant OR a truthy YUU_REMOTE_AI env var.
-// Mirrors Python's remote_ai_allowed so the wizard offers the remote backend under
-// exactly the same conditions as the in-app Settings do.
-function isRemoteAiEnabled(env = process.env) {
-  const value = String((env && env.YUU_REMOTE_AI) || '').trim().toLowerCase();
-  return REMOTE_AI_ENABLED || ['1', 'true', 'yes', 'on'].includes(value);
-}
-
 // Cross-checked against yuu_clip/model_catalog.py by
 // tests/test_model_catalog.py::test_electron_wizard_default_llamacpp_model_matches_the_catalog
 // - keep id/repoUrl/filename in sync with that catalog entry.
@@ -78,6 +62,5 @@ module.exports = {
   BUNDLED_PYTHON, BUNDLED_FFMPEG_DIR, BUNDLED_LLAMA_SERVER_DIR,
   SETUP_LOG, SETUP_COMPLETE_MARKER, WHEEL_MARKER, ELECTRON_CONFIG_PATH,
   DEFAULT_PROJECT_DIR, BASE_PORT,
-  DEFAULT_CLAUDE_MODEL, REMOTE_AI_ENABLED, isRemoteAiEnabled,
   DEFAULT_LLAMACPP_MODEL, MODELS_DIR, SETUP_SCHEMA_VERSION,
 };

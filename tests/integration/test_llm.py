@@ -75,34 +75,6 @@ class TestCapabilities:
         }
         assert cap["text"] is False and cap["vision"] is False
 
-    def test_claude_requires_a_key_for_text_and_vision(self, client: TestClient, monkeypatch):
-        # remote_ok so the privacy-mode block isn't the reason under test (Stage 07);
-        # YUU_REMOTE_AI so the distribution gate (WS4) isn't the reason under test either.
-        monkeypatch.setenv("YUU_REMOTE_AI", "1")
-        _patch(client, llm_enabled=True, llm_backend="claude", claude_api_key="",
-               ai_privacy_mode="remote_ok")
-        cap = client.get("/api/llm/capabilities").json()
-        assert cap["backend"] == "claude"
-        assert cap["text"] is False and cap["vision"] is False
-
-        _patch(client, claude_api_key="sk-ant-test", claude_model="claude-haiku-4-5-20251001")
-        cap = client.get("/api/llm/capabilities").json()
-        assert cap["text"] is True and cap["vision"] is True
-        assert cap["model"] == "claude-haiku-4-5-20251001"
-
-    def test_claude_reported_unavailable_when_remote_ai_gate_off(
-        self, client: TestClient, monkeypatch,
-    ):
-        # WS4: an existing backend=claude config in a flag-off build degrades to
-        # unavailable with a build-specific reason, not the privacy-mode reason.
-        monkeypatch.delenv("YUU_REMOTE_AI", raising=False)
-        _patch(client, llm_enabled=True, llm_backend="claude", claude_api_key="sk-ant-test",
-               ai_privacy_mode="remote_ok")
-        cap = client.get("/api/llm/capabilities").json()
-        assert cap["backend"] == "claude"
-        assert cap["text"] is False and cap["vision"] is False
-        assert "turned off in this build" in cap["detail"]
-
     def test_llamacpp_text_needs_a_present_file_vision_needs_mmproj(
         self, client: TestClient, project_dir: Path,
     ):

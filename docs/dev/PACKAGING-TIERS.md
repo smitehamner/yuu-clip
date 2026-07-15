@@ -13,13 +13,12 @@ things" UX. Every optional component lands in exactly one tier.
   first use with a progress UI and a plain-English "downloading X so Y works" message.
   Degrades gracefully offline - the feature waits or skips; the app never breaks. No
   "click to install" button.
-- **Tier C - Genuine choice.** The only two things a user legitimately decides:
-  **GPU acceleration** (hardware-dependent opt-in) and **remote vs. local AI**
-  (privacy/cost - the Claude backend + `anthropic`). These stay explicit by design.
+- **Tier C - Genuine choice.** The one thing a user legitimately decides:
+  **GPU acceleration** (hardware-dependent opt-in). YuuClip is local-only, so there is no
+  remote-vs-local AI choice - all inference runs on-device. This stays explicit by design.
 
 **Rule for the future:** a new feature is Tier A or B by default. Tier C requires a
-real user tradeoff (hardware, or privacy/cost). "It's optional so make it a button" is
-banned.
+real user tradeoff (hardware). "It's optional so make it a button" is banned.
 
 ## Two senses of "default"
 
@@ -33,8 +32,8 @@ surprisingly slow.
 ## Licence gate (load-bearing)
 
 Any model the app defaults to must carry a licence that permits monetizing its output
-(Apache-2.0 / MIT / BSD-3-Clause; Anthropic Commercial Terms for the hosted backend).
-Llama / Gemma / bespoke-restrictive licences are out of defaults. See
+(Apache-2.0 / MIT / BSD-3-Clause). Llama / Gemma / bespoke-restrictive licences are out
+of defaults. See
 `yuu_clip/model_catalog.py` and `tests/test_model_catalog.py`.
 
 ## Licence verdicts - models promoted to default by the packaging overhaul
@@ -86,7 +85,6 @@ Qwen2-VL) can be re-evaluated against it and re-added if they run.
 | Vision analysis | (uses LLM backend) | Qwen2.5-VL 7B | Available; conservatively-on |
 | GPU acceleration (LLM) | bundled Vulkan llama-server | - | Default when a GPU is present |
 | GPU acceleration (Whisper) | nvidia-cublas-cu12, nvidia-cudnn-cu12 | - | Tier C - opt-in (wizard "cuda-libs") |
-| Remote Claude | anthropic | - | Tier C - privacy choice |
 
 ## Installer-size impact (Wave 1)
 

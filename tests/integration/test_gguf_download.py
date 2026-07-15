@@ -27,10 +27,6 @@ class TestGgufDownloadGuard:
         assert resp.status_code == 400
         assert "Unknown model id" in resp.json()["detail"]
 
-    def test_claude_model_id_is_rejected(self, client: TestClient):
-        resp = client.post("/api/llm/gguf/download", params={"model_id": "claude-haiku-4-5"})
-        assert resp.status_code == 400
-
     def test_unknown_model_id_never_spawns_a_subprocess(self, client: TestClient, monkeypatch):
         async def fail_if_called(*a, **k):
             raise AssertionError("must not spawn a subprocess for an unknown id")

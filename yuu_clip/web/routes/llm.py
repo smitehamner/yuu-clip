@@ -4,8 +4,8 @@
 """LLM capability + model-catalog routes.
 
 GET /api/llm/capabilities - what the active backend/model can do right now
-    ({backend, model, text, vision, detail}). A cheap static check only: file
-    existence for llamacpp, API-key presence for claude. No inference test-call.
+    ({backend, model, text, vision, detail}). A cheap static check only: local
+    model-file existence for the llamacpp backend. No inference test-call.
     UI features gate on this (a control that needs vision links here rather than
     silently disabling itself).
 
@@ -114,37 +114,6 @@ def _preflight_whisper_prefetch(model: str) -> dict:
     }
 
 
-def _claude_capabilities(cfg, backend: str, permissions) -> dict:
-    from yuu_clip.config import remote_ai_allowed
-
-    if not remote_ai_allowed(cfg):
-        return {
-            "backend": backend, "model": cfg.claude_model or None, "text": False, "vision": False,
-            "detail": (
-                "Remote AI (the Claude backend) is turned off in this build of yuu-clip - "
-                "switch to a local model under Settings → LLM scoring."
-            ),
-        }
-    if not permissions.allow_remote:
-        return {
-            "backend": backend, "model": cfg.claude_model or None, "text": False, "vision": False,
-            "detail": (
-                "The remote (Claude) backend is blocked by AI privacy mode - switch to a "
-                "local model or allow remote models under Settings → AI privacy."
-            ),
-        }
-    has_key = bool(cfg.claude_api_key)
-    detail = (
-        "Claude API key set - text and image analysis are available."
-        if has_key else
-        "No Claude API key set - add one under Settings → LLM scoring."
-    )
-    return {
-        "backend": backend, "model": cfg.claude_model or None,
-        "text": has_key, "vision": has_key, "detail": detail,
-    }
-
-
 def _llamacpp_capabilities(cfg, backend: str) -> dict:
     """Readiness of the local llamacpp backend, whose text and vision models are set
     independently (llm_model_path vs llm_vision_model_path + llm_mmproj_path)."""
@@ -193,8 +162,6 @@ def _capabilities(cfg) -> dict:
             "backend": backend, "model": None, "text": False, "vision": False,
             "detail": "Generative AI is turned off - change it under Settings → AI privacy.",
         }
-    if backend == "claude":
-        return _claude_capabilities(cfg, backend, permissions)
     return _llamacpp_capabilities(cfg, backend)
 
 
@@ -377,8 +344,7 @@ def _entry_dest_paths(entry, models_dir: Path) -> dict:
 
 
 def _entry_installed(entry, models_dir: Path) -> bool:
-    """True when every file the llamacpp entry needs is present in the models
-    dir. Claude entries return False (their presence isn't a local file)."""
+    """True when every file the llamacpp entry needs is present in the models dir."""
     if model_catalog.BACKEND_LLAMACPP not in entry.backends or not entry.gguf_filename:
         return False
     if not (models_dir / entry.gguf_filename).exists():
@@ -408,8 +374,6 @@ def _entry_active(entry, cfg) -> bool:
         if not model_path or not entry.gguf_filename:
             return False
         return Path(model_path).name == entry.gguf_filename
-    if backend == "claude":
-        return bool(entry.api_model_id) and entry.api_model_id == (cfg.claude_model or "").strip()
     return False
 
 

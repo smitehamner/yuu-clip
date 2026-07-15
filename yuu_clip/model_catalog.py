@@ -7,8 +7,7 @@ catalog is not "every model that exists" but "models we've vetted as a safe,
 good default for this tool". The load-bearing constraint is licensing - a user
 of yuu-clip may monetize the clips it helps produce, so any model we *recommend*
 must carry a licence that permits monetizing model output without a user-side
-legal reading. Apache-2.0 and MIT qualify; the Anthropic API's commercial terms
-qualify for the hosted Claude backend. Llama's community licence and Google's
+legal reading. Apache-2.0 and MIT qualify. Llama's community licence and Google's
 Gemma terms impose acceptable-use restrictions that aren't worth pushing onto a
 non-lawyer solo user, so those models are recorded here as *rejected* (they keep
 working if a user configures them by hand - we simply don't recommend them).
@@ -29,12 +28,11 @@ from typing import Optional
 
 # Backends a catalog entry can run on. Mirrors Config.llm_backend values.
 BACKEND_LLAMACPP = "llamacpp"
-BACKEND_CLAUDE = "claude"
 
 # A recommended model must carry one of these - every one permits monetizing the
-# model's output. "Anthropic Commercial Terms" covers the hosted Claude backend.
+# model's output.
 MONETIZATION_OK_LICENCES: frozenset[str] = frozenset(
-    {"Apache-2.0", "MIT", "BSD-3-Clause", "Anthropic Commercial Terms"}
+    {"Apache-2.0", "MIT", "BSD-3-Clause"}
 )
 
 
@@ -55,7 +53,6 @@ class ModelEntry:
     gguf_filename: Optional[str] = None  # exact quant filename at gguf_url/resolve/main/<this>, for one-click download
     mmproj_url: Optional[str] = None     # HF repo page holding the vision projector (llamacpp vision) - usually the same repo as gguf_url
     mmproj_filename: Optional[str] = None  # exact projector filename at mmproj_url/resolve/main/<this>, for one-click vision download
-    api_model_id: Optional[str] = None   # provider model id (claude backend)
     recommended: bool = True
     rejected_reason: Optional[str] = None  # set when recommended is False
 
@@ -72,7 +69,6 @@ class ModelEntry:
             "gguf_filename": self.gguf_filename,
             "mmproj_url": self.mmproj_url,
             "mmproj_filename": self.mmproj_filename,
-            "api_model_id": self.api_model_id,
             "recommended": self.recommended,
             "rejected_reason": self.rejected_reason,
         }
@@ -83,9 +79,8 @@ _VISION = frozenset({"vision"})
 _TEXT_VISION = frozenset({"text", "vision"})
 
 
-# Curated built-ins. Local text/vision models first, then the hosted Claude
-# models (multimodal - they satisfy both text and vision), then the recorded
-# rejections so a future session doesn't re-litigate them.
+# Curated built-ins. Local text models first, then local vision models, then the
+# recorded rejections so a future session doesn't re-litigate them.
 CATALOG: tuple[ModelEntry, ...] = (
     # ── Local text models ──────────────────────────────────────────────────
     ModelEntry(
@@ -169,34 +164,6 @@ CATALOG: tuple[ModelEntry, ...] = (
         gguf_filename="pixtral-12b-Q4_K_M.gguf",
         mmproj_url="https://huggingface.co/ggml-org/pixtral-12b-GGUF",
         mmproj_filename="mmproj-pixtral-12b-f16.gguf",
-    ),
-    # ── Hosted Claude models (multimodal → text + vision) ───────────────────
-    ModelEntry(
-        id="claude-haiku-4-5",
-        display_name="Claude Haiku 4.5",
-        kinds=_TEXT_VISION,
-        licence="Anthropic Commercial Terms",
-        why="Fast and cheap - a good default for the Claude backend.",
-        backends=frozenset({BACKEND_CLAUDE}),
-        api_model_id="claude-haiku-4-5-20251001",
-    ),
-    ModelEntry(
-        id="claude-sonnet-5",
-        display_name="Claude Sonnet 5",
-        kinds=_TEXT_VISION,
-        licence="Anthropic Commercial Terms",
-        why="Smarter than Haiku at a higher per-token cost.",
-        backends=frozenset({BACKEND_CLAUDE}),
-        api_model_id="claude-sonnet-5",
-    ),
-    ModelEntry(
-        id="claude-opus-4-8",
-        display_name="Claude Opus 4.8",
-        kinds=_TEXT_VISION,
-        licence="Anthropic Commercial Terms",
-        why="Most capable Claude model - highest cost, best judgement.",
-        backends=frozenset({BACKEND_CLAUDE}),
-        api_model_id="claude-opus-4-8",
     ),
     # ── Recorded rejections (licence - do not re-litigate) ──────────────────
     ModelEntry(

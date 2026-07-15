@@ -57,8 +57,6 @@ async function refreshServerState() {
     const cfg = await fetch('/api/config').then(r => r.json());
     window._aiPrivacyMode = cfg.ai_privacy_mode || 'local_only';
     window._visionEnabled = cfg.vision_enabled === true;
-    if (window._updateLlmRemoteIndicator)
-      _updateLlmRemoteIndicator(cfg.llm_backend || 'llamacpp', cfg.llm_enabled !== false);
   } catch { /* keep the last known config on a transient fetch failure */ }
   try {
     const prereqs = await fetch('/api/prereqs').then(r => r.json());

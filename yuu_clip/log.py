@@ -35,9 +35,10 @@ def redact_paths(text: str) -> str:
     return text
 
 
-# Defense-in-depth sink-side net for the two live secrets the app holds (the
-# Anthropic API key and the Hugging Face token) plus generic bearer/query-string
-# credentials. No call site logs a secret today, but the log is one users are
+# Defense-in-depth sink-side net for the Hugging Face token the app holds, plus
+# generic bearer/query-string credentials and Anthropic-style keys that could show up
+# in pasted text or third-party output. No call site logs a secret today, but the log
+# is one users are
 # invited to send us for support, so a future call site - or a third-party lib
 # that logs an auth header or a signed URL - should not leak verbatim. Patterns
 # require enough length to avoid redacting ordinary prose (e.g. the ``hf_cache``

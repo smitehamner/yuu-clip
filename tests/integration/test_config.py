@@ -196,33 +196,7 @@ class TestUiConfig:
         # Same key set as GET /api/config, so the frontend can revert any field.
         assert set(client.get("/api/config/defaults").json()) == set(client.get("/api/config").json())
 
-    # Remote-AI distribution gate (WS4) - GET reports the EFFECTIVE value
-    # (config field OR YUU_REMOTE_AI env) and the gate is never PATCH-able.
-    def test_get_config_reports_gate_off_by_default(self, client, monkeypatch):
-        monkeypatch.delenv("YUU_REMOTE_AI", raising=False)
-        assert client.get("/api/config").json()["remote_ai_enabled"] is False
-
-    def test_get_config_reports_gate_on_via_env(self, client, monkeypatch):
-        # The env escape hatch flips the effective value the Settings UI reads,
-        # even though the saved config field stays False.
-        monkeypatch.setenv("YUU_REMOTE_AI", "1")
-        assert client.get("/api/config").json()["remote_ai_enabled"] is True
-
-    def test_defaults_reports_effective_gate_not_raw_false(self, client, monkeypatch):
-        # Reset-to-defaults must not flip the gate the browser sees.
-        monkeypatch.setenv("YUU_REMOTE_AI", "1")
-        assert client.get("/api/config/defaults").json()["remote_ai_enabled"] is True
-
-    def test_patch_cannot_flip_the_gate(self, client, monkeypatch):
-        # The gate is a distribution control, never a Settings toggle: a PATCH
-        # trying to enable it is silently ignored, GET still reports off.
-        monkeypatch.delenv("YUU_REMOTE_AI", raising=False)
-        r = client.patch("/api/config", json={"remote_ai_enabled": True})
-        assert r.status_code == 200
-        assert r.json()["remote_ai_enabled"] is False
-        assert client.get("/api/config").json()["remote_ai_enabled"] is False
-
-    # AI privacy mode (plan non-llm-tiers/07)
+    # AI privacy mode - local-only tool, so only "none" | "local_only"
     def test_ai_privacy_mode_defaults_to_local_only(self, client):
         assert client.get("/api/config").json()["ai_privacy_mode"] == "local_only"
 
@@ -231,8 +205,10 @@ class TestUiConfig:
         assert r.status_code == 200 and r.json()["ai_privacy_mode"] == "none"
         assert client.get("/api/config").json()["ai_privacy_mode"] == "none"
 
-    def test_patch_ai_privacy_mode_rejects_unknown(self, client):
-        assert client.patch("/api/config", json={"ai_privacy_mode": "cloud"}).status_code == 400
+    def test_patch_ai_privacy_mode_rejects_removed_remote_ok(self, client):
+        # The remote (Claude) backend and its "remote_ok" mode were removed - the
+        # value must no longer validate.
+        assert client.patch("/api/config", json={"ai_privacy_mode": "remote_ok"}).status_code == 400
 
     def test_llm_use_gpu_defaults_true(self, client):
         assert client.get("/api/config").json()["llm_use_gpu"] is True
@@ -565,11 +541,11 @@ class TestConfigNewLlmFields:
         cfg_dir = project_dir / ".yuu-clip"
         cfg_dir.mkdir()
         (cfg_dir / "config.json").write_text(
-            json.dumps({"llm_backend": "claude", "llm_model_path": "/models/foo.gguf"}),
+            json.dumps({"llm_backend": "llamacpp", "llm_model_path": "/models/foo.gguf"}),
             encoding="utf-8",
         )
         cfg = Config.load(project_dir)
-        assert cfg.llm_backend == "claude"
+        assert cfg.llm_backend == "llamacpp"
         assert cfg.llm_model_path == "/models/foo.gguf"
 
 
@@ -583,10 +559,13 @@ class TestConfigApiLlmFields:
         assert "llm_backend" in d
         assert "llm_model_path" in d
 
-    def test_patch_llm_backend_to_claude(self, client):
-        r = client.patch("/api/config", json={"llm_backend": "claude"})
+    def test_patch_llm_backend_accepts_llamacpp(self, client):
+        r = client.patch("/api/config", json={"llm_backend": "llamacpp"})
         assert r.status_code == 200
-        assert r.json()["llm_backend"] == "claude"
+        assert r.json()["llm_backend"] == "llamacpp"
+
+    def test_patch_llm_backend_rejects_removed_claude(self, client):
+        assert client.patch("/api/config", json={"llm_backend": "claude"}).status_code == 400
 
     def test_patch_llm_model_path(self, client):
         r = client.patch("/api/config", json={"llm_model_path": "/models/qwen2.5.gguf"})

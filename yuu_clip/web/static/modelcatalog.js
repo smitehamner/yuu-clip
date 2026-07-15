@@ -6,8 +6,8 @@
 // engine that persists config stays in settings.js.
 //   API: routes/llm.py, routes/config.py (capabilities/tiers) · Tests: tests/ui/test_ui_model_catalog.py, tests/ui/test_ui_settings.py
 // ── model catalog (recommended text + vision models) ────────────────────────
-// Loaded once per session. Fills the Claude model dropdown and the per-backend
-// recommended lists; the capabilities line reflects the *saved* active model.
+// Loaded once per session. Fills the recommended model lists; the capabilities
+// line reflects the *saved* active model.
 let _modelCatalog = null;
 // models_dir / free disk / saved backend, so cards can show "~X GB, Y GB free"
 // up front and the summary line can name the active backend.
@@ -41,14 +41,13 @@ async function _loadModelCatalog() {
       '<div class="settings-note">Could not load the recommended model list - check your internet connection and reopen Settings. You can still set a model file by hand under Advanced AI options below.</div>';
     return;
   }
-  _populateClaudeModelSelect();
   _renderRecommendedModels('s-llamacpp-recommended', 'llamacpp');
   _updateCurrentModelSummary();
 }
 
 // "Currently using: <model> (<backend>)" - states the saved active model plainly
 // so it isn't reverse-engineered from a path string. Hidden when nothing matches.
-const _BACKEND_LABELS = { llamacpp: 'Local llama.cpp', claude: 'Claude API' };
+const _BACKEND_LABELS = { llamacpp: 'Local llama.cpp' };
 
 function _updateCurrentModelSummary() {
   const el = document.getElementById('s-llm-current-summary');
@@ -61,30 +60,6 @@ function _updateCurrentModelSummary() {
     `Currently using: <strong>${escHtml(active.display_name)}</strong> ` +
     `<span class="settings-note">(${escHtml(label)})</span>`;
   el.style.display = '';
-}
-
-function _populateClaudeModelSelect() {
-  const sel = document.getElementById('s-claude-model');
-  if (!sel || !_modelCatalog) return;
-  const claude = _modelCatalog.filter(m => m.backends.includes('claude') && m.api_model_id);
-  if (!claude.length) return;  // keep the HTML fallback options on empty catalog
-  sel.innerHTML = claude.map(m =>
-    `<option value="${escHtml(m.api_model_id)}">${escHtml(m.display_name)}</option>`
-  ).join('');
-}
-
-// Show *value* even when it isn't a catalog option (a legacy or manually-typed
-// model id) so opening Settings never silently rewrites the saved model.
-function _setClaudeModelValue(value) {
-  const sel = document.getElementById('s-claude-model');
-  if (!sel) return;
-  if (!Array.from(sel.options).some(o => o.value === value)) {
-    const opt = document.createElement('option');
-    opt.value = value;
-    opt.textContent = value + ' (configured)';
-    sel.insertBefore(opt, sel.firstChild);
-  }
-  sel.value = value;
 }
 
 // Text and vision models render as two labelled groups per backend, each with
@@ -511,7 +486,7 @@ async function gateOnCapability(el, capability, message) {
 // Public API - symbols referenced cross-module, by an inline handler, or by a
 // test. Internal helpers above stay private to this module's closure.
 Object.assign(window, {
-  _ensureModelCatalog, refreshModelCatalog, _setClaudeModelValue,
+  _ensureModelCatalog, refreshModelCatalog,
   _updateLlmCapabilities, _renderCapabilityTiers,
   gateOnCapability, prefetchModel, downloadGgufModel,
 });

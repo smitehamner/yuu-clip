@@ -1,9 +1,9 @@
 """
 LLMScorer - sends the transcript excerpt to an LLM and parses dimension scores.
 
-Supports two backends (config: llm_backend):
-  "llamacpp" - bundled llama.cpp llama-server over HTTP; local, GPU-accelerated, no API costs.
-  "claude"   - Anthropic Claude API; REMOTE, billed per token.
+Backend (config: llm_backend):
+  "llamacpp" - bundled llama.cpp llama-server over HTTP; local, GPU-accelerated, no API
+  costs. All inference is on-device - nothing the user records leaves their machine.
 
 Gracefully degrades: if the backend is unreachable or returns bad output,
 logs a warning and returns a zero ScoreResult so ingest is never blocked.
@@ -17,7 +17,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from yuu_clip.contexts import format_character_block
-from yuu_clip.scoring.llm_client import backend_is_remote, make_client
+from yuu_clip.scoring.llm_client import make_client
 from yuu_clip.scoring.protocol import ScoreResult
 
 if TYPE_CHECKING:
@@ -28,19 +28,9 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
-# User-facing reasons for the two AI-privacy-mode blocks (Stage non-llm-tiers/07).
+# User-facing reason for the AI-privacy-mode "none" block.
 _GENERATIVE_OFF_REASON = (
     "Generative AI is turned off - change it under Settings -> AI privacy"
-)
-_REMOTE_BLOCKED_REASON = (
-    "The remote (Claude) backend is blocked by AI privacy mode - switch to a local model "
-    "or allow remote models under Settings -> AI privacy"
-)
-# WS4: the remote backend is gated off entirely in shipped builds (remote_ai_allowed).
-# This reason surfaces when a saved backend=claude config runs under a flag-off build.
-_REMOTE_DISABLED_REASON = (
-    "Remote AI (the Claude backend) is turned off in this build of yuu-clip - "
-    "switch to a local model under Settings -> LLM scoring"
 )
 
 
@@ -563,16 +553,7 @@ def check_vision_available(config: "Config") -> tuple[bool, str]:
         return False, _GENERATIVE_OFF_REASON
     if not config.vision_enabled:
         return False, "Image analysis is turned off - enable it under Settings -> LLM scoring"
-    backend = config.llm_backend
-    if backend == "claude":
-        from yuu_clip.config import remote_ai_allowed
-        if not remote_ai_allowed(config):
-            return False, _REMOTE_DISABLED_REASON
-        if not permissions.allow_remote:
-            return False, _REMOTE_BLOCKED_REASON
-        ok = bool(config.claude_api_key)
-        return ok, "" if ok else "No Claude API key set - add one under Settings -> LLM scoring"
-    # Local llamacpp backend (the only remaining local backend).
+    # Local llamacpp backend (the only backend).
     from pathlib import Path
     vision_model_ok = bool(config.llm_vision_model_path) and Path(config.llm_vision_model_path).exists()
     mmproj_ok = bool(config.llm_mmproj_path) and Path(config.llm_mmproj_path).exists()
@@ -630,18 +611,10 @@ def check_llm_available(config: "Config") -> tuple[bool, str]:
     permissions = resolve_ai_permissions(config)
     if not permissions.allow_llm:
         return False, _GENERATIVE_OFF_REASON
-    if backend_is_remote(config):
-        from yuu_clip.config import remote_ai_allowed
-        if not remote_ai_allowed(config):
-            return False, _REMOTE_DISABLED_REASON
-        if not permissions.allow_remote:
-            return False, _REMOTE_BLOCKED_REASON
     return make_client(config).available()
 
 
 def _active_model_id(config: "Config") -> str | None:
-    if config.llm_backend == "claude":
-        return config.claude_model
     return config.llm_model_path
 
 

@@ -7,7 +7,7 @@ from __future__ import annotations
 # ---------------------------------------------------------------------------
 
 class TestLLMScorerIsAvailable:
-    """LLMScorer.is_available() covers llm_enabled gate, llamacpp checks, claude checks."""
+    """LLMScorer.is_available() covers the llm_enabled gate and the llamacpp checks."""
 
     def _make_config(self, **overrides):
         from yuu_clip.config import Config
@@ -61,38 +61,19 @@ class TestLLMScorerIsAvailable:
             result = scorer.is_available()
         assert result is True
 
-    def test_claude_backend_unreachable_returns_false(self):
-        import unittest.mock as mock
-        scorer = self._scorer(llm_backend="claude", ai_privacy_mode="remote_ok",
-                              remote_ai_enabled=True)
-        with mock.patch("yuu_clip.scoring.llm_client.ClaudeClient.available",
-                        return_value=(False, "key rejected")):
-            scorer._available = None
-            result = scorer.is_available()
-        assert result is False
-
-    def test_claude_backend_reachable_returns_true(self):
-        import unittest.mock as mock
-        scorer = self._scorer(llm_backend="claude", ai_privacy_mode="remote_ok",
-                              remote_ai_enabled=True)
-        with mock.patch("yuu_clip.scoring.llm_client.ClaudeClient.available",
-                        return_value=(True, "")):
-            scorer._available = None
-            result = scorer.is_available()
-        assert result is True
-
     def test_is_available_caches_result(self, tmp_path):
         """Second call to is_available() must not redo the availability check."""
         import unittest.mock as mock
-        scorer = self._scorer(llm_backend="claude", ai_privacy_mode="remote_ok",
-                              remote_ai_enabled=True)
+        gguf = tmp_path / "model.gguf"
+        gguf.write_bytes(b"fake")
+        scorer = self._scorer(llm_backend="llamacpp", llm_model_path=str(gguf))
         call_count = 0
 
         def counting_available(self):
             nonlocal call_count
             call_count += 1
             return (True, "")
-        with mock.patch("yuu_clip.scoring.llm_client.ClaudeClient.available", counting_available):
+        with mock.patch("yuu_clip.scoring.llm_client.LlamaCppServerClient.available", counting_available):
             scorer.is_available()
             scorer.is_available()
         assert call_count == 1
@@ -278,21 +259,6 @@ class TestLLMScorerScore:
         result = scorer.score(clip, None)
         assert result.notes.get("model") == "/models/qwen2.5.gguf"
 
-    def test_success_notes_include_model_id_for_claude(self):
-        import json
-        import unittest.mock as mock
-
-        from yuu_clip.config import Config
-        from yuu_clip.scoring.llm import LLMScorer
-        cfg = Config()
-        cfg.llm_backend = "claude"
-        cfg.claude_model = "claude-haiku-4-5-20251001"
-        scorer = LLMScorer(cfg)
-        scorer._call_llm = mock.MagicMock(return_value=json.dumps({"score_funny": 0.5}))
-        clip = self._make_clip(excerpt="text")
-        result = scorer.score(clip, None)
-        assert result.notes.get("model") == "claude-haiku-4-5-20251001"
-
 # ---------------------------------------------------------------------------
 # Coverage gaps - pure-function and edge-case paths
 # ---------------------------------------------------------------------------
@@ -459,104 +425,16 @@ class TestMakeClient:
         client = make_client(self._cfg(llm_enabled=True, llm_backend="llamacpp"))
         assert isinstance(client, LlamaCppServerClient)
 
-    def test_claude_backend_returns_claude_client(self):
-        from yuu_clip.scoring.llm_client import ClaudeClient, make_client
-        client = make_client(self._cfg(
-            llm_enabled=True, llm_backend="claude", ai_privacy_mode="remote_ok",
-            remote_ai_enabled=True))
-        assert isinstance(client, ClaudeClient)
-
     def test_unknown_backend_falls_back_to_llamacpp(self):
         from yuu_clip.scoring.llm_client import LlamaCppServerClient, make_client
         client = make_client(self._cfg(llm_enabled=True, llm_backend="unknown"))
         assert isinstance(client, LlamaCppServerClient)
 
 # ---------------------------------------------------------------------------
-# ClaudeClient.available()
+# NullLLMClient
 # ---------------------------------------------------------------------------
 
-class TestClaudeClientAvailable:
-    def _client(self, **overrides):
-        from yuu_clip.config import Config
-        from yuu_clip.scoring.llm_client import ClaudeClient
-        cfg = Config()
-        for k, v in overrides.items():
-            setattr(cfg, k, v)
-        return ClaudeClient(cfg)
-
-    def test_no_api_key_returns_false(self):
-        c = self._client(claude_api_key="")
-        ok, reason = c.available()
-        assert ok is False
-        assert "API key" in reason
-
-    def test_missing_anthropic_package_returns_false(self):
-        import sys
-        import unittest.mock as mock
-        c = self._client(claude_api_key="sk-test")
-        with mock.patch.dict(sys.modules, {"anthropic": None}):
-            ok, reason = c.available()
-        assert ok is False
-        assert "anthropic" in reason
-
-    def test_api_key_and_package_present_returns_true(self):
-        import sys
-        import unittest.mock as mock
-        c = self._client(claude_api_key="sk-test")
-        fake_anthropic = mock.MagicMock()
-        with mock.patch.dict(sys.modules, {"anthropic": fake_anthropic}):
-            ok, reason = c.available()
-        assert ok is True
-        assert reason == ""
-
-    def test_rejected_api_key_returns_false(self):
-        import sys
-        import unittest.mock as mock
-
-        class _AuthError(Exception):
-            pass
-
-        c = self._client(claude_api_key="sk-bad")
-        fake_anthropic = mock.MagicMock()
-        fake_anthropic.AuthenticationError = _AuthError
-        fake_anthropic.Anthropic.return_value.models.list.side_effect = _AuthError("401")
-        with mock.patch.dict(sys.modules, {"anthropic": fake_anthropic}):
-            ok, reason = c.available()
-        assert ok is False
-        assert "rejected" in reason
-
-    def test_unreachable_api_returns_false(self):
-        import sys
-        import unittest.mock as mock
-
-        class _AuthError(Exception):
-            pass
-
-        c = self._client(claude_api_key="sk-test")
-        fake_anthropic = mock.MagicMock()
-        fake_anthropic.AuthenticationError = _AuthError
-        fake_anthropic.Anthropic.return_value.models.list.side_effect = ConnectionError("no route")
-        with mock.patch.dict(sys.modules, {"anthropic": fake_anthropic}):
-            ok, reason = c.available()
-        assert ok is False
-        assert "Couldn't reach" in reason
-
-    def test_old_sdk_without_models_api_trusts_key(self):
-        import sys
-        import unittest.mock as mock
-
-        class _AuthError(Exception):
-            pass
-
-        c = self._client(claude_api_key="sk-test")
-        fake_anthropic = mock.MagicMock()
-        fake_anthropic.AuthenticationError = _AuthError
-        fake_anthropic.Anthropic.return_value = object()  # no .models attribute → AttributeError
-        with mock.patch.dict(sys.modules, {"anthropic": fake_anthropic}):
-            ok, reason = c.available()
-        assert ok is True
-        assert reason == ""
-
+class TestNullLLMClient:
     def test_null_client_available_returns_false(self):
         from yuu_clip.scoring.llm_client import NullLLMClient
         ok, reason = NullLLMClient().available()
@@ -568,107 +446,6 @@ class TestClaudeClientAvailable:
         from yuu_clip.scoring.llm_client import NullLLMClient
         with pytest.raises(RuntimeError):
             NullLLMClient().chat([{"role": "user", "content": "hi"}])
-
-# ---------------------------------------------------------------------------
-# ClaudeClient.chat() / chat_vision() - message-building payload (WS4 Stage 1).
-# These pin the exact kwargs handed to anthropic's messages.create against today's
-# code, so the remote-AI flag work below can't silently change the wire payload.
-# ---------------------------------------------------------------------------
-
-def _claude_client(**overrides):
-    from yuu_clip.config import Config
-    from yuu_clip.scoring.llm_client import ClaudeClient
-    cfg = Config()
-    for k, v in overrides.items():
-        setattr(cfg, k, v)
-    return ClaudeClient(cfg)
-
-
-def _fake_anthropic(reply_text="ok"):
-    """A stand-in anthropic module whose messages.create records its kwargs and
-    returns a text-first content block (the shape ClaudeClient.chat indexes)."""
-    import unittest.mock as mock
-    fake = mock.MagicMock()
-    response = mock.MagicMock()
-    response.content = [mock.MagicMock(text=reply_text)]
-    fake.Anthropic.return_value.messages.create.return_value = response
-    return fake
-
-
-class TestClaudeClientChat:
-    def test_builds_system_and_messages(self):
-        import sys
-        import unittest.mock as mock
-        fake = _fake_anthropic("hello there")
-        client = _claude_client(claude_model="claude-haiku-4-5-20251001")
-        messages = [
-            {"role": "system", "content": "SYS A"},
-            {"role": "system", "content": "SYS B"},
-            {"role": "user", "content": "u1"},
-            {"role": "assistant", "content": "a1"},
-        ]
-        with mock.patch.dict(sys.modules, {"anthropic": fake}):
-            result = client.chat(messages, temperature=0.4)
-        # response.content[0].text - assumes a text-first content block; a future model
-        # returning tool/thinking blocks first would index the wrong block (out of scope).
-        assert result == "hello there"
-        kwargs = fake.Anthropic.return_value.messages.create.call_args.kwargs
-        assert kwargs["model"] == "claude-haiku-4-5-20251001"
-        assert kwargs["max_tokens"] == 1024
-        assert kwargs["temperature"] == 0.4
-        assert kwargs["system"] == "SYS A\n\nSYS B"
-        assert kwargs["messages"] == [
-            {"role": "user", "content": "u1"},
-            {"role": "assistant", "content": "a1"},
-        ]
-
-    def test_no_system_messages_omits_system_kwarg(self):
-        import sys
-        import unittest.mock as mock
-        fake = _fake_anthropic()
-        client = _claude_client()
-        with mock.patch.dict(sys.modules, {"anthropic": fake}):
-            client.chat([{"role": "user", "content": "just me"}])
-        kwargs = fake.Anthropic.return_value.messages.create.call_args.kwargs
-        assert "system" not in kwargs
-        assert kwargs["messages"] == [{"role": "user", "content": "just me"}]
-
-
-class TestClaudeClientChatVision:
-    def test_builds_image_blocks_then_text(self, tmp_path):
-        import base64
-        import sys
-        import unittest.mock as mock
-        first = tmp_path / "a.jpg"
-        second = tmp_path / "b.jpg"
-        first.write_bytes(b"\x01\x02frame-one")
-        second.write_bytes(b"\x03\x04frame-two")
-        fake = _fake_anthropic("a description")
-        client = _claude_client(claude_model="claude-haiku-4-5-20251001")
-        messages = [
-            {"role": "system", "content": "look carefully"},
-            {"role": "user", "content": "what is here"},
-        ]
-        with mock.patch.dict(sys.modules, {"anthropic": fake}):
-            result = client.chat_vision(messages, [first, second], temperature=0.2)
-        assert result == "a description"
-        kwargs = fake.Anthropic.return_value.messages.create.call_args.kwargs
-        assert kwargs["model"] == "claude-haiku-4-5-20251001"
-        assert kwargs["max_tokens"] == 1024
-        assert kwargs["temperature"] == 0.2
-        assert kwargs["system"] == "look carefully"
-        content = kwargs["messages"][0]["content"]
-        assert kwargs["messages"][0]["role"] == "user"
-        # One base64 image block per image (media_type image/jpeg), then the text block.
-        assert content[0] == {"type": "image", "source": {
-            "type": "base64", "media_type": "image/jpeg",
-            "data": base64.b64encode(b"\x01\x02frame-one").decode("ascii"),
-        }}
-        assert content[1] == {"type": "image", "source": {
-            "type": "base64", "media_type": "image/jpeg",
-            "data": base64.b64encode(b"\x03\x04frame-two").decode("ascii"),
-        }}
-        assert content[2] == {"type": "text", "text": "what is here"}
 
 # ---------------------------------------------------------------------------
 # check_llm_available()
@@ -692,9 +469,8 @@ class TestCheckLlmAvailable:
         import unittest.mock as mock
 
         from yuu_clip.scoring.llm import check_llm_available
-        cfg = self._cfg(llm_enabled=True, llm_backend="claude", ai_privacy_mode="remote_ok",
-                        remote_ai_enabled=True)
-        with mock.patch("yuu_clip.scoring.llm_client.ClaudeClient.available",
+        cfg = self._cfg(llm_enabled=True, llm_backend="llamacpp")
+        with mock.patch("yuu_clip.scoring.llm_client.LlamaCppServerClient.available",
                         return_value=(True, "")):
             ok, reason = check_llm_available(cfg)
         assert ok is True

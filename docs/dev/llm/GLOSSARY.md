@@ -743,15 +743,14 @@ enabled Sensitive Terms match.
 
 ### AI privacy mode
 
-The single setting that decides what YuuClip may do with a recording's transcript. It is a **guarantee, not a hint** - enforced at every point a language model could run (`resolve_ai_permissions`), so no UI mistake or saved backend can leak data past it. Three levels:
+The single setting that decides whether YuuClip runs a generative model on a recording's transcript. It is a **guarantee, not a hint** - enforced at every point a language model could run (`resolve_ai_permissions`). YuuClip is local-only: all inference runs on the user's machine, so there is no remote/off-device option. Two levels:
 
 - **No generative AI** (`none`) - no language model runs at all. Clip finding, related-clip search, "Meaning" hot-words, and lightweight scoring (lexicon, energy, laughs) still work, because embeddings and keyword matching are *discriminative, not generative*. All "install a model" nudges are suppressed - a user who opted out is never nagged.
-- **Local models only** (`local_only`, the default) - on-device language models are allowed; the remote Claude backend is blocked and hidden. Nothing you record leaves the machine.
-- **Allow remote models** (`remote_ok`) - the paid Claude API backend is permitted; it sends your transcript to Anthropic.
+- **Local models only** (`local_only`, the default) - on-device language models are allowed. Nothing you record leaves the machine.
 
-- **Code:** config `ai_privacy_mode`; `resolve_ai_permissions(config) -> AiPermissions(allow_llm, allow_remote)` in `config.py`. Enforced in `make_client` (never constructs a remote client - reads `LLMClient.is_remote` as a class attribute *before* instantiation), `check_llm_available`, `check_vision_available` / `describe_frames`, `LLMScorer.is_available`, and (transitively) the similarity `llm` backend. UI: the AI privacy radios at the top of Settings → LLM scoring and the first-run setup wizard.
-- **Do not call it:** "privacy toggle" (it's one 3-level control, not an on/off), or the levels "off / local / cloud" - use the exact labels above; they are the trust surface.
-- **Notes:** Fails safe - an unknown/garbage value resolves to Local models only (blocks the remote path), never to Allow remote models. `llm_enabled` (Enable LLM scoring) is a separate feature toggle; either one independently forces the LLM off.
+- **Code:** config `ai_privacy_mode`; `resolve_ai_permissions(config) -> AiPermissions(allow_llm)` in `config.py`. Enforced in `make_client` (returns `NullLLMClient` when generative AI is off), `check_llm_available`, `check_vision_available` / `describe_frames`, `LLMScorer.is_available`, and (transitively) the similarity `llm` backend. UI: the AI privacy radios at the top of Settings → LLM scoring and the first-run setup wizard.
+- **Do not call it:** "privacy toggle" (it's one 2-level control, not an on/off) - use the exact labels above; they are the trust surface.
+- **Notes:** Fails safe - an unknown/garbage value resolves to Local models only (generative AI on). `llm_enabled` (Enable LLM scoring) is a separate feature toggle; either one independently forces the LLM off. A remote/hosted backend (Claude) and its `remote_ok` mode were removed - YuuClip is deliberately local-only (see `docs/project/DECISIONS.md`).
 
 ---
 
@@ -762,13 +761,13 @@ Scoring and description generation performed by a local language model that read
 - **Code:** `LLMScorer`, `llm_score()`
 - **Also called:** "AI scoring"
 - **Do not call it:** "AI scoring" - LLM is the accurate term; use it to build the habit of distinguishing LLMs from "AI" broadly
-- **Notes:** Uses the bundled local llama.cpp engine by default (or the Claude API). Gracefully skipped if no model is configured.
+- **Notes:** Uses the bundled local llama.cpp engine (the only backend - all inference is on-device). Gracefully skipped if no model is configured.
 
 ---
 
 ### Recommended models
 
-The curated list of text and vision models YuuClip suggests for the LLM backend, shown in Settings → LLM scoring and the setup wizard. Every recommended model carries a licence that permits monetizing the clips it helps produce (Apache-2.0 / MIT for local models; the Anthropic API's commercial terms for Claude). Llama- and Gemma-licensed models are excluded from the list because their terms impose use restrictions - they still work if configured by hand.
+The curated list of text and vision models YuuClip suggests for the LLM backend, shown in Settings → LLM scoring and the setup wizard. Every recommended model carries a licence that permits monetizing the clips it helps produce (Apache-2.0 / MIT / BSD-3-Clause). Llama- and Gemma-licensed models are excluded from the list because their terms impose use restrictions - they still work if configured by hand.
 
 - **Code:** `yuu_clip/model_catalog.py` (`ModelEntry`, `recommended_models()`, `text_models()`, `vision_models()`, `catalog_for_backend()`); route `GET /api/llm/catalog`
 - **Also called in codebase:** "model catalog"
@@ -781,7 +780,7 @@ The curated list of text and vision models YuuClip suggests for the LLM backend,
 The at-a-glance indicator in Settings → LLM scoring showing whether the active model can score **text** and analyze **images** right now, with a plain-English reason. Backs the rule that a control needing a capability the model lacks explains why and links to the fix rather than silently disabling itself.
 
 - **Code:** route `GET /api/llm/capabilities` → `{backend, model, text, vision, detail}`; `gateOnCapability()` in `settings.js`
-- **Notes:** A cheap static check (file exists / model set / API key set) - no test inference call. Vision on the local `llamacpp` backend needs a **vision model** file (`llm_vision_model_path`) and a **vision projector** file (`llm_mmproj_path`, an mmproj `.gguf`) - both independent of the **text model** (`llm_model_path`) used for scoring. No implicit fallback between the two; a single VL model doing both needs both paths pointed at the same file.
+- **Notes:** A cheap static check (model file exists / set) - no test inference call. Vision on the local `llamacpp` backend needs a **vision model** file (`llm_vision_model_path`) and a **vision projector** file (`llm_mmproj_path`, an mmproj `.gguf`) - both independent of the **text model** (`llm_model_path`) used for scoring. No implicit fallback between the two; a single VL model doing both needs both paths pointed at the same file.
 
 ---
 

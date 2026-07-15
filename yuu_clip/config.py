@@ -460,13 +460,13 @@ def validate_whisper_language(lang: Optional[str]) -> Optional[str]:
     return lang_lower
 
 
-# AI privacy mode (plan non-llm-tiers/07) - the single trust control over what the app
-# may do with a user's transcript. Enforced everywhere a language model could run, via
-# resolve_ai_permissions below. "none" = no generative language model runs at all
-# (embeddings/lexicon/energy still work - they're discriminative, not generative);
-# "local_only" = on-device LLM allowed, remote (Claude) backend blocked, nothing leaves
-# the machine; "remote_ok" = the Claude API backend is permitted.
-ALLOWED_AI_PRIVACY_MODES: frozenset[str] = frozenset({"none", "local_only", "remote_ok"})
+# AI privacy mode - the single trust control over whether a generative language model
+# runs on a user's transcript. Enforced everywhere a language model could run, via
+# resolve_ai_permissions below. yuu-clip is a local-only tool: all inference runs on the
+# user's machine and nothing they record ever leaves it. "none" = no generative language
+# model runs at all (embeddings/lexicon/energy still work - they're discriminative, not
+# generative); "local_only" = on-device LLM allowed.
+ALLOWED_AI_PRIVACY_MODES: frozenset[str] = frozenset({"none", "local_only"})
 
 
 def validate_ai_privacy_mode(mode: str) -> str:
@@ -482,46 +482,19 @@ def validate_ai_privacy_mode(mode: str) -> str:
 class AiPermissions:
     """What the active AI privacy mode permits. The trust surface: every LLM gate reads
     this, so the mode is a real guarantee, not a UI hint. allow_llm covers any generative
-    language model; allow_remote covers off-device/billed backends (Claude)."""
+    language model (all inference is local in this build)."""
     allow_llm: bool
-    allow_remote: bool
 
 
 def resolve_ai_permissions(config: "Config") -> AiPermissions:
     """The single choke point that turns ai_privacy_mode into concrete permissions.
 
-    Fails safe: an unknown/garbage mode resolves to local_only (blocks the billed,
-    off-device remote path) - never to remote_ok.
+    Fails safe: an unknown/garbage mode resolves to local_only (generative AI on).
     """
     mode = (getattr(config, "ai_privacy_mode", "local_only") or "local_only").strip()
     if mode == "none":
-        return AiPermissions(allow_llm=False, allow_remote=False)
-    if mode == "remote_ok":
-        return AiPermissions(allow_llm=True, allow_remote=True)
-    return AiPermissions(allow_llm=True, allow_remote=False)
-
-
-# Distribution/dev gate for the remote (Claude) backend (WS4). Turned on by the
-# remote_ai_enabled config field or a truthy YUU_REMOTE_AI env var (the escape hatch
-# for your own end-to-end testing).
-_REMOTE_AI_ENV_VAR = "YUU_REMOTE_AI"
-_TRUTHY_ENV_VALUES: frozenset[str] = frozenset({"1", "true", "yes", "on"})
-
-
-def remote_ai_allowed(config: "Config") -> bool:
-    """Whether the remote (Claude) backend may be used at all in this build.
-
-    Sits ABOVE ai_privacy_mode: when this is False the remote path is invisible and
-    inert no matter the privacy mode or a saved API key - make_client returns a
-    NullLLMClient and the capabilities/permission checks report remote unavailable.
-    When True, ai_privacy_mode governs remote behavior as before. The gate is a
-    developer/distribution control, not a user setting, so it is read from the config
-    file or the YUU_REMOTE_AI env var only.
-    """
-    env_value = os.environ.get(_REMOTE_AI_ENV_VAR)
-    if env_value is not None and env_value.strip().lower() in _TRUTHY_ENV_VALUES:
-        return True
-    return bool(getattr(config, "remote_ai_enabled", False))
+        return AiPermissions(allow_llm=False)
+    return AiPermissions(allow_llm=True)
 
 
 # Labels for which we skip transcription by default (user can override)
@@ -585,12 +558,14 @@ class Config:
     # removes near-silent windows. Set 0 to keep every window (disable).
     min_clip_speech_cps: float = 0.2
 
-    # AI privacy mode (plan non-llm-tiers/07) - the trust control over transcript use.
-    # "none" | "local_only" (default) | "remote_ok"; enforced via resolve_ai_permissions.
+    # AI privacy mode - the trust control over whether a generative model may run.
+    # "none" | "local_only" (default); enforced via resolve_ai_permissions.
     ai_privacy_mode: str = "local_only"
 
-    # LOCAL backends - inference runs on your machine, no API costs
-    llm_backend: str = "llamacpp"    # "llamacpp" | "claude"
+    # LOCAL LLM backend - inference runs on your machine, no API costs. "llamacpp" is
+    # the only implementation today; the value keys scoring.llm_client.make_client so a
+    # future local backend is a registration, not a rewrite.
+    llm_backend: str = "llamacpp"
     llm_model_path: str = ""         # path to .gguf file; required when backend is llamacpp
     # Boot-time handoff flag (first-run-friction): the setup wizard sets this to a
     # catalog model id when the user opts into local AI but has not downloaded a
@@ -629,17 +604,6 @@ class Config:
     # summaries, and image analysis). Off = clips are still created and ranked, just
     # without any AI text. Enforced in make_client (returns NullLLMClient when False).
     llm_enabled: bool = True
-
-    # REMOTE backend - sends transcript data to Anthropic; billed per token
-    claude_api_key: str = ""                         # Anthropic API key
-    claude_model: str = "claude-haiku-4-5-20251001"  # model to use
-    claude_timeout_s: float = 30.0                   # per-request timeout
-
-    # Distribution/dev gate for the remote (Claude) backend (WS4). The remote path
-    # is unverified in shipped builds, so it stays invisible and inert unless this is
-    # turned on. Sits ABOVE ai_privacy_mode - see remote_ai_allowed. Not a normal
-    # Settings toggle: it lives in the config file or the YUU_REMOTE_AI env var only.
-    remote_ai_enabled: bool = False
 
     # Speaker diarization - identifies who is speaking within a track
     diarization_backend: str = "speechbrain"  # "null" | "speechbrain"
@@ -698,8 +662,8 @@ class Config:
     # scoring, describe the top visual_vision_topn silent (empty-transcript) clips,
     # ranked by score_visual, with the existing frame-sampling + vision-LLM path
     # (analyze/frames.py). OFF by default - it's an extra vision-model call per
-    # clip, so it costs time (and, on the Claude backend, money) beyond the
-    # cheap model-free Visual signal. Hard-capped by visual_vision_topn regardless
+    # clip, so it costs time beyond the cheap model-free Visual signal.
+    # Hard-capped by visual_vision_topn regardless
     # of how many silent clips a recording has.
     visual_auto_vision_enabled: bool = False
     visual_vision_topn: int = 8

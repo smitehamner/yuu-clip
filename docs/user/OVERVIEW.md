@@ -12,11 +12,11 @@ YuuClip watches your recordings for you. It listens to what was said, figures ou
 
 1. **You point it at a recording.** OBS output, shadowplay, whatever - as long as it's a video file.
 2. **It listens.** It runs your audio through a local speech-to-text model (Whisper, runs on your PC, nothing is uploaded anywhere) to get a full transcript of everything said during the session.
-3. **It scores.** It chops the session into clip windows and rates each one for how funny, dramatic, or action-packed it was - using an LLM that reads the transcript and scores what happened. By default this is a local model file that runs on your PC (GPU-accelerated); you can also point it at the Claude API (cloud) in the setup wizard or Settings.
+3. **It scores.** It chops the session into clip windows and rates each one for how funny, dramatic, or action-packed it was - using an LLM that reads the transcript and scores what happened. This is a local model file that runs on your PC (GPU-accelerated), set up in the wizard or Settings.
 4. **You review.** Open the web UI in your browser, flip through the clips, watch the ones that look good, approve or skip, then export.
 5. **You've got clips.** Ready-to-share video files, no re-encoding required unless you want frame-perfect cuts.
 
-By default everything runs locally - no cloud, no subscription, no footage leaving your machine. The one exception is if you deliberately choose the Claude API backend for scoring, which sends clip transcripts (text only, never video) to Anthropic. The two local backends keep everything on your machine.
+Everything runs locally - no cloud, no subscription, no footage or transcripts leaving your machine. Every model (speech-to-text and LLM scoring) runs on your PC.
 
 ---
 
@@ -130,7 +130,7 @@ Once you've approved a set of clips, **Highlight Reels** in the header opens a w
 
 **It doesn't edit video.** It finds and exports clips; it doesn't add effects, color grade, or do anything fancy with the video itself. Take the exports into your editor of choice if you want that.
 
-**It doesn't upload anything (by default).** With either local backend, everything stays on your machine. LLM scoring does need a model set up first - the setup wizard downloads the recommended local model with one click, so it's a one-time setup, but it's a setup. (If you instead choose the Claude API backend, clip transcripts are sent to Anthropic for scoring - that's the one case where text leaves your machine.)
+**It doesn't upload anything.** Everything stays on your machine - there is no cloud backend. LLM scoring does need a model set up first - the setup wizard downloads the recommended local model with one click, so it's a one-time setup, but it's a setup.
 
 **The scores are a starting point, not a verdict.** A 0.3-scoring clip might be the funniest moment of the session but happen to be mostly non-verbal. Always sort by score to find the obvious candidates fast, then flip through the lower-scoring ones in timeline order before you close out.
 

@@ -136,7 +136,7 @@ Tests: `tests/integration/test_export.py`, `test_reel.py`, `tests/unit/test_expo
 ## Stage 7 - Data model, config & catalogs
 
 - `db/models.py` - SQLAlchemy ORM (SQLite, NullPool; `latest_track_transcript` helper)
-- `config.py` - config + profile (track-layout) management, `remote_ai_allowed`
+- `config.py` - config + profile (track-layout) management, `resolve_ai_permissions`
 - `model_catalog.py` - authoritative model list + licence policy
 - `contexts.py` - world-context storage + prompt formatting
 - `content_presets.py` - content-type preset bundles

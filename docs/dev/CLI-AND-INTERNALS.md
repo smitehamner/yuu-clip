@@ -155,8 +155,8 @@ Without a language model installed, these signals plus audio energy and scene cu
 
 ### LLM scorer output schema
 
-Sends each candidate's transcript excerpt to the configured LLM backend (a local `.gguf`
-model via the bundled llama.cpp engine, or the Claude API). When speaker labels are
+Sends each candidate's transcript excerpt to the local LLM backend (a local `.gguf`
+model via the bundled llama.cpp engine - all inference is on-device). When speaker labels are
 enabled the excerpt is formatted with `SPEAKER_XX:` prefixes. World context text is
 injected into the system prompt. Returns a JSON object:
 

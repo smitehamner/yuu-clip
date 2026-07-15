@@ -33,16 +33,6 @@ def _open_settings(page: Page) -> None:
 
 @skip_no_server
 class TestModelCatalogSettings:
-    def test_claude_dropdown_populated_from_catalog(self, page: Page):
-        _open_settings(page)
-        values = page.eval_on_selector_all(
-            "#s-claude-model option", "els => els.map(e => e.value)"
-        )
-        assert "claude-opus-4-8" in values
-        assert "claude-sonnet-5" in values
-        # The stale model that used to be hardcoded must be gone.
-        assert "claude-sonnet-4-6" not in values
-
     def test_llamacpp_recommended_list_renders_cards(self, page: Page):
         _open_settings(page)
         count = page.locator("#s-llamacpp-recommended .rec-model").count()
@@ -203,7 +193,7 @@ def _model(**overrides) -> dict:
         "id": "m", "display_name": "A Model", "kinds": ["text"], "licence": "Apache-2.0",
         "why": "why", "backends": ["llamacpp"], "size_gb": 4.7,
         "gguf_url": "https://huggingface.co/x/y", "gguf_filename": "a.gguf",
-        "mmproj_url": None, "mmproj_filename": None, "api_model_id": None,
+        "mmproj_url": None, "mmproj_filename": None,
         "recommended": True, "rejected_reason": None,
         "installed": False, "active": False, "gguf_path": "/models/a.gguf", "mmproj_path": None,
     }

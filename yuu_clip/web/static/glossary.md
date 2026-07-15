@@ -146,7 +146,7 @@ Extra scoring and description writing done by a local language model that reads 
 The curated list of models YuuClip suggests under Settings → LLM scoring. Every one is licensed so the clips you make with it can be monetized (models with restrictive terms are left out). Recommended local models download in one click; you can also point at a model file you already have.
 
 ### Model readiness
-The line under Settings → LLM scoring showing whether the model you've set up can score **text** and analyze **images** right now, plus a plain-English reason if something's missing (for example, a Claude API key or a vision projector file).
+The line under Settings → LLM scoring showing whether the model you've set up can score **text** and analyze **images** right now, plus a plain-English reason if something's missing (for example, a vision projector file).
 
 ### Image analysis ("Analyze frames" / "What's on screen")
 On by default, but it only runs once you've set up a vision-capable model (Settings → LLM scoring) - until then a clip's **Analyze frames** button stays inactive. When a model is ready, that button samples a few frames from the clip and asks the model to describe what's on screen - the game or scene, on-screen events, and any HUD or text. That "What's on screen" summary sharpens the clip's description and gives scoring some visual context; it never sets the score by itself. You can also tick **Include frame analysis** when you Re-score a whole recording. It's never run automatically during Analyze, because it takes extra time per clip.

@@ -280,24 +280,23 @@ these signals.
 
 With a language model set up, each clip also gets a one-line and a paragraph description
 plus a semantic read of what happened. Scoring runs on your **local** model (the bundled
-llama.cpp engine, the default) or the **Claude API**, chosen in the setup wizard or
-Settings -> LLM scoring. Turning on **Speaker labels** improves it - the model sees who
-said what, not a flat wall of text. World context text is fed in too, so the model knows
-who's involved and what the setting is.
+llama.cpp engine) - all inference is on your machine, nothing you record is ever sent
+anywhere. Turning on **Speaker labels** improves it - the model sees who said what, not a
+flat wall of text. World context text is fed in too, so the model knows who's involved and
+what the setting is.
 
-For the local backend, **Use GPU when available** (Settings -> LLM scoring, on by default)
-runs the model on your graphics card - NVIDIA, AMD, or Intel - and spills to CPU if the
-model is too big for your GPU's memory. Turn it off to force CPU. If the model is
-unreachable mid-analysis, the run finishes with a warning rather than failing.
+**Use GPU when available** (Settings -> LLM scoring, on by default) runs the model on your
+graphics card - NVIDIA, AMD, or Intel - and spills to CPU if the model is too big for your
+GPU's memory. Turn it off to force CPU. If the model is unreachable mid-analysis, the run
+finishes with a warning rather than failing.
 
 ### Recommended models and readiness
 
-Settings -> LLM scoring lists a curated set of **recommended models** for each backend.
-Every recommended model is licensed so the clips you make with it can be monetized -
-Apache-2.0 or MIT for local models, and Anthropic's commercial terms for Claude. Models
-under Meta's Llama licence or Google's Gemma terms are deliberately left out of the
-recommendations because their use restrictions would need a case-by-case legal read; they
-still work if you configure them by hand.
+Settings -> LLM scoring lists a curated set of **recommended models**. Every recommended
+model is licensed so the clips you make with it can be monetized - Apache-2.0, MIT, or
+BSD-3-Clause. Models under Meta's Llama licence or Google's Gemma terms are deliberately
+left out of the recommendations because their use restrictions would need a case-by-case
+legal read; they still work if you configure them by hand.
 
 Recommended models are split into two labelled groups - **Text scoring models** and
 **Image analysis (vision) models** - so it's clear what each is for. Each local model has
@@ -305,8 +304,8 @@ a one-click **Download now** button (it fetches the file and points scoring at i
 **Use this model** for a file you already have; a vision entry downloads both its main
 model and its vision projector in one click. The model in use shows an **Active** badge. A
 **Model readiness** line tells you whether your setup can score **text** and analyze
-**images** right now, and what's missing if not (for example a Claude API key, or - for
-the local backend - the separate vision projector file that enables image analysis).
+**images** right now, and what's missing if not (for example the separate vision projector
+file that enables image analysis).
 
 ### Laughs score
 
@@ -541,7 +540,7 @@ and frames the choice as **Set up local AI (Recommended)** vs **Lightweight mode
 download)**, with local AI pre-selected on a capable machine and softened to lightweight on
 a weak or low-disk one. Choosing local AI doesn't block the wizard: you click Launch right
 away and the model downloads in the background inside the app - with a dismissible progress
-banner - so scoring lights up without a restart. Backend / Claude / manual-path controls
+banner - so scoring lights up without a restart. Privacy and manual model-path controls
 stay under a collapsed **Advanced AI options** disclosure. A single **Download the AI models
 in the background** checkbox (on by default) pre-fetches the speech-to-text and
 speaker-labelling models on first launch so your first analysis isn't a surprise wait.

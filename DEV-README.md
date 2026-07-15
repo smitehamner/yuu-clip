@@ -27,12 +27,10 @@ winget install Python.Python.3.12   # Windows
 
 ### A language model - optional
 LLM scoring and written clip descriptions are optional. Without a model, YuuClip still
-finds and scores clips using its no-model signals. To enable LLM scoring, pick a backend
-in the setup wizard or Settings:
-
-- **Local model file (default)** - a local `.gguf` run via the bundled, GPU-accelerated
-  llama.cpp engine. YuuClip can download a recommended, monetization-safe model for you.
-- **Claude API** - remote, billed per token.
+finds and scores clips using its no-model signals. To enable LLM scoring, pick a local
+`.gguf` model in the setup wizard or Settings - run via the bundled, GPU-accelerated
+llama.cpp engine. YuuClip can download a recommended, monetization-safe model for you.
+All inference is on-device; nothing you record leaves your machine.
 
 ---
 

@@ -106,46 +106,20 @@ class TestAiPrivacyMode:
         # interact with those controls.
         page.evaluate("document.getElementById('s-llm-advanced').open = true")
 
-    def test_three_privacy_radios_render(self, page: Page):
+    def test_two_privacy_radios_render(self, page: Page):
+        # yuu-clip is local-only: just "No generative AI" and "Local models only".
         self._open_settings(page)
         values = page.eval_on_selector_all(
             "input[name='s-ai-privacy']", "els => els.map(e => e.value)"
         )
-        assert values == ["none", "local_only", "remote_ok"]
+        assert values == ["none", "local_only"]
 
-    def test_local_only_hides_claude_backend_option(self, page: Page):
+    def test_no_remote_privacy_option_or_engine_select(self, page: Page):
+        # The remote (Claude) backend was removed - neither the remote privacy radio
+        # nor the engine select should exist anymore.
         self._open_settings(page)
-        page.check("input[name='s-ai-privacy'][value='local_only']")
-        hidden = page.eval_on_selector(
-            "#s-llm-backend option[value='claude']", "el => el.hidden"
-        )
-        assert hidden is True
-
-    def test_remote_ok_shows_claude_backend_option_when_gate_on(self, page: Page):
-        self._open_settings(page)
-        # Simulate a build with the remote-AI gate on (the live server defaults it off),
-        # then re-run the handler so the now-eligible remote_ok radio is visible to check.
-        page.evaluate("window._remoteAiEnabled = true; _onPrivacyModeChange(_currentPrivacyMode())")
-        page.check("input[name='s-ai-privacy'][value='remote_ok']")
-        hidden = page.eval_on_selector(
-            "#s-llm-backend option[value='claude']", "el => el.hidden"
-        )
-        assert hidden is False
-
-    def test_remote_ai_gate_off_hides_remote_privacy_and_claude(self, page: Page):
-        # WS4: the live server ships remote_ai_enabled False, so the remote privacy
-        # option and the Claude backend must be hidden regardless of the privacy mode.
-        self._open_settings(page)
-        page.evaluate("window._remoteAiEnabled = false; _onPrivacyModeChange('local_only')")
-        remote_label_hidden = page.eval_on_selector(
-            "input[name='s-ai-privacy'][value='remote_ok']",
-            "el => getComputedStyle(el.closest('label')).display === 'none'",
-        )
-        assert remote_label_hidden is True
-        claude_hidden = page.eval_on_selector(
-            "#s-llm-backend option[value='claude']", "el => el.hidden"
-        )
-        assert claude_hidden is True
+        assert page.locator("input[name='s-ai-privacy'][value='remote_ok']").count() == 0
+        assert page.locator("#s-llm-backend").count() == 0
 
     def test_none_collapses_generative_block(self, page: Page):
         self._open_settings(page)
@@ -364,23 +338,6 @@ class TestSettingsPanelChrome:
         expect(page.locator("#s-similarity-embeddings-fields")).to_be_hidden()
         page.select_option("#s-similarity-backend", "embeddings")
         expect(page.locator("#s-similarity-embeddings-fields")).to_be_visible()
-
-    def test_claude_api_key_has_show_hide_toggle(self, page: Page):
-        self._open_settings(page)
-        # The engine select lives under "Advanced AI options" (UX review) - expand it.
-        page.evaluate("document.getElementById('s-llm-advanced').open = true")
-        # The remote path is gated off on the live server (WS4) - simulate a gate-on
-        # build so the claude backend option is selectable.
-        page.evaluate("window._remoteAiEnabled = true; _setPrivacyMode('remote_ok')")
-        page.select_option("#s-llm-backend", "claude")
-        key_input = page.locator("#s-claude-api-key")
-        expect(key_input).to_be_visible()
-        assert key_input.get_attribute("type") == "password"
-        page.click("#btn-toggle-claude-key")
-        assert key_input.get_attribute("type") == "text"
-        expect(page.locator("#btn-toggle-claude-key")).to_have_text("Hide")
-        page.click("#btn-toggle-claude-key")
-        assert key_input.get_attribute("type") == "password"
 
 
 # ---------------------------------------------------------------------------

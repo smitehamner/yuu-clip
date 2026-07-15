@@ -70,7 +70,6 @@
             style="padding:2px 10px;font-size:12px;display:none">Cancel</button>
   </div>
   <div class="header-spacer" id="header-spacer"></div>
-  <span id="llm-remote-badge" title="LLM scoring is using a remote API - requests are billed per token" style="display:none;font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;background:var(--warning);color:var(--on-warning);cursor:default">&#9729; Remote LLM</span>
   <button class="btn highlight" id="btn-analyze" onclick="openNewRecordingPanel()">+ Analyze</button>
   <button class="btn" id="btn-highlight-reels" onclick="openHighlightReelsModal('build')">Highlight Reels</button>
   <button class="btn ghost" id="btn-settings-header" onclick="openSettings()" title="Settings" aria-label="Settings" style="font-size:15px;padding:5px 10px">&#9881;</button>
@@ -212,49 +211,12 @@
     </div>
     <div id="s-llm-body">
     <div id="s-llm-current-summary" class="settings-current-model" style="display:none"></div>
-    <div id="s-backend-remote-warning" style="display:none;margin:0 0 8px;padding:8px 12px;border-radius:6px;background:color-mix(in srgb, var(--warning) 12%, transparent);border:1px solid color-mix(in srgb, var(--warning) 40%, transparent);font-size:12px;color:var(--warning)">
-      &#x26A0; <strong>Remote backend</strong> - transcript data is sent to an external API and <strong>billed per token</strong>. Every analyze run, re-score, timeline, and session summary will incur costs.
-    </div>
-    <div id="s-remote-blocked-notice" style="display:none;margin:0 0 8px;padding:8px 12px;border-radius:6px;background:color-mix(in srgb, var(--warning) 12%, transparent);border:1px solid color-mix(in srgb, var(--warning) 40%, transparent);font-size:12px;color:var(--warning)">
-      &#x26A0; The Claude backend is saved but <strong>turned off by AI privacy mode</strong> (Local models only). Choose <strong>Allow remote models</strong> under Advanced to use it, or switch to a local backend.
-    </div>
-    <!-- Local model-file picker (the default engine): the primary, one-click surface.
-         Cards render into #s-llamacpp-recommended (modelcatalog.js); the GPU toggle and
-         manual paths for this engine live under Advanced AI options below. -->
+    <!-- Local model-file picker: the primary, one-click surface. Cards render into
+         #s-llamacpp-recommended (modelcatalog.js); the GPU toggle and manual paths
+         live under Advanced AI options below. -->
     <div id="s-llamacpp-picker">
       <div class="settings-note" style="margin-bottom:6px">Included with YuuClip - pick one and it downloads in a click. Your graphics card is used automatically when it can run the model.</div>
       <div id="s-llamacpp-recommended" class="settings-recommended"></div>
-    </div>
-    <!-- Claude API fields (shown when the engine is Claude, chosen under Advanced) -->
-    <div id="s-claude-fields" style="display:none">
-      <div class="settings-row">
-        <div class="settings-col">
-          <label class="settings-label" for="s-claude-api-key">Anthropic API key</label>
-          <div class="settings-note">Stored in project config; keep this file private</div>
-        </div>
-        <div style="display:flex;gap:6px;align-items:center;width:280px">
-          <input class="settings-input" id="s-claude-api-key" type="password" placeholder="sk-ant-..." style="flex:1">
-          <button type="button" class="btn-secondary" id="btn-toggle-claude-key" onclick="_toggleSecretVisibility('s-claude-api-key', this)" aria-label="Show key" style="font-size:11px;padding:4px 8px">Show</button>
-        </div>
-      </div>
-      <div class="settings-row">
-        <div class="settings-col">
-          <label class="settings-label" for="s-claude-model">Model</label>
-          <div class="settings-note">Haiku is fast and cheap; Sonnet is smarter</div>
-        </div>
-        <select class="settings-select" id="s-claude-model">
-          <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5 (fast, cheap)</option>
-          <option value="claude-sonnet-5">Claude Sonnet 5 (smarter)</option>
-          <option value="claude-opus-4-8">Claude Opus 4.8 (most capable)</option>
-        </select>
-      </div>
-      <div class="settings-row">
-        <div class="settings-col">
-          <label class="settings-label" for="s-claude-timeout">Timeout (seconds)</label>
-          <div class="settings-note">Per-request timeout</div>
-        </div>
-        <input class="settings-input" id="s-claude-timeout" type="number" min="5" max="300" step="5" style="max-width:100px">
-      </div>
     </div>
     <div class="settings-row">
       <div class="settings-col">
@@ -307,26 +269,11 @@
             <input type="radio" name="s-ai-privacy" value="local_only" style="margin-top:2px">
             <span><strong>Local models only</strong><br><span class="settings-note">On-device models allowed. Nothing you record is sent anywhere.</span></span>
           </label>
-          <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer">
-            <input type="radio" name="s-ai-privacy" value="remote_ok" style="margin-top:2px">
-            <span><strong>Allow remote models</strong><br><span class="settings-note">Permits the paid Claude API, which sends your transcript to Anthropic.</span></span>
-          </label>
           <!-- Mirrors the checked radio so the existing id-based dirty/save machinery tracks it. -->
           <input type="hidden" id="s-ai-privacy-value">
         </div>
       </div>
-      <div class="settings-row">
-        <div class="settings-col">
-          <label class="settings-label" for="s-llm-backend">How to run it</label>
-          <div class="settings-note">Local options run on your machine and are free. Claude is a paid remote API - most people should keep a local option.</div>
-        </div>
-        <select class="settings-select" id="s-llm-backend" onchange="_onLlmBackendChange(this.value)">
-          <option value="llamacpp">Local model file - free, private (recommended)</option>
-          <option value="claude">Claude API - paid, sends transcript to Anthropic</option>
-        </select>
-      </div>
-      <!-- Local model-file engine details: GPU + manual .gguf paths (shown when the
-           engine is Local model file). -->
+      <!-- Local model-file engine details: GPU + manual .gguf paths. -->
       <div id="s-llamacpp-fields">
         <div class="settings-row">
           <div class="settings-col">
@@ -386,7 +333,7 @@
       <div class="settings-row">
         <div class="settings-col">
           <label class="settings-label" for="s-visual-auto-vision">Auto-describe silent clips with the vision model</label>
-          <div class="settings-note">When a recording finishes, ask the vision model to describe the top few silent, action-heavy clips instead of the generic template. Off by default - this adds a vision-model call per clip on top of scoring, so it takes extra time (and, on the Claude backend, costs money). Needs image analysis enabled and a working vision model above.</div>
+          <div class="settings-note">When a recording finishes, ask the vision model to describe the top few silent, action-heavy clips instead of the generic template. Off by default - this adds a vision-model call per clip on top of scoring, so it takes extra time. Needs image analysis enabled and a working vision model above.</div>
         </div>
         <label class="settings-checkbox">
           <input type="checkbox" id="s-visual-auto-vision" aria-label="Auto-describe silent clips with the vision model">
@@ -1468,7 +1415,6 @@
         <tr><td>mediapipe</td><td>Vertical auto-framing (face detection)</td><td>Apache-2</td></tr>
         <tr class="grp"><td colspan="3">AI scoring</td></tr>
         <tr><td>llama.cpp (llama-server)</td><td>Local LLM/vision engine - GPU-accelerated clip scoring &amp; image analysis</td><td>MIT</td></tr>
-        <tr><td>anthropic</td><td>Claude API LLM backend <em style="font-size:11px">(disabled in this build - local engine only)</em></td><td>MIT</td></tr>
         <tr class="grp"><td colspan="3">App framework</td></tr>
         <tr><td>FastAPI</td><td>Web server API</td><td>MIT</td></tr>
         <tr><td>uvicorn</td><td>ASGI server</td><td>BSD-3</td></tr>

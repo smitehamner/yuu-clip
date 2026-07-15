@@ -74,11 +74,6 @@ dependencies = [
     # Vertical auto-framing: mediapipe face detection for reframing exports.
     # Apache-2.0. cp312 win_amd64 wheel confirmed (0.10.35).
     "mediapipe>=0.10,<1.0",
-
-    # Remote AI backend (Tier C privacy choice, but the client library is tiny
-    # and pure-Python, so bundling it costs ~nothing and avoids an install prompt
-    # when a user opts into the hosted Claude backend).
-    "anthropic>=0.40,<1.0",
 ]
 
 [project.optional-dependencies]
