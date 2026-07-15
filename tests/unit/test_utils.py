@@ -97,6 +97,49 @@ class TestFormatContextBlock:
         assert result.index("Beta") < result.index("Alpha")
 
 
+class TestFormatCharacterBlock:
+    """format_character_block builds the per-clip 'characters speaking' scoring text."""
+
+    def _fmt(self, characters):
+        from yuu_clip.contexts import format_character_block
+        return format_character_block(characters)
+
+    def test_empty_list_returns_empty_string(self):
+        assert self._fmt([]) == ""
+
+    def test_boosted_character_includes_numeric_value_and_scale(self):
+        result = self._fmt([{"name": "Alara", "lore": "A rogue elf.", "score_boost": 0.3}])
+        assert "Alara" in result
+        assert "A rogue elf." in result
+        assert "[boost 0.30]" in result
+        assert "0.00" in result and "1.00" in result  # min/max scale stated
+
+    def test_zero_boost_character_has_lore_but_no_boost_annotation(self):
+        result = self._fmt([{"name": "Bram", "lore": "Tavern keeper.", "score_boost": 0.0}])
+        assert "Bram" in result
+        assert "Tavern keeper." in result
+        assert "boost" not in result  # no scale line, no per-character boost tag
+
+    def test_lore_optional(self):
+        result = self._fmt([{"name": "Ghost", "lore": "", "score_boost": 0.0}])
+        assert "- Ghost" in result
+        assert result.rstrip().endswith("== END CHARACTERS ==")
+
+    def test_multiple_characters_listed(self):
+        result = self._fmt([
+            {"name": "Alara", "lore": "elf", "score_boost": 0.5},
+            {"name": "Bram", "lore": "keeper", "score_boost": 0.0},
+        ])
+        assert "Alara" in result and "Bram" in result
+        assert "[boost 0.50]" in result
+        # Only the boosted one is tagged.
+        assert result.count("[boost") == 1
+
+    def test_missing_score_boost_key_treated_as_zero(self):
+        result = self._fmt([{"name": "Alara", "lore": "elf"}])
+        assert "[boost" not in result
+
+
 # ---------------------------------------------------------------------------
 # _format_duration
 # ---------------------------------------------------------------------------

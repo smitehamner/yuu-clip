@@ -16,6 +16,7 @@ import re
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
+from yuu_clip.contexts import format_character_block
 from yuu_clip.scoring.llm_client import backend_is_remote, make_client
 from yuu_clip.scoring.protocol import ScoreResult
 
@@ -644,6 +645,31 @@ def _active_model_id(config: "Config") -> str | None:
     return config.llm_model_path
 
 
+def _characters_in_clip(clip: "ClipCandidate") -> list[dict]:
+    """The DISTINCT world-context Characters that speak in this clip.
+
+    Resolves segment -> Speaker -> Person (global_voice) -> Character over the clip's
+    window, deduped by character. Returns [] when no speaking Person is linked to a
+    Character - the common case, which keeps the scoring prompt unchanged. Reuses
+    clip_window_segments so it reads the same segments the excerpt was built from.
+    """
+    from yuu_clip.segments.windower import clip_window_segments
+
+    by_character: dict[int, dict] = {}
+    for seg in clip_window_segments(clip.video, clip.start_ms, clip.end_ms):
+        speaker = seg.speaker
+        voice = speaker.global_voice if speaker is not None else None
+        character = voice.character if voice is not None else None
+        if character is None or character.id in by_character:
+            continue
+        by_character[character.id] = {
+            "name": character.name,
+            "lore": character.lore or "",
+            "score_boost": character.score_boost or 0.0,
+        }
+    return list(by_character.values())
+
+
 class LLMScorer:
     name = "llm"
 
@@ -691,10 +717,11 @@ class LLMScorer:
                 return ScoreResult(tags=["llm_no_transcript"])
 
         excerpt = clip.transcript_excerpt or ""
+        character_text = format_character_block(_characters_in_clip(clip))
         try:
             data = _call_and_parse_json(
                 lambda repair_of, repair_error: self._call_llm(
-                    excerpt, vision_summary=vision_summary,
+                    excerpt, vision_summary=vision_summary, character_text=character_text,
                     repair_of=repair_of, repair_error=repair_error,
                 ),
                 self._parse,
@@ -716,11 +743,17 @@ class LLMScorer:
         )
 
     def _call_llm(
-        self, excerpt: str, *, vision_summary: str = "",
+        self, excerpt: str, *, vision_summary: str = "", character_text: str = "",
         repair_of: str | None = None, repair_error: Exception | None = None,
     ) -> str:
         base_prompt = _SCENE_SYSTEM_PROMPT if self._scene_mode else _SYSTEM_PROMPT
-        system = _compose_system(base_prompt, self._context_text, self._config)
+        # The per-clip character block rides alongside the (static) world-context text:
+        # general world first, then who is actually speaking in this clip. Both empty ->
+        # the composed prompt is identical to a project with no contexts or characters.
+        context_text = self._context_text
+        if character_text:
+            context_text = f"{context_text}\n\n{character_text}" if context_text else character_text
+        system = _compose_system(base_prompt, context_text, self._config)
         messages = [
             {"role": "system", "content": system},
             {"role": "user",   "content": _USER_TEMPLATE.format(

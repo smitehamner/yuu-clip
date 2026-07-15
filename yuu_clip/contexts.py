@@ -180,6 +180,38 @@ def extract_context_weights(contexts: dict, context_ids: list[str]) -> dict[str,
     return {k: (sum(vs) / len(vs) if vs else None) for k, vs in totals.items()}
 
 
+def format_character_block(characters: list[dict]) -> str:
+    """Build the per-clip 'characters speaking here' block for the LLM scoring prompt.
+
+    ``characters`` is the DISTINCT set of world-context Characters who speak in one clip,
+    each a dict with ``name`` / ``lore`` / ``score_boost``. Returns "" for an empty list,
+    so a clip with no linked characters leaves the scoring prompt byte-identical to a
+    project that never defined a character (the default, no-op path).
+
+    Pure and DB-free: the caller resolves the Character records; this only formats them.
+    The numeric boost is stated on a 0.00-1.00 scale so the model knows the magnitude, not
+    just that a character matters - the boost is an LLM hint, not a deterministic multiply.
+    """
+    if not characters:
+        return ""
+    has_boost = any((c.get("score_boost") or 0) > 0 for c in characters)
+    lines = ["== CHARACTERS SPEAKING IN THIS CLIP =="]
+    if has_boost:
+        lines.append(
+            "Priority boost runs 0.00 (weight normally) to 1.00 (maximum priority). "
+            "Weight moments featuring a boosted character higher, in proportion to its value."
+        )
+    for character in characters:
+        boost = character.get("score_boost") or 0
+        lore = (character.get("lore") or "").strip()
+        head = f"- {character['name']}"
+        if boost > 0:
+            head += f" [boost {boost:.2f}]"
+        lines.append(f"{head}: {lore}" if lore else head)
+    lines.append("== END CHARACTERS ==")
+    return "\n".join(lines)
+
+
 def format_context_block(contexts: dict, context_ids: list[str]) -> str:
     """Build the LLM injection block for the given context IDs.
 
