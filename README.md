@@ -1,191 +1,86 @@
 # YuuClip
 
-A local-first tool for finding the best moments in long talk-heavy recordings - RP, voice chat, streaming to chat, podcasts, and commentary - and turning them into shareable clips. It analyzes a recording - transcribes every audio track with Whisper, measures audio energy and scene cuts, and scores each clip - then surfaces the best moments in a web review UI for approve/reject and export. Silent, action-only gameplay is supported too as a secondary pass, but talk-driven content is where it is strongest.
+**Find the best moments in long recordings and turn them into shareable clips.**
 
-Everything runs locally. It works out of the box with **no language model at all** (lightweight mode); installing a local model adds richer LLM scoring and descriptions. No cloud APIs are required.
+YuuClip is built for long, talk-heavy recordings - roleplay, voice chat, streaming,
+podcasts, and commentary. Point it at a recording and it transcribes what was said,
+listens for laughter and excitement, watches for on-screen action, and scores every
+moment so the highlights float to the top. You review the suggested clips in a simple
+web page - keep the good ones, skip the rest - and export them or stitch them into a
+highlight reel. Silent, action-only gameplay is supported too, but talk-driven content
+is where YuuClip shines.
+
+**Everything runs on your own computer.** It works out of the box with no AI language
+model at all; adding a local model is optional and unlocks richer scoring and written
+clip descriptions. No cloud accounts, no uploads, no subscriptions.
 
 ---
 
 ## What it does
 
-- Inspects video files and detects multiple OBS audio tracks
-- Assigns each track a role (mic, voice chat, game sounds, combined) with saved track layouts
-- Extracts audio tracks to 16 kHz mono WAV
-- Transcribes with [faster-whisper](https://github.com/SYSTRAN/faster-whisper) (GPU accelerated via CTranslate2)
-- Optionally labels who is speaking (speaker detection) with no account or token required
-- Groups transcript segments into clips using silence gaps
-- Scores clips with a stack of signals that need **no model** - audio energy, scene-cut density, laughter, a curated keyword lexicon, speech-rate bursts, speaker-overlap, and prosody - plus optional heavier tiers (audio-event detection) and, if a model is installed, LLM scoring with a written description
-- Web UI to review clips, approve/reject, edit captions, and export
-- Exports clips via FFmpeg with optional caption (SRT) sidecars or baked-in captions
-- Compiles approved clips into a highlight reel with transitions
-- Extra tools: import from a URL, world contexts, hot-words, sensitive-term flagging, name correction, and image-based (vision) analysis
+- Reads your recording and finds each separate audio track (mic, party chat, game
+  sound) from OBS
+- Transcribes every track locally with Whisper - optionally noting who is speaking
+- Scores each moment using laughter, excitement, keywords, scene changes, and on-screen
+  action - no AI model required
+- Optionally adds AI scoring and a written description of each clip if you install a
+  local model
+- Gives you a web page to review clips, approve or reject them, tidy up captions, and
+  export
+- Exports finished clips with optional captions, and can compile your favourites into a
+  highlight reel with transitions
+
+For the full feature list, see [docs/user/FEATURES.md](docs/user/FEATURES.md).
 
 ---
 
-## Two ways to run it
+## Install the desktop app (recommended)
 
-**Desktop app (recommended for most people).** A packaged Windows build bundles a pinned Python runtime and FFmpeg, walks you through a first-run setup wizard, and offers a one-click download of a recommended local scoring model. No manual Python or FFmpeg install needed.
+The Windows desktop app is the easiest way to use YuuClip. It bundles everything it
+needs - you don't have to install Python, FFmpeg, or anything else by hand - and a
+first-run wizard walks you through setup, including a one-click download of a
+recommended scoring model.
 
-**From source (developers).** Clone and `pip install` as below. This path expects FFmpeg and Python on your machine.
+**[Download the latest release](https://github.com/smitehamner/yuu-clip/releases/latest)**
 
-### Installing the desktop app on Windows
+(On GitHub, releases live under the **Releases** heading on the right-hand side of the
+project page. The link above goes straight there.)
 
-The installer isn't code-signed yet, so Windows SmartScreen will show a blue
-**"Windows protected your PC"** box that says the publisher is unknown. This is
-expected for a small indie app that hasn't paid for a signing certificate - it is
-not a virus warning. To continue:
+### A note on the Windows security warning
+
+YuuClip is a small, independently made app, and its installer isn't signed with a paid
+certificate yet. Because of that, Windows SmartScreen shows a blue **"Windows protected
+your PC"** box saying the publisher is unknown. This is **not** a virus warning - it
+just means Windows doesn't recognise the publisher. To continue:
 
 1. Click **More info**.
 2. Click **Run anyway**.
 
-If your antivirus quarantines the installer or a file during setup, allow/restore it
-and run again - the app bundles Python, FFmpeg, and (on first launch) installs its
-dependencies from files inside the installer, which some antivirus tools flag by
-reputation. Everything runs locally; nothing is uploaded.
+If your antivirus quarantines the installer or a file during setup, allow or restore it
+and run again. The app unpacks Python, FFmpeg, and its other components from inside the
+installer during first launch, and some antivirus tools flag unfamiliar installers by
+reputation alone. Everything stays on your computer - nothing is uploaded.
 
-If the first-run setup ever fails, the setup log is at
-`%APPDATA%\yuu-clip\yuu-clip_install.log` - send it along when reporting a problem.
-
----
-
-## Requirements (from source)
-
-### FFmpeg
-Must be on PATH.
-```
-winget install Gyan.FFmpeg        # Windows
-brew install ffmpeg               # macOS
-sudo apt install ffmpeg           # Ubuntu/Debian
-```
-
-### Python 3.11+
-```
-winget install Python.Python.3.12   # Windows
-```
-
-### A language model - optional
-LLM scoring and written clip descriptions are optional. Without a model, YuuClip still finds and scores clips using the no-model signals above. To enable LLM scoring, pick a backend in the setup wizard or Settings:
-
-- **Local model file (default)** - a local `.gguf` run via the bundled, GPU-accelerated llama.cpp engine. The desktop app can download a recommended, monetization-safe model for you.
-- **Claude API** - remote, billed per token.
+If first-run setup ever fails, the setup log is saved at
+`%APPDATA%\yuu-clip\yuu-clip_install.log` - include it when reporting a problem.
 
 ---
 
-## Install (from source)
+## Running from source, the CLI, and tuning
 
-```bash
-git clone https://github.com/smitehamner/yuu-clip
-cd yuu-clip
-python -m venv .venv
+Prefer to run from source, use the command line, or dig into GPU and Whisper model
+settings? See **[DEV-README.md](DEV-README.md)**.
 
-# Windows:
-.venv\Scripts\activate
-# Linux / macOS:
-source .venv/bin/activate
-
-pip install -e .        # contributors: use  pip install -e ".[dev]"  (adds test + lint tools)
-```
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) if you want to hack on YuuClip.
-
----
-
-## Quick start
-
-### Start the web UI (recommended)
-```bash
-cd my-recordings-folder
-yuuclip serve
-```
-Then navigate to `http://127.0.0.1:8080`. Use the **+ Analyze** button to add a video.
-
-### CLI usage
-
-```bash
-# Analyze a video (auto-assigns tracks via a saved track layout)
-yuuclip analyze session.mkv --track-layout my_obs_setup
-
-# Analyze a video downloaded from a URL
-yuuclip import-url https://example.com/vod
-
-# Re-score all clips (useful after changing the model or world contexts)
-yuuclip score --all
-
-# Export a clip by ID
-yuuclip export 42 --captions
-
-# Compile approved clips into a highlight reel
-yuuclip reel --output highlights.mkv --transition fade
-
-# Start the web UI for a specific project folder
-yuuclip serve --project /path/to/recordings
-```
-
----
-
-## GPU acceleration
-
-faster-whisper uses CTranslate2, which detects CUDA automatically. No PyTorch is needed for transcription.
-
-For best results, install CUDA drivers for your GPU. The tool automatically uses `float16` compute on CUDA and falls back to CPU `int8` otherwise. The device in use is shown in the analyze output.
-
----
-
-## Whisper models
-
-| Model    | VRAM   | Speed (GPU) | Notes                        |
-|----------|--------|-------------|------------------------------|
-| tiny     | ~0.5 GB | Very fast  | Rough - good for scouting    |
-| base     | ~1 GB   | Fast       | Default - decent quality     |
-| small    | ~2 GB   | Fast       | Good balance                 |
-| medium   | ~5 GB   | Moderate   | Great for noisy audio        |
-| large-v3 | ~10 GB  | Moderate   | Best quality                 |
-
-Models are downloaded from HuggingFace on first use and cached locally (`~/.cache/huggingface`).
-
----
-
-## Project layout
-
-```
-recordings-folder/
-└── .yuu-clip/
-    ├── project.db        ← SQLite (all metadata, transcripts, clips, scores)
-    ├── config.toml       ← project config (overrides global defaults)
-    ├── audio/
-    │   ├── session_stream0.wav
-    │   └── session_stream1.wav
-    └── exports/
-        └── session_clip42_0-23-15.mkv
-```
-
-Global config and track layouts:
-- **Windows:** `%APPDATA%\yuu-clip\`
-- **Linux:**   `~/.config/yuu-clip/`
-- **macOS:**   `~/Library/Application Support/yuu-clip/`
-
----
-
-## Offline use
-
-After the initial model downloads (Whisper via HuggingFace, and a scoring model if you choose one), the entire pipeline runs with no internet connection. In lightweight mode there is nothing extra to download at all.
-
----
-
-## Contributing
-
-Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for how to set up a
-dev environment, run the tests, and the code standards. Please report security issues
-per [SECURITY.md](SECURITY.md) rather than in a public issue.
+To modify the code and contribute, see **[CONTRIBUTING.md](CONTRIBUTING.md)**. Please
+report security issues per [SECURITY.md](SECURITY.md) rather than in a public issue.
 
 ---
 
 ## License
 
-YuuClip is licensed under the [Apache License 2.0](LICENSE) - you are free to use, modify, and distribute it, including commercially, under that licence's terms.
+YuuClip is licensed under the [Apache License 2.0](LICENSE) - you are free to use,
+modify, and distribute it, including commercially, under that licence's terms.
 
-The Windows installer bundles a prebuilt FFmpeg binary that is separately licensed under the GPLv3; see [docs/dev/THIRD-PARTY-NOTICES-FFMPEG.md](docs/dev/THIRD-PARTY-NOTICES-FFMPEG.md) for the full third-party compliance record.
-
----
-
-See [docs/user/FEATURES.md](docs/user/FEATURES.md) for the full feature reference and [docs/project/ROADMAP.md](docs/project/ROADMAP.md) for what's in progress and planned.
+The Windows installer bundles a prebuilt FFmpeg binary that is separately licensed under
+the GPLv3; see [docs/dev/THIRD-PARTY-NOTICES-FFMPEG.md](docs/dev/THIRD-PARTY-NOTICES-FFMPEG.md)
+for the full third-party compliance record.
