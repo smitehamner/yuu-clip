@@ -125,9 +125,9 @@ yuu_clip/
     analyze_job.py         # in-process analyze job tracking (AnalyzeJob)
     media.py               # video/media file streaming helpers
     file_deletion.py       # resilient file deletion + Windows file-lock diagnosis (Restart Manager)
-    routes/                # videos, clips, analyze, scoring, speakers, sounds, profiles, reel, contexts, config, logs, common (small cross-cutting route helpers)
+    routes/                # one module per feature (videos, analyze, scoring, speakers, voices, characters, contexts, reel, profiles, sounds, imports, backup, llm, models, config, logs, ...) + common.py (cross-cutting route helpers). clips/ is a subpackage (crud, edit, approval, bulk, captions, delete, export, serialize, schemas)
     static/index.html      # Single-page UI shell (vanilla JS, no build step)
-    static/*.js            # Feature modules: analyze, boot, clips, contexts, reel, settings, sounds, speakers, split, transcript, ui, utils, videos
+    static/*.js            # ~40 modules, one per feature/view. Foundational: boot (bootstrap), state (shared UI state), utils, ui, format, jobs (SSE job helpers), panelnav (PanelNav panel-flow stack). The rest are per-feature (videos + videos-*, clips + clip*, analyze, contexts, reel, settings + settings-*, speakers, voices, split, transcript, ...)
     static/app.css         # Stylesheet
 electron/                  # Desktop wrapper: main.js (window/menu/IPC + server spawn + wizard + lifecycle), constants.js, logging.js, electron-config.js, install.js (runCmd/download/pip helpers), preload.js, setup wizard (setup.html + setup-preload.js)
 tests/                     # unit = state-independent, run anywhere; integration = seeded DB; ui = live server
