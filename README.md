@@ -53,18 +53,10 @@ project page. The link above goes straight there.)
 
 ### A note on the Windows security warning
 
-YuuClip is a small, independently made app, and its installer isn't signed with a paid
-certificate yet. Because of that, Windows SmartScreen shows a blue **"Windows protected
-your PC"** box saying the publisher is unknown. This is **not** a virus warning - it
-just means Windows doesn't recognise the publisher. To continue:
-
-1. Click **More info**.
-2. Click **Run anyway**.
-
-If your antivirus quarantines the installer or a file during setup, allow or restore it
-and run again. The app unpacks Python, FFmpeg, and its other components from inside the
-installer during first launch, and some antivirus tools flag unfamiliar installers by
-reputation alone. Everything stays on your computer - nothing is uploaded.
+Because YuuClip is independently made and not yet signed with a paid certificate, the
+first time you run the installer Windows shows a blue **"Windows protected your PC"**
+box. This is not a virus warning - it only means Windows doesn't recognise the publisher
+yet. Click **More info**, then **Run anyway**, and setup continues normally.
 
 If first-run setup ever fails, the setup log is saved at
 `%APPDATA%\yuu-clip\yuu-clip_install.log` - include it when reporting a problem.

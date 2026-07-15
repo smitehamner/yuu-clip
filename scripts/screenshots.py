@@ -3,10 +3,10 @@ r"""Regenerate the README screenshots from the live dev server.
 Run it whenever the UI changes to refresh the images the README references -
 the shot list below is the single place to add, remove, or reframe a shot.
 
-Usage (via the wrapper):
-    .\scripts\screenshots.ps1            # regenerate every shot
-    .\scripts\screenshots.ps1 -List      # list shot names, capture nothing
-    .\scripts\screenshots.ps1 -Only settings   # only shots whose file matches
+Usage (run with the project venv's Python):
+    .venv\Scripts\python scripts\screenshots.py            # regenerate every shot
+    .venv\Scripts\python scripts\screenshots.py --list     # list shot names, capture nothing
+    .venv\Scripts\python scripts\screenshots.py --only people   # only shots whose file matches
 
 Requires the dev server running on :8080 (yuu-dev serve) with at least
 one analyzed recording that has clips. Images land in docs/screenshots/ at
@@ -79,10 +79,10 @@ def _shot_review(page: Page) -> None:
     page.wait_for_timeout(600)
 
 
-def _shot_settings(page: Page) -> None:
+def _shot_world_contexts(page: Page) -> None:
     _select_recording_with_clips(page)
-    page.evaluate("openSettings()")
-    page.wait_for_selector("#settings-panel.visible", timeout=5000)
+    page.evaluate("openContextManager()")
+    page.wait_for_selector("#context-modal.visible", timeout=5000)
     page.wait_for_timeout(800)
 
 
@@ -93,17 +93,29 @@ def _shot_highlight_reels(page: Page) -> None:
     page.wait_for_timeout(800)
 
 
+def _shot_people(page: Page) -> None:
+    # People is a project-wide panel; select a recording first so the sidebar
+    # behind the panel is populated rather than empty.
+    _select_recording_with_clips(page)
+    page.evaluate("openPeopleView()")
+    page.wait_for_selector("#people-list .person-card", timeout=5000)
+    page.wait_for_timeout(800)
+
+
 # (filename, caption, prepare) - add or reorder here to change the README set.
 SHOTS = [
     ("review.png",
      "Clip review: recordings sidebar, clip list, player, and per-clip scores",
      _shot_review),
-    ("settings.png",
-     "Settings: track layouts, scoring weights, and model configuration",
-     _shot_settings),
+    ("world-contexts.png",
+     "World contexts: tell the scorer who is who and what the session is, so highlights make sense",
+     _shot_world_contexts),
     ("highlight-reels.png",
      "Highlight reels: compile approved clips into a single reel",
      _shot_highlight_reels),
+    ("people.png",
+     "People: name each voice once and the name follows them across every recording",
+     _shot_people),
 ]
 
 
