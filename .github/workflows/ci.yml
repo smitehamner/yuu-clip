@@ -18,6 +18,7 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
+          cache-dependency-path: pyproject.toml
       - run: pip install ruff
       - run: ruff check yuu_clip tests
 
@@ -32,12 +33,19 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
+          # Hash both files so a base-dep pin (lock) or a dev-extra change
+          # (pyproject) invalidates the wheel cache.
+          cache-dependency-path: |
+            requirements.lock
+            pyproject.toml
       # The dev extras pull the full ML stack (torch, transformers, speechbrain,
       # mediapipe, ...), so this step is heavy on a cold cache. pip caching (above)
-      # amortizes it across runs.
+      # amortizes it across runs. The lock constraint pins the heavy base deps to
+      # the exact versions we test, so a new transitive release can't turn main red
+      # on its own (dev-only tools stay unpinned - the lock covers base deps only).
       - name: Install project with dev extras
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+          pip install -e ".[dev]" -c requirements.lock
       - name: Unit + integration tests
         run: python -m yuu_clip.dev test-api
