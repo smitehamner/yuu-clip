@@ -683,7 +683,15 @@ function analyzeFrames(clipId) {
       const data = clip || AppState.activeClipData;
       if (data && AppState.activeClipId === clipId && !PanelNav.isOpen()) renderDetail(data);
     },
-    FRAMES_STEPS, 'Analyzing frames…', true, null, false, {method: 'POST'},
+    FRAMES_STEPS, 'Analyzing frames...',
+    // Not cancellable: a short in-process job with no real server-side cancel - the
+    // header Cancel would only detach the client (and reuse the wrong analyze copy).
+    false,
+    // The route reports its own failures as bracketed status lines and then completes
+    // normally (no transport error, so streamSSE's error toast never fires). Surface
+    // them as a toast, otherwise a failed analysis is only visible in the job log.
+    line => { if (typeof line === 'string' && line.startsWith('[')) showToast(line.replace(/^\[|\]$/g, ''), 'error'); },
+    false, {method: 'POST'},
   );
 }
 

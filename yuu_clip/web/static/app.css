@@ -33,7 +33,7 @@
   --red:      #e05c5c;
   --on-red:   var(--bg); /* text on red fills - white on this red is only ~3.6:1 */
   --warning:  #f0c060; /* the only warning color - no --amber/--warn/--yellow (CC-7) */
-  --on-warning: #1a1a1a; /* text on --warning fills (e.g. Remote LLM badge) */
+  --on-warning: #1a1a1a; /* text on --warning fills */
   --warn-hot: #f0603c; /* over-threshold time estimates only */
   --funny:    #f7a85a;
   --dramatic: #b06af7;

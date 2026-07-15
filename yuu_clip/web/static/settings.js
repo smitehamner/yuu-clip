@@ -444,15 +444,6 @@ function _onDiarizationBackendChange(backend) {
   _updateDiarizationStatus();
 }
 
-function _toggleSecretVisibility(inputId, btn) {
-  const input = document.getElementById(inputId);
-  const reveal = input.type === 'password';
-  input.type = reveal ? 'text' : 'password';
-  btn.textContent = reveal ? 'Hide' : 'Show';
-  const label = btn.getAttribute('aria-label') || '';
-  btn.setAttribute('aria-label', label.replace(/^(Show|Hide)/, reveal ? 'Hide' : 'Show'));
-}
-
 // Show at a glance whether speaker labels will actually run (the SpeechBrain
 // package present), rather than discovering it only when an analyze run fails.
 async function _updateDiarizationStatus() {
@@ -813,7 +804,7 @@ Object.assign(window, {
   _onLlmEnabledChange, _onDiarizationBackendChange, _onLaughModeChange,
   _onSimilarityBackendChange, _onPrivacyModeChange, _setPrivacyMode, _currentPrivacyMode,
   _onPlayNextChange, _onLoopClipChange, _onSettingsWordHighlightChange,
-  _toggleSecretVisibility, _updateDiarizationStatus,
+  _updateDiarizationStatus,
   _scrollToSettingsSection, revertSection, revertAllSettings, _checkSettingsDirty,
   applyContentPreset, _onContentPresetChange,
 });
