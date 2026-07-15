@@ -993,7 +993,17 @@ details summary:focus-visible { outline: 2px solid var(--accent); outline-offset
 .clip-danger-zone { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding: 10px 14px; border: 1px solid color-mix(in srgb, var(--red) 25%, transparent); border-radius: var(--radius); background: color-mix(in srgb, var(--red) 4%, transparent); }
 
 /* left-aligned column header for the info tables (optional deps, etc.) */
-.col-head { text-align: left; padding: 3px 0; }
+.col-head { text-align: left; padding: 4px 12px 4px 0; }
+/* breathing room + top-alignment for the About modal's attribution tables */
+#about-modal table th, #about-modal table td { padding: 4px 12px 4px 0; vertical-align: top; }
+#about-modal table td:last-child, #about-modal table th:last-child { padding-right: 0; }
+/* per-item divider, reset at group boundaries so each group reads as a unit */
+#about-modal tbody td { border-top: 1px solid var(--border); }
+#about-modal tbody tr:first-child td { border-top: none; }
+#about-modal tr.grp td { border-top: none; border-left: 2px solid var(--accent); padding: 16px 0 4px 9px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .09em; color: var(--text); }
+#about-modal tbody tr.grp:first-child td { padding-top: 2px; }
+#about-modal tr.grp + tr td { border-top: none; }
+#about-modal a { color: var(--accent-text); text-decoration: underline; }
 
 /* ── sessions: sidebar grouping ── */
 .session-grouping-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px;
