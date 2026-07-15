@@ -58,13 +58,16 @@ token set (the theme-invariant test asserts this), so removing it from one block
 would require removing it from all and could reopen a contrast pairing later.
 **Kept; only its stale "Remote LLM badge" comment was removed.**
 
-### analyze-frames job made non-cancellable (chose over a real server-side cancel)
+### analyze-frames job made non-cancellable (SUPERSEDED same day)
 
-The frame-analysis job reused the analyze job's cancel copy/endpoint (a no-op for
-this short in-process job) and leaked a stuck spinner when cancelled. Resolved by
-making the job non-cancellable - matching its pre-rework behavior - rather than
-building a genuine server-side cancel. A real cancel is only worth it if a hung
-local vision call locking the heavy buttons proves to be a real problem.
+Originally resolved a wrong-cancel-copy + stuck-spinner bug by making the frame job
+non-cancellable. **Superseded** within the session: the user confirmed a long vision
+run on a large model over many frames is a real risk, so image analysis was reworked
+to a killable subprocess (pipeline/frame_analysis.py) that POSTs to the warm
+llama-server - a genuine mid-inference cancel - and the spinner leak was closed with a
+caller-facing `streamSSE` onError hook plus an onCancel cleanup. This entry is kept
+only so a future review knows the non-cancellable state was deliberate-then-replaced,
+not an oversight.
 
 ---
 

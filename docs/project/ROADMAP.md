@@ -25,14 +25,6 @@ Implemented-but-unverified surfaces and latent traps to close before distributio
   emits progress via `console.print` only (no marker channel yet); add one if export
   ever needs a structured progress bar or to run in-process.
 
-- [ ] **Frame-analysis job leaks a stuck spinner on a dropped stream** - `analyzeFrames`
-  (`clips.js`) clears `AppState.clipJobs[clipId]` only in the SSE `onDone` path. If the
-  stream dies with a transport error (connection lost) instead of the `__DONE__`
-  sentinel, the entry is never cleared and the clip's button stays a permanent disabled
-  "Analyzing frames..." spinner until a page reload. Rare on localhost. The clean fix is
-  a caller-facing `onError` hook on `streamSSE` that both toasts and clears the job entry;
-  deferred from the 2026-07-15 review as too invasive for a review pass.
-
 ---
 
 ## 2 - Pre-distribution blockers
