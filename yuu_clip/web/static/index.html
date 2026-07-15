@@ -86,7 +86,7 @@
       <button class="hamburger-item" onclick="closeHamburger();openGettingStartedModal()"><span class="hamburger-icon" aria-hidden="true">&#128214;</span>Getting Started</button>
       <button class="hamburger-item" onclick="closeHamburger();openControlsModal()"><span class="hamburger-icon" aria-hidden="true">&#9000;</span>Controls</button>
       <div class="hamburger-divider"></div>
-      <button class="hamburger-item" onclick="closeHamburger();openGlossaryModal()"><span class="hamburger-icon" aria-hidden="true">&#128218;</span>Terminology Glossary</button>
+      <button class="hamburger-item" onclick="closeHamburger();openGlossaryModal()"><span class="hamburger-icon" aria-hidden="true">&#128218;</span>Glossary</button>
       <button class="hamburger-item" onclick="closeHamburger();openHelpModal()"><span class="hamburger-icon" aria-hidden="true">&#10067;</span>Help &amp; Guides</button>
       <div class="hamburger-divider"></div>
       <a class="hamburger-item" href="/api/logs/export" download="yuu-clip.log" onclick="closeHamburger()"><span class="hamburger-icon" aria-hidden="true">&#8595;</span>Download Log</a>
@@ -2059,7 +2059,7 @@
 <div class="modal-bg" id="glossary-modal" onclick="if(event.target===this)closeGlossaryModal()">
   <div class="modal" style="width:740px;max-height:88vh;display:flex;flex-direction:column">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-      <h3 style="margin:0">Terminology Glossary</h3>
+      <h3 style="margin:0">Glossary</h3>
       <button class="btn ghost" style="padding:4px 8px" onclick="closeGlossaryModal()" aria-label="Close">&#x2715;</button>
     </div>
     <input type="search" id="glossary-filter" placeholder="Filter terms&#x2026;" aria-label="Filter glossary terms" oninput="_filterGlossary(this.value)"

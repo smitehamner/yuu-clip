@@ -3,13 +3,13 @@
 > **LLM/agent-targeted doc.** This is the exhaustive dev superset (every term plus
 > its `Code:` names and dev-only notes), maintained mainly by agents and kept in
 > `docs/dev/llm/` for that reason. **Humans wanting the terminology should read the
-> in-app "Terminology Glossary"** (`yuu_clip/web/static/glossary.md`, served at
+> in-app "Glossary"** (`yuu_clip/web/static/glossary.md`, served at
 > `/api/glossary`) - a hand-written, creator-facing subset. This file stays the
 > authoritative source the in-app copy is derived from.
 
 This file defines the authoritative term for every concept in YuuClip. Use these terms consistently in code, UI labels, docs, and conversation. When a term here conflicts with what is currently in the code or UI, the code/UI should eventually be updated - not this file.
 
-> **Keep the user-facing copy in sync.** The in-app "Terminology Glossary" modal is served from `yuu_clip/web/static/glossary.md` - a hand-written, creator-facing subset of this file (no `Code:`, no dev-only sections). When you add or rename a user-facing term here, update that file too.
+> **Keep the user-facing copy in sync.** The in-app "Glossary" modal is served from `yuu_clip/web/static/glossary.md` - a hand-written, creator-facing subset of this file (no `Code:`, no dev-only sections). When you add or rename a user-facing term here, update that file too.
 
 Two design principles drove the choices below:
 - **Creator-first naming** - terminology should make sense to a content creator, not require a developer background.

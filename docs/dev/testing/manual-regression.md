@@ -12,7 +12,8 @@ Run this before any release or after a significant change. Each item should pass
 |---|------|----------|
 | 1 | Open `http://127.0.0.1:8080` | Page loads; no console errors |
 | 2 | Check footer bar | Version string visible bottom-left |
-| 3 | Click `≡` hamburger | Dropdown shows: Getting Started, Controls, World Contexts, Terminology Glossary, Settings, Download Log, About (plus Re-run Setup Wizard in the packaged desktop app) |
+| 3 | Check header nav | Primary nav group (People, World Contexts, Highlight Reels) is visible next to the brand, not in the hamburger |
+| 4 | Click `≡` hamburger | Dropdown shows: Getting Started, Controls, Glossary, Help & Guides, Download Log, About (plus Re-run Setup Wizard in the packaged desktop app) - no Settings dup (use the gear) |
 
 ---
 

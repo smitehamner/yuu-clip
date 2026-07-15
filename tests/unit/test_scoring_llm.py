@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+
 class TestClientAvailableReasonNoPathLeak:
     """LlamaCppServerClient.available() reasons render in the UI (clip descriptions,
     analyze warnings), so they must never carry the absolute model path - it would
