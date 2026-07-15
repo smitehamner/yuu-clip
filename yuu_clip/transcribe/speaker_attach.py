@@ -100,8 +100,8 @@ def _best_voiceprint_match(vector, candidates, taken_ids, threshold=_VOICEPRINT_
     ``matched`` is ``None``.
 
     Candidates whose voiceprint came from a different diarization backend are
-    skipped: embeddings from pyannote and SpeechBrain live in incompatible spaces
-    (and dimensionalities), so a cross-backend cosine would be meaningless.
+    skipped: embeddings from different backends live in incompatible spaces (and
+    dimensionalities), so a cross-backend cosine would be meaningless.
     """
     top_speaker = None
     top_score = 0.0

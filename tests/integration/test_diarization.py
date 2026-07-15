@@ -411,6 +411,107 @@ class TestBestVoiceprintMatch:
 
 
 # ---------------------------------------------------------------------------
+# _match_or_mint_cluster - re-attach vs mint, and the near-miss "confirm" band
+# ---------------------------------------------------------------------------
+
+class TestMatchOrMintCluster:
+    """The re-attach boundary: at/above threshold a cluster re-attaches to a prior
+    named Speaker (name survives); just below it a fresh Speaker is minted but records
+    a suggested match to confirm; well below it a fresh Speaker is minted with no
+    suggestion. A prior Speaker already claimed this run must never be re-used."""
+
+    def _session(self, tmp_path):
+        from yuu_clip.db.models import make_session
+        return make_session(tmp_path / "project.db")
+
+    def _video(self, session):
+        from yuu_clip.db.models import Video
+        video = Video(path="x.mkv", filename="x.mkv", status="done")
+        session.add(video)
+        session.flush()
+        return video
+
+    def _prior(self, session, video, vector, *, backend="speechbrain", display_index=1):
+        from yuu_clip.db.models import Speaker
+        from yuu_clip.transcribe.project_voice import serialize_voiceprint
+        speaker = Speaker(
+            video_id=video.id, display_index=display_index, source="manual",
+            voiceprint=serialize_voiceprint(vector), voiceprint_backend=backend,
+        )
+        session.add(speaker)
+        session.flush()
+        return speaker
+
+    def _call(self, session, video, vector, prior_speakers, taken_ids, *, mint_index=5):
+        from yuu_clip.transcribe.speaker_attach import _match_or_mint_cluster
+        return _match_or_mint_cluster(
+            session, video.id, vector, prior_speakers, taken_ids,
+            threshold=0.75, active_backend="speechbrain", has_candidates=True,
+            mint_display_index=mint_index,
+        )
+
+    def test_reattaches_to_prior_named_speaker_at_threshold(self, tmp_path):
+        session = self._session(tmp_path)
+        try:
+            video = self._video(session)
+            prior = self._prior(session, video, [1.0, 0.0])
+            taken: set[int] = set()
+            speaker_id, outcome = self._call(session, video, [1.0, 0.0], [prior], taken)
+            assert (speaker_id, outcome) == (prior.id, "matched")
+            assert taken == {prior.id}
+        finally:
+            session.close()
+
+    def test_near_miss_in_band_mints_with_suggested_match(self, tmp_path):
+        from yuu_clip.db.models import Speaker
+        session = self._session(tmp_path)
+        try:
+            video = self._video(session)
+            # Cosine([1,0], [0.70, 0.714]) ~= 0.70: inside [0.65, 0.75) confirm band.
+            prior = self._prior(session, video, [1.0, 0.0])
+            speaker_id, outcome = self._call(
+                session, video, [0.70, 0.714], [prior], set(), mint_index=5)
+            assert outcome == "minted"
+            minted = session.get(Speaker, speaker_id)
+            assert minted.id != prior.id
+            assert minted.display_index == 5
+            assert minted.suggested_match_id == prior.id
+            assert minted.suggested_match_score == pytest.approx(0.70, abs=0.01)
+        finally:
+            session.close()
+
+    def test_clear_miss_mints_without_suggestion(self, tmp_path):
+        from yuu_clip.db.models import Speaker
+        session = self._session(tmp_path)
+        try:
+            video = self._video(session)
+            # Cosine([1,0], [0.5, 0.866]) ~= 0.50: below the 0.65 band floor.
+            prior = self._prior(session, video, [1.0, 0.0])
+            speaker_id, outcome = self._call(
+                session, video, [0.5, 0.866], [prior], set())
+            assert outcome == "minted"
+            minted = session.get(Speaker, speaker_id)
+            assert minted.suggested_match_id is None
+            assert minted.suggested_match_score is None
+        finally:
+            session.close()
+
+    def test_already_claimed_prior_is_not_reused(self, tmp_path):
+        session = self._session(tmp_path)
+        try:
+            video = self._video(session)
+            # An identical voiceprint would match, but the only prior is already taken
+            # this run, so the cluster must mint rather than collapse onto it.
+            prior = self._prior(session, video, [1.0, 0.0])
+            speaker_id, outcome = self._call(
+                session, video, [1.0, 0.0], [prior], {prior.id})
+            assert outcome == "minted"
+            assert speaker_id != prior.id
+        finally:
+            session.close()
+
+
+# ---------------------------------------------------------------------------
 # suggest_project_voices - cross-recording Person suggestions (propose, never apply)
 # ---------------------------------------------------------------------------
 

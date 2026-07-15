@@ -62,6 +62,33 @@ class TestWhisperRepoId:
         assert FasterWhisperTranscriber(Config()).model_cached() is False
 
 
+class TestMakeTranscriber:
+    def test_known_backend_builds_faster_whisper(self):
+        from yuu_clip.config import Config
+        from yuu_clip.transcribe.transcriber import make_transcriber
+        transcriber = make_transcriber(Config(transcription_backend="faster_whisper"))
+        assert isinstance(transcriber, FasterWhisperTranscriber)
+
+    def test_unknown_backend_falls_back_to_faster_whisper(self):
+        from yuu_clip.config import Config
+        from yuu_clip.transcribe.transcriber import make_transcriber
+        transcriber = make_transcriber(Config(transcription_backend="whisperx"))
+        assert isinstance(transcriber, FasterWhisperTranscriber)
+
+
+class TestFasterWhisperAvailable:
+    def test_valid_model_is_available(self):
+        from yuu_clip.config import Config
+        ok, reason = FasterWhisperTranscriber(Config(whisper_model="base")).available()
+        assert (ok, reason) == (True, "")
+
+    def test_invalid_model_reports_unavailable_with_reason(self):
+        from yuu_clip.config import Config
+        ok, reason = FasterWhisperTranscriber(Config(whisper_model="not-a-model")).available()
+        assert ok is False
+        assert reason
+
+
 # -- route: cache short-circuit, duplicate guard, disk precheck, command build --
 
 class TestWhisperPrefetchRoute:
