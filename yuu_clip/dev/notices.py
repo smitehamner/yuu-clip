@@ -27,6 +27,11 @@ LOCK_PATH = REPO_ROOT / "requirements.lock"
 
 _PIN_RE = re.compile(r"^([A-Za-z0-9][A-Za-z0-9._-]*)==([^\s;]+)")
 _LICENSE_NAME_RE = re.compile(r"^(licen[sc]e|copying|notice)", re.IGNORECASE)
+# A license-named source/binary file (e.g. a `license.py` module) is not licence
+# text - reject these extensions so their contents never leak into the notices.
+_NON_LICENSE_SUFFIXES = frozenset(
+    {".py", ".pyc", ".pyi", ".pyd", ".so", ".dll", ".dylib"}
+)
 
 # Non-PyPI bundled components: (display name, purpose, licence id, verbatim-text path).
 _BUNDLED_COMPONENTS = [
@@ -69,6 +74,8 @@ def parse_lock(text: str) -> list[tuple[str, str]]:
 
 def _is_license_file(package_path: metadata.PackagePath) -> bool:
     if not _LICENSE_NAME_RE.match(package_path.name):
+        return False
+    if package_path.suffix.lower() in _NON_LICENSE_SUFFIXES:
         return False
     text = str(package_path)
     # dist-info/egg-info metadata, or a licence file at a top-level package root
