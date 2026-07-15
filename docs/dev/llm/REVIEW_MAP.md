@@ -92,7 +92,7 @@ The largest area - review in three sub-passes.
 
 ### 4b - LLM scoring
 - `scoring/llm.py` - the LLM scorer
-- `scoring/llm_client.py` - client factory + NullLLMClient (remote-AI gate lives here)
+- `scoring/llm_client.py` - client factory + NullLLMClient (local llamacpp backend; AI-privacy-mode gate lives here)
 - `scoring/llamacpp_server.py` - bundled Vulkan llama-server pool (gpu-layers auto-fit)
 - `scoring/describe_basic.py` - template one-liner fallback when no LLM
 

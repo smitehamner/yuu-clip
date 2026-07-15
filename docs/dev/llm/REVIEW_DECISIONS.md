@@ -11,6 +11,63 @@ same thing without the context. Most recent first.
 
 ---
 
+## Post-Claude-removal review - characters / jobs-progress / transcriber seam (2026-07-15)
+
+Scoped `shqr-code-quality-review` over `4d95f3a..HEAD` (the un-reviewed work
+since the 2026-07-13 review closed: transcription backend seam, characters
+feature, jobs/progress rework, dev-CLI notices/lock-deps, and the remote Claude
+backend removal). Keep-as-is calls surfaced:
+
+### `speaker_attach._attach_speakers` (~48 lines) and `whisper_runner.transcribe_track` (~76 lines) - not decomposed
+
+Both exceed the ~30-line guideline but each is a single cohesive concern.
+`_attach_speakers`'s label-collection, match/mint loop, and per-segment id
+assignment share the matched/minted/without-voiceprint counters that exist only
+to feed one summary log line - splitting them would pass those counters across a
+seam for no readability gain. `transcribe_track`'s streaming-persist body lives
+inside one Rich `Progress` context (persist segments as the backend yields them);
+extracting part of it would fragment that context. **Kept whole.**
+
+### `jobs.js` `parseProgress`/`JOB_STAGES` mirroring `pipeline/progress.py` - not deduplicated
+
+The JS progress parser deliberately mirrors the Python `parse_progress` + stage
+model across the process boundary (subprocess stdout -> browser). It cannot share
+code (different runtimes) and the duplication is already coupling-guarded by
+`tests/unit/test_progress_stage_coupling.py`, which greps `jobs.js` for each
+Python stage id. **Kept as an intentional, test-guarded mirror**, same rationale
+as the Wizard/Settings parallel stacks. (Minor: that guard matches the stage id
+wrapped in single quotes; a future double-quoted reference in `jobs.js` would
+false-fail. Left as-is - the convention holds today and altering a passing guard
+without a reason is churn.)
+
+### `notices.py` `_is_license_file` - tightened via extension blocklist, not a stricter name regex
+
+The Phase 2 hunt flagged the license-name regex as able to over-match a
+`license.py`-style source module. Fixed by rejecting source/binary suffixes
+(`.py/.pyc/.pyi/.pyd/.so/.dll/.dylib`) rather than anchoring the name pattern
+harder. Deliberate: for a licensing-notice artifact an **under-match silently
+drops a real license file** (worse than a cosmetic over-match), and no genuine
+license text ever carries those extensions, so a suffix blocklist is the
+lower-risk guard. Covered by `TestIsLicenseFile`.
+
+### `app.css` `--on-warning` token - kept despite losing its last consumer
+
+The Remote LLM badge that used `--on-warning` was deleted with the Claude
+backend. The token is now unconsumed, but every theme block must define the full
+token set (the theme-invariant test asserts this), so removing it from one block
+would require removing it from all and could reopen a contrast pairing later.
+**Kept; only its stale "Remote LLM badge" comment was removed.**
+
+### analyze-frames job made non-cancellable (chose over a real server-side cancel)
+
+The frame-analysis job reused the analyze job's cancel copy/endpoint (a no-op for
+this short in-process job) and leaked a stuck spinner when cancelled. Resolved by
+making the job non-cancellable - matching its pre-rework behavior - rather than
+building a genuine server-side cancel. A real cancel is only worth it if a hung
+local vision call locking the heavy buttons proves to be a real problem.
+
+---
+
 ## Theme G glyph sweep - close-out of the 2026-07-13 review (2026-07-14)
 
 P2 tier of the stage-by-stage code-quality review. The review flagged lone non-ASCII
