@@ -70,7 +70,12 @@ proceeding. Restarting mid-ingest silently kills the subprocess and loses all pr
 interrupting other SSE jobs (rescore, timeline, summarize) is less catastrophic but
 should still be confirmed.
 
-HTML/JS edits to `yuu_clip/web/static/index.html` do **not** need a server restart.
+HTML/JS edits do **not** need a server restart. But the browser loads
+`static/bundle.js` (one committed concatenation of the `static/*.js` files), **not** the
+individual files - after editing any `static/*.js` you must run `yuu-dev bundle` (or keep
+`yuu-dev bundle --watch` running) for the change to appear, and the
+`tests/unit/test_bundle_drift.py` guard fails if you commit a stale bundle. Editing
+`index.html` alone needs no rebundle.
 
 ## MANDATORY: after any static file change (*.js, *.html, *.css)
 
@@ -106,7 +111,7 @@ suite explicitly.
 ```
 yuu_clip/
   cli/                     # Thin Typer adapters - analyze, export, reel, review, serve (+ _base). Commands parse args and call into pipeline/ and export/.
-  dev/                     # The yuu-dev developer-loop CLI (serve/test-api/test-ui/lint/logs/status/lock-deps), Typer, cross-platform. _summary.py = pytest-output summary core, procs.py = Windows process reap (no-ops off Windows), deps.py = lock-deps (regenerate requirements.lock).
+  dev/                     # The yuu-dev developer-loop CLI (serve/test-api/test-ui/lint/logs/status/lock-deps/bundle), Typer, cross-platform. _summary.py = pytest-output summary core, procs.py = Windows process reap (no-ops off Windows), deps.py = lock-deps (regenerate requirements.lock), bundle.py = concatenate static/*.js (order in bundle.manifest) into the committed static/bundle.js.
   pipeline/                # The analyze engine: ingest (per-video orchestration + stages), run_meta (per-run timing/settings capture), vision_describe (opt-in auto vision-LLM description of top-N textless/visual clips)
   export/                  # The export feature: render (engine - cut, retranscribe, title card, captions), naming (filename stem), presets (definitions + size-cap math), paths (on-disk export/sidecar path resolution + export-query validation)
   console.py               # Shared Rich console + BYTES_PER_MB (used by cli/ and the engine; lives outside cli/ so the engine never imports cli)
@@ -126,7 +131,9 @@ yuu_clip/
     media.py               # video/media file streaming helpers
     file_deletion.py       # resilient file deletion + Windows file-lock diagnosis (Restart Manager)
     routes/                # one module per feature (videos, analyze, scoring, speakers, voices, characters, contexts, reel, profiles, sounds, imports, backup, llm, models, config, logs, ...) + common.py (cross-cutting route helpers). clips/ is a subpackage (crud, edit, approval, bulk, captions, delete, export, serialize, schemas)
-    static/index.html      # Single-page UI shell (vanilla JS, no build step)
+    static/index.html      # Single-page UI shell (vanilla JS). Loads one <script>: bundle.js
+    static/bundle.js       # Committed build artifact: static/*.js concatenated in bundle.manifest order by `yuu-dev bundle`. Do not hand-edit; edit the source files + rebundle.
+    static/bundle.manifest # The single ordered load-order list the bundle is built from (replaces the hand-ordered <script> tags)
     static/*.js            # ~40 modules, one per feature/view. Foundational: boot (bootstrap), state (shared UI state), utils, ui, format, jobs (SSE job helpers), panelnav (PanelNav panel-flow stack). The rest are per-feature (videos + videos-*, clips + clip*, analyze, contexts, reel, settings + settings-*, speakers, voices, split, transcript, ...)
     static/app.css         # Stylesheet
 electron/                  # Desktop wrapper: main.js (window/menu/IPC + server spawn + wizard + lifecycle), constants.js, logging.js, electron-config.js, install.js (runCmd/download/pip helpers), preload.js, setup wizard (setup.html + setup-preload.js)

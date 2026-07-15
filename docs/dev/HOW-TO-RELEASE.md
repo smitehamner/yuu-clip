@@ -40,6 +40,23 @@ Use [semver](https://semver.org/): `MAJOR.MINOR.PATCH`
 
 ---
 
+## Frontend bundle
+
+The web UI ships as one committed `yuu_clip/web/static/bundle.js` (concatenated from the
+individual `static/*.js` files in the order listed in `static/bundle.manifest`).
+Regenerate it and commit any change before building:
+
+```powershell
+yuu-dev bundle
+git add yuu_clip/web/static/bundle.js
+```
+
+`tests/unit/test_bundle_drift.py` fails if the committed bundle is stale, so a release
+can't silently ship an out-of-date UI - but regenerate here so the drift guard never has
+to catch it. (During active UI work, `yuu-dev bundle --watch` rebuilds on save.)
+
+---
+
 ## Build
 
 ```powershell

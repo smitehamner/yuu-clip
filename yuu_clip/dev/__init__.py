@@ -5,7 +5,16 @@ them here wires every subcommand onto ``app``, which the ``yuu-dev`` entry point
 """
 from __future__ import annotations
 
-from yuu_clip.dev import deps, lint, logs, notices, serve, status, tests  # noqa: E402,F401  (registers commands)
+from yuu_clip.dev import (  # noqa: E402,F401  (registers commands)
+    bundle,
+    deps,
+    lint,
+    logs,
+    notices,
+    serve,
+    status,
+    tests,
+)
 from yuu_clip.dev._base import app
 
 __all__ = ["app"]

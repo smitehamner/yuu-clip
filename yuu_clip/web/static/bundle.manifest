@@ -1,0 +1,52 @@
+# Load order for the frontend bundle (yuu-dev bundle -> bundle.js).
+#
+# This is the single source of truth for the order the static JS files load in.
+# `yuu-dev bundle` concatenates these files, in this order, into bundle.js, which
+# index.html loads as one <script>. Add a new module here (in the right spot for
+# its dependencies) and re-run `yuu-dev bundle`; do not add <script> tags to
+# index.html. Blank lines and lines starting with `#` are ignored.
+#
+# Step 1 is plain ordered concatenation, not a module bundler: every file stays a
+# classic global-scope script, so top-level `function foo(){}` stays global and the
+# inline onclick="foo()" handlers keep working. Behavior is identical to separate tags.
+
+state.js
+format.js
+jobs.js
+preview.js
+utils.js
+colorpicker.js
+ui.js
+helpmodals.js
+shortcuts.js
+panelnav.js
+videos.js
+videos-timeline.js
+videos-summary.js
+videos-runmeta.js
+sessions.js
+clips.js
+clipbulk.js
+clipexport.js
+analyze.js
+reel.js
+contexts.js
+settings.js
+settings-previews.js
+settings-installs.js
+settings-backup.js
+modelcatalog.js
+projects.js
+sounds.js
+hotwords.js
+exportpresets.js
+sensitive.js
+split.js
+speakers.js
+voices.js
+transcript.js
+namecorrections.js
+clipcreate.js
+exporteditor.js
+modeldownload.js
+boot.js
