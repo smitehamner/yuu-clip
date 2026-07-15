@@ -146,34 +146,17 @@ class TestFormatApiError:
 @skip_no_server
 class TestDiarizationReason:
     # The three speaker-labels surfaces (Settings, analyze, export) all gate on
-    # this single rule. For pyannote, missing package is reported before missing
-    # token because installing is the first setup step; an empty string means
-    # fully ready. SpeechBrain needs no token at all.
-    def test_pyannote_missing_package_takes_priority(self, page: Page):
-        out = page.evaluate("() => _diarizationReason('pyannote', false, false)")
-        assert out == "Install pyannote.audio"
-
-    def test_pyannote_missing_package_even_with_token(self, page: Page):
-        out = page.evaluate("() => _diarizationReason('pyannote', false, true)")
-        assert out == "Install pyannote.audio"
-
-    def test_pyannote_installed_but_no_token(self, page: Page):
-        out = page.evaluate("() => _diarizationReason('pyannote', true, false)")
-        assert out == "Requires a HuggingFace token"
-
-    def test_pyannote_ready_returns_empty_reason(self, page: Page):
-        out = page.evaluate("() => _diarizationReason('pyannote', true, true)")
-        assert out == ""
-
-    def test_speechbrain_missing_package(self, page: Page):
+    # this single rule. SpeechBrain is the only backend and needs no token: an
+    # empty string means fully ready, otherwise a "reinstall" hint.
+    def test_missing_package(self, page: Page):
         # SpeechBrain is bundled - an unready result here means a broken install,
         # not a missing optional download, so the reason says "reinstall", not "Install".
-        out = page.evaluate("() => _diarizationReason('speechbrain', false, false)")
+        out = page.evaluate("() => _diarizationReason(false)")
         assert out == "SpeechBrain is unavailable - try reinstalling YuuClip"
 
-    def test_speechbrain_ready_without_token(self, page: Page):
+    def test_installed_is_ready(self, page: Page):
         # No token needed - installed alone is fully ready.
-        out = page.evaluate("() => _diarizationReason('speechbrain', true, false)")
+        out = page.evaluate("() => _diarizationReason(true)")
         assert out == ""
 
     def test_note_html_escapes_onclick_and_includes_settings_button(self, page: Page):

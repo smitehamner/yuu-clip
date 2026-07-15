@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-import importlib.util
-import sys
-import types
 from unittest.mock import MagicMock
 
 import pytest
@@ -11,7 +8,6 @@ from yuu_clip.config import Config
 from yuu_clip.transcribe.diarization_client import (
     DiarizationError,
     NullDiarizationClient,
-    PyannoteDiarizationClient,
     SpeechBrainDiarizationClient,
     _active_window_indices,
     _cluster_centroids,
@@ -21,10 +17,6 @@ from yuu_clip.transcribe.diarization_client import (
     _slice_windows,
     make_diarization_client,
 )
-
-# torch/scikit-learn are optional (pyannote/speechbrain deps installed on demand),
-# so tests that need them skip cleanly on a lean install rather than erroring.
-_HAS_TORCH = importlib.util.find_spec("torch") is not None
 
 # ---------------------------------------------------------------------------
 # NullDiarizationClient
@@ -38,267 +30,6 @@ class TestNullClient:
 
     def test_diarize_returns_empty(self):
         assert NullDiarizationClient().diarize("/any/path.wav") == []
-
-
-# ---------------------------------------------------------------------------
-# PyannoteDiarizationClient.available()
-# ---------------------------------------------------------------------------
-
-class TestPyannoteAvailable:
-    def test_no_token(self):
-        cfg = Config(diarization_backend="pyannote", huggingface_token="")
-        ok, reason = PyannoteDiarizationClient(cfg).available()
-        assert ok is False
-        assert "HuggingFace token" in reason
-
-    def test_missing_library(self, monkeypatch):
-        import builtins
-        real_import = builtins.__import__
-
-        def _block(name, *args, **kwargs):
-            if name == "pyannote.audio":
-                raise ImportError("no module")
-            return real_import(name, *args, **kwargs)
-
-        monkeypatch.setattr(builtins, "__import__", _block)
-        cfg = Config(diarization_backend="pyannote", huggingface_token="hf_abc")
-        ok, reason = PyannoteDiarizationClient(cfg).available()
-        assert ok is False
-        assert "pip install" in reason
-
-
-# ---------------------------------------------------------------------------
-# PyannoteDiarizationClient.diarize() - regression guard for the from_pretrained
-# keyword. pyannote.audio 4.x renamed `use_auth_token` to `token`; passing the
-# old name raised TypeError and silently disabled speaker labels for every run.
-# ---------------------------------------------------------------------------
-
-@pytest.fixture
-def pyannote_stub(monkeypatch):
-    """A sys.modules stand-in for pyannote.audio.
-
-    Importing the real package costs ~30 s (torch-lightning + speechbrain chain)
-    and every test here replaces Pipeline.from_pretrained anyway. The client
-    imports pyannote lazily inside _run_pipeline, so the stub is all it sees.
-    """
-    audio_module = types.ModuleType("pyannote.audio")
-
-    class Pipeline:
-        @staticmethod
-        def from_pretrained(*args, **kwargs):
-            raise AssertionError("test must monkeypatch from_pretrained")
-
-    audio_module.Pipeline = Pipeline
-    package = types.ModuleType("pyannote")
-    package.audio = audio_module
-    monkeypatch.setitem(sys.modules, "pyannote", package)
-    monkeypatch.setitem(sys.modules, "pyannote.audio", audio_module)
-    return audio_module
-
-
-@pytest.mark.skipif(not _HAS_TORCH, reason="torch not installed (pyannote optional dep)")
-class TestPyannoteDiarize:
-    def _write_wav(self, path, sample_rate=16000, n_frames=1600):
-        import struct
-        import wave
-
-        with wave.open(str(path), "wb") as wav:
-            wav.setnchannels(1)
-            wav.setsampwidth(2)
-            wav.setframerate(sample_rate)
-            wav.writeframes(struct.pack("<" + "h" * n_frames, *([0] * n_frames)))
-
-    def test_uses_token_kwarg_not_use_auth_token(self, monkeypatch, tmp_path, pyannote_stub):
-        turn = MagicMock(start=0.0, end=1.5)
-        diar_result = MagicMock()
-        diar_result.speaker_diarization.itertracks.return_value = [(turn, None, "SPEAKER_00")]
-        pipeline_obj = MagicMock(return_value=diar_result)
-        from_pretrained = MagicMock(return_value=pipeline_obj)
-        monkeypatch.setattr(pyannote_stub.Pipeline, "from_pretrained", from_pretrained)
-
-        wav_path = tmp_path / "clip.wav"
-        self._write_wav(wav_path)
-        cfg = Config(diarization_backend="pyannote", huggingface_token="hf_abc")
-        turns = PyannoteDiarizationClient(cfg).diarize(str(wav_path))
-
-        assert turns == [(0.0, 1.5, "SPEAKER_00")]
-        args, kwargs = from_pretrained.call_args
-        assert args[0] == "pyannote/speaker-diarization-community-1"
-        assert kwargs.get("token") == "hf_abc"
-        assert "use_auth_token" not in kwargs
-
-    # The pipeline must receive an in-memory {waveform, sample_rate} dict, not the
-    # file path: passing the path makes pyannote 4.x decode via torchcodec, which
-    # fails on machines without FFmpeg shared libraries ("torchcodec is not
-    # available") and silently disables speaker labels.
-    def test_passes_waveform_dict_not_path(self, monkeypatch, tmp_path, pyannote_stub):
-        import torch
-
-        diar_result = MagicMock()
-        diar_result.speaker_diarization.itertracks.return_value = []
-        pipeline_obj = MagicMock(return_value=diar_result)
-        monkeypatch.setattr(
-            pyannote_stub.Pipeline, "from_pretrained",
-            MagicMock(return_value=pipeline_obj),
-        )
-
-        wav_path = tmp_path / "clip.wav"
-        self._write_wav(wav_path, sample_rate=16000, n_frames=1600)
-        cfg = Config(diarization_backend="pyannote", huggingface_token="hf_abc")
-        PyannoteDiarizationClient(cfg).diarize(str(wav_path))
-
-        (passed,), _ = pipeline_obj.call_args
-        assert isinstance(passed, dict)
-        assert passed["sample_rate"] == 16000
-        assert isinstance(passed["waveform"], torch.Tensor)
-        assert passed["waveform"].shape == (1, 1600)
-
-    # community-1's pipeline returns a DiarizeOutput dataclass whose Annotation lives
-    # under `.speaker_diarization`; calling `.itertracks` on the wrapper itself raises
-    # "'DiarizeOutput' object has no attribute 'itertracks'". diarize() must unwrap it.
-    def test_unwraps_diarizeoutput_speaker_diarization(self, monkeypatch, tmp_path, pyannote_stub):
-        class FakeAnnotation:
-            def itertracks(self, yield_label=False):
-                turn = MagicMock(start=2.0, end=3.0)
-                return [(turn, None, "SPEAKER_01")]
-
-        class FakeDiarizeOutput:
-            speaker_diarization = FakeAnnotation()
-
-        pipeline_obj = MagicMock(return_value=FakeDiarizeOutput())
-        monkeypatch.setattr(
-            pyannote_stub.Pipeline, "from_pretrained",
-            MagicMock(return_value=pipeline_obj),
-        )
-
-        wav_path = tmp_path / "clip.wav"
-        self._write_wav(wav_path)
-        cfg = Config(diarization_backend="pyannote", huggingface_token="hf_abc")
-        turns = PyannoteDiarizationClient(cfg).diarize(str(wav_path))
-
-        assert turns == [(2.0, 3.0, "SPEAKER_01")]
-
-    # pyannote returns None from from_pretrained (rather than raising) when the
-    # token can't access the gated repos / hasn't accepted the model terms. The
-    # old code then crashed with 'NoneType' object is not callable, buried in
-    # the log. It must instead surface an actionable error.
-    def test_none_pipeline_raises_actionable_error(self, monkeypatch, pyannote_stub):
-        monkeypatch.setattr(
-            pyannote_stub.Pipeline, "from_pretrained", MagicMock(return_value=None)
-        )
-        cfg = Config(diarization_backend="pyannote", huggingface_token="hf_abc")
-        with pytest.raises(DiarizationError) as excinfo:
-            PyannoteDiarizationClient(cfg).diarize("/tmp/clip.wav")
-        message = str(excinfo.value)
-        assert "hf.co/pyannote/speaker-diarization-community-1" in message
-        assert "hf.co/settings/tokens" in message
-
-    # A real pyannote 4.x access error names a repo our static list might not
-    # know about (speaker-diarization-community-1). The translated error must
-    # preserve that exact repo name and append the account/token guidance.
-    def test_access_error_preserves_repo_and_adds_hint(self, monkeypatch, pyannote_stub):
-        def _raise_gated(*args, **kwargs):
-            raise RuntimeError(
-                "403 Client Error. Access to model "
-                "pyannote/speaker-diarization-community-1 is restricted. "
-                "Visit https://hf.co/pyannote/speaker-diarization-community-1"
-            )
-
-        monkeypatch.setattr(pyannote_stub.Pipeline, "from_pretrained", _raise_gated)
-        cfg = Config(diarization_backend="pyannote", huggingface_token="hf_abc")
-        with pytest.raises(DiarizationError) as excinfo:
-            PyannoteDiarizationClient(cfg).diarize("/tmp/clip.wav")
-        message = str(excinfo.value)
-        assert "speaker-diarization-community-1" in message
-        assert "hf.co/settings/tokens" in message
-
-    def test_diarize_with_embeddings_maps_labels_to_centroids(self, monkeypatch, tmp_path, pyannote_stub):
-        turn_a = MagicMock(start=0.0, end=1.0)
-        turn_b = MagicMock(start=1.0, end=2.0)
-        diar_result = MagicMock()
-        diar_result.speaker_diarization.itertracks.return_value = [
-            (turn_a, None, "SPEAKER_00"), (turn_b, None, "SPEAKER_01"),
-        ]
-        diar_result.speaker_diarization.labels.return_value = ["SPEAKER_00", "SPEAKER_01"]
-        diar_result.speaker_embeddings = [[0.1, 0.2], [0.3, 0.4]]
-        pipeline_obj = MagicMock(return_value=diar_result)
-        monkeypatch.setattr(
-            pyannote_stub.Pipeline, "from_pretrained", MagicMock(return_value=pipeline_obj)
-        )
-
-        wav_path = tmp_path / "clip.wav"
-        self._write_wav(wav_path)
-        cfg = Config(diarization_backend="pyannote", huggingface_token="hf_abc")
-        turns, embeddings = PyannoteDiarizationClient(cfg).diarize_with_embeddings(str(wav_path))
-
-        assert turns == [(0.0, 1.0, "SPEAKER_00"), (1.0, 2.0, "SPEAKER_01")]
-        assert embeddings == {"SPEAKER_00": [0.1, 0.2], "SPEAKER_01": [0.3, 0.4]}
-
-    def test_diarize_with_embeddings_tolerates_no_embeddings(self, monkeypatch, tmp_path, pyannote_stub):
-        # A bare Annotation (older pipeline): result is the annotation itself,
-        # so there is no separate speaker_embeddings attribute to read.
-        class FakeAnnotation:
-            def itertracks(self, yield_label=False):
-                return [(MagicMock(start=2.0, end=3.0), None, "SPEAKER_00")]
-            def labels(self):
-                return ["SPEAKER_00"]
-
-        pipeline_obj = MagicMock(return_value=FakeAnnotation())
-        monkeypatch.setattr(
-            pyannote_stub.Pipeline, "from_pretrained", MagicMock(return_value=pipeline_obj)
-        )
-        wav_path = tmp_path / "clip.wav"
-        self._write_wav(wav_path)
-        cfg = Config(diarization_backend="pyannote", huggingface_token="hf_abc")
-        turns, embeddings = PyannoteDiarizationClient(cfg).diarize_with_embeddings(str(wav_path))
-
-        assert turns == [(2.0, 3.0, "SPEAKER_00")]
-        assert embeddings == {}
-
-    def test_moves_pipeline_to_cuda_when_available(self, monkeypatch, tmp_path, pyannote_stub):
-        import torch
-
-        monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
-        diar_result = MagicMock()
-        diar_result.speaker_diarization.itertracks.return_value = []
-        pipeline_obj = MagicMock(return_value=diar_result)
-        monkeypatch.setattr(
-            pyannote_stub.Pipeline, "from_pretrained", MagicMock(return_value=pipeline_obj)
-        )
-        wav_path = tmp_path / "clip.wav"
-        self._write_wav(wav_path)
-        cfg = Config(diarization_backend="pyannote", huggingface_token="hf_abc")
-        PyannoteDiarizationClient(cfg).diarize(str(wav_path))
-
-        assert pipeline_obj.to.called
-        (device,), _ = pipeline_obj.to.call_args
-        assert device.type == "cuda"
-
-    def test_stays_on_cpu_when_cuda_unavailable(self, monkeypatch, tmp_path, pyannote_stub):
-        import torch
-
-        monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
-        diar_result = MagicMock()
-        diar_result.speaker_diarization.itertracks.return_value = []
-        pipeline_obj = MagicMock(return_value=diar_result)
-        monkeypatch.setattr(
-            pyannote_stub.Pipeline, "from_pretrained", MagicMock(return_value=pipeline_obj)
-        )
-        wav_path = tmp_path / "clip.wav"
-        self._write_wav(wav_path)
-        cfg = Config(diarization_backend="pyannote", huggingface_token="hf_abc")
-        PyannoteDiarizationClient(cfg).diarize(str(wav_path))
-
-        assert not pipeline_obj.to.called
-
-    def test_unrelated_error_is_not_masked(self, monkeypatch, pyannote_stub):
-        def _raise_disk(*args, **kwargs):
-            raise OSError("No space left on device")
-
-        monkeypatch.setattr(pyannote_stub.Pipeline, "from_pretrained", _raise_disk)
-        cfg = Config(diarization_backend="pyannote", huggingface_token="hf_abc")
-        with pytest.raises(OSError):
-            PyannoteDiarizationClient(cfg).diarize("/tmp/clip.wav")
 
 
 # ---------------------------------------------------------------------------
@@ -339,7 +70,7 @@ class TestRetranscribeDiarization:
                 return [(1.0, 2.0, "SPEAKER_00"), (3.0, 4.0, "SPEAKER_01")], {}
 
         captured = self._patch(monkeypatch, FakeClient())
-        cfg = Config(diarization_backend="pyannote", huggingface_token="hf_abc")
+        cfg = Config(diarization_backend="speechbrain")
         export_cli._maybe_diarize_segment(
             session=None, config=cfg, video_id=4, transcript_id=7,
             segment_wav=Path("seg.wav"), offset_s=86.7, track_label="combined",
@@ -362,7 +93,7 @@ class TestRetranscribeDiarization:
                 return [(1.0, 2.0, "SPEAKER_00")], embeddings
 
         captured = self._patch(monkeypatch, FakeClient())
-        cfg = Config(diarization_backend="pyannote", huggingface_token="hf_abc",
+        cfg = Config(diarization_backend="speechbrain",
                      speaker_match_threshold=0.62)
         export_cli._maybe_diarize_segment(
             session=None, config=cfg, video_id=4, transcript_id=7,
@@ -370,7 +101,7 @@ class TestRetranscribeDiarization:
         )
         # video_id, the configured threshold, and the active backend must reach
         # _attach_speakers so a named voice re-attaches during a per-clip retranscribe.
-        assert captured["attach"] == (4, 7, embeddings, 0.62, "pyannote")
+        assert captured["attach"] == (4, 7, embeddings, 0.62, "speechbrain")
 
     def test_noop_when_diarization_unavailable(self, monkeypatch):
         from pathlib import Path
@@ -385,7 +116,7 @@ class TestRetranscribeDiarization:
                 raise AssertionError("diarize must not run when unavailable")
 
         captured = self._patch(monkeypatch, FakeClient())
-        cfg = Config(diarization_backend="pyannote", huggingface_token="")
+        cfg = Config(diarization_backend="speechbrain")
         export_cli._maybe_diarize_segment(None, cfg, 4, 7, Path("seg.wav"), 0.0, "combined")
         assert captured == {}
 
@@ -436,13 +167,13 @@ class TestDiarizeTrack:
         embeddings = {"SPEAKER_00": [1.0, 0.0]}
         captured = self._wire(monkeypatch, None, embeddings_result=(turns, embeddings))
 
-        cfg = Config(diarization_backend="pyannote", huggingface_token="hf_abc",
+        cfg = Config(diarization_backend="speechbrain",
                      speaker_match_threshold=0.6)
         diarize_track(cfg, None, self._fake_transcript(), Path("a.wav"), self._fake_track())
 
         assert captured["assign"] == [(7, turns)]
         # The configured threshold and active backend must be forwarded to _attach_speakers.
-        assert captured["attach"] == [(9, 7, embeddings, 0.6, "pyannote")]
+        assert captured["attach"] == [(9, 7, embeddings, 0.6, "speechbrain")]
         # Cross-recording suggestion is NOT per-track - it runs once per recording from
         # _run_speaker_diarization (see TestRunSpeakerDiarizationSuggests), not here.
         assert "suggest" not in captured
@@ -453,7 +184,7 @@ class TestDiarizeTrack:
         from yuu_clip.transcribe.whisper_runner import diarize_track
 
         captured = self._wire(monkeypatch, None, available=(False, "no token"))
-        cfg = Config(diarization_backend="pyannote", huggingface_token="")
+        cfg = Config(diarization_backend="speechbrain")
         diarize_track(cfg, None, self._fake_transcript(), Path("a.wav"), self._fake_track())
 
         assert "assign" not in captured
@@ -468,7 +199,7 @@ class TestDiarizeTrack:
             monkeypatch, None,
             diarize_side_effect=DiarizationError("accept model terms at hf.co/..."),
         )
-        cfg = Config(diarization_backend="pyannote", huggingface_token="hf_abc")
+        cfg = Config(diarization_backend="speechbrain")
         # Must not raise - a diarization failure never aborts the run.
         diarize_track(cfg, None, self._fake_transcript(), Path("a.wav"), self._fake_track())
 
@@ -482,7 +213,7 @@ class TestDiarizeTrack:
         captured = self._wire(
             monkeypatch, None, diarize_side_effect=RuntimeError("gpu exploded"),
         )
-        cfg = Config(diarization_backend="pyannote", huggingface_token="hf_abc")
+        cfg = Config(diarization_backend="speechbrain")
         diarize_track(cfg, None, self._fake_transcript(), Path("a.wav"), self._fake_track())
 
         assert "assign" not in captured
@@ -529,22 +260,6 @@ class TestDiarizeTrack:
         monkeypatch.setattr(whisper_runner, "speechbrain_model_cached", lambda: True)
         self._wire(monkeypatch, None, embeddings_result=([], {}))
         cfg = Config(diarization_backend="speechbrain")
-        diarize_track(cfg, None, self._fake_transcript(), Path("a.wav"), self._fake_track())
-
-        out = capsys.readouterr().out
-        assert "Downloading the speaker model" not in out
-
-    def test_downloading_notice_omitted_for_pyannote(self, monkeypatch, capsys):
-        """Pyannote has its own gated-model access-error messaging - the
-        speechbrain-specific download notice must not leak onto it."""
-        from pathlib import Path
-
-        from yuu_clip.transcribe import whisper_runner
-        from yuu_clip.transcribe.whisper_runner import diarize_track
-
-        monkeypatch.setattr(whisper_runner, "speechbrain_model_cached", lambda: False)
-        self._wire(monkeypatch, None, embeddings_result=([], {}))
-        cfg = Config(diarization_backend="pyannote", huggingface_token="hf_abc")
         diarize_track(cfg, None, self._fake_transcript(), Path("a.wav"), self._fake_track())
 
         out = capsys.readouterr().out
@@ -606,7 +321,7 @@ class TestRediarizeVideo:
             whisper_runner, "diarize_track",
             lambda config, session, transcript, audio_path, track: diarized.append(transcript.id),
         )
-        n = _rediarize_video(session, Config(diarization_backend="pyannote"), video)
+        n = _rediarize_video(session, Config(diarization_backend="speechbrain"), video)
 
         assert n == 1
         assert diarized == [latest.id]
@@ -626,7 +341,7 @@ class TestRediarizeVideo:
             whisper_runner, "diarize_track",
             lambda *a, **k: (_ for _ in ()).throw(AssertionError("must not diarize without transcripts")),
         )
-        assert _rediarize_video(session, Config(diarization_backend="pyannote"), video) == 0
+        assert _rediarize_video(session, Config(diarization_backend="speechbrain"), video) == 0
         session.close()
 
 
@@ -787,7 +502,9 @@ class TestSuggestProjectVoices:
 
         session = self._session(tmp_path)
         try:
-            self._voice(session, [1.0, 0.0], backend="pyannote")
+            # A voiceprint from a different (hypothetical) backend must never be
+            # compared against the active speechbrain speaker - incompatible spaces.
+            self._voice(session, [1.0, 0.0], backend="other-backend")
             video = self._video(session)
             speaker = self._speaker(session, video, [1.0, 0.0], backend="speechbrain")
             suggest_project_voices(session, video.id, 0.80)
@@ -1024,10 +741,6 @@ class TestFactory:
     def test_null_explicit(self):
         cfg = Config(diarization_backend="null")
         assert isinstance(make_diarization_client(cfg), NullDiarizationClient)
-
-    def test_pyannote(self):
-        cfg = Config(diarization_backend="pyannote", huggingface_token="hf_abc")
-        assert isinstance(make_diarization_client(cfg), PyannoteDiarizationClient)
 
     def test_speechbrain(self):
         cfg = Config(diarization_backend="speechbrain")

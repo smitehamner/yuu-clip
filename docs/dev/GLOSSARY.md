@@ -45,7 +45,7 @@ Most lookups only need this table: the authoritative user-facing term, the code 
 | Speaker name | `Speaker.name` | Creator-assigned name for a speaker |
 | Suggested speaker name | `source='inferred'`, `confirmed=False` | LLM-proposed name awaiting Accept/Dismiss |
 | Speaker labels | `diarization_backend` | The feature: transcripts show who is speaking - not "diarization" in UI |
-| Speaker detection | `rediarizeVideo`, pyannote | The action/install that powers speaker labels |
+| Speaker detection | `rediarizeVideo`, speechbrain | The action that powers speaker labels |
 | Voiceprint | `Speaker.voiceprint` | Internal voice embedding - never user-facing |
 | Clip | `ClipCandidate` | A proposed highlight moment - never "clip candidate" in UI |
 | Clip status | `status` | `pending` → **Unreviewed**, `approved` → Approved, `rejected` → Rejected |
@@ -415,8 +415,8 @@ An LLM-proposed **Speaker Name** the creator has **not accepted yet** - surfaced
 
 The user-facing **feature**: transcripts and captions show who is speaking.
 
-- **Code:** `diarization_backend` config (`'null'` = off, `'pyannote'` or `'speechbrain'` = enabled), `speaker_labels` flag in analyze options/status
-- **Backends:** **Pyannote** (needs a HuggingFace account + token) and **SpeechBrain** (no account or token - ECAPA embeddings, Apache-2.0, model auto-downloads). Voiceprints are backend-specific (`speakers.voiceprint_backend`): named speakers can't auto-match across backends, so re-confirm names after switching.
+- **Code:** `diarization_backend` config (`'null'` = off, `'speechbrain'` = enabled), `speaker_labels` flag in analyze options/status
+- **Backend:** **SpeechBrain** (no account or token - ECAPA embeddings, Apache-2.0, model auto-downloads). Voiceprints are tagged by backend (`speakers.voiceprint_backend`) so they never cross-match if another backend is ever added. (Pyannote was a second backend, removed 2026-07-14 - see ROADMAP "Larger / speculative features".)
 - **Also called in codebase:** "diarization" (the technique), `diar-*` element ids
 - **Do not call it:** "diarization" in user-facing text - say "Speaker labels"
 - **UI label:** "Speaker labels" (Settings section, analyze modal checkbox, setup wizard checkbox - usually with the gloss "(identifies who is speaking)")
@@ -428,8 +428,8 @@ The user-facing **feature**: transcripts and captions show who is speaking.
 
 The **action** of running (or installing the prerequisites for) speaker diarization on a recording.
 
-- **Code:** `rediarizeVideo` (JS), pyannote install flow in the setup wizard
-- **Also called in codebase:** "rediarize", "pyannote"
+- **Code:** `rediarizeVideo` (JS)
+- **Also called in codebase:** "rediarize"
 - **UI label:** "Re-detect Speakers" (recording actions), "speaker detection installed" / "install speaker detection" (setup wizard, Settings readiness)
 - **Do not confuse with:** **Speaker labels** - the resulting feature. The split is deliberate: the checkbox that *enables the feature* says "Speaker labels"; the operations that *run or install it* say "speaker detection".
 

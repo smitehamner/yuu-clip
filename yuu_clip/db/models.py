@@ -348,7 +348,7 @@ class TranscriptSegment(Base):
     text: Mapped[str] = mapped_column(Text, nullable=False)
     confidence: Mapped[Optional[float]] = mapped_column(Float)
 
-    # Raw pyannote cluster id, e.g. "SPEAKER_00". Set by whisper_runner when
+    # Raw diarization cluster id, e.g. "SPEAKER_00". Set by whisper_runner when
     # diarization is enabled; None otherwise. NOT stable across runs - kept only
     # as provenance and as the fallback display when speaker_id is unset.
     speaker_label: Mapped[Optional[str]] = mapped_column(String)
@@ -401,7 +401,7 @@ class Speaker(Base):
     # Serialized voice embedding centroid, used to re-attach this Speaker across
     # re-diarizations. NULL when the diarization backend produced no embedding.
     voiceprint: Mapped[Optional[bytes]] = mapped_column(LargeBinary, nullable=True)
-    # Which diarization backend produced `voiceprint` ("pyannote" | "speechbrain").
+    # Which diarization backend produced `voiceprint` (currently "speechbrain").
     # Embeddings from different backends live in incompatible spaces, so re-attach
     # only compares voiceprints sharing the active backend. NULL when no voiceprint.
     voiceprint_backend: Mapped[Optional[str]] = mapped_column(String, nullable=True)
@@ -547,9 +547,9 @@ class VoiceExemplar(Base):
 
     A recording's Speaker matches a Person when its voiceprint is near ANY of that
     Person's exemplars; confirming a match adds the Speaker's voiceprint as a new
-    exemplar. ``voiceprint_backend`` gates comparisons: pyannote and SpeechBrain
-    embeddings live in incompatible spaces, so a cross-backend cosine is meaningless
-    and must be skipped (same rule as Speaker.voiceprint_backend).
+    exemplar. ``voiceprint_backend`` gates comparisons: embeddings from different
+    diarization backends live in incompatible spaces, so a cross-backend cosine is
+    meaningless and must be skipped (same rule as Speaker.voiceprint_backend).
     """
     __tablename__ = "voice_exemplars"
 

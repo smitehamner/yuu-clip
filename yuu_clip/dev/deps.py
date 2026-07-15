@@ -33,9 +33,8 @@ _HEADER = """\
 # <wheel>` so every user gets exactly the versions we tested. Covers base deps only
 # (which now include the Tier-A default-feature packages: speechbrain, scikit-learn,
 # transformers, torch/torchaudio, soundfile, fastembed, mediapipe, anthropic -- all
-# pinned here). Still NOT pinned: dev extras; the llamacpp backend (installed from a
-# prebuilt CPU/CUDA wheel, not PyPI -- see scripts\\windows-release\\fetch-wheelhouse.ps1); and the
-# optional pyannote diarization extra."""
+# pinned here). Still NOT pinned: dev extras; and the llamacpp backend (installed
+# from a prebuilt CPU/CUDA wheel, not PyPI -- see scripts\\windows-release\\fetch-wheelhouse.ps1)."""
 
 
 def filter_pins(freeze_lines: list[str]) -> list[str]:

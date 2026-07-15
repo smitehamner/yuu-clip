@@ -192,7 +192,6 @@ dev venv; wheel availability differs on 3.12):
       run works (model auto-downloads; no WinError 1314 symlink failure)
 - [ ] Install MediaPipe - resolves a 3.12 wheel; "Auto-frame on faces" returns a crop on a clip
       with a face
-- [ ] Install pyannote.audio (with a HF token) - installs and the gated model loads with the token
 
 **Reproducible install:** the first-run setup log shows `Constraining deps to ...\requirements.lock`
 and the created venv's `pip list` matches the pinned versions (e.g. `av==18.0.0`).

@@ -52,7 +52,6 @@ async function installPackage(slug) {
           status.style.color = 'var(--green)';
           btn.textContent = 'Reinstall';
           btn.disabled = false;
-          if (slug === 'pyannote') _updateDiarizationStatus();
           return;
         }
         log.textContent += msg + '\n';

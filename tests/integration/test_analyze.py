@@ -344,12 +344,12 @@ class TestInstallStatus:
         assert r.status_code == 400
 
     def test_reports_installed_for_present_package(self, client):
-        # 'pyannote' detects the importable 'pyannote.audio' module; patch find_spec
-        # so the test does not depend on whether the dep is actually installed.
+        # 'speechbrain' reports status by detecting its import modules; patch
+        # find_spec so the test does not depend on whether the dep is installed.
         from unittest.mock import patch
 
         with patch("yuu_clip.web.routes.common.importlib.util.find_spec", return_value=object()):
-            r = client.get("/api/install/pyannote")
+            r = client.get("/api/install/speechbrain")
         assert r.status_code == 200
         assert r.json() == {"installed": True}
 
@@ -357,7 +357,7 @@ class TestInstallStatus:
         from unittest.mock import patch
 
         with patch("yuu_clip.web.routes.common.importlib.util.find_spec", return_value=None):
-            r = client.get("/api/install/pyannote")
+            r = client.get("/api/install/speechbrain")
         assert r.status_code == 200
         assert r.json() == {"installed": False}
 
@@ -2644,9 +2644,10 @@ class TestShouldPrewarmTransformers:
             scorer_audio_event_enabled=False, scorer_laugh_mode="model",
         ) is True
 
-    def test_pyannote_backend_never_prewarms(self):
-        # Only speechbrain poisons transformers - pyannote doesn't, so no pre-warm.
-        assert self._gate(diarization_backend="pyannote", scorer_audio_event_enabled=True) is False
+    def test_non_speechbrain_backend_never_prewarms(self):
+        # Only speechbrain poisons transformers, so a run with diarization off
+        # never needs the pre-warm even when a transformers-backed scorer runs.
+        assert self._gate(diarization_backend="null", scorer_audio_event_enabled=True) is False
 
     def test_no_transformers_backed_scorer_skips_prewarm(self):
         assert self._gate(

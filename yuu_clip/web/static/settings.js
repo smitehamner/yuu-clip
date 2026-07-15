@@ -9,7 +9,7 @@ const _settingsFieldIds = [
   's-vision-enabled','s-vision-frames',
   's-visual-auto-vision','s-visual-vision-topn',
   's-claude-api-key','s-claude-model','s-claude-timeout',
-  's-diarization-backend','s-hf-token','s-speaker-match-threshold','s-speaker-cluster-threshold',
+  's-diarization-backend','s-speaker-match-threshold','s-speaker-cluster-threshold',
   's-project-voice-match-threshold',
   's-similarity-backend',
   's-energy-weight','s-scene-weight','s-llm-weight',
@@ -239,11 +239,9 @@ function _applySpeakerFields(cfg) {
   const diarBackend = cfg.diarization_backend || 'speechbrain';
   _setFieldVal('s-diarization-backend', diarBackend);
   _onDiarizationBackendChange(diarBackend);
-  _setFieldVal('s-hf-token', cfg.huggingface_token || '');
   _setFieldVal('s-speaker-match-threshold', (cfg.speaker_match_threshold ?? 0.75).toFixed(2));
   _setFieldVal('s-speaker-cluster-threshold', (cfg.speaker_cluster_threshold ?? 0.55).toFixed(2));
   _setFieldVal('s-project-voice-match-threshold', (cfg.project_voice_match_threshold ?? 0.80).toFixed(2));
-  _onHfTokenInput();
 }
 
 function _applyWeightFields(cfg) {
@@ -341,7 +339,7 @@ function _applySettingsToUI(cfg) {
   _applyExportFields(cfg);
   _snapshotSettings();
   _checkSettingsDirty();
-  ['pyannote', 'cuda-libs'].forEach(_refreshInstallStatus);
+  ['cuda-libs'].forEach(_refreshInstallStatus);
 }
 
 // Factory defaults, fetched once per session and reused by every reset control.
@@ -481,20 +479,12 @@ function _setPrivacyMode(mode) {
   _checkSettingsDirty();
 }
 
-// ── speaker labels section (diarization backend + HF token) ──────────────────
+// ── speaker labels section (diarization backend) ─────────────────────────────
 function _onDiarizationBackendChange(backend) {
-  const pyannoteEl    = document.getElementById('s-pyannote-fields');
   const speechbrainEl = document.getElementById('s-speechbrain-fields');
   const commonEl      = document.getElementById('s-diarization-common-fields');
-  if (pyannoteEl)    pyannoteEl.style.display    = backend === 'pyannote'    ? '' : 'none';
   if (speechbrainEl) speechbrainEl.style.display = backend === 'speechbrain' ? '' : 'none';
   if (commonEl)      commonEl.style.display      = backend !== 'null'        ? '' : 'none';
-  // Pyannote's setup stays a collapsed <details> even when it's the active
-  // backend (demoted - SpeechBrain is the default) - the install/token status
-  // is still visible via #s-diarization-common-fields below, outside the
-  // disclosure. Auto-expanding here was tried and reverted: it resized content
-  // above the settings panel's current scroll position, and Chrome's scroll
-  // anchoring then silently shifted scrollTop to compensate.
   _updateDiarizationStatus();
 }
 
@@ -507,27 +497,8 @@ function _toggleSecretVisibility(inputId, btn) {
   btn.setAttribute('aria-label', label.replace(/^(Show|Hide)/, reveal ? 'Hide' : 'Show'));
 }
 
-function _onHfTokenInput() {
-  const fb = document.getElementById('s-hf-token-feedback');
-  if (fb) {
-    const val = document.getElementById('s-hf-token').value.trim();
-    if (!val) {
-      fb.textContent = '';
-    } else if (!val.startsWith('hf_')) {
-      fb.textContent = '⚠ HuggingFace tokens normally start with "hf_" - double-check this value';
-      fb.style.color = 'var(--warning)';
-    } else {
-      fb.textContent = '✓ Looks like a valid token format';
-      fb.style.color = 'var(--green)';
-    }
-  }
-  _updateDiarizationStatus();
-}
-
-// Summarize the two hard prerequisites (package installed + token set) so the
-// user can see at a glance whether speaker labels will actually run, rather than
-// discovering it only when an analyze run fails. Reads the live token input (may
-// be unsaved) and the server for install state.
+// Show at a glance whether speaker labels will actually run (the SpeechBrain
+// package present), rather than discovering it only when an analyze run fails.
 async function _updateDiarizationStatus() {
   const el = document.getElementById('s-diarization-status');
   if (!el) return;
@@ -537,24 +508,12 @@ async function _updateDiarizationStatus() {
     return;
   }
   el.style.display = '';
-  if (backend === 'speechbrain') {
-    let installed = false;
-    try {
-      installed = !!(await fetch('/api/install/speechbrain').then(r => r.json())).installed;
-    } catch { /* treat unknown as not installed */ }
-    el.innerHTML = `<span>${installed ? '✓' : '○'} SpeechBrain installed - no token needed</span>`;
-    el.style.color = installed ? 'var(--green)' : 'var(--muted)';
-    return;
-  }
-  const tokenSet = !!document.getElementById('s-hf-token').value.trim();
   let installed = false;
   try {
-    installed = !!(await fetch('/api/install/pyannote').then(r => r.json())).installed;
+    installed = !!(await fetch('/api/install/speechbrain').then(r => r.json())).installed;
   } catch { /* treat unknown as not installed */ }
-  el.innerHTML =
-    `<span style="margin-right:14px">${installed ? '✓' : '○'} pyannote.audio installed</span>` +
-    `<span>${tokenSet ? '✓' : '○'} HuggingFace token set</span>`;
-  el.style.color = installed && tokenSet ? 'var(--green)' : 'var(--muted)';
+  el.innerHTML = `<span>${installed ? '✓' : '○'} SpeechBrain installed - no token needed</span>`;
+  el.style.color = installed ? 'var(--green)' : 'var(--muted)';
 }
 
 // ── scoring, similarity & playback section handlers ──────────────────────────
@@ -751,7 +710,6 @@ async function saveSettings() {
     score_action_weight:        getNum('s-action-weight', parseFloat),
     score_visual_weight:        getNum('s-visual-weight', parseFloat),
     diarization_backend:        getVal('s-diarization-backend'),
-    huggingface_token:          getVal('s-hf-token'),
     speaker_match_threshold:    getNum('s-speaker-match-threshold', parseFloat),
     speaker_cluster_threshold:  getNum('s-speaker-cluster-threshold', parseFloat),
     project_voice_match_threshold: getNum('s-project-voice-match-threshold', parseFloat),
@@ -904,7 +862,7 @@ Object.assign(window, {
   _onLlmBackendChange, _onLlmEnabledChange, _onDiarizationBackendChange, _onLaughModeChange,
   _onSimilarityBackendChange, _onPrivacyModeChange, _setPrivacyMode, _currentPrivacyMode,
   _onPlayNextChange, _onLoopClipChange, _onSettingsWordHighlightChange,
-  _toggleSecretVisibility, _onHfTokenInput, _updateDiarizationStatus,
+  _toggleSecretVisibility, _updateDiarizationStatus,
   _scrollToSettingsSection, revertSection, revertAllSettings, _checkSettingsDirty,
   applyContentPreset, _onContentPresetChange,
 });

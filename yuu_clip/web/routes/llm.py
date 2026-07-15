@@ -282,25 +282,6 @@ def _speaker_labels_tier(cfg) -> dict:
             "ready": True, "detail": "Speaker labels are turned off.",
             "install_slug": None, "prefetch_slug": None, "section": "settings-sec-speakers",
         }
-    if backend == "pyannote":
-        installed = module_findable("pyannote.audio")
-        has_token = bool(getattr(cfg, "huggingface_token", "") or "")
-        ready = installed and has_token
-        if not installed:
-            detail = "Pyannote (advanced) isn't installed yet."
-        elif not has_token:
-            detail = "Pyannote is installed - add a HuggingFace token to finish setup."
-        else:
-            detail = "Pyannote is installed and ready."
-        return {
-            "id": "speaker_labels", "name": "Speaker labels", "purpose": purpose,
-            "active": "Pyannote (advanced)",
-            "upgrade": "SpeechBrain is the default, token-free backend - Pyannote is an advanced, optional alternative.",
-            "ready": ready, "detail": detail,
-            "install_slug": None if installed else "pyannote",
-            "prefetch_slug": None,
-            "section": "settings-sec-speakers",
-        }
     # speechbrain (default) - bundled package; the ECAPA model is Tier B.
     model_ready = speechbrain_model_cached()
     return {

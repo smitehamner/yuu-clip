@@ -432,6 +432,18 @@ def _sanitize_content_preset_field(merged: dict) -> None:
             merged["content_preset"] = "generic"
 
 
+def _sanitize_diarization_backend(merged: dict) -> None:
+    """Coerce the retired 'pyannote' backend to 'speechbrain' on load.
+
+    Pyannote was removed (see ROADMAP "Larger / speculative features"); an old
+    config naming it would otherwise fall through to no diarization and silently
+    turn speaker labels off, so we heal it to the default backend instead.
+    """
+    if merged.get("diarization_backend") == "pyannote":
+        _log.warning("Config: diarization_backend 'pyannote' retired - using 'speechbrain'")
+        merged["diarization_backend"] = "speechbrain"
+
+
 def validate_whisper_language(lang: Optional[str]) -> Optional[str]:
     """
     Raise ValueError if *lang* is not a recognised ISO 639-1 code.
@@ -625,8 +637,8 @@ class Config:
     remote_ai_enabled: bool = False
 
     # Speaker diarization - identifies who is speaking within a track
-    diarization_backend: str = "speechbrain"  # "null" | "pyannote" | "speechbrain"
-    huggingface_token: str = ""        # required for pyannote backend (not speechbrain)
+    diarization_backend: str = "speechbrain"  # "null" | "speechbrain"
+    huggingface_token: str = ""        # reserved; no active consumer (Pyannote retired)
     # Cosine similarity above which a re-diarization cluster is treated as the same
     # voice as an existing named Speaker and re-attached to it (preserving the name).
     # Higher = stricter (fewer wrong re-attaches, more speakers re-minted for
@@ -849,6 +861,7 @@ class Config:
         _sanitize_caption_style_fields(merged)
         _sanitize_vision_fields(merged)
         _sanitize_content_preset_field(merged)
+        _sanitize_diarization_backend(merged)
 
         known = {f for f in cls.__dataclass_fields__}
         unknown = set(merged) - known

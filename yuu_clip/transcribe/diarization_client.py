@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import warnings
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
@@ -12,40 +11,14 @@ _log = logging.getLogger(__name__)
 
 
 class DiarizationError(RuntimeError):
-    """A diarization failure the user can act on (e.g. accept model terms)."""
-
-
-# pyannote.audio 4.x's recommended pipeline. Unlike speaker-diarization-3.1 (which
-# chained in segmentation-3.0 plus a PLDA from community-1), this one is
-# self-contained: accepting the single repo's user conditions is enough. We still
-# don't assume the failing repo when access is denied - HF's own error names the
-# exact repo and accept URL, so we pass that text through and append the account /
-# token guidance. The None branch covers older pyannote returning None instead of
-# raising.
-_PIPELINE_ID = "pyannote/speaker-diarization-community-1"
-
-_ACCEPT_TERMS_HINT = (
-    "To fix: sign in to HuggingFace with the SAME account as your token, open "
-    "the gated model page named above, and accept its user conditions. The "
-    "token also needs 'Read' access - create one at https://hf.co/settings/tokens"
-)
-
-_ACCEPT_TERMS_HELP = (
-    "Speaker labels need access to a gated HuggingFace model. While signed in "
-    "with your token's account, accept the user conditions at:\n"
-    f"  - https://hf.co/{_PIPELINE_ID}\n"
-    + _ACCEPT_TERMS_HINT
-)
+    """A diarization failure the user can act on (e.g. an unreadable WAV)."""
 
 
 def _load_waveform(audio_path: str) -> dict:
-    """Decode a PCM WAV into pyannote's in-memory input dict.
+    """Decode a PCM WAV into an in-memory {waveform, sample_rate} dict.
 
-    pyannote 4.x's community-1 pipeline decodes file paths through torchcodec, which
-    needs the FFmpeg shared libraries on the system PATH - frequently absent on
-    Windows, where it fails with "torchcodec is not available". We always feed it our
-    own 16 kHz mono PCM WAVs, so we decode them with the stdlib `wave` module and hand
-    pyannote a {waveform, sample_rate} dict, sidestepping torchcodec entirely.
+    We always feed diarization our own 16 kHz mono PCM WAVs, so we decode them with
+    the stdlib `wave` module rather than routing through a heavier audio backend.
     """
     import wave
 
@@ -72,36 +45,6 @@ def _load_waveform(audio_path: str) -> dict:
     return {"waveform": waveform, "sample_rate": sample_rate}
 
 
-def _move_pipeline_to_gpu_if_available(pipeline) -> None:
-    """Move the diarization pipeline onto CUDA when a GPU-enabled torch is present.
-
-    pyannote pipelines stay on CPU unless explicitly moved. This only helps when
-    the installed torch is a CUDA build (``torch.cuda.is_available()``); the CPU
-    build reports no CUDA and we stay on CPU. Any failure degrades to CPU rather
-    than aborting diarization.
-    """
-    import torch
-
-    if not torch.cuda.is_available():
-        return
-    try:
-        pipeline.to(torch.device("cuda"))
-        _log.info("Diarization pipeline moved to CUDA")
-    except Exception as exc:
-        _log.warning("Could not move diarization pipeline to CUDA (%s); using CPU", exc)
-
-
-def _looks_like_access_error(exc: Exception) -> bool:
-    text = f"{type(exc).__name__} {exc}".lower()
-    return any(
-        needle in text
-        for needle in (
-            "401", "403", "gated", "unauthorized", "forbidden",
-            "authenticate", "restricted", "awaiting", "permission",
-        )
-    )
-
-
 class DiarizationClient(ABC):
     @abstractmethod
     def diarize(self, audio_path: str) -> list[tuple[float, float, str]]:
@@ -114,7 +57,7 @@ class DiarizationClient(ABC):
         """Return turns plus a per-speaker voiceprint centroid keyed by raw label.
 
         Default: turns with no embeddings. Backends that can produce speaker
-        embeddings (Pyannote) override this so a name can be re-attached to the
+        embeddings (SpeechBrain) override this so a name can be re-attached to the
         same voice across diarization runs.
         """
         return self.diarize(audio_path), {}
@@ -131,90 +74,6 @@ class NullDiarizationClient(DiarizationClient):
 
     def diarize(self, audio_path: str) -> list[tuple[float, float, str]]:
         return []
-
-
-class PyannoteDiarizationClient(DiarizationClient):
-    def __init__(self, config: Config) -> None:
-        self._config = config
-
-    def available(self) -> tuple[bool, str]:
-        if not self._config.huggingface_token:
-            return False, (
-                "No HuggingFace token set - open Settings (gear icon) and enter your token "
-                "under Speaker labels"
-            )
-        try:
-            import pyannote.audio  # noqa: F401
-        except ImportError:
-            return False, "pyannote.audio is not installed (pip install pyannote.audio)"
-        return True, ""
-
-    def _run_pipeline(self, audio_path: str):
-        """Load and run the diarization pipeline; return (annotation, raw_result).
-
-        Shared by ``diarize`` and ``diarize_with_embeddings`` so the pipeline load
-        + error translation lives in one place.
-        """
-        # pyannote.audio.core.io warns (with the full libtorchcodec load traceback
-        # inlined as text) whenever FFmpeg's shared libs aren't on PATH (common on
-        # Windows). It's expected and harmless here: we decode the WAV ourselves in
-        # _load_waveform and never use torchcodec. Narrowly scoped to this one
-        # warning/module so unrelated warnings during the import still surface.
-        with warnings.catch_warnings():
-            warnings.filterwarnings(
-                "ignore",
-                message=r"\s*torchcodec is not installed correctly",
-                category=UserWarning,
-                module=r"pyannote\.audio\.core\.io",
-            )
-            from pyannote.audio import Pipeline
-        try:
-            pipeline = Pipeline.from_pretrained(
-                _PIPELINE_ID,
-                token=self._config.huggingface_token,
-            )
-        except Exception as exc:
-            if _looks_like_access_error(exc):
-                raise DiarizationError(f"{exc}\n\n{_ACCEPT_TERMS_HINT}") from exc
-            raise
-        if pipeline is None:
-            raise DiarizationError(_ACCEPT_TERMS_HELP)
-        _move_pipeline_to_gpu_if_available(pipeline)
-        result = pipeline(_load_waveform(audio_path))
-        # community-1 returns a DiarizeOutput dataclass whose `speaker_diarization`
-        # field holds the Annotation; older pipelines return the Annotation directly.
-        annotation = getattr(result, "speaker_diarization", result)
-        return annotation, result
-
-    @staticmethod
-    def _turns(annotation) -> list[tuple[float, float, str]]:
-        return [
-            (turn.start, turn.end, speaker)
-            for turn, _, speaker in annotation.itertracks(yield_label=True)
-        ]
-
-    def diarize(self, audio_path: str) -> list[tuple[float, float, str]]:
-        annotation, _ = self._run_pipeline(audio_path)
-        return self._turns(annotation)
-
-    def diarize_with_embeddings(
-        self, audio_path: str
-    ) -> tuple[list[tuple[float, float, str]], dict[str, list[float]]]:
-        annotation, result = self._run_pipeline(audio_path)
-        turns = self._turns(annotation)
-        # community-1's DiarizeOutput exposes one centroid per speaker on
-        # `speaker_embeddings`, a (num_speakers, dim) array whose rows align with
-        # annotation.labels(). Older pipelines return a bare Annotation with no
-        # embeddings - degrade to turns-only.
-        embeddings: dict[str, list[float]] = {}
-        raw = getattr(result, "speaker_embeddings", None)
-        if raw is not None and raw is not result:
-            for index, label in enumerate(annotation.labels()):
-                try:
-                    embeddings[label] = [float(x) for x in raw[index]]
-                except (IndexError, TypeError, ValueError):
-                    continue
-        return turns, embeddings
 
 
 # ── SpeechBrain diarization ──────────────────────────────────────────────────
@@ -517,8 +376,6 @@ class SpeechBrainDiarizationClient(DiarizationClient):
 
 
 def make_diarization_client(config: Config) -> DiarizationClient:
-    if config.diarization_backend == "pyannote":
-        return PyannoteDiarizationClient(config)
     if config.diarization_backend == "speechbrain":
         return SpeechBrainDiarizationClient(config)
     return NullDiarizationClient()

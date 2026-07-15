@@ -1051,7 +1051,7 @@ class TestSpeakerClusterThreshold:
         expect(field).to_have_attribute("min", "0")
         expect(field).to_have_attribute("max", "1")
 
-    def test_cluster_threshold_hidden_for_pyannote(self, page: Page):
+    def test_cluster_threshold_hidden_when_off(self, page: Page):
         self._open_settings(page)
-        page.evaluate("_onDiarizationBackendChange('pyannote')")
+        page.evaluate("_onDiarizationBackendChange('null')")
         expect(page.locator("#s-speaker-cluster-threshold")).to_be_hidden()

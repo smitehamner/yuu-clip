@@ -52,6 +52,17 @@ Wanted before distributing beyond friends/trusted users.
 
 ## 3 - Larger / speculative features
 
+- [ ] **Pyannote speaker-labels backend** *(shelved)* - a neural diarization backend that
+  is generally higher quality than the default SpeechBrain (better separation on
+  overlapping speech and many-speaker recordings). Removed 2026-07-14 because it required
+  a HuggingFace account, a Read token, and manually accepting gated model terms for
+  `pyannote/speaker-diarization-community-1` - too much setup friction for a distributed,
+  non-developer tool, and it was never on the default path. Shelved to shed the
+  second-backend maintenance burden; revisit only if SpeechBrain's quality proves
+  insufficient in practice. The generic `voiceprint_backend` isolation (embeddings from
+  different backends are never compared) was kept, so a re-add is mostly restoring the
+  client class, the config enum value, and the Settings/token UI.
+
 - [ ] **Sidebar grouping for split segments** *(speculative)* - a collapsible parent row
   "session.mkv (3 segments)" with indented children, as an alternative to the flat list.
   Deferred until the flat list proves insufficient in practice.

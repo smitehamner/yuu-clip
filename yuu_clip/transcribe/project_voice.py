@@ -13,8 +13,8 @@ cosine) that whisper_runner re-exports, plus the two cross-recording routines:
 - ``cluster_speakers_into_voices`` groups existing named Speakers for the one-time
   backfill (Stage 6), deterministically so the same DB clusters the same way each run.
 
-Every cosine skips cross-backend pairs: pyannote and SpeechBrain embeddings live in
-incompatible spaces (and dimensionalities), so comparing them is meaningless.
+Every cosine skips cross-backend pairs: embeddings from different diarization backends
+live in incompatible spaces (and dimensionalities), so comparing them is meaningless.
 """
 from __future__ import annotations
 

@@ -26,26 +26,20 @@ function _syncSortDirBtn(btnId, dir) {
 // needs a real install + a HuggingFace token. The per-run checkboxes in the
 // analyze and export panels both gate on this single check. Centralized here so
 // the three surfaces (Settings, analyze, export) can't drift to different rules.
-function _diarizationReason(backend, installed, hasToken) {
-  if (backend === 'speechbrain') return installed ? '' : 'SpeechBrain is unavailable - try reinstalling YuuClip';
-  if (!installed) return 'Install pyannote.audio';
-  if (!hasToken)  return 'Requires a HuggingFace token';
-  return '';
+function _diarizationReason(installed) {
+  return installed ? '' : 'SpeechBrain is unavailable - try reinstalling YuuClip';
 }
 
 async function _diarizationReadiness() {
   const cfg = await fetch('/api/config').then(r => r.json()).catch(() => ({}));
   const backend = cfg.diarization_backend || 'speechbrain';
-  const slug = backend === 'speechbrain' ? 'speechbrain' : 'pyannote';
-  const install = await fetch(`/api/install/${slug}`).then(r => r.json()).catch(() => ({installed: false}));
+  const install = await fetch('/api/install/speechbrain').then(r => r.json()).catch(() => ({installed: false}));
   const installed = !!install.installed;
-  const hasToken  = !!(cfg.huggingface_token && cfg.huggingface_token.trim());
   return {
     installed,
-    hasToken,
     backend,
-    ready:   backend === 'speechbrain' ? installed : (installed && hasToken),
-    reason:  _diarizationReason(backend, installed, hasToken),
+    ready:   installed,
+    reason:  _diarizationReason(installed),
   };
 }
 

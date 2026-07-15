@@ -24,7 +24,7 @@ def module_findable(module: str) -> bool:
 
     importlib.util.find_spec raises ModuleNotFoundError (rather than returning
     None) for a dotted name whose parent package is entirely absent - e.g.
-    find_spec("pyannote.audio") raises when "pyannote" itself isn't installed.
+    find_spec("nvidia.cublas") raises when "nvidia" itself isn't installed.
     A completely-absent parent means "not installed" just as much as a present
     parent with a missing submodule, so both cases report False here.
     """

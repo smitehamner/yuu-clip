@@ -382,22 +382,6 @@ class TestCapabilityTiers:
         assert tiers["speaker_labels"]["prefetch_slug"] is None
         assert tiers["speaker_labels"]["detail"] == "Ready."
 
-    def test_speaker_labels_pyannote_not_installed_offers_install(self, client: TestClient, monkeypatch):
-        monkeypatch.setattr("yuu_clip.web.routes.llm.module_findable", lambda name: False)
-        _patch(client, diarization_backend="pyannote", huggingface_token="")
-        tiers, _ = self._tiers(client)
-        assert tiers["speaker_labels"]["active"] == "Pyannote (advanced)"
-        assert tiers["speaker_labels"]["ready"] is False
-        assert tiers["speaker_labels"]["install_slug"] == "pyannote"
-
-    def test_speaker_labels_pyannote_installed_needs_token(self, client: TestClient, monkeypatch):
-        monkeypatch.setattr("yuu_clip.web.routes.llm.module_findable", lambda name: True)
-        _patch(client, diarization_backend="pyannote", huggingface_token="")
-        tiers, _ = self._tiers(client)
-        assert tiers["speaker_labels"]["ready"] is False
-        assert tiers["speaker_labels"]["install_slug"] is None
-        assert "token" in tiers["speaker_labels"]["detail"].lower()
-
     def test_vertical_framing_never_offers_install(self, client: TestClient, monkeypatch):
         monkeypatch.setattr("yuu_clip.web.routes.llm.module_findable", lambda name: False)
         tiers, _ = self._tiers(client)

@@ -278,9 +278,9 @@ async function _autoFrameExport() {
   }
 }
 
-// Speaker labels only apply to a retranscribe pass and need the configured
-// diarization backend set up (SpeechBrain installed, or pyannote installed + a
-// HuggingFace token), so the checkbox is enabled only when readiness holds.
+// Speaker labels only apply to a retranscribe pass and need the diarization
+// backend set up (SpeechBrain installed), so the checkbox is enabled only when
+// readiness holds.
 function _onExportRetranscribeChange(checked) {
   document.getElementById('export-retranscribe-model').disabled = !checked;
   const row  = document.getElementById('export-speaker-row');

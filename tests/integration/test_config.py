@@ -266,6 +266,20 @@ class TestUiConfig:
         (proj / "config.json").write_text(_json.dumps({"content_preset": "nonsense"}), encoding="utf-8")
         assert Config.load(tmp_path).content_preset == "generic"
 
+    def test_load_coerces_retired_pyannote_backend(self, tmp_path, monkeypatch):
+        # Pyannote was removed; a stale config naming it must heal to the default
+        # backend on load rather than silently disabling speaker labels.
+        import json as _json
+
+        from yuu_clip.config import Config
+        monkeypatch.setattr("yuu_clip.config._global_config_dir", lambda: tmp_path / "g")
+        proj = tmp_path / ".yuu-clip"
+        proj.mkdir()
+        (proj / "config.json").write_text(
+            _json.dumps({"diarization_backend": "pyannote"}), encoding="utf-8"
+        )
+        assert Config.load(tmp_path).diarization_backend == "speechbrain"
+
     def test_get_config_includes_speaker_match_threshold_default(self, client):
         assert client.get("/api/config").json()["speaker_match_threshold"] == 0.75
 

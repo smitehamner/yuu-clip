@@ -287,7 +287,7 @@ _CONFIG_PATCH_RULES: list[tuple[str, object]] = [
     ("visual_dedup_overlap",         _range_validator(0.0, 1.0, "visual_dedup_overlap")),
     ("visual_candidate_cap",         _min_validator(1, "visual_candidate_cap")),
     ("visual_peak_threshold",        _min_validator(0.0, "visual_peak_threshold")),
-    ("diarization_backend",          _enum_validator({"null", "pyannote", "speechbrain"}, "diarization_backend")),
+    ("diarization_backend",          _enum_validator({"null", "speechbrain"}, "diarization_backend")),
     ("huggingface_token",            lambda v: v.strip()),
     ("speaker_match_threshold",      _range_validator(0.0, 1.0, "speaker_match_threshold")),
     ("speaker_cluster_threshold",    _range_validator(0.0, 1.0, "speaker_cluster_threshold")),

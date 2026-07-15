@@ -51,10 +51,9 @@ def _analyze_running(ctx: ProjectContext) -> bool:
     return analyze_in_flight(ctx)
 
 # Optional packages installable from Settings. Everything else the app needs is
-# bundled by default (packaging-strategy overhaul, Tier A) - only two things remain
-# a genuine pip-install action: Pyannote (the token-gated alternative to the
-# default, bundled SpeechBrain speaker-labels backend) and the CUDA libraries for
-# GPU-accelerated transcription (hardware-dependent, opt-in).
+# bundled by default (packaging-strategy overhaul, Tier A) - only the CUDA libraries
+# for GPU-accelerated transcription (hardware-dependent, opt-in) remain a genuine
+# pip-install action.
 #
 # _INSTALLABLE maps a UI slug to its pip package name(s) - what POST /api/install
 # will actually install. _IMPORT_NAMES maps a slug to the import module name(s)
@@ -62,11 +61,9 @@ def _analyze_running(ctx: ProjectContext) -> bool:
 # "speechbrain", which has no install action anymore but still needs a read-only
 # status check (the analyze/export panels gate the speaker-labels checkbox on it).
 _INSTALLABLE: dict[str, str | list[str]] = {
-    "pyannote":  "pyannote.audio",
     "cuda-libs": ["nvidia-cublas-cu12", "nvidia-cudnn-cu12"],
 }
 _IMPORT_NAMES: dict[str, list[str]] = {
-    "pyannote":    ["pyannote.audio"],
     "speechbrain": ["speechbrain", "sklearn"],
     "cuda-libs":   ["nvidia.cublas", "nvidia.cudnn"],
 }
@@ -100,7 +97,7 @@ _ENERGY_MODE: dict[str, tuple[float, str]] = {
     "full": (0.005, "16 kHz numpy"),
 }
 
-# Speaker diarization (pyannote): seconds of audio processed per second of
+# Speaker diarization: seconds of audio processed per second of
 # wall-clock, per transcribed track. GPU recalibrated to ~20× from real runs
 # (~4.9% of video duration on long recordings); kept slightly conservative at 18
 # since short recordings pay a fixed model-load overhead this linear model omits.
@@ -859,7 +856,7 @@ def _compute_time_estimate(req: EstimateRequest, db=None, warn_hours: float = 2.
         steps.insert(2, {
             "name":    "Speaker labels",
             "seconds": speaker_seconds,
-            "note":    f"{transcribe_tracks} track(s), pyannote",
+            "note":    f"{transcribe_tracks} track(s)",
         })
     total = sum(s["seconds"] for s in steps)
     for step in steps:

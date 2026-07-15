@@ -630,25 +630,18 @@ projects. Recently-used colours and your saved palette are remembered per user
 
 When enabled, YuuClip runs speaker diarization after transcription and labels each transcript segment with who was speaking. This improves LLM scoring quality: transcript excerpts are formatted as `SPEAKER_00: ...` / `SPEAKER_01: ...` blocks instead of a flat text join.
 
-**Backends**
+**Backend**
 
 | Backend | Default | Requirement |
 |---------|---------|-------------|
 | SpeechBrain | ✓ | Bundled - no install step, no account or token |
-| Pyannote | - | HuggingFace account + `pip install pyannote.audio` (one-click install button in Settings) |
 | Off | - | Disable diarization entirely |
 
 **SpeechBrain** is on by default and needs no setup - it ships with YuuClip. The speaker model (~80 MB) downloads automatically the first time you analyze a recording.
 
-To enable **Pyannote** instead (slightly higher accuracy, but requires an account):
-1. Create a free account at [HuggingFace](https://huggingface.co) and, while signed in, accept the gated model terms for [speaker-diarization-community-1](https://huggingface.co/pyannote/speaker-diarization-community-1)
-2. Generate a token at HuggingFace → Settings → Access Tokens with **Read** access (a classic Read token, or a fine-grained token with "Read access to contents of all public gated repos you can access")
-3. Open Settings → Speaker labels in the app; paste the token and click **Install pyannote.audio**
-4. Change the backend to **Pyannote** and save
+The Settings value is the default. You can override it per analysis: the **New Recording → Advanced options** panel has a **Speaker labels** checkbox (pre-set from your default) so you can turn diarization on or off for a single run. When enabled, the time estimate includes a **Speaker labels** step. The checkbox is disabled until SpeechBrain is installed.
 
-The Settings value is the default. You can override it per analysis: the **New Recording → Advanced options** panel has a **Speaker labels** checkbox (pre-set from your default) so you can turn diarization on or off for a single run. When enabled, the time estimate includes a **Speaker labels** step. The checkbox is disabled until the configured backend is fully set up (SpeechBrain installed, or Pyannote installed with a saved token).
-
-Named voices are matched back to their names by a voiceprint that is specific to the backend that produced it, so if you switch backends the app can't auto-match your existing names - re-confirm them from the Speakers card after switching.
+Named voices are matched back to their names by a voiceprint, so speaker names carry across re-analysis of the same recording.
 
 Diarization adds extra processing time after transcription (roughly 2–4× real-time on CPU, faster with CUDA). Speaker labels are re-used on retranscription; re-running diarization requires a full re-analysis.
 
@@ -723,7 +716,7 @@ The first-run setup wizard groups everything by how necessary it is: **Required*
 
 ### Optional dependency install
 
-Bundled features (speaker labels' SpeechBrain backend, laugh/audio-event scoring, similarity embeddings, vertical auto-framing, vision) ship in the box and need no install step. Settings still has **Install** buttons for the handful of things that are a genuine choice: Pyannote (an alternative speaker-labels backend), Claude API, and GPU acceleration (`cuda-libs`). Each runs `pip install <package>` (or the CUDA library fetch) in a subprocess and streams progress live; if an install fails, the full log is shown inline.
+Bundled features (speaker labels' SpeechBrain backend, laugh/audio-event scoring, similarity embeddings, vertical auto-framing, vision) ship in the box and need no install step. Settings still has an **Install** button for the one thing that is a genuine choice: GPU acceleration (`cuda-libs`). It runs the CUDA library fetch in a subprocess and streams progress live; if an install fails, the full log is shown inline.
 
 ### Notification sounds
 
