@@ -74,6 +74,14 @@ Wanted before distributing beyond friends/trusted users.
   reference database (AcoustID or similar); needs evaluation of fingerprinting libraries,
   database licensing, and accuracy on gaming audio before it can be scoped.
 
+- [ ] **Persistent undo stack for clip status changes** *(speculative)* - today undo is a
+  single-step, time-boxed affordance: the approve/reject toast carries an Undo button plus a
+  visible ~5s countdown bar (`showUndoToast`, `ui.js`), and Ctrl+Z reverts the most recent
+  change until it expires (`undoLastStatus`, `clips.js`). A larger version would keep a
+  non-expiring history so Ctrl+Z chains back through several recent status changes, reachable
+  from a small history affordance. Deferred - the timed single-step undo covers the common
+  "I misclicked" case; only worth building if multi-step regret shows up in real use.
+
 - [ ] **Quality presets** *(on hold)* - named compute bundles ("Fast draft" / "Balanced" /
   "Max quality") that pick a matched set of Whisper model, energy mode, scene mode, and scoring
   weights in one choice. Deferred - no clear preset definitions yet.

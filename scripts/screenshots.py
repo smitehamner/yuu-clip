@@ -81,7 +81,7 @@ def _shot_review(page: Page) -> None:
 
 def _shot_world_contexts(page: Page) -> None:
     _select_recording_with_clips(page)
-    page.evaluate("openContextManager()")
+    page.click("#btn-world-contexts")
     page.wait_for_selector("#context-modal.visible", timeout=5000)
     page.wait_for_timeout(800)
 
@@ -97,7 +97,7 @@ def _shot_people(page: Page) -> None:
     # People is a project-wide panel; select a recording first so the sidebar
     # behind the panel is populated rather than empty.
     _select_recording_with_clips(page)
-    page.evaluate("openPeopleView()")
+    page.click("#btn-people")
     page.wait_for_selector("#people-list .person-card", timeout=5000)
     page.wait_for_timeout(800)
 

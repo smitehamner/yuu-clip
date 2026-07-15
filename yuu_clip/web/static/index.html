@@ -58,6 +58,11 @@
     </button>
     <div class="hamburger-menu" id="project-menu" role="menu" aria-label="Switch project" style="left:0;right:auto;min-width:240px;max-width:360px"></div>
   </div>
+  <nav class="primary-nav" aria-label="Primary">
+    <button class="nav-link" id="btn-people" onclick="openPeopleView()">People</button>
+    <button class="nav-link" id="btn-world-contexts" onclick="openContextManager()">World Contexts</button>
+    <button class="nav-link" id="btn-highlight-reels" onclick="openHighlightReelsModal('build')">Highlight Reels</button>
+  </nav>
   <div class="job-status" id="job-status">
     <div class="spinner" role="status" aria-label="Processing"></div>
     <div class="job-steps" id="job-steps"></div>
@@ -71,7 +76,6 @@
   </div>
   <div class="header-spacer" id="header-spacer"></div>
   <button class="btn highlight" id="btn-analyze" onclick="openNewRecordingPanel()">+ Analyze</button>
-  <button class="btn" id="btn-highlight-reels" onclick="openHighlightReelsModal('build')">Highlight Reels</button>
   <button class="btn ghost" id="btn-settings-header" onclick="openSettings()" title="Settings" aria-label="Settings" style="font-size:15px;padding:5px 10px">&#9881;</button>
   <div class="hamburger-wrap" id="hamburger-wrap">
     <button class="btn ghost" id="btn-hamburger" onclick="toggleHamburger()" title="More options" aria-label="More options" aria-haspopup="true" aria-expanded="false" style="font-size:17px;padding:5px 11px;line-height:1">&#9776;</button>
@@ -82,12 +86,9 @@
       <button class="hamburger-item" onclick="closeHamburger();openGettingStartedModal()"><span class="hamburger-icon" aria-hidden="true">&#128214;</span>Getting Started</button>
       <button class="hamburger-item" onclick="closeHamburger();openControlsModal()"><span class="hamburger-icon" aria-hidden="true">&#9000;</span>Controls</button>
       <div class="hamburger-divider"></div>
-      <button class="hamburger-item" onclick="closeHamburger();openPeopleView()"><span class="hamburger-icon" aria-hidden="true">&#128100;</span>People</button>
-      <button class="hamburger-item" onclick="closeHamburger();openContextManager()"><span class="hamburger-icon" aria-hidden="true">&#127757;</span>World Contexts</button>
       <button class="hamburger-item" onclick="closeHamburger();openGlossaryModal()"><span class="hamburger-icon" aria-hidden="true">&#128218;</span>Terminology Glossary</button>
       <button class="hamburger-item" onclick="closeHamburger();openHelpModal()"><span class="hamburger-icon" aria-hidden="true">&#10067;</span>Help &amp; Guides</button>
       <div class="hamburger-divider"></div>
-      <button class="hamburger-item" onclick="closeHamburger();openSettings()"><span class="hamburger-icon" aria-hidden="true">&#9881;</span>Settings</button>
       <a class="hamburger-item" href="/api/logs/export" download="yuu-clip.log" onclick="closeHamburger()"><span class="hamburger-icon" aria-hidden="true">&#8595;</span>Download Log</a>
       <button class="hamburger-item" onclick="closeHamburger();openAboutModal()"><span class="hamburger-icon" aria-hidden="true">&#9432;</span>About</button>
       <button class="hamburger-item" id="btn-setup-wizard" onclick="closeHamburger();window.electronAPI.runSetupWizard()" style="display:none"><span class="hamburger-icon" aria-hidden="true">&#128295;</span>Re-run Setup Wizard</button>

@@ -826,3 +826,26 @@ class TestClipKindToggle:
         expect(
             page.locator(".hamburger-menu.open .hamburger-item").first
         ).to_have_text("New scene")
+
+
+@skip_no_server
+class TestUndoToast:
+    """The undo toast carries a visible Undo button plus a shrinking countdown
+    bar so the ~5s window is not silent (WS3)."""
+
+    def test_undo_toast_has_button_and_countdown_bar(self, page: Page):
+        page.goto(LIVE_URL)
+        page.evaluate("showUndoToast('Clip Approved', () => { window._undone = true; })")
+        toast = page.locator("#toast-container .undo-toast")
+        expect(toast).to_be_visible()
+        expect(toast.locator(".undo-toast-btn")).to_have_text("Undo")
+        duration = page.evaluate(
+            "() => document.querySelector('.undo-toast-bar').style.animationDuration"
+        )
+        assert duration == "5000ms", duration
+
+    def test_undo_button_invokes_callback(self, page: Page):
+        page.goto(LIVE_URL)
+        page.evaluate("showUndoToast('Clip Approved', () => { window._undone = true; })")
+        page.click("#toast-container .undo-toast .undo-toast-btn")
+        assert page.evaluate("() => window._undone") is True

@@ -196,6 +196,12 @@ header h1 { font-size: 18px; font-weight: 700; letter-spacing: .5px; color: var(
 .gpu-temp-readout.pause { background: color-mix(in srgb, var(--warn-hot) 20%, transparent); color: var(--warn-hot); }
 .header-spacer { margin-right: auto; }
 
+/* primary nav: destination buttons (People / World Contexts / Highlight Reels)
+   grouped next to the brand, distinct from the +Analyze action and the gear. */
+.primary-nav { display: flex; align-items: center; gap: 2px; }
+.primary-nav .nav-link { padding: 6px 12px; border-radius: var(--radius-sm); border: 1px solid transparent; background: transparent; color: var(--text); cursor: pointer; font-size: 13px; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; transition: background .15s, color .15s; }
+.primary-nav .nav-link:hover { background: var(--border); }
+
 /* In-detail live analysis progress panel (survives page refresh). */
 .detail-card.analysis-live { border-color: var(--accent); }
 .job-steps-detail { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 4px; }
@@ -232,6 +238,14 @@ header h1 { font-size: 18px; font-weight: 700; letter-spacing: .5px; color: var(
 .toast.info    { border-left: 3px solid var(--accent); }
 .toast.warning { border-left: 3px solid var(--warning); }
 @keyframes toastIn { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: none; } }
+/* undo toast: message + button row, plus a bar that shrinks over the undo window
+   so the ~5s expiry is visible rather than silent. */
+.undo-toast { position: relative; overflow: hidden; padding-bottom: 13px; }
+.undo-toast-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.undo-toast-btn { font-size: 11px; padding: 2px 8px; border-radius: 4px; border: 1px solid var(--accent); background: none; color: var(--accent); cursor: pointer; flex-shrink: 0; }
+.undo-toast-btn:hover { background: color-mix(in srgb, var(--accent) 15%, transparent); }
+.undo-toast-bar { position: absolute; left: 0; bottom: 0; height: 3px; width: 100%; background: var(--accent); transform-origin: left; animation: undoCountdown linear forwards; }
+@keyframes undoCountdown { from { transform: scaleX(1); } to { transform: scaleX(0); } }
 .sound-stop-pill { position: fixed; bottom: 16px; right: 16px; z-index: 500; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 20px; padding: 8px 16px; font-size: 13px; cursor: pointer; box-shadow: var(--shadow-pop); }
 .sound-stop-pill:hover { border-color: var(--accent); }
 

@@ -23,6 +23,28 @@ class TestPageLoad:
         expect(page.locator("button#btn-analyze")).to_be_visible()
         expect(page.locator("button#btn-highlight-reels")).to_be_visible()
 
+    def test_core_nav_promoted_out_of_hamburger(self, page: Page):
+        # WS3: World Contexts + People are primary nav, visible in the header
+        # rather than buried in the overflow menu; Highlight Reels sits with them.
+        page.goto(LIVE_URL)
+        nav = page.locator("header nav.primary-nav")
+        expect(nav.locator("#btn-people")).to_be_visible()
+        expect(nav.locator("#btn-world-contexts")).to_be_visible()
+        expect(nav.locator("#btn-highlight-reels")).to_be_visible()
+
+    def test_hamburger_has_no_duplicate_settings_or_moved_items(self, page: Page):
+        # WS3: Settings lives only on the gear (no hamburger dup); People and
+        # World Contexts moved to the primary nav.
+        page.goto(LIVE_URL)
+        page.click("#btn-hamburger")
+        page.wait_for_selector("#hamburger-menu.open")
+        items = page.locator("#hamburger-menu .hamburger-item")
+        texts = items.all_inner_texts()
+        assert not any(t.strip() == "Settings" for t in texts), texts
+        assert not any("World Contexts" in t for t in texts), texts
+        assert not any(t.strip() == "People" for t in texts), texts
+        expect(page.locator("#btn-settings-header")).to_be_visible()
+
     def test_brand_logo_next_to_name(self, page: Page):
         page.goto(LIVE_URL)
         logo = page.locator("header .brand .brand-logo")

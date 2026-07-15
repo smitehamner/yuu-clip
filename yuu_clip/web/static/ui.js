@@ -544,24 +544,30 @@ function _applyPrereqWarnings(prereqs) {
 
 // ── undo toast (auto-dismiss, single Undo button) ─────────────────────────────
 // A transient toast carrying an Undo action, used by reversible clip operations
-// (single/bulk status changes). Generic UI, so it lives here rather than in a
-// feature module.
+// (single/bulk status changes). The shrinking bar makes the ~5s window visible
+// so the undo affordance does not expire silently. Generic UI, so it lives here
+// rather than in a feature module.
+const UNDO_TOAST_MS = 5000;
+
 function showUndoToast(message, undoFn) {
   const container = document.getElementById('toast-container');
   const toast = document.createElement('div');
-  toast.className = 'toast info';
-  toast.style.display = 'flex';
-  toast.style.alignItems = 'center';
-  toast.style.justifyContent = 'space-between';
-  toast.style.gap = '12px';
+  toast.className = 'toast info undo-toast';
+  const row = document.createElement('div');
+  row.className = 'undo-toast-row';
   const btn = document.createElement('button');
+  btn.className = 'undo-toast-btn';
   btn.textContent = 'Undo';
-  btn.style.cssText = 'font-size:11px;padding:2px 8px;border-radius:4px;border:1px solid var(--accent);background:none;color:var(--accent);cursor:pointer;flex-shrink:0';
   btn.onclick = () => { toast.remove(); undoFn(); };
-  toast.appendChild(document.createTextNode(message));
-  toast.appendChild(btn);
+  row.appendChild(document.createTextNode(message));
+  row.appendChild(btn);
+  const bar = document.createElement('div');
+  bar.className = 'undo-toast-bar';
+  bar.style.animationDuration = UNDO_TOAST_MS + 'ms';
+  toast.appendChild(row);
+  toast.appendChild(bar);
   container.appendChild(toast);
-  setTimeout(() => toast.remove(), 5000);
+  setTimeout(() => toast.remove(), UNDO_TOAST_MS);
 }
 
 // Global playback-speed preference - one capture-phase listener applies the saved
