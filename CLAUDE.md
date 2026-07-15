@@ -70,12 +70,14 @@ proceeding. Restarting mid-ingest silently kills the subprocess and loses all pr
 interrupting other SSE jobs (rescore, timeline, summarize) is less catastrophic but
 should still be confirmed.
 
-HTML/JS edits do **not** need a server restart. But the browser loads
-`static/bundle.js` (one committed concatenation of the `static/*.js` files), **not** the
-individual files - after editing any `static/*.js` you must run `yuu-dev bundle` (or keep
-`yuu-dev bundle --watch` running) for the change to appear, and the
-`tests/unit/test_bundle_drift.py` guard fails if you commit a stale bundle. Editing
-`index.html` alone needs no rebundle.
+HTML/JS edits do **not** need a server restart. But the browser loads two committed
+bundles, **not** the individual files - after editing any `static/*.js` you must run
+`yuu-dev bundle` (or keep `yuu-dev bundle --watch` running) for the change to appear, and
+the `tests/unit/test_bundle_drift.py` guard fails if you commit a stale bundle. Editing
+`index.html` alone needs no rebundle. The two bundles (see "Frontend build" below):
+`bundle.esm.js` (esbuild, real ESM modules) loads first, then `bundle.js` (classic
+concat). Rebuilding `bundle.esm.js` needs Node + `npm install`; the classic `bundle.js`
+is pure Python.
 
 ## MANDATORY: after any static file change (*.js, *.html, *.css)
 
@@ -106,12 +108,36 @@ edit is the slow part of the loop. Pick the run by scope, using judgment:
 already committed the edit mid-session, run the relevant file(s) or the full
 suite explicitly.
 
+## Frontend build (two bundles; ESM migration in progress)
+
+The UI is mid-migration off the original all-`window`-globals architecture onto real
+ESM modules (WS5 step 2 strangler; end goal is maintainable UI code). `yuu-dev bundle`
+builds two committed bundles that `index.html` loads in order:
+
+- **`bundle.esm.js`** - real ESM modules (`import`/`export`) bundled by **esbuild**
+  from the graph rooted at `static/main.esm.js`. Loads first. Migrated so far:
+  `format.js`, `colorpicker.js`, `panelnav.js`. Rebuilding needs Node + `npm install`
+  (esbuild is a pinned dev-only dep; `scripts/build-esm.mjs` is the single home for its
+  flags). The committed bundle is what ships - Node is never needed to *run* the app.
+- **`bundle.js`** - the remaining ~37 classic global-scope scripts, pure-Python concat
+  of `bundle.manifest`. Top-level `function foo(){}` stays global; inline `onclick=`
+  handlers keep working.
+
+**To migrate a classic module to ESM:** convert it to `export`s, `import` it from
+`main.esm.js`, keep a `window.X = X` compat line in `main.esm.js` for any name the
+still-classic scripts (or the 248 inline handlers) read off `window`, remove it from
+`bundle.manifest`, `yuu-dev bundle`, and confirm the UI suite stays green. A pure ESM
+module references still-classic globals explicitly as `window.foo`. As consumers switch
+to `import`, delete their compat lines; when `bundle.js` is empty the shim is gone. Both
+bundles are drift-guarded (`tests/unit/test_bundle_drift.py`); the esbuild guard skips
+when the JS toolchain is absent so `test-api` still passes offline.
+
 ## Project layout
 
 ```
 yuu_clip/
   cli/                     # Thin Typer adapters - analyze, export, reel, review, serve (+ _base). Commands parse args and call into pipeline/ and export/.
-  dev/                     # The yuu-dev developer-loop CLI (serve/test-api/test-ui/lint/logs/status/lock-deps/bundle), Typer, cross-platform. _summary.py = pytest-output summary core, procs.py = Windows process reap (no-ops off Windows), deps.py = lock-deps (regenerate requirements.lock), bundle.py = concatenate static/*.js (order in bundle.manifest) into the committed static/bundle.js.
+  dev/                     # The yuu-dev developer-loop CLI (serve/test-api/test-ui/lint/logs/status/lock-deps/bundle), Typer, cross-platform. _summary.py = pytest-output summary core, procs.py = Windows process reap (no-ops off Windows), deps.py = lock-deps (regenerate requirements.lock), bundle.py = build both committed web bundles: the classic static/bundle.js (pure-Python concat of the files in bundle.manifest) and static/bundle.esm.js (shells out to `node scripts/build-esm.mjs` -> esbuild over the ESM graph rooted at static/main.esm.js).
   pipeline/                # The analyze engine: ingest (per-video orchestration + stages), run_meta (per-run timing/settings capture), vision_describe (opt-in auto vision-LLM description of top-N textless/visual clips)
   export/                  # The export feature: render (engine - cut, retranscribe, title card, captions), naming (filename stem), presets (definitions + size-cap math), paths (on-disk export/sidecar path resolution + export-query validation)
   console.py               # Shared Rich console + BYTES_PER_MB (used by cli/ and the engine; lives outside cli/ so the engine never imports cli)
@@ -131,10 +157,12 @@ yuu_clip/
     media.py               # video/media file streaming helpers
     file_deletion.py       # resilient file deletion + Windows file-lock diagnosis (Restart Manager)
     routes/                # one module per feature (videos, analyze, scoring, speakers, voices, characters, contexts, reel, profiles, sounds, imports, backup, llm, models, config, logs, ...) + common.py (cross-cutting route helpers). clips/ is a subpackage (crud, edit, approval, bulk, captions, delete, export, serialize, schemas)
-    static/index.html      # Single-page UI shell (vanilla JS). Loads one <script>: bundle.js
-    static/bundle.js       # Committed build artifact: static/*.js concatenated in bundle.manifest order by `yuu-dev bundle`. Do not hand-edit; edit the source files + rebundle.
-    static/bundle.manifest # The single ordered load-order list the bundle is built from (replaces the hand-ordered <script> tags)
-    static/*.js            # ~40 modules, one per feature/view. Foundational: boot (bootstrap), state (shared UI state), utils, ui, format, jobs (SSE job helpers), panelnav (PanelNav panel-flow stack). The rest are per-feature (videos + videos-*, clips + clip*, analyze, contexts, reel, settings + settings-*, speakers, voices, split, transcript, ...)
+    static/index.html      # Single-page UI shell (vanilla JS). Loads two <script>s: bundle.esm.js then bundle.js
+    static/main.esm.js     # ESM entry point (esbuild). Imports the migrated ESM modules and re-exposes their public surface on window as a compat shim for the classic scripts. Shrinks as consumers migrate to import.
+    static/bundle.esm.js   # Committed esbuild artifact: the ESM graph from main.esm.js (format, colorpicker, panelnav so far), IIFE + inline sourcemap. Do not hand-edit; edit the ESM source files + rebundle.
+    static/bundle.js       # Committed build artifact: the remaining classic global-scope scripts concatenated in bundle.manifest order by `yuu-dev bundle`. Do not hand-edit; edit the source files + rebundle.
+    static/bundle.manifest # Load-order list for the CLASSIC bundle.js only. ESM modules are NOT listed here (they live in the esbuild graph). Migrating a module to ESM = remove it here, import it from main.esm.js.
+    static/*.js            # ~40 modules, one per feature/view. Two kinds now: real ESM modules (import/export, reachable from main.esm.js) and classic global-scope scripts (in bundle.manifest). Foundational: boot (bootstrap), state (shared UI state), utils, ui, format (ESM), jobs (SSE job helpers), panelnav (ESM, PanelNav panel-flow stack). The rest are per-feature (videos + videos-*, clips + clip*, analyze, contexts, reel, settings + settings-*, speakers, voices, split, transcript, ...)
     static/app.css         # Stylesheet
 electron/                  # Desktop wrapper: main.js (window/menu/IPC + server spawn + wizard + lifecycle), constants.js, logging.js, electron-config.js, install.js (runCmd/download/pip helpers), preload.js, setup wizard (setup.html + setup-preload.js)
 tests/                     # unit = state-independent, run anywhere; integration = seeded DB; ui = live server
