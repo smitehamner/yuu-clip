@@ -136,4 +136,7 @@ the glossary before introducing it.
    alongside the change, not after.
 3. Fill out the PR template.
 
-Where things live is mapped under "Project layout" in [CLAUDE.md](CLAUDE.md).
+New to the codebase? Read [docs/dev/ARCHITECTURE.md](docs/dev/ARCHITECTURE.md) first -
+it is the human on-ramp: the pipeline flow, the two-process model, the swappable-backend
+seam, and the top landmines to avoid. The exhaustive file-by-file map lives under
+"Project layout" in [CLAUDE.md](CLAUDE.md).
