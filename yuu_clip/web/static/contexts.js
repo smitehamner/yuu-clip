@@ -387,7 +387,11 @@ function deleteCharacter(charId) {
     'Remove',
     async () => {
       const res = await fetch(`/api/characters/${charId}`, {method: 'DELETE'});
-      if (!res.ok) { showToast('Remove failed', 'error'); return; }
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        showToast(formatApiError(e) || 'Remove failed', 'error');
+        return;
+      }
       await _loadCharacters(AppState.editingContextId);
       showToast(`Character "${char.name}" removed`);
     },

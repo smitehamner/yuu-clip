@@ -98,12 +98,13 @@ function _characterControlHtml(voice) {
       <label class="person-character-label" for="voice-char-${voice.id}">Character</label>
       <select class="voice-character-select" id="voice-char-${voice.id}" data-voice-id="${voice.id}"
               aria-label="World-context character for ${escHtml(voice.display_name)}">
-        ${_characterOptions(linkedId)}
+        ${_characterOptions(voice.character)}
       </select>
     </div>`;
 }
 
-function _characterOptions(selectedId) {
+function _characterOptions(linked) {
+  const selectedId = linked ? linked.id : null;
   const byContext = new Map();
   for (const c of _charactersCache) {
     const key = c.context_name || c.context_slug;
@@ -111,6 +112,12 @@ function _characterOptions(selectedId) {
     byContext.get(key).push(c);
   }
   let html = `<option value="">No character</option>`;
+  // If the linked character isn't in the loaded list (e.g. /api/characters failed to
+  // load), still render it as the selected option from the Person's own data - otherwise
+  // an existing link shows as "No character", which a subsequent save would clear.
+  if (selectedId != null && !_charactersCache.some(c => c.id === selectedId)) {
+    html += `<option value="${selectedId}" selected>${escHtml(linked.name || 'Linked character')}</option>`;
+  }
   for (const [ctxName, chars] of byContext) {
     html += `<optgroup label="${escHtml(ctxName)}">`
           + chars.map(c => `<option value="${c.id}"${c.id === selectedId ? ' selected' : ''}>${escHtml(c.name)}</option>`).join('')
