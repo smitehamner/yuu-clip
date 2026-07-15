@@ -121,7 +121,7 @@ class TestCatalogHelpers:
 class TestDefaultsMatchCatalog:
     """The out-of-box default models must be *recommended* catalog entries, so a
     default can't silently drift to a non-monetization-safe model (the way the
-    old llama3.2 default lagged the licence policy - see COMPLETED.md plan 10)."""
+    old llama3.2 default lagged the licence policy)."""
 
     def test_config_default_backend_is_llamacpp(self):
         # Locked user decision 2026-07-05: the offline local model file is the

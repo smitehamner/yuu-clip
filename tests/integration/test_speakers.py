@@ -113,7 +113,7 @@ class TestAttachSpeakers:
         return tx
 
     def test_creates_one_speaker_per_distinct_label(self, tmp_path: Path):
-        from yuu_clip.transcribe.whisper_runner import _attach_speakers
+        from yuu_clip.transcribe.speaker_attach import _attach_speakers
 
         session = make_session(tmp_path / "a.db")
         video = Video(path="x.mkv", filename="x.mkv", status="done")
@@ -133,7 +133,7 @@ class TestAttachSpeakers:
         session.close()
 
     def test_display_index_continues_from_existing(self, tmp_path: Path):
-        from yuu_clip.transcribe.whisper_runner import _attach_speakers
+        from yuu_clip.transcribe.speaker_attach import _attach_speakers
 
         session = make_session(tmp_path / "b.db")
         video = Video(path="x.mkv", filename="x.mkv", status="done")
@@ -150,7 +150,7 @@ class TestAttachSpeakers:
         session.close()
 
     def test_no_labels_creates_no_speakers(self, tmp_path: Path):
-        from yuu_clip.transcribe.whisper_runner import _attach_speakers
+        from yuu_clip.transcribe.speaker_attach import _attach_speakers
 
         session = make_session(tmp_path / "c.db")
         video = Video(path="x.mkv", filename="x.mkv", status="done")
@@ -179,7 +179,7 @@ class TestVoiceprintMatch:
         return tx
 
     def test_new_cluster_stores_voiceprint(self, tmp_path: Path):
-        from yuu_clip.transcribe.whisper_runner import _attach_speakers, _deserialize_voiceprint
+        from yuu_clip.transcribe.speaker_attach import _attach_speakers, _deserialize_voiceprint
 
         session = make_session(tmp_path / "v.db")
         video = Video(path="x.mkv", filename="x.mkv", status="done")
@@ -194,7 +194,7 @@ class TestVoiceprintMatch:
         session.close()
 
     def test_rediarize_reattaches_named_speaker_by_voiceprint(self, tmp_path: Path):
-        from yuu_clip.transcribe.whisper_runner import _attach_speakers
+        from yuu_clip.transcribe.speaker_attach import _attach_speakers
 
         session = make_session(tmp_path / "v.db")
         video = Video(path="x.mkv", filename="x.mkv", status="done")
@@ -224,7 +224,7 @@ class TestVoiceprintMatch:
         # which keeps it. Deleting the transcript cascade-deletes its segments but
         # leaves the video-scoped Speaker rows intact, so re-attach by voiceprint
         # must still land on the existing named Speaker - not mint a duplicate.
-        from yuu_clip.transcribe.whisper_runner import _attach_speakers
+        from yuu_clip.transcribe.speaker_attach import _attach_speakers
 
         session = make_session(tmp_path / "v.db")
         video = Video(path="x.mkv", filename="x.mkv", status="done")
@@ -253,7 +253,7 @@ class TestVoiceprintMatch:
         session.close()
 
     def test_cross_backend_voiceprint_is_not_matched(self, tmp_path: Path):
-        from yuu_clip.transcribe.whisper_runner import _attach_speakers
+        from yuu_clip.transcribe.speaker_attach import _attach_speakers
 
         session = make_session(tmp_path / "v.db")
         video = Video(path="x.mkv", filename="x.mkv", status="done")
@@ -281,7 +281,7 @@ class TestVoiceprintMatch:
         session.close()
 
     def test_same_backend_voiceprint_reattaches(self, tmp_path: Path):
-        from yuu_clip.transcribe.whisper_runner import _attach_speakers
+        from yuu_clip.transcribe.speaker_attach import _attach_speakers
 
         session = make_session(tmp_path / "v.db")
         video = Video(path="x.mkv", filename="x.mkv", status="done")
@@ -304,7 +304,7 @@ class TestVoiceprintMatch:
         session.close()
 
     def test_distinct_voice_mints_new_speaker(self, tmp_path: Path):
-        from yuu_clip.transcribe.whisper_runner import _attach_speakers
+        from yuu_clip.transcribe.speaker_attach import _attach_speakers
 
         session = make_session(tmp_path / "v.db")
         video = Video(path="x.mkv", filename="x.mkv", status="done")
@@ -326,7 +326,7 @@ class TestVoiceprintMatch:
         session.close()
 
     def test_in_band_mints_new_speaker_and_records_suggestion(self, tmp_path: Path):
-        from yuu_clip.transcribe.whisper_runner import _attach_speakers, _cosine_similarity
+        from yuu_clip.transcribe.speaker_attach import _attach_speakers, _cosine_similarity
 
         session = make_session(tmp_path / "v.db")
         video = Video(path="x.mkv", filename="x.mkv", status="done")
@@ -355,7 +355,7 @@ class TestVoiceprintMatch:
         session.close()
 
     def test_below_band_mints_clean_with_no_suggestion(self, tmp_path: Path):
-        from yuu_clip.transcribe.whisper_runner import _attach_speakers
+        from yuu_clip.transcribe.speaker_attach import _attach_speakers
 
         session = make_session(tmp_path / "v.db")
         video = Video(path="x.mkv", filename="x.mkv", status="done")
@@ -377,7 +377,7 @@ class TestVoiceprintMatch:
         session.close()
 
     def test_above_threshold_reattach_records_no_suggestion(self, tmp_path: Path):
-        from yuu_clip.transcribe.whisper_runner import _attach_speakers
+        from yuu_clip.transcribe.speaker_attach import _attach_speakers
 
         session = make_session(tmp_path / "v.db")
         video = Video(path="x.mkv", filename="x.mkv", status="done")
@@ -399,7 +399,7 @@ class TestVoiceprintMatch:
         session.close()
 
     def test_two_clusters_do_not_collapse_onto_one_prior(self, tmp_path: Path):
-        from yuu_clip.transcribe.whisper_runner import _attach_speakers
+        from yuu_clip.transcribe.speaker_attach import _attach_speakers
 
         session = make_session(tmp_path / "v.db")
         video = Video(path="x.mkv", filename="x.mkv", status="done")
@@ -725,7 +725,7 @@ class TestVoiceMatchRoutes:
 
         Returns (video_id, prior_id, new_id, clip_id).
         """
-        from yuu_clip.transcribe.whisper_runner import _serialize_voiceprint
+        from yuu_clip.transcribe.speaker_attach import _serialize_voiceprint
 
         db = self._db(project_dir)
         video = db.query(Video).first()
@@ -766,7 +766,7 @@ class TestVoiceMatchRoutes:
         db.close()
 
     def test_confirm_averages_voiceprints(self, client, project_dir):
-        from yuu_clip.transcribe.whisper_runner import _deserialize_voiceprint
+        from yuu_clip.transcribe.speaker_attach import _deserialize_voiceprint
         _video_id, prior_id, new_id, _clip_id = self._seed(project_dir)
         client.post(f"/api/speakers/{new_id}/confirm-match")
 

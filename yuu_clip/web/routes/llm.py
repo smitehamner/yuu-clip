@@ -494,9 +494,9 @@ def make_router(ctx: ProjectContext) -> APIRouter:
 
     @router.post("/api/whisper/prefetch")
     async def whisper_prefetch():
-        from yuu_clip.transcribe.whisper_runner import whisper_model_cached
+        from yuu_clip.transcribe.transcriber import make_transcriber
 
-        if whisper_model_cached(ctx.config):
+        if make_transcriber(ctx.config).model_cached():
             return {"status": "already-cached"}
         # Reject a duplicate before spawning - a second trigger (another tab, a
         # second boot) must never launch a second download into the shared HF
@@ -532,7 +532,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             make_diarization_client,
             speechbrain_model_cached,
         )
-        from yuu_clip.transcribe.whisper_runner import whisper_model_cached
+        from yuu_clip.transcribe.transcriber import make_transcriber
 
         # Only prefetch the speaker model when its backend can actually run (the
         # package is installed and speaker labels aren't turned off) - otherwise the
@@ -544,7 +544,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             "downloading_model_id": ctx.model_downloads.get(_LLM_DOWNLOAD_KEY),
             "whisper_downloading": _WHISPER_DOWNLOAD_KEY in ctx.model_downloads,
             "whisper_model_id": ctx.model_downloads.get(_WHISPER_DOWNLOAD_KEY),
-            "whisper_cached": whisper_model_cached(ctx.config),
+            "whisper_cached": make_transcriber(ctx.config).model_cached(),
             "speaker_downloading": _SPEAKER_DOWNLOAD_KEY in ctx.model_downloads,
             "speaker_cached": speechbrain_model_cached(),
             "speaker_available": speaker_available,

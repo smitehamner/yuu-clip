@@ -104,7 +104,7 @@ It depends mainly on your recording length and whether you have an Nvidia GPU. A
 
 Whisper model choice matters too - `base` is fast but rougher, `large-v3` is the most accurate but requires a GPU with ~10 GB VRAM. `medium` is the practical sweet spot for most sessions.
 
-Detailed timing estimates and model comparisons are in [FEATURES.md](FEATURES.md).
+Detailed timing estimates and model comparisons are in [PERFORMANCE.md](PERFORMANCE.md).
 
 ---
 
@@ -139,4 +139,5 @@ Once you've approved a set of clips, **Highlight Reels** in the header opens a w
 ## Next steps
 
 - **Walk through your first session:** [tutorials/end-to-end-walkthrough.md](tutorials/end-to-end-walkthrough.md)
-- **Full feature reference (all options, CLI, config):** [FEATURES.md](FEATURES.md)
+- **Full feature guide (everything the app can do):** [FEATURES.md](FEATURES.md)
+- **Timing, hardware, and storage:** [PERFORMANCE.md](PERFORMANCE.md)

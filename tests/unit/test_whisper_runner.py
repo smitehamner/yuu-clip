@@ -1,37 +1,39 @@
 """Unit tests - per-word timestamp capture (word-highlight captions, Stage 1).
 
-whisper_runner serializes faster-whisper's per-word timings into the
-TranscriptSegment.words_json column; a segment with no word data leaves it NULL
-so the caption renderer can fall back to a static line.
+The faster-whisper backend converts the model's per-word timings (track-absolute
+seconds) into TranscribedWord (ms) via transcriber._to_words; transcribe_track then
+persists them through TranscriptSegment.words. A segment with no word data yields
+None so the caption renderer can fall back to a static line.
 """
 from __future__ import annotations
 
 import json
 import types
+from dataclasses import asdict
 
 from yuu_clip.db.models import TranscriptSegment
-from yuu_clip.transcribe import whisper_runner
+from yuu_clip.transcribe import transcriber
 
 
 def _word(text: str, start: float, end: float):
     return types.SimpleNamespace(word=text, start=start, end=end)
 
 
-class TestSerializeWords:
+class TestToWords:
     def test_words_round_trip_to_ms(self):
-        raw = whisper_runner._serialize_words(
+        words = transcriber._to_words(
             [_word(" Hello", 1.0, 1.5), _word(" world", 1.5, 2.25)]
         )
-        assert json.loads(raw) == [
+        assert [asdict(w) for w in words] == [
             {"text": " Hello", "start_ms": 1000, "end_ms": 1500},
             {"text": " world", "start_ms": 1500, "end_ms": 2250},
         ]
 
-    def test_none_words_serialize_to_null(self):
-        assert whisper_runner._serialize_words(None) is None
+    def test_none_words_return_none(self):
+        assert transcriber._to_words(None) is None
 
-    def test_empty_words_serialize_to_null(self):
-        assert whisper_runner._serialize_words([]) is None
+    def test_empty_words_return_none(self):
+        assert transcriber._to_words([]) is None
 
 
 class TestSegmentWordsProperty:

@@ -42,7 +42,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         """Return the user-facing terminology glossary as plain-text markdown.
 
         Served from the bundled static dir (shipped in the wheel) rather than
-        docs/dev/GLOSSARY.md, which is dev-only and not packaged. The dev
+        docs/dev/llm/GLOSSARY.md, which is dev-only and not packaged. The dev
         glossary stays the authoritative source; this is its creator-facing copy.
         """
         glossary = Path(__file__).parent.parent / "static" / "glossary.md"

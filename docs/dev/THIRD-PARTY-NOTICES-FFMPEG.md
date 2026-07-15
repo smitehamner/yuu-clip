@@ -7,7 +7,6 @@ links `libx264` (GPL), and the build itself was compiled with `--enable-gpl
 --enable-version3`.
 
 This document records the compliance facts for that binary. See
-`docs/project/COMPLETED.md § Bundled GPL FFmpeg` for what shipped and the rationale, and
 `docs/dev/HOW-TO-RELEASE.md § Bundled FFmpeg` for the version-bump process.
 
 ## What's bundled

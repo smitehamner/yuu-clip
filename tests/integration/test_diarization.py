@@ -39,7 +39,7 @@ class TestNullClient:
 class TestRetranscribeDiarization:
     def _patch(self, monkeypatch, client):
         """Patch the diarization client and capture _assign/_attach calls."""
-        from yuu_clip.transcribe import whisper_runner
+        from yuu_clip.transcribe import speaker_attach
 
         monkeypatch.setattr(
             "yuu_clip.transcribe.diarization_client.make_diarization_client",
@@ -47,11 +47,11 @@ class TestRetranscribeDiarization:
         )
         captured = {}
         monkeypatch.setattr(
-            whisper_runner, "_assign_speakers",
+            speaker_attach, "_assign_speakers",
             lambda session, transcript_id, turns: captured.update(turns=turns, tx=transcript_id),
         )
         monkeypatch.setattr(
-            whisper_runner, "_attach_speakers",
+            speaker_attach, "_attach_speakers",
             lambda session, video_id, transcript_id, embeddings, threshold=None, active_backend=None:
                 captured.update(attach=(video_id, transcript_id, embeddings, threshold, active_backend)),
         )
@@ -129,7 +129,7 @@ class TestDiarizeTrack:
     def _wire(self, monkeypatch, client, *, available=(True, ""),
               embeddings_result=None, diarize_side_effect=None):
         """Patch make_diarization_client and capture _assign/_attach calls."""
-        from yuu_clip.transcribe import whisper_runner
+        from yuu_clip.transcribe import speaker_attach
 
         class FakeClient:
             def available(self_inner):
@@ -140,14 +140,14 @@ class TestDiarizeTrack:
                     raise diarize_side_effect
                 return embeddings_result
 
-        monkeypatch.setattr(whisper_runner, "make_diarization_client", lambda config: FakeClient())
+        monkeypatch.setattr(speaker_attach, "make_diarization_client", lambda config: FakeClient())
         captured = {}
         monkeypatch.setattr(
-            whisper_runner, "_assign_speakers",
+            speaker_attach, "_assign_speakers",
             lambda session, transcript_id, turns: captured.setdefault("assign", []).append((transcript_id, turns)),
         )
         monkeypatch.setattr(
-            whisper_runner, "_attach_speakers",
+            speaker_attach, "_attach_speakers",
             lambda session, video_id, transcript_id, embeddings, threshold=None, active_backend=None: captured.setdefault("attach", []).append((video_id, transcript_id, embeddings, threshold, active_backend)),
         )
         return captured
@@ -161,7 +161,7 @@ class TestDiarizeTrack:
     def test_assigns_and_attaches_on_success(self, monkeypatch):
         from pathlib import Path
 
-        from yuu_clip.transcribe.whisper_runner import diarize_track
+        from yuu_clip.transcribe.speaker_attach import diarize_track
 
         turns = [(0.0, 1.0, "SPEAKER_00")]
         embeddings = {"SPEAKER_00": [1.0, 0.0]}
@@ -181,7 +181,7 @@ class TestDiarizeTrack:
     def test_noop_when_backend_unavailable(self, monkeypatch):
         from pathlib import Path
 
-        from yuu_clip.transcribe.whisper_runner import diarize_track
+        from yuu_clip.transcribe.speaker_attach import diarize_track
 
         captured = self._wire(monkeypatch, None, available=(False, "no token"))
         cfg = Config(diarization_backend="speechbrain")
@@ -193,7 +193,7 @@ class TestDiarizeTrack:
     def test_diarization_error_is_swallowed(self, monkeypatch):
         from pathlib import Path
 
-        from yuu_clip.transcribe.whisper_runner import diarize_track
+        from yuu_clip.transcribe.speaker_attach import diarize_track
 
         captured = self._wire(
             monkeypatch, None,
@@ -208,7 +208,7 @@ class TestDiarizeTrack:
     def test_unexpected_error_is_swallowed(self, monkeypatch):
         from pathlib import Path
 
-        from yuu_clip.transcribe.whisper_runner import diarize_track
+        from yuu_clip.transcribe.speaker_attach import diarize_track
 
         captured = self._wire(
             monkeypatch, None, diarize_side_effect=RuntimeError("gpu exploded"),
@@ -223,7 +223,7 @@ class TestDiarizeTrack:
         cached must skip speaker labels for the track, not abort the analyze."""
         from pathlib import Path
 
-        from yuu_clip.transcribe.whisper_runner import diarize_track
+        from yuu_clip.transcribe.speaker_attach import diarize_track
 
         captured = self._wire(
             monkeypatch, None,
@@ -240,10 +240,10 @@ class TestDiarizeTrack:
         looking hung (packaging-strategy Wave 4's analyze-log surfacing)."""
         from pathlib import Path
 
-        from yuu_clip.transcribe import whisper_runner
-        from yuu_clip.transcribe.whisper_runner import diarize_track
+        from yuu_clip.transcribe import speaker_attach
+        from yuu_clip.transcribe.speaker_attach import diarize_track
 
-        monkeypatch.setattr(whisper_runner, "speechbrain_model_cached", lambda: False)
+        monkeypatch.setattr(speaker_attach, "speechbrain_model_cached", lambda: False)
         self._wire(monkeypatch, None, embeddings_result=([], {}))
         cfg = Config(diarization_backend="speechbrain")
         diarize_track(cfg, None, self._fake_transcript(), Path("a.wav"), self._fake_track())
@@ -254,10 +254,10 @@ class TestDiarizeTrack:
     def test_downloading_notice_omitted_when_model_cached(self, monkeypatch, capsys):
         from pathlib import Path
 
-        from yuu_clip.transcribe import whisper_runner
-        from yuu_clip.transcribe.whisper_runner import diarize_track
+        from yuu_clip.transcribe import speaker_attach
+        from yuu_clip.transcribe.speaker_attach import diarize_track
 
-        monkeypatch.setattr(whisper_runner, "speechbrain_model_cached", lambda: True)
+        monkeypatch.setattr(speaker_attach, "speechbrain_model_cached", lambda: True)
         self._wire(monkeypatch, None, embeddings_result=([], {}))
         cfg = Config(diarization_backend="speechbrain")
         diarize_track(cfg, None, self._fake_transcript(), Path("a.wav"), self._fake_track())
@@ -303,7 +303,7 @@ class TestRediarizeVideo:
 
     def test_rediarizes_latest_transcript_and_skips_non_transcribed(self, tmp_path, monkeypatch):
         from yuu_clip.pipeline.ingest import _rediarize_video
-        from yuu_clip.transcribe import whisper_runner
+        from yuu_clip.transcribe import speaker_attach
 
         wav = tmp_path / "t.wav"
         wav.write_bytes(b"x")
@@ -318,7 +318,7 @@ class TestRediarizeVideo:
 
         diarized = []
         monkeypatch.setattr(
-            whisper_runner, "diarize_track",
+            speaker_attach, "diarize_track",
             lambda config, session, transcript, audio_path, track: diarized.append(transcript.id),
         )
         n = _rediarize_video(session, Config(diarization_backend="speechbrain"), video)
@@ -329,7 +329,7 @@ class TestRediarizeVideo:
 
     def test_rediarize_no_transcripts_returns_zero(self, tmp_path, monkeypatch):
         from yuu_clip.pipeline.ingest import _rediarize_video
-        from yuu_clip.transcribe import whisper_runner
+        from yuu_clip.transcribe import speaker_attach
 
         wav = tmp_path / "t.wav"
         wav.write_bytes(b"x")
@@ -338,7 +338,7 @@ class TestRediarizeVideo:
         session.commit()
 
         monkeypatch.setattr(
-            whisper_runner, "diarize_track",
+            speaker_attach, "diarize_track",
             lambda *a, **k: (_ for _ in ()).throw(AssertionError("must not diarize without transcripts")),
         )
         assert _rediarize_video(session, Config(diarization_backend="speechbrain"), video) == 0
@@ -351,7 +351,7 @@ class TestRediarizeVideo:
 
 class TestCosineSimilarity:
     def _cos(self, a, b):
-        from yuu_clip.transcribe.whisper_runner import _cosine_similarity
+        from yuu_clip.transcribe.speaker_attach import _cosine_similarity
         return _cosine_similarity(a, b)
 
     def test_identical_vectors_is_one(self):
@@ -376,33 +376,33 @@ class TestCosineSimilarity:
 
 class TestBestVoiceprintMatch:
     def _speaker(self, sid, vector):
-        from yuu_clip.transcribe.whisper_runner import _serialize_voiceprint
+        from yuu_clip.transcribe.speaker_attach import _serialize_voiceprint
         return MagicMock(id=sid, voiceprint=_serialize_voiceprint(vector) if vector else None)
 
     def test_returns_none_below_threshold(self):
-        from yuu_clip.transcribe.whisper_runner import _best_voiceprint_match
+        from yuu_clip.transcribe.speaker_attach import _best_voiceprint_match
         # Cosine of [1,0] vs [0.5, 0.87] ≈ 0.5 < 0.75 threshold.
         cand = self._speaker(1, [0.5, 0.87])
         assert _best_voiceprint_match([1.0, 0.0], [cand], set())[0] is None
 
     def test_returns_best_above_threshold(self):
-        from yuu_clip.transcribe.whisper_runner import _best_voiceprint_match
+        from yuu_clip.transcribe.speaker_attach import _best_voiceprint_match
         near = self._speaker(1, [0.99, 0.01])
         far = self._speaker(2, [0.5, 0.87])
         assert _best_voiceprint_match([1.0, 0.0], [near, far], set())[0].id == 1
 
     def test_skips_already_taken_candidate(self):
-        from yuu_clip.transcribe.whisper_runner import _best_voiceprint_match
+        from yuu_clip.transcribe.speaker_attach import _best_voiceprint_match
         exact = self._speaker(1, [1.0, 0.0])
         assert _best_voiceprint_match([1.0, 0.0], [exact], {1})[0] is None
 
     def test_skips_candidate_without_voiceprint(self):
-        from yuu_clip.transcribe.whisper_runner import _best_voiceprint_match
+        from yuu_clip.transcribe.speaker_attach import _best_voiceprint_match
         no_print = self._speaker(1, None)
         assert _best_voiceprint_match([1.0, 0.0], [no_print], set())[0] is None
 
     def test_lower_threshold_matches_what_default_rejects(self):
-        from yuu_clip.transcribe.whisper_runner import _best_voiceprint_match
+        from yuu_clip.transcribe.speaker_attach import _best_voiceprint_match
         # Cosine of [1,0] vs [0.5, 0.87] ≈ 0.5: rejected at the 0.75 default,
         # accepted once the threshold is lowered below it.
         cand = self._speaker(1, [0.5, 0.87])
@@ -453,7 +453,7 @@ class TestSuggestProjectVoices:
         return speaker
 
     def test_known_voice_gets_suggestion_not_link(self, tmp_path):
-        from yuu_clip.transcribe.whisper_runner import suggest_project_voices
+        from yuu_clip.transcribe.speaker_attach import suggest_project_voices
 
         session = self._session(tmp_path)
         try:
@@ -471,7 +471,7 @@ class TestSuggestProjectVoices:
             session.close()
 
     def test_no_project_voices_is_noop(self, tmp_path):
-        from yuu_clip.transcribe.whisper_runner import suggest_project_voices
+        from yuu_clip.transcribe.speaker_attach import suggest_project_voices
 
         session = self._session(tmp_path)
         try:
@@ -483,7 +483,7 @@ class TestSuggestProjectVoices:
             session.close()
 
     def test_already_linked_speaker_is_skipped(self, tmp_path):
-        from yuu_clip.transcribe.whisper_runner import suggest_project_voices
+        from yuu_clip.transcribe.speaker_attach import suggest_project_voices
 
         session = self._session(tmp_path)
         try:
@@ -498,7 +498,7 @@ class TestSuggestProjectVoices:
             session.close()
 
     def test_backend_mismatch_no_suggestion(self, tmp_path):
-        from yuu_clip.transcribe.whisper_runner import suggest_project_voices
+        from yuu_clip.transcribe.speaker_attach import suggest_project_voices
 
         session = self._session(tmp_path)
         try:
@@ -513,7 +513,7 @@ class TestSuggestProjectVoices:
             session.close()
 
     def test_one_person_suggested_to_at_most_one_speaker(self, tmp_path):
-        from yuu_clip.transcribe.whisper_runner import suggest_project_voices
+        from yuu_clip.transcribe.speaker_attach import suggest_project_voices
 
         session = self._session(tmp_path)
         try:
@@ -537,7 +537,7 @@ class TestRunSpeakerDiarizationSuggests:
     def test_suggest_called_once_for_two_tracks(self, tmp_path, monkeypatch):
         from yuu_clip.db.models import AudioTrack, Transcript, Video, make_session
         from yuu_clip.pipeline import ingest
-        from yuu_clip.transcribe import whisper_runner
+        from yuu_clip.transcribe import speaker_attach
 
         wav = tmp_path / "a.wav"
         wav.write_bytes(b"x")
@@ -557,10 +557,10 @@ class TestRunSpeakerDiarizationSuggests:
             transcripts.append(tx)
         session.commit()
 
-        monkeypatch.setattr(whisper_runner, "diarize_track", lambda *a, **k: None)
+        monkeypatch.setattr(speaker_attach, "diarize_track", lambda *a, **k: None)
         calls = []
         monkeypatch.setattr(
-            whisper_runner, "suggest_project_voices",
+            speaker_attach, "suggest_project_voices",
             lambda sess, video_id, threshold: calls.append((video_id, threshold)),
         )
         ingest._run_speaker_diarization(Config(diarization_backend="speechbrain"), session, transcripts)
@@ -748,7 +748,7 @@ class TestFactory:
 
 
 # ---------------------------------------------------------------------------
-# _assign_speakers (private helper - test via whisper_runner import)
+# _assign_speakers (private helper - test via speaker_attach import)
 # ---------------------------------------------------------------------------
 
 class TestAssignSpeakers:
@@ -760,7 +760,7 @@ class TestAssignSpeakers:
         return seg
 
     def test_assigns_by_overlap(self):
-        from yuu_clip.transcribe.whisper_runner import _assign_speakers
+        from yuu_clip.transcribe.speaker_attach import _assign_speakers
 
         seg_a = self._make_seg(0, 5000)    # 0–5 s
         seg_b = self._make_seg(6000, 10000) # 6–10 s
@@ -778,7 +778,7 @@ class TestAssignSpeakers:
         assert seg_b.speaker_label == "SPEAKER_01"
 
     def test_no_turns_leaves_labels_none(self):
-        from yuu_clip.transcribe.whisper_runner import _assign_speakers
+        from yuu_clip.transcribe.speaker_attach import _assign_speakers
 
         seg = self._make_seg(0, 5000)
         session = MagicMock()
@@ -790,7 +790,7 @@ class TestAssignSpeakers:
         session.flush.assert_not_called()
 
     def test_partial_overlap_picks_best(self):
-        from yuu_clip.transcribe.whisper_runner import _assign_speakers
+        from yuu_clip.transcribe.speaker_attach import _assign_speakers
 
         seg = self._make_seg(3000, 7000)  # 3–7 s
 

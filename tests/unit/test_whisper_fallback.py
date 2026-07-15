@@ -12,7 +12,7 @@ import types
 import pytest
 
 from yuu_clip import config as config_mod
-from yuu_clip.transcribe import whisper_runner
+from yuu_clip.transcribe import transcriber
 
 
 class _FakeModel:
@@ -22,11 +22,11 @@ class _FakeModel:
 
 @pytest.fixture(autouse=True)
 def clear_model_cache():
-    whisper_runner._model_cache.clear()
-    whisper_runner._cuda_dll_dirs_registered = False
+    transcriber._model_cache.clear()
+    transcriber._cuda_dll_dirs_registered = False
     yield
-    whisper_runner._model_cache.clear()
-    whisper_runner._cuda_dll_dirs_registered = False
+    transcriber._model_cache.clear()
+    transcriber._cuda_dll_dirs_registered = False
 
 
 def _config() -> config_mod.Config:
@@ -35,7 +35,7 @@ def _config() -> config_mod.Config:
 
 def test_cuda_load_failure_falls_back_to_cpu(monkeypatch):
     monkeypatch.setattr(
-        whisper_runner, "_resolve_device_and_compute", lambda _cfg: ("cuda", "float16")
+        transcriber, "_resolve_device_and_compute", lambda _cfg: ("cuda", "float16")
     )
 
     def fake_load(_cfg, device, _compute):
@@ -43,26 +43,26 @@ def test_cuda_load_failure_falls_back_to_cpu(monkeypatch):
             raise RuntimeError("Library cublas64_12.dll is not found or cannot be loaded")
         return _FakeModel(device)
 
-    monkeypatch.setattr(whisper_runner, "_load_whisper_model", fake_load)
+    monkeypatch.setattr(transcriber, "_load_whisper_model", fake_load)
 
-    model = whisper_runner._get_model(_config())
+    model = transcriber._get_model(_config())
 
     assert model.device == "cpu"
-    assert ("base", "cpu", "int8", None) in whisper_runner._model_cache
+    assert ("base", "cpu", "int8", None) in transcriber._model_cache
 
 
 def test_cpu_load_failure_raises_actionable_error(monkeypatch):
     monkeypatch.setattr(
-        whisper_runner, "_resolve_device_and_compute", lambda _cfg: ("cpu", "int8")
+        transcriber, "_resolve_device_and_compute", lambda _cfg: ("cpu", "int8")
     )
 
     def fake_load(_cfg, _device, _compute):
         raise RuntimeError("Couldn't connect to huggingface.co")
 
-    monkeypatch.setattr(whisper_runner, "_load_whisper_model", fake_load)
+    monkeypatch.setattr(transcriber, "_load_whisper_model", fake_load)
 
-    with pytest.raises(whisper_runner.TranscriptionModelError) as excinfo:
-        whisper_runner._get_model(_config())
+    with pytest.raises(transcriber.TranscriptionModelError) as excinfo:
+        transcriber._get_model(_config())
 
     message = str(excinfo.value)
     assert "check your connection" in message
@@ -71,7 +71,7 @@ def test_cpu_load_failure_raises_actionable_error(monkeypatch):
 
 def test_successful_cuda_load_is_not_retried(monkeypatch):
     monkeypatch.setattr(
-        whisper_runner, "_resolve_device_and_compute", lambda _cfg: ("cuda", "float16")
+        transcriber, "_resolve_device_and_compute", lambda _cfg: ("cuda", "float16")
     )
     calls: list[str] = []
 
@@ -79,16 +79,16 @@ def test_successful_cuda_load_is_not_retried(monkeypatch):
         calls.append(device)
         return _FakeModel(device)
 
-    monkeypatch.setattr(whisper_runner, "_load_whisper_model", fake_load)
+    monkeypatch.setattr(transcriber, "_load_whisper_model", fake_load)
 
-    model = whisper_runner._get_model(_config())
+    model = transcriber._get_model(_config())
 
     assert model.device == "cuda"
     assert calls == ["cuda"]
 
 
 def test_register_cuda_dll_dirs_adds_wheel_bin_dirs(tmp_path, monkeypatch):
-    if not hasattr(whisper_runner.os, "add_dll_directory"):
+    if not hasattr(transcriber.os, "add_dll_directory"):
         pytest.skip("add_dll_directory is Windows-only")
 
     cublas_bin = tmp_path / "cublas" / "bin"
@@ -104,22 +104,22 @@ def test_register_cuda_dll_dirs_adds_wheel_bin_dirs(tmp_path, monkeypatch):
 
     added: list[str] = []
     monkeypatch.setattr(importlib.util, "find_spec", fake_find_spec)
-    monkeypatch.setattr(whisper_runner.os, "add_dll_directory", lambda p: added.append(p))
+    monkeypatch.setattr(transcriber.os, "add_dll_directory", lambda p: added.append(p))
 
-    whisper_runner._register_cuda_dll_dirs()
-    whisper_runner._register_cuda_dll_dirs()  # idempotent - second call is a no-op
+    transcriber._register_cuda_dll_dirs()
+    transcriber._register_cuda_dll_dirs()  # idempotent - second call is a no-op
 
     assert added == [str(cublas_bin), str(cudnn_bin)]
 
 
 def test_register_cuda_dll_dirs_skips_missing_wheels(monkeypatch):
-    if not hasattr(whisper_runner.os, "add_dll_directory"):
+    if not hasattr(transcriber.os, "add_dll_directory"):
         pytest.skip("add_dll_directory is Windows-only")
 
     monkeypatch.setattr(importlib.util, "find_spec", lambda _name: None)
     added: list[str] = []
-    monkeypatch.setattr(whisper_runner.os, "add_dll_directory", lambda p: added.append(p))
+    monkeypatch.setattr(transcriber.os, "add_dll_directory", lambda p: added.append(p))
 
-    whisper_runner._register_cuda_dll_dirs()
+    transcriber._register_cuda_dll_dirs()
 
     assert added == []

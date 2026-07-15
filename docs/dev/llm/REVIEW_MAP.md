@@ -1,5 +1,10 @@
 # Review map - the codebase in review-sized sections
 
+> **LLM/agent-targeted doc.** Audience: Claude Code and code-review agents, not
+> human contributors. It lives in `docs/dev/llm/` to make that explicit. Humans
+> do not need to read or maintain this; it is navigation scaffolding for automated
+> review passes.
+
 A stage-by-stage partition of the code so a dedicated review can walk it one
 cohesive section at a time, the same way the web UI is already sectioned for
 review. Each stage is a self-contained concern with its own files and tests;

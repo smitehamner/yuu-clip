@@ -45,7 +45,7 @@ def _resolve_devices(config, *, transcribed: bool, diarized: bool) -> dict:
     """
     devices: dict = {"has_gpu": False}
     if transcribed:
-        from yuu_clip.transcribe.whisper_runner import _resolve_device_and_compute
+        from yuu_clip.transcribe.transcriber import _resolve_device_and_compute
         device, compute_type = _resolve_device_and_compute(config)
         devices["transcribe"] = f"{device} ({compute_type})"
         devices["has_gpu"] = devices["has_gpu"] or device == "cuda"

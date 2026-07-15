@@ -70,7 +70,7 @@ def prefetch_whisper_cmd(
     doesn't stall on a first-use download (first-run-friction Stage 6)."""
     from yuu_clip.config import Config
     from yuu_clip.log import configure_logging
-    from yuu_clip.transcribe.whisper_runner import prefetch_whisper_model
+    from yuu_clip.transcribe.transcriber import make_transcriber
 
     proj_dir = _project_dir(project)
     configure_logging(proj_dir)
@@ -78,7 +78,7 @@ def prefetch_whisper_cmd(
 
     console.print(f"Downloading the speech model ({config.whisper_model})...")
     try:
-        prefetch_whisper_model(config)
+        make_transcriber(config).prefetch()
     except Exception as exc:
         console.print(f"[red]Download failed: {exc}[/red]")
         raise typer.Exit(1)

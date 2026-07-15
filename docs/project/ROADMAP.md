@@ -1,10 +1,8 @@
 # yuu-clip - Roadmap
 
-Forward-looking only. Everything already shipped is recorded in
-[COMPLETED.md](COMPLETED.md) and [COMPLETED-archive.md](COMPLETED-archive.md), and
-deliberate scope calls (things we chose not to do, and why) live in
-[DECISIONS.md](DECISIONS.md) - this file tracks just the work that is still open,
-grouped by priority.
+Forward-looking only. Deliberate scope calls (things we chose not to do, and why)
+live in [DECISIONS.md](DECISIONS.md); this file tracks just the work that is still
+open, grouped by priority.
 
 ---
 

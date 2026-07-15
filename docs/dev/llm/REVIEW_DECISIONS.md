@@ -1,5 +1,9 @@
 # Review decisions - deliberate keep-as-is calls
 
+> **LLM/agent-targeted doc.** Audience: Claude Code and code-review agents, not
+> human contributors. It lives in `docs/dev/llm/` to make that explicit. It exists
+> so an automated review does not re-flag something a human already decided to keep.
+
 Code-quality reviews (`shqr-code-quality-review`) sometimes flag something that
 looks like duplication or an inconsistency, and the right call is to leave it
 alone. This file is the record of *why*, so a future review doesn't re-flag the
@@ -168,7 +172,7 @@ removed in P4). The following were reviewed and deliberately left as-is:
 
 ### The two glossaries are intentionally different files, not a drift
 Decision: Keep both; do not try to reconcile them into one.
-Rationale: `docs/dev/GLOSSARY.md` is the authoritative dev superset (with `Code:` names
+Rationale: `docs/dev/llm/GLOSSARY.md` is the authoritative dev superset (with `Code:` names
 and dev-only sections); `yuu_clip/web/static/glossary.md` is a hand-written creator-facing
 subset served by the in-app Terminology modal. The dev file's header states this split
 explicitly. A `diff` of the two is expected to be large - that is by design, not
@@ -485,7 +489,7 @@ each other). One finding was deliberately **not** acted on:
 Reads as developer jargon to a non-developer; a plainer "AI scoring" would be
 lower-friction on first read.
 
-**Kept as-is.** "LLM scoring" is the authoritative `docs/dev/GLOSSARY.md` term,
+**Kept as-is.** "LLM scoring" is the authoritative `docs/dev/llm/GLOSSARY.md` term,
 explicitly recorded as "not AI scoring" - the split is intentional and consistent
 across UI, CLI help, and docs. Renaming it here would either desync this surface
 from the glossary or require a glossary change plus a sweep of every other use,

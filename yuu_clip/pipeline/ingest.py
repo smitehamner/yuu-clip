@@ -551,11 +551,12 @@ def _transcribe_and_check_overlap(track_objs, config, session, video, language, 
     """
     from yuu_clip.analyze.overlap import detect_transcript_overlap
     from yuu_clip.db.models import Transcript
-    from yuu_clip.transcribe.whisper_runner import transcribe_track, whisper_model_cached
+    from yuu_clip.transcribe.transcriber import make_transcriber
+    from yuu_clip.transcribe.whisper_runner import transcribe_track
 
     console.print(f"  [bold]Transcribing (model: {config.whisper_model})...[/bold]")
     emit_progress(Stage.TRANSCRIBE)
-    if not whisper_model_cached(config):
+    if not make_transcriber(config).model_cached():
         # The model isn't in the cache yet, so the first transcribe_track below
         # will block while it downloads. Surface that as a legible status line the
         # web UI promotes into the Transcribe step, rather than a silent stall.
@@ -627,7 +628,7 @@ def _run_speaker_diarization(config, session, transcripts) -> None:
     """
     if not transcripts or config.diarization_backend == "null":
         return
-    from yuu_clip.transcribe.whisper_runner import diarize_track, suggest_project_voices
+    from yuu_clip.transcribe.speaker_attach import diarize_track, suggest_project_voices
 
     console.print("  [bold]Detecting speakers...[/bold]")
     emit_progress(Stage.SPEAKERS)

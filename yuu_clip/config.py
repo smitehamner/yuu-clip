@@ -533,6 +533,11 @@ DEFAULT_SKIP_SCORE: frozenset[str] = frozenset({"game_sounds"})
 
 @dataclass
 class Config:
+    # Speech-to-text backend. "faster_whisper" is the only implementation today; the
+    # value keys transcribe.transcriber.make_transcriber so a future backend
+    # (whisper.cpp, a cloud STT) is a registration, not a rewrite. The whisper_* keys
+    # below are this backend's own settings (like speaker_* for diarization).
+    transcription_backend: str = "faster_whisper"
     whisper_model: str = "base"
     # "cpu" works everywhere; "cuda" needs NVIDIA GPU + CUDA toolkit on Windows/Linux
     # "auto" lets faster-whisper pick (cuda if available, else cpu)
@@ -642,7 +647,7 @@ class Config:
     # Cosine similarity above which a re-diarization cluster is treated as the same
     # voice as an existing named Speaker and re-attached to it (preserving the name).
     # Higher = stricter (fewer wrong re-attaches, more speakers re-minted for
-    # re-confirmation); lower = looser. See whisper_runner._attach_speakers.
+    # re-confirmation); lower = looser. See speaker_attach._attach_speakers.
     speaker_match_threshold: float = 0.75
     # SpeechBrain only: cosine DISTANCE below which two 1.5s audio windows are grouped
     # into the same within-recording speaker cluster (lower = more, smaller clusters =

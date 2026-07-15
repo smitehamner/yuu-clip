@@ -114,7 +114,7 @@ the assistant-context file). The essentials:
 
 ## Terminology
 
-`docs/dev/GLOSSARY.md` is the authoritative term list. User-facing text (UI labels,
+`docs/dev/llm/GLOSSARY.md` is the authoritative term list. User-facing text (UI labels,
 messages, docs) must use the glossary term, even where the code identifier differs
 (for example the UI says "Analyze", the code says `ingest`). Define a new concept in
 the glossary before introducing it.

@@ -499,7 +499,7 @@ def _mean_voiceprint(a: Optional[bytes], b: Optional[bytes]) -> Optional[bytes]:
     Falls back to whichever side is present when the other is missing or the two
     have mismatched dimensions (never raises - a bad merge must not lose a print).
     """
-    from yuu_clip.transcribe.whisper_runner import _deserialize_voiceprint, _serialize_voiceprint
+    from yuu_clip.transcribe.speaker_attach import _deserialize_voiceprint, _serialize_voiceprint
     if not a:
         return b
     if not b:
@@ -652,7 +652,7 @@ def _voiceprint_name_suggestions(speakers: list[Speaker]) -> dict[str, str]:
     and share the ``_apply_name_suggestions`` dedupe guards. Returns names only - it
     never merges Speakers.
     """
-    from yuu_clip.transcribe.whisper_runner import _best_voiceprint_match, _deserialize_voiceprint
+    from yuu_clip.transcribe.speaker_attach import _best_voiceprint_match, _deserialize_voiceprint
 
     by_id = {s.id: s for s in speakers}
     named = [s for s in speakers if s.name and s.confirmed and s.voiceprint]

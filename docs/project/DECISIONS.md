@@ -6,7 +6,7 @@ home for "we decided against X" records that would otherwise clutter ROADMAP.md 
 perpetual open items. Most recent first.
 
 (For code-quality "keep-as-is" calls from review passes, see
-`docs/dev/REVIEW_DECISIONS.md` instead.)
+`docs/dev/llm/REVIEW_DECISIONS.md` instead.)
 
 ---
 
@@ -17,8 +17,8 @@ clip generation + scoring); its sweet spot is talk-heavy content:
 RP, voice chat, streaming (a streamer talking to chat), podcasts, and narrative /
 commentary. The silent, visual gameplay path exists as a first-pass complement (Visual
 scoring axis, model-free on-screen-activity detection, opt-in visual clip generation,
-textless-clip UX, opt-in vision-LLM descriptions - shipped 2026-07-13, see
-COMPLETED.md), but is not a match for a dedicated gameplay-clip tool.
+textless-clip UX, opt-in vision-LLM descriptions - shipped 2026-07-13), but is not a
+match for a dedicated gameplay-clip tool.
 
 **Directive:** user-facing marketing and onboarding copy must lead honestly with the
 talk-heavy strength and must not claim general "gaming highlights". Applied to the

@@ -131,7 +131,7 @@ def _maybe_diarize_segment(session, config, video_id: int, transcript_id: int, s
     no diarization backend / HuggingFace token is configured.
     """
     from yuu_clip.transcribe.diarization_client import DiarizationError, make_diarization_client
-    from yuu_clip.transcribe.whisper_runner import _assign_speakers, _attach_speakers
+    from yuu_clip.transcribe.speaker_attach import _assign_speakers, _attach_speakers
 
     client = make_diarization_client(config)
     ok, reason = client.available()
@@ -168,9 +168,11 @@ def run_retranscribe(cand, session, config, language: Optional[str] = None,
     from datetime import datetime, timezone
 
     from yuu_clip.db.models import AudioTrack, Transcript, TranscriptSegment
-    from yuu_clip.transcribe.whisper_runner import _get_model, resolve_transcription_language
+    from yuu_clip.transcribe.transcriber import make_transcriber
+    from yuu_clip.transcribe.whisper_runner import resolve_transcription_language
 
     language = resolve_transcription_language(language, config)
+    transcriber = make_transcriber(config)
 
     tracks = session.query(AudioTrack).filter_by(video_id=cand.video_id, do_transcribe=True).all()
     if not tracks:
@@ -197,26 +199,26 @@ def run_retranscribe(cand, session, config, language: Optional[str] = None,
             session.flush()
 
             console.print(f"  [dim]  Retranscribing track {track.stream_index} [{track.label}]...[/dim]")
-            segments_raw, info = _get_model(config).transcribe(str(segment_wav), language=language, vad_filter=True)
+            result = transcriber.transcribe(segment_wav, language)
 
             tx = Transcript(
                 audio_track_id=track.id,
                 clip_id=cand.id,
                 model_name=config.whisper_model,
-                language=getattr(info, "language", None),
+                language=result.language,
             )
             session.add(tx)
             session.flush()
             new_tx_ids.append(tx.id)
 
             seg_count = 0
-            for seg in segments_raw:
+            for seg in result.segments:
                 session.add(TranscriptSegment(
                     transcript_id=tx.id,
-                    start_ms=effective_start_ms + int(seg.start * 1000),
-                    end_ms=effective_start_ms + int(seg.end * 1000),
+                    start_ms=effective_start_ms + seg.start_ms,
+                    end_ms=effective_start_ms + seg.end_ms,
                     text=seg.text,
-                    confidence=getattr(seg, "avg_logprob", None),
+                    confidence=seg.confidence,
                 ))
                 seg_count += 1
 
