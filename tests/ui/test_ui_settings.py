@@ -654,6 +654,39 @@ class TestGlossaryFilter:
 
 
 # ---------------------------------------------------------------------------
+# Help & Guides modal - links out to the GitHub docs/user/ pages
+# ---------------------------------------------------------------------------
+
+@skip_no_server
+class TestHelpModal:
+    def test_lists_external_doc_links(self, page: Page):
+        page.evaluate("openHelpModal()")
+        page.wait_for_selector("#help-modal.visible")
+        hrefs = page.eval_on_selector_all(
+            "#help-modal a", "els => els.map(e => e.getAttribute('href'))"
+        )
+        expected = [
+            "https://github.com/smitehamner/yuu-clip/blob/main/docs/user/OVERVIEW.md",
+            "https://github.com/smitehamner/yuu-clip/blob/main/docs/user/FEATURES.md",
+            "https://github.com/smitehamner/yuu-clip/blob/main/docs/user/tutorials/end-to-end-walkthrough.md",
+            "https://github.com/smitehamner/yuu-clip/blob/main/docs/user/PERFORMANCE.md",
+        ]
+        assert hrefs == expected
+        targets = page.eval_on_selector_all(
+            "#help-modal a", "els => els.map(e => e.getAttribute('target'))"
+        )
+        assert all(t == "_blank" for t in targets)
+        page.evaluate("closeHelpModal()")
+
+    def test_escape_closes(self, page: Page):
+        page.evaluate("openHelpModal()")
+        page.wait_for_selector("#help-modal.visible")
+        page.locator("#help-modal .btn").focus()
+        page.keyboard.press("Escape")
+        page.wait_for_selector("#help-modal.visible", state="hidden")
+
+
+# ---------------------------------------------------------------------------
 # Hardware section - GPU thermal thresholds (roadmap-2026-07 plan 01, Stage 3)
 #
 # Only the rejected-patch test clicks Save - a failed cross-field validation

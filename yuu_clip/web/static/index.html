@@ -85,6 +85,7 @@
       <button class="hamburger-item" onclick="closeHamburger();openPeopleView()"><span class="hamburger-icon" aria-hidden="true">&#128100;</span>People</button>
       <button class="hamburger-item" onclick="closeHamburger();openContextManager()"><span class="hamburger-icon" aria-hidden="true">&#127757;</span>World Contexts</button>
       <button class="hamburger-item" onclick="closeHamburger();openGlossaryModal()"><span class="hamburger-icon" aria-hidden="true">&#128218;</span>Terminology Glossary</button>
+      <button class="hamburger-item" onclick="closeHamburger();openHelpModal()"><span class="hamburger-icon" aria-hidden="true">&#10067;</span>Help &amp; Guides</button>
       <div class="hamburger-divider"></div>
       <button class="hamburger-item" onclick="closeHamburger();openSettings()"><span class="hamburger-icon" aria-hidden="true">&#9881;</span>Settings</button>
       <a class="hamburger-item" href="/api/logs/export" download="yuu-clip.log" onclick="closeHamburger()"><span class="hamburger-icon" aria-hidden="true">&#8595;</span>Download Log</a>
@@ -1389,6 +1390,37 @@
 </div>
 
 <!-- About modal -->
+<!-- Help & Guides Modal -->
+<div class="modal-bg" id="help-modal" onclick="if(event.target===this)closeHelpModal()">
+  <div class="modal" style="width:560px;max-width:94vw">
+    <h3>Help &amp; Guides</h3>
+    <p style="color:var(--muted);font-size:13px;margin:0 0 14px">
+      The full guides live online and open in your browser.
+    </p>
+    <ul style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:12px">
+      <li>
+        <a href="https://github.com/smitehamner/yuu-clip/blob/main/docs/user/OVERVIEW.md" target="_blank" rel="noopener" style="font-weight:600">Overview</a>
+        <div style="color:var(--muted);font-size:12px;margin-top:2px">Plain-English intro - what YuuClip does and why you'd want it.</div>
+      </li>
+      <li>
+        <a href="https://github.com/smitehamner/yuu-clip/blob/main/docs/user/FEATURES.md" target="_blank" rel="noopener" style="font-weight:600">Feature guide</a>
+        <div style="color:var(--muted);font-size:12px;margin-top:2px">Everything the app can do and where to find each feature.</div>
+      </li>
+      <li>
+        <a href="https://github.com/smitehamner/yuu-clip/blob/main/docs/user/tutorials/end-to-end-walkthrough.md" target="_blank" rel="noopener" style="font-weight:600">End-to-end walkthrough</a>
+        <div style="color:var(--muted);font-size:12px;margin-top:2px">A step-by-step run from a raw recording to exported clips.</div>
+      </li>
+      <li>
+        <a href="https://github.com/smitehamner/yuu-clip/blob/main/docs/user/PERFORMANCE.md" target="_blank" rel="noopener" style="font-weight:600">Performance &amp; disk usage</a>
+        <div style="color:var(--muted);font-size:12px;margin-top:2px">How long analysis takes and how much disk space it needs.</div>
+      </li>
+    </ul>
+    <div class="modal-actions" style="margin-top:16px">
+      <button class="btn" onclick="closeHelpModal()">Close</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-bg" id="about-modal" onclick="if(event.target===this)closeAboutModal()">
   <div class="modal" style="width:780px;max-width:94vw">
     <h3>About YuuClip</h3>

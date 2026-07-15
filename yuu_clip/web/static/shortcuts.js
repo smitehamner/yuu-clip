@@ -18,6 +18,7 @@ const _modalEscapeClosers = {
   'about-modal':             () => closeAboutModal(),
   'controls-modal':          () => closeControlsModal(),
   'glossary-modal':          () => closeGlossaryModal(),
+  'help-modal':              () => closeHelpModal(),
   'field-edit-modal':        () => closeFieldEditModal(),
   'diff-modal':              () => _diffDiscard(),
   'score-override-modal':    () => closeScoreOverrideModal(),

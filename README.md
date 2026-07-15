@@ -30,7 +30,9 @@ clip descriptions. No cloud accounts, no uploads, no subscriptions.
 - Exports finished clips with optional captions, and can compile your favourites into a
   highlight reel with transitions
 
-For the full feature list, see [docs/user/FEATURES.md](docs/user/FEATURES.md).
+New here? Start with the plain-English intro in
+[docs/user/OVERVIEW.md](docs/user/OVERVIEW.md). For the full feature list, see
+[docs/user/FEATURES.md](docs/user/FEATURES.md).
 
 ---
 

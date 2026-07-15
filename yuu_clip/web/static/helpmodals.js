@@ -33,6 +33,24 @@ function closeAboutModal() {
   if (opener?.focus) opener.focus();
 }
 
+// ── help & guides modal ───────────────────────────────────────────────────────
+// Links out to the GitHub docs/user/ pages rather than bundling copies: the app
+// ships the wheel (which carries static/glossary.md) but not docs/user/, and a
+// bundled 650-line feature guide would drift from the UI. In the packaged app
+// these target=_blank links open in the system browser via setWindowOpenHandler.
+let _helpOpener = null;
+function openHelpModal() {
+  _helpOpener = document.activeElement;
+  document.getElementById('help-modal').classList.add('visible');
+  setTimeout(() => document.querySelector('#help-modal .btn')?.focus(), 50);
+}
+function closeHelpModal() {
+  document.getElementById('help-modal').classList.remove('visible');
+  const opener = _helpOpener;
+  _helpOpener = null;
+  if (opener?.focus) opener.focus();
+}
+
 // ── glossary modal ────────────────────────────────────────────────────────────
 let _glossaryOpener = null;
 async function openGlossaryModal() {
@@ -148,6 +166,7 @@ function _renderGlossaryMd(md) {
 Object.assign(window, {
   openAboutModal, closeAboutModal,
   openGettingStartedModal, closeGettingStartedModal,
+  openHelpModal, closeHelpModal,
   openGlossaryModal, closeGlossaryModal, _filterGlossary,
 });
 })();
