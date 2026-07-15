@@ -271,7 +271,7 @@ function _showEmptyState() {
     <div class="empty-state">
       <img class="empty-state-mascot" src="/static/gamercat.png" alt="">
       <h2>Welcome to YuuClip</h2>
-      <p>Analyze a recording to start reviewing and exporting your best gaming moments.</p>
+      <p>Analyze a recording to start reviewing and exporting your best moments. YuuClip shines on talk-heavy sessions - RP, voice chat, streaming, podcasts, and commentary.</p>
       <button class="btn highlight" onclick="openNewRecordingPanel()">+ Analyze your first recording</button>
       <button class="btn ghost" onclick="openGettingStartedModal()" style="margin-top:8px">Getting Started Guide</button>
     </div>`;

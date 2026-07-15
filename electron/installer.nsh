@@ -21,7 +21,7 @@
   StrCpy $CreateDesktopShortcut "1"
 
   ${IfNot} ${UAC_IsInnerInstance}
-    MessageBox MB_ICONINFORMATION|MB_OK "YuuClip finds and scores your best gaming clips.$\r$\n$\r$\nHeads-up on download size: to score clips with AI, first-time setup can download an AI model to your PC - a one-time download of roughly 4-9 GB (about 4.7 GB for the recommended model). This step is optional and can be skipped; finding clips still works without it.$\r$\n$\r$\nThe installer itself is much smaller. Click OK to continue."
+    MessageBox MB_ICONINFORMATION|MB_OK "YuuClip finds and scores your best moments from talk-heavy recordings - RP, voice chat, streaming, podcasts, and commentary.$\r$\n$\r$\nHeads-up on download size: to score clips with AI, first-time setup can download an AI model to your PC - a one-time download of roughly 4-9 GB (about 4.7 GB for the recommended model). This step is optional and can be skipped; finding clips still works without it.$\r$\n$\r$\nThe installer itself is much smaller. Click OK to continue."
   ${EndIf}
 !macroend
 

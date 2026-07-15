@@ -1,6 +1,6 @@
 # YuuClip
 
-A local-first tool for turning long gaming/session recordings into shareable highlights. It analyzes a recording - transcribes every audio track with Whisper, measures audio energy and scene cuts, and scores clip candidates - then surfaces the best moments in a web review UI for approve/reject and export.
+A local-first tool for finding the best moments in long talk-heavy recordings - RP, voice chat, streaming to chat, podcasts, and commentary - and turning them into shareable clips. It analyzes a recording - transcribes every audio track with Whisper, measures audio energy and scene cuts, and scores each clip - then surfaces the best moments in a web review UI for approve/reject and export. Silent, action-only gameplay is supported too as a secondary pass, but talk-driven content is where it is strongest.
 
 Everything runs locally. It works out of the box with **no language model at all** (lightweight mode); installing a local model adds richer LLM scoring and descriptions. No cloud APIs are required.
 

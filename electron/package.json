@@ -1,7 +1,7 @@
 {
   "name": "yuu-clip",
   "version": "0.1.22",
-  "description": "YuuClip - Gaming clip review and export tool",
+  "description": "YuuClip - Find and export the best moments from talk-heavy recordings (RP, voice chat, streaming, podcasts, commentary)",
   "author": "smitehamner",
   "main": "main.js",
   "scripts": {

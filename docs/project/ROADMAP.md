@@ -1,64 +1,10 @@
 # yuu-clip - Roadmap
 
 Forward-looking only. Everything already shipped is recorded in
-[COMPLETED.md](COMPLETED.md) and [COMPLETED-archive.md](COMPLETED-archive.md) -
-this file tracks just the work that is still open, grouped by priority.
-
-## Where things stand
-
-| Phase | Description | Status |
-|---|---|---|
-| 1 | Core pipeline | Done |
-| 2 | Signal enrichment + scoring | Done |
-| 3 | Web UI | Done |
-| 4 | Packaging for distribution | Done |
-| 5 | Post-launch polish | Shipped (one packaged-app verification outstanding) |
-| 6 | Advanced features | Shipped except copyright detection (deferred) |
-
-The 13-plan `roadmap-close-2026-07` set (voiceprint confirmation, laugh score,
-project switcher, multi-session grouping, caption styles, vertical crop, clip
-export editor, SpeechBrain diarization, name correction, model selection, image
-analysis, content presets, de-RP generalisation) all shipped 2026-07-04/05. The
-remaining open work below is what did **not** have a plan in that set.
-
-## Recommended working order (2026-07-07)
-
-The sections below (§1-§6) group items **by theme**, not by priority - this
-list gives the actual recommended sequence. Items with a staged implementation
-plan link to it; items still needing a scope decision or blocked on something
-external say so instead. Full detail/rationale for each is kept in
-internal planning notes (not part of this repo).
-
-1. **FFmpeg source-hosting once public** (§2) - short checklist, but blocked
-   on the repo going public. Plan: (internal planning notes).
-2. **Linux compatibility** (§6) - large; split into a smaller "backend runs
-   on Linux" phase and a much larger "packaged Electron app" phase that's
-   only worth starting given real user demand. Plan:
-   (internal planning notes).
-3. **UI localization (i18n)** (§6) - large, and the roadmap already says
-   English-only is fine for now; scope captured but deliberately not staged.
-   Plan: (internal planning notes).
-
-Not re-ranked (already blocked on something outside this roadmap, or
-deliberately deferred/on-hold/shelved - see their entries below for why):
-Electron native-file-protocol verification, engine `console.print` design,
-code signing (needs a purchased cert), speaker identity beyond one recording
-(needs its own scope Q&A), score learning loop (needs a corpus first), copyright
-detection (no implementation path), sidebar grouping for split segments,
-quality presets, export-time transcript upgrade, AMD/Intel GPU support.
-
----
-
-## 0 - Positioning note
-
-yuu-clip is at heart a **talk-heavy analyzer** (transcript-driven candidate generation
-+ scoring). That is its real sweet spot - RP/VC/podcast/narrative content. The silent,
-visual gaming highlight now has a first-pass path too: the video-heavy / quiet-moment
-work shipped 2026-07-13 (Visual scoring axis, model-free on-screen-activity detection,
-opt-in visual clip generation, textless-clip UX, opt-in vision-LLM descriptions - see
-COMPLETED.md). Marketing and onboarding copy should still lead with the talk-heavy
-strength honestly rather than claim general "gaming highlights"; the visual support is
-a complement, not yet a match for a dedicated gameplay-clip tool.
+[COMPLETED.md](COMPLETED.md) and [COMPLETED-archive.md](COMPLETED-archive.md), and
+deliberate scope calls (things we chose not to do, and why) live in
+[DECISIONS.md](DECISIONS.md) - this file tracks just the work that is still open,
+grouped by priority.
 
 ---
 
@@ -94,13 +40,6 @@ Wanted before distributing beyond friends/trusted users.
   `docs/dev/THIRD-PARTY-NOTICES-FFMPEG.md` and `HOW-TO-RELEASE.md § Bundled FFmpeg`.
   Plan (checklist, blocked on repo going public): (internal planning notes).
 
-- [ ] **Code signing for public distribution** - the installer is unsigned; Windows shows
-  a SmartScreen "unknown publisher" warning on first run and some AV tools flag it. Options:
-  EV code-signing cert (~$300/yr, immediate SmartScreen trust) or standard OV cert (cheaper,
-  builds reputation over time). electron-builder supports both via `CSC_LINK` /
-  `CSC_KEY_PASSWORD`; remove the `CSC_IDENTITY_AUTO_DISCOVERY=false` override in
-  `build-release.ps1` when a cert is in place.
-
 ---
 
 ## 3 - Speaker & scoring depth
@@ -111,25 +50,22 @@ Wanted before distributing beyond friends/trusted users.
   per-speaker lore into scoring; deferred to avoid coupling naming to the contexts model.
   Plan of record: `plans/speaker-identity/character-linking.md`.
 
-- [ ] **Score learning loop** - use accumulated manual score overrides to tune the prompt or
-  scoring-weight vector semi-automatically. Requires a meaningful corpus of overrides first.
-
-- [ ] **Copyright content detection** *(deferred - no implementation path)* - detect music in
-  the audio track that might trigger copyright claims. Requires audio fingerprinting against a
-  reference database (AcoustID or similar); needs evaluation of fingerprinting libraries,
-  database licensing, and accuracy on gaming audio before it can be scoped.
-
 ---
 
-## 4 - Frontend polish
+## 4 - Larger / speculative features
 
-- [ ] **Sidebar grouping for split segments** - a collapsible parent row
+- [ ] **Sidebar grouping for split segments** *(speculative)* - a collapsible parent row
   "session.mkv (3 segments)" with indented children, as an alternative to the flat list.
   Deferred until the flat list proves insufficient in practice.
 
----
+- [ ] **Score learning loop** *(speculative)* - use accumulated manual score overrides to tune
+  the prompt or scoring-weight vector semi-automatically. Requires a meaningful corpus of
+  overrides first.
 
-## 5 - Larger / speculative features
+- [ ] **Copyright content detection** *(speculative - no implementation path)* - detect music in
+  the audio track that might trigger copyright claims. Requires audio fingerprinting against a
+  reference database (AcoustID or similar); needs evaluation of fingerprinting libraries,
+  database licensing, and accuracy on gaming audio before it can be scoped.
 
 - [ ] **Quality presets** *(on hold)* - named compute bundles ("Fast draft" / "Balanced" /
   "Max quality") that pick a matched set of Whisper model, energy mode, scene mode, and scoring
@@ -152,7 +88,7 @@ Wanted before distributing beyond friends/trusted users.
 
 ---
 
-## 6 - Platform reach
+## 5 - Platform reach
 
 - [ ] **AMD / Intel GPU support** - code analysis done; the two GPU paths are in very
   different shape:
