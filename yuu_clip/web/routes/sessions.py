@@ -22,7 +22,7 @@ from yuu_clip.db.models import ClipCandidate, RecordingSession, Video
 from yuu_clip.log import get_logger
 from yuu_clip.sessions import SessionCandidate, recording_start_time, suggest_session_groups
 from yuu_clip.web.deps import ProjectContext
-from yuu_clip.web.routes.common import active_job, json_list, reject_if_analyzing, sse_response
+from yuu_clip.web.routes.common import active_job, json_list, reject_if_busy, sse_response
 
 _log = get_logger(__name__)
 
@@ -276,7 +276,7 @@ def _register_detail_routes(router: APIRouter, ctx: ProjectContext) -> None:
         """Roll up a session title + summary from members and auto-commit. SSE-wrapped."""
         from yuu_clip.scoring.llm import summarize_session
 
-        reject_if_analyzing(ctx)
+        reject_if_busy(ctx, "Session summary")
         db = ctx.get_db()
         try:
             session = db.get(RecordingSession, session_id)

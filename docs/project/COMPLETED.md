@@ -6,6 +6,38 @@ Older entries live in [COMPLETED-archive.md](COMPLETED-archive.md) - see the
 
 ---
 
+## Sequential-and-honest processing + unified progress (done 2026-07-14)
+
+Made the app's existing "one job at a time" reality honest, consistent, and
+well-instrumented (the app stays sequential - true parallelism is still deferred):
+
+- **One uniform busy policy.** A single `reject_if_busy` guard now serializes every
+  user-initiated long op (analyze, score/rescore, re-transcribe, re-diarize, re-extract,
+  regenerate clips, summarize, timeline, find-similar, speaker-name suggestions, export,
+  highlight reel, image analysis) behind one clear "another job is running - wait or
+  cancel" message, replacing the analyze-only, guard-by-guard checks. Auto-triggered
+  rendering conveniences (proxy warm, waveform) and sub-second edits (duplicate scan,
+  name-corrections apply) stay fast and unguarded by design.
+- **Every long op is counted.** Subprocess jobs (score/export/re-transcribe/reel/...) now
+  increment `active_jobs`, so `/api/status.any_running` and its `active_jobs` count are
+  accurate (they read 0 during those jobs before) and the server-restart safety check sees
+  them. `any_running` and the guard share one `job_in_flight` source of truth.
+- **Deterministic progress channel.** The analyze/score engine emits a structured
+  `@@PROGRESS` marker (`pipeline/progress.py`) alongside the human log lines; the web UI
+  drives the job pills off the marker instead of regex-matching prose (the prose regexes
+  stay one release as a fallback). A coupling test fails if the engine's stage set and the
+  browser's ever drift.
+- **Image analysis is now a first-class, navigation-surviving job.** "Analyze frames" was a
+  blocking fetch whose spinner lived on a DOM button - a clip switch orphaned it and its
+  result could land in the wrong panel. It is now a counted SSE job (sampling -> describing
+  stages) shown in the job header, with its in-flight state tied to the clip id in app
+  state so the indicator is restored when you return to that clip, and its result only
+  renders if that clip is still on screen.
+- **Blocked actions look blocked.** While a job runs, heavy per-clip buttons disable with a
+  why-tooltip, including on a panel rebuilt mid-job.
+
+---
+
 ## Code-quality review residuals - visual-decode perf + dev-CLI warning (done 2026-07-14)
 
 The last two deferred items from the stage-by-stage code-quality review, both internal:

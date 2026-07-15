@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import asyncio
 import importlib.util
+import json
+import tempfile
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -25,7 +27,13 @@ from yuu_clip.web.routes.clips.schemas import (
     ClipTimingUpdate,
 )
 from yuu_clip.web.routes.clips.serialize import _clip_dict
-from yuu_clip.web.routes.common import json_list, reject_if_analyzing, require_clip
+from yuu_clip.web.routes.common import (
+    active_job,
+    json_list,
+    reject_if_busy,
+    require_clip,
+    sse_response,
+)
 
 _log = get_logger(__name__)
 
@@ -237,21 +245,22 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
     @router.post("/api/clips/{clip_id}/analyze-frames")
     async def analyze_frames(clip_id: int):
         """Sample frames from the clip window, send them to the vision model, and store
-        a short 'what's on screen' summary that enriches descriptions and gives the text
-        scorer visual context. In-process (asyncio.to_thread) - seconds, not minutes, so
-        no SSE. 503 when no vision-capable model is configured. Re-running
-        overwrites the previous summary.
+        a short 'what's on screen' summary. Streamed as SSE with two stages (sampling
+        frames -> describing) so it shows in the job header and survives navigation like
+        every other long op; counted (active_job) and serialized via reject_if_busy.
+        503 when no vision-capable model is configured. Re-running overwrites the summary.
         """
         from yuu_clip.analyze.frames import (
             clamp_frame_count,
             resolve_frame_window,
-            sample_and_describe,
+            sample_clip_frames,
         )
         from yuu_clip.contexts import format_context_block, load_contexts
-        from yuu_clip.scoring.llm import check_vision_available
+        from yuu_clip.pipeline.progress import Stage, format_progress
+        from yuu_clip.scoring.llm import check_vision_available, describe_frames
         from yuu_clip.scoring.llm_client import VisionNotSupportedError
 
-        reject_if_analyzing(ctx)
+        reject_if_busy(ctx, "Image analysis")
         vision_ok, reason = check_vision_available(ctx.config)
         if not vision_ok:
             raise HTTPException(503, f"Image analysis unavailable - {reason}")
@@ -271,36 +280,58 @@ def register(router: APIRouter, ctx: ProjectContext) -> None:
             db.close()
 
         context_text = format_context_block(load_contexts(ctx.project_dir), context_names)
-        started = time.monotonic()
-        try:
-            summary = await asyncio.to_thread(
-                sample_and_describe, encode_src, start_s, end_s,
-                frame_count, ctx.config, context_text,
-            )
-        except VisionNotSupportedError as exc:
-            raise HTTPException(503, f"Image analysis unavailable - {exc}")
-        except Exception as exc:
-            _log.error("Frame analysis failed for clip %d: %s", clip_id, exc, exc_info=True)
-            raise HTTPException(500, "Image analysis failed - see the log for details")
-        if not summary:
-            raise HTTPException(502, "The vision model returned an empty description - try again")
-        elapsed_s = round(time.monotonic() - started, 1)
 
-        save_db = ctx.get_db()
-        try:
-            stored = save_db.get(ClipCandidate, clip_id)
-            if not stored:
-                raise HTTPException(404, "Clip not found")
-            stored.vision_summary = summary
-            stored.vision_analyzed_at = datetime.now(timezone.utc)
-            save_db.commit()
-            analyzed_at = stored.vision_analyzed_at
-        finally:
-            save_db.close()
-        _log.info("Analyzed %d frame(s) for clip %d in %.1fs", frame_count, clip_id, elapsed_s)
-        return {
-            "clip_id": clip_id,
-            "vision_summary": summary,
-            "vision_analyzed_at": analyzed_at.isoformat(),
-            "elapsed_s": elapsed_s,
-        }
+        def _sse(payload) -> str:
+            return f"data: {json.dumps(payload)}\n\n"
+
+        async def event_stream():
+            async with active_job(ctx):
+                started = time.monotonic()
+                # Sampling and inference share a temp dir: the frame files must still
+                # exist on disk while describe_frames reads them, so both awaits live
+                # inside the same TemporaryDirectory context.
+                try:
+                    with tempfile.TemporaryDirectory() as tmp_dir:
+                        yield _sse(format_progress(Stage.FRAMES_SAMPLE, done=0, total=frame_count))
+                        frames = await asyncio.to_thread(
+                            sample_clip_frames, encode_src, start_s, end_s, frame_count, Path(tmp_dir)
+                        )
+                        if not frames:
+                            yield _sse("[Error: could not sample any frames from the clip window]")
+                            yield _sse("__DONE__")
+                            return
+                        yield _sse(format_progress(Stage.FRAMES_SAMPLE, done=len(frames), total=frame_count))
+                        yield _sse(format_progress(Stage.FRAMES_DESCRIBE))
+                        summary = await asyncio.to_thread(
+                            describe_frames, frames, ctx.config, context_text
+                        )
+                except VisionNotSupportedError as exc:
+                    yield _sse(f"[Image analysis unavailable - {exc}]")
+                    yield _sse("__DONE__")
+                    return
+                except Exception as exc:
+                    _log.error("Frame analysis failed for clip %d: %s", clip_id, exc, exc_info=True)
+                    yield _sse("[Image analysis failed - see the log for details]")
+                    yield _sse("__DONE__")
+                    return
+
+                if not summary:
+                    yield _sse("[The vision model returned an empty description - try again]")
+                    yield _sse("__DONE__")
+                    return
+
+                elapsed_s = round(time.monotonic() - started, 1)
+                save_db = ctx.get_db()
+                try:
+                    stored = save_db.get(ClipCandidate, clip_id)
+                    if stored:
+                        stored.vision_summary = summary
+                        stored.vision_analyzed_at = datetime.now(timezone.utc)
+                        save_db.commit()
+                finally:
+                    save_db.close()
+                _log.info("Analyzed %d frame(s) for clip %d in %.1fs", len(frames), clip_id, elapsed_s)
+                yield _sse(f"Analyzed {len(frames)} frame(s) in {elapsed_s}s")
+                yield _sse("__DONE__")
+
+        return sse_response(event_stream())

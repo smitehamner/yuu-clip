@@ -271,18 +271,27 @@ class TestRejectWhileAnalyzing:
     def test_reject_helper_only_fires_while_in_flight(self):
         from fastapi import HTTPException
 
-        from yuu_clip.web.routes.common import reject_if_analyzing
+        from yuu_clip.web.routes.common import reject_if_busy
 
         class _Ctx:
             analyze_job = None
             analyze_proc = None
+            active_jobs = 0
+            proxy_generating: set = set()
 
         ctx = _Ctx()
-        reject_if_analyzing(ctx)  # idle → no raise
+        reject_if_busy(ctx, "Scoring")  # idle → no raise
 
+        # Any of the three busy signals must trip the guard.
         ctx.analyze_job = _RunningJob()
         with pytest.raises(HTTPException) as exc:
-            reject_if_analyzing(ctx)
+            reject_if_busy(ctx, "Scoring")
+        assert exc.value.status_code == 409
+
+        ctx.analyze_job = None
+        ctx.active_jobs = 1
+        with pytest.raises(HTTPException) as exc:
+            reject_if_busy(ctx, "Scoring")
         assert exc.value.status_code == 409
 
     def test_score_all_rejected(self, project_dir):
@@ -304,3 +313,44 @@ class TestRejectWhileAnalyzing:
             vid = tc.get("/api/videos").json()[0]["id"]
             app.state.ctx.analyze_job = _RunningJob()
             assert tc.get(f"/api/videos/{vid}/rediarize").status_code == 409
+
+    # The uniform busy policy: every long op 409s while ANY job is counted in
+    # active_jobs (not only while an analyze subprocess is in flight).
+    @pytest.mark.parametrize("method,path", [
+        ("post", "/api/score"),
+        ("get",  "/api/videos/{vid}/rescore-clips"),
+        ("get",  "/api/videos/{vid}/timeline"),
+        ("get",  "/api/videos/{vid}/regenerate-summary"),
+        ("get",  "/api/videos/{vid}/infer-speaker-names"),
+        ("post", "/api/videos/{vid}/summarize"),
+        ("get",  "/api/clips/1/rescore"),
+        ("get",  "/api/clips/1/related-clips"),
+        ("post", "/api/clips/1/analyze-frames"),
+        ("get",  "/api/clips/1/export"),
+    ])
+    def test_long_op_rejected_when_any_job_running(self, project_dir, method, path):
+        app = create_app(project_dir)
+        with TestClient(app) as tc:
+            vid = tc.get("/api/videos").json()[0]["id"]
+            app.state.ctx.active_jobs = 1  # a non-analyze job is in flight
+            resp = getattr(tc, method)(path.format(vid=vid))
+            assert resp.status_code == 409, f"{method} {path}: {resp.status_code}"
+
+    def test_analyze_start_rejected_when_any_job_running(self, project_dir):
+        app = create_app(project_dir)
+        with TestClient(app) as tc:
+            vid = tc.get("/api/videos").json()[0]["id"]
+            app.state.ctx.active_jobs = 1
+            resp = tc.post("/api/analyze/start", json={"video_id": vid})
+            assert resp.status_code == 409
+
+    def test_status_any_running_reflects_active_jobs(self, project_dir):
+        app = create_app(project_dir)
+        with TestClient(app) as tc:
+            base = tc.get("/api/status").json()
+            assert base["any_running"] is False and base["active_jobs"] == 0
+            app.state.ctx.active_jobs = 1  # a counted job, not an analyze subprocess
+            busy = tc.get("/api/status").json()
+            assert busy["any_running"] is True
+            assert busy["analyze_running"] is False
+            assert busy["active_jobs"] == 1

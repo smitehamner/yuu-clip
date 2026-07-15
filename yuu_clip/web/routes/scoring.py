@@ -21,7 +21,7 @@ from yuu_clip.web.deps import ProjectContext
 from yuu_clip.web.routes.common import (
     active_job,
     json_list,
-    reject_if_analyzing,
+    reject_if_busy,
     require_clip,
     sse_response,
 )
@@ -210,7 +210,7 @@ def _register_hotword_scan_route(router: APIRouter, ctx: ProjectContext) -> None
         from yuu_clip.scoring.similarity import make_backend
         from yuu_clip.scoring.term_scope import terms_for_video
 
-        reject_if_analyzing(ctx)
+        reject_if_busy(ctx, "Hot-word scan")
         db = ctx.get_db()
         try:
             video = db.get(Video, video_id)
@@ -302,7 +302,7 @@ def _rescore_video_clips(
     ctx: ProjectContext, video_id: int, failed_only: bool, include_frames: bool = False,
     full: bool = False,
 ):
-    reject_if_analyzing(ctx)
+    reject_if_busy(ctx, "Scoring")
     if include_frames:
         from yuu_clip.scoring.llm import check_vision_available
         vision_ok, reason = check_vision_available(ctx.config)
@@ -413,6 +413,7 @@ def _register_rescore_routes(router: APIRouter, ctx: ProjectContext) -> None:
     async def stream_timeline(video_id: int, interval_s: Optional[int] = Query(None)):
         """Generate a session timeline by chunking the transcript and calling the LLM.
         Streams each entry as an SSE event as it completes."""
+        reject_if_busy(ctx, "Timeline")
         db = ctx.get_db()
         try:
             video = db.get(Video, video_id)
@@ -501,56 +502,61 @@ def _register_rescore_routes(router: APIRouter, ctx: ProjectContext) -> None:
 
 def _register_summary_routes(router: APIRouter, ctx: ProjectContext) -> None:
     @router.post("/api/videos/{video_id}/summarize")
-    def summarize_video(video_id: int):
+    async def summarize_video(video_id: int):
         """Generate title + summary via LLM and return them for the compare modal.
 
         Does NOT write to the DB - the caller commits via PATCH /fields after the
-        user accepts the result in the diff modal.
+        user accepts the result in the diff modal. Counted as a job (active_job) so
+        the uniform busy guard serializes it against everything else; the blocking
+        LLM call runs off the event loop.
         """
         from yuu_clip.scoring.llm import check_llm_available, summarize_transcript
-        db = ctx.get_db()
-        try:
-            video = db.get(Video, video_id)
-            if not video:
-                raise HTTPException(404, "Video not found")
 
-            context_names = json_list(video.context_names_json)
-            full_text = _video_transcript_text(db, video_id)
-
-            if not full_text:
-                raise HTTPException(400, "No transcript available - analyze the recording first")
-
-            llm_ok, llm_reason = check_llm_available(ctx.config)
-            if not llm_ok:
-                return _needs_model_payload("summary", llm_reason, ctx.config)
-
-            title_current   = video.effective_title
-            summary_current = video.effective_summary
-
-            context_text = format_context_block(load_contexts(ctx.project_dir), context_names)
+        reject_if_busy(ctx, "Summary")
+        async with active_job(ctx):
+            db = ctx.get_db()
             try:
-                title_new, summary_new = summarize_transcript(
-                    full_text, ctx.config, context_text=context_text
-                )
-            except Exception as exc:
-                _log.warning("summarize failed for video %d: %s", video_id, exc, exc_info=True)
-                raise HTTPException(502, f"LLM error: {exc}")
+                video = db.get(Video, video_id)
+                if not video:
+                    raise HTTPException(404, "Video not found")
 
-            return {
-                "title_new": title_new,
-                "summary_new": summary_new,
-                "title_current": title_current,
-                "summary_current": summary_current,
-            }
-        finally:
-            db.close()
+                context_names = json_list(video.context_names_json)
+                full_text = _video_transcript_text(db, video_id)
+
+                if not full_text:
+                    raise HTTPException(400, "No transcript available - analyze the recording first")
+
+                llm_ok, llm_reason = check_llm_available(ctx.config)
+                if not llm_ok:
+                    return _needs_model_payload("summary", llm_reason, ctx.config)
+
+                title_current   = video.effective_title
+                summary_current = video.effective_summary
+
+                context_text = format_context_block(load_contexts(ctx.project_dir), context_names)
+                try:
+                    title_new, summary_new = await asyncio.to_thread(
+                        summarize_transcript, full_text, ctx.config, context_text=context_text
+                    )
+                except Exception as exc:
+                    _log.warning("summarize failed for video %d: %s", video_id, exc, exc_info=True)
+                    raise HTTPException(502, f"LLM error: {exc}")
+
+                return {
+                    "title_new": title_new,
+                    "summary_new": summary_new,
+                    "title_current": title_current,
+                    "summary_current": summary_current,
+                }
+            finally:
+                db.close()
 
     @router.get("/api/videos/{video_id}/regenerate-summary")
     async def regenerate_summary(video_id: int):
         """Regenerate title + summary and auto-commit to DB. Streams one log line as SSE."""
         from yuu_clip.scoring.llm import summarize_transcript
 
-        reject_if_analyzing(ctx)
+        reject_if_busy(ctx, "Summary")
         db = ctx.get_db()
         try:
             video = db.get(Video, video_id)
@@ -613,7 +619,7 @@ def _register_summary_routes(router: APIRouter, ctx: ProjectContext) -> None:
 def _register_clip_scoring_routes(router: APIRouter, ctx: ProjectContext) -> None:
     @router.get("/api/clips/{clip_id}/rescore")
     async def rescore_clip(clip_id: int, full: bool = Query(False)):
-        reject_if_analyzing(ctx)
+        reject_if_busy(ctx, "Scoring")
         db = ctx.get_db()
         try:
             clip = require_clip(db, clip_id)
@@ -692,7 +698,7 @@ def _register_clip_scoring_routes(router: APIRouter, ctx: ProjectContext) -> Non
         from yuu_clip.scoring.llm import check_llm_available
         from yuu_clip.scoring.llm import describe_clip as _describe_clip
 
-        reject_if_analyzing(ctx)
+        reject_if_busy(ctx, "Re-describe")
         db = ctx.get_db()
         try:
             video = db.get(Video, video_id)
@@ -764,6 +770,7 @@ def _register_clip_scoring_routes(router: APIRouter, ctx: ProjectContext) -> Non
         """
         from yuu_clip.scoring.similarity import make_backend
 
+        reject_if_busy(ctx, "Find similar")
         config = ctx.config
 
         db = ctx.get_db()

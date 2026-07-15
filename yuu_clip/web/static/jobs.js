@@ -27,25 +27,59 @@ let _stepRateAnchor = {}; // stepIdx -> {t, current} at first observed count, cl
 // progressPattern: regex with two capture groups (current, total) matched
 // against incoming log lines while this step is active, so the pill can show
 // "3/12 (25%)" and a live ETA instead of just elapsed time.
+// stage: the machine-readable id from the @@PROGRESS marker (yuu_clip/pipeline/
+// progress.py Stage). The marker drives the pill deterministically; the patterns/
+// progressPattern regexes below stay as a one-release fallback for the human log
+// lines. The stage set here is coupling-guarded against progress.py by
+// tests/unit/test_progress_stage_coupling.py.
 const INGEST_STEPS = [
-  {label: 'Extract',        patterns: ['Extracting audio'],      estMatch: ['extract audio'],  progressPattern: /Track (\d+)\/(\d+)/},
-  {label: 'Transcribe',     patterns: ['Transcribing'],          estMatch: ['transcribe', 'load captions'], progressPattern: /Track (\d+)\/(\d+)/, waitPattern: /Waiting for the speech-to-text model/},
-  {label: 'Speakers',       patterns: ['Detecting speakers'],    estMatch: ['speaker labels']},
-  {label: 'Generate Clips', patterns: ['Generating clip']},
-  {label: 'Energy',         patterns: ['Computing audio energy'], estMatch: ['audio energy']},
-  {label: 'Scenes',         patterns: ['Detecting scene'],       estMatch: ['scene detection']},
-  {label: 'Score',          patterns: ['Scoring clips'],         estMatch: ['llm scoring'], progressPattern: /Scoring (\d+)\/(\d+)/},
+  {label: 'Extract',        stage: 'extract',        patterns: ['Extracting audio'],      estMatch: ['extract audio'],  progressPattern: /Track (\d+)\/(\d+)/},
+  {label: 'Transcribe',     stage: 'transcribe',     patterns: ['Transcribing'],          estMatch: ['transcribe', 'load captions'], progressPattern: /Track (\d+)\/(\d+)/, waitPattern: /Waiting for the speech-to-text model/},
+  {label: 'Speakers',       stage: 'speakers',       patterns: ['Detecting speakers'],    estMatch: ['speaker labels']},
+  {label: 'Generate Clips', stage: 'generate_clips', patterns: ['Generating clip']},
+  {label: 'Energy',         stage: 'energy',         patterns: ['Computing audio energy'], estMatch: ['audio energy']},
+  {label: 'Scenes',         stage: 'scenes',         patterns: ['Detecting scene'],       estMatch: ['scene detection']},
+  {label: 'Score',          stage: 'score',          patterns: ['Scoring clips'],         estMatch: ['llm scoring'], progressPattern: /Scoring (\d+)\/(\d+)/},
 ];
 const SCORE_STEPS = [
-  {label: 'Energy',  patterns: ['Computing audio energy']},
-  {label: 'Scenes',  patterns: ['Detecting scene']},
-  {label: 'Scoring', patterns: ['Scoring clips'], progressPattern: /Scoring (\d+)\/(\d+)/},
+  {label: 'Energy',  stage: 'energy', patterns: ['Computing audio energy']},
+  {label: 'Scenes',  stage: 'scenes', patterns: ['Detecting scene']},
+  {label: 'Scoring', stage: 'score',  patterns: ['Scoring clips'], progressPattern: /Scoring (\d+)\/(\d+)/},
 ];
+// Marker-driven only (the analyze-frames SSE emits no prose stage lines), so these
+// carry no patterns - just the two @@PROGRESS stages the vision route emits.
+const FRAMES_STEPS = [
+  {label: 'Sample',   stage: 'frames_sample',   patterns: []},
+  {label: 'Describe', stage: 'frames_describe', patterns: []},
+];
+
+// The full set of known @@PROGRESS stage ids - the JS mirror of progress.py's
+// Stage enum. frames_sample/frames_describe drive the analyze-frames job. Kept
+// as its own set (not derived from the step defs) so it stays the coupling
+// anchor even for stages whose step def lives elsewhere.
+const _PROGRESS_PREFIX = '@@PROGRESS ';
+const JOB_STAGES = new Set([
+  'extract', 'transcribe', 'speakers', 'generate_clips',
+  'energy', 'scenes', 'score', 'frames_sample', 'frames_describe',
+]);
+
+// Mirror of progress.py parse_progress: returns the marker payload, or null for
+// any non-marker / malformed / unknown-stage line (so ordinary log output falls
+// through to the prose fallback rather than being misread as progress).
+function parseProgress(line) {
+  if (!line || !line.startsWith(_PROGRESS_PREFIX)) return null;
+  let payload;
+  try { payload = JSON.parse(line.slice(_PROGRESS_PREFIX.length)); }
+  catch (e) { return null; }
+  if (!payload || typeof payload !== 'object' || !JOB_STAGES.has(payload.stage)) return null;
+  return payload;
+}
 
 // stepIdx -> a transient status message shown in place of the step's timing
 // label (e.g. "waiting for the speech model to finish downloading"). Set when a
 // step's waitPattern matches, cleared when that step reports real progress.
 let _stepWaitingMsg = {};
+let _jobActive     = false;
 let _activeJobCleanup = null;
 let _jobTimer      = null;
 let _jobHideTimer  = null;
@@ -65,7 +99,22 @@ function _estimateHmsFor(stepDef) {
   return match ? match.hms : null;
 }
 
+// Per-item buttons that trigger a heavy op are tagged data-job-blocked. Disable
+// them (with a why-tooltip) while any job runs so a user can't start a second job
+// the backend would just 409. The header #btn-analyze is handled inline below.
+// renderDetail calls applyJobBlockedState() so a panel rebuilt mid-job comes up
+// already disabled - the tag lives in freshly-built innerHTML, not a live node.
+function _setJobBlockedButtons(disabled) {
+  document.querySelectorAll('[data-job-blocked]').forEach(b => {
+    b.disabled = disabled;
+    b.title = disabled ? 'Another job is running - wait for it to finish or cancel it' : '';
+  });
+}
+
+function applyJobBlockedState() { _setJobBlockedButtons(_jobActive); }
+
 function startJobUI(stepDefs, jobLabel, cancellable = false, pausable = false) {
+  _jobActive     = true;
   _jobStepDefs   = stepDefs;
   _activeStepIdx = -1;
   _jobStartTime  = Date.now();
@@ -91,6 +140,7 @@ function startJobUI(stepDefs, jobLabel, cancellable = false, pausable = false) {
   document.querySelectorAll('#btn-analyze,#btn-score').forEach(b => b.disabled = true);
   const analyzeBtn = document.getElementById('btn-analyze');
   if (analyzeBtn) analyzeBtn.title = 'A job is already running';
+  _setJobBlockedButtons(true);
   document.getElementById('btn-cancel-job').style.display = cancellable ? '' : 'none';
   _renderPauseUI();
   if (_jobThermalPollTimer) clearInterval(_jobThermalPollTimer);
@@ -181,27 +231,43 @@ async function togglePauseJob() {
   }
 }
 
-function updateJobUI(line) {
+// Mark step *idx* active and every earlier step done. Shared by the prose
+// matcher (updateJobUI) and the marker path (_driveStepFromMarker) so a stage
+// advance behaves identically however it was detected.
+function _activateStep(idx) {
   const prevStepIdx = _activeStepIdx;
-  _jobStepDefs.forEach((s, i) => {
-    if (s.patterns.some(p => line.includes(p))) {
-      for (let j = 0; j < i; j++) {
-        const el = document.getElementById(`step-${j}`);
-        if (el) { el.className = 'step done'; el.style.backgroundImage = ''; el.textContent = '✓'; el.title = _jobStepDefs[j].label; }
-      }
-      const el = document.getElementById(`step-${i}`);
-      if (el) { el.className = 'step active'; _activeStepIdx = i; }
-    }
-  });
+  for (let j = 0; j < idx; j++) {
+    const el = document.getElementById(`step-${j}`);
+    if (el) { el.className = 'step done'; el.style.backgroundImage = ''; el.textContent = '✓'; el.title = _jobStepDefs[j].label; }
+  }
+  const el = document.getElementById(`step-${idx}`);
+  if (el) { el.className = 'step active'; _activeStepIdx = idx; }
   if (_activeStepIdx !== prevStepIdx) {
     _stepStartTime = Date.now();
     // When the pipeline advances a stage, refresh the sidebar so a newly-analyzing
-    // recording appears (replacing its placeholder) and its status stays current.
+    // recording appears (replacing its placeholder) and its status stays current,
+    // and refresh the open clip list to pick up freshly-committed clips/scores.
     _debouncedSidebarRefresh();
-    // Also refresh the open clip list - picks up the batch "Generate Clips" just
-    // committed, and clears any stale progress text from the stage just left.
     _debouncedClipListRefresh();
   }
+}
+
+// Record a step's current/total, anchoring the throughput rate at the first
+// observed count so a cold first item is excluded from the ETA extrapolation.
+function _setStepProgress(idx, current, total) {
+  // Real progress means any wait (e.g. model download) is over - drop it so the
+  // pill switches back to live counts.
+  delete _stepWaitingMsg[idx];
+  _stepProgress[idx] = {current, total};
+  if (!_stepRateAnchor[idx]) _stepRateAnchor[idx] = {t: Date.now(), current};
+  _renderStepPill(idx);
+  _debouncedClipListRefresh();
+}
+
+function updateJobUI(line) {
+  _jobStepDefs.forEach((s, i) => {
+    if (s.patterns.some(p => line.includes(p))) _activateStep(i);
+  });
   const activeDef = _jobStepDefs[_activeStepIdx];
   if (activeDef && activeDef.waitPattern && activeDef.waitPattern.test(line)) {
     _stepWaitingMsg[_activeStepIdx] = 'waiting for the speech model to finish downloading';
@@ -209,18 +275,19 @@ function updateJobUI(line) {
   }
   if (activeDef && activeDef.progressPattern) {
     const m = line.match(activeDef.progressPattern);
-    if (m) {
-      // Real progress means the model is ready and transcription is running -
-      // drop any waiting message so the pill switches back to live counts.
-      delete _stepWaitingMsg[_activeStepIdx];
-      const current = parseInt(m[1], 10);
-      _stepProgress[_activeStepIdx] = {current, total: parseInt(m[2], 10)};
-      // Anchor the rate at the first observed count so the cold first item
-      // (model load, warmup) is excluded from the ETA extrapolation.
-      if (!_stepRateAnchor[_activeStepIdx]) _stepRateAnchor[_activeStepIdx] = {t: Date.now(), current};
-      _renderStepPill(_activeStepIdx);
-      _debouncedClipListRefresh();
-    }
+    if (m) _setStepProgress(_activeStepIdx, parseInt(m[1], 10), parseInt(m[2], 10));
+  }
+  if (window._syncAnalysisLivePanel) _syncAnalysisLivePanel();
+}
+
+// Drive the pill row from a parsed @@PROGRESS marker: deterministic stage
+// advance plus optional current/total, keyed on the step def's stage id.
+function _driveStepFromMarker(marker) {
+  const idx = _jobStepDefs.findIndex(s => s.stage === marker.stage);
+  if (idx < 0) return;
+  _activateStep(idx);
+  if (typeof marker.done === 'number' && typeof marker.total === 'number' && marker.total > 0) {
+    _setStepProgress(idx, marker.done, marker.total);
   }
   if (window._syncAnalysisLivePanel) _syncAnalysisLivePanel();
 }
@@ -317,6 +384,7 @@ function endJobUI() {
   if (_jobThermalPollTimer) { clearInterval(_jobThermalPollTimer); _jobThermalPollTimer = null; }
   const gpuTemp = document.getElementById('job-gpu-temp');
   if (gpuTemp) gpuTemp.style.display = 'none';
+  _jobActive = false;
   _jobHideTimer = setTimeout(() => {
     _jobHideTimer = null;
     document.getElementById('job-status').classList.remove('visible');
@@ -324,6 +392,7 @@ function endJobUI() {
     document.querySelectorAll('#btn-analyze,#btn-score').forEach(b => b.disabled = false);
     const analyzeBtn = document.getElementById('btn-analyze');
     if (analyzeBtn) analyzeBtn.title = '';
+    _setJobBlockedButtons(false);
     const totalApproved = (AppState.videos || []).reduce((n, v) => n + v.approved, 0);
     _updateDemoButton(totalApproved);
     if (window._renderClipFilterCounts) _renderClipFilterCounts();
@@ -412,12 +481,20 @@ function _blockedByAnalyze(actionLabel) {
 
 // onLine (optional): called with each raw SSE payload line before __DONE__, for
 // callers that need live progress text (e.g. the proxy-build percentage).
-function streamSSE(url, onDone, stepDefs, jobLabel, cancellable = false, onLine = null, pausable = false) {
+// opts (optional): fetch init passed through to _openSSE, e.g. {method: 'POST'}
+// for a POST-only SSE endpoint (analyze-frames).
+function streamSSE(url, onDone, stepDefs, jobLabel, cancellable = false, onLine = null, pausable = false, opts = {}) {
   _supersedeActiveStream();
   if (stepDefs) startJobUI(stepDefs, jobLabel, cancellable, pausable);
   const handle = _openSSE(
     url,
-    text => { appendLog(text); if (onLine) onLine(text); if (stepDefs) updateJobUI(text); },
+    text => {
+      // A @@PROGRESS marker drives the pills deterministically and is NOT shown as
+      // a log line; everything else falls through to the log + prose fallback.
+      const marker = stepDefs ? parseProgress(text) : null;
+      if (marker) { _driveStepFromMarker(marker); return; }
+      appendLog(text); if (onLine) onLine(text); if (stepDefs) updateJobUI(text);
+    },
     () => {
       _clearActiveStream(handle);
       if (stepDefs) endJobUI();
@@ -431,6 +508,7 @@ function streamSSE(url, onDone, stepDefs, jobLabel, cancellable = false, onLine 
       if (stepDefs) endJobUI();
       loadVideos();
     },
+    opts,
   );
   _setActiveStream(handle, stepDefs ? endJobUI : null);
 }
@@ -497,8 +575,8 @@ async function _doCancelJob() {
 }
 
 Object.assign(window, {
-  INGEST_STEPS, SCORE_STEPS,
-  startJobUI, updateJobUI, endJobUI, _stepPillLabel, _renderStepPill, _tickJobTimer,
+  INGEST_STEPS, SCORE_STEPS, FRAMES_STEPS, JOB_STAGES, parseProgress, _driveStepFromMarker,
+  startJobUI, updateJobUI, endJobUI, applyJobBlockedState, _stepPillLabel, _renderStepPill, _tickJobTimer,
   _setPausedUIFromStatus, togglePauseJob, _pollThermalStatus,
   _openSSE, streamSSE, _setActiveStream, _clearActiveStream, _supersedeActiveStream,
   _blockedByAnalyze, _waitWhileAnalyzePaused,

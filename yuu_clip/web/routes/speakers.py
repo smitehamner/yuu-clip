@@ -35,6 +35,7 @@ from yuu_clip.web.routes.common import (
     active_job,
     json_list,
     rebuild_video_excerpts,
+    reject_if_busy,
     sse_response,
 )
 
@@ -112,6 +113,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         """
         from yuu_clip.scoring.llm import check_llm_available, infer_speaker_names
 
+        reject_if_busy(ctx, "Speaker name suggestions")
         db = ctx.get_db()
         try:
             video = db.get(Video, video_id)

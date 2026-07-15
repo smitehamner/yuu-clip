@@ -72,12 +72,14 @@ Implemented-but-unverified surfaces and latent traps to close before distributio
   the packaged-app verification checklist has never been run - it can't be exercised
   from browser-dev mode.
 
-- [ ] **Engine still speaks in `console.print` (Rich markup)** - the `pipeline/` and
-  `export/` engines emit progress by printing Rich-markup strings to stdout, which the
-  web UI streams verbatim over SSE (stdout *is* the progress interface). Left as-is in
-  repo-legibility stage 05 (deliberate - "printing is the interface, don't redesign").
-  If the engine ever needs to run in-process (no subprocess) or emit structured
-  progress, replace the `console.print` calls with a progress-callback/event seam.
+- [ ] **Retire the prose-regex progress fallback** - the analyze/score pipeline now emits
+  a structured `@@PROGRESS` marker (`pipeline/progress.py`) alongside the human
+  `console.print` lines, and the web UI drives the job pills off that marker (see the
+  sequential-and-honest processing work). The old prose regexes in `jobs.js`
+  (`INGEST_STEPS`/`SCORE_STEPS` `patterns`) are kept one release as a fallback - remove
+  them once the marker path is proven in real runs. Still open: the `export/` engine
+  emits progress via `console.print` only (no marker channel yet); add one if export
+  ever needs a structured progress bar or to run in-process.
 
 ---
 

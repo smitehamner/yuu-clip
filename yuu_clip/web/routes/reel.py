@@ -24,7 +24,7 @@ from yuu_clip.export.paths import export_paths
 from yuu_clip.log import get_logger
 from yuu_clip.web.deps import ProjectContext
 from yuu_clip.web.file_deletion import delete_files, locked_files_error
-from yuu_clip.web.routes.common import srt_to_vtt
+from yuu_clip.web.routes.common import reject_if_busy, srt_to_vtt
 from yuu_clip.web.sse import subprocess_sse
 
 _log = get_logger(__name__)
@@ -149,7 +149,10 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         """Stream demo compilation progress as SSE. Call /api/demo/start first."""
         if not ctx.demo_cmd:
             raise HTTPException(400, "No demo queued. Call /api/demo/start first.")
-        return await subprocess_sse(ctx.demo_cmd, ctx.project_dir, ctx, clear_cmd_attr="demo_cmd")
+        reject_if_busy(ctx, "Highlight reel")
+        return await subprocess_sse(
+            ctx.demo_cmd, ctx.project_dir, ctx, clear_cmd_attr="demo_cmd", track_active_job=True
+        )
 
     @router.get("/api/demo/approved-clips")
     def approved_clips_for_reel(

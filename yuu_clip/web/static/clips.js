@@ -594,6 +594,8 @@ function renderDetail(clip) {
     gateOnCapability(visionBtn, 'vision',
       'Frame analysis needs a vision-capable model.');
   }
+  // A panel rebuilt while a job runs must come up with its heavy buttons disabled.
+  if (window.applyJobBlockedState) applyJobBlockedState();
 }
 
 // A clip with no transcript excerpt (video-heavy-analysis Stage 03 - a silent,
@@ -622,6 +624,12 @@ function _transcriptCardHTML(clip) {
 }
 
 // ── image-based clip analysis (What's on screen) ─────────────────────────────
+function _visionSpinnerButton() {
+  return `<button class="btn ghost" id="analyze-frames-btn" style="font-size:12px;padding:3px 10px" disabled>`
+    + `<span class="spinner" style="display:inline-block;vertical-align:middle;width:11px;height:11px"></span> `
+    + `Analyzing frames...</button>`;
+}
+
 function _visionDetailHTML(clip) {
   // Master switch (Settings → Image analysis). On by default; the button itself is
   // still gated on a vision-capable model being configured (gateOnCapability above).
@@ -633,44 +641,50 @@ function _visionDetailHTML(clip) {
     ? `<div class="description-long">${escHtml(summary)}</div>
        <div style="font-size:11px;color:var(--muted);margin-top:4px">Analyzed ${_fmtAgo(clip.vision_analyzed_at)}</div>`
     : `<div style="color:var(--muted);font-size:13px">Sample frames from this clip and describe what's on screen - it enriches the description and gives scoring visual context.</div>`;
+  // If an analyze-frames job for THIS clip is in flight, render the spinner from
+  // AppState.clipJobs (not a captured DOM node) so the indicator survives a
+  // renderDetail rebuild or a clip switch-away-and-back. Otherwise the normal
+  // button, tagged data-job-blocked so it disables while some OTHER job runs.
+  const inFlight = AppState.clipJobs[clip.id] && AppState.clipJobs[clip.id].op === 'analyze-frames';
+  const buttonHtml = inFlight
+    ? _visionSpinnerButton()
+    : `<button class="btn ghost" id="analyze-frames-btn" data-job-blocked style="font-size:12px;padding:3px 10px"
+                onclick="analyzeFrames(${clip.id})">${btnLabel}</button>`;
   return collapsibleCard('clip-vision',
     `<span class="detail-card-title">What's on screen</span>`, `
       ${body}
-      <div style="margin-top:8px">
-        <button class="btn ghost" id="analyze-frames-btn" style="font-size:12px;padding:3px 10px"
-                onclick="analyzeFrames(${clip.id}, this)">${btnLabel}</button>
-      </div>`);
+      <div style="margin-top:8px">${buttonHtml}</div>`);
 }
 
-async function analyzeFrames(clipId, btn) {
-  const orig = btn.textContent;
-  btn.disabled = true;
-  const startedAt = Date.now();
-  const paintProgress = () => {
-    const secs = Math.floor((Date.now() - startedAt) / 1000);
-    btn.innerHTML = `<span class="spinner" style="display:inline-block;vertical-align:middle;width:11px;height:11px"></span> `
-      + `Analyzing frames... ${secs}s`;
-  };
-  paintProgress();
-  const progressTicker = setInterval(paintProgress, 1000);
-  try {
-    const resp = await fetch(`/api/clips/${clipId}/analyze-frames`, {method: 'POST'});
-    const data = await resp.json().catch(() => ({}));
-    if (!resp.ok) {
-      showToast(data.detail || 'Frame analysis failed', 'error');
-      return;
-    }
-    showToast(`Frame analysis complete (${data.elapsed_s}s)`);
-    const clip = await fetch(`/api/clips/${clipId}`).then(r => r.json());
-    AppState.activeClipData = clip;
-    if (!PanelNav.isOpen()) renderDetail(clip);
-  } catch (e) {
-    showToast('Frame analysis failed - check the log', 'error');
-  } finally {
-    clearInterval(progressTicker);
-    btn.disabled = false;
-    btn.textContent = orig;
-  }
+// Optimistic immediate repaint of the button on start; durable in-flight state
+// lives in AppState.clipJobs so any later rebuild renders correctly via _visionDetailHTML.
+function _paintVisionInFlight(clipId) {
+  if (AppState.activeClipId !== clipId || PanelNav.isOpen()) return;
+  const btn = document.getElementById('analyze-frames-btn');
+  if (btn) btn.outerHTML = _visionSpinnerButton();
+}
+
+function analyzeFrames(clipId) {
+  if (_blockedByAnalyze('analyze frames')) return;
+  AppState.clipJobs[clipId] = {op: 'analyze-frames'};
+  _paintVisionInFlight(clipId);
+  streamSSE(
+    `/api/clips/${clipId}/analyze-frames`,
+    async () => {
+      delete AppState.clipJobs[clipId];
+      let clip = null;
+      try { clip = await fetch(`/api/clips/${clipId}`).then(r => r.ok ? r.json() : null); } catch (_) {}
+      // Only touch the panel if this clip is still the one on screen and a PanelNav
+      // flow isn't covering it - otherwise the result must not land in another clip's
+      // view. A later return to this clip re-fetches it fresh via selectClip. Rebuild
+      // from the freshest data (the fetched clip, else the cached copy) so the button
+      // returns from spinner to normal now that clipJobs no longer flags this clip.
+      if (clip && AppState.activeClipId === clipId) AppState.activeClipData = clip;
+      const data = clip || AppState.activeClipData;
+      if (data && AppState.activeClipId === clipId && !PanelNav.isOpen()) renderDetail(data);
+    },
+    FRAMES_STEPS, 'Analyzing frames…', true, null, false, {method: 'POST'},
+  );
 }
 
 // ── hot-words ────────────────────────────────────────────────────────────────

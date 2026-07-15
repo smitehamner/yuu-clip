@@ -45,15 +45,25 @@ def analyze_in_flight(ctx) -> bool:
     return proc is not None and proc.returncode is None
 
 
-def reject_if_analyzing(ctx) -> None:
-    """Guard heavy DB-writing jobs (score/rescore/redescribe/rediarize) from
-    running while an analysis is in flight - two writers on the same SQLite file
-    would contend on the single-writer lock and stall each other."""
-    if analyze_in_flight(ctx):
+def job_in_flight(ctx) -> bool:
+    """Whether ANY long-running op is active - the analyze subprocess, any counted
+    in-process/subprocess SSE job, or a proxy build. The single source of truth for
+    "is the app busy" that ``/api/status``'s ``any_running`` and the uniform busy
+    guard both read."""
+    return analyze_in_flight(ctx) or ctx.active_jobs > 0 or bool(ctx.proxy_generating)
+
+
+def reject_if_busy(ctx, action: str) -> None:
+    """Serialize every long-running op: 409 a new heavy job while any job is in
+    flight. The app runs one job at a time (SQLite is single-writer, so overlapping
+    DB writers would contend, and the single-job UI assumes it). *action* names the
+    blocked op so the message is specific, e.g. "LLM scoring can't start - ...".
+    """
+    if job_in_flight(ctx):
         raise HTTPException(
             409,
-            "An analysis is still running - wait for it to finish or cancel it "
-            "before starting another job.",
+            f"{action} can't start - another job is running. Wait for it to finish "
+            "or cancel it before starting another.",
         )
 
 

@@ -11,6 +11,7 @@ and needs no real video/ffmpeg, but it drives the *real* streamSSE → startJobU
 """
 from __future__ import annotations
 
+import json
 import re
 
 from conftest import LIVE_URL, skip_no_server
@@ -79,3 +80,57 @@ class TestSSEJobHappyPath:
         # this is the exact teardown the stuck-job-UI bug skipped.
         expect(page.locator("#job-status")).not_to_have_class(re.compile(r"\bvisible\b"), timeout=4000)
         expect(page.locator("#btn-analyze")).to_be_enabled()
+
+
+@skip_no_server
+class TestProgressMarker:
+    """The @@PROGRESS marker drives the pill deterministically and is never shown
+    as a log line (that is the whole point of the structured channel)."""
+
+    def test_marker_drives_pill_stage_and_count(self, page: Page):
+        page.goto(LIVE_URL)
+        marker = "@@PROGRESS " + json.dumps({"stage": "score", "done": 3, "total": 12})
+        result = page.evaluate(
+            """(marker) => {
+                const steps = [
+                  {label: 'Energy',  stage: 'energy', patterns: []},
+                  {label: 'Scoring', stage: 'score',  patterns: []},
+                ];
+                startJobUI(steps, 'Test', false, false);
+                _driveStepFromMarker(parseProgress(marker));
+                const s0 = document.getElementById('step-0');
+                const s1 = document.getElementById('step-1');
+                const res = {s0: s0.className, s1: s1.className, text: s1.textContent};
+                endJobUI();
+                return res;
+            }""",
+            marker,
+        )
+        assert "done" in result["s0"]      # earlier stage marked done
+        assert "active" in result["s1"]    # the marker's stage is active
+        assert "3/12" in result["text"]    # count carried through
+
+    def test_marker_line_is_not_logged(self, page: Page):
+        page.goto(LIVE_URL)
+        marker = "@@PROGRESS " + json.dumps({"stage": "score", "done": 1, "total": 2})
+        body = (
+            f'data: {json.dumps(marker)}\n\n'
+            f'data: {json.dumps("a normal log line")}\n\n'
+            f'data: {json.dumps("__DONE__")}\n\n'
+        )
+        page.route(
+            f"**{_SSE_URL}",
+            lambda route: route.fulfill(status=200, content_type="text/event-stream", body=body),
+        )
+        page.evaluate(
+            """([url]) => {
+                window.__sseDone = false;
+                const steps = [{label: 'Scoring', stage: 'score', patterns: []}];
+                streamSSE(url, () => { window.__sseDone = true; }, steps, 'Test', false);
+            }""",
+            [_SSE_URL],
+        )
+        page.wait_for_function("window.__sseDone === true", timeout=5000)
+        log_text = page.locator("#log-lines").inner_text()
+        assert "a normal log line" in log_text
+        assert "@@PROGRESS" not in log_text

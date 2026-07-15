@@ -14,6 +14,7 @@ from typing import Optional
 
 from yuu_clip.console import BYTES_PER_MB, console
 from yuu_clip.log import get_logger
+from yuu_clip.pipeline.progress import Stage, emit_progress
 from yuu_clip.pipeline.run_meta import StageRecorder, build_run_json
 
 log = get_logger(__name__)
@@ -499,6 +500,7 @@ def _extract_audio_and_check_rms_overlap(
     from yuu_clip.analyze.overlap import detect_and_apply_overlap_fallback
 
     console.print("  [bold]Extracting audio...[/bold]")
+    emit_progress(Stage.EXTRACT)
     video.status = "extracting"
     session.flush()
     total_tracks = len(track_objs)
@@ -552,6 +554,7 @@ def _transcribe_and_check_overlap(track_objs, config, session, video, language, 
     from yuu_clip.transcribe.whisper_runner import transcribe_track, whisper_model_cached
 
     console.print(f"  [bold]Transcribing (model: {config.whisper_model})...[/bold]")
+    emit_progress(Stage.TRANSCRIBE)
     if not whisper_model_cached(config):
         # The model isn't in the cache yet, so the first transcribe_track below
         # will block while it downloads. Surface that as a legible status line the
@@ -589,6 +592,7 @@ def _transcribe_and_check_overlap(track_objs, config, session, video, language, 
             console.print(f"  [dim]  Cleared existing transcript for track {track.label} (--force)[/dim]")
 
         console.print(f"  [dim]  Track {idx}/{total_tracks} [{track.label}]...[/dim]")
+        emit_progress(Stage.TRANSCRIBE, done=idx, total=total_tracks)
         try:
             transcript = transcribe_track(track, config, session, language=language)
             console.print(
@@ -626,6 +630,7 @@ def _run_speaker_diarization(config, session, transcripts) -> None:
     from yuu_clip.transcribe.whisper_runner import diarize_track, suggest_project_voices
 
     console.print("  [bold]Detecting speakers...[/bold]")
+    emit_progress(Stage.SPEAKERS)
     for transcript in transcripts:
         track = transcript.audio_track
         if not track.extracted_path or not Path(track.extracted_path).exists():
@@ -774,6 +779,7 @@ def _generate_candidates(video, transcripts, config, session, no_segment, no_tra
             console.print(f"  [dim]  Cleared {deleted} existing clips (--force)[/dim]")
 
     console.print("  [bold]Generating clips...[/bold]")
+    emit_progress(Stage.GENERATE_CLIPS)
     candidates = generate_candidates(video, transcripts, config, session)
     candidates = candidates + _generate_visual_candidates(video, candidates, config, session)
     console.print(f"  [green]  OK[/green] {len(candidates)} clips created")
@@ -924,6 +930,7 @@ def _run_scoring(
 
     if config.scorer_energy_enabled and energy_mode != "none":
         console.print(f"  [bold]Computing audio energy ({energy_mode})...[/bold]")
+        emit_progress(Stage.ENERGY)
         total_seconds = sum(
             compute_energy(track, session, energy_mode=energy_mode)
             for track in track_objs
@@ -937,6 +944,7 @@ def _run_scoring(
 
     if config.scorer_scenes_enabled:
         console.print("  [bold]Detecting scene cuts...[/bold]")
+        emit_progress(Stage.SCENES)
         try:
             n = compute_scenes(
                 video, session,
@@ -964,6 +972,7 @@ def _run_scoring(
 
     warnings: list[str] = []
     console.print("  [bold]Scoring clips...[/bold]")
+    emit_progress(Stage.SCORE)
     if config.llm_enabled:
         from yuu_clip.scoring.llm import check_llm_available
         llm_ok, llm_reason = check_llm_available(config)
@@ -1023,10 +1032,11 @@ def _run_scoring(
             "  [yellow]No scoring signals are available - clips were created but left "
             "unscored. Check Settings (LLM / laughter), then use Rescore.[/yellow]"
         )
-    n = engine.score_video(
-        video, session,
-        progress_cb=lambda i, total: console.print(f"  Scoring {i}/{total}..."),
-    )
+    def _score_progress(i, total):
+        console.print(f"  Scoring {i}/{total}...")
+        emit_progress(Stage.SCORE, done=i, total=total)
+
+    n = engine.score_video(video, session, progress_cb=_score_progress)
     if audio_event_scorer.load_failed or laugh_scorer.load_failed:
         console.print(
             "  [yellow]The audio-event model couldn't be downloaded - clips were scored "

@@ -19,7 +19,7 @@ from yuu_clip.db.models import ClipCandidate, Video
 from yuu_clip.export.paths import export_paths, validate_export_preset_query
 from yuu_clip.log import get_logger
 from yuu_clip.web.deps import ProjectContext
-from yuu_clip.web.routes.common import active_job, sse_response
+from yuu_clip.web.routes.common import active_job, reject_if_busy, sse_response
 from yuu_clip.web.sse import new_session_kwargs, terminate_process_tree_async
 
 _log = get_logger(__name__)
@@ -105,6 +105,8 @@ def _clip_export_stream_response(
 ):
     """Stream sequential per-clip exports as SSE. Shared by the video-scoped batch
     export (filtered by approval/score) and the explicit-selection bulk export."""
+    reject_if_busy(ctx, "Export")
+
     async def event_stream():
         async with active_job(ctx):
             total = len(clip_ids)

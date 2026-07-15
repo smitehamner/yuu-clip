@@ -34,6 +34,8 @@ const AppState = {
   lastBulkStatusChange: null, // {previous: {clipId: fromStatus}, timer}
   confirmCallback:     null,
   activeClipData:      null,
+  clipJobs:            {},   // clipId -> {op} for a per-clip async job in flight (analyze-frames), so its
+                             // indicator survives a renderDetail rebuild / clip switch (state, not a DOM node)
   activeMediaFilename: null,
   activeVideoData:     null,
   bootRestoreDone:     false,

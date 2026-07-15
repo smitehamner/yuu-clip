@@ -33,7 +33,12 @@ from yuu_clip.config import validate_whisper_model
 from yuu_clip.export.paths import validate_caption_style_query, validate_export_preset_query
 from yuu_clip.log import get_logger
 from yuu_clip.web.deps import ProjectContext
-from yuu_clip.web.routes.common import analyze_in_flight, module_findable, reject_if_analyzing
+from yuu_clip.web.routes.common import (
+    analyze_in_flight,
+    job_in_flight,
+    module_findable,
+    reject_if_busy,
+)
 from yuu_clip.web.sse import subprocess_sse, terminate_process_tree_async
 
 _log = get_logger(__name__)
@@ -272,10 +277,10 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     @router.post("/api/analyze/start")
     async def start_analyze(req: IngestRequest):
         """Validate the video path, build the analyze CLI command, and queue it for the SSE stream."""
-        # Starting while a job is running would let /api/analyze/events overwrite
+        # Starting while ANY job is running would let /api/analyze/events overwrite
         # ctx.analyze_job, orphaning the still-running subprocess (cancel and
         # shutdown could no longer reach it) with two writers on the same DB.
-        if _analyze_running(ctx):
+        if job_in_flight(ctx):
             running = ctx.analyze_job.filename if ctx.analyze_job else ctx.analyze_pending_filename
             _log.warning(
                 "Analyze start rejected - job already running (running=%s, requested=%s)",
@@ -345,7 +350,9 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         job_running = job is not None and not job.done
         analyze_running = _analyze_running(ctx)
         return {
-            "any_running": analyze_running or ctx.active_jobs > 0,
+            # Single source of truth shared with the uniform busy guard, so status
+            # and reject_if_busy can never disagree about whether the app is busy.
+            "any_running": job_in_flight(ctx),
             "analyze_running": analyze_running,
             # Import from URL (roadmap plan 08): set while a download is queued or
             # running; already folded into any_running via active_jobs (see
@@ -475,12 +482,12 @@ def make_router(ctx: ProjectContext) -> APIRouter:
     @router.post("/api/score")
     async def score_all():
         """Re-score all videos and stream progress as SSE."""
-        reject_if_analyzing(ctx)
+        reject_if_busy(ctx, "Scoring")
         cmd = [
             sys.executable, "-m", "yuu_clip.cli", "score", "--all",
             "--project", str(ctx.project_dir),
         ]
-        return await subprocess_sse(cmd, ctx.project_dir, ctx)
+        return await subprocess_sse(cmd, ctx.project_dir, ctx, track_active_job=True)
 
     @router.get("/api/clips/{clip_id}/export")
     async def export_clip(
@@ -500,6 +507,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         word_chunk_size: Optional[int] = Query(None, description="Words shown at once for word-highlight captions (1-12); omit for the configured default"),
     ):
         """Export a clip to a video file and stream ffmpeg progress as SSE."""
+        reject_if_busy(ctx, "Export")
         allowed_containers = {"mkv", "mp4"}
         if container is not None and container not in allowed_containers:
             raise HTTPException(400, f"container must be one of: {', '.join(sorted(allowed_containers))}")
@@ -537,13 +545,13 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             cmd.append("--word-highlight" if word_highlight else "--no-word-highlight")
         if word_chunk_size is not None:
             cmd.extend(["--word-chunk-size", str(word_chunk_size)])
-        return await subprocess_sse(cmd, ctx.project_dir, ctx)
+        return await subprocess_sse(cmd, ctx.project_dir, ctx, track_active_job=True)
 
     @router.get("/api/clips/{clip_id}/retranscribe")
     async def retranscribe_clip(clip_id: int, model: str = Query("large-v3"),
                                 speaker_labels: bool = Query(True)):
         """Re-transcribe a clip's time window with the given Whisper model."""
-        reject_if_analyzing(ctx)
+        reject_if_busy(ctx, "Re-transcribe")
         try:
             validate_whisper_model(model)
         except ValueError as e:
@@ -553,7 +561,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
             "--model", model, "--no-rescore", "--project", str(ctx.project_dir),
             "--speaker-labels" if speaker_labels else "--no-speaker-labels",
         ]
-        return await subprocess_sse(cmd, ctx.project_dir, ctx)
+        return await subprocess_sse(cmd, ctx.project_dir, ctx, track_active_job=True)
 
     def _require_video(video_id: int) -> None:
         """404 if no recording with this ID exists. Shared by the single-stage re-run routes."""
@@ -579,16 +587,20 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         _assign_speakers + _attach_speakers so named speakers re-attach to matching
         voices (the way voiceprint re-attach is validated). Streams progress as SSE.
         """
-        reject_if_analyzing(ctx)
+        reject_if_busy(ctx, "Speaker re-detection")
         _require_video(video_id)
-        return await subprocess_sse(_stage_rerun_cmd("rediarize", video_id), ctx.project_dir, ctx)
+        return await subprocess_sse(
+            _stage_rerun_cmd("rediarize", video_id), ctx.project_dir, ctx, track_active_job=True
+        )
 
     @router.get("/api/videos/{video_id}/reextract")
     async def reextract_video(video_id: int):
         """Re-run only audio extraction on a recording's tracks. Streams progress as SSE."""
-        reject_if_analyzing(ctx)
+        reject_if_busy(ctx, "Audio re-extraction")
         _require_video(video_id)
-        return await subprocess_sse(_stage_rerun_cmd("reextract", video_id), ctx.project_dir, ctx)
+        return await subprocess_sse(
+            _stage_rerun_cmd("reextract", video_id), ctx.project_dir, ctx, track_active_job=True
+        )
 
     @router.get("/api/videos/{video_id}/retranscribe")
     async def retranscribe_video(video_id: int, model: Optional[str] = Query(None)):
@@ -597,7 +609,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         Model defaults to the project's configured speech-to-text model; existing clips
         are flagged as needing a re-score rather than deleted.
         """
-        reject_if_analyzing(ctx)
+        reject_if_busy(ctx, "Re-transcribe")
         _require_video(video_id)
         chosen_model = model or ctx.config.whisper_model
         try:
@@ -605,14 +617,16 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         except ValueError as e:
             raise HTTPException(400, str(e))
         cmd = _stage_rerun_cmd("retranscribe-video", video_id, "--model", chosen_model)
-        return await subprocess_sse(cmd, ctx.project_dir, ctx)
+        return await subprocess_sse(cmd, ctx.project_dir, ctx, track_active_job=True)
 
     @router.get("/api/videos/{video_id}/regenerate-clips")
     async def regenerate_clips(video_id: int):
         """Regenerate clips from the existing transcript (destructive). Streams progress as SSE."""
-        reject_if_analyzing(ctx)
+        reject_if_busy(ctx, "Clip regeneration")
         _require_video(video_id)
-        return await subprocess_sse(_stage_rerun_cmd("regenerate-clips", video_id), ctx.project_dir, ctx)
+        return await subprocess_sse(
+            _stage_rerun_cmd("regenerate-clips", video_id), ctx.project_dir, ctx, track_active_job=True
+        )
 
     @router.get("/api/install/{slug}")
     async def install_status(slug: str):

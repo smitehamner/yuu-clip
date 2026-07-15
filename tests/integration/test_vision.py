@@ -314,32 +314,36 @@ class TestAnalyzeFramesRoute:
         resp = client.post("/api/clips/1/analyze-frames")
         assert resp.status_code == 404
 
-    def test_success_stores_and_serializes_summary(
+    def test_success_stores_summary_via_stream(
         self, client: TestClient, project_dir: Path, monkeypatch,
     ):
+        # Now an SSE stream (sampling -> describing); the summary is persisted and
+        # the browser re-fetches the clip to render it. Mock the two phases the route
+        # drives directly (sample_clip_frames + describe_frames).
         import yuu_clip.analyze.frames as frames_mod
+        import yuu_clip.scoring.llm as llm_mod
         _enable_llamacpp_vision(client, project_dir)
         (project_dir / "session.mkv").write_bytes(b"x")  # make video.path exist
+        monkeypatch.setattr(frames_mod, "sample_clip_frames", lambda *a, **k: [project_dir / "f1.jpg"])
         monkeypatch.setattr(
-            frames_mod, "sample_and_describe",
+            llm_mod, "describe_frames",
             lambda *a, **k: "On screen: two players defuse a bomb.",
         )
         resp = client.post("/api/clips/1/analyze-frames")
         assert resp.status_code == 200, resp.text
-        body = resp.json()
-        assert body["vision_summary"] == "On screen: two players defuse a bomb."
-        assert body["vision_analyzed_at"]
+        assert "__DONE__" in resp.text
         # Persisted + serialized on the clip.
         clip = client.get("/api/clips/1").json()
         assert clip["vision_summary"] == "On screen: two players defuse a bomb."
         assert clip["vision_analyzed_at"]
 
-    def test_clip_deleted_mid_analysis_returns_404(
+    def test_clip_deleted_mid_analysis_skips_save_cleanly(
         self, client: TestClient, project_dir: Path, monkeypatch,
     ):
-        # If the clip is deleted while the (seconds-long) vision call runs, the
-        # save-back session finds nothing - that must be a clean 404, not a 500.
+        # If the clip is deleted while the vision call runs, the save-back session
+        # finds nothing and skips silently - the stream still completes cleanly.
         import yuu_clip.analyze.frames as frames_mod
+        import yuu_clip.scoring.llm as llm_mod
         from yuu_clip.db.models import ClipCandidate, make_session
         _enable_llamacpp_vision(client, project_dir)
         (project_dir / "session.mkv").write_bytes(b"x")
@@ -351,9 +355,12 @@ class TestAnalyzeFramesRoute:
             session.close()
             return "On screen: the clip is already gone."
 
-        monkeypatch.setattr(frames_mod, "sample_and_describe", delete_then_describe)
+        monkeypatch.setattr(frames_mod, "sample_clip_frames", lambda *a, **k: [project_dir / "f1.jpg"])
+        monkeypatch.setattr(llm_mod, "describe_frames", delete_then_describe)
         resp = client.post("/api/clips/1/analyze-frames")
-        assert resp.status_code == 404
+        assert resp.status_code == 200
+        assert "__DONE__" in resp.text
+        assert client.get("/api/clips/1").status_code == 404
 
 
 class TestRescoreIncludeFrames:
