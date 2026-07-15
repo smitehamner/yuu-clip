@@ -116,7 +116,7 @@ builds two committed bundles that `index.html` loads in order:
 
 - **`bundle.esm.js`** - real ESM modules (`import`/`export`) bundled by **esbuild**
   from the graph rooted at `static/main.esm.js`. Loads first. Migrated so far:
-  `format.js`, `colorpicker.js`, `panelnav.js`. Rebuilding needs Node + `npm install`
+  `state.js`, `format.js`, `colorpicker.js`, `panelnav.js`. Rebuilding needs Node + `npm install`
   (esbuild is a pinned dev-only dep; `scripts/build-esm.mjs` is the single home for its
   flags). The committed bundle is what ships - Node is never needed to *run* the app.
 - **`bundle.js`** - the remaining ~37 classic global-scope scripts, pure-Python concat
@@ -162,7 +162,7 @@ yuu_clip/
     static/bundle.esm.js   # Committed esbuild artifact: the ESM graph from main.esm.js (format, colorpicker, panelnav so far), IIFE + inline sourcemap. Do not hand-edit; edit the ESM source files + rebundle.
     static/bundle.js       # Committed build artifact: the remaining classic global-scope scripts concatenated in bundle.manifest order by `yuu-dev bundle`. Do not hand-edit; edit the source files + rebundle.
     static/bundle.manifest # Load-order list for the CLASSIC bundle.js only. ESM modules are NOT listed here (they live in the esbuild graph). Migrating a module to ESM = remove it here, import it from main.esm.js.
-    static/*.js            # ~40 modules, one per feature/view. Two kinds now: real ESM modules (import/export, reachable from main.esm.js) and classic global-scope scripts (in bundle.manifest). Foundational: boot (bootstrap), state (shared UI state), utils, ui, format (ESM), jobs (SSE job helpers), panelnav (ESM, PanelNav panel-flow stack). The rest are per-feature (videos + videos-*, clips + clip*, analyze, contexts, reel, settings + settings-*, speakers, voices, split, transcript, ...)
+    static/*.js            # ~40 modules, one per feature/view. Two kinds now: real ESM modules (import/export, reachable from main.esm.js) and classic global-scope scripts (in bundle.manifest). Foundational: boot (bootstrap), state (ESM, shared UI state / AppState), utils, ui, format (ESM), jobs (SSE job helpers), panelnav (ESM, PanelNav panel-flow stack). The rest are per-feature (videos + videos-*, clips + clip*, analyze, contexts, reel, settings + settings-*, speakers, voices, split, transcript, ...)
     static/app.css         # Stylesheet
 electron/                  # Desktop wrapper: main.js (window/menu/IPC + server spawn + wizard + lifecycle), constants.js, logging.js, electron-config.js, install.js (runCmd/download/pip helpers), preload.js, setup wizard (setup.html + setup-preload.js)
 tests/                     # unit = state-independent, run anywhere; integration = seeded DB; ui = live server

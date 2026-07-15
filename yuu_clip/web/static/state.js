@@ -4,8 +4,7 @@
 // Mutable state shared across feature modules. Centralized in one explicit object
 // so cross-module reads/writes are greppable and obviously shared, rather than
 // scattered bare globals that look like module locals at the call site.
-(function () {
-const AppState = {
+export const AppState = {
   activeVideoId:       null,
   activeClipId:        null,
   videos:              [],
@@ -43,6 +42,3 @@ const AppState = {
   reelsDir:            null,
   canReveal:           false,
 };
-
-Object.assign(window, { AppState });
-})();

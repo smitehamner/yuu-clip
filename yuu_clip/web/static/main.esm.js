@@ -8,10 +8,12 @@
 // Migrating a classic consumer to `import` shrinks the shim: once nothing reads a
 // name off window, delete its line below. When bundle.js is empty, this file is
 // the whole app and the shim is gone.
+import { AppState } from './state.js';
 import * as format from './format.js';
 import { ColorPicker } from './colorpicker.js';
 import { PanelNav } from './panelnav.js';
 
+window.AppState = AppState;
 Object.assign(window, format);
 window.ColorPicker = ColorPicker;
 window.PanelNav = PanelNav;

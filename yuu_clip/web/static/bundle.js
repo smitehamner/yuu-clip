@@ -2,56 +2,6 @@
 // Edit the individual static/*.js files (or the manifest order) and re-run
 // `yuu-dev bundle`. tests/unit/test_bundle_drift.py guards this file.
 
-//# sourceURL=state.js
-// Feature-map - Shared application state: the single AppState object every feature module reads/writes.
-//   API: none (client-only) · Tests: covered indirectly by the test_ui_*.py suites
-// ── shared application state ──────────────────────────────────────────────────
-// Mutable state shared across feature modules. Centralized in one explicit object
-// so cross-module reads/writes are greppable and obviously shared, rather than
-// scattered bare globals that look like module locals at the call site.
-(function () {
-const AppState = {
-  activeVideoId:       null,
-  activeClipId:        null,
-  videos:              [],
-  sessions:            [],       // grouped play sessions (RecordingSession rows)
-  activeSessionId:     null,     // session whose detail view is open, or null
-  clips:               [],
-  analyzeProfiles:     [],
-  contexts:            [],
-  hotWords:            [],
-  _hotWordsLoaded:     false,
-  sensitiveTerms:      [],
-  _sensitiveTermsLoaded: false,
-  analyzeFilename:     null,
-  editingContextId:    null,
-  clipFilters:         new Set(),  // active filter tokens; empty = show all
-  clipKind:            'clip',      // candidate type shown: 'clip' | 'scene' (server-side filter)
-  clipSearch:          '',
-  clipScoreMin:        0,
-  videoSearch:         '',
-  videoSort:           'recent',
-  videoSortDir:        'desc',  // 'desc' = the sort option's natural order; 'asc' reverses it
-  clipSortDir:         'desc',
-  videoFilters:        new Set(),  // active video filter tokens; empty = show all
-  selectedClipIds:     new Set(),
-  lastStatusChange:    null, // {clipId, fromStatus, timer}
-  lastBulkStatusChange: null, // {previous: {clipId: fromStatus}, timer}
-  confirmCallback:     null,
-  activeClipData:      null,
-  clipJobs:            {},   // clipId -> {op} for a per-clip async job in flight (analyze-frames), so its
-                             // indicator survives a renderDetail rebuild / clip switch (state, not a DOM node)
-  activeMediaFilename: null,
-  activeVideoData:     null,
-  bootRestoreDone:     false,
-  exportDir:           null,
-  reelsDir:            null,
-  canReveal:           false,
-};
-
-Object.assign(window, { AppState });
-})();
-
 //# sourceURL=jobs.js
 // Feature-map - Long-running-job machinery: the job-status header (step pills, timer, ETA), the
 //   pause/resume + thermal auto-pause UI, the fetch-based SSE transport (_openSSE/streamSSE), the
