@@ -159,6 +159,44 @@ Before sharing, install and smoke-test in a secondary Windows user account or a 
 - [ ] Click X when idle - app closes immediately
 - [ ] Uninstall via Add/Remove Programs - app removed, `Videos\yuu-clip\` data survives
 
+### Deferred packaged-app checks (run once, before public distribution)
+
+These can only be verified against a packaged build (some need a clean VM / secondary
+account with no system Python) and are not covered by the pytest or Playwright suites.
+Folded in here 2026-07-14 from the retired post-consolidation manual-verification list.
+
+**Native-file-protocol media transport** (implemented 2026-07-03; still the open
+"implemented-but-unverified" item in `docs/project/ROADMAP.md`):
+
+- [ ] Play a recording in the packaged app - playback starts from the source file
+- [ ] Scrub to several positions - seeking works (Range requests honoured), no linear-scan stall
+- [ ] Split a recording, play a segment - plays back at the correct absolute offset
+- [ ] DevTools > Network while playing - **no** `/api/videos/.../source` HTTP traffic; the native
+      `mediaProtocol` scheme is serving media, not a silent HTTP fallback
+- [ ] Point a recording's stored path at a file outside the allowed roots (doctored DB) and open
+      it - request is refused (403); no media outside the project roots is served
+
+**Content-type presets** (the setup wizard writes `content_preset`; not suite-covered):
+
+- [ ] Wizard: pick a non-Generic content type, finish - the project's `.yuu-clip/config.toml`
+      has the chosen `content_preset`
+- [ ] Analyze in that project - scoring/summary prompts reflect the preset flavour
+- [ ] Settings > Scoring weights > change Content type > Apply - the confirm dialog lists the
+      exact weight changes, the sliders move, and they do not read dirty afterwards; applying
+      **Generic** is a true no-op
+
+**Optional dependency installs on the shipped 3.12 runtime** (all prior verification was on the
+dev venv; wheel availability differs on 3.12):
+
+- [ ] Install SpeechBrain - `pip install speechbrain scikit-learn` succeeds and a real diarize
+      run works (model auto-downloads; no WinError 1314 symlink failure)
+- [ ] Install MediaPipe - resolves a 3.12 wheel; "Auto-frame on faces" returns a crop on a clip
+      with a face
+- [ ] Install pyannote.audio (with a HF token) - installs and the gated model loads with the token
+
+**Reproducible install:** the first-run setup log shows `Constraining deps to ...\requirements.lock`
+and the created venv's `pip list` matches the pinned versions (e.g. `av==18.0.0`).
+
 ---
 
 ## Share / Publish
