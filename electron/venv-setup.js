@@ -8,7 +8,7 @@
 // (scripts/windows-release/fetch-wheelhouse.ps1) so a slow/firewalled/proxied network can't fail
 // the very first launch. A `wheelhouseDir` triggers `--no-index --find-links`;
 // without it (dev/unpackaged builds) pip falls back to PyPI. `lockPath` constrains
-// to the exact base-dep versions we tested (requirements.lock / scripts/lock-deps.ps1).
+// to the exact base-dep versions we tested (requirements.lock / yuu-dev lock-deps).
 //
 // There is deliberately NO pip self-upgrade step: the bundled runtime's pip already
 // installs wheels from a find-links dir, and upgrading pip from PyPI reintroduced a

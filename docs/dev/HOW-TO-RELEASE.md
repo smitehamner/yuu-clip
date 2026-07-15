@@ -87,7 +87,7 @@ Settings) are intentionally not pinned.
 
 Regenerate it whenever you change the base dependencies in `pyproject.toml`:
 ```powershell
-.\scripts\lock-deps.ps1   # resolves base deps in a clean 3.12 venv, freezes, writes requirements.lock
+yuu-dev lock-deps   # resolves base deps in a clean 3.12 venv, freezes, writes requirements.lock
 ```
 Then commit the updated `requirements.lock`.
 

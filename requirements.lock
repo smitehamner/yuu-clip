@@ -1,6 +1,6 @@
 ﻿# requirements.lock - pinned base runtime dependencies for reproducible installs.
 #
-# Regenerate with scripts\lock-deps.ps1 whenever pyproject base deps change.
+# Regenerate with `yuu-dev lock-deps` whenever pyproject base deps change.
 # The packaged first-run installer passes this as `pip install -c requirements.lock
 # <wheel>` so every user gets exactly the versions we tested. Covers base deps only
 # (which now include the Tier-A default-feature packages: speechbrain, scikit-learn,

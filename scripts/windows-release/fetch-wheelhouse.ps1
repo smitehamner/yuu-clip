@@ -28,7 +28,7 @@ $marker        = "$wheelhouseDir\.lock-hash"
 # runtime dependencies from requirements.lock below.
 
 if (-not (Test-Path $lockPath)) {
-    Write-Error "requirements.lock missing - run scripts\lock-deps.ps1 first."
+    Write-Error "requirements.lock missing - run yuu-dev lock-deps first."
     exit 1
 }
 if (-not (Test-Path $runtimePython)) {

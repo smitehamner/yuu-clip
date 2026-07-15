@@ -54,7 +54,7 @@ if (-not (Test-Path $wheelhouseDir) -or -not (Get-ChildItem "$wheelhouseDir\*.wh
     exit 1
 }
 if (-not (Test-Path $lockPath)) {
-    Write-Error "requirements.lock missing - run scripts\lock-deps.ps1 first."
+    Write-Error "requirements.lock missing - run yuu-dev lock-deps first."
     exit 1
 }
 $wheel = Get-ChildItem "$root\build\wheel\yuu_clip-*.whl" -ErrorAction SilentlyContinue |

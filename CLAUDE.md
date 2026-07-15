@@ -106,7 +106,7 @@ suite explicitly.
 ```
 yuu_clip/
   cli/                     # Thin Typer adapters - analyze, export, reel, review, serve (+ _base). Commands parse args and call into pipeline/ and export/.
-  dev/                     # The yuu-dev developer-loop CLI (serve/test-api/test-ui/lint/logs/status), Typer, cross-platform. _summary.py = pytest-output summary core, procs.py = Windows process reap (no-ops off Windows).
+  dev/                     # The yuu-dev developer-loop CLI (serve/test-api/test-ui/lint/logs/status/lock-deps), Typer, cross-platform. _summary.py = pytest-output summary core, procs.py = Windows process reap (no-ops off Windows), deps.py = lock-deps (regenerate requirements.lock).
   pipeline/                # The analyze engine: ingest (per-video orchestration + stages), run_meta (per-run timing/settings capture), vision_describe (opt-in auto vision-LLM description of top-N textless/visual clips)
   export/                  # The export feature: render (engine - cut, retranscribe, title card, captions), naming (filename stem), presets (definitions + size-cap math), paths (on-disk export/sidecar path resolution + export-query validation)
   console.py               # Shared Rich console + BYTES_PER_MB (used by cli/ and the engine; lives outside cli/ so the engine never imports cli)
