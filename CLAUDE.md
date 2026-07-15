@@ -252,6 +252,33 @@ Use these glossary terms in **conversation** too, not just in code. If discussin
 
 ## Code standards
 
+### AI/model backends must sit behind a swappable interface
+Every model-backed capability is exposed through a generic interface so a backend can
+be swapped (or added) without touching the callers - this is a hard convention, keep it
+even when there is only one implementation today. Each seam is: an ABC (or `Protocol`) +
+a single `make_*(config)` factory keyed on a `*_backend` config value, and the interface
+exposes `available() -> (ok, reason)`. Callers only ever go through the factory; they
+never import a concrete backend class. The existing seams:
+
+- **LLM text + vision** - `LLMClient` + `make_client` (`scoring/llm_client.py`), keyed on
+  `llm_backend`. Backends: `llamacpp`, `claude`, `null`. `make_client` is also the single
+  privacy/remote-gate enforcement point.
+- **Diarization** - `DiarizationClient` + `make_diarization_client`
+  (`transcribe/diarization_client.py`), keyed on `diarization_backend`.
+- **Transcription** - `Transcriber` + `make_transcriber` (`transcribe/transcriber.py`),
+  keyed on `transcription_backend`. `transcribe()` yields backend-agnostic
+  `TranscribedSegment`s; persistence + progress live in `whisper_runner.transcribe_track`;
+  `model_cached()` / `prefetch()` are interface methods so each backend owns its caching.
+- **Similarity / embeddings** - backend classes + `make_backend` (`scoring/similarity.py`),
+  keyed on `similarity_backend`.
+- **Scorers** - the `Scorer` `Protocol` (`scoring/protocol.py`), assembled by
+  `scoring/scorer_set.py`. Adding a scoring dimension/model = a new `Scorer`.
+
+To add a backend: implement the interface, register it in that module's `_BACKEND_*`
+dict, add the `*_backend` value. Do NOT add a caller-side `if backend == ...`. Keep the
+backend's own tunables under a backend-specific config prefix (e.g. `whisper_*` for
+faster-whisper, `speaker_*` for diarization) rather than renaming them generic.
+
 ### General
 - No comments unless the WHY is genuinely non-obvious (hidden constraint, workaround, subtle invariant)
 - No docstrings on internal functions - clear names are enough
