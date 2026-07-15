@@ -11,11 +11,11 @@ Single-user tool - no auth, no multi-tenancy, no public network exposure.
 ## How to start / restart the server
 
 The daily dev-loop commands live in the `yuu-dev` CLI (`yuu_clip/dev/`, a Typer
-app), not in PowerShell. The `.\scripts\*.ps1` scripts are now one-line shims that
-forward to it, so either form works; prefer the `yuu-dev` form.
+app), not in PowerShell. `yuu-dev` is a console entry point that works on Windows,
+macOS, and Linux.
 
 ```powershell
-yuu-dev serve            # or: .\scripts\serve.ps1
+yuu-dev serve
 ```
 
 `yuu-dev serve` runs the /api/status pre-check (warns + confirms before interrupting
@@ -24,14 +24,14 @@ a live job), reaps this repo's stale server / orphaned llama-server, then binds 
 
 To watch the log live:
 ```powershell
-yuu-dev logs --follow    # or: .\scripts\logs.ps1
+yuu-dev logs --follow
 ```
 
 ## MANDATORY: after any Python change
 
 API tests take ~1 minute. Run them selectively - not after every edit.
 
-**Run `yuu-dev test-api` (or `.\scripts\test-api.ps1`) before reporting done when:**
+**Run `yuu-dev test-api` before reporting done when:**
 - Fixing a logic bug in a route handler or scoring/analyze pipeline
 - Adding or removing a route, or changing its response shape
 - Touching DB models, migrations, or config parsing
@@ -53,7 +53,7 @@ Test script output: both test commands default to quiet output and write
 `test-api-last.log` / `test-ui-last.log` (full) plus `test-*-last-summary.log`
 (failures + summary only). Read the summary file after a run - only open the full
 log when a failure needs more context. Pass `--detailed` for verbose per-test output
-on a manual run (the `.ps1` shims still accept the old `-Detailed`).
+on a manual run.
 
 ### Before restarting the server
 
@@ -106,7 +106,7 @@ suite explicitly.
 ```
 yuu_clip/
   cli/                     # Thin Typer adapters - analyze, export, reel, review, serve (+ _base). Commands parse args and call into pipeline/ and export/.
-  dev/                     # The yuu-dev developer-loop CLI (serve/test-api/test-ui/lint/logs/status), Typer. Ports the old scripts/*.ps1; _summary.py = pytest-output summary core, procs.py = Windows process reap. scripts/*.ps1 are now one-line shims to this.
+  dev/                     # The yuu-dev developer-loop CLI (serve/test-api/test-ui/lint/logs/status), Typer, cross-platform. _summary.py = pytest-output summary core, procs.py = Windows process reap (no-ops off Windows).
   pipeline/                # The analyze engine: ingest (per-video orchestration + stages), run_meta (per-run timing/settings capture), vision_describe (opt-in auto vision-LLM description of top-N textless/visual clips)
   export/                  # The export feature: render (engine - cut, retranscribe, title card, captions), naming (filename stem), presets (definitions + size-cap math), paths (on-disk export/sidecar path resolution + export-query validation)
   console.py               # Shared Rich console + BYTES_PER_MB (used by cli/ and the engine; lives outside cli/ so the engine never imports cli)
@@ -235,7 +235,7 @@ Use these glossary terms in **conversation** too, not just in code. If discussin
 
 ## Behavior
 - Never cd into the current working directory before running a command
-- Always use the approved dev CLI (`yuu-dev <cmd>`, or the `.\scripts\*.ps1` shims) - never raw python calls outside the venv
+- Always use the approved dev CLI (`yuu-dev <cmd>`) - never raw python calls outside the venv
 - Ask before touching files outside the current task scope
 - If uncertain about approach, stop and ask rather than proceeding with assumptions
 - Be concise in responses - no preamble, no "I've completed..." summaries

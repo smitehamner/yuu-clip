@@ -1,7 +1,7 @@
 """
 Smoke backstop - a small, fast, high-signal set covering the core surfaces
 (page load, sidebar, clip open + detail, settings, export). It runs on every
-targeted `test-ui.ps1 -Changed` regardless of what changed, so a broad break
+targeted `yuu-dev test-ui --changed` regardless of what changed, so a broad break
 in a shared file (utils.js, the app shell) is caught even when no feature test
 maps to the edit.
 

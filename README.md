@@ -74,7 +74,7 @@ LLM scoring and written clip descriptions are optional. Without a model, YuuClip
 ## Install (from source)
 
 ```bash
-git clone https://github.com/you/yuu-clip
+git clone https://github.com/smitehamner/yuu-clip
 cd yuu-clip
 python -m venv .venv
 
@@ -83,8 +83,10 @@ python -m venv .venv
 # Linux / macOS:
 source .venv/bin/activate
 
-pip install -e .
+pip install -e .        # contributors: use  pip install -e ".[dev]"  (adds test + lint tools)
 ```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) if you want to hack on YuuClip.
 
 ---
 
@@ -167,6 +169,14 @@ Global config and track layouts:
 ## Offline use
 
 After the initial model downloads (Whisper via HuggingFace, and a scoring model if you choose one), the entire pipeline runs with no internet connection. In lightweight mode there is nothing extra to download at all.
+
+---
+
+## Contributing
+
+Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for how to set up a
+dev environment, run the tests, and the code standards. Please report security issues
+per [SECURITY.md](SECURITY.md) rather than in a public issue.
 
 ---
 

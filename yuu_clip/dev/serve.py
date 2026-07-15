@@ -1,6 +1,6 @@
-"""``yuu-dev serve`` - start the dev web server (replaces serve.ps1).
+"""``yuu-dev serve`` - start the dev web server.
 
-Ports serve.ps1's job into Python: run the /api/status pre-check (warn + confirm
+Runs the /api/status pre-check (warn + confirm
 before interrupting a live job), reap this repo's stale serve processes and any
 orphaned llama-server, then spawn a fresh detached server. Adds a free-port
 fallback: after reaping our own servers :8080 is normally free, but if a foreign
@@ -125,8 +125,10 @@ def serve(
     env = os.environ.copy()
     if LLAMA_RUNTIME_DIR.exists():
         env["YUU_CLIP_LLAMA_SERVER_DIR"] = str(LLAMA_RUNTIME_DIR)
-    else:
+    elif sys.platform == "win32":
         console.print("Run scripts\\fetch-llama-server-runtime.ps1 to enable local LLM/vision in dev")
+    else:
+        console.print("No local llama-server runtime found; local LLM/vision is disabled in dev")
 
     cmd = [sys.executable, "-m", "yuu_clip.cli", "serve",
            "--project", str(REPO_ROOT), "--host", host, "--port", str(chosen)]

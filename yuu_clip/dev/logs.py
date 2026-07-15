@@ -1,4 +1,4 @@
-"""``yuu-dev logs`` - tail the project log (replaces logs.ps1)."""
+"""``yuu-dev logs`` - tail the project log."""
 from __future__ import annotations
 
 import os

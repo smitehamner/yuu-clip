@@ -1,4 +1,4 @@
-"""``yuu-dev lint`` - ruff wrapper (replaces lint.ps1)."""
+"""``yuu-dev lint`` - ruff wrapper for yuu_clip and tests."""
 from __future__ import annotations
 
 import subprocess

@@ -12,7 +12,7 @@ Main-process behavior (PATH refresh, pip installs, schema-version re-show) is
 not covered here; it lives in electron/main.js and has no test harness.
 
 The shared `page` fixture navigates to the live server first (and these tests
-run as part of test-ui.ps1), so the live-server skip still applies.
+run as part of yuu-dev test-ui), so the live-server skip still applies.
 """
 from __future__ import annotations
 

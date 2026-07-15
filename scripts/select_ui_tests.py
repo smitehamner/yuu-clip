@@ -1,6 +1,6 @@
 """Map changed files to the UI test files worth running.
 
-Used by ``test-ui.ps1 -Changed`` to run only the tests around an edit plus the
+Used by ``yuu-dev test-ui --changed`` to run only the tests around an edit plus the
 smoke backstop, instead of the whole ~655-test suite (which is server-bound, so
 running it on every change is the slow part of the dev loop).
 
@@ -95,7 +95,7 @@ def select(changed: list[str]) -> tuple[list[str], list[str]]:
             elif stem not in CROSS_CUTTING:
                 notes.append(f"no UI test maps to {name} - relying on smoke backstop")
         elif path.endswith(".py") and path.startswith("yuu_clip/"):
-            notes.append(f"backend file changed ({name}) - run test-api.ps1; UI impact via smoke only")
+            notes.append(f"backend file changed ({name}) - run yuu-dev test-api; UI impact via smoke only")
     existing = [p for p in selected if (REPO_ROOT / p).exists()]
     return sorted(existing), notes
 

@@ -8,7 +8,7 @@ Usage (via the wrapper):
     .\scripts\screenshots.ps1 -List      # list shot names, capture nothing
     .\scripts\screenshots.ps1 -Only settings   # only shots whose file matches
 
-Requires the dev server running on :8080 (.\scripts\serve.ps1) with at least
+Requires the dev server running on :8080 (yuu-dev serve) with at least
 one analyzed recording that has clips. Images land in docs/screenshots/ at
 stable filenames, so regenerating keeps the README links valid.
 """
@@ -150,7 +150,7 @@ def main() -> int:
 
     if not _server_up():
         print("ERROR: dev server not reachable on http://127.0.0.1:8080", file=sys.stderr)
-        print("Start it with:  .\\scripts\\serve.ps1", file=sys.stderr)
+        print("Start it with:  yuu-dev serve", file=sys.stderr)
         return 2
 
     shots = [s for s in SHOTS if not args.only or args.only in s[0]]

@@ -1,8 +1,7 @@
 """``yuu-dev status`` - is the dev server up / is anything processing?
 
-Replaces check-analyze.ps1 (the /api/status pre-check) and wait-server.ps1
-(the readiness poll, exposed as ``--wait``). serve.py reuses fetch_status for
-its own pre-restart safety check.
+Runs the /api/status pre-check and a readiness poll (exposed as ``--wait``).
+serve.py reuses fetch_status for its own pre-restart safety check.
 """
 from __future__ import annotations
 

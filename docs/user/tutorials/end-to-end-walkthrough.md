@@ -9,7 +9,7 @@ If you're recording a tutorial video from this document, each top-level section 
 ## What you'll need
 
 - A video recording of a gaming or roleplay session (see [Recommended test videos](#recommended-test-videos) below)
-- YuuClip running: `.\scripts\serve.ps1`
+- YuuClip running: `yuu-dev serve`
 - An LLM backend set up for scoring. By default this is a local model file (the setup wizard downloads the recommended one with one click); you can also use the Claude API. The app shows which model it's using. If no backend is set up, analysis still runs but clips get no descriptions or scores.
 - A browser open at `http://127.0.0.1:8080`
 

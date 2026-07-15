@@ -1,9 +1,9 @@
-"""``yuu-dev test-api`` / ``test-ui`` - the pytest runners (replace test-api.ps1 / test-ui.ps1).
+"""``yuu-dev test-api`` / ``test-ui`` - the pytest runners.
 
 test-api runs the server-free unit + integration tiers. test-ui runs the
-Playwright suite against the live :8080 server, with the same preflights the
-ps1 grew (single server, no leftover workers, seeded data, one-run lock) and the
-same -Changed / -Smoke selection, reusing scripts/select_ui_tests.py rather than
+Playwright suite against the live :8080 server, with a set of preflights
+(single server, no leftover workers, seeded data, one-run lock) and the
+--changed / --smoke selection, reusing scripts/select_ui_tests.py rather than
 reimplementing the mapping.
 """
 from __future__ import annotations
