@@ -119,3 +119,62 @@ class TestContextIdDerivation:
         page.evaluate("openNewContext()")
         expect(page.locator("#ce-display-name")).to_be_focused()
         _close_manager(page)
+
+
+# The Characters section is DB-backed, so these tests never Save/Delete against the
+# live server's project.db - they drive the visibility/form logic in the DOM and mock
+# the one GET the list render awaits (per the hermetic-stubbing rule).
+def _route_characters(page: Page, characters: list) -> None:
+    import json
+    page.route(
+        "**/api/contexts/*/characters",
+        lambda route: route.fulfill(
+            status=200, content_type="application/json", body=json.dumps(characters)
+        ),
+    )
+
+
+@skip_no_server
+class TestCharacterSection:
+    def test_new_unsaved_context_hides_add_shows_note(self, page: Page):
+        _open_manager(page)
+        page.evaluate("openNewContext()")
+        expect(page.locator("#ce-characters-note")).to_be_visible()
+        expect(page.locator("#ce-add-character-btn")).not_to_be_visible()
+        _close_manager(page)
+
+    def test_saved_context_shows_add_button(self, page: Page):
+        _route_characters(page, [])
+        _open_manager(page)
+        _edit_template(page)
+        expect(page.locator("#ce-add-character-btn")).to_be_visible()
+        expect(page.locator("#ce-characters-note")).not_to_be_visible()
+        _close_manager(page)
+
+    def test_list_renders_characters_with_boost(self, page: Page):
+        _route_characters(page, [
+            {"id": 1, "context_slug": "fantasy-rp", "name": "Alara", "lore": "elf", "score_boost": 0.3},
+            {"id": 2, "context_slug": "fantasy-rp", "name": "Bram", "lore": "", "score_boost": 0.0},
+        ])
+        _open_manager(page)
+        _edit_template(page)
+        page.wait_for_selector("#ce-characters-list [data-edit-char]")
+        rows = page.locator("#ce-characters-list [data-edit-char]")
+        assert rows.count() == 2
+        # Only the boosted character shows a boost badge.
+        expect(page.locator("#ce-characters-list")).to_contain_text("boost 30%")
+        _close_manager(page)
+
+    def test_open_form_reveals_inputs_and_boost_label_tracks_slider(self, page: Page):
+        _route_characters(page, [])
+        _open_manager(page)
+        _edit_template(page)
+        page.evaluate("openCharacterForm()")
+        expect(page.locator("#ce-character-form")).to_be_visible()
+        expect(page.locator("#ce-add-character-btn")).not_to_be_visible()
+        page.evaluate("document.getElementById('ce-char-boost').value = 0.5; _updateCharBoostLabel()")
+        assert page.eval_on_selector("#ce-char-boost-label", "el => el.textContent") == "50%"
+        page.evaluate("cancelCharacterEdit()")
+        expect(page.locator("#ce-character-form")).not_to_be_visible()
+        expect(page.locator("#ce-add-character-btn")).to_be_visible()
+        _close_manager(page)

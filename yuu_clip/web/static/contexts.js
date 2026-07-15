@@ -141,6 +141,8 @@ function openNewContext() {
   document.getElementById('btn-delete-context').style.display = 'none';
   document.getElementById('btn-reset-context').style.display = 'none';
   document.getElementById('btn-duplicate-context').style.display = 'none';
+  cancelCharacterEdit();
+  _updateCharacterSectionVisibility();
   document.getElementById('context-editor').style.display = 'flex';
   document.getElementById('ce-display-name').focus();
 }
@@ -165,6 +167,9 @@ function editContext(context_id) {
   document.getElementById('btn-delete-context').style.display    = ctx.builtin ? 'none' : '';
   document.getElementById('btn-reset-context').style.display     = ctx.builtin ? '' : 'none';
   document.getElementById('btn-duplicate-context').style.display = ctx.builtin ? '' : 'none';
+  cancelCharacterEdit();
+  _updateCharacterSectionVisibility();
+  _loadCharacters(context_id);
   document.getElementById('context-editor').style.display = 'flex';
 }
 
@@ -186,6 +191,8 @@ function duplicateContext() {
   document.getElementById('btn-delete-context').style.display    = 'none';
   document.getElementById('btn-reset-context').style.display     = 'none';
   document.getElementById('btn-duplicate-context').style.display = 'none';
+  cancelCharacterEdit();
+  _updateCharacterSectionVisibility();
   _contextEditorDirty = true;
   document.getElementById('ce-display-name').focus();
 }
@@ -273,6 +280,119 @@ async function _doDeleteContext(name) {
   document.getElementById('context-editor').style.display = 'none';
   await _refreshContextList();
   showToast(`Context "${name}" deleted`);
+}
+
+// ── characters (structured, per-context lore + score boost) ───────────────────
+// Characters are a DB-backed overlay keyed to this context by slug. They only exist
+// for a SAVED context (a slug the API knows), so the section shows a "save first" note
+// while editing an unsaved/new context. Each save/delete hits the API immediately -
+// independent of the context field save - so edits here never touch _contextEditorDirty.
+let _currentCharacters = [];
+let _editingCharacterId = null;
+
+function _boostPct(boost) { return Math.round((boost || 0) * 100) + '%'; }
+
+function _updateCharBoostLabel() {
+  document.getElementById('ce-char-boost-label').textContent =
+    _boostPct(parseFloat(document.getElementById('ce-char-boost').value));
+}
+
+function _updateCharacterSectionVisibility() {
+  const saved = !!AppState.editingContextId;
+  document.getElementById('ce-characters-note').style.display = saved ? 'none' : '';
+  document.getElementById('ce-characters-list').style.display = saved ? 'flex' : 'none';
+  document.getElementById('ce-add-character-btn').style.display = saved ? '' : 'none';
+  if (!saved) document.getElementById('ce-character-form').style.display = 'none';
+}
+
+async function _loadCharacters(slug) {
+  _currentCharacters = await fetch(`/api/contexts/${encodeURIComponent(slug)}/characters`)
+    .then(r => r.json()).catch(() => []);
+  _renderCharacterList();
+}
+
+function _renderCharacterList() {
+  const el = document.getElementById('ce-characters-list');
+  if (!_currentCharacters.length) {
+    el.innerHTML = '<div style="color:var(--muted);font-size:12px">No characters yet.</div>';
+    return;
+  }
+  el.innerHTML = _currentCharacters.map(c => `
+    <div style="display:flex;align-items:center;gap:8px;border:1px solid var(--border);border-radius:6px;padding:6px 10px">
+      <span style="flex:1;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(c.name)}</span>
+      ${c.score_boost > 0 ? `<span style="font-size:11px;color:var(--muted)" title="Scoring boost fed to the LLM">boost ${_boostPct(c.score_boost)}</span>` : ''}
+      <button type="button" class="btn" style="padding:2px 8px;font-size:12px" data-edit-char="${c.id}">Edit</button>
+      <button type="button" class="btn danger" style="padding:2px 8px;font-size:12px" data-del-char="${c.id}">Remove</button>
+    </div>`).join('');
+  el.onclick = e => {
+    const edit = e.target.closest('[data-edit-char]');
+    const del  = e.target.closest('[data-del-char]');
+    if (edit) openCharacterForm(parseInt(edit.dataset.editChar, 10));
+    else if (del) deleteCharacter(parseInt(del.dataset.delChar, 10));
+  };
+}
+
+function openCharacterForm(charId = null) {
+  _editingCharacterId = charId;
+  const char = charId != null ? _currentCharacters.find(c => c.id === charId) : null;
+  document.getElementById('ce-char-name').value  = char ? char.name : '';
+  document.getElementById('ce-char-lore').value  = char ? (char.lore || '') : '';
+  document.getElementById('ce-char-boost').value = char ? (char.score_boost || 0) : 0;
+  _updateCharBoostLabel();
+  document.getElementById('ce-character-form').style.display = 'flex';
+  document.getElementById('ce-add-character-btn').style.display = 'none';
+  document.getElementById('ce-char-name').focus();
+}
+
+function cancelCharacterEdit() {
+  _editingCharacterId = null;
+  document.getElementById('ce-character-form').style.display = 'none';
+  document.getElementById('ce-add-character-btn').style.display = '';
+}
+
+async function saveCharacter() {
+  const slug = AppState.editingContextId;
+  if (!slug) return;
+  const name = document.getElementById('ce-char-name').value.trim();
+  if (!name) { showToast('Character name is required', 'warning'); return; }
+  const payload = {
+    name,
+    lore: document.getElementById('ce-char-lore').value,
+    score_boost: parseFloat(document.getElementById('ce-char-boost').value) || 0,
+  };
+  const url = _editingCharacterId != null
+    ? `/api/characters/${_editingCharacterId}`
+    : `/api/contexts/${encodeURIComponent(slug)}/characters`;
+  const res = await fetch(url, {
+    method: _editingCharacterId != null ? 'PUT' : 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({}));
+    showToast(formatApiError(e) || 'Save failed', 'error');
+    return;
+  }
+  cancelCharacterEdit();
+  await _loadCharacters(slug);
+  showToast(`Character "${name}" saved`);
+}
+
+function deleteCharacter(charId) {
+  const char = _currentCharacters.find(c => c.id === charId);
+  if (!char) return;
+  showConfirm(
+    'Remove character?',
+    `Remove <strong>${escHtml(char.name)}</strong>? Any Person linked to it will be unlinked - their name and voice are not affected.`,
+    'Remove',
+    async () => {
+      const res = await fetch(`/api/characters/${charId}`, {method: 'DELETE'});
+      if (!res.ok) { showToast('Remove failed', 'error'); return; }
+      await _loadCharacters(AppState.editingContextId);
+      showToast(`Character "${char.name}" removed`);
+    },
+    true,
+  );
 }
 
 // ── video context assignment ──────────────────────────────────────────────────
@@ -706,8 +826,12 @@ function rescoreClip(clipId, full = false) {
 document.addEventListener('DOMContentLoaded', () => {
   const editor = document.getElementById('context-editor');
   if (editor) {
-    editor.addEventListener('input',  () => { _contextEditorDirty = true; });
-    editor.addEventListener('change', () => { _contextEditorDirty = true; });
+    // The Characters section saves independently via its own API calls, so typing
+    // there must not flip the context-field dirty flag (it would wrongly prompt
+    // "Discard changes?" on close). Everything else in the editor is dirty-tracked.
+    const fromChars = e => !!e.target.closest('#ce-characters-section');
+    editor.addEventListener('input',  e => { if (!fromChars(e)) _contextEditorDirty = true; });
+    editor.addEventListener('change', e => { if (!fromChars(e)) _contextEditorDirty = true; });
   }
   const nameInput = document.getElementById('ce-display-name');
   const idInput   = document.getElementById('ce-context-id');
@@ -727,6 +851,8 @@ Object.assign(window, {
   openContextManager, closeContextManager, openNewContext,
   saveContext, deleteContext, cancelContextEdit,
   duplicateContext, resetContextToTemplate, _deriveContextId,
+  openCharacterForm, cancelCharacterEdit, saveCharacter, deleteCharacter,
+  _updateCharBoostLabel, _updateCharacterSectionVisibility, _loadCharacters,
   addVideoContext,
   openAutoApproveModal, closeAutoApproveModal, doAutoApprove, updateAutoApprovePreview,
   openRetranscribeModal, closeRetranscribeModal, startRetranscribe,

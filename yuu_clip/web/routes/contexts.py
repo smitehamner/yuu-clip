@@ -79,6 +79,7 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         contexts = load_contexts(ctx.project_dir)
         if context_id not in contexts:
             raise HTTPException(404, f"Context '{context_id}' not found")
+        _delete_context_characters(ctx, context_id)
         del contexts[context_id]
         save_contexts(ctx.project_dir, contexts)
         _log.info("World context deleted: %s", context_id)
@@ -100,6 +101,32 @@ def make_router(ctx: ProjectContext) -> APIRouter:
         return {"context_id": context_id, "builtin": True, **_strip(contexts[context_id])}
 
     return router
+
+
+def _delete_context_characters(ctx: ProjectContext, context_id: str) -> None:
+    """Delete a context's structured Characters and null any Person linked to them.
+
+    Characters are an overlay keyed to this context by slug; a context deletion must
+    remove them and clear ProjectVoice.character_id so no link dangles. It never touches
+    a Person's own name or voiceprint (the link is the only thing that goes away).
+    """
+    from yuu_clip.db.models import Character, ProjectVoice
+
+    db = ctx.get_db()
+    try:
+        char_ids = [
+            cid for (cid,) in db.query(Character.id)
+            .filter(Character.context_slug == context_id).all()
+        ]
+        if not char_ids:
+            return
+        db.query(ProjectVoice).filter(ProjectVoice.character_id.in_(char_ids)).update(
+            {"character_id": None}, synchronize_session=False)
+        db.query(Character).filter(Character.id.in_(char_ids)).delete(synchronize_session=False)
+        db.commit()
+        _log.info("Deleted %d character(s) with context %s", len(char_ids), context_id)
+    finally:
+        db.close()
 
 
 _OMIT_KEYS = frozenset(("created_at", "updated_at"))
