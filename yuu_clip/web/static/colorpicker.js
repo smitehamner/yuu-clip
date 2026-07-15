@@ -1,4 +1,3 @@
-(function () {
 // Feature-map - Shared colour picker. Progressive-enhances an <input> that holds
 //   a hex value: the original input becomes a hidden value-store (keeping its id,
 //   classes, data-* and event wiring) and gains a compact swatch trigger. Clicking
@@ -354,5 +353,4 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Tab') _trapFocus(e);
 });
 
-window.ColorPicker = { attach, _normalizeHex, RECENT_KEY, PALETTE_KEY };
-})();
+export const ColorPicker = { attach, _normalizeHex, RECENT_KEY, PALETTE_KEY };

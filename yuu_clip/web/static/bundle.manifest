@@ -6,20 +6,23 @@
 # its dependencies) and re-run `yuu-dev bundle`; do not add <script> tags to
 # index.html. Blank lines and lines starting with `#` are ignored.
 #
-# Step 1 is plain ordered concatenation, not a module bundler: every file stays a
-# classic global-scope script, so top-level `function foo(){}` stays global and the
-# inline onclick="foo()" handlers keep working. Behavior is identical to separate tags.
+# This is plain ordered concatenation, not a module bundler: every file listed here
+# stays a classic global-scope script, so top-level `function foo(){}` stays global
+# and the inline onclick="foo()" handlers keep working.
+#
+# Modules that have been migrated to real ESM (import/export) are NOT listed here -
+# they live in the esbuild graph rooted at main.esm.js and ship as bundle.esm.js
+# (see scripts/build-esm.mjs). As a classic file is migrated to ESM, remove it from
+# this manifest and add it to that graph. index.html loads bundle.esm.js first, then
+# this bundle.js.
 
 state.js
-format.js
 jobs.js
 preview.js
 utils.js
-colorpicker.js
 ui.js
 helpmodals.js
 shortcuts.js
-panelnav.js
 videos.js
 videos-timeline.js
 videos-summary.js

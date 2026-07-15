@@ -12,7 +12,6 @@
 // onClose() must move it back out to a stable, always-in-document location -
 // otherwise it goes with the container and getElementById can't find it on
 // the next open. See split.js's _teardownSplitEditor for the pattern.
-(function () {
 
 const _stack = [];  // [{id, title, isDirty, onClose, container}]
 
@@ -79,7 +78,7 @@ function panelNavClose() {
   const top = _top();
   if (!top) return;
   if (top.isDirty()) {
-    showConfirm(
+    window.showConfirm(
       'Discard changes?',
       'You have unsaved changes. Close without saving?',
       'Discard',
@@ -103,7 +102,6 @@ function panelNavIsOpen(id) {
   return _stack.some(entry => entry.id === id);
 }
 
-Object.assign(window, {
-  PanelNav: { open: panelNavOpen, close: panelNavClose, forceClose: panelNavForceClose, isOpen: panelNavIsOpen },
-});
-})();
+export const PanelNav = {
+  open: panelNavOpen, close: panelNavClose, forceClose: panelNavForceClose, isOpen: panelNavIsOpen,
+};

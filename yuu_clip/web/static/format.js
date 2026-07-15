@@ -2,7 +2,6 @@
 //   duration/date/offset formatting, video-status labels, and the score color/icon encoding.
 //   API: none (client-only) · Tests: tests/ui/test_ui_utils.py
 // ── score utils ───────────────────────────────────────────────────────────────
-(function () {
 function _scoreIcon(score) {
   const color = score >= 0.7 ? 'var(--green)' : score >= 0.4 ? 'var(--warning)' : 'var(--muted)';
   return `<span style="color:${color};font-size:10px" aria-hidden="true">&#11088;</span>`;
@@ -27,7 +26,7 @@ function _scoreBorderColor(score, isRejected) {
 }
 
 function _sortScore(clip) {
-  const sort = _clipsSortParam();
+  const sort = window._clipsSortParam();
   if (sort === 'funny')    return clip.score_funny;
   if (sort === 'dramatic') return clip.score_dramatic;
   if (sort === 'action')   return clip.score_action;
@@ -142,9 +141,8 @@ function _parseIntervalS(value, unit) {
   return seconds >= _TIMELINE_MIN_INTERVAL_S ? seconds : null;
 }
 
-Object.assign(window, {
+export {
   _scoreIcon, _lerpColor, _scoreBorderColor, _sortScore, _fmtVideoStatus, _msToHms,
   plural, finiteOr, fmtDuration, truncate, escHtml, formatApiError, stripRichMarkup,
   _parseServerDate, _fmtDate, _fmtAgo, _fmtOffset, _fmtElapsed, _parseIntervalS,
-});
-})();
+};

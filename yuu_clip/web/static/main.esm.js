@@ -1,0 +1,17 @@
+// ESM entry point - the strangler-fig seam (WS5 step 2). esbuild bundles this
+// module graph into static/bundle.esm.js (see scripts/build-esm.mjs, run by
+// `yuu-dev bundle`). Everything reachable from here is real ESM (import/export);
+// the classic global-scope scripts still in bundle.js call these modules as
+// window globals, so this entry re-exposes each migrated module's public surface
+// on window as a compatibility shim.
+//
+// Migrating a classic consumer to `import` shrinks the shim: once nothing reads a
+// name off window, delete its line below. When bundle.js is empty, this file is
+// the whole app and the shim is gone.
+import * as format from './format.js';
+import { ColorPicker } from './colorpicker.js';
+import { PanelNav } from './panelnav.js';
+
+Object.assign(window, format);
+window.ColorPicker = ColorPicker;
+window.PanelNav = PanelNav;

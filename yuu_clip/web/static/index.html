@@ -2146,8 +2146,11 @@
   </div>
 </div>
 
-<!-- Single concatenated bundle; load order lives in static/bundle.manifest.
-     Regenerate with `yuu-dev bundle` after editing any static/*.js. -->
+<!-- Two committed bundles, both built by `yuu-dev bundle` (rerun after editing any
+     static/*.js). bundle.esm.js is the esbuild ESM graph (rooted at main.esm.js) and
+     loads first so its window compat-shim exports exist before the classic scripts.
+     bundle.js is the remaining classic scripts; load order lives in bundle.manifest. -->
+<script src="/static/bundle.esm.js"></script>
 <script src="/static/bundle.js"></script>
 </body>
 </html>

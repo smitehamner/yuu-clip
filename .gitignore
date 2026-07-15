@@ -19,3 +19,7 @@ docs/dev/plans/
 /dist/
 /electron/dist/
 /electron/node_modules/
+/node_modules/
+
+# esbuild drift-check scratch output (never committed)
+/yuu_clip/web/static/*.check.js
