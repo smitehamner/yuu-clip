@@ -40,6 +40,14 @@ Wanted before distributing beyond friends/trusted users.
   `docs/dev/THIRD-PARTY-NOTICES-FFMPEG.md` and `HOW-TO-RELEASE.md § Bundled FFmpeg`.
   Plan (checklist, blocked on repo going public): (internal planning notes).
 
+- [ ] **Enable private vulnerability reporting** (Settings -> Security). `SECURITY.md`
+  already points reporters at the "Report a vulnerability" flow, which needs this turned
+  on. Verify it is available/enabled once the repo is public.
+
+- [ ] **Confirm branch protection on `main` takes effect once public** - the rule is
+  configured but GitHub does not enforce protected-branch rules on a private repo on the
+  Free plan; it should start enforcing when the repo goes public. Re-check after flipping.
+
 ---
 
 ## 3 - Larger / speculative features
