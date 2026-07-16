@@ -115,6 +115,7 @@ import {
 import {
   _updateExportNameTemplatePreview, _updateTitleCardPreview,
 } from './settings-previews.js';
+import { _refreshInstallStatus } from './settings-installs.js';
 
 window.AppState = AppState;
 Object.assign(window, format);
@@ -507,3 +508,9 @@ window._checkSettingsDirty = _checkSettingsDirty;
 // settings-previews.js itself, so no inline handler reads either name.
 window._updateExportNameTemplatePreview = _updateExportNameTemplatePreview;
 window._updateTitleCardPreview = _updateTitleCardPreview;
+// settings-installs.js - _refreshInstallStatus is read as window.* by settings.js's
+// _applySettingsToUI (already-ESM, but its own migration predates this one and never
+// switched to an import - out of scope to touch settings.js here). installPackage
+// dropped: its only consumer was index.html's inline install-button onclick, now an
+// addEventListener inside settings-installs.js itself.
+window._refreshInstallStatus = _refreshInstallStatus;

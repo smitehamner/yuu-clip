@@ -1,5 +1,4 @@
-(function () {
-// Feature-map - Settings optional-package install controls + remote-LLM badge.
+// Feature-map - Settings optional-package install controls.
 //   API: routes/analyze.py (install status/POST) · Tests: tests/ui/test_ui_settings.py
 // ── optional-package installs ────────────────────────────────────────────────
 // Only two install actions remain (packaging-strategy overhaul, Wave 3): Pyannote
@@ -66,11 +65,14 @@ async function installPackage(slug) {
   btn.disabled = false;
 }
 
-// Public API - installPackage is wired to inline install-button handlers in
-// index.html; _refreshInstallStatus is called from settings.js's
-// _applySettingsToUI. _updateDiarizationStatus resolves through window (owned by
-// settings.js core) at call time.
-Object.assign(window, {
-  _refreshInstallStatus, installPackage,
-});
-})();
+// ── static index.html handler this module owns (wired once at load) ───────────
+// The CUDA-libs install button is a fixed, never-recreated element in index.html,
+// so a single load-time listener can't double-fire on a re-render.
+function _wireStaticHandlers() {
+  document.getElementById('btn-install-cuda-libs')
+    ?.addEventListener('click', () => installPackage('cuda-libs'));
+}
+
+_wireStaticHandlers();
+
+export { _refreshInstallStatus, installPackage };
