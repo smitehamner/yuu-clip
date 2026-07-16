@@ -12,8 +12,15 @@ import { AppState } from './state.js';
 import * as format from './format.js';
 import { ColorPicker } from './colorpicker.js';
 import { PanelNav } from './panelnav.js';
+import * as jobs from './jobs.js';
 
 window.AppState = AppState;
 Object.assign(window, format);
 window.ColorPicker = ColorPicker;
 window.PanelNav = PanelNav;
+// jobs.js is cross-cutting - every export here still has at least one classic
+// (bundle.js) consumer or a still-present inline handler, so none of these can
+// be dropped yet. Its handful of mutable shared-state globals (_jobStepDefs,
+// _activeES, etc.) are NOT here - jobs.js wires those onto window itself via
+// live get/set accessors, since a plain snapshot would go stale on reassignment.
+Object.assign(window, jobs);
