@@ -1,4 +1,3 @@
-(function () {
 // Feature-map - Name corrections (code: name_corrections; UI "Fix names").
 //   API: routes/name_corrections.py · Tests: tests/ui/test_ui_namecorrections.py
 // ── transcript name correction (Plan 09) ──────────────────────────────────────
@@ -7,15 +6,21 @@
 // groups them by pattern, and applies only the instances the user keeps checked.
 // Nothing is auto-applied; applying routes through the same caption-edit path as
 // a manual edit, so staleness badges and sidecars behave identically.
+import { AppState } from './state.js';
+import { escHtml, formatApiError, plural } from './format.js';
+import { showToast } from './utils.js';
+import { PanelNav } from './panelnav.js';
+import { reloadVideoTranscriptIfOpen } from './transcript.js';
+import { refreshClipDetail } from './clips.js';
 
 let _ncVideoId = null;
 let _ncData = null;  // last scan result - the source for offsets/replacements at apply time
 
-function isNameCorrectionsOpen() {
+export function isNameCorrectionsOpen() {
   return PanelNav.isOpen('name-corrections');
 }
 
-function openNameCorrections(videoId) {
+export function openNameCorrections(videoId) {
   _ncVideoId = videoId;
   PanelNav.open({
     id: 'name-corrections',
@@ -159,9 +164,9 @@ async function _ncApply() {
     showToast(skipped
       ? `Applied ${plural(data.applied, 'correction')}; ${skipped} skipped (transcript changed)`
       : `Applied ${plural(data.applied, 'correction')}`, skipped ? 'warning' : 'success');
-    if (window.reloadVideoTranscriptIfOpen) reloadVideoTranscriptIfOpen(_ncVideoId);
+    reloadVideoTranscriptIfOpen(_ncVideoId);
     const openClip = AppState.activeClipId;
-    if (openClip != null && (data.affected_clip_ids || []).includes(openClip) && window.refreshClipDetail) {
+    if (openClip != null && (data.affected_clip_ids || []).includes(openClip)) {
       refreshClipDetail(openClip);
     }
     _ncScan();  // re-scan so applied patterns drop out and the count refreshes
@@ -170,6 +175,3 @@ async function _ncApply() {
     showToast(`Could not apply corrections: ${err.message}`, 'error');
   }
 }
-
-Object.assign(window, {openNameCorrections, isNameCorrectionsOpen});
-})();
