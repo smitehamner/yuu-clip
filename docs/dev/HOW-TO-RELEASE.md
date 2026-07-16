@@ -42,18 +42,21 @@ Use [semver](https://semver.org/): `MAJOR.MINOR.PATCH`
 
 ## Frontend bundle
 
-The web UI ships as one committed `yuu_clip/web/static/bundle.js` (concatenated from the
-individual `static/*.js` files in the order listed in `static/bundle.manifest`).
-Regenerate it and commit any change before building:
+The web UI ships as one committed `yuu_clip/web/static/bundle.esm.js` - the esbuild ESM
+graph rooted at `static/main.esm.js`. Rebuilding needs Node + `npm install` (esbuild is a
+pinned dev-only dep); the committed artifact is what ships, so the release machine needs
+no Node. Regenerate it and commit any change before building:
 
 ```powershell
 yuu-dev bundle
-git add yuu_clip/web/static/bundle.js
+git add yuu_clip/web/static/bundle.esm.js
 ```
 
 `tests/unit/test_bundle_drift.py` fails if the committed bundle is stale, so a release
 can't silently ship an out-of-date UI - but regenerate here so the drift guard never has
-to catch it. (During active UI work, `yuu-dev bundle --watch` rebuilds on save.)
+to catch it. (During active UI work, `yuu-dev bundle --watch` rebuilds on save.) The
+esbuild drift guard skips when the JS toolchain is absent, so run `yuu-dev bundle` on a
+machine with Node before a release build.
 
 ---
 

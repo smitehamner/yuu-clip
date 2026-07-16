@@ -1,13 +1,17 @@
-// ESM entry point - the strangler-fig seam (WS5 step 2). esbuild bundles this
-// module graph into static/bundle.esm.js (see scripts/build-esm.mjs, run by
-// `yuu-dev bundle`). Everything reachable from here is real ESM (import/export);
-// the classic global-scope scripts still in bundle.js call these modules as
-// window globals, so this entry re-exposes each migrated module's public surface
-// on window as a compatibility shim.
+// ESM entry point - the app's whole module graph. esbuild bundles it into
+// static/bundle.esm.js (see scripts/build-esm.mjs, run by `yuu-dev bundle`), the
+// single script index.html loads. Every UI module is now real ESM; the classic
+// bundle.js/bundle.manifest are retired.
 //
-// Migrating a classic consumer to `import` shrinks the shim: once nothing reads a
-// name off window, delete its line below. When bundle.js is empty, this file is
-// the whole app and the shim is gone.
+// The `window.X = X` block below is a RESIDUAL compatibility shim, not a classic-
+// script bridge anymore. Each remaining line exists for one of two reasons:
+//   1. an already-ESM module still reads the name off `window` (a `window.foo`
+//      call site that was never converted to an `import`), or
+//   2. a Playwright ui test pokes it via `page.evaluate` (a page global).
+// The per-section "(bundle.js) consumer" notes further down are HISTORICAL - no
+// classic consumer exists now. Retiring this shim is the vitest follow-on: convert
+// the window.* read sites to imports and delete the page.evaluate pokes, then the
+// matching lines here drop and the window surface trends to empty.
 import { AppState } from './state.js';
 import * as format from './format.js';
 import { ColorPicker } from './colorpicker.js';
