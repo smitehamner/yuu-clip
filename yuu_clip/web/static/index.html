@@ -75,7 +75,7 @@
             style="padding:2px 10px;font-size:12px;display:none">Cancel</button>
   </div>
   <div class="header-spacer" id="header-spacer"></div>
-  <button class="btn highlight" id="btn-analyze" onclick="openNewRecordingPanel()">+ Analyze</button>
+  <button class="btn highlight" id="btn-analyze">+ Analyze</button>
   <button class="btn ghost" id="btn-settings-header" onclick="openSettings()" title="Settings" aria-label="Settings" style="font-size:15px;padding:5px 10px">&#9881;</button>
   <div class="hamburger-wrap" id="hamburger-wrap">
     <button class="btn ghost" id="btn-hamburger" title="More options" aria-label="More options" aria-haspopup="true" aria-expanded="false" style="font-size:17px;padding:5px 11px;line-height:1">&#9776;</button>
@@ -1115,7 +1115,7 @@
       <div class="new-recording-inner">
         <div class="new-recording-header">
           <h2 id="new-recording-title">New Recording</h2>
-          <button class="btn ghost" id="btn-close-new-recording" onclick="closeNewRecordingPanel()"
+          <button class="btn ghost" id="btn-close-new-recording"
                   aria-label="Close" style="font-size:16px">&#x2715;</button>
         </div>
 
@@ -1124,31 +1124,28 @@
         <div class="field" id="recording-source-field">
           <label for="analyze-path">Recording file</label>
           <div class="path-row">
-            <button class="btn" id="btn-browse-recording" onclick="pickFile()">&#128193; Browse&#8230;</button>
-            <input type="text" id="analyze-path" placeholder="or paste a file path" oninput="scheduleProbe()">
+            <button class="btn" id="btn-browse-recording">&#128193; Browse&#8230;</button>
+            <input type="text" id="analyze-path" placeholder="or paste a file path">
           </div>
           <button class="btn ghost" id="btn-show-import-url" type="button"
-                  style="margin-top:6px;font-size:12px;padding:2px 8px"
-                  onclick="showImportUrlSection()">&#128279; Import from a URL instead (Twitch/YouTube)</button>
+                  style="margin-top:6px;font-size:12px;padding:2px 8px">&#128279; Import from a URL instead (Twitch/YouTube)</button>
         </div>
 
         <div class="field" id="import-url-field" style="display:none">
           <label for="import-url-input">Twitch VOD / YouTube URL</label>
           <div class="path-row">
-            <input type="text" id="import-url-input" placeholder="https://www.twitch.tv/videos/... or https://youtube.com/watch?v=..."
-                   onkeydown="if(event.key==='Enter'){event.preventDefault();checkImportUrl();}">
-            <button class="btn" id="btn-check-url" type="button" onclick="checkImportUrl()">Check link</button>
+            <input type="text" id="import-url-input" placeholder="https://www.twitch.tv/videos/... or https://youtube.com/watch?v=...">
+            <button class="btn" id="btn-check-url" type="button">Check link</button>
           </div>
-          <button class="btn ghost" type="button" style="margin-top:6px;font-size:12px;padding:2px 8px"
-                  onclick="hideImportUrlSection()">&#8592; Use a local file instead</button>
+          <button class="btn ghost" id="btn-use-local-file" type="button" style="margin-top:6px;font-size:12px;padding:2px 8px">&#8592; Use a local file instead</button>
           <div id="import-url-inspect-area" style="margin-top:8px"></div>
         </div>
 
         <div class="field">
           <label for="analyze-profile">Track layout</label>
           <div style="display:flex;gap:6px">
-            <select id="analyze-profile" style="flex:1" onchange="runEstimate()"></select>
-            <button class="btn" onclick="openProfileManager()" title="Manage track layouts">&#9881;</button>
+            <select id="analyze-profile" style="flex:1"></select>
+            <button class="btn" id="btn-open-profile-manager" title="Manage track layouts">&#9881;</button>
           </div>
         </div>
 
@@ -1162,7 +1159,7 @@
           <summary>Advanced options</summary>
           <div class="field">
             <label for="analyze-model">Whisper model</label>
-            <select id="analyze-model" onchange="runEstimate()">
+            <select id="analyze-model">
               <option value="tiny">tiny - fastest, lowest quality</option>
               <option value="base">base - fast, lower quality</option>
               <option value="small">small - fast, decent quality (~500 MB VRAM)</option>
@@ -1173,14 +1170,14 @@
           <div class="field" id="analyze-diarize-field">
             <label>Speaker labels</label>
             <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:var(--text);margin:0">
-              <input type="checkbox" id="analyze-diarize" onchange="runEstimate()" style="width:auto">
+              <input type="checkbox" id="analyze-diarize" style="width:auto">
               <span>Identifies who is speaking</span>
             </label>
             <div id="analyze-diarize-note" style="font-size:11px;color:var(--muted);margin-top:4px"></div>
           </div>
           <div class="field">
             <label for="analyze-scene-mode">Scene detection</label>
-            <select id="analyze-scene-mode" onchange="runEstimate()">
+            <select id="analyze-scene-mode">
               <option value="transcript">Transcript only - silence gaps, instant</option>
               <option value="fast" selected>Fast - keyframes + transcript gaps (recommended)</option>
               <option value="full">Full - every frame, most accurate (slow)</option>
@@ -1188,7 +1185,7 @@
           </div>
           <div class="field">
             <label for="analyze-energy-mode">Audio energy</label>
-            <select id="analyze-energy-mode" onchange="runEstimate()">
+            <select id="analyze-energy-mode">
               <option value="none">None - skip (fastest)</option>
               <option value="fast" selected>Fast - 4 kHz numpy (recommended)</option>
               <option value="full">Full - 16 kHz numpy (most accurate)</option>
@@ -1218,7 +1215,7 @@
         <div id="prereq-banner" style="display:none;font-size:12px;color:var(--warning);padding:6px 0 2px"></div>
 
         <div class="new-recording-actions">
-          <button class="btn highlight" id="btn-start-analyze" onclick="startAnalyze()" disabled
+          <button class="btn highlight" id="btn-start-analyze" disabled
                   title="Select a valid recording file first">Start Analysis</button>
         </div>
       </div>
@@ -1473,29 +1470,29 @@
 
 
 <!-- Profile Manager Modal -->
-<div class="modal-bg" id="profile-modal" onclick="if(event.target===this)closeProfileManager()">
+<div class="modal-bg" id="profile-modal">
   <div class="modal" style="width:560px;max-height:80vh;overflow-y:auto">
     <h3>Track Layouts</h3>
     <div id="profile-list"></div>
     <div style="margin-top:14px;display:flex;gap:8px">
-      <button class="btn primary" onclick="openNewProfile()">+ New Track Layout</button>
-      <button class="btn" style="margin-left:auto" onclick="closeProfileManager()">Close</button>
+      <button class="btn primary" id="btn-new-track-layout">+ New Track Layout</button>
+      <button class="btn" id="btn-close-profile-manager" style="margin-left:auto">Close</button>
     </div>
     <div id="profile-editor" style="display:none;border-top:1px solid var(--border);margin-top:14px;padding-top:14px">
       <div class="field">
         <label for="pe-name">Layout name</label>
-        <input type="text" id="pe-name" placeholder="My OBS setup" oninput="_clearPeNameError()"
+        <input type="text" id="pe-name" placeholder="My OBS setup"
                aria-describedby="pe-name-error">
         <div id="pe-name-error" role="alert" style="display:none;color:var(--red);font-size:11px;margin-top:4px"></div>
       </div>
       <div class="field">
         <label for="pe-numtracks">Number of tracks</label>
-        <input type="number" id="pe-numtracks" min="1" max="8" value="2" oninput="renderTrackRows()">
+        <input type="number" id="pe-numtracks" min="1" max="8" value="2">
       </div>
       <div id="pe-tracks"></div>
       <div style="display:flex;gap:8px;margin-top:10px">
-        <button class="btn primary" onclick="saveProfile()">Save</button>
-        <button class="btn" onclick="cancelProfileEdit()">Cancel</button>
+        <button class="btn primary" id="btn-save-profile">Save</button>
+        <button class="btn" id="btn-cancel-profile-edit">Cancel</button>
       </div>
     </div>
   </div>

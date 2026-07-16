@@ -84,6 +84,14 @@ import {
   _handleExportFormatAction, _downloadClipExport, _revealClipExport, _copyClipExportPaths,
 } from './clipexport.js';
 import { openClipCreatePicker } from './clipcreate.js';
+import {
+  _isNewRecordingPanelOpen, openNewRecordingPanel, openReanalyzePanel, closeNewRecordingPanel,
+  _doCloseNewRecordingPanel,
+  _renderSubtitleSourcePicker,
+  renderEstimate, startAnalyze, reattachAnalysis,
+  _showAnalysisToast,
+  closeProfileManager,
+} from './analyze.js';
 
 window.AppState = AppState;
 Object.assign(window, format);
@@ -321,3 +329,38 @@ window._copyClipExportPaths = _copyClipExportPaths;
 // clipcreate.js) - dead code left as a named export in case a future caller
 // needs a PanelNav('clip-create')-open check.
 window.openClipCreatePicker = openClipCreatePicker;
+// analyze.js - _isNewRecordingPanelOpen, closeNewRecordingPanel and
+// _doCloseNewRecordingPanel are called as bare globals by shortcuts.js and
+// settings.js (still classic); openNewRecordingPanel and openReanalyzePanel are
+// read as window.* by clips.js/videos.js (already-ESM, but their own migrations
+// predate this one and never switched to an import - out of scope to touch those
+// modules here) and openReanalyzePanel is also invoked directly by
+// tests/ui/test_ui_analyze.py via page.evaluate. closeProfileManager is called
+// as a bare global by shortcuts.js's Escape-key modal-closer map.
+// renderEstimate, startAnalyze, _showAnalysisToast and
+// _renderSubtitleSourcePicker have no outside JS caller left (their only
+// external use was now-removed index.html inline handlers) but
+// tests/ui/test_ui_analyze.py, test_ui_whisper_prefetch.py and
+// test_ui_toasts.py call them directly via page.evaluate. reattachAnalysis is
+// called as a bare global by boot.js. _probedInfo/_panelDirty are NOT here -
+// videos.js imports them directly from analyze.js as live ESM bindings instead
+// of reading them off window. scheduleProbe, pickFile, showImportUrlSection,
+// hideImportUrlSection, checkImportUrl, startImportUrlDownload,
+// openProfileManager, openNewProfile, renderTrackRows, onLabelChange,
+// _clearPeNameError, saveProfile, deleteProfile, cancelProfileEdit,
+// _toggleCtxPill, _onSubtitleSourceChange, _doStartAnalyze, _streamAnalyzeEvents,
+// _surfaceAnalyzeWarnings and _warmPreviewProxy dropped: their only callers were
+// this module's own inline handlers (now addEventListener/delegation inside
+// analyze.js itself) or its own internal logic, so nothing outside the module
+// needs them off window anymore.
+window._isNewRecordingPanelOpen = _isNewRecordingPanelOpen;
+window.openNewRecordingPanel = openNewRecordingPanel;
+window.openReanalyzePanel = openReanalyzePanel;
+window.closeNewRecordingPanel = closeNewRecordingPanel;
+window._doCloseNewRecordingPanel = _doCloseNewRecordingPanel;
+window._renderSubtitleSourcePicker = _renderSubtitleSourcePicker;
+window.renderEstimate = renderEstimate;
+window.startAnalyze = startAnalyze;
+window.reattachAnalysis = reattachAnalysis;
+window._showAnalysisToast = _showAnalysisToast;
+window.closeProfileManager = closeProfileManager;

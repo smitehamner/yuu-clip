@@ -9,6 +9,7 @@ import { showConfirm, openFieldEditModal, openDiffModal, showKebab, openActionsM
 import { setupRecordingPreview } from './preview.js';
 import { streamSSE, cancelJob, _blockedByAnalyze, _stepPillLabel } from './jobs.js';
 import { openGettingStartedModal } from './helpmodals.js';
+import { _probedInfo, _panelDirty } from './analyze.js';
 // ── videos ────────────────────────────────────────────────────────────────────
 async function loadVideos() {
   let videos;

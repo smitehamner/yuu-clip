@@ -1,14 +1,23 @@
 // Feature-map - Analyze (start + SSE progress) + Import from URL, both in the New Recording panel.
 //   API: routes/analyze.py, routes/imports.py · Tests: tests/ui/test_ui_analyze.py
+import { AppState } from './state.js';
+import { escHtml, plural, formatApiError, _msToHms } from './format.js';
+import { showConfirm } from './ui.js';
+import { showToast, openLog, appendLog, netErrMsg, _diarizationReadiness, _diarizationNoteHtml } from './utils.js';
+import {
+  streamSSE, INGEST_STEPS, setJobCancel, _waitWhileAnalyzePaused, _setPausedUIFromStatus,
+} from './jobs.js';
+import {
+  loadVideos, selectVideo, renderVideoDetail, _updateStartIngestButton, _reanalyzeParams,
+} from './videos.js';
+
 // ── shared live panel state ───────────────────────────────────────────────────
 // _probedInfo and _panelDirty are read cross-file by videos.js (analyze-button
-// enablement, dirty-guard on view switch). Kept at top level, outside the IIFE
-// below, so the global lexical binding stays live - an Object.assign export
-// would snapshot the value and readers would see stale data.
-let _probedInfo    = null;
-let _panelDirty    = false;
+// enablement, dirty-guard on view switch) via an explicit `import` - export let
+// gives videos.js a live ESM binding, so it always sees the current value.
+export let _probedInfo    = null;
+export let _panelDirty    = false;
 
-(function () {
 // ── new recording panel ───────────────────────────────────────────────────────
 let _probeTimer    = null;
 // When set, the New Recording panel is re-analyzing an existing recording rather
@@ -62,7 +71,7 @@ async function openNewRecordingPanel() {
   if (_isNewRecordingPanelOpen()) return;
   if (document.getElementById('btn-analyze').disabled) return;
   if (document.getElementById('settings-panel').classList.contains('visible')) {
-    closeSettings(openNewRecordingPanel);
+    window.closeSettings(openNewRecordingPanel);
     return;
   }
   _reanalyzeTarget = null;
@@ -75,7 +84,7 @@ async function openNewRecordingPanel() {
   _probedInfo   = null;
   _panelDirty   = false;
   _updateStartIngestButton();
-  hidePreSplitSection();
+  window.hidePreSplitSection();
   hideImportUrlSection();
   _applyPanelMode();
   await _loadAnalysisDefaults();
@@ -92,7 +101,7 @@ async function openNewRecordingPanel() {
 async function openReanalyzePanel(video) {
   if (document.getElementById('btn-analyze').disabled) return;
   if (document.getElementById('settings-panel').classList.contains('visible')) {
-    closeSettings(() => openReanalyzePanel(video));
+    window.closeSettings(() => openReanalyzePanel(video));
     return;
   }
   _reanalyzeTarget = {
@@ -107,7 +116,7 @@ async function openReanalyzePanel(video) {
   _probedInfo   = null;
   _panelDirty   = false;
   _updateStartIngestButton();
-  hidePreSplitSection();
+  window.hidePreSplitSection();
   hideImportUrlSection();
   _applyPanelMode();
   await _loadProfileDropdown();
@@ -190,19 +199,30 @@ async function _loadIngestContextPicker() {
   if (!AppState.contexts.length) {
     list.innerHTML = `<div style="font-size:12px;color:var(--muted)">
       No World Contexts set up - clip descriptions will be generic.
-      <button class="btn ghost" style="font-size:11px;padding:0 6px;color:var(--accent);display:inline-flex"
-              onclick="closeNewRecordingPanel();openContextManager()">Add one →</button>
+      <button type="button" class="btn ghost" data-act="add-context"
+              style="font-size:11px;padding:0 6px;color:var(--accent);display:inline-flex">Add one →</button>
     </div>`;
     return;
   }
   list.innerHTML =
     `<div class="ctx-picker" id="ctx-picker">` +
     AppState.contexts.map(c =>
-      `<button type="button" class="ctx-pill" data-ctx-id="${escHtml(c.context_id)}"
-               onclick="_toggleCtxPill(this)">${escHtml(c.display_name || c.context_id)}</button>`
+      `<button type="button" class="ctx-pill" data-ctx-id="${escHtml(c.context_id)}">${escHtml(c.display_name || c.context_id)}</button>`
     ).join('') +
     `</div>` +
     `<div id="ctx-none-selected-note" style="font-size:11px;color:var(--muted);margin-top:6px">No context selected - descriptions will be generic</div>`;
+}
+
+// Delegated once at module load - #analyze-context-list is a stable container,
+// only its innerHTML is replaced by _loadIngestContextPicker's re-renders.
+function _handleContextListClick(e) {
+  if (e.target.closest('[data-act="add-context"]')) {
+    closeNewRecordingPanel();
+    window.openContextManager();
+    return;
+  }
+  const pill = e.target.closest('.ctx-pill');
+  if (pill) _toggleCtxPill(pill);
 }
 
 function _toggleCtxPill(btn) {
@@ -224,8 +244,7 @@ async function _loadDiarizationDefault() {
     if (!readiness.ready) {
       box.checked = false;
       box.disabled = true;
-      note.innerHTML = _diarizationNoteHtml(
-        readiness.reason, 'closeNewRecordingPanel();openSettings()');
+      note.innerHTML = _diarizationNoteHtml(readiness.reason, 'closeNewRecordingPanel();openSettings()');
     } else {
       const enabledByDefault = readiness.backend !== 'null';
       box.disabled = false;
@@ -278,11 +297,11 @@ async function runProbe(path) {
     _renderSubtitleSourcePicker(_probedInfo);
     if (_reanalyzeTarget) _selectSubtitleSource(_reanalyzeTarget.subtitleSource);
     runEstimate();
-    if (!_reanalyzeTarget) initPreSplitDuration(_probedInfo.duration_s);
+    if (!_reanalyzeTarget) window.initPreSplitDuration(_probedInfo.duration_s);
   } catch (err) {
     _probedInfo = null;
     _updateStartIngestButton();
-    hidePreSplitSection();
+    window.hidePreSplitSection();
     document.getElementById('estimate-area').innerHTML =
       `<div style="color:var(--red);font-size:12px">Could not inspect file: ${escHtml(String(err.message || err))}</div>`;
   }
@@ -309,7 +328,9 @@ function _renderSubtitleSourcePicker(info) {
   }
   opts.push(`<option value="__pick-srt__">Choose SRT file&#8230;</option>`);
   el.innerHTML = `<label for="analyze-subtitle-source">Captions</label>
-    <select id="analyze-subtitle-source" onchange="_onSubtitleSourceChange(this)">${opts.join('')}</select>`;
+    <select id="analyze-subtitle-source">${opts.join('')}</select>`;
+  document.getElementById('analyze-subtitle-source')
+    .addEventListener('change', e => _onSubtitleSourceChange(e.target));
 }
 
 // Add (or update) the "External SRT: name" option for an arbitrary picked/recorded
@@ -476,7 +497,7 @@ async function startAnalyze() {
     status = await fetch('/api/llm/download-status').then(r => r.json());
   } catch { /* can't tell - don't block the user */ }
   if (status && status.whisper_downloading) {
-    const pct = window.getWhisperDownloadPct ? getWhisperDownloadPct() : null;
+    const pct = window.getWhisperDownloadPct ? window.getWhisperDownloadPct() : null;
     const pctText = (typeof pct === 'number' && pct >= 0) ? ` (${pct}%)` : '';
     showConfirm(
       'Speech model still downloading',
@@ -506,6 +527,10 @@ async function _doStartAnalyze() {
   const contextNames  = _selectedContextIds();
   const subtitleSource = _selectedSubtitleSource();
 
+  // _splitPoints/_splitDurationS/_splitIgnored are split.js's shared live-edit
+  // state - split.js stays classic, so these remain true global lexical
+  // bindings (never window properties); read bare here, mirroring videos.js's
+  // precedent for the same globals (see the comment at videos.js's selectVideo).
   const preSplitToggle = document.getElementById('pre-split-toggle');
   if (preSplitToggle && preSplitToggle.checked && _splitPoints.length > 0 && _splitDurationS > 0) {
     const pts      = [0, ..._splitPoints, _splitDurationS];
@@ -570,7 +595,7 @@ function _streamAnalyzeEvents(filename) {
       _showAnalysisToast(v);
       _surfaceAnalyzeWarnings(v);
       if (v) _warmPreviewProxy(v.id);
-      SoundFx.play('analysis');
+      window.SoundFx.play('analysis');
     },
     INGEST_STEPS,
     `Analyzing ${filename}`,
@@ -608,12 +633,12 @@ async function _analyzeSegmentsSequentially(
     loadVideos().then(() =>
       showToast(`Analysis complete - ${plural(segments.length, 'segment')}`)
     );
-    SoundFx.play('analysis');
+    window.SoundFx.play('analysis');
     return;
   }
   await _waitWhileAnalyzePaused();
   const seg = segments[index];
-  appendLog(`Analyzing segment ${index + 1}/${segments.length}: ${_fmtSplitTime(seg.start_s)}–${_fmtSplitTime(seg.end_s)}`);
+  appendLog(`Analyzing segment ${index + 1}/${segments.length}: ${window._fmtSplitTime(seg.start_s)}–${window._fmtSplitTime(seg.end_s)}`);
   fetch('/api/analyze/start', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
@@ -799,8 +824,9 @@ function renderImportUrlInspect(info) {
       ${alreadyNote}
     </div>
     <div class="new-recording-actions" style="padding-top:10px">
-      <button class="btn primary" id="btn-start-import" onclick="startImportUrlDownload()">Download</button>
+      <button class="btn primary" id="btn-start-import">Download</button>
     </div>`;
+  document.getElementById('btn-start-import').addEventListener('click', startImportUrlDownload);
   _renderImportUrlEstimate(info.duration_s);
 }
 
@@ -884,7 +910,7 @@ function _onImportUrlLine(line) {
 
 function _onImportUrlDownloadDone(title) {
   showToast('Download complete', 'success');
-  SoundFx.play('analysis');
+  window.SoundFx.play('analysis');
   if (!_lastImportedPath) {
     showToast('Download finished, but the file path was not reported - open it from the downloads folder.', 'warning');
     return;
@@ -1004,7 +1030,7 @@ function renderTrackRows(existingAssignments) {
     rows.push(`
       <div style="display:flex;align-items:center;gap:8px;padding:5px 0;font-size:13px">
         <span style="color:var(--muted);width:60px;flex-shrink:0">Track ${i + 1}</span>
-        <select id="pe-label-${i}" onchange="onLabelChange(${i})"
+        <select id="pe-label-${i}"
                 style="flex:1;padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:12px">${opts}</select>
         <label style="display:flex;align-items:center;gap:4px;font-size:12px;white-space:nowrap"
                title="Transcribe this track's speech">
@@ -1160,14 +1186,59 @@ document.addEventListener('drop', async e => {
   scheduleProbe();
 });
 
-Object.assign(window, {
-  _isNewRecordingPanelOpen, openNewRecordingPanel, openReanalyzePanel, closeNewRecordingPanel,
-  _doCloseNewRecordingPanel, _toggleCtxPill, scheduleProbe,
-  _renderSubtitleSourcePicker, _onSubtitleSourceChange,
-  runEstimate, renderEstimate, startAnalyze, _doStartAnalyze, _streamAnalyzeEvents, reattachAnalysis,
-  _showAnalysisToast, _surfaceAnalyzeWarnings, _warmPreviewProxy, pickFile,
-  showImportUrlSection, hideImportUrlSection, checkImportUrl, startImportUrlDownload,
-  openProfileManager, closeProfileManager, openNewProfile, renderTrackRows,
-  onLabelChange, _clearPeNameError, saveProfile, deleteProfile, cancelProfileEdit,
+// ── static control wiring ─────────────────────────────────────────────────────
+// This markup is static in index.html (never re-rendered), so each listener is
+// wired once at module load - replacing the onclick=/oninput=/onchange=
+// attributes that used to live there.
+document.getElementById('btn-analyze').addEventListener('click', openNewRecordingPanel);
+document.getElementById('btn-close-new-recording').addEventListener('click', closeNewRecordingPanel);
+document.getElementById('btn-browse-recording').addEventListener('click', pickFile);
+document.getElementById('analyze-path').addEventListener('input', scheduleProbe);
+document.getElementById('btn-show-import-url').addEventListener('click', showImportUrlSection);
+document.getElementById('btn-use-local-file').addEventListener('click', hideImportUrlSection);
+document.getElementById('import-url-input').addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  checkImportUrl();
 });
-})();
+document.getElementById('btn-check-url').addEventListener('click', checkImportUrl);
+document.getElementById('analyze-profile').addEventListener('change', runEstimate);
+document.getElementById('btn-open-profile-manager').addEventListener('click', openProfileManager);
+document.getElementById('analyze-model').addEventListener('change', runEstimate);
+document.getElementById('analyze-diarize').addEventListener('change', runEstimate);
+document.getElementById('analyze-scene-mode').addEventListener('change', runEstimate);
+document.getElementById('analyze-energy-mode').addEventListener('change', runEstimate);
+document.getElementById('btn-start-analyze').addEventListener('click', startAnalyze);
+
+const _profileModalBg = document.getElementById('profile-modal');
+_profileModalBg.addEventListener('click', e => { if (e.target === _profileModalBg) closeProfileManager(); });
+document.getElementById('btn-close-profile-manager').addEventListener('click', closeProfileManager);
+document.getElementById('btn-new-track-layout').addEventListener('click', openNewProfile);
+document.getElementById('pe-name').addEventListener('input', _clearPeNameError);
+document.getElementById('pe-numtracks').addEventListener('input', () => renderTrackRows());
+document.getElementById('btn-save-profile').addEventListener('click', saveProfile);
+document.getElementById('btn-cancel-profile-edit').addEventListener('click', cancelProfileEdit);
+
+document.getElementById('analyze-context-list').addEventListener('click', _handleContextListClick);
+// #pe-tracks is a stable container - renderTrackRows only replaces its innerHTML,
+// so a single delegated listener here covers every row across re-renders.
+document.getElementById('pe-tracks').addEventListener('change', e => {
+  const sel = e.target.closest('select[id^="pe-label-"]');
+  if (sel) onLabelChange(parseInt(sel.id.slice('pe-label-'.length), 10));
+});
+
+// Public API - symbols with a still-classic (bundle.js) bare-global consumer, an
+// already-ESM caller reading this module's exports as window.* (clips.js,
+// videos.js), or a tests/ui/*.py page.evaluate. Internal helpers (the profile
+// manager, Import from URL, drag-and-drop, etc.) stay module-private -
+// see main.esm.js for what each surviving name here still needs it for.
+// _probedInfo/_panelDirty are NOT here - videos.js imports them directly (see
+// the top of this file) as live ESM bindings instead of reading them off window.
+export {
+  _isNewRecordingPanelOpen, openNewRecordingPanel, openReanalyzePanel, closeNewRecordingPanel,
+  _doCloseNewRecordingPanel,
+  _renderSubtitleSourcePicker,
+  renderEstimate, startAnalyze, reattachAnalysis,
+  _showAnalysisToast,
+  closeProfileManager,
+};
