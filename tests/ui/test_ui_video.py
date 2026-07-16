@@ -67,7 +67,9 @@ class TestAnalysisLivePanel:
         page.evaluate("document.getElementById('detail').innerHTML = _analysisLivePanelHTML()")
         btn = page.locator("#analysis-live-panel button", has_text="Cancel")
         expect(btn).to_have_count(1)
-        assert "cancelJob" in (btn.get_attribute("onclick") or "")
+        # Wired via #detail's data-act click delegation (videos.js), not an
+        # inline onclick - see the "cancel-job" case in _handleDetailClick.
+        assert btn.get_attribute("data-act") == "cancel-job"
 
     def test_active_step_shows_progress_fill(self, page: Page):
         page.goto(LIVE_URL)

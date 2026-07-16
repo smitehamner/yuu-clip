@@ -44,6 +44,17 @@ import {
   _updateLlmCapabilities, _renderCapabilityTiers,
   gateOnCapability,
 } from './modelcatalog.js';
+import {
+  loadVideos, selectVideo, renderVideoDetail, deleteVideo,
+  onClipsSortChange, _clipsSortParam, _clipsListUrl,
+  _reanalyzeParams,
+  _needsModelCtaHTML,
+  _updateDemoButton, _updateStartIngestButton,
+  _analysisLivePanelHTML, _syncAnalysisLivePanel,
+  _applyVideoFilters, _renderVideoList,
+  setVideoSearch, setVideoSort, toggleVideoSortDir, toggleVideoFilter,
+  openVideoActionsModal,
+} from './videos.js';
 
 window.AppState = AppState;
 Object.assign(window, format);
@@ -132,3 +143,32 @@ window.refreshModelCatalog = refreshModelCatalog;
 window._updateLlmCapabilities = _updateLlmCapabilities;
 window._renderCapabilityTiers = _renderCapabilityTiers;
 window.gateOnCapability = gateOnCapability;
+// videos.js is cross-cutting - every name here still has at least one classic
+// (bundle.js) consumer or a tests/ui/*.py page.evaluate. _clipsSortParam is
+// CRITICAL: format.js (already ESM) reads it as window._clipsSortParam, so it
+// can never be dropped even if every classic consumer goes away. Eleven names
+// (reanalyzeVideo, rediarizeVideo, reextractVideoRun, retranscribeVideoRun,
+// regenerateClipsRun, unsplitVideo, _doUnsplitVideo, openVideoSummaryKebab,
+// openVideoTitleKebab, _syncVideoFilterChips, _clearVideoFilters) dropped: their
+// only callers were videos.js's own inline handlers (now data-act delegation) or
+// its own internal logic, so nothing outside the module needs them off window.
+window.loadVideos = loadVideos;
+window.selectVideo = selectVideo;
+window.renderVideoDetail = renderVideoDetail;
+window.deleteVideo = deleteVideo;
+window.onClipsSortChange = onClipsSortChange;
+window._clipsSortParam = _clipsSortParam;
+window._clipsListUrl = _clipsListUrl;
+window._reanalyzeParams = _reanalyzeParams;
+window._needsModelCtaHTML = _needsModelCtaHTML;
+window._updateDemoButton = _updateDemoButton;
+window._updateStartIngestButton = _updateStartIngestButton;
+window._analysisLivePanelHTML = _analysisLivePanelHTML;
+window._syncAnalysisLivePanel = _syncAnalysisLivePanel;
+window._applyVideoFilters = _applyVideoFilters;
+window._renderVideoList = _renderVideoList;
+window.setVideoSearch = setVideoSearch;
+window.setVideoSort = setVideoSort;
+window.toggleVideoSortDir = toggleVideoSortDir;
+window.toggleVideoFilter = toggleVideoFilter;
+window.openVideoActionsModal = openVideoActionsModal;

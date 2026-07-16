@@ -1,6 +1,14 @@
-(function () {
 // Feature-map - Recordings list + detail (code: video / Video).
 //   API: routes/videos.py · Tests: tests/ui/test_ui_video.py, tests/integration/test_videos.py
+import { AppState } from './state.js';
+import {
+  escHtml, plural, _fmtVideoStatus, _msToHms, _fmtDate, _parseServerDate, _fmtElapsed, formatApiError,
+} from './format.js';
+import { collapsibleCard, showToast, netErrMsg, revealInFolder, _syncSortDirBtn, openLog, appendLog } from './utils.js';
+import { showConfirm, openFieldEditModal, openDiffModal, showKebab, openActionsModal } from './ui.js';
+import { setupRecordingPreview } from './preview.js';
+import { streamSSE, cancelJob, _blockedByAnalyze, _stepPillLabel } from './jobs.js';
+import { openGettingStartedModal } from './helpmodals.js';
 // ── videos ────────────────────────────────────────────────────────────────────
 async function loadVideos() {
   let videos;
@@ -97,7 +105,7 @@ function _renderVideoList() {
   if (!shown.length && !showPlaceholder) {
     const hasFilter = AppState.videoSearch || (AppState.videoFilters && AppState.videoFilters.size);
     list.innerHTML = hasFilter
-      ? `<li style="padding:10px 14px;color:var(--muted)">No recordings match - <a href="#" style="color:var(--accent);text-decoration:underline" onclick="event.preventDefault();_clearVideoFilters()">Clear filters</a></li>`
+      ? `<li style="padding:10px 14px;color:var(--muted)">No recordings match - <a href="#" style="color:var(--accent);text-decoration:underline" data-act="clear-video-filters">Clear filters</a></li>`
       : '<li style="padding:10px 14px;color:var(--muted)">No recordings yet</li>';
     return;
   }
@@ -105,10 +113,12 @@ function _renderVideoList() {
   _renderGroupedVideoItems(list, shown, analyzingName);
 
   const _handleVideoListActivate = e => {
+    const clearLink = e.target.closest('[data-act="clear-video-filters"]');
+    if (clearLink) { e.preventDefault(); _clearVideoFilters(); return; }
     const li = e.target.closest('li[data-video-id]');
     if (!li) return;
     const videoId = parseInt(li.dataset.videoId);
-    if (window.SessionUI && SessionUI.selectionMode) { toggleGroupSelect(videoId); return; }
+    if (window.SessionUI && window.SessionUI.selectionMode) { window.toggleGroupSelect(videoId); return; }
     document.querySelectorAll('#video-list li').forEach(l => l.classList.remove('active'));
     li.classList.add('active');
     selectVideo(videoId);
@@ -128,8 +138,8 @@ function _renderGroupedVideoItems(list, shown, analyzingName) {
     if (session && !renderedSessions.has(session.id)) {
       renderedSessions.add(session.id);
       const members = shown.filter(x => x.session_id === session.id);
-      list.appendChild(sessionGroupHeaderLi(session, members.length));
-      if (!isSessionCollapsed(session.id)) {
+      list.appendChild(window.sessionGroupHeaderLi(session, members.length));
+      if (!window.isSessionCollapsed(session.id)) {
         for (const m of members) list.appendChild(_videoItemLi(m, analyzingName, true));
       }
     } else if (!session) {
@@ -142,14 +152,14 @@ function _renderGroupedVideoItems(list, shown, analyzingName) {
 // grouping selection mode adds a checkbox and suppresses normal navigation.
 function _videoItemLi(v, analyzingName, inSession) {
   const isAnalyzing = v.filename === analyzingName && v.status !== 'done';
-  const selecting = !!(window.SessionUI && SessionUI.selectionMode);
+  const selecting = !!(window.SessionUI && window.SessionUI.selectionMode);
   const selectable = selecting && v.parent_video_id == null;
   const li = document.createElement('li');
   li.className = 'video-item'
     + (v.id === AppState.activeVideoId ? ' active' : '')
     + (isAnalyzing ? ' analyzing' : '')
     + (inSession ? ' in-session' : '')
-    + (selectable && SessionUI.selected.has(v.id) ? ' selected' : '');
+    + (selectable && window.SessionUI.selected.has(v.id) ? ' selected' : '');
   li.dataset.videoId = v.id;
   li.tabIndex = 0;
   const clipsPct = v.duration_ms > 0
@@ -171,7 +181,7 @@ function _videoItemLi(v, analyzingName, inSession) {
     ? `<div class="meta" style="margin-top:2px;color:var(--warning)" title="LLM scoring failed for ${plural(errCount, 'clip')} - re-score to retry">&#9888; ${plural(errCount, 'scoring error')}</div>`
     : `<div class="meta" style="margin-top:2px;color:var(--muted)" title="These clips were scored before a language model was set up - set one up, then re-score for AI scoring and descriptions">Scored without a language model</div>`;
   const checkbox = selectable
-    ? `<input type="checkbox" class="session-select-box" aria-label="Select for grouping" ${SessionUI.selected.has(v.id) ? 'checked' : ''}>`
+    ? `<input type="checkbox" class="session-select-box" aria-label="Select for grouping" ${window.SessionUI.selected.has(v.id) ? 'checked' : ''}>`
     : '';
   li.innerHTML = `
     <div class="video-item-body">
@@ -256,7 +266,7 @@ async function _restoreView() {
     if (!AppState.videos.find(v => v.id === saved.videoId)) return;
     await selectVideo(saved.videoId);
     if (saved.clipId && AppState.clips.find(c => c.id === saved.clipId)) {
-      await selectClip(saved.clipId);
+      await window.selectClip(saved.clipId);
     }
   } catch {}
 }
@@ -277,8 +287,8 @@ function _showEmptyState() {
       <img class="empty-state-mascot" src="/static/gamercat.png" alt="">
       <h2>Welcome to YuuClip</h2>
       <p>Analyze a recording to start reviewing and exporting your best moments. YuuClip shines on talk-heavy sessions - RP, voice chat, streaming, podcasts, and commentary.</p>
-      <button class="btn highlight" onclick="openNewRecordingPanel()">+ Analyze your first recording</button>
-      <button class="btn ghost" onclick="openGettingStartedModal()" style="margin-top:8px">Getting Started Guide</button>
+      <button class="btn highlight" data-act="open-new-recording-panel">+ Analyze your first recording</button>
+      <button class="btn ghost" data-act="open-getting-started" style="margin-top:8px">Getting Started Guide</button>
     </div>`;
 }
 
@@ -309,31 +319,37 @@ function _clipsListUrl(videoId) {
 }
 
 async function selectVideo(id) {
-  if (isSplitEditorOpen()) {
+  if (window.isSplitEditorOpen()) {
+    // _splitPoints is split.js's shared live-edit state: a top-level `let` kept
+    // outside its IIFE specifically so other classic scripts can read it bare
+    // (see the comment in split.js). It is never a window property, so this
+    // must stay a bare reference rather than window._splitPoints.
     const hasSplits = typeof _splitPoints !== 'undefined' && _splitPoints.length > 0;
     if (hasSplits) {
       showConfirm(
         'Leave Split editor?',
         'You have unsaved split points. Switch to this recording and discard them?',
         'Discard',
-        () => { closeSplitEditor(); selectVideo(id); },
+        () => { window.closeSplitEditor(); selectVideo(id); },
         true,
       );
       return;
     }
-    closeSplitEditor();
+    window.closeSplitEditor();
   }
-  if (_isNewRecordingPanelOpen() && _panelDirty) {
+  // _panelDirty is analyze.js's shared live-edit state - same bare-global
+  // contract as _splitPoints above (see the comment at the top of analyze.js).
+  if (window._isNewRecordingPanelOpen() && _panelDirty) {
     showConfirm(
       'Discard new recording?',
       'You have unsaved configuration. Switch to this recording anyway?',
       'Discard',
-      () => { _doCloseNewRecordingPanel(); selectVideo(id); },
+      () => { window._doCloseNewRecordingPanel(); selectVideo(id); },
       true,
     );
     return;
   }
-  if (_isNewRecordingPanelOpen()) _doCloseNewRecordingPanel();
+  if (window._isNewRecordingPanelOpen()) window._doCloseNewRecordingPanel();
   AppState.activeVideoId = id;
   AppState.activeSessionId = null;
   document.querySelectorAll('#video-list li.session-header.active').forEach(l => l.classList.remove('active'));
@@ -342,7 +358,7 @@ async function selectVideo(id) {
   AppState.clipFilters.clear();
   AppState.clipSearch  = '';
   AppState.clipScoreMin = 0;
-  _syncFilterChips();
+  window._syncFilterChips();
   const _searchEl = document.getElementById('clip-search-input');
   if (_searchEl) _searchEl.value = '';
   const _scoreEl = document.getElementById('clip-score-min');
@@ -351,16 +367,16 @@ async function selectVideo(id) {
   // parallel, so the detail's context chips/dropdown never render from an empty
   // list on the first video opened after load.
   const clipsPromise = fetch(_clipsListUrl(id)).then(r => r.json());
-  await ensureContexts();
+  await window.ensureContexts();
   const clips = await clipsPromise;
   // Guard against a slower earlier fetch resolving after a newer selection -
   // otherwise clicking B while A's clips are in flight renders A into B's detail.
   if (AppState.activeVideoId !== id) return;
   AppState.clips = clips;
-  _renderClips();
+  window._renderClips();
   const video = AppState.videos.find(v => v.id === id);
   if (video) renderVideoDetail(video, null);
-  else clearDetail();
+  else window.clearDetail();
 }
 
 // "Imported from" line (roadmap plan 08) - shown only for a recording brought
@@ -402,11 +418,11 @@ function renderVideoDetail(video, savedTimeline) {
     <div class="detail-card">
       <div class="detail-card-header">
         <h2 style="margin:0;font-size:17px;font-weight:700" title="${escHtml(video.title || video.filename)}">${escHtml(video.title || video.filename)}${eb(video.title_is_edited)}</h2>
-        <button class="kebab-btn" title="Edit or regenerate title" aria-label="Edit or regenerate title" onclick="openVideoTitleKebab(${video.id}, this)">&#8942;</button>
+        <button class="kebab-btn" title="Edit or regenerate title" aria-label="Edit or regenerate title" data-act="video-title-kebab" data-video-id="${video.id}">&#8942;</button>
       </div>
       <div style="color:var(--muted);font-size:13px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         <span>${video.duration_hms} &middot; ${video.clip_count} clips &middot; ${_msToHms(video.total_clip_ms)} clipped</span>
-        ${AppState.canReveal ? `<button class="btn ghost" style="font-size:11px;padding:2px 8px" onclick="revealInFolder(AppState.activeVideoData.path)">Show in Folder</button>` : ''}
+        ${AppState.canReveal ? `<button class="btn ghost" style="font-size:11px;padding:2px 8px" data-act="reveal-in-folder">Show in Folder</button>` : ''}
       </div>
       ${_renderImportedFromLine(video)}
     </div>
@@ -419,16 +435,16 @@ function renderVideoDetail(video, savedTimeline) {
         ? `<div class="description-long">${escHtml(video.summary)}</div>`
         : `<div style="color:var(--muted);font-size:12px">No summary yet - generate a title and summary from the transcript.</div>`}</div>`,
       { actions: `${video.summary
-          ? `<button class="kebab-btn" title="Edit or regenerate summary" aria-label="Edit or regenerate summary" onclick="openVideoSummaryKebab(${video.id}, this)">&#8942;</button>`
-          : `<button class="btn ghost" id="btn-summarize-video" onclick="summarizeVideo(${video.id}, this)">Generate Summary</button>`}` })}
+          ? `<button class="kebab-btn" title="Edit or regenerate summary" aria-label="Edit or regenerate summary" data-act="video-summary-kebab" data-video-id="${video.id}">&#8942;</button>`
+          : `<button class="btn ghost" id="btn-summarize-video" data-act="summarize-video" data-video-id="${video.id}">Generate Summary</button>`}` })}
 
     ${_isVideoBeingAnalyzed(video) ? _analysisLivePanelHTML() : ''}
-    ${_renderRunMetaCard(video)}
+    ${window._renderRunMetaCard(video)}
 
     <div class="vid-actions">
       <div class="vid-actions-row">
-        <button class="btn" onclick="openBatchExportModal(${video.id})">Export Approved</button>
-        <button class="btn ghost" onclick="openVideoActionsModal(${video.id})">Additional Actions</button>
+        <button class="btn" data-act="open-batch-export" data-video-id="${video.id}">Export Approved</button>
+        <button class="btn ghost" data-act="open-video-actions" data-video-id="${video.id}">Additional Actions</button>
       </div>
     </div>
 
@@ -440,20 +456,20 @@ function renderVideoDetail(video, savedTimeline) {
       { defaultCollapsed: true, attrs: `id="video-transcript-details" data-video-id="${video.id}"`,
         actions: `<span style="display:flex;gap:6px">
           <button class="btn ghost" style="font-size:11px;padding:3px 9px" title="Scan the transcript for mis-heard names (e.g. &quot;You&quot; for &quot;Yuu&quot;) and fix them"
-                  onclick="openNameCorrections(${video.id})">Fix names</button>
+                  data-act="open-name-corrections" data-video-id="${video.id}">Fix names</button>
           <button class="btn ghost" style="font-size:11px;padding:3px 9px" title="Pick a time range to create a clip by hand"
-                  onclick="openClipCreatePicker(${video.id})">Create clip</button>
+                  data-act="open-clip-create-picker" data-video-id="${video.id}">Create clip</button>
         </span>` }) : ''}
 
     ${collapsibleCard('video-timeline',
         `<span class="detail-card-title">Session Timeline</span>`, `
       <div id="timeline-section">
-        ${savedTimeline ? _renderTimelineHTML(savedTimeline) : (video.has_timeline ? '' : _timelineEmptyNoteHTML())}
+        ${savedTimeline ? window._renderTimelineHTML(savedTimeline) : (video.has_timeline ? '' : window._timelineEmptyNoteHTML())}
       </div>`,
-      { actions: `<button class="btn ghost" id="btn-generate-timeline" onclick="generateTimeline(${video.id})">${video.has_timeline ? 'Regenerate Timeline' : 'Generate Timeline'}</button>` })}`;
+      { actions: `<button class="btn ghost" id="btn-generate-timeline" data-act="generate-timeline" data-video-id="${video.id}">${video.has_timeline ? 'Regenerate Timeline' : 'Generate Timeline'}</button>` })}`;
 
-  if (window.loadSpeakers) loadSpeakers(video.id);
-  if (window.reloadVideoTranscriptIfOpen) reloadVideoTranscriptIfOpen(video.id);
+  if (window.loadSpeakers) window.loadSpeakers(video.id);
+  if (window.reloadVideoTranscriptIfOpen) window.reloadVideoTranscriptIfOpen(video.id);
   _syncAnalysisLivePanel();
 
   if (!savedTimeline && video.has_timeline) {
@@ -461,7 +477,7 @@ function renderVideoDetail(video, savedTimeline) {
       .then(r => r.json())
       .then(v => {
         if (v.timeline && v.timeline.length) {
-          document.getElementById('timeline-section').innerHTML = _renderTimelineHTML(v.timeline);
+          document.getElementById('timeline-section').innerHTML = window._renderTimelineHTML(v.timeline);
         }
       })
       .catch(() => {});
@@ -475,21 +491,21 @@ function openVideoActionsModal(videoId) {
 
   const groups = [
     { heading: 'Review', rows: [
-      { label: 'Approve Above Score', description: 'Automatically approve every clip in this recording above a score threshold you choose.', action: () => openAutoApproveModal(videoId) },
+      { label: 'Approve Above Score', description: 'Automatically approve every clip in this recording above a score threshold you choose.', action: () => window.openAutoApproveModal(videoId) },
     ]},
     { heading: 'Regenerate', rows: [
-      { label: 'Re-score All Clips', description: 'Regenerate scores and descriptions for every clip in this recording.', action: () => rescoreAllClips(videoId, document.createElement('button')) },
-      { label: 'Re-describe All Clips', description: 'Regenerate descriptions only - scores are kept as-is.', action: () => redescribeAllClips(videoId, document.createElement('button')) },
+      { label: 'Re-score All Clips', description: 'Regenerate scores and descriptions for every clip in this recording.', action: () => window.rescoreAllClips(videoId, document.createElement('button')) },
+      { label: 'Re-describe All Clips', description: 'Regenerate descriptions only - scores are kept as-is.', action: () => window.redescribeAllClips(videoId, document.createElement('button')) },
       { label: 'Re-detect Speakers', description: 'Re-run speaker detection on the existing transcript. Clips and scores are kept; named speakers re-attach to matching voices.', action: () => rediarizeVideo(videoId) },
       { label: 'Re-transcribe Recording', description: 'Re-run speech-to-text for the whole recording. Clips are kept but flagged for a re-score; regenerate clips to rebuild them from the new transcript.', action: () => retranscribeVideoRun(videoId) },
       { label: 'Re-extract Audio', description: 'Rebuild the audio tracks from the source file, e.g. after changing the track layout. Re-transcribe afterward to update the transcript.', action: () => reextractVideoRun(videoId) },
-      ...(hasEnabledSemanticHotwords() ? [
-        { label: 'Scan for Hot-words', description: 'Check every clip against your "Meaning" hot-words using the Similarity engine.', action: () => confirmScanHotwordsForVideo(videoId, document.createElement('button')) },
+      ...(window.hasEnabledSemanticHotwords() ? [
+        { label: 'Scan for Hot-words', description: 'Check every clip against your "Meaning" hot-words using the Similarity engine.', action: () => window.confirmScanHotwordsForVideo(videoId, document.createElement('button')) },
       ] : []),
     ]},
     { heading: 'Recording tools', rows: [
       ...(isSegment ? [] : [
-        { label: 'Split Recording', description: 'Break this recording into segments that can be analyzed independently.', action: () => openSplitEditor(videoId) },
+        { label: 'Split Recording', description: 'Break this recording into segments that can be analyzed independently.', action: () => window.openSplitEditor(videoId) },
       ]),
       ...(isSegment ? [
         { label: 'Undo Split', description: 'Merge this segment and its siblings back into the original recording, keeping all of their clips.', action: () => unsplitVideo(videoId) },
@@ -499,7 +515,7 @@ function openVideoActionsModal(videoId) {
     { heading: 'Danger Zone', rows: [
       { label: 'Regenerate Clips', description: 'Rebuild clips from the existing transcript. Replaces every clip - discarding approvals, edits, tags, and scores - with fresh, unscored candidates. Skips re-transcription.', danger: true, action: () => regenerateClipsRun(videoId) },
       { label: 'Re-analyze (full)', description: 'Re-run the entire pipeline from scratch. Replaces all clips, scores, and speakers for this recording.', danger: true, action: () => reanalyzeVideo(videoId) },
-      { label: 'Reset Approvals', description: 'Clear the approve/reject status on every clip in this recording.', danger: true, action: () => resetApprovals(videoId) },
+      { label: 'Reset Approvals', description: 'Clear the approve/reject status on every clip in this recording.', danger: true, action: () => window.resetApprovals(videoId) },
       { label: 'Remove Recording', description: 'Remove this recording from YuuClip. The source file on disk is not deleted.', danger: true, action: () => deleteVideo(videoId) },
     ]},
   ];
@@ -552,19 +568,19 @@ function deleteVideo(id) {
 
 async function _doDeleteVideo(id, name) {
   // Release the player so its backing export/preview file isn't locked during delete.
-  if (AppState.activeVideoId === id) await _releasePlayerBeforeDelete();
+  if (AppState.activeVideoId === id) await window._releasePlayerBeforeDelete();
   const delRes = await fetch(`/api/videos/${id}`, {method: 'DELETE'});
   if (!delRes.ok) {
     const err = await delRes.json().catch(() => ({}));
     showToast(`Failed to remove recording: ${formatApiError(err)}`, 'error');
-    if (AppState.activeClipId) selectClip(AppState.activeClipId);
+    if (AppState.activeClipId) window.selectClip(AppState.activeClipId);
     return;
   }
   if (AppState.activeVideoId === id) {
     AppState.activeVideoId = null;
     AppState.activeClipId  = null;
     document.getElementById('clip-list').innerHTML = '';
-    clearDetail();
+    window.clearDetail();
   }
   await loadVideos();
   showToast(`"${name}" removed from YuuClip`);
@@ -587,7 +603,7 @@ function _analysisLivePanelHTML() {
         <span class="detail-card-title"><span class="spinner"></span> Analysis in progress</span>
         <span style="display:flex;align-items:center;gap:10px">
           <span class="muted" id="analysis-live-elapsed" style="font-size:12px"></span>
-          <button class="btn ghost" onclick="cancelJob()" style="font-size:12px;padding:2px 10px">Cancel</button>
+          <button class="btn ghost" data-act="cancel-job" style="font-size:12px;padding:2px 10px">Cancel</button>
         </span>
       </div>
       <div id="analysis-live-steps" class="job-steps-detail"></div>
@@ -596,15 +612,17 @@ function _analysisLivePanelHTML() {
 }
 
 // Mirror the header progress bar's step state into the in-detail panel. Driven by
-// the analyze SSE stream (updateJobUI / _tickJobTimer in utils.js). Reads the
-// shared job-step globals; elapsed uses the server-side analyze_started_at so it
-// stays accurate across a refresh (unlike the header pill, which restarts at 0).
+// the analyze SSE stream (updateJobUI / _tickJobTimer in jobs.js). Reads jobs.js's
+// shared job-step state off window (jobs.js bridges these via live get/set
+// accessors, since a plain import snapshot would go stale on reassignment); elapsed
+// uses the server-side analyze_started_at so it stays accurate across a refresh
+// (unlike the header pill, which restarts at 0).
 function _syncAnalysisLivePanel() {
   const stepsEl = document.getElementById('analysis-live-steps');
   if (!stepsEl) return;
-  stepsEl.innerHTML = _jobStepDefs.map((step, i) => {
-    const cls = i < _activeStepIdx ? 'done' : i === _activeStepIdx ? 'active' : '';
-    if (i !== _activeStepIdx) return `<span class="step ${cls}">${escHtml(step.label)}</span>`;
+  stepsEl.innerHTML = window._jobStepDefs.map((step, i) => {
+    const cls = i < window._activeStepIdx ? 'done' : i === window._activeStepIdx ? 'active' : '';
+    if (i !== window._activeStepIdx) return `<span class="step ${cls}">${escHtml(step.label)}</span>`;
     // Active step mirrors the header pill: live label + the same two-tone fill.
     const {text, pct} = _stepPillLabel(i);
     const fill = pct != null
@@ -616,7 +634,7 @@ function _syncAnalysisLivePanel() {
   const elapsedEl = document.getElementById('analysis-live-elapsed');
   if (elapsedEl) {
     const startIso = AppState.activeVideoData && AppState.activeVideoData.analyze_started_at;
-    const startMs  = startIso ? _parseServerDate(startIso).getTime() : _jobStartTime;
+    const startMs  = startIso ? _parseServerDate(startIso).getTime() : window._jobStartTime;
     elapsedEl.textContent = _fmtElapsed(Date.now() - startMs);
   }
 }
@@ -632,7 +650,7 @@ function _renderContextSection(video) {
   const available = AppState.contexts.filter(c => !assigned.includes(c.context_id));
   const addSelect = available.length
     ? `<select style="font-size:11px;padding:3px 7px;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--muted);cursor:pointer"
-              onchange="addVideoContext(${video.id}, this.value); this.value=''">
+              data-act="add-video-context" data-video-id="${video.id}">
         <option value="">+ Add</option>
         ${available.map(c => `<option value="${escHtml(c.context_id)}">${escHtml(c.display_name || c.context_id)}</option>`).join('')}
        </select>` : '';
@@ -646,17 +664,17 @@ function _renderContextSection(video) {
     const ctxStr = ctxNames.length ? ' · ' + ctxNames.map(escHtml).join(', ') : ' · no context';
     provLines.push(`<span class="${stale ? 'provenance-stale' : ''}">Clips scored ${escHtml(when)}${ctxStr}${stale ? ' - ⚠ contexts changed since last score' : ''}</span>`);
   }
-  if (video.analyze_run) provLines.push(`<span>${escHtml(_runTimingLine(video.analyze_run))}</span>`);
+  if (video.analyze_run) provLines.push(`<span>${escHtml(window._runTimingLine(video.analyze_run))}</span>`);
 
   const noContextsDefined = AppState.contexts.length === 0;
   const emptyMsg = noContextsDefined
-    ? `<span style="color:var(--muted);font-size:12px">No contexts defined - <button class="btn ghost" style="padding:0;display:inline;font-size:12px" onclick="openContextManager()">create one</button></span>`
+    ? `<span style="color:var(--muted);font-size:12px">No contexts defined - <button class="btn ghost" style="padding:0;display:inline;font-size:12px" data-act="open-context-manager">create one</button></span>`
     : (!assigned.length ? `<span style="color:var(--muted);font-size:12px">None assigned</span>` : '');
 
   const rescoreBtn = (assigned.length && video.clips_scored_at)
-    ? `<button class="btn" style="font-size:12px;padding:4px 12px" onclick="rescoreClips(${video.id}, this)">Re-score clips with context</button>`
+    ? `<button class="btn" style="font-size:12px;padding:4px 12px" data-act="rescore-clips" data-video-id="${video.id}">Re-score clips with context</button>`
     : assigned.length
-    ? `<button class="btn" style="font-size:12px;padding:4px 12px" onclick="rescoreClips(${video.id}, this)">Score clips with context</button>`
+    ? `<button class="btn" style="font-size:12px;padding:4px 12px" data-act="rescore-clips" data-video-id="${video.id}">Score clips with context</button>`
     : '';
 
   const errCount = video.clips_llm_error || 0;
@@ -664,7 +682,7 @@ function _renderContextSection(video) {
   // "failed" clips just fails again. With no model these aren't failures, they're
   // clips awaiting a first-run model (surfaced by the description prompt instead).
   const failedBtn = (errCount > 0 && !!(window._prereqs || {}).llm_ok)
-    ? `<button class="btn" style="font-size:12px;padding:4px 12px;border-color:var(--warning);color:var(--warning)" onclick="rescoreFailedClips(${video.id}, this)" title="Re-run LLM scoring only for the ${plural(errCount, 'clip')} that failed last time">&#9888; Re-score ${plural(errCount, 'failed clip')}</button>`
+    ? `<button class="btn" style="font-size:12px;padding:4px 12px;border-color:var(--warning);color:var(--warning)" data-act="rescore-failed-clips" data-video-id="${video.id}" title="Re-run LLM scoring only for the ${plural(errCount, 'clip')} that failed last time">&#9888; Re-score ${plural(errCount, 'failed clip')}</button>`
     : '';
 
   return collapsibleCard('video-contexts',
@@ -683,7 +701,7 @@ function _renderContextSection(video) {
 function _needsModelCtaHTML(payload) {
   const cta = payload.show_cta === false ? '' :
     `<button class="btn ghost" style="font-size:11px;padding:3px 9px"
-       onclick="openSettings();setTimeout(()=>_scrollToSettingsSection('settings-sec-llm'),120)">Install a local model</button>`;
+       data-act="install-local-model">Install a local model</button>`;
   return `<div class="needs-model-cta">
     <div class="needs-model-heading">${escHtml(payload.heading)}</div>
     <div class="needs-model-detail">${escHtml(payload.detail)}</div>
@@ -708,7 +726,7 @@ function reanalyzeVideo(id) {
   if (_blockedByAnalyze('re-analyze this recording')) return;
   const video = AppState.videos.find(v => v.id === id);
   if (!video) return;
-  openReanalyzePanel(video);
+  window.openReanalyzePanel(video);
 }
 
 // Rebuild an analyze request the way the recording was originally analyzed
@@ -752,9 +770,9 @@ function rediarizeVideo(id) {
       await loadVideos();
       const v = AppState.videos.find(x => x.id === id);
       if (v && AppState.activeVideoId === id) renderVideoDetail(v, null);
-      if (window.loadSpeakers) loadSpeakers(id);
+      if (window.loadSpeakers) window.loadSpeakers(id);
       showToast('Speaker detection complete');
-      SoundFx.play('analysis');
+      window.SoundFx.play('analysis');
     },
     [{label: 'Speakers', patterns: ['Detecting speakers']}],
     'Re-detecting speakers',
@@ -779,7 +797,7 @@ function reextractVideoRun(id) {
       const v = AppState.videos.find(x => x.id === id);
       if (v && AppState.activeVideoId === id) renderVideoDetail(v, null);
       showToast('Audio re-extracted - re-transcribe to update the transcript');
-      SoundFx.play('analysis');
+      window.SoundFx.play('analysis');
     },
     [{label: 'Extract', patterns: ['Extracting audio']}],
     'Re-extracting audio',
@@ -799,7 +817,7 @@ function retranscribeVideoRun(id) {
       await loadVideos();
       if (AppState.activeVideoId === id) await selectVideo(id);
       showToast('Re-transcription complete - re-score to refresh clip scores');
-      SoundFx.play('analysis');
+      window.SoundFx.play('analysis');
     },
     [{label: 'Extract', patterns: ['Extracting audio']}, {label: 'Transcribe', patterns: ['Transcribing']}],
     'Re-transcribing',
@@ -824,7 +842,7 @@ function regenerateClipsRun(id) {
           await loadVideos();
           if (AppState.activeVideoId === id) await selectVideo(id);
           showToast('Clips regenerated - re-score to populate scores');
-          SoundFx.play('analysis');
+          window.SoundFx.play('analysis');
         },
         [{label: 'Generate Clips', patterns: ['Generating clips']}],
         'Regenerating clips',
@@ -900,8 +918,8 @@ function _openVideoFieldKebab(videoId, btn, field) {
       }, {revertMode: true})
     });
   }
-  items.push(null, { label: 'Regenerate', action: () => summarizeVideo(videoId, null) });
-  if (!isTitle) items.push({ label: 'Regenerate (auto-save)', action: () => regenSummaryAuto(videoId, null) });
+  items.push(null, { label: 'Regenerate', action: () => window.summarizeVideo(videoId, null) });
+  if (!isTitle) items.push({ label: 'Regenerate (auto-save)', action: () => window.regenSummaryAuto(videoId, null) });
   showKebab(btn, items);
 }
 
@@ -922,23 +940,67 @@ async function onClipsSortChange() {
   try {
     AppState.clips = await fetch(_clipsListUrl(AppState.activeVideoId)).then(r => r.json());
   } catch { return; }
-  _renderClips();
+  window._renderClips();
 }
 
-// Public API - symbols referenced cross-module, by an inline handler, or by a
-// test. Internal helpers above stay private to this module's closure.
-Object.assign(window, {
+// ── in-detail action delegation ─────────────────────────────────────────────
+// #detail's innerHTML is rebuilt wholesale by renderVideoDetail/_showEmptyState
+// (and by other modules' code that also targets #detail, e.g. clips.js's clip
+// detail view), so the click/change listeners are wired once on the container
+// itself - see the addEventListener calls at the bottom of this file - rather
+// than re-attached per render. The container node persists across every render;
+// only its children are replaced.
+function _handleDetailClick(e) {
+  const el = e.target.closest('[data-act]');
+  if (!el) return;
+  const act = el.dataset.act;
+  const videoId = el.dataset.videoId != null ? parseInt(el.dataset.videoId) : null;
+  switch (act) {
+    case 'open-new-recording-panel': window.openNewRecordingPanel(); break;
+    case 'open-getting-started': openGettingStartedModal(); break;
+    case 'video-title-kebab': openVideoTitleKebab(videoId, el); break;
+    case 'video-summary-kebab': openVideoSummaryKebab(videoId, el); break;
+    case 'summarize-video': window.summarizeVideo(videoId, el); break;
+    case 'reveal-in-folder': revealInFolder(AppState.activeVideoData.path); break;
+    case 'open-batch-export': window.openBatchExportModal(videoId); break;
+    case 'open-video-actions': openVideoActionsModal(videoId); break;
+    case 'open-name-corrections': window.openNameCorrections(videoId); break;
+    case 'open-clip-create-picker': window.openClipCreatePicker(videoId); break;
+    case 'generate-timeline': window.generateTimeline(videoId); break;
+    case 'cancel-job': cancelJob(); break;
+    case 'open-context-manager': window.openContextManager(); break;
+    case 'rescore-clips': window.rescoreClips(videoId, el); break;
+    case 'rescore-failed-clips': window.rescoreFailedClips(videoId, el); break;
+    case 'install-local-model':
+      window.openSettings();
+      setTimeout(() => window._scrollToSettingsSection('settings-sec-llm'), 120);
+      break;
+  }
+}
+
+function _handleDetailChange(e) {
+  const el = e.target.closest('[data-act="add-video-context"]');
+  if (!el) return;
+  const videoId = parseInt(el.dataset.videoId);
+  window.addVideoContext(videoId, el.value);
+  el.value = '';
+}
+
+// Public API - symbols with a classic (bundle.js) consumer, an inline handler in
+// index.html's static markup, or a tests/ui/*.py page.evaluate. Internal helpers
+// (re-analyze/re-run actions, the two kebab openers, etc.) stay module-private -
+// see main.esm.js for what each surviving name here still needs it for.
+export {
   loadVideos, selectVideo, renderVideoDetail, deleteVideo,
   onClipsSortChange, _clipsSortParam, _clipsListUrl,
-  reanalyzeVideo, rediarizeVideo, _reanalyzeParams,
-  reextractVideoRun, retranscribeVideoRun, regenerateClipsRun,
-  unsplitVideo, _doUnsplitVideo,
-  openVideoSummaryKebab, openVideoTitleKebab,
+  _reanalyzeParams,
   _needsModelCtaHTML,
   _updateDemoButton, _updateStartIngestButton,
   _analysisLivePanelHTML, _syncAnalysisLivePanel,
   _applyVideoFilters, _renderVideoList,
-  setVideoSearch, setVideoSort, toggleVideoSortDir, toggleVideoFilter, _syncVideoFilterChips, _clearVideoFilters,
+  setVideoSearch, setVideoSort, toggleVideoSortDir, toggleVideoFilter,
   openVideoActionsModal,
-});
-})();
+};
+
+document.getElementById('detail').addEventListener('click', _handleDetailClick);
+document.getElementById('detail').addEventListener('change', _handleDetailChange);
