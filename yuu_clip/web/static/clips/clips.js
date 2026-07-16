@@ -1518,6 +1518,7 @@ export {
   toggleClipFilter, _syncFilterChips,
   _applyFilters, _renderClips, _parseTimingOffset, _reloadClipList,
   _renderClipFilterCounts,
+  _duplicatePartners, _mergeNeighbors, _generatedTagPillsHTML,
   openScoreOverride, closeScoreOverrideModal,
   closeSimilarClipsModal,
   openClipActionsModal,

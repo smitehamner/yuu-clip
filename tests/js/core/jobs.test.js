@@ -7,10 +7,71 @@
 import { AppState } from '../../../yuu_clip/web/static/core/state.js';
 import {
   SCORE_STEPS, INGEST_STEPS, startJobUI, updateJobUI, endJobUI,
+  parseProgress, _driveStepFromMarker,
   _setActiveStream, _clearActiveStream, _supersedeActiveStream, _blockedByAnalyze,
 } from '../../../yuu_clip/web/static/core/jobs.js';
 
 const stepClass = (i) => document.getElementById(`step-${i}`).className;
+const marker = (obj) => '@@PROGRESS ' + JSON.stringify(obj);
+
+// Mirror of progress.py parse_progress: only a well-formed marker naming a known
+// stage is a marker; everything else falls through to the prose/log path (null).
+describe('parseProgress', () => {
+  it('returns the payload for a well-formed marker naming a known stage', () => {
+    expect(parseProgress(marker({ stage: 'score', done: 3, total: 12 })))
+      .toEqual({ stage: 'score', done: 3, total: 12 });
+  });
+  it('an ordinary log line is not a marker', () => {
+    expect(parseProgress('Scoring clips now')).toBe(null);
+    expect(parseProgress('')).toBe(null);
+    expect(parseProgress(null)).toBe(null);
+  });
+  it('a malformed JSON payload is not a marker (falls through to the log)', () => {
+    expect(parseProgress('@@PROGRESS {not json')).toBe(null);
+  });
+  it('an unknown stage is rejected so a typo cannot hijack the pills', () => {
+    expect(parseProgress(marker({ stage: 'frobnicate', done: 1, total: 2 }))).toBe(null);
+  });
+  it('a non-object payload (bare number / array) is rejected', () => {
+    expect(parseProgress('@@PROGRESS 5')).toBe(null);
+    expect(parseProgress('@@PROGRESS [1,2]')).toBe(null);
+  });
+});
+
+// The marker path is the deterministic primary driver (prose matching is the
+// one-release fallback). Ported from tests/ui/test_ui_sse.py
+// TestProgressMarker::test_marker_drives_pill_stage_and_count - a page.evaluate that
+// only poked the now-exported startJobUI/parseProgress/_driveStepFromMarker globals,
+// so it moves here. test_marker_line_is_not_logged stays in Playwright (it needs the
+// real SSE fetch/stream transport).
+describe('_driveStepFromMarker', () => {
+  const twoSteps = [
+    { label: 'Energy', stage: 'energy', patterns: [] },
+    { label: 'Scoring', stage: 'score', patterns: [] },
+  ];
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => { endJobUI(); vi.useRealTimers(); });
+
+  it("advances to the marker's stage, marks earlier steps done, and carries the count", () => {
+    startJobUI(twoSteps, 'Test');
+    _driveStepFromMarker(parseProgress(marker({ stage: 'score', done: 3, total: 12 })));
+    expect(stepClass(0)).toContain('done');
+    expect(stepClass(1)).toContain('active');
+    expect(document.getElementById('step-1').textContent).toContain('3/12 (25%)');
+  });
+  it('a marker for an unknown-to-this-job stage is a no-op', () => {
+    startJobUI(twoSteps, 'Test');
+    // 'transcribe' is a valid stage but not in this job's step defs.
+    _driveStepFromMarker({ stage: 'transcribe', done: 1, total: 2 });
+    expect([stepClass(0), stepClass(1)]).toEqual(['step', 'step']);
+  });
+  it('a marker with no counts advances the stage without a fraction', () => {
+    startJobUI(twoSteps, 'Test');
+    _driveStepFromMarker({ stage: 'score' });
+    expect(stepClass(1)).toContain('active');
+    expect(document.getElementById('step-1').textContent).not.toContain('/');
+  });
+});
 
 describe('updateJobUI step advancement', () => {
   beforeEach(() => vi.useFakeTimers());

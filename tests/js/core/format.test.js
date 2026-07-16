@@ -5,7 +5,7 @@
 import {
   escHtml, _parseServerDate, _fmtAgo, _fmtOffset, _msToHms, finiteOr, fmtDuration,
   formatApiError, stripRichMarkup, _scoreBorderColor, _lerpColor, _fmtElapsed,
-  _fmtVideoStatus, _fmtDate, _sortScore, plural,
+  _fmtVideoStatus, _fmtDate, _sortScore, plural, _parseIntervalS,
 } from '../../../yuu_clip/web/static/core/format.js';
 
 describe('escHtml', () => {
@@ -146,6 +146,30 @@ describe('_scoreBorderColor / _lerpColor', () => {
       _lerpColor('#000000', '#ffffff', 1),
       _lerpColor('#000000', '#ffffff', 0.5),
     ]).toEqual(['rgb(0,0,0)', 'rgb(255,255,255)', 'rgb(128,128,128)']);
+  });
+});
+
+// Shared by the Settings save path and the per-video timeline generator, so their
+// validation cannot drift apart. Minutes scale to seconds; anything below the 10s
+// floor or non-numeric is rejected as null.
+describe('_parseIntervalS', () => {
+  it('passes seconds straight through', () => {
+    expect(_parseIntervalS('30', 'seconds')).toBe(30);
+  });
+  it('scales minutes to seconds', () => {
+    expect(_parseIntervalS('2', 'minutes')).toBe(120);
+  });
+  it('accepts exactly the 10s floor', () => {
+    expect(_parseIntervalS('10', 'seconds')).toBe(10);
+  });
+  it('rejects a value below the 10s floor as null', () => {
+    expect(_parseIntervalS('5', 'seconds')).toBe(null);
+  });
+  it('rejects a non-numeric value as null', () => {
+    expect(_parseIntervalS('abc', 'seconds')).toBe(null);
+  });
+  it('treats any non-minutes unit as seconds', () => {
+    expect(_parseIntervalS('15', 'seconds')).toBe(15);
   });
 });
 

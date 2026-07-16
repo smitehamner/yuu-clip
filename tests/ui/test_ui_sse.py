@@ -85,30 +85,11 @@ class TestSSEJobHappyPath:
 @skip_no_server
 class TestProgressMarker:
     """The @@PROGRESS marker drives the pill deterministically and is never shown
-    as a log line (that is the whole point of the structured channel)."""
+    as a log line (that is the whole point of the structured channel).
 
-    def test_marker_drives_pill_stage_and_count(self, page: Page):
-        page.goto(LIVE_URL)
-        marker = "@@PROGRESS " + json.dumps({"stage": "score", "done": 3, "total": 12})
-        result = page.evaluate(
-            """(marker) => {
-                const steps = [
-                  {label: 'Energy',  stage: 'energy', patterns: []},
-                  {label: 'Scoring', stage: 'score',  patterns: []},
-                ];
-                startJobUI(steps, 'Test', false, false);
-                _driveStepFromMarker(parseProgress(marker));
-                const s0 = document.getElementById('step-0');
-                const s1 = document.getElementById('step-1');
-                const res = {s0: s0.className, s1: s1.className, text: s1.textContent};
-                endJobUI();
-                return res;
-            }""",
-            marker,
-        )
-        assert "done" in result["s0"]      # earlier stage marked done
-        assert "active" in result["s1"]    # the marker's stage is active
-        assert "3/12" in result["text"]    # count carried through
+    The pure parse + step-drive behavior (parseProgress / _driveStepFromMarker) is
+    unit-tested in tests/js/core/jobs.test.js; only the case below genuinely needs the
+    live SSE fetch/stream transport, so it stays here."""
 
     def test_marker_line_is_not_logged(self, page: Page):
         page.goto(LIVE_URL)
