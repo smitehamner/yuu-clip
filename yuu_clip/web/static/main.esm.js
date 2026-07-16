@@ -671,14 +671,12 @@ window.openExportEditor = openExportEditor;
 // page.evaluate; initPreSplitDuration/hidePreSplitSection/_fmtSplitTime are read
 // as window.* by analyze.js (already-ESM, same reason), and _fmtSplitTime/
 // _parseSplitTime/splitTimelineClick are invoked directly by test_ui_split.py via
-// page.evaluate. The four
-// test-poked STATE names (_splitPoints, _splitNames, _splitDurationS,
-// _splitEnergyFlat) plus _suggestionPins are NOT here - split.js wires those onto
-// window itself via live get/set accessors, since a plain snapshot would go stale
-// on reassignment.
-// videos.js/analyze.js read _splitPoints/_splitDurationS/_splitIgnored via a direct
-// import instead of window. (The jobs.js equivalent bridge has since been removed;
-// split.js's remains only for test_ui_keyboard/test_ui_split page.evaluate pokes.)
+// page.evaluate. The two test-poked STATE names (_splitPoints, _splitNames) are NOT
+// here - split.js wires those onto window itself via live get/set accessors, since a
+// plain snapshot would go stale on reassignment. videos.js/analyze.js read
+// _splitPoints/_splitDurationS/_splitIgnored via a direct import instead of window.
+// (The jobs.js equivalent bridge has since been removed; split.js's remains only for
+// test_ui_keyboard's page.evaluate pokes.)
 window.isSplitEditorOpen = isSplitEditorOpen;
 window.openSplitEditor = openSplitEditor;
 window.closeSplitEditor = closeSplitEditor;

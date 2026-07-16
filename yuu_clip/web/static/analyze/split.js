@@ -24,21 +24,18 @@ let _splitZoom             = 1;
 let _splitEnergyFlat = [];   // [{second, rms_db}, …] merged across tracks
 let _suggestionPins  = [];    // [sec, …]
 
-// Test-only accessor bridge: the Playwright suites poke these split-state names
-// as bare page globals via page.evaluate (test_ui_keyboard mutates _splitPoints /
-// assigns _splitNames; test_ui_utils assigns _splitDurationS / _splitEnergyFlat /
-// _suggestionPins). Inside the esbuild IIFE these are closure locals, not window
+// Test-only accessor bridge: test_ui_keyboard.py pokes these two split-state names
+// as bare page globals via page.evaluate (it mutates _splitPoints / assigns
+// _splitNames). Inside the esbuild IIFE they are closure locals, not window
 // properties, and this module reassigns them - so a plain window.X = X snapshot
-// would go stale and an imported ESM binding is read-only. Live get/set defined
-// here (which can read AND write this module's own `let`s) keeps page.evaluate in
-// sync. Remove when those tests move to the vitest unit layer (the jobs.js
-// equivalent bridge has already been removed that way).
+// would go stale and an imported ESM binding is read-only. Live get/set defined here
+// (which can read AND write this module's own `let`s) keeps page.evaluate in sync.
+// Remove when that test moves to the vitest unit layer (the jobs.js equivalent bridge
+// has already been removed that way, and the _splitDurationS / _splitEnergyFlat /
+// _suggestionPins entries dropped out once their page.evaluate pokes were ported).
 for (const [name, get, set] of [
-  ['_splitPoints',    () => _splitPoints,    v => { _splitPoints = v; }],
-  ['_splitNames',     () => _splitNames,     v => { _splitNames = v; }],
-  ['_splitDurationS', () => _splitDurationS, v => { _splitDurationS = v; }],
-  ['_splitEnergyFlat', () => _splitEnergyFlat, v => { _splitEnergyFlat = v; }],
-  ['_suggestionPins', () => _suggestionPins, v => { _suggestionPins = v; }],
+  ['_splitPoints', () => _splitPoints, v => { _splitPoints = v; }],
+  ['_splitNames',  () => _splitNames,  v => { _splitNames = v; }],
 ]) Object.defineProperty(window, name, { get, set, configurable: true });
 
 // ── split editor ─────────────────────────────────────────────────────────────
