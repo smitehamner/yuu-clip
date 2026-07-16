@@ -83,6 +83,7 @@ import {
   _renderExportModeSummary,
   _handleExportFormatAction, _downloadClipExport, _revealClipExport, _copyClipExportPaths,
 } from './clipexport.js';
+import { openClipCreatePicker } from './clipcreate.js';
 
 window.AppState = AppState;
 Object.assign(window, format);
@@ -312,3 +313,11 @@ window._handleExportFormatAction = _handleExportFormatAction;
 window._downloadClipExport = _downloadClipExport;
 window._revealClipExport = _revealClipExport;
 window._copyClipExportPaths = _copyClipExportPaths;
+// clipcreate.js - openClipCreatePicker is read as window.* by clips.js and
+// videos.js (already-ESM, but their own migrations predate this one and never
+// switched to an import - out of scope to touch those modules here) and is
+// invoked directly by tests/ui/test_ui_clipcreate.py via page.evaluate.
+// isClipCreateOpen dropped: it has no callers anywhere (not even internally in
+// clipcreate.js) - dead code left as a named export in case a future caller
+// needs a PanelNav('clip-create')-open check.
+window.openClipCreatePicker = openClipCreatePicker;

@@ -33,7 +33,6 @@ speakers.js
 voices.js
 transcript.js
 namecorrections.js
-clipcreate.js
 exporteditor.js
 modeldownload.js
 boot.js

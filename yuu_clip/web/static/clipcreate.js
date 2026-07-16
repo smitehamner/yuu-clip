@@ -1,4 +1,3 @@
-(function () {
 // Feature-map - Manual clip (code: "manual" tag on ClipCandidate).
 //   API: routes/clips/crud.py (create_manual_clip) · Tests: tests/ui/test_ui_clipcreate.py, tests/integration/test_clip_create.py
 // ── manual clip creation picker ───────────────────────────────────────────────
@@ -13,6 +12,13 @@
 // #player-area while open, so seeking that hidden element would give no visible
 // feedback for "Play selection".
 
+import { AppState } from './state.js';
+import { formatApiError } from './format.js';
+import { PanelNav } from './panelnav.js';
+import { setupRecordingPreview } from './preview.js';
+import { showToast } from './utils.js';
+import { selectClip, _reloadClipList } from './clips.js';
+
 let _ccVideoId    = null;
 let _ccKind       = 'clip';
 let _ccDurationMs = 0;
@@ -21,14 +27,14 @@ let _ccStartMs    = null;
 let _ccEndMs      = null;
 let _ccPlaybackGuard = null;
 
-function isClipCreateOpen() {
+export function isClipCreateOpen() {
   return PanelNav.isOpen('clip-create');
 }
 
 // kind: 'clip' (default) or 'scene' - a scene reuses this exact picker, differing
 // only in the created row's kind, the panel copy, and (Stage 0) skipping the
 // auto-rescore chain (scene scoring lands in a later stage).
-function openClipCreatePicker(videoId, kind = 'clip') {
+export function openClipCreatePicker(videoId, kind = 'clip') {
   if (!videoId) { showToast('Select a recording first', 'warning'); return; }
   const video = AppState.videos.find(v => v.id === videoId);
   if (!video) return;
@@ -114,7 +120,7 @@ async function _ccLoadTranscript(videoId) {
         'until this recording is (re)transcribed. Use the time inputs above to pick a range.</div>';
       return;
     }
-    el.innerHTML = renderTranscriptLines(lines, { seekOffsetS: _ccSeekOffsetS, readOnly: true });
+    el.innerHTML = window.renderTranscriptLines(lines, { seekOffsetS: _ccSeekOffsetS, readOnly: true });
     el.querySelectorAll('.tline').forEach(row => row.classList.add('cc-pickable'));
     _ccRenderSelectionHighlight();
   } catch (_) {
@@ -273,7 +279,7 @@ async function _ccConfirmCreate() {
     // Both kinds auto-score on creation - clips via the Funny/Dramatic/Action prompt,
     // scenes via the scene rubric (the rescore route picks the prompt by kind).
     showToast(`${noun === 'scene' ? 'Scene' : 'Clip'} created - scoring…`);
-    rescoreClip(clip.id);
+    window.rescoreClip(clip.id);
   } catch (err) {
     showToast(`Could not create ${noun}: ${err.message}`, 'error');
     btn.disabled = false;
@@ -294,8 +300,3 @@ function _teardownClipCreatePanel() {
   _ccStartMs    = null;
   _ccEndMs      = null;
 }
-
-Object.assign(window, {
-  openClipCreatePicker, isClipCreateOpen,
-});
-})();
