@@ -1,15 +1,24 @@
-(function () {
 // Feature-map - Bulk clip actions (multi-select in the clip list → status / delete / export).
 //   API: routes/clips/bulk.py (bulk-status, bulk-status-restore, bulk-delete, bulk-export) · Tests: tests/ui/test_ui_clips.py
 // The selection set lives in AppState.selectedClipIds; the clip list (clips.js)
 // renders the checkboxes and calls _toggleClipSelection / _updateBulkToolbar as
 // rows are drawn, and _pruneClipSelection on every re-render.
+import { AppState } from './state.js';
+import { formatApiError, plural } from './format.js';
+import { showToast, openLog } from './utils.js';
+import { showConfirm, showUndoToast } from './ui.js';
+import { streamSSE } from './jobs.js';
+import { loadVideos } from './videos.js';
+import {
+  selectClip, renderDetail, clearDetail, _releasePlayerBeforeDelete,
+  _applyFilters, _renderClips, _reloadClipList,
+} from './clips.js';
 
 // ── multi-select ─────────────────────────────────────────────────────────────
 // Drops selected IDs for clips that no longer exist (e.g. after a delete).
 // Deliberately does NOT drop IDs just because a filter hides them - switching
 // filter tabs shouldn't silently lose the user's selection.
-function _pruneClipSelection() {
+export function _pruneClipSelection() {
   const existingIds = new Set(AppState.clips.map(c => c.id));
   for (const id of AppState.selectedClipIds) {
     if (!existingIds.has(id)) AppState.selectedClipIds.delete(id);
@@ -23,18 +32,18 @@ function _visibleSelectedClips() {
   return _applyFilters().filter(c => AppState.selectedClipIds.has(c.id));
 }
 
-function _toggleClipSelection(id, checked) {
+export function _toggleClipSelection(id, checked) {
   if (checked) AppState.selectedClipIds.add(id);
   else AppState.selectedClipIds.delete(id);
   _updateBulkToolbar();
 }
 
-function _clearClipSelection() {
+export function _clearClipSelection() {
   AppState.selectedClipIds.clear();
   _renderClips();
 }
 
-function _updateBulkToolbar() {
+export function _updateBulkToolbar() {
   const toolbar = document.getElementById('clip-bulk-toolbar');
   const count = _visibleSelectedClips().length;
   toolbar.style.display = count ? 'flex' : 'none';
@@ -42,7 +51,7 @@ function _updateBulkToolbar() {
 }
 
 // ── bulk clip actions ────────────────────────────────────────────────────────
-async function bulkSetClipStatus(status) {
+export async function bulkSetClipStatus(status) {
   const ids = _visibleSelectedClips().map(c => c.id);
   if (!ids.length) return;
   const res = await fetch('/api/clips/bulk-status', {
@@ -73,7 +82,7 @@ async function bulkSetClipStatus(status) {
   showUndoToast(`${label}: ${plural(ids.length, 'clip')}`, undoLastBulkStatus);
 }
 
-async function undoLastBulkStatus() {
+export async function undoLastBulkStatus() {
   if (!AppState.lastBulkStatusChange) return;
   const {previous} = AppState.lastBulkStatusChange;
   clearTimeout(AppState.lastBulkStatusChange.timer);
@@ -98,7 +107,7 @@ async function undoLastBulkStatus() {
   showToast(`Undone: ${plural(updates.length, 'clip')} restored`);
 }
 
-function bulkDeleteClips() {
+export function bulkDeleteClips() {
   const ids = _visibleSelectedClips().map(c => c.id);
   if (!ids.length) return;
   showConfirm(
@@ -141,7 +150,7 @@ async function _doBulkDeleteClips(ids) {
   }
 }
 
-function bulkExportClips() {
+export function bulkExportClips() {
   const clips = _visibleSelectedClips();
   if (!clips.length) return;
   const staleCount = clips.filter(c => c.transcript_stale).length;
@@ -170,17 +179,26 @@ function _doBulkExportClips(ids) {
       await _reloadClipList(AppState.activeVideoId);
       loadVideos();
       showToast(`Exported ${plural(ids.length, 'clip')}`);
-      SoundFx.play('export');
+      window.SoundFx.play('export');
     },
     [{label: 'Export', patterns: ['Exporting', 'OK', 'Skipping']}],
     'Bulk Exporting',
   );
 }
 
-// Public API - symbols referenced cross-module, by an inline handler, or by a
-// test. Internal helpers above stay private to this module's closure.
-Object.assign(window, {
-  _pruneClipSelection, _updateBulkToolbar, _toggleClipSelection, _clearClipSelection,
-  bulkSetClipStatus, undoLastBulkStatus, bulkDeleteClips, bulkExportClips,
-});
-})();
+// ── static index.html handlers this module owns (wired once at load) ──────────
+// The bulk toolbar is a fixed, never-recreated element in index.html (only its
+// display style and count text are updated by _updateBulkToolbar), so a single
+// load-time delegated listener can't double-fire on a re-render.
+function _handleBulkToolbarClick(e) {
+  const el = e.target.closest('[data-act]');
+  if (!el) return;
+  switch (el.dataset.act) {
+    case 'bulk-approve': bulkSetClipStatus('approved'); break;
+    case 'bulk-reject': bulkSetClipStatus('rejected'); break;
+    case 'bulk-export': bulkExportClips(); break;
+    case 'bulk-delete': bulkDeleteClips(); break;
+    case 'bulk-clear-selection': _clearClipSelection(); break;
+  }
+}
+document.getElementById('clip-bulk-toolbar').addEventListener('click', _handleBulkToolbarClick);

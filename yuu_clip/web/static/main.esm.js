@@ -74,6 +74,9 @@ import {
   closeSimilarClipsModal,
   openClipActionsModal,
 } from './clips.js';
+import {
+  _pruneClipSelection, _updateBulkToolbar, _toggleClipSelection, undoLastBulkStatus,
+} from './clipbulk.js';
 
 window.AppState = AppState;
 Object.assign(window, format);
@@ -260,3 +263,15 @@ window.openScoreOverride = openScoreOverride;
 window.closeScoreOverrideModal = closeScoreOverrideModal;
 window.closeSimilarClipsModal = closeSimilarClipsModal;
 window.openClipActionsModal = openClipActionsModal;
+// clipbulk.js - _pruneClipSelection, _updateBulkToolbar and _toggleClipSelection
+// are read as window.* by clips.js (already-ESM, but clips.js's own migration
+// predates this one and never switched these to an import - out of scope to
+// touch clips.js here); undoLastBulkStatus is called as a bare global by
+// clips.js's undoLastStatus (same reason). bulkSetClipStatus, bulkDeleteClips,
+// bulkExportClips and _clearClipSelection dropped: their only callers were this
+// module's own inline handlers, now data-act delegation inside clipbulk.js
+// itself, so nothing outside the module needs them off window anymore.
+window._pruneClipSelection = _pruneClipSelection;
+window._updateBulkToolbar = _updateBulkToolbar;
+window._toggleClipSelection = _toggleClipSelection;
+window.undoLastBulkStatus = undoLastBulkStatus;

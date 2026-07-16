@@ -1087,11 +1087,11 @@
       <div class="clip-bulk-toolbar" id="clip-bulk-toolbar" style="display:none">
         <span id="clip-bulk-count">0 selected</span>
         <div class="clip-bulk-actions">
-          <button class="btn" style="font-size:11px;padding:2px 8px" title="Approve selected clips" onclick="bulkSetClipStatus('approved')">Approve</button>
-          <button class="btn" style="font-size:11px;padding:2px 8px" title="Reject selected clips" onclick="bulkSetClipStatus('rejected')">Reject</button>
-          <button class="btn" style="font-size:11px;padding:2px 8px" title="Export selected clips" onclick="bulkExportClips()">Export</button>
-          <button class="btn danger" style="font-size:11px;padding:2px 8px" title="Delete selected clips" onclick="bulkDeleteClips()">Delete</button>
-          <button class="btn ghost" style="font-size:11px;padding:2px 6px" title="Clear selection" aria-label="Clear selection" onclick="_clearClipSelection()">&times;</button>
+          <button class="btn" style="font-size:11px;padding:2px 8px" title="Approve selected clips" data-act="bulk-approve">Approve</button>
+          <button class="btn" style="font-size:11px;padding:2px 8px" title="Reject selected clips" data-act="bulk-reject">Reject</button>
+          <button class="btn" style="font-size:11px;padding:2px 8px" title="Export selected clips" data-act="bulk-export">Export</button>
+          <button class="btn danger" style="font-size:11px;padding:2px 8px" title="Delete selected clips" data-act="bulk-delete">Delete</button>
+          <button class="btn ghost" style="font-size:11px;padding:2px 6px" title="Clear selection" aria-label="Clear selection" data-act="bulk-clear-selection">&times;</button>
         </div>
       </div>
       <div class="clip-stats-line" id="clip-stats-line" style="display:none;font-size:11px;color:var(--muted);padding:4px 14px"></div>
