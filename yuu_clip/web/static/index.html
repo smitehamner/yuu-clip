@@ -2001,17 +2001,15 @@
 </div>
 
 <!-- Timeline Interval Modal -->
-<div class="modal-bg" id="timeline-interval-modal" onclick="if(event.target===this)closeTimelineIntervalModal()">
+<div class="modal-bg" id="timeline-interval-modal">
   <div class="modal" style="width:380px">
     <h3 style="margin-top:0">Generate Timeline</h3>
     <div style="margin-bottom:14px">
       <label for="timeline-interval-value" style="font-size:13px;color:var(--muted);display:block;margin-bottom:8px">Time per entry</label>
       <div style="display:flex;gap:8px;align-items:center">
         <input type="number" id="timeline-interval-value" min="1" step="1" value="15"
-               style="width:80px;padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:14px"
-               oninput="updateTimelineIntervalHint()">
-        <select id="timeline-interval-unit" style="padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px"
-                onchange="updateTimelineIntervalHint()">
+               style="width:80px;padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:14px">
+        <select id="timeline-interval-unit" style="padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px">
           <option value="seconds">seconds</option>
           <option value="minutes" selected>minutes</option>
         </select>
@@ -2019,8 +2017,8 @@
       <div id="timeline-interval-hint" style="color:var(--muted);font-size:12px;margin-top:8px"></div>
     </div>
     <div class="modal-actions">
-      <button class="btn" onclick="closeTimelineIntervalModal()">Cancel</button>
-      <button class="btn primary" onclick="confirmGenerateTimeline()">Generate</button>
+      <button class="btn" id="timeline-interval-cancel-btn">Cancel</button>
+      <button class="btn primary" id="timeline-interval-generate-btn">Generate</button>
     </div>
   </div>
 </div>

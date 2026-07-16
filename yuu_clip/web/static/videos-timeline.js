@@ -1,11 +1,19 @@
-(function () {
 // Feature-map - Recording detail: session timeline generation (code: video / Video).
 // Extracted out of videos.js (which grew into a catch-all) - the list/filter/
 // detail-render/re-analysis core stays there; _needsModelCtaHTML is shared with
 // the summary feature and stays in videos.js core too.
 //   API: routes/videos.py (timeline SSE) · Tests: tests/ui/test_ui_video.py, tests/integration/test_scoring_routes.py
+
+import { AppState } from './state.js';
+import { escHtml, plural, _parseIntervalS } from './format.js';
+import { showToast } from './utils.js';
+import {
+  _openSSE, _setActiveStream, _clearActiveStream, _supersedeActiveStream, _blockedByAnalyze,
+} from './jobs.js';
+import { _needsModelCtaHTML } from './videos.js';
+
 // ── timeline render helpers ───────────────────────────────────────────────────
-function _renderTimelineHTML(entries) {
+export function _renderTimelineHTML(entries) {
   if (!entries || !entries.length) return '';
   const rows = entries.map(e =>
     `<div class="timeline-entry">
@@ -16,7 +24,7 @@ function _renderTimelineHTML(entries) {
   return `<div class="timeline">${rows}</div>`;
 }
 
-function _timelineEmptyNoteHTML() {
+export function _timelineEmptyNoteHTML() {
   return `<div style="color:var(--muted);font-size:12px">No timeline yet - generate a time-stamped outline of the session.</div>`;
 }
 
@@ -24,7 +32,7 @@ function _timelineEmptyNoteHTML() {
 let _timelineVideoId = null;
 let _timelineIntervalOpener = null;
 
-function generateTimeline(id) {
+export function generateTimeline(id) {
   _timelineIntervalOpener = document.activeElement;
   _timelineVideoId = id;
   const video = AppState.videos.find(v => v.id === id);
@@ -35,7 +43,7 @@ function generateTimeline(id) {
   });
 }
 
-function closeTimelineIntervalModal() {
+export function closeTimelineIntervalModal() {
   document.getElementById('timeline-interval-modal').classList.remove('visible');
   const opener = _timelineIntervalOpener;
   _timelineIntervalOpener = null;
@@ -166,11 +174,17 @@ function _startGenerateTimeline(id, intervalS) {
   _setActiveStream(handle, resetBtn);
 }
 
-// Public API - symbols referenced cross-module, by an inline handler, or by a
-// test. Internal helpers above stay private to this module's closure.
-Object.assign(window, {
-  generateTimeline, confirmGenerateTimeline, closeTimelineIntervalModal,
-  updateTimelineIntervalHint,
-  _renderTimelineHTML, _timelineEmptyNoteHTML,
-});
-})();
+// ── static modal wiring (replaces the inline onclick=/oninput=/onchange= this
+// module used to own in index.html) ────────────────────────────────────────────
+// timeline-interval-modal is a fixed, never-recreated element in index.html, so
+// wiring it once at module load (below) can't double-fire on a re-render.
+function _wireTimelineModal() {
+  const modal = document.getElementById('timeline-interval-modal');
+  modal.addEventListener('click', e => { if (e.target === modal) closeTimelineIntervalModal(); });
+  document.getElementById('timeline-interval-cancel-btn').addEventListener('click', () => closeTimelineIntervalModal());
+  document.getElementById('timeline-interval-generate-btn').addEventListener('click', () => confirmGenerateTimeline());
+  document.getElementById('timeline-interval-value').addEventListener('input', () => updateTimelineIntervalHint());
+  document.getElementById('timeline-interval-unit').addEventListener('change', () => updateTimelineIntervalHint());
+}
+
+_wireTimelineModal();

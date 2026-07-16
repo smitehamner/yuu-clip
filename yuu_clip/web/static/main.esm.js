@@ -55,6 +55,9 @@ import {
   setVideoSearch, setVideoSort, toggleVideoSortDir, toggleVideoFilter,
   openVideoActionsModal,
 } from './videos.js';
+import {
+  generateTimeline, closeTimelineIntervalModal, _renderTimelineHTML, _timelineEmptyNoteHTML,
+} from './videos-timeline.js';
 
 window.AppState = AppState;
 Object.assign(window, format);
@@ -172,3 +175,16 @@ window.setVideoSort = setVideoSort;
 window.toggleVideoSortDir = toggleVideoSortDir;
 window.toggleVideoFilter = toggleVideoFilter;
 window.openVideoActionsModal = openVideoActionsModal;
+// videos-timeline.js - generateTimeline, _renderTimelineHTML and
+// _timelineEmptyNoteHTML are read as window.* by videos.js (already-ESM, but
+// videos.js's own migration predates this one and never switched these three
+// to an import - out of scope here to touch videos.js). closeTimelineIntervalModal
+// is called as a bare global by shortcuts.js's Escape-key modal-closer map
+// (shortcuts.js hasn't been updated to import it directly - also out of scope).
+// confirmGenerateTimeline and updateTimelineIntervalHint dropped: their only
+// callers were this module's own inline handlers, now addEventListener inside
+// videos-timeline.js itself.
+window.generateTimeline = generateTimeline;
+window.closeTimelineIntervalModal = closeTimelineIntervalModal;
+window._renderTimelineHTML = _renderTimelineHTML;
+window._timelineEmptyNoteHTML = _timelineEmptyNoteHTML;
