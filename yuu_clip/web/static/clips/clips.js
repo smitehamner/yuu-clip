@@ -1,21 +1,21 @@
-import { AppState } from './state.js';
+import { AppState } from '../core/state.js';
 import {
   escHtml, _scoreIcon, _scoreBorderColor, _sortScore, fmtDuration, plural, truncate,
   _fmtAgo, _fmtOffset, formatApiError,
-} from './format.js';
+} from '../core/format.js';
 import {
   showToast, collapsibleCard, copyText, _syncSortDirBtn, openLog, appendLog,
-} from './utils.js';
+} from '../core/utils.js';
 import {
   showConfirm, showKebab, openActionsModal, openDiffModal, openFieldEditModal, showUndoToast,
-} from './ui.js';
-import { PanelNav } from './panelnav.js';
+} from '../core/ui.js';
+import { PanelNav } from '../core/panelnav.js';
 import {
   streamSSE, setJobCancel, _blockedByAnalyze, _openSSE, _setActiveStream, _clearActiveStream,
   _supersedeActiveStream, FRAMES_STEPS, SCORE_STEPS, applyJobBlockedState,
-} from './jobs.js';
-import { gateOnCapability } from './modelcatalog.js';
-import { loadVideos, _clipsListUrl } from './videos.js';
+} from '../core/jobs.js';
+import { gateOnCapability } from '../settings/modelcatalog.js';
+import { loadVideos, _clipsListUrl } from '../videos/videos.js';
 
 // ── clip list & filtering ─────────────────────────────────────────────────────────────────────
 function _applyFilters() {

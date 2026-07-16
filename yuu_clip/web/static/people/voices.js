@@ -6,14 +6,14 @@
 // suggestions (confirm/dismiss inline), and rename/recolor/merge/split. Naming a
 // Person here flows to every linked recording's captions/excerpts/exports because the
 // server resolves display_name through the linked voice.
-import { AppState } from './state.js';
-import { escHtml, plural, formatApiError } from './format.js';
-import { showToast } from './utils.js';
-import { showConfirm } from './ui.js';
-import { ColorPicker } from './colorpicker.js';
-import { PanelNav } from './panelnav.js';
+import { AppState } from '../core/state.js';
+import { escHtml, plural, formatApiError } from '../core/format.js';
+import { showToast } from '../core/utils.js';
+import { showConfirm } from '../core/ui.js';
+import { ColorPicker } from '../library/colorpicker.js';
+import { PanelNav } from '../core/panelnav.js';
 import { loadSpeakers } from './speakers.js';
-import { selectClip } from './clips.js';
+import { selectClip } from '../clips/clips.js';
 
 function isPeopleOpen() {
   return PanelNav.isOpen('people');

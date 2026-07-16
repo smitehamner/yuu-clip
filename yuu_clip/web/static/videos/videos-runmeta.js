@@ -3,7 +3,7 @@
 // (which grew into a catch-all) - the list/filter/detail-render/re-analysis
 // core stays there.
 //   API: routes/videos.py (analyze_run field) · Tests: tests/ui/test_ui_video.py
-import { escHtml, _msToHms, _fmtAgo } from './format.js';
+import { escHtml, _msToHms, _fmtAgo } from '../core/format.js';
 // ── analysis run metadata card ────────────────────────────────────────────────
 // Renders the stored record of the last analyze run (per-stage timing, effective
 // settings, and CPU/GPU device) so the creator can answer "how long did this

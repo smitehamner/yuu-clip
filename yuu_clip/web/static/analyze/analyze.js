@@ -1,15 +1,15 @@
 // Feature-map - Analyze (start + SSE progress) + Import from URL, both in the New Recording panel.
 //   API: routes/analyze.py, routes/imports.py · Tests: tests/ui/test_ui_analyze.py
-import { AppState } from './state.js';
-import { escHtml, plural, formatApiError, _msToHms } from './format.js';
-import { showConfirm } from './ui.js';
-import { showToast, openLog, appendLog, netErrMsg, _diarizationReadiness, _diarizationNoteHtml } from './utils.js';
+import { AppState } from '../core/state.js';
+import { escHtml, plural, formatApiError, _msToHms } from '../core/format.js';
+import { showConfirm } from '../core/ui.js';
+import { showToast, openLog, appendLog, netErrMsg, _diarizationReadiness, _diarizationNoteHtml } from '../core/utils.js';
 import {
   streamSSE, INGEST_STEPS, setJobCancel, _waitWhileAnalyzePaused, _setPausedUIFromStatus,
-} from './jobs.js';
+} from '../core/jobs.js';
 import {
   loadVideos, selectVideo, renderVideoDetail, _updateStartIngestButton, _reanalyzeParams,
-} from './videos.js';
+} from '../videos/videos.js';
 import { _splitPoints, _splitDurationS, _splitIgnored } from './split.js';
 
 // ── shared live panel state ───────────────────────────────────────────────────

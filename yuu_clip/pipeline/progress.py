@@ -3,7 +3,7 @@
 The engine prints human-readable stage lines (for the CLI and the debug log) AND,
 alongside them, a machine-parseable marker line so the browser can drive the job
 progress bar deterministically instead of regex-matching prose. This is the single
-source of truth for the marker format; ``parseProgress`` in ``web/static/jobs.js``
+source of truth for the marker format; ``parseProgress`` in ``web/static/core/jobs.js``
 mirrors ``parse_progress`` - keep the two in sync (the stage set is enforced by
 ``tests/unit/test_progress_stage_coupling.py``).
 
@@ -22,7 +22,7 @@ _PROGRESS_PREFIX = "@@PROGRESS "
 
 class Stage(str, Enum):
     """Canonical stage ids. Must match the ``stage`` field the browser's step
-    definitions carry in ``web/static/jobs.js`` (coupling-guarded by a unit test)."""
+    definitions carry in ``web/static/core/jobs.js`` (coupling-guarded by a unit test)."""
 
     EXTRACT = "extract"
     TRANSCRIBE = "transcribe"

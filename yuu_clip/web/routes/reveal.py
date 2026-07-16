@@ -1,5 +1,5 @@
 # Feature-map - Reveal in Explorer / "Show in folder"
-#   UI: invoked from static/clips.js, videos.js, reel.js (per-file "Show in folder")
+#   UI: invoked from static/clips/clips.js, videos.js, reel.js (per-file "Show in folder")
 #   Siblings: web/media.py · tests/integration/test_reveal.py
 """Reveal-in-Explorer route.
 

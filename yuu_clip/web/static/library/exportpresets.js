@@ -7,9 +7,9 @@
 // /api/export-presets instead of /api/hotwords. AppState.exportPresets caches
 // {builtins, custom} - populated at boot so the export options picker never
 // needs an extra round trip, refreshed here when Settings opens.
-import { AppState } from './state.js';
-import { escHtml, formatApiError } from './format.js';
-import { showToast } from './utils.js';
+import { AppState } from '../core/state.js';
+import { escHtml, formatApiError } from '../core/format.js';
+import { showToast } from '../core/utils.js';
 
 let _draftSeq = 0;
 

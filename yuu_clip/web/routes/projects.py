@@ -1,5 +1,5 @@
 # Feature-map - Project switcher (code: project_dir)
-#   UI: static/projects.js (header project dropdown)
+#   UI: static/settings/projects.js (header project dropdown)
 #   Siblings: deps.py (ProjectContext.switch_project) · config.py (recent projects) · tests/integration/test_projects.py, tests/ui/test_ui_projects.py
 """
 Project switcher routes.

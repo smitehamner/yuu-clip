@@ -1,5 +1,5 @@
 # Feature-map - Clip deduplication (near-duplicate overlapping windows)
-#   Logic: scoring/dedup.py · UI: static/clips.js · Tests: tests/unit/test_dedup.py, tests/integration/test_dedup_route.py
+#   Logic: scoring/dedup.py · UI: static/clips/clips.js · Tests: tests/unit/test_dedup.py, tests/integration/test_dedup_route.py
 """On-demand scan that flags near-duplicate clip candidates (overlapping windows
 from different segmentation passes) so the reviewer can merge them with the
 existing merge route. Detection lives in scoring/dedup.py; this route persists

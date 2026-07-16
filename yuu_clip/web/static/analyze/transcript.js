@@ -1,10 +1,10 @@
 // Feature-map - Transcript views + click-to-edit captions (code: TranscriptSegment).
 //   API: routes/videos.py, routes/scoring.py · Tests: tests/ui/test_ui_transcript.py, tests/integration/test_transcript_edit.py
-import { AppState } from './state.js';
-import { escHtml, plural, formatApiError } from './format.js';
-import { showToast } from './utils.js';
-import { loadSpeakers } from './speakers.js';
-import { refreshClipDetail } from './clips.js';
+import { AppState } from '../core/state.js';
+import { escHtml, plural, formatApiError } from '../core/format.js';
+import { showToast } from '../core/utils.js';
+import { loadSpeakers } from '../people/speakers.js';
+import { refreshClipDetail } from '../clips/clips.js';
 
 // ── timed transcript views ────────────────────────────────────────────────────
 // Per-line transcript for a clip (clip-relative time) and for a whole recording

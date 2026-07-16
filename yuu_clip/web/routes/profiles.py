@@ -1,5 +1,5 @@
 # Feature-map - Track layout (code: profile; UI term "Track layout")
-#   UI: static/settings.js (Settings → Track layouts + Profile Manager modal)
+#   UI: static/settings/settings.js (Settings → Track layouts + Profile Manager modal)
 #   Siblings: config.py (load/save_profiles) · tests/integration/test_profiles_contexts.py
 """
 Track layout CRUD routes.

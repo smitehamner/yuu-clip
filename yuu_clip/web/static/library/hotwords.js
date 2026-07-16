@@ -6,14 +6,14 @@
 // /api/hotwords, mirroring the world-context manager's per-action save model.
 // AppState.hotWords is the single cache - populated at boot (so the recording
 // detail's Scan button can gate on it without an extra fetch) and refreshed here.
-import { AppState } from './state.js';
-import { plural, escHtml, formatApiError } from './format.js';
-import { showToast, openLog, appendLog } from './utils.js';
-import { showConfirm } from './ui.js';
-import { _openSSE, _setActiveStream, _clearActiveStream, _supersedeActiveStream } from './jobs.js';
+import { AppState } from '../core/state.js';
+import { plural, escHtml, formatApiError } from '../core/format.js';
+import { showToast, openLog, appendLog } from '../core/utils.js';
+import { showConfirm } from '../core/ui.js';
+import { _openSSE, _setActiveStream, _clearActiveStream, _supersedeActiveStream } from '../core/jobs.js';
 import { ensureContexts, _termContextOptions, _renderTermGroups } from './contexts.js';
-import { _clipsListUrl } from './videos.js';
-import { _renderClips, selectClip } from './clips.js';
+import { _clipsListUrl } from '../videos/videos.js';
+import { _renderClips, selectClip } from '../clips/clips.js';
 
 let _draftSeq = 0;
 

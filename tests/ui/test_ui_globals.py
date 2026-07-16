@@ -16,10 +16,13 @@ from __future__ import annotations
 
 import re
 import urllib.request
+from pathlib import Path
 
 import pytest
 from conftest import LIVE_URL, skip_no_server
 from playwright.sync_api import Page
+
+_STATIC_DIR = Path(__file__).resolve().parents[2] / "yuu_clip" / "web" / "static"
 
 
 @pytest.fixture
@@ -29,21 +32,16 @@ def page(logic_page):
     page load."""
     return logic_page
 
-# Every served JS module. Handlers are built in JS template strings across all of
-# them, so the extractor must scan the full set - not just the feature files that
-# happen to own an inline handler today - or a future handler in an unlisted file
-# escapes this net. Keep in sync with the <script> list in index.html.
-_JS_MODULES = [
-    "state.js", "format.js", "jobs.js", "preview.js", "utils.js",
-    "ui.js", "helpmodals.js", "shortcuts.js", "panelnav.js", "videos.js",
-    "videos-timeline.js", "videos-summary.js", "videos-runmeta.js",
-    "clips.js", "clipbulk.js",
-    "clipexport.js", "clipcreate.js", "exporteditor.js", "exportpresets.js",
-    "analyze.js", "reel.js", "contexts.js", "settings.js", "settings-previews.js",
-    "settings-installs.js", "modelcatalog.js", "split.js",
-    "projects.js", "sessions.js", "sounds.js", "speakers.js", "transcript.js",
-    "hotwords.js", "namecorrections.js", "sensitive.js", "boot.js",
-]
+# Every served JS module (feature subdirs and all). Handlers are built in JS
+# template strings across the whole graph, so the extractor must scan the full set
+# or a future handler in an unlisted file escapes this net. Derived from disk (not a
+# hand-maintained list) so it survives module moves; the generated bundle + entry
+# are excluded (they are not standalone source with their own handlers).
+_JS_MODULES = sorted(
+    str(p.relative_to(_STATIC_DIR)).replace("\\", "/")
+    for p in _STATIC_DIR.rglob("*.js")
+    if p.name not in {"main.esm.js", "bundle.esm.js"}
+)
 
 # Identifiers that appear before "(" inside handler bodies but are not app
 # functions: JS keywords and the implicit event arg.

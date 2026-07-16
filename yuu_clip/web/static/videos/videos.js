@@ -1,16 +1,16 @@
 // Feature-map - Recordings list + detail (code: video / Video).
 //   API: routes/videos.py · Tests: tests/ui/test_ui_video.py, tests/integration/test_videos.py
-import { AppState } from './state.js';
+import { AppState } from '../core/state.js';
 import {
   escHtml, plural, _fmtVideoStatus, _msToHms, _fmtDate, _parseServerDate, _fmtElapsed, formatApiError,
-} from './format.js';
-import { collapsibleCard, showToast, netErrMsg, revealInFolder, _syncSortDirBtn, openLog, appendLog } from './utils.js';
-import { showConfirm, openFieldEditModal, openDiffModal, showKebab, openActionsModal } from './ui.js';
-import { setupRecordingPreview } from './preview.js';
-import { streamSSE, cancelJob, _blockedByAnalyze, _stepPillLabel } from './jobs.js';
-import { openGettingStartedModal } from './helpmodals.js';
-import { _probedInfo, _panelDirty } from './analyze.js';
-import { _splitPoints } from './split.js';
+} from '../core/format.js';
+import { collapsibleCard, showToast, netErrMsg, revealInFolder, _syncSortDirBtn, openLog, appendLog } from '../core/utils.js';
+import { showConfirm, openFieldEditModal, openDiffModal, showKebab, openActionsModal } from '../core/ui.js';
+import { setupRecordingPreview } from '../core/preview.js';
+import { streamSSE, cancelJob, _blockedByAnalyze, _stepPillLabel } from '../core/jobs.js';
+import { openGettingStartedModal } from '../core/helpmodals.js';
+import { _probedInfo, _panelDirty } from '../analyze/analyze.js';
+import { _splitPoints } from '../analyze/split.js';
 // ── videos ────────────────────────────────────────────────────────────────────
 async function loadVideos() {
   let videos;

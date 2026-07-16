@@ -1,11 +1,11 @@
-import { AppState } from './state.js';
-import { escHtml, formatApiError } from './format.js';
-import { PanelNav } from './panelnav.js';
-import { setupRecordingPreview } from './preview.js';
-import { openLog, showToast } from './utils.js';
-import { streamSSE } from './jobs.js';
-import { renderPlayer, renderDetail, _reloadClipList } from './clips.js';
-import { loadVideos } from './videos.js';
+import { AppState } from '../core/state.js';
+import { escHtml, formatApiError } from '../core/format.js';
+import { PanelNav } from '../core/panelnav.js';
+import { setupRecordingPreview } from '../core/preview.js';
+import { openLog, showToast } from '../core/utils.js';
+import { streamSSE } from '../core/jobs.js';
+import { renderPlayer, renderDetail, _reloadClipList } from '../clips/clips.js';
+import { loadVideos } from '../videos/videos.js';
 import { SoundFx } from './sounds.js';
 import { ensureExportPresetsCache, exportPresetIsVertical } from './exportpresets.js';
 

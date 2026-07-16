@@ -75,7 +75,7 @@ def _watched_paths() -> list[Path]:
     """Every ESM source the bundle is built from. The graph is not enumerable without
     parsing imports, so watch every static .js except the generated bundle - any edit
     triggers a rebuild."""
-    return [p for p in STATIC_DIR.glob("*.js") if p != ESM_BUNDLE_PATH]
+    return [p for p in STATIC_DIR.rglob("*.js") if p != ESM_BUNDLE_PATH]
 
 
 def _snapshot() -> dict[Path, float]:

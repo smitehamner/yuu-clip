@@ -3,12 +3,12 @@
 // The selection set lives in AppState.selectedClipIds; the clip list (clips.js)
 // renders the checkboxes and calls _toggleClipSelection / _updateBulkToolbar as
 // rows are drawn, and _pruneClipSelection on every re-render.
-import { AppState } from './state.js';
-import { formatApiError, plural } from './format.js';
-import { showToast, openLog } from './utils.js';
-import { showConfirm, showUndoToast } from './ui.js';
-import { streamSSE } from './jobs.js';
-import { loadVideos } from './videos.js';
+import { AppState } from '../core/state.js';
+import { formatApiError, plural } from '../core/format.js';
+import { showToast, openLog } from '../core/utils.js';
+import { showConfirm, showUndoToast } from '../core/ui.js';
+import { streamSSE } from '../core/jobs.js';
+import { loadVideos } from '../videos/videos.js';
 import {
   selectClip, renderDetail, clearDetail, _releasePlayerBeforeDelete,
   _applyFilters, _renderClips, _reloadClipList,

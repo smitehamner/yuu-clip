@@ -1,5 +1,5 @@
 # Feature-map - World context (code: rp_context / Context; UI term "Contexts")
-#   UI: static/contexts.js (context manager modal + chips)
+#   UI: static/library/contexts.js (context manager modal + chips)
 #   Siblings: contexts.py (storage + prompt formatting) · tests/integration/test_profiles_contexts.py, tests/ui/test_ui_contexts.py
 """
 World context CRUD routes.

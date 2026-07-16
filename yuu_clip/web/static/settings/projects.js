@@ -4,8 +4,8 @@
 // Header dropdown to switch the server to another project folder in place (no
 // restart). On a successful switch the whole page reloads - AppState is bound to
 // the old project's data and is not hot-swapped. See routes/projects.py.
-import { showToast } from './utils.js';
-import { _menuArrowKeydown } from './ui.js';
+import { showToast } from '../core/utils.js';
+import { _menuArrowKeydown } from '../core/ui.js';
 
 let _openProjectOpener = null;
 

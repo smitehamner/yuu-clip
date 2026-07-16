@@ -1,15 +1,15 @@
 // Feature-map - World context (code: rp_context / Context; UI term "Contexts").
 //   API: routes/contexts.py · Tests: tests/ui/test_ui_contexts.py
-import { AppState } from './state.js';
-import { escHtml, formatApiError, plural } from './format.js';
-import { showConfirm, openDiffModal } from './ui.js';
-import { showToast, openLog, appendLog, _diarizationReadiness, _diarizationNoteHtml } from './utils.js';
+import { AppState } from '../core/state.js';
+import { escHtml, formatApiError, plural } from '../core/format.js';
+import { showConfirm, openDiffModal } from '../core/ui.js';
+import { showToast, openLog, appendLog, _diarizationReadiness, _diarizationNoteHtml } from '../core/utils.js';
 import {
   _blockedByAnalyze, _openSSE, streamSSE, _setActiveStream, _clearActiveStream,
   _supersedeActiveStream, startJobUI, updateJobUI, endJobUI, SCORE_STEPS,
-} from './jobs.js';
-import { loadVideos, renderVideoDetail, _clipsListUrl } from './videos.js';
-import { selectClip, _renderClips } from './clips.js';
+} from '../core/jobs.js';
+import { loadVideos, renderVideoDetail, _clipsListUrl } from '../videos/videos.js';
+import { selectClip, _renderClips } from '../clips/clips.js';
 
 // ── context manager ───────────────────────────────────────────────────────────
 export function _parseWeight(id) {

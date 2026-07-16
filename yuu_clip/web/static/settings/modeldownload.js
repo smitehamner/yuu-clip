@@ -9,9 +9,9 @@
 //   API: routes/llm.py (/api/llm/download-status[/clear], /api/llm/gguf/download,
 //        /api/whisper/prefetch), /api/config
 //   Tests: tests/ui/test_ui_modeldownload.py, tests/ui/test_ui_whisper_prefetch.py
-import { escHtml } from './format.js';
-import { showToast } from './utils.js';
-import { _openSSE } from './jobs.js';
+import { escHtml } from '../core/format.js';
+import { showToast } from '../core/utils.js';
+import { _openSSE } from '../core/jobs.js';
 import { _updateLlmCapabilities, _renderCapabilityTiers } from './modelcatalog.js';
 
 // A connection/offline failure reads differently to the user than a mid-download

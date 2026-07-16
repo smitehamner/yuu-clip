@@ -1,5 +1,5 @@
 # Feature-map - Speaker labels / Speaker naming (code: Speaker; also "Suggest names", voice match)
-#   UI: static/speakers.js (Speakers card in the recording detail view)
+#   UI: static/people/speakers.js (Speakers card in the recording detail view)
 #   Siblings: transcribe/diarization_client.py · scoring/llm.py (infer_speaker_names) · tests/integration/test_speakers.py, tests/ui/test_ui_speakers.py
 """Speaker naming routes - list the voices detected in a recording and rename them.
 

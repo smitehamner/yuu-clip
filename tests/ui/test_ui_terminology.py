@@ -29,7 +29,7 @@ def page(logic_page):
 
 STATIC_DIR = Path(__file__).resolve().parents[2] / "yuu_clip" / "web" / "static"
 INDEX_HTML = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
-VIDEOS_JS = (STATIC_DIR / "videos.js").read_text(encoding="utf-8")
+VIDEOS_JS = (STATIC_DIR / "videos" / "videos.js").read_text(encoding="utf-8")
 
 PARENTHETICAL_PLURAL = re.compile(
     r"\b(clip|segment|track|player|video|recording|error|file|entr\w*)\(s\)",
@@ -40,7 +40,7 @@ PARENTHETICAL_PLURAL = re.compile(
 def test_no_parenthetical_plurals_in_static_files():
     offenders = [
         f"{path.name}: {match.group(0)}"
-        for path in sorted(STATIC_DIR.iterdir())
+        for path in sorted(STATIC_DIR.rglob("*"))
         if path.suffix in {".js", ".html"}
         for match in PARENTHETICAL_PLURAL.finditer(path.read_text(encoding="utf-8"))
     ]

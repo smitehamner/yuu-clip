@@ -706,7 +706,7 @@ class TestRunScoringModelDownloadNotice:
 
 # ---------------------------------------------------------------------------
 # Extract/Transcribe stage progress logging - "Track i/N" lines drive the
-# web UI's live progress pill (yuu_clip/web/static/utils.js progressPattern).
+# web UI's live progress pill (yuu_clip/web/static/core/utils.js progressPattern).
 # ---------------------------------------------------------------------------
 
 class TestPipelineTrackProgressLogging:

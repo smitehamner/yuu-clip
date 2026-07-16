@@ -4,11 +4,11 @@
 // A Session groups top-level recordings from one play session. This module owns
 // the sidebar group headers, the manual grouping selection mode, the suggest
 // prompt, and the session detail view (rollup summary + unified timeline).
-import { AppState } from './state.js';
-import { escHtml, plural, _msToHms } from './format.js';
-import { showToast, collapsibleCard, openLog } from './utils.js';
-import { showKebab, showConfirm } from './ui.js';
-import { streamSSE } from './jobs.js';
+import { AppState } from '../core/state.js';
+import { escHtml, plural, _msToHms } from '../core/format.js';
+import { showToast, collapsibleCard, openLog } from '../core/utils.js';
+import { showKebab, showConfirm } from '../core/ui.js';
+import { streamSSE } from '../core/jobs.js';
 import { loadVideos, selectVideo, _renderVideoList } from './videos.js';
 
 const COLLAPSE_KEY = 'yuuclip-session-collapsed';

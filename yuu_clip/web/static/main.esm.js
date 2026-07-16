@@ -12,17 +12,17 @@
 // classic consumer exists now. Retiring this shim is the vitest follow-on: convert
 // the window.* read sites to imports and delete the page.evaluate pokes, then the
 // matching lines here drop and the window surface trends to empty.
-import { AppState } from './state.js';
-import * as format from './format.js';
-import { ColorPicker } from './colorpicker.js';
-import { PanelNav } from './panelnav.js';
-import * as jobs from './jobs.js';
-import { _buildMediaUrl, setupRecordingPreview } from './preview.js';
+import { AppState } from './core/state.js';
+import * as format from './core/format.js';
+import { ColorPicker } from './library/colorpicker.js';
+import { PanelNav } from './core/panelnav.js';
+import * as jobs from './core/jobs.js';
+import { _buildMediaUrl, setupRecordingPreview } from './core/preview.js';
 import {
   _syncSortDirBtn, _diarizationReason, _diarizationReadiness, _diarizationNoteHtml,
   openLog, clearLog, appendLog, showToast, netErrMsg, revealInFolder, copyText,
   collapsibleCard,
-} from './utils.js';
+} from './core/utils.js';
 import {
   showAlert, closeAlertModal, showConfirm, _confirmCancel,
   openActionsModal, closeActionsModal, topmostVisibleModal, _menuArrowKeydown,
@@ -32,22 +32,22 @@ import {
   openFieldEditModal, closeFieldEditModal,
   closeKebab, showKebab, initResize, _applyPrereqWarnings, showUndoToast,
   playbackRatePref, applyPlaybackRate, initPlaybackRate,
-} from './ui.js';
+} from './core/ui.js';
 import {
   openGettingStartedModal, closeGettingStartedModal,
   openAboutModal, closeAboutModal,
   openHelpModal, closeHelpModal,
   openGlossaryModal, closeGlossaryModal, _filterGlossary,
-} from './helpmodals.js';
+} from './core/helpmodals.js';
 // shortcuts.js has no public surface (its only export is the keydown listener
 // registration) - a bare side-effect import registers the global handler
 // without adding anything to the window shim.
-import './shortcuts.js';
+import './core/shortcuts.js';
 import {
   _ensureModelCatalog, refreshModelCatalog,
   _updateLlmCapabilities, _renderCapabilityTiers,
   gateOnCapability,
-} from './modelcatalog.js';
+} from './settings/modelcatalog.js';
 import {
   loadVideos, selectVideo, renderVideoDetail, deleteVideo,
   onClipsSortChange, _clipsSortParam, _clipsListUrl,
@@ -58,15 +58,15 @@ import {
   _applyVideoFilters, _renderVideoList,
   setVideoSearch, setVideoSort, toggleVideoSortDir, toggleVideoFilter,
   openVideoActionsModal,
-} from './videos.js';
+} from './videos/videos.js';
 import {
   generateTimeline, closeTimelineIntervalModal, _renderTimelineHTML, _timelineEmptyNoteHTML,
-} from './videos-timeline.js';
-import { summarizeVideo, regenSummaryAuto } from './videos-summary.js';
-import { _renderRunMetaCard, _runTimingLine } from './videos-runmeta.js';
+} from './videos/videos-timeline.js';
+import { summarizeVideo, regenSummaryAuto } from './videos/videos-summary.js';
+import { _renderRunMetaCard, _runTimingLine } from './videos/videos-runmeta.js';
 import {
   SessionUI, isSessionCollapsed, sessionGroupHeaderLi, toggleGroupSelect,
-} from './sessions.js';
+} from './videos/sessions.js';
 import {
   selectClip, setStatus, undoLastStatus, renderDetail, renderPlayer, clearDetail, refreshClipDetail,
   _releasePlayerBeforeDelete,
@@ -77,16 +77,16 @@ import {
   openScoreOverride, closeScoreOverrideModal,
   closeSimilarClipsModal,
   openClipActionsModal,
-} from './clips.js';
+} from './clips/clips.js';
 import {
   _pruneClipSelection, _updateBulkToolbar, _toggleClipSelection, undoLastBulkStatus,
-} from './clipbulk.js';
+} from './clips/clipbulk.js';
 import {
   exportClip, closeExportModal, confirmExport,
   _onExportPresetChange, _updateExportTightCapWarning, _setExportFraming,
   _handleExportFormatAction, _downloadClipExport, _revealClipExport, _copyClipExportPaths,
-} from './clipexport.js';
-import { openClipCreatePicker } from './clipcreate.js';
+} from './clips/clipexport.js';
+import { openClipCreatePicker } from './clips/clipcreate.js';
 import {
   _isNewRecordingPanelOpen, openNewRecordingPanel, openReanalyzePanel, closeNewRecordingPanel,
   _doCloseNewRecordingPanel,
@@ -94,11 +94,11 @@ import {
   renderEstimate, startAnalyze, reattachAnalysis,
   _showAnalysisToast,
   closeProfileManager,
-} from './analyze.js';
+} from './analyze/analyze.js';
 import {
   openHighlightReelsModal, openReelForSession, closeHighlightReelsModal, switchReelTab,
   _reelMove, _reelToggle, closeReelPreview, openBatchExportModal, closeBatchExportModal,
-} from './reel.js';
+} from './analyze/reel.js';
 import {
   _loadContexts, ensureContexts, _parseWeight,
   _termContextOptions, _renderTermGroups,
@@ -110,56 +110,56 @@ import {
   openRetranscribeModal, closeRetranscribeModal, startRetranscribe,
   rescoreClip, rescoreClipChoose, rescoreClips, rescoreFailedClips,
   rescoreAllClips, redescribeAllClips, resetApprovals,
-} from './contexts.js';
+} from './library/contexts.js';
 import {
   openSettings, closeSettings, applyTheme, applyAccent,
   _onDiarizationBackendChange, _updateDiarizationStatus,
   _scrollToSettingsSection, _checkSettingsDirty,
-} from './settings.js';
+} from './settings/settings.js';
 import {
   _updateExportNameTemplatePreview, _updateTitleCardPreview,
-} from './settings-previews.js';
-import { _refreshInstallStatus } from './settings-installs.js';
+} from './settings/settings-previews.js';
+import { _refreshInstallStatus } from './settings/settings-installs.js';
 import {
   initProjectSwitcher, isProjectMenuOpen, closeProjectMenu, closeOpenProjectModal,
-} from './projects.js';
+} from './settings/projects.js';
 // settings-backup.js has no external window consumer left (its two names,
 // backupProject and startRestore, were only read by index.html inline handlers,
 // now addEventListener inside settings-backup.js itself) - a bare side-effect
 // import keeps esbuild pulling it into the bundle and runs its static wiring.
-import './settings-backup.js';
+import './settings/settings-backup.js';
 import {
   initModelDownload, initModelPrefetch, getWhisperDownloadPct, _resetModelDownloads,
-} from './modeldownload.js';
+} from './settings/modeldownload.js';
 import {
   SoundFx, initSoundSettings, _soundSettingsDirty, commitSoundSettings,
-} from './sounds.js';
+} from './library/sounds.js';
 import {
   initHotwordSettings, ensureHotwordsCache, hasEnabledSemanticHotwords,
   confirmScanHotwordsForVideo,
-} from './hotwords.js';
-import { initSensitiveTermSettings } from './sensitive.js';
+} from './library/hotwords.js';
+import { initSensitiveTermSettings } from './library/sensitive.js';
 import {
   ensureExportPresetsCache, exportPresetLabel, exportPresetIsVertical,
   exportPresetTargetSizeMb, populateExportPresetSelect, initExportPresetSettings,
-} from './exportpresets.js';
-import { loadSpeakers } from './speakers.js';
-import { openPeopleView } from './voices.js';
+} from './library/exportpresets.js';
+import { loadSpeakers } from './people/speakers.js';
+import { openPeopleView } from './people/voices.js';
 import {
   loadClipTranscript, reloadVideoTranscriptIfOpen, renderTranscriptLines,
-} from './transcript.js';
-import { openNameCorrections } from './namecorrections.js';
-import { openExportEditor } from './exporteditor.js';
+} from './analyze/transcript.js';
+import { openNameCorrections } from './people/namecorrections.js';
+import { openExportEditor } from './library/exporteditor.js';
 import {
   isSplitEditorOpen, openSplitEditor, closeSplitEditor,
   initPreSplitDuration, hidePreSplitSection,
   _fmtSplitTime, _parseSplitTime, _computeSuggestionPins, splitTimelineClick,
-} from './split.js';
+} from './analyze/split.js';
 // boot.js is the first-paint entry point: it must be imported LAST so its
 // top-level init (initResize/loadVideos/refreshServerState/...) runs only after
 // every other module in the graph has been evaluated. Side-effect import - it
 // exports nothing.
-import './boot.js';
+import './core/boot.js';
 
 window.AppState = AppState;
 Object.assign(window, format);

@@ -6,12 +6,12 @@
 // groups them by pattern, and applies only the instances the user keeps checked.
 // Nothing is auto-applied; applying routes through the same caption-edit path as
 // a manual edit, so staleness badges and sidecars behave identically.
-import { AppState } from './state.js';
-import { escHtml, formatApiError, plural } from './format.js';
-import { showToast } from './utils.js';
-import { PanelNav } from './panelnav.js';
-import { reloadVideoTranscriptIfOpen } from './transcript.js';
-import { refreshClipDetail } from './clips.js';
+import { AppState } from '../core/state.js';
+import { escHtml, formatApiError, plural } from '../core/format.js';
+import { showToast } from '../core/utils.js';
+import { PanelNav } from '../core/panelnav.js';
+import { reloadVideoTranscriptIfOpen } from '../analyze/transcript.js';
+import { refreshClipDetail } from '../clips/clips.js';
 
 let _ncVideoId = null;
 let _ncData = null;  // last scan result - the source for offsets/replacements at apply time

@@ -9,7 +9,7 @@ from pathlib import Path
 
 from yuu_clip.pipeline.progress import Stage
 
-_JOBS_JS = Path(__file__).resolve().parents[2] / "yuu_clip" / "web" / "static" / "jobs.js"
+_JOBS_JS = Path(__file__).resolve().parents[2] / "yuu_clip" / "web" / "static" / "core" / "jobs.js"
 
 
 def test_every_stage_id_is_known_to_the_browser():

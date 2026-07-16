@@ -4,20 +4,20 @@
 // detail's Export card. The rows themselves are built by _exportFormatsHtml in
 // clips.js (it renders inside the detail pane); the actions they dispatch live here.
 
-import { AppState } from './state.js';
-import { escHtml, formatApiError, _fmtOffset } from './format.js';
-import { PanelNav } from './panelnav.js';
-import { streamSSE } from './jobs.js';
+import { AppState } from '../core/state.js';
+import { escHtml, formatApiError, _fmtOffset } from '../core/format.js';
+import { PanelNav } from '../core/panelnav.js';
+import { streamSSE } from '../core/jobs.js';
 import {
   openLog, showToast, revealInFolder, copyText,
   _diarizationNoteHtml, _diarizationReadiness,
-} from './utils.js';
-import { showConfirm } from './ui.js';
+} from '../core/utils.js';
+import { showConfirm } from '../core/ui.js';
 import {
   selectClip, renderDetail, renderPlayer, _releasePlayerBeforeDelete,
   _parseTimingOffset, _reloadClipList,
 } from './clips.js';
-import { loadVideos } from './videos.js';
+import { loadVideos } from '../videos/videos.js';
 
 // ── per-format export row actions (Export presets - Plan 07) ───────────────
 function _downloadFile(filename) {

@@ -1,13 +1,13 @@
 // Feature-map - Highlight reel (code: demo_reel; UI "Highlight Reel").
 //   API: routes/reel.py · Tests: tests/ui/test_ui_reel.py
 // ── highlight reels (combined Build + View modal) ──────────────────────────────
-import { AppState } from './state.js';
-import { escHtml, plural, formatApiError } from './format.js';
-import { showConfirm } from './ui.js';
-import { openLog, appendLog, showToast, revealInFolder } from './utils.js';
-import { streamSSE, _blockedByAnalyze } from './jobs.js';
-import { loadVideos } from './videos.js';
-import { _renderExportModeSummary } from './clipexport.js';
+import { AppState } from '../core/state.js';
+import { escHtml, plural, formatApiError } from '../core/format.js';
+import { showConfirm } from '../core/ui.js';
+import { openLog, appendLog, showToast, revealInFolder } from '../core/utils.js';
+import { streamSSE, _blockedByAnalyze } from '../core/jobs.js';
+import { loadVideos } from '../videos/videos.js';
+import { _renderExportModeSummary } from '../clips/clipexport.js';
 
 let _reelClips = [];
 let _reelsOpener = null;

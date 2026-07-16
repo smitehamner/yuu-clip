@@ -4,15 +4,15 @@
 import { AppState } from './state.js';
 import { initResize, initPlaybackRate, _applyPrereqWarnings } from './ui.js';
 import { _syncSortDirBtn } from './utils.js';
-import { initProjectSwitcher } from './projects.js';
-import { _loadContexts } from './contexts.js';
-import { loadVideos } from './videos.js';
-import { ensureHotwordsCache } from './hotwords.js';
-import { ensureExportPresetsCache } from './exportpresets.js';
-import { reattachAnalysis } from './analyze.js';
+import { initProjectSwitcher } from '../settings/projects.js';
+import { _loadContexts } from '../library/contexts.js';
+import { loadVideos } from '../videos/videos.js';
+import { ensureHotwordsCache } from '../library/hotwords.js';
+import { ensureExportPresetsCache } from '../library/exportpresets.js';
+import { reattachAnalysis } from '../analyze/analyze.js';
 import { openGettingStartedModal } from './helpmodals.js';
-import { initModelDownload, initModelPrefetch } from './modeldownload.js';
-import { _renderClips } from './clips.js';
+import { initModelDownload, initModelPrefetch } from '../settings/modeldownload.js';
+import { _renderClips } from '../clips/clips.js';
 
 // ── accessibility init ────────────────────────────────────────────────────────
 document.querySelectorAll('.modal-bg').forEach((bg, i) => {

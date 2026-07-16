@@ -4,8 +4,8 @@
 // these read backend/model config to decide what to render, but the save/dirty
 // engine that persists config stays in settings.js.
 //   API: routes/llm.py, routes/config.py (capabilities/tiers) · Tests: tests/ui/test_ui_model_catalog.py, tests/ui/test_ui_settings.py
-import { escHtml } from './format.js';
-import { showToast } from './utils.js';
+import { escHtml } from '../core/format.js';
+import { showToast } from '../core/utils.js';
 
 // ── model catalog (recommended text + vision models) ────────────────────────
 // Loaded once per session. Fills the recommended model lists; the capabilities

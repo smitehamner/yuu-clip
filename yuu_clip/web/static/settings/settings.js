@@ -1,14 +1,14 @@
 // Feature-map - Settings panel (all sections; see the per-section banners below).
 //   API: routes/config.py, llm.py, profiles.py, content_presets.py, export_presets.py · Tests: tests/ui/test_ui_settings.py
-import { ColorPicker } from './colorpicker.js';
+import { ColorPicker } from '../library/colorpicker.js';
 import {
   _ensureModelCatalog, refreshModelCatalog, _updateLlmCapabilities, _renderCapabilityTiers,
 } from './modelcatalog.js';
-import { showConfirm, playbackRatePref, applyPlaybackRate } from './ui.js';
-import { showToast } from './utils.js';
-import { plural, escHtml, formatApiError, _parseIntervalS } from './format.js';
-import { _filterGlossary, closeGlossaryModal } from './helpmodals.js';
-import { _isNewRecordingPanelOpen, _doCloseNewRecordingPanel } from './analyze.js';
+import { showConfirm, playbackRatePref, applyPlaybackRate } from '../core/ui.js';
+import { showToast } from '../core/utils.js';
+import { plural, escHtml, formatApiError, _parseIntervalS } from '../core/format.js';
+import { _filterGlossary, closeGlossaryModal } from '../core/helpmodals.js';
+import { _isNewRecordingPanelOpen, _doCloseNewRecordingPanel } from '../analyze/analyze.js';
 
 // ── settings panel ────────────────────────────────────────────────────────────
 const _settingsFieldIds = [

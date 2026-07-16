@@ -12,11 +12,11 @@
 // #player-area while open, so seeking that hidden element would give no visible
 // feedback for "Play selection".
 
-import { AppState } from './state.js';
-import { formatApiError } from './format.js';
-import { PanelNav } from './panelnav.js';
-import { setupRecordingPreview } from './preview.js';
-import { showToast } from './utils.js';
+import { AppState } from '../core/state.js';
+import { formatApiError } from '../core/format.js';
+import { PanelNav } from '../core/panelnav.js';
+import { setupRecordingPreview } from '../core/preview.js';
+import { showToast } from '../core/utils.js';
 import { selectClip, _reloadClipList } from './clips.js';
 
 let _ccVideoId    = null;

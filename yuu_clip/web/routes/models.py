@@ -1,5 +1,5 @@
 # Feature-map - Tier-B model prefetch (code: yuu_clip.cli.models, hf_cache)
-#   UI: static/modelcatalog.js (Capabilities overview → "Download now")
+#   UI: static/settings/modelcatalog.js (Capabilities overview → "Download now")
 #   Siblings: routes/llm.py (capability tiers + the .gguf model download, which
 #   keeps its own separate path and isn't handled here)
 """Model prefetch route - one consistent "download <model> so <feature> works"

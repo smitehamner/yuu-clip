@@ -1,5 +1,5 @@
 # Feature-map - Character (structured world-context lore entity, linkable to a Person)
-#   UI: static/contexts.js (Characters section in the world-context editor)
+#   UI: static/library/contexts.js (Characters section in the world-context editor)
 #   Siblings: db/models.py::Character · routes/contexts.py (context-delete cascade) · routes/voices.py (Person link)
 #   Tests: tests/integration/test_characters.py, tests/ui/test_ui_contexts.py
 """Character CRUD routes.

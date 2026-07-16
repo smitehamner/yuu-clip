@@ -1,4 +1,4 @@
-import { escHtml } from './format.js';
+import { escHtml } from '../core/format.js';
 
 // Feature-map - Notification sounds (Settings → Notification sounds; state in localStorage).
 //   API: routes/sounds.py · Tests: tests/ui/test_ui_sounds.py

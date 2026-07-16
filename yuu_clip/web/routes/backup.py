@@ -1,5 +1,5 @@
 # Feature-map - Project backup / restore (code: backup)
-#   UI: static/settings-backup.js (Stage 3, not yet built)
+#   UI: static/settings/settings-backup.js (Stage 3, not yet built)
 #   Siblings: project_archive.py (archive + re-point core) · routes/projects.py (switch, restore reuses it)
 #   Tests: tests/integration/test_backup.py, tests/integration/test_restore.py
 """Project backup / restore routes.

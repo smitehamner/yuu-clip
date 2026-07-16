@@ -4,12 +4,12 @@
 // the summary feature and stays in videos.js core too.
 //   API: routes/videos.py (timeline SSE) · Tests: tests/ui/test_ui_video.py, tests/integration/test_scoring_routes.py
 
-import { AppState } from './state.js';
-import { escHtml, plural, _parseIntervalS } from './format.js';
-import { showToast } from './utils.js';
+import { AppState } from '../core/state.js';
+import { escHtml, plural, _parseIntervalS } from '../core/format.js';
+import { showToast } from '../core/utils.js';
 import {
   _openSSE, _setActiveStream, _clearActiveStream, _supersedeActiveStream, _blockedByAnalyze,
-} from './jobs.js';
+} from '../core/jobs.js';
 import { _needsModelCtaHTML } from './videos.js';
 
 // ── timeline render helpers ───────────────────────────────────────────────────

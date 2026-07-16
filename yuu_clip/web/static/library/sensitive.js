@@ -7,12 +7,12 @@
 // separate "Rescan current recording" follow-up action here - the toast just
 // reports how many clips are flagged after the edit.
 // AppState.sensitiveTerms is the single cache, populated at Settings-open time.
-import { AppState } from './state.js';
-import { plural, escHtml, formatApiError } from './format.js';
-import { showToast } from './utils.js';
+import { AppState } from '../core/state.js';
+import { plural, escHtml, formatApiError } from '../core/format.js';
+import { showToast } from '../core/utils.js';
 import { ensureContexts, _termContextOptions, _renderTermGroups } from './contexts.js';
-import { _clipsListUrl } from './videos.js';
-import { _renderClips, selectClip } from './clips.js';
+import { _clipsListUrl } from '../videos/videos.js';
+import { _renderClips, selectClip } from '../clips/clips.js';
 
 let _draftSeq = 0;
 const FUZZY_MIN_TERM_LENGTH = 4;

@@ -1,5 +1,5 @@
 # Feature-map - Clips (code: ClipCandidate)
-#   UI: static/clips.js (list, detail, player, tags, score override, export modal, bulk ops)
+#   UI: static/clips/clips.js (list, detail, player, tags, score override, export modal, bulk ops)
 #   This package's files map 1:1 to the clip API surface:
 #     schemas    request bodies        serialize  clip → JSON + parse/normalize helpers
 #     approval   auto-approve/reset    crud       list/detail/tags/status/preview/manual create

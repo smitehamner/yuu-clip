@@ -3,15 +3,15 @@
 // ── speaker naming ────────────────────────────────────────────────────────────
 // Renders the "Speakers" card in the recording detail view and saves names.
 // The card only appears when the recording has diarized speakers.
-import { AppState } from './state.js';
-import { escHtml, truncate, plural, formatApiError } from './format.js';
-import { ColorPicker } from './colorpicker.js';
-import { openLog, appendLog, showToast, collapsibleCard } from './utils.js';
-import { showConfirm } from './ui.js';
+import { AppState } from '../core/state.js';
+import { escHtml, truncate, plural, formatApiError } from '../core/format.js';
+import { ColorPicker } from '../library/colorpicker.js';
+import { openLog, appendLog, showToast, collapsibleCard } from '../core/utils.js';
+import { showConfirm } from '../core/ui.js';
 import {
   _blockedByAnalyze, _openSSE, _supersedeActiveStream, _clearActiveStream, _setActiveStream,
-} from './jobs.js';
-import { selectClip } from './clips.js';
+} from '../core/jobs.js';
+import { selectClip } from '../clips/clips.js';
 
 let _currentVideoId = null;
 

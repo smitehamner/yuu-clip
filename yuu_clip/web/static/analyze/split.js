@@ -1,13 +1,13 @@
 // Feature-map - Split recording into segments (code: segment / segment_start_s).
 //   API: routes/videos.py (split) · Tests: tests/ui/test_ui_split.py, tests/integration/test_segments.py
-import { AppState } from './state.js';
-import { PanelNav } from './panelnav.js';
-import { escHtml, plural, formatApiError } from './format.js';
-import { setupRecordingPreview } from './preview.js';
-import { showToast, netErrMsg, openLog, appendLog } from './utils.js';
-import { showConfirm } from './ui.js';
-import { streamSSE, INGEST_STEPS, _waitWhileAnalyzePaused } from './jobs.js';
-import { loadVideos, _reanalyzeParams } from './videos.js';
+import { AppState } from '../core/state.js';
+import { PanelNav } from '../core/panelnav.js';
+import { escHtml, plural, formatApiError } from '../core/format.js';
+import { setupRecordingPreview } from '../core/preview.js';
+import { showToast, netErrMsg, openLog, appendLog } from '../core/utils.js';
+import { showConfirm } from '../core/ui.js';
+import { streamSSE, INGEST_STEPS, _waitWhileAnalyzePaused } from '../core/jobs.js';
+import { loadVideos, _reanalyzeParams } from '../videos/videos.js';
 
 // ── shared live split-editor state ────────────────────────────────────────────
 // Read cross-module via ESM `import`: videos.js reads _splitPoints for the "has

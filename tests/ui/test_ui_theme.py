@@ -272,7 +272,7 @@ def test_no_legacy_warning_token_references_in_static_files():
     legacy = ("var(--amber", "var(--warn)", "var(--warn,", "var(--yellow")
     offenders = [
         f"{path.name}: {name}"
-        for path in sorted(STATIC_DIR.iterdir())
+        for path in sorted(STATIC_DIR.rglob("*"))
         if path.suffix in {".js", ".css", ".html"}
         for name in legacy
         if name in path.read_text(encoding="utf-8")
@@ -376,7 +376,7 @@ def _color_literal_offenders(text: str) -> list[str]:
 def test_no_hardcoded_colors_in_static_js_and_html():
     offenders = {
         path.name: found
-        for path in sorted(STATIC_DIR.iterdir())
+        for path in sorted(STATIC_DIR.rglob("*"))
         if path.suffix in {".js", ".html"}
         if (found := _color_literal_offenders(path.read_text(encoding="utf-8")))
     }

@@ -1,6 +1,6 @@
-import { escHtml, formatApiError, plural } from './format.js';
-import { showToast } from './utils.js';
-import { showConfirm } from './ui.js';
+import { escHtml, formatApiError, plural } from '../core/format.js';
+import { showToast } from '../core/utils.js';
+import { showConfirm } from '../core/ui.js';
 
 // Feature-map - Settings > Backup & Restore (code: backup)
 //   API: routes/backup.py (/api/backup, /api/restore/inspect, /api/restore/apply)

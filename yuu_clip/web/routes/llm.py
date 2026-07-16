@@ -1,5 +1,5 @@
 # Feature-map - Model readiness + Recommended models (code: model_catalog, capabilities/tiers)
-#   UI: static/settings.js (Settings → LLM scoring readiness + catalog) · setup wizard
+#   UI: static/settings/settings.js (Settings → LLM scoring readiness + catalog) · setup wizard
 #   Siblings: model_catalog.py · scoring/llm_client.py · tests/integration/test_llm.py, tests/ui/test_ui_model_catalog.py
 """LLM capability + model-catalog routes.
 

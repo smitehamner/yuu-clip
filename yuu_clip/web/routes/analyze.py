@@ -1,5 +1,5 @@
 # Feature-map - Analyze (code: ingest / run_ingest) + Import from URL
-#   UI: static/analyze.js (New Recording panel) · export/retranscribe from clips.js
+#   UI: static/analyze/analyze.js (New Recording panel) · export/retranscribe from clips.js
 #   Siblings: pipeline/ingest.py (engine) · web/analyze_job.py · tests/integration/test_analyze.py, tests/ui/test_ui_analyze.py
 """
 Analysis-pipeline routes.
