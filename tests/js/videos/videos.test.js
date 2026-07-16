@@ -3,7 +3,10 @@
 // (TestReanalyzeParams). The config-fallback path fetches /api/config; here that fetch
 // is stubbed so the assertion is deterministic instead of coupled to the dev's real config.
 import { AppState } from '../../../yuu_clip/web/static/core/state.js';
-import { _applyVideoFilters, _reanalyzeParams } from '../../../yuu_clip/web/static/videos/videos.js';
+import {
+  _applyVideoFilters, _reanalyzeParams, _analysisLivePanelHTML, _syncAnalysisLivePanel,
+} from '../../../yuu_clip/web/static/videos/videos.js';
+import { startJobUI, updateJobUI, endJobUI } from '../../../yuu_clip/web/static/core/jobs.js';
 
 describe('_applyVideoFilters', () => {
   const seed = () => {
@@ -52,6 +55,41 @@ describe('_applyVideoFilters', () => {
   it('sort by title', () => {
     AppState.videoSort = 'title';
     expect(ids()).toEqual([1, 2, 3]);
+  });
+});
+
+// The in-detail live panel mirrors the header bar. Ported from
+// tests/ui/test_ui_video.py (TestAnalysisLivePanel). _syncAnalysisLivePanel reads
+// the job-step state from jobs.js as live imports, so driving the public
+// startJobUI/updateJobUI API sets it - no window seeding needed. Both assertions are
+// on the rendered DOM string (Cancel wiring, progress-fill style), not geometry.
+describe('analysis live panel', () => {
+  it('has a Cancel button wired via #detail data-act delegation (not inline onclick)', () => {
+    document.getElementById('detail').innerHTML = _analysisLivePanelHTML();
+    const btn = [...document.querySelectorAll('#analysis-live-panel button')]
+      .find((b) => b.textContent.includes('Cancel'));
+    expect(btn).toBeTruthy();
+    expect(btn.dataset.act).toBe('cancel-job');
+  });
+
+  it('mirrors the header progress fill onto the active step', () => {
+    vi.useFakeTimers();
+    document.getElementById('detail').innerHTML = _analysisLivePanelHTML();
+    startJobUI(
+      [
+        { label: 'Score', patterns: ['Scoring'], progressPattern: /Scoring (\d+)\/(\d+)/ },
+        { label: 'Done', patterns: ['Finalizing'] },
+      ],
+      'Analyzing',
+    );
+    updateJobUI('Scoring clips');
+    updateJobUI('Scoring 5/10');
+    _syncAnalysisLivePanel();
+    const active = document.querySelectorAll('#analysis-live-steps .step.active');
+    expect(active).toHaveLength(1);
+    expect(active[0].getAttribute('style') || '').toContain('linear-gradient');
+    endJobUI();
+    vi.useRealTimers();
   });
 });
 

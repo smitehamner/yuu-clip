@@ -7,7 +7,10 @@ import {
 import { collapsibleCard, showToast, netErrMsg, revealInFolder, _syncSortDirBtn, openLog, appendLog } from '../core/utils.js';
 import { showConfirm, openFieldEditModal, openDiffModal, showKebab, openActionsModal } from '../core/ui.js';
 import { setupRecordingPreview } from '../core/preview.js';
-import { streamSSE, cancelJob, _blockedByAnalyze, _stepPillLabel } from '../core/jobs.js';
+import {
+  streamSSE, cancelJob, _blockedByAnalyze, _stepPillLabel,
+  _jobStepDefs, _activeStepIdx, _jobStartTime,
+} from '../core/jobs.js';
 import { openGettingStartedModal } from '../core/helpmodals.js';
 import { _probedInfo, _panelDirty } from '../analyze/analyze.js';
 import { _splitPoints } from '../analyze/split.js';
@@ -612,17 +615,16 @@ function _analysisLivePanelHTML() {
 }
 
 // Mirror the header progress bar's step state into the in-detail panel. Driven by
-// the analyze SSE stream (updateJobUI / _tickJobTimer in jobs.js). Reads jobs.js's
-// shared job-step state off window (jobs.js bridges these via live get/set
-// accessors, since a plain import snapshot would go stale on reassignment); elapsed
-// uses the server-side analyze_started_at so it stays accurate across a refresh
-// (unlike the header pill, which restarts at 0).
+// the analyze SSE stream (updateJobUI / _tickJobTimer in jobs.js). The job-step
+// state is imported from jobs.js as live ESM bindings (they reflect jobs.js's
+// reassignments); elapsed uses the server-side analyze_started_at so it stays
+// accurate across a refresh (unlike the header pill, which restarts at 0).
 function _syncAnalysisLivePanel() {
   const stepsEl = document.getElementById('analysis-live-steps');
   if (!stepsEl) return;
-  stepsEl.innerHTML = window._jobStepDefs.map((step, i) => {
-    const cls = i < window._activeStepIdx ? 'done' : i === window._activeStepIdx ? 'active' : '';
-    if (i !== window._activeStepIdx) return `<span class="step ${cls}">${escHtml(step.label)}</span>`;
+  stepsEl.innerHTML = _jobStepDefs.map((step, i) => {
+    const cls = i < _activeStepIdx ? 'done' : i === _activeStepIdx ? 'active' : '';
+    if (i !== _activeStepIdx) return `<span class="step ${cls}">${escHtml(step.label)}</span>`;
     // Active step mirrors the header pill: live label + the same two-tone fill.
     const {text, pct} = _stepPillLabel(i);
     const fill = pct != null
@@ -634,7 +636,7 @@ function _syncAnalysisLivePanel() {
   const elapsedEl = document.getElementById('analysis-live-elapsed');
   if (elapsedEl) {
     const startIso = AppState.activeVideoData && AppState.activeVideoData.analyze_started_at;
-    const startMs  = startIso ? _parseServerDate(startIso).getTime() : window._jobStartTime;
+    const startMs  = startIso ? _parseServerDate(startIso).getTime() : _jobStartTime;
     elapsedEl.textContent = _fmtElapsed(Date.now() - startMs);
   }
 }

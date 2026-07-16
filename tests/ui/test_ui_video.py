@@ -56,38 +56,9 @@ class TestRunTimingProvenanceLine:
         expect(page.locator("#detail")).not_to_contain_text("Last run:")
 
 
-@skip_no_server
-class TestAnalysisLivePanel:
-    """The in-detail live panel mirrors the header bar - it has a Cancel button
-    and shows the same per-step progress fill."""
-
-    def test_panel_has_cancel_button(self, page: Page):
-        page.goto(LIVE_URL)
-        page.wait_for_selector("#video-list li", timeout=5000)
-        page.evaluate("document.getElementById('detail').innerHTML = _analysisLivePanelHTML()")
-        btn = page.locator("#analysis-live-panel button", has_text="Cancel")
-        expect(btn).to_have_count(1)
-        # Wired via #detail's data-act click delegation (videos.js), not an
-        # inline onclick - see the "cancel-job" case in _handleDetailClick.
-        assert btn.get_attribute("data-act") == "cancel-job"
-
-    def test_active_step_shows_progress_fill(self, page: Page):
-        page.goto(LIVE_URL)
-        page.wait_for_selector("#video-list li", timeout=5000)
-        page.evaluate(
-            """() => {
-              document.getElementById('detail').innerHTML = _analysisLivePanelHTML();
-              _jobStepDefs = [{label: 'Score'}, {label: 'Done'}];
-              _activeStepIdx = 0;
-              _stepStartTime = Date.now() - 1000;
-              _stepProgress = {0: {current: 5, total: 10}};
-              _stepRateAnchor = {0: {t: Date.now() - 1000, current: 1}};
-              _syncAnalysisLivePanel();
-            }"""
-        )
-        active = page.locator("#analysis-live-steps .step.active")
-        expect(active).to_have_count(1)
-        assert "linear-gradient" in (active.get_attribute("style") or "")
+# TestAnalysisLivePanel (Cancel wiring + active-step progress fill) moved to
+# tests/js/videos/videos.test.js (vitest), driven through the public
+# startJobUI/updateJobUI API instead of seeding jobs.js's private step state.
 
 
 @skip_no_server

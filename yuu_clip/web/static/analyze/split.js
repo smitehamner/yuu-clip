@@ -31,8 +31,8 @@ let _suggestionPins  = [];    // [sec, …]
 // properties, and this module reassigns them - so a plain window.X = X snapshot
 // would go stale and an imported ESM binding is read-only. Live get/set defined
 // here (which can read AND write this module's own `let`s) keeps page.evaluate in
-// sync. Remove when those tests move to the vitest unit layer (mirrors the
-// jobs.js accessor-bridge deferral).
+// sync. Remove when those tests move to the vitest unit layer (the jobs.js
+// equivalent bridge has already been removed that way).
 for (const [name, get, set] of [
   ['_splitPoints',    () => _splitPoints,    v => { _splitPoints = v; }],
   ['_splitNames',     () => _splitNames,     v => { _splitNames = v; }],

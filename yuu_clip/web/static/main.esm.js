@@ -179,10 +179,11 @@ window.revealInFolder = revealInFolder;
 window.copyText = copyText;
 window.collapsibleCard = collapsibleCard;
 // jobs.js is cross-cutting - every export here still has at least one classic
-// (bundle.js) consumer or a still-present inline handler, so none of these can
-// be dropped yet. Its handful of mutable shared-state globals (_jobStepDefs,
-// _activeES, etc.) are NOT here - jobs.js wires those onto window itself via
-// live get/set accessors, since a plain snapshot would go stale on reassignment.
+// window.* consumer or a still-present inline handler, so none can be dropped yet.
+// Its mutable shared-state (_jobStepDefs/_activeStepIdx/_jobStartTime) is now read
+// cross-module via live ESM imports (videos.js), not off window; _abortActiveStream
+// is the one function conftest teardown calls to close a dangling stream. The old
+// window get/set accessor-bridge for that state is gone.
 Object.assign(window, jobs);
 // preview.js is cross-cutting - setupRecordingPreview has classic consumers
 // (clipcreate.js, videos.js, split.js, exporteditor.js); _buildMediaUrl has no
@@ -674,8 +675,10 @@ window.openExportEditor = openExportEditor;
 // test-poked STATE names (_splitPoints, _splitNames, _splitDurationS,
 // _splitEnergyFlat) plus _suggestionPins are NOT here - split.js wires those onto
 // window itself via live get/set accessors, since a plain snapshot would go stale
-// on reassignment (mirrors the jobs.js accessor-bridge). videos.js/analyze.js read
-// _splitPoints/_splitDurationS/_splitIgnored via a direct import instead of window.
+// on reassignment.
+// videos.js/analyze.js read _splitPoints/_splitDurationS/_splitIgnored via a direct
+// import instead of window. (The jobs.js equivalent bridge has since been removed;
+// split.js's remains only for test_ui_keyboard/test_ui_split page.evaluate pokes.)
 window.isSplitEditorOpen = isSplitEditorOpen;
 window.openSplitEditor = openSplitEditor;
 window.closeSplitEditor = closeSplitEditor;
