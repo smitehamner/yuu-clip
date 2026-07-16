@@ -197,6 +197,17 @@ async () => {
 
 @skip_no_server
 class TestVisionCancelWiring:
+    # analyzeFrames imports streamSSE/setJobCancel as ESM bindings, so this
+    # test's window.streamSSE/window.setJobCancel monkeypatch no longer
+    # intercepts the call - an intended consequence of the ESM migration, not a
+    # product bug (the production wiring is correct). This implementation-wiring
+    # poke is scoped to be replaced by a direct vitest unit test (import clips.js
+    # with jobs.js mocked) in the migration's vitest follow-on. Until then, xfail.
+    @pytest.mark.xfail(
+        reason="ESM: window.streamSSE stub no longer intercepts imported binding; "
+        "covered by the vitest follow-on. See ui-esm-migration plan.",
+        strict=True,
+    )
     def test_frame_job_is_cancellable_and_clears_flag_on_error(self, page: Page):
         page.goto(LIVE_URL)
         page.wait_for_selector("#video-list li[data-video-id]", timeout=5000)
