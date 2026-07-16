@@ -2,12 +2,13 @@
 //   bottom log panel, sort-direction buttons, speaker-labels (diarization) readiness, "reveal in
 //   folder", and clipboard copy. State/format/job-SSE/preview machinery split out in stage 02.
 //   API: routes/config.py, routes/logs.py (indirectly) · Tests: tests/ui/test_ui_utils.py
+import { escHtml, stripRichMarkup } from './format.js';
+
 // ── sort-direction toggle ─────────────────────────────────────────────────────
 // Reflects a sort-direction toggle's current state onto its button: arrow glyph,
 // aria-pressed, and a self-describing aria-label. 'desc' is the sort option's
 // natural order (highest/newest first); 'asc' reverses it.
-(function () {
-function _syncSortDirBtn(btnId, dir) {
+export function _syncSortDirBtn(btnId, dir) {
   const btn = document.getElementById(btnId);
   if (!btn) return;
   const asc = dir === 'asc';
@@ -26,11 +27,11 @@ function _syncSortDirBtn(btnId, dir) {
 // needs a real install + a HuggingFace token. The per-run checkboxes in the
 // analyze and export panels both gate on this single check. Centralized here so
 // the three surfaces (Settings, analyze, export) can't drift to different rules.
-function _diarizationReason(installed) {
+export function _diarizationReason(installed) {
   return installed ? '' : 'SpeechBrain is unavailable - try reinstalling YuuClip';
 }
 
-async function _diarizationReadiness() {
+export async function _diarizationReadiness() {
   const cfg = await fetch('/api/config').then(r => r.json()).catch(() => ({}));
   const backend = cfg.diarization_backend || 'speechbrain';
   const install = await fetch('/api/install/speechbrain').then(r => r.json()).catch(() => ({installed: false}));
@@ -46,30 +47,35 @@ async function _diarizationReadiness() {
 // Note shown on a disabled speaker-labels control: the blocking reason plus a
 // button that jumps to Settings. settingsOnclick closes the host surface first
 // (the analyze panel or export modal) so Settings isn't opened behind it.
-function _diarizationNoteHtml(reason, settingsOnclick) {
+export function _diarizationNoteHtml(reason, settingsOnclick) {
   return escHtml(reason) + ' - set up in ' +
     '<button class="btn ghost" style="font-size:11px;padding:0 4px;color:var(--accent);' +
     `display:inline-flex" onclick="${escHtml(settingsOnclick)}">Settings</button>`;
 }
 
 // ── log panel ─────────────────────────────────────────────────────────────────
-function openLog() {
+export function openLog() {
   const panel = document.getElementById('log-panel');
   panel.classList.add('visible');
   panel.classList.remove('minimized');
   document.getElementById('log-toggle').textContent = '▲';
 }
 
-function toggleLog() {
+export function toggleLog() {
   const panel = document.getElementById('log-panel');
   const minimized = panel.classList.toggle('minimized');
   document.getElementById('log-toggle').textContent = minimized ? '▼' : '▲';
   document.getElementById('btn-log-toggle').setAttribute('aria-expanded', minimized ? 'false' : 'true');
 }
 
-function clearLog() {
+export function clearLog() {
   document.getElementById('log-lines').innerHTML = '';
 }
+
+// The log header's toggle/clear buttons are static markup in index.html (never
+// re-rendered), so this one-time wiring at module load can't double-fire.
+document.getElementById('btn-log-toggle').addEventListener('click', toggleLog);
+document.getElementById('btn-clear-log').addEventListener('click', clearLog);
 
 // Cap the log DOM. An unbounded log froze the browser on long runs and, worse,
 // when a reattached analyze stream replayed a large buffer all at once (each line
@@ -78,7 +84,7 @@ function clearLog() {
 // bounds the reflow cost; the full log always remains in .yuu-clip/yuu-clip.log.
 const _MAX_LOG_LINES = 500;
 
-function appendLog(raw) {
+export function appendLog(raw) {
   const text = stripRichMarkup(raw);
   if (!text.trim()) return;
   const div = document.createElement('div');
@@ -106,7 +112,7 @@ function appendLog(raw) {
 // opts: { durationMs, action: {label, onClick} }
 const TOAST_STACK_MAX = 4;
 
-function showToast(message, type = 'success', opts = {}) {
+export function showToast(message, type = 'success', opts = {}) {
   const container = document.getElementById('toast-container');
   const liveRegion = document.getElementById(type === 'error' ? 'sr-live-assertive' : 'sr-live-polite');
   if (liveRegion) { liveRegion.textContent = ''; setTimeout(() => { liveRegion.textContent = message; }, 10); }
@@ -152,13 +158,13 @@ function showToast(message, type = 'success', opts = {}) {
 // already carries a real, specific message, so pass those through unchanged. Use
 // this only at catch sites that wrap a bare fetch (not ones doing DOM work that
 // could throw its own TypeError).
-function netErrMsg(err) {
+export function netErrMsg(err) {
   if (err instanceof TypeError) return "Couldn't reach YuuClip - it may have stopped. Try again, or restart the app.";
   return (err && err.message) || 'Unknown error';
 }
 
 // ── reveal in file explorer ──────────────────────────────────────────────────
-async function revealInFolder(path) {
+export async function revealInFolder(path) {
   try {
     const res = await fetch('/api/reveal', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -176,7 +182,7 @@ async function revealInFolder(path) {
 // ── clipboard ─────────────────────────────────────────────────────────────────
 // The app only ever runs on localhost or inside Electron, so navigator.clipboard
 // is always available - a failure toast is enough, no execCommand fallback.
-async function copyText(text, label) {
+export async function copyText(text, label) {
   try {
     await navigator.clipboard.writeText(text);
     showToast(`${label} copied`, 'success');
@@ -215,7 +221,7 @@ function isCardCollapsed(key, defaultCollapsed = false) {
 // beside the toggle; opts.defaultCollapsed starts a card collapsed until first
 // opened; opts.attrs adds card attributes (id, data-*); opts.headerStyle sets
 // an inline style on the header row.
-function collapsibleCard(key, title, body, opts = {}) {
+export function collapsibleCard(key, title, body, opts = {}) {
   const { defaultCollapsed = false, attrs = '', headerStyle = '', actions = '' } = opts;
   const collapsed = isCardCollapsed(key, defaultCollapsed);
   const styleAttr = headerStyle ? ` style="${headerStyle}"` : '';
@@ -258,10 +264,3 @@ document.addEventListener('click', (e) => {
   const card = toggle.closest('.detail-card.collapsible');
   if (card) _toggleCollapsibleCard(card, toggle);
 });
-
-Object.assign(window, {
-  _syncSortDirBtn, _diarizationReason, _diarizationReadiness, _diarizationNoteHtml,
-  openLog, toggleLog, clearLog, appendLog, showToast, netErrMsg, revealInFolder, copyText,
-  isCardCollapsed, collapsibleCard,
-});
-})();

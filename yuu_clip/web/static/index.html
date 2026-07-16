@@ -1228,11 +1228,11 @@
     <div class="log-panel" id="log-panel">
       <div class="resize-handle resize-handle-v" id="log-resize-handle" title="Drag to resize log" role="separator" aria-orientation="horizontal" aria-label="Resize log panel"></div>
       <div class="log-header">
-        <button id="btn-log-toggle" onclick="toggleLog()" aria-expanded="false" aria-controls="log-body" style="flex:1;display:flex;align-items:center;gap:6px;background:none;border:none;cursor:pointer;color:inherit;padding:0;font:inherit;min-width:0">
+        <button id="btn-log-toggle" aria-expanded="false" aria-controls="log-body" style="flex:1;display:flex;align-items:center;gap:6px;background:none;border:none;cursor:pointer;color:inherit;padding:0;font:inherit;min-width:0">
           <span class="log-title">Log</span>
           <span class="log-toggle" id="log-toggle">&#9660;</span>
         </button>
-        <button class="btn ghost" id="btn-clear-log" onclick="clearLog()" aria-label="Clear log" style="font-size:11px;padding:2px 8px">Clear</button>
+        <button class="btn ghost" id="btn-clear-log" aria-label="Clear log" style="font-size:11px;padding:2px 8px">Clear</button>
       </div>
       <div class="log-body" id="log-body">
         <div id="log-lines"></div>

@@ -26,7 +26,9 @@ from yuu_clip.dev.bundle import (
 # Modules that have been migrated to real ESM - they live in the esbuild graph
 # (main.esm.js -> bundle.esm.js), never in the classic manifest. Add to this list as
 # more modules migrate off bundle.js.
-_ESM_MODULES = ("main.esm.js", "state.js", "format.js", "colorpicker.js", "panelnav.js", "jobs.js", "preview.js")
+_ESM_MODULES = (
+    "main.esm.js", "state.js", "format.js", "colorpicker.js", "panelnav.js", "jobs.js", "preview.js", "utils.js",
+)
 
 
 def test_committed_classic_bundle_matches_manifest():
