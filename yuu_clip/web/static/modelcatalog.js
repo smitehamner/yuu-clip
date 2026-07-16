@@ -1,10 +1,12 @@
-(function () {
 // Feature-map - the recommended-model catalog, model-readiness row, and the
 // capabilities overview ("what scoring/vision power is installed and how do I
 // get more"). Extracted out of settings.js (which grew into a catch-all) -
 // these read backend/model config to decide what to render, but the save/dirty
 // engine that persists config stays in settings.js.
 //   API: routes/llm.py, routes/config.py (capabilities/tiers) · Tests: tests/ui/test_ui_model_catalog.py, tests/ui/test_ui_settings.py
+import { escHtml } from './format.js';
+import { showToast } from './utils.js';
+
 // ── model catalog (recommended text + vision models) ────────────────────────
 // Loaded once per session. Fills the recommended model lists; the capabilities
 // line reflects the *saved* active model.
@@ -13,14 +15,14 @@ let _modelCatalog = null;
 // up front and the summary line can name the active backend.
 let _modelCatalogInfo = { models_dir: '', free_gb: null, backend: 'llamacpp' };
 
-async function _ensureModelCatalog() {
+export async function _ensureModelCatalog() {
   if (_modelCatalog) return;
   await _loadModelCatalog();
 }
 
 // Force a re-fetch + re-render. Called after Save (config changed which model is
 // active) so the "Active" badge and the summary line reflect the saved state.
-async function refreshModelCatalog() {
+export async function refreshModelCatalog() {
   _modelCatalog = null;
   await _loadModelCatalog();
 }
@@ -166,7 +168,7 @@ function _applyModelPaths(m) {
     const pathEl = document.getElementById('s-llm-model-path');
     if (pathEl && m.gguf_path) pathEl.value = m.gguf_path;
   }
-  _checkSettingsDirty();
+  window._checkSettingsDirty();
 }
 
 function _useGgufModel(modelId) {
@@ -293,7 +295,7 @@ async function downloadGgufModel(modelId, card) {
 // ── model readiness ──────────────────────────────────────────────────────────
 // Readiness of the *saved* active model. Reflects config on disk, not unsaved
 // edits - refreshed on open and after Save.
-async function _updateLlmCapabilities() {
+export async function _updateLlmCapabilities() {
   const el = document.getElementById('s-llm-capabilities');
   if (!el) return;
   let cap;
@@ -315,7 +317,7 @@ async function _updateLlmCapabilities() {
 // active state + install guidance from the backend's availability() reasons via
 // /api/capabilities/tiers - it never installs anything itself; each row links to
 // the section where the real install/enable control lives.
-async function _renderCapabilityTiers() {
+export async function _renderCapabilityTiers() {
   const list = document.getElementById('s-capabilities-list');
   const intro = document.getElementById('s-capabilities-intro');
   if (!list) return;
@@ -334,7 +336,7 @@ async function _renderCapabilityTiers() {
   }
   list.innerHTML = (data.tiers || []).map(_capabilityTierHtml).join('');
   list.querySelectorAll('[data-section]').forEach(btn => {
-    btn.addEventListener('click', () => _scrollToSettingsSection(btn.getAttribute('data-section')));
+    btn.addEventListener('click', () => window._scrollToSettingsSection(btn.getAttribute('data-section')));
   });
   list.querySelectorAll('[data-prefetch]').forEach(btn => {
     btn.addEventListener('click', () => prefetchModel(btn.getAttribute('data-prefetch'), btn.getAttribute('data-tier-id')));
@@ -462,7 +464,7 @@ async function prefetchModel(slug, tierId) {
 // /api/llm/capabilities. Disables the element and appends a linked explanation
 // when the capability is unavailable; used by image-analysis controls (plan 11).
 // Returns the resolved capabilities object.
-async function gateOnCapability(el, capability, message) {
+export async function gateOnCapability(el, capability, message) {
   let cap;
   try {
     cap = await fetch('/api/llm/capabilities').then(r => r.json());
@@ -482,12 +484,3 @@ async function gateOnCapability(el, capability, message) {
   }
   return cap;
 }
-
-// Public API - symbols referenced cross-module, by an inline handler, or by a
-// test. Internal helpers above stay private to this module's closure.
-Object.assign(window, {
-  _ensureModelCatalog, refreshModelCatalog,
-  _updateLlmCapabilities, _renderCapabilityTiers,
-  gateOnCapability, prefetchModel, downloadGgufModel,
-});
-})();

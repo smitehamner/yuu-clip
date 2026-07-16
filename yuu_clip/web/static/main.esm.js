@@ -39,6 +39,11 @@ import {
 // registration) - a bare side-effect import registers the global handler
 // without adding anything to the window shim.
 import './shortcuts.js';
+import {
+  _ensureModelCatalog, refreshModelCatalog,
+  _updateLlmCapabilities, _renderCapabilityTiers,
+  gateOnCapability,
+} from './modelcatalog.js';
 
 window.AppState = AppState;
 Object.assign(window, format);
@@ -115,3 +120,15 @@ window.closeHelpModal = closeHelpModal;
 window.openGlossaryModal = openGlossaryModal;
 window.closeGlossaryModal = closeGlossaryModal;
 window._filterGlossary = _filterGlossary;
+// modelcatalog.js - every name here still has at least one classic (bundle.js)
+// consumer: settings.js calls _ensureModelCatalog/refreshModelCatalog/
+// _updateLlmCapabilities/_renderCapabilityTiers as bare globals, modeldownload.js
+// checks/calls _updateLlmCapabilities/_renderCapabilityTiers, and clips.js calls
+// gateOnCapability (also read directly by tests/ui/test_ui_model_catalog.py via
+// page.evaluate). prefetchModel and downloadGgufModel dropped: both are wired
+// internally via addEventListener/data-* delegation and have no outside caller.
+window._ensureModelCatalog = _ensureModelCatalog;
+window.refreshModelCatalog = refreshModelCatalog;
+window._updateLlmCapabilities = _updateLlmCapabilities;
+window._renderCapabilityTiers = _renderCapabilityTiers;
+window.gateOnCapability = gateOnCapability;

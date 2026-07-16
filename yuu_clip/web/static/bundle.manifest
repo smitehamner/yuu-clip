@@ -31,7 +31,6 @@ settings.js
 settings-previews.js
 settings-installs.js
 settings-backup.js
-modelcatalog.js
 projects.js
 sounds.js
 hotwords.js
