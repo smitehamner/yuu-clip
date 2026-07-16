@@ -31,12 +31,16 @@ Implemented-but-unverified surfaces and latent traps to close before distributio
 
 Wanted before distributing beyond friends/trusted users.
 
-- [ ] **FFmpeg source-hosting once the repo is public** - the GPL-compliance story today
-  ships the FFmpeg + libx264 source archives *side-by-side* with each installer. Once the
-  yuu-clip GitHub repo goes public, attach the source archives to GitHub Releases as the
-  canonical long-term host (in addition to, or instead of, the shipped zip). See
-  `docs/dev/THIRD-PARTY-NOTICES-FFMPEG.md` and `HOW-TO-RELEASE.md § Bundled FFmpeg`.
-  Plan (checklist, blocked on repo going public): (internal planning notes).
+- [ ] **Verify FFmpeg source-hosting URLs resolve once the repo is public** - the
+  GPL-compliance story ships the FFmpeg + libx264 source archives *side-by-side* with each
+  installer, and the matching archives are also attached to the `third-party-source_0.1.0`
+  GitHub Release as a durable public mirror. That release already exists but its asset URLs
+  404 for third parties while the repo is private, so `docs/dev/THIRD-PARTY-NOTICES-FFMPEG.md`
+  already cites them as live. After flipping the repo to public, confirm both URLs actually
+  resolve for a logged-out visitor (and keep shipping the side-by-side archives - the mirror
+  is additional, not a replacement). Do not distribute an installer publicly before the flip,
+  or those cited URLs are dead links. See `docs/dev/THIRD-PARTY-NOTICES-FFMPEG.md` and
+  `HOW-TO-RELEASE.md § Bundled FFmpeg`.
 
 - [ ] **Enable private vulnerability reporting** (Settings -> Security). `SECURITY.md`
   already points reporters at the "Report a vulnerability" flow, which needs this turned
