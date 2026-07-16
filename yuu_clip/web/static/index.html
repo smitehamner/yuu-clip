@@ -1868,13 +1868,13 @@
 </div>
 
 <!-- Export Settings Modal -->
-<div class="modal-bg" id="export-settings-modal" onclick="if(event.target===this)closeExportModal()">
+<div class="modal-bg" id="export-settings-modal">
   <div class="modal" style="width:380px">
     <h3 style="margin-top:0">Export Clip</h3>
     <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:14px">
       <div style="display:flex;align-items:center;gap:10px">
         <label for="export-preset" style="font-size:13px;color:var(--muted);min-width:110px">Export preset</label>
-        <select id="export-preset" style="flex:1;padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px" onchange="_onExportPresetChange(this.value)">
+        <select id="export-preset" style="flex:1;padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px">
           <option value="">Original quality (default)</option>
         </select>
       </div>
@@ -1889,7 +1889,7 @@
       </div>
       <div style="display:flex;align-items:center;gap:10px">
         <label for="export-captions" style="font-size:13px;color:var(--muted);min-width:110px">Captions</label>
-        <select id="export-captions" style="flex:1;padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px" onchange="_onExportCaptionsChange(this.value)">
+        <select id="export-captions" style="flex:1;padding:5px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px">
           <option value="none">None</option>
           <option value="softsub" selected>Embed captions track (softsub, fast)</option>
           <option value="hardsub">Burn in captions (hardsub, re-encode)</option>
@@ -1919,7 +1919,7 @@
           </div>
           <div style="display:flex;align-items:center;gap:10px">
             <label for="export-caption-word-highlight" style="font-size:13px;color:var(--muted);min-width:110px">Word highlight</label>
-            <input id="export-caption-word-highlight" type="checkbox" onchange="_onExportWordHighlightChange(this.checked)">
+            <input id="export-caption-word-highlight" type="checkbox">
             <span style="font-size:12px;color:var(--muted)">Highlight each word as it's spoken (TikTok style)</span>
           </div>
           <div style="display:flex;align-items:center;gap:10px">
@@ -1938,15 +1938,14 @@
           </div>
           <div style="flex:1;display:flex;flex-direction:column;gap:8px">
             <div style="display:flex;gap:6px">
-              <button type="button" class="framing-btn" data-frame-pos="0" onclick="_setExportFraming(0)">Left</button>
-              <button type="button" class="framing-btn" data-frame-pos="0.5" onclick="_setExportFraming(0.5)">Center</button>
-              <button type="button" class="framing-btn" data-frame-pos="1" onclick="_setExportFraming(1)">Right</button>
+              <button type="button" class="framing-btn" data-frame-pos="0">Left</button>
+              <button type="button" class="framing-btn" data-frame-pos="0.5">Center</button>
+              <button type="button" class="framing-btn" data-frame-pos="1">Right</button>
             </div>
             <input id="export-framing-slider" type="range" min="0" max="1" step="0.01" value="0.5"
-                   aria-label="Vertical crop position" oninput="_setExportFraming(parseFloat(this.value))" style="width:100%">
+                   aria-label="Vertical crop position" style="width:100%">
             <div style="display:flex;gap:8px;align-items:center">
-              <button type="button" id="export-autoframe-btn" class="btn-secondary" style="font-size:12px;padding:4px 8px"
-                      onclick="_autoFrameExport()">Auto-frame on faces</button>
+              <button type="button" id="export-autoframe-btn" class="btn-secondary" style="font-size:12px;padding:4px 8px">Auto-frame on faces</button>
               <span id="export-autoframe-note" style="font-size:11px;color:var(--muted)"></span>
             </div>
           </div>
@@ -1954,7 +1953,7 @@
       </div>
       <div style="display:flex;align-items:center;gap:10px">
         <label style="display:flex;align-items:center;gap:10px;cursor:pointer;flex:1">
-          <input type="checkbox" id="export-retranscribe" onchange="_onExportRetranscribeChange(this.checked)">
+          <input type="checkbox" id="export-retranscribe">
           <span style="font-size:13px">Retranscribe before export</span>
         </label>
       </div>
@@ -1977,7 +1976,7 @@
       </div>
       <div style="display:flex;align-items:center;gap:10px">
         <label style="display:flex;align-items:center;gap:10px;cursor:pointer;flex:1">
-          <input type="checkbox" id="export-title-card" onchange="_updateExportModeSummary()">
+          <input type="checkbox" id="export-title-card">
           <span style="font-size:13px">Prepend title card</span>
         </label>
       </div>
@@ -1994,8 +1993,8 @@
       <div id="export-mode-summary" style="font-size:12px;border-top:1px solid var(--border);padding-top:10px"></div>
     </div>
     <div class="modal-actions">
-      <button class="btn" onclick="closeExportModal()">Cancel</button>
-      <button class="btn highlight" onclick="confirmExport()">Export</button>
+      <button class="btn" id="export-cancel-btn">Cancel</button>
+      <button class="btn highlight" id="export-confirm-btn">Export</button>
     </div>
   </div>
 </div>

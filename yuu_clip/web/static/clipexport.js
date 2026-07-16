@@ -1,9 +1,23 @@
-(function () {
 // Feature-map - Clip export (the Export modal flow + per-format export-file actions).
 //   API: routes/clips/ (export.py, delete.py clip-exports, crud.py export-files, edit.py suggest-framing) · Tests: tests/ui/test_ui_clips.py, tests/ui/test_ui_exporteditor.py
 // Renders and drives the Export dialog and the per-format rows in the clip
 // detail's Export card. The rows themselves are built by _exportFormatsHtml in
 // clips.js (it renders inside the detail pane); the actions they dispatch live here.
+
+import { AppState } from './state.js';
+import { escHtml, formatApiError, _fmtOffset } from './format.js';
+import { PanelNav } from './panelnav.js';
+import { streamSSE } from './jobs.js';
+import {
+  openLog, showToast, revealInFolder, copyText,
+  _diarizationNoteHtml, _diarizationReadiness,
+} from './utils.js';
+import { showConfirm } from './ui.js';
+import {
+  selectClip, renderDetail, renderPlayer, _releasePlayerBeforeDelete,
+  _parseTimingOffset, _reloadClipList,
+} from './clips.js';
+import { loadVideos } from './videos.js';
 
 // ── per-format export row actions (Export presets - Plan 07) ───────────────
 function _downloadFile(filename) {
@@ -16,7 +30,7 @@ function _downloadFile(filename) {
 }
 
 // Download the clip's exported video plus any SRT caption sidecars on disk.
-async function _downloadClipExport(clipId) {
+export async function _downloadClipExport(clipId) {
   let files = [];
   try {
     const data = await fetch(`/api/clips/${clipId}/export-files`).then(r => r.json());
@@ -29,7 +43,7 @@ async function _downloadClipExport(clipId) {
   if (files.length > 1) showToast(`Downloading ${files.length} files (video + captions)`, 'info');
 }
 
-async function _revealClipExport(clipId) {
+export async function _revealClipExport(clipId) {
   let files = [];
   try {
     const data = await fetch(`/api/clips/${clipId}/export-files`).then(r => r.json());
@@ -41,7 +55,7 @@ async function _revealClipExport(clipId) {
   revealInFolder(`${AppState.exportDir}${sep}${files[0]}`);
 }
 
-async function _copyClipExportPaths(clipId) {
+export async function _copyClipExportPaths(clipId) {
   let files = [];
   try {
     const data = await fetch(`/api/clips/${clipId}/export-files`).then(r => r.json());
@@ -54,7 +68,7 @@ async function _copyClipExportPaths(clipId) {
   copyText(paths.join('\n'), files.length > 1 ? 'File paths' : 'File path');
 }
 
-function _handleExportFormatAction(action, data) {
+export function _handleExportFormatAction(action, data) {
   // Read from the row's own dataset rather than AppState.activeClipId - the
   // Export card can be rendered for a clip before it's the globally "active"
   // one (e.g. in tests, or a future non-selection preview), so each row must
@@ -77,7 +91,7 @@ function _handleExportFormatAction(action, data) {
 }
 
 function _confirmRegenerateExportFormat(clipId, data) {
-  const label = exportPresetLabel(data.presetName);
+  const label = window.exportPresetLabel(data.presetName);
   showConfirm(
     'Regenerate this format?',
     `Re-export "${escHtml(label)}" with the same settings, overwriting the existing file.`,
@@ -103,7 +117,7 @@ function _regenerateExportFormat(clipId, data) {
       if (!PanelNav.isOpen()) renderDetail(clip);
       await _reloadClipList(AppState.activeVideoId);
       showToast('Format regenerated');
-      SoundFx.play('export');
+      window.SoundFx.play('export');
     },
     [{label: 'Export', patterns: ['Exporting', 'OK Saved']}],
     'Exporting',
@@ -168,7 +182,7 @@ function _exportModeSummary(hardsub, titleCard, retranscribe) {
   };
 }
 
-function _renderExportModeSummary(el, hardsub, titleCard, retranscribe) {
+export function _renderExportModeSummary(el, hardsub, titleCard, retranscribe) {
   const summary = _exportModeSummary(hardsub, titleCard, retranscribe);
   el.textContent = summary.text;
   el.style.color = summary.precise ? 'var(--warning)' : 'var(--muted)';
@@ -183,15 +197,11 @@ function _updateExportModeSummary() {
   );
 }
 
-function _onExportCaptionsChange() {
-  _updateExportModeSummary();
-}
-
 // Preset exports always re-encode and don't support the soft-subtitle (embed)
 // track or a container override - the preset dictates both. Reflect that in
 // the rest of the modal so a creator never hits the server-side 400 for the
 // unsupported combination.
-function _onExportPresetChange(presetName) {
+export function _onExportPresetChange(presetName) {
   const containerSel = document.getElementById('export-container');
   const captionsSel  = document.getElementById('export-captions');
   const softsubOpt   = captionsSel.querySelector('option[value="softsub"]');
@@ -201,7 +211,7 @@ function _onExportPresetChange(presetName) {
   softsubOpt.disabled = usingPreset;
   if (usingPreset && captionsSel.value === 'softsub') captionsSel.value = 'none';
   document.getElementById('export-framing').style.display =
-    exportPresetIsVertical(presetName) ? '' : 'none';
+    window.exportPresetIsVertical(presetName) ? '' : 'none';
   _updateExportTightCapWarning(presetName);
   _updateExportModeSummary();
 }
@@ -214,7 +224,7 @@ function _onExportPresetChange(presetName) {
 const _TIGHT_CAP_TOTAL_KBPS = 900;
 
 function _exportTightCapWarning(presetName, clip) {
-  const capMb = exportPresetTargetSizeMb(presetName);
+  const capMb = window.exportPresetTargetSizeMb(presetName);
   if (!capMb || !clip || clip.start_ms == null || clip.end_ms == null) return '';
   const durationS = (clip.end_ms - clip.start_ms) / 1000;
   if (durationS <= 0) return '';
@@ -225,7 +235,7 @@ function _exportTightCapWarning(presetName, clip) {
 }
 
 // Advisory only - never blocks export; just surfaces when the cap is too tight.
-function _updateExportTightCapWarning(presetName) {
+export function _updateExportTightCapWarning(presetName) {
   const el = document.getElementById('export-tightcap-warning');
   if (!el) return;
   const message = _exportTightCapWarning(presetName, AppState.activeClipData);
@@ -234,7 +244,7 @@ function _updateExportTightCapWarning(presetName) {
 }
 
 // Position the 9:16 crop box for the active export and keep the slider + buttons in sync.
-function _setExportFraming(fraction) {
+export function _setExportFraming(fraction) {
   _exportCropX = Math.max(0, Math.min(1, fraction));
   const slider = document.getElementById('export-framing-slider');
   if (slider && parseFloat(slider.value) !== _exportCropX) slider.value = _exportCropX;
@@ -260,7 +270,12 @@ async function _autoFrameExport() {
   try {
     const res = await fetch(`/api/clips/${_exportClipId}/suggest-framing`, {method: 'POST'});
     if (res.status === 503) {
-      note.innerHTML = 'Needs MediaPipe - <a href="#" onclick="closeExportModal();openSettings();return false">install it in Settings</a>.';
+      note.innerHTML = 'Needs MediaPipe - <a href="#" id="export-autoframe-settings-link">install it in Settings</a>.';
+      document.getElementById('export-autoframe-settings-link').addEventListener('click', e => {
+        e.preventDefault();
+        closeExportModal();
+        window.openSettings();
+      });
       return;
     }
     if (!res.ok) throw new Error(formatApiError(await res.json().catch(() => ({}))) || `HTTP ${res.status}`);
@@ -328,7 +343,7 @@ function _onExportWordHighlightChange(enabled) {
   document.getElementById('export-caption-chunk-size').disabled = !enabled;
 }
 
-async function exportClip(id) {
+export async function exportClip(id) {
   _exportOpener = document.activeElement;
   _exportClipId = id;
   document.getElementById('export-captions').value = 'softsub';
@@ -340,7 +355,7 @@ async function exportClip(id) {
   document.getElementById('export-retranscribe-model').disabled = true;
   document.getElementById('export-title-card').checked = false;
   await _prefillExportCaptionStyle();
-  await populateExportPresetSelect('');
+  await window.populateExportPresetSelect('');
   const savedCropX = AppState.activeClipData?.crop_x;
   _setExportFraming(savedCropX == null ? 0.5 : savedCropX);
   document.getElementById('export-autoframe-note').textContent = '';
@@ -351,14 +366,14 @@ async function exportClip(id) {
   setTimeout(() => document.getElementById('export-captions')?.focus(), 50);
 }
 
-function closeExportModal() {
+export function closeExportModal() {
   document.getElementById('export-settings-modal').classList.remove('visible');
   const opener = _exportOpener;
   _exportOpener = null;
   if (opener?.focus) opener.focus();
 }
 
-async function confirmExport() {
+export async function confirmExport() {
   const id        = _exportClipId;
   const captions  = document.getElementById('export-captions').value;
   const burnSubs  = captions === 'hardsub';
@@ -384,7 +399,7 @@ async function confirmExport() {
     }
   }
 
-  if (exportPresetIsVertical(preset)) {
+  if (window.exportPresetIsVertical(preset)) {
     const framingRes = await fetch(`/api/clips/${id}/framing`, {
       method: 'PATCH', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({crop_x: _exportCropX}),
@@ -445,20 +460,32 @@ async function confirmExport() {
       await _reloadClipList(AppState.activeVideoId);
       loadVideos();
       showToast('Clip exported successfully');
-      SoundFx.play('export');
+      window.SoundFx.play('export');
     },
     steps,
     retx ? 'Retranscribing' : 'Exporting',
   );
 }
 
-// Public API - symbols referenced cross-module, by an inline handler, or by a
-// test. Internal helpers above stay private to this module's closure.
-Object.assign(window, {
-  exportClip, closeExportModal, confirmExport,
-  _onExportCaptionsChange, _onExportRetranscribeChange, _onExportPresetChange,
-  _onExportWordHighlightChange, _exportTightCapWarning, _updateExportTightCapWarning,
-  _setExportFraming, _autoFrameExport, _updateExportModeSummary, _renderExportModeSummary,
-  _handleExportFormatAction, _downloadClipExport, _revealClipExport, _copyClipExportPaths,
-});
-})();
+// ── static modal wiring (replaces the inline onclick=/oninput=/onchange= this
+// module used to own in index.html) ────────────────────────────────────────────
+// export-settings-modal is a fixed, never-recreated element in index.html, so
+// wiring it once at module load (below) can't double-fire on a re-render.
+function _wireExportModal() {
+  const modal = document.getElementById('export-settings-modal');
+  modal.addEventListener('click', e => { if (e.target === modal) closeExportModal(); });
+  document.getElementById('export-cancel-btn').addEventListener('click', () => closeExportModal());
+  document.getElementById('export-confirm-btn').addEventListener('click', () => confirmExport());
+  document.getElementById('export-preset').addEventListener('change', e => _onExportPresetChange(e.target.value));
+  document.getElementById('export-captions').addEventListener('change', () => _updateExportModeSummary());
+  document.getElementById('export-caption-word-highlight').addEventListener('change', e => _onExportWordHighlightChange(e.target.checked));
+  document.querySelectorAll('#export-framing [data-frame-pos]').forEach(btn => {
+    btn.addEventListener('click', () => _setExportFraming(parseFloat(btn.dataset.framePos)));
+  });
+  document.getElementById('export-framing-slider').addEventListener('input', e => _setExportFraming(parseFloat(e.target.value)));
+  document.getElementById('export-autoframe-btn').addEventListener('click', () => _autoFrameExport());
+  document.getElementById('export-retranscribe').addEventListener('change', e => _onExportRetranscribeChange(e.target.checked));
+  document.getElementById('export-title-card').addEventListener('change', () => _updateExportModeSummary());
+}
+
+_wireExportModal();

@@ -77,6 +77,12 @@ import {
 import {
   _pruneClipSelection, _updateBulkToolbar, _toggleClipSelection, undoLastBulkStatus,
 } from './clipbulk.js';
+import {
+  exportClip, closeExportModal, confirmExport,
+  _onExportPresetChange, _updateExportTightCapWarning, _setExportFraming,
+  _renderExportModeSummary,
+  _handleExportFormatAction, _downloadClipExport, _revealClipExport, _copyClipExportPaths,
+} from './clipexport.js';
 
 window.AppState = AppState;
 Object.assign(window, format);
@@ -275,3 +281,34 @@ window._pruneClipSelection = _pruneClipSelection;
 window._updateBulkToolbar = _updateBulkToolbar;
 window._toggleClipSelection = _toggleClipSelection;
 window.undoLastBulkStatus = undoLastBulkStatus;
+// clipexport.js - exportClip is read as a bare global by shortcuts.js's
+// _actOnSubject and by clips.js as window.exportClip; closeExportModal is read
+// as a bare global by shortcuts.js's Escape-key modal-closer map and by the
+// module's own dynamically-built onclick strings (the _diarizationNoteHtml
+// "Settings" link and the MediaPipe-missing "install it in Settings" link, both
+// evaluated in global scope); confirmExport, _onExportPresetChange,
+// _updateExportTightCapWarning and _setExportFraming have no outside JS caller
+// left (their only external use was the now-removed index.html inline
+// handlers) but tests/ui/test_ui_clips.py and test_ui_clips2.py call all of
+// them directly via page.evaluate. _renderExportModeSummary is called as a
+// bare global by reel.js's _updateBatchModeSummary (still classic).
+// _handleExportFormatAction, _downloadClipExport, _revealClipExport and
+// _copyClipExportPaths are read as window.* by clips.js (already-ESM, but
+// clips.js's own migration predates this one and never switched these to an
+// import - out of scope to touch clips.js here). _onExportCaptionsChange,
+// _onExportRetranscribeChange, _onExportWordHighlightChange,
+// _exportTightCapWarning, _autoFrameExport and _updateExportModeSummary
+// dropped: their only callers were this module's own inline handlers (now
+// addEventListener inside clipexport.js itself) or its own internal logic, so
+// nothing outside the module needs them off window anymore.
+window.exportClip = exportClip;
+window.closeExportModal = closeExportModal;
+window.confirmExport = confirmExport;
+window._onExportPresetChange = _onExportPresetChange;
+window._updateExportTightCapWarning = _updateExportTightCapWarning;
+window._setExportFraming = _setExportFraming;
+window._renderExportModeSummary = _renderExportModeSummary;
+window._handleExportFormatAction = _handleExportFormatAction;
+window._downloadClipExport = _downloadClipExport;
+window._revealClipExport = _revealClipExport;
+window._copyClipExportPaths = _copyClipExportPaths;
