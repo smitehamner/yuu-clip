@@ -23,3 +23,4 @@ docs/dev/plans/
 
 # esbuild drift-check scratch output (never committed)
 /yuu_clip/web/static/*.check.js
+yuu-clip.code-workspace
