@@ -1,8 +1,18 @@
-(function () {
 // Feature-map - app-global keyboard shortcuts and the Escape-key layer cascade.
 // Extracted out of settings.js (which grew into a catch-all) - shortcuts are
 // app-wide, not settings-specific.
 //   Tests: tests/ui/test_ui_keyboard.py
+
+import { AppState } from './state.js';
+import { PanelNav } from './panelnav.js';
+import {
+  _confirmCancel, closeAlertModal, closeControlsModal, closeFieldEditModal,
+  _diffDiscard, closeActionsModal, closeKebab, isHamburgerOpen, closeHamburger,
+  topmostVisibleModal, openControlsModal,
+} from './ui.js';
+import {
+  closeGettingStartedModal, closeAboutModal, closeGlossaryModal, closeHelpModal,
+} from './helpmodals.js';
 
 // ── keyboard shortcuts ────────────────────────────────────────────────────────
 
@@ -11,6 +21,9 @@
 // and the full-panel editors. topmostVisibleModal (ui.js) resolves modal
 // stacking - confirm/alert take priority, so a "Discard?" confirm cancels
 // without also closing the still-dirty editor underneath it.
+//
+// Still-classic modal closers (window.closeScoreOverrideModal etc.) are called
+// as bare globals - their owning modules haven't migrated to ESM yet.
 const _modalEscapeClosers = {
   'confirm-modal':           () => _confirmCancel(),
   'alert-modal':             () => closeAlertModal(),
@@ -152,7 +165,8 @@ document.addEventListener('keydown', e => {
   }
 });
 
-// No window exports - this module's only public surface is the keydown
-// listener registration itself; _modalEscapeClosers/_closeTopmostLayer are
-// referenced only from within this closure.
-})();
+// No exports - this module's only public surface is the keydown listener
+// registration itself; _modalEscapeClosers/_closeTopmostLayer are referenced
+// only from within this module. Still-classic globals it calls
+// (closeScoreOverrideModal, selectClip, setStatus, exportClip, etc.) resolve
+// off window since their owning modules haven't migrated to ESM yet.

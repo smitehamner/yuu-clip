@@ -35,6 +35,10 @@ import {
   openHelpModal, closeHelpModal,
   openGlossaryModal, closeGlossaryModal, _filterGlossary,
 } from './helpmodals.js';
+// shortcuts.js has no public surface (its only export is the keydown listener
+// registration) - a bare side-effect import registers the global handler
+// without adding anything to the window shim.
+import './shortcuts.js';
 
 window.AppState = AppState;
 Object.assign(window, format);
