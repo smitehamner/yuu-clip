@@ -2,7 +2,15 @@
 
 Forward-looking only. Deliberate scope calls (things we chose not to do, and why)
 live in [DECISIONS.md](DECISIONS.md); this file tracks just the work that is still
-open, grouped by priority.
+open.
+
+Two tiers:
+
+- **Numbered sections** are prioritized open work - things we intend to do, or have
+  scoped and deliberately deferred with a known implementation path.
+- **[Possible future ideas](#possible-future-ideas)** is a brainstorm bin - loose,
+  unscoped ideas that may never be built (and some that may not belong in yuu-clip at
+  all). No commitment implied by their presence here.
 
 ---
 
@@ -68,15 +76,6 @@ Wanted before distributing beyond friends/trusted users.
 - [ ] **Sidebar grouping for split segments** *(speculative)* - a collapsible parent row
   "session.mkv (3 segments)" with indented children, as an alternative to the flat list.
   Deferred until the flat list proves insufficient in practice.
-
-- [ ] **Score learning loop** *(speculative)* - use accumulated manual score overrides to tune
-  the prompt or scoring-weight vector semi-automatically. Requires a meaningful corpus of
-  overrides first.
-
-- [ ] **Copyright content detection** *(speculative - no implementation path)* - detect music in
-  the audio track that might trigger copyright claims. Requires audio fingerprinting against a
-  reference database (AcoustID or similar); needs evaluation of fingerprinting libraries,
-  database licensing, and accuracy on gaming audio before it can be scoped.
 
 - [ ] **Persistent undo stack for clip status changes** *(speculative)* - today undo is a
   single-step, time-boxed affordance: the approve/reject toast carries an Undo button plus a
@@ -149,6 +148,37 @@ Wanted before distributing beyond friends/trusted users.
   while the user base is friends/trusted users. Scope captured (no existing i18n infra found,
   ~16k lines of JS + 2k-line HTML shell to externalize) but deliberately not staged given the
   low current priority: (internal planning notes).
+
+---
+
+## Possible future ideas
+
+Brainstorm-level, unscoped, no commitment. Some may not belong in yuu-clip at all -
+kept here so they're not lost.
+
+- **Session-aligned multi-POV clips** *(idea only)* - when several people record the
+  *same* session from different POVs, treat their recordings as POVs onto one shared
+  session timeline: a clip found in one POV maps to the same time window in every other
+  POV, and review/export lets you pick which POV(s) to render for that window (one at a
+  time, or side-by-side/PiP), chosen by hand. This fits yuu-clip's existing session
+  model (find the moment, let the human choose how to present it).
+  - **Deliberately excluded:** auto-switching the view based on who's speaking. That is
+    an NLE/multicam-editor concern, and speaker-driven cutting produces jarring,
+    sub-second flips whenever people talk over each other. Out of scope for a clip-finder.
+  - **Make-or-break spike:** synchronization. Separate recordings don't start at the same
+    instant and can drift (different clocks, dropped/variable frames), so the whole idea
+    rests on frame-accurate alignment across recordings - audio cross-correlation on a
+    shared sound, or a manual "line these up" nudge. Prototype sync in isolation before
+    designing any UI; if alignment isn't reliable, the feature isn't.
+
+- **Score learning loop** *(idea only)* - use accumulated manual score overrides to tune the
+  prompt or scoring-weight vector semi-automatically. Requires a meaningful corpus of overrides
+  first.
+
+- **Copyright content detection** *(idea only - no implementation path)* - detect music in the
+  audio track that might trigger copyright claims. Requires audio fingerprinting against a
+  reference database (AcoustID or similar); needs evaluation of fingerprinting libraries,
+  database licensing, and accuracy on gaming audio before it can be scoped.
 
 ---
 
