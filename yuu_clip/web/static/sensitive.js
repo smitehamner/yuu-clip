@@ -1,13 +1,18 @@
-(function () {
 // Feature-map - Sensitive Terms (Privacy Terms + Censor Words; code: sensitive_terms).
-//   API: routes/sensitive.py · Tests: tests/ui/test_ui_sensitive.py
-// ── sensitive-content settings ──────────────────────────────────────────────
+//   API: routes/sensitive.py . Tests: tests/ui/test_ui_sensitive.py
+// -- sensitive-content settings ------------------------------------------------
 // Server-backed CRUD, same per-row-save model as hot-words (hotwords.js). The
 // key difference: every save/delete triggers an immediate project-wide rescan
 // server-side (routes/sensitive.py - text-only, synchronous), so there's no
 // separate "Rescan current recording" follow-up action here - the toast just
 // reports how many clips are flagged after the edit.
 // AppState.sensitiveTerms is the single cache, populated at Settings-open time.
+import { AppState } from './state.js';
+import { plural, escHtml, formatApiError } from './format.js';
+import { showToast } from './utils.js';
+import { ensureContexts, _termContextOptions, _renderTermGroups } from './contexts.js';
+import { _clipsListUrl } from './videos.js';
+import { _renderClips, selectClip } from './clips.js';
 
 let _draftSeq = 0;
 const FUZZY_MIN_TERM_LENGTH = 4;
@@ -106,7 +111,7 @@ function addSensitiveTermRow() {
 // currently open recording's clip list so its badges/Flagged tab reflect it
 // without the user having to reselect the recording.
 async function _refreshActiveVideoClipsForSensitive() {
-  const videoId = window.AppState?.activeVideoId;
+  const videoId = AppState.activeVideoId;
   if (!videoId) return;
   const clips = await fetch(_clipsListUrl(videoId)).then(r => r.json()).catch(() => null);
   if (clips) { AppState.clips = clips; _renderClips(); if (AppState.activeClipId) selectClip(AppState.activeClipId); }
@@ -169,9 +174,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const row = del?.closest('[data-sensitive-row]');
     if (row) _deleteSensitiveTermRow(row);
   });
+  document.getElementById('s-sensitive-add')?.addEventListener('click', addSensitiveTermRow);
 });
 
-Object.assign(window, {
-  initSensitiveTermSettings, addSensitiveTermRow, ensureSensitiveTermsCache,
-});
-})();
+export { initSensitiveTermSettings, ensureSensitiveTermsCache };

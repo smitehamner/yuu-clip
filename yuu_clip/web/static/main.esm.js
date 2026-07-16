@@ -134,6 +134,7 @@ import {
   initHotwordSettings, ensureHotwordsCache, hasEnabledSemanticHotwords,
   confirmScanHotwordsForVideo,
 } from './hotwords.js';
+import { initSensitiveTermSettings } from './sensitive.js';
 import {
   ensureExportPresetsCache, exportPresetLabel, exportPresetIsVertical,
   exportPresetTargetSizeMb, populateExportPresetSelect, initExportPresetSettings,
@@ -586,6 +587,14 @@ window.initHotwordSettings = initHotwordSettings;
 window.ensureHotwordsCache = ensureHotwordsCache;
 window.hasEnabledSemanticHotwords = hasEnabledSemanticHotwords;
 window.confirmScanHotwordsForVideo = confirmScanHotwordsForVideo;
+
+// sensitive.js - initSensitiveTermSettings is read as window.* by settings.js
+// (already-ESM, still calls via window; predates this migration). Nothing else
+// outside the module reads it. ensureSensitiveTermsCache has no external caller
+// (unlike hotwords, the sensitive cache is primed only at Settings-open), and
+// addSensitiveTermRow's only caller was index.html's inline onclick (now an
+// addEventListener inside sensitive.js) - so neither needs a window shim.
+window.initSensitiveTermSettings = initSensitiveTermSettings;
 // exportpresets.js - ensureExportPresetsCache is called as a bare global by
 // boot.js and exporteditor.js (still classic); exportPresetIsVertical also by
 // exporteditor.js (classic). exportPresetLabel is read as window.* by clips.js
