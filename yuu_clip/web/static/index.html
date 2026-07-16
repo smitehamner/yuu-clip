@@ -1033,11 +1033,11 @@
       <ul class="sidebar-list" id="video-list"></ul>
     </div>
     <div class="resize-handle resize-handle-v" id="videos-clips-resize-handle" title="Drag to resize Recordings / Clips panels" role="separator" aria-orientation="horizontal" aria-label="Resize Recordings / Clips panels"></div>
-    <div class="sidebar-group clips-group">
+    <div class="sidebar-group clips-group" id="clips-sidebar-group">
       <div class="clips-section-header">
         <div class="section-toggle" role="group" aria-label="Show clips or scenes">
-          <button class="section-toggle-btn active" aria-pressed="true"  data-kind="clip"  onclick="setClipKind('clip')" title="Show punchy clips (15-90s)">Clips</button>
-          <button class="section-toggle-btn"        aria-pressed="false" data-kind="scene" onclick="setClipKind('scene')" title="Show longer scenes (1-5 min contextual moments)">Scenes</button>
+          <button class="section-toggle-btn active" aria-pressed="true"  data-kind="clip"  title="Show punchy clips (15-90s)">Clips</button>
+          <button class="section-toggle-btn"        aria-pressed="false" data-kind="scene" title="Show longer scenes (1-5 min contextual moments)">Scenes</button>
         </div>
         <div style="display:flex;align-items:center;gap:8px">
           <select id="clips-sort" class="clips-sort-select" aria-label="Sort clips by" onchange="onClipsSortChange()">
@@ -1050,32 +1050,32 @@
             <option value="length">&#8986; Length</option>
             <option value="timeline">Timeline</option>
           </select>
-          <button id="clips-sort-dir" class="sort-dir-btn" onclick="toggleClipSortDir()">&#8595;</button>
-          <button class="kebab-btn section-actions-btn" id="btn-clips-actions" aria-label="More actions" title="More actions" aria-haspopup="true" aria-expanded="false" onclick="openClipsActionsMenu(this)">&#8942;</button>
+          <button id="clips-sort-dir" class="sort-dir-btn">&#8595;</button>
+          <button class="kebab-btn section-actions-btn" id="btn-clips-actions" aria-label="More actions" title="More actions" aria-haspopup="true" aria-expanded="false">&#8942;</button>
         </div>
       </div>
       <div class="clip-search-row">
-        <input type="search" id="clip-search-input" placeholder="Search clips…" title="Matches clip descriptions, transcript, and your tags" oninput="setClipSearch(this.value)" aria-label="Search clips by description, transcript, or tags">
+        <input type="search" id="clip-search-input" placeholder="Search clips…" title="Matches clip descriptions, transcript, and your tags" aria-label="Search clips by description, transcript, or tags">
       </div>
       <div class="clip-filter-tabs" aria-label="Clip filters">
-        <button class="clip-chip active" aria-pressed="true"  data-filter="all"          onclick="toggleClipFilter('all')">All<span class="clip-chip-count" data-count="all"></span></button>
-        <button class="clip-chip"        aria-pressed="false" data-filter="pending"      onclick="toggleClipFilter('pending')">Unreviewed<span class="clip-chip-count" data-count="pending"></span></button>
-        <button class="clip-chip"        aria-pressed="false" data-filter="approved"     onclick="toggleClipFilter('approved')">Approved<span class="clip-chip-count" data-count="approved"></span></button>
-        <button class="clip-chip"        aria-pressed="false" data-filter="rejected"     onclick="toggleClipFilter('rejected')">Rejected<span class="clip-chip-count" data-count="rejected"></span></button>
+        <button class="clip-chip active" aria-pressed="true"  data-filter="all">All<span class="clip-chip-count" data-count="all"></span></button>
+        <button class="clip-chip"        aria-pressed="false" data-filter="pending">Unreviewed<span class="clip-chip-count" data-count="pending"></span></button>
+        <button class="clip-chip"        aria-pressed="false" data-filter="approved">Approved<span class="clip-chip-count" data-count="approved"></span></button>
+        <button class="clip-chip"        aria-pressed="false" data-filter="rejected">Rejected<span class="clip-chip-count" data-count="rejected"></span></button>
       </div>
       <details class="clip-more-filters" id="clip-more-filters">
         <summary>More filters<span class="clip-more-flag" data-more-flag hidden aria-hidden="true"></span></summary>
         <div class="clip-filter-tabs" aria-label="More clip filters">
-          <button class="clip-chip"        aria-pressed="false" data-filter="exported"     onclick="toggleClipFilter('exported')">Exported</button>
-          <button class="clip-chip"        aria-pressed="false" data-filter="not-exported" onclick="toggleClipFilter('not-exported')">Not exported</button>
-          <button class="clip-chip"        aria-pressed="false" data-filter="error"        onclick="toggleClipFilter('error')" title="Clips whose LLM scoring failed">&#9888; Score error<span class="clip-chip-count" data-count="error"></span></button>
-          <button class="clip-chip"        aria-pressed="false" data-filter="flagged"      onclick="toggleClipFilter('flagged')" title="Clips containing a Sensitive Terms match">&#9888; Flagged</button>
-          <button class="clip-chip"        aria-pressed="false" data-filter="duplicate"    onclick="toggleClipFilter('duplicate')" title="Clips flagged as possible duplicates by the last scan">&#8646; Duplicates<span class="clip-chip-count" data-count="duplicate"></span></button>
-          <button class="clip-chip"        aria-pressed="false" data-filter="no_speech"    onclick="toggleClipFilter('no_speech')" title="Silent, visually active clips with no spoken dialogue">No dialogue</button>
+          <button class="clip-chip"        aria-pressed="false" data-filter="exported">Exported</button>
+          <button class="clip-chip"        aria-pressed="false" data-filter="not-exported">Not exported</button>
+          <button class="clip-chip"        aria-pressed="false" data-filter="error"        title="Clips whose LLM scoring failed">&#9888; Score error<span class="clip-chip-count" data-count="error"></span></button>
+          <button class="clip-chip"        aria-pressed="false" data-filter="flagged"      title="Clips containing a Sensitive Terms match">&#9888; Flagged</button>
+          <button class="clip-chip"        aria-pressed="false" data-filter="duplicate"    title="Clips flagged as possible duplicates by the last scan">&#8646; Duplicates<span class="clip-chip-count" data-count="duplicate"></span></button>
+          <button class="clip-chip"        aria-pressed="false" data-filter="no_speech"    title="Silent, visually active clips with no spoken dialogue">No dialogue</button>
         </div>
         <div class="clip-more-score">
           <label for="clip-score-min">Minimum score</label>
-          <select id="clip-score-min" onchange="setClipScoreMin(this.value)" aria-label="Minimum score" title="Minimum overall score">
+          <select id="clip-score-min" aria-label="Minimum score" title="Minimum overall score">
             <option value="0">Any score</option>
             <option value="0.3">30%+</option>
             <option value="0.5">50%+</option>
@@ -2094,7 +2094,7 @@
 </div>
 
 <!-- Find Similar Modal -->
-<div class="modal-bg" id="similar-clips-modal" onclick="if(event.target===this)closeSimilarClipsModal()">
+<div class="modal-bg" id="similar-clips-modal">
   <div class="modal" style="width:420px">
     <h3>Find Similar Clips</h3>
     <p style="font-size:12px;color:var(--muted);margin-top:-6px">Search for clips with similar themes or moments.</p>
@@ -2103,8 +2103,8 @@
       <div id="similar-clips-scope" style="display:flex;flex-direction:column;gap:6px;margin-top:6px;max-height:200px;overflow-y:auto"></div>
     </div>
     <div class="modal-actions">
-      <button class="btn" onclick="closeSimilarClipsModal()">Cancel</button>
-      <button class="btn primary" id="btn-find-similar-go" onclick="startFindSimilar()">Find Similar</button>
+      <button class="btn" id="similar-clips-cancel-btn">Cancel</button>
+      <button class="btn primary" id="btn-find-similar-go">Find Similar</button>
     </div>
   </div>
 </div>
@@ -2121,7 +2121,7 @@
 </div>
 
 <!-- Score Override Modal -->
-<div class="modal-bg" id="score-override-modal" onclick="if(event.target===this)closeScoreOverrideModal()">
+<div class="modal-bg" id="score-override-modal">
   <div class="modal" style="width:320px">
     <h3 style="margin-top:0">Set Score Override</h3>
     <div style="margin:12px 0">
@@ -2138,8 +2138,8 @@
       <div id="score-override-llm-note" style="font-size:12px;color:var(--muted);margin-top:8px"></div>
     </div>
     <div class="modal-actions">
-      <button class="btn" onclick="closeScoreOverrideModal()">Cancel</button>
-      <button class="btn primary" onclick="_scoreOverrideSave()">Set Override</button>
+      <button class="btn" id="score-override-cancel-btn">Cancel</button>
+      <button class="btn primary" id="score-override-save-btn">Set Override</button>
     </div>
   </div>
 </div>

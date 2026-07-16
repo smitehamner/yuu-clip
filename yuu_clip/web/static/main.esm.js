@@ -63,6 +63,17 @@ import { _renderRunMetaCard, _runTimingLine } from './videos-runmeta.js';
 import {
   SessionUI, isSessionCollapsed, sessionGroupHeaderLi, toggleGroupSelect,
 } from './sessions.js';
+import {
+  selectClip, setStatus, undoLastStatus, renderDetail, renderPlayer, clearDetail, refreshClipDetail,
+  _releasePlayerBeforeDelete,
+  analyzeFrames,
+  toggleClipFilter, _syncFilterChips,
+  _applyFilters, _renderClips, _parseTimingOffset, _reloadClipList,
+  _renderClipFilterCounts,
+  openScoreOverride, closeScoreOverrideModal,
+  closeSimilarClipsModal,
+  openClipActionsModal,
+} from './clips.js';
 
 window.AppState = AppState;
 Object.assign(window, format);
@@ -217,3 +228,35 @@ window.SessionUI = SessionUI;
 window.isSessionCollapsed = isSessionCollapsed;
 window.sessionGroupHeaderLi = sessionGroupHeaderLi;
 window.toggleGroupSelect = toggleGroupSelect;
+// clips.js - every name here still has at least one classic (bundle.js)
+// consumer, a still-classic module reading it as window.* (shortcuts.js reads
+// setStatus/undoLastStatus/closeScoreOverrideModal/closeSimilarClipsModal;
+// jobs.js reads _renderClipFilterCounts; videos.js reads _syncFilterChips), or a
+// tests/ui/*.py page.evaluate. setClipSearch, setClipScoreMin, _clearClipFilters,
+// setClipKind, _syncKindChips, toggleClipSortDir, deleteClip, deleteExport,
+// mergeClips, scanDuplicates, openClipsActionsMenu, _scoreOverrideSave,
+// clearScoreOverride, openDescKebab, openDescLongKebab, startFindSimilar and
+// openSimilarClipsModal dropped: their only callers were clips.js's own inline
+// handlers (now data-act delegation or static index.html wiring inside
+// clips.js itself) or its own internal logic, so nothing outside the module
+// needs them off window anymore.
+window.selectClip = selectClip;
+window.setStatus = setStatus;
+window.undoLastStatus = undoLastStatus;
+window.renderDetail = renderDetail;
+window.renderPlayer = renderPlayer;
+window.clearDetail = clearDetail;
+window.refreshClipDetail = refreshClipDetail;
+window._releasePlayerBeforeDelete = _releasePlayerBeforeDelete;
+window.analyzeFrames = analyzeFrames;
+window.toggleClipFilter = toggleClipFilter;
+window._syncFilterChips = _syncFilterChips;
+window._applyFilters = _applyFilters;
+window._renderClips = _renderClips;
+window._parseTimingOffset = _parseTimingOffset;
+window._reloadClipList = _reloadClipList;
+window._renderClipFilterCounts = _renderClipFilterCounts;
+window.openScoreOverride = openScoreOverride;
+window.closeScoreOverrideModal = closeScoreOverrideModal;
+window.closeSimilarClipsModal = closeSimilarClipsModal;
+window.openClipActionsModal = openClipActionsModal;

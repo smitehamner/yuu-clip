@@ -1,4 +1,22 @@
-(function () {
+import { AppState } from './state.js';
+import {
+  escHtml, _scoreIcon, _scoreBorderColor, _sortScore, fmtDuration, plural, truncate,
+  _fmtAgo, _fmtOffset, formatApiError,
+} from './format.js';
+import {
+  showToast, collapsibleCard, copyText, _syncSortDirBtn, openLog, appendLog,
+} from './utils.js';
+import {
+  showConfirm, showKebab, openActionsModal, openDiffModal, openFieldEditModal, showUndoToast,
+} from './ui.js';
+import { PanelNav } from './panelnav.js';
+import {
+  streamSSE, setJobCancel, _blockedByAnalyze, _openSSE, _setActiveStream, _clearActiveStream,
+  _supersedeActiveStream, FRAMES_STEPS, SCORE_STEPS, applyJobBlockedState,
+} from './jobs.js';
+import { gateOnCapability } from './modelcatalog.js';
+import { loadVideos, _clipsListUrl } from './videos.js';
+
 // ── clip list & filtering ─────────────────────────────────────────────────────────────────────
 function _applyFilters() {
   const f = AppState.clipFilters;
@@ -40,7 +58,7 @@ function toggleClipSortDir() {
 // so a re-render can't accidentally bypass the active search/status/score
 // filters. Call this - never _renderClipItems directly - after mutating AppState.clips.
 function _renderClips() {
-  _pruneClipSelection();
+  window._pruneClipSelection();
   const shown = _applyFilters();
   _renderClipItems(shown);
   _renderClipStatsLine(shown);
@@ -199,21 +217,47 @@ function _hotwordPillsHTML(matches) {
   return `<div class="tags" style="margin-top:4px"><span class="tag" title="${matches.length} hot-words matched">\u{1F525} ${matches.length}</span></div>`;
 }
 
+// Delegated on the persistent #clip-list element (its innerHTML is replaced each
+// render, so per-row handlers would be lost - the container listener isn't). Wired
+// unconditionally on every render so it also covers the empty-filter-message links.
+function _handleClipListClick(e) {
+  const act = e.target.closest('[data-act]');
+  if (act) {
+    e.preventDefault();
+    if (act.dataset.act === 'open-settings') window.openSettings();
+    else if (act.dataset.act === 'clear-clip-filters') _clearClipFilters();
+    else if (act.dataset.act === 'open-new-recording-panel') window.openNewRecordingPanel();
+    return;
+  }
+  const li = e.target.closest('li[data-clip-id]');
+  if (li) selectClip(Number(li.dataset.clipId));
+}
+
+function _handleClipListKeydown(e) {
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  const li = e.target.closest('li[data-clip-id]');
+  if (!li || e.target !== li) return;  // don't hijack Space on the checkbox
+  e.preventDefault();
+  selectClip(Number(li.dataset.clipId));
+}
+
 function _renderClipItems(clips) {
   const list = document.getElementById('clip-list');
   list.innerHTML = '';
+  list.onclick = _handleClipListClick;
+  list.onkeydown = _handleClipListKeydown;
   if (!clips.length) {
     const _statusLabel = {pending: 'Unreviewed', approved: 'Approved', rejected: 'Rejected'};
     const hasActiveFilter = AppState.clipFilters.size > 0 || AppState.clipSearch || AppState.clipScoreMin > 0;
     const isFlaggedOnly = AppState.clipFilters.size === 1 && AppState.clipFilters.has('flagged') &&
       !AppState.clipSearch && AppState.clipScoreMin === 0;
     const filterMsg = isFlaggedOnly
-      ? `No flagged clips - add Sensitive Terms in <a href="#" style="color:var(--accent);text-decoration:underline" onclick="event.preventDefault();openSettings()">Settings</a>`
+      ? `No flagged clips - add Sensitive Terms in <a href="#" style="color:var(--accent);text-decoration:underline" data-act="open-settings">Settings</a>`
       : hasActiveFilter
-      ? `No clips match the current filters - <a href="#" style="color:var(--accent);text-decoration:underline" onclick="event.preventDefault();_clearClipFilters()">Clear filters</a>`
-      : `No clips found - <a href="#" style="color:var(--accent);text-decoration:underline" onclick="event.preventDefault();openNewRecordingPanel()">Analyze another recording</a>`;
+      ? `No clips match the current filters - <a href="#" style="color:var(--accent);text-decoration:underline" data-act="clear-clip-filters">Clear filters</a>`
+      : `No clips found - <a href="#" style="color:var(--accent);text-decoration:underline" data-act="open-new-recording-panel">Analyze another recording</a>`;
     list.innerHTML = `<li style="padding:10px 14px;color:var(--muted)">${filterMsg}</li>`;
-    _updateBulkToolbar();
+    window._updateBulkToolbar();
     return;
   }
   for (const c of clips) {
@@ -255,16 +299,10 @@ function _renderClipItems(clips) {
     const checkbox = li.querySelector('.clip-select-checkbox');
     checkbox.checked = AppState.selectedClipIds.has(c.id);
     checkbox.onclick = e => e.stopPropagation();
-    checkbox.onchange = () => _toggleClipSelection(c.id, checkbox.checked);
-    const _activateClip = () => selectClip(c.id);
-    li.onclick = _activateClip;
-    li.onkeydown = e => {
-      if (e.target !== li) return;  // don't hijack Space on the checkbox
-      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); _activateClip(); }
-    };
+    checkbox.onchange = () => window._toggleClipSelection(c.id, checkbox.checked);
     list.appendChild(li);
   }
-  _updateBulkToolbar();
+  window._updateBulkToolbar();
 }
 
 async function selectClip(id) {
@@ -425,7 +463,7 @@ function _exportFormatsHtml(clip) {
              data-embed-subs="${row.embed_subs ? '1' : ''}" data-title-card="${row.title_card ? '1' : ''}"
              style="border:1px solid var(--border);border-radius:6px;padding:8px">
           <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:baseline">
-            <strong style="color:var(--text)">${escHtml(exportPresetLabel(row.preset_name))}</strong>
+            <strong style="color:var(--text)">${escHtml(window.exportPresetLabel(row.preset_name))}</strong>
             <span>${escHtml(row.container.toUpperCase())}</span>
             <span>${_fmtSizeMb(row.size_bytes)}</span>
             <span>${_fmtAgo(row.created_at)}</span>
@@ -440,7 +478,7 @@ function _exportFormatsHtml(clip) {
           </div>
         </div>`).join('')}
     </div>
-    <button class="btn-secondary" style="margin-top:8px" onclick="exportClip(${clip.id})">+ Export another format</button>`;
+    <button class="btn-secondary" style="margin-top:8px" data-act="export-clip" data-clip-id="${clip.id}">+ Export another format</button>`;
 }
 
 // True when a clip's only one-liner is the transcript-derived template (tagged
@@ -464,7 +502,7 @@ function _clipDescriptionHTML(clip) {
     return `<div class="needs-model-cta">
       <div class="needs-model-heading">AI descriptions need a local model</div>
       <div class="needs-model-detail">Baseline scoring already ran. Set up a local language model to add a written description for each clip.</div>
-      <button class="btn ghost" style="font-size:11px;padding:3px 9px" onclick="openSettings();setTimeout(()=>_scrollToSettingsSection('settings-sec-llm'),120)">Set up a local model</button>
+      <button class="btn ghost" style="font-size:11px;padding:3px 9px" data-act="open-llm-settings">Set up a local model</button>
     </div>`;
   }
   const body = clip.description
@@ -511,9 +549,9 @@ function renderDetail(clip) {
         <div class="detail-card-header">
           <span class="detail-card-title">Scoring</span>
           ${clip.scored_at && clip.score_overall_user != null
-            ? `<button class="btn ghost" style="font-size:11px;padding:2px 8px" onclick="clearScoreOverride(${clip.id})" title="Remove manual score override">Remove Override</button>`
+            ? `<button class="btn ghost" style="font-size:11px;padding:2px 8px" data-act="clear-score-override" data-clip-id="${clip.id}" title="Remove manual score override">Remove Override</button>`
             : clip.scored_at
-            ? `<button class="btn ghost" style="font-size:11px;padding:2px 8px" onclick="openScoreOverride(${clip.id})">Override Score</button>`
+            ? `<button class="btn ghost" style="font-size:11px;padding:2px 8px" data-act="open-score-override" data-clip-id="${clip.id}">Override Score</button>`
             : ''}
         </div>
         <div class="scores">
@@ -532,13 +570,13 @@ function renderDetail(clip) {
         <div class="detail-card-header"><span class="detail-card-title">Actions</span></div>
         <div class="clip-actions">
           <div class="review-actions">
-            <button class="btn approve ${clip.status==='approved'?'active':''}" onclick="setStatus(${clip.id},'${clip.status==='approved'?'pending':'approved'}')" title="Approve (press A)">Approve</button>
-            <button class="btn reject  ${clip.status==='rejected'?'active':''}" onclick="setStatus(${clip.id},'${clip.status==='rejected'?'pending':'rejected'}')" title="Reject (press R)">Reject</button>
-            <button class="btn ${clip.status==='pending'?'active':''}" onclick="setStatus(${clip.id},'pending')" title="Mark as Unreviewed (press U)">Unreviewed</button>
+            <button class="btn approve ${clip.status==='approved'?'active':''}" data-act="set-status" data-clip-id="${clip.id}" data-status="${clip.status==='approved'?'pending':'approved'}" title="Approve (press A)">Approve</button>
+            <button class="btn reject  ${clip.status==='rejected'?'active':''}" data-act="set-status" data-clip-id="${clip.id}" data-status="${clip.status==='rejected'?'pending':'rejected'}" title="Reject (press R)">Reject</button>
+            <button class="btn ${clip.status==='pending'?'active':''}" data-act="set-status" data-clip-id="${clip.id}" data-status="pending" title="Mark as Unreviewed (press U)">Unreviewed</button>
           </div>
           <div class="op-actions">
-            <button class="btn highlight" onclick="exportClip(${clip.id})">${clip.has_export ? 'Re-export' : 'Export'}</button>
-            <button class="btn ghost" onclick="openClipActionsModal(${clip.id})">Additional Actions</button>
+            <button class="btn highlight" data-act="export-clip" data-clip-id="${clip.id}">${clip.has_export ? 'Re-export' : 'Export'}</button>
+            <button class="btn ghost" data-act="open-clip-actions-modal" data-clip-id="${clip.id}">Additional Actions</button>
           </div>
         </div>
       </div>
@@ -564,7 +602,7 @@ function renderDetail(clip) {
         <hr class="detail-card-divider">
         <div class="detail-card-header">
           <span class="detail-card-title">Full Description${eb(clip.description_long_is_edited)}</span>
-          <button class="kebab-btn" title="Edit or regenerate long description" aria-label="Edit or regenerate long description" onclick="openDescLongKebab(${clip.id}, this)">&#8942;</button>
+          <button class="kebab-btn" title="Edit or regenerate long description" aria-label="Edit or regenerate long description" data-act="open-desc-long-kebab" data-clip-id="${clip.id}">&#8942;</button>
         </div>
         <div class="description-long">${escHtml(clip.description_long)}</div>` : ''}
 
@@ -577,7 +615,7 @@ function renderDetail(clip) {
       ${_generatedTagPillsHTML(clip.tags)}`, {
       actions: `<div style="display:flex;gap:4px">
           ${clip.description && !_descNeedsModel(clip) ? `<button class="btn ghost" style="font-size:11px;padding:3px 9px" title="Copy description" aria-label="Copy description" data-copy="description">Copy</button>` : ''}
-          <button class="kebab-btn" title="Edit or regenerate description" aria-label="Edit or regenerate description" onclick="openDescKebab(${clip.id}, this)">&#8942;</button>
+          <button class="kebab-btn" title="Edit or regenerate description" aria-label="Edit or regenerate description" data-act="open-desc-kebab" data-clip-id="${clip.id}">&#8942;</button>
         </div>`,
     })}
 
@@ -588,7 +626,7 @@ function renderDetail(clip) {
     <div class="detail-card">
       <div class="detail-card-header">
         <span class="detail-card-title">Export</span>
-        <button class="btn ghost" style="font-size:12px;padding:2px 10px" onclick="openExportEditor(${clip.id})" title="Trim, frame vertical, preview captions, then export">Edit &amp; export</button>
+        <button class="btn ghost" style="font-size:12px;padding:2px 10px" data-act="open-export-editor" data-clip-id="${clip.id}" title="Trim, frame vertical, preview captions, then export">Edit &amp; export</button>
       </div>
       ${trimExportHtml}
     </div>
@@ -597,7 +635,7 @@ function renderDetail(clip) {
           `<span class="detail-card-title">Related Clips</span>`, `
         ${clip.related_clips.length ? clip.related_clips.map(r => `
           <div style="display:flex;gap:8px;align-items:baseline;padding:4px 0;border-bottom:1px solid var(--border)">
-            <a href="#" style="color:var(--accent);text-decoration:none;font-size:13px;white-space:nowrap" onclick="event.preventDefault();selectClip(${r.id})">#${r.id}</a>
+            <a href="#" style="color:var(--accent);text-decoration:none;font-size:13px;white-space:nowrap" data-act="select-related-clip" data-clip-id="${r.id}">#${r.id}</a>
             <span style="font-size:12px;color:var(--muted)">${escHtml(r.reason)}</span>
           </div>`).join('') : `<div style="font-size:12px;color:var(--muted)">No similar clips found</div>`}`,
       { attrs: 'id="related-clips-section"', headerStyle: 'justify-content:flex-start;gap:8px',
@@ -607,7 +645,7 @@ function renderDetail(clip) {
     ${_transcriptCardHTML(clip)}
   `;
 
-  if (clip.transcript_excerpt && window.loadClipTranscript) loadClipTranscript(clip.id);
+  if (clip.transcript_excerpt && window.loadClipTranscript) window.loadClipTranscript(clip.id);
   _renderTagDatalist();
   _loadTagSuggestions().then(_renderTagDatalist);
   const visionBtn = document.getElementById('analyze-frames-btn');
@@ -616,7 +654,7 @@ function renderDetail(clip) {
       'Frame analysis needs a vision-capable model.');
   }
   // A panel rebuilt while a job runs must come up with its heavy buttons disabled.
-  if (window.applyJobBlockedState) applyJobBlockedState();
+  applyJobBlockedState();
 }
 
 // A clip with no transcript excerpt (video-heavy-analysis Stage 03 - a silent,
@@ -628,7 +666,7 @@ function _transcriptCardHTML(clip) {
   if (clip.transcript_excerpt) {
     return collapsibleCard('clip-transcript',
         `<span class="detail-card-title">Transcript</span>`, `
-      ${clip.transcript_stale ? `<div class="transcript-stale-note">&#9888; Captions edited since last scoring - <button class="btn ghost" style="font-size:11px;padding:2px 8px" onclick="rescoreClip(${clip.id})">Re-score</button> to refresh.</div>` : ''}
+      ${clip.transcript_stale ? `<div class="transcript-stale-note">&#9888; Captions edited since last scoring - <button class="btn ghost" style="font-size:11px;padding:2px 8px" data-act="rescore-clip" data-clip-id="${clip.id}">Re-score</button> to refresh.</div>` : ''}
       <div id="clip-transcript-view" class="transcript">${escHtml(clip.transcript_excerpt)}</div>`,
       { actions: `<button class="btn ghost" style="font-size:11px;padding:3px 9px" title="Copy transcript" aria-label="Copy transcript" data-copy="transcript">Copy</button>` });
   }
@@ -670,7 +708,7 @@ function _visionDetailHTML(clip) {
   const buttonHtml = inFlight
     ? _visionSpinnerButton()
     : `<button class="btn ghost" id="analyze-frames-btn" data-job-blocked style="font-size:12px;padding:3px 10px"
-                onclick="analyzeFrames(${clip.id})">${btnLabel}</button>`;
+                data-act="analyze-frames" data-clip-id="${clip.id}">${btnLabel}</button>`;
   return collapsibleCard('clip-vision',
     `<span class="detail-card-title">What's on screen</span>`, `
       ${body}
@@ -877,39 +915,65 @@ function _rerenderClipTags(tags) {
   if (el) el.innerHTML = _clipTagPillsHTML(tags);
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  const detail = document.getElementById('detail');
-  if (!detail) return;
-  detail.addEventListener('click', e => {
-    const merge = e.target.closest && e.target.closest('[data-merge-b]');
-    if (merge) {
-      mergeClips(Number(merge.dataset.mergeA), Number(merge.dataset.mergeB), merge.dataset.mergeDir);
-      return;
-    }
-    const rm = e.target.closest && e.target.closest('[data-remove-tag]');
-    if (rm && AppState.activeClipId) _removeClipTag(AppState.activeClipId, rm.dataset.removeTag);
-    const copy = e.target.closest && e.target.closest('[data-copy]');
-    if (copy && AppState.activeClipData) {
-      if (copy.dataset.copy === 'description') copyText(AppState.activeClipData.description, 'Description');
-      else if (copy.dataset.copy === 'transcript') copyText(AppState.activeClipData.transcript_excerpt, 'Transcript');
-    }
-    const formatBtn = e.target.closest && e.target.closest('[data-export-action]');
-    if (formatBtn) {
-      const row = formatBtn.closest('.export-format-row');
-      if (row) _handleExportFormatAction(formatBtn.dataset.exportAction, row.dataset);
-    }
-  });
-  detail.addEventListener('keydown', e => {
-    const input = e.target.closest && e.target.closest('#clip-tag-input');
-    if (!input) return;
-    if (e.key === 'Enter' || e.key === ',') {
-      e.preventDefault();
-      const value = input.value;
-      input.value = '';
-      if (AppState.activeClipId) _addClipTag(AppState.activeClipId, value);
-    }
-  });
-});
+// Event delegation on the persistent #detail element (its innerHTML is replaced
+// each render, so per-row handlers would be lost - the container listener isn't).
+// Wired once at module load, same as videos.js's own #detail listener - both
+// coexist since they react to disjoint data-act/data-* namespaces.
+function _handleDetailClick(e) {
+  const merge = e.target.closest('[data-merge-b]');
+  if (merge) {
+    mergeClips(Number(merge.dataset.mergeA), Number(merge.dataset.mergeB), merge.dataset.mergeDir);
+    return;
+  }
+  const rm = e.target.closest('[data-remove-tag]');
+  if (rm && AppState.activeClipId) { _removeClipTag(AppState.activeClipId, rm.dataset.removeTag); return; }
+  const copy = e.target.closest('[data-copy]');
+  if (copy && AppState.activeClipData) {
+    if (copy.dataset.copy === 'description') copyText(AppState.activeClipData.description, 'Description');
+    else if (copy.dataset.copy === 'transcript') copyText(AppState.activeClipData.transcript_excerpt, 'Transcript');
+    return;
+  }
+  const formatBtn = e.target.closest('[data-export-action]');
+  if (formatBtn) {
+    const row = formatBtn.closest('.export-format-row');
+    if (row) window._handleExportFormatAction(formatBtn.dataset.exportAction, row.dataset);
+    return;
+  }
+  const act = e.target.closest('[data-act]');
+  if (!act) return;
+  const clipId = Number(act.dataset.clipId);
+  switch (act.dataset.act) {
+    case 'export-clip': window.exportClip(clipId); break;
+    case 'open-llm-settings':
+      window.openSettings();
+      setTimeout(() => window._scrollToSettingsSection('settings-sec-llm'), 120);
+      break;
+    case 'clear-score-override': clearScoreOverride(clipId); break;
+    case 'open-score-override': openScoreOverride(clipId); break;
+    case 'set-status': setStatus(clipId, act.dataset.status); break;
+    case 'open-clip-actions-modal': openClipActionsModal(clipId); break;
+    case 'open-desc-long-kebab': openDescLongKebab(clipId, act); break;
+    case 'open-desc-kebab': openDescKebab(clipId, act); break;
+    case 'open-export-editor': window.openExportEditor(clipId); break;
+    case 'select-related-clip': e.preventDefault(); selectClip(clipId); break;
+    case 'rescore-clip': window.rescoreClip(clipId); break;
+    case 'analyze-frames': analyzeFrames(clipId); break;
+  }
+}
+
+function _handleDetailKeydown(e) {
+  const input = e.target.closest('#clip-tag-input');
+  if (!input) return;
+  if (e.key === 'Enter' || e.key === ',') {
+    e.preventDefault();
+    const value = input.value;
+    input.value = '';
+    if (AppState.activeClipId) _addClipTag(AppState.activeClipId, value);
+  }
+}
+
+document.getElementById('detail').addEventListener('click', _handleDetailClick);
+document.getElementById('detail').addEventListener('keydown', _handleDetailKeydown);
 
 function scoreRow(label, val, cls) {
   return `
@@ -944,7 +1008,7 @@ function openClipActionsModal(clipId) {
   const groups = [];
 
   const scoringRows = [
-    { label: 'Re-score', description: 'Re-run scoring and description generation for this clip.', action: () => rescoreClipChoose(clipId) },
+    { label: 'Re-score', description: 'Re-run scoring and description generation for this clip.', action: () => window.rescoreClipChoose(clipId) },
   ];
   if (clip.score_overall_user != null) {
     scoringRows.push({ label: 'Remove Override', description: 'Discard the manual score and go back to the generated score.', action: () => clearScoreOverride(clipId) });
@@ -954,7 +1018,7 @@ function openClipActionsModal(clipId) {
   groups.push({ heading: 'Scoring', rows: scoringRows });
 
   groups.push({ heading: 'Transcript', rows: [
-    { label: 'Retranscribe', description: "Re-run transcription for just this clip's time range.", action: () => openRetranscribeModal(clipId) },
+    { label: 'Retranscribe', description: "Re-run transcription for just this clip's time range.", action: () => window.openRetranscribeModal(clipId) },
   ]});
 
   if (clip.description_long || clip.description) {
@@ -967,11 +1031,11 @@ function openClipActionsModal(clipId) {
     const multiFormat = (clip.exports || []).filter(e => e.exists).length > 1;
     const fileRows = [];
     if (AppState.activeMediaFilename) {
-      fileRows.push({ label: 'Download Export', description: `Save ${multiFormat ? 'every exported format' : 'the exported file'} (and any caption sidecars) to your downloads.`, action: () => _downloadClipExport(clipId) });
+      fileRows.push({ label: 'Download Export', description: `Save ${multiFormat ? 'every exported format' : 'the exported file'} (and any caption sidecars) to your downloads.`, action: () => window._downloadClipExport(clipId) });
     }
-    fileRows.push({ label: 'Copy File Path(s)', description: `Copy the full path of ${multiFormat ? 'every exported format' : 'the exported file'} (and any caption sidecars) to your clipboard.`, action: () => _copyClipExportPaths(clipId) });
+    fileRows.push({ label: 'Copy File Path(s)', description: `Copy the full path of ${multiFormat ? 'every exported format' : 'the exported file'} (and any caption sidecars) to your clipboard.`, action: () => window._copyClipExportPaths(clipId) });
     if (AppState.canReveal) {
-      fileRows.push({ label: 'Show in Folder', description: 'Open the exports folder with this file selected.', action: () => _revealClipExport(clipId) });
+      fileRows.push({ label: 'Show in Folder', description: 'Open the exports folder with this file selected.', action: () => window._revealClipExport(clipId) });
     }
     fileRows.push({ label: 'Delete All Exports', description: `Delete ${multiFormat ? 'every exported format' : 'the exported video file'} but keep the clip record. Use the Export section to delete one format at a time.`, danger: true, action: () => deleteExport(clipId) });
     groups.push({ heading: 'Files', rows: fileRows });
@@ -1135,7 +1199,7 @@ async function scanDuplicates(busyBtn) {
 function openClipsActionsMenu(btn) {
   const newLabel = AppState.clipKind === 'scene' ? 'New scene' : 'New clip';
   showKebab(btn, [
-    { label: newLabel, action: () => openClipCreatePicker(AppState.activeVideoId, AppState.clipKind) },
+    { label: newLabel, action: () => window.openClipCreatePicker(AppState.activeVideoId, AppState.clipKind) },
     { label: 'Check duplicates', action: () => scanDuplicates(btn) },
   ]);
 }
@@ -1182,7 +1246,7 @@ function _openClipDescKebab(clipId, btn, field) {
       }, {revertMode: true})
     });
   }
-  items.push(null, { label: 'Regenerate via Re-score', action: () => rescoreClip(clipId) });
+  items.push(null, { label: 'Regenerate via Re-score', action: () => window.rescoreClip(clipId) });
   showKebab(btn, items);
 }
 
@@ -1409,20 +1473,52 @@ function scoreAll() {
   );
 }
 
-// Public API - symbols referenced cross-module, by an inline handler, or by a
-// test. Internal helpers above stay private to this module's closure.
-Object.assign(window, {
+// Static index.html buttons this module owns (filter chips, kind toggle, sort
+// dir, kebab, search, min-score) - wired here once at module load, same pattern
+// as the #clip-list / #detail delegation above, replacing the onclick=/oninput=/
+// onchange= attributes that used to live on that markup directly.
+function _handleClipSidebarClick(e) {
+  const kindBtn = e.target.closest('[data-kind]');
+  if (kindBtn) { setClipKind(kindBtn.dataset.kind); return; }
+  const filterChip = e.target.closest('[data-filter]');
+  if (filterChip) { toggleClipFilter(filterChip.dataset.filter); return; }
+  if (e.target.closest('#clips-sort-dir')) { toggleClipSortDir(); return; }
+  const kebabBtn = e.target.closest('#btn-clips-actions');
+  if (kebabBtn) { openClipsActionsMenu(kebabBtn); return; }
+}
+
+document.getElementById('clips-sidebar-group').addEventListener('click', _handleClipSidebarClick);
+document.getElementById('clip-search-input').addEventListener('input', e => setClipSearch(e.target.value));
+document.getElementById('clip-score-min').addEventListener('change', e => setClipScoreMin(e.target.value));
+
+const _similarClipsModal = document.getElementById('similar-clips-modal');
+_similarClipsModal.addEventListener('click', e => { if (e.target === _similarClipsModal) closeSimilarClipsModal(); });
+document.getElementById('similar-clips-cancel-btn').addEventListener('click', () => closeSimilarClipsModal());
+document.getElementById('btn-find-similar-go').addEventListener('click', () => startFindSimilar());
+
+const _scoreOverrideModal = document.getElementById('score-override-modal');
+_scoreOverrideModal.addEventListener('click', e => { if (e.target === _scoreOverrideModal) closeScoreOverrideModal(); });
+document.getElementById('score-override-cancel-btn').addEventListener('click', () => closeScoreOverrideModal());
+document.getElementById('score-override-save-btn').addEventListener('click', () => _scoreOverrideSave());
+
+// Public API - symbols with a classic (bundle.js) consumer, a still-classic
+// module reading this module's exports as window.* (shortcuts.js, jobs.js,
+// videos.js), or a tests/ui/*.py page.evaluate. setClipSearch, setClipScoreMin,
+// _clearClipFilters, setClipKind, _syncKindChips, toggleClipSortDir, deleteClip,
+// deleteExport, mergeClips, scanDuplicates, openClipsActionsMenu,
+// _scoreOverrideSave, clearScoreOverride, openDescKebab, openDescLongKebab,
+// startFindSimilar and openSimilarClipsModal dropped: their only callers were
+// this module's own inline handlers (now data-act delegation or the static
+// wiring above) or its own internal logic, so nothing outside the module needs
+// them off window anymore.
+export {
   selectClip, setStatus, undoLastStatus, renderDetail, renderPlayer, clearDetail, refreshClipDetail,
   _releasePlayerBeforeDelete,
   analyzeFrames,
-  toggleClipFilter, _syncFilterChips, setClipSearch, setClipScoreMin, _clearClipFilters,
-  setClipKind, _syncKindChips,
+  toggleClipFilter, _syncFilterChips,
   _applyFilters, _renderClips, _parseTimingOffset, _reloadClipList,
-  _renderClipFilterCounts, toggleClipSortDir,
-  deleteClip, deleteExport, mergeClips, scanDuplicates, openClipsActionsMenu,
-  openScoreOverride, closeScoreOverrideModal, _scoreOverrideSave, clearScoreOverride,
-  openDescKebab, openDescLongKebab,
-  startFindSimilar, openSimilarClipsModal, closeSimilarClipsModal,
+  _renderClipFilterCounts,
+  openScoreOverride, closeScoreOverrideModal,
+  closeSimilarClipsModal,
   openClipActionsModal,
-});
-})();
+};
