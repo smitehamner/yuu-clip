@@ -1,6 +1,11 @@
-(function () {
 // Feature-map - Transcript views + click-to-edit captions (code: TranscriptSegment).
 //   API: routes/videos.py, routes/scoring.py · Tests: tests/ui/test_ui_transcript.py, tests/integration/test_transcript_edit.py
+import { AppState } from './state.js';
+import { escHtml, plural, formatApiError } from './format.js';
+import { showToast } from './utils.js';
+import { loadSpeakers } from './speakers.js';
+import { refreshClipDetail } from './clips.js';
+
 // ── timed transcript views ────────────────────────────────────────────────────
 // Per-line transcript for a clip (clip-relative time) and for a whole recording
 // (absolute time), each line with a ▶ that seeks the visible player. Works for
@@ -32,7 +37,7 @@ function _clock(ms) {
 // control (rename / reassign); omit it to render a read-only transcript. opts.readOnly
 // suppresses the click-to-edit-caption affordance even when a line carries a seg_id -
 // used by the manual clip picker, where a line click selects a range instead.
-function renderTranscriptLines(lines, opts) {
+export function renderTranscriptLines(lines, opts) {
   opts = opts || {};
   const offsetS = opts.seekOffsetS || 0;
   const videoId = opts.videoId;
@@ -77,7 +82,7 @@ function renderTranscriptLines(lines, opts) {
   return `<div class="transcript-lines">${rows}</div>`;
 }
 
-async function loadClipTranscript(clipId) {
+export async function loadClipTranscript(clipId) {
   const el = document.getElementById('clip-transcript-view');
   if (!el) return;
   try {
@@ -233,7 +238,7 @@ async function _resolveMoveTarget(value, videoId) {
 // Called after a speaker rename/recolor so the open recording transcript picks up
 // the new label without a manual refresh. Clears the fetch-once cache and, if the
 // full-transcript panel is expanded, reloads it in place.
-function reloadVideoTranscriptIfOpen(videoId) {
+export function reloadVideoTranscriptIfOpen(videoId) {
   _videoTranscriptLoadedFor = null;
   const card = document.getElementById('video-transcript-details');
   if (card && !card.classList.contains('collapsed')) loadVideoTranscript(videoId);
@@ -382,11 +387,10 @@ async function _renameSpeakerFromLine(speakerId, name, videoId) {
 
 function _refreshAfterSpeakerChange(videoId, affectedClipIds) {
   delete _videoSpeakersCache[videoId];
-  if (window.loadSpeakers) loadSpeakers(videoId);
+  loadSpeakers(videoId);
   reloadVideoTranscriptIfOpen(videoId);
   const openClip = AppState.activeClipId;
-  if (openClip != null && (affectedClipIds == null || affectedClipIds.includes(openClip))
-      && window.refreshClipDetail) {
+  if (openClip != null && (affectedClipIds == null || affectedClipIds.includes(openClip))) {
     refreshClipDetail(openClip);
   }
 }
@@ -456,7 +460,7 @@ function _onCaptionEdited(data) {
     : 'Caption updated');
   // Refresh the open clip's detail so its excerpt and the re-score notice update.
   const openId = AppState.activeClipId;
-  if (openId && affected.includes(openId) && window.refreshClipDetail) refreshClipDetail(openId);
+  if (openId && affected.includes(openId)) refreshClipDetail(openId);
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -499,9 +503,3 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 });
-
-Object.assign(window, {
-  loadClipTranscript, loadVideoTranscript, reloadVideoTranscriptIfOpen,
-  renderTranscriptLines, seekPlayerTo, startEditCaption,
-});
-})();

@@ -141,6 +141,9 @@ import {
 } from './exportpresets.js';
 import { loadSpeakers } from './speakers.js';
 import { openPeopleView } from './voices.js';
+import {
+  loadClipTranscript, reloadVideoTranscriptIfOpen, renderTranscriptLines,
+} from './transcript.js';
 
 window.AppState = AppState;
 Object.assign(window, format);
@@ -626,3 +629,14 @@ window.loadSpeakers = loadSpeakers;
 // (kept as a named export in case a future caller needs a PanelNav('people') check).
 // The People nav button's inline onclick is now an addEventListener inside voices.js.
 window.openPeopleView = openPeopleView;
+// transcript.js - reloadVideoTranscriptIfOpen is read as a bare global by the
+// still-classic namecorrections.js and as window.* by speakers.js/videos.js/voices.js
+// (already-ESM, but their own migrations predate this one and never switched to an
+// import - out of scope to touch them here); renderTranscriptLines is read as window.*
+// by clipcreate.js (already-ESM, same reason); loadClipTranscript is read as window.*
+// by clips.js (already-ESM, same reason). loadVideoTranscript, seekPlayerTo and
+// startEditCaption dropped: their only callers were this module's own internal logic
+// and its delegated #detail listeners, so nothing outside the module reads them.
+window.loadClipTranscript = loadClipTranscript;
+window.reloadVideoTranscriptIfOpen = reloadVideoTranscriptIfOpen;
+window.renderTranscriptLines = renderTranscriptLines;
