@@ -130,6 +130,10 @@ import {
 import {
   SoundFx, initSoundSettings, _soundSettingsDirty, commitSoundSettings,
 } from './sounds.js';
+import {
+  initHotwordSettings, ensureHotwordsCache, hasEnabledSemanticHotwords,
+  confirmScanHotwordsForVideo,
+} from './hotwords.js';
 
 window.AppState = AppState;
 Object.assign(window, format);
@@ -563,3 +567,18 @@ window.SoundFx = SoundFx;
 window.initSoundSettings = initSoundSettings;
 window._soundSettingsDirty = _soundSettingsDirty;
 window.commitSoundSettings = commitSoundSettings;
+// hotwords.js - initHotwordSettings, hasEnabledSemanticHotwords and
+// confirmScanHotwordsForVideo are read as window.* by already-ESM callers
+// (settings.js reads initHotwordSettings; videos.js reads
+// hasEnabledSemanticHotwords/confirmScanHotwordsForVideo - both predate this
+// migration and never switched to an import, out of scope to touch here);
+// ensureHotwordsCache is called as a bare global by boot.js (still classic) and
+// invoked directly by tests/ui/test_ui_hotwords.py via page.evaluate.
+// addHotwordRow and scanHotwordsForVideo dropped: addHotwordRow's only caller
+// was index.html's inline onclick (now an addEventListener inside hotwords.js
+// itself) and scanHotwordsForVideo is only called by this module's own
+// confirmScanHotwordsForVideo, so nothing outside the module reads either.
+window.initHotwordSettings = initHotwordSettings;
+window.ensureHotwordsCache = ensureHotwordsCache;
+window.hasEnabledSemanticHotwords = hasEnabledSemanticHotwords;
+window.confirmScanHotwordsForVideo = confirmScanHotwordsForVideo;

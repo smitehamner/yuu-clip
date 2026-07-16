@@ -1,12 +1,19 @@
-(function () {
-// Feature-map - Hot-word (code: hot_words; Settings → Hot-words).
-//   API: routes/hotwords.py · Tests: tests/ui/test_ui_hotwords.py
-// ── hot-words settings ────────────────────────────────────────────────────────
+// Feature-map - Hot-word (code: hot_words; Settings -> Hot-words).
+//   API: routes/hotwords.py . Tests: tests/ui/test_ui_hotwords.py
+// -- hot-words settings --------------------------------------------------------
 // Server-backed CRUD (unlike the rest of the Settings panel, which batches into
 // one Save): each row change persists immediately via POST/PUT/DELETE against
 // /api/hotwords, mirroring the world-context manager's per-action save model.
 // AppState.hotWords is the single cache - populated at boot (so the recording
 // detail's Scan button can gate on it without an extra fetch) and refreshed here.
+import { AppState } from './state.js';
+import { plural, escHtml, formatApiError } from './format.js';
+import { showToast, openLog, appendLog } from './utils.js';
+import { showConfirm } from './ui.js';
+import { _openSSE, _setActiveStream, _clearActiveStream, _supersedeActiveStream } from './jobs.js';
+import { ensureContexts, _termContextOptions, _renderTermGroups } from './contexts.js';
+import { _clipsListUrl } from './videos.js';
+import { _renderClips, selectClip } from './clips.js';
 
 let _draftSeq = 0;
 
@@ -94,7 +101,7 @@ function addHotwordRow() {
 // A hot-word save affects scores only after a rescan - surface a one-click path
 // to refresh the currently open recording without forcing every video to rescan.
 function _notifyHotwordSaved() {
-  const videoId = window.AppState?.activeVideoId;
+  const videoId = AppState.activeVideoId;
   if (!videoId) { showToast('Hot-word saved'); return; }
   showToast('Hot-word saved', 'success', {
     action: {label: 'Rescan current recording', onClick: () => _rescanHotwords(videoId)},
@@ -114,12 +121,12 @@ async function _rescanHotwords(videoId) {
 }
 
 async function _refreshActiveVideoClips(videoId) {
-  if (window.AppState?.activeVideoId !== videoId) return;
+  if (AppState.activeVideoId !== videoId) return;
   const clips = await fetch(_clipsListUrl(videoId)).then(r => r.json()).catch(() => null);
   if (clips) { AppState.clips = clips; _renderClips(); if (AppState.activeClipId) selectClip(AppState.activeClipId); }
 }
 
-// ── LLM-semantic scan (Stage 2) ─────────────────────────────────────────────────
+// -- LLM-semantic scan (Stage 2) ----------------------------------------------
 // "Scan for Hot-words" lives in the recording detail's Additional Actions modal
 // (videos.js openVideoActionsModal), gated on hasEnabledSemanticHotwords().
 function scanHotwordsForVideo(videoId, btn) {
@@ -220,10 +227,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const row = del?.closest('[data-hotword-row]');
     if (row) _deleteHotwordRow(row);
   });
+  document.getElementById('s-hotword-add')?.addEventListener('click', addHotwordRow);
 });
 
-Object.assign(window, {
-  initHotwordSettings, addHotwordRow, ensureHotwordsCache, hasEnabledSemanticHotwords,
-  confirmScanHotwordsForVideo, scanHotwordsForVideo,
-});
-})();
+export {
+  initHotwordSettings, ensureHotwordsCache, hasEnabledSemanticHotwords,
+  confirmScanHotwordsForVideo,
+};
