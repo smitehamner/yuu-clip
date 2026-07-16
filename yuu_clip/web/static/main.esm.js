@@ -134,6 +134,10 @@ import {
   initHotwordSettings, ensureHotwordsCache, hasEnabledSemanticHotwords,
   confirmScanHotwordsForVideo,
 } from './hotwords.js';
+import {
+  ensureExportPresetsCache, exportPresetLabel, exportPresetIsVertical,
+  exportPresetTargetSizeMb, populateExportPresetSelect, initExportPresetSettings,
+} from './exportpresets.js';
 
 window.AppState = AppState;
 Object.assign(window, format);
@@ -582,3 +586,19 @@ window.initHotwordSettings = initHotwordSettings;
 window.ensureHotwordsCache = ensureHotwordsCache;
 window.hasEnabledSemanticHotwords = hasEnabledSemanticHotwords;
 window.confirmScanHotwordsForVideo = confirmScanHotwordsForVideo;
+// exportpresets.js - ensureExportPresetsCache is called as a bare global by
+// boot.js and exporteditor.js (still classic); exportPresetIsVertical also by
+// exporteditor.js (classic). exportPresetLabel is read as window.* by clips.js
+// and clipexport.js (already-ESM, but their own migrations predate this one and
+// never switched to an import - out of scope to touch them here);
+// exportPresetIsVertical/exportPresetTargetSizeMb/populateExportPresetSelect are
+// read as window.* by clipexport.js (same reason); initExportPresetSettings is
+// read as window.* by settings.js (same reason). addExportPresetRow dropped: its
+// only caller was index.html's inline onclick (now an addEventListener inside
+// exportpresets.js itself), so nothing outside the module needs it off window.
+window.ensureExportPresetsCache = ensureExportPresetsCache;
+window.exportPresetLabel = exportPresetLabel;
+window.exportPresetIsVertical = exportPresetIsVertical;
+window.exportPresetTargetSizeMb = exportPresetTargetSizeMb;
+window.populateExportPresetSelect = populateExportPresetSelect;
+window.initExportPresetSettings = initExportPresetSettings;

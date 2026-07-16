@@ -1,17 +1,19 @@
-(function () {
-// Feature-map - Export preset (code: ExportPreset; Settings → Export editor).
-//   API: routes/export_presets.py · Tests: tests/integration/test_export_presets.py, tests/ui/test_ui_settings.py
-// ── Export presets (Plan 07) ────────────────────────────────────────────────
+// Feature-map - Export preset (code: ExportPreset; Settings -> Export editor).
+//   API: routes/export_presets.py . Tests: tests/integration/test_export_presets.py, tests/ui/test_ui_settings.py
+// Export presets (Plan 07)
 // Custom presets are a global-config preference (Config.export_presets), not
 // per-project DB rows like hot-words - but the Settings editor follows the
 // same server-backed-per-row-save table pattern (hotwords.js) against
 // /api/export-presets instead of /api/hotwords. AppState.exportPresets caches
 // {builtins, custom} - populated at boot so the export options picker never
 // needs an extra round trip, refreshed here when Settings opens.
+import { AppState } from './state.js';
+import { escHtml, formatApiError } from './format.js';
+import { showToast } from './utils.js';
 
 let _draftSeq = 0;
 
-async function ensureExportPresetsCache(force = false) {
+export async function ensureExportPresetsCache(force = false) {
   if (!force && AppState._exportPresetsLoaded) return;
   try {
     AppState.exportPresets = await fetch('/api/export-presets').then(r => r.json());
@@ -26,25 +28,25 @@ function _allExportPresets() {
   return [...(presets.builtins || []), ...(presets.custom || [])];
 }
 
-function exportPresetLabel(name) {
+export function exportPresetLabel(name) {
   if (!name || name === 'default') return 'Original quality';
   return _allExportPresets().find(p => p.name === name)?.label || name;
 }
 
-function exportPresetIsVertical(name) {
+export function exportPresetIsVertical(name) {
   if (!name || name === 'default') return false;
   return !!_allExportPresets().find(p => p.name === name)?.vertical;
 }
 
 // The size cap (MB) a preset targets, or null for a quality/CRF preset. Used by
 // the export dialog's tight-cap warning to spot a long clip squeezed too small.
-function exportPresetTargetSizeMb(name) {
+export function exportPresetTargetSizeMb(name) {
   if (!name || name === 'default') return null;
   return _allExportPresets().find(p => p.name === name)?.target_size_mb ?? null;
 }
 
 // Renders the <option>s for the export options modal's preset picker.
-async function populateExportPresetSelect(selectedName = '') {
+export async function populateExportPresetSelect(selectedName = '') {
   await ensureExportPresetsCache();
   const sel = document.getElementById('export-preset');
   if (!sel) return;
@@ -59,7 +61,7 @@ async function populateExportPresetSelect(selectedName = '') {
 
 // ── Settings: custom-preset editor ──────────────────────────────────────────
 
-async function initExportPresetSettings() {
+export async function initExportPresetSettings() {
   await ensureExportPresetsCache(true);
   _renderExportPresetRows();
 }
@@ -208,6 +210,11 @@ function addExportPresetRow() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  const addBtn = document.getElementById('s-add-export-preset');
+  if (addBtn && !addBtn.dataset.epWired) {
+    addBtn.dataset.epWired = '1';
+    addBtn.addEventListener('click', addExportPresetRow);
+  }
   const host = document.getElementById('s-export-preset-rows');
   if (!host) return;
   host.addEventListener('change', e => {
@@ -224,10 +231,3 @@ document.addEventListener('DOMContentLoaded', () => {
     if (row) _deleteExportPresetRow(row);
   });
 });
-
-Object.assign(window, {
-  ensureExportPresetsCache, exportPresetLabel, exportPresetIsVertical,
-  exportPresetTargetSizeMb,
-  populateExportPresetSelect, initExportPresetSettings, addExportPresetRow,
-});
-})();
