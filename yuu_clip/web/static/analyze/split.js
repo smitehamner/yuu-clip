@@ -240,16 +240,20 @@ async function _generateWaveform() {
 
 // ── suggestion pins ──────────────────────────────────────────────────────────
 
-export function _computeSuggestionPins() {
-  if (!_splitEnergyFlat.length || !_splitDurationS) return;
+// Pure: pick up to _SUGGESTION_COUNT quiet, spaced, interior seconds from a
+// flat [{second, rms_db}, …] energy list. Returns null (not []) when there is
+// no data, so the caller leaves any existing suggestions untouched rather than
+// clearing them.
+export function computeSuggestionPins(energyFlat, durationS) {
+  if (!energyFlat.length || !durationS) return null;
 
   // Work with normalised linear energy (not dB) for valley detection
-  const minDb = Math.min(..._splitEnergyFlat.map(s => s.rms_db));
-  const maxDb = Math.max(..._splitEnergyFlat.map(s => s.rms_db));
+  const minDb = Math.min(...energyFlat.map(s => s.rms_db));
+  const maxDb = Math.max(...energyFlat.map(s => s.rms_db));
   const range  = maxDb - minDb || 1;
 
   // Score each second: 1 = quietest, 0 = loudest
-  const scored = _splitEnergyFlat.map(s => ({
+  const scored = energyFlat.map(s => ({
     sec:   s.second,
     score: 1 - (s.rms_db - minDb) / range,
   }));
@@ -259,11 +263,16 @@ export function _computeSuggestionPins() {
   const pins = [];
   for (const { sec } of sorted) {
     if (pins.length >= _SUGGESTION_COUNT) break;
-    if (sec <= 0 || sec >= _splitDurationS) continue;
+    if (sec <= 0 || sec >= durationS) continue;
     if (pins.some(p => Math.abs(p - sec) < _SUGGESTION_MIN_GAP_S)) continue;
     pins.push(sec);
   }
-  _suggestionPins = pins.sort((a, b) => a - b);
+  return pins.sort((a, b) => a - b);
+}
+
+function _computeSuggestionPins() {
+  const pins = computeSuggestionPins(_splitEnergyFlat, _splitDurationS);
+  if (pins !== null) _suggestionPins = pins;
 }
 
 // ── timeline zoom ─────────────────────────────────────────────────────────────

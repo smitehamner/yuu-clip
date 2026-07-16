@@ -5,7 +5,7 @@
 import {
   escHtml, _parseServerDate, _fmtAgo, _fmtOffset, _msToHms, finiteOr, fmtDuration,
   formatApiError, stripRichMarkup, _scoreBorderColor, _lerpColor, _fmtElapsed,
-  _fmtVideoStatus, _fmtDate, _sortScore,
+  _fmtVideoStatus, _fmtDate, _sortScore, plural,
 } from '../../../yuu_clip/web/static/core/format.js';
 
 describe('escHtml', () => {
@@ -101,6 +101,24 @@ describe('stripRichMarkup', () => {
   });
   it('leaves plain text unchanged', () => {
     expect(stripRichMarkup('just plain text 12:34')).toBe('just plain text 12:34');
+  });
+});
+
+// Ported from tests/ui/test_ui_terminology.py (TestPluralHelper). The static-file
+// terminology scans in that module stay Python (they read the served files).
+describe('plural', () => {
+  it('keeps the singular for a count of 1', () => {
+    expect(plural(1, 'clip')).toBe('1 clip');
+  });
+  it('pluralizes for other counts, including zero', () => {
+    expect(plural(3, 'clip')).toBe('3 clips');
+    expect(plural(0, 'clip')).toBe('0 clips');
+  });
+  it('uses an explicit irregular plural form', () => {
+    expect(plural(2, 'entry', 'entries')).toBe('2 entries');
+  });
+  it('appends s to a multi-word noun', () => {
+    expect(plural(2, 'audio track')).toBe('2 audio tracks');
   });
 });
 

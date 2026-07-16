@@ -1,7 +1,7 @@
 // Pure / DOM-shell helpers in static/core/utils.js. Ported from test_ui_utils.py.
 // The setup file (tests/js/setup.js) seeds index.html's body so utils.js's
 // load-time listener wiring and the #log-lines element resolve.
-import { _diarizationReason, _diarizationNoteHtml, appendLog, clearLog } from '../../../yuu_clip/web/static/core/utils.js';
+import { _diarizationReason, _diarizationNoteHtml, appendLog, clearLog, showToast } from '../../../yuu_clip/web/static/core/utils.js';
 
 describe('_diarizationReason', () => {
   it('unavailable install reads "reinstall", not "Install" (SpeechBrain is bundled)', () => {
@@ -17,6 +17,49 @@ describe('_diarizationNoteHtml', () => {
     const out = _diarizationNoteHtml('Requires a HuggingFace token', 'foo();bar()');
     expect(out).toContain('>Settings</button>');
     expect(out).toContain('onclick="foo();bar()"');
+  });
+});
+
+// Toast standards (CC-5). Ported from tests/ui/test_ui_toasts.py - the DOM-only
+// cases; nothing here needs a real browser. Fake timers keep the auto-dismiss
+// deterministic and prevent dangling timers between tests.
+describe('showToast', () => {
+  const container = () => document.getElementById('toast-container');
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it('a warning toast gets the warning class', () => {
+    showToast('Careful now', 'warning');
+    expect(container().querySelectorAll('.toast.warning')).toHaveLength(1);
+  });
+  it('an error toast persists until dismissed', () => {
+    showToast('It broke', 'error', { durationMs: 100 });
+    vi.advanceTimersByTime(1200);
+    const errorToast = container().querySelector('.toast.error');
+    expect(errorToast).not.toBe(null);
+    errorToast.querySelector('button[aria-label="Dismiss"]').click();
+    expect(container().querySelectorAll('.toast.error')).toHaveLength(0);
+  });
+  it('a non-error toast auto-dismisses', () => {
+    showToast('Saved', 'success', { durationMs: 100 });
+    vi.advanceTimersByTime(500);
+    expect(container().querySelectorAll('.toast.success')).toHaveLength(0);
+  });
+  it('the stack is capped at four, keeping the newest', () => {
+    for (let i = 0; i < 6; i++) showToast(`toast ${i}`, 'info', { durationMs: 60000 });
+    expect(container().querySelectorAll('.toast')).toHaveLength(4);
+    expect(container().textContent).toContain('toast 5');
+    expect(container().textContent).not.toContain('toast 0');
+  });
+  it('the action button runs its callback and dismisses the toast', () => {
+    let fired = false;
+    showToast('Analysis complete', 'success', {
+      action: { label: 'Review', onClick: () => { fired = true; } },
+    });
+    const btn = [...container().querySelectorAll('button')].find((b) => b.textContent === 'Review');
+    btn.click();
+    expect(fired).toBe(true);
+    expect(container().querySelectorAll('.toast')).toHaveLength(0);
   });
 });
 
