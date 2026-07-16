@@ -145,6 +145,7 @@ import {
   loadClipTranscript, reloadVideoTranscriptIfOpen, renderTranscriptLines,
 } from './transcript.js';
 import { openNameCorrections } from './namecorrections.js';
+import { openExportEditor } from './exporteditor.js';
 
 window.AppState = AppState;
 Object.assign(window, format);
@@ -648,3 +649,10 @@ window.renderTranscriptLines = renderTranscriptLines;
 // dropped from the shim: it has no caller anywhere (kept as a named export in
 // case a future caller needs a PanelNav('name-corrections')-open check).
 window.openNameCorrections = openNameCorrections;
+// exporteditor.js - openExportEditor is read as window.* by clips.js (already-ESM,
+// but its own migration predates this one and never switched to an import - out of
+// scope to touch clips.js here) and invoked directly by
+// tests/ui/test_ui_exporteditor.py via page.evaluate. isExportEditorOpen dropped
+// from the shim: it has no caller anywhere (kept as a named export in case a future
+// caller needs a PanelNav('export-editor')-open check).
+window.openExportEditor = openExportEditor;

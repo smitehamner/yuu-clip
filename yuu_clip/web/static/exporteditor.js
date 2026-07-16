@@ -1,4 +1,14 @@
-(function () {
+import { AppState } from './state.js';
+import { escHtml, formatApiError } from './format.js';
+import { PanelNav } from './panelnav.js';
+import { setupRecordingPreview } from './preview.js';
+import { openLog, showToast } from './utils.js';
+import { streamSSE } from './jobs.js';
+import { renderPlayer, renderDetail, _reloadClipList } from './clips.js';
+import { loadVideos } from './videos.js';
+import { SoundFx } from './sounds.js';
+import { ensureExportPresetsCache, exportPresetIsVertical } from './exportpresets.js';
+
 // Feature-map - Clip export editor (Trim + Vertical framing + Caption Style over a live preview).
 //   API: routes/clips/ (captions.py context-transcript, export.py) · Tests: tests/ui/test_ui_exporteditor.py
 // ── clip export editor (Plan 07) ──────────────────────────────────────────────
@@ -31,11 +41,11 @@ let _edMetaSeeked   = false;
 const _ED_MIN_DURATION_MS = 1_000;
 const _ED_PAD_S = 30;
 
-function isExportEditorOpen() {
+export function isExportEditorOpen() {
   return PanelNav.isOpen('export-editor');
 }
 
-async function openExportEditor(clipId) {
+export async function openExportEditor(clipId) {
   const clip = await fetch(`/api/clips/${clipId}`).then(r => r.ok ? r.json() : null).catch(() => null);
   if (!clip) { showToast('Could not load clip', 'error'); return; }
   const video = AppState.videos.find(v => v.id === clip.video_id);
@@ -519,8 +529,3 @@ function _edClock(ms) {
   const mm = String(m).padStart(2, '0'), ss = String(s).padStart(2, '0');
   return h ? `${h}:${mm}:${ss}` : `${m}:${ss}`;
 }
-
-Object.assign(window, {
-  openExportEditor, isExportEditorOpen,
-});
-})();
