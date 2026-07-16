@@ -1,4 +1,3 @@
-(function () {
 // Feature-map - the three app-global help/info modals (Getting Started, About,
 // Glossary). Extracted out of settings.js (which grew into a catch-all) - these
 // have no coupling to the settings save/dirty machinery.
@@ -6,12 +5,12 @@
 
 // ── getting started modal ─────────────────────────────────────────────────────
 let _gettingStartedOpener = null;
-function openGettingStartedModal() {
+export function openGettingStartedModal() {
   _gettingStartedOpener = document.activeElement;
   document.getElementById('getting-started-modal').classList.add('visible');
   setTimeout(() => document.querySelector('#getting-started-modal .btn')?.focus(), 50);
 }
-function closeGettingStartedModal() {
+export function closeGettingStartedModal() {
   document.getElementById('getting-started-modal').classList.remove('visible');
   localStorage.setItem('yuu-getting-started-seen', '1');
   const opener = _gettingStartedOpener;
@@ -21,12 +20,12 @@ function closeGettingStartedModal() {
 
 // ── about modal ───────────────────────────────────────────────────────────────
 let _aboutOpener = null;
-function openAboutModal() {
+export function openAboutModal() {
   _aboutOpener = document.activeElement;
   document.getElementById('about-modal').classList.add('visible');
   setTimeout(() => document.querySelector('#about-modal .btn')?.focus(), 50);
 }
-function closeAboutModal() {
+export function closeAboutModal() {
   document.getElementById('about-modal').classList.remove('visible');
   const opener = _aboutOpener;
   _aboutOpener = null;
@@ -39,12 +38,12 @@ function closeAboutModal() {
 // bundled 650-line feature guide would drift from the UI. In the packaged app
 // these target=_blank links open in the system browser via setWindowOpenHandler.
 let _helpOpener = null;
-function openHelpModal() {
+export function openHelpModal() {
   _helpOpener = document.activeElement;
   document.getElementById('help-modal').classList.add('visible');
   setTimeout(() => document.querySelector('#help-modal .btn')?.focus(), 50);
 }
-function closeHelpModal() {
+export function closeHelpModal() {
   document.getElementById('help-modal').classList.remove('visible');
   const opener = _helpOpener;
   _helpOpener = null;
@@ -53,7 +52,7 @@ function closeHelpModal() {
 
 // ── glossary modal ────────────────────────────────────────────────────────────
 let _glossaryOpener = null;
-async function openGlossaryModal() {
+export async function openGlossaryModal() {
   _glossaryOpener = document.activeElement;
   document.getElementById('glossary-modal').classList.add('visible');
   const filter = document.getElementById('glossary-filter');
@@ -70,7 +69,7 @@ async function openGlossaryModal() {
   }
 }
 
-function _filterGlossary(query) {
+export function _filterGlossary(query) {
   const q = query.trim().toLowerCase();
   const content = document.getElementById('glossary-content');
   let anyVisible = false;
@@ -86,7 +85,7 @@ function _filterGlossary(query) {
   });
   document.getElementById('glossary-no-matches').style.display = (q && !anyVisible) ? '' : 'none';
 }
-function closeGlossaryModal() {
+export function closeGlossaryModal() {
   document.getElementById('glossary-modal').classList.remove('visible');
   const opener = _glossaryOpener;
   _glossaryOpener = null;
@@ -161,12 +160,55 @@ function _renderGlossaryMd(md) {
   return html;
 }
 
-// Public API - symbols referenced cross-module, by an inline handler, or by a
-// test. Internal helpers above stay private to this module's closure.
-Object.assign(window, {
-  openAboutModal, closeAboutModal,
-  openGettingStartedModal, closeGettingStartedModal,
-  openHelpModal, closeHelpModal,
-  openGlossaryModal, closeGlossaryModal, _filterGlossary,
-});
-})();
+// ── static modal/hamburger wiring (replaces the inline onclick=/oninput= this
+// module used to own in index.html) ────────────────────────────────────────────
+// These are fixed, never-recreated elements in index.html, so wiring them once at
+// module load (below) can't double-fire on a re-render the way a dynamically
+// rendered list could.
+const _BG_DISMISS_MODALS = [
+  ['getting-started-modal', closeGettingStartedModal],
+  ['help-modal', closeHelpModal],
+  ['about-modal', closeAboutModal],
+  ['glossary-modal', closeGlossaryModal],
+];
+
+function _wireModalBgDismissals() {
+  for (const [modalId, closeFn] of _BG_DISMISS_MODALS) {
+    const modal = document.getElementById(modalId);
+    modal.addEventListener('click', e => { if (e.target === modal) closeFn(); });
+  }
+}
+
+function _wireModalButtons() {
+  document.getElementById('getting-started-close-btn').addEventListener('click', () => closeGettingStartedModal());
+  document.getElementById('help-modal-close-btn').addEventListener('click', () => closeHelpModal());
+  document.getElementById('about-modal-close-btn').addEventListener('click', () => closeAboutModal());
+  document.getElementById('glossary-modal-close-btn').addEventListener('click', () => closeGlossaryModal());
+  document.getElementById('glossary-filter').addEventListener('input', e => _filterGlossary(e.target.value));
+}
+
+// The 4 hamburger items ui.js's own migration deferred (their inline onclick=
+// mixed ui.js's closeHamburger() with a helpmodals.js modal-open call) - this
+// module now owns the modal-open half, so it owns retiring them too.
+function _wireHamburgerHandlers() {
+  document.getElementById('hamburger-item-getting-started').addEventListener('click', () => {
+    window.closeHamburger();
+    openGettingStartedModal();
+  });
+  document.getElementById('hamburger-item-glossary').addEventListener('click', () => {
+    window.closeHamburger();
+    openGlossaryModal();
+  });
+  document.getElementById('hamburger-item-help').addEventListener('click', () => {
+    window.closeHamburger();
+    openHelpModal();
+  });
+  document.getElementById('hamburger-item-about').addEventListener('click', () => {
+    window.closeHamburger();
+    openAboutModal();
+  });
+}
+
+_wireModalBgDismissals();
+_wireModalButtons();
+_wireHamburgerHandlers();

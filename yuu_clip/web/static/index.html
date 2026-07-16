@@ -83,14 +83,14 @@
       <!-- closeHamburger() runs first: it hands focus back to the trigger, so
            the modal being opened records the trigger as its return-focus target
            instead of a menu item that is about to be display:none'd. -->
-      <button class="hamburger-item" onclick="closeHamburger();openGettingStartedModal()"><span class="hamburger-icon" aria-hidden="true">&#128214;</span>Getting Started</button>
+      <button class="hamburger-item" id="hamburger-item-getting-started"><span class="hamburger-icon" aria-hidden="true">&#128214;</span>Getting Started</button>
       <button class="hamburger-item" id="hamburger-item-controls"><span class="hamburger-icon" aria-hidden="true">&#9000;</span>Controls</button>
       <div class="hamburger-divider"></div>
-      <button class="hamburger-item" onclick="closeHamburger();openGlossaryModal()"><span class="hamburger-icon" aria-hidden="true">&#128218;</span>Glossary</button>
-      <button class="hamburger-item" onclick="closeHamburger();openHelpModal()"><span class="hamburger-icon" aria-hidden="true">&#10067;</span>Help &amp; Guides</button>
+      <button class="hamburger-item" id="hamburger-item-glossary"><span class="hamburger-icon" aria-hidden="true">&#128218;</span>Glossary</button>
+      <button class="hamburger-item" id="hamburger-item-help"><span class="hamburger-icon" aria-hidden="true">&#10067;</span>Help &amp; Guides</button>
       <div class="hamburger-divider"></div>
       <a class="hamburger-item" id="hamburger-item-download-log" href="/api/logs/export" download="yuu-clip.log"><span class="hamburger-icon" aria-hidden="true">&#8595;</span>Download Log</a>
-      <button class="hamburger-item" onclick="closeHamburger();openAboutModal()"><span class="hamburger-icon" aria-hidden="true">&#9432;</span>About</button>
+      <button class="hamburger-item" id="hamburger-item-about"><span class="hamburger-icon" aria-hidden="true">&#9432;</span>About</button>
       <button class="hamburger-item" id="btn-setup-wizard" onclick="closeHamburger();window.electronAPI.runSetupWizard()" style="display:none"><span class="hamburger-icon" aria-hidden="true">&#128295;</span>Re-run Setup Wizard</button>
       <button class="hamburger-item" id="btn-refresh" onclick="closeHamburger();location.reload()" style="display:none"><span class="hamburger-icon" aria-hidden="true">&#8635;</span>Refresh</button>
     </div>
@@ -1342,7 +1342,7 @@
 </footer>
 
 <!-- Getting Started modal -->
-<div class="modal-bg" id="getting-started-modal" onclick="if(event.target===this)closeGettingStartedModal()">
+<div class="modal-bg" id="getting-started-modal">
   <div class="modal" style="max-width:520px">
     <h3>Getting Started</h3>
 
@@ -1385,14 +1385,14 @@
     </ul>
 
     <div class="modal-actions">
-      <button class="btn" onclick="closeGettingStartedModal()">Close</button>
+      <button class="btn" id="getting-started-close-btn">Close</button>
     </div>
   </div>
 </div>
 
 <!-- About modal -->
 <!-- Help & Guides Modal -->
-<div class="modal-bg" id="help-modal" onclick="if(event.target===this)closeHelpModal()">
+<div class="modal-bg" id="help-modal">
   <div class="modal" style="width:560px;max-width:94vw">
     <h3>Help &amp; Guides</h3>
     <p style="color:var(--muted);font-size:13px;margin:0 0 14px">
@@ -1417,12 +1417,12 @@
       </li>
     </ul>
     <div class="modal-actions" style="margin-top:16px">
-      <button class="btn" onclick="closeHelpModal()">Close</button>
+      <button class="btn" id="help-modal-close-btn">Close</button>
     </div>
   </div>
 </div>
 
-<div class="modal-bg" id="about-modal" onclick="if(event.target===this)closeAboutModal()">
+<div class="modal-bg" id="about-modal">
   <div class="modal" style="width:780px;max-width:94vw">
     <h3>About YuuClip</h3>
     <p style="color:var(--muted);font-size:13px;margin:0 0 12px">
@@ -1466,7 +1466,7 @@
       </tbody>
     </table>
     <div class="modal-actions" style="margin-top:16px">
-      <button class="btn" onclick="closeAboutModal()">Close</button>
+      <button class="btn" id="about-modal-close-btn">Close</button>
     </div>
   </div>
 </div>
@@ -2056,13 +2056,13 @@
 </div>
 
 <!-- Glossary Modal -->
-<div class="modal-bg" id="glossary-modal" onclick="if(event.target===this)closeGlossaryModal()">
+<div class="modal-bg" id="glossary-modal">
   <div class="modal" style="width:740px;max-height:88vh;display:flex;flex-direction:column">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
       <h3 style="margin:0">Glossary</h3>
-      <button class="btn ghost" style="padding:4px 8px" onclick="closeGlossaryModal()" aria-label="Close">&#x2715;</button>
+      <button class="btn ghost" style="padding:4px 8px" id="glossary-modal-close-btn" aria-label="Close">&#x2715;</button>
     </div>
-    <input type="search" id="glossary-filter" placeholder="Filter terms&#x2026;" aria-label="Filter glossary terms" oninput="_filterGlossary(this.value)"
+    <input type="search" id="glossary-filter" placeholder="Filter terms&#x2026;" aria-label="Filter glossary terms"
            style="margin-bottom:10px;padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px">
     <div id="glossary-content" style="flex:1;overflow-y:auto;font-size:13px;line-height:1.7;padding-right:4px">
       <div style="color:var(--muted)">Loading&#x2026;</div>

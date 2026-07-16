@@ -625,10 +625,11 @@ function _wireModalButtons() {
   document.getElementById('field-edit-save-btn').addEventListener('click', () => _fieldEditSave());
 }
 
-// "Controls" and "Download Log" are the only hamburger items whose onclick=
-// called nothing but ui.js functions - the rest (Getting Started, Glossary,
-// Help, About, Setup Wizard, Refresh) also call helpmodals.js/electronAPI/
-// location, so they stay inline (see report).
+// "Controls" and "Download Log" are wired here because their onclick= called
+// only ui.js functions. The Getting Started / Glossary / Help / About items call
+// closeHamburger() (ui.js) plus a helpmodals.js modal-open, so helpmodals.js owns
+// their delegation. "Re-run Setup Wizard" and "Refresh" (electronAPI / location)
+// remain inline until their owning code migrates.
 function _wireHamburgerHandlers() {
   document.getElementById('btn-hamburger').addEventListener('click', () => toggleHamburger());
   document.getElementById('hamburger-item-controls').addEventListener('click', () => {

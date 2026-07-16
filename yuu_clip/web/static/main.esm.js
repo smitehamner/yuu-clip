@@ -29,6 +29,12 @@ import {
   closeKebab, showKebab, initResize, _applyPrereqWarnings, showUndoToast,
   playbackRatePref, applyPlaybackRate, initPlaybackRate,
 } from './ui.js';
+import {
+  openGettingStartedModal, closeGettingStartedModal,
+  openAboutModal, closeAboutModal,
+  openHelpModal, closeHelpModal,
+  openGlossaryModal, closeGlossaryModal, _filterGlossary,
+} from './helpmodals.js';
 
 window.AppState = AppState;
 Object.assign(window, format);
@@ -93,3 +99,15 @@ window.showUndoToast = showUndoToast;
 window.playbackRatePref = playbackRatePref;
 window.applyPlaybackRate = applyPlaybackRate;
 window.initPlaybackRate = initPlaybackRate;
+// helpmodals.js - every name here still has at least one classic (bundle.js)
+// consumer (boot.js, videos.js, shortcuts.js, settings.js call these as bare
+// globals) or a tests/ui/*.py page.evaluate, so none can be dropped yet.
+window.openGettingStartedModal = openGettingStartedModal;
+window.closeGettingStartedModal = closeGettingStartedModal;
+window.openAboutModal = openAboutModal;
+window.closeAboutModal = closeAboutModal;
+window.openHelpModal = openHelpModal;
+window.closeHelpModal = closeHelpModal;
+window.openGlossaryModal = openGlossaryModal;
+window.closeGlossaryModal = closeGlossaryModal;
+window._filterGlossary = _filterGlossary;

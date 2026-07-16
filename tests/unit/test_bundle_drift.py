@@ -28,7 +28,7 @@ from yuu_clip.dev.bundle import (
 # more modules migrate off bundle.js.
 _ESM_MODULES = (
     "main.esm.js", "state.js", "format.js", "colorpicker.js", "panelnav.js", "jobs.js", "preview.js", "utils.js",
-    "ui.js",
+    "ui.js", "helpmodals.js",
 )
 
 
