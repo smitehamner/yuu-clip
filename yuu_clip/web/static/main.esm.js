@@ -139,6 +139,7 @@ import {
   ensureExportPresetsCache, exportPresetLabel, exportPresetIsVertical,
   exportPresetTargetSizeMb, populateExportPresetSelect, initExportPresetSettings,
 } from './exportpresets.js';
+import { loadSpeakers } from './speakers.js';
 
 window.AppState = AppState;
 Object.assign(window, format);
@@ -611,3 +612,9 @@ window.exportPresetIsVertical = exportPresetIsVertical;
 window.exportPresetTargetSizeMb = exportPresetTargetSizeMb;
 window.populateExportPresetSelect = populateExportPresetSelect;
 window.initExportPresetSettings = initExportPresetSettings;
+// speakers.js - loadSpeakers is read as window.loadSpeakers by videos.js
+// (already-ESM, but its own migration predates this one and never switched to an
+// import - out of scope to touch videos.js here) and as a bare global by the
+// still-classic transcript.js and voices.js. Everything else in the module stays
+// module-private (delegated event listeners on #detail, no external caller).
+window.loadSpeakers = loadSpeakers;

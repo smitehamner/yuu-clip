@@ -1,13 +1,21 @@
-(function () {
 // Feature-map - Speaker naming (code: Speaker; UI "Speakers" card).
 //   API: routes/speakers.py · Tests: tests/ui/test_ui_speakers.py
 // ── speaker naming ────────────────────────────────────────────────────────────
 // Renders the "Speakers" card in the recording detail view and saves names.
 // The card only appears when the recording has diarized speakers.
+import { AppState } from './state.js';
+import { escHtml, truncate, plural, formatApiError } from './format.js';
+import { ColorPicker } from './colorpicker.js';
+import { openLog, appendLog, showToast, collapsibleCard } from './utils.js';
+import { showConfirm } from './ui.js';
+import {
+  _blockedByAnalyze, _openSSE, _supersedeActiveStream, _clearActiveStream, _setActiveStream,
+} from './jobs.js';
+import { selectClip } from './clips.js';
 
 let _currentVideoId = null;
 
-async function loadSpeakers(videoId) {
+export async function loadSpeakers(videoId) {
   const section = document.getElementById('speakers-section');
   if (!section) return;
   _currentVideoId = videoId;
@@ -22,7 +30,7 @@ async function loadSpeakers(videoId) {
     return;
   }
   section.innerHTML = _renderSpeakersCard(speakers);
-  section.querySelectorAll('.speaker-color-input').forEach(el => window.ColorPicker?.attach(el));
+  section.querySelectorAll('.speaker-color-input').forEach(el => ColorPicker.attach(el));
 }
 
 // A speaker with an inferred name the user hasn't accepted yet. Its name stays out of
@@ -204,7 +212,7 @@ async function _saveSpeakerName(speakerId, name) {
     // Refresh the open clip so its transcript reflects the new name, and the
     // recording's full-transcript panel if it's expanded.
     if (AppState.activeClipId) selectClip(AppState.activeClipId);
-    if (_currentVideoId) reloadVideoTranscriptIfOpen(_currentVideoId);
+    if (_currentVideoId) window.reloadVideoTranscriptIfOpen(_currentVideoId);
   } catch (_) {
     showToast('Could not save speaker name', 'error');
   }
@@ -223,7 +231,7 @@ async function _saveSpeakerColor(speakerId, color) {
     }
     // Refresh the open clip's transcript so its speaker labels pick up the new color.
     if (AppState.activeClipId) selectClip(AppState.activeClipId);
-    if (_currentVideoId) reloadVideoTranscriptIfOpen(_currentVideoId);
+    if (_currentVideoId) window.reloadVideoTranscriptIfOpen(_currentVideoId);
   } catch (_) {
     showToast('Could not save speaker color', 'error');
   }
@@ -243,7 +251,7 @@ async function _resolveSuggestion(speakerId, name) {
     showToast(updated.is_named ? `Speaker named ${updated.display_name}` : 'Suggestion dismissed');
     if (_currentVideoId) await loadSpeakers(_currentVideoId);
     if (AppState.activeClipId) selectClip(AppState.activeClipId);
-    if (_currentVideoId) reloadVideoTranscriptIfOpen(_currentVideoId);
+    if (_currentVideoId) window.reloadVideoTranscriptIfOpen(_currentVideoId);
   } catch (_) {
     showToast('Could not update speaker', 'error');
   }
@@ -261,7 +269,7 @@ async function _resolveVoiceMatch(speakerId, sameVoice, matchName) {
       : 'Kept as a separate speaker');
     if (_currentVideoId) await loadSpeakers(_currentVideoId);
     if (AppState.activeClipId) selectClip(AppState.activeClipId);
-    if (_currentVideoId) reloadVideoTranscriptIfOpen(_currentVideoId);
+    if (_currentVideoId) window.reloadVideoTranscriptIfOpen(_currentVideoId);
   } catch (_) {
     showToast('Could not update speaker', 'error');
   }
@@ -299,7 +307,7 @@ async function _mergeSpeakerInto(sourceId, targetId, targetName) {
         showToast(`Merged into ${targetName || 'the other speaker'}`);
         if (_currentVideoId) await loadSpeakers(_currentVideoId);
         if (AppState.activeClipId) selectClip(AppState.activeClipId);
-        if (_currentVideoId) reloadVideoTranscriptIfOpen(_currentVideoId);
+        if (_currentVideoId) window.reloadVideoTranscriptIfOpen(_currentVideoId);
       } catch (err) {
         showToast(`Could not merge: ${err.message}`, 'error');
       }
@@ -338,7 +346,7 @@ async function _resolvePersonMatch(speakerId, samePerson, matchName) {
       : 'Kept as a separate person');
     if (_currentVideoId) await loadSpeakers(_currentVideoId);
     if (AppState.activeClipId) selectClip(AppState.activeClipId);
-    if (_currentVideoId) reloadVideoTranscriptIfOpen(_currentVideoId);
+    if (_currentVideoId) window.reloadVideoTranscriptIfOpen(_currentVideoId);
   } catch (err) {
     showToast(`Could not update: ${err.message}`, 'error');
   }
@@ -393,7 +401,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     if (e.target.closest && e.target.closest('.speaker-open-people')) {
-      if (window.openPeopleView) openPeopleView();
+      if (window.openPeopleView) window.openPeopleView();
       return;
     }
     const samePersonBtn = e.target.closest && e.target.closest('.speaker-sameperson');
@@ -422,6 +430,3 @@ document.addEventListener('DOMContentLoaded', () => {
     if (input && e.key === 'Enter') { e.preventDefault(); input.blur(); }
   });
 });
-
-Object.assign(window, { loadSpeakers });
-})();

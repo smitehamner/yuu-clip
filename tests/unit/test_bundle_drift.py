@@ -33,6 +33,7 @@ _ESM_MODULES = (
     "clipcreate.js", "analyze.js", "reel.js", "contexts.js", "settings.js",
     "settings-previews.js", "settings-installs.js", "settings-backup.js", "projects.js",
     "modeldownload.js", "sounds.js", "hotwords.js", "sensitive.js", "exportpresets.js",
+    "speakers.js",
 )
 
 
