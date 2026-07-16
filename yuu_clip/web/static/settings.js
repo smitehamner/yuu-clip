@@ -1,6 +1,15 @@
-(function () {
 // Feature-map - Settings panel (all sections; see the per-section banners below).
 //   API: routes/config.py, llm.py, profiles.py, content_presets.py, export_presets.py · Tests: tests/ui/test_ui_settings.py
+import { ColorPicker } from './colorpicker.js';
+import {
+  _ensureModelCatalog, refreshModelCatalog, _updateLlmCapabilities, _renderCapabilityTiers,
+} from './modelcatalog.js';
+import { showConfirm, playbackRatePref, applyPlaybackRate } from './ui.js';
+import { showToast } from './utils.js';
+import { plural, escHtml, formatApiError, _parseIntervalS } from './format.js';
+import { _filterGlossary, closeGlossaryModal } from './helpmodals.js';
+import { _isNewRecordingPanelOpen, _doCloseNewRecordingPanel } from './analyze.js';
+
 // ── settings panel ────────────────────────────────────────────────────────────
 const _settingsFieldIds = [
   's-whisper-model','s-whisper-device','s-whisper-compute','s-whisper-language',
@@ -80,7 +89,7 @@ function _scrollToSettingsSection(sectionId) {
 async function openSettings() {
   _settingsOpener = document.activeElement;
   // Close the new-recording panel so it isn't left open behind the overlay.
-  if (typeof _isNewRecordingPanelOpen === 'function' && _isNewRecordingPanelOpen()) {
+  if (_isNewRecordingPanelOpen()) {
     _doCloseNewRecordingPanel();
   }
   const panel = document.getElementById('settings-panel');
@@ -94,10 +103,10 @@ async function openSettings() {
     await _ensureModelCatalog();
     // Sound rows must be rendered (from saved state) before _applySettingsToUI
     // runs the dirty check, or a discarded prior edit would re-enable Save.
-    await initSoundSettings();
-    await initHotwordSettings();
-    await initSensitiveTermSettings();
-    await initExportPresetSettings();
+    await window.initSoundSettings();
+    await window.initHotwordSettings();
+    await window.initSensitiveTermSettings();
+    await window.initExportPresetSettings();
     await initContentPresetSettings();
     _applySettingsToUI(cfg);
     // preventScroll: the panel should open at the top (showing the Capabilities
@@ -283,13 +292,13 @@ function _applyUiFields(cfg) {
 
 function _applyExportFields(cfg) {
   _setFieldVal('s-export-name-template', cfg.export_name_template || '{video}_clip{clip_id}_{start}');
-  _updateExportNameTemplatePreview();
+  window._updateExportNameTemplatePreview();
   _setColorField('s-title-card-bg-color', cfg.title_card_bg_color || '#000000');
   _setColorField('s-title-card-font-color', cfg.title_card_font_color || '#ffffff');
   _setSelectByNumber('s-title-card-scale', cfg.title_card_scale ?? 1.0);
   _setFieldVal('s-title-card-template', cfg.title_card_template ?? '{description}\n{start} · {duration}');
   _setFieldVal('s-title-card-duration', cfg.title_card_duration_s ?? 3.0);
-  _updateTitleCardPreview();
+  window._updateTitleCardPreview();
   _setFieldVal('s-caption-font-name', cfg.caption_font_name || '');
   _setFieldVal('s-caption-font-size', cfg.caption_font_size ? cfg.caption_font_size : '');
   _setFieldVal('s-caption-position', cfg.caption_position || 'bottom');
@@ -327,7 +336,7 @@ function _applySettingsToUI(cfg) {
   _applyExportFields(cfg);
   _snapshotSettings();
   _checkSettingsDirty();
-  ['cuda-libs'].forEach(_refreshInstallStatus);
+  ['cuda-libs'].forEach(window._refreshInstallStatus);
 }
 
 // Factory defaults, fetched once per session and reused by every reset control.
@@ -560,7 +569,7 @@ async function _doApplyContentPreset(id, addHotwords) {
   const body = await res.json();
   _activeContentPresetId = body.applied;
   _applyPresetWeightsToUI(body.weights);
-  if (addHotwords && body.hotwords_added) await initHotwordSettings();
+  if (addHotwords && body.hotwords_added) await window.initHotwordSettings();
   _renderContentPresetInfo();
   const added = body.hotwords_added ? ` · ${plural(body.hotwords_added, 'hot-word')} added` : '';
   showToast(`Applied content type${added} - re-score to apply the new weighting`, 'success');
@@ -744,6 +753,74 @@ function _flashSettingsSaved() {
   setTimeout(() => badge.classList.remove('show'), 2000);
 }
 
+// Static-markup controls in index.html that call this module's own functions -
+// wired once at load (the settings panel is never innerHTML-rebuilt), replacing
+// what used to be inline onclick="…"/onchange="…" attributes.
+function _wireHeaderButtons() {
+  document.getElementById('btn-settings-header')?.addEventListener('click', openSettings);
+  document.getElementById('btn-reset-all-settings')?.addEventListener('click', revertAllSettings);
+  document.getElementById('btn-settings-save')?.addEventListener('click', saveSettings);
+  document.getElementById('btn-settings-close')?.addEventListener('click', () => closeSettings());
+}
+
+function _wireJumpNav() {
+  document.querySelector('.settings-jump-row')?.addEventListener('click', e => {
+    const btn = e.target.closest('.settings-jump-link[data-section]');
+    if (btn) _scrollToSettingsSection(btn.dataset.section);
+  });
+}
+
+// Delegates only buttons carrying data-revert-section - "Reset all to defaults"
+// (#btn-reset-all-settings) shares the .settings-reset-btn class but has no
+// section to revert, so it is wired separately in _wireHeaderButtons.
+function _wireSectionResets() {
+  document.querySelector('.settings-inner')?.addEventListener('click', e => {
+    const btn = e.target.closest('.settings-reset-btn[data-revert-section]');
+    if (btn) revertSection(btn.dataset.revertSection);
+  });
+}
+
+function _wireLlmSection() {
+  document.getElementById('s-llm-enabled')?.addEventListener('change', e => _onLlmEnabledChange(e.target.checked));
+  document.getElementById('btn-privacy-turn-on-local')?.addEventListener('click', () => _setPrivacyMode('local_only'));
+  document.getElementById('s-ai-privacy-options')?.addEventListener('change', e => {
+    _onPrivacyModeChange(e.currentTarget.querySelector('input:checked').value);
+  });
+  document.getElementById('s-similarity-backend')?.addEventListener('change', e => _onSimilarityBackendChange(e.target.value));
+}
+
+function _wireSpeakerSection() {
+  document.getElementById('s-diarization-backend')?.addEventListener('change', e => _onDiarizationBackendChange(e.target.value));
+}
+
+function _wireWeightsSection() {
+  document.getElementById('s-content-preset')?.addEventListener('change', _onContentPresetChange);
+  document.getElementById('btn-apply-content-preset')?.addEventListener('click', applyContentPreset);
+  document.getElementById('s-laugh-mode')?.addEventListener('change', e => _onLaughModeChange(e.target.value));
+}
+
+function _wireUiSection() {
+  document.getElementById('s-theme')?.addEventListener('change', e => applyTheme(e.target.value));
+  document.getElementById('s-accent')?.addEventListener('change', e => applyAccent(e.target.value));
+  document.getElementById('s-play-next')?.addEventListener('change', e => _onPlayNextChange(e.target.checked));
+  document.getElementById('s-loop-clip')?.addEventListener('change', e => _onLoopClipChange(e.target.checked));
+}
+
+function _wireExportSection() {
+  document.getElementById('s-caption-word-highlight')?.addEventListener('change', e => _onSettingsWordHighlightChange(e.target.checked));
+}
+
+function _wireStaticSettingsControls() {
+  _wireHeaderButtons();
+  _wireJumpNav();
+  _wireSectionResets();
+  _wireLlmSection();
+  _wireSpeakerSection();
+  _wireWeightsSection();
+  _wireUiSection();
+  _wireExportSection();
+}
+
 // Dirty-state tracking: re-check on any input/change in the settings panel
 document.addEventListener('DOMContentLoaded', () => {
   const panel = document.getElementById('settings-panel');
@@ -772,12 +849,13 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   _wireModelBrowseButtons();
+  _wireStaticSettingsControls();
 
   // Enhance the title-card colour inputs with the shared picker. They live in the
   // always-present Settings markup, so a one-time attach at load is enough.
   ['s-title-card-bg-color', 's-title-card-font-color'].forEach(id => {
     const el = document.getElementById(id);
-    if (el) window.ColorPicker?.attach(el);
+    if (el) ColorPicker.attach(el);
   });
 
   // The global Escape handler leaves Escape to typing surfaces, so the glossary
@@ -797,15 +875,8 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
-// Public API - symbols referenced cross-module, by an inline handler, or by a
-// test. Internal helpers above stay private to this module's closure.
-Object.assign(window, {
-  openSettings, closeSettings, saveSettings, applyTheme, applyAccent,
-  _onLlmEnabledChange, _onDiarizationBackendChange, _onLaughModeChange,
-  _onSimilarityBackendChange, _onPrivacyModeChange, _setPrivacyMode, _currentPrivacyMode,
-  _onPlayNextChange, _onLoopClipChange, _onSettingsWordHighlightChange,
-  _updateDiarizationStatus,
-  _scrollToSettingsSection, revertSection, revertAllSettings, _checkSettingsDirty,
-  applyContentPreset, _onContentPresetChange,
-});
-})();
+export {
+  openSettings, closeSettings, applyTheme, applyAccent,
+  _onDiarizationBackendChange, _updateDiarizationStatus,
+  _scrollToSettingsSection, _checkSettingsDirty,
+};

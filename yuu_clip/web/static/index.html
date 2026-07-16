@@ -76,7 +76,7 @@
   </div>
   <div class="header-spacer" id="header-spacer"></div>
   <button class="btn highlight" id="btn-analyze">+ Analyze</button>
-  <button class="btn ghost" id="btn-settings-header" onclick="openSettings()" title="Settings" aria-label="Settings" style="font-size:15px;padding:5px 10px">&#9881;</button>
+  <button class="btn ghost" id="btn-settings-header" title="Settings" aria-label="Settings" style="font-size:15px;padding:5px 10px">&#9881;</button>
   <div class="hamburger-wrap" id="hamburger-wrap">
     <button class="btn ghost" id="btn-hamburger" title="More options" aria-label="More options" aria-haspopup="true" aria-expanded="false" style="font-size:17px;padding:5px 11px;line-height:1">&#9776;</button>
     <div class="hamburger-menu" id="hamburger-menu">
@@ -107,25 +107,25 @@
     <div class="settings-header-top">
       <h2 style="font-size:16px;font-weight:700">Settings</h2>
       <div style="display:flex;align-items:center;gap:10px">
-        <button type="button" class="btn-secondary settings-reset-btn" id="btn-reset-all-settings" onclick="revertAllSettings()">Reset all to defaults</button>
+        <button type="button" class="btn-secondary settings-reset-btn" id="btn-reset-all-settings">Reset all to defaults</button>
         <span class="settings-save-badge" id="settings-saved-badge">&#10003; Saved</span>
-        <button class="btn primary" id="btn-settings-save" onclick="saveSettings()" disabled>Save</button>
-        <button class="btn ghost" onclick="closeSettings()" aria-label="Close" style="font-size:16px">&#x2715;</button>
+        <button class="btn primary" id="btn-settings-save" disabled>Save</button>
+        <button class="btn ghost" id="btn-settings-close" aria-label="Close" style="font-size:16px">&#x2715;</button>
       </div>
     </div>
     <nav class="settings-jump-row" aria-label="Jump to settings section">
-      <button type="button" class="settings-jump-link" onclick="_scrollToSettingsSection('settings-sec-capabilities')">Capabilities</button>
-      <button type="button" class="settings-jump-link" onclick="_scrollToSettingsSection('settings-sec-stt')">Speech-to-text</button>
-      <button type="button" class="settings-jump-link" onclick="_scrollToSettingsSection('settings-sec-llm')">LLM scoring</button>
-      <button type="button" class="settings-jump-link" onclick="_scrollToSettingsSection('settings-sec-speakers')">Speaker labels</button>
-      <button type="button" class="settings-jump-link" onclick="_scrollToSettingsSection('settings-sec-weights')">Scoring weights</button>
-      <button type="button" class="settings-jump-link" onclick="_scrollToSettingsSection('settings-sec-analysis')">Analysis defaults</button>
-      <button type="button" class="settings-jump-link" onclick="_scrollToSettingsSection('settings-sec-hardware')">Hardware</button>
-      <button type="button" class="settings-jump-link" onclick="_scrollToSettingsSection('settings-sec-ui')">UI</button>
-      <button type="button" class="settings-jump-link" onclick="_scrollToSettingsSection('settings-sec-export')">Export</button>
-      <button type="button" class="settings-jump-link" onclick="_scrollToSettingsSection('settings-sec-sounds')">Sounds</button>
-      <button type="button" class="settings-jump-link" onclick="_scrollToSettingsSection('settings-sec-backup')">Backup &amp; Restore</button>
-      <button type="button" class="settings-jump-link" onclick="_scrollToSettingsSection('settings-sec-paths')">Paths</button>
+      <button type="button" class="settings-jump-link" data-section="settings-sec-capabilities">Capabilities</button>
+      <button type="button" class="settings-jump-link" data-section="settings-sec-stt">Speech-to-text</button>
+      <button type="button" class="settings-jump-link" data-section="settings-sec-llm">LLM scoring</button>
+      <button type="button" class="settings-jump-link" data-section="settings-sec-speakers">Speaker labels</button>
+      <button type="button" class="settings-jump-link" data-section="settings-sec-weights">Scoring weights</button>
+      <button type="button" class="settings-jump-link" data-section="settings-sec-analysis">Analysis defaults</button>
+      <button type="button" class="settings-jump-link" data-section="settings-sec-hardware">Hardware</button>
+      <button type="button" class="settings-jump-link" data-section="settings-sec-ui">UI</button>
+      <button type="button" class="settings-jump-link" data-section="settings-sec-export">Export</button>
+      <button type="button" class="settings-jump-link" data-section="settings-sec-sounds">Sounds</button>
+      <button type="button" class="settings-jump-link" data-section="settings-sec-backup">Backup &amp; Restore</button>
+      <button type="button" class="settings-jump-link" data-section="settings-sec-paths">Paths</button>
     </nav>
   </div>
 <div class="settings-inner">
@@ -142,7 +142,7 @@
 
   <!-- Whisper section -->
   <div class="settings-section" id="settings-sec-stt">
-    <div class="settings-section-title has-action"><span>Speech-to-text (Whisper)</span><button type="button" class="btn-secondary settings-reset-btn" onclick="revertSection('settings-sec-stt')">Reset to defaults</button></div>
+    <div class="settings-section-title has-action"><span>Speech-to-text (Whisper)</span><button type="button" class="btn-secondary settings-reset-btn" data-revert-section="settings-sec-stt">Reset to defaults</button></div>
     <div class="settings-row">
       <div class="settings-col">
         <label class="settings-label" for="s-whisper-model">Model</label>
@@ -195,7 +195,7 @@
        engine choice, and manual model-file paths into "Advanced AI options" below,
        so a first-timer sees "pick a model", not "choose a backend". -->
   <div class="settings-section" id="settings-sec-llm">
-    <div class="settings-section-title has-action"><span>LLM scoring</span><button type="button" class="btn-secondary settings-reset-btn" onclick="revertSection('settings-sec-llm')">Reset to defaults</button></div>
+    <div class="settings-section-title has-action"><span>LLM scoring</span><button type="button" class="btn-secondary settings-reset-btn" data-revert-section="settings-sec-llm">Reset to defaults</button></div>
     <div class="settings-note" style="margin-bottom:10px">A local language model reads each clip's transcript to score it and write a description. Pick a model below to turn this on - leave it off and clips are still found by audio energy and scene detection, just without scores or descriptions.</div>
 
     <!-- Collapses to #s-privacy-none-summary when AI privacy = "No generative AI"
@@ -207,7 +207,7 @@
         <div class="settings-note">Turn off to skip description + sub-score generation</div>
       </div>
       <label class="settings-checkbox">
-        <input type="checkbox" id="s-llm-enabled" aria-labelledby="lbl-llm-enabled" onchange="_onLlmEnabledChange(this.checked)">
+        <input type="checkbox" id="s-llm-enabled" aria-labelledby="lbl-llm-enabled">
         <span style="font-size:13px" aria-hidden="true">On</span>
       </label>
     </div>
@@ -242,7 +242,7 @@
     <div id="s-privacy-none-summary" style="display:none;margin:0 0 4px;padding:10px 12px;border-radius:6px;background:var(--surface-2);font-size:13px">
       Generative AI is turned off. Clip finding, related-clip search, "Meaning" hot-words, and lightweight scoring (lexicon, energy, laughs) all still work - nothing is disabled that doesn't need a language model.
       <div style="margin-top:8px">
-        <button type="button" class="btn-secondary" onclick="_setPrivacyMode('local_only')">Turn on local models</button>
+        <button type="button" class="btn-secondary" id="btn-privacy-turn-on-local">Turn on local models</button>
       </div>
     </div>
 
@@ -261,7 +261,6 @@
           <div class="settings-note">What YuuClip may do with your transcript. This is enforced everywhere - it is a guarantee, not just a preference.</div>
         </div>
         <div id="s-ai-privacy-options" role="radiogroup" aria-label="AI privacy mode"
-             onchange="_onPrivacyModeChange(this.querySelector('input:checked').value)"
              style="display:flex;flex-direction:column;gap:8px;font-size:13px;max-width:340px">
           <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer">
             <input type="radio" name="s-ai-privacy" value="none" style="margin-top:2px">
@@ -357,7 +356,7 @@
         <label class="settings-label" for="s-similarity-backend">Similarity engine</label>
         <div class="settings-note">Powers <strong>Find related clips</strong> and <strong>Meaning</strong> hot-words. Fast keyword matching needs no model; Smart uses a small local embeddings model for paraphrase matching; LLM uses your language model above.</div>
       </div>
-      <select class="settings-select" id="s-similarity-backend" onchange="_onSimilarityBackendChange(this.value)">
+      <select class="settings-select" id="s-similarity-backend">
         <option value="tfidf">Fast (keyword)</option>
         <option value="embeddings">Smart (embeddings)</option>
         <option value="llm">LLM</option>
@@ -375,13 +374,13 @@
 
   <!-- Speaker labels section -->
   <div class="settings-section" id="settings-sec-speakers">
-    <div class="settings-section-title has-action"><span>Speaker labels</span><button type="button" class="btn-secondary settings-reset-btn" onclick="revertSection('settings-sec-speakers')">Reset to defaults</button></div>
+    <div class="settings-section-title has-action"><span>Speaker labels</span><button type="button" class="btn-secondary settings-reset-btn" data-revert-section="settings-sec-speakers">Reset to defaults</button></div>
     <div class="settings-row">
       <div class="settings-col">
         <label class="settings-label" for="s-diarization-backend">Backend</label>
         <div class="settings-note">Identifies who is speaking within each audio track and prefixes transcripts accordingly</div>
       </div>
-      <select class="settings-select" id="s-diarization-backend" onchange="_onDiarizationBackendChange(this.value)">
+      <select class="settings-select" id="s-diarization-backend">
         <option value="null">Off</option>
         <option value="speechbrain">SpeechBrain (no account or token needed)</option>
       </select>
@@ -426,19 +425,19 @@
   <div class="settings-section" id="settings-sec-weights">
     <div class="settings-section-title has-action">
       <span>Scoring weights <span style="font-size:11px;font-weight:400;color:var(--muted)">(takes effect on next re-score)</span></span>
-      <button type="button" class="btn-secondary settings-reset-btn" id="btn-reset-weights" onclick="revertSection('settings-sec-weights')">Reset to defaults</button>
+      <button type="button" class="btn-secondary settings-reset-btn" id="btn-reset-weights" data-revert-section="settings-sec-weights">Reset to defaults</button>
     </div>
     <!-- Content type preset (plan 12) - one-choice tuning applied on top of the sliders below -->
     <div id="s-content-preset-block" style="margin:0 0 16px;padding:10px 12px;border:1px solid var(--border);border-radius:8px">
       <label class="settings-label" for="s-content-preset" style="display:block;margin-bottom:2px">Content type</label>
       <div class="settings-note" style="margin-bottom:8px">Pick the kind of content you make to tune the weights and starter hot-words below in one step. You can fine-tune everything afterwards.</div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <select class="settings-select" id="s-content-preset" style="flex:1;min-width:180px" onchange="_onContentPresetChange()"></select>
+        <select class="settings-select" id="s-content-preset" style="flex:1;min-width:180px"></select>
         <label class="settings-checkbox" title="Also add this content type's starter hot-words">
           <input type="checkbox" id="s-content-preset-hotwords" checked>
           <span style="font-size:13px">Add starter hot-words</span>
         </label>
-        <button type="button" class="btn-secondary" id="btn-apply-content-preset" onclick="applyContentPreset()">Apply</button>
+        <button type="button" class="btn-secondary" id="btn-apply-content-preset">Apply</button>
       </div>
       <div class="settings-note" id="s-content-preset-desc" style="margin-top:6px"></div>
       <div class="settings-note" id="s-content-preset-active" style="margin-top:2px;color:var(--accent-text)"></div>
@@ -471,7 +470,7 @@
     </div>
     <div style="margin-bottom:4px;display:flex;gap:8px;align-items:center">
       <label class="settings-label" for="s-laugh-mode" style="white-space:nowrap;min-width:90px">Laugh mode</label>
-      <select id="s-laugh-mode" class="settings-input" style="flex:1" onchange="_onLaughModeChange(this.value)">
+      <select id="s-laugh-mode" class="settings-input" style="flex:1">
         <option value="transcript">Transcript (default - pattern matching)</option>
         <option value="audio">Audio (spectral rhythm, no extra deps)</option>
         <option value="model">Model (HuggingFace classifier, best accuracy)</option>
@@ -590,7 +589,7 @@
 
   <!-- Analysis defaults section -->
   <div class="settings-section" id="settings-sec-analysis">
-    <div class="settings-section-title has-action"><span>Analysis defaults <span style="font-size:11px;font-weight:400;color:var(--muted)">(pre-filled in Analyze modal)</span></span><button type="button" class="btn-secondary settings-reset-btn" onclick="revertSection('settings-sec-analysis')">Reset to defaults</button></div>
+    <div class="settings-section-title has-action"><span>Analysis defaults <span style="font-size:11px;font-weight:400;color:var(--muted)">(pre-filled in Analyze modal)</span></span><button type="button" class="btn-secondary settings-reset-btn" data-revert-section="settings-sec-analysis">Reset to defaults</button></div>
     <div class="settings-row">
       <div class="settings-col">
         <label class="settings-label" for="s-scene-mode">Scene detection mode</label>
@@ -659,7 +658,7 @@
 
   <!-- Hardware section -->
   <div class="settings-section" id="settings-sec-hardware">
-    <div class="settings-section-title has-action"><span>Hardware <span style="font-size:11px;font-weight:400;color:var(--muted)">(GPU temperature - NVIDIA only, hidden automatically otherwise)</span></span><button type="button" class="btn-secondary settings-reset-btn" onclick="revertSection('settings-sec-hardware')">Reset to defaults</button></div>
+    <div class="settings-section-title has-action"><span>Hardware <span style="font-size:11px;font-weight:400;color:var(--muted)">(GPU temperature - NVIDIA only, hidden automatically otherwise)</span></span><button type="button" class="btn-secondary settings-reset-btn" data-revert-section="settings-sec-hardware">Reset to defaults</button></div>
     <div class="settings-row">
       <div class="settings-col">
         <label class="settings-label">GPU acceleration for transcription</label>
@@ -699,13 +698,13 @@
 
   <!-- UI section -->
   <div class="settings-section" id="settings-sec-ui">
-    <div class="settings-section-title has-action"><span>UI</span><button type="button" class="btn-secondary settings-reset-btn" onclick="revertSection('settings-sec-ui')">Reset to defaults</button></div>
+    <div class="settings-section-title has-action"><span>UI</span><button type="button" class="btn-secondary settings-reset-btn" data-revert-section="settings-sec-ui">Reset to defaults</button></div>
     <div class="settings-row">
       <div class="settings-col">
         <label class="settings-label" for="s-theme">Theme</label>
         <div class="settings-note">Applies immediately</div>
       </div>
-      <select class="settings-select" id="s-theme" onchange="applyTheme(this.value)">
+      <select class="settings-select" id="s-theme">
         <option value="dark">Dark</option>
         <option value="light">Light</option>
         <option value="high-contrast">High contrast</option>
@@ -716,7 +715,7 @@
         <label class="settings-label" for="s-accent">Accent colour</label>
         <div class="settings-note">Applies immediately</div>
       </div>
-      <select class="settings-select" id="s-accent" onchange="applyAccent(this.value)">
+      <select class="settings-select" id="s-accent">
         <option value="default">Default (cyan)</option>
         <option value="blue">Blue</option>
       </select>
@@ -737,7 +736,7 @@
         <div class="settings-note">Advance to the next clip in the list when the current one ends</div>
       </div>
       <label class="settings-checkbox">
-        <input type="checkbox" id="s-play-next" onchange="_onPlayNextChange(this.checked)">
+        <input type="checkbox" id="s-play-next">
         <span style="font-size:13px">Enabled</span>
       </label>
     </div>
@@ -747,7 +746,7 @@
         <div class="settings-note">Repeat the current clip instead of stopping at the end</div>
       </div>
       <label class="settings-checkbox">
-        <input type="checkbox" id="s-loop-clip" onchange="_onLoopClipChange(this.checked)">
+        <input type="checkbox" id="s-loop-clip">
         <span style="font-size:13px">Enabled</span>
       </label>
     </div>
@@ -783,7 +782,7 @@
 
   <!-- Export -->
   <div class="settings-section" id="settings-sec-export">
-    <div class="settings-section-title has-action"><span>Export</span><button type="button" class="btn-secondary settings-reset-btn" onclick="revertSection('settings-sec-export')">Reset to defaults</button></div>
+    <div class="settings-section-title has-action"><span>Export</span><button type="button" class="btn-secondary settings-reset-btn" data-revert-section="settings-sec-export">Reset to defaults</button></div>
     <div class="settings-row">
       <label class="settings-label" for="s-export-name-template">Export file name</label>
       <input class="settings-input" id="s-export-name-template" type="text"
@@ -926,8 +925,7 @@
         <label class="settings-label" for="s-caption-word-highlight">Word highlight</label>
         <div class="settings-note">Show a few words at a time and highlight each one as it's spoken (TikTok/CapCut style). Burned-in captions only.</div>
       </div>
-      <input type="checkbox" id="s-caption-word-highlight" style="flex:0 0 auto"
-             onchange="_onSettingsWordHighlightChange(this.checked)">
+      <input type="checkbox" id="s-caption-word-highlight" style="flex:0 0 auto">
     </div>
     <div class="settings-row">
       <div class="settings-col">

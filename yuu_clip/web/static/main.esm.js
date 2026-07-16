@@ -107,6 +107,11 @@ import {
   rescoreClip, rescoreClipChoose, rescoreClips, rescoreFailedClips,
   rescoreAllClips, redescribeAllClips, resetApprovals,
 } from './contexts.js';
+import {
+  openSettings, closeSettings, applyTheme, applyAccent,
+  _onDiarizationBackendChange, _updateDiarizationStatus,
+  _scrollToSettingsSection, _checkSettingsDirty,
+} from './settings.js';
 
 window.AppState = AppState;
 Object.assign(window, format);
@@ -461,3 +466,33 @@ window.rescoreFailedClips = rescoreFailedClips;
 window.rescoreAllClips = rescoreAllClips;
 window.redescribeAllClips = redescribeAllClips;
 window.resetApprovals = resetApprovals;
+// settings.js - openSettings is called as a bare global from dynamically-built
+// onclick strings owned by other modules (analyze.js/clipexport.js/contexts.js's
+// _diarizationNoteHtml links, modelcatalog.js's "Open Settings" link) and by
+// tests/ui/*.py via page.evaluate; closeSettings is called as a bare global by
+// shortcuts.js's Escape-key modal-closer map and as window.closeSettings by
+// analyze.js; applyTheme/applyAccent are invoked directly by
+// tests/ui/test_ui_theme.py via page.evaluate; _onDiarizationBackendChange is
+// invoked directly by tests/ui/test_ui_settings.py via page.evaluate;
+// _updateDiarizationStatus has no current external caller but
+// settings-installs.js documents an intent to resolve it through window at call
+// time - kept to honor that sibling contract until that module migrates;
+// _scrollToSettingsSection is read as window.* by clips.js/videos.js
+// (already-ESM, but their own migrations predate this one and never switched to
+// an import - out of scope to touch those modules here) and modelcatalog.js;
+// _checkSettingsDirty is read as window.* by modelcatalog.js. saveSettings,
+// _onLlmEnabledChange, _onLaughModeChange, _onSimilarityBackendChange,
+// _onPrivacyModeChange, _setPrivacyMode, _currentPrivacyMode, _onPlayNextChange,
+// _onLoopClipChange, _onSettingsWordHighlightChange, revertSection,
+// revertAllSettings, applyContentPreset and _onContentPresetChange dropped:
+// their only callers were settings.js's own now-removed index.html inline
+// handlers (now addEventListener inside settings.js itself) or its own internal
+// logic, so nothing outside the module needs them off window anymore.
+window.openSettings = openSettings;
+window.closeSettings = closeSettings;
+window.applyTheme = applyTheme;
+window.applyAccent = applyAccent;
+window._onDiarizationBackendChange = _onDiarizationBackendChange;
+window._updateDiarizationStatus = _updateDiarizationStatus;
+window._scrollToSettingsSection = _scrollToSettingsSection;
+window._checkSettingsDirty = _checkSettingsDirty;
