@@ -80,7 +80,6 @@ import {
 import {
   exportClip, closeExportModal, confirmExport,
   _onExportPresetChange, _updateExportTightCapWarning, _setExportFraming,
-  _renderExportModeSummary,
   _handleExportFormatAction, _downloadClipExport, _revealClipExport, _copyClipExportPaths,
 } from './clipexport.js';
 import { openClipCreatePicker } from './clipcreate.js';
@@ -92,6 +91,10 @@ import {
   _showAnalysisToast,
   closeProfileManager,
 } from './analyze.js';
+import {
+  openHighlightReelsModal, openReelForSession, closeHighlightReelsModal, switchReelTab,
+  _reelMove, _reelToggle, closeReelPreview, openBatchExportModal, closeBatchExportModal,
+} from './reel.js';
 
 window.AppState = AppState;
 Object.assign(window, format);
@@ -299,8 +302,9 @@ window.undoLastBulkStatus = undoLastBulkStatus;
 // _updateExportTightCapWarning and _setExportFraming have no outside JS caller
 // left (their only external use was the now-removed index.html inline
 // handlers) but tests/ui/test_ui_clips.py and test_ui_clips2.py call all of
-// them directly via page.evaluate. _renderExportModeSummary is called as a
-// bare global by reel.js's _updateBatchModeSummary (still classic).
+// them directly via page.evaluate. _renderExportModeSummary dropped from the
+// window shim: reel.js (now ESM) imports it directly instead of reading it as
+// a bare global.
 // _handleExportFormatAction, _downloadClipExport, _revealClipExport and
 // _copyClipExportPaths are read as window.* by clips.js (already-ESM, but
 // clips.js's own migration predates this one and never switched these to an
@@ -316,7 +320,6 @@ window.confirmExport = confirmExport;
 window._onExportPresetChange = _onExportPresetChange;
 window._updateExportTightCapWarning = _updateExportTightCapWarning;
 window._setExportFraming = _setExportFraming;
-window._renderExportModeSummary = _renderExportModeSummary;
 window._handleExportFormatAction = _handleExportFormatAction;
 window._downloadClipExport = _downloadClipExport;
 window._revealClipExport = _revealClipExport;
@@ -364,3 +367,33 @@ window.startAnalyze = startAnalyze;
 window.reattachAnalysis = reattachAnalysis;
 window._showAnalysisToast = _showAnalysisToast;
 window.closeProfileManager = closeProfileManager;
+// reel.js - openHighlightReelsModal and switchReelTab are invoked directly by
+// tests/ui/*.py via page.evaluate; openReelForSession is called as a bare
+// global by sessions.js (already-ESM, but sessions.js's own migration predates
+// this one and never switched it to an import - out of scope to touch
+// sessions.js here); closeHighlightReelsModal and closeReelPreview are called
+// as bare globals by shortcuts.js's Escape-key modal-closer map (same reason);
+// _reelMove and _reelToggle have no outside JS caller left (their only
+// external use was now-removed reel.js-owned onclick/onchange attributes) but
+// tests/ui/test_ui_reel.py calls both directly via page.evaluate;
+// openBatchExportModal is read as window.* by videos.js (already-ESM, out of
+// scope to touch here) and invoked directly by tests/ui/test_ui_clips.py;
+// closeBatchExportModal is called as a bare global by shortcuts.js's
+// Escape-key modal-closer map and invoked directly by
+// tests/ui/test_ui_clips.py. loadReelClips, _toggleReelPoolStatus, startDemo,
+// closeDemoModal, updateReelEstimate, exportUnexportedReelClips,
+// _onReelCaptionsChange, _onReelWordHighlightChange, previewReelPlaylist,
+// _reelPreviewStep, confirmBatchExport, updateBatchEstimate,
+// _onBatchCaptionsChange and _onBatchRetranscribeChange dropped: their only
+// callers were reel.js's own now-removed index.html inline handlers, now
+// addEventListener inside reel.js itself, so nothing outside the module needs
+// them off window anymore.
+window.openHighlightReelsModal = openHighlightReelsModal;
+window.openReelForSession = openReelForSession;
+window.closeHighlightReelsModal = closeHighlightReelsModal;
+window.switchReelTab = switchReelTab;
+window._reelMove = _reelMove;
+window._reelToggle = _reelToggle;
+window.closeReelPreview = closeReelPreview;
+window.openBatchExportModal = openBatchExportModal;
+window.closeBatchExportModal = closeBatchExportModal;

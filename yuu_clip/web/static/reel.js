@@ -1,7 +1,14 @@
-(function () {
 // Feature-map - Highlight reel (code: demo_reel; UI "Highlight Reel").
 //   API: routes/reel.py · Tests: tests/ui/test_ui_reel.py
 // ── highlight reels (combined Build + View modal) ──────────────────────────────
+import { AppState } from './state.js';
+import { escHtml, plural, formatApiError } from './format.js';
+import { showConfirm } from './ui.js';
+import { openLog, appendLog, showToast, revealInFolder } from './utils.js';
+import { streamSSE, _blockedByAnalyze } from './jobs.js';
+import { loadVideos } from './videos.js';
+import { _renderExportModeSummary } from './clipexport.js';
+
 let _reelClips = [];
 let _reelsOpener = null;
 // Curation (order + inclusion) lives for one modal session: tab switches keep
@@ -32,12 +39,12 @@ function _appendSessionScopeOptions(sel) {
   sel.appendChild(group);
 }
 
-function openReelForSession(sessionId, _memberIds) {
+export function openReelForSession(sessionId, _memberIds) {
   _reelPendingSource = `session:${sessionId}`;
   openHighlightReelsModal('build');
 }
 
-async function openHighlightReelsModal(tab) {
+export async function openHighlightReelsModal(tab) {
   _reelsOpener = _reelsOpener || document.activeElement;
   _reelBuildLoaded = false;
   _reelPoolStatuses = new Set(['approved']);
@@ -74,7 +81,7 @@ async function _prefillReelWordHighlight() {
   _onReelCaptionsChange(document.getElementById('demo-captions').value);
 }
 
-async function switchReelTab(tab) {
+export async function switchReelTab(tab) {
   document.getElementById('reel-tab-build').style.display = tab === 'build' ? '' : 'none';
   document.getElementById('reel-tab-view').style.display  = tab === 'view'  ? '' : 'none';
   document.getElementById('reel-tab-btn-build').classList.toggle('active', tab === 'build');
@@ -167,7 +174,7 @@ async function switchReelTab(tab) {
   }
 }
 
-function closeHighlightReelsModal() {
+export function closeHighlightReelsModal() {
   const vid = document.getElementById('reels-video');
   if (vid) { vid.pause(); vid.src = ''; }
   document.getElementById('highlight-reels-modal').classList.remove('visible');
@@ -264,16 +271,20 @@ function renderReelClipList() {
     row.innerHTML = `
       <div class="reel-clip-drag" title="Drag to reorder">&#x2830;&#x2830;</div>
       <div class="reel-clip-move">
-        <button title="Move up" ${i === 0 ? 'disabled' : ''} onclick="_reelMove(${i}, -1)">&#9650;</button>
-        <button title="Move down" ${i === _reelClips.length - 1 ? 'disabled' : ''} onclick="_reelMove(${i}, 1)">&#9660;</button>
+        <button title="Move up" ${i === 0 ? 'disabled' : ''}>&#9650;</button>
+        <button title="Move down" ${i === _reelClips.length - 1 ? 'disabled' : ''}>&#9660;</button>
       </div>
-      <input type="checkbox" ${c.included ? 'checked' : ''} onchange="_reelToggle(${i}, this.checked)" title="Include in reel">
+      <input type="checkbox" ${c.included ? 'checked' : ''} title="Include in reel">
       <div class="reel-clip-info">
         <div class="reel-clip-name">${escHtml(c.description || `Clip ${c.id}`)}</div>
         <div class="reel-clip-meta">${escHtml(c.start_hms)} · ${escHtml(c.duration_hms)} · &#11088;${Math.round(c.score_overall*100)}%
           ${c.has_export ? '' : ' · <span style="color:var(--warning)">not exported</span>'}
         </div>
       </div>`;
+    const [moveUpBtn, moveDownBtn] = row.querySelectorAll('.reel-clip-move button');
+    moveUpBtn.onclick = () => _reelMove(i, -1);
+    moveDownBtn.onclick = () => _reelMove(i, 1);
+    row.querySelector('input[type="checkbox"]').onchange = e => _reelToggle(i, e.target.checked);
     _wireReelRowDrag(row);
     listEl.appendChild(row);
   });
@@ -318,7 +329,7 @@ function _commitReelDomOrder() {
   updateReelEstimate();
 }
 
-function _reelMove(i, dir) {
+export function _reelMove(i, dir) {
   const j = i + dir;
   if (j < 0 || j >= _reelClips.length) return;
   [_reelClips[i], _reelClips[j]] = [_reelClips[j], _reelClips[i]];
@@ -326,7 +337,7 @@ function _reelMove(i, dir) {
   updateReelEstimate();
 }
 
-function _reelToggle(i, included) {
+export function _reelToggle(i, included) {
   _reelClips[i].included = included;
   renderReelClipList();
   updateReelEstimate();
@@ -384,7 +395,7 @@ async function exportUnexportedReelClips() {
     () => {
       statusEl.textContent = '';
       showToast('Clips exported');
-      SoundFx.play('export');
+      window.SoundFx.play('export');
       _refreshReelExportStatus();
       loadVideos();
     },
@@ -461,7 +472,7 @@ function _updateReelPreviewNav() {
   next.disabled = _reelPreviewIdx >= _reelPreviewList.length - 1;
 }
 
-function closeReelPreview() {
+export function closeReelPreview() {
   const vid = document.getElementById('reel-preview-video');
   vid.pause();
   vid.src = '';
@@ -528,7 +539,7 @@ async function startDemo() {
       loadVideos();
       showToast(`Highlight reel complete!${skipNote}`, 'success');
       openHighlightReelsModal('view');
-      SoundFx.play('reel');
+      window.SoundFx.play('reel');
     },
     [{label: 'Building', patterns: ['Generating title', 'Encoding', 'OK']}],
     'Reel',
@@ -557,7 +568,7 @@ function _onBatchRetranscribeChange(checked) {
   _updateBatchModeSummary();
 }
 
-function openBatchExportModal(videoId) {
+export function openBatchExportModal(videoId) {
   _batchExportOpener = document.activeElement;
   _batchExportVideoId = videoId;
   const video = AppState.videos.find(v => v.id === videoId);
@@ -577,7 +588,7 @@ function openBatchExportModal(videoId) {
   setTimeout(() => document.getElementById('batch-min-score')?.focus(), 50);
 }
 
-function closeBatchExportModal() {
+export function closeBatchExportModal() {
   document.getElementById('batch-export-modal').classList.remove('visible');
   const opener = _batchExportOpener;
   _batchExportOpener = null;
@@ -615,7 +626,7 @@ async function confirmBatchExport() {
   openLog();
   streamSSE(
     `/api/videos/${id}/batch-export?${params}`,
-    () => { loadVideos(); showToast('Batch export complete'); SoundFx.play('export'); },
+    () => { loadVideos(); showToast('Batch export complete'); window.SoundFx.play('export'); },
     [{label: 'Exporting', patterns: ['Exporting clip', 'OK clip', 'Skipping']}],
     'Batch Export',
   );
@@ -686,15 +697,56 @@ async function _regenReelCaptions(reel, btn) {
   }
 }
 
-// Public API - symbols referenced cross-module, by an inline handler, or by a
-// test. Internal helpers above stay private to this module's closure.
-Object.assign(window, {
-  openHighlightReelsModal, openReelForSession, closeHighlightReelsModal, switchReelTab,
-  loadReelClips, _reelMove, _reelToggle, _toggleReelPoolStatus,
-  startDemo, closeDemoModal, updateReelEstimate, exportUnexportedReelClips,
-  _onReelCaptionsChange, _onReelWordHighlightChange,
-  previewReelPlaylist, closeReelPreview, _reelPreviewStep,
-  openBatchExportModal, closeBatchExportModal, confirmBatchExport,
-  updateBatchEstimate, _onBatchCaptionsChange, _onBatchRetranscribeChange,
-});
-})();
+// ── static modal wiring (replaces the inline onclick=/oninput=/onchange= these
+// modals used to own in index.html) ────────────────────────────────────────────
+// The nav button and all three modals below are fixed, never-recreated elements
+// in index.html, so wiring them once at module load can't double-fire on a
+// re-render.
+function _wireHighlightReelsModal() {
+  const modal = document.getElementById('highlight-reels-modal');
+  modal.addEventListener('click', e => { if (e.target === modal) closeHighlightReelsModal(); });
+  document.getElementById('reel-close-btn').addEventListener('click', () => closeHighlightReelsModal());
+  document.getElementById('reel-tab-btn-build').addEventListener('click', () => switchReelTab('build'));
+  document.getElementById('reel-tab-btn-view').addEventListener('click', () => switchReelTab('view'));
+  document.getElementById('demo-video-id').addEventListener('change', () => loadReelClips());
+  document.querySelectorAll('[data-reel-status]').forEach(chip => {
+    chip.addEventListener('click', () => _toggleReelPoolStatus(chip.dataset.reelStatus));
+  });
+  document.getElementById('reel-refresh-btn').addEventListener('click', () => loadReelClips());
+  document.getElementById('demo-transition').addEventListener('change', () => updateReelEstimate());
+  document.getElementById('demo-trans-dur').addEventListener('change', () => updateReelEstimate());
+  document.getElementById('demo-title-dur').addEventListener('change', () => updateReelEstimate());
+  document.getElementById('demo-captions').addEventListener('change', e => _onReelCaptionsChange(e.target.value));
+  document.getElementById('demo-word-highlight').addEventListener('change', e => _onReelWordHighlightChange(e.target.checked));
+  document.getElementById('reel-build-cancel-btn').addEventListener('click', () => closeHighlightReelsModal());
+  document.getElementById('reel-preview-open-btn').addEventListener('click', () => previewReelPlaylist());
+  document.getElementById('reel-export-btn').addEventListener('click', () => exportUnexportedReelClips());
+  document.getElementById('reel-build-btn').addEventListener('click', () => startDemo());
+  document.getElementById('reel-view-close-btn').addEventListener('click', () => closeHighlightReelsModal());
+}
+
+function _wireReelPreviewModal() {
+  const modal = document.getElementById('reel-preview-modal');
+  modal.addEventListener('click', e => { if (e.target === modal) closeReelPreview(); });
+  document.getElementById('reel-preview-prev').addEventListener('click', () => _reelPreviewStep(-1));
+  document.getElementById('reel-preview-next').addEventListener('click', () => _reelPreviewStep(1));
+  document.getElementById('reel-preview-close-btn').addEventListener('click', () => closeReelPreview());
+}
+
+function _wireBatchExportModal() {
+  const modal = document.getElementById('batch-export-modal');
+  modal.addEventListener('click', e => { if (e.target === modal) closeBatchExportModal(); });
+  document.getElementById('batch-min-score').addEventListener('input', e => {
+    document.getElementById('batch-min-score-val').textContent = `${Math.round(parseFloat(e.target.value) * 100)}%`;
+    updateBatchEstimate();
+  });
+  document.getElementById('batch-captions').addEventListener('change', e => _onBatchCaptionsChange(e.target.value));
+  document.getElementById('batch-retranscribe').addEventListener('change', e => _onBatchRetranscribeChange(e.target.checked));
+  document.getElementById('batch-cancel-btn').addEventListener('click', () => closeBatchExportModal());
+  document.getElementById('batch-confirm-btn').addEventListener('click', () => confirmBatchExport());
+}
+
+document.getElementById('btn-highlight-reels').addEventListener('click', () => openHighlightReelsModal('build'));
+_wireHighlightReelsModal();
+_wireReelPreviewModal();
+_wireBatchExportModal();

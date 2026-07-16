@@ -30,7 +30,7 @@ _ESM_MODULES = (
     "main.esm.js", "state.js", "format.js", "colorpicker.js", "panelnav.js", "jobs.js", "preview.js", "utils.js",
     "ui.js", "helpmodals.js", "shortcuts.js", "modelcatalog.js", "videos.js", "videos-timeline.js",
     "videos-summary.js", "videos-runmeta.js", "sessions.js", "clips.js", "clipbulk.js", "clipexport.js",
-    "clipcreate.js", "analyze.js",
+    "clipcreate.js", "analyze.js", "reel.js",
 )
 
 
