@@ -140,6 +140,7 @@ import {
   exportPresetTargetSizeMb, populateExportPresetSelect, initExportPresetSettings,
 } from './exportpresets.js';
 import { loadSpeakers } from './speakers.js';
+import { openPeopleView } from './voices.js';
 
 window.AppState = AppState;
 Object.assign(window, format);
@@ -618,3 +619,10 @@ window.initExportPresetSettings = initExportPresetSettings;
 // still-classic transcript.js and voices.js. Everything else in the module stays
 // module-private (delegated event listeners on #detail, no external caller).
 window.loadSpeakers = loadSpeakers;
+// voices.js - openPeopleView is read as window.openPeopleView by speakers.js
+// (already-ESM, but its own migration never switched it to an import - out of
+// scope to touch speakers.js here) and invoked directly by tests/ui/test_ui_voices.py
+// via page.evaluate. isPeopleOpen dropped from the shim: it has no caller anywhere
+// (kept as a named export in case a future caller needs a PanelNav('people') check).
+// The People nav button's inline onclick is now an addEventListener inside voices.js.
+window.openPeopleView = openPeopleView;

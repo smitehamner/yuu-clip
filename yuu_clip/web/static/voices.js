@@ -1,12 +1,19 @@
-(function () {
 // Feature-map - People / project-wide speaker identity (code: ProjectVoice; UI "Person"/"People").
-//   API: routes/voices.py · Tests: tests/ui/test_ui_voices.py
+//   API: routes/voices.py Tests: tests/ui/test_ui_voices.py
 // ── People view (PanelNav takeover) ────────────────────────────────────────────
 // A project-level view listing every Person (a voice named once, applied across all
 // recordings). Lists each Person's member recordings, pending cross-recording
 // suggestions (confirm/dismiss inline), and rename/recolor/merge/split. Naming a
 // Person here flows to every linked recording's captions/excerpts/exports because the
 // server resolves display_name through the linked voice.
+import { AppState } from './state.js';
+import { escHtml, plural, formatApiError } from './format.js';
+import { showToast } from './utils.js';
+import { showConfirm } from './ui.js';
+import { ColorPicker } from './colorpicker.js';
+import { PanelNav } from './panelnav.js';
+import { loadSpeakers } from './speakers.js';
+import { selectClip } from './clips.js';
 
 function isPeopleOpen() {
   return PanelNav.isOpen('people');
@@ -65,7 +72,7 @@ function _renderPeople() {
     return;
   }
   list.innerHTML = _peopleCache.map(_personCardHtml).join('');
-  list.querySelectorAll('.voice-color-input').forEach(el => window.ColorPicker?.attach(el));
+  list.querySelectorAll('.voice-color-input').forEach(el => ColorPicker.attach(el));
 }
 
 function _personCardHtml(voice) {
@@ -319,10 +326,12 @@ async function _backfillPeople(btn) {
 // refresh its Speakers card, transcript, and clip so it doesn't show a stale name.
 function _syncOpenRecording() {
   const videoId = AppState.activeVideoId;
-  if (videoId != null && window.loadSpeakers) loadSpeakers(videoId);
-  if (videoId != null && window.reloadVideoTranscriptIfOpen) reloadVideoTranscriptIfOpen(videoId);
-  if (AppState.activeClipId != null && window.selectClip) selectClip(AppState.activeClipId);
+  if (videoId != null) loadSpeakers(videoId);
+  if (videoId != null && window.reloadVideoTranscriptIfOpen) window.reloadVideoTranscriptIfOpen(videoId);
+  if (AppState.activeClipId != null) selectClip(AppState.activeClipId);
 }
 
-Object.assign(window, {openPeopleView, isPeopleOpen});
-})();
+// Static index.html nav button (fixed element, never recreated - one load-time listener).
+document.getElementById('btn-people')?.addEventListener('click', () => openPeopleView());
+
+export { openPeopleView, isPeopleOpen };

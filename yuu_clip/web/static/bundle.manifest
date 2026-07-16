@@ -17,7 +17,6 @@
 # this bundle.js.
 
 split.js
-voices.js
 transcript.js
 namecorrections.js
 exporteditor.js
