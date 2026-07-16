@@ -10,6 +10,7 @@ import {
 import {
   loadVideos, selectVideo, renderVideoDetail, _updateStartIngestButton, _reanalyzeParams,
 } from './videos.js';
+import { _splitPoints, _splitDurationS, _splitIgnored } from './split.js';
 
 // ── shared live panel state ───────────────────────────────────────────────────
 // _probedInfo and _panelDirty are read cross-file by videos.js (analyze-button
@@ -528,9 +529,8 @@ async function _doStartAnalyze() {
   const subtitleSource = _selectedSubtitleSource();
 
   // _splitPoints/_splitDurationS/_splitIgnored are split.js's shared live-edit
-  // state - split.js stays classic, so these remain true global lexical
-  // bindings (never window properties); read bare here, mirroring videos.js's
-  // precedent for the same globals (see the comment at videos.js's selectVideo).
+  // state, imported as live ESM bindings (export let) so they always reflect
+  // the pre-split editor's current plan.
   const preSplitToggle = document.getElementById('pre-split-toggle');
   if (preSplitToggle && preSplitToggle.checked && _splitPoints.length > 0 && _splitDurationS > 0) {
     const pts      = [0, ..._splitPoints, _splitDurationS];

@@ -1194,14 +1194,13 @@
 
         <div id="pre-split-section" style="display:none">
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;padding:4px 0">
-            <input type="checkbox" id="pre-split-toggle" onchange="onPreSplitToggle(this.checked)">
+            <input type="checkbox" id="pre-split-toggle">
             Split before analyzing
           </label>
           <div id="pre-split-editor" style="display:none;flex-direction:column;gap:8px;margin-top:6px">
             <div id="pre-split-instructions" style="font-size:12px;color:var(--muted)"></div>
             <div id="pre-split-timeline-bar"
-                 style="position:relative;height:48px;flex-shrink:0;background:var(--surface);border:1px solid var(--border);border-radius:6px;cursor:crosshair;overflow:hidden"
-                 onclick="preSplitTimelineClick(event)">
+                 style="position:relative;height:48px;flex-shrink:0;background:var(--surface);border:1px solid var(--border);border-radius:6px;cursor:crosshair;overflow:hidden">
               <div id="pre-split-segments-layer" style="display:flex;height:100%;pointer-events:none"></div>
               <div id="pre-split-markers-layer" style="position:absolute;inset:0;pointer-events:none"></div>
             </div>
@@ -1258,15 +1257,15 @@
   <!-- Timeline zoom controls -->
   <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)">
     <span>&#128269; Zoom</span>
-    <button type="button" class="btn ghost" id="split-zoom-out" style="padding:1px 9px;font-size:15px;line-height:1" title="Zoom out" aria-label="Zoom timeline out" onclick="_setSplitZoom(_splitZoom/1.6)">&#8722;</button>
+    <button type="button" class="btn ghost" id="split-zoom-out" style="padding:1px 9px;font-size:15px;line-height:1" title="Zoom out" aria-label="Zoom timeline out">&#8722;</button>
     <span id="split-zoom-label" style="min-width:34px;text-align:center">1&#215;</span>
-    <button type="button" class="btn ghost" id="split-zoom-in" style="padding:1px 9px;font-size:15px;line-height:1" title="Zoom in" aria-label="Zoom timeline in" onclick="_setSplitZoom(_splitZoom*1.6)">+</button>
-    <button type="button" class="btn ghost" id="split-zoom-fit" style="padding:1px 9px;font-size:12px" title="Reset zoom to fit the whole recording" aria-label="Reset zoom to fit" onclick="_setSplitZoom(1)">Fit</button>
+    <button type="button" class="btn ghost" id="split-zoom-in" style="padding:1px 9px;font-size:15px;line-height:1" title="Zoom in" aria-label="Zoom timeline in">+</button>
+    <button type="button" class="btn ghost" id="split-zoom-fit" style="padding:1px 9px;font-size:12px" title="Reset zoom to fit the whole recording" aria-label="Reset zoom to fit">Fit</button>
     <span style="opacity:0.65">&middot; Ctrl+scroll to zoom, scroll to pan</span>
   </div>
   <!-- Timeline bar (horizontally scrollable when zoomed) -->
   <div id="split-timeline-scroll" style="overflow-x:auto;overflow-y:hidden;flex-shrink:0">
-    <div style="position:relative;height:60px;width:100%;background:var(--surface);border:1px solid var(--border);border-radius:6px;cursor:crosshair;user-select:none" id="split-timeline-bar" onclick="splitTimelineClick(event)">
+    <div style="position:relative;height:60px;width:100%;background:var(--surface);border:1px solid var(--border);border-radius:6px;cursor:crosshair;user-select:none" id="split-timeline-bar">
       <canvas id="split-waveform-canvas" style="position:absolute;inset:0;width:100%;height:100%;border-radius:6px;pointer-events:none"></canvas>
       <div id="split-scene-layer"    style="position:absolute;inset:0;pointer-events:none"></div>
       <div id="split-suggestion-layer" style="position:absolute;inset:0;pointer-events:none"></div>
@@ -1286,7 +1285,7 @@
   <!-- Waveform notice (shown when no energy data and not computing) -->
   <div id="split-waveform-notice" style="display:none;font-size:12px;color:var(--muted);align-items:center;gap:10px">
     <span>No waveform data - energy was not computed during analysis.</span>
-    <button class="btn" style="padding:3px 10px;font-size:12px" onclick="_generateWaveform()">Generate Waveform</button>
+    <button class="btn" style="padding:3px 10px;font-size:12px">Generate Waveform</button>
   </div>
 
   <!-- Segment list -->
@@ -1297,7 +1296,7 @@
 
   <div style="display:flex;flex-direction:column;gap:10px;padding-top:4px">
     <div id="split-action-options" role="radiogroup" aria-label="What to do after splitting"
-         onchange="_updateSplitConfirmState()" style="display:flex;flex-direction:column;gap:6px;font-size:13px">
+         style="display:flex;flex-direction:column;gap:6px;font-size:13px">
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
         <input type="radio" name="split-action" value="partition" checked>
         Split only - keep all existing clips, just divide them between segments
@@ -1312,7 +1311,7 @@
       </label>
     </div>
     <div style="display:flex;gap:10px">
-      <button class="btn primary" id="btn-split-confirm" onclick="confirmSplit()">Confirm</button>
+      <button class="btn primary" id="btn-split-confirm">Confirm</button>
       <button class="btn" onclick="PanelNav.close()">Cancel</button>
     </div>
   </div>

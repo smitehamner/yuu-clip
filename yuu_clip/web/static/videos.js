@@ -10,6 +10,7 @@ import { setupRecordingPreview } from './preview.js';
 import { streamSSE, cancelJob, _blockedByAnalyze, _stepPillLabel } from './jobs.js';
 import { openGettingStartedModal } from './helpmodals.js';
 import { _probedInfo, _panelDirty } from './analyze.js';
+import { _splitPoints } from './split.js';
 // ── videos ────────────────────────────────────────────────────────────────────
 async function loadVideos() {
   let videos;
@@ -321,11 +322,9 @@ function _clipsListUrl(videoId) {
 
 async function selectVideo(id) {
   if (window.isSplitEditorOpen()) {
-    // _splitPoints is split.js's shared live-edit state: a top-level `let` kept
-    // outside its IIFE specifically so other classic scripts can read it bare
-    // (see the comment in split.js). It is never a window property, so this
-    // must stay a bare reference rather than window._splitPoints.
-    const hasSplits = typeof _splitPoints !== 'undefined' && _splitPoints.length > 0;
+    // _splitPoints is split.js's shared live-edit state, imported as a live ESM
+    // binding (export let), so this always sees the current array.
+    const hasSplits = _splitPoints.length > 0;
     if (hasSplits) {
       showConfirm(
         'Leave Split editor?',

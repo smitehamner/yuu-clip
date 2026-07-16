@@ -146,6 +146,11 @@ import {
 } from './transcript.js';
 import { openNameCorrections } from './namecorrections.js';
 import { openExportEditor } from './exporteditor.js';
+import {
+  isSplitEditorOpen, openSplitEditor, closeSplitEditor,
+  initPreSplitDuration, hidePreSplitSection,
+  _fmtSplitTime, _parseSplitTime, _computeSuggestionPins, splitTimelineClick,
+} from './split.js';
 
 window.AppState = AppState;
 Object.assign(window, format);
@@ -656,3 +661,26 @@ window.openNameCorrections = openNameCorrections;
 // from the shim: it has no caller anywhere (kept as a named export in case a future
 // caller needs a PanelNav('export-editor')-open check).
 window.openExportEditor = openExportEditor;
+// split.js - isSplitEditorOpen/openSplitEditor/closeSplitEditor are read as
+// window.* by videos.js (already-ESM, but its own migration predates this one
+// and never switched to an import - out of scope to touch videos.js here) and
+// openSplitEditor/closeSplitEditor are also invoked directly by
+// tests/ui/test_ui_keyboard.py, test_ui_panelnav.py and test_ui_split.py via
+// page.evaluate; initPreSplitDuration/hidePreSplitSection/_fmtSplitTime are read
+// as window.* by analyze.js (already-ESM, same reason), and _fmtSplitTime/
+// _parseSplitTime/_computeSuggestionPins/splitTimelineClick are invoked directly
+// by tests/ui/test_ui_utils.py and test_ui_split.py via page.evaluate. The four
+// test-poked STATE names (_splitPoints, _splitNames, _splitDurationS,
+// _splitEnergyFlat) plus _suggestionPins are NOT here - split.js wires those onto
+// window itself via live get/set accessors, since a plain snapshot would go stale
+// on reassignment (mirrors the jobs.js accessor-bridge). videos.js/analyze.js read
+// _splitPoints/_splitDurationS/_splitIgnored via a direct import instead of window.
+window.isSplitEditorOpen = isSplitEditorOpen;
+window.openSplitEditor = openSplitEditor;
+window.closeSplitEditor = closeSplitEditor;
+window.initPreSplitDuration = initPreSplitDuration;
+window.hidePreSplitSection = hidePreSplitSection;
+window._fmtSplitTime = _fmtSplitTime;
+window._parseSplitTime = _parseSplitTime;
+window._computeSuggestionPins = _computeSuggestionPins;
+window.splitTimelineClick = splitTimelineClick;

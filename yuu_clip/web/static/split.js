@@ -1,25 +1,46 @@
 // Feature-map - Split recording into segments (code: segment / segment_start_s).
 //   API: routes/videos.py (split) · Tests: tests/ui/test_ui_split.py, tests/integration/test_segments.py
-// ── shared live split-editor state ────────────────────────────────────────────
-// Read cross-file: videos.js checks _splitPoints for the "has splits" badge,
-// analyze.js reads the segment plan, index.html's zoom buttons read _splitZoom,
-// and an inline onchange writes _splitNames[i]. Kept at top level, outside the
-// IIFE below, so the global lexical binding stays live - an Object.assign export
-// would snapshot the value and inline handlers / readers would go stale.
-let _splitDurationS = 0;
-let _splitPoints    = [];  // sorted list of seconds
-let _splitNames     = [];  // auto-names, editable
-let _splitIgnored   = new Set();  // indices of segments to skip
-let _splitZoom      = 1;
+import { AppState } from './state.js';
+import { PanelNav } from './panelnav.js';
+import { escHtml, plural, formatApiError } from './format.js';
+import { setupRecordingPreview } from './preview.js';
+import { showToast, netErrMsg, openLog, appendLog } from './utils.js';
+import { showConfirm } from './ui.js';
+import { streamSSE, INGEST_STEPS, _waitWhileAnalyzePaused } from './jobs.js';
+import { loadVideos, _reanalyzeParams } from './videos.js';
 
-// Suggestion-pin inputs/outputs. Not read by other production modules, but the
-// _computeSuggestionPins tests seed _splitEnergyFlat and read _suggestionPins
-// directly via page.evaluate (global lexical scope) - so they too stay outside
-// the IIFE rather than becoming closure-private.
+// ── shared live split-editor state ────────────────────────────────────────────
+// Read cross-module via ESM `import`: videos.js reads _splitPoints for the "has
+// splits" badge; analyze.js reads _splitPoints/_splitDurationS/_splitIgnored for
+// the pre-split segment plan. `export let` gives those importers a live binding,
+// so a reassignment here (e.g. _splitPoints = [] on open) is visible to them.
+export let _splitDurationS = 0;
+export let _splitPoints    = [];  // sorted list of seconds
+let _splitNames            = [];  // auto-names, editable
+export let _splitIgnored   = new Set();  // indices of segments to skip
+let _splitZoom             = 1;
+
+// Suggestion-pin inputs/outputs, not consumed by other production modules.
 let _splitEnergyFlat = [];   // [{second, rms_db}, …] merged across tracks
 let _suggestionPins  = [];    // [sec, …]
 
-(function () {
+// Test-only accessor bridge: the Playwright suites poke these split-state names
+// as bare page globals via page.evaluate (test_ui_keyboard mutates _splitPoints /
+// assigns _splitNames; test_ui_utils assigns _splitDurationS / _splitEnergyFlat /
+// _suggestionPins). Inside the esbuild IIFE these are closure locals, not window
+// properties, and this module reassigns them - so a plain window.X = X snapshot
+// would go stale and an imported ESM binding is read-only. Live get/set defined
+// here (which can read AND write this module's own `let`s) keeps page.evaluate in
+// sync. Remove when those tests move to the vitest unit layer (mirrors the
+// jobs.js accessor-bridge deferral).
+for (const [name, get, set] of [
+  ['_splitPoints',    () => _splitPoints,    v => { _splitPoints = v; }],
+  ['_splitNames',     () => _splitNames,     v => { _splitNames = v; }],
+  ['_splitDurationS', () => _splitDurationS, v => { _splitDurationS = v; }],
+  ['_splitEnergyFlat', () => _splitEnergyFlat, v => { _splitEnergyFlat = v; }],
+  ['_suggestionPins', () => _suggestionPins, v => { _suggestionPins = v; }],
+]) Object.defineProperty(window, name, { get, set, configurable: true });
+
 // ── split editor ─────────────────────────────────────────────────────────────
 let _splitVideoId   = null;
 
@@ -34,8 +55,6 @@ let _dragActive     = false;
 // Timeline zoom (main split editor only): 1 = fit whole recording, higher =
 // wider bar inside a horizontal-scroll container. All overlay layers are
 // %-positioned so they scale for free; only the waveform canvas needs a redraw.
-// (_splitZoom itself is hoisted to top level above - an inline zoom-button
-// handler in index.html reads it.)
 const _SPLIT_ZOOM_MIN = 1;
 const _SPLIT_ZOOM_MAX = 50;
 
@@ -43,22 +62,15 @@ const _SUGGESTION_MIN_GAP_S = 30;
 const _SUGGESTION_COUNT     = 8;
 
 // One instruction string for both editors (L6-3); the main editor appends its
-// extra affordances. Scripts load at the end of <body>, so the elements exist.
+// extra affordances.
 const SPLIT_BAR_INSTRUCTIONS =
   'Click the bar to place a split point. Drag a marker to move it; hover over it and click its × to remove it.';
-document.getElementById('pre-split-instructions').textContent = SPLIT_BAR_INSTRUCTIONS;
-document.getElementById('split-instructions').textContent =
-  `${SPLIT_BAR_INSTRUCTIONS} Click a marker to jump the preview there. Each segment can be analyzed independently after confirming.`;
 
-// Ctrl/⌘+wheel over the timeline zooms; passive:false so preventDefault sticks.
-document.getElementById('split-timeline-scroll')
-  ?.addEventListener('wheel', _onSplitZoomWheel, { passive: false });
-
-function isSplitEditorOpen() {
+export function isSplitEditorOpen() {
   return PanelNav.isOpen('split-editor');
 }
 
-async function openSplitEditor(videoId) {
+export async function openSplitEditor(videoId) {
   const video = AppState.videos.find(v => v.id === videoId);
   if (!video) return;
 
@@ -156,7 +168,7 @@ async function _loadSplitEditorOverlays(videoId) {
 // Force-closes the panel (bypasses PanelNav's dirty gate) - used by callers
 // that already ran their own confirm (e.g. switching recordings) and by the
 // split editor's own post-confirm success paths.
-function closeSplitEditor() {
+export function closeSplitEditor() {
   PanelNav.forceClose();
 }
 
@@ -188,7 +200,7 @@ function _splitSeekTo(sec) {
 }
 
 // Preview proxy (720p, fast scrubbing) is handled by the shared
-// setupRecordingPreview() in utils.js - see openSplitEditor.
+// setupRecordingPreview() in preview.js - see openSplitEditor.
 
 async function _generateWaveform() {
   const btn = document.querySelector('#split-waveform-notice button');
@@ -228,7 +240,7 @@ async function _generateWaveform() {
 
 // ── suggestion pins ──────────────────────────────────────────────────────────
 
-function _computeSuggestionPins() {
+export function _computeSuggestionPins() {
   if (!_splitEnergyFlat.length || !_splitDurationS) return;
 
   // Work with normalised linear energy (not dB) for valley detection
@@ -383,8 +395,7 @@ function _renderSuggestionLayer() {
     const pct = (sec / _splitDurationS * 100).toFixed(3);
     return `<div data-pin="${sec}" class="split-suggestion-pin"
                  style="position:absolute;left:${pct}%;top:0;bottom:0;width:14px;transform:translateX(-50%);cursor:pointer;pointer-events:auto;display:flex;justify-content:center"
-                 title="Quiet valley at ${_fmtSplitTime(sec)} - click to place a split point here"
-                 onclick="event.stopPropagation();_promoteSuggestionPin(${sec})">
+                 title="Quiet valley at ${_fmtSplitTime(sec)} - click to place a split point here">
                <div style="width:0;border-left:1.5px dashed color-mix(in srgb, var(--text) 40%, transparent)"></div>
              </div>`;
   }).join('');
@@ -455,7 +466,7 @@ function _splitMarkerPointerDown(e, sec) {
 
 // ── main click handler ───────────────────────────────────────────────────────
 
-function splitTimelineClick(e) {
+export function splitTimelineClick(e) {
   if (!_splitDurationS || _dragActive) return;
   const bar  = document.getElementById('split-timeline-bar');
   const rect = bar.getBoundingClientRect();
@@ -537,23 +548,20 @@ function _renderSplitTimeline() {
     return `<div style="height:100%;width:${widthPct}%;background:${col};opacity:${opacity};border-right:1px solid ${col}"></div>`;
   }).join('');
 
-  // User-placed markers with drag handles
+  // User-placed markers with drag handles (wired via delegation - see _wireMarkerLayer)
   markers.innerHTML = _splitPoints.map(p => {
     const pct = (p / _splitDurationS * 100).toFixed(3);
     const timeLabel = _fmtSplitTime(p);
-    return `<div class="split-marker" style="position:absolute;left:${pct}%;top:0;bottom:0;width:10px;transform:translateX(-50%);cursor:ew-resize;pointer-events:auto;display:flex;align-items:stretch;justify-content:center"
-                 title="${timeLabel} - drag to move, click to preview from here"
-                 onpointerdown="event.stopPropagation();_splitMarkerPointerDown(event,${p})">
+    return `<div class="split-marker" data-split-sec="${p}" style="position:absolute;left:${pct}%;top:0;bottom:0;width:10px;transform:translateX(-50%);cursor:ew-resize;pointer-events:auto;display:flex;align-items:stretch;justify-content:center"
+                 title="${timeLabel} - drag to move, click to preview from here">
                <div style="width:2px;background:var(--accent);border-radius:1px"></div>
                <button type="button" class="split-marker-x" title="Remove split point"
-                       aria-label="Remove split point at ${timeLabel}"
-                       onpointerdown="event.stopPropagation()"
-                       onclick="event.stopPropagation();_removeSplitPoint(${p},false)">&#215;</button>
+                       aria-label="Remove split point at ${timeLabel}">&#215;</button>
              </div>`;
   }).join('');
 }
 
-function _parseSplitTime(str) {
+export function _parseSplitTime(str) {
   const parts = str.trim().split(':').map(Number);
   if (parts.some(isNaN)) return null;
   if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
@@ -580,7 +588,9 @@ function _updateSplitPoint(idx, timeStr, onRerender) {
   onRerender();
 }
 
-function _renderSegmentList(listId, onRerender, showPlayBtn, showIgnore = true) {
+// Segment rows carry data-split-role attributes; their change/click events are
+// handled by one delegated listener per list container (see _wireSegmentList).
+function _renderSegmentList(listId, showPlayBtn, showIgnore = true) {
   const list = document.getElementById(listId);
   if (!list || !_splitDurationS) return;
   const pts = [0, ..._splitPoints, _splitDurationS];
@@ -591,35 +601,31 @@ function _renderSegmentList(listId, onRerender, showPlayBtn, showIgnore = true) 
     const name     = escHtml(_splitNames[i] || `Part ${i + 1}`);
     const startStr = escHtml(_fmtSplitTime(start));
     const endStr   = escHtml(_fmtSplitTime(end));
-    const onUpdate = `_updateSplitPoint(%idx%, this.value, ${onRerender.name})`;
     const dimStyle = ignored ? 'opacity:0.45;' : '';
     const startEl  = i === 0
       ? `<span style="font-size:12px;color:var(--muted);min-width:58px">${startStr}</span>`
-      : `<input type="text" value="${startStr}"
+      : `<input type="text" value="${startStr}" data-split-role="edit-point" data-split-point-idx="${i - 1}"
                style="font-size:12px;color:var(--muted);background:transparent;border:none;border-bottom:1px dashed var(--muted);width:58px;text-align:center;padding:1px 2px"
                title="Edit split point (h:mm:ss or m:ss)"
-               onchange="${onUpdate.replace('%idx%', i - 1)}"
                aria-label="Segment ${i + 1} start time">`;
     const endEl    = i === pts.length - 2
       ? `<span style="font-size:12px;color:var(--muted);min-width:58px">${endStr}</span>`
-      : `<input type="text" value="${endStr}"
+      : `<input type="text" value="${endStr}" data-split-role="edit-point" data-split-point-idx="${i}"
                style="font-size:12px;color:var(--muted);background:transparent;border:none;border-bottom:1px dashed var(--muted);width:58px;text-align:center;padding:1px 2px"
                title="Edit split point (h:mm:ss or m:ss)"
-               onchange="${onUpdate.replace('%idx%', i)}"
                aria-label="Segment ${i + 1} end time">`;
     const playBtn  = showPlayBtn
-      ? `<button class="btn ghost" style="padding:2px 7px;font-size:12px;flex-shrink:0" title="Play from ${startStr}" onclick="_splitSeekTo(${start})">&#9654;</button>`
+      ? `<button class="btn ghost" data-split-role="play" data-split-start="${start}" style="padding:2px 7px;font-size:12px;flex-shrink:0" title="Play from ${startStr}">&#9654;</button>`
       : '';
     const ignoreChk = showIgnore ? `<label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--muted);white-space:nowrap;cursor:pointer;flex-shrink:0" title="Ignore this segment - it will be split off but not analyzed">
-        <input type="checkbox" ${ignored ? 'checked' : ''} onchange="_toggleIgnored(${i}, ${onRerender.name})"> Ignore
+        <input type="checkbox" ${ignored ? 'checked' : ''} data-split-role="ignore" data-split-idx="${i}"> Ignore
       </label>` : '';
     return `
       <div style="display:flex;align-items:center;gap:10px;padding:6px 10px;background:var(--surface);border:1px solid var(--border);border-radius:6px;${ignored ? 'opacity:0.5' : ''}">
         ${playBtn}
         <div style="display:flex;align-items:center;gap:4px;white-space:nowrap;${dimStyle}">${startEl}<span style="font-size:12px;color:var(--muted)">–</span>${endEl}</div>
-        <input type="text" value="${name}"
+        <input type="text" value="${name}" data-split-role="name" data-split-idx="${i}"
                style="flex:1;padding:4px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px"
-               onchange="_splitNames[${i}] = this.value"
                ${ignored ? 'disabled' : ''}
                aria-label="Segment ${i + 1} name">
         ${ignoreChk}
@@ -637,10 +643,10 @@ function _renderSplitSegmentList() {
   const action = document.querySelector('input[name="split-action"]:checked')?.value || 'partition';
   // Ignore only matters when segments get reanalyzed independently - meaningless
   // for a plain partition, where every segment keeps whatever clips land in it.
-  _renderSegmentList('split-segment-list', _renderSplitEditor, true, action !== 'partition');
+  _renderSegmentList('split-segment-list', true, action !== 'partition');
 }
 
-function _fmtSplitTime(sec) {
+export function _fmtSplitTime(sec) {
   const s  = Math.round(sec);
   const h  = Math.floor(s / 3600);
   const m  = Math.floor((s % 3600) / 60);
@@ -801,7 +807,7 @@ function onPreSplitToggle(checked) {
   }
 }
 
-function initPreSplitDuration(durationS) {
+export function initPreSplitDuration(durationS) {
   _splitDurationS = durationS;
   _splitPoints    = [];
   _splitNames     = [];
@@ -811,7 +817,7 @@ function initPreSplitDuration(durationS) {
   if (toggle && toggle.checked) _openPreSplitEditor();
 }
 
-function hidePreSplitSection() {
+export function hidePreSplitSection() {
   _splitDurationS = 0;
   _splitPoints    = [];
   _splitNames     = [];
@@ -862,20 +868,17 @@ function _renderPreSplitTimeline() {
   markers.innerHTML = _splitPoints.map(p => {
     const pct = (p / _splitDurationS * 100).toFixed(3);
     const timeLabel = _fmtSplitTime(p);
-    return `<div class="split-marker" style="position:absolute;left:${pct}%;top:0;bottom:0;width:10px;transform:translateX(-50%);cursor:ew-resize;pointer-events:auto;display:flex;align-items:stretch;justify-content:center"
-                 title="${timeLabel} - drag to move"
-                 onpointerdown="event.stopPropagation();_preSplitMarkerPointerDown(event,${p})">
+    return `<div class="split-marker" data-split-sec="${p}" style="position:absolute;left:${pct}%;top:0;bottom:0;width:10px;transform:translateX(-50%);cursor:ew-resize;pointer-events:auto;display:flex;align-items:stretch;justify-content:center"
+                 title="${timeLabel} - drag to move">
                <div style="width:2px;background:var(--accent);border-radius:1px"></div>
                <button type="button" class="split-marker-x" title="Remove split point"
-                       aria-label="Remove split point at ${timeLabel}"
-                       onpointerdown="event.stopPropagation()"
-                       onclick="event.stopPropagation();_removeSplitPoint(${p},true)">&#215;</button>
+                       aria-label="Remove split point at ${timeLabel}">&#215;</button>
              </div>`;
   }).join('');
 }
 
 function _renderPreSplitSegmentList() {
-  _renderSegmentList('pre-split-segment-list', _renderPreSplitEditor, false);
+  _renderSegmentList('pre-split-segment-list', false);
 }
 
 function preSplitTimelineClick(e) {
@@ -932,13 +935,75 @@ function _preSplitMarkerPointerDown(e, sec) {
   window.addEventListener('pointerup',   onUp);
 }
 
-Object.assign(window, {
-  isSplitEditorOpen, openSplitEditor, closeSplitEditor, _teardownSplitEditor,
-  _splitSeekTo, _generateWaveform, _computeSuggestionPins, _setSplitZoom,
-  _promoteSuggestionPin, _splitMarkerPointerDown, splitTimelineClick,
-  _removeSplitPoint, _updateSplitPoint, _updateSplitConfirmState, _parseSplitTime,
-  _toggleIgnored, _fmtSplitTime, _renderSplitEditor, _renderPreSplitEditor,
-  confirmSplit, onPreSplitToggle, initPreSplitDuration, hidePreSplitSection,
-  preSplitTimelineClick, _preSplitMarkerPointerDown,
-});
-})();
+// ── event wiring (replaces the former inline on* attributes) ──────────────────
+// Every element below is static markup in index.html (the split-editor-panel is
+// only reparented by PanelNav, never re-created; the pre-split editor lives in
+// the New Recording panel), so a single set of listeners wired once at module
+// load covers every open. The marker / segment-row markup is re-rendered, so
+// those use one delegated listener per persistent container.
+
+function _wireMarkerLayer(layerId, onPointerDown, isPreSplit) {
+  const layer = document.getElementById(layerId);
+  if (!layer) return;
+  layer.addEventListener('pointerdown', e => {
+    // A pointerdown on the × button must not start a drag.
+    if (e.target.closest('.split-marker-x')) { e.stopPropagation(); return; }
+    const marker = e.target.closest('.split-marker');
+    if (marker) onPointerDown(e, Number(marker.dataset.splitSec));
+  });
+  layer.addEventListener('click', e => {
+    const xBtn = e.target.closest('.split-marker-x');
+    if (!xBtn) return;
+    e.stopPropagation();
+    const marker = xBtn.closest('.split-marker');
+    if (marker) _removeSplitPoint(Number(marker.dataset.splitSec), isPreSplit);
+  });
+}
+
+function _wireSegmentList(listId, onRerender) {
+  const list = document.getElementById(listId);
+  if (!list) return;
+  list.addEventListener('change', e => {
+    const el = e.target;
+    const role = el.dataset.splitRole;
+    if (role === 'edit-point') _updateSplitPoint(Number(el.dataset.splitPointIdx), el.value, onRerender);
+    else if (role === 'name') _splitNames[Number(el.dataset.splitIdx)] = el.value;
+    else if (role === 'ignore') _toggleIgnored(Number(el.dataset.splitIdx), onRerender);
+  });
+  list.addEventListener('click', e => {
+    const playBtn = e.target.closest('[data-split-role="play"]');
+    if (playBtn) _splitSeekTo(Number(playBtn.dataset.splitStart));
+  });
+}
+
+function _wireSplitEditor() {
+  // Instruction copy (scripts load at end of <body>, so the elements exist).
+  document.getElementById('pre-split-instructions').textContent = SPLIT_BAR_INSTRUCTIONS;
+  document.getElementById('split-instructions').textContent =
+    `${SPLIT_BAR_INSTRUCTIONS} Click a marker to jump the preview there. Each segment can be analyzed independently after confirming.`;
+
+  // Ctrl/⌘+wheel over the timeline zooms; passive:false so preventDefault sticks.
+  document.getElementById('split-timeline-scroll')
+    ?.addEventListener('wheel', _onSplitZoomWheel, { passive: false });
+
+  // Main split editor - zoom controls, timeline click, confirm, action radios.
+  document.getElementById('split-zoom-out')?.addEventListener('click', () => _setSplitZoom(_splitZoom / 1.6));
+  document.getElementById('split-zoom-in')?.addEventListener('click', () => _setSplitZoom(_splitZoom * 1.6));
+  document.getElementById('split-zoom-fit')?.addEventListener('click', () => _setSplitZoom(1));
+  document.getElementById('split-timeline-bar')?.addEventListener('click', splitTimelineClick);
+  document.getElementById('btn-split-confirm')?.addEventListener('click', confirmSplit);
+  document.getElementById('split-action-options')?.addEventListener('change', _updateSplitConfirmState);
+  document.querySelector('#split-waveform-notice button')?.addEventListener('click', _generateWaveform);
+
+  // Pre-analysis split editor (New Recording panel).
+  document.getElementById('pre-split-toggle')?.addEventListener('change', e => onPreSplitToggle(e.target.checked));
+  document.getElementById('pre-split-timeline-bar')?.addEventListener('click', preSplitTimelineClick);
+
+  // Re-rendered markup - one delegated listener per persistent container.
+  _wireMarkerLayer('split-markers-layer', _splitMarkerPointerDown, false);
+  _wireMarkerLayer('pre-split-markers-layer', _preSplitMarkerPointerDown, true);
+  _wireSegmentList('split-segment-list', _renderSplitEditor);
+  _wireSegmentList('pre-split-segment-list', _renderPreSplitEditor);
+}
+
+_wireSplitEditor();
