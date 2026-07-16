@@ -12,6 +12,7 @@ docs/dev/plans/
 /test-ui-last.log
 /test-api-last-summary.log
 /test-ui-last-summary.log
+/test-js-last.log
 /test-ui.lock
 
 # Build artifacts
