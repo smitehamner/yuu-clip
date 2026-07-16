@@ -78,18 +78,18 @@
   <button class="btn highlight" id="btn-analyze" onclick="openNewRecordingPanel()">+ Analyze</button>
   <button class="btn ghost" id="btn-settings-header" onclick="openSettings()" title="Settings" aria-label="Settings" style="font-size:15px;padding:5px 10px">&#9881;</button>
   <div class="hamburger-wrap" id="hamburger-wrap">
-    <button class="btn ghost" id="btn-hamburger" onclick="toggleHamburger()" title="More options" aria-label="More options" aria-haspopup="true" aria-expanded="false" style="font-size:17px;padding:5px 11px;line-height:1">&#9776;</button>
+    <button class="btn ghost" id="btn-hamburger" title="More options" aria-label="More options" aria-haspopup="true" aria-expanded="false" style="font-size:17px;padding:5px 11px;line-height:1">&#9776;</button>
     <div class="hamburger-menu" id="hamburger-menu">
       <!-- closeHamburger() runs first: it hands focus back to the trigger, so
            the modal being opened records the trigger as its return-focus target
            instead of a menu item that is about to be display:none'd. -->
       <button class="hamburger-item" onclick="closeHamburger();openGettingStartedModal()"><span class="hamburger-icon" aria-hidden="true">&#128214;</span>Getting Started</button>
-      <button class="hamburger-item" onclick="closeHamburger();openControlsModal()"><span class="hamburger-icon" aria-hidden="true">&#9000;</span>Controls</button>
+      <button class="hamburger-item" id="hamburger-item-controls"><span class="hamburger-icon" aria-hidden="true">&#9000;</span>Controls</button>
       <div class="hamburger-divider"></div>
       <button class="hamburger-item" onclick="closeHamburger();openGlossaryModal()"><span class="hamburger-icon" aria-hidden="true">&#128218;</span>Glossary</button>
       <button class="hamburger-item" onclick="closeHamburger();openHelpModal()"><span class="hamburger-icon" aria-hidden="true">&#10067;</span>Help &amp; Guides</button>
       <div class="hamburger-divider"></div>
-      <a class="hamburger-item" href="/api/logs/export" download="yuu-clip.log" onclick="closeHamburger()"><span class="hamburger-icon" aria-hidden="true">&#8595;</span>Download Log</a>
+      <a class="hamburger-item" id="hamburger-item-download-log" href="/api/logs/export" download="yuu-clip.log"><span class="hamburger-icon" aria-hidden="true">&#8595;</span>Download Log</a>
       <button class="hamburger-item" onclick="closeHamburger();openAboutModal()"><span class="hamburger-icon" aria-hidden="true">&#9432;</span>About</button>
       <button class="hamburger-item" id="btn-setup-wizard" onclick="closeHamburger();window.electronAPI.runSetupWizard()" style="display:none"><span class="hamburger-icon" aria-hidden="true">&#128295;</span>Re-run Setup Wizard</button>
       <button class="hamburger-item" id="btn-refresh" onclick="closeHamburger();location.reload()" style="display:none"><span class="hamburger-icon" aria-hidden="true">&#8635;</span>Refresh</button>
@@ -1801,37 +1801,37 @@
 </div>
 
 <!-- Diff Modal (editable LLM field compare) -->
-<div class="modal-bg" id="diff-modal" onclick="if(event.target===this)_diffDiscard()">
+<div class="modal-bg" id="diff-modal">
   <div class="modal diff-modal">
     <h3 id="diff-modal-title">Review Generated Content</h3>
     <div id="diff-fields"></div>
     <div class="modal-actions">
-      <button class="btn" id="diff-discard-btn" onclick="_diffDiscard()">Discard</button>
-      <button class="btn" id="diff-accept-edit-btn" onclick="_diffAcceptEdit()" title="Save your edited version and mark it as manually edited">Save edited version</button>
-      <button class="btn primary" id="diff-accept-new-btn" onclick="_diffAcceptNew()">Accept as-is</button>
+      <button class="btn" id="diff-discard-btn">Discard</button>
+      <button class="btn" id="diff-accept-edit-btn" title="Save your edited version and mark it as manually edited">Save edited version</button>
+      <button class="btn primary" id="diff-accept-new-btn">Accept as-is</button>
     </div>
   </div>
 </div>
 
 <!-- Field Edit Modal -->
-<div class="modal-bg" id="field-edit-modal" onclick="if(event.target===this)closeFieldEditModal()">
+<div class="modal-bg" id="field-edit-modal">
   <div class="modal" style="width:540px">
     <h3 id="field-edit-title">Edit Field</h3>
     <textarea id="field-edit-text" style="width:100%;min-height:100px;padding:8px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;font-family:inherit;resize:vertical;box-sizing:border-box" rows="5"></textarea>
     <div class="modal-actions">
-      <button class="btn" onclick="closeFieldEditModal()">Cancel</button>
-      <button class="btn primary" onclick="_fieldEditSave()">Save</button>
+      <button class="btn" id="field-edit-cancel-btn">Cancel</button>
+      <button class="btn primary" id="field-edit-save-btn">Save</button>
     </div>
   </div>
 </div>
 
 <!-- Alert Modal (single-button, no cancel) -->
-<div class="modal-bg" id="alert-modal" onclick="if(event.target===this)closeAlertModal()">
+<div class="modal-bg" id="alert-modal">
   <div class="modal" style="width:420px">
     <h3 id="alert-title"></h3>
     <p id="alert-body" style="color:var(--muted);font-size:13px;line-height:1.6;margin-top:-4px"></p>
     <div class="modal-actions">
-      <button class="btn primary" onclick="closeAlertModal()">OK</button>
+      <button class="btn primary" id="alert-ok-btn">OK</button>
     </div>
   </div>
 </div>
@@ -1856,13 +1856,13 @@
 </div>
 
 <!-- Confirm Modal -->
-<div class="modal-bg" id="confirm-modal" onclick="if(event.target===this)_confirmCancel()">
+<div class="modal-bg" id="confirm-modal">
   <div class="modal" style="width:420px">
     <h3 id="confirm-title"></h3>
     <p id="confirm-body" style="color:var(--muted);font-size:13px;line-height:1.6;margin-top:-4px"></p>
     <div class="modal-actions">
-      <button class="btn" id="confirm-cancel-btn" onclick="_confirmCancel()">Cancel</button>
-      <button class="btn" id="confirm-ok-btn" onclick="_confirmOk()">Confirm</button>
+      <button class="btn" id="confirm-cancel-btn">Cancel</button>
+      <button class="btn" id="confirm-ok-btn">Confirm</button>
     </div>
   </div>
 </div>
@@ -2072,7 +2072,7 @@
 </div>
 
 <!-- Controls Modal -->
-<div class="modal-bg" id="controls-modal" onclick="if(event.target===this)closeControlsModal()">
+<div class="modal-bg" id="controls-modal">
   <div class="modal" style="max-width:400px">
     <h3>Keyboard Controls</h3>
     <table style="width:100%;font-size:12px;border-collapse:collapse;color:var(--muted)">
@@ -2090,7 +2090,7 @@
       </tbody>
     </table>
     <div class="modal-actions" style="margin-top:16px">
-      <button class="btn" onclick="closeControlsModal()">Close</button>
+      <button class="btn" id="controls-modal-close-btn">Close</button>
     </div>
   </div>
 </div>
@@ -2112,11 +2112,11 @@
 </div>
 
 <!-- Additional Actions Modal -->
-<div class="modal-bg" id="actions-modal" onclick="if(event.target===this)closeActionsModal()">
+<div class="modal-bg" id="actions-modal">
   <div class="modal" style="width:480px;max-height:85vh;overflow-y:auto">
     <div style="display:flex;align-items:center;justify-content:space-between">
       <h3 id="actions-modal-title" style="margin:0"></h3>
-      <button class="btn ghost" style="padding:4px 8px" onclick="closeActionsModal()" aria-label="Close">&#x2715;</button>
+      <button class="btn ghost" id="actions-modal-close-btn" style="padding:4px 8px" aria-label="Close">&#x2715;</button>
     </div>
     <div id="actions-modal-body" style="display:flex;flex-direction:column;gap:2px"></div>
   </div>

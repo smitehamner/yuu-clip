@@ -1,16 +1,18 @@
 // Feature-map - Shared UI primitives (alert / confirm / prompt modals) used app-wide.
 //   API: none (client-only) · Tests: covered indirectly by the test_ui_*.py suites
+import { AppState } from './state.js';
+import { escHtml } from './format.js';
+
 // ── alert modal (single-button, no cancel) ────────────────────────────────────
-(function () {
 let _alertOpener = null;
-function showAlert(title, body) {
+export function showAlert(title, body) {
   _alertOpener = document.activeElement;
   document.getElementById('alert-title').textContent = title;
   document.getElementById('alert-body').innerHTML = body;
   document.getElementById('alert-modal').classList.add('visible');
   setTimeout(() => document.querySelector('#alert-modal .btn').focus(), 50);
 }
-function closeAlertModal() {
+export function closeAlertModal() {
   document.getElementById('alert-modal').classList.remove('visible');
   const opener = _alertOpener;
   _alertOpener = null;
@@ -19,7 +21,7 @@ function closeAlertModal() {
 
 // ── confirm modal ─────────────────────────────────────────────────────────────
 let _confirmOpener = null;
-function showConfirm(title, body, okLabel, onOk, danger = false, cancelLabel = 'Cancel') {
+export function showConfirm(title, body, okLabel, onOk, danger = false, cancelLabel = 'Cancel') {
   _confirmOpener = document.activeElement;
   document.getElementById('confirm-title').textContent = title;
   document.getElementById('confirm-body').innerHTML = body;
@@ -42,7 +44,7 @@ function _confirmOk() {
   if (cb) cb();
   else if (opener?.focus) opener.focus();
 }
-function _confirmCancel() {
+export function _confirmCancel() {
   document.getElementById('confirm-modal').classList.remove('visible');
   AppState.confirmCallback = null;
   const opener = _confirmOpener;
@@ -52,7 +54,7 @@ function _confirmCancel() {
 
 // ── additional actions modal ──────────────────────────────────────────────────
 let _actionsModalOpener = null;
-function openActionsModal(title, groups) {
+export function openActionsModal(title, groups) {
   _actionsModalOpener = document.activeElement;
   document.getElementById('actions-modal-title').textContent = title;
   const body = document.getElementById('actions-modal-body');
@@ -89,7 +91,7 @@ function openActionsModal(title, groups) {
   document.getElementById('actions-modal').classList.add('visible');
   setTimeout(() => body.querySelector('.action-row:not(:disabled)')?.focus(), 50);
 }
-function closeActionsModal() {
+export function closeActionsModal() {
   document.getElementById('actions-modal').classList.remove('visible');
   const opener = _actionsModalOpener;
   _actionsModalOpener = null;
@@ -100,7 +102,7 @@ function closeActionsModal() {
 // Confirm and alert are the only modals that stack on top of other modals, so
 // they take priority; otherwise all .modal-bg share z-index 200 and the last
 // visible one in DOM order is the one painted on top.
-function topmostVisibleModal() {
+export function topmostVisibleModal() {
   for (const id of ['confirm-modal', 'alert-modal']) {
     const el = document.getElementById(id);
     if (el.classList.contains('visible')) return el;
@@ -140,7 +142,7 @@ function _menuFocusableItems(menu) {
     .filter(el => !el.disabled && el.getClientRects().length > 0);
 }
 
-function _menuArrowKeydown(menu, e) {
+export function _menuArrowKeydown(menu, e) {
   if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
   const items = _menuFocusableItems(menu);
   if (!items.length) return;
@@ -151,16 +153,16 @@ function _menuArrowKeydown(menu, e) {
 }
 
 // ── hamburger menu ────────────────────────────────────────────────────────────
-function isHamburgerOpen() {
+export function isHamburgerOpen() {
   return document.getElementById('hamburger-menu').classList.contains('open');
 }
-function toggleHamburger() {
+export function toggleHamburger() {
   const menu = document.getElementById('hamburger-menu');
   menu.classList.toggle('open');
   document.getElementById('btn-hamburger').setAttribute('aria-expanded', menu.classList.contains('open'));
   if (menu.classList.contains('open')) _menuFocusableItems(menu)[0]?.focus();
 }
-function closeHamburger(refocusTrigger = false) {
+export function closeHamburger(refocusTrigger = false) {
   const menu = document.getElementById('hamburger-menu');
   // Focus sitting on an item about to be display:none'd would silently fall to
   // <body>; hand it to the trigger first so it has somewhere real to go.
@@ -181,12 +183,12 @@ document.addEventListener('click', e => {
 
 // ── controls modal ────────────────────────────────────────────────────────────
 let _controlsOpener = null;
-function openControlsModal() {
+export function openControlsModal() {
   _controlsOpener = document.activeElement;
   document.getElementById('controls-modal').classList.add('visible');
   setTimeout(() => document.querySelector('#controls-modal .btn')?.focus(), 50);
 }
-function closeControlsModal() {
+export function closeControlsModal() {
   document.getElementById('controls-modal').classList.remove('visible');
   const opener = _controlsOpener;
   _controlsOpener = null;
@@ -198,7 +200,7 @@ function closeControlsModal() {
 let _diffState = null;
 let _diffOpener = null;
 
-function openDiffModal(title, fields, onCommit, opts = {}) {
+export function openDiffModal(title, fields, onCommit, opts = {}) {
   _diffOpener = document.activeElement;
   _diffState = {title, fields, onCommit};
   const revert = opts.revertMode || false;
@@ -272,7 +274,7 @@ function _diffDirty() {
   });
 }
 
-function _diffDiscard() {
+export function _diffDiscard() {
   if (!document.getElementById('diff-modal').classList.contains('visible')) return;
   if (_diffDirty()) {
     showConfirm(
@@ -298,7 +300,7 @@ let _fieldEditCallback = null;
 let _fieldEditOriginalValue = '';
 let _fieldEditOpener = null;
 
-function openFieldEditModal(title, currentValue, onSave) {
+export function openFieldEditModal(title, currentValue, onSave) {
   _fieldEditOpener = document.activeElement;
   _fieldEditOriginalValue = currentValue;
   document.getElementById('field-edit-title').textContent = title;
@@ -308,7 +310,7 @@ function openFieldEditModal(title, currentValue, onSave) {
   setTimeout(() => document.getElementById('field-edit-text').focus(), 50);
 }
 
-function closeFieldEditModal() {
+export function closeFieldEditModal() {
   if (!document.getElementById('field-edit-modal').classList.contains('visible')) return;
   const currentValue = document.getElementById('field-edit-text').value;
   if (currentValue !== _fieldEditOriginalValue) {
@@ -358,7 +360,7 @@ let _activeKebab = null;
 let _activeKebabAnchor = null;
 let _kebabDismiss = null;
 
-function closeKebab(refocusAnchor = false) {
+export function closeKebab(refocusAnchor = false) {
   if (!_activeKebab) return false;
   _activeKebab.remove();
   _activeKebab = null;
@@ -370,7 +372,7 @@ function closeKebab(refocusAnchor = false) {
   return true;
 }
 
-function showKebab(anchorEl, items) {
+export function showKebab(anchorEl, items) {
   closeKebab();
   const menu = document.createElement('div');
   menu.className = 'hamburger-menu open';
@@ -452,7 +454,7 @@ function _makeDragHandle(id, onStart) {
   });
 }
 
-function initResize() {
+export function initResize() {
   const root    = document.documentElement;
   const sizes   = _loadPaneSizes();
 
@@ -511,7 +513,7 @@ function initResize() {
 }
 
 // ── prereq warnings ───────────────────────────────────────────────────────────
-function _applyPrereqWarnings(prereqs) {
+export function _applyPrereqWarnings(prereqs) {
   const inElectron = !!window.electronAPI;
   const wizardLink = inElectron
     ? ' <a href="#" onclick="window.electronAPI.runSetupWizard();return false" style="color:var(--warning)">Re-run Setup Wizard</a>'
@@ -549,7 +551,7 @@ function _applyPrereqWarnings(prereqs) {
 // rather than in a feature module.
 const UNDO_TOAST_MS = 5000;
 
-function showUndoToast(message, undoFn) {
+export function showUndoToast(message, undoFn) {
   const container = document.getElementById('toast-container');
   const toast = document.createElement('div');
   toast.className = 'toast info undo-toast';
@@ -574,29 +576,68 @@ function showUndoToast(message, undoFn) {
 // rate to every <video> as it loads, so all players (clip preview, recording,
 // split/export editors, reels) honor it without per-player wiring. Client-only,
 // stored in localStorage like the other playback prefs.
-function playbackRatePref() {
+export function playbackRatePref() {
   const rate = parseFloat(localStorage.getItem('yuuclip-playback-rate'));
   return Number.isFinite(rate) && rate > 0 ? rate : 1;
 }
 
-function applyPlaybackRate(rate) {
+export function applyPlaybackRate(rate) {
   document.querySelectorAll('video').forEach(video => { video.playbackRate = rate; });
 }
 
-function initPlaybackRate() {
+export function initPlaybackRate() {
   document.addEventListener('loadedmetadata', e => {
     if (e.target && e.target.tagName === 'VIDEO') e.target.playbackRate = playbackRatePref();
   }, true);
 }
 
-Object.assign(window, {
-  showAlert, closeAlertModal, showConfirm, _confirmOk, _confirmCancel,
-  openActionsModal, closeActionsModal, topmostVisibleModal, _menuArrowKeydown,
-  isHamburgerOpen, toggleHamburger, closeHamburger,
-  openControlsModal, closeControlsModal,
-  openDiffModal, _diffAcceptNew, _diffAcceptEdit, _diffDiscard,
-  openFieldEditModal, closeFieldEditModal, _fieldEditSave,
-  closeKebab, showKebab, initResize, _applyPrereqWarnings, showUndoToast,
-  playbackRatePref, applyPlaybackRate, initPlaybackRate,
-});
-})();
+// ── static modal/hamburger wiring (replaces the inline onclick= this module used
+// to own in index.html) ────────────────────────────────────────────────────────
+// These are fixed, never-recreated elements in index.html, so wiring them once at
+// module load (below) can't double-fire on a re-render the way a dynamically
+// rendered list could.
+const _BG_DISMISS_MODALS = [
+  ['alert-modal', closeAlertModal],
+  ['confirm-modal', _confirmCancel],
+  ['actions-modal', closeActionsModal],
+  ['controls-modal', closeControlsModal],
+  ['diff-modal', _diffDiscard],
+  ['field-edit-modal', closeFieldEditModal],
+];
+
+function _wireModalBgDismissals() {
+  for (const [modalId, closeFn] of _BG_DISMISS_MODALS) {
+    const modal = document.getElementById(modalId);
+    modal.addEventListener('click', e => { if (e.target === modal) closeFn(); });
+  }
+}
+
+function _wireModalButtons() {
+  document.getElementById('alert-ok-btn').addEventListener('click', () => closeAlertModal());
+  document.getElementById('confirm-cancel-btn').addEventListener('click', () => _confirmCancel());
+  document.getElementById('confirm-ok-btn').addEventListener('click', () => _confirmOk());
+  document.getElementById('actions-modal-close-btn').addEventListener('click', () => closeActionsModal());
+  document.getElementById('controls-modal-close-btn').addEventListener('click', () => closeControlsModal());
+  document.getElementById('diff-discard-btn').addEventListener('click', () => _diffDiscard());
+  document.getElementById('diff-accept-edit-btn').addEventListener('click', () => _diffAcceptEdit());
+  document.getElementById('diff-accept-new-btn').addEventListener('click', () => _diffAcceptNew());
+  document.getElementById('field-edit-cancel-btn').addEventListener('click', () => closeFieldEditModal());
+  document.getElementById('field-edit-save-btn').addEventListener('click', () => _fieldEditSave());
+}
+
+// "Controls" and "Download Log" are the only hamburger items whose onclick=
+// called nothing but ui.js functions - the rest (Getting Started, Glossary,
+// Help, About, Setup Wizard, Refresh) also call helpmodals.js/electronAPI/
+// location, so they stay inline (see report).
+function _wireHamburgerHandlers() {
+  document.getElementById('btn-hamburger').addEventListener('click', () => toggleHamburger());
+  document.getElementById('hamburger-item-controls').addEventListener('click', () => {
+    closeHamburger();
+    openControlsModal();
+  });
+  document.getElementById('hamburger-item-download-log').addEventListener('click', () => closeHamburger());
+}
+
+_wireModalBgDismissals();
+_wireModalButtons();
+_wireHamburgerHandlers();

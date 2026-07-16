@@ -19,6 +19,16 @@ import {
   openLog, clearLog, appendLog, showToast, netErrMsg, revealInFolder, copyText,
   collapsibleCard,
 } from './utils.js';
+import {
+  showAlert, closeAlertModal, showConfirm, _confirmCancel,
+  openActionsModal, closeActionsModal, topmostVisibleModal, _menuArrowKeydown,
+  isHamburgerOpen, toggleHamburger, closeHamburger,
+  openControlsModal, closeControlsModal,
+  openDiffModal, _diffDiscard,
+  openFieldEditModal, closeFieldEditModal,
+  closeKebab, showKebab, initResize, _applyPrereqWarnings, showUndoToast,
+  playbackRatePref, applyPlaybackRate, initPlaybackRate,
+} from './ui.js';
 
 window.AppState = AppState;
 Object.assign(window, format);
@@ -52,3 +62,34 @@ Object.assign(window, jobs);
 // JS consumer left but tests/ui/test_ui_video.py evaluates it as a page global.
 window._buildMediaUrl = _buildMediaUrl;
 window.setupRecordingPreview = setupRecordingPreview;
+// ui.js is cross-cutting - every name here still has at least one classic
+// (bundle.js) consumer, an already-ESM caller (jobs.js/panelnav.js's
+// window.showConfirm), or a tests/ui/*.py page.evaluate. _confirmOk,
+// _diffAcceptNew, _diffAcceptEdit and _fieldEditSave dropped: their only
+// consumers were ui.js's own inline handlers, now addEventListener inside
+// ui.js itself, so nothing outside the module needs them off window anymore.
+window.showAlert = showAlert;
+window.closeAlertModal = closeAlertModal;
+window.showConfirm = showConfirm;
+window._confirmCancel = _confirmCancel;
+window.openActionsModal = openActionsModal;
+window.closeActionsModal = closeActionsModal;
+window.topmostVisibleModal = topmostVisibleModal;
+window._menuArrowKeydown = _menuArrowKeydown;
+window.isHamburgerOpen = isHamburgerOpen;
+window.toggleHamburger = toggleHamburger;
+window.closeHamburger = closeHamburger;
+window.openControlsModal = openControlsModal;
+window.closeControlsModal = closeControlsModal;
+window.openDiffModal = openDiffModal;
+window._diffDiscard = _diffDiscard;
+window.openFieldEditModal = openFieldEditModal;
+window.closeFieldEditModal = closeFieldEditModal;
+window.closeKebab = closeKebab;
+window.showKebab = showKebab;
+window.initResize = initResize;
+window._applyPrereqWarnings = _applyPrereqWarnings;
+window.showUndoToast = showUndoToast;
+window.playbackRatePref = playbackRatePref;
+window.applyPlaybackRate = applyPlaybackRate;
+window.initPlaybackRate = initPlaybackRate;
