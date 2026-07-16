@@ -9,7 +9,11 @@
 //   API: routes/llm.py (/api/llm/download-status[/clear], /api/llm/gguf/download,
 //        /api/whisper/prefetch), /api/config
 //   Tests: tests/ui/test_ui_modeldownload.py, tests/ui/test_ui_whisper_prefetch.py
-(function () {
+import { escHtml } from './format.js';
+import { showToast } from './utils.js';
+import { _openSSE } from './jobs.js';
+import { _updateLlmCapabilities, _renderCapabilityTiers } from './modelcatalog.js';
+
 // A connection/offline failure reads differently to the user than a mid-download
 // error, so the banner shows a "will retry when back online" state for the former.
 const _CONNECTION_ERROR_RE = /could not connect|connection lost|server disconnected|failed to fetch/i;
@@ -58,7 +62,7 @@ const _streams = {};
 function _container() { return document.getElementById('model-download-banner'); }
 
 // ── boot triggers ─────────────────────────────────────────────────────────────
-async function initModelDownload() {
+export async function initModelDownload() {
   let status;
   try {
     status = await fetch('/api/llm/download-status').then(r => r.json());
@@ -82,7 +86,7 @@ async function initModelDownload() {
 // Default-ON background prefetch of the always-needed analysis models (the speech
 // model and the speaker-labeling model), unless the wizard opted out. Each starts
 // only when it is missing and not already downloading; banners stack.
-async function initModelPrefetch() {
+export async function initModelPrefetch() {
   let cfg;
   try {
     cfg = await fetch('/api/config').then(r => r.json());
@@ -142,7 +146,7 @@ async function _onDownloadDone(kind) {
   // Any completed download can change prerequisites/config (e.g. a local model now
   // exists), so re-sync the boot-cached state and its dependent surfaces - the
   // analyze prereq banner and per-clip description chips - without a restart.
-  if (window.refreshServerState) refreshServerState();
+  if (window.refreshServerState) window.refreshServerState();
   _removeRow(kind);
   showToast(_KINDS[kind].successToast, 'success');
 }
@@ -169,8 +173,8 @@ function _clearPending() {
 }
 
 function _refreshCapabilities() {
-  if (window._updateLlmCapabilities) _updateLlmCapabilities();
-  if (window._renderCapabilityTiers) _renderCapabilityTiers();
+  _updateLlmCapabilities();
+  _renderCapabilityTiers();
 }
 
 // ── row rendering (each kind owns one [data-mdl-kind] row) ──────────────────────
@@ -236,7 +240,7 @@ function _removeRow(kind) {
 }
 
 // Read by analyze.js so the pre-analysis heads-up can show the current percentage.
-function getWhisperDownloadPct() {
+export function getWhisperDownloadPct() {
   const state = _streams.whisper;
   return state && typeof state.lastPct === 'number' ? state.lastPct : null;
 }
@@ -244,7 +248,7 @@ function getWhisperDownloadPct() {
 // Test support: close any in-flight streams and clear the banner so a test can
 // drive the boot flow deterministically against stubbed routes, independent of
 // what the real boot (against the live dev server) already started.
-function _resetModelDownloads() {
+export function _resetModelDownloads() {
   for (const kind of Object.keys(_streams)) {
     const state = _streams[kind];
     if (state && state.es) state.es.close();
@@ -253,9 +257,3 @@ function _resetModelDownloads() {
   const container = _container();
   if (container) { container.innerHTML = ''; container.style.display = 'none'; }
 }
-
-Object.assign(window, {
-  initModelDownload, initModelPrefetch, getWhisperDownloadPct, _cancelDownload,
-  _resetModelDownloads,
-});
-})();

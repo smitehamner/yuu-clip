@@ -124,6 +124,9 @@ import {
 // now addEventListener inside settings-backup.js itself) - a bare side-effect
 // import keeps esbuild pulling it into the bundle and runs its static wiring.
 import './settings-backup.js';
+import {
+  initModelDownload, initModelPrefetch, getWhisperDownloadPct, _resetModelDownloads,
+} from './modeldownload.js';
 
 window.AppState = AppState;
 Object.assign(window, format);
@@ -534,3 +537,14 @@ window.initProjectSwitcher = initProjectSwitcher;
 window.isProjectMenuOpen = isProjectMenuOpen;
 window.closeProjectMenu = closeProjectMenu;
 window.closeOpenProjectModal = closeOpenProjectModal;
+// modeldownload.js - initModelDownload and initModelPrefetch are called as bare
+// globals by boot.js (still classic); getWhisperDownloadPct is read as window.* by
+// analyze.js (already-ESM, but out of scope to switch it to an import here);
+// _resetModelDownloads is invoked directly by tests/ui/test_ui_modeldownload.py and
+// test_ui_whisper_prefetch.py via page.evaluate. _cancelDownload dropped: its only
+// caller is this module's own row-action onclick (property assignment inside
+// _wireRowActions), so nothing outside the module needs it off window.
+window.initModelDownload = initModelDownload;
+window.initModelPrefetch = initModelPrefetch;
+window.getWhisperDownloadPct = getWhisperDownloadPct;
+window._resetModelDownloads = _resetModelDownloads;
