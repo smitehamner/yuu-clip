@@ -116,6 +116,11 @@ import {
   _updateExportNameTemplatePreview, _updateTitleCardPreview,
 } from './settings-previews.js';
 import { _refreshInstallStatus } from './settings-installs.js';
+// settings-backup.js has no external window consumer left (its two names,
+// backupProject and startRestore, were only read by index.html inline handlers,
+// now addEventListener inside settings-backup.js itself) - a bare side-effect
+// import keeps esbuild pulling it into the bundle and runs its static wiring.
+import './settings-backup.js';
 
 window.AppState = AppState;
 Object.assign(window, format);

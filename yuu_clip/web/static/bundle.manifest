@@ -16,7 +16,6 @@
 # this manifest and add it to that graph. index.html loads bundle.esm.js first, then
 # this bundle.js.
 
-settings-backup.js
 projects.js
 sounds.js
 hotwords.js

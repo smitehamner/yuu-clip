@@ -1,4 +1,7 @@
-(function () {
+import { escHtml, formatApiError, plural } from './format.js';
+import { showToast } from './utils.js';
+import { showConfirm } from './ui.js';
+
 // Feature-map - Settings > Backup & Restore (code: backup)
 //   API: routes/backup.py (/api/backup, /api/restore/inspect, /api/restore/apply)
 //   Siblings: project_archive.py (archive + re-point core) · projects.js (switchProject reload pattern)
@@ -213,10 +216,18 @@ function _resetRestoreConfirm() {
   if (btn) { btn.disabled = false; btn.textContent = 'Restore'; }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+// Static index.html controls this module owns, wired once at module load. All
+// three are fixed, never-recreated elements in index.html's settings panel, so a
+// single load-time listener can't double-fire on a re-render.
+function _wireStaticHandlers() {
+  document.getElementById('btn-backup-project')
+    ?.addEventListener('click', () => backupProject());
+  document.getElementById('btn-restore-project')
+    ?.addEventListener('click', () => startRestore());
   const input = document.getElementById('restore-file-input');
   if (input) input.addEventListener('change', () => _onRestoreFileChosen(input.files[0]));
-});
+}
 
-Object.assign(window, { backupProject, startRestore });
-})();
+_wireStaticHandlers();
+
+export { backupProject, startRestore };
