@@ -13,6 +13,7 @@ import * as format from './format.js';
 import { ColorPicker } from './colorpicker.js';
 import { PanelNav } from './panelnav.js';
 import * as jobs from './jobs.js';
+import { _buildMediaUrl, setupRecordingPreview } from './preview.js';
 
 window.AppState = AppState;
 Object.assign(window, format);
@@ -24,3 +25,8 @@ window.PanelNav = PanelNav;
 // _activeES, etc.) are NOT here - jobs.js wires those onto window itself via
 // live get/set accessors, since a plain snapshot would go stale on reassignment.
 Object.assign(window, jobs);
+// preview.js is cross-cutting - setupRecordingPreview has classic consumers
+// (clipcreate.js, videos.js, split.js, exporteditor.js); _buildMediaUrl has no
+// JS consumer left but tests/ui/test_ui_video.py evaluates it as a page global.
+window._buildMediaUrl = _buildMediaUrl;
+window.setupRecordingPreview = setupRecordingPreview;

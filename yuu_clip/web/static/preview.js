@@ -8,8 +8,9 @@
 // mode never has electronAPI, so it always gets the unchanged HTTP URL. absPath
 // may be null (e.g. a proxy that hasn't been generated/looked up yet), which
 // simply falls back to HTTP for that one request.
-(function () {
-function _buildMediaUrl(videoId, kind, absPath) {
+import { streamSSE } from './jobs.js';
+
+export function _buildMediaUrl(videoId, kind, absPath) {
   if (window.electronAPI?.mediaProtocol && absPath) {
     const normalized = absPath.replace(/\\/g, '/');
     return `yuu-media://media/${encodeURIComponent(normalized)}`;
@@ -33,7 +34,7 @@ function _buildMediaUrl(videoId, kind, absPath) {
 //   sourcePath        : the recording's absolute path (video.source_path from the
 //                       already-fetched video record) - only used to build the
 //                       Electron native-protocol URL; ignored in browser-dev mode
-function setupRecordingPreview(videoEl, badgeEl, videoId, { autoBuild = false, isCurrent = () => true, startS = null, endS = null, sourcePath = null } = {}) {
+export function setupRecordingPreview(videoEl, badgeEl, videoId, { autoBuild = false, isCurrent = () => true, startS = null, endS = null, sourcePath = null } = {}) {
   videoEl.src = _buildMediaUrl(videoId, 'source', sourcePath);
   if (startS != null) {
     videoEl.addEventListener('loadedmetadata', () => { try { videoEl.currentTime = startS; } catch (_) {} }, { once: true });
@@ -128,6 +129,3 @@ function _setPreviewBadge(badgeEl, mode, pct, onBuild) {
     badgeEl.title = 'Playing the original recording - seeking a long file can be slow.';
   }
 }
-
-Object.assign(window, { _buildMediaUrl, setupRecordingPreview });
-})();
