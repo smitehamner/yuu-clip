@@ -15,5 +15,3 @@
 # (see scripts/build-esm.mjs). As a classic file is migrated to ESM, remove it from
 # this manifest and add it to that graph. index.html loads bundle.esm.js first, then
 # this bundle.js.
-
-boot.js

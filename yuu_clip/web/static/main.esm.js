@@ -151,6 +151,11 @@ import {
   initPreSplitDuration, hidePreSplitSection,
   _fmtSplitTime, _parseSplitTime, _computeSuggestionPins, splitTimelineClick,
 } from './split.js';
+// boot.js is the first-paint entry point: it must be imported LAST so its
+// top-level init (initResize/loadVideos/refreshServerState/...) runs only after
+// every other module in the graph has been evaluated. Side-effect import - it
+// exports nothing.
+import './boot.js';
 
 window.AppState = AppState;
 Object.assign(window, format);

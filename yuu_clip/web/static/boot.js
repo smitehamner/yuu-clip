@@ -1,8 +1,20 @@
 // Infrastructure - first-paint boot wiring (a11y init, event hookup, initial load).
-//   Not a feature module; loaded last in index.html. Entry point: exports nothing,
-//   so it is a bare IIFE with no Object.assign(window, ...) list.
+//   Not a feature module; imported LAST from main.esm.js so its top-level init runs
+//   after every other module in the ESM graph has been evaluated. Exports nothing.
+import { AppState } from './state.js';
+import { initResize, initPlaybackRate, _applyPrereqWarnings } from './ui.js';
+import { _syncSortDirBtn } from './utils.js';
+import { initProjectSwitcher } from './projects.js';
+import { _loadContexts } from './contexts.js';
+import { loadVideos } from './videos.js';
+import { ensureHotwordsCache } from './hotwords.js';
+import { ensureExportPresetsCache } from './exportpresets.js';
+import { reattachAnalysis } from './analyze.js';
+import { openGettingStartedModal } from './helpmodals.js';
+import { initModelDownload, initModelPrefetch } from './modeldownload.js';
+import { _renderClips } from './clips.js';
+
 // ── accessibility init ────────────────────────────────────────────────────────
-(function () {
 document.querySelectorAll('.modal-bg').forEach((bg, i) => {
   const inner = bg.querySelector('.modal, [class*="modal"]');
   if (!inner) return;
@@ -45,7 +57,10 @@ if (window.electronAPI) {
 
 // Single place that (re)loads the boot-cached server state and re-renders every
 // surface that reads it, so a server-side change (model download, settings save)
-// shows up WITHOUT an app restart. Cached globals and their readers:
+// shows up WITHOUT an app restart. These stay on `window` because their readers
+// (ui.js, clips.js, videos.js, contexts.js) are ESM but still read them as
+// window.* - a shared-mutable-state bridge to retire when those reads move to
+// imports (the vitest follow-on cleanup). Cached globals and their readers:
 //   window._prereqs      -> analyze prereq banner (ui.js), "Basic description"
 //                           chip (clips.js), ffmpeg gate (videos.js)
 //   window._aiPrivacyMode -> "Basic description" chip (clips.js)
@@ -61,9 +76,9 @@ async function refreshServerState() {
   try {
     const prereqs = await fetch('/api/prereqs').then(r => r.json());
     window._prereqs = prereqs;
-    if (window._applyPrereqWarnings) _applyPrereqWarnings(prereqs);
+    _applyPrereqWarnings(prereqs);
   } catch { /* keep the last known prereqs */ }
-  if (window._renderClips) _renderClips();  // basic-description chip + vision frames
+  _renderClips();  // basic-description chip + vision frames
 }
 window.refreshServerState = refreshServerState;
 refreshServerState();
@@ -90,4 +105,3 @@ if (!localStorage.getItem('yuu-getting-started-seen')) openGettingStartedModal()
 // the app stays fully usable.
 initModelDownload();
 initModelPrefetch();
-})();

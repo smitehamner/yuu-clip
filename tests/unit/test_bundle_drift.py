@@ -34,7 +34,7 @@ _ESM_MODULES = (
     "settings-previews.js", "settings-installs.js", "settings-backup.js", "projects.js",
     "modeldownload.js", "sounds.js", "hotwords.js", "sensitive.js", "exportpresets.js",
     "speakers.js", "voices.js", "transcript.js", "namecorrections.js", "exporteditor.js",
-    "split.js",
+    "split.js", "boot.js",
 )
 
 
