@@ -116,6 +116,9 @@ import {
   _updateExportNameTemplatePreview, _updateTitleCardPreview,
 } from './settings-previews.js';
 import { _refreshInstallStatus } from './settings-installs.js';
+import {
+  initProjectSwitcher, isProjectMenuOpen, closeProjectMenu, closeOpenProjectModal,
+} from './projects.js';
 // settings-backup.js has no external window consumer left (its two names,
 // backupProject and startRestore, were only read by index.html inline handlers,
 // now addEventListener inside settings-backup.js itself) - a bare side-effect
@@ -519,3 +522,15 @@ window._updateTitleCardPreview = _updateTitleCardPreview;
 // dropped: its only consumer was index.html's inline install-button onclick, now an
 // addEventListener inside settings-installs.js itself.
 window._refreshInstallStatus = _refreshInstallStatus;
+// projects.js - initProjectSwitcher is called as a bare global by boot.js (still
+// classic); isProjectMenuOpen and closeProjectMenu are called as bare globals by
+// shortcuts.js's Escape-key handler (already-ESM, but out of scope to switch it to
+// an import here); closeOpenProjectModal is invoked directly by
+// tests/ui/test_ui_projects.py via page.evaluate. toggleProjectMenu,
+// browseForProjectFolder and _openProjectConfirm dropped: their only callers were
+// this module's own now-removed index.html inline handlers (now addEventListener
+// inside projects.js itself), so nothing outside the module needs them off window.
+window.initProjectSwitcher = initProjectSwitcher;
+window.isProjectMenuOpen = isProjectMenuOpen;
+window.closeProjectMenu = closeProjectMenu;
+window.closeOpenProjectModal = closeOpenProjectModal;

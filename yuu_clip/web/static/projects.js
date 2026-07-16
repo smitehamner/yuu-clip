@@ -4,7 +4,9 @@
 // Header dropdown to switch the server to another project folder in place (no
 // restart). On a successful switch the whole page reloads - AppState is bound to
 // the old project's data and is not hot-swapped. See routes/projects.py.
-(function () {
+import { showToast } from './utils.js';
+import { _menuArrowKeydown } from './ui.js';
+
 let _openProjectOpener = null;
 
 function _projectDisplayName(pathStr) {
@@ -96,6 +98,7 @@ document.getElementById('project-switcher-wrap').addEventListener('focusout', e 
   if (e.relatedTarget && wrap.contains(e.relatedTarget)) return;
   closeProjectMenu();
 });
+document.getElementById('btn-project-switcher').addEventListener('click', toggleProjectMenu);
 
 async function switchProject(path) {
   try {
@@ -150,9 +153,15 @@ async function browseForProjectFolder() {
 document.getElementById('open-project-path').addEventListener('keydown', e => {
   if (e.key === 'Enter') { e.preventDefault(); _openProjectConfirm(); }
 });
-
-Object.assign(window, {
-  initProjectSwitcher, isProjectMenuOpen, toggleProjectMenu, closeProjectMenu,
-  closeOpenProjectModal, _openProjectConfirm, browseForProjectFolder,
+document.getElementById('open-project-modal').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeOpenProjectModal();
 });
-})();
+document.getElementById('btn-project-browse').addEventListener('click', browseForProjectFolder);
+document.getElementById('btn-open-project-cancel').addEventListener('click', closeOpenProjectModal);
+document.getElementById('btn-open-project-confirm').addEventListener('click', _openProjectConfirm);
+
+export {
+  initProjectSwitcher, isProjectMenuOpen, toggleProjectMenu, closeProjectMenu,
+  openOpenProjectModal, closeOpenProjectModal, _openProjectConfirm, browseForProjectFolder,
+  switchProject,
+};
