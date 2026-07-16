@@ -95,6 +95,18 @@ import {
   openHighlightReelsModal, openReelForSession, closeHighlightReelsModal, switchReelTab,
   _reelMove, _reelToggle, closeReelPreview, openBatchExportModal, closeBatchExportModal,
 } from './reel.js';
+import {
+  _loadContexts, ensureContexts, _parseWeight,
+  _termContextOptions, _renderTermGroups,
+  openContextManager, closeContextManager, openNewContext,
+  cancelContextEdit, duplicateContext, _deriveContextId,
+  openCharacterForm, cancelCharacterEdit, _updateCharBoostLabel,
+  addVideoContext,
+  openAutoApproveModal, closeAutoApproveModal,
+  openRetranscribeModal, closeRetranscribeModal, startRetranscribe,
+  rescoreClip, rescoreClipChoose, rescoreClips, rescoreFailedClips,
+  rescoreAllClips, redescribeAllClips, resetApprovals,
+} from './contexts.js';
 
 window.AppState = AppState;
 Object.assign(window, format);
@@ -397,3 +409,55 @@ window._reelToggle = _reelToggle;
 window.closeReelPreview = closeReelPreview;
 window.openBatchExportModal = openBatchExportModal;
 window.closeBatchExportModal = closeBatchExportModal;
+// contexts.js - _loadContexts is called as a bare global by boot.js; ensureContexts
+// by hotwords.js/sensitive.js (bare) and videos.js (already-ESM, window.*);
+// _parseWeight, openNewContext, cancelContextEdit, duplicateContext,
+// _deriveContextId, openCharacterForm and _updateCharBoostLabel are invoked
+// directly by tests/ui/test_ui_contexts.py / test_ui_utils.py via page.evaluate;
+// _termContextOptions and _renderTermGroups are called as bare globals by
+// hotwords.js/sensitive.js; openContextManager is read as window.* by
+// analyze.js/videos.js (already-ESM) and invoked directly by
+// tests/ui/test_ui_contexts.py; closeContextManager is called as a bare global
+// by shortcuts.js's Escape-key modal-closer map; addVideoContext is read as
+// window.* by videos.js; openAutoApproveModal is read as window.* by videos.js;
+// closeAutoApproveModal is called as a bare global by shortcuts.js;
+// openRetranscribeModal is read as window.* by clips.js and invoked directly by
+// tests/ui/test_ui_clips2.py; closeRetranscribeModal is called as a bare global
+// by shortcuts.js and by this module's own dynamically-built onclick string (the
+// _diarizationNoteHtml "Settings" link, evaluated in global scope);
+// startRetranscribe is invoked directly by tests/ui/test_ui_clips2.py; rescoreClip,
+// rescoreClipChoose, rescoreClips, rescoreFailedClips, rescoreAllClips,
+// redescribeAllClips and resetApprovals are read as window.* by already-ESM
+// modules (clips.js, clipcreate.js, videos.js). saveContext, deleteContext,
+// resetContextToTemplate, saveCharacter, deleteCharacter,
+// _updateCharacterSectionVisibility, _loadCharacters, doAutoApprove and
+// updateAutoApprovePreview dropped: their only callers were contexts.js's own
+// now-removed index.html inline handlers or its own internal logic, so nothing
+// outside the module needs them off window anymore.
+window._loadContexts = _loadContexts;
+window.ensureContexts = ensureContexts;
+window._parseWeight = _parseWeight;
+window._termContextOptions = _termContextOptions;
+window._renderTermGroups = _renderTermGroups;
+window.openContextManager = openContextManager;
+window.closeContextManager = closeContextManager;
+window.openNewContext = openNewContext;
+window.cancelContextEdit = cancelContextEdit;
+window.duplicateContext = duplicateContext;
+window._deriveContextId = _deriveContextId;
+window.openCharacterForm = openCharacterForm;
+window.cancelCharacterEdit = cancelCharacterEdit;
+window._updateCharBoostLabel = _updateCharBoostLabel;
+window.addVideoContext = addVideoContext;
+window.openAutoApproveModal = openAutoApproveModal;
+window.closeAutoApproveModal = closeAutoApproveModal;
+window.openRetranscribeModal = openRetranscribeModal;
+window.closeRetranscribeModal = closeRetranscribeModal;
+window.startRetranscribe = startRetranscribe;
+window.rescoreClip = rescoreClip;
+window.rescoreClipChoose = rescoreClipChoose;
+window.rescoreClips = rescoreClips;
+window.rescoreFailedClips = rescoreFailedClips;
+window.rescoreAllClips = rescoreAllClips;
+window.redescribeAllClips = redescribeAllClips;
+window.resetApprovals = resetApprovals;

@@ -1,12 +1,22 @@
-(function () {
 // Feature-map - World context (code: rp_context / Context; UI term "Contexts").
 //   API: routes/contexts.py · Tests: tests/ui/test_ui_contexts.py
+import { AppState } from './state.js';
+import { escHtml, formatApiError, plural } from './format.js';
+import { showConfirm, openDiffModal } from './ui.js';
+import { showToast, openLog, appendLog, _diarizationReadiness, _diarizationNoteHtml } from './utils.js';
+import {
+  _blockedByAnalyze, _openSSE, streamSSE, _setActiveStream, _clearActiveStream,
+  _supersedeActiveStream, startJobUI, updateJobUI, endJobUI, SCORE_STEPS,
+} from './jobs.js';
+import { loadVideos, renderVideoDetail, _clipsListUrl } from './videos.js';
+import { selectClip, _renderClips } from './clips.js';
+
 // ── context manager ───────────────────────────────────────────────────────────
-function _parseWeight(id) {
+export function _parseWeight(id) {
   const v = parseFloat(document.getElementById(id).value);
   return isNaN(v) ? null : Math.max(0, v);
 }
-async function _loadContexts() {
+export async function _loadContexts() {
   AppState.contexts = await fetch('/api/contexts').then(r => r.json()).catch(() => []);
 }
 
@@ -14,7 +24,7 @@ async function _loadContexts() {
 // list means the boot-time fetch is still pending or failed transiently. Callers
 // that render contexts (e.g. the recording detail) await this so the list heals
 // itself instead of staying stuck empty until a manual page refresh.
-async function ensureContexts() {
+export async function ensureContexts() {
   if (Array.isArray(AppState.contexts) && AppState.contexts.length) return;
   await _loadContexts();
 }
@@ -31,7 +41,7 @@ function _termContextName(slug) {
 // Options: Global first, then every known context by display name. A slug that no
 // longer names a live context (its context was deleted) keeps a "(removed)" option
 // so the orphaned entry still shows its scope rather than silently reading Global.
-function _termContextOptions(selectedSlug) {
+export function _termContextOptions(selectedSlug) {
   const slug = selectedSlug || '';
   let html = `<option value=""${slug === '' ? ' selected' : ''}>Global (all recordings)</option>`;
   const known = new Set();
@@ -49,7 +59,7 @@ function _termContextOptions(selectedSlug) {
 // Group terms under a "Global (all recordings)" heading, one heading per context
 // that has entries (in the context list's order), then a "Removed context" group
 // for orphaned entries. rowHtmlFn renders a single term row.
-function _renderTermGroups(terms, rowHtmlFn) {
+export function _renderTermGroups(terms, rowHtmlFn) {
   const buckets = new Map();
   for (const term of terms) {
     const key = term.context_slug || '';
@@ -79,7 +89,7 @@ let _contextModalOpener = null;
 // ID stops following the name so a hand-chosen ID is never overwritten.
 let _contextIdEdited = false;
 
-async function openContextManager() {
+export async function openContextManager() {
   _contextModalOpener = document.activeElement;
   document.getElementById('context-modal').classList.add('visible');
   document.getElementById('context-editor').style.display = 'none';
@@ -87,7 +97,7 @@ async function openContextManager() {
   setTimeout(() => document.querySelector('#context-modal .btn.primary')?.focus(), 50);
 }
 
-function closeContextManager() {
+export function closeContextManager() {
   if (!document.getElementById('context-modal').classList.contains('visible')) return;
   const editor = document.getElementById('context-editor');
   if (editor && editor.style.display !== 'none' && _contextEditorDirty) {
@@ -129,7 +139,7 @@ async function _refreshContextList() {
   };
 }
 
-function openNewContext() {
+export function openNewContext() {
   AppState.editingContextId = null;
   _contextEditorDirty = false;
   _contextIdEdited = false;
@@ -173,14 +183,14 @@ function editContext(context_id) {
   document.getElementById('context-editor').style.display = 'flex';
 }
 
-function cancelContextEdit() {
+export function cancelContextEdit() {
   _contextEditorDirty = false;
   document.getElementById('context-editor').style.display = 'none';
 }
 
 // Keeps whatever is currently in the editor (including unsaved edits) and turns
 // it into a new, unsaved context - the "tailor a template without losing it" path.
-function duplicateContext() {
+export function duplicateContext() {
   const baseName = document.getElementById('ce-display-name').value.trim();
   const copyName = baseName ? `${baseName} copy` : '';
   AppState.editingContextId = null;
@@ -223,7 +233,7 @@ async function _doResetContext() {
   showToast('Template restored');
 }
 
-function _deriveContextId(name) {
+export function _deriveContextId(name) {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60);
 }
 
@@ -292,7 +302,7 @@ let _editingCharacterId = null;
 
 function _boostPct(boost) { return Math.round((boost || 0) * 100) + '%'; }
 
-function _updateCharBoostLabel() {
+export function _updateCharBoostLabel() {
   document.getElementById('ce-char-boost-label').textContent =
     _boostPct(parseFloat(document.getElementById('ce-char-boost').value));
 }
@@ -332,7 +342,7 @@ function _renderCharacterList() {
   };
 }
 
-function openCharacterForm(charId = null) {
+export function openCharacterForm(charId = null) {
   _editingCharacterId = charId;
   const char = charId != null ? _currentCharacters.find(c => c.id === charId) : null;
   document.getElementById('ce-char-name').value  = char ? char.name : '';
@@ -344,7 +354,7 @@ function openCharacterForm(charId = null) {
   document.getElementById('ce-char-name').focus();
 }
 
-function cancelCharacterEdit() {
+export function cancelCharacterEdit() {
   _editingCharacterId = null;
   document.getElementById('ce-character-form').style.display = 'none';
   document.getElementById('ce-add-character-btn').style.display = '';
@@ -400,7 +410,7 @@ function deleteCharacter(charId) {
 }
 
 // ── video context assignment ──────────────────────────────────────────────────
-async function addVideoContext(videoId, context_id) {
+export async function addVideoContext(videoId, context_id) {
   if (!context_id) return;
   const video   = AppState.videos.find(v => v.id === videoId);
   const current = video ? [...(video.context_names || [])] : [];
@@ -457,7 +467,7 @@ function _readRescoreMode() {
 }
 
 // ── re-score clips with context ───────────────────────────────────────────────
-async function rescoreClips(videoId, btn) {
+export async function rescoreClips(videoId, btn) {
   const video = AppState.videos.find(v => v.id === videoId);
   const count = video ? video.clip_count : 0;
   let cap = {vision: false};
@@ -480,7 +490,7 @@ async function rescoreClips(videoId, btn) {
   );
 }
 
-function rescoreFailedClips(videoId, btn) {
+export function rescoreFailedClips(videoId, btn) {
   const video = AppState.videos.find(v => v.id === videoId);
   const count = video ? (video.clips_llm_error || 0) : 0;
   showConfirm(
@@ -515,10 +525,10 @@ function _doRescoreClips(videoId, btn, endpoint = 'rescore-clips', includeFrames
       resetBtn();
       if (errorCount > 0) {
         showToast(`Re-scoring finished - ${plural(errorCount, 'clip')} failed (check log)`, 'error');
-        SoundFx.play('error');
+        window.SoundFx.play('error');
       } else {
         showToast('Re-scoring complete');
-        SoundFx.play('rescore');
+        window.SoundFx.play('rescore');
       }
       loadVideos().then(() => {
         if (AppState.activeVideoId === videoId) {
@@ -534,13 +544,13 @@ function _doRescoreClips(videoId, btn, endpoint = 'rescore-clips', includeFrames
       _clearActiveStream(handle);
       resetBtn();
       showToast(`Re-scoring failed - ${errMsg}`, 'error');
-      SoundFx.play('error');
+      window.SoundFx.play('error');
     },
   );
   _setActiveStream(handle, resetBtn);
 }
 
-function rescoreAllClips(videoId, btn) {
+export function rescoreAllClips(videoId, btn) {
   const video = AppState.videos.find(v => v.id === videoId);
   const count = video ? video.clip_count : 0;
   const hasContext = video && video.context_names && video.context_names.length > 0;
@@ -560,7 +570,7 @@ function rescoreAllClips(videoId, btn) {
   );
 }
 
-function redescribeAllClips(videoId, btn) {
+export function redescribeAllClips(videoId, btn) {
   const video = AppState.videos.find(v => v.id === videoId);
   const count = video ? video.clip_count : 0;
   const hasContext = video && video.context_names && video.context_names.length > 0;
@@ -621,7 +631,7 @@ function _doRedescribeClips(videoId, btn) {
 }
 
 // ── reset approvals ───────────────────────────────────────────────────────────
-function resetApprovals(videoId) {
+export function resetApprovals(videoId) {
   const nonPending = AppState.clips.filter(c => c.status !== 'pending').length;
   if (!nonPending) { showToast('All clips are already Unreviewed', 'info'); return; }
   showConfirm(
@@ -657,7 +667,7 @@ const _AUTO_APPROVE_FIELD_MAP = {
   action:   'score_action',
 };
 
-function openAutoApproveModal(videoId) {
+export function openAutoApproveModal(videoId) {
   _autoApproveOpener = document.activeElement;
   _autoApproveVideoId = videoId;
   document.getElementById('auto-approve-slider').value = 0.6;
@@ -667,7 +677,7 @@ function openAutoApproveModal(videoId) {
   setTimeout(() => document.getElementById('auto-approve-slider')?.focus(), 50);
 }
 
-function closeAutoApproveModal() {
+export function closeAutoApproveModal() {
   document.getElementById('auto-approve-modal').classList.remove('visible');
   const opener = _autoApproveOpener;
   _autoApproveOpener = null;
@@ -732,7 +742,7 @@ async function _loadRetranscribeSpeakerDefault() {
   }
 }
 
-function openRetranscribeModal(clipId) {
+export function openRetranscribeModal(clipId) {
   _retranscribeOpener = document.activeElement;
   _retranscribeClipId = clipId;
   _loadRetranscribeSpeakerDefault();
@@ -740,14 +750,14 @@ function openRetranscribeModal(clipId) {
   setTimeout(() => document.getElementById('retranscribe-model')?.focus(), 50);
 }
 
-function closeRetranscribeModal() {
+export function closeRetranscribeModal() {
   document.getElementById('retranscribe-modal').classList.remove('visible');
   const opener = _retranscribeOpener;
   _retranscribeOpener = null;
   if (opener?.focus) opener.focus();
 }
 
-function startRetranscribe() {
+export function startRetranscribe() {
   if (!_retranscribeClipId) return;
   const model = document.getElementById('retranscribe-model').value;
   const speakerLabels = document.getElementById('retranscribe-speaker-labels').checked;
@@ -765,7 +775,7 @@ function startRetranscribe() {
 // Offer the LLM-only vs full choice before running (kebab "Re-score"). The
 // contextual quick actions (edited-captions note, manual clip creation) call
 // rescoreClip directly and stay LLM-only.
-function rescoreClipChoose(clipId) {
+export function rescoreClipChoose(clipId) {
   showConfirm(
     'Re-score clip?',
     _rescoreModeRadios(),
@@ -774,7 +784,7 @@ function rescoreClipChoose(clipId) {
   );
 }
 
-function rescoreClip(clipId, full = false) {
+export function rescoreClip(clipId, full = false) {
   if (_blockedByAnalyze('re-score a clip')) return;
   _supersedeActiveStream();
   openLog();
@@ -793,7 +803,7 @@ function rescoreClip(clipId, full = false) {
       teardown();
       if (hadError) {
         showToast('Re-score failed - check log for details', 'error');
-        SoundFx.play('error');
+        window.SoundFx.play('error');
         selectClip(clipId);
         return;
       }
@@ -815,13 +825,13 @@ function rescoreClip(clipId, full = false) {
         selectClip(clipId);
       }
       showToast('Clip re-scored');
-      SoundFx.play('rescore');
+      window.SoundFx.play('rescore');
     },
     errMsg => {
       _clearActiveStream(handle);
       teardown();
       showToast(`Re-score failed - ${errMsg}`, 'error');
-      SoundFx.play('error');
+      window.SoundFx.play('error');
     },
   );
   _setActiveStream(handle, teardown);
@@ -845,21 +855,33 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     idInput.addEventListener('input', () => { _contextIdEdited = true; });
   }
-});
 
-// Public API - symbols referenced cross-module, by an inline handler, or by a
-// test. Internal helpers above stay private to this module's closure.
-Object.assign(window, {
-  _loadContexts, ensureContexts, _parseWeight,
-  _termContextOptions, _renderTermGroups,
-  openContextManager, closeContextManager, openNewContext,
-  saveContext, deleteContext, cancelContextEdit,
-  duplicateContext, resetContextToTemplate, _deriveContextId,
-  openCharacterForm, cancelCharacterEdit, saveCharacter, deleteCharacter,
-  _updateCharBoostLabel, _updateCharacterSectionVisibility, _loadCharacters,
-  addVideoContext,
-  openAutoApproveModal, closeAutoApproveModal, doAutoApprove, updateAutoApprovePreview,
-  openRetranscribeModal, closeRetranscribeModal, startRetranscribe,
-  rescoreClip, rescoreClipChoose, rescoreClips, rescoreFailedClips, rescoreAllClips, redescribeAllClips, resetApprovals,
+  document.getElementById('btn-world-contexts')?.addEventListener('click', () => openContextManager());
+
+  const contextModal = document.getElementById('context-modal');
+  contextModal?.addEventListener('click', e => { if (e.target === contextModal) closeContextManager(); });
+  document.getElementById('context-close-btn')?.addEventListener('click', () => closeContextManager());
+  document.getElementById('context-new-btn')?.addEventListener('click', () => openNewContext());
+  document.getElementById('context-save-btn')?.addEventListener('click', () => saveContext());
+  document.getElementById('context-cancel-btn')?.addEventListener('click', () => cancelContextEdit());
+  document.getElementById('btn-duplicate-context')?.addEventListener('click', () => duplicateContext());
+  document.getElementById('btn-delete-context')?.addEventListener('click', () => deleteContext());
+  document.getElementById('btn-reset-context')?.addEventListener('click', () => resetContextToTemplate());
+
+  document.getElementById('ce-save-character-btn')?.addEventListener('click', () => saveCharacter());
+  document.getElementById('ce-cancel-character-btn')?.addEventListener('click', () => cancelCharacterEdit());
+  document.getElementById('ce-add-character-btn')?.addEventListener('click', () => openCharacterForm());
+  document.getElementById('ce-char-boost')?.addEventListener('input', () => _updateCharBoostLabel());
+
+  const retranscribeModal = document.getElementById('retranscribe-modal');
+  retranscribeModal?.addEventListener('click', e => { if (e.target === retranscribeModal) closeRetranscribeModal(); });
+  document.getElementById('retranscribe-cancel-btn')?.addEventListener('click', () => closeRetranscribeModal());
+  document.getElementById('retranscribe-start-btn')?.addEventListener('click', () => startRetranscribe());
+
+  const autoApproveModal = document.getElementById('auto-approve-modal');
+  autoApproveModal?.addEventListener('click', e => { if (e.target === autoApproveModal) closeAutoApproveModal(); });
+  document.getElementById('auto-approve-cancel-btn')?.addEventListener('click', () => closeAutoApproveModal());
+  document.getElementById('auto-approve-ok')?.addEventListener('click', () => doAutoApprove());
+  document.getElementById('auto-approve-field')?.addEventListener('change', () => updateAutoApprovePreview());
+  document.getElementById('auto-approve-slider')?.addEventListener('input', () => updateAutoApprovePreview());
 });
-})();
