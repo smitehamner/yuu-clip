@@ -53,11 +53,11 @@ solve a JS challenge, so automated re-fetching isn't reliable. The fetch script
 verifies the vendored file's hash against the pin above before copying it, so a
 stale/unedited vendored file is caught the same way a bad download would be.
 
-**Hosting caveat:** the yuu-clip GitHub repo is currently **private**, so it cannot
-yet serve as a durable *public* mirror of these source archives for third parties who
-only receive the installer directly (not via GitHub). Once the repo goes public,
-revisit attaching these archives to GitHub Releases as the long-term canonical host
-(see `docs/dev/HOW-TO-RELEASE.md`'s existing "future" release flow).
+Public source mirror: the exact matching source archives are also hosted on GitHub Releases as a durable public mirror for third parties who receive only the installer:
+
+FFmpeg 8.1.2 source: https://github.com/smitehamner/yuu-clip/releases/download/third-party-source_0.1.0/ffmpeg-8.1.2.tar.xz
+libx264 (commit 0480cb0) source: https://github.com/smitehamner/yuu-clip/releases/download/third-party-source_0.1.0/x264-0480cb0.tar.gz
+These are in addition to the archives shipped side-by-side with each installer (the primary source-accompaniment per GPLv3 section 6).
 
 ## Re-pinning
 
