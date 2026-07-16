@@ -60,6 +60,9 @@ import {
 } from './videos-timeline.js';
 import { summarizeVideo, regenSummaryAuto } from './videos-summary.js';
 import { _renderRunMetaCard, _runTimingLine } from './videos-runmeta.js';
+import {
+  SessionUI, isSessionCollapsed, sessionGroupHeaderLi, toggleGroupSelect,
+} from './sessions.js';
 
 window.AppState = AppState;
 Object.assign(window, format);
@@ -202,3 +205,15 @@ window.regenSummaryAuto = regenSummaryAuto;
 // here).
 window._renderRunMetaCard = _renderRunMetaCard;
 window._runTimingLine = _runTimingLine;
+// sessions.js - SessionUI, isSessionCollapsed and sessionGroupHeaderLi are read
+// as window.* by videos.js (already-ESM, but out of scope to switch to an import
+// here); toggleGroupSelect is invoked directly by tests/ui/test_ui_sessions.py
+// via page.evaluate. Everything else stays module-private: loadSessions,
+// enterGroupingMode, suggestSessions and selectSession are only called by this
+// module's own internal logic, and exitGroupingMode, confirmGroupSelection and
+// openRecordingsActionsMenu are now wired to their static index.html buttons via
+// addEventListener inside sessions.js itself (no inline onclick left).
+window.SessionUI = SessionUI;
+window.isSessionCollapsed = isSessionCollapsed;
+window.sessionGroupHeaderLi = sessionGroupHeaderLi;
+window.toggleGroupSelect = toggleGroupSelect;

@@ -29,7 +29,7 @@ from yuu_clip.dev.bundle import (
 _ESM_MODULES = (
     "main.esm.js", "state.js", "format.js", "colorpicker.js", "panelnav.js", "jobs.js", "preview.js", "utils.js",
     "ui.js", "helpmodals.js", "shortcuts.js", "modelcatalog.js", "videos.js", "videos-timeline.js",
-    "videos-summary.js", "videos-runmeta.js",
+    "videos-summary.js", "videos-runmeta.js", "sessions.js",
 )
 
 

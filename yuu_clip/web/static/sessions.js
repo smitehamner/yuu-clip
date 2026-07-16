@@ -1,10 +1,15 @@
-(function () {
 // Feature-map - Session (code: RecordingSession / session_id).
 //   API: routes/sessions.py · Tests: tests/ui/test_ui_sessions.py
 // ── Sessions: sidebar grouping, auto-suggest, and the session detail view ─────
 // A Session groups top-level recordings from one play session. This module owns
 // the sidebar group headers, the manual grouping selection mode, the suggest
 // prompt, and the session detail view (rollup summary + unified timeline).
+import { AppState } from './state.js';
+import { escHtml, plural, _msToHms } from './format.js';
+import { showToast, collapsibleCard, openLog } from './utils.js';
+import { showKebab, showConfirm } from './ui.js';
+import { streamSSE } from './jobs.js';
+import { loadVideos, selectVideo, _renderVideoList } from './videos.js';
 
 const COLLAPSE_KEY = 'yuuclip-session-collapsed';
 const DISMISS_KEY  = 'yuuclip-session-dismissed';
@@ -368,7 +373,7 @@ function _renderSessionDetail(session) {
   document.getElementById('session-detail-kebab').onclick =
     e => _openSessionMenu(session.id, e.currentTarget);
   document.getElementById('session-summarize-btn').onclick = () => _summarizeSession(session.id);
-  document.getElementById('session-reel-btn').onclick = () => openReelForSession(session.id, memberIds);
+  document.getElementById('session-reel-btn').onclick = () => window.openReelForSession(session.id, memberIds);
   _wireTimelineNavigation();
 }
 
@@ -428,7 +433,7 @@ function _wireTimelineNavigation() {
     const clipRow = e.target.closest('[data-open-clip]');
     if (clipRow) {
       await selectVideo(parseInt(clipRow.dataset.clipVideo, 10));
-      if (window.selectClip) selectClip(parseInt(clipRow.dataset.openClip, 10));
+      if (window.selectClip) window.selectClip(parseInt(clipRow.dataset.openClip, 10));
       return;
     }
     const gotoRow = e.target.closest('[data-goto-video]');
@@ -471,11 +476,21 @@ function _fmtGap(ms) {
   return m ? `${h}h ${m}m` : plural(h, 'hr');
 }
 
-// Public API - referenced by videos.js sidebar rendering, index.html handlers,
-// and UI tests. Internal helpers stay private to this closure.
-Object.assign(window, {
-  SessionUI, loadSessions, isSessionCollapsed, sessionGroupHeaderLi,
-  enterGroupingMode, exitGroupingMode, toggleGroupSelect, confirmGroupSelection,
-  suggestSessions, openRecordingsActionsMenu, selectSession,
-});
-})();
+// ── static index.html handlers this module owns (wired once at load) ──────────
+// The recordings-section kebab and the grouping-bar's Cancel/Group buttons are
+// fixed, never-recreated elements in index.html, so a single load-time listener
+// can't double-fire on a re-render.
+function _wireStaticHandlers() {
+  document.getElementById('btn-recordings-actions')
+    .addEventListener('click', e => openRecordingsActionsMenu(e.currentTarget));
+  document.getElementById('btn-cancel-group')
+    .addEventListener('click', () => exitGroupingMode());
+  document.getElementById('btn-confirm-group')
+    .addEventListener('click', () => confirmGroupSelection());
+}
+
+_wireStaticHandlers();
+
+export {
+  SessionUI, isSessionCollapsed, sessionGroupHeaderLi, toggleGroupSelect,
+};
