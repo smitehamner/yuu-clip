@@ -1,4 +1,3 @@
-(function () {
 // Feature-map - Settings > Export live previews (filename template + title card).
 //   API: routes/config.py · Tests: tests/ui/test_ui_settings.py
 // ── export section (filename template preview) ───────────────────────────────
@@ -122,10 +121,21 @@ function _updateTitleCardPreview() {
   }
 }
 
-// Public API - the two entry points are wired to field `oninput` handlers in
-// index.html and called from settings.js's _applySettingsToUI. The sample
-// constants and pure helpers stay private to this closure.
-Object.assign(window, {
-  _updateExportNameTemplatePreview, _updateTitleCardPreview,
-});
-})();
+// ── static index.html handlers this module owns (wired once at load) ──────────
+// The export-name and title-card fields are fixed, never-recreated elements in
+// index.html's settings panel, so a single load-time listener can't double-fire
+// on a re-render. The colour inputs are driven by the shared colorpicker, which
+// dispatches a bubbling 'input' event on commit (colorpicker.js).
+function _wireStaticHandlers() {
+  document.getElementById('s-export-name-template')
+    .addEventListener('input', () => _updateExportNameTemplatePreview());
+  for (const id of ['s-title-card-bg-color', 's-title-card-font-color',
+    's-title-card-scale', 's-title-card-template']) {
+    document.getElementById(id)
+      .addEventListener('input', () => _updateTitleCardPreview());
+  }
+}
+
+_wireStaticHandlers();
+
+export { _updateExportNameTemplatePreview, _updateTitleCardPreview };

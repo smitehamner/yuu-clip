@@ -112,6 +112,9 @@ import {
   _onDiarizationBackendChange, _updateDiarizationStatus,
   _scrollToSettingsSection, _checkSettingsDirty,
 } from './settings.js';
+import {
+  _updateExportNameTemplatePreview, _updateTitleCardPreview,
+} from './settings-previews.js';
 
 window.AppState = AppState;
 Object.assign(window, format);
@@ -496,3 +499,11 @@ window._onDiarizationBackendChange = _onDiarizationBackendChange;
 window._updateDiarizationStatus = _updateDiarizationStatus;
 window._scrollToSettingsSection = _scrollToSettingsSection;
 window._checkSettingsDirty = _checkSettingsDirty;
+// settings-previews.js - _updateExportNameTemplatePreview and
+// _updateTitleCardPreview are read as window.* by settings.js's
+// _applyExportFields (already-ESM, but its own migration predates this one and
+// never switched to an import - out of scope to touch settings.js here). Both of
+// this module's field oninput handlers are now addEventListener inside
+// settings-previews.js itself, so no inline handler reads either name.
+window._updateExportNameTemplatePreview = _updateExportNameTemplatePreview;
+window._updateTitleCardPreview = _updateTitleCardPreview;
