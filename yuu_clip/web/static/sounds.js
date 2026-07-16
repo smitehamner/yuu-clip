@@ -1,4 +1,5 @@
-(function () {
+import { escHtml } from './format.js';
+
 // Feature-map - Notification sounds (Settings → Notification sounds; state in localStorage).
 //   API: routes/sounds.py · Tests: tests/ui/test_ui_sounds.py
 // ── notification sounds ───────────────────────────────────────────────────────
@@ -245,8 +246,15 @@ async function _onSoundUpload(input) {
   }
 }
 
-Object.assign(window, {
-  SoundFx: {play: playActionSound, stop: stopActionSound},
-  initSoundSettings, _onSoundUpload, _soundSettingsDirty, commitSoundSettings,
-});
-})();
+// The upload <input> is a fixed, never-recreated element in index.html's settings
+// panel, so a single load-time listener can't double-fire on a re-render.
+function _wireStaticHandlers() {
+  const input = document.getElementById('s-sound-upload');
+  if (input) input.addEventListener('change', () => _onSoundUpload(input));
+}
+
+_wireStaticHandlers();
+
+const SoundFx = {play: playActionSound, stop: stopActionSound};
+
+export { SoundFx, initSoundSettings, _soundSettingsDirty, commitSoundSettings };

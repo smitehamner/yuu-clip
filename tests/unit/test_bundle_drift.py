@@ -32,7 +32,7 @@ _ESM_MODULES = (
     "videos-summary.js", "videos-runmeta.js", "sessions.js", "clips.js", "clipbulk.js", "clipexport.js",
     "clipcreate.js", "analyze.js", "reel.js", "contexts.js", "settings.js",
     "settings-previews.js", "settings-installs.js", "settings-backup.js", "projects.js",
-    "modeldownload.js",
+    "modeldownload.js", "sounds.js",
 )
 
 

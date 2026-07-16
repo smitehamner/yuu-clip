@@ -127,6 +127,9 @@ import './settings-backup.js';
 import {
   initModelDownload, initModelPrefetch, getWhisperDownloadPct, _resetModelDownloads,
 } from './modeldownload.js';
+import {
+  SoundFx, initSoundSettings, _soundSettingsDirty, commitSoundSettings,
+} from './sounds.js';
 
 window.AppState = AppState;
 Object.assign(window, format);
@@ -548,3 +551,15 @@ window.initModelDownload = initModelDownload;
 window.initModelPrefetch = initModelPrefetch;
 window.getWhisperDownloadPct = getWhisperDownloadPct;
 window._resetModelDownloads = _resetModelDownloads;
+// sounds.js - SoundFx is read as window.SoundFx by already-ESM callers
+// (analyze.js, clipbulk.js, clipexport.js, contexts.js, reel.js, videos.js,
+// jobs.js) and as a bare global by the still-classic exporteditor.js;
+// initSoundSettings, _soundSettingsDirty and commitSoundSettings are read as
+// window.* by settings.js (already-ESM, but its own migration predates this one
+// and never switched to an import - out of scope to touch settings.js here).
+// _onSoundUpload dropped: its only consumer was index.html's inline upload
+// onchange, now an addEventListener inside sounds.js itself.
+window.SoundFx = SoundFx;
+window.initSoundSettings = initSoundSettings;
+window._soundSettingsDirty = _soundSettingsDirty;
+window.commitSoundSettings = commitSoundSettings;
