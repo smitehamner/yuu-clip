@@ -16,7 +16,6 @@
 # this manifest and add it to that graph. index.html loads bundle.esm.js first, then
 # this bundle.js.
 
-videos-runmeta.js
 sessions.js
 clips.js
 clipbulk.js

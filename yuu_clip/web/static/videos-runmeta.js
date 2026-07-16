@@ -1,9 +1,9 @@
-(function () {
 // Feature-map - Recording detail: last-analysis run metadata card (per-stage
 // timing, effective settings, CPU/GPU device). Extracted out of videos.js
 // (which grew into a catch-all) - the list/filter/detail-render/re-analysis
 // core stays there.
 //   API: routes/videos.py (analyze_run field) · Tests: tests/ui/test_ui_video.py
+import { escHtml, _msToHms, _fmtAgo } from './format.js';
 // ── analysis run metadata card ────────────────────────────────────────────────
 // Renders the stored record of the last analyze run (per-stage timing, effective
 // settings, and CPU/GPU device) so the creator can answer "how long did this
@@ -18,14 +18,14 @@ const _STAGE_LABEL = {
 };
 function _stageLabel(name) { return _STAGE_LABEL[name] || name; }
 
-function _runTimingLine(run) {
+export function _runTimingLine(run) {
   const totalHms = _msToHms(run.elapsed_ms || 0);
   const stages = run.stages || [];
   const stageStr = stages.map(st => `${_stageLabel(st.name)} ${_msToHms((st.seconds || 0) * 1000)}`).join(' · ');
   return `Last run: ${totalHms} total${stageStr ? ` (${stageStr})` : ''}`;
 }
 
-function _renderRunMetaCard(video) {
+export function _renderRunMetaCard(video) {
   const run = video.analyze_run;
   if (!run) return '';
   const totalHms = _msToHms(run.elapsed_ms || 0);
@@ -78,10 +78,3 @@ function _runStageBars(stages) {
   }).join('');
   return `<div class="run-stage-bars"><div class="run-meta-subtitle">Stage timing</div>${bars}</div>`;
 }
-
-// Public API - symbols referenced cross-module, by an inline handler, or by a
-// test. Internal helpers above stay private to this module's closure.
-Object.assign(window, {
-  _renderRunMetaCard, _runTimingLine,
-});
-})();

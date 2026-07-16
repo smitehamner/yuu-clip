@@ -59,6 +59,7 @@ import {
   generateTimeline, closeTimelineIntervalModal, _renderTimelineHTML, _timelineEmptyNoteHTML,
 } from './videos-timeline.js';
 import { summarizeVideo, regenSummaryAuto } from './videos-summary.js';
+import { _renderRunMetaCard, _runTimingLine } from './videos-runmeta.js';
 
 window.AppState = AppState;
 Object.assign(window, format);
@@ -196,3 +197,8 @@ window._timelineEmptyNoteHTML = _timelineEmptyNoteHTML;
 // own regenSummaryAuto, so nothing outside the module needs it off window.
 window.summarizeVideo = summarizeVideo;
 window.regenSummaryAuto = regenSummaryAuto;
+// videos-runmeta.js - _renderRunMetaCard and _runTimingLine are read as
+// window.* by videos.js (already-ESM, but out of scope to switch to an import
+// here).
+window._renderRunMetaCard = _renderRunMetaCard;
+window._runTimingLine = _runTimingLine;
