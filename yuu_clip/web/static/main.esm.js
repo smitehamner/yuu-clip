@@ -58,6 +58,7 @@ import {
 import {
   generateTimeline, closeTimelineIntervalModal, _renderTimelineHTML, _timelineEmptyNoteHTML,
 } from './videos-timeline.js';
+import { summarizeVideo, regenSummaryAuto } from './videos-summary.js';
 
 window.AppState = AppState;
 Object.assign(window, format);
@@ -188,3 +189,10 @@ window.generateTimeline = generateTimeline;
 window.closeTimelineIntervalModal = closeTimelineIntervalModal;
 window._renderTimelineHTML = _renderTimelineHTML;
 window._timelineEmptyNoteHTML = _timelineEmptyNoteHTML;
+// videos-summary.js - summarizeVideo and regenSummaryAuto are read as window.*
+// by videos.js (already-ESM, but out of scope to switch to an import here) and
+// regenSummaryAuto is also invoked directly by tests/ui/test_ui_video.py via
+// page.evaluate. _doRegenSummaryAuto dropped: its only caller was this module's
+// own regenSummaryAuto, so nothing outside the module needs it off window.
+window.summarizeVideo = summarizeVideo;
+window.regenSummaryAuto = regenSummaryAuto;

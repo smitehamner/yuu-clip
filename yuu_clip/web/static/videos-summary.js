@@ -1,8 +1,13 @@
-(function () {
 // Feature-map - Recording detail: session title + summary generation (code:
 // video / Video). Extracted out of videos.js (which grew into a catch-all) -
 // the list/filter/detail-render/re-analysis core stays there.
 //   API: routes/videos.py (summarize, regenerate-summary, fields) · Tests: tests/ui/test_ui_video.py
+import { AppState } from './state.js';
+import { formatApiError } from './format.js';
+import { openDiffModal, showConfirm } from './ui.js';
+import { showToast, openLog, appendLog } from './utils.js';
+import { _openSSE, _setActiveStream, _clearActiveStream, _supersedeActiveStream, _blockedByAnalyze } from './jobs.js';
+import { loadVideos, renderVideoDetail, _needsModelCtaHTML } from './videos.js';
 // ── video summary ─────────────────────────────────────────────────────────────
 async function summarizeVideo(id, btn) {
   const actionBtn = document.getElementById('btn-summarize-video') || btn;
@@ -101,9 +106,4 @@ function _doRegenSummaryAuto(id, btn) {
   _setActiveStream(handle, resetBtn);
 }
 
-// Public API - symbols referenced cross-module, by an inline handler, or by a
-// test. Internal helpers above stay private to this module's closure.
-Object.assign(window, {
-  summarizeVideo, regenSummaryAuto, _doRegenSummaryAuto,
-});
-})();
+export { summarizeVideo, regenSummaryAuto };
