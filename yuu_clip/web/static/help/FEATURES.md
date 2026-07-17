@@ -56,9 +56,12 @@ a **Scene** is a longer contextual moment - roughly 1-5 minutes, which may inclu
 pauses and a story arc. Scenes are reviewed, scored, and exported through exactly the
 same tools as Clips; only how they're generated and scored differs.
 
-- **Clips / Scenes toggle** - a type toggle above the clip list switches the list
-  between Clips and Scenes. It defaults to **Clips**, so nothing about the everyday
-  view changes until you switch it.
+- **All / Clips / Scenes filter** - clips and scenes share one list. Each scene row
+  carries a small **SCENE** badge so it's easy to tell apart at a glance. Three chips
+  above the list - **All**, **Clips**, **Scenes** - filter it; it defaults to **All**
+  (both kinds together), and your choice is remembered. Sort applies across the merged
+  list, so a score sort interleaves clips and scenes while a timeline sort orders them
+  by when they happen.
 - **Make a scene by hand** - the manual picker (see Manual clip creation above) can
   create a Scene instead of a Clip: pick a longer start/end range and it's saved as a
   Scene and scored the same way.
