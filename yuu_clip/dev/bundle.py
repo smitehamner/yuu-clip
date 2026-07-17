@@ -11,27 +11,22 @@ regenerate with ``yuu-dev bundle`` when it drifts.
 
 (History: the UI used to also ship a classic ``bundle.js`` concatenated from
 ``bundle.manifest``. Every module has since migrated to ESM, so that second bundle
-and its manifest were retired - see the ui-esm-migration branch.)
+and its manifest were retired.)
 """
 from __future__ import annotations
 
-import shutil
 import subprocess
 import time
 from pathlib import Path
 
 import typer
 
-from yuu_clip.dev._base import REPO_ROOT, app, console
+from yuu_clip.dev._base import REPO_ROOT, app, console, node_available
 
 STATIC_DIR = REPO_ROOT / "yuu_clip" / "web" / "static"
 ESM_BUILD_SCRIPT = REPO_ROOT / "scripts" / "build-esm.mjs"
 ESM_ENTRY = STATIC_DIR / "main.esm.js"
 ESM_BUNDLE_PATH = STATIC_DIR / "bundle.esm.js"
-
-
-def node_available() -> bool:
-    return shutil.which("node") is not None
 
 
 def esbuild_available() -> bool:

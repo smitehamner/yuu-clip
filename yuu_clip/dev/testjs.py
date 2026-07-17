@@ -13,19 +13,14 @@ on Windows (no ``.cmd`` resolution) as on macOS/Linux.
 """
 from __future__ import annotations
 
-import shutil
 from typing import List, Optional
 
 import typer
 
-from yuu_clip.dev._base import REPO_ROOT, app, console, pytest_env, run_and_tee
+from yuu_clip.dev._base import REPO_ROOT, app, console, node_available, pytest_env, run_and_tee
 
 JS_LOG = REPO_ROOT / "test-js-last.log"
 VITEST_ENTRY = REPO_ROOT / "node_modules" / "vitest" / "vitest.mjs"
-
-
-def _node_available() -> bool:
-    return shutil.which("node") is not None
 
 
 @app.command("test-js", context_settings={"ignore_unknown_options": True})
@@ -34,7 +29,7 @@ def test_js(
     vitest_args: Optional[List[str]] = typer.Argument(None),
 ) -> None:
     """Run the vitest JS unit layer over tests/js/ (browser-less, no server)."""
-    if not _node_available():
+    if not node_available():
         console.print("[red]Node.js is required for `yuu-dev test-js` but `node` is not on PATH.[/red]")
         console.print("[red]Install Node (https://nodejs.org) and run `npm install`, then retry.[/red]")
         raise typer.Exit(3)

@@ -13,6 +13,7 @@ it is read as UTF-8 with ``errors="replace"`` before printing.
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -33,6 +34,15 @@ app = typer.Typer(
 # yuu_clip/dev/_base.py -> parents[2] is the repo root.
 REPO_ROOT = Path(__file__).resolve().parents[2]
 LOG_PATH = REPO_ROOT / ".yuu-clip" / "yuu-clip.log"
+
+
+def node_available() -> bool:
+    """True when Node.js is on PATH - required to build the JS bundle and run vitest.
+
+    The offline dev path relies on this: the bundle drift guard and `test-js` skip
+    (rather than fail) when Node is absent, since the committed bundle ships without it.
+    """
+    return shutil.which("node") is not None
 
 
 def pytest_env() -> dict[str, str]:

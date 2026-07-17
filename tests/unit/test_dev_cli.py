@@ -2,14 +2,18 @@
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 
+import pytest
 from typer.testing import CliRunner
 
 from yuu_clip.dev import _base, app, procs
+from yuu_clip.dev import bundle as bundle_mod
 from yuu_clip.dev import lint as lint_mod
 from yuu_clip.dev import logs as logs_mod
 from yuu_clip.dev import serve as serve_mod
 from yuu_clip.dev import status as status_mod
+from yuu_clip.dev import testjs as testjs_mod
 from yuu_clip.dev import tests as tests_mod
 
 runner = CliRunner()
@@ -360,3 +364,114 @@ def test_parse_cim_json_warns_on_malformed_json(monkeypatch):
     monkeypatch.setattr(procs.console, "print", lambda msg: printed.append(msg))
     assert procs.parse_cim_json("not json") == []
     assert any("parse process snapshot" in m for m in printed)
+
+
+# --- bundle: build_esm_bundle error paths + outfile plumbing ------------
+
+
+class _RunResult:
+    def __init__(self, returncode: int, stderr: str = "", stdout: str = "") -> None:
+        self.returncode = returncode
+        self.stderr = stderr
+        self.stdout = stdout
+
+
+def test_build_esm_bundle_raises_a_clear_error_when_node_is_missing(monkeypatch):
+    # A missing Node must fail loudly, never silently pass a stale bundle as current.
+    monkeypatch.setattr(bundle_mod, "node_available", lambda: False)
+    with pytest.raises(RuntimeError, match="Node.js is required"):
+        bundle_mod.build_esm_bundle()
+
+
+def test_build_esm_bundle_surfaces_esbuild_failure_with_its_detail(monkeypatch):
+    monkeypatch.setattr(bundle_mod, "node_available", lambda: True)
+    monkeypatch.setattr(
+        bundle_mod.subprocess, "run",
+        lambda *a, **k: _RunResult(1, stderr="Could not resolve './missing.js'"),
+    )
+    with pytest.raises(RuntimeError) as excinfo:
+        bundle_mod.build_esm_bundle()
+    assert "esbuild failed (exit 1)" in str(excinfo.value)
+    assert "Could not resolve './missing.js'" in str(excinfo.value)
+
+
+def test_build_esm_bundle_forwards_outfile_to_the_node_command(monkeypatch):
+    # The drift guard passes a sibling --outfile so its comparison copy is
+    # byte-identical; if the flag stopped being forwarded the guard would compare
+    # against the wrong file and never catch drift.
+    captured: dict = {}
+    monkeypatch.setattr(bundle_mod, "node_available", lambda: True)
+
+    def fake_run(cmd, cwd=None, **kwargs):
+        captured["cmd"] = cmd
+        return _RunResult(0)
+
+    monkeypatch.setattr(bundle_mod.subprocess, "run", fake_run)
+    outfile = Path("some") / "bundle.esm.check.js"
+    bundle_mod.build_esm_bundle(outfile=outfile)
+    assert "--outfile" in captured["cmd"]
+    assert str(outfile) in captured["cmd"]
+
+
+def test_bundle_command_errors_when_the_esm_entry_is_missing(monkeypatch, tmp_path):
+    monkeypatch.setattr(bundle_mod, "ESM_ENTRY", tmp_path / "main.esm.js")
+    result = runner.invoke(app, ["bundle"])
+    assert result.exit_code == 1
+    assert "not found" in result.output
+
+
+# --- test-js: Node/vitest guards + exit-code plumbing -------------------
+
+
+def test_test_js_errors_with_guidance_when_node_missing(monkeypatch):
+    monkeypatch.setattr(testjs_mod, "node_available", lambda: False)
+    result = runner.invoke(app, ["test-js"])
+    assert result.exit_code == 3
+    assert "Node.js is required" in result.output
+
+
+def test_test_js_errors_when_vitest_not_installed(monkeypatch, tmp_path):
+    monkeypatch.setattr(testjs_mod, "node_available", lambda: True)
+    monkeypatch.setattr(testjs_mod, "VITEST_ENTRY", tmp_path / "vitest.mjs")
+    result = runner.invoke(app, ["test-js"])
+    assert result.exit_code == 3
+    assert "vitest is not installed" in result.output
+
+
+def test_test_js_runs_vitest_in_run_mode_and_forwards_exit_code(monkeypatch, tmp_path):
+    vitest_entry = tmp_path / "vitest.mjs"
+    vitest_entry.write_text("", encoding="utf-8")
+    calls: dict = {}
+    monkeypatch.setattr(testjs_mod, "node_available", lambda: True)
+    monkeypatch.setattr(testjs_mod, "VITEST_ENTRY", vitest_entry)
+    monkeypatch.setattr(testjs_mod, "JS_LOG", tmp_path / "test-js-last.log")
+
+    def fake_run_and_tee(cmd, cwd, env=None):
+        calls["cmd"] = cmd
+        return 7, "1 failed"
+
+    monkeypatch.setattr(testjs_mod, "run_and_tee", fake_run_and_tee)
+
+    result = runner.invoke(app, ["test-js"])
+    assert result.exit_code == 7
+    # `run` (single-run, not watch) + the vitest entry are both on the node command.
+    assert "run" in calls["cmd"]
+    assert str(vitest_entry) in calls["cmd"]
+
+
+def test_test_js_watch_mode_omits_the_run_subcommand(monkeypatch, tmp_path):
+    vitest_entry = tmp_path / "vitest.mjs"
+    vitest_entry.write_text("", encoding="utf-8")
+    calls: dict = {}
+    monkeypatch.setattr(testjs_mod, "node_available", lambda: True)
+    monkeypatch.setattr(testjs_mod, "VITEST_ENTRY", vitest_entry)
+    monkeypatch.setattr(testjs_mod, "JS_LOG", tmp_path / "test-js-last.log")
+
+    def fake_run_and_tee(cmd, cwd, env=None):
+        calls["cmd"] = cmd
+        return 0, "ok"
+
+    monkeypatch.setattr(testjs_mod, "run_and_tee", fake_run_and_tee)
+
+    runner.invoke(app, ["test-js", "--watch"])
+    assert "run" not in calls["cmd"]
