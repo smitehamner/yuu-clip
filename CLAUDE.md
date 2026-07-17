@@ -119,6 +119,24 @@ registry, not memory, is the source of truth. At each code-hygiene checkpoint (s
 global convention), re-audit `DOC-CLAIMS.md` alongside the code-quality pass so stale
 claims are caught on the same cadence.
 
+## Repeated hygiene passes after a wide change (project specifics)
+
+Follow the global "repeated verification passes after a wide change" convention after a
+change that touches many surfaces (a plan WS/stage, a docs-truth or terminology sweep, a
+wide refactor). Project concretions for the "run the full tiers your targeted gate
+skips" step - the gaps that let real bugs through this repo's normal per-edit gate:
+
+- `yuu-dev test-ui --changed` does NOT map content-only edits to `index.html` /
+  `setup.html` / `glossary.md`, and does NOT run the string-pinning tests. Run the FULL
+  `yuu-dev test-ui`; `tests/ui/test_ui_terminology.py` (all five Whisper `<option>` lists
+  must share identical copy) and `tests/ui/test_ui_wizard.py` are the fastest tripwires.
+- `yuu-dev test-js` if any `static/*.js` changed - the vitest tier is separate and
+  neither `test-api` nor `test-ui` runs it (a `videos.js` default drift shipped a red
+  `test-js` this way).
+- `cd electron; npm test` if `electron/` changed.
+- Re-audit `docs/dev/llm/DOC-CLAIMS.md` for every surface listed against a changed fact,
+  and check cross-surface number/label agreement + dangling doc anchors by grep.
+
 ## Frontend build (one ESM bundle)
 
 The UI is real ESM modules (`import`/`export`), the strangler migration off the
