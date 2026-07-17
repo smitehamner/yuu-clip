@@ -13,7 +13,7 @@ Where this sits in the docs:
 - **[CLAUDE.md](../../CLAUDE.md)** - the exhaustive assistant-context file. It carries
   the full `Project layout` file-by-file map and every convention. When this doc says
   "see the layout map", it means the `Project layout` section there. Do not expect to
-  read all 26KB of it to get oriented - that is what this file is for.
+  read all of it to get oriented - that is what this file is for.
 
 ---
 
@@ -99,6 +99,34 @@ similarity/embeddings (`make_backend`), and scorers (the `Scorer` `Protocol` in
 implement the interface, register it in that module's `_BACKEND_*` dict, add the
 `*_backend` value. The full seam list is in CLAUDE.md.
 
+### Test tiers
+
+Tests are split into four tiers **by directory**, not by pytest markers. Pick the tier
+by what the test needs; the `yuu-dev` command names map straight onto them.
+
+- **unit** ([tests/unit/](../../tests/unit/)) - pure Python: no live server, no
+  TestClient, no seeded DB, no real model packages or HF cache. Must pass offline on any
+  machine. The tier is guarded: [tests/unit/conftest.py](../../tests/unit/conftest.py) is
+  deliberately empty of DB/server fixtures, and `test_no_integration_imports.py` fails if
+  a unit test imports the web app. A test that references `project_dir`/`client` fails at
+  collection - that means it belongs in `integration`.
+- **integration** ([tests/integration/](../../tests/integration/)) - route and pipeline
+  tests that need the seeded DB and an in-process FastAPI `TestClient` (the `project_dir`
+  + `client` fixtures). No browser.
+- **ui** ([tests/ui/](../../tests/ui/)) - Playwright against a **live** server (default
+  `:8080`). Slow and browser-bound. Keep only what genuinely needs a real browser here:
+  navigation, SSE transport, focus traps, live `getComputedStyle` / real geometry.
+- **js** ([tests/js/](../../tests/js/)) - the web UI's pure module logic under **vitest +
+  happy-dom**: import the ESM module directly and assert on its output (formatters,
+  filters, parse/score math, the job-pill state machine driven through its public API).
+  No browser, no server, ~6s. This is the preferred home for any pure/DOM-shell JS helper;
+  a Playwright case that only pokes module state via `page.evaluate` should be rewritten to
+  drive the public API under vitest fake timers instead.
+
+`yuu-dev test-api` runs unit + integration; `yuu-dev test-ui` runs ui (see CLAUDE.md for
+the `--changed` / `--smoke` cadence); `yuu-dev test-js` runs js. Run `test-js` after
+editing any `static/*.js` that has (or should have) a `tests/js/` counterpart.
+
 ---
 
 ## The landmines
@@ -106,41 +134,48 @@ implement the interface, register it in that module's `_BACKEND_*` dict, add the
 These are the traps that bite people who have only read CONTRIBUTING.md. Each is real
 and each has bitten before.
 
-### 1. Frontend: the `window` export-list contract (current state, changing)
+### 1. Frontend: edit the source modules, then rebundle
 
-**Time-sensitive - this contract is being retired by WS5 of the distribution-polish
-plan (the frontend build step). If you are reading this after WS5 has landed real ESM
-`import`/`export` modules, this section is stale; update or delete it.**
+The web UI is real ESM: ~40 `import`/`export` modules under
+[web/static/](../../yuu_clip/web/static/), grouped into feature subdirectories
+(`core/`, `videos/`, `clips/`, `analyze/`, `settings/`, `people/`, `library/`). Imports
+are relative, so a module's bucket is part of its path - e.g. `videos/videos.js` imports
+`escHtml` from `'../core/utils.js'`. [main.esm.js](../../yuu_clip/web/static/main.esm.js)
+is the entry point: it imports the whole graph, with
+[core/boot.js](../../yuu_clip/web/static/core/boot.js) (first-paint) imported **last**.
 
-The web UI has no build step yet. It is ~45 hand-authored modules under
-[web/static/](../../yuu_clip/web/static/) loaded as plain `<script>` tags, coordinating
-through the global `window` object. A function is only visible to another module if it
-is explicitly published onto `window`.
+**The build step is the gotcha.** `index.html` loads exactly one script -
+[bundle.esm.js](../../yuu_clip/web/static/bundle.esm.js), the committed esbuild artifact
+built from the `main.esm.js` graph by `yuu-dev bundle`
+([scripts/build-esm.mjs](../../scripts/build-esm.mjs)). The browser never loads the
+individual `static/*.js` files. So **after editing any `static/*.js` you must run
+`yuu-dev bundle`** or the running server keeps serving the stale bundle and your change
+does not appear. Never hand-edit `bundle.esm.js` - edit the source module and rebundle.
+[tests/unit/test_bundle_drift.py](../../tests/unit/test_bundle_drift.py) fails if you
+commit a stale bundle (it skips when the Node toolchain is absent, so `test-api` still
+passes offline). Rebuilding needs Node + `npm install`; the committed artifact is what
+ships, so Node is never needed to *run* the app. Editing `index.html` alone needs no
+rebundle.
 
-Most modules wrap their code in an IIFE closure and publish their public symbols with a
-single `Object.assign(window, {...})` block at the bottom. [videos.js](../../yuu_clip/web/static/videos.js)
-is the clearest example: the whole file is `(function () { ... })()`
-([videos.js:1](../../yuu_clip/web/static/videos.js#L1)), and its public API is the
-`Object.assign(window, {...})` list at
-[videos.js:930](../../yuu_clip/web/static/videos.js#L930).
-
-**The gotcha:** if you write a new function inside an IIFE-wrapped module and another
-module (or an inline `onclick`, or a test) calls it, it will be `undefined` at the call
-site unless you add its name to that module's `Object.assign(window, {...})` export
-list. There is no compile-time check - you find out at runtime, in the browser. When you
-add a cross-module function, add it to the export list in the same edit.
-
-(This entire pattern is exactly why WS5 introduces a bundler and real modules - a
-forgotten export becomes a build error instead of a silent runtime `undefined`.)
+**The residual `window.X = X` shim.** [main.esm.js](../../yuu_clip/web/static/main.esm.js)
+still ends with a shrinking block that re-publishes some names onto `window`. This is a
+*compatibility shim being retired*, not the architecture - a name stays on it only while
+(1) another already-ESM module still reads it as `window.foo` instead of importing it, or
+(2) a Playwright `page.evaluate` pokes it as a page global. Prefer `import` over
+`window.foo` for any new cross-module reference; converting the remaining `window.*` read
+sites to imports and deleting the `page.evaluate` pokes is what drains the shim toward
+empty. (This ESM architecture replaced the original all-`window`-globals,
+`Object.assign(window, {...})` design; if you find a doc or comment describing that older
+pattern as current, it is stale.)
 
 ### 2. Two parallel model-selection stacks - hand-sync them
 
 Model selection exists in **two separate stacks that cannot share code**. A change to
 one must be mirrored in the other by hand.
 
-- **In-app Settings** - browser JS (`web/static/settings.js`, `modelcatalog.js`) ->
-  HTTP -> Python [model_catalog.py](../../yuu_clip/model_catalog.py) + the `download-gguf`
-  CLI.
+- **In-app Settings** - browser JS (`settings/settings.js`, `settings/modelcatalog.js`)
+  -> HTTP -> Python [model_catalog.py](../../yuu_clip/model_catalog.py) + the
+  `download-gguf` CLI.
 - **Electron setup wizard** - renderer (`electron/setup.html`) -> IPC ->
   [electron/main.js](../../electron/main.js) handler `setup:download-gguf-model`
   ([main.js:341](../../electron/main.js#L341)), which downloads the hardcoded
@@ -167,7 +202,7 @@ package and dies with `ModuleNotFoundError: k2`. In the analyze subprocess, diar
 silently die for the whole run.
 
 The fix is a pre-warm: `ingest.py` resolves `transformers.pipeline` via
-`prewarm_transformers_pipeline()` ([ingest.py:238-240](../../yuu_clip/pipeline/ingest.py#L238-L240))
+`prewarm_transformers_pipeline()` ([ingest.py:239-240](../../yuu_clip/pipeline/ingest.py#L239-L240))
 *before* diarization imports speechbrain. If you reorder the analyze pipeline, keep that
 call ahead of any speechbrain import.
 
@@ -184,10 +219,10 @@ model above), three rules are non-negotiable:
   ([db/models.py:69](../../yuu_clip/db/models.py#L69)). Connections close immediately so
   a pooled server connection cannot hold a lock and block the subprocess's INSERT. Never
   change this to a pooled class. A 30 s `busy_timeout` PRAGMA
-  ([db/models.py:75-77](../../yuu_clip/db/models.py#L75-L77)) gives a blocked writer time
-  to wait rather than fail instantly.
+  ([db/models.py:77](../../yuu_clip/db/models.py#L77)) gives a blocked writer time to wait
+  rather than fail instantly.
 - **Every route handler that opens a session must close it in `try/finally`.** See the
-  pattern in [routes/videos.py:83-95](../../yuu_clip/web/routes/videos.py#L83-L95). A
+  pattern in [routes/videos.py:82-95](../../yuu_clip/web/routes/videos.py#L82-L95). A
   leaked session is a held connection is a lock.
 - **If you see `OperationalError: database is locked`:** the usual cause is a zombie
   analyze subprocess still holding the file (kill it and restart the server), or a route
@@ -201,9 +236,9 @@ model above), three rules are non-negotiable:
 | --- | --- |
 | **Add a scoring axis / signal** | Implement the `Scorer` `Protocol` ([scoring/protocol.py](../../yuu_clip/scoring/protocol.py)) and wire it into `build_clip_scorers` ([scoring/scorer_set.py:19](../../yuu_clip/scoring/scorer_set.py#L19)) so full-rescore picks it up. |
 | **Add an API route** | Add a module under [web/routes/](../../yuu_clip/web/routes/) and follow the `try/finally: db.close()` pattern in [routes/videos.py](../../yuu_clip/web/routes/videos.py). |
-| **Add a Settings control** | Both the browser JS (`web/static/settings.js`) and the Python config/catalog side. If it selects a model, remember landmine #2 - mirror it in the Electron wizard by hand. |
+| **Add a Settings control** | Both the browser JS (`settings/settings.js`) and the Python config/catalog side. If it selects a model, remember landmine #2 - mirror it in the Electron wizard by hand. |
 | **Add a model backend** (LLM, transcription, diarization, similarity) | Implement the seam's ABC/Protocol, register it in that module's `_BACKEND_*` dict, add the `*_backend` config value. Never add a caller-side `if backend == ...`. Start from the LLM seam in [scoring/llm_client.py](../../yuu_clip/scoring/llm_client.py). |
-| **Add a cross-module frontend function** | Add it to the module's `Object.assign(window, {...})` export list in the same edit (landmine #1). |
+| **Add or edit a frontend module** | Edit the source `static/<bucket>/*.js`, `export` its public surface and `import` what it needs, then run `yuu-dev bundle` and `yuu-dev test-js` (landmine #1). Never edit `bundle.esm.js` by hand. |
 | **Change the analyze pipeline order** | [pipeline/ingest.py](../../yuu_clip/pipeline/ingest.py) - keep the `prewarm_transformers_pipeline()` call ahead of any speechbrain import (landmine #3). |
 | **Find any other file** | The full file-by-file map is the `Project layout` section of [CLAUDE.md](../../CLAUDE.md). |
 
