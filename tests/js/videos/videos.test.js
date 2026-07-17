@@ -136,7 +136,7 @@ describe('_reanalyzeParams', () => {
   it('without a recorded run and no config, uses the static defaults', async () => {
     globalThis.fetch = () => Promise.reject(new Error('offline'));
     const params = await _reanalyzeParams(null);
-    expect(params.model).toBe('medium');
+    expect(params.model).toBe('base');
     expect(params.energy_mode).toBe('fast');
   });
 });

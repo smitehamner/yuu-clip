@@ -676,7 +676,7 @@ function _transcriptCardHTML(clip) {
       `<span class="detail-card-title">Transcript</span>`, `
     <div style="color:var(--muted);font-size:13px">No dialogue in this clip</div>
     <div class="tags" style="margin-top:8px">
-      ${clip.scored_at ? `<span class="tag" title="How visually active this clip is">&#127909; Visual ${visualPct}%</span>` : ''}
+      ${clip.scored_at ? `<span class="tag" title="How visually active this clip is">&#127916; Visual ${visualPct}%</span>` : ''}
       ${isNoSpeech ? `<span class="tag" title="No spoken dialogue was detected in this clip">No dialogue</span>` : ''}
     </div>
     ${clip.vision_summary ? `<div class="description-long" style="margin-top:8px">${escHtml(clip.vision_summary)}</div>` : ''}`);
