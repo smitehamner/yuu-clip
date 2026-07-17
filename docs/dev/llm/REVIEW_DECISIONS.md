@@ -11,6 +11,100 @@ same thing without the context. Most recent first.
 
 ---
 
+## ESM migration + JS-test rebalance review (2026-07-16)
+
+Full `shqr-code-quality-review` (all 7 phases) over the 64 commits since baseline
+`fffa951` - the frontend ESM migration into feature subdirs (`core/videos/clips/analyze/
+settings/people/library`), the single committed `bundle.esm.js`, the new vitest
+`tests/js/` tier, and the dev-CLI `bundle`/`test-js` commands. Applied changes this pass
+(recorded in git, not repeated here): fixed a migration-introduced dead control in
+`analyze/split.js` (the suggestion-pin click delegation was dropped in the inline->
+delegation conversion; +Playwright regression test); added dev-CLI error-path tests
+(`tests/unit/test_dev_cli.py`) and ported the vision cancel-wiring to a real vitest test
+(`tests/js/clips/vision.test.js`), retiring the strict-xfail Playwright poke; fixed a
+teardown-determinism bug in `tests/unit/test_bundle_drift.py`; hoisted a duplicated
+`node_available()` probe into `dev/_base.py`; corrected two stale flat-path doc references
+(`CLAUDE.md`, `GLOSSARY.md`) and trimmed two dangling merged-branch comment references.
+Gate: `yuu-dev test-js` 158, `test-api` 2714, full `test-ui` 762, `lint` clean - all green.
+The following were reviewed and deliberately left as-is:
+
+### `docs/dev/ARCHITECTURE.md` verified accurate - no fixes
+The new human on-ramp matches the post-ESM reality: single committed `bundle.esm.js`,
+the seven feature buckets (`core/videos/clips/analyze/settings/people/library`), the
+retiring residual `window.X` shim described as a shim not the architecture, and the four
+test tiers (unit/integration/ui/js). No aspirational or wrong content found.
+
+### Routes feature-map header `#   UI: static/<bucket>/foo.js` paths - verified, not changed
+The bulk path update in the 24 `routes/*.py` feature-map headers was spot-checked against
+Glob for every referenced module (contexts->library, settings-backup/projects/modelcatalog
+->settings, split->analyze, namecorrections/speakers/voices->people, sessions->videos,
+etc.). Every bucket is correct. The bare `videos.js`/`clips.js`/`reel.js` that appear
+second in a prose list (e.g. `reveal.py`) are unambiguous and left as-is.
+
+### `main.esm.js` residual-shim per-section comments, and Feature-map `·`/arrow glyphs - kept
+Already anchored: the shim comments are the deferred vitest follow-on's territory (the
+"residual `window.X = X` shim - kept in full" entry below), and the non-ASCII Feature-map
+header glyphs are a codebase-wide comment-only convention (2026-07-10 entry below). Neither
+reaches the cp1252 console. Not re-flagged.
+
+### New dev-tooling WHY comments (`bundle.py`, `testjs.py`, `build-esm.mjs`, `tests/js/**`) - kept
+These explain genuinely non-obvious constraints, not restatement: the drift guard's
+byte-identical comparison needing the same output dir, Node-only-for-rebuild, invoking
+vitest via `node <entry>` to dodge Windows `.cmd` shim resolution, and each `tests/js`
+header's port provenance + why-vitest-not-Playwright. The one `TODO(shim-collapse)` in
+`format.test.js` is tagged to the known deferred workstream with its reason, not an
+ownerless aging TODO. All earn their place.
+
+### `llm_client.available()` / `_llamacpp_capabilities` genericized their missing-file strings - path deliberately NOT re-added to the file log
+Decision: Keep the missing-model strings path-free, in the returned reason **and** in the
+log line that carries it (`scoring/llm.py:693` `log.warning("LLM scoring disabled: %s",
+reason)`).
+Rationale: The reason string renders in the UI (clip descriptions, analyze warnings, and
+any screenshot), so it was deliberately changed to say "The set-up local model file is
+missing - re-download it under Settings -> LLM scoring." instead of leaking the absolute
+`llm_model_path` (the user's home dir). That same string is what the file logger records,
+so the log no longer names the path. This is NOT a diagnosability gap and must not be
+"fixed" by re-adding the path to the log: the condition itself is logged clearly (LLM
+scoring disabled + the missing-file reason), the exact path lives in `config.json`
+(`llm_model_path`) one file away on the single-user machine, and re-adding an absolute
+home-dir path to `.yuu-clip/yuu-clip.log` would contradict the no-sensitive-paths-in-logs
+rule. Verified no other site in `yuu_clip/` logs the model path. Covered by
+`tests/unit/test_scoring_llm.py` + `tests/integration/test_llm.py` (which assert the
+strings carry no path).
+
+### `dev/bundle.py`, `dev/testjs.py`, `scripts/build-esm.mjs` - developer console output, not application logging
+Decision: Keep the Rich `console.print` / esbuild-driver output as-is; do not add a logging
+framework.
+Rationale: These are `yuu-dev` developer-CLI tools. Their failure surfaces are already
+clear and actionable to the developer running the command: missing Node, missing
+esbuild/vitest, and a failed esbuild build each print a red, ASCII-only message naming the
+fix (`npm install`, install Node), and `build_esm_bundle` embeds esbuild's captured stderr
+in its `RuntimeError` so the drift guard can never pass a stale bundle silently. All new
+console strings are cp1252-safe (no em-dash/emoji/box-drawing). Application-style logging
+(`logging`/`_log`) would be the wrong tool for one-shot dev ergonomics.
+
+### `main.esm.js` residual `window.X = X` shim - kept in full
+Decision: Keep every current shim entry; do not drain.
+Rationale: The residual shim (and split.js's live get/set accessor bridge) is the
+DELIBERATELY DEFERRED "vitest + happy-dom follow-on" workstream - converting remaining
+`window.foo` read sites to imports and deleting the `page.evaluate` internal pokes. Each
+entry's per-section comment already documents its exact surviving reader (a still-`window.*`
+cross-module read or a named `tests/ui/*.py` `page.evaluate`). Draining it wholesale is a
+large behavior-adjacent change out of this phase's scope; removing an individual entry is
+only safe with an exhaustive whole-`static/` + test grep proving no reader, which is the
+same sweep the deferred workstream owns. No entry was found provably dead beyond those the
+comments already record as dropped. Revisit as that workstream, not piecemeal here.
+
+### `bundle.py` uses `subprocess.run` while `testjs.py` uses `_base.run_and_tee`
+Decision: Keep the two invocation styles.
+Rationale: Not duplication - they need different things. `build_esm_bundle` captures
+stdout/stderr so it can embed esbuild's failure detail in a `RuntimeError` (the drift
+guard must never pass a stale bundle silently); `test-js` streams vitest output live and
+tees it to a log via the shared `run_and_tee`. Collapsing them would lose one or the other
+behavior.
+
+---
+
 ## Post-Claude-removal review - characters / jobs-progress / transcriber seam (2026-07-15)
 
 Scoped `shqr-code-quality-review` over `4d95f3a..HEAD` (the un-reviewed work

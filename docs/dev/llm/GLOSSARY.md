@@ -1111,7 +1111,7 @@ live caption overlay - then export from the same panel. It adds no new encode pa
 Export runs the same single-clip export as the plain Export dialog after writing
 the chosen `start_offset`/`end_offset`/`crop_x`.
 
-- **Code:** `yuu_clip/web/static/exporteditor.js` (`openExportEditor`);
+- **Code:** `yuu_clip/web/static/library/exporteditor.js` (`openExportEditor`);
   `GET /api/clips/{id}/context-transcript` supplies the neighboring transcript
 - **UI label:** "Edit & export" (button in the clip detail's Export section)
 - **Do not call it:** "trim editor" or "crop editor" - it is all three at once

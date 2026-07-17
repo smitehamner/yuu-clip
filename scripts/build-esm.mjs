@@ -1,5 +1,5 @@
-// esbuild driver for the web UI's ESM bundle (WS5 step 2). Bundles the module
-// graph rooted at yuu_clip/web/static/main.esm.js into static/bundle.esm.js.
+// esbuild driver for the web UI's ESM bundle. Bundles the module graph rooted
+// at yuu_clip/web/static/main.esm.js into static/bundle.esm.js.
 //
 // This is the ONLY place esbuild's flags live, so `yuu-dev bundle` (which shells
 // out to `node scripts/build-esm.mjs`) and the drift guard produce identical

@@ -33,6 +33,15 @@ Implemented-but-unverified surfaces and latent traps to close before distributio
   emits progress via `console.print` only (no marker channel yet); add one if export
   ever needs a structured progress bar or to run in-process.
 
+- [ ] **Drain the residual `window.X = X` shim (vitest follow-on)** - the ESM migration
+  (completed 2026-07-16) left `static/main.esm.js` with a shrinking `window.X = X` shim,
+  plus a live get/set accessor bridge in `analyze/split.js`. Each surviving entry exists
+  only because another module still reads a name as `window.foo` instead of importing it,
+  or a Playwright `page.evaluate` pokes it. The follow-on: convert the remaining `window.*`
+  cross-module reads to `import`s and rewrite the `page.evaluate` internal pokes as
+  `tests/js/` vitest tests (as was already done for the vision cancel-wiring), then delete
+  the shim and the bridge. Each entry's per-section comment names its exact surviving reader.
+
 ---
 
 ## 2 - Pre-distribution blockers

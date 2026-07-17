@@ -439,8 +439,9 @@ explicit product decision.
 ### Wizard and Settings are parallel model-selection stacks (keep in sync, no shared code)
 Model selection lives in two separate stacks that CANNOT share code, so a change to one
 must be mirrored in the other by hand:
-- **Settings** (in-app): browser JS (`web/static/settings.js`, `modelcatalog.js`,
-  `index.html`) -> HTTP -> Python `model_catalog.py` + `cli/models.py download-gguf`.
+- **Settings** (in-app): browser JS (`web/static/settings/settings.js`,
+  `settings/modelcatalog.js`, `index.html`) -> HTTP -> Python `model_catalog.py` +
+  `cli/models.py download-gguf`.
 - **Setup wizard** (Electron): renderer (`electron/setup.html`) -> IPC -> `electron/main.js`
   `setup:download-gguf-model`, which downloads the hardcoded `DEFAULT_LLAMACPP_MODEL`
   (`electron/constants.js`) with Node and writes `config.json` directly.
