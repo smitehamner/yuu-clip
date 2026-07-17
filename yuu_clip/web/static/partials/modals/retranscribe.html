@@ -1,0 +1,29 @@
+<div class="modal-bg" id="retranscribe-modal">
+  <div class="modal" style="width:360px">
+    <h3>Retranscribe Clip</h3>
+    <div class="field">
+      <label for="retranscribe-model">Caption model</label>
+      <select id="retranscribe-model">
+        <option value="tiny">tiny - fastest, lowest quality (~75 MB download)</option>
+        <option value="base">base - fast, lower quality (~140 MB download)</option>
+        <option value="small">small - fast, decent quality (~465 MB download, ~1 GB VRAM)</option>
+        <option value="medium">medium - good balance (~1.5 GB download, ~2.8 GB VRAM)</option>
+        <option value="large-v3" selected>large-v3 - best quality (~2.9 GB download, ~4.2 GB VRAM)</option>
+      </select>
+    </div>
+    <div class="field">
+      <label style="display:flex;align-items:center;gap:10px;cursor:pointer;margin:0">
+        <input type="checkbox" id="retranscribe-speaker-labels" disabled style="width:auto">
+        <span style="font-size:13px">Speaker labels <span style="color:var(--muted)">(identifies who is speaking)</span></span>
+      </label>
+      <div id="retranscribe-speaker-note" style="font-size:11px;color:var(--muted);margin-top:4px"></div>
+    </div>
+    <div style="font-size:12px;color:var(--muted)">
+      Transcribes only this clip's time window with the selected model, then re-scores.
+    </div>
+    <div class="modal-actions">
+      <button class="btn" id="retranscribe-cancel-btn">Cancel</button>
+      <button class="btn primary" id="retranscribe-start-btn">Retranscribe</button>
+    </div>
+  </div>
+</div>

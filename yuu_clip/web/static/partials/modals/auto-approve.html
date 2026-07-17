@@ -1,0 +1,27 @@
+<div class="modal-bg" id="auto-approve-modal">
+  <div class="modal" style="width:360px">
+    <h3 style="margin-top:0">Approve Above Score</h3>
+    <div style="margin-bottom:16px">
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px">
+        <label style="font-size:13px;color:var(--muted);white-space:nowrap">Score type</label>
+        <select id="auto-approve-field" style="flex:1;font-size:13px;padding:3px 6px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text)">
+          <option value="overall">&#11088; Overall</option>
+          <option value="funny">😂 Funny</option>
+          <option value="dramatic">🎭 Dramatic</option>
+          <option value="action">⚔️ Action</option>
+        </select>
+      </div>
+      <label style="font-size:13px;color:var(--muted)">Threshold</label>
+      <div style="display:flex;align-items:center;gap:10px;margin-top:8px">
+        <input type="range" id="auto-approve-slider" min="0" max="1" step="0.05" value="0.6"
+               style="flex:1">
+        <span id="auto-approve-threshold-label" style="font-size:14px;font-weight:600;min-width:36px;text-align:right">60%</span>
+      </div>
+      <div id="auto-approve-preview" style="color:var(--muted);font-size:13px;margin-top:10px;min-height:18px"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" id="auto-approve-cancel-btn">Cancel</button>
+      <button class="btn primary" id="auto-approve-ok">Approve</button>
+    </div>
+  </div>
+</div>

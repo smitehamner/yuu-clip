@@ -1,0 +1,74 @@
+<div id="split-editor-panel" style="display:none;flex-direction:column;gap:16px">
+  <!-- Video preview -->
+  <div id="split-preview-wrap" style="display:none;position:relative">
+    <video id="split-preview-video" controls preload="metadata"
+           style="display:block;width:100%;max-height:38vh;object-fit:contain;background:#000;border-radius:6px"
+           aria-label="Recording preview"></video>
+    <span id="split-preview-badge" role="status"
+          style="display:none;position:absolute;top:8px;left:8px;background:rgba(0,0,0,.7);color:var(--on-scrim);font-size:11px;padding:3px 8px;border-radius:4px;pointer-events:none"></span>
+  </div>
+
+  <div id="split-instructions" style="font-size:12px;color:var(--muted)"></div>
+
+  <!-- Timeline zoom controls -->
+  <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)">
+    <span>&#128269; Zoom</span>
+    <button type="button" class="btn ghost" id="split-zoom-out" style="padding:1px 9px;font-size:15px;line-height:1" title="Zoom out" aria-label="Zoom timeline out">&#8722;</button>
+    <span id="split-zoom-label" style="min-width:34px;text-align:center">1&#215;</span>
+    <button type="button" class="btn ghost" id="split-zoom-in" style="padding:1px 9px;font-size:15px;line-height:1" title="Zoom in" aria-label="Zoom timeline in">+</button>
+    <button type="button" class="btn ghost" id="split-zoom-fit" style="padding:1px 9px;font-size:12px" title="Reset zoom to fit the whole recording" aria-label="Reset zoom to fit">Fit</button>
+    <span style="opacity:0.65">&middot; Ctrl+scroll to zoom, scroll to pan</span>
+  </div>
+  <!-- Timeline bar (horizontally scrollable when zoomed) -->
+  <div id="split-timeline-scroll" style="overflow-x:auto;overflow-y:hidden;flex-shrink:0">
+    <div style="position:relative;height:60px;width:100%;background:var(--surface);border:1px solid var(--border);border-radius:6px;cursor:crosshair;user-select:none" id="split-timeline-bar">
+      <canvas id="split-waveform-canvas" style="position:absolute;inset:0;width:100%;height:100%;border-radius:6px;pointer-events:none"></canvas>
+      <div id="split-scene-layer"    style="position:absolute;inset:0;pointer-events:none"></div>
+      <div id="split-suggestion-layer" style="position:absolute;inset:0;pointer-events:none"></div>
+      <div id="split-clips-layer"    style="position:absolute;inset:0;pointer-events:none"></div>
+      <div id="split-segments-layer" style="position:absolute;inset:0;pointer-events:none;display:flex"></div>
+      <div id="split-markers-layer"  style="position:absolute;inset:0;pointer-events:none"></div>
+    </div>
+  </div>
+  <!-- Overlay legend (M6-1) -->
+  <div id="split-legend" style="display:flex;flex-wrap:wrap;gap:14px;align-items:center;font-size:11px;color:var(--muted)">
+    <span style="display:inline-flex;align-items:center;gap:5px"><span style="width:2px;height:12px;background:var(--accent);border-radius:1px"></span>Split point (yours)</span>
+    <span style="display:inline-flex;align-items:center;gap:5px"><span style="width:0;height:12px;border-left:1.5px dashed color-mix(in srgb, var(--text) 45%, transparent)"></span>Suggested split - click to place</span>
+    <span style="display:inline-flex;align-items:center;gap:5px"><span style="width:1px;height:12px;background:color-mix(in srgb, var(--text) 40%, transparent)"></span>Scene cut</span>
+    <span style="display:inline-flex;align-items:center;gap:5px"><span style="width:16px;height:4px;background:color-mix(in srgb, var(--text) 35%, transparent);border-radius:2px"></span>Existing clip</span>
+    <span style="display:inline-flex;align-items:center;gap:5px"><span style="width:16px;height:12px;background:var(--accent);opacity:0.25;border-radius:2px;border-right:2px solid var(--accent)"></span>Segment</span>
+  </div>
+  <!-- Waveform notice (shown when no energy data and not computing) -->
+  <div id="split-waveform-notice" style="display:none;font-size:12px;color:var(--muted);align-items:center;gap:10px">
+    <span>No waveform data - energy was not computed during analysis.</span>
+    <button class="btn" style="padding:3px 10px;font-size:12px">Generate Waveform</button>
+  </div>
+
+  <!-- Segment list -->
+  <div>
+    <div class="section-title" style="margin-bottom:8px">Segments</div>
+    <div id="split-segment-list" style="display:flex;flex-direction:column;gap:6px"></div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:10px;padding-top:4px">
+    <div id="split-action-options" role="radiogroup" aria-label="What to do after splitting"
+         style="display:flex;flex-direction:column;gap:6px;font-size:13px">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input type="radio" name="split-action" value="partition" checked>
+        Split only - keep all existing clips, just divide them between segments
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input type="radio" name="split-action" value="reanalyze-all">
+        Re-analyze - delete all clips and run analysis fresh on each segment
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input type="radio" name="split-action" value="reanalyze-keep">
+        Re-analyze but keep exported clips - deletes only clips that were never exported, then runs analysis fresh on each segment
+      </label>
+    </div>
+    <div style="display:flex;gap:10px">
+      <button class="btn primary" id="btn-split-confirm">Confirm</button>
+      <button class="btn" onclick="PanelNav.close()">Cancel</button>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,52 @@
+<div class="modal-bg" id="batch-export-modal">
+  <div class="modal" style="width:400px">
+    <h3 style="margin-top:0">Export Approved Clips</h3>
+    <div class="field">
+      <label for="batch-min-score">Minimum score</label>
+      <div style="display:flex;align-items:center;gap:10px">
+        <input type="range" id="batch-min-score" min="0" max="1" step="0.05" value="0">
+        <span id="batch-min-score-val" style="font-size:13px;font-weight:600;min-width:36px">0%</span>
+      </div>
+    </div>
+    <div id="batch-estimate-line" style="font-size:12px;color:var(--muted);margin-bottom:10px"></div>
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;margin-bottom:10px">
+      <input type="checkbox" id="batch-skip-exported" checked>
+      Skip clips already exported
+    </label>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+      <label for="batch-container" style="font-size:13px;color:var(--muted);min-width:110px">Output format</label>
+      <select id="batch-container" style="flex:1;padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px">
+        <option value="">Match source</option>
+        <option value="mkv">MKV</option>
+        <option value="mp4">MP4</option>
+      </select>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+      <label for="batch-captions" style="font-size:13px;color:var(--muted);min-width:110px">Captions</label>
+      <select id="batch-captions" style="flex:1;padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px">
+        <option value="none">None</option>
+        <option value="softsub">Embed captions track (softsub, fast)</option>
+        <option value="hardsub">Burn in captions (hardsub, re-encode)</option>
+      </select>
+    </div>
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;margin-bottom:8px">
+      <input type="checkbox" id="batch-retranscribe">
+      Retranscribe before export
+    </label>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+      <label for="batch-retranscribe-model" style="font-size:13px;color:var(--muted);min-width:110px">Caption model</label>
+      <select id="batch-retranscribe-model" disabled style="flex:1;padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px">
+        <option value="tiny">tiny - fastest, lowest quality (~75 MB download)</option>
+        <option value="base">base - fast, lower quality (~140 MB download)</option>
+        <option value="small">small - fast, decent quality (~465 MB download, ~1 GB VRAM)</option>
+        <option value="medium">medium - good balance (~1.5 GB download, ~2.8 GB VRAM)</option>
+        <option value="large-v3" selected>large-v3 - best quality (~2.9 GB download, ~4.2 GB VRAM)</option>
+      </select>
+    </div>
+    <div id="batch-mode-summary" style="font-size:12px;border-top:1px solid var(--border);padding-top:10px;margin-bottom:14px"></div>
+    <div class="modal-actions">
+      <button class="btn" id="batch-cancel-btn">Cancel</button>
+      <button class="btn highlight" id="batch-confirm-btn">Export</button>
+    </div>
+  </div>
+</div>

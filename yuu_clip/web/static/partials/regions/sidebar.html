@@ -1,0 +1,111 @@
+  <div class="sidebar">
+    <div class="sidebar-group videos-group">
+      <div class="clips-section-header">
+        <div class="section-toggle"><span class="section-toggle-btn active">Recordings</span></div>
+        <div style="display:flex;align-items:center;gap:4px">
+          <select id="videos-sort" class="clips-sort-select" aria-label="Sort recordings by" onchange="setVideoSort(this.value)">
+            <option value="recent">&#128338; Recent</option>
+            <option value="title">&#128292; Title</option>
+            <option value="filename">&#128196; Filename</option>
+            <option value="length">&#8986; Length</option>
+            <option value="clips">&#127902; Clips</option>
+          </select>
+          <button id="videos-sort-dir" class="sort-dir-btn" onclick="toggleVideoSortDir()">&#8595;</button>
+          <button class="kebab-btn section-actions-btn" id="btn-recordings-actions" aria-label="More actions" title="More actions" aria-haspopup="true" aria-expanded="false">&#8942;</button>
+        </div>
+      </div>
+      <div class="clip-search-row">
+        <input type="search" id="video-search-input" placeholder="Search recordings…" oninput="setVideoSearch(this.value)" aria-label="Search recordings">
+      </div>
+      <div class="clip-filter-tabs" aria-label="Recording filters">
+        <button class="clip-chip active" aria-pressed="true"  data-vfilter="all"       onclick="toggleVideoFilter('all')">All<span class="clip-chip-count" data-vcount="all"></span></button>
+        <button class="clip-chip"        aria-pressed="false" data-vfilter="has-clips" onclick="toggleVideoFilter('has-clips')">Has clips<span class="clip-chip-count" data-vcount="has-clips"></span></button>
+      </div>
+      <details class="clip-more-filters" id="video-more-filters">
+        <summary>More filters<span class="clip-more-flag" data-more-flag hidden aria-hidden="true"></span></summary>
+        <div class="clip-filter-tabs" aria-label="More recording filters">
+          <button class="clip-chip"        aria-pressed="false" data-vfilter="unscored"  onclick="toggleVideoFilter('unscored')">Unscored<span class="clip-chip-count" data-vcount="unscored"></span></button>
+          <button class="clip-chip"        aria-pressed="false" data-vfilter="errors"    onclick="toggleVideoFilter('errors')" title="Recordings with clip scoring errors">&#9888; Errors<span class="clip-chip-count" data-vcount="errors"></span></button>
+        </div>
+      </details>
+      <div class="session-grouping-bar" id="session-grouping-bar" style="display:none">
+        <div>
+          <div id="session-grouping-count" style="font-weight:600;font-size:12px">0 selected</div>
+          <div id="session-grouping-label" class="meta">Pick 2+ recordings to group as a session</div>
+        </div>
+        <div style="display:flex;gap:6px;flex-shrink:0">
+          <button class="btn ghost" id="btn-cancel-group" style="font-size:11px;padding:2px 8px">Cancel</button>
+          <button class="btn primary" id="btn-confirm-group" style="font-size:11px;padding:2px 8px" disabled>Group as session</button>
+        </div>
+      </div>
+      <ul class="sidebar-list" id="video-list"></ul>
+    </div>
+    <div class="resize-handle resize-handle-v" id="videos-clips-resize-handle" title="Drag to resize Recordings / Clips panels" role="separator" aria-orientation="horizontal" aria-label="Resize Recordings / Clips panels"></div>
+    <div class="sidebar-group clips-group" id="clips-sidebar-group">
+      <div class="clips-section-header">
+        <div class="clip-filter-tabs clip-kind-tabs" role="group" aria-label="Show clips, scenes, or both">
+          <button class="clip-chip active" aria-pressed="true"  data-kfilter="all"   title="Show clips and scenes together">All<span class="clip-chip-count" data-kcount="all"></span></button>
+          <button class="clip-chip"        aria-pressed="false" data-kfilter="clip"  title="Show only punchy clips (15-90s)">Clips<span class="clip-chip-count" data-kcount="clip"></span></button>
+          <button class="clip-chip"        aria-pressed="false" data-kfilter="scene" title="Show only longer scenes (1-5 min contextual moments)">Scenes<span class="clip-chip-count" data-kcount="scene"></span></button>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <select id="clips-sort" class="clips-sort-select" aria-label="Sort clips by" onchange="onClipsSortChange()">
+            <option value="score">&#11088; Overall</option>
+            <option value="funny">&#128514; Funny</option>
+            <option value="dramatic">&#127917; Dramatic</option>
+            <option value="action">&#9876;&#65039; Action</option>
+            <option value="visual">&#127916; Visual</option>
+            <option value="laugh">&#129315; Laughs</option>
+            <option value="length">&#8986; Length</option>
+            <option value="timeline">Timeline</option>
+          </select>
+          <button id="clips-sort-dir" class="sort-dir-btn">&#8595;</button>
+          <button class="kebab-btn section-actions-btn" id="btn-clips-actions" aria-label="More actions" title="More actions" aria-haspopup="true" aria-expanded="false">&#8942;</button>
+        </div>
+      </div>
+      <div class="clip-search-row">
+        <input type="search" id="clip-search-input" placeholder="Search clips…" title="Matches clip descriptions, transcript, and your tags" aria-label="Search clips by description, transcript, or tags">
+      </div>
+      <div class="clip-filter-tabs" aria-label="Clip filters">
+        <button class="clip-chip active" aria-pressed="true"  data-filter="all">All<span class="clip-chip-count" data-count="all"></span></button>
+        <button class="clip-chip"        aria-pressed="false" data-filter="pending">Unreviewed<span class="clip-chip-count" data-count="pending"></span></button>
+        <button class="clip-chip"        aria-pressed="false" data-filter="approved">Approved<span class="clip-chip-count" data-count="approved"></span></button>
+        <button class="clip-chip"        aria-pressed="false" data-filter="rejected">Rejected<span class="clip-chip-count" data-count="rejected"></span></button>
+      </div>
+      <details class="clip-more-filters" id="clip-more-filters">
+        <summary>More filters<span class="clip-more-flag" data-more-flag hidden aria-hidden="true"></span></summary>
+        <div class="clip-filter-tabs" aria-label="More clip filters">
+          <button class="clip-chip"        aria-pressed="false" data-filter="exported">Exported</button>
+          <button class="clip-chip"        aria-pressed="false" data-filter="not-exported">Not exported</button>
+          <button class="clip-chip"        aria-pressed="false" data-filter="error"        title="Clips whose LLM scoring failed">&#9888; Score error<span class="clip-chip-count" data-count="error"></span></button>
+          <button class="clip-chip"        aria-pressed="false" data-filter="flagged"      title="Clips containing a Sensitive Terms match">&#9888; Flagged</button>
+          <button class="clip-chip"        aria-pressed="false" data-filter="duplicate"    title="Clips flagged as possible duplicates by the last scan">&#8646; Duplicates<span class="clip-chip-count" data-count="duplicate"></span></button>
+          <button class="clip-chip"        aria-pressed="false" data-filter="no_speech"    title="Silent, visually active clips with no spoken dialogue">No dialogue</button>
+        </div>
+        <div class="clip-more-score">
+          <label for="clip-score-min">Minimum score</label>
+          <select id="clip-score-min" aria-label="Minimum score" title="Minimum overall score">
+            <option value="0">Any score</option>
+            <option value="0.3">30%+</option>
+            <option value="0.5">50%+</option>
+            <option value="0.7">70%+</option>
+            <option value="0.9">90%+</option>
+          </select>
+        </div>
+      </details>
+      <div class="clip-bulk-toolbar" id="clip-bulk-toolbar" style="display:none">
+        <span id="clip-bulk-count">0 selected</span>
+        <div class="clip-bulk-actions">
+          <button class="btn" style="font-size:11px;padding:2px 8px" title="Approve selected clips" data-act="bulk-approve">Approve</button>
+          <button class="btn" style="font-size:11px;padding:2px 8px" title="Reject selected clips" data-act="bulk-reject">Reject</button>
+          <button class="btn" style="font-size:11px;padding:2px 8px" title="Export selected clips" data-act="bulk-export">Export</button>
+          <button class="btn danger" style="font-size:11px;padding:2px 8px" title="Delete selected clips" data-act="bulk-delete">Delete</button>
+          <button class="btn ghost" style="font-size:11px;padding:2px 6px" title="Clear selection" aria-label="Clear selection" data-act="bulk-clear-selection">&times;</button>
+        </div>
+      </div>
+      <div class="clip-stats-line" id="clip-stats-line" style="display:none;font-size:11px;color:var(--muted);padding:4px 14px"></div>
+      <ul class="sidebar-list" id="clip-list"></ul>
+      <div class="clip-shortcut-hint" style="font-size:11px;color:var(--muted);padding:6px 14px" aria-hidden="true">Keyboard: J/K navigate &middot; A approve &middot; R reject &middot; ? all shortcuts</div>
+    </div>
+  </div>
+

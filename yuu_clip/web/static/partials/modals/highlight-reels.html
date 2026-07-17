@@ -1,0 +1,109 @@
+<div class="modal-bg" id="highlight-reels-modal">
+  <div class="modal highlight-reels-modal">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <div style="display:flex;align-items:center;gap:12px">
+        <h3 style="margin:0">Highlight Reels</h3>
+        <div class="reel-tab-bar">
+          <button class="reel-tab-btn active" id="reel-tab-btn-build">Build</button>
+          <button class="reel-tab-btn" id="reel-tab-btn-view">View</button>
+        </div>
+      </div>
+      <button class="btn ghost" id="reel-close-btn" style="padding:4px 8px" aria-label="Close">&#x2715;</button>
+    </div>
+
+    <!-- Build tab -->
+    <div id="reel-tab-build">
+      <div class="field" style="margin-bottom:10px">
+        <label for="demo-video-id">Clips from</label>
+        <select id="demo-video-id">
+          <option value="">All approved clips</option>
+        </select>
+      </div>
+
+      <div class="clip-filter-tabs" style="margin-bottom:10px" aria-label="Reel pool status filters">
+        <span style="font-size:10px;color:var(--muted);padding:2px 4px;line-height:1.8;flex-shrink:0" aria-hidden="true">Pool</span>
+        <button class="clip-chip active" aria-pressed="true"  data-reel-status="approved">Approved</button>
+        <button class="clip-chip"        aria-pressed="false" data-reel-status="pending">Unreviewed</button>
+        <button class="clip-chip"        aria-pressed="false" data-reel-status="rejected">Rejected</button>
+      </div>
+
+      <div style="margin-bottom:10px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <label style="font-size:12px;color:var(--muted)">Clip order <span style="font-size:10px">(check to include · drag or ↑↓ to reorder)</span></label>
+          <button class="btn ghost" id="reel-refresh-btn" style="font-size:11px;padding:2px 8px">&#8635; Refresh</button>
+        </div>
+        <div class="reel-clip-list" id="reel-clip-list">
+          <div style="padding:16px;text-align:center;color:var(--muted);font-size:12px">Loading clips…</div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:12px;margin-bottom:10px">
+        <div class="field" style="flex:1;margin:0">
+          <label for="demo-transition">Transition</label>
+          <select id="demo-transition">
+            <option value="fade" selected>Fade</option>
+            <option value="dissolve">Dissolve</option>
+            <option value="wipeleft">Wipe left</option>
+            <option value="wiperight">Wipe right</option>
+            <option value="slideleft">Slide left</option>
+            <option value="slideright">Slide right</option>
+            <option value="random">Random (different each cut)</option>
+            <option value="none">None (hard cut)</option>
+          </select>
+        </div>
+        <div class="field" style="flex:1;margin:0">
+          <label for="demo-trans-dur">Transition duration (s)</label>
+          <input type="number" id="demo-trans-dur" value="0.5" min="0.1" max="2.0" step="0.1">
+        </div>
+        <div class="field" style="flex:1;margin:0">
+          <label for="demo-title-dur">Title card duration (s)</label>
+          <input type="number" id="demo-title-dur" value="3.0" min="1.0" max="10.0" step="0.5">
+        </div>
+      </div>
+
+      <div class="field" style="margin-bottom:12px">
+        <label for="demo-output-name">Output filename</label>
+        <input type="text" id="demo-output-name" placeholder="highlights_YYYYMMDD_HHMMSS.mkv (auto)">
+      </div>
+
+      <div class="field" style="margin-bottom:12px">
+        <label for="demo-captions">Captions</label>
+        <select id="demo-captions">
+          <option value="none" selected>None</option>
+          <option value="sidecar">Caption file (SRT alongside the reel)</option>
+          <option value="burnin">Burn into video (uses the Caption style from Settings)</option>
+        </select>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">Burned-in captions re-encode the reel and can't be turned off later. A caption file can be regenerated any time.</div>
+        <div id="demo-word-highlight-row" style="display:none;margin-top:8px">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px">
+            <input type="checkbox" id="demo-word-highlight">
+            Highlight each word as it's spoken (TikTok style)
+          </label>
+          <div id="demo-chunk-size-row" style="display:none;align-items:center;gap:8px;margin-top:6px">
+            <label for="demo-chunk-size" style="font-size:12px;color:var(--muted)">Words on screen</label>
+            <input type="number" id="demo-chunk-size" min="1" max="12" placeholder="4" style="width:80px">
+          </div>
+        </div>
+      </div>
+
+      <div id="demo-status" style="font-size:12px;color:var(--muted);margin-bottom:6px"></div>
+      <div id="reel-estimate" class="reel-estimate" style="margin-bottom:10px">Loading estimate…</div>
+      <div class="modal-actions">
+        <button class="btn" id="reel-build-cancel-btn">Cancel</button>
+        <button class="btn" id="reel-preview-open-btn" title="Play exported clips in sequence">&#9654; Preview</button>
+        <button class="btn" id="reel-export-btn" style="display:none" title="Export the selected clips that aren't exported yet - the reel skips clips with no export"></button>
+        <button class="btn primary" id="reel-build-btn">Build Reel</button>
+      </div>
+    </div>
+
+    <!-- View tab -->
+    <div id="reel-tab-view" style="display:none">
+      <div class="reels-layout" id="reels-layout">
+        <div class="reels-empty">Loading&#x2026;</div>
+      </div>
+      <div class="modal-actions" style="margin-top:12px">
+        <button class="btn" id="reel-view-close-btn">Close</button>
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,27 @@
+<div class="modal-bg" id="profile-modal">
+  <div class="modal" style="width:560px;max-height:80vh;overflow-y:auto">
+    <h3>Track Layouts</h3>
+    <div id="profile-list"></div>
+    <div style="margin-top:14px;display:flex;gap:8px">
+      <button class="btn primary" id="btn-new-track-layout">+ New Track Layout</button>
+      <button class="btn" id="btn-close-profile-manager" style="margin-left:auto">Close</button>
+    </div>
+    <div id="profile-editor" style="display:none;border-top:1px solid var(--border);margin-top:14px;padding-top:14px">
+      <div class="field">
+        <label for="pe-name">Layout name</label>
+        <input type="text" id="pe-name" placeholder="My OBS setup"
+               aria-describedby="pe-name-error">
+        <div id="pe-name-error" role="alert" style="display:none;color:var(--red);font-size:11px;margin-top:4px"></div>
+      </div>
+      <div class="field">
+        <label for="pe-numtracks">Number of tracks</label>
+        <input type="number" id="pe-numtracks" min="1" max="8" value="2">
+      </div>
+      <div id="pe-tracks"></div>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button class="btn primary" id="btn-save-profile">Save</button>
+        <button class="btn" id="btn-cancel-profile-edit">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>

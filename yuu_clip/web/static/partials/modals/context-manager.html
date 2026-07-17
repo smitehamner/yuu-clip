@@ -1,0 +1,84 @@
+<div class="modal-bg" id="context-modal">
+  <div class="modal" style="width:680px;max-height:85vh">
+    <h3>World Contexts</h3>
+    <p style="font-size:12px;color:var(--muted);margin-top:-6px">Named knowledge injected into LLM prompts - people, setting, and notes.</p>
+    <div style="display:flex;gap:16px;min-height:300px">
+      <div style="width:180px;flex-shrink:0;display:flex;flex-direction:column;gap:6px">
+        <div id="context-list-items" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:4px"></div>
+        <button class="btn primary" style="font-size:12px;padding:6px 10px" id="context-new-btn">+ New Context</button>
+      </div>
+      <div id="context-editor" style="flex:1;display:none;flex-direction:column;gap:10px;overflow-y:auto">
+        <div class="field">
+          <label for="ce-display-name">Name</label>
+          <input type="text" id="ce-display-name" placeholder="My Game">
+        </div>
+        <div class="field">
+          <label for="ce-context-id" style="color:var(--muted)">Context ID <span style="font-weight:400">(auto-filled from the name - edit if you like)</span></label>
+          <input type="text" id="ce-context-id" placeholder="my-game" style="font-size:12px">
+        </div>
+        <div class="field">
+          <label for="ce-setting">Setting</label>
+          <textarea class="ctx-textarea" id="ce-setting" rows="2" placeholder="Tactical FPS - squad-based competitive matches. Win by eliminating the enemy team or completing objectives."></textarea>
+        </div>
+        <div class="field">
+          <label for="ce-your-chars">Your players</label>
+          <textarea class="ctx-textarea" id="ce-your-chars" rows="2" placeholder="You play as [username], duelist role, usually calling strats for the squad."></textarea>
+        </div>
+        <div class="field">
+          <label for="ce-other-chars">Other players &amp; NPCs <span style="color:var(--muted);font-weight:400">(not exhaustive)</span></label>
+          <textarea class="ctx-textarea" id="ce-other-chars" rows="2" placeholder="Squad: Alice (support), Bob (entry fragger). Common recurring opponents or NPCs…"></textarea>
+        </div>
+        <div class="field">
+          <label for="ce-notes">Notes</label>
+          <textarea class="ctx-textarea" id="ce-notes" rows="2" placeholder="Anything else useful - win conditions, running gags, recurring bits, what makes a great clip here."></textarea>
+        </div>
+        <div class="field" id="ce-characters-section">
+          <label>Characters <span style="color:var(--muted);font-weight:400">(optional - link a Person to one to feed their lore and a scoring boost to the LLM)</span></label>
+          <div id="ce-characters-note" style="font-size:12px;color:var(--muted);display:none">Save this world context first, then add characters to it.</div>
+          <div id="ce-characters-list" style="display:flex;flex-direction:column;gap:6px"></div>
+          <div id="ce-character-form" style="display:none;border:1px solid var(--border);border-radius:6px;padding:10px;margin-top:8px;display:flex;flex-direction:column;gap:8px">
+            <input type="text" id="ce-char-name" placeholder="Character name (e.g. Alara)">
+            <textarea class="ctx-textarea" id="ce-char-lore" rows="2" placeholder="What the scorer should know about this character - role, arc, personality."></textarea>
+            <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)">
+              <label for="ce-char-boost" style="white-space:nowrap">Score boost</label>
+              <input type="range" id="ce-char-boost" min="0" max="1" step="0.05" value="0" style="flex:1">
+              <span id="ce-char-boost-label" style="width:36px;text-align:right;font-variant-numeric:tabular-nums">0%</span>
+            </div>
+            <div style="display:flex;gap:8px">
+              <button type="button" class="btn primary" id="ce-save-character-btn">Save character</button>
+              <button type="button" class="btn" id="ce-cancel-character-btn">Cancel</button>
+            </div>
+          </div>
+          <div><button type="button" class="btn" id="ce-add-character-btn">Add character</button></div>
+        </div>
+        <div class="field">
+          <label>LLM scoring weights <span style="color:var(--muted);font-weight:400">(overrides global - leave blank to use global defaults)</span></label>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:4px">
+            <div>
+              <label for="ce-weight-funny" style="font-size:12px;color:var(--muted)">Funny</label>
+              <input type="number" id="ce-weight-funny" min="0" step="0.1" placeholder="global" style="width:100%">
+            </div>
+            <div>
+              <label for="ce-weight-dramatic" style="font-size:12px;color:var(--muted)">Dramatic</label>
+              <input type="number" id="ce-weight-dramatic" min="0" step="0.1" placeholder="global" style="width:100%">
+            </div>
+            <div>
+              <label for="ce-weight-action" style="font-size:12px;color:var(--muted)">Action</label>
+              <input type="number" id="ce-weight-action" min="0" step="0.1" placeholder="global" style="width:100%">
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;padding-top:4px;flex-wrap:wrap">
+          <button class="btn primary" id="context-save-btn">Save</button>
+          <button class="btn" id="btn-duplicate-context" title="Start a new context pre-filled with this template's content">Use as base for new copy</button>
+          <button class="btn" style="margin-left:auto" id="context-cancel-btn">Cancel</button>
+          <button class="btn danger" id="btn-delete-context">Delete</button>
+          <button class="btn danger" id="btn-reset-context" title="Replace your edits with the original shipped content">Reset to template</button>
+        </div>
+      </div>
+    </div>
+    <div style="margin-top:12px;display:flex;justify-content:flex-end">
+      <button class="btn" id="context-close-btn">Close</button>
+    </div>
+  </div>
+</div>

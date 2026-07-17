@@ -1,0 +1,17 @@
+<div class="modal-bg" id="open-project-modal">
+  <div class="modal" style="width:520px">
+    <h3 style="margin-top:0">Open another project</h3>
+    <p style="color:var(--muted);font-size:13px;line-height:1.5;margin-top:-4px">
+      Enter the path to a project folder. A new folder becomes a fresh, empty project.
+    </p>
+    <div style="display:flex;gap:8px;align-items:center">
+      <input type="text" id="open-project-path" placeholder="C:\Users\you\Videos\my-project"
+             style="flex:1;padding:8px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;font-family:inherit;box-sizing:border-box">
+      <button class="btn" id="btn-project-browse" style="display:none;white-space:nowrap">Browse…</button>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" id="btn-open-project-cancel">Cancel</button>
+      <button class="btn primary" id="btn-open-project-confirm">Open</button>
+    </div>
+  </div>
+</div>

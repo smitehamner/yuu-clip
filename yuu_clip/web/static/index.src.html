@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>YuuClip</title>
+<link rel="icon" type="image/png" href="/static/gamercat.png">
+<script>
+/* Apply saved theme before the stylesheet paints to avoid a flash of the
+   default dark theme. Kept inline (not in a module) for the same reason. */
+(function () {
+  var theme = null, accent = null;
+  try {
+    theme = localStorage.getItem('yuuclip-theme');
+    accent = localStorage.getItem('yuuclip-accent');
+  } catch (e) { /* storage disabled */ }
+  if (theme && theme !== 'dark') document.documentElement.dataset.theme = theme;
+  if (accent && accent !== 'default') document.documentElement.dataset.accent = accent;
+})();
+</script>
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+
+<!-- ===========================================================================
+     PAGE TABLE OF CONTENTS (major regions, in source order)
+     Each region is marked by its own HTML-comment banner below; no line
+     numbers here on purpose (they rot). Feature ↔ file map: see the
+     "Feature-map" header at the top of each static/*.js and routes/*.py.
+
+       · Header bar (brand, project switcher, job status, action buttons, hamburger)
+       · Settings panel (replaces the main layout when active - all Settings sections)
+       · Sidebar (Recordings list + Clips list)
+       · Main panel (player + clip detail; New Recording panel; Progress log)
+       · Panel-nav takeover (breadcrumb + Split Editor panel content)
+       · Toast container
+       · Drag-and-drop analyze overlay (Electron only)
+       · App footer bar
+       · Modals: Getting Started · About · Profile Manager · Highlight Reels ·
+         Reel Preview · Batch Export · Retranscribe · Context Manager · Diff ·
+         Field Edit · Alert · Open Project · Confirm · Export Settings ·
+         Timeline Interval · Auto-approve · Glossary · Controls · Find Similar ·
+         Additional Actions · Score Override
+============================================================================ -->
+
+<!-- @@include regions/header.html -->
+
+<!-- Background local-model download banner (first-run-friction Stage 4). Non-blocking
+     top-of-app chrome; content + visibility are driven by modeldownload.js. -->
+<div id="model-download-banner" class="model-download-banner" role="status" aria-live="polite" style="display:none"></div>
+
+<!-- Settings panel (replaces main layout when active) -->
+<!-- @@include regions/settings-panel.html -->
+
+<div class="layout" id="main-layout">
+  <!-- Sidebar -->
+  <!-- @@include regions/sidebar.html -->
+  <div class="resize-handle resize-handle-h" id="sidebar-resize-handle" title="Drag to resize sidebar" role="separator" aria-orientation="vertical" aria-label="Resize sidebar"></div>
+
+  <!-- Main panel -->
+  <!-- @@include regions/main-panel.html -->
+</div>
+
+<!-- Panel navigation takeover (breadcrumb + stacked panel content) - replaces
+     main content for multi-step flows like the Split Editor. See panelnav.js. -->
+<div id="panelnav-root" style="display:none;position:absolute;inset:0;min-height:480px;background:var(--bg);z-index:10;flex-direction:column;overflow-y:auto">
+  <div id="panelnav-breadcrumb" style="display:flex;align-items:center;gap:10px;padding:20px 24px 0;flex-shrink:0"></div>
+  <div id="panelnav-content" style="padding:16px 24px 20px"></div>
+</div>
+
+<!-- Split Editor panel content - mounted into #panelnav-content by split.js -->
+<!-- @@include regions/split-editor.html -->
+
+<!-- Toast container -->
+<div id="sr-live-polite" aria-live="polite" aria-atomic="true" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)"></div>
+<div id="sr-live-assertive" aria-live="assertive" aria-atomic="true" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)"></div>
+<div class="toast-container" id="toast-container"></div>
+
+<!-- Drag-and-drop analyze overlay (Electron only) -->
+<div id="drop-overlay" style="display:none;position:fixed;inset:0;z-index:9999;align-items:center;justify-content:center;pointer-events:none;background:color-mix(in srgb, var(--bg-deep) 80%, transparent)">
+  <div style="border:3px dashed var(--accent);border-radius:16px;padding:48px 64px;font-size:20px;font-weight:600;color:var(--text);background:var(--surface)">
+    Drop to analyze this recording
+  </div>
+</div>
+
+<!-- App footer bar -->
+<footer class="app-footer">
+  <span id="version-tag"></span>
+</footer>
+
+<!-- Getting Started modal -->
+<!-- @@include modals/getting-started.html -->
+
+<!-- About modal -->
+<!-- Help & Guides Modal -->
+<!-- @@include modals/help.html -->
+
+<!-- @@include modals/about.html -->
+
+
+<!-- Profile Manager Modal -->
+<!-- @@include modals/profile-manager.html -->
+
+<!-- Highlight Reels Modal (Build + View tabs) -->
+<!-- @@include modals/highlight-reels.html -->
+
+<!-- Reel Preview Popup -->
+<!-- @@include modals/reel-preview.html -->
+
+<!-- Batch Export Modal -->
+<!-- @@include modals/batch-export.html -->
+
+
+<!-- Retranscribe Modal -->
+<!-- @@include modals/retranscribe.html -->
+
+<!-- Context Manager Modal -->
+<!-- @@include modals/context-manager.html -->
+
+<!-- Diff Modal (editable LLM field compare) -->
+<!-- @@include modals/diff.html -->
+
+<!-- Field Edit Modal -->
+<!-- @@include modals/field-edit.html -->
+
+<!-- Alert Modal (single-button, no cancel) -->
+<!-- @@include modals/alert.html -->
+
+<!-- Open Project Modal -->
+<!-- @@include modals/open-project.html -->
+
+<!-- Confirm Modal -->
+<!-- @@include modals/confirm.html -->
+
+<!-- Export Settings Modal -->
+<!-- @@include modals/export-settings.html -->
+
+<!-- Timeline Interval Modal -->
+<!-- @@include modals/timeline-interval.html -->
+
+<!-- Auto-approve Modal -->
+<!-- @@include modals/auto-approve.html -->
+
+<!-- Glossary Modal -->
+<!-- @@include modals/glossary.html -->
+
+<!-- Controls Modal -->
+<!-- @@include modals/controls.html -->
+
+<!-- Find Similar Modal -->
+<!-- @@include modals/similar-clips.html -->
+
+<!-- Additional Actions Modal -->
+<!-- @@include modals/actions.html -->
+
+<!-- Score Override Modal -->
+<!-- @@include modals/score-override.html -->
+
+<!-- One committed bundle, built by `yuu-dev bundle` (rerun after editing any
+     static/*.js): the esbuild ESM graph rooted at main.esm.js. -->
+<script src="/static/bundle.esm.js"></script>
+</body>
+</html>

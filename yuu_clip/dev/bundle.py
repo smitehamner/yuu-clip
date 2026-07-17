@@ -21,6 +21,7 @@ from pathlib import Path
 
 import typer
 
+from yuu_clip.dev import htmlstitch
 from yuu_clip.dev._base import REPO_ROOT, app, console, node_available
 
 STATIC_DIR = REPO_ROOT / "yuu_clip" / "web" / "static"
@@ -61,16 +62,29 @@ def build_esm_bundle(outfile: Path | None = None) -> None:
         )
 
 
+def _write_index() -> None:
+    """Stitch index.src.html + partials/ -> index.html. Pure Python (no Node), so it
+    runs even when the JS toolchain is absent."""
+    htmlstitch.write_index()
+    console.print(
+        f"Wrote {htmlstitch.INDEX_HTML} (stitched from {htmlstitch.INDEX_SRC.name} + partials/)"
+    )
+
+
 def _write_bundle() -> None:
+    _write_index()
     build_esm_bundle()
     console.print(f"Wrote {ESM_BUNDLE_PATH} (esbuild, ESM graph from {ESM_ENTRY.name})")
 
 
 def _watched_paths() -> list[Path]:
-    """Every ESM source the bundle is built from. The graph is not enumerable without
-    parsing imports, so watch every static .js except the generated bundle - any edit
-    triggers a rebuild."""
-    return [p for p in STATIC_DIR.rglob("*.js") if p != ESM_BUNDLE_PATH]
+    """Every source the committed artifacts are built from: the ESM graph (every static
+    .js except the generated bundle - the graph is not enumerable without parsing
+    imports) plus the index.html stitch inputs (index.src.html + partials/*.html). Any
+    edit triggers a rebuild."""
+    js = [p for p in STATIC_DIR.rglob("*.js") if p != ESM_BUNDLE_PATH]
+    html = [htmlstitch.INDEX_SRC, *htmlstitch.PARTIALS_DIR.rglob("*.html")]
+    return js + [p for p in html if p.exists()]
 
 
 def _snapshot() -> dict[Path, float]:
@@ -101,10 +115,12 @@ def _watch() -> None:
 def bundle(
     watch: bool = typer.Option(
         False, "--watch",
-        help="Rebuild whenever any static/*.js in the ESM graph changes (Ctrl+C to stop).",
+        help="Rebuild whenever any static/*.js in the ESM graph, index.src.html, or a "
+             "partial changes (Ctrl+C to stop).",
     ),
 ) -> None:
-    """Build the web UI's committed static/bundle.esm.js from the esbuild ESM graph."""
+    """Build the committed web-UI artifacts: stitch index.html from index.src.html +
+    partials/, then build static/bundle.esm.js from the esbuild ESM graph."""
     if not ESM_ENTRY.exists():
         console.print(f"[red]{ESM_ENTRY} not found.[/red]")
         raise typer.Exit(1)

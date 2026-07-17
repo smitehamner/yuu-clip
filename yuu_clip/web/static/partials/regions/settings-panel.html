@@ -1,0 +1,882 @@
+<div class="settings-panel" id="settings-panel">
+  <div class="settings-header">
+    <div class="settings-header-top">
+      <h2 style="font-size:16px;font-weight:700">Settings</h2>
+      <div style="display:flex;align-items:center;gap:10px">
+        <button type="button" class="btn-secondary settings-reset-btn" id="btn-reset-all-settings">Reset all to defaults</button>
+        <span class="settings-save-badge" id="settings-saved-badge">&#10003; Saved</span>
+        <button class="btn primary" id="btn-settings-save" disabled>Save</button>
+        <button class="btn ghost" id="btn-settings-close" aria-label="Close" style="font-size:16px">&#x2715;</button>
+      </div>
+    </div>
+    <nav class="settings-jump-row" aria-label="Jump to settings section">
+      <button type="button" class="settings-jump-link" data-section="settings-sec-capabilities">Capabilities</button>
+      <button type="button" class="settings-jump-link" data-section="settings-sec-stt">Speech-to-text</button>
+      <button type="button" class="settings-jump-link" data-section="settings-sec-llm">LLM scoring</button>
+      <button type="button" class="settings-jump-link" data-section="settings-sec-speakers">Speaker labels</button>
+      <button type="button" class="settings-jump-link" data-section="settings-sec-weights">Scoring weights</button>
+      <button type="button" class="settings-jump-link" data-section="settings-sec-analysis">Analysis defaults</button>
+      <button type="button" class="settings-jump-link" data-section="settings-sec-hardware">Hardware</button>
+      <button type="button" class="settings-jump-link" data-section="settings-sec-ui">UI</button>
+      <button type="button" class="settings-jump-link" data-section="settings-sec-export">Export</button>
+      <button type="button" class="settings-jump-link" data-section="settings-sec-sounds">Sounds</button>
+      <button type="button" class="settings-jump-link" data-section="settings-sec-backup">Backup &amp; Restore</button>
+      <button type="button" class="settings-jump-link" data-section="settings-sec-paths">Paths</button>
+    </nav>
+  </div>
+<div class="settings-inner">
+
+  <!-- Capabilities overview - the tiered "lightweight mode" story (Stage 06).
+       Read-only: sources each non-LLM upgrade tier's active state + guidance from
+       the backend's availability() via /api/capabilities/tiers; "Set up" links jump
+       to the section that holds the real install/enable control. -->
+  <div class="settings-section" id="settings-sec-capabilities">
+    <div class="settings-section-title">Capabilities</div>
+    <div class="settings-note" id="s-capabilities-intro" style="margin-bottom:12px">Checking…</div>
+    <div id="s-capabilities-list"></div>
+  </div>
+
+  <!-- Whisper section -->
+  <div class="settings-section" id="settings-sec-stt">
+    <div class="settings-section-title has-action"><span>Speech-to-text (Whisper)</span><button type="button" class="btn-secondary settings-reset-btn" data-revert-section="settings-sec-stt">Reset to defaults</button></div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <label class="settings-label" for="s-whisper-model">Model</label>
+        <div class="settings-note">Takes effect on next analysis</div>
+      </div>
+      <select class="settings-select" id="s-whisper-model">
+        <option value="tiny">tiny - fastest, lowest quality (~75 MB download)</option>
+        <option value="base">base - fast, lower quality (~140 MB download)</option>
+        <option value="small">small - fast, decent quality (~465 MB download, ~1 GB VRAM)</option>
+        <option value="medium">medium - good balance (~1.5 GB download, ~2.8 GB VRAM)</option>
+        <option value="large-v3">large-v3 - best quality (~2.9 GB download, ~4.2 GB VRAM)</option>
+      </select>
+    </div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <label class="settings-label" for="s-whisper-language">Transcription language</label>
+        <div class="settings-note">Auto-detect works for most recordings; set a language if detection gets it wrong. Takes effect on next analysis</div>
+      </div>
+      <select class="settings-select" id="s-whisper-language">
+        <option value="">Auto-detect (recommended)</option>
+      </select>
+    </div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <label class="settings-label" for="s-whisper-device">Compute device</label>
+        <div class="settings-note">auto = CUDA if available, else CPU</div>
+      </div>
+      <select class="settings-select" id="s-whisper-device">
+        <option value="auto">auto (recommended)</option>
+        <option value="cuda">cuda (NVIDIA GPU)</option>
+        <option value="cpu">cpu</option>
+      </select>
+    </div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <label class="settings-label" for="s-whisper-compute">Compute type</label>
+        <div class="settings-note">int8 is fastest on CPU; float16 best on GPU</div>
+      </div>
+      <select class="settings-select" id="s-whisper-compute">
+        <option value="int8">int8</option>
+        <option value="float16">float16</option>
+        <option value="float32">float32</option>
+        <option value="int8_float16">int8_float16</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- LLM scoring section. Restructured (UX review) to mirror the setup wizard:
+       lead with the model picker + on/off, and demote the privacy guarantee, the
+       engine choice, and manual model-file paths into "Advanced AI options" below,
+       so a first-timer sees "pick a model", not "choose a backend". -->
+  <div class="settings-section" id="settings-sec-llm">
+    <div class="settings-section-title has-action"><span>LLM scoring</span><button type="button" class="btn-secondary settings-reset-btn" data-revert-section="settings-sec-llm">Reset to defaults</button></div>
+    <div class="settings-note" style="margin-bottom:10px">A local language model reads each clip's transcript to score it and write a description. Pick a model below to turn this on - leave it off and clips are still found by audio energy and scene detection, just without scores or descriptions.</div>
+
+    <!-- Collapses to #s-privacy-none-summary when AI privacy = "No generative AI"
+         (chosen under Advanced AI options below). -->
+    <div id="s-llm-generative-block">
+    <div class="settings-row">
+      <div class="settings-col">
+        <label class="settings-label" id="lbl-llm-enabled" for="s-llm-enabled">Enable LLM scoring</label>
+        <div class="settings-note">Turn off to skip description + sub-score generation</div>
+      </div>
+      <label class="settings-checkbox">
+        <input type="checkbox" id="s-llm-enabled" aria-labelledby="lbl-llm-enabled">
+        <span style="font-size:13px" aria-hidden="true">On</span>
+      </label>
+    </div>
+    <div id="s-llm-body">
+    <div id="s-llm-current-summary" class="settings-current-model" style="display:none"></div>
+    <!-- Local model-file picker: the primary, one-click surface. Cards render into
+         #s-llamacpp-recommended (modelcatalog.js); the GPU toggle and manual paths
+         live under Advanced AI options below. -->
+    <div id="s-llamacpp-picker">
+      <div class="settings-note" style="margin-bottom:6px">Included with YuuClip - pick one and it downloads in a click. Your graphics card is used automatically when it can run the model.</div>
+      <div id="s-llamacpp-recommended" class="settings-recommended"></div>
+    </div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <label class="settings-label" for="s-vision-enabled">Image analysis</label>
+        <div class="settings-note">Lets the "Analyze frames" button sample frames from a clip and describe what's on screen. Needs an image-analysis (vision) model - download one from the list above; the readiness line below shows whether it's ready.</div>
+      </div>
+      <label class="settings-checkbox">
+        <input type="checkbox" id="s-vision-enabled" aria-label="Enable image analysis">
+        <span style="font-size:13px" aria-hidden="true">Enable</span>
+      </label>
+    </div>
+    <div class="settings-row" id="s-llm-capabilities-row">
+      <div class="settings-col">
+        <div class="settings-label">Model readiness</div>
+        <div class="settings-note">Whether the model you've picked can score text and analyze images</div>
+      </div>
+      <div id="s-llm-capabilities" style="font-size:12px;color:var(--muted)">Checking…</div>
+    </div>
+    </div><!-- /#s-llm-body -->
+    </div><!-- /#s-llm-generative-block -->
+    <div id="s-privacy-none-summary" style="display:none;margin:0 0 4px;padding:10px 12px;border-radius:6px;background:var(--surface-2);font-size:13px">
+      Generative AI is turned off. Clip finding, related-clip search, "Meaning" hot-words, and lightweight scoring (lexicon, energy, laughs) all still work - nothing is disabled that doesn't need a language model.
+      <div style="margin-top:8px">
+        <button type="button" class="btn-secondary" id="btn-privacy-turn-on-local">Turn on local models</button>
+      </div>
+    </div>
+
+    <!-- Advanced AI options: the privacy guarantee, which engine runs the model, and
+         manual model-file paths. Mirrors the setup wizard's "Advanced AI options"
+         disclosure so first-timers see the model picker, not the plumbing. Kept OUTSIDE
+         #s-llm-generative-block so the AI-privacy radios stay reachable even when
+         "No generative AI" has collapsed the block above. -->
+    <details class="settings-advanced" id="s-llm-advanced">
+      <summary>Advanced AI options</summary>
+      <!-- AI privacy mode (plan non-llm-tiers/07) - the trust control. Enforced
+           server-side at every point a language model could run, not just a UI hint. -->
+      <div class="settings-row" id="s-privacy-row">
+        <div class="settings-col">
+          <label class="settings-label">AI privacy</label>
+          <div class="settings-note">What YuuClip may do with your transcript. This is enforced everywhere - it is a guarantee, not just a preference.</div>
+        </div>
+        <div id="s-ai-privacy-options" role="radiogroup" aria-label="AI privacy mode"
+             style="display:flex;flex-direction:column;gap:8px;font-size:13px;max-width:340px">
+          <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer">
+            <input type="radio" name="s-ai-privacy" value="none" style="margin-top:2px">
+            <span><strong>No generative AI</strong><br><span class="settings-note">No language model runs. Clip finding, search and lightweight scoring still work.</span></span>
+          </label>
+          <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer">
+            <input type="radio" name="s-ai-privacy" value="local_only" style="margin-top:2px">
+            <span><strong>Local models only</strong><br><span class="settings-note">On-device models allowed. Nothing you record is sent anywhere.</span></span>
+          </label>
+          <!-- Mirrors the checked radio so the existing id-based dirty/save machinery tracks it. -->
+          <input type="hidden" id="s-ai-privacy-value">
+        </div>
+      </div>
+      <!-- Local model-file engine details: GPU + manual .gguf paths. -->
+      <div id="s-llamacpp-fields">
+        <div class="settings-row">
+          <div class="settings-col">
+            <label class="settings-label" for="s-llm-use-gpu">Use GPU when available</label>
+            <div class="settings-note">Offload the model to your graphics card (NVIDIA, AMD, or Intel) for much faster scoring. Falls back to CPU if your GPU can't run the model.</div>
+          </div>
+          <label class="settings-checkbox">
+            <input type="checkbox" id="s-llm-use-gpu" aria-label="Use GPU when available">
+            <span style="font-size:13px" aria-hidden="true">Enable</span>
+          </label>
+        </div>
+        <div class="settings-group-title">Text model</div>
+        <div class="settings-row">
+          <div class="settings-col">
+            <label class="settings-label" for="s-llm-model-path">Model file path</label>
+            <div class="settings-note">Point at a local .gguf file by hand instead of downloading one above. Used for clip scoring and descriptions.</div>
+          </div>
+          <div class="settings-path-field">
+            <input class="settings-input" id="s-llm-model-path" type="text" placeholder="C:\models\qwen2.5-7b-instruct.gguf">
+            <button type="button" class="btn-secondary settings-browse-btn" id="btn-browse-llm-model" data-browse-target="s-llm-model-path" style="display:none">Browse...</button>
+          </div>
+        </div>
+        <div class="settings-group-title">Vision model (image analysis)</div>
+        <div class="settings-row">
+          <div class="settings-col">
+            <label class="settings-label" for="s-llm-vision-model-path">Vision model file path (optional)</label>
+            <div class="settings-note">A local .gguf vision model, independent from the text model above - required (with a vision projector) for image analysis. A single model that does both needs its path set here and above.</div>
+          </div>
+          <div class="settings-path-field">
+            <input class="settings-input" id="s-llm-vision-model-path" type="text" placeholder="C:\models\Qwen2.5-VL-7B-Instruct-Q4_K_M.gguf">
+            <button type="button" class="btn-secondary settings-browse-btn" id="btn-browse-llm-vision-model" data-browse-target="s-llm-vision-model-path" style="display:none">Browse...</button>
+          </div>
+        </div>
+        <div class="settings-row">
+          <div class="settings-col">
+            <label class="settings-label" for="s-llm-mmproj-path">Vision projector file (optional)</label>
+            <div class="settings-note">Path to the vision model's mmproj .gguf - enables image analysis</div>
+          </div>
+          <div class="settings-path-field">
+            <input class="settings-input" id="s-llm-mmproj-path" type="text" placeholder="C:\models\model-mmproj.gguf">
+            <button type="button" class="btn-secondary settings-browse-btn" id="btn-browse-llm-mmproj" data-browse-target="s-llm-mmproj-path" style="display:none">Browse...</button>
+          </div>
+        </div>
+        <div class="settings-row" id="s-custom-model-licence-note">
+          <div class="settings-col">
+            <div class="settings-note">Loading your own model? Check its licence before you sell, monetize, or run ads on clips made with it. Some popular models (for example Llama and Gemma) restrict commercial use of what they generate. Every model YuuClip recommends above is licensed for commercial use.</div>
+          </div>
+        </div>
+      </div>
+      <div class="settings-row">
+        <div class="settings-col">
+          <label class="settings-label" for="s-vision-frames">Frames per clip</label>
+          <div class="settings-note">How many frames to sample across each clip (1-10). More frames give the model more to work with but cost more time.</div>
+        </div>
+        <input class="settings-input" id="s-vision-frames" type="number" min="1" max="10" step="1" style="max-width:100px">
+      </div>
+      <div class="settings-row">
+        <div class="settings-col">
+          <label class="settings-label" for="s-visual-auto-vision">Auto-describe silent clips with the vision model</label>
+          <div class="settings-note">When a recording finishes, ask the vision model to describe the top few silent, action-heavy clips instead of the generic template. Off by default - this adds a vision-model call per clip on top of scoring, so it takes extra time. Needs image analysis enabled and a working vision model above.</div>
+        </div>
+        <label class="settings-checkbox">
+          <input type="checkbox" id="s-visual-auto-vision" aria-label="Auto-describe silent clips with the vision model">
+          <span style="font-size:13px" aria-hidden="true">Enable</span>
+        </label>
+      </div>
+      <div class="settings-row">
+        <div class="settings-col">
+          <label class="settings-label" for="s-visual-vision-topn">Silent clips to auto-describe</label>
+          <div class="settings-note">Hard cap per recording - only the highest-scoring silent clips get the vision-model pass, so cost and time stay bounded.</div>
+        </div>
+        <input class="settings-input" id="s-visual-vision-topn" type="number" min="1" max="50" step="1" style="max-width:100px">
+      </div>
+    </details>
+    <!-- Similarity engine - powers Find related clips + "Meaning" hot-words. Outside
+         #s-llm-body on purpose: the keyword/embeddings tiers work with LLM scoring off. -->
+    <div class="settings-row" id="s-similarity-row">
+      <div class="settings-col">
+        <label class="settings-label" for="s-similarity-backend">Similarity engine</label>
+        <div class="settings-note">Powers <strong>Find related clips</strong> and <strong>Meaning</strong> hot-words. Fast keyword matching needs no model; Smart uses a small local embeddings model for paraphrase matching; LLM uses your language model above.</div>
+      </div>
+      <select class="settings-select" id="s-similarity-backend">
+        <option value="tfidf">Fast (keyword)</option>
+        <option value="embeddings">Smart (embeddings)</option>
+        <option value="llm">LLM</option>
+      </select>
+    </div>
+    <div id="s-similarity-embeddings-fields" style="display:none">
+      <div class="settings-row">
+        <div class="settings-col">
+          <div class="settings-label">Model</div>
+          <div class="settings-note">The Smart engine is included with YuuClip (fastembed). Its model (~130 MB) downloads automatically the first time you use it.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Speaker labels section -->
+  <div class="settings-section" id="settings-sec-speakers">
+    <div class="settings-section-title has-action"><span>Speaker labels</span><button type="button" class="btn-secondary settings-reset-btn" data-revert-section="settings-sec-speakers">Reset to defaults</button></div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <label class="settings-label" for="s-diarization-backend">Backend</label>
+        <div class="settings-note">Identifies who is speaking within each audio track and prefixes transcripts accordingly</div>
+      </div>
+      <select class="settings-select" id="s-diarization-backend">
+        <option value="null">Off</option>
+        <option value="speechbrain">SpeechBrain (no account or token needed)</option>
+      </select>
+    </div>
+    <!-- speechbrain fields -->
+    <div id="s-speechbrain-fields" style="display:none">
+      <div class="settings-row">
+        <div class="settings-col">
+          <div class="settings-label">Speaker model</div>
+          <div class="settings-note">SpeechBrain is included with YuuClip - no HuggingFace account or token needed. The speaker model (~80 MB) downloads automatically the first time you run Detect Speakers.</div>
+        </div>
+      </div>
+      <div class="settings-row">
+        <div class="settings-col">
+          <label class="settings-label" for="s-speaker-cluster-threshold">Voice grouping</label>
+          <div class="settings-note">How readily two moments of speech are treated as <em>different</em> people within one recording. Lower splits into more speakers; higher merges more together. 0.55 is the default. If one person keeps getting split into many speakers, raise it.</div>
+        </div>
+        <input class="settings-input" id="s-speaker-cluster-threshold" type="number" min="0" max="1" step="0.05" style="max-width:100px">
+      </div>
+    </div>
+    <!-- shared fields (shown whenever a backend is selected) -->
+    <div id="s-diarization-common-fields" style="display:none">
+      <div class="settings-row">
+        <div class="settings-col">
+          <label class="settings-label" for="s-speaker-match-threshold">Speaker match strictness</label>
+          <div class="settings-note">How similar a voice must be to re-attach to an already-named speaker on <strong>Re-detect Speakers</strong>. Higher is stricter - fewer wrong matches, but more voices re-listed as new "Speaker N" to re-confirm. 0.75 is a safe default; lower it if named speakers keep coming back unnamed.</div>
+        </div>
+        <input class="settings-input" id="s-speaker-match-threshold" type="number" min="0" max="1" step="0.05" style="max-width:100px">
+      </div>
+      <div class="settings-row">
+        <div class="settings-col">
+          <label class="settings-label" for="s-project-voice-match-threshold">Same person across recordings</label>
+          <div class="settings-note">How sure the app must be that a voice in a <strong>new recording</strong> is the same person you already named in another one. Higher = fewer wrong matches. Matches are only ever <em>suggested</em> - you confirm them in <strong>People</strong>, nothing is merged automatically. 0.80 is a safe default.</div>
+        </div>
+        <input class="settings-input" id="s-project-voice-match-threshold" type="number" min="0" max="1" step="0.05" style="max-width:100px">
+      </div>
+      <div id="s-diarization-status" style="font-size:12px;color:var(--muted);margin-top:4px" aria-live="polite"></div>
+    </div>
+  </div>
+
+  <!-- Scoring weights section -->
+  <div class="settings-section" id="settings-sec-weights">
+    <div class="settings-section-title has-action">
+      <span>Scoring weights <span style="font-size:11px;font-weight:400;color:var(--muted)">(takes effect on next re-score)</span></span>
+      <button type="button" class="btn-secondary settings-reset-btn" id="btn-reset-weights" data-revert-section="settings-sec-weights">Reset to defaults</button>
+    </div>
+    <!-- Content type preset (plan 12) - one-choice tuning applied on top of the sliders below -->
+    <div id="s-content-preset-block" style="margin:0 0 16px;padding:10px 12px;border:1px solid var(--border);border-radius:8px">
+      <label class="settings-label" for="s-content-preset" style="display:block;margin-bottom:2px">Content type</label>
+      <div class="settings-note" style="margin-bottom:8px">Pick the kind of content you make to tune the weights and starter hot-words below in one step. You can fine-tune everything afterwards.</div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <select class="settings-select" id="s-content-preset" style="flex:1;min-width:180px"></select>
+        <label class="settings-checkbox" title="Also add this content type's starter hot-words">
+          <input type="checkbox" id="s-content-preset-hotwords" checked>
+          <span style="font-size:13px">Add starter hot-words</span>
+        </label>
+        <button type="button" class="btn-secondary" id="btn-apply-content-preset">Apply</button>
+      </div>
+      <div class="settings-note" id="s-content-preset-desc" style="margin-top:6px"></div>
+      <div class="settings-note" id="s-content-preset-active" style="margin-top:2px;color:var(--accent-text)"></div>
+    </div>
+    <div class="settings-note" style="margin:-8px 0 12px">0 turns a signal off; higher = more influence on the overall score.</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:8px;font-weight:600">Signal weights</div>
+    <div class="settings-weight-row">
+      <span class="settings-weight-label">&#128266; Audio energy</span>
+      <input type="range" min="0" max="5" step="0.1" id="s-energy-weight" aria-label="Audio energy weight" style="flex:1"
+             oninput="document.getElementById('s-energy-weight-val').textContent=parseFloat(this.value).toFixed(1)">
+      <span class="settings-weight-val" id="s-energy-weight-val">1.0</span>
+    </div>
+    <div class="settings-weight-row">
+      <span class="settings-weight-label">&#127916; Scene cuts</span>
+      <input type="range" min="0" max="5" step="0.1" id="s-scene-weight" aria-label="Scene cuts weight" style="flex:1"
+             oninput="document.getElementById('s-scene-weight-val').textContent=parseFloat(this.value).toFixed(1)">
+      <span class="settings-weight-val" id="s-scene-weight-val">0.5</span>
+    </div>
+    <div class="settings-weight-row">
+      <span class="settings-weight-label">&#129504; LLM score</span>
+      <input type="range" min="0" max="5" step="0.1" id="s-llm-weight" aria-label="LLM score weight" style="flex:1"
+             oninput="document.getElementById('s-llm-weight-val').textContent=parseFloat(this.value).toFixed(1)">
+      <span class="settings-weight-val" id="s-llm-weight-val">2.0</span>
+    </div>
+    <div class="settings-weight-row" style="margin-bottom:4px">
+      <span class="settings-weight-label">&#128514; Laugh detection</span>
+      <input type="range" min="0" max="5" step="0.1" id="s-laugh-weight" aria-label="Laugh detection weight" style="flex:1"
+             oninput="document.getElementById('s-laugh-weight-val').textContent=parseFloat(this.value).toFixed(1)">
+      <span class="settings-weight-val" id="s-laugh-weight-val">1.5</span>
+    </div>
+    <div style="margin-bottom:4px;display:flex;gap:8px;align-items:center">
+      <label class="settings-label" for="s-laugh-mode" style="white-space:nowrap;min-width:90px">Laugh mode</label>
+      <select id="s-laugh-mode" class="settings-input" style="flex:1">
+        <option value="transcript">Transcript (default - pattern matching)</option>
+        <option value="audio">Audio (spectral rhythm, no extra deps)</option>
+        <option value="model">Model (HuggingFace classifier, best accuracy)</option>
+      </select>
+    </div>
+    <div id="s-laugh-model-fields" style="display:none;margin-bottom:16px">
+      <label class="settings-label" for="s-laugh-model-id">HuggingFace model ID</label>
+      <input type="text" id="s-laugh-model-id" class="settings-input" style="width:100%;box-sizing:border-box"
+             placeholder="MIT/ast-finetuned-audioset-10-10-0.4593">
+      <div style="font-size:11px;color:var(--muted);margin-top:4px;margin-bottom:6px">
+        Recommended: <code>MIT/ast-finetuned-audioset-10-10-0.4593</code> (~350 MB, downloads automatically the first time you use Model mode)
+      </div>
+    </div>
+    <div style="margin-bottom:16px" id="s-laugh-model-fields-spacer"></div>
+    <div class="settings-weight-row">
+      <span class="settings-weight-label">&#128214; Lexicon</span>
+      <input type="range" min="0" max="5" step="0.1" id="s-lexicon-weight" aria-label="Lexicon scoring weight" style="flex:1"
+             oninput="document.getElementById('s-lexicon-weight-val').textContent=parseFloat(this.value).toFixed(1)">
+      <span class="settings-weight-val" id="s-lexicon-weight-val">1.0</span>
+    </div>
+    <div class="settings-weight-row">
+      <span class="settings-weight-label">&#9889; Speech rate</span>
+      <input type="range" min="0" max="5" step="0.1" id="s-speech-rate-weight" aria-label="Speech rate weight" style="flex:1"
+             oninput="document.getElementById('s-speech-rate-weight-val').textContent=parseFloat(this.value).toFixed(1)">
+      <span class="settings-weight-val" id="s-speech-rate-weight-val">0.5</span>
+    </div>
+    <div class="settings-weight-row">
+      <span class="settings-weight-label">&#128172; Speaker overlap</span>
+      <input type="range" min="0" max="5" step="0.1" id="s-churn-weight" aria-label="Speaker overlap weight" style="flex:1"
+             oninput="document.getElementById('s-churn-weight-val').textContent=parseFloat(this.value).toFixed(1)">
+      <span class="settings-weight-val" id="s-churn-weight-val">0.5</span>
+    </div>
+    <div class="settings-weight-row">
+      <span class="settings-weight-label">&#128200; Prosody</span>
+      <input type="range" min="0" max="5" step="0.1" id="s-prosody-weight" aria-label="Prosody weight" style="flex:1"
+             oninput="document.getElementById('s-prosody-weight-val').textContent=parseFloat(this.value).toFixed(1)">
+      <span class="settings-weight-val" id="s-prosody-weight-val">0.5</span>
+    </div>
+    <div class="settings-weight-row" style="margin-bottom:4px">
+      <span class="settings-weight-label">&#128165; Audio events</span>
+      <input type="range" min="0" max="5" step="0.1" id="s-audio-event-weight" aria-label="Audio events weight" style="flex:1"
+             oninput="document.getElementById('s-audio-event-weight-val').textContent=parseFloat(this.value).toFixed(1)">
+      <span class="settings-weight-val" id="s-audio-event-weight-val">1.0</span>
+    </div>
+    <div style="margin-bottom:4px;display:flex;gap:8px;align-items:center">
+      <label class="settings-label" for="s-audio-event-enabled" style="white-space:nowrap">
+        <input type="checkbox" id="s-audio-event-enabled"> Detect gunshots, explosions &amp; cheers (needs audio model)
+      </label>
+    </div>
+    <div style="margin-bottom:16px">
+      <div style="font-size:11px;color:var(--muted);margin-bottom:6px">
+        On by default. Reuses the same HuggingFace audio model as Laugh &ldquo;Model&rdquo; mode
+        (<code>MIT/ast-finetuned-audioset-10-10-0.4593</code>, ~350 MB, downloads automatically the first time it's needed).
+        Action sounds boost Action; crowd cheers boost Funny.
+      </div>
+    </div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:8px;font-weight:600">Sub-score weights</div>
+    <div class="settings-weight-row">
+      <span class="settings-weight-label">&#128514; Funny</span>
+      <input type="range" min="0" max="5" step="0.1" id="s-funny-weight" aria-label="Funny sub-score weight" style="flex:1"
+             oninput="document.getElementById('s-funny-weight-val').textContent=parseFloat(this.value).toFixed(1)">
+      <span class="settings-weight-val" id="s-funny-weight-val">1.0</span>
+    </div>
+    <div class="settings-weight-row">
+      <span class="settings-weight-label">&#127917; Dramatic</span>
+      <input type="range" min="0" max="5" step="0.1" id="s-dramatic-weight" aria-label="Dramatic sub-score weight" style="flex:1"
+             oninput="document.getElementById('s-dramatic-weight-val').textContent=parseFloat(this.value).toFixed(1)">
+      <span class="settings-weight-val" id="s-dramatic-weight-val">1.0</span>
+    </div>
+    <div class="settings-weight-row">
+      <span class="settings-weight-label">&#9876;&#65039; Action</span>
+      <input type="range" min="0" max="5" step="0.1" id="s-action-weight" aria-label="Action sub-score weight" style="flex:1"
+             oninput="document.getElementById('s-action-weight-val').textContent=parseFloat(this.value).toFixed(1)">
+      <span class="settings-weight-val" id="s-action-weight-val">1.0</span>
+    </div>
+    <div class="settings-weight-row">
+      <span class="settings-weight-label">&#127916; Visual</span>
+      <input type="range" min="0" max="5" step="0.1" id="s-visual-weight" aria-label="Visual sub-score weight" style="flex:1"
+             oninput="document.getElementById('s-visual-weight-val').textContent=parseFloat(this.value).toFixed(1)">
+      <span class="settings-weight-val" id="s-visual-weight-val">0.5</span>
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-top:2px">
+      On-screen activity - scene cuts and visual intensity. Surfaces silent, action-packed
+      moments without dialogue. Kept low so it never overshadows talk-driven highlights.
+    </div>
+  </div>
+
+  <!-- Hot-words section -->
+  <div class="settings-section" id="settings-sec-hotwords">
+    <div class="settings-section-title">Hot-words</div>
+    <div class="settings-note" style="margin-bottom:8px">
+      Boost a clip's score when a phrase is spoken - great for running gags or catchphrases.
+      Leave one <strong>Global</strong> to apply everywhere, or scope it to a world context so it
+      only affects recordings tagged with that context. Saved instantly; use
+      <strong>Rescan current recording</strong> from the confirmation toast to apply changes to a
+      recording's existing clips without a full re-score.
+    </div>
+    <div id="s-hotword-rows"></div>
+    <button type="button" class="btn-secondary" id="s-hotword-add" style="margin-top:4px">+ Add hot-word</button>
+  </div>
+
+  <!-- Sensitive Content section -->
+  <div class="settings-section" id="settings-sec-sensitive">
+    <div class="settings-section-title">Sensitive Content</div>
+    <div class="settings-note" style="margin-bottom:8px">
+      Flag clips containing names, personal info, or language you want to catch before sharing -
+      kept completely separate from scoring, so it never changes a clip's score, only warns.
+      <strong>Privacy Terms</strong> are names or personal info you don't want in shared clips;
+      <strong>Censor Words</strong> are language to flag before posting to restricted platforms.
+      Leave one <strong>Global</strong> to flag everywhere, or scope it to a world context to flag
+      only recordings tagged with that context. Saved instantly and applied to every clip right away.
+    </div>
+    <div id="s-sensitive-rows"></div>
+    <button type="button" id="s-sensitive-add" class="btn-secondary" style="margin-top:4px">+ Add Sensitive Term</button>
+  </div>
+
+  <!-- Analysis defaults section -->
+  <div class="settings-section" id="settings-sec-analysis">
+    <div class="settings-section-title has-action"><span>Analysis defaults <span style="font-size:11px;font-weight:400;color:var(--muted)">(pre-filled in Analyze modal)</span></span><button type="button" class="btn-secondary settings-reset-btn" data-revert-section="settings-sec-analysis">Reset to defaults</button></div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <label class="settings-label" for="s-scene-mode">Scene detection mode</label>
+      </div>
+      <select class="settings-select" id="s-scene-mode">
+        <option value="transcript">Transcript - silence gaps only (instant)</option>
+        <option value="fast">Fast - keyframes + transcript gaps (recommended)</option>
+        <option value="full">Full - every frame, most accurate (slow)</option>
+      </select>
+    </div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <label class="settings-label" for="s-visual-mode">Visual clips</label>
+        <div class="settings-note">Find silent, action-heavy moments (a clutch play, a crash) that have no dialogue, so they still become clips. "Silent gaps" is a good balance; "Full" finds the most but takes longer and can surface more clips to review.</div>
+      </div>
+      <select class="settings-select" id="s-visual-mode">
+        <option value="off">Off - only moments with speech</option>
+        <option value="gaps">Silent gaps - fill quiet stretches (recommended)</option>
+        <option value="relax">Relaxed - keep quiet-but-active talk windows</option>
+        <option value="parallel">Full - scan the whole recording for action</option>
+      </select>
+    </div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <label class="settings-label" for="s-energy-mode">Audio energy mode</label>
+      </div>
+      <select class="settings-select" id="s-energy-mode">
+        <option value="none">None - skip (fastest)</option>
+        <option value="fast">Fast - 4 kHz numpy (recommended)</option>
+        <option value="full">Full - 16 kHz numpy (most accurate)</option>
+      </select>
+    </div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <label class="settings-label" for="s-silence-ms">Silence threshold (ms)</label>
+        <div class="settings-note">Gap length that marks a clip boundary</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:2px">
+        <input class="settings-input" id="s-silence-ms" type="number" min="500" max="30000" step="500" style="max-width:120px"
+               oninput="document.getElementById('s-silence-ms-hint').textContent=(this.value/1000).toFixed(1)+' s'">
+        <span id="s-silence-ms-hint" style="font-size:11px;color:var(--muted)"></span>
+      </div>
+    </div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <label class="settings-label" for="s-min-clip-ms">Minimum clip length (ms)</label>
+        <div class="settings-note">Shorter candidates are discarded</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:2px">
+        <input class="settings-input" id="s-min-clip-ms" type="number" min="1000" max="120000" step="1000" style="max-width:120px"
+               oninput="document.getElementById('s-min-clip-ms-hint').textContent=(this.value/1000).toFixed(1)+' s'">
+        <span id="s-min-clip-ms-hint" style="font-size:11px;color:var(--muted)"></span>
+      </div>
+    </div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <label class="settings-label" for="s-scene-generation">Generate scenes</label>
+        <div class="settings-note">In addition to short clips, ask the LLM to find longer "scenes" (1-5 min contextual moments with a story arc). Off by default - it adds an LLM pass to each analysis. Needs LLM scoring turned on. Scenes show alongside clips in the list (badged SCENE); use the All / Clips / Scenes chips to filter.</div>
+      </div>
+      <label class="settings-checkbox">
+        <input type="checkbox" id="s-scene-generation" aria-label="Generate scenes during analysis">
+        <span style="font-size:13px" aria-hidden="true">Enable</span>
+      </label>
+    </div>
+  </div>
+
+  <!-- Hardware section -->
+  <div class="settings-section" id="settings-sec-hardware">
+    <div class="settings-section-title has-action"><span>Hardware <span style="font-size:11px;font-weight:400;color:var(--muted)">(GPU temperature - NVIDIA only, hidden automatically otherwise)</span></span><button type="button" class="btn-secondary settings-reset-btn" data-revert-section="settings-sec-hardware">Reset to defaults</button></div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <label class="settings-label">GPU acceleration for transcription</label>
+        <div class="settings-note">On an NVIDIA GPU, installs the CUDA support libraries (cuBLAS + cuDNN) so transcription runs on the GPU - much faster than CPU. About 1&nbsp;GB. Re-run analysis after installing.</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn-secondary" id="btn-install-cuda-libs">Enable GPU acceleration</button>
+        <span id="install-status-cuda-libs" style="font-size:12px"></span>
+      </div>
+    </div>
+    <div id="install-log-cuda-libs" class="settings-install-log"></div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <label class="settings-label" id="lbl-thermal-autopause" for="s-thermal-autopause">Auto-pause on high GPU temperature</label>
+        <div class="settings-note">Pauses analysis before the next video when the GPU stays too hot</div>
+      </div>
+      <label class="settings-checkbox">
+        <input type="checkbox" id="s-thermal-autopause" aria-labelledby="lbl-thermal-autopause">
+        <span style="font-size:13px" aria-hidden="true">On</span>
+      </label>
+    </div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <label class="settings-label" for="s-thermal-warn-c">Warning temperature (&deg;C)</label>
+        <div class="settings-note">Toast shown after 3 consecutive readings at or above this</div>
+      </div>
+      <input class="settings-input" id="s-thermal-warn-c" type="number" min="40" max="110" step="1" style="max-width:100px">
+    </div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <label class="settings-label" for="s-thermal-pause-c">Auto-pause temperature (&deg;C)</label>
+        <div class="settings-note">Must be higher than the warning temperature</div>
+      </div>
+      <input class="settings-input" id="s-thermal-pause-c" type="number" min="40" max="110" step="1" style="max-width:100px">
+    </div>
+  </div>
+
+  <!-- UI section -->
+  <div class="settings-section" id="settings-sec-ui">
+    <div class="settings-section-title has-action"><span>UI</span><button type="button" class="btn-secondary settings-reset-btn" data-revert-section="settings-sec-ui">Reset to defaults</button></div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <label class="settings-label" for="s-theme">Theme</label>
+        <div class="settings-note">Applies immediately</div>
+      </div>
+      <select class="settings-select" id="s-theme">
+        <option value="dark">Dark</option>
+        <option value="light">Light</option>
+        <option value="high-contrast">High contrast</option>
+      </select>
+    </div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <label class="settings-label" for="s-accent">Accent colour</label>
+        <div class="settings-note">Applies immediately</div>
+      </div>
+      <select class="settings-select" id="s-accent">
+        <option value="default">Default (cyan)</option>
+        <option value="blue">Blue</option>
+      </select>
+    </div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <div class="settings-label">Autoplay clips</div>
+        <div class="settings-note">Play clip automatically when selected</div>
+      </div>
+      <label class="settings-checkbox">
+        <input type="checkbox" id="s-autoplay">
+        <span style="font-size:13px">Enabled</span>
+      </label>
+    </div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <div class="settings-label">Play next clip when finished</div>
+        <div class="settings-note">Advance to the next clip in the list when the current one ends</div>
+      </div>
+      <label class="settings-checkbox">
+        <input type="checkbox" id="s-play-next">
+        <span style="font-size:13px">Enabled</span>
+      </label>
+    </div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <div class="settings-label">Loop clip</div>
+        <div class="settings-note">Repeat the current clip instead of stopping at the end</div>
+      </div>
+      <label class="settings-checkbox">
+        <input type="checkbox" id="s-loop-clip">
+        <span style="font-size:13px">Enabled</span>
+      </label>
+    </div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <label class="settings-label" for="s-playback-rate">Playback speed</label>
+        <div class="settings-note">Applies to every video and clip preview</div>
+      </div>
+      <select class="settings-input" id="s-playback-rate" style="max-width:120px">
+        <option value="0.5">0.5&times;</option>
+        <option value="0.75">0.75&times;</option>
+        <option value="1">Normal (1&times;)</option>
+        <option value="1.25">1.25&times;</option>
+        <option value="1.5">1.5&times;</option>
+        <option value="1.75">1.75&times;</option>
+        <option value="2">2&times;</option>
+      </select>
+    </div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <label class="settings-label" for="s-timeline-interval">Timeline interval</label>
+        <div class="settings-note">Bucket size used when generating session timeline</div>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <input class="settings-input" id="s-timeline-interval" type="number" min="10" step="1" style="max-width:80px">
+        <select class="settings-select" id="s-timeline-unit">
+          <option value="seconds">seconds</option>
+          <option value="minutes">minutes</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- Export -->
+  <div class="settings-section" id="settings-sec-export">
+    <div class="settings-section-title has-action"><span>Export</span><button type="button" class="btn-secondary settings-reset-btn" data-revert-section="settings-sec-export">Reset to defaults</button></div>
+    <div class="settings-row">
+      <label class="settings-label" for="s-export-name-template">Export file name</label>
+      <input class="settings-input" id="s-export-name-template" type="text"
+             style="flex:1;min-width:0">
+    </div>
+    <div class="settings-note" style="display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;margin-bottom:6px">
+      <span>Placeholders:</span>
+      <code>{video}</code> <code>{clip_id}</code> <code>{start}</code>
+      <code>{end}</code> <code>{score}</code> <code>{date}</code> <code>{preset}</code>
+    </div>
+    <div id="export-name-template-preview" style="font-size:12px;color:var(--muted);font-family:monospace;margin-bottom:12px"></div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <div class="settings-label">Export presets</div>
+        <div class="settings-note">
+          Named recipes for export - container, resolution, and quality/size - instead of
+          exporting at original quality. "YouTube 1080p" and "Discord (&le;10 MB)" are
+          always available; add your own below.
+        </div>
+      </div>
+    </div>
+    <div id="s-export-preset-rows"></div>
+    <button type="button" id="s-add-export-preset" class="btn-secondary" style="margin-top:4px">+ Add custom preset</button>
+
+    <div class="settings-row" style="margin-top:20px">
+      <div class="settings-col">
+        <div class="settings-label">Vertical framing (auto-frame)</div>
+        <div class="settings-note">
+          When exporting with a vertical (9:16) preset, "Auto-frame on faces"
+          suggests where to place the crop by finding faces in the clip. Included
+          with YuuClip (MediaPipe, Apache-2.0) - its face-detector model (~230 KB)
+          downloads automatically the first time you use it. You can still set the
+          crop by hand instead.
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-row" style="margin-top:20px">
+      <div class="settings-col">
+        <div class="settings-label">Title card</div>
+        <div class="settings-note">
+          The text overlay shown between highlight reel clips, and prepended to a
+          clip export when "Add title card" is turned on.
+        </div>
+      </div>
+    </div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <label class="settings-label" for="s-title-card-bg-color">Background color</label>
+      </div>
+      <input id="s-title-card-bg-color" type="color">
+    </div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <label class="settings-label" for="s-title-card-font-color">Text color</label>
+      </div>
+      <input id="s-title-card-font-color" type="color">
+    </div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <label class="settings-label" for="s-title-card-scale">Text size</label>
+      </div>
+      <select class="settings-input" id="s-title-card-scale" style="flex:0 0 auto;width:auto">
+        <option value="0.75">Small</option>
+        <option value="1.0">Normal</option>
+        <option value="1.25">Large</option>
+        <option value="1.5">Extra large</option>
+      </select>
+    </div>
+    <div class="settings-row">
+      <label class="settings-label" for="s-title-card-template">Text</label>
+      <textarea class="settings-input" id="s-title-card-template" rows="2"
+                style="flex:1;min-width:0;resize:vertical;font-family:inherit"></textarea>
+    </div>
+    <div class="settings-note" style="display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;margin-bottom:6px">
+      <span>Placeholders:</span>
+      <code>{description}</code> <code>{start}</code> <code>{duration}</code>
+      <span> -  each line becomes a line on the card; blank placeholders are skipped.</span>
+    </div>
+    <div id="s-title-card-template-warning" style="display:none;font-size:12px;color:var(--warning);margin-bottom:6px"></div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <label class="settings-label" for="s-title-card-duration">Duration (seconds)</label>
+      </div>
+      <input class="settings-input" id="s-title-card-duration" type="number" min="1" max="10" step="0.5"
+             style="flex:0 0 auto;width:80px">
+    </div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <div class="settings-label">Preview (approximate)</div>
+        <div class="settings-note">Not to scale - shows colors, size, and content, not the actual render.</div>
+      </div>
+      <div id="s-title-card-preview"
+           style="width:220px;height:124px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;border-radius:4px;overflow:hidden;padding:8px;box-sizing:border-box;flex:0 0 auto"></div>
+    </div>
+    <div class="settings-row">
+      <div class="settings-col"></div>
+      <div id="s-title-card-contrast-warning" style="display:none;font-size:12px;color:var(--warning)">
+        &#9888; Text may be hard to read on this background
+      </div>
+    </div>
+
+    <div class="settings-row" style="margin-top:20px">
+      <div class="settings-col">
+        <div class="settings-label">Caption style</div>
+        <div class="settings-note">
+          Font, size, and position for <strong>burned-in</strong> captions. Embedded caption
+          tracks and sidecar <code>.srt</code> files are styled by the player, not here.
+          Each clip export can override these defaults.
+        </div>
+      </div>
+    </div>
+    <div class="settings-row">
+      <label class="settings-label" for="s-caption-font-name">Caption font</label>
+      <input class="settings-input" id="s-caption-font-name" type="text" maxlength="64"
+             placeholder="Renderer default" style="flex:1;min-width:0">
+    </div>
+    <div class="settings-note" style="margin-bottom:6px">
+      Must be installed on this PC - e.g. Arial, Segoe UI. Leave blank for the renderer default.
+    </div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <label class="settings-label" for="s-caption-font-size">Caption size</label>
+      </div>
+      <input class="settings-input" id="s-caption-font-size" type="number" min="12" max="96"
+             placeholder="Default" style="flex:0 0 auto;width:90px">
+    </div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <label class="settings-label" for="s-caption-position">Caption position</label>
+      </div>
+      <select class="settings-input" id="s-caption-position" style="flex:0 0 auto;width:auto">
+        <option value="bottom">Bottom</option>
+        <option value="top">Top</option>
+      </select>
+    </div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <label class="settings-label" for="s-caption-word-highlight">Word highlight</label>
+        <div class="settings-note">Show a few words at a time and highlight each one as it's spoken (TikTok/CapCut style). Burned-in captions only.</div>
+      </div>
+      <input type="checkbox" id="s-caption-word-highlight" style="flex:0 0 auto">
+    </div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <label class="settings-label" for="s-caption-chunk-size">Words on screen</label>
+        <div class="settings-note">How many words show at once (1-12) when word highlight is on.</div>
+      </div>
+      <input class="settings-input" id="s-caption-chunk-size" type="number" min="1" max="12"
+             placeholder="4" style="flex:0 0 auto;width:90px">
+    </div>
+  </div>
+
+  <!-- Notification sounds -->
+  <div class="settings-section" id="settings-sec-sounds">
+    <div class="settings-section-title">Notification sounds <span style="font-size:11px;font-weight:400;color:var(--muted)">(off by default)</span></div>
+    <div class="settings-note" style="margin-bottom:8px">Play a sound when a long-running action finishes so you can step away. Use <strong>Preview</strong> to hear each one. A <strong>Stop sound</strong> button appears while a sound plays.</div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <label class="settings-label" for="s-sound-volume">Volume</label>
+        <div class="settings-note">Applies to all notification sounds</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="range" id="s-sound-volume" min="0" max="100" step="1" style="width:140px">
+        <span id="s-sound-volume-val" style="font-size:12px;color:var(--muted);min-width:34px;text-align:right">70%</span>
+      </div>
+    </div>
+    <div id="s-sound-rows"></div>
+    <div class="settings-row">
+      <div class="settings-col">
+        <div class="settings-label">Use your own sound</div>
+        <div class="settings-note">Add an audio file (wav, mp3, ogg…) to the dropdowns above. For a full song, use the Stop button to silence it.</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">
+        <input type="file" id="s-sound-upload" accept="audio/*" style="font-size:12px;max-width:220px">
+        <span id="s-sound-upload-status" style="font-size:11px;color:var(--muted)"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Backup & Restore section -->
+  <div class="settings-section" id="settings-sec-backup">
+    <div class="settings-section-title">Backup &amp; Restore</div>
+    <div class="settings-note" style="margin-bottom:12px">
+      Save this project's clips, settings, and world contexts to a single file you can keep somewhere safe or move to another computer. Your original video files are not included - if they have moved, Restore helps you point to them again.
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+      <button type="button" class="btn" id="btn-backup-project">Back up project&hellip;</button>
+      <button type="button" class="btn" id="btn-restore-project">Restore from backup&hellip;</button>
+      <input type="file" id="restore-file-input" accept=".zip,application/zip" style="display:none" aria-hidden="true" tabindex="-1">
+    </div>
+    <div id="restore-flow" style="display:none;margin-top:16px"></div>
+  </div>
+
+  <!-- Paths section (read-only for now) -->
+  <div class="settings-section" id="settings-sec-paths">
+    <div class="settings-section-title">Paths <span style="font-size:11px;font-weight:400;color:var(--muted)">(read-only - set via --project flag)</span></div>
+    <div id="s-paths-display" style="font-size:12px;color:var(--muted);line-height:2"></div>
+  </div>
+</div><!-- /.settings-inner -->
+</div><!-- /.settings-panel -->

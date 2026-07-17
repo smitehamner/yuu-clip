@@ -1,0 +1,48 @@
+<div class="modal-bg" id="getting-started-modal">
+  <div class="modal" style="max-width:520px">
+    <h3>Getting Started</h3>
+
+    <div style="margin:0 0 16px;padding:10px 12px;border:1px solid color-mix(in srgb, var(--accent) 40%, transparent);border-radius:8px;background:color-mix(in srgb, var(--accent) 8%, transparent);font-size:13px;line-height:1.6;color:var(--text)">
+      <strong>Baseline scoring is working.</strong> Transcription and the core scoring - laughter, excitement, keywords, scene and on-screen action - run right now, and clips get a short template description. Setting up a local language model is the normal next step: a one-click download that adds written AI descriptions, session summaries, and a smarter read on scoring. See <em>Settings &rarr; Capabilities</em> to set one up and check what's active.
+    </div>
+
+    <div class="section-title" style="margin-bottom:6px">Your workflow</div>
+    <ol style="margin:0 0 16px;padding-left:20px;font-size:13px;line-height:1.9;color:var(--text)">
+      <li><strong>Analyze</strong> - click <em>+ Analyze</em> and select a recording. YuuClip transcribes the audio, detects scene changes, and scores every clip.</li>
+      <li><strong>Review</strong> - step through the clip list. Watch the preview, read the description, and press <kbd>A</kbd> to approve, <kbd>R</kbd> to reject, or <kbd>U</kbd> to mark it unreviewed again.</li>
+      <li><strong>Export</strong> - click <em>Export</em> on any clip to extract it. Quick export copies the video out in seconds; Precise re-encodes for frame-accurate cuts. The export window tells you which one you'll get.</li>
+      <li><strong>Build a reel</strong> - click <em>Highlight Reels</em> in the header, then <em>Build Reel</em> to compile approved clips into a single highlight reel with title cards and transitions.</li>
+    </ol>
+
+    <div class="section-title" style="margin-bottom:6px">What the scores mean</div>
+    <table style="width:100%;font-size:13px;border-collapse:collapse;margin-bottom:16px">
+      <tbody>
+        <tr><td style="padding:3px 8px 3px 0;color:var(--text)">&#11088; Overall</td><td style="color:var(--muted)">Weighted blend of the four sub-scores</td></tr>
+        <tr><td style="padding:3px 8px 3px 0;color:var(--text)">&#128514; Funny</td><td style="color:var(--muted)">Jokes, absurdist moments, chaotic banter</td></tr>
+        <tr><td style="padding:3px 8px 3px 0;color:var(--text)">&#127917; Dramatic</td><td style="color:var(--muted)">Confrontations, revelations, emotional beats</td></tr>
+        <tr><td style="padding:3px 8px 3px 0;color:var(--text)">&#9876;&#65039; Action</td><td style="color:var(--muted)">Combat, tension, high-stakes moments</td></tr>
+        <tr><td style="padding:3px 8px 3px 0;color:var(--text)">&#127916; Visual</td><td style="color:var(--muted)">On-screen intensity - scene cuts and motion, even in silence</td></tr>
+      </tbody>
+    </table>
+
+    <div class="section-title" style="margin-bottom:6px">Key concepts</div>
+    <table style="width:100%;font-size:13px;border-collapse:collapse;margin-bottom:16px">
+      <tbody>
+        <tr><td style="padding:3px 8px 3px 0;color:var(--text);white-space:nowrap">Track layout</td><td style="color:var(--muted)">Maps your OBS audio tracks to roles (player voice, game sounds, etc.) so YuuClip knows what to transcribe</td></tr>
+        <tr><td style="padding:3px 8px 3px 0;color:var(--text);white-space:nowrap">World context</td><td style="color:var(--muted)">Tells the LLM scorer who's in your recordings and what the setting is - improves descriptions and scores for your specific game</td></tr>
+      </tbody>
+    </table>
+
+    <div class="section-title" style="margin-bottom:6px">Quick tips</div>
+    <ul style="margin:0 0 16px;padding-left:20px;font-size:13px;line-height:1.9;color:var(--muted)">
+      <li>Use the search box and score filter in the sidebar to find specific moments</li>
+      <li>Press <kbd>&#8592;</kbd> / <kbd>&#8594;</kbd> to move between clips without touching the mouse</li>
+      <li>Open <em>Controls</em> from the menu for the full keyboard shortcut list</li>
+      <li>Open <em>World Contexts</em> from the menu to add people and setting info before scoring</li>
+    </ul>
+
+    <div class="modal-actions">
+      <button class="btn" id="getting-started-close-btn">Close</button>
+    </div>
+  </div>
+</div>

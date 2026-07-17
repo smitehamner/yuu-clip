@@ -1,0 +1,48 @@
+<div class="modal-bg" id="about-modal">
+  <div class="modal" style="width:780px;max-width:94vw">
+    <h3>About YuuClip</h3>
+    <p style="color:var(--muted);font-size:13px;margin:0 0 12px">
+      <span id="about-version">Version unknown</span><br>
+      Built by <strong>smitehamner</strong>. Provided as-is with absolutely no warranty.<br>
+      Licence: <a href="https://github.com/smitehamner/yuu-clip/blob/main/LICENSE" target="_blank" rel="noopener">Apache License 2.0</a> - also in the LICENSE file included with YuuClip.<br>
+      Bundled third-party components carry their own licences (listed below); full licence texts are in the <a href="https://github.com/smitehamner/yuu-clip/tree/main/third-party-notices" target="_blank" rel="noopener">third-party notices</a>.
+    </p>
+    <div class="section-title" style="margin-bottom:4px">Included with YuuClip</div>
+    <table style="width:100%;font-size:12px;border-collapse:collapse;color:var(--muted);margin-bottom:12px">
+      <thead><tr style="color:var(--text)"><th scope="col" class="col-head">Package</th><th scope="col" class="col-head">Purpose</th><th scope="col" class="col-head">Licence</th></tr></thead>
+      <tbody>
+        <tr class="grp"><td colspan="3">Media in &amp; out</td></tr>
+        <tr><td>FFmpeg</td><td>Audio/video extraction &amp; export</td><td>GPL v3 (full licence text + source archive included in the install folder)</td></tr>
+        <tr><td>PyAV (av)</td><td>Audio frame decoding</td><td>BSD-3</td></tr>
+        <tr><td>yt-dlp</td><td>Twitch / YouTube URL import</td><td>Unlicense (public domain)</td></tr>
+        <tr class="grp"><td colspan="3">Analysis</td></tr>
+        <tr><td>faster-whisper</td><td>GPU-accelerated transcription</td><td>MIT</td></tr>
+        <tr><td>PySceneDetect</td><td>Scene cut detection</td><td>BSD-3</td></tr>
+        <tr><td>speechbrain / scikit-learn</td><td>Speaker labels (default backend)</td><td>Apache-2 / BSD-3</td></tr>
+        <tr><td>transformers / torch</td><td>Laugh detection &amp; audio-event scoring (model mode)</td><td>Apache-2 / BSD-3</td></tr>
+        <tr><td>fastembed</td><td>Smart (embeddings) similarity matching</td><td>Apache-2</td></tr>
+        <tr><td>mediapipe</td><td>Vertical auto-framing (face detection)</td><td>Apache-2</td></tr>
+        <tr class="grp"><td colspan="3">AI scoring</td></tr>
+        <tr><td>llama.cpp (llama-server)</td><td>Local LLM/vision engine - GPU-accelerated clip scoring &amp; image analysis</td><td>MIT</td></tr>
+        <tr class="grp"><td colspan="3">App framework</td></tr>
+        <tr><td>FastAPI</td><td>Web server API</td><td>MIT</td></tr>
+        <tr><td>uvicorn</td><td>ASGI server</td><td>BSD-3</td></tr>
+        <tr><td>SQLAlchemy</td><td>Database ORM</td><td>MIT</td></tr>
+        <tr><td>Typer</td><td>CLI framework</td><td>MIT</td></tr>
+        <tr><td>platformdirs</td><td>Cross-platform config paths</td><td>MIT</td></tr>
+        <tr class="grp"><td colspan="3">Appearance</td></tr>
+        <tr><td>Oxanium</td><td>Display typeface (headings &amp; wordmark)</td><td>SIL OFL 1.1</td></tr>
+      </tbody>
+    </table>
+    <div class="section-title" style="margin-bottom:4px">Optional add-ons <span style="font-size:11px;font-weight:400;color:var(--muted)">(install from Settings)</span></div>
+    <table style="width:100%;font-size:12px;border-collapse:collapse;color:var(--muted)">
+      <thead><tr style="color:var(--text)"><th scope="col" class="col-head">Package</th><th scope="col" class="col-head">Purpose</th><th scope="col" class="col-head">Licence</th></tr></thead>
+      <tbody>
+        <tr><td>nvidia-cublas-cu12 / nvidia-cudnn-cu12</td><td>GPU acceleration for transcription (NVIDIA)</td><td>NVIDIA proprietary (redistributable)</td></tr>
+      </tbody>
+    </table>
+    <div class="modal-actions" style="margin-top:16px">
+      <button class="btn" id="about-modal-close-btn">Close</button>
+    </div>
+  </div>
+</div>

@@ -154,8 +154,19 @@ does not appear. Never hand-edit `bundle.esm.js` - edit the source module and re
 [tests/unit/test_bundle_drift.py](../../tests/unit/test_bundle_drift.py) fails if you
 commit a stale bundle (it skips when the Node toolchain is absent, so `test-api` still
 passes offline). Rebuilding needs Node + `npm install`; the committed artifact is what
-ships, so Node is never needed to *run* the app. Editing `index.html` alone needs no
-rebundle.
+ships, so Node is never needed to *run* the app.
+
+**`index.html` is also a build artifact.** It is stitched from
+[index.src.html](../../yuu_clip/web/static/index.src.html) (the page shell, a readable
+table-of-contents of `<!-- @@include ... -->` markers) plus one file per modal/region
+under [static/partials/](../../yuu_clip/web/static/partials/), by the same `yuu-dev bundle`
+step ([yuu_clip/dev/htmlstitch.py](../../yuu_clip/dev/htmlstitch.py)). So the landmine
+extends: **edit the partials or `index.src.html`, never the committed `index.html`** - it
+is overwritten on the next stitch, exactly like `bundle.esm.js`. The stitch is byte-exact
+and pure Python (no Node), so its guard
+[tests/unit/test_index_html_drift.py](../../tests/unit/test_index_html_drift.py) always
+runs. Adding a region: create the partial, add an `<!-- @@include path -->` marker in
+`index.src.html`, run `yuu-dev bundle`.
 
 **The residual `window.X = X` shim.** [main.esm.js](../../yuu_clip/web/static/main.esm.js)
 still ends with a shrinking block that re-publishes some names onto `window`. This is a
@@ -239,6 +250,7 @@ model above), three rules are non-negotiable:
 | **Add a Settings control** | Both the browser JS (`settings/settings.js`) and the Python config/catalog side. If it selects a model, remember landmine #2 - mirror it in the Electron wizard by hand. |
 | **Add a model backend** (LLM, transcription, diarization, similarity) | Implement the seam's ABC/Protocol, register it in that module's `_BACKEND_*` dict, add the `*_backend` config value. Never add a caller-side `if backend == ...`. Start from the LLM seam in [scoring/llm_client.py](../../yuu_clip/scoring/llm_client.py). |
 | **Add or edit a frontend module** | Edit the source `static/<bucket>/*.js`, `export` its public surface and `import` what it needs, then run `yuu-dev bundle` and `yuu-dev test-js` (landmine #1). Never edit `bundle.esm.js` by hand. |
+| **Edit a modal / page region (markup)** | Edit the partial under `static/partials/` (or `static/index.src.html` for the shell), then run `yuu-dev bundle` to re-stitch `index.html` (landmine #1). Never hand-edit the committed `index.html`. |
 | **Change the analyze pipeline order** | [pipeline/ingest.py](../../yuu_clip/pipeline/ingest.py) - keep the `prewarm_transformers_pipeline()` call ahead of any speechbrain import (landmine #3). |
 | **Find any other file** | The full file-by-file map is the `Project layout` section of [CLAUDE.md](../../CLAUDE.md). |
 
