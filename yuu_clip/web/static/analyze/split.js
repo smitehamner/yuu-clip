@@ -997,6 +997,14 @@ function _wireSplitEditor() {
   document.getElementById('split-zoom-in')?.addEventListener('click', () => _setSplitZoom(_splitZoom * 1.6));
   document.getElementById('split-zoom-fit')?.addEventListener('click', () => _setSplitZoom(1));
   document.getElementById('split-timeline-bar')?.addEventListener('click', splitTimelineClick);
+  // Suggestion pins sit inside the timeline bar; catch their click here and stop it
+  // bubbling so the bar's coordinate-based splitTimelineClick doesn't also fire.
+  document.getElementById('split-suggestion-layer')?.addEventListener('click', e => {
+    const pin = e.target.closest('[data-pin]');
+    if (!pin) return;
+    e.stopPropagation();
+    _promoteSuggestionPin(Number(pin.dataset.pin));
+  });
   document.getElementById('btn-split-confirm')?.addEventListener('click', confirmSplit);
   document.getElementById('split-action-options')?.addEventListener('change', _updateSplitConfirmState);
   document.querySelector('#split-waveform-notice button')?.addEventListener('click', _generateWaveform);

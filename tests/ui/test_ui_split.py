@@ -82,6 +82,31 @@ class TestSplitMarkers:
         marker.click(position={"x": 5, "y": 30})
         expect(split_editor.locator("#split-markers-layer .split-marker")).to_have_count(1)
 
+    def test_clicking_a_suggestion_pin_snaps_a_point_to_that_second(self, split_editor: Page):
+        # Regression: the ESM migration dropped the suggestion-pin click handler
+        # (inline onclick removed, no delegated listener added), so clicking a
+        # "quiet valley" pin fell through to the bar's coordinate-based
+        # splitTimelineClick instead of snapping to the exact valley second.
+        # The synthetic click carries a real clientX at 10% of the bar, tagged
+        # second 7: a fall-through to splitTimelineClick would place a marker at
+        # ~10%*duration (!= 7), and a missing stopPropagation would place both.
+        # So exactly one marker at second 7 proves the snap AND the stopped
+        # propagation. (Injected + dispatched in one evaluate so no re-render of
+        # the layer can wipe the pin between steps.)
+        split_editor.evaluate(
+            "() => {"
+            " const bar = document.getElementById('split-timeline-bar');"
+            " const rect = bar.getBoundingClientRect();"
+            " const layer = document.getElementById('split-suggestion-layer');"
+            " layer.innerHTML = '<div data-pin=\"7\" class=\"split-suggestion-pin\"></div>';"
+            " layer.querySelector('[data-pin]').dispatchEvent(new MouseEvent('click',"
+            " {bubbles: true, cancelable: true, clientX: rect.left + rect.width * 0.1,"
+            " clientY: rect.top + rect.height / 2})); }"
+        )
+        markers = split_editor.locator("#split-markers-layer .split-marker")
+        expect(markers).to_have_count(1)
+        expect(markers).to_have_attribute("data-split-sec", "7")
+
     def test_back_button_guards_placed_points(self, split_editor: Page):
         # M6-3 - Back gets the same dirty guard as sidebar navigation.
         _place_split_point(split_editor)
