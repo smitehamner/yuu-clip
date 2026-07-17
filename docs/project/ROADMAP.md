@@ -42,6 +42,16 @@ Implemented-but-unverified surfaces and latent traps to close before distributio
   `tests/js/` vitest tests (as was already done for the vision cancel-wiring), then delete
   the shim and the bridge. Each entry's per-section comment names its exact surviving reader.
 
+- [ ] **Hoist repeated inline `style="..."` in the index.html partials into `app.css`
+  classes (opportunistic)** - the WS-E split made `index.html` a stitch of
+  `static/partials/*.html`; each partial still carries verbose inline styles (hint text,
+  small ghost buttons, modal field rows). This is pure maintainability polish, not a
+  correctness or theming issue: the colour-literal guard already covers the partials
+  (`tests/unit/test_static_theme_colors.py` globs every static `*.html`), and the most-
+  repeated pattern is `style="display:none"` which is JS-toggled and must NOT become a
+  class. Extract opportunistically when touching a partial, verifying with full `test-ui`;
+  not a public-flip blocker.
+
 ---
 
 ## 2 - Pre-distribution blockers

@@ -10,7 +10,10 @@ contrast checks (getComputedStyle) and the theme/accent switcher behaviour stay 
 Guards enforced here:
   - every theme block overrides the complete colour-token set;
   - app.css carries no colour literal outside a theme-definition block;
-  - the served *.js / index.html carry no hardcoded colour (CLAUDE.md);
+  - the served *.js and *.html carry no hardcoded colour (CLAUDE.md) - the .html
+    scan globs the whole static tree, so it covers the stitched index.html AND its
+    source (index.src.html + partials/*.html), closing the blind spot that let the
+    split-editor legend literals in before WS-A;
   - the legacy --amber / --warn / --yellow warning tokens stay dead.
 """
 from __future__ import annotations
@@ -91,7 +94,9 @@ def test_app_css_has_no_color_literals_outside_theme_blocks():
 
 # ── No hardcoded colors in JS-built HTML / inline styles (CLAUDE.md) ─────────
 # The rule in CLAUDE.md bans color literals in JS-built HTML and inline styles,
-# not just in app.css. This scans the static *.js and index.html for them.
+# not just in app.css. This scans every static *.js and *.html for them - the
+# .html glob covers the stitched index.html plus its source (index.src.html and
+# partials/*.html), so an inline-style literal in a partial is caught too.
 #
 # Legitimate non-token colors are stripped or allowlisted, by class:
 #   - HTML numeric entities (&#8230;) are not colors at all.
