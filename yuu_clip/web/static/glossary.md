@@ -127,14 +127,15 @@ For fast scrubbing, YuuClip plays a smaller **720p** copy of a recording in the 
 ## Scoring
 
 ### Score
-A 0–1 rating of a clip. Higher is better. The overall score is a weighted blend of the three dimensions below.
+A 0–1 rating of a clip. Higher is better. The overall score is a weighted blend of the four dimensions below (Visual counts for half as much as the others by default).
 
 ### Scoring dimensions
-The three things each clip is rated on:
+The four things each clip is rated on:
 
 - **Funny** - comedic moments
 - **Dramatic** - tense or emotional moments
 - **Action** - fast, loud, high-activity moments
+- **Visual** (🎬) - on-screen intensity: scene cuts and motion, so silent action still surfaces
 
 ### Content type
 A one-click way to tune scoring for the kind of content you make - RP / narrative, Competitive gaming, Casual / let's play, Speedrun, Podcast / conversation, or the Generic default. Pick one at the top of Settings → Scoring weights and press **Apply**: it sets the Funny / Dramatic / Action / Laughs weights to sensible values, optionally adds a few starter hot-words, and points the language model at what makes a good highlight for that style. You can fine-tune every weight afterwards. Generic is the plain default - applying it changes nothing.

@@ -61,7 +61,7 @@ Most lookups only need this table: the authoritative user-facing term, the code 
 | Clip generation | `generate_candidates()` | Transcript → candidate windows - not "segmentation" in UI |
 | Manual clip | `"manual"` tag, `clipcreate.js` | A clip picked by hand from the transcript, instead of clip generation |
 | Score | `score_overall`, `score_funny`, … | 0–1 rating per dimension |
-| Scoring dimension | `funny`, `dramatic`, `action` | The three axes |
+| Scoring dimension | `funny`, `dramatic`, `action`, `visual` | The four axes. Funny/Dramatic/Action are transcript-driven (LLM-rated); Visual is model-free (frame-diff + scene cuts), weighted 0.5 in Overall |
 | Hot-word | `hot_words`, `hotword_*` | A phrase that nudges a clip's score when it appears in the transcript |
 | Sensitive Terms | `sensitive_terms`, `SensitiveTerm` | Privacy Terms + Censor Words together - the feature name (Settings section) |
 | Privacy Term | `category='privacy'` | A name or personal detail to flag, never scored |

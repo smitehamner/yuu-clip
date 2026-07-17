@@ -15,6 +15,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 INDEX_HTML = REPO / "yuu_clip" / "web" / "static" / "index.html"
+IN_APP_GLOSSARY = REPO / "yuu_clip" / "web" / "static" / "glossary.md"
 SETUP_HTML = REPO / "electron" / "setup.html"
 README = REPO / "README.md"
 DEV_README = REPO / "DEV-README.md"
@@ -33,6 +34,12 @@ def test_getting_started_modal_names_all_four_axes():
     modal = _getting_started_modal(INDEX_HTML.read_text(encoding="utf-8"))
     missing = [axis for axis in AXES if axis not in modal]
     assert missing == [], f"Getting Started modal is missing axis names: {missing}"
+
+
+def test_in_app_glossary_names_all_four_axes():
+    text = IN_APP_GLOSSARY.read_text(encoding="utf-8")
+    missing = [axis for axis in AXES if axis not in text]
+    assert missing == [], f"in-app glossary is missing axis names: {missing}"
 
 
 _STALE_SCORING_PHRASES = ("transcripts, not video", "reads transcripts, not")

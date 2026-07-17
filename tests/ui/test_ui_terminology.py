@@ -103,11 +103,11 @@ def test_sidebar_heading_reads_recordings(page: Page):
 # ---------------------------------------------------------------------------
 
 CANONICAL_MODEL_OPTIONS = {
-    "tiny": "tiny - fastest, lowest quality",
-    "base": "base - fast, lower quality",
-    "small": "small - fast, decent quality (~500 MB VRAM)",
-    "medium": "medium - good balance (~1.5 GB VRAM)",
-    "large-v3": "large-v3 - best quality (~3 GB VRAM)",
+    "tiny": "tiny - fastest, lowest quality (~75 MB download)",
+    "base": "base - fast, lower quality (~140 MB download)",
+    "small": "small - fast, decent quality (~465 MB download, ~1 GB VRAM)",
+    "medium": "medium - good balance (~1.5 GB download, ~2.8 GB VRAM)",
+    "large-v3": "large-v3 - best quality (~2.9 GB download, ~4.2 GB VRAM)",
 }
 
 MODEL_SELECT_IDS = [
