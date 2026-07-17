@@ -232,20 +232,22 @@ in the [developer reference](../dev/CLI-AND-INTERNALS.md#scoring-internals).)
 
 ### What the scores mean
 
-Each clip gets a 0-1 rating on three dimensions, shown as bars in the detail view:
+Each clip gets a 0-1 rating on four dimensions, shown as bars in the detail view:
 
 - **Funny** - jokes, banter, chaos, absurd or wildly out-of-place moments
 - **Dramatic** - confrontations, reveals, emotional beats, turning points
 - **Action** - combat, high tension, things escalating fast, everyone talking at once
+- **Visual** (🎬) - on-screen intensity: scene cuts and motion (see the next section)
 
-**Overall** is a weighted average of the three (equal weight by default; adjust it in
-Settings -> Scoring weights, or with a Content type preset below). The individual bars
-tell you more than Overall alone - a 0.9 Funny / 0.1 Dramatic clip is a very different
-moment from a 0.9 Dramatic one.
+**Overall** is a weighted blend of all four. Funny, Dramatic, and Action carry equal
+weight by default and Visual counts for half as much; adjust any of them in Settings ->
+Scoring weights, or with a Content type preset below. The individual bars tell you more
+than Overall alone - a 0.9 Funny / 0.1 Dramatic clip is a very different moment from a
+0.9 Dramatic one.
 
 ### Visual moments and silent clips
 
-A fourth axis, **Visual**, rates on-screen intensity - scene cuts and motion - so a
+The **Visual** axis rates on-screen intensity - scene cuts and motion - so a
 silent but action-heavy moment (a clutch play, a crash) can still surface even with no
 dialogue for the transcript-driven scorers to read. It's measured on every analysis with
 no extra download.

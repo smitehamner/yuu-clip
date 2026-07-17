@@ -36,7 +36,7 @@ Click a clip and the main panel shows you everything about it:
 
 - A **one-liner description** - a single sentence summary of what happens ("Jameson accidentally confesses to the robbery while trying to order a sandwich")
 - A **longer description** - a short paragraph with more context: who's involved, why it matters, what the vibe was
-- **Score bars** for Funny, Dramatic, and Action - so you can see at a glance what kind of moment it is and how strong it is
+- **Score bars** for Funny, Dramatic, Action, and Visual - so you can see at a glance what kind of moment it is and how strong it is
 - The **full transcript** of what was said during that window
 - **Tags** that describe how the clip was scored (whether it had a spike in audio energy, a scene cut, etc.)
 
@@ -68,7 +68,7 @@ You can go through dozens of clips in a few minutes just using arrow keys and A/
 
 ## What the scores mean
 
-Each clip gets rated 0–1 on three dimensions:
+Each clip gets rated 0–1 on four dimensions:
 
 **Funny** - jokes, banter, chaos, absurd moments, people cracking up or saying something wildly out of place
 
@@ -76,9 +76,11 @@ Each clip gets rated 0–1 on three dimensions:
 
 **Action** - high tension, combat, things escalating fast, everyone talking over each other at once
 
-The **Overall** score is a weighted average of all three. Higher is better, but the individual bars tell you more - a 0.9 Funny / 0.1 Dramatic clip is a very different moment than 0.9 Dramatic.
+**Visual** (🎬) - how much is happening on screen: scene cuts and on-screen motion. This is what lets a silent but visually intense moment (a clutch play, a crash) surface even when nobody's talking.
 
-The scoring reads transcripts, not video - so a moment where something visually spectacular happens in silence won't score as high as it deserves. Use the scores as a filter to find candidates quickly, not as a final verdict.
+The **Overall** score is a weighted blend of all four. Higher is better, but the individual bars tell you more - a 0.9 Funny / 0.1 Dramatic clip is a very different moment than 0.9 Dramatic.
+
+Funny, Dramatic, and Action are read mostly from what was said and how it was said; Visual is read from the picture (scene changes and motion), so on-screen action counts even in silence. The picture read is deliberately coarse - it catches that something intense is happening, not exactly what - so use the scores as a filter to find candidates quickly, not as a final verdict.
 
 ---
 
@@ -103,7 +105,7 @@ You can have multiple contexts for different games, servers, or crews.
 
 It depends mainly on your recording length and whether you have an Nvidia GPU. A typical 1-hour session takes 9–18 minutes on an RTX GPU, or 2.5–3 hours on CPU only. Almost all of that time is transcription; everything else adds 2–5 minutes regardless of length.
 
-Whisper model choice matters too - `base` is fast but rougher, `large-v3` is the most accurate but requires a GPU with ~10 GB VRAM. `medium` is the practical sweet spot for most sessions.
+Whisper model choice matters too - `base` (the default) is fast but rougher, `large-v3` is the most accurate but wants a ~6 GB+ GPU (~4.2 GB VRAM in use). `medium` (~2.8 GB VRAM, fine on a 4 GB GPU) is the practical sweet spot for most sessions.
 
 Detailed timing estimates and model comparisons are in [PERFORMANCE.md](PERFORMANCE.md).
 

@@ -751,7 +751,7 @@ async function _reanalyzeParams(video) {
   let cfg = {};
   try { cfg = await fetch('/api/config').then(r => r.json()); } catch { /* keep static fallbacks */ }
   return {
-    model:         cfg.whisper_model || 'medium',
+    model:         cfg.whisper_model || 'base',
     profile:       null,
     energy_mode:   cfg.energy_mode || 'fast',
     scene_mode:    cfg.scene_detection_mode || 'fast',

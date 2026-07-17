@@ -108,6 +108,17 @@ edit is the slow part of the loop. Pick the run by scope, using judgment:
 already committed the edit mid-session, run the relevant file(s) or the full
 suite explicitly.
 
+## MANDATORY: after any change to a user-visible fact (docs sync)
+
+After changing user-visible behavior, defaults, model recommendations, the scoring
+axes, or the Whisper/hardware numbers: open `docs/dev/llm/DOC-CLAIMS.md`, find the
+affected fact's row, update the code AND **every surface listed in that row** in the
+same change, then run `yuu-dev test-api` (the `tests/unit/test_doc_claims.py` fact
+guards run in the unit tier). This is how docs stay in sync with the code - the
+registry, not memory, is the source of truth. At each code-hygiene checkpoint (see the
+global convention), re-audit `DOC-CLAIMS.md` alongside the code-quality pass so stale
+claims are caught on the same cadence.
+
 ## Frontend build (one ESM bundle)
 
 The UI is real ESM modules (`import`/`export`), the strangler migration off the

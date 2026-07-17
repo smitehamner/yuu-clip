@@ -97,16 +97,21 @@ shown in the analyze output.
 
 ## Whisper models
 
-| Model    | VRAM   | Speed (GPU) | Notes                        |
-|----------|--------|-------------|------------------------------|
-| tiny     | ~0.5 GB | Very fast  | Rough - good for scouting    |
-| base     | ~1 GB   | Fast       | Default - decent quality     |
-| small    | ~2 GB   | Fast       | Good balance                 |
-| medium   | ~5 GB   | Moderate   | Great for noisy audio        |
-| large-v3 | ~10 GB  | Moderate   | Best quality                 |
+Download size and VRAM are different numbers - do not conflate them. VRAM is the
+measured peak footprint at analyze-time settings (float16 on CUDA, beam 5, word
+timestamps) on a 6 GB laptop GPU.
+
+| Model    | Download | VRAM (float16/GPU) | Speed (GPU) | Notes                     |
+|----------|----------|--------------------|-------------|---------------------------|
+| tiny     | ~75 MB   | ~0.2 GB            | Very fast   | Rough - good for scouting |
+| base     | ~140 MB  | ~0.4 GB            | Fast        | Default - decent quality  |
+| small    | ~465 MB  | ~1 GB              | Fast        | Good balance              |
+| medium   | ~1.5 GB  | ~2.8 GB            | Moderate    | Great for noisy audio     |
+| large-v3 | ~2.9 GB  | ~4.2 GB            | Moderate    | Best quality              |
 
 Models are downloaded from HuggingFace on first use and cached locally
-(`~/.cache/huggingface`).
+(`~/.cache/huggingface`). On CPU the default compute type is `int8` (lower memory);
+CUDA auto-upgrades to `float16`.
 
 ---
 

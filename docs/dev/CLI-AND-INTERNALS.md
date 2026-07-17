@@ -25,7 +25,7 @@ Full end-to-end pipeline from raw video to scored clips.
 
 | Flag | Default | Notes |
 |------|---------|-------|
-| `--model` | `base` | Speech-to-text model: tiny (~40 MB VRAM), base (~75 MB), small (~240 MB), medium (~1.5 GB), large-v3 (~10 GB) |
+| `--model` | `base` | Speech-to-text model. Peak VRAM (float16/GPU): tiny ~0.2 GB, base ~0.4 GB, small ~1 GB, medium ~2.8 GB, large-v3 ~4.2 GB (see DEV-README for download sizes) |
 | `--device` | `auto` | cuda or cpu; auto detects GPU - falls back to CPU if VRAM is insufficient for the chosen model |
 | `--track-layout NAME` | - | Saved track layout to apply |
 | `--language CODE` | - | Force speech-to-text language (e.g. `en`) |

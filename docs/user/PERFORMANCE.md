@@ -5,8 +5,8 @@
 | Component | Minimum | Recommended |
 |---|---|---|
 | CPU | Any modern x64 | 8+ cores (speeds up audio extraction) |
-| RAM | 8 GB | 16 GB+ (large-v3 Whisper keeps ~3 GB in VRAM; RAM mostly not the bottleneck) |
-| GPU | None (CPU fallback) | NVIDIA GPU with 4 GB+ VRAM for GPU-accelerated Whisper |
+| RAM | 8 GB | 16 GB+ (VRAM, not system RAM, is the Whisper bottleneck) |
+| GPU | None (CPU fallback) | NVIDIA GPU for GPU-accelerated Whisper - 4 GB+ VRAM runs the default (base) through medium; ~6 GB+ for large-v3 (~4.2 GB peak) |
 | Storage - project folder | HDD | **SSD strongly recommended** (see below) |
 | Storage - source files | HDD/external OK | HDD or external drive is fine |
 | OS | Windows 10 (updated) | Windows 11 |

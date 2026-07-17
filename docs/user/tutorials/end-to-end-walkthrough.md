@@ -2,38 +2,21 @@
 
 This document walks through a complete session: analyzing a recording, reviewing the clips it finds, exporting the best ones, and compiling a highlight reel. It's written for someone seeing YuuClip for the first time.
 
-If you're recording a tutorial video from this document, each top-level section maps to a natural chapter break.
-
 ---
 
 ## What you'll need
 
-- A video recording of a gaming or roleplay session (see [Recommended test videos](#recommended-test-videos) below)
-- YuuClip running: `yuu-dev serve`
-- A local LLM model set up for scoring (the setup wizard downloads the recommended one with one click). The app shows which model it's using. If no model is set up, analysis still runs but clips get no descriptions or scores.
-- A browser open at `http://127.0.0.1:8080`
-
----
-
-## Recommended test videos
-
-Different video types stress different parts of the pipeline. If you're building a test library, collect one of each.
-
-| Type | Why it's useful | Where to get it |
-|------|----------------|-----------------|
-| **Short talk-heavy session (30–60 min)** | Rich dialogue, named people, dramatic beats - e.g. an RP session, a podcast, or a chatty co-op run. Tests the full pipeline well. | Your own OBS recordings |
-| **Co-op gaming with voice chat (any length)** | Multiple speakers, crosstalk, game audio bleeding into the mic. Tests multi-track separation and Whisper accuracy under real conditions. | Your own recordings with friends |
-| **Solo let's play / commentary** | Single clean audio track, good baseline. Establishes a score floor: clips from a solo commentary should cluster around the funny or action categories. | Your own recordings |
-| **Tabletop RPG session (D&D, etc.)** | Heavy dialogue, distinct character voices, long dramatic scenes. Good for testing context features and the dramatic score. Publicly available recordings (Critical Role, etc.) work fine for personal dev testing. | YouTube downloads via `yt-dlp` for personal use |
-| **Short test clip (5–10 min)** | Any video with some voice audio. Use for fast iteration during development - you don't want to wait 20 minutes for ingest every time you change something. | Extract the first 10 minutes of anything with `ffmpeg -t 600 -i source.mkv -c copy test.mkv` |
+- A video recording of a gaming or roleplay session
+- YuuClip open (the desktop app)
+- A local language model set up for scoring - the setup wizard downloads the recommended one with one click, and the app shows which model it's using. If no model is set up, analysis still runs: clips are still found and scored from audio and on-screen signals, you just won't get written descriptions or the model's semantic read.
 
 ---
 
 ## Chapter 1 - First look at the UI
 
-Open `http://127.0.0.1:8080`. You'll see:
+When YuuClip opens, you'll see:
 
-- A **left sidebar** split into two panels: video list (top) and clip list (bottom). Both are empty until you ingest something.
+- A **left sidebar** split into two panels: video list (top) and clip list (bottom). Both are empty until you analyze something.
 - A **main panel** on the right, showing the detail view for whatever clip is selected.
 - A **header bar** with `+ Analyze`, `Highlight Reels`, and a `≡` hamburger menu.
 - A **footer bar** at the bottom showing the app version.
@@ -68,7 +51,7 @@ Nothing works yet - there's no data. Let's fix that.
 
 Click your video in the sidebar. A few things happen:
 
-- The **clip list** loads in the bottom sidebar panel. Each entry shows a score icon row (⭐ overall, 😂 funny, 🎭 dramatic, ⚔️ action), a colored left border, a clip duration, a status dot, and a transcript excerpt.
+- The **clip list** loads in the bottom sidebar panel. Each entry shows a score icon row (⭐ overall, 😂 funny, 🎭 dramatic, ⚔️ action, 🎬 visual), a colored left border, a clip duration, a status dot, and a transcript excerpt.
 
 - The **main panel** shows a video detail header with the video name, duration, and clip count.
 
@@ -115,7 +98,7 @@ When a clip's description catches your eye, look closer before approving:
 
 3. **Export and watch it.** Press `E` to export the clip. A progress stream appears in the header. When it finishes, a video player appears right in the detail panel - watch the actual clip to confirm the description matches reality.
 
-> **Important:** The LLM reads transcripts, not video. A moment where something visually spectacular happens in silence can score lower than it deserves. Always treat scores as a filter to find candidates quickly, not as a final verdict.
+> **Important:** The language model reads what was said; the Visual axis reads the picture (scene cuts and on-screen motion), so silent action still counts. But the picture read is coarse - it catches that something intense is happening, not exactly what - so a visually spectacular silent moment can still score lower than it deserves. Treat scores as a filter to find candidates quickly, not as a final verdict.
 
 ---
 
@@ -178,6 +161,6 @@ See [OVERVIEW.md](../OVERVIEW.md#world-contexts--making-the-scores-actually-make
 |---------|-------------|
 | Clips have no description and tags show `llm_error` | Your AI model isn't set up or is unreachable. Check Settings → LLM scoring (that a model file is selected), then re-score. |
 | Transcript is garbled or missing words | The Whisper model is too small for your audio. Retranscribe the clip with `medium` or `large-v3`. |
-| Export fails immediately | The source video file has moved or been renamed since ingest. The path in the DB no longer resolves. |
+| Export fails immediately | The source video file has moved or been renamed since analysis. The path in the DB no longer resolves. |
 | Score seems backwards (calm moment scores high) | Check the tags - `audio_spike` means a burst of audio energy. A loud laugh can spike energy even if the dialogue content is mild. |
 | Analysis estimate was wildly off | See the note in Chapter 2 - the estimate counts all tracks, not just the ones the track layout transcribes. |

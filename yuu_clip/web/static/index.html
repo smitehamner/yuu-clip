@@ -149,11 +149,11 @@
         <div class="settings-note">Takes effect on next analysis</div>
       </div>
       <select class="settings-select" id="s-whisper-model">
-        <option value="tiny">tiny - fastest, lowest quality</option>
-        <option value="base">base - fast, lower quality</option>
-        <option value="small">small - fast, decent quality (~500 MB VRAM)</option>
-        <option value="medium">medium - good balance (~1.5 GB VRAM)</option>
-        <option value="large-v3">large-v3 - best quality (~3 GB VRAM)</option>
+        <option value="tiny">tiny - fastest, lowest quality (~75 MB download)</option>
+        <option value="base">base - fast, lower quality (~140 MB download)</option>
+        <option value="small">small - fast, decent quality (~465 MB download, ~1 GB VRAM)</option>
+        <option value="medium">medium - good balance (~1.5 GB download, ~2.8 GB VRAM)</option>
+        <option value="large-v3">large-v3 - best quality (~2.9 GB download, ~4.2 GB VRAM)</option>
       </select>
     </div>
     <div class="settings-row">
@@ -1157,11 +1157,11 @@
           <div class="field">
             <label for="analyze-model">Whisper model</label>
             <select id="analyze-model">
-              <option value="tiny">tiny - fastest, lowest quality</option>
-              <option value="base">base - fast, lower quality</option>
-              <option value="small">small - fast, decent quality (~500 MB VRAM)</option>
-              <option value="medium" selected>medium - good balance (~1.5 GB VRAM)</option>
-              <option value="large-v3">large-v3 - best quality (~3 GB VRAM)</option>
+              <option value="tiny">tiny - fastest, lowest quality (~75 MB download)</option>
+              <option value="base" selected>base - fast, lower quality (~140 MB download)</option>
+              <option value="small">small - fast, decent quality (~465 MB download, ~1 GB VRAM)</option>
+              <option value="medium">medium - good balance (~1.5 GB download, ~2.8 GB VRAM)</option>
+              <option value="large-v3">large-v3 - best quality (~2.9 GB download, ~4.2 GB VRAM)</option>
             </select>
           </div>
           <div class="field" id="analyze-diarize-field">
@@ -1354,10 +1354,11 @@
     <div class="section-title" style="margin-bottom:6px">What the scores mean</div>
     <table style="width:100%;font-size:13px;border-collapse:collapse;margin-bottom:16px">
       <tbody>
-        <tr><td style="padding:3px 8px 3px 0;color:var(--text)">&#11088; Overall</td><td style="color:var(--muted)">Weighted average of the three sub-scores</td></tr>
+        <tr><td style="padding:3px 8px 3px 0;color:var(--text)">&#11088; Overall</td><td style="color:var(--muted)">Weighted blend of the four sub-scores</td></tr>
         <tr><td style="padding:3px 8px 3px 0;color:var(--text)">&#128514; Funny</td><td style="color:var(--muted)">Jokes, absurdist moments, chaotic banter</td></tr>
         <tr><td style="padding:3px 8px 3px 0;color:var(--text)">&#127917; Dramatic</td><td style="color:var(--muted)">Confrontations, revelations, emotional beats</td></tr>
         <tr><td style="padding:3px 8px 3px 0;color:var(--text)">&#9876;&#65039; Action</td><td style="color:var(--muted)">Combat, tension, high-stakes moments</td></tr>
+        <tr><td style="padding:3px 8px 3px 0;color:var(--text)">&#127916; Visual</td><td style="color:var(--muted)">On-screen intensity - scene cuts and motion, even in silence</td></tr>
       </tbody>
     </table>
 
