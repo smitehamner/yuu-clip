@@ -47,6 +47,7 @@
   --shadow-pop:  0 4px 20px rgba(0,0,0,.5);
   --shadow-menu: 0 8px 24px rgba(0,0,0,.5);
   --modal-backdrop: rgba(0,0,0,.7);
+  --on-scrim: #e6e6e6; /* text on the fixed-dark over-video scrim (theme-independent, like --modal-backdrop) */
   /* shape + type signature (not per-theme; only the color tokens must be) */
   --radius:    10px; /* cards, panels, modals */
   --radius-sm: 6px;  /* inputs, pills, small chips */

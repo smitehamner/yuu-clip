@@ -62,7 +62,7 @@ function _mountClipCreatePanel(container, video) {
       <video id="clipcreate-preview-video" controls preload="metadata" aria-label="Recording preview"
              style="display:block;width:100%;max-height:38vh;object-fit:contain;background:#000;border-radius:6px"></video>
       <span id="clipcreate-preview-badge" role="status"
-            style="display:none;position:absolute;top:8px;left:8px;background:rgba(0,0,0,.7);color:#e6e6e6;font-size:11px;padding:3px 8px;border-radius:4px"></span>
+            style="display:none;position:absolute;top:8px;left:8px;background:rgba(0,0,0,.7);color:var(--on-scrim);font-size:11px;padding:3px 8px;border-radius:4px"></span>
     </div>
     <div style="font-size:12px;color:var(--muted)">
       Click a transcript line to set the start, then click a later line to set the end - or type exact times below.

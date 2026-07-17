@@ -149,6 +149,8 @@ yuu_clip/
   transcribe/              # whisper_runner, diarization_client
   subtitles.py             # caption (SRT) generation
   contexts.py              # world-context storage + prompt formatting
+  reel.py                  # highlight-reel assembly (select + concatenate top clips into one reel)
+  model_catalog.py         # recommended/allowed model catalog + licence policy (single source of truth; enforced by tests/unit/test_model_catalog.py)
   web/
     app.py                 # FastAPI factory + lifespan (graceful shutdown)
     deps.py                # ProjectContext - shared server state
@@ -240,8 +242,15 @@ Run it only after changing files under `electron/` (e.g. `main.js`,
 
 ## Current focus
 
-**Phase 3 web UI - manual testing and bugfixing.** The pipeline is complete; the
-goal is to get the web UI stable enough for regular use. Approach:
+**Pre-public polish pass, then use-case validation.** The pipeline and web UI are
+complete and in regular use. The current work is the pre-public high-polish plan
+(`001_PRE-PUBLIC_polish-pass`): closing every gap where the product and its docs
+disagree, killing the wizard/Settings duplication, making `index.html` maintainable,
+and landing the merged Clips+Scenes view - so the first public impression matches the
+engineering. After it ships, the `e2e-use-cases` plan validates each use case through
+the app.
+
+When fixing a UI bug, the loop is still:
 
 1. Try an action in the browser
 2. If it fails, check `.yuu-clip\yuu-clip.log`

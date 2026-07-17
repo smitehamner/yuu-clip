@@ -67,6 +67,19 @@ Wanted before distributing beyond friends/trusted users.
   configured but GitHub does not enforce protected-branch rules on a private repo on the
   Free plan; it should start enforcing when the repo goes public. Re-check after flipping.
 
+- [ ] **Verify the in-app Help & Guides links resolve for a logged-out visitor after the
+  public flip** - the Help & Guides modal links user docs on GitHub that 404 for anyone but
+  the author while the repo is private. The pre-public polish pass (WS-C) bundles those docs
+  in-app so help works offline, but the per-doc "View online" GitHub fallback links remain -
+  confirm they resolve for a logged-out visitor once the repo is public.
+
+- [ ] **Recorded direction: `index.html` becomes a build-time stitch of `static/partials/*`**
+  (pre-public polish pass, WS-E). The committed `index.html` becomes an artifact stitched by
+  `yuu-dev bundle` from per-region partials + an `index.src.html` shell, drift-guarded like
+  `bundle.esm.js`; a matching inline-style extraction pass moves color-bearing inline styles
+  into `app.css`. Noted here so the direction is discoverable; the work itself lives in the
+  `001_PRE-PUBLIC_polish-pass` plan.
+
 ---
 
 ## 3 - Larger / speculative features

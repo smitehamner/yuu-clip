@@ -213,6 +213,50 @@ footer {
       <div id="ffmpeg-slot"></div>
     </section>
 
+    <!-- ═══ Basics ═══ -->
+    <section>
+      <div class="sec-title">Basics</div>
+      <div class="sec-note" id="gpu-line"></div>
+      <div class="cfg-row">
+        <span class="cfg-label">Project folder</span>
+        <input type="text" id="project-dir" readonly>
+        <button class="sm" id="browse-btn">Browse…</button>
+      </div>
+      <div class="cfg-row" id="restore-row" style="display:none">
+        <span class="cfg-label"></span>
+        <button class="sm" id="restore-backup-btn">Restore from a backup instead…</button>
+        <span class="inline-note" style="margin:0">Rebuild this project from a backup .zip. Its saved settings are kept.</span>
+      </div>
+      <div class="cfg-row">
+        <span class="cfg-label">Speech-to-text model</span>
+        <select id="whisper-sel">
+          <option value="tiny">tiny - fastest, lowest accuracy (~75 MB)</option>
+          <option value="base">base - fast, decent accuracy (~145 MB)</option>
+          <option value="small">small - balanced (~465 MB)</option>
+          <option value="medium">medium - good quality (~1.5 GB, 5 GB+ VRAM)</option>
+          <option value="large-v3">large-v3 - best quality (~3 GB, 10 GB+ VRAM)</option>
+        </select>
+        <span class="rec" id="rec-tag"></span>
+      </div>
+      <div class="cfg-row">
+        <span class="cfg-label"></span>
+        <label style="display:flex;align-items:flex-start;gap:8px;font-size:12px;line-height:1.5;cursor:pointer;margin:0">
+          <input type="checkbox" id="model-prefetch-chk" checked style="margin-top:2px">
+          <span>Download the speech-to-text and speaker models in the background on first launch (recommended) so your first analysis is instant. Your language model choice is handled separately.</span>
+        </label>
+      </div>
+      <div class="inline-note">
+        OpenAI Whisper - MIT licence (commercial use permitted).
+      </div>
+      <div class="cfg-row">
+        <span class="cfg-label">Transcription language</span>
+        <select id="whisper-lang-sel"></select>
+      </div>
+      <div class="inline-note">
+        Auto-detect works for most recordings; set a language if detection gets it wrong.
+      </div>
+    </section>
+
     <!-- LLM scoring -->
     <section>
       <div class="sec-title">LLM scoring</div>
@@ -230,8 +274,9 @@ footer {
           <label class="chk-title" for="local-ai-yes">Set up local AI (Recommended)</label>
           <div class="desc">
             Downloads a model that runs on your own machine - free, private, and the
-            source of the best results. The download happens in the background after
-            you launch, so you can start using YuuClip right away.
+            source of the best results. A one-time download of about 4.7 GB that
+            happens in the background after you launch, so you can start using
+            YuuClip right away.
           </div>
         </div>
       </div>
@@ -316,50 +361,6 @@ footer {
       <div class="sec-title">Optional</div>
 
       <div id="cuda-slot"></div>
-    </section>
-
-    <!-- ═══ Basics ═══ -->
-    <section>
-      <div class="sec-title">Basics</div>
-      <div class="sec-note" id="gpu-line"></div>
-      <div class="cfg-row">
-        <span class="cfg-label">Project folder</span>
-        <input type="text" id="project-dir" readonly>
-        <button class="sm" id="browse-btn">Browse…</button>
-      </div>
-      <div class="cfg-row" id="restore-row" style="display:none">
-        <span class="cfg-label"></span>
-        <button class="sm" id="restore-backup-btn">Restore from a backup instead…</button>
-        <span class="inline-note" style="margin:0">Rebuild this project from a backup .zip. Its saved settings are kept.</span>
-      </div>
-      <div class="cfg-row">
-        <span class="cfg-label">Speech-to-text model</span>
-        <select id="whisper-sel">
-          <option value="tiny">tiny - fastest, lowest accuracy (~75 MB)</option>
-          <option value="base">base - fast, decent accuracy (~145 MB)</option>
-          <option value="small">small - balanced (~465 MB)</option>
-          <option value="medium">medium - good quality (~1.5 GB, 5 GB+ VRAM)</option>
-          <option value="large-v3">large-v3 - best quality (~3 GB, 10 GB+ VRAM)</option>
-        </select>
-        <span class="rec" id="rec-tag"></span>
-      </div>
-      <div class="cfg-row">
-        <span class="cfg-label"></span>
-        <label style="display:flex;align-items:flex-start;gap:8px;font-size:12px;line-height:1.5;cursor:pointer;margin:0">
-          <input type="checkbox" id="model-prefetch-chk" checked style="margin-top:2px">
-          <span>Download the speech-to-text and speaker models in the background on first launch (recommended) so your first analysis is instant. Your language model choice above is handled separately.</span>
-        </label>
-      </div>
-      <div class="inline-note">
-        OpenAI Whisper - MIT licence (commercial use permitted).
-      </div>
-      <div class="cfg-row">
-        <span class="cfg-label">Transcription language</span>
-        <select id="whisper-lang-sel"></select>
-      </div>
-      <div class="inline-note">
-        Auto-detect works for most recordings; set a language if detection gets it wrong.
-      </div>
     </section>
 
   </div>

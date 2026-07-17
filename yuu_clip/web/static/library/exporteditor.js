@@ -100,7 +100,7 @@ function _edMount(container) {
       <div id="ed-caption-overlay" aria-hidden="true"
            style="display:none;position:absolute;left:6%;right:6%;bottom:6%;text-align:center;pointer-events:none;font-weight:600;line-height:1.3;text-shadow:0 1px 3px rgba(0,0,0,.9)"></div>
       <span id="ed-badge" role="status"
-            style="display:none;position:absolute;top:8px;left:8px;background:rgba(0,0,0,.7);color:#e6e6e6;font-size:11px;padding:3px 8px;border-radius:4px"></span>
+            style="display:none;position:absolute;top:8px;left:8px;background:rgba(0,0,0,.7);color:var(--on-scrim);font-size:11px;padding:3px 8px;border-radius:4px"></span>
     </div>
     <div style="display:flex;flex-wrap:wrap;gap:14px;align-items:center">
       <button class="btn ghost" id="ed-play-btn" title="Play the trimmed clip on a loop">&#9654; Play selection</button>

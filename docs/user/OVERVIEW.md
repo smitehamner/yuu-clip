@@ -56,6 +56,7 @@ The fastest way to go through a session is keyboard shortcuts:
 | `K` / `←` / `↑` | Previous clip |
 | `A` | Approve this clip |
 | `R` | Reject (skip) this clip |
+| `U` | Mark this clip unreviewed again |
 | `Space` | Play / pause the video |
 | `E` | Export this clip |
 | `Ctrl+Z` | Undo the last approve/reject (within 5 seconds) |

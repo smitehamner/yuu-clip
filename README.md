@@ -11,8 +11,9 @@ highlight reel. Silent, action-only gameplay is supported too, but talk-driven c
 is where YuuClip shines.
 
 **Everything runs on your own computer.** No cloud accounts, no uploads, no
-subscriptions. First-run setup includes a one-click download of a small local language
-model - the normal first step, handled for you by the desktop wizard - that writes each
+subscriptions. First-run setup includes a one-click download of a local language
+model (~4.7 GB, one-time) - the normal first step, handled for you by the desktop
+wizard - that writes each
 clip's description and sharpens the scoring. The core scoring (laughter, excitement,
 keywords, scene changes, on-screen action) runs even before that download finishes, so
 nothing looks empty while it works.
