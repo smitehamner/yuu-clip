@@ -7,7 +7,10 @@ toolchain is absent - `test-api` must still pass offline (the committed
 bundle.esm.js is what ships)."""
 from __future__ import annotations
 
+import os
 import re
+import time
+from pathlib import Path
 
 import pytest
 
@@ -19,16 +22,35 @@ from yuu_clip.dev.bundle import (
 )
 
 
+def _best_effort_unlink(path: Path) -> None:
+    # esbuild's output handle can linger briefly on Windows (AV scan / delayed
+    # flush) after the build subprocess returns, so an immediate unlink can raise
+    # WinError 32. This is throwaway scratch, never load-bearing - a short retry
+    # then give up, so cleanup can never turn into a spurious test failure.
+    for _ in range(10):
+        try:
+            path.unlink(missing_ok=True)
+            return
+        except OSError:
+            time.sleep(0.1)
+
+
 def test_committed_esm_bundle_is_current():
     if not esbuild_available():
         pytest.skip("Node/esbuild not installed - run `npm install` to guard bundle.esm.js")
     assert ESM_BUNDLE_PATH.exists(), "static/bundle.esm.js missing - run `yuu-dev bundle`"
-    check_path = STATIC_DIR / "bundle.esm.check.js"
+    # The comparison copy must be a sibling of bundle.esm.js: the inline sourcemap's
+    # `sources` are emitted relative to the outfile's directory, so only a file in
+    # STATIC_DIR is byte-identical. A PID-unique name keeps concurrent test runs (the
+    # dev routinely has several) off one shared scratch path - a fixed name races,
+    # one run's esbuild write colliding with another's read/unlink. The `*.check.js`
+    # name is gitignored.
+    check_path = STATIC_DIR / f"bundle.esm.check.{os.getpid()}.js"
     try:
         build_esm_bundle(outfile=check_path)
         fresh = check_path.read_bytes()
     finally:
-        check_path.unlink(missing_ok=True)
+        _best_effort_unlink(check_path)
     assert ESM_BUNDLE_PATH.read_bytes() == fresh, (
         "static/bundle.esm.js is stale - run `yuu-dev bundle` and commit the result"
     )

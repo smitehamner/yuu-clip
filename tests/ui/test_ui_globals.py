@@ -40,7 +40,7 @@ def page(logic_page):
 _JS_MODULES = sorted(
     str(p.relative_to(_STATIC_DIR)).replace("\\", "/")
     for p in _STATIC_DIR.rglob("*.js")
-    if p.name not in {"main.esm.js", "bundle.esm.js"}
+    if p.name not in {"main.esm.js", "bundle.esm.js"} and not p.name.endswith(".check.js")
 )
 
 # Identifiers that appear before "(" inside handler bodies but are not app
