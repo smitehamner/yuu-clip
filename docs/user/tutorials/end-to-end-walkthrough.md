@@ -151,7 +151,7 @@ Out of the box the LLM doesn't know who's in your recording, what you're playing
 4. Close the modal and go back to your video detail. Assign the context there.
 5. Re-score one of the clips to see whether the descriptions improve.
 
-See [OVERVIEW.md](../OVERVIEW.md#world-contexts--making-the-scores-actually-make-sense) for more on what to include.
+See [OVERVIEW.md](../OVERVIEW.md#world-contexts---making-the-scores-actually-make-sense) for more on what to include.
 
 ---
 
