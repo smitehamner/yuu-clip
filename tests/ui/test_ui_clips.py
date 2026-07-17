@@ -875,6 +875,35 @@ class TestClipKindFilter:
             page.locator(".hamburger-menu.open .hamburger-item").first
         ).to_have_text("New scene")
 
+    def test_scenes_chip_with_no_scenes_shows_kind_message_and_show_all_resets(self, page: Page):
+        """Filtering to Scenes on a recording with none must say so ("No scenes in
+        this recording"), not the misleading "No clips found - Analyze another
+        recording", and its Show-all link must reset the kind filter."""
+        select_video_with_clips(page)
+        page.evaluate(
+            """() => {
+              const base = {
+                status: 'pending', has_export: false, exports: [], export_stale: false,
+                tags: [], sensitive_matches: [], hotword_matches: [], scored_at: '2026-01-01T00:00:00',
+                score_overall: 0.5, score_funny: 0.5, score_dramatic: 0.5, score_action: 0.5, score_visual: 0.5,
+                start_hms: '00:00', duration_hms: '00:20', description: '',
+              };
+              AppState.clips = [
+                {...base, id: 900011, kind: 'clip', start_ms: 1000,  end_ms: 21000},
+                {...base, id: 900012, kind: 'clip', start_ms: 40000, end_ms: 60000},
+              ];
+              window._renderClips();
+            }"""
+        )
+        page.click("[data-kfilter='scene']")
+        empty_row = page.locator("#clip-list li").first
+        expect(empty_row).to_contain_text("No scenes in this recording")
+        page.click("#clip-list a[data-act='clear-clip-filters']")
+        expect(page.locator("#clip-list li[data-clip-id]")).to_have_count(2)
+        expect(page.locator("[data-kfilter='all']")).to_have_class(re.compile(r"\bactive\b"))
+        assert page.evaluate("AppState.clipKindFilter") == "all"
+        assert page.evaluate("localStorage.getItem('clips-kind-filter')") == "all"
+
 
 @skip_no_server
 class TestUndoToast:

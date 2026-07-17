@@ -87,3 +87,18 @@ class TestHelpModal:
         page.locator("#help-modal-close-btn").focus()
         page.keyboard.press("Escape")
         page.wait_for_selector("#help-modal.visible", state="hidden")
+
+    def test_sibling_doc_link_switches_tab_in_app(self, page: Page):
+        """A guide's cross-link to another bundled guide must switch the in-app
+        tab, not open the GitHub copy (which 404s while the repo is private)."""
+        _open_help(page)
+        page.click('#help-doc-list [data-help-doc="overview"]')
+        page.wait_for_selector("#help-doc-view .help-doc-body h1")
+        pages_before = len(page.context.pages)
+        page.locator('#help-doc-view .help-doc-body a[href$="/FEATURES.md"]').first.click()
+        page.wait_for_selector('#help-doc-list [data-help-doc="features"][aria-current="true"]')
+        page.wait_for_selector("#help-doc-view .help-doc-body h1")
+        assert len(page.context.pages) == pages_before, "cross-link opened an external tab"
+        # The deliberate GitHub escape hatch is untouched: View online still points out.
+        assert page.get_attribute("#help-doc-view .help-online a", "target") == "_blank"
+        page.evaluate("closeHelpModal()")

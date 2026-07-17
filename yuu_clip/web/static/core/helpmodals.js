@@ -129,7 +129,8 @@ async function _openHelpDoc(key) {
       return r.text();
     });
   } catch (e) {
-    view.innerHTML = '<div style="color:var(--red)">Could not load this guide.</div>';
+    view.innerHTML = `<div style="color:var(--red)">Could not load this guide.</div>
+      <div class="help-online" style="margin-top:8px"><a href="${doc.onlineUrl}" target="_blank" rel="noopener">View it online instead &#x2197;</a></div>`;
     return;
   }
   const { html, toc } = renderMarkdown(md, { onlineUrl: doc.onlineUrl });
@@ -305,8 +306,23 @@ function _wireHelpViewer() {
   });
   document.getElementById('help-doc-view').addEventListener('click', e => {
     const link = e.target.closest('[data-help-toc]');
-    if (!link) return;
-    document.getElementById(link.dataset.helpToc)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (link) {
+      document.getElementById(link.dataset.helpToc)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
+    // Guides cross-link each other; those hrefs resolve to the GitHub copies
+    // (renderMarkdown resolves relative links against the doc's online URL).
+    // A link to a doc that is bundled should switch the in-app tab instead -
+    // the GitHub copy 404s while the repo is private, and even public it would
+    // bounce the reader out of the app. The per-doc "View online" link is the
+    // deliberate GitHub escape hatch, so it is exempt.
+    const anchor = e.target.closest('a[href]');
+    if (!anchor || anchor.closest('.help-online')) return;
+    const sibling = HELP_DOCS.find((d) => anchor.href.split('#')[0] === d.onlineUrl);
+    if (sibling) {
+      e.preventDefault();
+      _openHelpDoc(sibling.key);
+    }
   });
 }
 

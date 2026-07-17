@@ -132,12 +132,15 @@ function _clearClipFilters() {
   AppState.clipFilters.clear();
   AppState.clipSearch = '';
   AppState.clipScoreMin = 0;
+  AppState.clipKindFilter = 'all';
   _syncFilterChips();
+  _syncKindChips();
   const searchEl = document.getElementById('clip-search-input');
   if (searchEl) searchEl.value = '';
   const scoreEl = document.getElementById('clip-score-min');
   if (scoreEl) scoreEl.value = '0';
   _renderClips();
+  localStorage.setItem('clips-kind-filter', 'all');
 }
 
 // Reflect AppState.clipFilters onto the chip row. The "All" chip is active only
@@ -195,9 +198,11 @@ function setClipKindFilter(kind) {
   if (kind !== 'all' && kind !== 'clip' && kind !== 'scene') return;
   if ((AppState.clipKindFilter || 'all') === kind) return;
   AppState.clipKindFilter = kind;
-  localStorage.setItem('clips-kind-filter', kind);
   _syncKindChips();
   _renderClips();
+  // Persist last so a storage failure (quota/private mode) can never block the
+  // chip switch itself - same failure shape as the collapse-toggle fix in utils.js.
+  localStorage.setItem('clips-kind-filter', kind);
 }
 
 function _syncKindChips() {
@@ -263,12 +268,16 @@ function _renderClipItems(clips) {
   list.onkeydown = _handleClipListKeydown;
   if (!clips.length) {
     const _statusLabel = {pending: 'Unreviewed', approved: 'Approved', rejected: 'Rejected'};
+    const kindFilter = AppState.clipKindFilter || 'all';
     const hasActiveFilter = AppState.clipFilters.size > 0 || AppState.clipSearch || AppState.clipScoreMin > 0;
     const isFlaggedOnly = AppState.clipFilters.size === 1 && AppState.clipFilters.has('flagged') &&
       !AppState.clipSearch && AppState.clipScoreMin === 0;
+    const isKindOnly = kindFilter !== 'all' && !hasActiveFilter;
     const filterMsg = isFlaggedOnly
       ? `No flagged clips - add Sensitive Terms in <a href="#" style="color:var(--accent);text-decoration:underline" data-act="open-settings">Settings</a>`
-      : hasActiveFilter
+      : isKindOnly
+      ? `No ${kindFilter === 'scene' ? 'scenes' : 'clips'} in this recording - <a href="#" style="color:var(--accent);text-decoration:underline" data-act="clear-clip-filters">Show all</a>`
+      : (hasActiveFilter || kindFilter !== 'all')
       ? `No clips match the current filters - <a href="#" style="color:var(--accent);text-decoration:underline" data-act="clear-clip-filters">Clear filters</a>`
       : `No clips found - <a href="#" style="color:var(--accent);text-decoration:underline" data-act="open-new-recording-panel">Analyze another recording</a>`;
     list.innerHTML = `<li style="padding:10px 14px;color:var(--muted)">${filterMsg}</li>`;

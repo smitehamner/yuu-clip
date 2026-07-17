@@ -106,6 +106,9 @@ Whisper sometimes mishears a spoken name - writing "You" when someone said "Yuu"
 ### Clip
 A proposed highlight moment - a section of a recording with a start, an end, scores, and a description.
 
+### Scene
+A longer contextual moment - roughly 1-5 minutes, with a story arc that may include pauses - alongside regular clips (punchy 15-90 second bits). Scenes appear in the same list as clips with a **SCENE** badge; the **All / Clips / Scenes** buttons above the clip list show one kind or both. A scene is reviewed and exported exactly like a clip.
+
 ### Clip status
 Whether you've reviewed a clip and what you decided:
 
