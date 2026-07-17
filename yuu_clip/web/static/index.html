@@ -1387,31 +1387,16 @@
 <!-- About modal -->
 <!-- Help & Guides Modal -->
 <div class="modal-bg" id="help-modal">
-  <div class="modal" style="width:560px;max-width:94vw">
-    <h3>Help &amp; Guides</h3>
-    <p style="color:var(--muted);font-size:13px;margin:0 0 14px">
-      The full guides live online and open in your browser.
-    </p>
-    <ul style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:12px">
-      <li>
-        <a href="https://github.com/smitehamner/yuu-clip/blob/main/docs/user/OVERVIEW.md" target="_blank" rel="noopener" style="font-weight:600">Overview</a>
-        <div style="color:var(--muted);font-size:12px;margin-top:2px">Plain-English intro - what YuuClip does and why you'd want it.</div>
-      </li>
-      <li>
-        <a href="https://github.com/smitehamner/yuu-clip/blob/main/docs/user/FEATURES.md" target="_blank" rel="noopener" style="font-weight:600">Feature guide</a>
-        <div style="color:var(--muted);font-size:12px;margin-top:2px">Everything the app can do and where to find each feature.</div>
-      </li>
-      <li>
-        <a href="https://github.com/smitehamner/yuu-clip/blob/main/docs/user/tutorials/end-to-end-walkthrough.md" target="_blank" rel="noopener" style="font-weight:600">End-to-end walkthrough</a>
-        <div style="color:var(--muted);font-size:12px;margin-top:2px">A step-by-step run from a raw recording to exported clips.</div>
-      </li>
-      <li>
-        <a href="https://github.com/smitehamner/yuu-clip/blob/main/docs/user/PERFORMANCE.md" target="_blank" rel="noopener" style="font-weight:600">Performance &amp; disk usage</a>
-        <div style="color:var(--muted);font-size:12px;margin-top:2px">How long analysis takes and how much disk space it needs.</div>
-      </li>
-    </ul>
-    <div class="modal-actions" style="margin-top:16px">
-      <button class="btn" id="help-modal-close-btn">Close</button>
+  <div class="modal" style="width:940px;max-width:96vw;max-height:90vh;display:flex;flex-direction:column">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <h3 style="margin:0">Help &amp; Guides</h3>
+      <button class="btn ghost" style="padding:4px 8px" id="help-modal-close-btn" aria-label="Close">&#x2715;</button>
+    </div>
+    <div style="display:flex;gap:18px;flex:1;min-height:0">
+      <nav id="help-doc-list" aria-label="Guides"></nav>
+      <div id="help-doc-view" tabindex="-1" role="document">
+        <div style="color:var(--muted)">Loading&#x2026;</div>
+      </div>
     </div>
   </div>
 </div>

@@ -653,37 +653,8 @@ class TestGlossaryFilter:
         page.evaluate("closeGlossaryModal()")
 
 
-# ---------------------------------------------------------------------------
-# Help & Guides modal - links out to the GitHub docs/user/ pages
-# ---------------------------------------------------------------------------
-
-@skip_no_server
-class TestHelpModal:
-    def test_lists_external_doc_links(self, page: Page):
-        page.evaluate("openHelpModal()")
-        page.wait_for_selector("#help-modal.visible")
-        hrefs = page.eval_on_selector_all(
-            "#help-modal a", "els => els.map(e => e.getAttribute('href'))"
-        )
-        expected = [
-            "https://github.com/smitehamner/yuu-clip/blob/main/docs/user/OVERVIEW.md",
-            "https://github.com/smitehamner/yuu-clip/blob/main/docs/user/FEATURES.md",
-            "https://github.com/smitehamner/yuu-clip/blob/main/docs/user/tutorials/end-to-end-walkthrough.md",
-            "https://github.com/smitehamner/yuu-clip/blob/main/docs/user/PERFORMANCE.md",
-        ]
-        assert hrefs == expected
-        targets = page.eval_on_selector_all(
-            "#help-modal a", "els => els.map(e => e.getAttribute('target'))"
-        )
-        assert all(t == "_blank" for t in targets)
-        page.evaluate("closeHelpModal()")
-
-    def test_escape_closes(self, page: Page):
-        page.evaluate("openHelpModal()")
-        page.wait_for_selector("#help-modal.visible")
-        page.locator("#help-modal .btn").focus()
-        page.keyboard.press("Escape")
-        page.wait_for_selector("#help-modal.visible", state="hidden")
+# The Help & Guides modal now renders bundled docs in-app - see
+# tests/ui/test_ui_help.py (the old external-links-list variant moved there).
 
 
 # ---------------------------------------------------------------------------

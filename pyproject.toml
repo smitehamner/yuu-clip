@@ -109,7 +109,9 @@ where = ["."]
 include = ["yuu_clip*"]
 
 [tool.setuptools.package-data]
-yuu_clip = ["web/static/*", "web/static/fonts/*"]
+# setuptools globs do NOT recurse, so each static subdirectory must be listed
+# explicitly - `web/static/*` alone misses web/static/help/ and web/static/fonts/.
+yuu_clip = ["web/static/*", "web/static/fonts/*", "web/static/help/*"]
 
 [tool.ruff]
 line-length = 120

@@ -8,6 +8,7 @@ from __future__ import annotations
 from yuu_clip.dev import (  # noqa: E402,F401  (registers commands)
     bundle,
     deps,
+    helpdocs,
     lint,
     logs,
     notices,

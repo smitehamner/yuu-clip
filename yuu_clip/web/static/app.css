@@ -1093,3 +1093,53 @@ details summary:focus-visible { outline: 2px solid var(--accent); outline-offset
   0%   { transform: translateX(-120%); }
   100% { transform: translateX(320%); }
 }
+
+/* Help & Guides modal - the bundled user guides (static/help/*.md) rendered
+   in-app by helpmodals.js + core/markdown.js. Left rail = doc tabs, right pane =
+   rendered doc with a jump-to TOC. */
+#help-doc-list { flex: 0 0 210px; display: flex; flex-direction: column; gap: 6px;
+  overflow-y: auto; border-right: 1px solid var(--border); padding-right: 12px; }
+.help-doc-tab { text-align: left; cursor: pointer; padding: 8px 10px; border-radius: 8px;
+  background: var(--surface); border: 1px solid var(--border); color: var(--text); }
+.help-doc-tab:hover { background: var(--surface-raised); }
+.help-doc-tab.active { background: color-mix(in srgb, var(--accent) 16%, transparent);
+  border-color: var(--accent); }
+.help-doc-tab-title { font-weight: 600; font-size: 13px; }
+.help-doc-tab-blurb { color: var(--muted); font-size: 11px; margin-top: 2px; line-height: 1.4; }
+
+#help-doc-view { flex: 1; min-width: 0; overflow-y: auto; font-size: 13px;
+  line-height: 1.7; padding-right: 6px; }
+.help-online { margin: 0 0 12px; }
+.help-online a { font-size: 12px; color: var(--muted); }
+.help-toc { margin: 0 0 16px; padding: 10px 12px; background: var(--surface);
+  border: 1px solid var(--border); border-radius: 8px; }
+.help-toc-head { font-size: 11px; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--muted); margin-bottom: 6px; }
+.help-toc ul { list-style: none; margin: 0; padding: 0; }
+.help-toc li { margin: 1px 0; }
+.help-toc-l3 { padding-left: 14px; }
+.help-toc-link { background: none; border: none; padding: 0; cursor: pointer;
+  color: var(--accent-text); font-size: 12px; text-align: left; }
+.help-toc-link:hover { text-decoration: underline; }
+
+.help-doc-body h1 { font-size: 18px; margin: 18px 0 8px; }
+.help-doc-body h2 { font-size: 15px; margin: 20px 0 6px; padding-bottom: 4px;
+  border-bottom: 1px solid var(--border); }
+.help-doc-body h3 { font-size: 13px; margin: 14px 0 3px; color: var(--accent-text); }
+.help-doc-body p { margin: 6px 0; }
+.help-doc-body ul, .help-doc-body ol { margin: 6px 0 6px 20px; padding: 0; }
+.help-doc-body li { margin: 2px 0; }
+.help-doc-body a { color: var(--accent-text); }
+.help-doc-body code { background: var(--surface-raised); padding: 1px 4px;
+  border-radius: 4px; font-size: 12px; }
+.help-doc-body hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
+.help-doc-body .help-quote { margin: 10px 0; padding: 8px 12px;
+  border-left: 3px solid var(--accent); background: var(--surface);
+  border-radius: 0 6px 6px 0; }
+.help-doc-body .help-quote p { margin: 4px 0; }
+.help-doc-body .help-table { width: 100%; border-collapse: collapse;
+  font-size: 12px; margin: 8px 0; }
+.help-doc-body .help-table th { text-align: left; padding: 5px 10px 5px 0;
+  border-bottom: 1px solid var(--border); color: var(--text); vertical-align: top; }
+.help-doc-body .help-table td { padding: 4px 10px 4px 0;
+  border-bottom: 1px solid var(--border); color: var(--muted); vertical-align: top; }
