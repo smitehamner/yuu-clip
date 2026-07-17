@@ -15,6 +15,8 @@ _AUTO_APPROVE_FIELDS = {
     "funny":    ClipCandidate.score_funny,
     "dramatic": ClipCandidate.score_dramatic,
     "action":   ClipCandidate.score_action,
+    "visual":   ClipCandidate.score_visual,
+    "laugh":    ClipCandidate.score_laugh,
 }
 
 

@@ -1661,6 +1661,31 @@ class TestAutoApprove:
         assert r.status_code == 200
         assert r.json()["approved"] == 1
 
+    def test_auto_approve_visual_field(self, client):
+        vid_id = self._vid_id(client)
+        # score_visual = score * 0.7; pending clip visual = 0.595
+        r = client.post(
+            f"/api/videos/{vid_id}/auto-approve",
+            json={"threshold": 0.50, "score_field": "visual"},
+        )
+        assert r.status_code == 200
+        assert r.json()["approved"] == 1
+        r = client.post(
+            f"/api/videos/{vid_id}/auto-approve",
+            json={"threshold": 0.60, "score_field": "visual"},
+        )
+        assert r.json()["approved"] == 0
+
+    def test_auto_approve_laugh_field(self, client):
+        vid_id = self._vid_id(client)
+        # score_laugh = score * 0.4; pending clip laugh = 0.34
+        r = client.post(
+            f"/api/videos/{vid_id}/auto-approve",
+            json={"threshold": 0.30, "score_field": "laugh"},
+        )
+        assert r.status_code == 200
+        assert r.json()["approved"] == 1
+
     def test_auto_approve_invalid_threshold(self, client):
         vid_id = self._vid_id(client)
         r = client.post(f"/api/videos/{vid_id}/auto-approve", json={"threshold": 1.5})

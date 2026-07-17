@@ -15,6 +15,8 @@
       <button type="button" class="settings-jump-link" data-section="settings-sec-llm">LLM scoring</button>
       <button type="button" class="settings-jump-link" data-section="settings-sec-speakers">Speaker labels</button>
       <button type="button" class="settings-jump-link" data-section="settings-sec-weights">Scoring weights</button>
+      <button type="button" class="settings-jump-link" data-section="settings-sec-hotwords">Hot-words</button>
+      <button type="button" class="settings-jump-link" data-section="settings-sec-sensitive">Sensitive Content</button>
       <button type="button" class="settings-jump-link" data-section="settings-sec-analysis">Analysis defaults</button>
       <button type="button" class="settings-jump-link" data-section="settings-sec-hardware">Hardware</button>
       <button type="button" class="settings-jump-link" data-section="settings-sec-ui">UI</button>
@@ -820,7 +822,10 @@
         <label class="settings-label" for="s-caption-word-highlight">Word highlight</label>
         <div class="settings-note">Show a few words at a time and highlight each one as it's spoken (TikTok/CapCut style). Burned-in captions only.</div>
       </div>
-      <input type="checkbox" id="s-caption-word-highlight" style="flex:0 0 auto">
+      <label class="settings-checkbox">
+        <input type="checkbox" id="s-caption-word-highlight">
+        <span style="font-size:13px" aria-hidden="true">On</span>
+      </label>
     </div>
     <div class="settings-row">
       <div class="settings-col">

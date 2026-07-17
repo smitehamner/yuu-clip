@@ -1223,12 +1223,21 @@ async function scanDuplicates(busyBtn) {
 }
 
 function openClipsActionsMenu(btn) {
-  // With both kinds merged, the new-candidate kind follows the active kind filter:
-  // creating from the Scenes view makes a scene, otherwise a clip.
-  const newKind = AppState.clipKindFilter === 'scene' ? 'scene' : 'clip';
-  const newLabel = newKind === 'scene' ? 'New scene' : 'New clip';
+  // With both kinds merged, the create entry follows the active kind filter:
+  // the Scenes view offers "New scene", the Clips view "New clip". The default
+  // All view can't infer intent, so it offers both (otherwise scene creation is
+  // undiscoverable without first clicking the Scenes chip).
+  const filter = AppState.clipKindFilter;
+  const createItems = filter === 'scene'
+    ? [{ label: 'New scene', action: () => window.openClipCreatePicker(AppState.activeVideoId, 'scene') }]
+    : filter === 'clip'
+    ? [{ label: 'New clip', action: () => window.openClipCreatePicker(AppState.activeVideoId, 'clip') }]
+    : [
+        { label: 'New clip',  action: () => window.openClipCreatePicker(AppState.activeVideoId, 'clip') },
+        { label: 'New scene', action: () => window.openClipCreatePicker(AppState.activeVideoId, 'scene') },
+      ];
   showKebab(btn, [
-    { label: newLabel, action: () => window.openClipCreatePicker(AppState.activeVideoId, newKind) },
+    ...createItems,
     { label: 'Check duplicates', action: () => scanDuplicates(btn) },
   ]);
 }

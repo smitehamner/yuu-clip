@@ -665,6 +665,8 @@ const _AUTO_APPROVE_FIELD_MAP = {
   funny:    'score_funny',
   dramatic: 'score_dramatic',
   action:   'score_action',
+  visual:   'score_visual',
+  laugh:    'score_laugh',
 };
 
 export function openAutoApproveModal(videoId) {

@@ -22,8 +22,9 @@ the glossary term (`docs/dev/llm/GLOSSARY.md`), even where the code name differs
 | 8 | Glossary-banned code terms ("ingest", "probe", "profile") do not appear in user-facing prose; use "analyze/analysis", "inspect", "track layout" | `docs/dev/llm/GLOSSARY.md` | `docs/user/**` (guarded) |
 | 9 | Keyboard shortcuts: J/K nav, A approve, R reject, **U mark unreviewed**, Space play, E export, Ctrl+Z undo, ? panel | `web/static/core/shortcuts.js` | `docs/user/OVERVIEW.md` (keyboard table), Getting Started modal + Keyboard Controls panel (`index.html`) |
 | 10 | Analysis-time estimates (RTX vs CPU; transcription dominates) | `pipeline/` timing | `docs/user/PERFORMANCE.md`, `docs/user/OVERVIEW.md` (How long does it take) |
+| 11 | Clip vs Scene durations: a **clip** is a punchy **15-90 s** bit; a **scene** is a longer **1-5 min** contextual arc | `Config.min_clip_ms` (15 s clip floor); `Config.scene_min_ms`/`scene_max_ms` (60_000/300_000 = 1-5 min) | sidebar kind-chip tooltips (`web/static/partials/regions/sidebar.html`, `index.html`), scene-badge tooltip (`web/static/clips/clips.js`), Generate-scenes settings note (`web/static/partials/regions/settings-panel.html`, `index.html`), Getting Started modal Key-concepts row (`web/static/partials/modals/getting-started.html`, `index.html`), in-app glossary (`web/static/glossary.md`), dev glossary (`docs/dev/llm/GLOSSARY.md`), `web/static/help/FEATURES.md`, LLM scene prompt (`scoring/llm.py`) |
 
 Guarded rows (a `tests/unit/test_doc_claims.py` test binds them to code): 1 (modal names all
 four axes), 4 (stale phrase absent), 6 (DEV-README default matches config), 7 (recommended
-size matches catalog in README + wizard), 8 (banned terms absent). Rows 2/3/5/9/10 are
+size matches catalog in README + wizard), 8 (banned terms absent). Rows 2/3/5/9/10/11 are
 sweep-by-hand: update every listed surface when the fact changes.

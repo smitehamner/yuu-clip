@@ -119,6 +119,8 @@
       <button type="button" class="settings-jump-link" data-section="settings-sec-llm">LLM scoring</button>
       <button type="button" class="settings-jump-link" data-section="settings-sec-speakers">Speaker labels</button>
       <button type="button" class="settings-jump-link" data-section="settings-sec-weights">Scoring weights</button>
+      <button type="button" class="settings-jump-link" data-section="settings-sec-hotwords">Hot-words</button>
+      <button type="button" class="settings-jump-link" data-section="settings-sec-sensitive">Sensitive Content</button>
       <button type="button" class="settings-jump-link" data-section="settings-sec-analysis">Analysis defaults</button>
       <button type="button" class="settings-jump-link" data-section="settings-sec-hardware">Hardware</button>
       <button type="button" class="settings-jump-link" data-section="settings-sec-ui">UI</button>
@@ -924,7 +926,10 @@
         <label class="settings-label" for="s-caption-word-highlight">Word highlight</label>
         <div class="settings-note">Show a few words at a time and highlight each one as it's spoken (TikTok/CapCut style). Burned-in captions only.</div>
       </div>
-      <input type="checkbox" id="s-caption-word-highlight" style="flex:0 0 auto">
+      <label class="settings-checkbox">
+        <input type="checkbox" id="s-caption-word-highlight">
+        <span style="font-size:13px" aria-hidden="true">On</span>
+      </label>
     </div>
     <div class="settings-row">
       <div class="settings-col">
@@ -1368,6 +1373,7 @@
       <tbody>
         <tr><td style="padding:3px 8px 3px 0;color:var(--text);white-space:nowrap">Track layout</td><td style="color:var(--muted)">Maps your OBS audio tracks to roles (player voice, game sounds, etc.) so YuuClip knows what to transcribe</td></tr>
         <tr><td style="padding:3px 8px 3px 0;color:var(--text);white-space:nowrap">World context</td><td style="color:var(--muted)">Tells the LLM scorer who's in your recordings and what the setting is - improves descriptions and scores for your specific game</td></tr>
+        <tr><td style="padding:3px 8px 3px 0;color:var(--text);white-space:nowrap">Clip vs Scene</td><td style="color:var(--muted)">Clips are punchy 15-90 second moments; scenes are longer 1-5 minute stretches with a story arc. If you turn on Generate scenes, they share the clip list with a SCENE badge and the All / Clips / Scenes buttons filter between them</td></tr>
       </tbody>
     </table>
 
@@ -2013,6 +2019,8 @@
           <option value="funny">😂 Funny</option>
           <option value="dramatic">🎭 Dramatic</option>
           <option value="action">⚔️ Action</option>
+          <option value="visual">🎬 Visual</option>
+          <option value="laugh">🤣 Laughs</option>
         </select>
       </div>
       <label style="font-size:13px;color:var(--muted)">Threshold</label>

@@ -381,7 +381,7 @@ function _renderUnifiedTimeline(session) {
   if (!session.members.length) return '<div class="meta">No recordings in this session.</div>';
   const blocks = session.members.map(m => {
     const gap = m.gap_before_ms > 0
-      ? `<div class="session-gap">&mdash; ${_fmtGap(m.gap_before_ms)} break &mdash;</div>`
+      ? `<div class="session-gap">&middot; ${_fmtGap(m.gap_before_ms)} break &middot;</div>`
       : '';
     const head = `
       <div class="session-member-head">

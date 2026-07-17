@@ -5,16 +5,34 @@ import { renderMarkdown } from '../../../yuu_clip/web/static/core/markdown.js';
 const ONLINE = 'https://github.com/smitehamner/yuu-clip/blob/main/docs/user/OVERVIEW.md';
 
 describe('renderMarkdown headings + TOC', () => {
-  it('collects ## and ### into the TOC with unique anchor ids, excluding the # title', () => {
+  it('collects ## and ### into the TOC with GitHub-style slug ids, excluding the # title', () => {
     const { html, toc } = renderMarkdown('# Title\n\n## First\n\n### Sub\n\n## Second\n');
     expect(toc).toEqual([
-      { level: 2, text: 'First', id: 'help-h-0' },
-      { level: 3, text: 'Sub', id: 'help-h-1' },
-      { level: 2, text: 'Second', id: 'help-h-2' },
+      { level: 2, text: 'First', id: 'first' },
+      { level: 3, text: 'Sub', id: 'sub' },
+      { level: 2, text: 'Second', id: 'second' },
     ]);
-    expect(html).toContain('<h1 class="help-h1">Title</h1>');
-    expect(html).toContain('<h2 id="help-h-0" class="help-h2">First</h2>');
-    expect(html).toContain('<h3 id="help-h-1" class="help-h3">Sub</h3>');
+    // The # title still gets an id (so cross-doc links can target it) but stays out of the TOC.
+    expect(html).toContain('<h1 id="title" class="help-h1">Title</h1>');
+    expect(html).toContain('<h2 id="first" class="help-h2">First</h2>');
+    expect(html).toContain('<h3 id="sub" class="help-h3">Sub</h3>');
+  });
+
+  it('slugifies heading text like GitHub (lowercase, punctuation dropped, spaces hyphenated)', () => {
+    const { toc } = renderMarkdown('## World Contexts & Characters\n');
+    expect(toc[0].id).toBe('world-contexts--characters');
+  });
+
+  it('matches GitHub for a spaced-hyphen heading (each space -> one hyphen)', () => {
+    // The guides link to `OVERVIEW.md#world-contexts---making-the-scores-...`;
+    // the in-app anchor must produce the identical triple-hyphen slug.
+    const { toc } = renderMarkdown('## World Contexts - making the scores actually make sense\n');
+    expect(toc[0].id).toBe('world-contexts---making-the-scores-actually-make-sense');
+  });
+
+  it('strips inline markdown from the slug and suffixes duplicate headings', () => {
+    const { toc } = renderMarkdown('## `Setup`\n\n## Setup\n');
+    expect(toc.map(t => t.id)).toEqual(['setup', 'setup-1']);
   });
 });
 

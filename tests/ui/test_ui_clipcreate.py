@@ -213,6 +213,26 @@ class TestSceneCreate:
         scene["kind"] = "scene"
         return scene
 
+    def test_all_view_menu_offers_both_new_clip_and_new_scene(self, page: Page):
+        # The default All view can't infer create intent, so the kebab shows both
+        # (scene creation was otherwise reachable only via the Scenes chip - UX R3).
+        select_video_with_clips(page)
+        page.click("[data-kfilter='all']")
+        page.wait_for_function("() => AppState.clipKindFilter === 'all'", timeout=3000)
+        page.click("#btn-clips-actions")
+        menu = page.locator(".hamburger-menu.open")
+        expect(menu.locator(".hamburger-item:has-text('New clip')")).to_be_visible()
+        expect(menu.locator(".hamburger-item:has-text('New scene')")).to_be_visible()
+
+    def test_clips_view_menu_omits_new_scene(self, page: Page):
+        select_video_with_clips(page)
+        page.click("[data-kfilter='clip']")
+        page.wait_for_function("() => AppState.clipKindFilter === 'clip'", timeout=3000)
+        page.click("#btn-clips-actions")
+        menu = page.locator(".hamburger-menu.open")
+        expect(menu.locator(".hamburger-item:has-text('New clip')")).to_be_visible()
+        expect(menu.locator(".hamburger-item:has-text('New scene')")).to_have_count(0)
+
     def test_new_scene_button_opens_scene_picker(self, page: Page):
         select_video_with_clips(page)
         page.route("**/api/videos/*/transcript", lambda route: route.fulfill(

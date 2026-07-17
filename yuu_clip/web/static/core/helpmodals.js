@@ -116,7 +116,7 @@ function _helpViewHtml(doc, bodyHtml, toc) {
   return online + tocHtml + `<div class="help-doc-body">${bodyHtml}</div>`;
 }
 
-async function _openHelpDoc(key) {
+async function _openHelpDoc(key, fragment) {
   const doc = HELP_DOCS.find((d) => d.key === key) || HELP_DOCS[0];
   localStorage.setItem('yuu-help-doc', doc.key);
   _highlightActiveDoc(doc.key);
@@ -135,7 +135,9 @@ async function _openHelpDoc(key) {
   }
   const { html, toc } = renderMarkdown(md, { onlineUrl: doc.onlineUrl });
   view.innerHTML = _helpViewHtml(doc, html, toc);
-  view.scrollTop = 0;
+  const target = fragment && view.querySelector(`#${CSS.escape(fragment)}`);
+  if (target) target.scrollIntoView({ block: 'start' });
+  else view.scrollTop = 0;
 }
 
 // ── glossary modal ────────────────────────────────────────────────────────────
@@ -321,7 +323,7 @@ function _wireHelpViewer() {
     const sibling = HELP_DOCS.find((d) => anchor.href.split('#')[0] === d.onlineUrl);
     if (sibling) {
       e.preventDefault();
-      _openHelpDoc(sibling.key);
+      _openHelpDoc(sibling.key, anchor.href.split('#')[1]);
     }
   });
 }

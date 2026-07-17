@@ -8,6 +8,30 @@
 // and `---` rules, with no code fences or nested lists - so this is deliberately
 // not a full CommonMark parser.
 
+// GitHub-style heading slug: strip inline markdown, lowercase, drop punctuation,
+// spaces -> hyphens. Matches the anchors the guides use in cross-doc links
+// (e.g. OVERVIEW.md#world-contexts) so a fragment resolves to the right heading.
+function slugify(text) {
+  const plain = text
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/\*([^*]+)\*/g, '$1')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
+  // Mirror GitHub's gh-slugger exactly (each space -> one hyphen, no collapsing,
+  // existing hyphens kept) so a source anchor like `#world-contexts---...` lands.
+  return plain
+    .toLowerCase()
+    .replace(/[^\w\s-]/g, '')
+    .replace(/\s/g, '-');
+}
+
+function uniqueSlug(text, seen) {
+  const base = slugify(text) || 'section';
+  const count = seen.get(base) || 0;
+  seen.set(base, count + 1);
+  return count === 0 ? base : `${base}-${count}`;
+}
+
 function inlineMd(text, resolveHref) {
   const escaped = text
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -29,8 +53,8 @@ export function renderMarkdown(md, { onlineUrl } = {}) {
 
   const lines = md.split('\n');
   const toc = [];
+  const seenSlugs = new Map();
   let html = '';
-  let headingSeq = 0;
   let inUl = false, inOl = false, inTable = false, inQuote = false;
 
   const closeUl = () => { if (inUl) { html += '</ul>'; inUl = false; } };
@@ -47,13 +71,9 @@ export function renderMarkdown(md, { onlineUrl } = {}) {
       closeAll();
       const level = heading[1].length;
       const rendered = inlineMd(heading[2], resolveHref);
-      if (level === 1) {
-        html += `<h1 class="help-h1">${rendered}</h1>`;
-      } else {
-        const id = `help-h-${headingSeq++}`;
-        toc.push({ level, text: heading[2], id });
-        html += `<h${level} id="${id}" class="help-h${level}">${rendered}</h${level}>`;
-      }
+      const id = uniqueSlug(heading[2], seenSlugs);
+      if (level > 1) toc.push({ level, text: heading[2], id });
+      html += `<h${level} id="${id}" class="help-h${level}">${rendered}</h${level}>`;
     } else if (/^---+$/.test(line)) {
       closeAll();
       html += '<hr class="help-hr">';

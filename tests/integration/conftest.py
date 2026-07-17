@@ -68,6 +68,8 @@ def project_dir(tmp_path: Path) -> Path:
             score_funny=score * 0.9,
             score_dramatic=score * 0.5,
             score_action=score * 0.3,
+            score_visual=score * 0.7,
+            score_laugh=score * 0.4,
             description=f"Test clip {i + 1}",
             status=status,
             scored_at=scored_at,
