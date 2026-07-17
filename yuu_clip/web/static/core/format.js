@@ -1,6 +1,10 @@
 // Feature-map - Pure formatters and score helpers: no DOM, no fetch. HTML-escape, API-error text,
 //   duration/date/offset formatting, video-status labels, and the score color/icon encoding.
 //   API: none (client-only) · Tests: tests/ui/test_ui_utils.py
+// escHtml is the shared escaper (also used by the Electron wizard); re-exported here so
+// the many `import { escHtml } from '../core/format.js'` call sites stay unchanged.
+import { escHtml } from '../shared/escapehtml.js';
+
 // ── score utils ───────────────────────────────────────────────────────────────
 function _scoreIcon(score) {
   const color = score >= 0.7 ? 'var(--green)' : score >= 0.4 ? 'var(--warning)' : 'var(--muted)';
@@ -74,10 +78,6 @@ function fmtDuration(seconds, fallback = 'unknown') {
 
 function truncate(text, max) {
   return text.length > max ? text.slice(0, max - 1) + '…' : text;
-}
-
-function escHtml(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 function formatApiError(err) {

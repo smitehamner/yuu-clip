@@ -7,6 +7,7 @@ import {
 import { showConfirm, playbackRatePref, applyPlaybackRate } from '../core/ui.js';
 import { showToast } from '../core/utils.js';
 import { plural, escHtml, formatApiError, _parseIntervalS } from '../core/format.js';
+import { languageOptionsHtml } from '../shared/whisperlang.js';
 import { _filterGlossary, closeGlossaryModal } from '../core/helpmodals.js';
 import { _isNewRecordingPanelOpen, _doCloseNewRecordingPanel } from '../analyze/analyze.js';
 
@@ -163,16 +164,7 @@ async function _ensureWhisperLanguageOptions() {
   if (!sel) return;
   try {
     const { languages } = await fetch('/api/config/whisper-languages').then(r => r.json());
-    let nameOf = code => code;
-    try {
-      const dn = new Intl.DisplayNames(['en'], { type: 'language' });
-      nameOf = code => { try { return dn.of(code) || code; } catch { return code; } };
-    } catch { /* Intl.DisplayNames unavailable - show raw codes */ }
-    const named = languages
-      .map(code => ({ code, name: nameOf(code) }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-    sel.innerHTML = '<option value="">Auto-detect (recommended)</option>' +
-      named.map(o => `<option value="${escHtml(o.code)}">${escHtml(o.name)}</option>`).join('');
+    sel.innerHTML = languageOptionsHtml(languages);
     _whisperLangsLoaded = true;
   } catch { /* keep Auto-detect-only fallback */ }
 }

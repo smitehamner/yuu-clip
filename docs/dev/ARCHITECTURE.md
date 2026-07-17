@@ -202,8 +202,9 @@ Settings depends on.
 bakes the recommended model, whisper models + languages, content presets, and AI-privacy
 copy from the Python sources of truth into `catalog-data.json`, written to two committed
 copies: `yuu_clip/web/static/shared/` (web) and `electron/shared/` (wizard). The wizard's
-`constants.js`/`recommend-model.js` `require()` the JSON and `setup-preload.js` exposes it
-to the renderer as `window.CATALOG_DATA`. Run `yuu-dev shared-data` after touching
+`constants.js`/`recommend-model.js` `require()` the JSON, and the wizard renderer
+(`setup-renderer.js`) imports it at build time into `setup.bundle.js`. Run
+`yuu-dev shared-data` after touching
 `model_catalog.py` / `config.py` / `content_presets.py` / `whisper_catalog.py`;
 `tests/unit/test_shared_data_drift.py` guards it. Consequences:
 
@@ -214,6 +215,19 @@ to the renderer as `window.CATALOG_DATA`. Run `yuu-dev shared-data` after touchi
   must stay a text (non-vision) entry (enforced in `test_shared_data_drift.py`). If the
   wizard ever gains vision-model selection it must write `llm_vision_model_path`, never
   `llm_model_path` - a vision download must not clobber the text scorer.
+
+**Shared UI layer + its boundary rule.** Beyond the data, the two stacks share real ESM
+modules under `yuu_clip/web/static/shared/` (currently `escapehtml.js` and
+`whisperlang.js`, the transcription-language `<option>` builder). Each is imported at
+*build time* into both bundles - the web `bundle.esm.js` (esbuild graph from
+`main.esm.js`) and the wizard `setup.bundle.js` (second esbuild entry from
+`electron/setup-renderer.js`). **Boundary rule: a `static/shared/` module takes data +
+callbacks and returns values/markup - it never `fetch`es or does IPC itself.** Settings
+feeds it HTTP-backed state; the wizard feeds it catalog/IPC-backed state. That is what
+lets one module serve both runtimes. (The two model-card *renderers* are deliberately
+NOT shared - the Settings card has active/installed/download states and text/vision
+groups the wizard's single recommended-model row doesn't, so forcing one renderer would
+be speculative generality.)
 
 ### 3. SpeechBrain must not be imported before `transformers.pipeline` resolves
 

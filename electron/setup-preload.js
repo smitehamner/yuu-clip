@@ -2,13 +2,10 @@
 
 const { contextBridge, ipcRenderer } = require('electron');
 
-// Shared catalog facts (recommended model, whisper models + languages, content
-// presets, AI-privacy copy) generated from the Python sources of truth by
-// `yuu-dev shared-data`. Exposed to the wizard renderer so its option lists and copy
-// are single-sourced instead of hand-maintained.
-const catalogData = require('./shared/catalog-data.json');
-
-contextBridge.exposeInMainWorld('CATALOG_DATA', catalogData);
+// The wizard's shared catalog facts (recommended model, whisper models + languages,
+// content presets, AI-privacy copy) are imported straight into setup.bundle.js at build
+// time from the generated electron/shared/catalog-data.json (`yuu-dev shared-data`), so
+// no runtime bridge is needed here - the renderer already has the data.
 
 contextBridge.exposeInMainWorld('setupAPI', {
   getStatus:         ()       => ipcRenderer.invoke('setup:get-status'),

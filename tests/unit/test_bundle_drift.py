@@ -15,8 +15,10 @@ from pathlib import Path
 import pytest
 
 from yuu_clip.dev.bundle import (
+    ELECTRON_DIR,
     ESM_BUNDLE_PATH,
     STATIC_DIR,
+    WIZARD_BUNDLE_PATH,
     build_esm_bundle,
     esbuild_available,
 )
@@ -47,12 +49,38 @@ def test_committed_esm_bundle_is_current():
     # name is gitignored.
     check_path = STATIC_DIR / f"bundle.esm.check.{os.getpid()}.js"
     try:
-        build_esm_bundle(outfile=check_path)
+        build_esm_bundle(outfile=check_path, target="web")
         fresh = check_path.read_bytes()
     finally:
         _best_effort_unlink(check_path)
     assert ESM_BUNDLE_PATH.read_bytes() == fresh, (
         "static/bundle.esm.js is stale - run `yuu-dev bundle` and commit the result"
+    )
+
+
+def test_committed_wizard_bundle_is_current():
+    if not esbuild_available():
+        pytest.skip("Node/esbuild not installed - run `npm install` to guard setup.bundle.js")
+    assert WIZARD_BUNDLE_PATH.exists(), "electron/setup.bundle.js missing - run `yuu-dev bundle`"
+    # Sibling scratch path (same reasoning as the web bundle: sourcemap `sources` are
+    # relative to the outfile dir, and a PID-unique name keeps concurrent runs apart).
+    check_path = ELECTRON_DIR / f"setup.bundle.check.{os.getpid()}.js"
+    try:
+        build_esm_bundle(outfile=check_path, target="wizard")
+        fresh = check_path.read_bytes()
+    finally:
+        _best_effort_unlink(check_path)
+    assert WIZARD_BUNDLE_PATH.read_bytes() == fresh, (
+        "electron/setup.bundle.js is stale - run `yuu-dev bundle` and commit the result"
+    )
+
+
+def test_setup_html_loads_only_the_wizard_bundle():
+    setup_html = (ELECTRON_DIR / "setup.html").read_text(encoding="utf-8")
+    loaded = set(re.findall(r'src="([\w.-]+\.js)"', setup_html))
+    assert loaded == {"setup.bundle.js"}, (
+        "setup.html must load only the committed setup.bundle.js, but loads"
+        f" {sorted(loaded)} - edit electron/setup-renderer.js and re-run `yuu-dev bundle`"
     )
 
 
