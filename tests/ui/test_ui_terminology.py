@@ -102,13 +102,12 @@ def test_sidebar_heading_reads_recordings(page: Page):
 # large-v3 default on the three export/retranscribe surfaces.
 # ---------------------------------------------------------------------------
 
-CANONICAL_MODEL_OPTIONS = {
-    "tiny": "tiny - fastest, lowest quality (~75 MB download)",
-    "base": "base - fast, lower quality (~140 MB download)",
-    "small": "small - fast, decent quality (~465 MB download, ~1 GB VRAM)",
-    "medium": "medium - good balance (~1.5 GB download, ~2.8 GB VRAM)",
-    "large-v3": "large-v3 - best quality (~2.9 GB download, ~4.2 GB VRAM)",
-}
+# Sourced from yuu_clip/whisper_catalog.py (the single Python source of truth that
+# `yuu-dev shared-data` bakes into catalog-data.json). The web <option> lists must
+# match it exactly, so a copy change flows from one place.
+from yuu_clip.whisper_catalog import WHISPER_UI_MODELS  # noqa: E402
+
+CANONICAL_MODEL_OPTIONS = {m.id: m.option_text() for m in WHISPER_UI_MODELS}
 
 MODEL_SELECT_IDS = [
     "s-whisper-model",            # Settings

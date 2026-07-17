@@ -113,7 +113,7 @@ include = ["yuu_clip*"]
 [tool.setuptools.package-data]
 # setuptools globs do NOT recurse, so each static subdirectory must be listed
 # explicitly - `web/static/*` alone misses web/static/help/ and web/static/fonts/.
-yuu_clip = ["web/static/*", "web/static/fonts/*", "web/static/help/*"]
+yuu_clip = ["web/static/*", "web/static/fonts/*", "web/static/help/*", "web/static/shared/*"]
 
 [tool.mypy]
 # Lenient global baseline - the codebase is largely untyped and we do NOT do a

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 
@@ -124,23 +125,19 @@ class TestDefaultsMatchCatalog:
         assert match.group(1) == "llamacpp"
 
     def test_electron_wizard_default_llamacpp_model_matches_the_catalog(self):
-        constants_js = (_REPO_ROOT / "electron" / "constants.js").read_text(encoding="utf-8")
-        match = re.search(
-            r"DEFAULT_LLAMACPP_MODEL\s*=\s*\{\s*"
-            r"id:\s*'([^']+)',\s*"
-            r"repoUrl:\s*'([^']+)',\s*"
-            r"filename:\s*'([^']+)',\s*"
-            r"sizeGb:\s*([\d.]+),?\s*\}",
-            constants_js,
-        )
-        assert match, "DEFAULT_LLAMACPP_MODEL constant not found (or shape changed) in electron/constants.js"
-        model_id, repo_url, filename, size_gb = match.groups()
+        # constants.js no longer hardcodes the model - DEFAULT_LLAMACPP_MODEL is derived
+        # from the generated electron/shared/catalog-data.json (`yuu-dev shared-data`).
+        # Assert that generated recommended_model still matches the catalog; the byte
+        # drift between JSON and Python is guarded in test_shared_data_drift.py.
+        rec = json.loads(
+            (_REPO_ROOT / "electron" / "shared" / "catalog-data.json").read_text(encoding="utf-8")
+        )["recommended_model"]
 
-        entry = mc.model_by_id(model_id)
-        assert entry is not None, f"electron's DEFAULT_LLAMACPP_MODEL id {model_id!r} isn't in the catalog"
+        entry = mc.model_by_id(rec["id"])
+        assert entry is not None, f"electron's recommended_model id {rec['id']!r} isn't in the catalog"
         assert entry.recommended
         assert mc.BACKEND_LLAMACPP in entry.backends
-        assert entry.gguf_url == repo_url
-        assert entry.gguf_filename == filename
+        assert entry.gguf_url == rec["gguf_url"]
+        assert entry.gguf_filename == rec["filename"]
         # The wizard's disk-precheck size must track the catalog's on-disk size.
-        assert float(size_gb) == entry.size_gb
+        assert float(rec["size_gb"]) == entry.size_gb

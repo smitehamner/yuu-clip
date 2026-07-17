@@ -229,13 +229,7 @@ footer {
       </div>
       <div class="cfg-row">
         <span class="cfg-label">Speech-to-text model</span>
-        <select id="whisper-sel">
-          <option value="tiny">tiny - fastest, lowest accuracy (~75 MB download)</option>
-          <option value="base">base - fast, decent accuracy (~140 MB download)</option>
-          <option value="small">small - balanced (~465 MB download, ~1 GB VRAM)</option>
-          <option value="medium">medium - good quality (~1.5 GB download, ~2.8 GB VRAM)</option>
-          <option value="large-v3">large-v3 - best quality (~2.9 GB download, ~4.2 GB VRAM)</option>
-        </select>
+        <select id="whisper-sel"></select>
         <span class="rec" id="rec-tag"></span>
       </div>
       <div class="cfg-row">
@@ -274,9 +268,9 @@ footer {
           <label class="chk-title" for="local-ai-yes">Set up local AI (Recommended)</label>
           <div class="desc">
             Downloads a model that runs on your own machine - free, private, and the
-            source of the best results. A one-time download of about 4.7 GB that
-            happens in the background after you launch, so you can start using
-            YuuClip right away.
+            source of the best results. A one-time download of about
+            <span id="rec-model-size-inline">4.7 GB</span> that happens in the background
+            after you launch, so you can start using YuuClip right away.
           </div>
         </div>
       </div>
@@ -297,15 +291,13 @@ footer {
         <summary>Advanced AI options</summary>
       <div class="sec-note" style="color:#d4902a">
         <strong>Heads-up on download size:</strong> running a model on your own machine is a
-        one-time download of roughly <strong>4-9 GB</strong> (the recommended model is ~4.7 GB).
+        one-time download of roughly <strong>4-9 GB</strong> (the recommended model is
+        ~<span id="rec-model-size-adv">4.7 GB</span>).
         Everything runs locally - nothing you record ever leaves your machine.
       </div>
       <div class="cfg-row">
         <span class="cfg-label">AI privacy</span>
-        <select id="ai-privacy-sel">
-          <option value="none">No generative AI - no language model runs</option>
-          <option value="local_only">Local models only - nothing leaves your machine (recommended)</option>
-        </select>
+        <select id="ai-privacy-sel"></select>
       </div>
       <div class="desc" id="ai-privacy-note" style="margin:-2px 0 6px"></div>
       <div id="llm-generative-block">
@@ -344,14 +336,7 @@ footer {
       </div>
       <div class="cfg-row">
         <span class="cfg-label">Content type</span>
-        <select id="content-preset-sel">
-          <option value="generic">Generic - balanced default (recommended)</option>
-          <option value="rp-narrative">RP / narrative - character and drama first</option>
-          <option value="competitive">Competitive gaming - clutches, comebacks, callouts</option>
-          <option value="casual">Casual / let's play - personality and funny failures</option>
-          <option value="speedrun">Speedrun - splits, PBs, heartbreak resets</option>
-          <option value="podcast">Podcast / conversation - quotes, hot takes, laughter</option>
-        </select>
+        <select id="content-preset-sel"></select>
       </div>
       <div class="inline-note" id="content-preset-note"></div>
     </section>
@@ -392,17 +377,12 @@ const params = new URLSearchParams(window.location.search);
 const mode   = params.get('mode') || 'initial';   // 'initial' | 'rerun' | 'update'
 const rerunMode = mode === 'rerun';
 
-// Keep in sync with ALLOWED_WHISPER_LANGUAGES in yuu_clip/config.py.
-const WHISPER_LANGUAGES = [
-  'af','am','ar','as','az','ba','be','bg','bn','bo','br','bs','ca','cs',
-  'cy','da','de','el','en','es','et','eu','fa','fi','fo','fr','gl','gu',
-  'ha','haw','he','hi','hr','ht','hu','hy','id','is','it','ja','jw','ka',
-  'kk','km','kn','ko','la','lb','ln','lo','lt','lv','mg','mi','mk','ml',
-  'mn','mr','ms','mt','my','ne','nl','nn','no','oc','pa','pl','ps','pt',
-  'ro','ru','sa','sd','si','sk','sl','sn','so','sq','sr','su','sv','sw',
-  'ta','te','tg','th','tk','tl','tr','tt','uk','ur','uz','vi','yi','yo',
-  'zh',
-];
+// Shared catalog facts generated from the Python sources of truth by
+// `yuu-dev shared-data` (exposed via setup-preload.js). Whisper languages + models,
+// content presets, AI-privacy copy, and the recommended model are single-sourced here
+// rather than hand-maintained in this file.
+const CATALOG = window.CATALOG_DATA || {};
+const WHISPER_LANGUAGES = CATALOG.whisper_languages || [];
 
 let status  = null;
 let installing = { 'cuda-libs': false };
@@ -528,10 +508,13 @@ function renderGgufDownloadSlot(s) {
   if (downloadingGguf) return; // preserve the in-progress bar across a status re-render
   const currentPath = (document.getElementById('llm-model-path').value || '').trim();
   if (currentPath) { el.innerHTML = ''; return; }
+  const rec = CATALOG.recommended_model || {};
+  const recName = rec.display_name || 'the recommended model';
+  const recSize = rec.size_gb != null ? `~${rec.size_gb} GB` : '';
   el.innerHTML = row('gguf-download', 'warn', '○', 'Download the recommended model',
-    'Qwen2.5 7B Instruct (Apache-2.0, so clips you make can be monetized), ~4.7 GB. ' +
-    'You can keep using this window while it downloads.',
-    `<button class="sm" id="gguf-download-btn" onclick="startGgufDownload()">Download recommended model (~4.7 GB)</button>
+    `${esc(recName)} (${esc(rec.licence || '')}, so clips you make can be monetized)` +
+    `${recSize ? ', ' + recSize : ''}. You can keep using this window while it downloads.`,
+    `<button class="sm" id="gguf-download-btn" onclick="startGgufDownload()">Download recommended model${recSize ? ' (' + esc(recSize) + ')' : ''}</button>
      <button class="sm" id="gguf-cancel-btn" onclick="cancelGgufDownload()" style="display:none">Cancel</button>
      <div class="pull-bar" id="gguf-download-bar" style="display:none;width:100%;margin-top:5px"><div class="pull-fill" id="gguf-download-fill"></div></div>
      <div class="pull-msg" id="gguf-download-msg"></div>`);
@@ -550,10 +533,34 @@ function renderSlots(s) {
   updateLaunchBtn();
 }
 
+// Build the whisper / AI-privacy / content-preset <option> lists from the shared
+// catalog so their copy is single-sourced (see `yuu-dev shared-data`). Runs once,
+// before applyDefaults sets the saved values.
+function populateCatalogSelects() {
+  const fill = (id, items, value, label) => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    sel.innerHTML = items
+      .map(it => `<option value="${esc(value(it))}">${esc(label(it))}</option>`)
+      .join('');
+  };
+  fill('whisper-sel', CATALOG.whisper_models || [], m => m.id, m => m.option_text);
+  fill('ai-privacy-sel', CATALOG.ai_privacy_options || [], o => o.value, o => o.label);
+  fill('content-preset-sel', CATALOG.content_presets || [], p => p.id, p => p.name);
+
+  const rec = CATALOG.recommended_model || {};
+  const sizeText = rec.size_gb != null ? `${rec.size_gb} GB` : '';
+  const setText = (id, text) => { const el = document.getElementById(id); if (el && text) el.textContent = text; };
+  setText('rec-model-size-inline', sizeText);
+  setText('rec-model-size-adv', sizeText);
+}
+
 // First render only: fill the form from saved config / detected defaults.
 function applyDefaults(s) {
   if (defaultsApplied) return;
   defaultsApplied = true;
+
+  populateCatalogSelects();
 
   document.getElementById('project-dir').value = s.projectDir;
   const whisperSel = document.getElementById('whisper-sel');
@@ -605,10 +612,8 @@ function applyDefaults(s) {
 // ── AI privacy + local model ────────────────────────────────────────────────
 
 // yuu-clip is local-only; the mode toggles whether a generative model runs at all.
-const AI_PRIVACY_NOTES = {
-  none: 'No language model runs. Clips are still found and searchable; scoring uses lightweight signals only.',
-  local_only: 'On-device models only. Everything runs locally - nothing you record is sent anywhere.',
-};
+// Copy comes from the shared catalog (single source for the wizard + web Settings).
+const AI_PRIVACY_NOTES = CATALOG.ai_privacy_notes || {};
 
 function onPrivacyModeChange(mode) {
   document.getElementById('ai-privacy-note').textContent = AI_PRIVACY_NOTES[mode] || '';

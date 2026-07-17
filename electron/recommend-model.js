@@ -4,15 +4,15 @@
 // can be unit-tested without Electron or real hardware. Mirrors the shape of
 // whisper-select.js (recommendWhisperModel).
 //
-// The pushed model mirrors yuu_clip/model_catalog.py's recommended local text
-// default: id "qwen2.5-7b-instruct" (Apache-2.0, size_gb 4.7,
-// gguf_filename "Qwen2.5-7B-Instruct-Q4_K_M.gguf"). Keep MODEL_ID/MODEL_SIZE_GB
-// below in sync if that catalog entry ever changes.
+// The pushed model is yuu_clip/model_catalog.py's recommended local text default,
+// read from the generated shared catalog (`yuu-dev shared-data`) rather than a
+// hand-copied literal - so a catalog change flows here automatically.
 
 const { bytesNeeded, hasEnoughSpace, formatGb } = require('./disk-space');
+const catalog = require('./shared/catalog-data.json');
 
-const MODEL_ID = 'qwen2.5-7b-instruct';
-const MODEL_SIZE_GB = 4.7;
+const MODEL_ID = catalog.recommended_model.id;
+const MODEL_SIZE_GB = catalog.recommended_model.size_gb;
 
 const STRONG_VRAM_MB = 6000;
 const STRONG_DISK_GB = 8;

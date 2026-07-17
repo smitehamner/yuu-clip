@@ -1,0 +1,197 @@
+{
+  "_generated_by": "yuu-dev shared-data",
+  "recommended_model": {
+    "id": "qwen2.5-7b-instruct",
+    "display_name": "Qwen2.5 7B Instruct",
+    "filename": "Qwen2.5-7B-Instruct-Q4_K_M.gguf",
+    "gguf_url": "https://huggingface.co/bartowski/Qwen2.5-7B-Instruct-GGUF",
+    "resolve_url": "https://huggingface.co/bartowski/Qwen2.5-7B-Instruct-GGUF/resolve/main/Qwen2.5-7B-Instruct-Q4_K_M.gguf",
+    "size_gb": 4.7,
+    "licence": "Apache-2.0",
+    "why": "Strong all-round 7B - the best local default for clip scoring."
+  },
+  "whisper_models": [
+    {
+      "id": "tiny",
+      "blurb": "fastest, lowest quality",
+      "download": "~75 MB",
+      "vram": null,
+      "option_text": "tiny - fastest, lowest quality (~75 MB download)"
+    },
+    {
+      "id": "base",
+      "blurb": "fast, lower quality",
+      "download": "~140 MB",
+      "vram": null,
+      "option_text": "base - fast, lower quality (~140 MB download)"
+    },
+    {
+      "id": "small",
+      "blurb": "fast, decent quality",
+      "download": "~465 MB",
+      "vram": "~1 GB",
+      "option_text": "small - fast, decent quality (~465 MB download, ~1 GB VRAM)"
+    },
+    {
+      "id": "medium",
+      "blurb": "good balance",
+      "download": "~1.5 GB",
+      "vram": "~2.8 GB",
+      "option_text": "medium - good balance (~1.5 GB download, ~2.8 GB VRAM)"
+    },
+    {
+      "id": "large-v3",
+      "blurb": "best quality",
+      "download": "~2.9 GB",
+      "vram": "~4.2 GB",
+      "option_text": "large-v3 - best quality (~2.9 GB download, ~4.2 GB VRAM)"
+    }
+  ],
+  "whisper_languages": [
+    "af",
+    "am",
+    "ar",
+    "as",
+    "az",
+    "ba",
+    "be",
+    "bg",
+    "bn",
+    "bo",
+    "br",
+    "bs",
+    "ca",
+    "cs",
+    "cy",
+    "da",
+    "de",
+    "el",
+    "en",
+    "es",
+    "et",
+    "eu",
+    "fa",
+    "fi",
+    "fo",
+    "fr",
+    "gl",
+    "gu",
+    "ha",
+    "haw",
+    "he",
+    "hi",
+    "hr",
+    "ht",
+    "hu",
+    "hy",
+    "id",
+    "is",
+    "it",
+    "ja",
+    "jw",
+    "ka",
+    "kk",
+    "km",
+    "kn",
+    "ko",
+    "la",
+    "lb",
+    "ln",
+    "lo",
+    "lt",
+    "lv",
+    "mg",
+    "mi",
+    "mk",
+    "ml",
+    "mn",
+    "mr",
+    "ms",
+    "mt",
+    "my",
+    "ne",
+    "nl",
+    "nn",
+    "no",
+    "oc",
+    "pa",
+    "pl",
+    "ps",
+    "pt",
+    "ro",
+    "ru",
+    "sa",
+    "sd",
+    "si",
+    "sk",
+    "sl",
+    "sn",
+    "so",
+    "sq",
+    "sr",
+    "su",
+    "sv",
+    "sw",
+    "ta",
+    "te",
+    "tg",
+    "th",
+    "tk",
+    "tl",
+    "tr",
+    "tt",
+    "uk",
+    "ur",
+    "uz",
+    "vi",
+    "yi",
+    "yo",
+    "zh"
+  ],
+  "content_presets": [
+    {
+      "id": "generic",
+      "name": "Generic",
+      "description": "Balanced default - no content-specific tuning."
+    },
+    {
+      "id": "rp-narrative",
+      "name": "RP / narrative",
+      "description": "Roleplay or story-driven sessions - character and drama first."
+    },
+    {
+      "id": "competitive",
+      "name": "Competitive gaming",
+      "description": "Ranked or competitive play - clutches, comebacks, and callouts."
+    },
+    {
+      "id": "casual",
+      "name": "Casual / let's play",
+      "description": "Relaxed let's-plays - personality, reactions, and funny failures."
+    },
+    {
+      "id": "speedrun",
+      "name": "Speedrun",
+      "description": "Runs against the clock - splits, PBs, and heartbreak resets."
+    },
+    {
+      "id": "podcast",
+      "name": "Podcast / conversation",
+      "description": "Talk-driven sessions - quotes, hot takes, and shared laughter."
+    }
+  ],
+  "ai_privacy_options": [
+    {
+      "value": "none",
+      "label": "No generative AI - no language model runs"
+    },
+    {
+      "value": "local_only",
+      "label": "Local models only - nothing leaves your machine (recommended)"
+    }
+  ],
+  "ai_privacy_notes": {
+    "none": "No language model runs. Clips are still found and searchable; scoring uses lightweight signals only.",
+    "local_only": "On-device models only. Everything runs locally - nothing you record is sent anywhere."
+  }
+}

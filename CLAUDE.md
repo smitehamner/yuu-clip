@@ -498,26 +498,32 @@ explicit product decision.
   + `make_client` factory (one real backend, `llamacpp`, plus the `NullLLMClient`
   fallback) so a future *local* backend stays a registration, not a rewrite.
 
-### Wizard and Settings are parallel model-selection stacks (keep in sync, no shared code)
-Model selection lives in two separate stacks that CANNOT share code, so a change to one
-must be mirrored in the other by hand:
+### Wizard and Settings are parallel model-selection stacks (layout differs; data is generated)
+Model selection lives in two runtimes that CANNOT share runtime code - different runtimes
+(browser vs Electron main/Node) and the wizard runs BEFORE the Python server exists, so it
+can't call the server endpoints Settings depends on:
 - **Settings** (in-app): browser JS (`web/static/settings/settings.js`,
   `settings/modelcatalog.js`, `index.html`) -> HTTP -> Python `model_catalog.py` +
   `cli/models.py download-gguf`.
 - **Setup wizard** (Electron): renderer (`electron/setup.html`) -> IPC -> `electron/main.js`
-  `setup:download-gguf-model`, which downloads the hardcoded `DEFAULT_LLAMACPP_MODEL`
+  `setup:download-gguf-model`, which downloads `DEFAULT_LLAMACPP_MODEL`
   (`electron/constants.js`) with Node and writes `config.json` directly.
 
-They can't be DRY-ed into one JS file: different runtimes (browser vs Electron main/Node),
-and the wizard runs BEFORE the Python server exists, so it can't use the server endpoints
-Settings depends on. Consequences to respect:
-- The wizard's `DEFAULT_LLAMACPP_MODEL` duplicates a `model_catalog.py` entry - keep the id
-  and filename matching a recommended catalog entry so the two catalogs don't drift.
+The *data* both stacks read is no longer hand-synced: `yuu-dev shared-data`
+(`yuu_clip/dev/shareddata.py`) generates `catalog-data.json` from the Python sources of
+truth (`model_catalog.py`, `config.ALLOWED_WHISPER_LANGUAGES`, `content_presets.py`,
+`whisper_catalog.py`) into TWO committed copies - `yuu_clip/web/static/shared/` (web) and
+`electron/shared/` (wizard: `constants.js`/`recommend-model.js` `require()` it,
+`setup-preload.js` exposes it to the renderer as `window.CATALOG_DATA`). **Run
+`yuu-dev shared-data` after editing any of those source modules**;
+`tests/unit/test_shared_data_drift.py` fails until you do. Consequences to respect:
+- `DEFAULT_LLAMACPP_MODEL` and `recommend-model.js` are now lookups into the JSON's
+  `recommended_model` (= `model_catalog.text_models()[0]`), not literals - don't re-hardcode.
 - LLM model config is split by function: text scoring uses `llm_model_path`; image analysis
   uses `llm_vision_model_path` + `llm_mmproj_path` (see the per-function-llm-models plan).
-  The wizard only ever sets the TEXT model, so `DEFAULT_LLAMACPP_MODEL` must stay a text
-  (non-vision) model. If the wizard ever gains vision-model selection, it must write
-  `llm_vision_model_path`, never `llm_model_path`.
+  The wizard only ever sets the TEXT model, so `recommended_model` must stay a text
+  (non-vision) model (enforced in `test_shared_data_drift.py`). If the wizard ever gains
+  vision-model selection, it must write `llm_vision_model_path`, never `llm_model_path`.
 
 ### PowerShell script encoding
 Any `.ps1` file containing non-ASCII (em-dash, box-drawing `─`, smart quotes)

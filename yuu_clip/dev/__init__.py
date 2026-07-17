@@ -13,6 +13,7 @@ from yuu_clip.dev import (  # noqa: E402,F401  (registers commands)
     logs,
     notices,
     serve,
+    shareddata,
     status,
     testjs,
     tests,

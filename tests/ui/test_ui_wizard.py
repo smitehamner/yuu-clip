@@ -16,12 +16,20 @@ run as part of yuu-dev test-ui), so the live-server skip still applies.
 """
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from conftest import skip_no_server
 from playwright.sync_api import Page, expect
 
-WIZARD_URI = (Path(__file__).resolve().parent.parent.parent / "electron" / "setup.html").as_uri()
+_ELECTRON_DIR = Path(__file__).resolve().parent.parent.parent / "electron"
+WIZARD_URI = (_ELECTRON_DIR / "setup.html").as_uri()
+
+# The wizard reads window.CATALOG_DATA (injected by setup-preload.js in Electron) for
+# its option lists and copy. Inject the real generated catalog so the file:// harness
+# renders the same selects the shipped wizard does.
+_CATALOG_DATA = (_ELECTRON_DIR / "shared" / "catalog-data.json").read_text(encoding="utf-8")
+_INJECT_CATALOG = f"window.CATALOG_DATA = {json.dumps(json.loads(_CATALOG_DATA))};"
 
 _MOCK_API = """
 window.__events = { opened: [], installed: [] };
@@ -62,6 +70,7 @@ window.__mockStatus = {
 
 
 def _open_wizard(page: Page, status_overrides: str = "", query: str = "") -> None:
+    page.add_init_script(_INJECT_CATALOG)
     page.add_init_script(_MOCK_API)
     if status_overrides:
         page.add_init_script(f"Object.assign(window.__mockStatus, {status_overrides});")

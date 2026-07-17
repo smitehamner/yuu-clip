@@ -7,6 +7,12 @@
 
 const path = require('path');
 
+// Shared catalog facts generated from the Python sources of truth by
+// `yuu-dev shared-data` (see yuu_clip/dev/shareddata.py). Committed here so the main
+// process can read them before the Python server (or even the venv) exists. Keep in
+// sync via that command - tests/unit/test_shared_data_drift.py guards it.
+const CATALOG_DATA = require('./shared/catalog-data.json');
+
 const VENV_DIR    = path.join(process.env.LOCALAPPDATA, 'yuu-clip', 'venv');
 const VENV_PYTHON = path.join(VENV_DIR, 'Scripts', 'python.exe');
 const VENV_PIP    = path.join(VENV_DIR, 'Scripts', 'pip.exe');
@@ -37,14 +43,15 @@ const ELECTRON_CONFIG_PATH  = path.join(process.env.APPDATA, 'yuu-clip', 'electr
 const DEFAULT_PROJECT_DIR = path.join(process.env.USERPROFILE, 'Videos', 'yuu-clip');
 const BASE_PORT = 8080;
 
-// Cross-checked against yuu_clip/model_catalog.py by
-// tests/test_model_catalog.py::test_electron_wizard_default_llamacpp_model_matches_the_catalog
-// - keep id/repoUrl/filename in sync with that catalog entry.
+// The wizard's default text model, sourced from the generated catalog (no longer a
+// hand-copied literal). `recommended_model` is model_catalog.py's first recommended
+// text entry; the drift test keeps the JSON current with the catalog.
+const _rec = CATALOG_DATA.recommended_model;
 const DEFAULT_LLAMACPP_MODEL = {
-  id: 'qwen2.5-7b-instruct',
-  repoUrl: 'https://huggingface.co/bartowski/Qwen2.5-7B-Instruct-GGUF',
-  filename: 'Qwen2.5-7B-Instruct-Q4_K_M.gguf',
-  sizeGb: 4.7,
+  id: _rec.id,
+  repoUrl: _rec.gguf_url,
+  filename: _rec.filename,
+  sizeGb: _rec.size_gb,
 };
 
 // One-click .gguf downloads land here, out of the user's way (same spirit as
@@ -63,4 +70,5 @@ module.exports = {
   SETUP_LOG, SETUP_COMPLETE_MARKER, WHEEL_MARKER, ELECTRON_CONFIG_PATH,
   DEFAULT_PROJECT_DIR, BASE_PORT,
   DEFAULT_LLAMACPP_MODEL, MODELS_DIR, SETUP_SCHEMA_VERSION,
+  CATALOG_DATA,
 };

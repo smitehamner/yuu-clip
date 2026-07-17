@@ -179,30 +179,41 @@ empty. (This ESM architecture replaced the original all-`window`-globals,
 `Object.assign(window, {...})` design; if you find a doc or comment describing that older
 pattern as current, it is stale.)
 
-### 2. Two parallel model-selection stacks - hand-sync them
+### 2. Two parallel model-selection stacks - layout differs, data is generated
 
-Model selection exists in **two separate stacks that cannot share code**. A change to
-one must be mirrored in the other by hand.
+Model selection exists in **two separate stacks that cannot share runtime code**. The
+*wiring* differs by runtime; the *data* is generated once so it can't drift.
 
 - **In-app Settings** - browser JS (`settings/settings.js`, `settings/modelcatalog.js`)
   -> HTTP -> Python [model_catalog.py](../../yuu_clip/model_catalog.py) + the
   `download-gguf` CLI.
 - **Electron setup wizard** - renderer (`electron/setup.html`) -> IPC ->
   [electron/main.js](../../electron/main.js) handler `setup:download-gguf-model`
-  ([main.js:341](../../electron/main.js#L341)), which downloads the hardcoded
-  `DEFAULT_LLAMACPP_MODEL` ([electron/constants.js:43](../../electron/constants.js#L43))
-  with Node and writes `config.json` directly.
+  ([main.js:341](../../electron/main.js#L341)), which downloads `DEFAULT_LLAMACPP_MODEL`
+  ([electron/constants.js](../../electron/constants.js)) with Node and writes
+  `config.json` directly.
 
-They genuinely cannot be DRY-ed: different runtimes (browser vs Electron/Node), and the
-wizard runs **before the Python server exists**, so it cannot call the endpoints Settings
-depends on. Consequences:
+They genuinely cannot be DRY-ed at runtime: different runtimes (browser vs Electron/Node),
+and the wizard runs **before the Python server exists**, so it cannot call the endpoints
+Settings depends on.
 
-- The wizard's `DEFAULT_LLAMACPP_MODEL` duplicates a `model_catalog.py` entry. Keep its
-  id and filename matching a *recommended* catalog entry so the two catalogs do not
-  drift.
-- The wizard only ever sets the **text** model (`llm_model_path`). If it ever gains
-  vision-model selection it must write `llm_vision_model_path`, never `llm_model_path` -
-  a vision download must not clobber the text scorer.
+**The data both stacks read is generated, not hand-synced.**
+`yuu-dev shared-data` ([yuu_clip/dev/shareddata.py](../../yuu_clip/dev/shareddata.py))
+bakes the recommended model, whisper models + languages, content presets, and AI-privacy
+copy from the Python sources of truth into `catalog-data.json`, written to two committed
+copies: `yuu_clip/web/static/shared/` (web) and `electron/shared/` (wizard). The wizard's
+`constants.js`/`recommend-model.js` `require()` the JSON and `setup-preload.js` exposes it
+to the renderer as `window.CATALOG_DATA`. Run `yuu-dev shared-data` after touching
+`model_catalog.py` / `config.py` / `content_presets.py` / `whisper_catalog.py`;
+`tests/unit/test_shared_data_drift.py` guards it. Consequences:
+
+- `DEFAULT_LLAMACPP_MODEL` and `recommend-model.js` are lookups into the generated
+  `recommended_model` (= `model_catalog.text_models()[0]`), not literals - do not
+  re-hardcode them.
+- The wizard only ever sets the **text** model (`llm_model_path`), so `recommended_model`
+  must stay a text (non-vision) entry (enforced in `test_shared_data_drift.py`). If the
+  wizard ever gains vision-model selection it must write `llm_vision_model_path`, never
+  `llm_model_path` - a vision download must not clobber the text scorer.
 
 ### 3. SpeechBrain must not be imported before `transformers.pipeline` resolves
 
