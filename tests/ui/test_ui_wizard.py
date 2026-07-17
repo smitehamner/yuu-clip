@@ -46,7 +46,7 @@ window.__mockStatus = {
   ffmpegOk: true,
   gpu: { name: 'NVIDIA GeForce RTX 3080', vramMB: 10240, vendor: 'nvidia' },
   cuda: { available: true, version: '12.4' },
-  recommendedWhisper: { model: 'large-v3', reason: '10 GB+ VRAM' },
+  recommendedWhisper: { model: 'large-v3', reason: '6 GB+ VRAM - best accuracy' },
   projectDir: 'C:/Users/test/Videos/yuu-clip',
   aiPrivacyMode: 'local_only',
   llmBackend: 'llamacpp', llmModelPath: '',
@@ -78,16 +78,16 @@ def _expand_advanced(page: Page) -> None:
 
 @skip_no_server
 class TestWizardLayout:
-    def test_sections_ordered_required_llm_optional_basics(self, page: Page):
+    def test_sections_ordered_required_basics_llm_content_optional(self, page: Page):
         _open_wizard(page)
         titles = page.eval_on_selector_all(
             ".sec-title", "els => els.map(e => e.textContent.trim())"
         )
         assert titles[0] == "Required"
-        assert titles[1].startswith("LLM scoring")
-        assert titles[2] == "Content type"
-        assert titles[3] == "Optional"
-        assert titles[4] == "Basics"
+        assert titles[1] == "Basics"
+        assert titles[2].startswith("LLM scoring")
+        assert titles[3] == "Content type"
+        assert titles[4] == "Optional"
 
     def test_launch_enabled_when_ffmpeg_ok(self, page: Page):
         _open_wizard(page)
